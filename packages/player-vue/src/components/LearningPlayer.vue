@@ -6,6 +6,7 @@ import {
   CyclePhase,
   DEFAULT_CONFIG,
 } from '@ssi/core'
+import SessionComplete from './SessionComplete.vue'
 
 // ============================================
 // DEMO DATA - Creates LearningItems matching core types
@@ -150,6 +151,8 @@ const currentPhase = ref(Phase.PROMPT)
 const currentItemIndex = ref(0)
 const isPlaying = ref(false) // Start paused until engine ready
 const itemsPracticed = ref(0)
+const showSessionComplete = ref(false)
+const sessionSeedsEarned = ref(0)
 
 // Smooth ring progress (0-100) - continuous animation
 const ringProgressRaw = ref(0)
@@ -370,6 +373,45 @@ const toggleTurbo = () => {
 const toggleListening = () => listeningMode.value = !listeningMode.value
 
 // ============================================
+// SESSION COMPLETE HANDLERS
+// ============================================
+
+const endSession = () => {
+  // Stop playback
+  if (orchestrator.value) {
+    orchestrator.value.stop()
+  }
+  isPlaying.value = false
+
+  // Calculate seeds earned (demo: ~1 seed per 3 items practiced)
+  sessionSeedsEarned.value = Math.floor(itemsPracticed.value / 3)
+  completedSeeds.value += sessionSeedsEarned.value
+
+  // Show session complete screen
+  showSessionComplete.value = true
+}
+
+const handleContinueSession = () => {
+  // Hide session complete and continue
+  showSessionComplete.value = false
+  sessionSeedsEarned.value = 0
+  itemsPracticed.value = 0
+  sessionSeconds.value = 0
+
+  // Restart playback
+  isPlaying.value = true
+  if (orchestrator.value && currentItem.value) {
+    orchestrator.value.startItem(currentItem.value)
+  }
+}
+
+const handleFinishSession = () => {
+  // In a real app, this would navigate away or close the player
+  // For now, just stay on the complete screen
+  console.log('Session finished - would navigate to dashboard')
+}
+
+// ============================================
 // LIFECYCLE
 // ============================================
 
@@ -414,10 +456,27 @@ onUnmounted(() => {
 </script>
 
 <template>
+  <!-- Session Complete Overlay -->
+  <Transition name="session-complete">
+    <SessionComplete
+      v-if="showSessionComplete"
+      :items-practiced="itemsPracticed"
+      :session-seconds="sessionSeconds"
+      :seeds-earned="sessionSeedsEarned"
+      :current-belt="currentBelt"
+      :belt-progress="beltProgress"
+      :completed-seeds="completedSeeds"
+      :next-belt="nextBelt"
+      @continue="handleContinueSession"
+      @finish="handleFinishSession"
+    />
+  </Transition>
+
   <div
     class="player"
     :class="[`belt-${currentBelt.name}`, { 'is-paused': !isPlaying }]"
     :style="beltCssVars"
+    v-show="!showSessionComplete"
   >
     <!-- Moonlit Dojo Background Layers -->
     <div class="bg-gradient"></div>
@@ -507,9 +566,12 @@ onUnmounted(() => {
       </div>
 
       <div class="header-right">
-        <div class="session-timer">
+        <button class="session-timer" @click="endSession" title="End Session">
           <span class="timer-value">{{ formattedSessionTime }}</span>
-        </div>
+          <svg class="timer-end-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="6" y="6" width="12" height="12" rx="1"/>
+          </svg>
+        </button>
 
         <button class="theme-toggle" @click="toggleTheme">
           <div class="toggle-track">
@@ -1014,6 +1076,9 @@ onUnmounted(() => {
 .logo-something { color: var(--text-primary); }
 
 .session-timer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   font-family: 'Space Mono', monospace;
   font-size: 0.875rem;
   color: var(--text-secondary);
@@ -1021,6 +1086,26 @@ onUnmounted(() => {
   background: var(--bg-card);
   border-radius: 100px;
   border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.session-timer:hover {
+  background: var(--bg-elevated);
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.session-timer:hover .timer-end-icon {
+  opacity: 1;
+  color: var(--accent);
+}
+
+.timer-end-icon {
+  width: 14px;
+  height: 14px;
+  opacity: 0.5;
+  transition: all 0.2s ease;
 }
 
 .timer-value {
@@ -1719,6 +1804,37 @@ onUnmounted(() => {
   .transport-btn--main svg {
     width: 18px;
     height: 18px;
+  }
+}
+
+/* ============ SESSION COMPLETE TRANSITION ============ */
+.session-complete-enter-active {
+  animation: session-complete-in 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.session-complete-leave-active {
+  animation: session-complete-out 0.3s ease-in;
+}
+
+@keyframes session-complete-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes session-complete-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.05);
   }
 }
 </style>
