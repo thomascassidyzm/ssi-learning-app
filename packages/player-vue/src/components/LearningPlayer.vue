@@ -289,9 +289,9 @@ const toggleTheme = () => {
 class RealAudioController {
   constructor() {
     this.endedCallbacks = new Set()
-    this.audio = null
-    this.currentCleanup = null  // Track cleanup function for current playback
-    this.preloadedUrls = new Set()  // Just track which URLs are preloaded
+    this.audio = null  // Single reusable Audio element for mobile compatibility
+    this.currentCleanup = null
+    this.preloadedUrls = new Set()
   }
 
   async play(audioRef) {
@@ -301,46 +301,69 @@ class RealAudioController {
     const url = audioRef?.url
     if (!url) {
       console.warn('[AudioController] No URL in audioRef:', audioRef)
-      // Notify listeners even for empty audio
       this._notifyEnded()
       return Promise.resolve()
     }
 
     return new Promise((resolve) => {
-      // Always create fresh Audio instance to avoid event listener issues
-      this.audio = new Audio(url)
-
-      const cleanup = () => {
-        if (this.audio) {
-          this.audio.removeEventListener('ended', onEnded)
-          this.audio.removeEventListener('error', onError)
-        }
-        this.currentCleanup = null
+      // Reuse or create Audio element - reusing helps with mobile autoplay
+      if (!this.audio) {
+        this.audio = new Audio()
       }
 
       const onEnded = () => {
-        cleanup()
-        // Notify listeners FIRST (orchestrator needs this to advance phase)
+        this.audio?.removeEventListener('ended', onEnded)
+        this.audio?.removeEventListener('error', onError)
+        this.currentCleanup = null
         this._notifyEnded()
         resolve()
       }
 
       const onError = (e) => {
         console.error('[AudioController] Error playing:', url, e)
-        cleanup()
-        // Notify listeners even on error
+        this.audio?.removeEventListener('ended', onEnded)
+        this.audio?.removeEventListener('error', onError)
+        this.currentCleanup = null
+        // On error, still notify so cycle can continue
         this._notifyEnded()
-        resolve() // Resolve anyway to not block the cycle
+        resolve()
       }
+
+      // Remove any stale listeners first
+      this.audio.removeEventListener('ended', this._lastEndedHandler)
+      this.audio.removeEventListener('error', this._lastErrorHandler)
+
+      // Track handlers for cleanup
+      this._lastEndedHandler = onEnded
+      this._lastErrorHandler = onError
 
       this.audio.addEventListener('ended', onEnded)
       this.audio.addEventListener('error', onError)
 
-      // Store cleanup function so stop() can use it
-      this.currentCleanup = cleanup
+      // Store cleanup
+      this.currentCleanup = () => {
+        this.audio?.removeEventListener('ended', onEnded)
+        this.audio?.removeEventListener('error', onError)
+      }
 
-      // Play directly - browser handles loading
-      this.audio.play().catch(onError)
+      // Set source and play
+      this.audio.src = url
+      this.audio.load()
+
+      const playPromise = this.audio.play()
+      if (playPromise) {
+        playPromise.catch((e) => {
+          // NotAllowedError means autoplay blocked - this is expected on mobile
+          if (e.name === 'NotAllowedError') {
+            console.warn('[AudioController] Autoplay blocked, waiting for audio to be ready')
+            // Don't trigger error handler, just wait - user needs to interact
+            // For now, advance anyway to keep cycle moving
+            onError(e)
+          } else {
+            onError(e)
+          }
+        })
+      }
     })
   }
 
@@ -355,11 +378,12 @@ class RealAudioController {
   stop() {
     if (this.currentCleanup) {
       this.currentCleanup()
+      this.currentCleanup = null
     }
     if (this.audio) {
       this.audio.pause()
-      this.audio.src = '' // Release resources
-      this.audio = null
+      this.audio.currentTime = 0
+      // Don't null the audio element - reuse it for mobile compatibility
     }
   }
 
