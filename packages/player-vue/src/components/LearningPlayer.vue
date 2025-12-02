@@ -803,17 +803,9 @@ onUnmounted(() => {
   z-index: 0;
 }
 
-/* Belt color wash - subtle ambient energy */
+/* Belt color wash - REMOVED for Schindler's List restraint */
 .bg-belt-wash {
-  position: fixed;
-  inset: 0;
-  background:
-    radial-gradient(ellipse 100% 60% at 50% 120%, var(--belt-glow) 0%, transparent 60%),
-    radial-gradient(ellipse 40% 30% at 10% 50%, var(--belt-glow) 0%, transparent 50%);
-  opacity: 0.5;
-  pointer-events: none;
-  z-index: 0;
-  transition: background 1s ease;
+  display: none;
 }
 
 .bg-noise {
@@ -862,6 +854,21 @@ onUnmounted(() => {
 
 .mountain--near {
   fill: rgba(255, 255, 255, 0.08);
+}
+
+/* Belt-colored accent on mountain ridges - the "Schindler's flower" */
+.mountain--mid {
+  filter: drop-shadow(0 -1px 3px var(--belt-glow));
+}
+
+.mountain--near {
+  filter: drop-shadow(0 -2px 6px var(--belt-glow));
+}
+
+/* Black belt = pure zen, no color accents */
+.belt-black .mountain--mid,
+.belt-black .mountain--near {
+  filter: none;
 }
 
 .torii {
@@ -993,9 +1000,17 @@ onUnmounted(() => {
   width: 3px;
   height: 3px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.4);
-  box-shadow: 0 0 6px rgba(255, 255, 255, 0.3);
+  /* Belt-colored fireflies - bioluminescent glow */
+  background: var(--belt-color);
+  box-shadow: 0 0 8px var(--belt-glow), 0 0 16px var(--belt-glow);
   animation: mote-rise 20s ease-in-out infinite;
+  transition: background 0.5s ease, box-shadow 0.5s ease;
+}
+
+/* Black belt = subtle white fireflies, pure zen */
+.belt-black .mote {
+  background: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.2);
 }
 
 /* Distribute motes across the scene */
@@ -1029,10 +1044,17 @@ onUnmounted(() => {
   }
 }
 
-/* Light theme motes - warmer, golden tint */
+/* Light theme motes - still use belt colors but slightly more visible */
 [data-theme="light"] .mote {
-  background: rgba(212, 168, 83, 0.5);
-  box-shadow: 0 0 8px rgba(212, 168, 83, 0.4);
+  background: var(--belt-color);
+  box-shadow: 0 0 6px var(--belt-glow), 0 0 12px var(--belt-glow);
+  opacity: 0.7;
+}
+
+/* Light theme black belt - subtle grey motes */
+[data-theme="light"] .belt-black .mote {
+  background: rgba(0, 0, 0, 0.2);
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.1);
 }
 
 /* ============ HEADER ============ */
