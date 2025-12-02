@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CyclePhase } from '@ssi/core';
 import { LearningPlayer } from '@ssi/ui';
+import '@ssi/ui/dist/index.css';
 
 // Demo phrases for showcasing
 const demoPhases: Array<{
