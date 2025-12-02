@@ -247,8 +247,8 @@ class MockAudioController {
 
   async play(audioRef) {
     this.playing = true
-    // Simulate audio duration (1.5-2.5 seconds)
-    const duration = 1500 + Math.random() * 1000
+    // Simulate audio duration - fixed 2 seconds for consistent demo pacing
+    const duration = 2000
     return new Promise((resolve) => {
       this.playTimer = setTimeout(() => {
         this.playing = false
@@ -364,7 +364,7 @@ const toggleTurbo = () => {
   // Update orchestrator config for faster timings
   if (orchestrator.value) {
     orchestrator.value.updateConfig({
-      pause_duration_ms: turboActive.value ? 1500 : DEFAULT_CONFIG.cycle.pause_duration_ms,
+      pause_duration_ms: turboActive.value ? 2000 : 4000,  // Turbo: 2s, Normal: 4s
     })
   }
 }
@@ -406,10 +406,16 @@ onMounted(() => {
   // Create mock audio controller
   audioController.value = new MockAudioController()
 
-  // Create CycleOrchestrator
+  // Create CycleOrchestrator with demo-friendly timings
+  // Pause = 4s (2x the simulated 2s audio duration)
+  const demoConfig = {
+    ...DEFAULT_CONFIG.cycle,
+    pause_duration_ms: 4000,  // 2x target audio length for speaking
+    transition_gap_ms: 300,   // Shorter gap between phases
+  }
   orchestrator.value = new CycleOrchestrator(
     audioController.value,
-    DEFAULT_CONFIG.cycle
+    demoConfig
   )
 
   // Subscribe to events
