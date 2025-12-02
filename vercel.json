@@ -1,6 +1,6 @@
 {
   "buildCommand": "cd packages/player-vue && npm install && npm run build",
   "outputDirectory": "packages/player-vue/dist",
-  "installCommand": "npm install",
+  "installCommand": "echo 'Skipping root install - player-vue is standalone'",
   "framework": "vite"
 }
