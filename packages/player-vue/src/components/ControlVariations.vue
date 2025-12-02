@@ -2,23 +2,45 @@
 import { ref } from 'vue'
 
 const isPlaying = ref(true)
+const turboActive = ref(false)
+const listeningMode = ref(false)
+
 const togglePlay = () => isPlaying.value = !isPlaying.value
+const toggleTurbo = () => turboActive.value = !turboActive.value
+const toggleListening = () => listeningMode.value = !listeningMode.value
 </script>
 
 <template>
   <div class="variations-showcase">
     <h1 class="showcase-title">Control Bar Variations</h1>
-    <p class="showcase-subtitle">Exploring different design directions for SSi Learning Player</p>
+    <p class="showcase-subtitle">Play/Stop · Revisit · Skip · Turbo Boost · Listening Mode</p>
 
     <!-- VARIATION 1: Zen Minimal -->
     <section class="variation">
       <div class="variation-header">
         <span class="variation-number">01</span>
         <h2>Zen Minimal</h2>
-        <p>Single focus point. Tap the ring to pause. Ambient, meditation-app feel.</p>
+        <p>Central ring for play/stop. Subtle secondary controls fade in on hover.</p>
       </div>
       <div class="variation-demo demo-dark">
-        <div class="zen-controls">
+        <div class="zen-container">
+          <!-- Secondary controls (left) -->
+          <div class="zen-side zen-left">
+            <button class="zen-secondary" title="Revisit">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="1 4 1 10 7 10"/>
+                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+              </svg>
+            </button>
+            <button class="zen-secondary" :class="{ active: listeningMode }" @click="toggleListening" title="Listening Mode">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+                <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Main play/stop ring -->
           <button class="zen-ring" :class="{ playing: isPlaying }" @click="togglePlay">
             <svg class="zen-ring-svg" viewBox="0 0 120 120">
               <circle class="zen-track" cx="60" cy="60" r="54" fill="none" stroke-width="2"/>
@@ -35,175 +57,267 @@ const togglePlay = () => isPlaying.value = !isPlaying.value
               </svg>
             </div>
           </button>
-          <p class="zen-hint">tap to {{ isPlaying ? 'pause' : 'resume' }}</p>
+
+          <!-- Secondary controls (right) -->
+          <div class="zen-side zen-right">
+            <button class="zen-secondary" :class="{ active: turboActive }" @click="toggleTurbo" title="Turbo Boost">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+              </svg>
+            </button>
+            <button class="zen-secondary" title="Skip">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="5 4 15 12 5 20"/>
+                <rect x="17" y="4" width="2" height="16"/>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- VARIATION 2: Music Player -->
+    <!-- VARIATION 2: Dock Bar -->
     <section class="variation">
       <div class="variation-header">
         <span class="variation-number">02</span>
-        <h2>Music Player</h2>
-        <p>Familiar controls. Previous/Play/Next pattern. Confident, polished.</p>
-      </div>
-      <div class="variation-demo demo-dark">
-        <div class="music-controls">
-          <button class="music-btn music-btn--secondary">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <polygon points="19 20 9 12 19 4"/>
-              <rect x="5" y="4" width="2" height="16"/>
-            </svg>
-          </button>
-          <button class="music-btn music-btn--primary" @click="togglePlay">
-            <svg v-if="isPlaying" viewBox="0 0 24 24" fill="currentColor">
-              <rect x="6" y="4" width="4" height="16" rx="1"/>
-              <rect x="14" y="4" width="4" height="16" rx="1"/>
-            </svg>
-            <svg v-else viewBox="0 0 24 24" fill="currentColor">
-              <polygon points="6 3 20 12 6 21"/>
-            </svg>
-          </button>
-          <button class="music-btn music-btn--secondary">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <polygon points="5 4 15 12 5 20"/>
-              <rect x="17" y="4" width="2" height="16"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-    </section>
-
-    <!-- VARIATION 3: Pill Bar -->
-    <section class="variation">
-      <div class="variation-header">
-        <span class="variation-number">03</span>
-        <h2>Pill Bar</h2>
-        <p>Unified container. Segmented controls. Modern app aesthetic.</p>
-      </div>
-      <div class="variation-demo demo-dark">
-        <div class="pill-controls">
-          <button class="pill-segment">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="1 4 1 10 7 10"/>
-              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
-            </svg>
-          </button>
-          <div class="pill-divider"></div>
-          <button class="pill-segment pill-segment--main" @click="togglePlay">
-            <svg v-if="isPlaying" viewBox="0 0 24 24" fill="currentColor">
-              <rect x="6" y="4" width="4" height="16" rx="1"/>
-              <rect x="14" y="4" width="4" height="16" rx="1"/>
-            </svg>
-            <svg v-else viewBox="0 0 24 24" fill="currentColor">
-              <polygon points="6 3 20 12 6 21"/>
-            </svg>
-          </button>
-          <div class="pill-divider"></div>
-          <button class="pill-segment">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <polygon points="5 4 15 12 5 20"/>
-              <rect x="17" y="4" width="2" height="16"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-    </section>
-
-    <!-- VARIATION 4: Floating Orbs -->
-    <section class="variation">
-      <div class="variation-header">
-        <span class="variation-number">04</span>
-        <h2>Floating Orbs</h2>
-        <p>Playful, organic shapes. Glass morphism. Delightful micro-interactions.</p>
-      </div>
-      <div class="variation-demo demo-dark">
-        <div class="orb-controls">
-          <button class="orb orb--small">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="1 4 1 10 7 10"/>
-              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
-            </svg>
-          </button>
-          <button class="orb orb--large" @click="togglePlay">
-            <svg v-if="isPlaying" viewBox="0 0 24 24" fill="currentColor">
-              <rect x="6" y="4" width="4" height="16" rx="1"/>
-              <rect x="14" y="4" width="4" height="16" rx="1"/>
-            </svg>
-            <svg v-else viewBox="0 0 24 24" fill="currentColor">
-              <polygon points="6 3 20 12 6 21"/>
-            </svg>
-          </button>
-          <button class="orb orb--small">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <polygon points="5 4 15 12 5 20"/>
-              <rect x="17" y="4" width="2" height="16"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-    </section>
-
-    <!-- VARIATION 5: Inline Text -->
-    <section class="variation">
-      <div class="variation-header">
-        <span class="variation-number">05</span>
-        <h2>Inline Text</h2>
-        <p>Words as buttons. Editorial feel. Typographic confidence.</p>
-      </div>
-      <div class="variation-demo demo-dark">
-        <div class="text-controls">
-          <button class="text-btn">Again</button>
-          <span class="text-divider">·</span>
-          <button class="text-btn text-btn--primary" @click="togglePlay">
-            {{ isPlaying ? 'Pause' : 'Play' }}
-          </button>
-          <span class="text-divider">·</span>
-          <button class="text-btn">Skip</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- VARIATION 6: Bottom Dock -->
-    <section class="variation">
-      <div class="variation-header">
-        <span class="variation-number">06</span>
-        <h2>Bottom Dock</h2>
-        <p>macOS-style dock. Hover to expand. Satisfying physics.</p>
+        <h2>Dock Bar</h2>
+        <p>All controls in a unified floating bar. Modes on the right with separator.</p>
       </div>
       <div class="variation-demo demo-dark">
         <div class="dock-controls">
-          <button class="dock-item">
+          <button class="dock-item" title="Revisit">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="1 4 1 10 7 10"/>
               <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
             </svg>
-            <span class="dock-tooltip">Again</span>
+            <span class="dock-label">Revisit</span>
           </button>
+
           <button class="dock-item dock-item--primary" @click="togglePlay">
             <svg v-if="isPlaying" viewBox="0 0 24 24" fill="currentColor">
-              <rect x="6" y="4" width="4" height="16" rx="1"/>
-              <rect x="14" y="4" width="4" height="16" rx="1"/>
+              <rect x="5" y="3" width="6" height="18" rx="1"/>
+              <rect x="13" y="3" width="6" height="18" rx="1"/>
             </svg>
             <svg v-else viewBox="0 0 24 24" fill="currentColor">
               <polygon points="6 3 20 12 6 21"/>
             </svg>
-            <span class="dock-tooltip">{{ isPlaying ? 'Pause' : 'Play' }}</span>
+            <span class="dock-label">{{ isPlaying ? 'Stop' : 'Play' }}</span>
           </button>
-          <button class="dock-item">
+
+          <button class="dock-item" title="Skip">
             <svg viewBox="0 0 24 24" fill="currentColor">
               <polygon points="5 4 15 12 5 20"/>
               <rect x="17" y="4" width="2" height="16"/>
             </svg>
-            <span class="dock-tooltip">Skip</span>
+            <span class="dock-label">Skip</span>
           </button>
+
           <div class="dock-separator"></div>
-          <button class="dock-item dock-item--boost">
+
+          <button class="dock-item dock-item--turbo" :class="{ active: turboActive }" @click="toggleTurbo" title="Turbo Boost">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+            </svg>
+            <span class="dock-label">Turbo</span>
+          </button>
+
+          <button class="dock-item dock-item--listening" :class="{ active: listeningMode }" @click="toggleListening" title="Listening Mode">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+              <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+            </svg>
+            <span class="dock-label">Listen</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- VARIATION 3: Split Controls -->
+    <section class="variation">
+      <div class="variation-header">
+        <span class="variation-number">03</span>
+        <h2>Split Controls</h2>
+        <p>Main transport left, mode toggles right. Clear visual hierarchy.</p>
+      </div>
+      <div class="variation-demo demo-dark">
+        <div class="split-controls">
+          <div class="split-left">
+            <button class="split-btn" title="Revisit">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="1 4 1 10 7 10"/>
+                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+              </svg>
+            </button>
+            <button class="split-btn split-btn--main" @click="togglePlay">
+              <svg v-if="isPlaying" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="5" y="3" width="6" height="18" rx="1"/>
+                <rect x="13" y="3" width="6" height="18" rx="1"/>
+              </svg>
+              <svg v-else viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="6 3 20 12 6 21"/>
+              </svg>
+            </button>
+            <button class="split-btn" title="Skip">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="5 4 15 12 5 20"/>
+                <rect x="17" y="4" width="2" height="16"/>
+              </svg>
+            </button>
+          </div>
+
+          <div class="split-right">
+            <button class="mode-toggle" :class="{ active: turboActive }" @click="toggleTurbo">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+              </svg>
+              <span>Turbo</span>
+            </button>
+            <button class="mode-toggle" :class="{ active: listeningMode }" @click="toggleListening">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+                <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+              </svg>
+              <span>Listen</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VARIATION 4: Pill Segments -->
+    <section class="variation">
+      <div class="variation-header">
+        <span class="variation-number">04</span>
+        <h2>Pill Segments</h2>
+        <p>Compact unified bar. Modes as toggleable segments on the ends.</p>
+      </div>
+      <div class="variation-demo demo-dark">
+        <div class="pill-controls">
+          <button class="pill-mode" :class="{ active: turboActive }" @click="toggleTurbo" title="Turbo Boost">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
             </svg>
-            <span class="dock-tooltip">Boost</span>
           </button>
+
+          <div class="pill-main">
+            <button class="pill-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="1 4 1 10 7 10"/>
+                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+              </svg>
+            </button>
+            <button class="pill-btn pill-btn--center" @click="togglePlay">
+              <svg v-if="isPlaying" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="5" y="3" width="6" height="18" rx="1"/>
+                <rect x="13" y="3" width="6" height="18" rx="1"/>
+              </svg>
+              <svg v-else viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="6 3 20 12 6 21"/>
+              </svg>
+            </button>
+            <button class="pill-btn">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="5 4 15 12 5 20"/>
+                <rect x="17" y="4" width="2" height="16"/>
+              </svg>
+            </button>
+          </div>
+
+          <button class="pill-mode pill-mode--listen" :class="{ active: listeningMode }" @click="toggleListening" title="Listening Mode">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+              <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- VARIATION 5: Floating Cards -->
+    <section class="variation">
+      <div class="variation-header">
+        <span class="variation-number">05</span>
+        <h2>Floating Cards</h2>
+        <p>Separate floating elements. Modes as distinct toggleable cards.</p>
+      </div>
+      <div class="variation-demo demo-dark">
+        <div class="cards-controls">
+          <div class="transport-card">
+            <button class="card-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="1 4 1 10 7 10"/>
+                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+              </svg>
+            </button>
+            <button class="card-btn card-btn--main" @click="togglePlay">
+              <svg v-if="isPlaying" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="5" y="3" width="6" height="18" rx="1"/>
+                <rect x="13" y="3" width="6" height="18" rx="1"/>
+              </svg>
+              <svg v-else viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="6 3 20 12 6 21"/>
+              </svg>
+            </button>
+            <button class="card-btn">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="5 4 15 12 5 20"/>
+                <rect x="17" y="4" width="2" height="16"/>
+              </svg>
+            </button>
+          </div>
+
+          <div class="mode-cards">
+            <button class="mode-card" :class="{ active: turboActive }" @click="toggleTurbo">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+              </svg>
+              <span>Turbo</span>
+            </button>
+            <button class="mode-card mode-card--listen" :class="{ active: listeningMode }" @click="toggleListening">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+                <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+              </svg>
+              <span>Listen</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VARIATION 6: Text Minimal -->
+    <section class="variation">
+      <div class="variation-header">
+        <span class="variation-number">06</span>
+        <h2>Text Minimal</h2>
+        <p>Typography-forward. Words as controls. Editorial confidence.</p>
+      </div>
+      <div class="variation-demo demo-dark">
+        <div class="text-controls">
+          <div class="text-transport">
+            <button class="text-btn">Revisit</button>
+            <span class="text-sep">·</span>
+            <button class="text-btn text-btn--main" @click="togglePlay">
+              {{ isPlaying ? 'Stop' : 'Play' }}
+            </button>
+            <span class="text-sep">·</span>
+            <button class="text-btn">Skip</button>
+          </div>
+          <div class="text-modes">
+            <button class="text-mode" :class="{ active: turboActive }" @click="toggleTurbo">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+              </svg>
+              Turbo
+            </button>
+            <button class="text-mode" :class="{ active: listeningMode }" @click="toggleListening">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+                <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+              </svg>
+              Listen
+            </button>
+          </div>
         </div>
       </div>
     </section>
@@ -215,7 +329,7 @@ const togglePlay = () => isPlaying.value = !isPlaying.value
 .variations-showcase {
   min-height: 100vh;
   background: #0a0a0b;
-  padding: 3rem 1.5rem;
+  padding: 3rem 1.5rem 6rem;
   font-family: 'Source Sans 3', -apple-system, sans-serif;
 }
 
@@ -236,8 +350,8 @@ const togglePlay = () => isPlaying.value = !isPlaying.value
 }
 
 .variation {
-  max-width: 600px;
-  margin: 0 auto 3rem;
+  max-width: 700px;
+  margin: 0 auto 4rem;
 }
 
 .variation-header {
@@ -281,11 +395,53 @@ const togglePlay = () => isPlaying.value = !isPlaying.value
 }
 
 /* ============ VARIATION 1: Zen Minimal ============ */
-.zen-controls {
+.zen-container {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+}
+
+.zen-side {
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: 1rem;
+  opacity: 0.5;
+  transition: opacity 0.3s ease;
+}
+
+.zen-container:hover .zen-side {
+  opacity: 1;
+}
+
+.zen-secondary {
+  width: 44px;
+  height: 44px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  color: #707070;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.zen-secondary:hover {
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+  transform: scale(1.05);
+}
+
+.zen-secondary.active {
+  background: rgba(212, 168, 83, 0.2);
+  border-color: #d4a853;
+  color: #d4a853;
+}
+
+.zen-secondary svg {
+  width: 20px;
+  height: 20px;
 }
 
 .zen-ring {
@@ -302,10 +458,6 @@ const togglePlay = () => isPlaying.value = !isPlaying.value
   transform: scale(1.05);
 }
 
-.zen-ring:active {
-  transform: scale(0.98);
-}
-
 .zen-ring-svg {
   width: 100%;
   height: 100%;
@@ -318,7 +470,6 @@ const togglePlay = () => isPlaying.value = !isPlaying.value
 .zen-progress {
   stroke: #c23a3a;
   stroke-linecap: round;
-  transition: stroke-dashoffset 0.5s ease;
 }
 
 .zen-ring.playing .zen-progress {
@@ -332,7 +483,7 @@ const togglePlay = () => isPlaying.value = !isPlaying.value
   transform: translate(-50%, -50%);
   width: 32px;
   height: 32px;
-  color: #b0b0b0;
+  color: #808080;
   transition: color 0.3s ease;
 }
 
@@ -344,84 +495,104 @@ const togglePlay = () => isPlaying.value = !isPlaying.value
   color: #c23a3a;
 }
 
-.zen-hint {
-  font-size: 0.75rem;
-  color: #505050;
-  letter-spacing: 0.1em;
-  text-transform: lowercase;
-}
-
-/* ============ VARIATION 2: Music Player ============ */
-.music-controls {
+/* ============ VARIATION 2: Dock Bar ============ */
+.dock-controls {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  gap: 6px;
+  padding: 10px 14px;
+  background: rgba(26, 26, 26, 0.95);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.1);
 }
 
-.music-btn {
+.dock-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 56px;
+  padding: 10px 8px;
+  background: transparent;
   border: none;
+  border-radius: 12px;
+  color: #707070;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.music-btn--secondary {
-  width: 48px;
-  height: 48px;
-  background: rgba(255,255,255,0.05);
-  border-radius: 50%;
-  color: #707070;
+.dock-item svg {
+  width: 22px;
+  height: 22px;
 }
 
-.music-btn--secondary:hover {
-  background: rgba(255,255,255,0.1);
-  color: #b0b0b0;
-  transform: scale(1.05);
+.dock-label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
-.music-btn--secondary svg {
-  width: 20px;
-  height: 20px;
+.dock-item:hover {
+  background: rgba(255,255,255,0.08);
+  color: #fff;
 }
 
-.music-btn--primary {
-  width: 72px;
-  height: 72px;
-  background: linear-gradient(135deg, #c23a3a 0%, #9a2e2e 100%);
-  border-radius: 50%;
+.dock-item--primary {
+  background: #c23a3a;
   color: white;
-  box-shadow: 0 4px 24px rgba(194, 58, 58, 0.4);
+  border-radius: 14px;
 }
 
-.music-btn--primary:hover {
-  transform: scale(1.08);
-  box-shadow: 0 6px 32px rgba(194, 58, 58, 0.5);
+.dock-item--primary:hover {
+  background: #d44;
 }
 
-.music-btn--primary:active {
-  transform: scale(1.02);
+.dock-separator {
+  width: 1px;
+  height: 36px;
+  background: rgba(255,255,255,0.15);
+  margin: 0 6px;
 }
 
-.music-btn--primary svg {
-  width: 28px;
-  height: 28px;
+.dock-item--turbo:hover,
+.dock-item--turbo.active {
+  background: rgba(212, 168, 83, 0.2);
+  color: #d4a853;
 }
 
-/* ============ VARIATION 3: Pill Bar ============ */
-.pill-controls {
+.dock-item--listening:hover,
+.dock-item--listening.active {
+  background: rgba(74, 222, 128, 0.15);
+  color: #4ade80;
+}
+
+/* ============ VARIATION 3: Split Controls ============ */
+.split-controls {
   display: flex;
   align-items: center;
-  background: #1a1a1a;
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 100px;
-  padding: 6px;
+  gap: 2rem;
+  width: 100%;
+  justify-content: center;
 }
 
-.pill-segment {
-  width: 52px;
-  height: 52px;
+.split-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  background: #1a1a1a;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.split-btn {
+  width: 48px;
+  height: 48px;
   background: transparent;
   border: none;
-  border-radius: 50%;
+  border-radius: 12px;
   color: #707070;
   cursor: pointer;
   display: flex;
@@ -430,98 +601,274 @@ const togglePlay = () => isPlaying.value = !isPlaying.value
   transition: all 0.2s ease;
 }
 
-.pill-segment svg {
+.split-btn svg {
   width: 20px;
   height: 20px;
 }
 
-.pill-segment:hover {
-  background: rgba(255,255,255,0.05);
-  color: #b0b0b0;
+.split-btn:hover {
+  background: rgba(255,255,255,0.08);
+  color: #fff;
 }
 
-.pill-segment--main {
-  width: 64px;
-  height: 64px;
+.split-btn--main {
+  width: 56px;
+  height: 56px;
   background: #c23a3a;
   color: white;
+  border-radius: 14px;
 }
 
-.pill-segment--main:hover {
+.split-btn--main:hover {
   background: #d44;
-  color: white;
 }
 
-.pill-segment--main svg {
+.split-btn--main svg {
   width: 24px;
   height: 24px;
 }
 
-.pill-divider {
-  width: 1px;
-  height: 24px;
-  background: rgba(255,255,255,0.1);
-  margin: 0 4px;
+.split-right {
+  display: flex;
+  gap: 8px;
 }
 
-/* ============ VARIATION 4: Floating Orbs ============ */
-.orb-controls {
+.mode-toggle {
   display: flex;
   align-items: center;
-  gap: 1rem;
-}
-
-.orb {
-  border: none;
+  gap: 6px;
+  padding: 10px 16px;
+  background: #1a1a1a;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  color: #606060;
+  font-size: 0.8125rem;
+  font-weight: 600;
   cursor: pointer;
-  backdrop-filter: blur(20px);
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: all 0.2s ease;
 }
 
-.orb--small {
-  width: 56px;
-  height: 56px;
+.mode-toggle svg {
+  width: 18px;
+  height: 18px;
+}
+
+.mode-toggle:hover {
+  border-color: rgba(255,255,255,0.2);
+  color: #909090;
+}
+
+.mode-toggle.active {
+  background: rgba(212, 168, 83, 0.15);
+  border-color: #d4a853;
+  color: #d4a853;
+}
+
+/* ============ VARIATION 4: Pill Segments ============ */
+.pill-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pill-mode {
+  width: 48px;
+  height: 48px;
+  background: #1a1a1a;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 14px;
+  color: #505050;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.pill-mode svg {
+  width: 20px;
+  height: 20px;
+}
+
+.pill-mode:hover {
+  border-color: rgba(255,255,255,0.2);
+  color: #808080;
+}
+
+.pill-mode.active {
+  background: rgba(212, 168, 83, 0.2);
+  border-color: #d4a853;
+  color: #d4a853;
+}
+
+.pill-mode--listen.active {
+  background: rgba(74, 222, 128, 0.15);
+  border-color: #4ade80;
+  color: #4ade80;
+}
+
+.pill-main {
+  display: flex;
+  align-items: center;
+  background: #1a1a1a;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 18px;
+  padding: 6px;
+}
+
+.pill-btn {
+  width: 44px;
+  height: 44px;
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  color: #606060;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.pill-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.pill-btn:hover {
   background: rgba(255,255,255,0.08);
-  border-radius: 20px;
-  color: #707070;
-}
-
-.orb--small:hover {
-  background: rgba(255,255,255,0.12);
   color: #b0b0b0;
-  transform: translateY(-4px) scale(1.05);
 }
 
-.orb--small svg {
+.pill-btn--center {
+  width: 52px;
+  height: 52px;
+  background: #c23a3a;
+  color: white;
+  margin: 0 4px;
+  border-radius: 14px;
+}
+
+.pill-btn--center:hover {
+  background: #d44;
+}
+
+.pill-btn--center svg {
   width: 22px;
   height: 22px;
 }
 
-.orb--large {
-  width: 80px;
-  height: 80px;
-  background: linear-gradient(135deg, rgba(194, 58, 58, 0.9), rgba(154, 46, 46, 0.9));
-  border-radius: 28px;
+/* ============ VARIATION 5: Floating Cards ============ */
+.cards-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.transport-card {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  background: #1a1a1a;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 18px;
+}
+
+.card-btn {
+  width: 48px;
+  height: 48px;
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  color: #606060;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.card-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.card-btn:hover {
+  background: rgba(255,255,255,0.08);
+  color: #b0b0b0;
+}
+
+.card-btn--main {
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #c23a3a, #9a2e2e);
   color: white;
-  box-shadow:
-    0 8px 32px rgba(194, 58, 58, 0.3),
-    inset 0 1px 0 rgba(255,255,255,0.2);
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(194, 58, 58, 0.35);
 }
 
-.orb--large:hover {
-  transform: translateY(-6px) scale(1.05);
-  box-shadow:
-    0 12px 40px rgba(194, 58, 58, 0.4),
-    inset 0 1px 0 rgba(255,255,255,0.2);
+.card-btn--main:hover {
+  transform: scale(1.05);
 }
 
-.orb--large svg {
-  width: 32px;
-  height: 32px;
+.card-btn--main svg {
+  width: 26px;
+  height: 26px;
 }
 
-/* ============ VARIATION 5: Inline Text ============ */
+.mode-cards {
+  display: flex;
+  gap: 10px;
+}
+
+.mode-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: #1a1a1a;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  color: #505050;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mode-card svg {
+  width: 18px;
+  height: 18px;
+}
+
+.mode-card:hover {
+  border-color: rgba(255,255,255,0.2);
+  color: #808080;
+}
+
+.mode-card.active {
+  background: rgba(212, 168, 83, 0.15);
+  border-color: #d4a853;
+  color: #d4a853;
+}
+
+.mode-card--listen.active {
+  background: rgba(74, 222, 128, 0.12);
+  border-color: #4ade80;
+  color: #4ade80;
+}
+
+/* ============ VARIATION 6: Text Minimal ============ */
 .text-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.text-transport {
   display: flex;
   align-items: center;
   gap: 1rem;
@@ -537,7 +884,7 @@ const togglePlay = () => isPlaying.value = !isPlaying.value
   cursor: pointer;
   padding: 0.5rem 0;
   position: relative;
-  transition: all 0.2s ease;
+  transition: color 0.2s ease;
 }
 
 .text-btn::after {
@@ -560,113 +907,51 @@ const togglePlay = () => isPlaying.value = !isPlaying.value
   transform: scaleX(1);
 }
 
-.text-btn--primary {
-  font-size: 1.25rem;
-  font-weight: 600;
+.text-btn--main {
+  font-size: 1.5rem;
+  font-weight: 700;
   color: #c23a3a;
 }
 
-.text-btn--primary:hover {
+.text-btn--main:hover {
   color: #e54545;
 }
 
-.text-divider {
+.text-sep {
   color: #333;
   font-size: 1.5rem;
 }
 
-/* ============ VARIATION 6: Bottom Dock ============ */
-.dock-controls {
+.text-modes {
   display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  padding: 12px 16px;
-  background: rgba(30, 30, 30, 0.9);
-  backdrop-filter: blur(20px);
-  border-radius: 20px;
-  border: 1px solid rgba(255,255,255,0.1);
+  gap: 1.5rem;
 }
 
-.dock-item {
-  position: relative;
-  width: 48px;
-  height: 48px;
-  background: rgba(255,255,255,0.05);
-  border: none;
-  border-radius: 14px;
-  color: #808080;
-  cursor: pointer;
+.text-mode {
   display: flex;
   align-items: center;
-  justify-content: center;
-  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  gap: 6px;
+  background: none;
+  border: none;
+  font-family: 'Source Sans 3', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #404040;
+  cursor: pointer;
+  padding: 8px 0;
+  transition: color 0.2s ease;
 }
 
-.dock-item svg {
-  width: 20px;
-  height: 20px;
+.text-mode svg {
+  width: 16px;
+  height: 16px;
 }
 
-.dock-item:hover {
-  background: rgba(255,255,255,0.1);
-  color: #fff;
-  transform: translateY(-8px) scale(1.15);
+.text-mode:hover {
+  color: #707070;
 }
 
-.dock-item--primary {
-  width: 56px;
-  height: 56px;
-  background: #c23a3a;
-  color: white;
-  border-radius: 16px;
-}
-
-.dock-item--primary:hover {
-  background: #d44;
-  transform: translateY(-12px) scale(1.2);
-}
-
-.dock-item--primary svg {
-  width: 24px;
-  height: 24px;
-}
-
-.dock-item--boost {
+.text-mode.active {
   color: #d4a853;
-}
-
-.dock-item--boost:hover {
-  background: rgba(212, 168, 83, 0.2);
-  color: #d4a853;
-}
-
-.dock-separator {
-  width: 1px;
-  height: 32px;
-  background: rgba(255,255,255,0.1);
-  margin: 0 4px;
-  align-self: center;
-}
-
-.dock-tooltip {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%) translateY(8px);
-  background: #242424;
-  color: #fff;
-  font-size: 0.75rem;
-  font-weight: 500;
-  padding: 6px 10px;
-  border-radius: 8px;
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transition: all 0.2s ease;
-}
-
-.dock-item:hover .dock-tooltip {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
 }
 </style>
