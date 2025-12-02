@@ -53,19 +53,19 @@ const currentPhrase = computed(() => phrases[currentPhraseIndex.value])
 const sessionProgress = computed(() => (itemsPracticed.value + 1) / phrases.length)
 const showTargetText = computed(() => currentPhase.value === Phase.VOICE_2)
 
-// Phase symbols/icons
+// Phase symbols/icons - CORRECT ORDER
 const phaseInfo = computed(() => {
   switch (currentPhase.value) {
     case Phase.PROMPT:
-      return { icon: 'ear', label: 'Listen', instruction: 'Hear the phrase' }
+      return { icon: 'speaker', label: 'Listen', instruction: 'Hear the phrase' }
     case Phase.SPEAK:
       return { icon: 'mic', label: 'Speak', instruction: 'Say it in the target language' }
     case Phase.VOICE_1:
-      return { icon: 'speaker', label: 'Check', instruction: 'Listen to the answer' }
+      return { icon: 'ear', label: 'Listen', instruction: 'Listen to the answer' }
     case Phase.VOICE_2:
       return { icon: 'eye', label: 'Read', instruction: 'See and hear the answer' }
     default:
-      return { icon: 'ear', label: '', instruction: '' }
+      return { icon: 'speaker', label: '', instruction: '' }
   }
 })
 
@@ -236,7 +236,7 @@ onUnmounted(() => {
 
     <!-- Main Content - Fixed Layout -->
     <main class="main">
-      <!-- 4-Phase Indicator -->
+      <!-- 4-Phase Indicator: Speaker → Mic → Ear → Eye -->
       <div class="phase-dots">
         <div
           v-for="(phase, idx) in ['prompt', 'speak', 'voice_1', 'voice_2']"
@@ -247,21 +247,24 @@ onUnmounted(() => {
             complete: Object.values(Phase).indexOf(currentPhase) > idx
           }"
         >
-          <!-- Phase symbols -->
+          <!-- Phase 1: Speaker (playing audio) -->
           <svg v-if="idx === 0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-            <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
-          </svg>
-          <svg v-else-if="idx === 1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
             <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
             <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
           </svg>
-          <svg v-else-if="idx === 2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M9 18V5l12-2v13"/>
-            <circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+          <!-- Phase 2: Mic (learner speaking) -->
+          <svg v-else-if="idx === 1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
           </svg>
+          <!-- Phase 3: Ear (listening to answer) -->
+          <svg v-else-if="idx === 2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M6 8.5a6.5 6.5 0 1 1 13 0c0 6-6 6-6 10.5"/>
+            <circle cx="12" cy="22" r="1" fill="currentColor"/>
+          </svg>
+          <!-- Phase 4: Eye (see and hear) -->
           <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
             <circle cx="12" cy="12" r="3"/>
@@ -328,18 +331,24 @@ onUnmounted(() => {
           </div>
           <!-- Phase icon when playing -->
           <div v-else class="phase-icon" :class="currentPhase">
-            <svg v-if="phaseInfo.icon === 'ear'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-            </svg>
-            <svg v-else-if="phaseInfo.icon === 'mic'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <!-- Speaker (Phase 1: Hear prompt) -->
+            <svg v-if="phaseInfo.icon === 'speaker'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
               <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
               <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
             </svg>
-            <svg v-else-if="phaseInfo.icon === 'speaker'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M9 18V5l12-2v13"/>
-              <circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+            <!-- Mic (Phase 2: Learner speaks) -->
+            <svg v-else-if="phaseInfo.icon === 'mic'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+              <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
             </svg>
+            <!-- Ear (Phase 3: Listen to answer) -->
+            <svg v-else-if="phaseInfo.icon === 'ear'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M6 8.5a6.5 6.5 0 1 1 13 0c0 6-6 6-6 10.5"/>
+              <circle cx="12" cy="22" r="1" fill="currentColor"/>
+            </svg>
+            <!-- Eye (Phase 4: See and hear) -->
             <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
               <circle cx="12" cy="12" r="3"/>
