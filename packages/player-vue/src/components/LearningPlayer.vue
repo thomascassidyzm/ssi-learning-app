@@ -10,22 +10,20 @@ const phrases = [
   { known: 'Can you help me please?', target: '¿Puedes ayudarme por favor?' },
 ]
 
-// Phase enum
+// 4 Distinct Phases
 const Phase = {
-  PROMPT: 'prompt',
-  PAUSE: 'pause',
-  VOICE_1: 'voice_1',
-  VOICE_2: 'voice_2',
-  TRANSITION: 'transition'
+  PROMPT: 'prompt',      // Hear prompt in known language
+  SPEAK: 'speak',        // Learner speaks (countdown)
+  VOICE_1: 'voice_1',    // Model voice 1
+  VOICE_2: 'voice_2',    // Model voice 2 + show text
 }
 
 // Phase durations in ms
 const phaseDurations = {
   [Phase.PROMPT]: 2500,
-  [Phase.PAUSE]: 5000,
+  [Phase.SPEAK]: 5000,
   [Phase.VOICE_1]: 2500,
   [Phase.VOICE_2]: 2500,
-  [Phase.TRANSITION]: 800
 }
 
 // State
@@ -33,10 +31,12 @@ const theme = ref('dark')
 const currentPhase = ref(Phase.PROMPT)
 const currentPhraseIndex = ref(0)
 const isPlaying = ref(true)
-const pauseTimeRemaining = ref(5)
-const pauseTimerFrozen = ref(false) // Track if timer reached end
 const itemsPracticed = ref(0)
-const activeThread = ref(1)
+
+// Smooth ring progress (0-100) - continuous animation
+const ringProgressRaw = ref(0)
+let ringAnimationFrame = null
+let phaseStartTime = 0
 
 // Session timer
 const sessionSeconds = ref(0)
@@ -51,43 +51,57 @@ const formattedSessionTime = computed(() => {
 // Computed
 const currentPhrase = computed(() => phrases[currentPhraseIndex.value])
 const sessionProgress = computed(() => (itemsPracticed.value + 1) / phrases.length)
-
-const phaseLabel = computed(() => {
-  switch (currentPhase.value) {
-    case Phase.PROMPT: return 'Listen'
-    case Phase.PAUSE: return 'Your turn'
-    case Phase.VOICE_1: return 'Native speaker'
-    case Phase.VOICE_2: return 'Native speaker'
-    default: return ''
-  }
-})
-
-const phaseInstruction = computed(() => {
-  switch (currentPhase.value) {
-    case Phase.PROMPT: return 'Hear the phrase in your language'
-    case Phase.PAUSE: return 'Try to say it in the target language'
-    case Phase.VOICE_1: return 'Listen to the native pronunciation'
-    case Phase.VOICE_2: return 'Now see and hear the answer'
-    default: return ''
-  }
-})
-
 const showTargetText = computed(() => currentPhase.value === Phase.VOICE_2)
 
-const isAudioPlaying = computed(() =>
-  [Phase.PROMPT, Phase.VOICE_1, Phase.VOICE_2].includes(currentPhase.value)
-)
+// Phase symbols/icons
+const phaseInfo = computed(() => {
+  switch (currentPhase.value) {
+    case Phase.PROMPT:
+      return { icon: 'ear', label: 'Listen', instruction: 'Hear the phrase' }
+    case Phase.SPEAK:
+      return { icon: 'mic', label: 'Speak', instruction: 'Say it in the target language' }
+    case Phase.VOICE_1:
+      return { icon: 'speaker', label: 'Check', instruction: 'Listen to the answer' }
+    case Phase.VOICE_2:
+      return { icon: 'eye', label: 'Read', instruction: 'See and hear the answer' }
+    default:
+      return { icon: 'ear', label: '', instruction: '' }
+  }
+})
 
-// Ring animation progress (0-100) - fills up during PAUSE, stays full at end
+// Ring progress for SPEAK phase only (0-100)
 const ringProgress = computed(() => {
-  if (currentPhase.value !== Phase.PAUSE) return pauseTimerFrozen.value ? 100 : 0
-  // Timer counts down from 5 to 0, so progress goes from 0% to 100%
-  return ((5 - pauseTimeRemaining.value) / 5) * 100
+  if (currentPhase.value !== Phase.SPEAK) return 0
+  return ringProgressRaw.value
 })
 
 // Timer intervals
 let phaseTimer = null
-let pauseCountdown = null
+
+// Smooth ring animation using requestAnimationFrame
+const animateRing = () => {
+  if (!isPlaying.value || currentPhase.value !== Phase.SPEAK) {
+    ringAnimationFrame = null
+    return
+  }
+
+  const elapsed = Date.now() - phaseStartTime
+  const duration = phaseDurations[Phase.SPEAK]
+  const progress = Math.min((elapsed / duration) * 100, 100)
+
+  ringProgressRaw.value = progress
+
+  if (progress < 100) {
+    ringAnimationFrame = requestAnimationFrame(animateRing)
+  }
+}
+
+const startRingAnimation = () => {
+  phaseStartTime = Date.now()
+  ringProgressRaw.value = 0
+  if (ringAnimationFrame) cancelAnimationFrame(ringAnimationFrame)
+  ringAnimationFrame = requestAnimationFrame(animateRing)
+}
 
 // Theme toggle
 const toggleTheme = () => {
@@ -102,38 +116,22 @@ const advancePhase = () => {
 
   switch (currentPhase.value) {
     case Phase.PROMPT:
-      currentPhase.value = Phase.PAUSE
-      pauseTimeRemaining.value = 5
-      pauseTimerFrozen.value = false
-      startPauseCountdown()
+      currentPhase.value = Phase.SPEAK
+      startRingAnimation()
       break
-    case Phase.PAUSE:
-      pauseTimerFrozen.value = true // Keep ring full
+    case Phase.SPEAK:
       currentPhase.value = Phase.VOICE_1
       break
     case Phase.VOICE_1:
       currentPhase.value = Phase.VOICE_2
       break
     case Phase.VOICE_2:
-      currentPhase.value = Phase.TRANSITION
-      break
-    case Phase.TRANSITION:
-      pauseTimerFrozen.value = false // Reset for next phrase
+      // Move to next phrase
       currentPhraseIndex.value = (currentPhraseIndex.value + 1) % phrases.length
       itemsPracticed.value++
-      activeThread.value = (activeThread.value % 3) + 1
       currentPhase.value = Phase.PROMPT
       break
   }
-}
-
-const startPauseCountdown = () => {
-  if (pauseCountdown) clearInterval(pauseCountdown)
-  pauseCountdown = setInterval(() => {
-    if (pauseTimeRemaining.value > 0) {
-      pauseTimeRemaining.value--
-    }
-  }, 1000)
 }
 
 const scheduleNextPhase = () => {
@@ -145,215 +143,231 @@ const scheduleNextPhase = () => {
 }
 
 watch(currentPhase, () => {
-  if (pauseCountdown && currentPhase.value !== Phase.PAUSE) {
-    clearInterval(pauseCountdown)
-    pauseCountdown = null
-  }
   scheduleNextPhase()
 })
+
+// Tap on ring to toggle play/stop
+const handleRingTap = () => {
+  if (isPlaying.value) {
+    handlePause()
+  } else {
+    handleResume()
+  }
+}
 
 const handlePause = () => {
   isPlaying.value = false
   if (phaseTimer) clearTimeout(phaseTimer)
-  if (pauseCountdown) clearInterval(pauseCountdown)
+  if (ringAnimationFrame) cancelAnimationFrame(ringAnimationFrame)
 }
 
 const handleResume = () => {
   isPlaying.value = true
-  scheduleNextPhase()
-  if (currentPhase.value === Phase.PAUSE) {
-    startPauseCountdown()
+  if (currentPhase.value === Phase.SPEAK) {
+    // Resume ring animation from where it was
+    const elapsed = (ringProgressRaw.value / 100) * phaseDurations[Phase.SPEAK]
+    phaseStartTime = Date.now() - elapsed
+    ringAnimationFrame = requestAnimationFrame(animateRing)
   }
+  scheduleNextPhase()
 }
 
 const handleSkip = () => {
   if (phaseTimer) clearTimeout(phaseTimer)
-  if (pauseCountdown) clearInterval(pauseCountdown)
+  if (ringAnimationFrame) cancelAnimationFrame(ringAnimationFrame)
   advancePhase()
 }
 
 const handleRevisit = () => {
+  if (phaseTimer) clearTimeout(phaseTimer)
+  if (ringAnimationFrame) cancelAnimationFrame(ringAnimationFrame)
+  ringProgressRaw.value = 0
   currentPhase.value = Phase.PROMPT
-  pauseTimeRemaining.value = 5
+  scheduleNextPhase()
 }
 
 // Mode toggles
 const turboActive = ref(false)
 const listeningMode = ref(false)
 
-const toggleTurbo = () => {
-  turboActive.value = !turboActive.value
-}
-
-const toggleListening = () => {
-  listeningMode.value = !listeningMode.value
-}
+const toggleTurbo = () => turboActive.value = !turboActive.value
+const toggleListening = () => listeningMode.value = !listeningMode.value
 
 onMounted(() => {
   const savedTheme = localStorage.getItem('ssi-theme') || 'dark'
   theme.value = savedTheme
   document.documentElement.setAttribute('data-theme', savedTheme)
   scheduleNextPhase()
-  // Start session timer
+
   sessionTimerInterval = setInterval(() => {
-    if (isPlaying.value) {
-      sessionSeconds.value++
-    }
+    if (isPlaying.value) sessionSeconds.value++
   }, 1000)
 })
 
 onUnmounted(() => {
   if (phaseTimer) clearTimeout(phaseTimer)
-  if (pauseCountdown) clearInterval(pauseCountdown)
+  if (ringAnimationFrame) cancelAnimationFrame(ringAnimationFrame)
   if (sessionTimerInterval) clearInterval(sessionTimerInterval)
 })
 </script>
 
 <template>
   <div class="player" :class="{ 'is-paused': !isPlaying }">
-    <!-- Atmospheric Background -->
-    <div class="bg-atmosphere">
-      <svg class="mountains" viewBox="0 0 1440 200" preserveAspectRatio="none">
-        <path class="mountain-back" d="M0,200 L0,120 Q180,60 360,100 T720,80 T1080,110 T1440,90 L1440,200 Z"/>
-        <path class="mountain-mid" d="M0,200 L0,140 Q240,90 480,130 T960,100 T1440,120 L1440,200 Z"/>
-        <path class="mountain-front" d="M0,200 L0,160 Q360,120 720,150 T1440,140 L1440,200 Z"/>
-      </svg>
-    </div>
+    <!-- Subtle gradient background -->
+    <div class="bg-gradient"></div>
+    <div class="bg-noise"></div>
 
     <!-- Header -->
     <header class="header">
       <div class="brand">
-        <span class="logo-text">
-          <span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span>
-        </span>
-        <span class="logo-bubble"></span>
+        <span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span>
       </div>
 
-      <!-- Session Timer -->
       <div class="session-timer">
-        <svg class="timer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <polyline points="12 6 12 12 16 14"/>
-        </svg>
         <span class="timer-value">{{ formattedSessionTime }}</span>
       </div>
 
-      <button class="theme-toggle" @click="toggleTheme" :title="theme === 'dark' ? 'Switch to light' : 'Switch to dark'">
-        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="5"/>
-          <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
-          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-          <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
-          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-        </svg>
-        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-        </svg>
+      <button class="theme-toggle" @click="toggleTheme">
+        <div class="toggle-track">
+          <div class="toggle-thumb" :class="{ light: theme === 'light' }"></div>
+        </div>
       </button>
     </header>
 
-    <!-- Main Learning Area -->
+    <!-- Main Content - Fixed Layout -->
     <main class="main">
-      <!-- Phase Indicator Strip -->
-      <div class="phase-strip">
-        <div class="phase-step" :class="{ active: currentPhase === Phase.PROMPT, complete: [Phase.PAUSE, Phase.VOICE_1, Phase.VOICE_2].includes(currentPhase) }">
-          <div class="step-marker">1</div>
-          <span>Listen</span>
-        </div>
-        <div class="phase-connector" :class="{ active: [Phase.PAUSE, Phase.VOICE_1, Phase.VOICE_2].includes(currentPhase) }"></div>
-        <div class="phase-step" :class="{ active: currentPhase === Phase.PAUSE, complete: [Phase.VOICE_1, Phase.VOICE_2].includes(currentPhase) }">
-          <div class="step-marker">2</div>
-          <span>Speak</span>
-        </div>
-        <div class="phase-connector" :class="{ active: [Phase.VOICE_1, Phase.VOICE_2].includes(currentPhase) }"></div>
-        <div class="phase-step" :class="{ active: [Phase.VOICE_1, Phase.VOICE_2].includes(currentPhase) }">
-          <div class="step-marker">3</div>
-          <span>Check</span>
+      <!-- 4-Phase Indicator -->
+      <div class="phase-dots">
+        <div
+          v-for="(phase, idx) in ['prompt', 'speak', 'voice_1', 'voice_2']"
+          :key="phase"
+          class="phase-dot"
+          :class="{
+            active: currentPhase === phase,
+            complete: Object.values(Phase).indexOf(currentPhase) > idx
+          }"
+        >
+          <!-- Phase symbols -->
+          <svg v-if="idx === 0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+          </svg>
+          <svg v-else-if="idx === 1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+          </svg>
+          <svg v-else-if="idx === 2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 18V5l12-2v13"/>
+            <circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+          </svg>
+          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
         </div>
       </div>
 
-      <!-- KNOWN LANGUAGE ZONE -->
-      <div class="zone zone--known">
-        <div class="zone-label">Your Language</div>
-        <transition name="text-morph" mode="out-in">
+      <!-- Known Language Text - Fixed Height -->
+      <div class="text-zone text-zone--known">
+        <transition name="text-fade" mode="out-in">
           <p class="known-text" :key="currentPhrase.known">
             {{ currentPhrase.known }}
           </p>
         </transition>
       </div>
 
-      <!-- Central Ring with Big Play Button -->
-      <div class="ring-area">
-        <div
-          class="ring-wrapper"
-          :class="{
-            'is-pause': currentPhase === Phase.PAUSE,
-            'is-audio': isAudioPlaying,
-            'is-complete': pauseTimerFrozen && currentPhase !== Phase.PAUSE
-          }"
-        >
-          <!-- Outer glow ring -->
-          <div class="ring-glow"></div>
+      <!-- Central Ring - Tap to Stop/Play -->
+      <div
+        class="ring-container"
+        @click="handleRingTap"
+        :class="{
+          'is-speak': currentPhase === Phase.SPEAK,
+          'is-paused': !isPlaying
+        }"
+      >
+        <!-- Ambient glow -->
+        <div class="ring-ambient"></div>
 
-          <!-- SVG Ring - enhanced -->
-          <svg class="ring-svg" viewBox="0 0 200 200">
-            <!-- Outer track -->
-            <circle class="ring-track" cx="100" cy="100" r="92" fill="none" stroke-width="2"/>
-            <!-- Main progress ring -->
-            <circle
-              class="ring-progress"
-              cx="100" cy="100" r="92"
-              fill="none"
-              stroke-width="6"
-              :stroke-dasharray="578"
-              :stroke-dashoffset="578 - (ringProgress / 100) * 578"
-              transform="rotate(-90 100 100)"
-            />
-            <!-- Inner decorative ring -->
-            <circle class="ring-inner" cx="100" cy="100" r="82" fill="none" stroke-width="1"/>
-          </svg>
+        <!-- SVG Ring -->
+        <svg class="ring-svg" viewBox="0 0 200 200">
+          <!-- Background track -->
+          <circle
+            class="ring-track"
+            cx="100" cy="100" r="90"
+            fill="none"
+            stroke-width="4"
+          />
+          <!-- Progress arc - smooth continuous -->
+          <circle
+            class="ring-progress"
+            cx="100" cy="100" r="90"
+            fill="none"
+            stroke-width="4"
+            :stroke-dasharray="565.48"
+            :stroke-dashoffset="565.48 - (ringProgress / 100) * 565.48"
+            transform="rotate(-90 100 100)"
+          />
+          <!-- Inner decorative ring -->
+          <circle
+            class="ring-inner"
+            cx="100" cy="100" r="78"
+            fill="none"
+            stroke-width="1"
+          />
+        </svg>
 
-          <!-- BIG Central Play/Stop Button -->
-          <button
-            class="big-play-btn"
-            @click="isPlaying ? handlePause() : handleResume()"
-            :class="{ playing: isPlaying }"
-          >
-            <!-- Play icon -->
-            <svg v-if="!isPlaying" class="play-icon" viewBox="0 0 24 24" fill="currentColor">
+        <!-- Center content -->
+        <div class="ring-center">
+          <!-- Show play button when paused -->
+          <div v-if="!isPlaying" class="play-indicator">
+            <svg viewBox="0 0 24 24" fill="currentColor">
               <polygon points="6 3 20 12 6 21 6 3"/>
             </svg>
-            <!-- Stop icon (square) -->
-            <svg v-else class="stop-icon" viewBox="0 0 24 24" fill="currentColor">
-              <rect x="4" y="4" width="16" height="16" rx="2"/>
+          </div>
+          <!-- Phase icon when playing -->
+          <div v-else class="phase-icon" :class="currentPhase">
+            <svg v-if="phaseInfo.icon === 'ear'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
             </svg>
-          </button>
+            <svg v-else-if="phaseInfo.icon === 'mic'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+              <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+            </svg>
+            <svg v-else-if="phaseInfo.icon === 'speaker'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M9 18V5l12-2v13"/>
+              <circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+            </svg>
+            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+          </div>
         </div>
 
-        <!-- Phase instruction below ring -->
-        <p class="phase-instruction">{{ phaseInstruction }}</p>
+        <!-- Phase label below -->
+        <div class="ring-label">{{ phaseInfo.instruction }}</div>
       </div>
 
-      <!-- TARGET LANGUAGE ZONE -->
-      <div class="zone zone--target">
-        <div class="zone-label">Target Language</div>
-        <transition name="reveal">
+      <!-- Target Language Text - Fixed Height (Always Reserved) -->
+      <div class="text-zone text-zone--target">
+        <transition name="text-reveal" mode="out-in">
           <p v-if="showTargetText" class="target-text" :key="currentPhrase.target">
             {{ currentPhrase.target }}
           </p>
-          <p v-else class="target-placeholder">...</p>
+          <p v-else class="target-placeholder" key="placeholder">&nbsp;</p>
         </transition>
       </div>
     </main>
 
-    <!-- Control Bar - Pill Segments -->
+    <!-- Control Bar -->
     <div class="control-bar">
-      <!-- Left mode: Listening -->
       <button
-        class="mode-btn mode-btn--listening"
+        class="mode-btn"
         :class="{ active: listeningMode }"
         @click="toggleListening"
-        title="Listening Mode"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
@@ -361,29 +375,15 @@ onUnmounted(() => {
         </svg>
       </button>
 
-      <!-- Main transport controls -->
-      <div class="transport-pill">
-        <button class="transport-btn" @click="handleRevisit" title="Revisit">
+      <div class="transport-controls">
+        <button class="transport-btn" @click="handleRevisit">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="1 4 1 10 7 10"/>
             <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
           </svg>
         </button>
 
-        <button
-          class="transport-btn transport-btn--main"
-          @click="isPlaying ? handlePause() : handleResume()"
-        >
-          <svg v-if="isPlaying" viewBox="0 0 24 24" fill="currentColor">
-            <rect x="5" y="3" width="4" height="18" rx="1"/>
-            <rect x="15" y="3" width="4" height="18" rx="1"/>
-          </svg>
-          <svg v-else viewBox="0 0 24 24" fill="currentColor">
-            <polygon points="6 3 20 12 6 21 6 3"/>
-          </svg>
-        </button>
-
-        <button class="transport-btn" @click="handleSkip" title="Skip">
+        <button class="transport-btn" @click="handleSkip">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polygon points="5 4 15 12 5 20 5 4" fill="currentColor"/>
             <line x1="19" y1="5" x2="19" y2="19"/>
@@ -391,12 +391,10 @@ onUnmounted(() => {
         </button>
       </div>
 
-      <!-- Right mode: Turbo -->
       <button
         class="mode-btn mode-btn--turbo"
         :class="{ active: turboActive }"
         @click="toggleTurbo"
-        title="Turbo Boost"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
@@ -404,20 +402,13 @@ onUnmounted(() => {
       </button>
     </div>
 
-    <!-- Footer Progress -->
+    <!-- Footer -->
     <footer class="footer">
-      <div class="progress-track">
-        <div class="progress-fill" :style="{ width: `${sessionProgress * 100}%` }">
-          <div class="progress-glow"></div>
-        </div>
+      <div class="progress-bar">
+        <div class="progress-fill" :style="{ width: `${sessionProgress * 100}%` }"></div>
       </div>
-      <div class="footer-info">
-        <div class="thread-dots">
-          <span v-for="i in 3" :key="i" class="thread-dot" :class="{ active: i === activeThread }"></span>
-        </div>
-        <span class="progress-text">
-          <strong>{{ itemsPracticed }}</strong> of <strong>{{ phrases.length }}</strong> phrases
-        </span>
+      <div class="footer-stats">
+        <span>{{ itemsPracticed }} / {{ phrases.length }}</span>
       </div>
     </footer>
   </div>
@@ -425,52 +416,48 @@ onUnmounted(() => {
 
 <style scoped>
 /* ============================================
-   SSi Learning Player - Zen Dojo Edition
-   Japanese minimalism meets focused learning
+   SSi Learning Player - Zen Sanctuary Edition
+   Refined minimalism, premium feel
    ============================================ */
 
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+
 .player {
+  --accent: #c23a3a;
+  --accent-soft: rgba(194, 58, 58, 0.15);
+  --accent-glow: rgba(194, 58, 58, 0.4);
+  --gold: #d4a853;
+  --gold-soft: rgba(212, 168, 83, 0.15);
+  --success: #22c55e;
+
   position: relative;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--bg-primary);
+  font-family: 'DM Sans', sans-serif;
   overflow: hidden;
-  transition: background-color 0.4s ease;
 }
 
-/* Atmospheric Mountain Background */
-.bg-atmosphere {
+/* Backgrounds */
+.bg-gradient {
   position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 200px;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, var(--accent-soft) 0%, transparent 50%),
+    radial-gradient(ellipse 60% 40% at 80% 100%, var(--gold-soft) 0%, transparent 40%);
   pointer-events: none;
   z-index: 0;
 }
 
-.mountains {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-}
-
-.mountain-back {
-  fill: var(--bg-secondary);
-  opacity: 0.3;
-}
-
-.mountain-mid {
-  fill: var(--bg-secondary);
-  opacity: 0.5;
-}
-
-.mountain-front {
-  fill: var(--bg-secondary);
-  opacity: 0.7;
+.bg-noise {
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  opacity: 0.03;
+  pointer-events: none;
+  z-index: 0;
 }
 
 /* ============ HEADER ============ */
@@ -480,309 +467,195 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1.25rem 1.5rem;
+  padding: 1rem 1.5rem;
 }
 
 .brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.logo-text {
-  font-family: 'Noto Sans JP', sans-serif;
+  font-family: 'DM Sans', sans-serif;
   font-weight: 700;
-  font-size: 1.25rem;
+  font-size: 1.125rem;
   letter-spacing: -0.02em;
 }
 
-.logo-say { color: var(--ssi-red); }
+.logo-say, .logo-in { color: var(--accent); }
 .logo-something { color: var(--text-primary); }
-.logo-in { color: var(--ssi-red); }
 
-.logo-bubble {
-  width: 18px;
-  height: 14px;
-  border: 2px solid var(--ssi-red);
-  border-radius: 3px;
-  position: relative;
-}
-
-.logo-bubble::after {
-  content: '';
-  position: absolute;
-  bottom: -5px;
-  right: 3px;
-  width: 5px;
-  height: 5px;
-  border-right: 2px solid var(--ssi-red);
-  border-bottom: 2px solid var(--ssi-red);
-  transform: rotate(45deg);
-  background: var(--bg-primary);
-  transition: background-color 0.4s ease;
-}
-
-/* Session Timer */
 .session-timer {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  padding: 0.5rem 1rem;
   background: var(--bg-card);
+  border-radius: 100px;
   border: 1px solid var(--border-subtle);
-  border-radius: 24px;
-  font-family: 'Source Sans 3', sans-serif;
-}
-
-.timer-icon {
-  width: 16px;
-  height: 16px;
-  color: var(--text-muted);
 }
 
 .timer-value {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--text-primary);
   font-variant-numeric: tabular-nums;
-  min-width: 48px;
 }
 
 .theme-toggle {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: 1px solid var(--border-medium);
+  width: 48px;
+  height: 28px;
+  padding: 0;
+  border: none;
   background: var(--bg-card);
+  border-radius: 100px;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   position: relative;
-  overflow: hidden;
-  transition: all 0.3s ease;
+  border: 1px solid var(--border-subtle);
 }
 
-.theme-toggle:hover {
-  border-color: var(--ssi-gold);
-  transform: scale(1.05);
+.toggle-track {
+  width: 100%;
+  height: 100%;
+  position: relative;
 }
 
-.theme-toggle svg {
-  width: 18px;
-  height: 18px;
+.toggle-thumb {
   position: absolute;
-  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.icon-sun {
-  color: var(--ssi-gold);
-  opacity: 0;
-  transform: rotate(-90deg) scale(0);
+.toggle-thumb.light {
+  transform: translateX(20px);
+  background: var(--gold);
 }
 
-.icon-moon {
-  color: var(--text-secondary);
-  opacity: 1;
-  transform: rotate(0deg) scale(1);
-}
-
-[data-theme="light"] .icon-sun {
-  opacity: 1;
-  transform: rotate(0deg) scale(1);
-}
-
-[data-theme="light"] .icon-moon {
-  opacity: 0;
-  transform: rotate(90deg) scale(0);
-}
-
-/* ============ MAIN AREA ============ */
+/* ============ MAIN - FIXED LAYOUT ============ */
 .main {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 1rem 1.5rem 2rem;
+  padding: 1rem 1.5rem;
   position: relative;
   z-index: 1;
   gap: 1.5rem;
 }
 
-/* Phase Progress Strip */
-.phase-strip {
+/* 4-Phase Dots */
+.phase-dots {
   display: flex;
-  align-items: center;
-  gap: 0;
+  gap: 1rem;
   margin-bottom: 0.5rem;
 }
 
-.phase-step {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  opacity: 0.4;
-  transition: all 0.3s ease;
-}
-
-.phase-step.active,
-.phase-step.complete {
-  opacity: 1;
-}
-
-.step-marker {
-  width: 28px;
-  height: 28px;
+.phase-dot {
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background: var(--bg-elevated);
+  background: var(--bg-card);
   border: 2px solid var(--border-medium);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: 'Noto Sans JP', sans-serif;
-  font-size: 0.75rem;
-  font-weight: 700;
+  transition: all 0.3s ease;
+}
+
+.phase-dot svg {
+  width: 16px;
+  height: 16px;
   color: var(--text-muted);
   transition: all 0.3s ease;
 }
 
-.phase-step.active .step-marker {
-  background: var(--ssi-red);
-  border-color: var(--ssi-red);
-  color: white;
-  box-shadow: 0 0 20px rgba(194, 58, 58, 0.4);
+.phase-dot.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 20px var(--accent-glow);
 }
 
-.phase-step.complete .step-marker {
+.phase-dot.active svg {
+  color: white;
+}
+
+.phase-dot.complete {
   background: var(--success);
   border-color: var(--success);
+}
+
+.phase-dot.complete svg {
   color: white;
 }
 
-.phase-step span {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-}
-
-.phase-step.active span {
-  color: var(--ssi-red);
-}
-
-.phase-connector {
-  width: 40px;
-  height: 2px;
-  background: var(--border-subtle);
-  margin: 0 8px;
-  margin-bottom: 20px;
-  transition: all 0.3s ease;
-}
-
-.phase-connector.active {
-  background: var(--success);
-}
-
-/* Language Zones */
-.zone {
+/* Text Zones - FIXED HEIGHT */
+.text-zone {
   width: 100%;
-  max-width: 700px;
-  padding: 1.5rem 2rem;
-  border-radius: 16px;
+  max-width: 600px;
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
-  position: relative;
 }
 
-.zone-label {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--text-muted);
-  margin-bottom: 0.75rem;
-}
-
-/* Known Zone - Top */
-.zone--known {
-  background: linear-gradient(180deg, var(--bg-card) 0%, transparent 100%);
-  border: 1px solid var(--border-subtle);
-  border-bottom: none;
-  border-radius: 16px 16px 0 0;
+.text-zone--known {
+  /* Known language styling */
 }
 
 .known-text {
-  font-family: 'Noto Sans JP', sans-serif;
-  font-size: clamp(1.5rem, 5vw, 2.25rem);
+  font-size: clamp(1.5rem, 5vw, 2rem);
   font-weight: 500;
   color: var(--text-primary);
-  line-height: 1.4;
-  letter-spacing: -0.01em;
+  line-height: 1.3;
 }
 
-/* Target Zone - Bottom */
-.zone--target {
-  background: linear-gradient(0deg, rgba(212, 168, 83, 0.08) 0%, transparent 100%);
-  border: 1px solid rgba(212, 168, 83, 0.2);
-  border-top: none;
-  border-radius: 0 0 16px 16px;
-  min-height: 100px;
+.text-zone--target {
+  min-height: 80px; /* Always reserve space */
 }
 
 .target-text {
-  font-family: 'Noto Sans JP', sans-serif;
-  font-size: clamp(1.25rem, 4vw, 1.875rem);
-  font-weight: 500;
-  color: var(--ssi-gold);
-  line-height: 1.4;
+  font-size: clamp(1.25rem, 4vw, 1.75rem);
+  font-weight: 600;
+  color: var(--gold);
+  line-height: 1.3;
 }
 
 .target-placeholder {
-  font-size: 2rem;
-  color: var(--text-muted);
-  letter-spacing: 0.5em;
-  opacity: 0.3;
+  height: 1.75rem; /* Match target text height */
+  opacity: 0;
 }
 
-/* Ring Area */
-.ring-area {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-  margin: -1rem 0; /* Overlap with zones */
+/* ============ RING - THE HERO ============ */
+.ring-container {
   position: relative;
-  z-index: 5;
+  width: 200px;
+  height: 200px;
+  cursor: pointer;
+  transition: transform 0.2s ease;
 }
 
-.ring-wrapper {
-  position: relative;
-  width: clamp(160px, 40vw, 220px);
-  height: clamp(160px, 40vw, 220px);
+.ring-container:hover {
+  transform: scale(1.02);
 }
 
-.ring-glow {
+.ring-container:active {
+  transform: scale(0.98);
+}
+
+.ring-ambient {
   position: absolute;
-  inset: -30px;
+  inset: -40px;
   border-radius: 50%;
-  background: radial-gradient(circle, var(--ssi-red-soft) 0%, transparent 70%);
+  background: radial-gradient(circle, var(--accent-soft) 0%, transparent 70%);
   opacity: 0;
   transition: opacity 0.5s ease;
 }
 
-.ring-wrapper.is-pause .ring-glow {
+.ring-container.is-speak .ring-ambient {
   opacity: 1;
-  animation: glow-pulse 2s ease-in-out infinite;
+  animation: ambient-breathe 3s ease-in-out infinite;
 }
 
-.ring-wrapper.is-complete .ring-glow {
-  opacity: 0.5;
-  background: radial-gradient(circle, rgba(74, 222, 128, 0.3) 0%, transparent 70%);
-}
-
-@keyframes glow-pulse {
+@keyframes ambient-breathe {
   0%, 100% { transform: scale(1); opacity: 0.6; }
   50% { transform: scale(1.1); opacity: 1; }
 }
@@ -790,11 +663,19 @@ onUnmounted(() => {
 .ring-svg {
   width: 100%;
   height: 100%;
+  filter: drop-shadow(0 4px 20px rgba(0,0,0,0.15));
 }
 
 .ring-track {
   stroke: var(--border-medium);
-  opacity: 0.5;
+  opacity: 0.4;
+}
+
+.ring-progress {
+  stroke: var(--accent);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.05s linear; /* Super smooth */
+  filter: drop-shadow(0 0 8px var(--accent-glow));
 }
 
 .ring-inner {
@@ -802,82 +683,83 @@ onUnmounted(() => {
   opacity: 0.3;
 }
 
-.ring-progress {
-  stroke: var(--ssi-red);
-  stroke-linecap: round;
-  transition: stroke-dashoffset 0.1s linear;
-  filter: drop-shadow(0 0 12px var(--ssi-red));
-}
-
-/* When timer complete, turn progress green */
-.ring-wrapper.is-complete .ring-progress {
-  stroke: var(--success);
-  filter: drop-shadow(0 0 12px rgba(74, 222, 128, 0.6));
-}
-
-/* Big Central Play/Stop Button */
-.big-play-btn {
+.ring-center {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 80px;
-  height: 80px;
+  width: 120px;
+  height: 120px;
   border-radius: 50%;
-  border: none;
-  background: linear-gradient(145deg, var(--ssi-red) 0%, var(--ssi-red-dark) 100%);
-  color: white;
-  cursor: pointer;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow:
-    0 4px 20px rgba(194, 58, 58, 0.4),
-    inset 0 2px 0 rgba(255,255,255,0.15);
-  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: all 0.3s ease;
 }
 
-.big-play-btn:hover {
-  transform: translate(-50%, -50%) scale(1.08);
-  box-shadow:
-    0 8px 32px rgba(194, 58, 58, 0.5),
-    inset 0 2px 0 rgba(255,255,255,0.2);
+.ring-container.is-paused .ring-center {
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
-.big-play-btn:active {
-  transform: translate(-50%, -50%) scale(0.98);
+.play-indicator {
+  color: white;
 }
 
-.big-play-btn svg {
-  width: 32px;
-  height: 32px;
+.play-indicator svg {
+  width: 40px;
+  height: 40px;
+  margin-left: 4px; /* Optical centering */
 }
 
-.big-play-btn .play-icon {
-  margin-left: 4px; /* Optical centering for play triangle */
-}
-
-/* Phase Instruction */
-.phase-instruction {
-  font-size: 0.875rem;
+.phase-icon {
   color: var(--text-secondary);
-  text-align: center;
-  max-width: 280px;
-  margin-top: 0.5rem;
+  transition: all 0.3s ease;
 }
 
-/* ============ CONTROLS - PILL SEGMENTS ============ */
+.phase-icon svg {
+  width: 36px;
+  height: 36px;
+}
+
+.phase-icon.speak {
+  color: var(--accent);
+  animation: icon-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes icon-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+.ring-label {
+  position: absolute;
+  bottom: -32px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  transition: opacity 0.3s ease;
+}
+
+.ring-container.is-paused .ring-label {
+  opacity: 0.5;
+}
+
+/* ============ CONTROLS ============ */
 .control-bar {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 12px;
+  gap: 2rem;
   padding: 1rem 1.5rem 1.5rem;
   position: relative;
   z-index: 10;
 }
 
-/* Mode buttons (Listening & Turbo) */
 .mode-btn {
   width: 48px;
   height: 48px;
@@ -900,42 +782,31 @@ onUnmounted(() => {
 .mode-btn:hover {
   background: var(--bg-elevated);
   color: var(--text-primary);
-  transform: scale(1.08);
+  transform: scale(1.05);
   border-color: var(--text-muted);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
 
-/* Listening mode active */
-.mode-btn--listening.active {
+.mode-btn.active {
   background: rgba(74, 222, 128, 0.15);
-  border-color: #4ade80;
-  color: #4ade80;
-  box-shadow: 0 0 20px rgba(74, 222, 128, 0.3);
+  border-color: var(--success);
+  color: var(--success);
+  box-shadow: 0 0 16px rgba(74, 222, 128, 0.3);
 }
 
-/* Turbo mode active */
 .mode-btn--turbo.active {
-  background: rgba(212, 168, 83, 0.2);
-  border-color: var(--ssi-gold);
-  color: var(--ssi-gold);
-  box-shadow: 0 0 20px rgba(212, 168, 83, 0.4);
-  animation: turbo-pulse 1.5s ease-in-out infinite;
+  background: var(--gold-soft);
+  border-color: var(--gold);
+  color: var(--gold);
+  box-shadow: 0 0 16px rgba(212, 168, 83, 0.4);
 }
 
-@keyframes turbo-pulse {
-  0%, 100% { box-shadow: 0 0 20px rgba(212, 168, 83, 0.4); }
-  50% { box-shadow: 0 0 30px rgba(212, 168, 83, 0.6); }
-}
-
-/* Transport pill container */
-.transport-pill {
+.transport-controls {
   display: flex;
-  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: 100px;
-  padding: 6px;
-  gap: 4px;
 }
 
 .transport-btn {
@@ -963,26 +834,6 @@ onUnmounted(() => {
   transform: scale(1.1);
 }
 
-/* Main play/stop button */
-.transport-btn--main {
-  width: 56px;
-  height: 56px;
-  background: linear-gradient(135deg, var(--ssi-red) 0%, var(--ssi-red-dark) 100%);
-  color: white;
-  box-shadow: 0 4px 16px rgba(194, 58, 58, 0.4);
-}
-
-.transport-btn--main svg {
-  width: 22px;
-  height: 22px;
-}
-
-.transport-btn--main:hover {
-  background: linear-gradient(135deg, var(--ssi-red-light) 0%, var(--ssi-red) 100%);
-  transform: scale(1.05);
-  box-shadow: 0 6px 24px rgba(194, 58, 58, 0.5);
-}
-
 /* ============ FOOTER ============ */
 .footer {
   padding: 0 1.5rem 1.5rem;
@@ -990,278 +841,189 @@ onUnmounted(() => {
   z-index: 10;
 }
 
-.progress-track {
-  height: 4px;
+.progress-bar {
+  height: 3px;
   background: var(--bg-elevated);
   border-radius: 2px;
   overflow: hidden;
-  margin-bottom: 12px;
+  margin-bottom: 0.75rem;
 }
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--ssi-red) 0%, var(--ssi-gold) 100%);
+  background: linear-gradient(90deg, var(--accent) 0%, var(--gold) 100%);
   border-radius: 2px;
   transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-  position: relative;
 }
 
-.progress-glow {
-  position: absolute;
-  right: 0;
-  top: -4px;
-  bottom: -4px;
-  width: 20px;
-  background: linear-gradient(90deg, transparent, var(--ssi-gold));
-  filter: blur(4px);
-}
-
-.footer-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.thread-dots {
-  display: flex;
-  gap: 6px;
-}
-
-.thread-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--bg-elevated);
-  transition: all 0.3s ease;
-}
-
-.thread-dot.active {
-  background: var(--ssi-red);
-  box-shadow: 0 0 8px var(--ssi-red-soft);
-}
-
-.progress-text {
-  font-size: 0.8125rem;
+.footer-stats {
+  text-align: center;
+  font-size: 0.75rem;
   color: var(--text-muted);
-}
-
-.progress-text strong {
-  color: var(--text-secondary);
-  font-weight: 600;
+  font-family: 'Space Mono', monospace;
 }
 
 /* ============ TRANSITIONS ============ */
-.text-morph-enter-active {
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.text-morph-leave-active {
-  transition: all 0.25s ease;
-}
-
-.text-morph-enter-from {
-  opacity: 0;
-  transform: translateY(16px);
-  filter: blur(4px);
-}
-
-.text-morph-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
-  filter: blur(2px);
-}
-
-.reveal-enter-active {
-  transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.reveal-leave-active {
+.text-fade-enter-active,
+.text-fade-leave-active {
   transition: all 0.3s ease;
 }
 
-.reveal-enter-from {
+.text-fade-enter-from {
   opacity: 0;
-  transform: translateY(24px) scale(0.95);
+  transform: translateY(8px);
 }
 
-.reveal-leave-to {
+.text-fade-leave-to {
   opacity: 0;
-  transform: translateY(-12px);
+  transform: translateY(-8px);
+}
+
+.text-reveal-enter-active {
+  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.text-reveal-leave-active {
+  transition: all 0.2s ease;
+}
+
+.text-reveal-enter-from {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+.text-reveal-leave-to {
+  opacity: 0;
 }
 
 /* ============ PAUSED STATE ============ */
-.player.is-paused {
-  /* Slight desaturation when paused */
-}
-
-.player.is-paused .ring-wrapper {
-  opacity: 0.7;
+.player.is-paused .ring-ambient {
+  opacity: 0 !important;
 }
 
 /* ============ RESPONSIVE ============ */
-
-/* Desktop / Chromebook optimization */
 @media (min-width: 768px) {
   .main {
-    padding: 2rem 3rem;
-    gap: 1rem;
+    gap: 2rem;
   }
 
-  .zone {
-    max-width: 800px;
-    padding: 2rem 3rem;
+  .ring-container {
+    width: 240px;
+    height: 240px;
   }
 
-  .ring-wrapper {
-    width: 200px;
-    height: 200px;
+  .ring-center {
+    width: 140px;
+    height: 140px;
   }
 
-  .big-play-btn {
-    width: 90px;
-    height: 90px;
+  .phase-icon svg {
+    width: 44px;
+    height: 44px;
   }
 
-  .big-play-btn svg {
-    width: 36px;
-    height: 36px;
-  }
-
-  .control-bar {
-    gap: 16px;
-    padding: 1.5rem 2rem 2rem;
-  }
-
-  .mode-btn {
-    width: 52px;
-    height: 52px;
-  }
-
-  .transport-btn {
+  .play-indicator svg {
     width: 48px;
     height: 48px;
   }
 
-  .transport-btn--main {
-    width: 60px;
-    height: 60px;
-  }
-}
-
-/* Large desktop */
-@media (min-width: 1200px) {
-  .zone {
-    max-width: 900px;
+  .text-zone {
+    min-height: 100px;
   }
 
   .known-text {
-    font-size: 2.5rem;
+    font-size: 2.25rem;
   }
 
   .target-text {
-    font-size: 2rem;
+    font-size: 1.875rem;
+  }
+
+  .phase-dots {
+    gap: 1.5rem;
+  }
+
+  .phase-dot {
+    width: 44px;
+    height: 44px;
+  }
+
+  .phase-dot svg {
+    width: 20px;
+    height: 20px;
   }
 }
 
-/* Mobile */
 @media (max-width: 480px) {
   .header {
     padding: 0.75rem 1rem;
   }
 
-  .logo-text {
+  .brand {
     font-size: 1rem;
   }
 
-  .session-timer {
-    padding: 6px 12px;
-  }
-
-  .timer-value {
-    font-size: 0.875rem;
-  }
-
-  .theme-toggle {
-    width: 36px;
-    height: 36px;
-  }
-
   .main {
-    padding: 0.5rem 1rem 1rem;
+    padding: 0.75rem 1rem;
+    gap: 1rem;
+  }
+
+  .ring-container {
+    width: 160px;
+    height: 160px;
+  }
+
+  .ring-center {
+    width: 100px;
+    height: 100px;
+  }
+
+  .phase-icon svg {
+    width: 28px;
+    height: 28px;
+  }
+
+  .play-indicator svg {
+    width: 32px;
+    height: 32px;
+  }
+
+  .ring-label {
+    font-size: 0.75rem;
+    bottom: -28px;
+  }
+
+  .text-zone {
+    min-height: 60px;
+  }
+
+  .phase-dots {
     gap: 0.75rem;
   }
 
-  .phase-strip {
-    transform: scale(0.8);
-    margin-bottom: 0;
+  .phase-dot {
+    width: 32px;
+    height: 32px;
   }
 
-  .zone {
-    padding: 1rem 1.25rem;
-  }
-
-  .zone-label {
-    font-size: 0.625rem;
-    margin-bottom: 0.5rem;
-  }
-
-  .ring-wrapper {
-    width: 140px;
-    height: 140px;
-  }
-
-  .big-play-btn {
-    width: 64px;
-    height: 64px;
-  }
-
-  .big-play-btn svg {
-    width: 26px;
-    height: 26px;
+  .phase-dot svg {
+    width: 14px;
+    height: 14px;
   }
 
   .control-bar {
-    gap: 8px;
+    gap: 1rem;
     padding: 0.75rem 1rem 1rem;
   }
 
   .mode-btn {
-    width: 40px;
-    height: 40px;
-  }
-
-  .mode-btn svg {
-    width: 18px;
-    height: 18px;
-  }
-
-  .transport-pill {
-    padding: 4px;
-    gap: 2px;
+    width: 42px;
+    height: 42px;
   }
 
   .transport-btn {
-    width: 36px;
-    height: 36px;
-  }
-
-  .transport-btn svg {
-    width: 16px;
-    height: 16px;
-  }
-
-  .transport-btn--main {
-    width: 44px;
-    height: 44px;
-  }
-
-  .transport-btn--main svg {
-    width: 18px;
-    height: 18px;
-  }
-
-  .footer {
-    padding: 0 1rem 1rem;
+    width: 38px;
+    height: 38px;
   }
 }
 </style>
