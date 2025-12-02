@@ -1,0 +1,6 @@
+{
+  "buildCommand": "pnpm install && pnpm --filter @ssi/core build && pnpm --filter @ssi/ui build && pnpm --filter @ssi/demo build",
+  "outputDirectory": "packages/demo/dist",
+  "installCommand": "npm install -g pnpm && pnpm install",
+  "framework": null
+}
