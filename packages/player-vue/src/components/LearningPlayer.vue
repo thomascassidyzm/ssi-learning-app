@@ -152,7 +152,6 @@ const currentItemIndex = ref(0)
 const isPlaying = ref(false) // Start paused until engine ready
 const itemsPracticed = ref(0)
 const showSessionComplete = ref(false)
-const sessionSeedsEarned = ref(0)
 
 // Smooth ring progress (0-100) - continuous animation
 const ringProgressRaw = ref(0)
@@ -373,42 +372,25 @@ const toggleTurbo = () => {
 const toggleListening = () => listeningMode.value = !listeningMode.value
 
 // ============================================
-// SESSION COMPLETE HANDLERS
+// PAUSE/RESUME HANDLERS
 // ============================================
 
-const endSession = () => {
-  // Stop playback
+const showPausedSummary = () => {
+  // Stop playback and show summary
   if (orchestrator.value) {
     orchestrator.value.stop()
   }
   isPlaying.value = false
-
-  // Calculate seeds earned (demo: ~1 seed per 3 items practiced)
-  sessionSeedsEarned.value = Math.floor(itemsPracticed.value / 3)
-  completedSeeds.value += sessionSeedsEarned.value
-
-  // Show session complete screen
   showSessionComplete.value = true
 }
 
-const handleContinueSession = () => {
-  // Hide session complete and continue
+const handleResumeLearning = () => {
+  // Hide summary and continue the infinite stream
   showSessionComplete.value = false
-  sessionSeedsEarned.value = 0
-  itemsPracticed.value = 0
-  sessionSeconds.value = 0
-
-  // Restart playback
   isPlaying.value = true
   if (orchestrator.value && currentItem.value) {
     orchestrator.value.startItem(currentItem.value)
   }
-}
-
-const handleFinishSession = () => {
-  // In a real app, this would navigate away or close the player
-  // For now, just stay on the complete screen
-  console.log('Session finished - would navigate to dashboard')
 }
 
 // ============================================
@@ -456,19 +438,17 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <!-- Session Complete Overlay -->
+  <!-- Paused Summary Overlay -->
   <Transition name="session-complete">
     <SessionComplete
       v-if="showSessionComplete"
       :items-practiced="itemsPracticed"
-      :session-seconds="sessionSeconds"
-      :seeds-earned="sessionSeedsEarned"
+      :time-spent-seconds="sessionSeconds"
       :current-belt="currentBelt"
       :belt-progress="beltProgress"
       :completed-seeds="completedSeeds"
       :next-belt="nextBelt"
-      @continue="handleContinueSession"
-      @finish="handleFinishSession"
+      @resume="handleResumeLearning"
     />
   </Transition>
 
@@ -566,7 +546,7 @@ onUnmounted(() => {
       </div>
 
       <div class="header-right">
-        <button class="session-timer" @click="endSession" title="End Session">
+        <button class="session-timer" @click="showPausedSummary" title="Pause &amp; Summary">
           <span class="timer-value">{{ formattedSessionTime }}</span>
           <svg class="timer-end-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="6" y="6" width="12" height="12" rx="1"/>
