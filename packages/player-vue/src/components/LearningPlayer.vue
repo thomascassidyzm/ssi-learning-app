@@ -290,68 +290,104 @@ class RealAudioController {
   constructor() {
     this.endedCallbacks = new Set()
     this.audio = null
-    this.preloadedAudio = new Map()
+    this.currentCleanup = null  // Track cleanup function for current playback
+    this.preloadedUrls = new Set()  // Just track which URLs are preloaded
   }
 
   async play(audioRef) {
-    // Stop any currently playing audio
+    // Stop any currently playing audio and cleanup handlers
     this.stop()
 
     const url = audioRef?.url
     if (!url) {
       console.warn('[AudioController] No URL in audioRef:', audioRef)
-      // Resolve immediately if no URL
+      // Notify listeners even for empty audio
+      this._notifyEnded()
       return Promise.resolve()
     }
 
-    return new Promise((resolve, reject) => {
-      // Use preloaded audio if available, otherwise create new
-      this.audio = this.preloadedAudio.get(url) || new Audio(url)
+    return new Promise((resolve) => {
+      // Always create fresh Audio instance to avoid event listener issues
+      this.audio = new Audio(url)
+
+      const cleanup = () => {
+        if (this.audio) {
+          this.audio.removeEventListener('ended', onEnded)
+          this.audio.removeEventListener('error', onError)
+          this.audio.removeEventListener('canplaythrough', onCanPlay)
+        }
+        this.currentCleanup = null
+      }
 
       const onEnded = () => {
-        this.audio?.removeEventListener('ended', onEnded)
-        this.audio?.removeEventListener('error', onError)
+        cleanup()
+        // Notify listeners FIRST (orchestrator needs this to advance phase)
+        this._notifyEnded()
         resolve()
-        // Notify listeners
-        for (const cb of this.endedCallbacks) {
-          try { cb() } catch (e) { console.error(e) }
-        }
       }
 
       const onError = (e) => {
         console.error('[AudioController] Error playing:', url, e)
-        this.audio?.removeEventListener('ended', onEnded)
-        this.audio?.removeEventListener('error', onError)
+        cleanup()
+        // Notify listeners even on error
+        this._notifyEnded()
         resolve() // Resolve anyway to not block the cycle
+      }
+
+      const onCanPlay = () => {
+        // Audio is ready, start playing
+        this.audio?.play().catch(onError)
       }
 
       this.audio.addEventListener('ended', onEnded)
       this.audio.addEventListener('error', onError)
 
-      this.audio.play().catch(onError)
+      // Store cleanup function so stop() can use it
+      this.currentCleanup = cleanup
+
+      // Start loading and playing
+      if (this.audio.readyState >= 3) {
+        // Already loaded enough to play
+        this.audio.play().catch(onError)
+      } else {
+        // Wait for enough data
+        this.audio.addEventListener('canplaythrough', onCanPlay)
+        this.audio.load()
+      }
     })
   }
 
+  _notifyEnded() {
+    for (const cb of this.endedCallbacks) {
+      try { cb() } catch (e) { console.error(e) }
+    }
+  }
+
   stop() {
+    if (this.currentCleanup) {
+      this.currentCleanup()
+    }
     if (this.audio) {
       this.audio.pause()
-      this.audio.currentTime = 0
+      this.audio.src = '' // Release resources
       this.audio = null
     }
   }
 
   async preload(audioRef) {
     const url = audioRef?.url
-    if (!url || this.preloadedAudio.has(url)) return
+    if (!url || this.preloadedUrls.has(url)) return
 
+    // Create a temporary Audio element just to trigger browser caching
     const audio = new Audio()
     audio.preload = 'auto'
     audio.src = url
-    this.preloadedAudio.set(url, audio)
+    audio.load()
+    this.preloadedUrls.add(url)
   }
 
   isPreloaded(audioRef) {
-    return this.preloadedAudio.has(audioRef?.url)
+    return this.preloadedUrls.has(audioRef?.url)
   }
 
   isPlaying() {
