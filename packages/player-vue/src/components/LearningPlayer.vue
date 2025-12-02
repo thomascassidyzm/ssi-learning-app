@@ -274,10 +274,45 @@ onUnmounted(() => {
     :class="[`belt-${currentBelt.name}`, { 'is-paused': !isPlaying }]"
     :style="beltCssVars"
   >
-    <!-- Belt-tinted gradient background -->
+    <!-- Moonlit Dojo Background Layers -->
     <div class="bg-gradient"></div>
     <div class="bg-belt-wash"></div>
     <div class="bg-noise"></div>
+
+    <!-- Silhouette Landscape -->
+    <div class="landscape">
+      <svg class="landscape-svg" viewBox="0 0 1440 320" preserveAspectRatio="xMidYMax slice">
+        <!-- Distant mountains (lightest) -->
+        <path class="mountain mountain--far" d="M0,320 L0,220 Q120,180 240,200 Q360,160 480,190 Q600,140 720,170 Q840,120 960,160 Q1080,100 1200,140 Q1320,80 1440,120 L1440,320 Z"/>
+        <!-- Mid mountains -->
+        <path class="mountain mountain--mid" d="M0,320 L0,250 Q180,200 360,230 Q540,180 720,220 Q900,170 1080,210 Q1260,160 1440,200 L1440,320 Z"/>
+        <!-- Near hills (darkest) -->
+        <path class="mountain mountain--near" d="M0,320 L0,280 Q240,250 480,270 Q720,240 960,260 Q1200,230 1440,260 L1440,320 Z"/>
+        <!-- Torii gate silhouette -->
+        <g class="torii" transform="translate(1150, 200)">
+          <rect x="0" y="0" width="6" height="60"/>
+          <rect x="44" y="0" width="6" height="60"/>
+          <rect x="-8" y="0" width="66" height="6"/>
+          <rect x="-4" y="10" width="58" height="4"/>
+          <path d="M-12,-8 Q25,-20 62,-8" stroke-width="6" fill="none" stroke="currentColor"/>
+        </g>
+        <!-- Ninja silhouette -->
+        <g class="ninja-figure" transform="translate(200, 245)">
+          <!-- Body in martial arts stance -->
+          <circle cx="12" cy="4" r="4"/> <!-- Head -->
+          <path d="M12,8 L12,20 M12,12 L4,18 M12,12 L20,16 M12,20 L6,32 M12,20 L18,30"/> <!-- Body/limbs -->
+          <path d="M8,0 L16,0 L20,-4" stroke-width="1" fill="none"/> <!-- Headband -->
+        </g>
+      </svg>
+    </div>
+
+    <!-- Floating mist particles -->
+    <div class="mist-container">
+      <div class="mist-particle mist-1"></div>
+      <div class="mist-particle mist-2"></div>
+      <div class="mist-particle mist-3"></div>
+      <div class="mist-particle mist-4"></div>
+    </div>
 
     <!-- Header -->
     <header class="header">
@@ -590,6 +625,152 @@ onUnmounted(() => {
   z-index: 0;
 }
 
+/* ============ MOONLIT LANDSCAPE ============ */
+.landscape {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 35vh;
+  max-height: 320px;
+  pointer-events: none;
+  z-index: 1;
+  opacity: var(--mountain-opacity, 1);
+  transition: opacity 0.5s ease;
+}
+
+.landscape-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.mountain {
+  transition: fill 0.5s ease;
+}
+
+.mountain--far {
+  fill: rgba(255, 255, 255, 0.03);
+}
+
+.mountain--mid {
+  fill: rgba(255, 255, 255, 0.05);
+}
+
+.mountain--near {
+  fill: rgba(255, 255, 255, 0.08);
+}
+
+.torii {
+  fill: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.06);
+}
+
+.ninja-figure {
+  fill: rgba(255, 255, 255, 0.1);
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Light theme landscape */
+[data-theme="light"] .mountain--far {
+  fill: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .mountain--mid {
+  fill: rgba(0, 0, 0, 0.07);
+}
+
+[data-theme="light"] .mountain--near {
+  fill: rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="light"] .torii {
+  fill: rgba(0, 0, 0, 0.08);
+  color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .ninja-figure {
+  fill: rgba(0, 0, 0, 0.15);
+  stroke: rgba(0, 0, 0, 0.15);
+}
+
+/* ============ FLOATING MIST ============ */
+.mist-container {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  overflow: hidden;
+}
+
+.mist-particle {
+  position: absolute;
+  width: 300px;
+  height: 100px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(255,255,255,0.04) 0%, transparent 70%);
+  filter: blur(30px);
+  animation: mist-drift 30s ease-in-out infinite;
+}
+
+.mist-1 {
+  top: 60%;
+  left: -10%;
+  animation-delay: 0s;
+  animation-duration: 35s;
+}
+
+.mist-2 {
+  top: 70%;
+  left: 30%;
+  animation-delay: -8s;
+  animation-duration: 40s;
+  width: 400px;
+  opacity: 0.7;
+}
+
+.mist-3 {
+  top: 55%;
+  left: 60%;
+  animation-delay: -15s;
+  animation-duration: 32s;
+  width: 250px;
+}
+
+.mist-4 {
+  top: 75%;
+  left: 80%;
+  animation-delay: -22s;
+  animation-duration: 38s;
+  width: 350px;
+  opacity: 0.5;
+}
+
+@keyframes mist-drift {
+  0%, 100% {
+    transform: translateX(0) translateY(0) scale(1);
+    opacity: 0.4;
+  }
+  25% {
+    transform: translateX(50px) translateY(-20px) scale(1.1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translateX(100px) translateY(10px) scale(1);
+    opacity: 0.3;
+  }
+  75% {
+    transform: translateX(30px) translateY(-10px) scale(1.05);
+    opacity: 0.5;
+  }
+}
+
+[data-theme="light"] .mist-particle {
+  background: radial-gradient(ellipse, rgba(0,0,0,0.02) 0%, transparent 70%);
+}
+
 /* ============ HEADER ============ */
 .header {
   position: relative;
@@ -757,7 +938,7 @@ onUnmounted(() => {
   justify-content: center;
   padding: 1rem 1.5rem;
   position: relative;
-  z-index: 1;
+  z-index: 10;
   gap: 1.5rem;
 }
 
@@ -868,6 +1049,26 @@ onUnmounted(() => {
   background: radial-gradient(circle, var(--accent-soft) 0%, transparent 70%);
   opacity: 0;
   transition: opacity 0.5s ease;
+}
+
+/* Moonlight glow - always subtly present */
+.ring-container::before {
+  content: '';
+  position: absolute;
+  inset: -60px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 60%);
+  animation: moonlight-pulse 8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes moonlight-pulse {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.05); }
+}
+
+[data-theme="light"] .ring-container::before {
+  background: radial-gradient(circle, rgba(212, 168, 83, 0.1) 0%, transparent 60%);
 }
 
 .ring-container.is-speak .ring-ambient {
