@@ -9,21 +9,23 @@ import {
 import SessionComplete from './SessionComplete.vue'
 
 // ============================================
-// DEMO DATA - Creates LearningItems matching core types
-// In production, these come from CourseManifest/TripleHelixEngine
+// DEMO DATA - Real Italian course audio from SSi
+// Audio served from S3: ssi-audio-stage/mastered/{UUID}.mp3
 // ============================================
 
-const createDemoItem = (id, known, target, wordCount = 4) => ({
+const AUDIO_BASE_URL = 'https://ssi-audio-stage.s3.amazonaws.com/mastered'
+
+const createDemoItem = (id, known, target, audio) => ({
   lego: {
     id: `L${id}`,
     type: 'A',
     new: false,
     lego: { known, target },
     audioRefs: {
-      known: { id: `known-${id}`, url: '' },
+      known: { id: audio.source.id, url: `${AUDIO_BASE_URL}/${audio.source.id}.mp3` },
       target: {
-        voice1: { id: `target1-${id}`, url: '' },
-        voice2: { id: `target2-${id}`, url: '' },
+        voice1: { id: audio.target1.id, url: `${AUDIO_BASE_URL}/${audio.target1.id}.mp3` },
+        voice2: { id: audio.target2.id, url: `${AUDIO_BASE_URL}/${audio.target2.id}.mp3` },
       },
     },
   },
@@ -32,13 +34,13 @@ const createDemoItem = (id, known, target, wordCount = 4) => ({
     phraseType: 'practice',
     phrase: { known, target },
     audioRefs: {
-      known: { id: `known-${id}`, url: '' },
+      known: { id: audio.source.id, url: `${AUDIO_BASE_URL}/${audio.source.id}.mp3` },
       target: {
-        voice1: { id: `target1-${id}`, url: '' },
-        voice2: { id: `target2-${id}`, url: '' },
+        voice1: { id: audio.target1.id, url: `${AUDIO_BASE_URL}/${audio.target1.id}.mp3` },
+        voice2: { id: audio.target2.id, url: `${AUDIO_BASE_URL}/${audio.target2.id}.mp3` },
       },
     },
-    wordCount,
+    wordCount: target.split(' ').length,
     containsLegos: [`L${id}`],
   },
   seed: {
@@ -48,14 +50,61 @@ const createDemoItem = (id, known, target, wordCount = 4) => ({
   },
   thread_id: 1,
   mode: 'practice',
+  // Store durations for pause calculation
+  audioDurations: {
+    source: audio.source.duration,
+    target1: audio.target1.duration,
+    target2: audio.target2.duration,
+  },
 })
 
+// Real Italian course demo items with audio UUIDs
 const demoItems = [
-  createDemoItem('001', 'Hello, how are you?', 'Hola, ¿cómo estás?', 4),
-  createDemoItem('002', 'I want to learn Spanish', 'Quiero aprender español', 4),
-  createDemoItem('003', 'Where is the train station?', '¿Dónde está la estación de tren?', 5),
-  createDemoItem('004', 'The weather is beautiful today', 'El tiempo está hermoso hoy', 5),
-  createDemoItem('005', 'Can you help me please?', '¿Puedes ayudarme por favor?', 5),
+  createDemoItem('001',
+    'I want to speak Italian with you now.',
+    'Voglio parlare italiano con te adesso.',
+    {
+      source: { id: '0B3EB395-78B0-36CD-8F4E-5836D47DDCC6', duration: 2.06 },
+      target1: { id: '0E6545AE-78B0-AC07-8F4E-C266E5A3F142', duration: 2.48 },
+      target2: { id: '0D53FF62-78B0-E115-8F4E-628B5399FA29', duration: 3.29 },
+    }
+  ),
+  createDemoItem('002',
+    'I speak Italian now.',
+    'Parlo italiano adesso.',
+    {
+      source: { id: 'F1A4B92A-78B0-36CD-8F4E-D4F89A95F5C4', duration: 1.52 },
+      target1: { id: 'EAF65674-78B0-AC07-8F4E-F3336C6EDDB8', duration: 2.46 },
+      target2: { id: 'A4268ED0-78B0-E115-8F4E-681C8EF03175', duration: 2.27 },
+    }
+  ),
+  createDemoItem('003',
+    'If I speak Italian now.',
+    'Se parlo italiano adesso.',
+    {
+      source: { id: '609DBB08-78B0-36CD-8F4E-16C1CB6F920A', duration: 1.65 },
+      target1: { id: '7A4A5844-78B0-AC07-8F4E-79803B6E0188', duration: 2.53 },
+      target2: { id: '29298269-78B0-E115-8F4E-8E7985F16946', duration: 2.38 },
+    }
+  ),
+  createDemoItem('004',
+    "I'd like to be able to speak Italian.",
+    'Vorrei potere parlare italiano.',
+    {
+      source: { id: 'AFF9FCD7-78B0-36CD-8F4E-5644712602D5', duration: 2.19 },
+      target1: { id: 'F8FD1CC8-78B0-AC07-8F4E-2C0059DFAB65', duration: 2.69 },
+      target2: { id: 'E645EAB0-78B0-E115-8F4E-B6BDBF413689', duration: 2.32 },
+    }
+  ),
+  createDemoItem('005',
+    'You speak Italian very well.',
+    'Parli italiano molto bene.',
+    {
+      source: { id: 'E28D5521-78B0-36CD-8F4E-1194C85BC7A0', duration: 1.78 },
+      target1: { id: 'B91B1D58-78B0-AC07-8F4E-4A953003E5D0', duration: 2.66 },
+      target2: { id: '1A6B10E7-78B0-E115-8F4E-BE8F3310BC8B', duration: 2.38 },
+    }
+  ),
 ]
 
 // ============================================
@@ -233,46 +282,86 @@ const toggleTheme = () => {
 }
 
 // ============================================
-// MOCK AUDIO CONTROLLER
-// Simulates audio playback with timeouts
-// In production, use real AudioController
+// REAL AUDIO CONTROLLER
+// Plays actual MP3 audio from S3
 // ============================================
 
-class MockAudioController {
+class RealAudioController {
   constructor() {
     this.endedCallbacks = new Set()
-    this.playing = false
-    this.playTimer = null
+    this.audio = null
+    this.preloadedAudio = new Map()
   }
 
   async play(audioRef) {
-    this.playing = true
-    // Simulate audio duration - fixed 2 seconds for consistent demo pacing
-    const duration = 2000
-    return new Promise((resolve) => {
-      this.playTimer = setTimeout(() => {
-        this.playing = false
+    // Stop any currently playing audio
+    this.stop()
+
+    const url = audioRef?.url
+    if (!url) {
+      console.warn('[AudioController] No URL in audioRef:', audioRef)
+      // Resolve immediately if no URL
+      return Promise.resolve()
+    }
+
+    return new Promise((resolve, reject) => {
+      // Use preloaded audio if available, otherwise create new
+      this.audio = this.preloadedAudio.get(url) || new Audio(url)
+
+      const onEnded = () => {
+        this.audio?.removeEventListener('ended', onEnded)
+        this.audio?.removeEventListener('error', onError)
         resolve()
-        // Notify listeners that audio ended
+        // Notify listeners
         for (const cb of this.endedCallbacks) {
           try { cb() } catch (e) { console.error(e) }
         }
-      }, duration)
+      }
+
+      const onError = (e) => {
+        console.error('[AudioController] Error playing:', url, e)
+        this.audio?.removeEventListener('ended', onEnded)
+        this.audio?.removeEventListener('error', onError)
+        resolve() // Resolve anyway to not block the cycle
+      }
+
+      this.audio.addEventListener('ended', onEnded)
+      this.audio.addEventListener('error', onError)
+
+      this.audio.play().catch(onError)
     })
   }
 
   stop() {
-    if (this.playTimer) {
-      clearTimeout(this.playTimer)
-      this.playTimer = null
+    if (this.audio) {
+      this.audio.pause()
+      this.audio.currentTime = 0
+      this.audio = null
     }
-    this.playing = false
   }
 
-  async preload() { /* no-op */ }
-  isPreloaded() { return true }
-  isPlaying() { return this.playing }
-  getCurrentTime() { return 0 }
+  async preload(audioRef) {
+    const url = audioRef?.url
+    if (!url || this.preloadedAudio.has(url)) return
+
+    const audio = new Audio()
+    audio.preload = 'auto'
+    audio.src = url
+    this.preloadedAudio.set(url, audio)
+  }
+
+  isPreloaded(audioRef) {
+    return this.preloadedAudio.has(audioRef?.url)
+  }
+
+  isPlaying() {
+    return this.audio && !this.audio.paused
+  }
+
+  getCurrentTime() {
+    return this.audio?.currentTime || 0
+  }
+
   onEnded(cb) { this.endedCallbacks.add(cb) }
   offEnded(cb) { this.endedCallbacks.delete(cb) }
 }
@@ -296,11 +385,20 @@ const handleCycleEvent = (event) => {
 
     case 'item_completed':
       itemsPracticed.value++
-      // Start the next item
+      // Move to next item
       currentItemIndex.value = (currentItemIndex.value + 1) % demoItems.length
+      const nextItem = demoItems[currentItemIndex.value]
+
+      // Update pause duration for next item (2x target audio length)
+      // Unless turbo mode is active
+      if (!turboActive.value && nextItem.audioDurations) {
+        const pauseMs = Math.round(nextItem.audioDurations.target1 * 2 * 1000)
+        orchestrator.value?.updateConfig({ pause_duration_ms: pauseMs })
+      }
+
       setTimeout(() => {
         if (isPlaying.value && orchestrator.value) {
-          orchestrator.value.startItem(demoItems[currentItemIndex.value])
+          orchestrator.value.startItem(nextItem)
         }
       }, 300)
       break
@@ -363,9 +461,17 @@ const toggleTurbo = () => {
   turboActive.value = !turboActive.value
   // Update orchestrator config for faster timings
   if (orchestrator.value) {
-    orchestrator.value.updateConfig({
-      pause_duration_ms: turboActive.value ? 2000 : 4000,  // Turbo: 2s, Normal: 4s
-    })
+    if (turboActive.value) {
+      // Turbo mode: fixed 2s pause
+      orchestrator.value.updateConfig({ pause_duration_ms: 2000 })
+    } else {
+      // Normal mode: 2x target audio duration
+      const item = currentItem.value
+      const pauseMs = item?.audioDurations
+        ? Math.round(item.audioDurations.target1 * 2 * 1000)
+        : 5000 // Fallback
+      orchestrator.value.updateConfig({ pause_duration_ms: pauseMs })
+    }
   }
 }
 
@@ -403,14 +509,16 @@ onMounted(() => {
   theme.value = savedTheme
   document.documentElement.setAttribute('data-theme', savedTheme)
 
-  // Create mock audio controller
-  audioController.value = new MockAudioController()
+  // Create real audio controller for S3 audio playback
+  audioController.value = new RealAudioController()
 
-  // Create CycleOrchestrator with demo-friendly timings
-  // Pause = 4s (2x the simulated 2s audio duration)
+  // Calculate default pause duration from first item (2x target audio)
+  const defaultPauseDuration = Math.round(demoItems[0].audioDurations.target1 * 2 * 1000)
+
+  // Create CycleOrchestrator with dynamic pause duration
   const demoConfig = {
     ...DEFAULT_CONFIG.cycle,
-    pause_duration_ms: 4000,  // 2x target audio length for speaking
+    pause_duration_ms: defaultPauseDuration,  // 2x target audio length
     transition_gap_ms: 300,   // Shorter gap between phases
   }
   orchestrator.value = new CycleOrchestrator(
@@ -421,16 +529,26 @@ onMounted(() => {
   // Subscribe to events
   orchestrator.value.addEventListener(handleCycleEvent)
 
+  // Preload first few items
+  for (const item of demoItems.slice(0, 3)) {
+    audioController.value.preload(item.phrase.audioRefs.known)
+    audioController.value.preload(item.phrase.audioRefs.target.voice1)
+    audioController.value.preload(item.phrase.audioRefs.target.voice2)
+  }
+
   // Start session timer
   sessionTimerInterval = setInterval(() => {
     if (isPlaying.value) sessionSeconds.value++
   }, 1000)
 
-  // Auto-start after a short delay
+  // Auto-start after a short delay (allow preload)
   setTimeout(() => {
     isPlaying.value = true
+    // Set pause duration for first item
+    const pauseMs = Math.round(demoItems[0].audioDurations.target1 * 2 * 1000)
+    orchestrator.value.updateConfig({ pause_duration_ms: pauseMs })
     orchestrator.value.startItem(demoItems[0])
-  }, 500)
+  }, 800)
 })
 
 onUnmounted(() => {
