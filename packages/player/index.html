@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>SSi Learning Player</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+  <style>
+    /* ═══════════════════════════════════════════════════════════════
+       SSi Learning Player - Refined Audio Experience
+       Aesthetic: Japanese Minimalism × Premium Audio Equipment
+       ═══════════════════════════════════════════════════════════════ */
+
+    :root {
+      /* Core Palette */
+      --ssi-black: #0D0D0F;
+      --ssi-charcoal: #1C1C1E;
+      --ssi-graphite: #2C2C2E;
+      --ssi-slate: #3A3A3C;
+      --ssi-steel: #48484A;
+
+      /* SSi Red - The Accent */
+      --ssi-red: #E63946;
+      --ssi-red-soft: rgba(230, 57, 70, 0.15);
+      --ssi-red-glow: rgba(230, 57, 70, 0.4);
+
+      /* Text */
+      --ssi-white: #FAFAFA;
+      --ssi-white-90: rgba(250, 250, 250, 0.9);
+      --ssi-white-70: rgba(250, 250, 250, 0.7);
+      --ssi-white-50: rgba(250, 250, 250, 0.5);
+      --ssi-white-30: rgba(250, 250, 250, 0.3);
+      --ssi-white-15: rgba(250, 250, 250, 0.15);
+      --ssi-white-08: rgba(250, 250, 250, 0.08);
+
+      /* Typography */
+      --font-display: 'DM Serif Display', Georgia, serif;
+      --font-body: 'DM Sans', -apple-system, sans-serif;
+
+      /* Timing */
+      --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+      --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+      --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+      /* Ring */
+      --ring-size: 160px;
+      --ring-stroke: 4px;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--ssi-black);
+      color: var(--ssi-white);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       BACKGROUND - Subtle depth
+       ═══════════════════════════════════════════════════════════════ */
+
+    .player-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      overflow: hidden;
+    }
+
+    /* Subtle radial gradient for depth */
+    .player-container::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 150%;
+      height: 150%;
+      background: radial-gradient(
+        ellipse at center,
+        var(--ssi-charcoal) 0%,
+        var(--ssi-black) 60%
+      );
+      pointer-events: none;
+    }
+
+    /* Martial arts silhouette - very subtle */
+    .player-container::after {
+      content: '';
+      position: absolute;
+      bottom: -5%;
+      right: -5%;
+      width: 40%;
+      height: 60%;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 300'%3E%3Cpath fill='%23ffffff' fill-opacity='0.02' d='M100 50 L120 80 L140 70 L130 100 L160 120 L130 130 L140 180 L100 160 L60 180 L70 130 L40 120 L70 100 L60 70 L80 80 Z M100 160 L90 220 L70 300 L100 280 L130 300 L110 220 Z'/%3E%3C/svg%3E");
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: bottom right;
+      opacity: 0.5;
+      pointer-events: none;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       MAIN CONTENT
+       ═══════════════════════════════════════════════════════════════ */
+
+    .player-content {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2.5rem;
+      width: 100%;
+      max-width: 400px;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       PROGRESS RING - The Heart
+       ═══════════════════════════════════════════════════════════════ */
+
+    .ring-container {
+      position: relative;
+      width: var(--ring-size);
+      height: var(--ring-size);
+    }
+
+    .ring-svg {
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg);
+    }
+
+    .ring-track {
+      fill: none;
+      stroke: var(--ssi-white-08);
+      stroke-width: var(--ring-stroke);
+    }
+
+    .ring-progress {
+      fill: none;
+      stroke: var(--ssi-red);
+      stroke-width: var(--ring-stroke);
+      stroke-linecap: round;
+      stroke-dasharray: 452; /* 2 * PI * 72 (radius) */
+      stroke-dashoffset: 452;
+      transition: stroke-dashoffset 0.1s linear;
+      filter: drop-shadow(0 0 8px var(--ssi-red-glow));
+    }
+
+    .ring-progress.animate {
+      transition: stroke-dashoffset 0.1s linear;
+    }
+
+    /* Speaker Icon */
+    .ring-icon {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .speaker-icon {
+      width: 100%;
+      height: 100%;
+      color: var(--ssi-red);
+      transition: transform 0.3s var(--ease-out-back), opacity 0.3s ease;
+    }
+
+    .speaker-icon.speaking {
+      animation: pulse-speaker 1s var(--ease-in-out) infinite;
+    }
+
+    @keyframes pulse-speaker {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.08); opacity: 0.8; }
+    }
+
+    /* Sound waves animation */
+    .sound-waves {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 80px;
+      height: 80px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .sound-waves.active {
+      opacity: 1;
+    }
+
+    .sound-wave {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      border: 2px solid var(--ssi-red);
+      border-radius: 50%;
+      opacity: 0;
+    }
+
+    .sound-waves.active .sound-wave {
+      animation: ripple 1.5s var(--ease-out-expo) infinite;
+    }
+
+    .sound-wave:nth-child(1) { animation-delay: 0s; }
+    .sound-wave:nth-child(2) { animation-delay: 0.5s; }
+    .sound-wave:nth-child(3) { animation-delay: 1s; }
+
+    @keyframes ripple {
+      0% {
+        width: 48px;
+        height: 48px;
+        opacity: 0.6;
+      }
+      100% {
+        width: 100px;
+        height: 100px;
+        opacity: 0;
+      }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       PHRASE DISPLAY
+       ═══════════════════════════════════════════════════════════════ */
+
+    .phrase-container {
+      text-align: center;
+      min-height: 140px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+    }
+
+    .phrase-target {
+      font-family: var(--font-display);
+      font-size: 2rem;
+      font-weight: 400;
+      line-height: 1.3;
+      color: var(--ssi-white);
+      letter-spacing: -0.01em;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.5s var(--ease-out-expo), transform 0.5s var(--ease-out-expo);
+    }
+
+    .phrase-target.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .phrase-target .highlight {
+      color: var(--ssi-red);
+    }
+
+    .phrase-known {
+      font-family: var(--font-body);
+      font-size: 1rem;
+      font-weight: 400;
+      color: var(--ssi-white-50);
+      letter-spacing: 0.01em;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.4s var(--ease-out-expo) 0.1s, transform 0.4s var(--ease-out-expo) 0.1s;
+    }
+
+    .phrase-known.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Phase label */
+    .phase-label {
+      font-family: var(--font-body);
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--ssi-white-30);
+      margin-top: 0.5rem;
+      opacity: 0;
+      transition: opacity 0.3s ease, color 0.3s ease;
+    }
+
+    .phase-label.visible {
+      opacity: 1;
+    }
+
+    .phase-label.speaking {
+      color: var(--ssi-red);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       CONTROL BAR
+       ═══════════════════════════════════════════════════════════════ */
+
+    .control-bar {
+      display: flex;
+      align-items: center;
+      background: var(--ssi-graphite);
+      border-radius: 100px;
+      padding: 0.5rem;
+      gap: 0.25rem;
+      box-shadow:
+        0 4px 24px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 var(--ssi-white-08);
+    }
+
+    .control-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.25rem;
+      padding: 0.875rem 1.5rem;
+      background: transparent;
+      border: none;
+      border-radius: 100px;
+      cursor: pointer;
+      transition: all 0.2s var(--ease-out-expo);
+      position: relative;
+    }
+
+    .control-btn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 100px;
+      background: var(--ssi-white-08);
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    .control-btn:hover::before {
+      opacity: 1;
+    }
+
+    .control-btn:active {
+      transform: scale(0.96);
+    }
+
+    .control-btn svg {
+      width: 20px;
+      height: 20px;
+      color: var(--ssi-red);
+      position: relative;
+      z-index: 1;
+    }
+
+    .control-btn span {
+      font-family: var(--font-body);
+      font-size: 0.625rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--ssi-white-70);
+      position: relative;
+      z-index: 1;
+    }
+
+    .control-divider {
+      width: 1px;
+      height: 32px;
+      background: var(--ssi-white-15);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       PROGRESS INDICATOR (Belt Progress)
+       ═══════════════════════════════════════════════════════════════ */
+
+    .progress-indicator {
+      position: absolute;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .belt-label {
+      font-family: var(--font-body);
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--ssi-white-50);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .belt-label .percentage {
+      color: var(--ssi-white-70);
+    }
+
+    .belt-track {
+      width: 200px;
+      height: 4px;
+      background: var(--ssi-white-08);
+      border-radius: 100px;
+      overflow: hidden;
+    }
+
+    .belt-fill {
+      height: 100%;
+      background: var(--ssi-red);
+      border-radius: 100px;
+      transition: width 0.5s var(--ease-out-expo);
+      box-shadow: 0 0 12px var(--ssi-red-glow);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       STATE TRANSITIONS
+       ═══════════════════════════════════════════════════════════════ */
+
+    /* Pause state - breathing ring */
+    .ring-container.pause-state .ring-progress {
+      animation: breathe-ring 2s var(--ease-in-out) infinite;
+    }
+
+    @keyframes breathe-ring {
+      0%, 100% { filter: drop-shadow(0 0 8px var(--ssi-red-glow)); }
+      50% { filter: drop-shadow(0 0 16px var(--ssi-red-glow)); }
+    }
+
+    /* Success flash */
+    .ring-container.success .ring-progress {
+      stroke: #4CAF50;
+      filter: drop-shadow(0 0 12px rgba(76, 175, 80, 0.5));
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       RESPONSIVE
+       ═══════════════════════════════════════════════════════════════ */
+
+    @media (max-width: 480px) {
+      :root {
+        --ring-size: 140px;
+      }
+
+      .phrase-target {
+        font-size: 1.625rem;
+      }
+
+      .control-btn {
+        padding: 0.75rem 1.25rem;
+      }
+
+      .belt-track {
+        width: 160px;
+      }
+    }
+
+    @media (min-height: 800px) {
+      .player-content {
+        gap: 3.5rem;
+      }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       DARK/LIGHT MODE TOGGLE (future)
+       ═══════════════════════════════════════════════════════════════ */
+
+    .player-container.light-mode {
+      --ssi-black: #FAFAFA;
+      --ssi-charcoal: #F0F0F2;
+      --ssi-graphite: #E8E8EA;
+      --ssi-white: #1C1C1E;
+      --ssi-white-90: rgba(28, 28, 30, 0.9);
+      --ssi-white-70: rgba(28, 28, 30, 0.7);
+      --ssi-white-50: rgba(28, 28, 30, 0.5);
+      --ssi-white-30: rgba(28, 28, 30, 0.3);
+      --ssi-white-15: rgba(28, 28, 30, 0.15);
+      --ssi-white-08: rgba(28, 28, 30, 0.08);
+    }
+  </style>
+</head>
+<body>
+  <div class="player-container" id="player">
+    <div class="player-content">
+
+      <!-- Progress Ring with Speaker -->
+      <div class="ring-container" id="ringContainer">
+        <svg class="ring-svg" viewBox="0 0 160 160">
+          <circle class="ring-track" cx="80" cy="80" r="72" />
+          <circle class="ring-progress" id="ringProgress" cx="80" cy="80" r="72" />
+        </svg>
+
+        <!-- Sound waves (visible during playback) -->
+        <div class="sound-waves" id="soundWaves">
+          <div class="sound-wave"></div>
+          <div class="sound-wave"></div>
+          <div class="sound-wave"></div>
+        </div>
+
+        <!-- Speaker Icon -->
+        <div class="ring-icon">
+          <svg class="speaker-icon" id="speakerIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Phrase Display -->
+      <div class="phrase-container">
+        <div class="phrase-target visible" id="phraseTarget">
+          <span class="highlight">Dw i'n dysgu</span> Cymraeg
+        </div>
+        <div class="phrase-known visible" id="phraseKnown">
+          I'm learning Welsh
+        </div>
+        <div class="phase-label visible" id="phaseLabel">Listen</div>
+      </div>
+
+      <!-- Control Bar -->
+      <div class="control-bar">
+        <button class="control-btn" id="btnRevisit" title="Revisit">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+            <path d="M3 3v5h5"></path>
+          </svg>
+          <span>Revisit</span>
+        </button>
+
+        <div class="control-divider"></div>
+
+        <button class="control-btn" id="btnPause" title="Pause">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="6" y="4" width="4" height="16"></rect>
+            <rect x="14" y="4" width="4" height="16"></rect>
+          </svg>
+          <span>Pause</span>
+        </button>
+
+        <div class="control-divider"></div>
+
+        <button class="control-btn" id="btnSkip" title="Skip">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="5 4 15 12 5 20 5 4"></polygon>
+            <line x1="19" y1="5" x2="19" y2="19"></line>
+          </svg>
+          <span>Skip</span>
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Belt Progress -->
+    <div class="progress-indicator">
+      <div class="belt-label">
+        White Belt: <span class="percentage" id="beltPercentage">40%</span>
+      </div>
+      <div class="belt-track">
+        <div class="belt-fill" id="beltFill" style="width: 40%"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * SSi Learning Player - Interactive Demo
+     * Demonstrates phase transitions and animations
+     */
+
+    class SSiPlayer {
+      constructor() {
+        this.elements = {
+          player: document.getElementById('player'),
+          ringContainer: document.getElementById('ringContainer'),
+          ringProgress: document.getElementById('ringProgress'),
+          soundWaves: document.getElementById('soundWaves'),
+          speakerIcon: document.getElementById('speakerIcon'),
+          phraseTarget: document.getElementById('phraseTarget'),
+          phraseKnown: document.getElementById('phraseKnown'),
+          phaseLabel: document.getElementById('phaseLabel'),
+          beltFill: document.getElementById('beltFill'),
+          beltPercentage: document.getElementById('beltPercentage'),
+          btnRevisit: document.getElementById('btnRevisit'),
+          btnPause: document.getElementById('btnPause'),
+          btnSkip: document.getElementById('btnSkip'),
+        };
+
+        this.circumference = 2 * Math.PI * 72; // ring radius = 72
+        this.currentPhase = 'idle';
+        this.pauseDuration = 4000; // 4 seconds for pause
+        this.pauseTimer = null;
+        this.progress = 0;
+
+        this.phrases = [
+          { target: '<span class="highlight">Dw i\'n dysgu</span> Cymraeg', known: 'I\'m learning Welsh' },
+          { target: '<span class="highlight">Bore da</span>', known: 'Good morning' },
+          { target: '<span class="highlight">Diolch</span> yn fawr', known: 'Thank you very much' },
+          { target: '<span class="highlight">Sut mae?</span>', known: 'How are you?' },
+          { target: 'Mae\'n <span class="highlight">braf</span> cwrdd â chi', known: 'Nice to meet you' },
+        ];
+        this.phraseIndex = 0;
+
+        this.init();
+      }
+
+      init() {
+        // Set initial ring state
+        this.elements.ringProgress.style.strokeDasharray = this.circumference;
+        this.elements.ringProgress.style.strokeDashoffset = this.circumference;
+
+        // Bind controls
+        this.elements.btnRevisit.addEventListener('click', () => this.revisit());
+        this.elements.btnPause.addEventListener('click', () => this.togglePause());
+        this.elements.btnSkip.addEventListener('click', () => this.skip());
+
+        // Start demo cycle
+        this.startDemoCycle();
+      }
+
+      setPhase(phase) {
+        this.currentPhase = phase;
+        const { ringContainer, soundWaves, speakerIcon, phaseLabel } = this.elements;
+
+        // Reset states
+        ringContainer.classList.remove('pause-state', 'success');
+        soundWaves.classList.remove('active');
+        speakerIcon.classList.remove('speaking');
+        phaseLabel.classList.remove('speaking');
+
+        switch (phase) {
+          case 'prompt':
+            phaseLabel.textContent = 'Listen';
+            phaseLabel.classList.add('visible');
+            soundWaves.classList.add('active');
+            speakerIcon.classList.add('speaking');
+            this.setRingProgress(0);
+            break;
+
+          case 'pause':
+            phaseLabel.textContent = 'Your turn';
+            phaseLabel.classList.add('speaking');
+            ringContainer.classList.add('pause-state');
+            this.startPauseCountdown();
+            break;
+
+          case 'voice_1':
+            phaseLabel.textContent = 'Listen';
+            soundWaves.classList.add('active');
+            speakerIcon.classList.add('speaking');
+            break;
+
+          case 'voice_2':
+            phaseLabel.textContent = 'Listen & Read';
+            soundWaves.classList.add('active');
+            speakerIcon.classList.add('speaking');
+            break;
+
+          case 'transition':
+            phaseLabel.textContent = '';
+            this.hidePhrase();
+            break;
+
+          default:
+            phaseLabel.textContent = '';
+        }
+      }
+
+      setRingProgress(progress) {
+        // progress: 0 to 1
+        const offset = this.circumference - (progress * this.circumference);
+        this.elements.ringProgress.style.strokeDashoffset = offset;
+      }
+
+      startPauseCountdown() {
+        const startTime = Date.now();
+        const duration = this.pauseDuration;
+
+        const animate = () => {
+          const elapsed = Date.now() - startTime;
+          const progress = Math.min(elapsed / duration, 1);
+          this.setRingProgress(progress);
+
+          if (progress < 1) {
+            this.pauseTimer = requestAnimationFrame(animate);
+          } else {
+            this.onPauseComplete();
+          }
+        };
+
+        this.pauseTimer = requestAnimationFrame(animate);
+      }
+
+      onPauseComplete() {
+        this.elements.ringContainer.classList.add('success');
+        setTimeout(() => {
+          this.setPhase('voice_1');
+        }, 300);
+      }
+
+      showPhrase(phrase) {
+        this.elements.phraseTarget.innerHTML = phrase.target;
+        this.elements.phraseKnown.textContent = phrase.known;
+        this.elements.phraseTarget.classList.add('visible');
+        this.elements.phraseKnown.classList.add('visible');
+      }
+
+      hidePhrase() {
+        this.elements.phraseTarget.classList.remove('visible');
+        this.elements.phraseKnown.classList.remove('visible');
+      }
+
+      revisit() {
+        // Restart current phrase
+        this.setPhase('prompt');
+      }
+
+      togglePause() {
+        // Toggle playback
+        const btn = this.elements.btnPause;
+        const isPaused = btn.dataset.paused === 'true';
+
+        if (isPaused) {
+          btn.dataset.paused = 'false';
+          btn.querySelector('svg').innerHTML = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
+          btn.querySelector('span').textContent = 'Pause';
+        } else {
+          btn.dataset.paused = 'true';
+          btn.querySelector('svg').innerHTML = '<polygon points="5 4 19 12 5 20 5 4"></polygon>';
+          btn.querySelector('span').textContent = 'Play';
+        }
+      }
+
+      skip() {
+        // Go to next phrase
+        this.phraseIndex = (this.phraseIndex + 1) % this.phrases.length;
+        this.setPhase('transition');
+        setTimeout(() => {
+          this.showPhrase(this.phrases[this.phraseIndex]);
+          this.setPhase('prompt');
+        }, 500);
+
+        // Update belt progress
+        this.progress = Math.min(this.progress + 10, 100);
+        this.elements.beltFill.style.width = this.progress + '%';
+        this.elements.beltPercentage.textContent = this.progress + '%';
+      }
+
+      startDemoCycle() {
+        // Show first phrase
+        this.showPhrase(this.phrases[0]);
+
+        // Cycle through phases for demo
+        const cycle = async () => {
+          // PROMPT phase (2s)
+          this.setPhase('prompt');
+          await this.wait(2000);
+
+          // PAUSE phase (4s countdown)
+          this.setPhase('pause');
+          await this.wait(4500);
+
+          // VOICE_1 phase (2s)
+          this.setPhase('voice_1');
+          await this.wait(2000);
+
+          // VOICE_2 phase (2s)
+          this.setPhase('voice_2');
+          await this.wait(2000);
+
+          // Transition to next phrase
+          this.skip();
+
+          // Continue cycle
+          setTimeout(cycle, 1000);
+        };
+
+        cycle();
+      }
+
+      wait(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+      }
+    }
+
+    // Initialize player
+    document.addEventListener('DOMContentLoaded', () => {
+      window.ssiPlayer = new SSiPlayer();
+    });
+  </script>
+</body>
+</html>
