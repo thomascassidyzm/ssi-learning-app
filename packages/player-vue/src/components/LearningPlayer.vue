@@ -345,7 +345,9 @@ class RealAudioController {
   }
 
   _notifyEnded() {
-    for (const cb of this.endedCallbacks) {
+    // Snapshot callbacks to avoid issues if callbacks modify the Set
+    const callbacks = [...this.endedCallbacks]
+    for (const cb of callbacks) {
       try { cb() } catch (e) { console.error(e) }
     }
   }
