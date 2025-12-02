@@ -1,0 +1,39 @@
+/**
+ * ProgressRing Styles
+ * Ethereal circular progress indicator
+ */
+
+.progress-ring {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.progress-ring__glow {
+  position: absolute;
+  inset: -20%;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.progress-ring__svg {
+  position: relative;
+  z-index: 2;
+}
+
+.progress-ring__track {
+  opacity: 0.5;
+}
+
+.progress-ring__progress {
+  transform-origin: center;
+  transform: rotate(-90deg);
+}
+
+.progress-ring__inner-glow {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 1;
+}

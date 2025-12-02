@@ -1,0 +1,80 @@
+/**
+ * ThreadIndicator Styles
+ * Triple helix DNA-inspired thread visualization
+ */
+
+.thread-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ssi-space-2);
+}
+
+.thread-indicator__helix {
+  display: flex;
+  align-items: center;
+  gap: var(--ssi-space-1);
+}
+
+.thread-indicator__strand {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.thread-indicator__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  transition: all var(--ssi-duration-normal) var(--ssi-ease-out);
+}
+
+.thread-indicator__strand--active .thread-indicator__dot {
+  width: 12px;
+  height: 12px;
+}
+
+.thread-indicator__connector {
+  width: 20px;
+  height: 2px;
+  margin: 0 var(--ssi-space-1);
+  border-radius: var(--ssi-radius-full);
+  transition: opacity var(--ssi-duration-normal) var(--ssi-ease-out);
+}
+
+.thread-indicator__label {
+  position: absolute;
+  top: calc(100% + var(--ssi-space-2));
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--ssi-font-body);
+  font-size: var(--ssi-text-xs);
+  font-weight: var(--ssi-weight-medium);
+  letter-spacing: var(--ssi-tracking-wider);
+}
+
+.thread-indicator__twist {
+  margin-top: var(--ssi-space-1);
+  opacity: 0.5;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .thread-indicator__dot {
+    width: 8px;
+    height: 8px;
+  }
+
+  .thread-indicator__strand--active .thread-indicator__dot {
+    width: 10px;
+    height: 10px;
+  }
+
+  .thread-indicator__connector {
+    width: 16px;
+  }
+
+  .thread-indicator__twist {
+    width: 80px;
+  }
+}

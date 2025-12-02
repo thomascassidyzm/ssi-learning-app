@@ -1,0 +1,140 @@
+/**
+ * SSi Demo App Styles
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Outfit:wght@300;400;500;600&display=swap');
+
+:root {
+  /* Primary - The Deep */
+  --ssi-deep-900: #0a0e14;
+  --ssi-deep-800: #0f1520;
+  --ssi-deep-700: #151d2b;
+  --ssi-deep-600: #1c2636;
+  --ssi-deep-500: #243042;
+  --ssi-deep-400: #2d3b4f;
+  --ssi-deep-300: #3d4d63;
+  --ssi-deep-200: #5a6b82;
+  --ssi-deep-100: #8494a8;
+
+  /* Luminous - The Glow */
+  --ssi-glow-primary: #00d4aa;
+  --ssi-glow-secondary: #00f5d4;
+  --ssi-glow-tertiary: #7bf1e7;
+  --ssi-glow-soft: rgba(0, 212, 170, 0.15);
+  --ssi-glow-pulse: rgba(0, 245, 212, 0.08);
+
+  /* Coral - Warmth & Success */
+  --ssi-coral-500: #ff6b6b;
+  --ssi-coral-400: #ff8585;
+  --ssi-coral-300: #ffa0a0;
+  --ssi-coral-glow: rgba(255, 107, 107, 0.2);
+
+  /* Ambient - The Atmosphere */
+  --ssi-ambient-purple: #a78bfa;
+  --ssi-ambient-blue: #60a5fa;
+  --ssi-ambient-gold: #fbbf24;
+
+  /* Neutrals - The Canvas */
+  --ssi-white: #ffffff;
+  --ssi-white-90: rgba(255, 255, 255, 0.9);
+  --ssi-white-70: rgba(255, 255, 255, 0.7);
+  --ssi-white-50: rgba(255, 255, 255, 0.5);
+  --ssi-white-30: rgba(255, 255, 255, 0.3);
+  --ssi-white-15: rgba(255, 255, 255, 0.15);
+  --ssi-white-08: rgba(255, 255, 255, 0.08);
+  --ssi-white-04: rgba(255, 255, 255, 0.04);
+
+  /* Typography */
+  --ssi-font-display: 'Instrument Serif', Georgia, serif;
+  --ssi-font-body: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* Type Scale */
+  --ssi-text-xs: 0.75rem;
+  --ssi-text-sm: 0.875rem;
+  --ssi-text-base: 1rem;
+  --ssi-text-lg: 1.333rem;
+  --ssi-text-xl: 1.777rem;
+  --ssi-text-2xl: 2.369rem;
+  --ssi-text-3xl: 3.157rem;
+  --ssi-text-4xl: 4.209rem;
+
+  /* Font Weights */
+  --ssi-weight-light: 300;
+  --ssi-weight-regular: 400;
+  --ssi-weight-medium: 500;
+  --ssi-weight-semibold: 600;
+
+  /* Spacing */
+  --ssi-space-1: 0.25rem;
+  --ssi-space-2: 0.5rem;
+  --ssi-space-3: 0.75rem;
+  --ssi-space-4: 1rem;
+  --ssi-space-5: 1.25rem;
+  --ssi-space-6: 1.5rem;
+  --ssi-space-8: 2rem;
+  --ssi-space-10: 2.5rem;
+  --ssi-space-12: 3rem;
+  --ssi-space-16: 4rem;
+  --ssi-space-20: 5rem;
+  --ssi-space-24: 6rem;
+
+  /* Borders & Radii */
+  --ssi-radius-sm: 0.375rem;
+  --ssi-radius-md: 0.75rem;
+  --ssi-radius-lg: 1rem;
+  --ssi-radius-xl: 1.5rem;
+  --ssi-radius-full: 9999px;
+  --ssi-border-subtle: 1px solid var(--ssi-white-08);
+
+  /* Motion */
+  --ssi-duration-fast: 200ms;
+  --ssi-duration-normal: 300ms;
+  --ssi-duration-slow: 500ms;
+  --ssi-ease-out: cubic-bezier(0.33, 1, 0.68, 1);
+  --ssi-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* Letter Spacing */
+  --ssi-tracking-tight: -0.02em;
+  --ssi-tracking-normal: 0;
+  --ssi-tracking-wide: 0.025em;
+  --ssi-tracking-wider: 0.05em;
+  --ssi-tracking-widest: 0.1em;
+
+  /* Line Heights */
+  --ssi-leading-tight: 1.15;
+  --ssi-leading-normal: 1.5;
+  --ssi-leading-relaxed: 1.65;
+
+  /* Gradients */
+  --ssi-gradient-text-glow: linear-gradient(135deg, var(--ssi-glow-secondary) 0%, var(--ssi-glow-primary) 50%, var(--ssi-glow-tertiary) 100%);
+  --ssi-gradient-deep: linear-gradient(180deg, var(--ssi-deep-900) 0%, var(--ssi-deep-800) 50%, var(--ssi-deep-700) 100%);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--ssi-font-body);
+  font-weight: var(--ssi-weight-regular);
+  font-size: var(--ssi-text-base);
+  line-height: var(--ssi-leading-normal);
+  color: var(--ssi-white-90);
+  background: var(--ssi-deep-900);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100vh;
+}

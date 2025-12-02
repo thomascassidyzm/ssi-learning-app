@@ -1,0 +1,121 @@
+/**
+ * PhraseDisplay Styles
+ * Elegant typography for language presentation
+ */
+
+.phrase-display {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ssi-space-4);
+  padding: var(--ssi-space-8) var(--ssi-space-6);
+  max-width: 600px;
+  width: 100%;
+}
+
+.phrase-display__known,
+.phrase-display__target {
+  text-align: center;
+  width: 100%;
+}
+
+.phrase-display__text {
+  display: block;
+  line-height: var(--ssi-leading-relaxed);
+}
+
+.phrase-display__text--known {
+  font-family: var(--ssi-font-body);
+  font-size: var(--ssi-text-xl);
+  font-weight: var(--ssi-weight-light);
+  color: var(--ssi-white-70);
+  letter-spacing: var(--ssi-tracking-wide);
+}
+
+.phrase-display__text--target {
+  font-family: var(--ssi-font-display);
+  font-size: var(--ssi-text-3xl);
+  font-weight: var(--ssi-weight-regular);
+  color: var(--ssi-white);
+  letter-spacing: var(--ssi-tracking-tight);
+  background: var(--ssi-gradient-text-glow);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.phrase-display__divider {
+  width: 100px;
+  height: 1px;
+  transition: background var(--ssi-duration-normal) var(--ssi-ease-out);
+}
+
+.phrase-display__placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ssi-space-4);
+  min-height: 60px;
+  justify-content: center;
+}
+
+.phrase-display__prompt {
+  font-family: var(--ssi-font-display);
+  font-size: var(--ssi-text-2xl);
+  font-style: italic;
+  color: var(--ssi-white-30);
+  letter-spacing: var(--ssi-tracking-wide);
+}
+
+.phrase-display__listening {
+  display: flex;
+  gap: var(--ssi-space-2);
+}
+
+.phrase-display__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ssi-coral-400);
+}
+
+.phrase-display__glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 300px;
+  height: 200px;
+  background: radial-gradient(
+    ellipse at center,
+    var(--ssi-glow-soft) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .phrase-display {
+    padding: var(--ssi-space-6) var(--ssi-space-4);
+  }
+
+  .phrase-display__text--known {
+    font-size: var(--ssi-text-lg);
+  }
+
+  .phrase-display__text--target {
+    font-size: var(--ssi-text-2xl);
+  }
+
+  .phrase-display__prompt {
+    font-size: var(--ssi-text-xl);
+  }
+
+  .phrase-display__glow {
+    width: 200px;
+    height: 150px;
+  }
+}

@@ -1,0 +1,266 @@
+/**
+ * LearningPlayer Styles
+ * The immersive, breathing interface
+ */
+
+.ssi-player {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ssi-space-8);
+  overflow: hidden;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   AMBIENT BACKGROUND
+   Floating orbs that create depth and atmosphere
+   ═══════════════════════════════════════════════════════════════ */
+
+.ssi-player__ambient {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.ssi-player__orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+}
+
+.ssi-player__orb--1 {
+  width: 600px;
+  height: 600px;
+  top: -20%;
+  right: -10%;
+  background: radial-gradient(
+    circle,
+    var(--ssi-glow-soft) 0%,
+    transparent 70%
+  );
+}
+
+.ssi-player__orb--2 {
+  width: 500px;
+  height: 500px;
+  bottom: -15%;
+  left: -10%;
+  background: radial-gradient(
+    circle,
+    rgba(167, 139, 250, 0.15) 0%,
+    transparent 70%
+  );
+}
+
+.ssi-player__orb--3 {
+  width: 400px;
+  height: 400px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(
+    circle,
+    rgba(96, 165, 250, 0.1) 0%,
+    transparent 70%
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   THREAD INDICATOR
+   Shows which of the 3 helix threads is active
+   ═══════════════════════════════════════════════════════════════ */
+
+.ssi-player__threads {
+  position: absolute;
+  top: var(--ssi-space-8);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MAIN CONTENT
+   ═══════════════════════════════════════════════════════════════ */
+
+.ssi-player__main {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ssi-space-12);
+  max-width: 800px;
+  width: 100%;
+}
+
+/* Ring Container */
+.ssi-player__ring-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 200px;
+  height: 200px;
+}
+
+/* Phase Indicator */
+.ssi-player__phase {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ssi-space-1);
+}
+
+.ssi-player__phase-label {
+  font-family: var(--ssi-font-body);
+  font-size: var(--ssi-text-lg);
+  font-weight: var(--ssi-weight-medium);
+  letter-spacing: var(--ssi-tracking-wide);
+  text-transform: uppercase;
+  transition: color var(--ssi-duration-normal) var(--ssi-ease-out);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   WAVEFORM
+   ═══════════════════════════════════════════════════════════════ */
+
+.ssi-player__waveform {
+  width: 100%;
+  max-width: 400px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SESSION STATS
+   ═══════════════════════════════════════════════════════════════ */
+
+.ssi-player__stats {
+  position: absolute;
+  bottom: var(--ssi-space-24);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--ssi-space-6);
+  z-index: 10;
+}
+
+.ssi-player__stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ssi-space-1);
+}
+
+.ssi-player__stat-value {
+  font-family: var(--ssi-font-display);
+  font-size: var(--ssi-text-2xl);
+  color: var(--ssi-white);
+  line-height: 1;
+}
+
+.ssi-player__stat-label {
+  font-size: var(--ssi-text-xs);
+  color: var(--ssi-white-50);
+  text-transform: uppercase;
+  letter-spacing: var(--ssi-tracking-widest);
+}
+
+.ssi-player__stat-divider {
+  width: 1px;
+  height: 40px;
+  background: var(--ssi-white-15);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CONTROLS
+   ═══════════════════════════════════════════════════════════════ */
+
+.ssi-player__controls {
+  position: absolute;
+  bottom: var(--ssi-space-8);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: var(--ssi-space-4);
+  z-index: 10;
+}
+
+.ssi-player__control {
+  display: flex;
+  align-items: center;
+  gap: var(--ssi-space-2);
+  padding: var(--ssi-space-3) var(--ssi-space-5);
+  background: var(--ssi-white-08);
+  border: var(--ssi-border-subtle);
+  border-radius: var(--ssi-radius-full);
+  color: var(--ssi-white-70);
+  font-family: var(--ssi-font-body);
+  font-size: var(--ssi-text-sm);
+  font-weight: var(--ssi-weight-medium);
+  cursor: pointer;
+  transition: all var(--ssi-duration-fast) var(--ssi-ease-out);
+}
+
+.ssi-player__control:hover {
+  background: var(--ssi-white-15);
+  color: var(--ssi-white);
+}
+
+.ssi-player__control svg {
+  width: 16px;
+  height: 16px;
+}
+
+.ssi-player__control--stop:hover {
+  background: rgba(255, 107, 107, 0.15);
+  border-color: rgba(255, 107, 107, 0.3);
+  color: var(--ssi-coral-400);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  .ssi-player {
+    padding: var(--ssi-space-4);
+  }
+
+  .ssi-player__ring-container {
+    width: 160px;
+    height: 160px;
+  }
+
+  .ssi-player__stats {
+    bottom: var(--ssi-space-20);
+  }
+
+  .ssi-player__stat-value {
+    font-size: var(--ssi-text-xl);
+  }
+
+  .ssi-player__orb--1 {
+    width: 400px;
+    height: 400px;
+  }
+
+  .ssi-player__orb--2 {
+    width: 350px;
+    height: 350px;
+  }
+
+  .ssi-player__orb--3 {
+    width: 300px;
+    height: 300px;
+  }
+}

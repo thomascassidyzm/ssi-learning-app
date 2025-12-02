@@ -1,0 +1,80 @@
+/**
+ * WaveformVisualizer Styles
+ * Dancing audio bars with reflection
+ */
+
+.waveform {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ssi-space-1);
+  width: 100%;
+  max-width: 400px;
+}
+
+.waveform__container {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 3px;
+  height: 60px;
+  width: 100%;
+}
+
+.waveform__bar {
+  width: 4px;
+  height: 100%;
+  border-radius: var(--ssi-radius-full);
+  transform-origin: bottom;
+  will-change: transform, opacity;
+}
+
+.waveform__reflection {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 3px;
+  height: 30px;
+  width: 100%;
+  transform: scaleY(-1);
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,0.3), transparent);
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,0.3), transparent);
+}
+
+.waveform__bar--reflection {
+  height: 100%;
+}
+
+.waveform__glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 200px;
+  height: 100px;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .waveform__container {
+    height: 50px;
+    gap: 2px;
+  }
+
+  .waveform__bar {
+    width: 3px;
+  }
+
+  .waveform__reflection {
+    height: 25px;
+    gap: 2px;
+  }
+
+  .waveform__glow {
+    width: 150px;
+    height: 80px;
+  }
+}

@@ -1,0 +1,327 @@
+/**
+ * SSi Design System - "Liquid Learning"
+ *
+ * An organic-futurist aesthetic inspired by bioluminescence,
+ * the flow of language between minds, and the gentle rhythm
+ * of focused learning.
+ *
+ * Typography: Instrument Serif (display) + Söhne (body)
+ * Palette: Deep ocean to luminous cyan with warm coral accents
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
+
+/* Söhne fallback - using Outfit as it has similar geometric clarity */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap');
+
+:root {
+  /* ═══════════════════════════════════════════════════════════════
+     COLOR SYSTEM - "Bioluminescent Depths"
+     Deep oceanic base with luminous accents
+     ═══════════════════════════════════════════════════════════════ */
+
+  /* Primary - The Deep */
+  --ssi-deep-900: #0a0e14;
+  --ssi-deep-800: #0f1520;
+  --ssi-deep-700: #151d2b;
+  --ssi-deep-600: #1c2636;
+  --ssi-deep-500: #243042;
+  --ssi-deep-400: #2d3b4f;
+  --ssi-deep-300: #3d4d63;
+  --ssi-deep-200: #5a6b82;
+  --ssi-deep-100: #8494a8;
+
+  /* Luminous - The Glow */
+  --ssi-glow-primary: #00d4aa;
+  --ssi-glow-secondary: #00f5d4;
+  --ssi-glow-tertiary: #7bf1e7;
+  --ssi-glow-soft: rgba(0, 212, 170, 0.15);
+  --ssi-glow-pulse: rgba(0, 245, 212, 0.08);
+
+  /* Coral - Warmth & Success */
+  --ssi-coral-500: #ff6b6b;
+  --ssi-coral-400: #ff8585;
+  --ssi-coral-300: #ffa0a0;
+  --ssi-coral-glow: rgba(255, 107, 107, 0.2);
+
+  /* Ambient - The Atmosphere */
+  --ssi-ambient-purple: #a78bfa;
+  --ssi-ambient-blue: #60a5fa;
+  --ssi-ambient-gold: #fbbf24;
+
+  /* Neutrals - The Canvas */
+  --ssi-white: #ffffff;
+  --ssi-white-90: rgba(255, 255, 255, 0.9);
+  --ssi-white-70: rgba(255, 255, 255, 0.7);
+  --ssi-white-50: rgba(255, 255, 255, 0.5);
+  --ssi-white-30: rgba(255, 255, 255, 0.3);
+  --ssi-white-15: rgba(255, 255, 255, 0.15);
+  --ssi-white-08: rgba(255, 255, 255, 0.08);
+  --ssi-white-04: rgba(255, 255, 255, 0.04);
+
+  /* ═══════════════════════════════════════════════════════════════
+     TYPOGRAPHY - "Refined Expression"
+     ═══════════════════════════════════════════════════════════════ */
+
+  /* Font Families */
+  --ssi-font-display: 'Instrument Serif', Georgia, serif;
+  --ssi-font-body: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  --ssi-font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+
+  /* Type Scale - Musical Intervals (Perfect Fourth: 1.333) */
+  --ssi-text-xs: 0.75rem;      /* 12px */
+  --ssi-text-sm: 0.875rem;     /* 14px */
+  --ssi-text-base: 1rem;       /* 16px */
+  --ssi-text-lg: 1.333rem;     /* 21px */
+  --ssi-text-xl: 1.777rem;     /* 28px */
+  --ssi-text-2xl: 2.369rem;    /* 38px */
+  --ssi-text-3xl: 3.157rem;    /* 50px */
+  --ssi-text-4xl: 4.209rem;    /* 67px */
+  --ssi-text-5xl: 5.61rem;     /* 90px */
+
+  /* Line Heights */
+  --ssi-leading-none: 1;
+  --ssi-leading-tight: 1.15;
+  --ssi-leading-snug: 1.3;
+  --ssi-leading-normal: 1.5;
+  --ssi-leading-relaxed: 1.65;
+
+  /* Letter Spacing */
+  --ssi-tracking-tighter: -0.04em;
+  --ssi-tracking-tight: -0.02em;
+  --ssi-tracking-normal: 0;
+  --ssi-tracking-wide: 0.025em;
+  --ssi-tracking-wider: 0.05em;
+  --ssi-tracking-widest: 0.1em;
+
+  /* Font Weights */
+  --ssi-weight-light: 300;
+  --ssi-weight-regular: 400;
+  --ssi-weight-medium: 500;
+  --ssi-weight-semibold: 600;
+
+  /* ═══════════════════════════════════════════════════════════════
+     SPACING - "Breathing Room"
+     Based on 4px grid with generous whitespace
+     ═══════════════════════════════════════════════════════════════ */
+
+  --ssi-space-0: 0;
+  --ssi-space-1: 0.25rem;   /* 4px */
+  --ssi-space-2: 0.5rem;    /* 8px */
+  --ssi-space-3: 0.75rem;   /* 12px */
+  --ssi-space-4: 1rem;      /* 16px */
+  --ssi-space-5: 1.25rem;   /* 20px */
+  --ssi-space-6: 1.5rem;    /* 24px */
+  --ssi-space-8: 2rem;      /* 32px */
+  --ssi-space-10: 2.5rem;   /* 40px */
+  --ssi-space-12: 3rem;     /* 48px */
+  --ssi-space-16: 4rem;     /* 64px */
+  --ssi-space-20: 5rem;     /* 80px */
+  --ssi-space-24: 6rem;     /* 96px */
+  --ssi-space-32: 8rem;     /* 128px */
+
+  /* ═══════════════════════════════════════════════════════════════
+     BORDERS & RADII - "Soft Geometry"
+     ═══════════════════════════════════════════════════════════════ */
+
+  --ssi-radius-sm: 0.375rem;   /* 6px */
+  --ssi-radius-md: 0.75rem;    /* 12px */
+  --ssi-radius-lg: 1rem;       /* 16px */
+  --ssi-radius-xl: 1.5rem;     /* 24px */
+  --ssi-radius-2xl: 2rem;      /* 32px */
+  --ssi-radius-full: 9999px;
+
+  --ssi-border-subtle: 1px solid var(--ssi-white-08);
+  --ssi-border-light: 1px solid var(--ssi-white-15);
+  --ssi-border-glow: 1px solid var(--ssi-glow-soft);
+
+  /* ═══════════════════════════════════════════════════════════════
+     SHADOWS & GLOWS - "Light from Within"
+     ═══════════════════════════════════════════════════════════════ */
+
+  /* Elevation Shadows */
+  --ssi-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.15);
+  --ssi-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.2);
+  --ssi-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.25);
+  --ssi-shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.3);
+
+  /* Glow Effects */
+  --ssi-glow-sm: 0 0 20px var(--ssi-glow-soft);
+  --ssi-glow-md: 0 0 40px var(--ssi-glow-soft), 0 0 80px var(--ssi-glow-pulse);
+  --ssi-glow-lg: 0 0 60px var(--ssi-glow-soft), 0 0 120px var(--ssi-glow-pulse);
+  --ssi-glow-intense:
+    0 0 20px var(--ssi-glow-primary),
+    0 0 40px var(--ssi-glow-soft),
+    0 0 80px var(--ssi-glow-pulse);
+
+  /* Inner Glows */
+  --ssi-inner-glow: inset 0 1px 0 var(--ssi-white-08);
+  --ssi-inner-glow-strong: inset 0 1px 0 var(--ssi-white-15), inset 0 -1px 0 rgba(0,0,0,0.1);
+
+  /* ═══════════════════════════════════════════════════════════════
+     MOTION - "The Breath"
+     Easing curves and durations for organic movement
+     ═══════════════════════════════════════════════════════════════ */
+
+  /* Durations */
+  --ssi-duration-instant: 100ms;
+  --ssi-duration-fast: 200ms;
+  --ssi-duration-normal: 300ms;
+  --ssi-duration-slow: 500ms;
+  --ssi-duration-slower: 800ms;
+  --ssi-duration-slowest: 1200ms;
+
+  /* Breathing rhythm (for pulsing animations) */
+  --ssi-breath-in: 2s;
+  --ssi-breath-out: 2.5s;
+  --ssi-breath-cycle: 4.5s;
+
+  /* Easing Curves */
+  --ssi-ease-out: cubic-bezier(0.33, 1, 0.68, 1);
+  --ssi-ease-in: cubic-bezier(0.32, 0, 0.67, 0);
+  --ssi-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ssi-ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ssi-ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --ssi-ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+
+  /* ═══════════════════════════════════════════════════════════════
+     Z-INDEX SCALE
+     ═══════════════════════════════════════════════════════════════ */
+
+  --ssi-z-base: 0;
+  --ssi-z-raised: 10;
+  --ssi-z-dropdown: 100;
+  --ssi-z-sticky: 200;
+  --ssi-z-overlay: 300;
+  --ssi-z-modal: 400;
+  --ssi-z-popover: 500;
+  --ssi-z-toast: 600;
+  --ssi-z-tooltip: 700;
+
+  /* ═══════════════════════════════════════════════════════════════
+     GRADIENTS - "Depth & Dimension"
+     ═══════════════════════════════════════════════════════════════ */
+
+  /* Background Gradients */
+  --ssi-gradient-deep:
+    linear-gradient(180deg,
+      var(--ssi-deep-900) 0%,
+      var(--ssi-deep-800) 50%,
+      var(--ssi-deep-700) 100%
+    );
+
+  --ssi-gradient-glow:
+    radial-gradient(
+      ellipse 80% 50% at 50% 120%,
+      var(--ssi-glow-pulse) 0%,
+      transparent 50%
+    );
+
+  --ssi-gradient-aurora:
+    linear-gradient(
+      135deg,
+      rgba(0, 212, 170, 0.1) 0%,
+      rgba(167, 139, 250, 0.05) 50%,
+      rgba(96, 165, 250, 0.1) 100%
+    );
+
+  /* Mesh Gradient (for backgrounds) */
+  --ssi-gradient-mesh:
+    radial-gradient(at 0% 0%, var(--ssi-ambient-purple) 0%, transparent 50%),
+    radial-gradient(at 100% 0%, var(--ssi-ambient-blue) 0%, transparent 50%),
+    radial-gradient(at 100% 100%, var(--ssi-glow-primary) 0%, transparent 50%),
+    radial-gradient(at 0% 100%, var(--ssi-coral-500) 0%, transparent 50%);
+
+  /* Text Gradients */
+  --ssi-gradient-text-glow:
+    linear-gradient(
+      135deg,
+      var(--ssi-glow-secondary) 0%,
+      var(--ssi-glow-primary) 50%,
+      var(--ssi-glow-tertiary) 100%
+    );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   KEYFRAME ANIMATIONS
+   ═══════════════════════════════════════════════════════════════ */
+
+@keyframes ssi-breathe {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.02);
+    opacity: 0.9;
+  }
+}
+
+@keyframes ssi-pulse-glow {
+  0%, 100% {
+    box-shadow: var(--ssi-glow-sm);
+    opacity: 1;
+  }
+  50% {
+    box-shadow: var(--ssi-glow-md);
+    opacity: 0.85;
+  }
+}
+
+@keyframes ssi-float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes ssi-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes ssi-reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ssi-reveal-scale {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes ssi-spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ssi-wave {
+  0%, 100% {
+    transform: scaleY(0.5);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}

@@ -1,0 +1,271 @@
+/**
+ * SSi Global Styles
+ * Base reset and application-wide styles
+ */
+
+@import './design-tokens.css';
+
+/* ═══════════════════════════════════════════════════════════════
+   RESET & BASE
+   ═══════════════════════════════════════════════════════════════ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: var(--ssi-font-body);
+  font-weight: var(--ssi-weight-regular);
+  font-size: var(--ssi-text-base);
+  line-height: var(--ssi-leading-normal);
+  color: var(--ssi-white-90);
+  background: var(--ssi-deep-900);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Selection */
+::selection {
+  background: var(--ssi-glow-soft);
+  color: var(--ssi-white);
+}
+
+/* Focus visible */
+:focus-visible {
+  outline: 2px solid var(--ssi-glow-primary);
+  outline-offset: 2px;
+}
+
+/* Smooth scrolling */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TYPOGRAPHY
+   ═══════════════════════════════════════════════════════════════ */
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--ssi-font-display);
+  font-weight: var(--ssi-weight-regular);
+  line-height: var(--ssi-leading-tight);
+  letter-spacing: var(--ssi-tracking-tight);
+  color: var(--ssi-white);
+}
+
+h1 {
+  font-size: var(--ssi-text-4xl);
+}
+
+h2 {
+  font-size: var(--ssi-text-3xl);
+}
+
+h3 {
+  font-size: var(--ssi-text-2xl);
+}
+
+h4 {
+  font-size: var(--ssi-text-xl);
+}
+
+h5 {
+  font-size: var(--ssi-text-lg);
+}
+
+h6 {
+  font-size: var(--ssi-text-base);
+  font-family: var(--ssi-font-body);
+  font-weight: var(--ssi-weight-semibold);
+  letter-spacing: var(--ssi-tracking-wider);
+  text-transform: uppercase;
+}
+
+p {
+  margin-bottom: var(--ssi-space-4);
+}
+
+a {
+  color: var(--ssi-glow-primary);
+  text-decoration: none;
+  transition: color var(--ssi-duration-fast) var(--ssi-ease-out);
+}
+
+a:hover {
+  color: var(--ssi-glow-secondary);
+}
+
+strong, b {
+  font-weight: var(--ssi-weight-semibold);
+}
+
+em, i {
+  font-style: italic;
+}
+
+small {
+  font-size: var(--ssi-text-sm);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   APPLICATION CONTAINER
+   ═══════════════════════════════════════════════════════════════ */
+
+.ssi-app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Ambient background effect */
+.ssi-app::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: var(--ssi-gradient-deep);
+  z-index: -2;
+}
+
+/* Subtle gradient overlay */
+.ssi-app::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: var(--ssi-gradient-glow);
+  opacity: 0.5;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   GLASSMORPHISM SURFACES
+   ═══════════════════════════════════════════════════════════════ */
+
+.ssi-glass {
+  background: rgba(15, 21, 32, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: var(--ssi-border-subtle);
+  border-radius: var(--ssi-radius-xl);
+}
+
+.ssi-glass--light {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.ssi-glass--glow {
+  border-color: var(--ssi-glow-soft);
+  box-shadow: var(--ssi-glow-sm);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   UTILITY CLASSES
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Text Utilities */
+.ssi-text-glow {
+  background: var(--ssi-gradient-text-glow);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.ssi-text-display {
+  font-family: var(--ssi-font-display);
+}
+
+.ssi-text-body {
+  font-family: var(--ssi-font-body);
+}
+
+.ssi-text-mono {
+  font-family: var(--ssi-font-mono);
+}
+
+/* Spacing */
+.ssi-section {
+  padding: var(--ssi-space-16) var(--ssi-space-6);
+}
+
+/* Animation utilities */
+.ssi-animate-breathe {
+  animation: ssi-breathe var(--ssi-breath-cycle) var(--ssi-ease-in-out) infinite;
+}
+
+.ssi-animate-float {
+  animation: ssi-float 6s var(--ssi-ease-in-out) infinite;
+}
+
+.ssi-animate-pulse-glow {
+  animation: ssi-pulse-glow var(--ssi-breath-cycle) var(--ssi-ease-in-out) infinite;
+}
+
+/* Reveal animations for staggered entry */
+.ssi-reveal {
+  animation: ssi-reveal-up var(--ssi-duration-slow) var(--ssi-ease-out) both;
+}
+
+.ssi-reveal--scale {
+  animation: ssi-reveal-scale var(--ssi-duration-slow) var(--ssi-ease-out) both;
+}
+
+/* Stagger delays */
+.ssi-delay-1 { animation-delay: 100ms; }
+.ssi-delay-2 { animation-delay: 200ms; }
+.ssi-delay-3 { animation-delay: 300ms; }
+.ssi-delay-4 { animation-delay: 400ms; }
+.ssi-delay-5 { animation-delay: 500ms; }
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SCROLLBAR STYLING
+   ═══════════════════════════════════════════════════════════════ */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--ssi-deep-800);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--ssi-deep-400);
+  border-radius: var(--ssi-radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ssi-deep-300);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ssi-deep-400) var(--ssi-deep-800);
+}
