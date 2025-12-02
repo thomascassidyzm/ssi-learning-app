@@ -1,6 +1,6 @@
 {
-  "outputDirectory": "packages/player",
-  "buildCommand": "echo 'Static HTML - no build needed'",
-  "installCommand": "echo 'No install needed'",
-  "framework": null
+  "buildCommand": "cd packages/player-vue && npm install && npm run build",
+  "outputDirectory": "packages/player-vue/dist",
+  "installCommand": "npm install",
+  "framework": "vite"
 }
