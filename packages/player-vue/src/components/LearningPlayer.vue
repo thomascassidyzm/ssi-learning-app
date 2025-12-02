@@ -1,13 +1,60 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, shallowRef } from 'vue'
+import {
+  CycleOrchestrator,
+  AudioController,
+  CyclePhase,
+  DEFAULT_CONFIG,
+} from '@ssi/core'
 
-// Demo phrases for showcasing
-const phrases = [
-  { known: 'Hello, how are you?', target: 'Hola, ¿cómo estás?' },
-  { known: 'I want to learn Spanish', target: 'Quiero aprender español' },
-  { known: 'Where is the train station?', target: '¿Dónde está la estación de tren?' },
-  { known: 'The weather is beautiful today', target: 'El tiempo está hermoso hoy' },
-  { known: 'Can you help me please?', target: '¿Puedes ayudarme por favor?' },
+// ============================================
+// DEMO DATA - Creates LearningItems matching core types
+// In production, these come from CourseManifest/TripleHelixEngine
+// ============================================
+
+const createDemoItem = (id, known, target, wordCount = 4) => ({
+  lego: {
+    id: `L${id}`,
+    type: 'A',
+    new: false,
+    lego: { known, target },
+    audioRefs: {
+      known: { id: `known-${id}`, url: '' },
+      target: {
+        voice1: { id: `target1-${id}`, url: '' },
+        voice2: { id: `target2-${id}`, url: '' },
+      },
+    },
+  },
+  phrase: {
+    id: `P${id}`,
+    phraseType: 'practice',
+    phrase: { known, target },
+    audioRefs: {
+      known: { id: `known-${id}`, url: '' },
+      target: {
+        voice1: { id: `target1-${id}`, url: '' },
+        voice2: { id: `target2-${id}`, url: '' },
+      },
+    },
+    wordCount,
+    containsLegos: [`L${id}`],
+  },
+  seed: {
+    seed_id: `S${id}`,
+    seed_pair: { known, target },
+    legos: [],
+  },
+  thread_id: 1,
+  mode: 'practice',
+})
+
+const demoItems = [
+  createDemoItem('001', 'Hello, how are you?', 'Hola, ¿cómo estás?', 4),
+  createDemoItem('002', 'I want to learn Spanish', 'Quiero aprender español', 4),
+  createDemoItem('003', 'Where is the train station?', '¿Dónde está la estación de tren?', 5),
+  createDemoItem('004', 'The weather is beautiful today', 'El tiempo está hermoso hoy', 5),
+  createDemoItem('005', 'Can you help me please?', '¿Puedes ayudarme por favor?', 5),
 ]
 
 // ============================================
@@ -67,33 +114,48 @@ const beltCssVars = computed(() => ({
   '--belt-glow': currentBelt.value.glow,
 }))
 
-// 4 Distinct Phases
+// ============================================
+// CORE ENGINE INTEGRATION
+// Using @ssi/core CycleOrchestrator
+// ============================================
+
+// Create mock audio controller (no actual audio for now)
+const audioController = shallowRef(null)
+const orchestrator = shallowRef(null)
+
+// Map core CyclePhase to UI phases (for backward compatibility)
 const Phase = {
-  PROMPT: 'prompt',      // Hear prompt in known language
-  SPEAK: 'speak',        // Learner speaks (countdown)
-  VOICE_1: 'voice_1',    // Model voice 1
-  VOICE_2: 'voice_2',    // Model voice 2 + show text
+  PROMPT: 'prompt',      // Maps to CyclePhase.PROMPT
+  SPEAK: 'speak',        // Maps to CyclePhase.PAUSE
+  VOICE_1: 'voice_1',    // Maps to CyclePhase.VOICE_1
+  VOICE_2: 'voice_2',    // Maps to CyclePhase.VOICE_2
 }
 
-// Phase durations in ms
-const phaseDurations = {
-  [Phase.PROMPT]: 2500,
-  [Phase.SPEAK]: 5000,
-  [Phase.VOICE_1]: 2500,
-  [Phase.VOICE_2]: 2500,
+// Map core phases to UI phases
+const corePhaseToUiPhase = (corePhase) => {
+  switch (corePhase) {
+    case CyclePhase.PROMPT: return Phase.PROMPT
+    case CyclePhase.PAUSE: return Phase.SPEAK
+    case CyclePhase.VOICE_1: return Phase.VOICE_1
+    case CyclePhase.VOICE_2: return Phase.VOICE_2
+    case CyclePhase.IDLE: return Phase.PROMPT
+    case CyclePhase.TRANSITION: return Phase.VOICE_2
+    default: return Phase.PROMPT
+  }
 }
 
 // State
 const theme = ref('dark')
 const currentPhase = ref(Phase.PROMPT)
-const currentPhraseIndex = ref(0)
-const isPlaying = ref(true)
+const currentItemIndex = ref(0)
+const isPlaying = ref(false) // Start paused until engine ready
 const itemsPracticed = ref(0)
 
 // Smooth ring progress (0-100) - continuous animation
 const ringProgressRaw = ref(0)
 let ringAnimationFrame = null
-let phaseStartTime = 0
+let pauseStartTime = 0
+let pauseDuration = DEFAULT_CONFIG.cycle.pause_duration_ms
 
 // Session timer
 const sessionSeconds = ref(0)
@@ -106,8 +168,12 @@ const formattedSessionTime = computed(() => {
 })
 
 // Computed
-const currentPhrase = computed(() => phrases[currentPhraseIndex.value])
-const sessionProgress = computed(() => (itemsPracticed.value + 1) / phrases.length)
+const currentItem = computed(() => demoItems[currentItemIndex.value])
+const currentPhrase = computed(() => ({
+  known: currentItem.value?.phrase.phrase.known || '',
+  target: currentItem.value?.phrase.phrase.target || '',
+}))
+const sessionProgress = computed(() => (itemsPracticed.value + 1) / demoItems.length)
 const showTargetText = computed(() => currentPhase.value === Phase.VOICE_2)
 
 // Phase symbols/icons - CORRECT ORDER
@@ -132,9 +198,6 @@ const ringProgress = computed(() => {
   return ringProgressRaw.value
 })
 
-// Timer intervals
-let phaseTimer = null
-
 // Smooth ring animation using requestAnimationFrame
 const animateRing = () => {
   if (!isPlaying.value || currentPhase.value !== Phase.SPEAK) {
@@ -142,9 +205,8 @@ const animateRing = () => {
     return
   }
 
-  const elapsed = Date.now() - phaseStartTime
-  const duration = phaseDurations[Phase.SPEAK]
-  const progress = Math.min((elapsed / duration) * 100, 100)
+  const elapsed = Date.now() - pauseStartTime
+  const progress = Math.min((elapsed / pauseDuration) * 100, 100)
 
   ringProgressRaw.value = progress
 
@@ -153,8 +215,9 @@ const animateRing = () => {
   }
 }
 
-const startRingAnimation = () => {
-  phaseStartTime = Date.now()
+const startRingAnimation = (duration) => {
+  pauseStartTime = Date.now()
+  pauseDuration = duration || DEFAULT_CONFIG.cycle.pause_duration_ms
   ringProgressRaw.value = 0
   if (ringAnimationFrame) cancelAnimationFrame(ringAnimationFrame)
   ringAnimationFrame = requestAnimationFrame(animateRing)
@@ -167,41 +230,88 @@ const toggleTheme = () => {
   localStorage.setItem('ssi-theme', theme.value)
 }
 
-// Phase progression
-const advancePhase = () => {
-  if (!isPlaying.value) return
+// ============================================
+// MOCK AUDIO CONTROLLER
+// Simulates audio playback with timeouts
+// In production, use real AudioController
+// ============================================
 
-  switch (currentPhase.value) {
-    case Phase.PROMPT:
-      currentPhase.value = Phase.SPEAK
-      startRingAnimation()
+class MockAudioController {
+  constructor() {
+    this.endedCallbacks = new Set()
+    this.playing = false
+    this.playTimer = null
+  }
+
+  async play(audioRef) {
+    this.playing = true
+    // Simulate audio duration (1.5-2.5 seconds)
+    const duration = 1500 + Math.random() * 1000
+    return new Promise((resolve) => {
+      this.playTimer = setTimeout(() => {
+        this.playing = false
+        resolve()
+        // Notify listeners that audio ended
+        for (const cb of this.endedCallbacks) {
+          try { cb() } catch (e) { console.error(e) }
+        }
+      }, duration)
+    })
+  }
+
+  stop() {
+    if (this.playTimer) {
+      clearTimeout(this.playTimer)
+      this.playTimer = null
+    }
+    this.playing = false
+  }
+
+  async preload() { /* no-op */ }
+  isPreloaded() { return true }
+  isPlaying() { return this.playing }
+  getCurrentTime() { return 0 }
+  onEnded(cb) { this.endedCallbacks.add(cb) }
+  offEnded(cb) { this.endedCallbacks.delete(cb) }
+}
+
+// ============================================
+// ENGINE EVENT HANDLING
+// ============================================
+
+const handleCycleEvent = (event) => {
+  console.log('[CycleEvent]', event.type, event.phase, event.data)
+
+  switch (event.type) {
+    case 'phase_changed':
+      currentPhase.value = corePhaseToUiPhase(event.phase)
       break
-    case Phase.SPEAK:
-      currentPhase.value = Phase.VOICE_1
+
+    case 'pause_started':
+      // Start the ring animation for the SPEAK phase
+      startRingAnimation(event.data?.duration)
       break
-    case Phase.VOICE_1:
-      currentPhase.value = Phase.VOICE_2
-      break
-    case Phase.VOICE_2:
-      // Move to next phrase
-      currentPhraseIndex.value = (currentPhraseIndex.value + 1) % phrases.length
+
+    case 'item_completed':
       itemsPracticed.value++
-      currentPhase.value = Phase.PROMPT
+      // Start the next item
+      currentItemIndex.value = (currentItemIndex.value + 1) % demoItems.length
+      setTimeout(() => {
+        if (isPlaying.value && orchestrator.value) {
+          orchestrator.value.startItem(demoItems[currentItemIndex.value])
+        }
+      }, 300)
+      break
+
+    case 'cycle_stopped':
+      isPlaying.value = false
+      break
+
+    case 'error':
+      console.error('[CycleOrchestrator Error]', event.data?.error)
       break
   }
 }
-
-const scheduleNextPhase = () => {
-  if (phaseTimer) clearTimeout(phaseTimer)
-  if (!isPlaying.value) return
-
-  const duration = phaseDurations[currentPhase.value]
-  phaseTimer = setTimeout(advancePhase, duration)
-}
-
-watch(currentPhase, () => {
-  scheduleNextPhase()
-})
 
 // Tap on ring to toggle play/stop
 const handleRingTap = () => {
@@ -214,55 +324,90 @@ const handleRingTap = () => {
 
 const handlePause = () => {
   isPlaying.value = false
-  if (phaseTimer) clearTimeout(phaseTimer)
-  if (ringAnimationFrame) cancelAnimationFrame(ringAnimationFrame)
+  if (orchestrator.value) {
+    orchestrator.value.stop()
+  }
+  if (ringAnimationFrame) {
+    cancelAnimationFrame(ringAnimationFrame)
+  }
 }
 
 const handleResume = () => {
   isPlaying.value = true
-  if (currentPhase.value === Phase.SPEAK) {
-    // Resume ring animation from where it was
-    const elapsed = (ringProgressRaw.value / 100) * phaseDurations[Phase.SPEAK]
-    phaseStartTime = Date.now() - elapsed
-    ringAnimationFrame = requestAnimationFrame(animateRing)
+  if (orchestrator.value && currentItem.value) {
+    orchestrator.value.startItem(currentItem.value)
   }
-  scheduleNextPhase()
 }
 
 const handleSkip = () => {
-  if (phaseTimer) clearTimeout(phaseTimer)
-  if (ringAnimationFrame) cancelAnimationFrame(ringAnimationFrame)
-  advancePhase()
+  if (orchestrator.value) {
+    orchestrator.value.skipPhase()
+  }
 }
 
 const handleRevisit = () => {
-  if (phaseTimer) clearTimeout(phaseTimer)
-  if (ringAnimationFrame) cancelAnimationFrame(ringAnimationFrame)
+  // Restart current item from beginning
   ringProgressRaw.value = 0
-  currentPhase.value = Phase.PROMPT
-  scheduleNextPhase()
+  if (orchestrator.value && currentItem.value) {
+    orchestrator.value.startItem(currentItem.value)
+  }
 }
 
 // Mode toggles
 const turboActive = ref(false)
 const listeningMode = ref(false)
 
-const toggleTurbo = () => turboActive.value = !turboActive.value
+const toggleTurbo = () => {
+  turboActive.value = !turboActive.value
+  // Update orchestrator config for faster timings
+  if (orchestrator.value) {
+    orchestrator.value.updateConfig({
+      pause_duration_ms: turboActive.value ? 1500 : DEFAULT_CONFIG.cycle.pause_duration_ms,
+    })
+  }
+}
+
 const toggleListening = () => listeningMode.value = !listeningMode.value
 
+// ============================================
+// LIFECYCLE
+// ============================================
+
 onMounted(() => {
+  // Initialize theme
   const savedTheme = localStorage.getItem('ssi-theme') || 'dark'
   theme.value = savedTheme
   document.documentElement.setAttribute('data-theme', savedTheme)
-  scheduleNextPhase()
 
+  // Create mock audio controller
+  audioController.value = new MockAudioController()
+
+  // Create CycleOrchestrator
+  orchestrator.value = new CycleOrchestrator(
+    audioController.value,
+    DEFAULT_CONFIG.cycle
+  )
+
+  // Subscribe to events
+  orchestrator.value.addEventListener(handleCycleEvent)
+
+  // Start session timer
   sessionTimerInterval = setInterval(() => {
     if (isPlaying.value) sessionSeconds.value++
   }, 1000)
+
+  // Auto-start after a short delay
+  setTimeout(() => {
+    isPlaying.value = true
+    orchestrator.value.startItem(demoItems[0])
+  }, 500)
 })
 
 onUnmounted(() => {
-  if (phaseTimer) clearTimeout(phaseTimer)
+  if (orchestrator.value) {
+    orchestrator.value.removeEventListener(handleCycleEvent)
+    orchestrator.value.stop()
+  }
   if (ringAnimationFrame) cancelAnimationFrame(ringAnimationFrame)
   if (sessionTimerInterval) clearInterval(sessionTimerInterval)
 })
