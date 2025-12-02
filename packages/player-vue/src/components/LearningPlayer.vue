@@ -34,8 +34,19 @@ const currentPhase = ref(Phase.PROMPT)
 const currentPhraseIndex = ref(0)
 const isPlaying = ref(true)
 const pauseTimeRemaining = ref(5)
+const pauseTimerFrozen = ref(false) // Track if timer reached end
 const itemsPracticed = ref(0)
 const activeThread = ref(1)
+
+// Session timer
+const sessionSeconds = ref(0)
+let sessionTimerInterval = null
+
+const formattedSessionTime = computed(() => {
+  const mins = Math.floor(sessionSeconds.value / 60)
+  const secs = sessionSeconds.value % 60
+  return `${mins}:${secs.toString().padStart(2, '0')}`
+})
 
 // Computed
 const currentPhrase = computed(() => phrases[currentPhraseIndex.value])
@@ -67,9 +78,10 @@ const isAudioPlaying = computed(() =>
   [Phase.PROMPT, Phase.VOICE_1, Phase.VOICE_2].includes(currentPhase.value)
 )
 
-// Ring animation progress (0-100) - only for PAUSE phase
+// Ring animation progress (0-100) - fills up during PAUSE, stays full at end
 const ringProgress = computed(() => {
-  if (currentPhase.value !== Phase.PAUSE) return 0
+  if (currentPhase.value !== Phase.PAUSE) return pauseTimerFrozen.value ? 100 : 0
+  // Timer counts down from 5 to 0, so progress goes from 0% to 100%
   return ((5 - pauseTimeRemaining.value) / 5) * 100
 })
 
@@ -92,9 +104,11 @@ const advancePhase = () => {
     case Phase.PROMPT:
       currentPhase.value = Phase.PAUSE
       pauseTimeRemaining.value = 5
+      pauseTimerFrozen.value = false
       startPauseCountdown()
       break
     case Phase.PAUSE:
+      pauseTimerFrozen.value = true // Keep ring full
       currentPhase.value = Phase.VOICE_1
       break
     case Phase.VOICE_1:
@@ -104,6 +118,7 @@ const advancePhase = () => {
       currentPhase.value = Phase.TRANSITION
       break
     case Phase.TRANSITION:
+      pauseTimerFrozen.value = false // Reset for next phrase
       currentPhraseIndex.value = (currentPhraseIndex.value + 1) % phrases.length
       itemsPracticed.value++
       activeThread.value = (activeThread.value % 3) + 1
@@ -179,11 +194,18 @@ onMounted(() => {
   theme.value = savedTheme
   document.documentElement.setAttribute('data-theme', savedTheme)
   scheduleNextPhase()
+  // Start session timer
+  sessionTimerInterval = setInterval(() => {
+    if (isPlaying.value) {
+      sessionSeconds.value++
+    }
+  }, 1000)
 })
 
 onUnmounted(() => {
   if (phaseTimer) clearTimeout(phaseTimer)
   if (pauseCountdown) clearInterval(pauseCountdown)
+  if (sessionTimerInterval) clearInterval(sessionTimerInterval)
 })
 </script>
 
@@ -207,9 +229,13 @@ onUnmounted(() => {
         <span class="logo-bubble"></span>
       </div>
 
-      <div class="session-badge">
-        <div class="pulse-dot" :class="{ active: isPlaying }"></div>
-        <span>Learning Session</span>
+      <!-- Session Timer -->
+      <div class="session-timer">
+        <svg class="timer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        <span class="timer-value">{{ formattedSessionTime }}</span>
       </div>
 
       <button class="theme-toggle" @click="toggleTheme" :title="theme === 'dark' ? 'Switch to light' : 'Switch to dark'">
@@ -246,8 +272,9 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Known Text - Always visible above the ring -->
-      <div class="known-section">
+      <!-- KNOWN LANGUAGE ZONE -->
+      <div class="zone zone--known">
+        <div class="zone-label">Your Language</div>
         <transition name="text-morph" mode="out-in">
           <p class="known-text" :key="currentPhrase.known">
             {{ currentPhrase.known }}
@@ -255,72 +282,66 @@ onUnmounted(() => {
         </transition>
       </div>
 
-      <!-- Central Ring -->
+      <!-- Central Ring with Big Play Button -->
       <div class="ring-area">
-        <div class="ring-wrapper" :class="{ 'is-pause': currentPhase === Phase.PAUSE, 'is-audio': isAudioPlaying }">
+        <div
+          class="ring-wrapper"
+          :class="{
+            'is-pause': currentPhase === Phase.PAUSE,
+            'is-audio': isAudioPlaying,
+            'is-complete': pauseTimerFrozen && currentPhase !== Phase.PAUSE
+          }"
+        >
           <!-- Outer glow ring -->
           <div class="ring-glow"></div>
 
-          <!-- SVG Ring -->
+          <!-- SVG Ring - enhanced -->
           <svg class="ring-svg" viewBox="0 0 200 200">
-            <!-- Track -->
-            <circle class="ring-track" cx="100" cy="100" r="88" fill="none" stroke-width="2"/>
-            <!-- Progress (PAUSE only) -->
+            <!-- Outer track -->
+            <circle class="ring-track" cx="100" cy="100" r="92" fill="none" stroke-width="2"/>
+            <!-- Main progress ring -->
             <circle
               class="ring-progress"
-              cx="100" cy="100" r="88"
+              cx="100" cy="100" r="92"
               fill="none"
-              stroke-width="3"
-              :stroke-dasharray="553"
-              :stroke-dashoffset="553 - (ringProgress / 100) * 553"
+              stroke-width="6"
+              :stroke-dasharray="578"
+              :stroke-dashoffset="578 - (ringProgress / 100) * 578"
               transform="rotate(-90 100 100)"
             />
-            <!-- Decorative inner circle -->
-            <circle class="ring-inner" cx="100" cy="100" r="70" fill="none" stroke-width="1"/>
+            <!-- Inner decorative ring -->
+            <circle class="ring-inner" cx="100" cy="100" r="82" fill="none" stroke-width="1"/>
           </svg>
 
-          <!-- Center Content -->
-          <div class="ring-content">
-            <!-- Timer during PAUSE -->
-            <template v-if="currentPhase === Phase.PAUSE">
-              <div class="countdown">
-                <span class="countdown-number">{{ pauseTimeRemaining }}</span>
-                <span class="countdown-label">seconds</span>
-              </div>
-            </template>
-
-            <!-- Audio indicator during playback -->
-            <template v-else-if="isAudioPlaying">
-              <div class="audio-visualizer" :class="{ playing: isPlaying }">
-                <div class="bar"></div>
-                <div class="bar"></div>
-                <div class="bar"></div>
-                <div class="bar"></div>
-                <div class="bar"></div>
-              </div>
-            </template>
-
-            <!-- Transition state -->
-            <template v-else>
-              <div class="transition-indicator">
-                <span></span>
-                <span></span>
-                <span></span>
-              </div>
-            </template>
-          </div>
+          <!-- BIG Central Play/Stop Button -->
+          <button
+            class="big-play-btn"
+            @click="isPlaying ? handlePause() : handleResume()"
+            :class="{ playing: isPlaying }"
+          >
+            <!-- Play icon -->
+            <svg v-if="!isPlaying" class="play-icon" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="6 3 20 12 6 21 6 3"/>
+            </svg>
+            <!-- Stop icon (square) -->
+            <svg v-else class="stop-icon" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="4" y="4" width="16" height="16" rx="2"/>
+            </svg>
+          </button>
         </div>
 
         <!-- Phase instruction below ring -->
         <p class="phase-instruction">{{ phaseInstruction }}</p>
       </div>
 
-      <!-- Target Text - Revealed during VOICE_2 -->
-      <div class="target-section">
+      <!-- TARGET LANGUAGE ZONE -->
+      <div class="zone zone--target">
+        <div class="zone-label">Target Language</div>
         <transition name="reveal">
           <p v-if="showTargetText" class="target-text" :key="currentPhrase.target">
             {{ currentPhrase.target }}
           </p>
+          <p v-else class="target-placeholder">...</p>
         </transition>
       </div>
     </main>
@@ -501,36 +522,30 @@ onUnmounted(() => {
   transition: background-color 0.4s ease;
 }
 
-.session-badge {
+/* Session Timer */
+.session-timer {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 14px;
+  padding: 8px 16px;
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
-  border-radius: 20px;
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
+  border-radius: 24px;
+  font-family: 'Source Sans 3', sans-serif;
 }
 
-.pulse-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--text-muted);
-  transition: all 0.3s ease;
+.timer-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
 }
 
-.pulse-dot.active {
-  background: var(--success);
-  box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.4);
-  animation: pulse-ring 2s ease-out infinite;
-}
-
-@keyframes pulse-ring {
-  0% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.4); }
-  70% { box-shadow: 0 0 0 8px rgba(74, 222, 128, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
+.timer-value {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  min-width: 48px;
 }
 
 .theme-toggle {
@@ -671,24 +686,64 @@ onUnmounted(() => {
   background: var(--success);
 }
 
-/* Known Text Section */
-.known-section {
-  min-height: 80px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* Language Zones */
+.zone {
   width: 100%;
-  max-width: 600px;
+  max-width: 700px;
+  padding: 1.5rem 2rem;
+  border-radius: 16px;
+  text-align: center;
+  position: relative;
+}
+
+.zone-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+
+/* Known Zone - Top */
+.zone--known {
+  background: linear-gradient(180deg, var(--bg-card) 0%, transparent 100%);
+  border: 1px solid var(--border-subtle);
+  border-bottom: none;
+  border-radius: 16px 16px 0 0;
 }
 
 .known-text {
-  font-family: 'Noto Sans JP', serif;
-  font-size: clamp(1.5rem, 5vw, 2rem);
-  font-weight: 400;
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: clamp(1.5rem, 5vw, 2.25rem);
+  font-weight: 500;
   color: var(--text-primary);
-  text-align: center;
   line-height: 1.4;
   letter-spacing: -0.01em;
+}
+
+/* Target Zone - Bottom */
+.zone--target {
+  background: linear-gradient(0deg, rgba(212, 168, 83, 0.08) 0%, transparent 100%);
+  border: 1px solid rgba(212, 168, 83, 0.2);
+  border-top: none;
+  border-radius: 0 0 16px 16px;
+  min-height: 100px;
+}
+
+.target-text {
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: clamp(1.25rem, 4vw, 1.875rem);
+  font-weight: 500;
+  color: var(--ssi-gold);
+  line-height: 1.4;
+}
+
+.target-placeholder {
+  font-size: 2rem;
+  color: var(--text-muted);
+  letter-spacing: 0.5em;
+  opacity: 0.3;
 }
 
 /* Ring Area */
@@ -697,17 +752,20 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   gap: 1rem;
+  margin: -1rem 0; /* Overlap with zones */
+  position: relative;
+  z-index: 5;
 }
 
 .ring-wrapper {
   position: relative;
-  width: clamp(200px, 50vw, 260px);
-  height: clamp(200px, 50vw, 260px);
+  width: clamp(160px, 40vw, 220px);
+  height: clamp(160px, 40vw, 220px);
 }
 
 .ring-glow {
   position: absolute;
-  inset: -20px;
+  inset: -30px;
   border-radius: 50%;
   background: radial-gradient(circle, var(--ssi-red-soft) 0%, transparent 70%);
   opacity: 0;
@@ -719,9 +777,14 @@ onUnmounted(() => {
   animation: glow-pulse 2s ease-in-out infinite;
 }
 
+.ring-wrapper.is-complete .ring-glow {
+  opacity: 0.5;
+  background: radial-gradient(circle, rgba(74, 222, 128, 0.3) 0%, transparent 70%);
+}
+
 @keyframes glow-pulse {
   0%, 100% { transform: scale(1); opacity: 0.6; }
-  50% { transform: scale(1.05); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 1; }
 }
 
 .ring-svg {
@@ -730,109 +793,68 @@ onUnmounted(() => {
 }
 
 .ring-track {
-  stroke: var(--border-subtle);
+  stroke: var(--border-medium);
+  opacity: 0.5;
 }
 
 .ring-inner {
   stroke: var(--border-subtle);
-  opacity: 0.5;
+  opacity: 0.3;
 }
 
 .ring-progress {
   stroke: var(--ssi-red);
   stroke-linecap: round;
-  transition: stroke-dashoffset 1s linear;
-  filter: drop-shadow(0 0 8px var(--ssi-red));
+  transition: stroke-dashoffset 0.1s linear;
+  filter: drop-shadow(0 0 12px var(--ssi-red));
 }
 
-.ring-content {
+/* When timer complete, turn progress green */
+.ring-wrapper.is-complete .ring-progress {
+  stroke: var(--success);
+  filter: drop-shadow(0 0 12px rgba(74, 222, 128, 0.6));
+}
+
+/* Big Central Play/Stop Button */
+.big-play-btn {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(145deg, var(--ssi-red) 0%, var(--ssi-red-dark) 100%);
+  color: white;
+  cursor: pointer;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
+  box-shadow:
+    0 4px 20px rgba(194, 58, 58, 0.4),
+    inset 0 2px 0 rgba(255,255,255,0.15);
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* Countdown */
-.countdown {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+.big-play-btn:hover {
+  transform: translate(-50%, -50%) scale(1.08);
+  box-shadow:
+    0 8px 32px rgba(194, 58, 58, 0.5),
+    inset 0 2px 0 rgba(255,255,255,0.2);
 }
 
-.countdown-number {
-  font-family: 'Noto Sans JP', sans-serif;
-  font-size: 4.5rem;
-  font-weight: 300;
-  line-height: 1;
-  color: var(--ssi-red);
-  text-shadow: 0 0 30px var(--ssi-red-soft);
+.big-play-btn:active {
+  transform: translate(-50%, -50%) scale(0.98);
 }
 
-.countdown-label {
-  font-size: 0.6875rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.15em;
-  color: var(--text-muted);
-  margin-top: 4px;
+.big-play-btn svg {
+  width: 32px;
+  height: 32px;
 }
 
-/* Audio Visualizer */
-.audio-visualizer {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  height: 40px;
-}
-
-.audio-visualizer .bar {
-  width: 4px;
-  height: 8px;
-  background: var(--text-muted);
-  border-radius: 2px;
-  transition: all 0.15s ease;
-}
-
-.audio-visualizer.playing .bar {
-  background: var(--ssi-red);
-  animation: sound-bar 0.8s ease-in-out infinite;
-}
-
-.audio-visualizer.playing .bar:nth-child(1) { animation-delay: 0s; }
-.audio-visualizer.playing .bar:nth-child(2) { animation-delay: 0.1s; }
-.audio-visualizer.playing .bar:nth-child(3) { animation-delay: 0.2s; }
-.audio-visualizer.playing .bar:nth-child(4) { animation-delay: 0.3s; }
-.audio-visualizer.playing .bar:nth-child(5) { animation-delay: 0.4s; }
-
-@keyframes sound-bar {
-  0%, 100% { height: 8px; }
-  50% { height: 32px; }
-}
-
-/* Transition Indicator */
-.transition-indicator {
-  display: flex;
-  gap: 8px;
-}
-
-.transition-indicator span {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--text-muted);
-  animation: dot-bounce 1.4s ease-in-out infinite;
-}
-
-.transition-indicator span:nth-child(2) { animation-delay: 0.16s; }
-.transition-indicator span:nth-child(3) { animation-delay: 0.32s; }
-
-@keyframes dot-bounce {
-  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
-  40% { transform: scale(1); opacity: 1; }
+.big-play-btn .play-icon {
+  margin-left: 4px; /* Optical centering for play triangle */
 }
 
 /* Phase Instruction */
@@ -841,26 +863,7 @@ onUnmounted(() => {
   color: var(--text-secondary);
   text-align: center;
   max-width: 280px;
-}
-
-/* Target Text Section */
-.target-section {
-  min-height: 80px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  max-width: 600px;
-}
-
-.target-text {
-  font-family: 'Noto Sans JP', serif;
-  font-size: clamp(1.25rem, 4vw, 1.625rem);
-  font-weight: 400;
-  font-style: italic;
-  color: var(--ssi-gold);
-  text-align: center;
-  line-height: 1.4;
+  margin-top: 0.5rem;
 }
 
 /* ============ CONTROLS - PILL SEGMENTS ============ */
@@ -896,8 +899,10 @@ onUnmounted(() => {
 
 .mode-btn:hover {
   background: var(--bg-elevated);
-  color: var(--text-secondary);
-  transform: scale(1.05);
+  color: var(--text-primary);
+  transform: scale(1.08);
+  border-color: var(--text-muted);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
 
 /* Listening mode active */
@@ -955,6 +960,7 @@ onUnmounted(() => {
 .transport-btn:hover {
   background: var(--bg-elevated);
   color: var(--text-primary);
+  transform: scale(1.1);
 }
 
 /* Main play/stop button */
@@ -1093,26 +1099,135 @@ onUnmounted(() => {
 }
 
 /* ============ RESPONSIVE ============ */
-@media (max-width: 480px) {
-  .header {
-    padding: 1rem;
+
+/* Desktop / Chromebook optimization */
+@media (min-width: 768px) {
+  .main {
+    padding: 2rem 3rem;
+    gap: 1rem;
   }
 
-  .session-badge {
-    display: none;
+  .zone {
+    max-width: 800px;
+    padding: 2rem 3rem;
+  }
+
+  .ring-wrapper {
+    width: 200px;
+    height: 200px;
+  }
+
+  .big-play-btn {
+    width: 90px;
+    height: 90px;
+  }
+
+  .big-play-btn svg {
+    width: 36px;
+    height: 36px;
+  }
+
+  .control-bar {
+    gap: 16px;
+    padding: 1.5rem 2rem 2rem;
+  }
+
+  .mode-btn {
+    width: 52px;
+    height: 52px;
+  }
+
+  .transport-btn {
+    width: 48px;
+    height: 48px;
+  }
+
+  .transport-btn--main {
+    width: 60px;
+    height: 60px;
+  }
+}
+
+/* Large desktop */
+@media (min-width: 1200px) {
+  .zone {
+    max-width: 900px;
+  }
+
+  .known-text {
+    font-size: 2.5rem;
+  }
+
+  .target-text {
+    font-size: 2rem;
+  }
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+  .header {
+    padding: 0.75rem 1rem;
+  }
+
+  .logo-text {
+    font-size: 1rem;
+  }
+
+  .session-timer {
+    padding: 6px 12px;
+  }
+
+  .timer-value {
+    font-size: 0.875rem;
+  }
+
+  .theme-toggle {
+    width: 36px;
+    height: 36px;
+  }
+
+  .main {
+    padding: 0.5rem 1rem 1rem;
+    gap: 0.75rem;
   }
 
   .phase-strip {
-    transform: scale(0.85);
+    transform: scale(0.8);
+    margin-bottom: 0;
+  }
+
+  .zone {
+    padding: 1rem 1.25rem;
+  }
+
+  .zone-label {
+    font-size: 0.625rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .ring-wrapper {
+    width: 140px;
+    height: 140px;
+  }
+
+  .big-play-btn {
+    width: 64px;
+    height: 64px;
+  }
+
+  .big-play-btn svg {
+    width: 26px;
+    height: 26px;
   }
 
   .control-bar {
     gap: 8px;
+    padding: 0.75rem 1rem 1rem;
   }
 
   .mode-btn {
-    width: 42px;
-    height: 42px;
+    width: 40px;
+    height: 40px;
   }
 
   .mode-btn svg {
@@ -1126,8 +1241,8 @@ onUnmounted(() => {
   }
 
   .transport-btn {
-    width: 38px;
-    height: 38px;
+    width: 36px;
+    height: 36px;
   }
 
   .transport-btn svg {
@@ -1136,13 +1251,17 @@ onUnmounted(() => {
   }
 
   .transport-btn--main {
-    width: 48px;
-    height: 48px;
+    width: 44px;
+    height: 44px;
   }
 
   .transport-btn--main svg {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
+  }
+
+  .footer {
+    padding: 0 1rem 1rem;
   }
 }
 </style>
