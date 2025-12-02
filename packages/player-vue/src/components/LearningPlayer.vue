@@ -10,10 +10,10 @@ import SessionComplete from './SessionComplete.vue'
 
 // ============================================
 // DEMO DATA - Real Italian course audio from SSi
-// Audio served from S3: ssi-audio-stage/mastered/{UUID}.mp3
+// Audio files bundled locally in /public/audio/
 // ============================================
 
-const AUDIO_BASE_URL = 'https://ssi-audio-stage.s3.amazonaws.com/mastered'
+const AUDIO_BASE_URL = '/audio'
 
 const createDemoItem = (id, known, target, audio) => ({
   lego: {
