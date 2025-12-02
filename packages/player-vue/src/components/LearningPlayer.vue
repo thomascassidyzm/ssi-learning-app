@@ -377,6 +377,7 @@ onUnmounted(() => {
         class="mode-btn"
         :class="{ active: listeningMode }"
         @click="toggleListening"
+        title="Listening Mode"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
@@ -385,14 +386,28 @@ onUnmounted(() => {
       </button>
 
       <div class="transport-controls">
-        <button class="transport-btn" @click="handleRevisit">
+        <button class="transport-btn" @click="handleRevisit" title="Revisit">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="1 4 1 10 7 10"/>
             <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
           </svg>
         </button>
 
-        <button class="transport-btn" @click="handleSkip">
+        <!-- Main Play/Stop Button -->
+        <button
+          class="transport-btn transport-btn--main"
+          @click="isPlaying ? handlePause() : handleResume()"
+          :title="isPlaying ? 'Stop' : 'Play'"
+        >
+          <svg v-if="isPlaying" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="4" y="4" width="16" height="16" rx="2"/>
+          </svg>
+          <svg v-else viewBox="0 0 24 24" fill="currentColor">
+            <polygon points="6 3 20 12 6 21 6 3"/>
+          </svg>
+        </button>
+
+        <button class="transport-btn" @click="handleSkip" title="Skip">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polygon points="5 4 15 12 5 20 5 4" fill="currentColor"/>
             <line x1="19" y1="5" x2="19" y2="19"/>
@@ -404,6 +419,7 @@ onUnmounted(() => {
         class="mode-btn mode-btn--turbo"
         :class="{ active: turboActive }"
         @click="toggleTurbo"
+        title="Turbo Boost"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
@@ -843,6 +859,29 @@ onUnmounted(() => {
   transform: scale(1.1);
 }
 
+/* Main Play/Stop Button - Prominent */
+.transport-btn--main {
+  width: 56px;
+  height: 56px;
+  background: var(--accent);
+  color: white;
+  border-radius: 50%;
+  box-shadow: 0 4px 16px var(--accent-glow);
+  transition: all 0.2s ease;
+}
+
+.transport-btn--main svg {
+  width: 22px;
+  height: 22px;
+}
+
+.transport-btn--main:hover {
+  background: var(--accent);
+  color: white;
+  transform: scale(1.1);
+  box-shadow: 0 6px 24px var(--accent-glow);
+}
+
 /* ============ FOOTER ============ */
 .footer {
   padding: 0 1.5rem 1.5rem;
@@ -1033,6 +1072,16 @@ onUnmounted(() => {
   .transport-btn {
     width: 38px;
     height: 38px;
+  }
+
+  .transport-btn--main {
+    width: 48px;
+    height: 48px;
+  }
+
+  .transport-btn--main svg {
+    width: 18px;
+    height: 18px;
   }
 }
 </style>
