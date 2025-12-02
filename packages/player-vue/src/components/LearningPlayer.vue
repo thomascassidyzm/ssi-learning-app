@@ -314,7 +314,6 @@ class RealAudioController {
         if (this.audio) {
           this.audio.removeEventListener('ended', onEnded)
           this.audio.removeEventListener('error', onError)
-          this.audio.removeEventListener('canplaythrough', onCanPlay)
         }
         this.currentCleanup = null
       }
@@ -334,26 +333,14 @@ class RealAudioController {
         resolve() // Resolve anyway to not block the cycle
       }
 
-      const onCanPlay = () => {
-        // Audio is ready, start playing
-        this.audio?.play().catch(onError)
-      }
-
       this.audio.addEventListener('ended', onEnded)
       this.audio.addEventListener('error', onError)
 
       // Store cleanup function so stop() can use it
       this.currentCleanup = cleanup
 
-      // Start loading and playing
-      if (this.audio.readyState >= 3) {
-        // Already loaded enough to play
-        this.audio.play().catch(onError)
-      } else {
-        // Wait for enough data
-        this.audio.addEventListener('canplaythrough', onCanPlay)
-        this.audio.load()
-      }
+      // Play directly - browser handles loading
+      this.audio.play().catch(onError)
     })
   }
 
@@ -471,6 +458,11 @@ const handlePause = () => {
 const handleResume = () => {
   isPlaying.value = true
   if (orchestrator.value && currentItem.value) {
+    // Set pause duration for current item (2x target audio length)
+    if (!turboActive.value && currentItem.value.audioDurations) {
+      const pauseMs = Math.round(currentItem.value.audioDurations.target1 * 2 * 1000)
+      orchestrator.value.updateConfig({ pause_duration_ms: pauseMs })
+    }
     orchestrator.value.startItem(currentItem.value)
   }
 }
@@ -577,14 +569,9 @@ onMounted(() => {
     if (isPlaying.value) sessionSeconds.value++
   }, 1000)
 
-  // Auto-start after a short delay (allow preload)
-  setTimeout(() => {
-    isPlaying.value = true
-    // Set pause duration for first item
-    const pauseMs = Math.round(demoItems[0].audioDurations.target1 * 2 * 1000)
-    orchestrator.value.updateConfig({ pause_duration_ms: pauseMs })
-    orchestrator.value.startItem(demoItems[0])
-  }, 800)
+  // Don't auto-start - wait for user to click play
+  // This also respects browser autoplay policies
+  isPlaying.value = false
 })
 
 onUnmounted(() => {
