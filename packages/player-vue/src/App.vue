@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import LearningPlayer from './components/LearningPlayer.vue'
 import ControlVariations from './components/ControlVariations.vue'
 
-const showVariations = ref(true)
+const showVariations = ref(false)
 </script>
 
 <template>

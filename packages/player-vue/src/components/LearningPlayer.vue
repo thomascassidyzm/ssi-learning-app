@@ -162,6 +162,18 @@ const handleRevisit = () => {
   pauseTimeRemaining.value = 5
 }
 
+// Mode toggles
+const turboActive = ref(false)
+const listeningMode = ref(false)
+
+const toggleTurbo = () => {
+  turboActive.value = !turboActive.value
+}
+
+const toggleListening = () => {
+  listeningMode.value = !listeningMode.value
+}
+
 onMounted(() => {
   const savedTheme = localStorage.getItem('ssi-theme') || 'dark'
   theme.value = savedTheme
@@ -313,35 +325,61 @@ onUnmounted(() => {
       </div>
     </main>
 
-    <!-- Control Bar -->
-    <div class="controls">
-      <button class="ctrl-btn" @click="handleRevisit" title="Hear again">
+    <!-- Control Bar - Pill Segments -->
+    <div class="control-bar">
+      <!-- Left mode: Listening -->
+      <button
+        class="mode-btn mode-btn--listening"
+        :class="{ active: listeningMode }"
+        @click="toggleListening"
+        title="Listening Mode"
+      >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="1 4 1 10 7 10"/>
-          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+          <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+          <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
         </svg>
-        <span>Again</span>
       </button>
 
-      <button class="ctrl-btn ctrl-btn--main" @click="isPlaying ? handlePause() : handleResume()">
-        <div class="main-btn-inner">
+      <!-- Main transport controls -->
+      <div class="transport-pill">
+        <button class="transport-btn" @click="handleRevisit" title="Revisit">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="1 4 1 10 7 10"/>
+            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+          </svg>
+        </button>
+
+        <button
+          class="transport-btn transport-btn--main"
+          @click="isPlaying ? handlePause() : handleResume()"
+        >
           <svg v-if="isPlaying" viewBox="0 0 24 24" fill="currentColor">
-            <rect x="6" y="4" width="4" height="16" rx="1"/>
-            <rect x="14" y="4" width="4" height="16" rx="1"/>
+            <rect x="5" y="3" width="4" height="18" rx="1"/>
+            <rect x="15" y="3" width="4" height="18" rx="1"/>
           </svg>
           <svg v-else viewBox="0 0 24 24" fill="currentColor">
             <polygon points="6 3 20 12 6 21 6 3"/>
           </svg>
-        </div>
-        <span>{{ isPlaying ? 'Pause' : 'Play' }}</span>
-      </button>
+        </button>
 
-      <button class="ctrl-btn" @click="handleSkip" title="Skip to next">
+        <button class="transport-btn" @click="handleSkip" title="Skip">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="5 4 15 12 5 20 5 4" fill="currentColor"/>
+            <line x1="19" y1="5" x2="19" y2="19"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Right mode: Turbo -->
+      <button
+        class="mode-btn mode-btn--turbo"
+        :class="{ active: turboActive }"
+        @click="toggleTurbo"
+        title="Turbo Boost"
+      >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polygon points="5 4 15 12 5 20 5 4" fill="currentColor"/>
-          <line x1="19" y1="5" x2="19" y2="19"/>
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
         </svg>
-        <span>Skip</span>
       </button>
     </div>
 
@@ -825,83 +863,118 @@ onUnmounted(() => {
   line-height: 1.4;
 }
 
-/* ============ CONTROLS ============ */
-.controls {
+/* ============ CONTROLS - PILL SEGMENTS ============ */
+.control-bar {
   display: flex;
   justify-content: center;
-  align-items: flex-end;
-  gap: 1rem;
+  align-items: center;
+  gap: 12px;
   padding: 1rem 1.5rem 1.5rem;
   position: relative;
   z-index: 10;
 }
 
-.ctrl-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 12px 20px;
+/* Mode buttons (Listening & Turbo) */
+.mode-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1px solid var(--border-medium);
   background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 14px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: all 0.2s ease;
-  font-family: 'Source Sans 3', sans-serif;
 }
 
-.ctrl-btn svg {
+.mode-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.mode-btn:hover {
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  transform: scale(1.05);
+}
+
+/* Listening mode active */
+.mode-btn--listening.active {
+  background: rgba(74, 222, 128, 0.15);
+  border-color: #4ade80;
+  color: #4ade80;
+  box-shadow: 0 0 20px rgba(74, 222, 128, 0.3);
+}
+
+/* Turbo mode active */
+.mode-btn--turbo.active {
+  background: rgba(212, 168, 83, 0.2);
+  border-color: var(--ssi-gold);
+  color: var(--ssi-gold);
+  box-shadow: 0 0 20px rgba(212, 168, 83, 0.4);
+  animation: turbo-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes turbo-pulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(212, 168, 83, 0.4); }
+  50% { box-shadow: 0 0 30px rgba(212, 168, 83, 0.6); }
+}
+
+/* Transport pill container */
+.transport-pill {
+  display: flex;
+  align-items: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 100px;
+  padding: 6px;
+  gap: 4px;
+}
+
+.transport-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.transport-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.transport-btn:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+/* Main play/stop button */
+.transport-btn--main {
+  width: 56px;
+  height: 56px;
+  background: linear-gradient(135deg, var(--ssi-red) 0%, var(--ssi-red-dark) 100%);
+  color: white;
+  box-shadow: 0 4px 16px rgba(194, 58, 58, 0.4);
+}
+
+.transport-btn--main svg {
   width: 22px;
   height: 22px;
 }
 
-.ctrl-btn span {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.ctrl-btn:hover {
-  background: var(--bg-elevated);
-  border-color: var(--border-medium);
-  color: var(--text-primary);
-  transform: translateY(-2px);
-}
-
-.ctrl-btn--main {
-  padding: 0;
-  background: transparent;
-  border: none;
-}
-
-.main-btn-inner {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--ssi-red) 0%, var(--ssi-red-dark) 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  box-shadow: 0 4px 20px rgba(194, 58, 58, 0.4);
-  transition: all 0.2s ease;
-}
-
-.main-btn-inner svg {
-  width: 28px;
-  height: 28px;
-}
-
-.ctrl-btn--main:hover .main-btn-inner {
-  transform: scale(1.08);
-  box-shadow: 0 6px 30px rgba(194, 58, 58, 0.5);
-}
-
-.ctrl-btn--main span {
-  color: var(--text-secondary);
-  margin-top: 8px;
+.transport-btn--main:hover {
+  background: linear-gradient(135deg, var(--ssi-red-light) 0%, var(--ssi-red) 100%);
+  transform: scale(1.05);
+  box-shadow: 0 6px 24px rgba(194, 58, 58, 0.5);
 }
 
 /* ============ FOOTER ============ */
@@ -1033,17 +1106,43 @@ onUnmounted(() => {
     transform: scale(0.85);
   }
 
-  .controls {
-    gap: 0.75rem;
+  .control-bar {
+    gap: 8px;
   }
 
-  .ctrl-btn {
-    padding: 10px 14px;
+  .mode-btn {
+    width: 42px;
+    height: 42px;
   }
 
-  .main-btn-inner {
-    width: 56px;
-    height: 56px;
+  .mode-btn svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .transport-pill {
+    padding: 4px;
+    gap: 2px;
+  }
+
+  .transport-btn {
+    width: 38px;
+    height: 38px;
+  }
+
+  .transport-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .transport-btn--main {
+    width: 48px;
+    height: 48px;
+  }
+
+  .transport-btn--main svg {
+    width: 20px;
+    height: 20px;
   }
 }
 </style>
