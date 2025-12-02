@@ -760,7 +760,7 @@ onUnmounted(() => {
         <div class="progress-fill" :style="{ width: `${sessionProgress * 100}%` }"></div>
       </div>
       <div class="footer-stats">
-        <span>{{ itemsPracticed }} / {{ phrases.length }}</span>
+        <span>{{ itemsPracticed }} / {{ demoItems.length }}</span>
       </div>
     </footer>
   </div>
