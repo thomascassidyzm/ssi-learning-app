@@ -279,31 +279,44 @@ onUnmounted(() => {
     <div class="bg-belt-wash"></div>
     <div class="bg-noise"></div>
 
-    <!-- Silhouette Landscape -->
+    <!-- Silhouette Landscape - Extended Height -->
     <div class="landscape">
-      <svg class="landscape-svg" viewBox="0 0 1440 320" preserveAspectRatio="xMidYMax slice">
-        <!-- Distant mountains (lightest) -->
-        <path class="mountain mountain--far" d="M0,320 L0,220 Q120,180 240,200 Q360,160 480,190 Q600,140 720,170 Q840,120 960,160 Q1080,100 1200,140 Q1320,80 1440,120 L1440,320 Z"/>
+      <svg class="landscape-svg" viewBox="0 0 1440 400" preserveAspectRatio="xMidYMax slice">
+        <!-- Very distant peaks (barely visible) -->
+        <path class="mountain mountain--distant" d="M0,400 L0,120 Q180,60 360,100 Q540,30 720,80 Q900,20 1080,70 Q1260,10 1440,60 L1440,400 Z"/>
+        <!-- Distant mountains -->
+        <path class="mountain mountain--far" d="M0,400 L0,180 Q120,140 240,160 Q360,100 480,140 Q600,80 720,120 Q840,60 960,110 Q1080,50 1200,90 Q1320,40 1440,80 L1440,400 Z"/>
         <!-- Mid mountains -->
-        <path class="mountain mountain--mid" d="M0,320 L0,250 Q180,200 360,230 Q540,180 720,220 Q900,170 1080,210 Q1260,160 1440,200 L1440,320 Z"/>
+        <path class="mountain mountain--mid" d="M0,400 L0,260 Q180,210 360,240 Q540,180 720,220 Q900,160 1080,200 Q1260,140 1440,180 L1440,400 Z"/>
         <!-- Near hills (darkest) -->
-        <path class="mountain mountain--near" d="M0,320 L0,280 Q240,250 480,270 Q720,240 960,260 Q1200,230 1440,260 L1440,320 Z"/>
+        <path class="mountain mountain--near" d="M0,400 L0,320 Q240,290 480,310 Q720,280 960,300 Q1200,270 1440,300 L1440,400 Z"/>
         <!-- Torii gate silhouette -->
-        <g class="torii" transform="translate(1150, 200)">
-          <rect x="0" y="0" width="6" height="60"/>
-          <rect x="44" y="0" width="6" height="60"/>
-          <rect x="-8" y="0" width="66" height="6"/>
-          <rect x="-4" y="10" width="58" height="4"/>
-          <path d="M-12,-8 Q25,-20 62,-8" stroke-width="6" fill="none" stroke="currentColor"/>
+        <g class="torii" transform="translate(1180, 260)">
+          <rect x="0" y="0" width="5" height="50"/>
+          <rect x="40" y="0" width="5" height="50"/>
+          <rect x="-6" y="0" width="57" height="5"/>
+          <rect x="-2" y="9" width="49" height="3"/>
+          <path d="M-10,-6 Q22,-16 54,-6" stroke-width="5" fill="none" stroke="currentColor"/>
         </g>
-        <!-- Ninja silhouette -->
-        <g class="ninja-figure" transform="translate(200, 245)">
-          <!-- Body in martial arts stance -->
-          <circle cx="12" cy="4" r="4"/> <!-- Head -->
-          <path d="M12,8 L12,20 M12,12 L4,18 M12,12 L20,16 M12,20 L6,32 M12,20 L18,30"/> <!-- Body/limbs -->
-          <path d="M8,0 L16,0 L20,-4" stroke-width="1" fill="none"/> <!-- Headband -->
+        <!-- Ninja silhouette - walking the path -->
+        <g class="ninja-figure" transform="translate(280, 295)">
+          <circle cx="10" cy="3" r="3.5"/>
+          <path d="M10,7 L10,18 M10,10 L3,16 M10,10 L17,14 M10,18 L5,28 M10,18 L15,27"/>
+          <path d="M6,-1 L14,-1 L18,-4" stroke-width="1" fill="none"/>
         </g>
       </svg>
+    </div>
+
+    <!-- Dust motes / fireflies - barely visible, slowly rising -->
+    <div class="dust-motes">
+      <div class="mote mote-1"></div>
+      <div class="mote mote-2"></div>
+      <div class="mote mote-3"></div>
+      <div class="mote mote-4"></div>
+      <div class="mote mote-5"></div>
+      <div class="mote mote-6"></div>
+      <div class="mote mote-7"></div>
+      <div class="mote mote-8"></div>
     </div>
 
     <!-- Floating mist particles -->
@@ -631,8 +644,8 @@ onUnmounted(() => {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 35vh;
-  max-height: 320px;
+  height: 50vh;
+  max-height: 400px;
   pointer-events: none;
   z-index: 1;
   opacity: var(--mountain-opacity, 1);
@@ -646,6 +659,10 @@ onUnmounted(() => {
 
 .mountain {
   transition: fill 0.5s ease;
+}
+
+.mountain--distant {
+  fill: rgba(255, 255, 255, 0.015);
 }
 
 .mountain--far {
@@ -674,6 +691,10 @@ onUnmounted(() => {
 }
 
 /* Light theme landscape */
+[data-theme="light"] .mountain--distant {
+  fill: rgba(0, 0, 0, 0.02);
+}
+
 [data-theme="light"] .mountain--far {
   fill: rgba(0, 0, 0, 0.04);
 }
@@ -769,6 +790,62 @@ onUnmounted(() => {
 
 [data-theme="light"] .mist-particle {
   background: radial-gradient(ellipse, rgba(0,0,0,0.02) 0%, transparent 70%);
+}
+
+/* ============ DUST MOTES / FIREFLIES ============ */
+.dust-motes {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  overflow: hidden;
+}
+
+.mote {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.3);
+  animation: mote-rise 20s ease-in-out infinite;
+}
+
+/* Distribute motes across the scene */
+.mote-1 { left: 10%; bottom: 20%; animation-delay: 0s; animation-duration: 22s; }
+.mote-2 { left: 25%; bottom: 35%; animation-delay: -4s; animation-duration: 18s; }
+.mote-3 { left: 40%; bottom: 15%; animation-delay: -8s; animation-duration: 25s; }
+.mote-4 { left: 55%; bottom: 28%; animation-delay: -12s; animation-duration: 20s; }
+.mote-5 { left: 70%; bottom: 22%; animation-delay: -3s; animation-duration: 24s; }
+.mote-6 { left: 85%; bottom: 32%; animation-delay: -16s; animation-duration: 19s; }
+.mote-7 { left: 15%; bottom: 40%; animation-delay: -7s; animation-duration: 23s; opacity: 0.6; }
+.mote-8 { left: 60%; bottom: 45%; animation-delay: -11s; animation-duration: 21s; opacity: 0.5; }
+
+@keyframes mote-rise {
+  0% {
+    transform: translateY(0) translateX(0) scale(1);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.6;
+  }
+  50% {
+    transform: translateY(-100px) translateX(15px) scale(0.8);
+    opacity: 0.4;
+  }
+  90% {
+    opacity: 0.2;
+  }
+  100% {
+    transform: translateY(-200px) translateX(-10px) scale(0.5);
+    opacity: 0;
+  }
+}
+
+/* Light theme motes - warmer, golden tint */
+[data-theme="light"] .mote {
+  background: rgba(212, 168, 83, 0.5);
+  box-shadow: 0 0 8px rgba(212, 168, 83, 0.4);
 }
 
 /* ============ HEADER ============ */
