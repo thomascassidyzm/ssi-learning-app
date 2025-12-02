@@ -10,6 +10,63 @@ const phrases = [
   { known: 'Can you help me please?', target: '¿Puedes ayudarme por favor?' },
 ]
 
+// ============================================
+// BELT PROGRESSION SYSTEM
+// Parametrized martial arts progression
+// ============================================
+
+const BELT_CONFIG = {
+  totalSeeds: 668,
+
+  // Belt thresholds - seeds required to ACHIEVE each belt
+  // Early belts come quickly for motivation
+  belts: [
+    { name: 'white',   seedsRequired: 0,   color: '#f5f5f5', colorDark: '#e0e0e0', glow: 'rgba(245, 245, 245, 0.3)' },
+    { name: 'yellow',  seedsRequired: 8,   color: '#fcd34d', colorDark: '#f59e0b', glow: 'rgba(252, 211, 77, 0.4)' },
+    { name: 'orange',  seedsRequired: 20,  color: '#fb923c', colorDark: '#ea580c', glow: 'rgba(251, 146, 60, 0.4)' },
+    { name: 'green',   seedsRequired: 40,  color: '#4ade80', colorDark: '#16a34a', glow: 'rgba(74, 222, 128, 0.4)' },
+    { name: 'blue',    seedsRequired: 80,  color: '#60a5fa', colorDark: '#2563eb', glow: 'rgba(96, 165, 250, 0.4)' },
+    { name: 'purple',  seedsRequired: 150, color: '#a78bfa', colorDark: '#7c3aed', glow: 'rgba(167, 139, 250, 0.4)' },
+    { name: 'brown',   seedsRequired: 280, color: '#a8856c', colorDark: '#78350f', glow: 'rgba(168, 133, 108, 0.4)' },
+    { name: 'black',   seedsRequired: 400, color: '#1f1f1f', colorDark: '#0a0a0a', glow: 'rgba(255, 255, 255, 0.15)' },
+  ]
+}
+
+// Simulated completed seeds (in real app, this comes from user state)
+const completedSeeds = ref(42) // Demo: Green belt territory
+
+// Belt computations
+const currentBelt = computed(() => {
+  const belts = BELT_CONFIG.belts
+  for (let i = belts.length - 1; i >= 0; i--) {
+    if (completedSeeds.value >= belts[i].seedsRequired) {
+      return { ...belts[i], index: i }
+    }
+  }
+  return { ...belts[0], index: 0 }
+})
+
+const nextBelt = computed(() => {
+  const nextIndex = currentBelt.value.index + 1
+  if (nextIndex >= BELT_CONFIG.belts.length) return null
+  return BELT_CONFIG.belts[nextIndex]
+})
+
+const beltProgress = computed(() => {
+  if (!nextBelt.value) return 100 // Already at black belt
+  const current = currentBelt.value.seedsRequired
+  const next = nextBelt.value.seedsRequired
+  const progress = (completedSeeds.value - current) / (next - current)
+  return Math.min(Math.max(progress * 100, 0), 100)
+})
+
+// CSS custom properties for belt theming
+const beltCssVars = computed(() => ({
+  '--belt-color': currentBelt.value.color,
+  '--belt-color-dark': currentBelt.value.colorDark,
+  '--belt-glow': currentBelt.value.glow,
+}))
+
 // 4 Distinct Phases
 const Phase = {
   PROMPT: 'prompt',      // Hear prompt in known language
@@ -212,9 +269,14 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="player" :class="{ 'is-paused': !isPlaying }">
-    <!-- Subtle gradient background -->
+  <div
+    class="player"
+    :class="[`belt-${currentBelt.name}`, { 'is-paused': !isPlaying }]"
+    :style="beltCssVars"
+  >
+    <!-- Belt-tinted gradient background -->
     <div class="bg-gradient"></div>
+    <div class="bg-belt-wash"></div>
     <div class="bg-noise"></div>
 
     <!-- Header -->
@@ -223,15 +285,45 @@ onUnmounted(() => {
         <span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span>
       </div>
 
-      <div class="session-timer">
-        <span class="timer-value">{{ formattedSessionTime }}</span>
+      <!-- Belt Indicator - Zen Style -->
+      <div class="belt-indicator">
+        <div class="belt-knot">
+          <svg viewBox="0 0 32 16" class="belt-svg">
+            <!-- Belt fabric -->
+            <rect x="0" y="5" width="32" height="6" rx="1" class="belt-fabric"/>
+            <!-- Knot center -->
+            <circle cx="16" cy="8" r="4" class="belt-knot-center"/>
+            <!-- Belt tails -->
+            <path d="M12 8 L8 14 L6 14" class="belt-tail" />
+            <path d="M20 8 L24 14 L26 14" class="belt-tail" />
+          </svg>
+        </div>
+        <div class="belt-progress-ring">
+          <svg viewBox="0 0 36 36">
+            <circle cx="18" cy="18" r="15" class="belt-progress-track" />
+            <circle
+              cx="18" cy="18" r="15"
+              class="belt-progress-fill"
+              :stroke-dasharray="94.25"
+              :stroke-dashoffset="94.25 - (beltProgress / 100) * 94.25"
+              transform="rotate(-90 18 18)"
+            />
+          </svg>
+          <span class="belt-seed-count">{{ completedSeeds }}</span>
+        </div>
       </div>
 
-      <button class="theme-toggle" @click="toggleTheme">
-        <div class="toggle-track">
-          <div class="toggle-thumb" :class="{ light: theme === 'light' }"></div>
+      <div class="header-right">
+        <div class="session-timer">
+          <span class="timer-value">{{ formattedSessionTime }}</span>
         </div>
-      </button>
+
+        <button class="theme-toggle" @click="toggleTheme">
+          <div class="toggle-track">
+            <div class="toggle-thumb" :class="{ light: theme === 'light' }"></div>
+          </div>
+        </button>
+      </div>
     </header>
 
     <!-- Main Content - Fixed Layout -->
@@ -476,6 +568,19 @@ onUnmounted(() => {
   z-index: 0;
 }
 
+/* Belt color wash - subtle ambient energy */
+.bg-belt-wash {
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 100% 60% at 50% 120%, var(--belt-glow) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 30% at 10% 50%, var(--belt-glow) 0%, transparent 50%);
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: 0;
+  transition: background 1s ease;
+}
+
 .bg-noise {
   position: fixed;
   inset: 0;
@@ -551,6 +656,96 @@ onUnmounted(() => {
 .toggle-thumb.light {
   transform: translateX(20px);
   background: var(--gold);
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* ============ BELT INDICATOR ============ */
+.belt-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.375rem 0.75rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 100px;
+  transition: all 0.3s ease;
+}
+
+.belt-knot {
+  width: 32px;
+  height: 16px;
+}
+
+.belt-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.belt-fabric {
+  fill: var(--belt-color);
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
+  transition: fill 0.5s ease;
+}
+
+.belt-knot-center {
+  fill: var(--belt-color-dark);
+  transition: fill 0.5s ease;
+}
+
+.belt-tail {
+  stroke: var(--belt-color);
+  stroke-width: 2;
+  stroke-linecap: round;
+  fill: none;
+  transition: stroke 0.5s ease;
+}
+
+/* Special styling for black belt - gold accents */
+.belt-black .belt-knot-center {
+  fill: #d4a853;
+}
+
+.belt-progress-ring {
+  position: relative;
+  width: 36px;
+  height: 36px;
+}
+
+.belt-progress-ring svg {
+  width: 100%;
+  height: 100%;
+}
+
+.belt-progress-track {
+  fill: none;
+  stroke: var(--border-medium);
+  stroke-width: 3;
+}
+
+.belt-progress-fill {
+  fill: none;
+  stroke: var(--belt-color);
+  stroke-width: 3;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.5s cubic-bezier(0.16, 1, 0.3, 1), stroke 0.5s ease;
+  filter: drop-shadow(0 0 4px var(--belt-glow));
+}
+
+.belt-seed-count {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.625rem;
+  font-weight: 700;
+  color: var(--text-secondary);
 }
 
 /* ============ MAIN - FIXED LAYOUT ============ */
@@ -1005,10 +1200,29 @@ onUnmounted(() => {
 @media (max-width: 480px) {
   .header {
     padding: 0.75rem 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
   }
 
   .brand {
     font-size: 1rem;
+  }
+
+  .belt-indicator {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+    padding: 0.25rem 0.5rem;
+    margin-top: 0.25rem;
+  }
+
+  .header-right {
+    gap: 0.5rem;
+  }
+
+  .session-timer {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.75rem;
   }
 
   .main {
