@@ -9,31 +9,20 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
   <style>
     /* ═══════════════════════════════════════════════════════════════
-       SSi Learning Player - Refined Audio Experience
-       Aesthetic: Japanese Minimalism × Premium Audio Equipment
+       SSi Learning Player v2
+       Aesthetic: Premium Audio × Clean Minimalism
+       Flow: PROMPT → PAUSE → VOICE_1 → VOICE_2
        ═══════════════════════════════════════════════════════════════ */
 
     :root {
-      /* Core Palette */
-      --ssi-black: #0D0D0F;
-      --ssi-charcoal: #1C1C1E;
-      --ssi-graphite: #2C2C2E;
-      --ssi-slate: #3A3A3C;
-      --ssi-steel: #48484A;
-
       /* SSi Red - The Accent */
       --ssi-red: #E63946;
-      --ssi-red-soft: rgba(230, 57, 70, 0.15);
-      --ssi-red-glow: rgba(230, 57, 70, 0.4);
+      --ssi-red-soft: rgba(230, 57, 70, 0.12);
+      --ssi-red-glow: rgba(230, 57, 70, 0.35);
 
-      /* Text */
-      --ssi-white: #FAFAFA;
-      --ssi-white-90: rgba(250, 250, 250, 0.9);
-      --ssi-white-70: rgba(250, 250, 250, 0.7);
-      --ssi-white-50: rgba(250, 250, 250, 0.5);
-      --ssi-white-30: rgba(250, 250, 250, 0.3);
-      --ssi-white-15: rgba(250, 250, 250, 0.15);
-      --ssi-white-08: rgba(250, 250, 250, 0.08);
+      /* Success Green */
+      --ssi-green: #10B981;
+      --ssi-green-soft: rgba(16, 185, 129, 0.12);
 
       /* Typography */
       --font-display: 'DM Serif Display', Georgia, serif;
@@ -45,9 +34,57 @@
       --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
 
       /* Ring */
-      --ring-size: 160px;
-      --ring-stroke: 4px;
+      --ring-size: 140px;
+      --ring-stroke: 5px;
+      --ring-radius: 62;
+      --ring-circumference: 389.56; /* 2 * PI * 62 */
     }
+
+    /* ═══════════════════════════════════════════════════════════════
+       DARK THEME (Default)
+       ═══════════════════════════════════════════════════════════════ */
+
+    :root, [data-theme="dark"] {
+      --bg-primary: #0D0D0F;
+      --bg-secondary: #1A1A1D;
+      --bg-tertiary: #242428;
+      --bg-elevated: #2C2C30;
+
+      --text-primary: #FAFAFA;
+      --text-secondary: rgba(250, 250, 250, 0.7);
+      --text-tertiary: rgba(250, 250, 250, 0.45);
+      --text-muted: rgba(250, 250, 250, 0.25);
+
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-light: rgba(255, 255, 255, 0.12);
+
+      --shadow-elevated: 0 8px 32px rgba(0, 0, 0, 0.5);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       LIGHT THEME
+       ═══════════════════════════════════════════════════════════════ */
+
+    [data-theme="light"] {
+      --bg-primary: #FAFAFA;
+      --bg-secondary: #F0F0F2;
+      --bg-tertiary: #E8E8EB;
+      --bg-elevated: #FFFFFF;
+
+      --text-primary: #1A1A1D;
+      --text-secondary: rgba(26, 26, 29, 0.7);
+      --text-tertiary: rgba(26, 26, 29, 0.5);
+      --text-muted: rgba(26, 26, 29, 0.25);
+
+      --border-subtle: rgba(0, 0, 0, 0.06);
+      --border-light: rgba(0, 0, 0, 0.1);
+
+      --shadow-elevated: 0 8px 32px rgba(0, 0, 0, 0.1);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       RESET & BASE
+       ═══════════════════════════════════════════════════════════════ */
 
     * {
       margin: 0;
@@ -62,87 +99,105 @@
 
     body {
       font-family: var(--font-body);
-      background: var(--ssi-black);
-      color: var(--ssi-white);
+      background: var(--bg-primary);
+      color: var(--text-primary);
       display: flex;
       align-items: center;
       justify-content: center;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
+      transition: background-color 0.3s ease, color 0.3s ease;
     }
 
     /* ═══════════════════════════════════════════════════════════════
-       BACKGROUND - Subtle depth
+       CONTAINER
        ═══════════════════════════════════════════════════════════════ */
 
-    .player-container {
+    .player {
       position: relative;
       width: 100%;
       height: 100%;
+      max-width: 500px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      padding: 1.5rem;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       HEADER
+       ═══════════════════════════════════════════════════════════════ */
+
+    .player-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 1rem;
+    }
+
+    .course-badge {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.375rem 0.75rem;
+      background: var(--bg-tertiary);
+      border-radius: 100px;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    .course-badge .flag {
+      font-size: 1rem;
+    }
+
+    .theme-toggle {
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-tertiary);
+      border: none;
+      border-radius: 50%;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .theme-toggle:hover {
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+    }
+
+    .theme-toggle svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       MAIN CONTENT AREA
+       ═══════════════════════════════════════════════════════════════ */
+
+    .player-main {
+      flex: 1;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 2rem;
-      overflow: hidden;
-    }
-
-    /* Subtle radial gradient for depth */
-    .player-container::before {
-      content: '';
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 150%;
-      height: 150%;
-      background: radial-gradient(
-        ellipse at center,
-        var(--ssi-charcoal) 0%,
-        var(--ssi-black) 60%
-      );
-      pointer-events: none;
-    }
-
-    /* Martial arts silhouette - very subtle */
-    .player-container::after {
-      content: '';
-      position: absolute;
-      bottom: -5%;
-      right: -5%;
-      width: 40%;
-      height: 60%;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 300'%3E%3Cpath fill='%23ffffff' fill-opacity='0.02' d='M100 50 L120 80 L140 70 L130 100 L160 120 L130 130 L140 180 L100 160 L60 180 L70 130 L40 120 L70 100 L60 70 L80 80 Z M100 160 L90 220 L70 300 L100 280 L130 300 L110 220 Z'/%3E%3C/svg%3E");
-      background-size: contain;
-      background-repeat: no-repeat;
-      background-position: bottom right;
-      opacity: 0.5;
-      pointer-events: none;
+      gap: 2rem;
+      padding: 1rem 0;
     }
 
     /* ═══════════════════════════════════════════════════════════════
-       MAIN CONTENT
-       ═══════════════════════════════════════════════════════════════ */
-
-    .player-content {
-      position: relative;
-      z-index: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 2.5rem;
-      width: 100%;
-      max-width: 400px;
-    }
-
-    /* ═══════════════════════════════════════════════════════════════
-       PROGRESS RING - The Heart
+       PROGRESS RING
        ═══════════════════════════════════════════════════════════════ */
 
     .ring-container {
       position: relative;
       width: var(--ring-size);
       height: var(--ring-size);
+      flex-shrink: 0;
     }
 
     .ring-svg {
@@ -153,7 +208,7 @@
 
     .ring-track {
       fill: none;
-      stroke: var(--ssi-white-08);
+      stroke: var(--border-subtle);
       stroke-width: var(--ring-stroke);
     }
 
@@ -162,163 +217,167 @@
       stroke: var(--ssi-red);
       stroke-width: var(--ring-stroke);
       stroke-linecap: round;
-      stroke-dasharray: 452; /* 2 * PI * 72 (radius) */
-      stroke-dashoffset: 452;
+      stroke-dasharray: var(--ring-circumference);
+      stroke-dashoffset: var(--ring-circumference);
       transition: stroke-dashoffset 0.1s linear;
+    }
+
+    .ring-progress.has-glow {
       filter: drop-shadow(0 0 8px var(--ssi-red-glow));
     }
 
-    .ring-progress.animate {
-      transition: stroke-dashoffset 0.1s linear;
-    }
-
-    /* Speaker Icon */
+    /* Ring Icon Container */
     .ring-icon {
       position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      width: 48px;
-      height: 48px;
+      width: 56px;
+      height: 56px;
       display: flex;
       align-items: center;
       justify-content: center;
     }
 
     .speaker-icon {
-      width: 100%;
-      height: 100%;
+      width: 40px;
+      height: 40px;
       color: var(--ssi-red);
-      transition: transform 0.3s var(--ease-out-back), opacity 0.3s ease;
+      opacity: 0.9;
+      transition: transform 0.3s var(--ease-out-back), opacity 0.2s ease;
     }
 
-    .speaker-icon.speaking {
-      animation: pulse-speaker 1s var(--ease-in-out) infinite;
+    .speaker-icon.active {
+      animation: pulse-icon 0.8s var(--ease-in-out) infinite;
     }
 
-    @keyframes pulse-speaker {
-      0%, 100% { transform: scale(1); opacity: 1; }
-      50% { transform: scale(1.08); opacity: 0.8; }
+    @keyframes pulse-icon {
+      0%, 100% { transform: scale(1); opacity: 0.9; }
+      50% { transform: scale(1.1); opacity: 1; }
     }
 
-    /* Sound waves animation */
-    .sound-waves {
+    /* Sound Ripples */
+    .sound-ripples {
       position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 80px;
-      height: 80px;
+      inset: 0;
       pointer-events: none;
-      opacity: 0;
-      transition: opacity 0.3s ease;
     }
 
-    .sound-waves.active {
-      opacity: 1;
-    }
-
-    .sound-wave {
+    .ripple {
       position: absolute;
       top: 50%;
       left: 50%;
-      transform: translate(-50%, -50%);
+      width: 56px;
+      height: 56px;
+      margin: -28px 0 0 -28px;
       border: 2px solid var(--ssi-red);
       border-radius: 50%;
       opacity: 0;
     }
 
-    .sound-waves.active .sound-wave {
-      animation: ripple 1.5s var(--ease-out-expo) infinite;
+    .sound-ripples.active .ripple {
+      animation: ripple-out 1.5s var(--ease-out-expo) infinite;
     }
 
-    .sound-wave:nth-child(1) { animation-delay: 0s; }
-    .sound-wave:nth-child(2) { animation-delay: 0.5s; }
-    .sound-wave:nth-child(3) { animation-delay: 1s; }
+    .ripple:nth-child(2) { animation-delay: 0.4s; }
+    .ripple:nth-child(3) { animation-delay: 0.8s; }
 
-    @keyframes ripple {
-      0% {
-        width: 48px;
-        height: 48px;
-        opacity: 0.6;
-      }
-      100% {
-        width: 100px;
-        height: 100px;
-        opacity: 0;
-      }
+    @keyframes ripple-out {
+      0% { transform: scale(1); opacity: 0.5; }
+      100% { transform: scale(2.2); opacity: 0; }
     }
 
     /* ═══════════════════════════════════════════════════════════════
        PHRASE DISPLAY
        ═══════════════════════════════════════════════════════════════ */
 
-    .phrase-container {
+    .phrase-display {
       text-align: center;
-      min-height: 140px;
+      min-height: 120px;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 0.75rem;
+      gap: 0.625rem;
+      padding: 0 1rem;
     }
 
-    .phrase-target {
+    .phrase-text {
       font-family: var(--font-display);
-      font-size: 2rem;
+      font-size: 1.75rem;
       font-weight: 400;
-      line-height: 1.3;
-      color: var(--ssi-white);
-      letter-spacing: -0.01em;
+      line-height: 1.35;
+      color: var(--text-primary);
       opacity: 0;
-      transform: translateY(10px);
-      transition: opacity 0.5s var(--ease-out-expo), transform 0.5s var(--ease-out-expo);
+      transform: translateY(12px);
+      transition: opacity 0.4s var(--ease-out-expo), transform 0.4s var(--ease-out-expo);
     }
 
-    .phrase-target.visible {
+    .phrase-text.visible {
       opacity: 1;
       transform: translateY(0);
     }
 
-    .phrase-target .highlight {
+    .phrase-text .highlight {
       color: var(--ssi-red);
     }
 
-    .phrase-known {
+    .phrase-translation {
       font-family: var(--font-body);
       font-size: 1rem;
       font-weight: 400;
-      color: var(--ssi-white-50);
-      letter-spacing: 0.01em;
+      color: var(--text-tertiary);
       opacity: 0;
       transform: translateY(8px);
-      transition: opacity 0.4s var(--ease-out-expo) 0.1s, transform 0.4s var(--ease-out-expo) 0.1s;
+      transition: opacity 0.35s var(--ease-out-expo) 0.08s, transform 0.35s var(--ease-out-expo) 0.08s;
     }
 
-    .phrase-known.visible {
+    .phrase-translation.visible {
       opacity: 1;
       transform: translateY(0);
     }
 
-    /* Phase label */
-    .phase-label {
-      font-family: var(--font-body);
+    /* Phase Indicator */
+    .phase-indicator {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+      padding: 0.375rem 0.875rem;
+      background: var(--bg-secondary);
+      border-radius: 100px;
       font-size: 0.75rem;
       font-weight: 500;
       text-transform: uppercase;
-      letter-spacing: 0.15em;
-      color: var(--ssi-white-30);
-      margin-top: 0.5rem;
+      letter-spacing: 0.08em;
+      color: var(--text-tertiary);
       opacity: 0;
-      transition: opacity 0.3s ease, color 0.3s ease;
+      transition: opacity 0.3s ease, background-color 0.3s ease, color 0.3s ease;
     }
 
-    .phase-label.visible {
+    .phase-indicator.visible {
       opacity: 1;
     }
 
-    .phase-label.speaking {
+    .phase-indicator.speaking {
+      background: var(--ssi-red-soft);
       color: var(--ssi-red);
+    }
+
+    .phase-indicator .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .phase-indicator.speaking .dot {
+      animation: blink 1s ease-in-out infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
     }
 
     /* ═══════════════════════════════════════════════════════════════
@@ -328,13 +387,12 @@
     .control-bar {
       display: flex;
       align-items: center;
-      background: var(--ssi-graphite);
+      justify-content: center;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
       border-radius: 100px;
-      padding: 0.5rem;
-      gap: 0.25rem;
-      box-shadow:
-        0 4px 24px rgba(0, 0, 0, 0.4),
-        inset 0 1px 0 var(--ssi-white-08);
+      padding: 0.375rem;
+      box-shadow: var(--shadow-elevated);
     }
 
     .control-btn {
@@ -342,189 +400,155 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 0.25rem;
-      padding: 0.875rem 1.5rem;
+      gap: 0.1875rem;
+      width: 72px;
+      padding: 0.625rem 0;
       background: transparent;
       border: none;
       border-radius: 100px;
       cursor: pointer;
-      transition: all 0.2s var(--ease-out-expo);
-      position: relative;
+      transition: background-color 0.2s ease;
     }
 
-    .control-btn::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      border-radius: 100px;
-      background: var(--ssi-white-08);
-      opacity: 0;
-      transition: opacity 0.2s ease;
-    }
-
-    .control-btn:hover::before {
-      opacity: 1;
+    .control-btn:hover {
+      background: var(--bg-tertiary);
     }
 
     .control-btn:active {
-      transform: scale(0.96);
+      transform: scale(0.97);
     }
 
     .control-btn svg {
-      width: 20px;
-      height: 20px;
+      width: 22px;
+      height: 22px;
       color: var(--ssi-red);
-      position: relative;
-      z-index: 1;
     }
 
     .control-btn span {
-      font-family: var(--font-body);
       font-size: 0.625rem;
       font-weight: 500;
       text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--ssi-white-70);
-      position: relative;
-      z-index: 1;
+      letter-spacing: 0.05em;
+      color: var(--text-secondary);
     }
 
     .control-divider {
       width: 1px;
-      height: 32px;
-      background: var(--ssi-white-15);
+      height: 28px;
+      background: var(--border-light);
+      margin: 0 0.125rem;
     }
 
     /* ═══════════════════════════════════════════════════════════════
-       PROGRESS INDICATOR (Belt Progress)
+       FOOTER - Belt Progress
        ═══════════════════════════════════════════════════════════════ */
 
-    .progress-indicator {
-      position: absolute;
-      bottom: 2rem;
-      left: 50%;
-      transform: translateX(-50%);
+    .player-footer {
+      padding-top: 1.5rem;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 0.75rem;
+      gap: 0.625rem;
     }
 
-    .belt-label {
-      font-family: var(--font-body);
-      font-size: 0.75rem;
-      font-weight: 500;
-      color: var(--ssi-white-50);
+    .belt-info {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.625rem;
+      font-size: 0.8125rem;
+      color: var(--text-tertiary);
     }
 
-    .belt-label .percentage {
-      color: var(--ssi-white-70);
+    .belt-info .belt-name {
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    .belt-info .belt-progress {
+      color: var(--text-primary);
+      font-weight: 600;
     }
 
     .belt-track {
-      width: 200px;
-      height: 4px;
-      background: var(--ssi-white-08);
+      width: 100%;
+      max-width: 220px;
+      height: 5px;
+      background: var(--bg-tertiary);
       border-radius: 100px;
       overflow: hidden;
     }
 
     .belt-fill {
       height: 100%;
-      background: var(--ssi-red);
+      background: linear-gradient(90deg, var(--ssi-red), #F87171);
       border-radius: 100px;
       transition: width 0.5s var(--ease-out-expo);
-      box-shadow: 0 0 12px var(--ssi-red-glow);
     }
 
-    /* ═══════════════════════════════════════════════════════════════
-       STATE TRANSITIONS
-       ═══════════════════════════════════════════════════════════════ */
-
-    /* Pause state - breathing ring */
-    .ring-container.pause-state .ring-progress {
-      animation: breathe-ring 2s var(--ease-in-out) infinite;
-    }
-
-    @keyframes breathe-ring {
-      0%, 100% { filter: drop-shadow(0 0 8px var(--ssi-red-glow)); }
-      50% { filter: drop-shadow(0 0 16px var(--ssi-red-glow)); }
-    }
-
-    /* Success flash */
-    .ring-container.success .ring-progress {
-      stroke: #4CAF50;
-      filter: drop-shadow(0 0 12px rgba(76, 175, 80, 0.5));
+    /* Session counter */
+    .session-counter {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
     }
 
     /* ═══════════════════════════════════════════════════════════════
        RESPONSIVE
        ═══════════════════════════════════════════════════════════════ */
 
-    @media (max-width: 480px) {
+    @media (max-width: 380px) {
       :root {
-        --ring-size: 140px;
+        --ring-size: 120px;
       }
 
-      .phrase-target {
-        font-size: 1.625rem;
+      .phrase-text {
+        font-size: 1.5rem;
       }
 
       .control-btn {
-        padding: 0.75rem 1.25rem;
-      }
-
-      .belt-track {
-        width: 160px;
+        width: 64px;
       }
     }
 
-    @media (min-height: 800px) {
-      .player-content {
-        gap: 3.5rem;
+    @media (min-height: 750px) {
+      .player-main {
+        gap: 2.5rem;
       }
-    }
-
-    /* ═══════════════════════════════════════════════════════════════
-       DARK/LIGHT MODE TOGGLE (future)
-       ═══════════════════════════════════════════════════════════════ */
-
-    .player-container.light-mode {
-      --ssi-black: #FAFAFA;
-      --ssi-charcoal: #F0F0F2;
-      --ssi-graphite: #E8E8EA;
-      --ssi-white: #1C1C1E;
-      --ssi-white-90: rgba(28, 28, 30, 0.9);
-      --ssi-white-70: rgba(28, 28, 30, 0.7);
-      --ssi-white-50: rgba(28, 28, 30, 0.5);
-      --ssi-white-30: rgba(28, 28, 30, 0.3);
-      --ssi-white-15: rgba(28, 28, 30, 0.15);
-      --ssi-white-08: rgba(28, 28, 30, 0.08);
     }
   </style>
 </head>
 <body>
-  <div class="player-container" id="player">
-    <div class="player-content">
+  <div class="player" id="player">
 
-      <!-- Progress Ring with Speaker -->
+    <!-- Header -->
+    <header class="player-header">
+      <div class="course-badge">
+        <span class="flag">🏴󠁧󠁢󠁷󠁬󠁳󠁿</span>
+        <span>Welsh</span>
+      </div>
+      <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+      </button>
+    </header>
+
+    <!-- Main Content -->
+    <main class="player-main">
+
+      <!-- Progress Ring -->
       <div class="ring-container" id="ringContainer">
-        <svg class="ring-svg" viewBox="0 0 160 160">
-          <circle class="ring-track" cx="80" cy="80" r="72" />
-          <circle class="ring-progress" id="ringProgress" cx="80" cy="80" r="72" />
+        <svg class="ring-svg" viewBox="0 0 140 140">
+          <circle class="ring-track" cx="70" cy="70" r="62" />
+          <circle class="ring-progress" id="ringProgress" cx="70" cy="70" r="62" />
         </svg>
 
-        <!-- Sound waves (visible during playback) -->
-        <div class="sound-waves" id="soundWaves">
-          <div class="sound-wave"></div>
-          <div class="sound-wave"></div>
-          <div class="sound-wave"></div>
+        <div class="sound-ripples" id="soundRipples">
+          <div class="ripple"></div>
+          <div class="ripple"></div>
+          <div class="ripple"></div>
         </div>
 
-        <!-- Speaker Icon -->
         <div class="ring-icon">
           <svg class="speaker-icon" id="speakerIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
@@ -535,39 +559,34 @@
       </div>
 
       <!-- Phrase Display -->
-      <div class="phrase-container">
-        <div class="phrase-target visible" id="phraseTarget">
-          <span class="highlight">Dw i'n dysgu</span> Cymraeg
+      <div class="phrase-display">
+        <div class="phrase-text" id="phraseText"></div>
+        <div class="phrase-translation" id="phraseTranslation"></div>
+        <div class="phase-indicator" id="phaseIndicator">
+          <span class="dot"></span>
+          <span class="label">Listen</span>
         </div>
-        <div class="phrase-known visible" id="phraseKnown">
-          I'm learning Welsh
-        </div>
-        <div class="phase-label visible" id="phaseLabel">Listen</div>
       </div>
 
-      <!-- Control Bar -->
+      <!-- Controls -->
       <div class="control-bar">
-        <button class="control-btn" id="btnRevisit" title="Revisit">
+        <button class="control-btn" id="btnRevisit">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
             <path d="M3 3v5h5"></path>
           </svg>
           <span>Revisit</span>
         </button>
-
         <div class="control-divider"></div>
-
-        <button class="control-btn" id="btnPause" title="Pause">
+        <button class="control-btn" id="btnPause">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="6" y="4" width="4" height="16"></rect>
             <rect x="14" y="4" width="4" height="16"></rect>
           </svg>
           <span>Pause</span>
         </button>
-
         <div class="control-divider"></div>
-
-        <button class="control-btn" id="btnSkip" title="Skip">
+        <button class="control-btn" id="btnSkip">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polygon points="5 4 15 12 5 20 5 4"></polygon>
             <line x1="19" y1="5" x2="19" y2="19"></line>
@@ -576,241 +595,309 @@
         </button>
       </div>
 
-    </div>
+    </main>
 
-    <!-- Belt Progress -->
-    <div class="progress-indicator">
-      <div class="belt-label">
-        White Belt: <span class="percentage" id="beltPercentage">40%</span>
+    <!-- Footer -->
+    <footer class="player-footer">
+      <div class="belt-info">
+        <span class="belt-name">White Belt</span>
+        <span>·</span>
+        <span class="belt-progress" id="beltPercent">40%</span>
       </div>
       <div class="belt-track">
         <div class="belt-fill" id="beltFill" style="width: 40%"></div>
       </div>
-    </div>
+      <div class="session-counter" id="sessionCounter">3 of 15 phrases</div>
+    </footer>
+
   </div>
 
   <script>
     /**
-     * SSi Learning Player - Interactive Demo
-     * Demonstrates phase transitions and animations
+     * SSi Learning Player v2
+     *
+     * Phase Flow:
+     * 1. PROMPT - Play known language audio + show text
+     * 2. PAUSE  - Learner speaks (timer countdown)
+     * 3. VOICE_1 - Play target audio (no text yet)
+     * 4. VOICE_2 - Play target audio + show target text
      */
 
     class SSiPlayer {
       constructor() {
-        this.elements = {
+        this.els = {
           player: document.getElementById('player'),
-          ringContainer: document.getElementById('ringContainer'),
+          themeToggle: document.getElementById('themeToggle'),
           ringProgress: document.getElementById('ringProgress'),
-          soundWaves: document.getElementById('soundWaves'),
+          ringContainer: document.getElementById('ringContainer'),
+          soundRipples: document.getElementById('soundRipples'),
           speakerIcon: document.getElementById('speakerIcon'),
-          phraseTarget: document.getElementById('phraseTarget'),
-          phraseKnown: document.getElementById('phraseKnown'),
-          phaseLabel: document.getElementById('phaseLabel'),
+          phraseText: document.getElementById('phraseText'),
+          phraseTranslation: document.getElementById('phraseTranslation'),
+          phaseIndicator: document.getElementById('phaseIndicator'),
+          beltPercent: document.getElementById('beltPercent'),
           beltFill: document.getElementById('beltFill'),
-          beltPercentage: document.getElementById('beltPercentage'),
+          sessionCounter: document.getElementById('sessionCounter'),
           btnRevisit: document.getElementById('btnRevisit'),
           btnPause: document.getElementById('btnPause'),
           btnSkip: document.getElementById('btnSkip'),
         };
 
-        this.circumference = 2 * Math.PI * 72; // ring radius = 72
+        this.circumference = 2 * Math.PI * 62;
+        this.pauseDuration = 4000;
+        this.animationFrame = null;
         this.currentPhase = 'idle';
-        this.pauseDuration = 4000; // 4 seconds for pause
-        this.pauseTimer = null;
-        this.progress = 0;
+        this.isPaused = false;
+        this.phraseIndex = 0;
+        this.beltProgress = 40;
 
         this.phrases = [
-          { target: '<span class="highlight">Dw i\'n dysgu</span> Cymraeg', known: 'I\'m learning Welsh' },
-          { target: '<span class="highlight">Bore da</span>', known: 'Good morning' },
-          { target: '<span class="highlight">Diolch</span> yn fawr', known: 'Thank you very much' },
-          { target: '<span class="highlight">Sut mae?</span>', known: 'How are you?' },
-          { target: 'Mae\'n <span class="highlight">braf</span> cwrdd â chi', known: 'Nice to meet you' },
+          { known: "I'm learning Welsh", target: "Dw i'n dysgu Cymraeg", targetHighlight: "<span class='highlight'>Dw i'n dysgu</span> Cymraeg" },
+          { known: "Good morning", target: "Bore da", targetHighlight: "<span class='highlight'>Bore da</span>" },
+          { known: "How are you?", target: "Sut mae?", targetHighlight: "<span class='highlight'>Sut mae?</span>" },
+          { known: "Thank you very much", target: "Diolch yn fawr", targetHighlight: "Diolch <span class='highlight'>yn fawr</span>" },
+          { known: "Nice to meet you", target: "Mae'n braf cwrdd â chi", targetHighlight: "Mae'n <span class='highlight'>braf</span> cwrdd â chi" },
         ];
-        this.phraseIndex = 0;
 
         this.init();
       }
 
       init() {
-        // Set initial ring state
-        this.elements.ringProgress.style.strokeDasharray = this.circumference;
-        this.elements.ringProgress.style.strokeDashoffset = this.circumference;
+        // Initialize ring
+        this.els.ringProgress.style.strokeDasharray = this.circumference;
+        this.els.ringProgress.style.strokeDashoffset = this.circumference;
 
-        // Bind controls
-        this.elements.btnRevisit.addEventListener('click', () => this.revisit());
-        this.elements.btnPause.addEventListener('click', () => this.togglePause());
-        this.elements.btnSkip.addEventListener('click', () => this.skip());
+        // Theme toggle
+        this.els.themeToggle.addEventListener('click', () => this.toggleTheme());
 
-        // Start demo cycle
-        this.startDemoCycle();
+        // Control buttons
+        this.els.btnRevisit.addEventListener('click', () => this.revisit());
+        this.els.btnPause.addEventListener('click', () => this.togglePause());
+        this.els.btnSkip.addEventListener('click', () => this.skip());
+
+        // Load saved theme
+        const savedTheme = localStorage.getItem('ssi-theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        this.updateThemeIcon(savedTheme);
+
+        // Start
+        this.startPhraseCycle();
       }
 
-      setPhase(phase) {
+      toggleTheme() {
+        const current = document.documentElement.getAttribute('data-theme');
+        const next = current === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        localStorage.setItem('ssi-theme', next);
+        this.updateThemeIcon(next);
+      }
+
+      updateThemeIcon(theme) {
+        const svg = this.els.themeToggle.querySelector('svg');
+        if (theme === 'dark') {
+          svg.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>';
+        } else {
+          svg.innerHTML = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>';
+        }
+      }
+
+      setPhase(phase, data = {}) {
         this.currentPhase = phase;
-        const { ringContainer, soundWaves, speakerIcon, phaseLabel } = this.elements;
+        const { phraseText, phraseTranslation, phaseIndicator, soundRipples, speakerIcon, ringProgress } = this.els;
 
         // Reset states
-        ringContainer.classList.remove('pause-state', 'success');
-        soundWaves.classList.remove('active');
-        speakerIcon.classList.remove('speaking');
-        phaseLabel.classList.remove('speaking');
+        soundRipples.classList.remove('active');
+        speakerIcon.classList.remove('active');
+        phaseIndicator.classList.remove('speaking');
+        ringProgress.classList.remove('has-glow');
+        this.setRingProgress(0);
 
         switch (phase) {
           case 'prompt':
-            phaseLabel.textContent = 'Listen';
-            phaseLabel.classList.add('visible');
-            soundWaves.classList.add('active');
-            speakerIcon.classList.add('speaking');
-            this.setRingProgress(0);
+            // Show known language, play audio
+            phraseText.innerHTML = data.known || '';
+            phraseText.classList.add('visible');
+            phraseTranslation.textContent = '';
+            phraseTranslation.classList.remove('visible');
+            this.setPhaseLabel('Listen', false);
+            soundRipples.classList.add('active');
+            speakerIcon.classList.add('active');
             break;
 
           case 'pause':
-            phaseLabel.textContent = 'Your turn';
-            phaseLabel.classList.add('speaking');
-            ringContainer.classList.add('pause-state');
-            this.startPauseCountdown();
+            // User's turn to speak - countdown timer
+            phraseText.innerHTML = data.known || '';
+            phraseText.classList.add('visible');
+            phraseTranslation.classList.remove('visible');
+            this.setPhaseLabel('Your turn', true);
+            ringProgress.classList.add('has-glow');
+            this.startPauseTimer();
             break;
 
           case 'voice_1':
-            phaseLabel.textContent = 'Listen';
-            soundWaves.classList.add('active');
-            speakerIcon.classList.add('speaking');
+            // Play target voice 1 - no text shown
+            phraseText.classList.remove('visible');
+            phraseTranslation.classList.remove('visible');
+            this.setPhaseLabel('Listen', false);
+            soundRipples.classList.add('active');
+            speakerIcon.classList.add('active');
             break;
 
           case 'voice_2':
-            phaseLabel.textContent = 'Listen & Read';
-            soundWaves.classList.add('active');
-            speakerIcon.classList.add('speaking');
+            // Play target voice 2 + show target text
+            phraseText.innerHTML = data.targetHighlight || data.target || '';
+            phraseText.classList.add('visible');
+            phraseTranslation.textContent = data.known || '';
+            phraseTranslation.classList.add('visible');
+            this.setPhaseLabel('Listen & Read', false);
+            soundRipples.classList.add('active');
+            speakerIcon.classList.add('active');
             break;
 
           case 'transition':
-            phaseLabel.textContent = '';
-            this.hidePhrase();
+            phraseText.classList.remove('visible');
+            phraseTranslation.classList.remove('visible');
+            phaseIndicator.classList.remove('visible');
             break;
+        }
+      }
 
-          default:
-            phaseLabel.textContent = '';
+      setPhaseLabel(text, isSpeaking) {
+        const indicator = this.els.phaseIndicator;
+        indicator.querySelector('.label').textContent = text;
+        indicator.classList.add('visible');
+        if (isSpeaking) {
+          indicator.classList.add('speaking');
         }
       }
 
       setRingProgress(progress) {
-        // progress: 0 to 1
         const offset = this.circumference - (progress * this.circumference);
-        this.elements.ringProgress.style.strokeDashoffset = offset;
+        this.els.ringProgress.style.strokeDashoffset = offset;
       }
 
-      startPauseCountdown() {
-        const startTime = Date.now();
+      startPauseTimer() {
+        const start = performance.now();
         const duration = this.pauseDuration;
 
-        const animate = () => {
-          const elapsed = Date.now() - startTime;
+        const animate = (now) => {
+          if (this.isPaused || this.currentPhase !== 'pause') return;
+
+          const elapsed = now - start;
           const progress = Math.min(elapsed / duration, 1);
           this.setRingProgress(progress);
 
           if (progress < 1) {
-            this.pauseTimer = requestAnimationFrame(animate);
+            this.animationFrame = requestAnimationFrame(animate);
           } else {
             this.onPauseComplete();
           }
         };
 
-        this.pauseTimer = requestAnimationFrame(animate);
+        this.animationFrame = requestAnimationFrame(animate);
       }
 
       onPauseComplete() {
-        this.elements.ringContainer.classList.add('success');
+        // Brief success moment, then continue
         setTimeout(() => {
-          this.setPhase('voice_1');
-        }, 300);
+          if (this.currentPhase === 'pause') {
+            this.continueAfterPause();
+          }
+        }, 200);
       }
 
-      showPhrase(phrase) {
-        this.elements.phraseTarget.innerHTML = phrase.target;
-        this.elements.phraseKnown.textContent = phrase.known;
-        this.elements.phraseTarget.classList.add('visible');
-        this.elements.phraseKnown.classList.add('visible');
+      async startPhraseCycle() {
+        const phrase = this.phrases[this.phraseIndex];
+        this.updateSessionCounter();
+
+        // Phase 1: PROMPT (2s)
+        this.setPhase('prompt', phrase);
+        await this.wait(2000);
+        if (this.isPaused) return;
+
+        // Phase 2: PAUSE (4s timer)
+        this.setPhase('pause', phrase);
+        await this.wait(this.pauseDuration + 300);
+        if (this.isPaused) return;
+
+        this.continueAfterPause();
       }
 
-      hidePhrase() {
-        this.elements.phraseTarget.classList.remove('visible');
-        this.elements.phraseKnown.classList.remove('visible');
+      async continueAfterPause() {
+        const phrase = this.phrases[this.phraseIndex];
+
+        // Phase 3: VOICE_1 (2s)
+        this.setPhase('voice_1', phrase);
+        await this.wait(2000);
+        if (this.isPaused) return;
+
+        // Phase 4: VOICE_2 (2.5s)
+        this.setPhase('voice_2', phrase);
+        await this.wait(2500);
+        if (this.isPaused) return;
+
+        // Transition to next
+        this.nextPhrase();
+      }
+
+      nextPhrase() {
+        this.setPhase('transition');
+        this.phraseIndex = (this.phraseIndex + 1) % this.phrases.length;
+
+        // Update progress
+        this.beltProgress = Math.min(this.beltProgress + 5, 100);
+        this.els.beltPercent.textContent = this.beltProgress + '%';
+        this.els.beltFill.style.width = this.beltProgress + '%';
+
+        setTimeout(() => this.startPhraseCycle(), 600);
+      }
+
+      updateSessionCounter() {
+        const current = this.phraseIndex + 1;
+        const total = this.phrases.length;
+        this.els.sessionCounter.textContent = `${current} of ${total} phrases`;
       }
 
       revisit() {
-        // Restart current phrase
-        this.setPhase('prompt');
+        cancelAnimationFrame(this.animationFrame);
+        this.startPhraseCycle();
       }
 
       togglePause() {
-        // Toggle playback
-        const btn = this.elements.btnPause;
-        const isPaused = btn.dataset.paused === 'true';
+        this.isPaused = !this.isPaused;
+        const btn = this.els.btnPause;
 
-        if (isPaused) {
-          btn.dataset.paused = 'false';
-          btn.querySelector('svg').innerHTML = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
-          btn.querySelector('span').textContent = 'Pause';
-        } else {
-          btn.dataset.paused = 'true';
+        if (this.isPaused) {
+          cancelAnimationFrame(this.animationFrame);
           btn.querySelector('svg').innerHTML = '<polygon points="5 4 19 12 5 20 5 4"></polygon>';
           btn.querySelector('span').textContent = 'Play';
+        } else {
+          btn.querySelector('svg').innerHTML = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
+          btn.querySelector('span').textContent = 'Pause';
+          this.startPhraseCycle();
         }
       }
 
       skip() {
-        // Go to next phrase
-        this.phraseIndex = (this.phraseIndex + 1) % this.phrases.length;
-        this.setPhase('transition');
-        setTimeout(() => {
-          this.showPhrase(this.phrases[this.phraseIndex]);
-          this.setPhase('prompt');
-        }, 500);
-
-        // Update belt progress
-        this.progress = Math.min(this.progress + 10, 100);
-        this.elements.beltFill.style.width = this.progress + '%';
-        this.elements.beltPercentage.textContent = this.progress + '%';
-      }
-
-      startDemoCycle() {
-        // Show first phrase
-        this.showPhrase(this.phrases[0]);
-
-        // Cycle through phases for demo
-        const cycle = async () => {
-          // PROMPT phase (2s)
-          this.setPhase('prompt');
-          await this.wait(2000);
-
-          // PAUSE phase (4s countdown)
-          this.setPhase('pause');
-          await this.wait(4500);
-
-          // VOICE_1 phase (2s)
-          this.setPhase('voice_1');
-          await this.wait(2000);
-
-          // VOICE_2 phase (2s)
-          this.setPhase('voice_2');
-          await this.wait(2000);
-
-          // Transition to next phrase
-          this.skip();
-
-          // Continue cycle
-          setTimeout(cycle, 1000);
-        };
-
-        cycle();
+        cancelAnimationFrame(this.animationFrame);
+        this.nextPhrase();
       }
 
       wait(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
+        return new Promise(resolve => {
+          const check = () => {
+            if (this.isPaused) {
+              setTimeout(check, 100);
+            } else {
+              setTimeout(resolve, ms);
+            }
+          };
+          check();
+        });
       }
     }
 
-    // Initialize player
+    // Initialize
     document.addEventListener('DOMContentLoaded', () => {
       window.ssiPlayer = new SSiPlayer();
     });
