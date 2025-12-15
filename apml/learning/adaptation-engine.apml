@@ -1,0 +1,472 @@
+# Adaptation Engine Specification
+# SSi Learning App
+#
+# Version: 1.0.0
+# Date: 2025-12-15
+# Grounded in: Distinction as Primitive (APML Design Principles v2.0.0)
+#
+# Core Insight: We don't measure absolutes. We measure DIFFERENCES.
+# A "slow" response is one that differs from THIS learner's pattern.
+# Everything is a parameter. We're looking for discontinuities.
+
+spec AdaptationEngine:
+  version: "1.0.0"
+  philosophical_grounding: |
+    Distinctions cost energy. Observers have finite budgets.
+    Therefore: we detect DIFFERENCES, not absolutes.
+
+    A response is "slow" not because it exceeds some universal threshold,
+    but because it differs from the learner's own rolling pattern.
+
+    This is self-calibrating, personal, and thermodynamically efficient.
+
+  # ===========================================================================
+  # MEASUREMENT PRIMITIVES
+  # ===========================================================================
+
+  measurements:
+    description: "Raw signals captured per response cycle"
+
+    latency:
+      what: "Time from PAUSE start to learner vocalization end"
+      unit: milliseconds
+      capture: "End of PAUSE phase (or speech detection if available)"
+      fallback: "PAUSE duration if no speech detection"
+
+    response_length:
+      what: "Duration of learner's spoken response"
+      unit: milliseconds
+      capture: "Speech detection start to end"
+      fallback: "null if no speech detection"
+      note: "Initially may not be available - that's fine"
+
+    model_length:
+      what: "Duration of target audio (what learner is trying to produce)"
+      unit: milliseconds
+      source: "audio_samples.duration_ms"
+
+  # ===========================================================================
+  # DIFFERENTIAL CALCULATIONS (Core of adaptation)
+  # ===========================================================================
+
+  differentials:
+    description: |
+      We don't compare to absolute thresholds.
+      We compare to the learner's own rolling pattern.
+      Discontinuities = valuable signal.
+
+    latency_differential:
+      formula: "current_latency - rolling_average(latency, window_size)"
+      parameters:
+        window_size:
+          default: 7
+          range: [3, 15]
+          description: "Number of previous responses to average"
+
+      interpretation:
+        positive: "Slower than usual - possible struggle"
+        negative: "Faster than usual - confident or rushed"
+        near_zero: "Consistent with pattern - normal"
+
+    length_delta:
+      formula: "response_length - model_length"
+      description: "How much longer/shorter learner spoke than target"
+
+      interpretation:
+        positive: "Learner spoke longer - hesitation, self-correction, or elaboration"
+        negative: "Learner spoke shorter - truncated, uncertain, or efficient"
+        near_zero: "Matched model - confident reproduction"
+
+    length_delta_differential:
+      formula: "current_length_delta - rolling_average(length_delta, window_size)"
+      parameters:
+        window_size:
+          default: 7
+          range: [3, 15]
+
+      interpretation:
+        positive: "Speaking longer than their usual delta - new hesitation"
+        negative: "Speaking shorter than their usual delta - new confidence or giving up"
+        near_zero: "Consistent pattern"
+
+  # ===========================================================================
+  # DISCONTINUITY DETECTION
+  # ===========================================================================
+
+  discontinuity_detection:
+    description: |
+      A discontinuity is when the current differential exceeds
+      a threshold relative to the learner's own variance.
+
+      We use standard deviations from rolling stats, not absolute values.
+      This makes detection personal and self-calibrating.
+
+    latency_discontinuity:
+      formula: |
+        discontinuity = abs(latency_differential) > (stddev_threshold * rolling_stddev(latency, window_size))
+
+      parameters:
+        stddev_threshold:
+          default: 2.0
+          range: [1.5, 3.0]
+          description: "Number of standard deviations to trigger discontinuity"
+        window_size:
+          default: 7
+          range: [3, 15]
+
+      signal:
+        detected: "Learner's latency pattern has broken - something changed"
+        direction: "sign(latency_differential)"
+        magnitude: "abs(latency_differential) / rolling_stddev"
+
+    length_discontinuity:
+      formula: |
+        discontinuity = abs(length_delta_differential) > (stddev_threshold * rolling_stddev(length_delta, window_size))
+
+      parameters:
+        stddev_threshold:
+          default: 2.0
+          range: [1.5, 3.0]
+        window_size:
+          default: 7
+          range: [3, 15]
+
+      signal:
+        detected: "Learner's response length pattern has broken"
+        direction: "sign(length_delta_differential)"
+        magnitude: "abs(length_delta_differential) / rolling_stddev"
+
+    combined_discontinuity:
+      description: "Either or both signals can indicate a pattern break"
+      formula: "latency_discontinuity OR length_discontinuity"
+
+      severity:
+        mild: "One discontinuity, magnitude < 2.5σ"
+        moderate: "One discontinuity, magnitude >= 2.5σ, OR both discontinuities"
+        severe: "Both discontinuities, combined magnitude > 4σ"
+
+  # ===========================================================================
+  # RESPONSE TO DISCONTINUITIES
+  # ===========================================================================
+
+  adaptation_responses:
+    description: |
+      When we detect a discontinuity, we adjust parameters.
+      The adjustments themselves are parameterized.
+      We're not making hard decisions - we're nudging gradients.
+
+    on_latency_spike:
+      description: "Learner took longer than their pattern"
+
+      immediate_response:
+        extend_pause:
+          enabled: true
+          formula: "pause_duration * (1 + extension_factor)"
+          parameters:
+            extension_factor:
+              default: 0.3
+              range: [0.1, 0.5]
+              description: "How much to extend pause on next occurrence"
+
+      lego_state_response:
+        description: "Affects mastery progression"
+        action: "hold_position"
+        rationale: "Don't advance - learner hasn't consolidated"
+
+      selection_weight_response:
+        description: "Affects future selection probability"
+        formula: "weight * boost_factor"
+        parameters:
+          boost_factor:
+            default: 2.0
+            range: [1.5, 5.0]
+            description: "Increase likelihood of practicing this LEGO again soon"
+
+    on_latency_fast:
+      description: "Learner responded faster than their pattern"
+
+      interpretation: "Could be confidence OR rushing/guessing"
+
+      immediate_response:
+        none: "Don't change pause - might be genuine confidence"
+
+      lego_state_response:
+        action: "advance_if_consistent"
+        condition: "fast_responses >= consistency_threshold"
+        parameters:
+          consistency_threshold:
+            default: 3
+            range: [2, 5]
+            description: "Consecutive fast responses before advancing"
+
+    on_length_spike:
+      description: "Learner spoke longer than their pattern (hesitation, self-correction)"
+
+      immediate_response:
+        extend_pause:
+          enabled: true
+          formula: "pause_duration * (1 + extension_factor)"
+          parameters:
+            extension_factor:
+              default: 0.2
+              range: [0.1, 0.4]
+
+      lego_state_response:
+        action: "hold_position"
+        rationale: "Self-correction indicates uncertainty"
+
+    on_length_short:
+      description: "Learner spoke shorter than their pattern"
+
+      interpretation: "Could be efficiency OR giving up"
+
+      lego_state_response:
+        action: "evaluate_trend"
+        rationale: "Need more context - is this new confidence or frustration?"
+
+  # ===========================================================================
+  # MASTERY STATE MACHINE (Lake-inspired, but gradient-based)
+  # ===========================================================================
+
+  mastery_states:
+    description: |
+      Instead of pure Fibonacci positions, we use states with fuzzy transitions.
+      Inspired by Lake Waterfall but without hard resets.
+      Discontinuities affect transition probabilities, not absolute moves.
+
+    states:
+      acquisition:
+        description: "Initial learning - high attention needed"
+        typical_skip: 1
+        advancement_requires: "consecutive_smooth >= advancement_threshold"
+
+      consolidating:
+        description: "Pattern forming - moderate attention"
+        typical_skip: 3
+        advancement_requires: "consecutive_smooth >= advancement_threshold"
+
+      confident:
+        description: "Pattern stable - occasional reinforcement"
+        typical_skip: 8
+        advancement_requires: "consecutive_smooth >= advancement_threshold"
+
+      mastered:
+        description: "In eternal rotation - maintenance only"
+        typical_skip: 21
+        note: "Can still regress on severe discontinuity"
+
+    transitions:
+      parameters:
+        advancement_threshold:
+          default: 3
+          range: [2, 5]
+          description: "Consecutive smooth responses to advance state"
+
+        regression_on_discontinuity:
+          mild: "no change"
+          moderate: "hold position"
+          severe: "regress one state"
+
+        fast_track_threshold:
+          default: 5
+          range: [3, 7]
+          description: "Consecutive fast+smooth responses to skip a state"
+
+    tracking_per_lego:
+      consecutive_smooth: "count of responses without discontinuity"
+      consecutive_fast: "count of responses faster than pattern"
+      discontinuity_count: "total discontinuities for this LEGO"
+      last_discontinuity_at: "timestamp of most recent discontinuity"
+
+  # ===========================================================================
+  # WEIGHTED SELECTION (Lake Waterfall inspired)
+  # ===========================================================================
+
+  weighted_selection:
+    description: |
+      Instead of just "due / not due", we use weighted selection.
+      Every eligible LEGO has a weight. Higher weight = more likely selected.
+
+    weight_calculation:
+      formula: |
+        base_weight
+        * staleness_factor
+        * struggle_factor
+        * recency_factor
+
+      components:
+        base_weight:
+          value: 1.0
+          description: "Starting point for all LEGOs"
+
+        staleness_factor:
+          formula: "1 + (days_since_practice * staleness_rate)"
+          parameters:
+            staleness_rate:
+              default: 0.1
+              range: [0.05, 0.3]
+              description: "Weight increase per day since last practice"
+
+        struggle_factor:
+          formula: "1 + (discontinuity_count * struggle_multiplier)"
+          parameters:
+            struggle_multiplier:
+              default: 0.5
+              range: [0.2, 1.0]
+              description: "Weight boost per discontinuity"
+          decay: "discontinuity_count decays over time"
+
+        recency_factor:
+          formula: "max(0.5, 1 - (minutes_since_practice / recency_window))"
+          parameters:
+            recency_window:
+              default: 30
+              range: [10, 60]
+              description: "Minutes before recency penalty kicks in"
+          purpose: "Slight penalty for very recent items (prevent hammering)"
+
+    selection_algorithm:
+      method: "weighted_random"
+      steps:
+        1: "Get eligible LEGOs (based on skip_counter >= typical_skip)"
+        2: "Calculate weight for each"
+        3: "Normalize weights to probabilities"
+        4: "Random selection weighted by probabilities"
+
+  # ===========================================================================
+  # ROLLING STATISTICS
+  # ===========================================================================
+
+  rolling_stats:
+    description: "Maintained per learner for differential calculations"
+
+    per_learner:
+      latency_history:
+        type: "circular_buffer"
+        max_size: 20
+        fields: [timestamp, latency_ms, lego_key]
+
+      length_delta_history:
+        type: "circular_buffer"
+        max_size: 20
+        fields: [timestamp, length_delta_ms, lego_key]
+
+      computed:
+        rolling_avg_latency: "mean(latency_history[0:window_size])"
+        rolling_stddev_latency: "stddev(latency_history[0:window_size])"
+        rolling_avg_length_delta: "mean(length_delta_history[0:window_size])"
+        rolling_stddev_length_delta: "stddev(length_delta_history[0:window_size])"
+
+    cold_start:
+      description: "What to do before we have enough history"
+
+      minimum_samples:
+        value: 5
+        description: "Minimum responses before differential detection activates"
+
+      behavior_before_minimum:
+        discontinuity_detection: "disabled"
+        selection: "round_robin within thread"
+        advancement: "completion_based (not adaptive)"
+
+  # ===========================================================================
+  # PARAMETERS SUMMARY (D01: Everything is a parameter)
+  # ===========================================================================
+
+  parameters_summary:
+    differential_calculation:
+      - window_size: 7 [3-15]
+
+    discontinuity_detection:
+      - stddev_threshold: 2.0 [1.5-3.0]
+
+    adaptation_responses:
+      - extension_factor: 0.3 [0.1-0.5]
+      - boost_factor: 2.0 [1.5-5.0]
+      - consistency_threshold: 3 [2-5]
+
+    mastery_transitions:
+      - advancement_threshold: 3 [2-5]
+      - fast_track_threshold: 5 [3-7]
+
+    weighted_selection:
+      - staleness_rate: 0.1 [0.05-0.3]
+      - struggle_multiplier: 0.5 [0.2-1.0]
+      - recency_window: 30 [10-60]
+
+    cold_start:
+      - minimum_samples: 5 [3-10]
+
+  # ===========================================================================
+  # INTEGRATION WITH TRIPLE HELIX
+  # ===========================================================================
+
+  integration:
+    triple_helix_provides:
+      - "Thread selection (A, B, C rotation)"
+      - "Eligible LEGOs per thread"
+      - "Interleaving structure"
+
+    adaptation_engine_provides:
+      - "Weighted selection within thread"
+      - "Discontinuity detection and response"
+      - "Mastery state transitions"
+      - "Pause duration adjustments"
+
+    data_flow:
+      1: "TripleHelixEngine.getNextThread() → thread_id"
+      2: "AdaptationEngine.getEligibleLegos(thread_id) → weighted candidates"
+      3: "AdaptationEngine.selectLego(candidates) → lego"
+      4: "CycleOrchestrator.play(lego) → captures latency, length"
+      5: "AdaptationEngine.recordResponse(lego, latency, length)"
+      6: "AdaptationEngine.detectDiscontinuity(lego)"
+      7: "AdaptationEngine.applyAdaptations(lego, discontinuity)"
+
+  # ===========================================================================
+  # DESIGN DIRECTIONS ALIGNMENT
+  # ===========================================================================
+
+  design_directions:
+    D01_parameterization:
+      status: "strong"
+      evidence: "All thresholds and factors are parameterized with ranges"
+
+    D05_raw_over_derived:
+      status: "strong"
+      evidence: "Store raw latency/length, compute differentials at runtime"
+
+    D08_explicitness:
+      status: "strong"
+      evidence: "Every formula and interpretation documented"
+
+    grounded_in_distinction_primacy:
+      status: "core principle"
+      evidence: |
+        We measure DIFFERENCES, not absolutes.
+        Discontinuities are pattern breaks - distinctions that matter.
+        Self-calibrating per learner - no universal thresholds.
+
+# =============================================================================
+# VERSION HISTORY
+# =============================================================================
+
+version_history:
+  v1.0.0:
+    date: "2025-12-15"
+    changes:
+      - "Initial adaptation engine specification"
+      - "Differential-based discontinuity detection"
+      - "Lake Waterfall inspired weighted selection"
+      - "Mastery state machine with gradient transitions"
+      - "Integration with Triple Helix"
+    grounded_in:
+      - "APML Design Principles v2.0.0 (Distinction as Primitive)"
+      - "Zenjin Maths Lake Waterfall research"
+    contributors:
+      - "Tom Cassidy"
+      - "Claude (AI Assistant)"
+
+# =============================================================================
+# Generated: 2025-12-15
+# "We don't measure absolutes. We measure DIFFERENCES."
+# =============================================================================

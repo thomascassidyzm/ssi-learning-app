@@ -1,0 +1,306 @@
+# APML Learning: Triple Helix Engine Specification
+# SSI Learning App v1.0.0
+# Version: 1.0.0 (2025-12-03)
+# Status: Designed (partial implementation)
+
+## ============================================================================
+## OVERVIEW
+## ============================================================================
+
+SPECIFICATION:
+  name: "Triple Helix Engine"
+  purpose: "Interleave three learning threads for optimal spacing"
+  source: "packages/core/src/learning/TripleHelixEngine.ts"
+  version: "1.0.0"
+
+CORE_PRINCIPLE: |
+  Three threads of content interleave like DNA strands.
+  This creates natural spacing without explicit scheduling algorithms.
+  Thread 1 is primary, Thread 2 follows ~10 seeds behind, Thread 3 follows ~10 more.
+
+PEDAGOGICAL_BENEFIT: |
+  While working on Thread 1 content, Thread 2 and 3 content gets
+  natural spaced repetition without complex algorithm overhead.
+  The interleaving creates implicit spacing.
+
+## ============================================================================
+## THREAD ARCHITECTURE
+## ============================================================================
+
+THREAD_STRUCTURE:
+  description: |
+    The course is divided into three interleaved threads.
+    Each thread progresses through seeds sequentially.
+    Threads are offset by ~10 seeds to create spacing.
+
+  THREAD_1:
+    name: "Primary Thread"
+    offset: 0
+    purpose: "Main progression - introduces new content"
+    seeds: "S0001-S0668 (primary sequence)"
+    priority: "Highest - always gets practice slots"
+
+  THREAD_2:
+    name: "Reinforcement Thread A"
+    offset: 10
+    purpose: "Review content 10 seeds behind Thread 1"
+    seeds: "Same content, delayed by 10 seeds"
+    priority: "Medium - fills practice slots"
+
+  THREAD_3:
+    name: "Reinforcement Thread B"
+    offset: 20
+    purpose: "Deep review content 20 seeds behind Thread 1"
+    seeds: "Same content, delayed by 20 more seeds"
+    priority: "Lower - fills remaining slots"
+
+OFFSET_EXPLANATION: |
+  Example at seed S0030 progress:
+    Thread 1: Working on S0030 LEGOs (brand new)
+    Thread 2: Reviewing S0020 LEGOs (10 seeds ago)
+    Thread 3: Reviewing S0010 LEGOs (20 seeds ago)
+
+  The learner practices all three in a mixed sequence,
+  creating natural interleaved spacing.
+
+## ============================================================================
+## CYCLE ALLOCATION
+## ============================================================================
+
+CYCLE_ALLOCATION:
+  description: |
+    Each practice session allocates cycles to threads.
+    The ratio determines how much new vs review content.
+
+  allocation_strategy:
+    new_content_ratio: 0.4
+    review_ratio: 0.6
+
+  example_session:
+    total_cycles: 50
+    thread_1_allocation: 20   # 40% new content
+    thread_2_allocation: 18   # 36% recent review
+    thread_3_allocation: 12   # 24% older review
+
+  dynamic_adjustment: |
+    If learner is struggling (many spikes detected):
+      - Reduce Thread 1 allocation (less new content)
+      - Increase Thread 2/3 (more review)
+
+    If learner is cruising (fast responses):
+      - Increase Thread 1 allocation (more new content)
+      - Maintain Thread 2/3
+
+## ============================================================================
+## INTERLEAVING ALGORITHM
+## ============================================================================
+
+INTERLEAVING:
+  description: "How cycles from different threads are mixed"
+
+  basic_pattern: |
+    Rather than completing all Thread 1, then Thread 2, etc.,
+    cycles are interleaved to mix new and review content.
+
+  interleave_strategy:
+    name: "Weighted Random Selection"
+    algorithm: |
+      1. Calculate weights based on allocation
+      2. For each cycle slot:
+         - Select thread based on weighted random
+         - Get next item from selected thread
+         - Decrease that thread's remaining allocation
+
+  example_sequence: |
+    [T1, T1, T2, T1, T3, T2, T1, T2, T3, T2, T1, ...]
+    This creates natural mixing of new and review.
+
+  prohibited_patterns:
+    - "More than 5 consecutive items from same thread"
+    - "Immediate repeat of same LEGO"
+
+## ============================================================================
+## THREAD STATE MANAGEMENT
+## ============================================================================
+
+THREAD_STATE:
+  description: "State tracked per thread"
+
+  ThreadState:
+    seedOrder:
+      type: "string[]"
+      description: "Ordered list of seed IDs for this thread"
+      initial: "All 668 seeds in canonical order"
+
+    currentSeedId:
+      type: "string | null"
+      description: "Currently active seed"
+      initial: "First seed (S0001)"
+
+    currentLegoIndex:
+      type: number
+      description: "Index of current LEGO within current seed"
+      initial: 0
+
+    practicedLegos:
+      type: "Set<string>"
+      description: "LEGOs that have been practiced in this session"
+
+    completedSeeds:
+      type: "Set<string>"
+      description: "Seeds fully completed in this thread"
+
+  getNextItem:
+    description: "Get next learning item from this thread"
+    algorithm: |
+      1. Get current seed and current LEGO
+      2. If LEGO has remaining practice phrases:
+         - Return next phrase for this LEGO
+      3. If all phrases done for this LEGO:
+         - Advance to next LEGO in seed
+      4. If all LEGOs done for this seed:
+         - Advance to next seed
+         - Return first LEGO of new seed
+
+## ============================================================================
+## SUBJECT INJECTION
+## ============================================================================
+
+SUBJECT_INJECTION:
+  description: |
+    Content can be "injected" into threads by subject/topic.
+    This allows targeted vocabulary practice.
+
+  use_case: |
+    Teacher wants to inject "food vocabulary" into the session.
+    These LEGOs get temporarily prioritized across all threads.
+
+  implementation:
+    injected_content:
+      type: "Record<string, string[]>"
+      description: "Subject → LEGO IDs to inject"
+      example:
+        food: ["S0023L01", "S0045L03", "S0067L02"]
+        travel: ["S0012L01", "S0034L02"]
+
+    injection_priority:
+      description: "How often injected content appears"
+      ratio: 0.2
+      meaning: "20% of cycles reserved for injected content"
+
+    injection_exhaustion:
+      description: "What happens when injected content is all practiced"
+      behavior: "Falls back to normal thread allocation"
+
+## ============================================================================
+## SESSION FLOW
+## ============================================================================
+
+SESSION_FLOW:
+  description: "How a practice session progresses"
+
+  session_start:
+    1: "Load thread states from persistence"
+    2: "Calculate session target (time or item count)"
+    3: "Initialize cycle allocation"
+
+  during_session:
+    for_each_cycle:
+      1: "Select thread (weighted random based on allocation)"
+      2: "Get next item from selected thread"
+      3: "Run 4-phase cycle (PROMPT → PAUSE → VOICE_1 → VOICE_2)"
+      4: "Record completion"
+      5: "Update thread state"
+      6: "Check session completion criteria"
+
+  session_end:
+    1: "Persist thread states"
+    2: "Calculate session metrics"
+    3: "Show SessionComplete screen"
+
+## ============================================================================
+## COORDINATION WITH SPACED REPETITION
+## ============================================================================
+
+SPACED_REPETITION_INTEGRATION:
+  description: |
+    Triple Helix provides the SELECTION of what to practice.
+    Spaced Repetition provides the SCHEDULING of when.
+
+  coordination:
+    triple_helix_role:
+      - "Selects which thread to pull from"
+      - "Manages progression through seeds/LEGOs"
+      - "Handles interleaving"
+
+    spaced_repetition_role:
+      - "Tracks individual LEGO mastery"
+      - "Determines skip numbers (how often to practice)"
+      - "Handles retirement (mastered LEGOs)"
+
+  example: |
+    Triple Helix: "Thread 2 is selected, get next item"
+    Thread 2: "Current seed is S0015, current LEGO is S0015L02"
+    Spaced Rep: "S0015L02 has skip=3, was just practiced 2 cycles ago"
+    Decision: "Skip S0015L02, get S0015L03 instead"
+
+## ============================================================================
+## API INTERFACE
+## ============================================================================
+
+API:
+  constructor:
+    signature: "new TripleHelixEngine(config: HelixConfig)"
+    config:
+      threadOffsets:
+        type: "[number, number, number]"
+        default: [0, 10, 20]
+      allocationRatios:
+        type: "[number, number, number]"
+        default: [0.4, 0.36, 0.24]
+
+  methods:
+    getNextItem:
+      signature: "() => LearningItem | null"
+      description: "Get next item from selected thread"
+      returns: "LearningItem or null if session complete"
+
+    recordCompletion:
+      signature: "(item: LearningItem, response: ResponseMetrics) => void"
+      description: "Record that item was completed"
+
+    getProgress:
+      signature: "() => HelixProgress"
+      description: "Get current progress across all threads"
+
+    injectContent:
+      signature: "(subject: string, legoIds: string[]) => void"
+      description: "Inject content for targeted practice"
+
+    getState:
+      signature: "() => HelixState"
+      description: "Get current state for persistence"
+
+    setState:
+      signature: "(state: HelixState) => void"
+      description: "Restore state from persistence"
+
+## ============================================================================
+## VALIDATION RULES
+## ============================================================================
+
+VALIDATION:
+  thread_integrity:
+    - "All threads must have same seed count"
+    - "Thread offsets must be unique"
+    - "Allocation ratios must sum to 1.0"
+
+  progression_integrity:
+    - "Cannot skip seeds within a thread"
+    - "Cannot practice LEGO before its seed is reached"
+    - "Injected content must be from reached seeds"
+
+## ============================================================================
+## GENERATED: 2025-12-03
+## APML v1.0.0
+## ============================================================================

@@ -1,0 +1,362 @@
+# SSi Variable Registry - Direction Assessment
+# Applying APML Design Principles v2.0.0 to our work
+#
+# Date: 2025-12-15
+# Context: Assessing ssi-variable-registry.apml against the 12 directions
+
+assessment SSiRegistryAlignment:
+  registry_file: "apml/core/ssi-variable-registry.apml"
+  assessed_against: "APML-Design-Principles-v2.0.0.apml"
+
+  # ===========================================================================
+  # D01: TOWARD PARAMETERIZATION
+  # ===========================================================================
+
+  D01_TOWARD_PARAMETERS:
+    direction: "Everything is a parameter"
+
+    current_state:
+      moving_toward:
+        - "Enums defined as configurable sets, not hardcoded"
+        - "status, phrase_type, role all parameterized"
+        - "metadata JSONB as escape hatch for future params"
+
+      moving_away:
+        - "668 seeds hardcoded in range description"
+        - "3 threads not parameterized"
+        - "Fibonacci sequence embedded in learning app, not registry"
+        - "'Top 5 longest' for eternal - magic number"
+        - "'Up to 7' debut phrases - magic number"
+
+    opportunity: |
+      Add a `parameters` section to registry:
+      - course_structure.max_seeds: 668 (but parameterized)
+      - triple_helix.thread_count: 3
+      - phrase_selection.eternal_count: 5
+      - phrase_selection.max_debut: 7
+      - spaced_repetition.fibonacci_sequence: [1,1,2,3,5,8,13,21,34,55,89]
+      - future_parameters: JSONB (escape hatch)
+
+    assessment: "Partial - good on enums/status, needs parameters section"
+
+  # ===========================================================================
+  # D02: TOWARD USER EXPERIENCE
+  # ===========================================================================
+
+  D02_TOWARD_USER_FLOW:
+    direction: "Learner experience is sacred in PLAY"
+
+    current_state:
+      moving_toward:
+        - "ContentStatus enum distinguishes draft/released/deprecated"
+        - "Only 'released' content visible to learners"
+        - "Delta sync designed for smooth offline experience"
+        - "Phrase sequence explicitly designed for learning flow"
+
+      moving_away:
+        - "(nothing identified - this direction well-served)"
+
+    assessment: "Strong - learning sequence design prioritizes learner flow"
+
+  # ===========================================================================
+  # D03: TOWARD APPROPRIATE FAILURE
+  # ===========================================================================
+
+  D03_TOWARD_APPROPRIATE_FAILURE:
+    direction: "Fail fast in BUILD, graceful in PLAY"
+
+    current_state:
+      moving_toward:
+        - "status field enables hiding broken content"
+        - "version field enables rollback"
+        - "Validation rules documented in registry"
+
+      moving_away:
+        - "No explicit BUILD vs PLAY modes in registry"
+        - "No validation severity levels (error vs warning)"
+
+    opportunity: |
+      Add validation section with modes:
+      - build_mode: strict (fail on any issue)
+      - play_mode: graceful (log, continue, use fallbacks)
+      - validation_rules: { field: rule, severity: error|warning }
+
+    assessment: "Partial - implicit in status, could be more explicit"
+
+  # ===========================================================================
+  # D04: TOWARD SINGLE SOURCE OF TRUTH
+  # ===========================================================================
+
+  D04_TOWARD_SINGLE_TRUTH:
+    direction: "APML is truth; code implements"
+
+    current_state:
+      moving_toward:
+        - "Registry explicitly marked as SSoT"
+        - "Compilation targets defined (SQL, TypeScript, JSON Schema)"
+        - "Phase output mappings documented"
+        - "Canonical location marked in both repo copies"
+
+      moving_away:
+        - "Two copies exist (learning app + dashboard)"
+        - "TypeScript types in @ssi/core not yet generated from registry"
+        - "Supabase schema not yet generated from registry"
+
+    opportunity: |
+      Next steps to close the loop:
+      1. Generate Supabase SQL from registry
+      2. Generate TypeScript types from registry
+      3. CI check that generated files match registry
+
+    assessment: "Strong conceptually - needs generation pipeline"
+
+  # ===========================================================================
+  # D05: TOWARD RAW DATA
+  # ===========================================================================
+
+  D05_TOWARD_RAW_DATA:
+    direction: "Store raw, compute derived"
+
+    current_state:
+      moving_toward:
+        - "seed_number stored (raw), seed_id derived (S0042)"
+        - "lego_index stored (raw), lego_id derived"
+        - "word_count could enable dynamic phrase_type selection"
+
+      moving_away:
+        - "phrase_type stored, not computed from word_count + position"
+        - "is_new stored, could potentially be computed from first occurrence"
+
+    opportunity: |
+      Consider:
+      - Store word_count on phrases, compute phrase_type at runtime?
+      - Or keep phrase_type stored (performance) with documented rationale?
+
+      Trade-off acknowledged:
+      - phrase_type stored for performance (no join to count words)
+      - is_new stored because computation requires global course scan
+
+    assessment: "Balanced - raw where practical, derived cached with rationale"
+
+  # ===========================================================================
+  # D06: TOWARD DUAL IDENTITY
+  # ===========================================================================
+
+  D06_TOWARD_DUAL_IDENTITY:
+    direction: "Natural keys for humans, UUIDs for machines"
+
+    current_state:
+      moving_toward:
+        - "UUID primary keys on all entities"
+        - "Natural key as UNIQUE constraint"
+        - "Derived human-readable IDs (seed_id, lego_id, phrase_id)"
+        - "No regex parsing required - seed_number is INTEGER"
+
+      moving_away:
+        - "(nothing identified - this direction well-implemented)"
+
+    example:
+      correct: |
+        id: UUID (machine reference)
+        seed_number: INTEGER (raw value)
+        seed_id: DERIVED "S0042" (human display)
+
+    assessment: "Strong - clean separation of concerns"
+
+  # ===========================================================================
+  # D07: TOWARD CONTEXT-AGNOSTIC
+  # ===========================================================================
+
+  D07_TOWARD_REUSABILITY:
+    direction: "Reusable across contexts"
+
+    current_state:
+      moving_toward:
+        - "AudioSample explicitly course-agnostic"
+        - "Natural key (text+lang+voice+role) enables cross-course reuse"
+        - "Same English audio used by spa_for_eng, fra_for_eng, etc."
+
+      moving_away:
+        - "CourseSeed/CourseLego/CoursePracticePhrase are course-specific"
+        - "(This is correct - content IS course-specific)"
+
+    key_insight: |
+      Audio: Context-agnostic (reusable)
+      Content: Context-specific (correct - different courses have different text)
+
+      The distinction is well-drawn.
+
+    assessment: "Strong - appropriate reuse boundaries"
+
+  # ===========================================================================
+  # D08: TOWARD EXPLICITNESS
+  # ===========================================================================
+
+  D08_TOWARD_EXPLICITNESS:
+    direction: "No magic; if it matters, it's visible"
+
+    current_state:
+      moving_toward:
+        - "All enums explicitly defined with descriptions"
+        - "Defaults explicitly stated (status: 'draft')"
+        - "Foreign keys explicitly documented"
+        - "Learning sequence explicitly documented (component→lego→debut→eternal)"
+        - "used_when field makes temporal behavior explicit"
+
+      moving_away:
+        - "Some implicit relationships (phrase belongs to lego via composite key)"
+
+    example:
+      explicit: |
+        phrase_type: component
+        used_when: "First encounter only"
+        legacy_code: "COMP"
+
+      versus_implicit: |
+        phrase_type: COMP  # Hope you know what this means
+
+    assessment: "Strong - self-documenting registry"
+
+  # ===========================================================================
+  # D09: TOWARD IDEMPOTENCY
+  # ===========================================================================
+
+  D09_TOWARD_IDEMPOTENCY:
+    direction: "Every operation safe to re-run"
+
+    current_state:
+      moving_toward:
+        - "Natural keys enable UPSERT semantics"
+        - "UUID v5 (deterministic from natural key) = same input → same UUID"
+        - "version field enables conflict detection"
+
+      moving_away:
+        - "Idempotency not explicitly documented in registry"
+        - "Import operations not yet specified"
+
+    opportunity: |
+      Add operations section:
+      - import_seed: UPSERT on (course_code, seed_number)
+      - import_lego: UPSERT on (course_code, seed_number, lego_index)
+      - import_audio: UPSERT on (text_normalized, language, voice_id, role)
+
+    assessment: "Enabled by design - needs explicit documentation"
+
+  # ===========================================================================
+  # D10: TOWARD OBSERVABILITY
+  # ===========================================================================
+
+  D10_TOWARD_OBSERVABILITY:
+    direction: "You should be able to see what the system is doing"
+
+    current_state:
+      moving_toward:
+        - "version field tracks changes"
+        - "updated_at enables change detection"
+        - "status makes content state visible"
+
+      moving_away:
+        - "No logging/audit requirements in registry"
+        - "No metrics/counts specified"
+
+    opportunity: |
+      Add observability section:
+      - Every import should log: "Seeds: N, LEGOs: M, Phrases: P, Errors: E"
+      - Sync should report: "Changed since last sync: N items"
+      - Health check should show: content counts, latest update times
+
+    assessment: "Partial - change tracking good, operational visibility needs work"
+
+  # ===========================================================================
+  # D11: TOWARD PROPER ABSTRACTIONS
+  # ===========================================================================
+
+  D11_TOWARD_PROPER_ABSTRACTIONS:
+    direction: "Typed structures over string hacks"
+
+    current_state:
+      moving_toward:
+        - "Enums instead of free-form TEXT"
+        - "INTEGER for seed_number (not parsed from string)"
+        - "UUID for references (not string matching)"
+        - "JSONB for structured metadata (not encoded strings)"
+
+      moving_away:
+        - "legacy_code: 'COMP' still exists (but explicitly documented)"
+
+    legacy_handling:
+      approach: |
+        New code uses: phrase_type = 'component'
+        Legacy interface uses: legacy_code = 'COMP'
+        Mapping is explicit in registry.
+
+      this_is_correct: |
+        # ACKNOWLEDGED: Legacy code uses COMP/LEGO/DEBU/ETER
+        # New code uses full names: component, lego, debut, eternal
+        # Registry documents the mapping explicitly
+
+    assessment: "Strong - proper types with explicit legacy mapping"
+
+  # ===========================================================================
+  # D12: TOWARD DELTA SYNC
+  # ===========================================================================
+
+  D12_TOWARD_DELTA_SYNC:
+    direction: "version + updated_at on everything"
+
+    current_state:
+      moving_toward:
+        - "version: INTEGER on all content entities"
+        - "updated_at: TIMESTAMPTZ on all content entities"
+        - "Sync strategy explicitly documented"
+        - "Delta sync queries provided"
+
+      moving_away:
+        - "(nothing identified - this direction well-implemented)"
+
+    implementation: |
+      Initial: SELECT * WHERE status = 'released'
+      Delta:   SELECT * WHERE status = 'released' AND updated_at > :last_sync
+
+    assessment: "Strong - delta sync designed from the start"
+
+  # ===========================================================================
+  # SUMMARY
+  # ===========================================================================
+
+  overall_assessment:
+    strong_alignment:
+      - "D02: User experience (learning flow prioritized)"
+      - "D04: Single source of truth (registry is SSoT)"
+      - "D06: Dual identity (UUID + natural key + derived display)"
+      - "D07: Context-agnostic (audio reusable, content course-specific)"
+      - "D08: Explicitness (self-documenting enums and sequences)"
+      - "D11: Proper abstractions (typed structures, legacy mapping)"
+      - "D12: Delta sync (version + updated_at everywhere)"
+
+    partial_alignment:
+      - "D01: Parameterization (needs parameters section)"
+      - "D03: Appropriate failure (needs BUILD/PLAY modes)"
+      - "D05: Raw data (trade-offs acknowledged)"
+      - "D09: Idempotency (enabled but not documented)"
+      - "D10: Observability (needs operational visibility)"
+
+    next_actions:
+      1: "Add parameters section to registry (D01)"
+      2: "Add validation modes (D03)"
+      3: "Add idempotent operations section (D09)"
+      4: "Add observability requirements (D10)"
+      5: "Generate implementations from registry (D04)"
+
+  meta_note: |
+    This assessment itself follows the directions:
+    - It's explicit (D08)
+    - It documents trade-offs (contextual notes)
+    - It asks "moving toward?" not "compliant?"
+    - It identifies opportunities, not failures
+
+    "These are directions, not destinations."
+
+# =============================================================================
+# Generated: 2025-12-15
+# =============================================================================

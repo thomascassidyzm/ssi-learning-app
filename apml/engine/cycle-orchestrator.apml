@@ -1,0 +1,427 @@
+# APML Engine: Cycle Orchestrator Specification
+# SSI Learning App v1.0.0
+# Version: 1.0.0 (2025-12-03)
+# Status: Production-ready
+
+## ============================================================================
+## OVERVIEW
+## ============================================================================
+
+SPECIFICATION:
+  name: "Cycle Orchestrator"
+  purpose: "State machine for the 4-phase prompt-response learning cycle"
+  source: "packages/core/src/engine/CycleOrchestrator.ts"
+  version: "1.0.0"
+
+CORE_PRINCIPLE: |
+  The learning cycle is the fundamental unit of SSI methodology.
+  Each cycle takes a learner through PROMPT → PAUSE → VOICE_1 → VOICE_2.
+  Text visibility is carefully controlled to force recall, not reading.
+
+## ============================================================================
+## THE 4-PHASE LEARNING CYCLE
+## ============================================================================
+
+CYCLE_PHASES:
+  description: |
+    Every learning item goes through exactly 4 phases in fixed order.
+    The phases are designed to maximize active recall and minimize passive reading.
+
+  PHASE_1_PROMPT:
+    name: "PROMPT"
+    purpose: "Play known language audio to prompt learner"
+    sequence: 1
+    duration: "Audio duration of known phrase"
+
+    audio:
+      plays: "known language audio"
+      example: "I want coffee"
+
+    text_visibility:
+      known: true
+      target: false
+      rationale: "Show what to translate, hide the answer"
+
+    learner_action: "Listen and prepare to speak"
+
+    next_phase: "PAUSE"
+
+  PHASE_2_PAUSE:
+    name: "PAUSE"
+    purpose: "Gap for learner to attempt target language"
+    sequence: 2
+    duration: "2x target audio length (dynamic)"
+
+    audio:
+      plays: "nothing (silence)"
+
+    text_visibility:
+      known: true
+      target: false
+      rationale: "Learner must produce target from memory"
+
+    learner_action: "Speak the target language aloud"
+
+    timing:
+      calculation: "target_voice1_duration * 2.0"
+      minimum: 1500  # 1.5 seconds
+      maximum: 10000 # 10 seconds
+      default: 3000  # 3 seconds (if duration unknown)
+
+    adaptation:
+      spike_detection: true
+      description: "If learner hesitates (detected via optional speech recognition), pause can extend"
+
+    next_phase: "VOICE_1"
+
+  PHASE_3_VOICE_1:
+    name: "VOICE_1"
+    purpose: "First exposure to correct target pronunciation"
+    sequence: 3
+    duration: "Audio duration of target voice 1"
+
+    audio:
+      plays: "target language voice 1"
+      example: "Voglio caffè (Maria's voice)"
+
+    text_visibility:
+      known: true
+      target: false  # CRITICAL: Still hidden!
+      rationale: "Force listening, not reading"
+
+    learner_action: "Listen and compare to what they said"
+
+    next_phase: "VOICE_2"
+
+  PHASE_4_VOICE_2:
+    name: "VOICE_2"
+    purpose: "Second exposure with visual confirmation"
+    sequence: 4
+    duration: "Audio duration of target voice 2"
+
+    audio:
+      plays: "target language voice 2"
+      example: "Voglio caffè (Giovanni's voice)"
+
+    text_visibility:
+      known: true
+      target: true  # NOW shown
+      rationale: "Visual confirmation after auditory processing"
+
+    learner_action: "See and verify the target text"
+
+    next_phase: "END (item complete)"
+
+CYCLE_FLOW_DIAGRAM: |
+  ┌───────────────────────────────────────────────────────────────────────┐
+  │                        4-PHASE LEARNING CYCLE                         │
+  ├───────────────────────────────────────────────────────────────────────┤
+  │                                                                       │
+  │  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐        │
+  │  │  PROMPT  │───▶│  PAUSE   │───▶│ VOICE_1  │───▶│ VOICE_2  │───▶END │
+  │  └──────────┘    └──────────┘    └──────────┘    └──────────┘        │
+  │       │               │               │               │              │
+  │  Known audio    Silence (2x)    Target V1       Target V2           │
+  │  Known text✓    Known text✓     Known text✓     Known text✓         │
+  │  Target text✗   Target text✗    Target text✗    Target text✓        │
+  │                                                                       │
+  └───────────────────────────────────────────────────────────────────────┘
+
+## ============================================================================
+## STATE MACHINE DEFINITION
+## ============================================================================
+
+STATE_MACHINE:
+  name: "CycleOrchestrator"
+  initial_state: "IDLE"
+
+  states:
+    IDLE:
+      description: "No active cycle, waiting for input"
+      enters_from: [initial, VOICE_2, aborted]
+      exits_to: [PROMPT]
+      actions_allowed: [startItem]
+
+    PROMPT:
+      description: "Playing known language audio"
+      enters_from: [IDLE]
+      exits_to: [PAUSE]
+      actions_allowed: [skip, abort]
+      auto_transition: "On audio ended"
+
+    PAUSE:
+      description: "Waiting for learner response"
+      enters_from: [PROMPT]
+      exits_to: [VOICE_1]
+      actions_allowed: [skip, abort, extend]
+      auto_transition: "On timer complete"
+
+    VOICE_1:
+      description: "Playing first target voice"
+      enters_from: [PAUSE]
+      exits_to: [VOICE_2]
+      actions_allowed: [skip, abort]
+      auto_transition: "On audio ended"
+
+    VOICE_2:
+      description: "Playing second target voice"
+      enters_from: [VOICE_1]
+      exits_to: [IDLE]
+      actions_allowed: [skip, abort]
+      auto_transition: "On audio ended"
+
+  transitions:
+    start_item:
+      from: IDLE
+      to: PROMPT
+      trigger: "startItem(item) called"
+      action: "Begin playing known audio"
+
+    prompt_complete:
+      from: PROMPT
+      to: PAUSE
+      trigger: "Audio playback ended"
+      action: "Start pause timer"
+
+    pause_complete:
+      from: PAUSE
+      to: VOICE_1
+      trigger: "Timer elapsed"
+      action: "Begin playing target voice 1"
+
+    voice1_complete:
+      from: VOICE_1
+      to: VOICE_2
+      trigger: "Audio playback ended"
+      action: "Begin playing target voice 2"
+
+    voice2_complete:
+      from: VOICE_2
+      to: IDLE
+      trigger: "Audio playback ended"
+      action: "Emit item_completed event"
+
+    skip:
+      from: [PROMPT, PAUSE, VOICE_1, VOICE_2]
+      to: IDLE
+      trigger: "User presses skip"
+      action: "Stop audio, emit item_skipped event"
+
+    abort:
+      from: [PROMPT, PAUSE, VOICE_1, VOICE_2]
+      to: IDLE
+      trigger: "Session ends or error"
+      action: "Stop audio, cleanup"
+
+## ============================================================================
+## EVENTS
+## ============================================================================
+
+EVENTS:
+  description: "Events emitted by the orchestrator for UI updates"
+
+  phase_changed:
+    description: "Emitted when transitioning between phases"
+    payload:
+      phase: "CyclePhase"
+      item: "LearningItem"
+      previousPhase: "CyclePhase | null"
+    use_cases:
+      - "Update phase indicator dots"
+      - "Update text visibility"
+      - "Update ring progress animation"
+
+  pause_started:
+    description: "Emitted when PAUSE phase begins"
+    payload:
+      duration_ms: number
+      item: "LearningItem"
+    use_cases:
+      - "Start countdown ring animation"
+      - "Optionally start speech recognition"
+
+  pause_progress:
+    description: "Emitted periodically during PAUSE"
+    payload:
+      elapsed_ms: number
+      total_ms: number
+      percent: number
+    use_cases:
+      - "Update ring progress animation"
+
+  item_completed:
+    description: "Emitted when full cycle completes"
+    payload:
+      item: "LearningItem"
+      duration_ms: number
+    use_cases:
+      - "Update progress counters"
+      - "Request next item"
+      - "Record completion metrics"
+
+  item_skipped:
+    description: "Emitted when user skips"
+    payload:
+      item: "LearningItem"
+      skipped_at_phase: "CyclePhase"
+    use_cases:
+      - "Log skip for analytics"
+      - "Request next item"
+
+  error:
+    description: "Emitted on audio or timing errors"
+    payload:
+      error: "Error"
+      phase: "CyclePhase"
+      item: "LearningItem | null"
+    use_cases:
+      - "Show error to user"
+      - "Log for debugging"
+      - "Attempt recovery"
+
+## ============================================================================
+## AUDIO CONTROLLER INTERFACE
+## ============================================================================
+
+AUDIO_CONTROLLER_INTERFACE:
+  description: "Interface that CycleOrchestrator uses for audio playback"
+
+  methods:
+    play:
+      signature: "(audioRef: AudioRef) => Promise<void>"
+      description: "Play audio, resolve when started or on error"
+      error_handling: "Resolve with no-op if audioRef is null/undefined"
+
+    stop:
+      signature: "() => void"
+      description: "Stop any currently playing audio"
+
+    preload:
+      signature: "(audioRefs: AudioRef[]) => Promise<void>"
+      description: "Pre-fetch audio for upcoming items"
+
+    onEnded:
+      signature: "(callback: () => void) => void"
+      description: "Register callback for when audio playback ends"
+
+    offEnded:
+      signature: "(callback: () => void) => void"
+      description: "Remove callback registration"
+
+  implementation_notes:
+    mobile_safari: |
+      CRITICAL: Must reuse a single Audio element to preserve "user gesture unlock" state.
+      Creating new Audio() elements per playback breaks autoplay on iOS Safari.
+
+    callback_safety: |
+      When iterating ended callbacks, snapshot the Set first:
+      const callbacks = [...this.endedCallbacks]
+      This prevents issues if callbacks modify the Set during iteration.
+
+## ============================================================================
+## CONFIGURATION
+## ============================================================================
+
+CONFIGURATION:
+  pause_duration:
+    description: "How to calculate PAUSE phase duration"
+    strategy: "dynamic"
+    calculation: "target_audio_duration * multiplier"
+    multiplier:
+      default: 2.0
+      range: [1.5, 3.0]
+    fallback:
+      value: 3000
+      when: "Target audio duration unknown"
+    limits:
+      minimum: 1500
+      maximum: 10000
+
+  auto_advance:
+    description: "Whether to automatically advance between phases"
+    default: true
+    override: "User can set manual mode"
+
+  preload_ahead:
+    description: "How many items to preload"
+    default: 3
+    benefit: "Reduces latency between items"
+
+## ============================================================================
+## TEXT VISIBILITY RULES
+## ============================================================================
+
+TEXT_VISIBILITY:
+  description: "Rules for when to show known/target text"
+  principle: "Force active recall, prevent passive reading"
+
+  rules:
+    show_known:
+      phases: [PROMPT, PAUSE, VOICE_1, VOICE_2]
+      always: true
+      rationale: "Learner always knows what they're translating"
+
+    show_target:
+      phases: [VOICE_2]
+      hidden_until: "VOICE_2 begins"
+      rationale: "Only reveal answer after learner has heard it twice"
+
+  implementation:
+    computed_property: |
+      const showTargetText = computed(() =>
+        currentPhase.value === 'VOICE_2'
+      )
+
+## ============================================================================
+## INTEGRATION EXAMPLE
+## ============================================================================
+
+INTEGRATION_EXAMPLE:
+  vue_component: |
+    ```javascript
+    // In LearningPlayer.vue setup()
+    const orchestrator = new CycleOrchestrator(audioController, config)
+
+    orchestrator.addEventListener((event) => {
+      switch (event.type) {
+        case 'phase_changed':
+          currentPhase.value = event.payload.phase
+          break
+        case 'pause_started':
+          startRingAnimation(event.payload.duration_ms)
+          break
+        case 'pause_progress':
+          ringProgress.value = event.payload.percent
+          break
+        case 'item_completed':
+          requestNextItem()
+          break
+      }
+    })
+
+    // Start a cycle
+    await orchestrator.startItem(learningItem)
+    ```
+
+## ============================================================================
+## VALIDATION RULES
+## ============================================================================
+
+VALIDATION:
+  state_integrity:
+    - "Can only be in one state at a time"
+    - "Transitions must follow defined paths"
+    - "Cannot skip phases (PROMPT→VOICE_2 invalid)"
+
+  timing_integrity:
+    - "PAUSE duration must be positive"
+    - "Audio durations must be non-negative"
+
+  audio_integrity:
+    - "Each item must have known audio"
+    - "Each item must have at least one target voice"
+
+## ============================================================================
+## GENERATED: 2025-12-03
+## APML v1.0.0
+## ============================================================================

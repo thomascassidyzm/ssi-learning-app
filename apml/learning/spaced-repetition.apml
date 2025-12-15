@@ -1,0 +1,369 @@
+# APML Learning: Spaced Repetition Queue Specification
+# SSI Learning App v1.0.0
+# Version: 1.0.0 (2025-12-03)
+# Status: Designed
+
+## ============================================================================
+## OVERVIEW
+## ============================================================================
+
+SPECIFICATION:
+  name: "Spaced Repetition Queue"
+  purpose: "Fibonacci-based spacing for optimal retention"
+  source: "packages/core/src/learning/SpacedRepetitionQueue.ts"
+  version: "1.0.0"
+
+CORE_PRINCIPLE: |
+  LEGOs graduate through increasing intervals based on Fibonacci sequence.
+  Early repetitions are frequent, then spacing increases exponentially.
+  Eventually LEGOs "retire" to an eternal rotation.
+
+PEDAGOGICAL_BASIS: |
+  The Fibonacci sequence mirrors the forgetting curve.
+  1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89...
+  Each number represents "cycles until next practice".
+
+## ============================================================================
+## FIBONACCI SEQUENCE
+## ============================================================================
+
+FIBONACCI_SEQUENCE:
+  description: "Skip numbers for LEGO practice scheduling"
+
+  sequence: [1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
+
+  positions:
+    position_0:
+      skip: 1
+      meaning: "Practice every cycle"
+      phase: "Initial learning"
+
+    position_1:
+      skip: 1
+      meaning: "Still every cycle"
+      phase: "Consolidation"
+
+    position_2:
+      skip: 2
+      meaning: "Practice every 2nd cycle"
+      phase: "Early spacing"
+
+    position_3:
+      skip: 3
+      meaning: "Practice every 3rd cycle"
+      phase: "Building retention"
+
+    position_4:
+      skip: 5
+      meaning: "Practice every 5th cycle"
+      phase: "Moderate spacing"
+
+    position_5:
+      skip: 8
+      meaning: "Practice every 8th cycle"
+      phase: "Established"
+
+    position_6:
+      skip: 13
+      meaning: "Practice every 13th cycle"
+      phase: "Confident"
+
+    position_7:
+      skip: 21
+      meaning: "Practice every 21st cycle"
+      phase: "Near mastery"
+
+    position_8:
+      skip: 34
+      meaning: "Practice every 34th cycle"
+      phase: "Mastery approaching"
+
+  retirement_threshold:
+    position: 8
+    meaning: "After position 8, LEGO is 'retired'"
+    behavior: "Moves to eternal rotation pool"
+
+## ============================================================================
+## LEGO PROGRESSION
+## ============================================================================
+
+LEGO_LIFECYCLE:
+  description: "How a LEGO progresses through the system"
+
+  stages:
+    introduction:
+      trigger: "First encounter in a SEED"
+      fibonacci_position: 0
+      skip_number: 1
+      behavior: |
+        - Show LEGO introduction (presentation text)
+        - Play component breakdown (for M-type)
+        - Start with simple phrases
+
+    active_learning:
+      positions: [0, 1, 2, 3, 4, 5]
+      behavior: |
+        - Practice with increasing skip intervals
+        - Mix phrase lengths and complexity
+        - Track response latency
+
+    consolidation:
+      positions: [6, 7]
+      skip_range: [13, 21]
+      behavior: |
+        - Longer intervals between practice
+        - Only see in longer phrases
+        - Reduced frequency in session
+
+    retirement:
+      position: "8+"
+      trigger: "Position >= 8"
+      behavior: |
+        - Moves to eternal rotation pool
+        - Practiced very rarely (fills empty slots)
+        - Essentially "mastered"
+
+PROGRESSION_RULES:
+  advance:
+    trigger: "Correct response (timely, no hesitation)"
+    action: "Increment fibonacci_position by 1"
+    cap: "Maximum position 8 (retirement)"
+
+  maintain:
+    trigger: "Slow response (hesitation detected)"
+    action: "Keep fibonacci_position unchanged"
+    note: "Gets another chance at same interval"
+
+  regress:
+    trigger: "Very slow or clearly wrong"
+    action: "Decrease fibonacci_position by 1"
+    floor: "Minimum position 0"
+
+## ============================================================================
+## SKIP NUMBER CALCULATION
+## ============================================================================
+
+SKIP_CALCULATION:
+  description: "Determine when a LEGO should next appear"
+
+  formula: |
+    skip_number = FIBONACCI[fibonacci_position]
+
+    next_practice_at = current_cycle + skip_number
+
+  example:
+    lego_id: "S0015L02"
+    current_cycle: 100
+    fibonacci_position: 4
+    skip_number: 5  # FIBONACCI[4]
+    next_practice_at: 105
+
+  implementation: |
+    class SpacedRepetitionQueue {
+      private fibonacci = [1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
+
+      getSkipNumber(position: number): number {
+        if (position >= this.fibonacci.length) {
+          return Infinity // Retired
+        }
+        return this.fibonacci[position]
+      }
+
+      shouldPractice(lego: LegoProgress, currentCycle: number): boolean {
+        if (lego.is_retired) {
+          return this.eternalPool.shouldInclude(lego)
+        }
+        const nextPractice = lego.last_cycle + lego.skip_number
+        return currentCycle >= nextPractice
+      }
+    }
+
+## ============================================================================
+## ETERNAL ROTATION POOL
+## ============================================================================
+
+ETERNAL_POOL:
+  description: "Where mastered LEGOs go for very occasional review"
+
+  membership:
+    criteria: "fibonacci_position >= 8"
+    removal: "Never (once retired, always retired)"
+
+  practice_frequency:
+    strategy: "Fill empty slots"
+    description: |
+      When a session has cycles allocated but no active LEGOs
+      need practice, pull from eternal pool.
+
+  selection:
+    method: "Least recently practiced first"
+    implementation: |
+      function selectFromEternalPool(count: number): LegoProgress[] {
+        return eternalPool
+          .sort((a, b) => a.last_practiced_at - b.last_practiced_at)
+          .slice(0, count)
+      }
+
+  purpose: |
+    Prevents "learned and forgotten" - even mastered content
+    gets occasional review to maintain long-term retention.
+
+## ============================================================================
+## INITIAL REPS
+## ============================================================================
+
+INITIAL_REPS:
+  description: "Required repetitions before advancing from position 0"
+
+  count: 3
+  meaning: "Must practice 3 times at position 0 before advancing"
+
+  rationale: |
+    New LEGOs need multiple exposures in quick succession
+    before spacing can begin. This ensures basic encoding.
+
+  implementation: |
+    if (lego.fibonacci_position === 0) {
+      if (lego.reps_at_position_0 < INITIAL_REPS) {
+        lego.reps_at_position_0++
+        return // Don't advance yet
+      }
+    }
+    // Now can advance based on response quality
+
+## ============================================================================
+## RESPONSE QUALITY DETECTION
+## ============================================================================
+
+RESPONSE_QUALITY:
+  description: "How to determine if response was good/slow/wrong"
+
+  metrics:
+    latency:
+      description: "Time from PAUSE start to response (if speech recognition)"
+      fast: "< 1.5 * expected_duration"
+      normal: "1.5x - 3x expected_duration"
+      slow: "> 3x expected_duration"
+
+    hesitation:
+      description: "Pauses or restarts during response"
+      detected_by: "SpikeDetector module"
+
+  without_speech_recognition: |
+    When speech recognition is not available:
+    - Assume successful completion
+    - Advance on each completion
+    - Use session-level metrics for adaptation
+
+  with_speech_recognition: |
+    When speech recognition is available:
+    - Measure actual latency
+    - Detect hesitation spikes
+    - More granular progression control
+
+## ============================================================================
+## QUEUE OPERATIONS
+## ============================================================================
+
+QUEUE_OPERATIONS:
+  description: "Main operations on the spaced repetition queue"
+
+  getDueItems:
+    signature: "(currentCycle: number, limit: number) => LegoProgress[]"
+    description: "Get LEGOs that are due for practice"
+    algorithm: |
+      1. Filter active LEGOs where currentCycle >= next_practice_cycle
+      2. Sort by overdue amount (most overdue first)
+      3. Return up to limit items
+
+  recordPractice:
+    signature: "(legoId: string, quality: ResponseQuality) => void"
+    description: "Record that a LEGO was practiced"
+    algorithm: |
+      1. Update last_practiced_at and last_cycle
+      2. Based on quality:
+         - Good: advance fibonacci_position
+         - Slow: maintain position
+         - Wrong: regress position
+      3. Calculate new skip_number
+      4. Check for retirement
+
+  getProgress:
+    signature: "(legoId: string) => LegoProgress"
+    description: "Get current progress for a LEGO"
+
+  bulkUpdate:
+    signature: "(items: LegoProgress[]) => void"
+    description: "Update multiple LEGOs at once (for sync)"
+
+## ============================================================================
+## PERSISTENCE
+## ============================================================================
+
+PERSISTENCE:
+  description: "How spaced repetition state is stored"
+
+  stored_per_lego:
+    lego_id: string
+    course_id: string
+    fibonacci_position: number
+    skip_number: number
+    reps_at_position_0: number
+    is_retired: boolean
+    last_practiced_at: Date
+    last_cycle: number
+
+  storage_location:
+    primary: "IndexedDB (local)"
+    sync: "Supabase (cloud)"
+
+  sync_strategy:
+    direction: "Bidirectional"
+    conflict_resolution: "Last-write-wins with timestamp"
+
+## ============================================================================
+## INTEGRATION WITH TRIPLE HELIX
+## ============================================================================
+
+HELIX_INTEGRATION:
+  description: "How SpacedRepetitionQueue works with TripleHelixEngine"
+
+  responsibility_split:
+    triple_helix:
+      - "Selects which thread to pull from"
+      - "Determines seed/LEGO progression order"
+      - "Manages session-level interleaving"
+
+    spaced_repetition:
+      - "Filters what's due for practice"
+      - "Tracks individual LEGO mastery"
+      - "Manages skip intervals"
+
+  coordination_flow: |
+    1. TripleHelix selects thread (e.g., Thread 2)
+    2. Thread 2 has candidates: [S0015L01, S0015L02, S0015L03]
+    3. SpacedRep filters: S0015L02 not due yet (skip=3, only 2 cycles since)
+    4. SpacedRep returns: [S0015L01, S0015L03]
+    5. TripleHelix selects from filtered list
+
+## ============================================================================
+## VALIDATION RULES
+## ============================================================================
+
+VALIDATION:
+  fibonacci_position:
+    - "Must be non-negative integer"
+    - "Cannot exceed 10 (sequence length - 1)"
+
+  skip_number:
+    - "Must match fibonacci[position]"
+    - "Cannot be manually set"
+
+  progression:
+    - "Cannot advance more than 1 position per practice"
+    - "Cannot regress more than 1 position per practice"
+
+## ============================================================================
+## GENERATED: 2025-12-03
+## APML v1.0.0
+## ============================================================================

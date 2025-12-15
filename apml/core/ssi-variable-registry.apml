@@ -1,0 +1,926 @@
+# SSi Variable Registry
+# Single Source of Truth for all data structures across the SSi ecosystem
+#
+# Version: 1.1.0
+# Date: 2025-12-13
+# APML Version: 2.0.0
+#
+# This registry defines:
+# - All enum values with descriptions
+# - All entity structures with field types
+# - Natural keys and primary keys
+# - Future extension points
+#
+# Consumers:
+# - ssi-dashboard-v7-clean (content creation)
+# - ssi-learning-app (content delivery)
+# - Supabase schema generation
+# - TypeScript type generation
+
+registry SSiContent:
+  version: "1.1.0"
+  last_updated: "2025-12-13"
+
+  # ============================================================================
+  # ENUM DEFINITIONS
+  # ============================================================================
+
+  enum ContentStatus:
+    description: "Lifecycle status for content items"
+    values:
+      draft:
+        description: "In development, not visible to learners"
+        is_visible: false
+
+      released:
+        description: "Live, available to learners"
+        is_visible: true
+
+      deprecated:
+        description: "Superseded, hidden from new learners but preserved"
+        is_visible: false
+
+  enum LegoType:
+    description: "Classification of LEGO building blocks"
+    values:
+      A:
+        name: "Atomic"
+        description: "Single semantic unit, cannot be split further"
+        example: "now / ahora"
+        has_components: false
+
+      M:
+        name: "Molecular"
+        description: "Multi-word phrase composed of atomic parts"
+        example: "I want to / quiero"
+        has_components: true
+
+  enum PhraseType:
+    description: "Classification of practice phrases in learning sequence"
+    runtime_only: true
+    notes: "This enum defines valid phrase types but is NOT stored in the database. Classification is computed at runtime based on ClassificationConfig parameters and phrase metadata (word_count, lego_count, position)."
+    values:
+      component:
+        description: "Building block words from M-type LEGO breakdown"
+        example: "'I'm' / 'estoy' and 'trying' / 'intentando' as parts of 'I'm trying'"
+        sequence_order: 1
+        applies_to: "M-type LEGOs only"
+        used_when: "First encounter only"
+        legacy_code: "COMP"
+
+      lego:
+        description: "The LEGO itself as a complete unit"
+        example: "'I'm trying' / 'estoy intentando'"
+        sequence_order: 2
+        applies_to: "All LEGOs with is_new: true"
+        used_when: "First encounter only"
+        legacy_code: "LEGO"
+
+      debut:
+        description: "Scaffolding phrases of increasing complexity (up to 7)"
+        example: "'I'm trying to learn' / 'estoy intentando aprender'"
+        sequence_order: 3
+        applies_to: "All new LEGOs"
+        used_when: "First encounter only - skipped on revisit"
+        legacy_code: "DEBU"
+
+      eternal:
+        description: "The 5 longest phrases from basket - used forever on revisits"
+        example: "'I'm trying to learn Spanish with you now' / 'estoy intentando aprender español contigo ahora'"
+        sequence_order: 4
+        applies_to: "All LEGOs on spaced repetition revisit"
+        used_when: "Every revisit after acquisition"
+        selection_rule: "Top 5 longest phrases in basket by word count"
+        overlap_note: "May include phrases also shown during debut - that's fine"
+        legacy_code: "ETER"
+
+  enum AudioRole:
+    description: "Role of audio in the learning cycle"
+    values:
+      source:
+        description: "Known language prompt audio"
+        cadence: "natural"
+        learning_cycle_phase: "PROMPT"
+        notes: "Plays to prompt the learner with the known language"
+
+      target1:
+        description: "Target language, primary voice"
+        cadence: "slow"
+        learning_cycle_phase: "VOICE_1"
+        notes: "First target audio, typically without text shown"
+
+      target2:
+        description: "Target language, secondary voice"
+        cadence: "slow"
+        learning_cycle_phase: "VOICE_2"
+        notes: "Second target audio, typically with text shown"
+
+      presentation:
+        description: "LEGO introduction explanation audio"
+        cadence: "natural"
+        learning_cycle_phase: "INTRODUCTION"
+        notes: "Spoken in known language, explains the LEGO"
+        composite_structure: |
+          "The {target_lang} for '{known_lego}' as in '{known_seed}' is:
+           {target1_audio} ... {target2_audio}"
+
+    future_values:
+      # Reserved for potential future use
+      # target3: "Tertiary voice for additional variety"
+      # target_fast: "Natural speed target for advanced learners"
+      # known_slow: "Slower known language for certain approaches"
+
+  # ============================================================================
+  # COURSE CONFIGURATION
+  # ============================================================================
+
+  entity Course:
+    description: "A language course configuration"
+    primary_key: course_code
+    fields:
+      course_code:
+        type: text
+        required: true
+        format: "{target_lang}_for_{known_lang}"
+        example: "spa_for_eng"
+
+      known_lang:
+        type: text
+        required: true
+        description: "ISO 639-3 code for known language"
+        example: "eng"
+
+      target_lang:
+        type: text
+        required: true
+        description: "ISO 639-3 code for target language"
+        example: "spa"
+
+      display_name:
+        type: text
+        required: false
+        example: "Spanish for English Speakers"
+
+      known_voice:
+        type: text
+        required: true
+        description: "Voice ID for known language audio"
+        example: "azure_en-US-JennyNeural"
+
+      target_voice_1:
+        type: text
+        required: true
+        description: "Primary voice ID for target language"
+        example: "azure_es-ES-ElviraNeural"
+
+      target_voice_2:
+        type: text
+        required: true
+        description: "Secondary voice ID for target language"
+        example: "azure_es-ES-AlvaroNeural"
+
+      presentation_voice:
+        type: text
+        required: false
+        description: "Voice for presentation audio (defaults to known_voice)"
+
+      status:
+        type: ContentStatus
+        required: true
+        default: "draft"
+
+      created_at:
+        type: timestamp
+        auto: true
+
+      updated_at:
+        type: timestamp
+        auto: true
+
+  # ============================================================================
+  # COURSE CONTENT ENTITIES
+  # ============================================================================
+
+  entity CourseSeed:
+    description: "A seed sentence for a specific course"
+    primary_key: id (UUID)
+    unique_constraint: [course_code, seed_number]
+    fields:
+      id:
+        type: uuid
+        auto: true
+        description: "Stable identifier for references"
+
+      course_code:
+        type: text
+        required: true
+        foreign_key: Course.course_code
+
+      seed_number:
+        type: integer
+        required: true
+        range: "1-668 (expandable)"
+        description: "Position in learning sequence"
+
+      known_text:
+        type: text
+        required: true
+        description: "Full sentence in known language"
+        example: "I want to speak Spanish with you now"
+
+      target_text:
+        type: text
+        required: true
+        description: "Full sentence in target language"
+        example: "Quiero hablar español contigo ahora"
+
+      status:
+        type: ContentStatus
+        required: true
+        default: "draft"
+
+      release_batch:
+        type: integer
+        required: false
+        description: "For staged rollout (batch 1, 2, 3...)"
+
+      version:
+        type: integer
+        required: true
+        default: 1
+        description: "Increment on each edit for delta sync"
+
+      updated_at:
+        type: timestamp
+        auto: true
+
+    derived_fields:
+      seed_id:
+        formula: "'S' + pad(seed_number, 4, '0')"
+        example: "S0001"
+        description: "Human-readable identifier"
+
+  entity CourseLego:
+    description: "A LEGO building block within a course seed"
+    primary_key: id (UUID)
+    unique_constraint: [course_code, seed_number, lego_index]
+    fields:
+      id:
+        type: uuid
+        auto: true
+
+      course_code:
+        type: text
+        required: true
+        foreign_key: Course.course_code
+
+      seed_number:
+        type: integer
+        required: true
+        description: "Parent seed's position"
+
+      lego_index:
+        type: integer
+        required: true
+        range: "1-99"
+        description: "Position within seed"
+
+      type:
+        type: LegoType
+        required: true
+        description: "A (Atomic) or M (Molecular)"
+
+      is_new:
+        type: boolean
+        required: true
+        description: "True if first appearance in this course"
+        notes: "Determines if LEGO needs introduction sequence"
+
+      known_text:
+        type: text
+        required: true
+        example: "I want"
+
+      target_text:
+        type: text
+        required: true
+        example: "quiero"
+
+      components:
+        type: list of LanguagePair
+        required: false
+        condition: "Only for M-type LEGOs"
+        description: "Atomic breakdown of molecular LEGO"
+        example:
+          - { known: "I", target: "yo" }
+          - { known: "want", target: "quiero" }
+
+      status:
+        type: ContentStatus
+        required: true
+        default: "draft"
+
+      version:
+        type: integer
+        required: true
+        default: 1
+
+      updated_at:
+        type: timestamp
+        auto: true
+
+    derived_fields:
+      lego_id:
+        formula: "seed_id + 'L' + pad(lego_index, 2, '0')"
+        example: "S0001L01"
+
+  entity CoursePracticePhrase:
+    description: "A practice phrase for a LEGO"
+    primary_key: id (UUID)
+    unique_constraint: [course_code, seed_number, lego_index, position]
+    fields:
+      id:
+        type: uuid
+        auto: true
+
+      course_code:
+        type: text
+        required: true
+        foreign_key: Course.course_code
+
+      seed_number:
+        type: integer
+        required: true
+
+      lego_index:
+        type: integer
+        required: true
+
+      position:
+        type: integer
+        required: true
+        description: "Sequential position in LEGO's practice phrase basket (1, 2, 3...)"
+
+      word_count:
+        type: integer
+        required: true
+        description: "Word count in target language for classification"
+
+      lego_count:
+        type: integer
+        required: true
+        description: "Number of unique LEGOs used in phrase"
+
+      known_text:
+        type: text
+        required: true
+        example: "I want water"
+
+      target_text:
+        type: text
+        required: true
+        example: "Quiero agua"
+
+      # Optional pedagogical metadata
+      difficulty:
+        type: enum [easy, medium, hard]
+        required: false
+        description: "Learner difficulty rating"
+
+      register:
+        type: enum [casual, formal]
+        required: false
+        description: "Language register"
+
+      # Flexible extension point
+      metadata:
+        type: jsonb
+        required: false
+        default: {}
+        description: "Future extensions without schema changes"
+        potential_fields:
+          - grammar_focus
+          - topic_tags
+          - a_b_test_group
+          - difficulty_override
+
+      status:
+        type: ContentStatus
+        required: true
+        default: "draft"
+
+      version:
+        type: integer
+        required: true
+        default: 1
+
+      updated_at:
+        type: timestamp
+        auto: true
+
+    derived_fields:
+      phrase_id:
+        formula: "lego_id + '-P' + pad(position, 3, '0')"
+        example: "S0001L01-P001"
+        notes: "Phrase type is computed at runtime, not part of identifier"
+
+  # ============================================================================
+  # AUDIO SAMPLES (Course-Agnostic, Reusable)
+  # ============================================================================
+
+  entity AudioSample:
+    description: "A single audio recording, reusable across courses"
+    primary_key: uuid
+    natural_key: [text_normalized, language, voice_id, role]
+    fields:
+      uuid:
+        type: text
+        required: true
+        format: "UUID v5 (RFC 4122)"
+        generation: "Deterministic from natural key"
+        example: "B9D6E203-BA26-530F-9FC5-EBE50D6F5779"
+
+      text:
+        type: text
+        required: true
+        description: "Original text as authored"
+        example: "Quiero"
+
+      text_normalized:
+        type: text
+        required: true
+        description: "Lowercase, trimmed for matching"
+        example: "quiero"
+
+      language:
+        type: text
+        required: true
+        description: "ISO 639-3 code"
+        example: "spa"
+
+      voice_id:
+        type: text
+        required: true
+        example: "azure_es-ES-ElviraNeural"
+
+      role:
+        type: AudioRole
+        required: true
+        description: "source | target1 | target2 | presentation"
+
+      s3_key:
+        type: text
+        required: false
+        format: "mastered/{uuid}.mp3"
+        example: "mastered/B9D6E203-BA26-530F-9FC5-EBE50D6F5779.mp3"
+
+      duration_ms:
+        type: integer
+        required: false
+        description: "Audio duration in milliseconds"
+
+      status:
+        type: enum [pending, approved, rejected]
+        required: true
+        default: "pending"
+        description: "QA workflow status"
+
+      version:
+        type: integer
+        required: true
+        default: 1
+
+      updated_at:
+        type: timestamp
+        auto: true
+
+    notes: |
+      Audio samples are NOT linked to courses directly.
+      They are looked up by text + language + voice + role at runtime.
+      This enables reuse across courses:
+      - "I want" [eng, source] used by spa_for_eng, fra_for_eng, etc.
+      - "quiero" [spa, target1] used by spa_for_eng, spa_for_fra, etc.
+
+  # ============================================================================
+  # LEARNER PROGRESS
+  # ============================================================================
+
+  entity LearnerProgress:
+    description: "Progress tracking for a learner in a course"
+    primary_key: id (UUID)
+    unique_constraint: [learner_id, course_code]
+    fields:
+      id:
+        type: uuid
+        auto: true
+
+      learner_id:
+        type: uuid
+        required: true
+        description: "Reference to learner account"
+
+      course_code:
+        type: text
+        required: true
+        foreign_key: Course.course_code
+
+      helix_state:
+        type: jsonb
+        required: true
+        default: {}
+        description: "Triple Helix thread state"
+        structure:
+          active_thread: "number (1, 2, or 3)"
+          threads:
+            1: { seed_order: [], current_seed: null, current_lego_index: 0 }
+            2: { seed_order: [], current_seed: null, current_lego_index: 0 }
+            3: { seed_order: [], current_seed: null, current_lego_index: 0 }
+
+      lego_progress:
+        type: jsonb
+        required: true
+        default: {}
+        description: "Per-LEGO spaced repetition state"
+        structure:
+          "[lego_key]":
+            fibonacci_position: "number"
+            skip_number: "number"
+            reps_completed: "number"
+            is_retired: "boolean"
+            last_practiced_at: "timestamp"
+
+      last_session_at:
+        type: timestamp
+        required: false
+
+      total_practice_minutes:
+        type: integer
+        required: true
+        default: 0
+
+      updated_at:
+        type: timestamp
+        auto: true
+
+  # ============================================================================
+  # CLASSIFICATION CONFIGURATION
+  # ============================================================================
+
+  entity ClassificationConfig:
+    description: "Runtime classification parameters for phrase types"
+    primary_key: config_key
+    fields:
+      config_key:
+        type: text
+        required: true
+        example: "default" or "spa_for_eng_v2"
+        description: "Configuration identifier, 'default' or course-specific override"
+
+      eternal_count:
+        type: integer
+        required: true
+        default: 5
+        description: "Number of longest phrases to classify as eternal"
+
+      eternal_selection_mode:
+        type: enum [top_n, min_word_count, percentage]
+        required: true
+        default: "top_n"
+        description: "How to select eternal phrases"
+
+      debut_max:
+        type: integer
+        required: false
+        default: 7
+        description: "Maximum debut phrases per LEGO"
+
+      metadata:
+        type: jsonb
+        required: false
+        description: "Future tuning parameters for A/B testing and per-course optimization"
+
+      created_at:
+        type: timestamp
+        auto: true
+
+      updated_at:
+        type: timestamp
+        auto: true
+
+    notes: |
+      Classification is computed at RUNTIME, not stored in the database.
+      This enables A/B testing and per-course tuning without regenerating content.
+      Default config applies unless course-specific override exists.
+
+      Example usage:
+      - config_key='default': System-wide defaults (eternal_count=5, debut_max=7)
+      - config_key='spa_for_eng_v2': Course-specific overrides (eternal_count=8, debut_max=5)
+
+      Runtime classification algorithm:
+      1. Component phrases: Identified by is_component flag (M-type LEGOs only)
+      2. LEGO phrase: Identified by is_lego flag (first encounter of LEGO itself)
+      3. Debut phrases: Remaining phrases up to debut_max, sorted by word_count ascending
+      4. Eternal phrases: Top N longest phrases (by word_count), used for spaced repetition
+
+  # ============================================================================
+  # HELPER TYPES
+  # ============================================================================
+
+  type LanguagePair:
+    description: "Text in both known and target languages"
+    fields:
+      known:
+        type: text
+        required: true
+
+      target:
+        type: text
+        required: true
+
+  # ============================================================================
+  # SYNC SUPPORT
+  # ============================================================================
+
+  sync_strategy:
+    description: "Delta sync for PWA/offline support"
+
+    initial_load:
+      description: "First time loading a course"
+      query: |
+        SELECT * FROM course_seeds
+        WHERE course_code = :course_code
+        AND status = 'released'
+        ORDER BY seed_number
+      cache_to: "IndexedDB"
+
+    delta_sync:
+      description: "Subsequent syncs - only fetch changes"
+      query: |
+        SELECT * FROM course_seeds
+        WHERE course_code = :course_code
+        AND status = 'released'
+        AND updated_at > :last_sync_time
+      merge_strategy: "upsert by primary key"
+
+    audio_cache:
+      description: "Audio caching strategy"
+      approach: "cache-as-played with prefetch"
+      prefetch_ahead: "30 minutes of content"
+      storage: "IndexedDB blobs or Cache API"
+
+  # ============================================================================
+  # SYSTEM PARAMETERS (D01: Everything is a parameter)
+  # ============================================================================
+
+  parameters SSiDefaults:
+    description: |
+      All configurable values - no magic numbers in code.
+      These are system-wide defaults. Course-specific overrides
+      use ClassificationConfig entity or course.metadata JSONB.
+
+    # -------------------------------------------------------------------------
+    # Course Structure
+    # -------------------------------------------------------------------------
+
+    course_structure:
+      description: "Parameters defining course shape"
+
+      default_seed_count:
+        value: 668
+        type: integer
+        description: "Standard number of seeds per full course"
+        note: "Community courses may have fewer; this is the ceiling for main courses"
+
+      seed_number_format:
+        value: "S{number:04d}"
+        type: string
+        description: "Format for derived seed_id display"
+        example: "S0042"
+
+      lego_index_format:
+        value: "L{number:02d}"
+        type: string
+        description: "Format for derived lego suffix"
+        example: "L01"
+
+    # -------------------------------------------------------------------------
+    # Triple Helix
+    # -------------------------------------------------------------------------
+
+    triple_helix:
+      description: "Parameters for the triple helix learning engine"
+
+      thread_count:
+        value: 3
+        type: integer
+        description: "Number of parallel learning threads"
+        rationale: "Three provides good interleaving without cognitive overload"
+
+      thread_offset:
+        value: 10
+        type: integer
+        description: "Seed offset between thread starting positions"
+        example: "Thread 1 starts at seed 1, Thread 2 at seed 11, Thread 3 at seed 21"
+
+      distribution_method:
+        value: "card_deal"
+        type: enum [card_deal, sequential, random]
+        description: "How seeds are distributed across threads"
+        card_deal: "Seed 1→T1, Seed 2→T2, Seed 3→T3, Seed 4→T1, etc."
+
+    # -------------------------------------------------------------------------
+    # Spaced Repetition
+    # -------------------------------------------------------------------------
+
+    spaced_repetition:
+      description: "Fibonacci-based spaced repetition parameters"
+
+      fibonacci_sequence:
+        value: [1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
+        type: list of integer
+        description: "Skip numbers for spaced repetition"
+        note: "Position in sequence determines how many items until next review"
+
+      initial_reps:
+        value: 3
+        type: integer
+        description: "Repetitions at position 0 before advancing"
+
+      retirement_position:
+        value: 8
+        type: integer
+        description: "Fibonacci position at which LEGO is retired (mastered)"
+        note: "At position 8, skip_number is 21"
+
+      max_skip_number:
+        value: 89
+        type: integer
+        description: "Maximum items between reviews"
+        derived_from: "Last value in fibonacci_sequence"
+
+    # -------------------------------------------------------------------------
+    # Learning Cycle (4-phase)
+    # -------------------------------------------------------------------------
+
+    learning_cycle:
+      description: "Parameters for the PROMPT → PAUSE → VOICE_1 → VOICE_2 cycle"
+
+      pause_calculation:
+        method: "multiplier"
+        multiplier: 2.0
+        type: number
+        description: "Pause duration = target_audio_duration × multiplier"
+
+      pause_bounds:
+        min_ms: 1000
+        max_ms: 10000
+        type: integer
+        description: "Clamp pause duration to reasonable bounds"
+
+      transition_gap_ms:
+        value: 300
+        type: integer
+        description: "Gap between phases (audio to audio)"
+
+      auto_advance:
+        value: true
+        type: boolean
+        description: "Automatically advance through phases"
+
+    # -------------------------------------------------------------------------
+    # Audio
+    # -------------------------------------------------------------------------
+
+    audio:
+      description: "Audio playback and generation parameters"
+
+      presentation_gap_ms:
+        value: 800
+        type: integer
+        description: "Gap between audio segments in presentation"
+        example: "quiero ... [800ms] ... quiero"
+
+      prefetch_items:
+        value: 5
+        type: integer
+        description: "Number of upcoming items to prefetch audio for"
+
+      cache_strategy:
+        value: "cache_as_played"
+        type: enum [cache_as_played, prefetch_all, on_demand]
+        description: "When to cache audio files"
+
+    # -------------------------------------------------------------------------
+    # Session
+    # -------------------------------------------------------------------------
+
+    session:
+      description: "Learning session parameters"
+
+      default_duration_minutes:
+        value: 20
+        type: integer
+        description: "Default session duration"
+
+      items_per_session:
+        value: null
+        type: integer or null
+        description: "If set, overrides duration-based session length"
+
+      show_progress:
+        value: true
+        type: boolean
+        description: "Show progress indicators during session"
+
+    # -------------------------------------------------------------------------
+    # Future Parameters (D01: Escape hatch)
+    # -------------------------------------------------------------------------
+
+    future_parameters:
+      type: jsonb
+      default: {}
+      description: |
+        Parameters not yet conceived.
+        Add here first to test, then promote to named parameter.
+
+        Process:
+        1. Add to future_parameters with version tag
+        2. Test in production with feature flag
+        3. If stable, promote to named parameter in next registry version
+        4. Remove from future_parameters
+
+      example_usage: |
+        future_parameters: {
+          "v1.2.0_experimental": {
+            "adaptive_pause": true,
+            "min_pause_after_correct": 800
+          }
+        }
+
+  # ============================================================================
+  # COMPILATION TARGETS
+  # ============================================================================
+
+  compilation:
+    supabase_sql:
+      description: "Generate Supabase schema from this registry"
+      output: "supabase/migrations/001_ssi_schema.sql"
+
+    typescript_types:
+      description: "Generate TypeScript interfaces from this registry"
+      output: "packages/core/src/generated/types.ts"
+
+    json_schema:
+      description: "Generate JSON Schema for phase output validation"
+      output: "schemas/phase-outputs.json"
+
+    legacy_manifest:
+      description: "Map to legacy manifest format for native app"
+      mappings:
+        source: "known"
+        target1: "target_slow"
+        target2: "target_natural"
+
+# ============================================================================
+# VERSION HISTORY
+# ============================================================================
+
+version_history:
+  v1.1.0:
+    date: "2025-12-13"
+    changes:
+      - "BREAKING: Removed phrase_type from CoursePracticePhrase (now computed at runtime)"
+      - "Added word_count and lego_count fields to CoursePracticePhrase for classification"
+      - "Renamed phrase_order to position for consistency"
+      - "Updated unique_constraint to use position instead of phrase_type and phrase_order"
+      - "Updated phrase_id derived field formula (removed phrase_type.legacy_code reference)"
+      - "Added ClassificationConfig entity for runtime classification parameters"
+      - "Updated PhraseType enum with runtime_only flag and clarifying notes"
+      - "Enables A/B testing and per-course tuning without content regeneration"
+      - "Supports course-specific classification overrides (e.g., different eternal_count per course)"
+    contributors:
+      - "Tom Cassidy"
+      - "Claude (AI Assistant)"
+
+  v1.0.0:
+    date: "2025-12-13"
+    changes:
+      - "Initial variable registry"
+      - "Defined ContentStatus, LegoType, PhraseType, AudioRole enums"
+      - "Defined Course, CourseSeed, CourseLego, CoursePracticePhrase entities"
+      - "Defined AudioSample with course-agnostic reuse"
+      - "Defined LearnerProgress for spaced repetition state"
+      - "Added sync strategy for PWA delta sync"
+    contributors:
+      - "Tom Cassidy"
+      - "Claude (AI Assistant)"
+
+# ============================================================================
+# GENERATED: 2025-12-13
+# This file is the Single Source of Truth for SSi data structures.
+# Changes here should propagate to:
+# - Supabase schema
+# - TypeScript types
+# - Phase output validators
+# - API documentation
+# ============================================================================

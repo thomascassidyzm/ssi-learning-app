@@ -1,0 +1,243 @@
+# APML Learning: Listening Layers Specification
+# SSI Learning App v1.0.0
+# Version: 1.0.0 (2025-12-03)
+# Status: Designed
+# Source: Aran Jones methodology insights, 2025-12-03
+
+## ============================================================================
+## OVERVIEW
+## ============================================================================
+
+SPECIFICATION:
+  name: "Listening Layers System"
+  purpose: "Manage long-tail spaced repetition through passive listening"
+  source: "packages/core/src/learning/ListeningLayerEngine.ts"
+  version: "1.0.0"
+
+CORE_INSIGHT: |
+  After Fibonacci decay reaches zero, active prompts are not required.
+  Listening exercises on seed sentences are sufficient to reactivate memory.
+  This separates "maintenance" from "acquisition" into two distinct layers.
+
+## ============================================================================
+## LAYER 1: REACTIVATION LISTENING
+## ============================================================================
+
+LAYER_1:
+  name: "Concluded Seed Sentences"
+  purpose: "Maintain memory of completed content through passive listening"
+
+  content:
+    source: "All seed sentences where fibonacci_position >= retirement_threshold"
+    type: "seed_pair audio (full sentence)"
+    format: "target language only (no prompt/response cycle)"
+
+  speed_progression:
+    description: "Playback speed increases with each revisit"
+    schedule:
+      revisit_1: 1.2
+      revisit_2: 1.4
+      revisit_3: 1.6
+      revisit_4: 1.8
+      revisit_5_plus: 2.0
+    note: "2x is practical ceiling - most impact achieved"
+
+  implementation: |
+    function getPlaybackSpeed(revisitCount: number): number {
+      const speeds = [1.0, 1.2, 1.4, 1.6, 1.8, 2.0]
+      return speeds[Math.min(revisitCount, 5)]
+    }
+
+  windowing:
+    description: "After Layer 2 activates, Layer 1 uses rotating windows"
+
+    foundation:
+      always_include: "Seeds 1-50"
+      reason: "Core foundation must always be maintained"
+
+    rotation:
+      additional_seeds: 100
+      pattern: |
+        Block A: Seeds 1-50 + 51-150
+        Block B: Seeds 1-50 + 151-250
+        Block C: Seeds 1-50 + 251-350
+        (continues rotating)
+
+    implementation: |
+      function getLayer1Window(blockIndex: number): SeedRange[] {
+        const foundation = { start: 1, end: 50 }
+        const rotationStart = 51 + (blockIndex * 100)
+        const rotation = { start: rotationStart, end: rotationStart + 99 }
+        return [foundation, rotation]
+      }
+
+## ============================================================================
+## LAYER 2: ACQUISITION LISTENING
+## ============================================================================
+
+LAYER_2:
+  name: "Conversational Listening"
+  purpose: "Acquire new vocabulary through comprehensible input"
+
+  activation:
+    trigger: "completed_seeds >= 150"
+    reason: "Sufficient foundation for comprehensible input"
+
+  content:
+    source: "Natural conversational podcast-style content"
+    format: "Sentence-segmented with known/target pairing"
+    key_insight: |
+      NOT restricted to known vocabulary.
+      Comprehensible input with unknown items aids acquisition.
+
+  cycle_pattern:
+    initial:
+      sequence:
+        - { type: "target", speed: 1.0 }
+        - { type: "known", speed: 1.0 }
+        - { type: "target", speed: 1.0 }
+        - { type: "target", speed: 2.0 }
+
+    progression:
+      description: "Add sentences over time"
+      example: |
+        4x target sentences →
+        known sentence for last 3 →
+        4x target sentences →
+        4x target sentences (2x speed)
+
+    scaffolding_removal:
+      trigger: "revisit_count >= 4"
+      action: "Drop known sentence match for that target"
+      reason: "Familiarity no longer requires scaffolding"
+
+  implementation: |
+    interface Layer2Segment {
+      targetSentences: AudioRef[]
+      knownSentences: AudioRef[]  // Scaffolding
+      revisitCount: number
+    }
+
+    function buildLayer2Cycle(segment: Layer2Segment): PlaybackItem[] {
+      const items = []
+
+      for (const target of segment.targetSentences) {
+        items.push({ audio: target, speed: 1.0 })
+
+        // Include known scaffolding if not yet familiar
+        if (segment.revisitCount < 4) {
+          const known = segment.knownSentences.find(k => k.pairsWith === target.id)
+          if (known) items.push({ audio: known, speed: 1.0 })
+        }
+      }
+
+      // Repeat at 2x speed
+      for (const target of segment.targetSentences) {
+        items.push({ audio: target, speed: 2.0 })
+      }
+
+      return items
+    }
+
+  parameters:
+    max_segment_length: "TBD - analyze examples"
+    difficulty_scaling: "TBD - scale with progress?"
+
+## ============================================================================
+## SCHEDULING
+## ============================================================================
+
+SCHEDULING:
+  description: "When to trigger each layer"
+
+  early_phase:
+    condition: "completed_seeds < 150"
+    layer_1: "every 60 minutes"
+    layer_2: "not active"
+    listening_frequency: "every 60 minutes"
+
+  later_phase:
+    condition: "completed_seeds >= 150"
+    layer_1: "every 60 minutes"
+    layer_2: "every 60 minutes (offset by 30 min)"
+    listening_frequency: "every 30 minutes"
+    note: "Layer 1 and Layer 2 alternate"
+
+  implementation: |
+    function getNextListeningEvent(state: LearnerState): ListeningEvent {
+      const lastL1 = state.lastLayer1Timestamp
+      const lastL2 = state.lastLayer2Timestamp
+      const now = Date.now()
+
+      if (state.completedSeeds < 150) {
+        // Only Layer 1
+        if (now - lastL1 >= 60 * 60 * 1000) {
+          return { layer: 1 }
+        }
+      } else {
+        // Alternate Layer 1 and Layer 2
+        const nextL1 = lastL1 + 60 * 60 * 1000
+        const nextL2 = lastL2 + 60 * 60 * 1000
+
+        if (nextL1 <= nextL2 && now >= nextL1) {
+          return { layer: 1 }
+        } else if (now >= nextL2) {
+          return { layer: 2 }
+        }
+      }
+
+      return null // No listening event due yet
+    }
+
+## ============================================================================
+## APP NAVIGATION
+## ============================================================================
+
+APP_NAVIGATION:
+  description: "User-facing listening mode"
+
+  listening_icon:
+    action: |
+      1. Switch OFF prompts (no active recall)
+      2. Cycle between Layer 1 and Layer 2
+      3. Minimal cognitive load for user
+    quote: "Sweet and easy"
+
+  subject_specific:
+    location: "Dedicated tab in navigation"
+    content: "Subject-specific listening material"
+    format: "Layer 2 format (conversational)"
+    behavior: "User-selectable from listening section"
+
+## ============================================================================
+## CONTENT REQUIREMENTS
+## ============================================================================
+
+CONTENT_REQUIREMENTS:
+  layer_1:
+    - "Existing seed audio (target language)"
+    - "Playback rate adjustment (Web Audio API)"
+
+  layer_2:
+    - "Conversational podcast-style content"
+    - "Sentence segmentation"
+    - "Known/target sentence pairing"
+    - "May need new TTS voices for natural feel"
+
+## ============================================================================
+## OPEN QUESTIONS
+## ============================================================================
+
+OPEN_QUESTIONS:
+  - "How to source/create Layer 2 conversational content?"
+  - "Optimal Layer 2 segment length?"
+  - "Should Layer 2 difficulty scale with learner progress?"
+  - "How to handle subject-specific content generation?"
+  - "Exact threshold for Layer 2 activation (150 seeds confirmed?)"
+  - "Layer 1 window rotation frequency?"
+  - "Revisit count threshold for scaffolding removal (4 confirmed?)"
+
+## ============================================================================
+## GENERATED: 2025-12-03
+## APML v1.0.0
+## ============================================================================

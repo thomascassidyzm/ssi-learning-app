@@ -1,0 +1,428 @@
+# APML Core Data Types Specification
+# SSI Learning App v1.0.0
+# Version: 1.0.0 (2025-12-03)
+# Status: Production-ready
+
+## ============================================================================
+## OVERVIEW
+## ============================================================================
+
+SPECIFICATION:
+  name: "Core Data Types"
+  purpose: "Define all data structures used throughout the Learning App"
+  source: "packages/core/src/data/types.ts"
+  version: "1.0.0"
+
+DATA_FLOW:
+  Dashboard_Output → Course_Manifest → Learning_App → LearningItem → Player
+
+## ============================================================================
+## AUDIO REFERENCES
+## ============================================================================
+
+TYPE: AudioRef
+  PURPOSE: Reference to an audio file
+  FIELDS:
+    id:
+      type: string
+      description: "Unique identifier for the audio file (typically UUID)"
+      example: "0B3EB395-78B0-36CD-8F4E-5836D47DDCC6"
+
+    url:
+      type: string
+      description: "URL or path to the audio file"
+      example: "https://s3.eu-west-1.amazonaws.com/popty-bach-lfs/audio/UUID.mp3"
+
+    duration_ms:
+      type: number
+      optional: true
+      description: "Duration in milliseconds (if known)"
+      example: 2480
+
+## ============================================================================
+## LANGUAGE PAIRS
+## ============================================================================
+
+TYPE: LanguagePair
+  PURPOSE: Text in both known and target languages
+  FIELDS:
+    known:
+      type: string
+      description: "Text in the language learner already speaks"
+      example: "I want to speak Italian"
+
+    target:
+      type: string
+      description: "Text in the language being learned"
+      example: "Voglio parlare italiano"
+
+TYPE: AudioLanguagePair
+  PURPOSE: Audio references for both languages
+  FIELDS:
+    known:
+      type: AudioRef
+      description: "Audio for known language"
+
+    target:
+      type: object
+      description: "Two voice variants for target language"
+      properties:
+        voice1:
+          type: AudioRef
+          description: "First voice variant"
+        voice2:
+          type: AudioRef
+          description: "Second voice variant (different speaker/style)"
+
+## ============================================================================
+## LEGO PAIRS (Learning Units)
+## ============================================================================
+
+TYPE: LegoType
+  PURPOSE: Classification of LEGO building blocks
+  VALUES:
+    A:
+      name: "Atomic"
+      description: "Single word, cannot be split further"
+      zut_compliant: true
+      example: "now / adesso"
+
+    M:
+      name: "Molecular"
+      description: "Multi-word phrase, has components"
+      zut_compliant: false
+      example: "I want to / voglio"
+
+TYPE: LegoPair
+  PURPOSE: A single learning building block
+  FIELDS:
+    id:
+      type: string
+      description: "Unique identifier (format: S{NNNN}L{NN})"
+      example: "S0001L01"
+
+    type:
+      type: LegoType
+      description: "A = Atomic, M = Molecular"
+
+    new:
+      type: boolean
+      description: "Whether this LEGO is new to the learner in this SEED context"
+
+    lego:
+      type: LanguagePair
+      description: "The LEGO text pair"
+
+    components:
+      type: "Array<LanguagePair>"
+      optional: true
+      condition: "Only for M-type LEGOs"
+      description: "Component breakdown for molecular LEGOs"
+      example:
+        - { known: "I", target: "io" }
+        - { known: "want", target: "voglio" }
+
+    audioRefs:
+      type: AudioLanguagePair
+      description: "Audio for this LEGO"
+
+## ============================================================================
+## SEED PAIRS (Full Sentences)
+## ============================================================================
+
+TYPE: SeedPair
+  PURPOSE: A complete sentence that serves as learning context
+  FIELDS:
+    seed_id:
+      type: string
+      description: "Unique identifier (format: S{NNNN})"
+      example: "S0001"
+      range: "S0001 to S0668 (668 seeds per course)"
+
+    seed_pair:
+      type: LanguagePair
+      description: "The full sentence in both languages"
+      example:
+        known: "I want to speak Italian with you now."
+        target: "Voglio parlare italiano con te adesso."
+
+    legos:
+      type: "Array<LegoPair>"
+      description: "LEGOs that build up to this SEED"
+
+    audioRefs:
+      type: AudioLanguagePair
+      optional: true
+      description: "Audio for the full seed sentence"
+
+## ============================================================================
+## PRACTICE PHRASES
+## ============================================================================
+
+TYPE: PhraseType
+  PURPOSE: Classification of phrase in learning sequence
+  VALUES:
+    component:
+      description: "Individual component word from M-type LEGO"
+      sequence_position: 1
+      flag: "is_component: true"
+
+    debut:
+      description: "The complete LEGO itself (M-type debut)"
+      sequence_position: 2
+      flag: "is_debut: true"
+
+    practice:
+      description: "Practice sentence using the LEGO"
+      sequence_position: 3
+
+    eternal:
+      description: "Phrase in eternal rotation (mastered)"
+      special: true
+
+TYPE: PracticePhrase
+  PURPOSE: A specific phrase for practicing a LEGO
+  FIELDS:
+    id:
+      type: string
+      description: "Unique identifier"
+
+    phraseType:
+      type: PhraseType
+      description: "Type of phrase in the learning sequence"
+
+    phrase:
+      type: LanguagePair
+      description: "The phrase text"
+
+    audioRefs:
+      type: AudioLanguagePair
+      description: "Audio references"
+
+    wordCount:
+      type: number
+      description: "Word count in target language (for sorting)"
+      example: 4
+
+    containsLegos:
+      type: "Array<string>"
+      description: "IDs of LEGOs reinforced in this phrase"
+      example: ["S0001L01", "S0001L02"]
+
+## ============================================================================
+## COURSE MANIFEST
+## ============================================================================
+
+TYPE: CourseManifest
+  PURPOSE: Complete course data for the app
+  FIELDS:
+    course_id:
+      type: string
+      description: "Course identifier"
+      format: "{target}_for_{known}"
+      example: "ita_for_eng"
+
+    title:
+      type: string
+      description: "Human-readable course title"
+      example: "Italian for English Speakers"
+
+    known_language:
+      type: string
+      description: "Known language code (ISO 639-3 or ISO 639-1)"
+      example: "en"
+
+    target_language:
+      type: string
+      description: "Target language code"
+      example: "it"
+
+    version:
+      type: string
+      description: "Version for cache invalidation"
+      example: "1.0.0"
+
+    seeds:
+      type: "Array<SeedPair>"
+      description: "All SEEDs in the course"
+      count: 668
+
+    audio_count:
+      type: number
+      description: "Total audio file count"
+      example: 12000
+
+    estimated_hours:
+      type: number
+      description: "Estimated total duration in hours"
+      example: 40
+
+## ============================================================================
+## LEARNING ITEMS (Player Input)
+## ============================================================================
+
+TYPE: LearningMode
+  PURPOSE: Current learning mode for an item
+  VALUES:
+    introduction:
+      description: "First time seeing this LEGO"
+    practice:
+      description: "Regular practice with mixed phrases"
+    review:
+      description: "Spaced repetition review"
+    breakdown:
+      description: "Component breakdown for M-types"
+    buildup:
+      description: "Building back up after breakdown"
+
+TYPE: LearningItem
+  PURPOSE: What the player receives for each cycle
+  FIELDS:
+    lego:
+      type: LegoPair
+      description: "The LEGO being practiced"
+
+    phrase:
+      type: PracticePhrase
+      description: "The specific phrase for this practice"
+
+    seed:
+      type: SeedPair
+      description: "Parent SEED (for context)"
+
+    thread_id:
+      type: number
+      description: "Thread this came from (1, 2, or 3)"
+
+    mode:
+      type: LearningMode
+      description: "Current learning mode"
+
+## ============================================================================
+## LEARNER PROGRESS
+## ============================================================================
+
+TYPE: LegoProgress
+  PURPOSE: Progress tracking for a single LEGO
+  FIELDS:
+    lego_id:
+      type: string
+      description: "LEGO identifier"
+
+    course_id:
+      type: string
+      description: "Course identifier"
+
+    thread_id:
+      type: number
+      description: "Thread this LEGO is in (1, 2, or 3)"
+      values: [1, 2, 3]
+
+    fibonacci_position:
+      type: number
+      description: "Position in Fibonacci sequence"
+      sequence: [0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
+
+    skip_number:
+      type: number
+      description: "Items until next practice"
+      derived_from: "fibonacci_position"
+
+    reps_completed:
+      type: number
+      description: "How many of initial reps completed"
+
+    is_retired:
+      type: boolean
+      description: "Whether this LEGO is retired (mastered)"
+      retirement_threshold: "fibonacci_position >= 8"
+
+    last_practiced_at:
+      type: "Date | null"
+      description: "When last practiced"
+
+TYPE: SeedProgress
+  PURPOSE: Progress tracking for a seed
+  FIELDS:
+    seed_id:
+      type: string
+      description: "SEED identifier"
+
+    course_id:
+      type: string
+      description: "Course identifier"
+
+    thread_id:
+      type: number
+      description: "Thread this SEED is in"
+
+    is_introduced:
+      type: boolean
+      description: "Whether all LEGOs have been introduced"
+
+    introduced_at:
+      type: "Date | null"
+      description: "When introduced"
+
+TYPE: HelixState
+  PURPOSE: Triple Helix thread state
+  FIELDS:
+    active_thread:
+      type: number
+      description: "Currently active thread (1, 2, or 3)"
+
+    threads:
+      type: "Record<number, ThreadState>"
+      description: "State for each thread"
+
+    injected_content:
+      type: "Record<string, string[]>"
+      description: "Content injected by subject/topic"
+
+  ThreadState:
+    seedOrder:
+      type: "string[]"
+      description: "Order of seeds in this thread"
+
+    currentSeedId:
+      type: "string | null"
+      description: "Current seed being worked on"
+
+    currentLegoIndex:
+      type: number
+      description: "Current LEGO index within seed"
+
+## ============================================================================
+## VALIDATION RULES
+## ============================================================================
+
+VALIDATION:
+  AudioRef:
+    - "id must be non-empty string"
+    - "url must be valid URL or path"
+    - "duration_ms must be positive if provided"
+
+  LegoPair:
+    - "id must match pattern S\\d{4}L\\d{2}"
+    - "type must be 'A' or 'M'"
+    - "M-type must have components array"
+    - "A-type must NOT have components"
+
+  SeedPair:
+    - "seed_id must match pattern S\\d{4}"
+    - "legos array must be non-empty"
+    - "All LEGO ids must start with seed_id"
+
+  PracticePhrase:
+    - "wordCount must match actual word count"
+    - "containsLegos must reference valid LEGO ids"
+
+  CourseManifest:
+    - "seeds array must have exactly 668 items"
+    - "known_language and target_language must be different"
+    - "version must follow semver format"
+
+## ============================================================================
+## GENERATED: 2025-12-03
+## APML v1.0.0
+## ============================================================================
