@@ -219,7 +219,7 @@ const pathData = `
         </g>
 
         <!-- Traveler marker (current position) -->
-        <g class="traveler" :transform="`translate(${70 + (currentBelt.value.index * 30) % 80}, ${380 - (journeyProgress * 3.4)})`">
+        <g class="traveler" :transform="`translate(${70 + (currentBelt.index * 30) % 80}, ${380 - (journeyProgress * 3.4)})`">
           <!-- Lantern glow -->
           <circle r="30" fill="var(--current-belt-glow)" opacity="0.3">
             <animate attributeName="opacity" values="0.3;0.5;0.3" dur="3s" repeatCount="indefinite"/>
