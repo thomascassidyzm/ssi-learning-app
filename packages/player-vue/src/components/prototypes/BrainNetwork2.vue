@@ -31,6 +31,26 @@ const currentBelt = computed(() => {
   return BELTS[0]
 })
 
+// Interpolate node color from faded to vibrant based on mastery
+const getNodeColor = (mastery) => {
+  // Parse the belt color
+  const hex = currentBelt.value.color
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+
+  // Low mastery: desaturated, darker (blend toward grey)
+  // High mastery: full vibrant color
+  const grey = 80 // Base grey for low mastery
+  const t = mastery // 0 = grey, 1 = full color
+
+  const finalR = Math.round(grey + (r - grey) * t)
+  const finalG = Math.round(grey + (g - grey) * t)
+  const finalB = Math.round(grey + (b - grey) * t)
+
+  return `rgb(${finalR}, ${finalG}, ${finalB})`
+}
+
 // Force-directed simulation
 const nodes = ref([])
 const connections = ref([])
@@ -244,15 +264,28 @@ const avgMastery = computed(() => {
         </g>
 
         <!-- Nodes -->
-        <g class="nodes" filter="url(#glow2)">
+        <g class="nodes">
+          <!-- Outer glow for high-mastery nodes -->
+          <circle
+            v-for="node in nodes"
+            :key="'glow-' + node.id"
+            :cx="node.x"
+            :cy="node.y"
+            :r="node.size + 2"
+            :fill="currentBelt.color"
+            :opacity="node.mastery * 0.3"
+            class="node-glow"
+            filter="url(#glow2)"
+          />
+          <!-- Core node -->
           <circle
             v-for="node in nodes"
             :key="node.id"
             :cx="node.x"
             :cy="node.y"
             :r="node.size"
-            :fill="currentBelt.color"
-            :opacity="0.5 + node.mastery * 0.5"
+            :fill="getNodeColor(node.mastery)"
+            :opacity="0.3 + node.mastery * 0.7"
             class="node"
           />
         </g>
