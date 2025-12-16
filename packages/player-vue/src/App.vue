@@ -12,12 +12,13 @@ import JourneyMap from './components/JourneyMap.vue'
 import ProfileScreen from './components/ProfileScreen.vue'
 import SettingsScreen from './components/SettingsScreen.vue'
 import BottomNav from './components/BottomNav.vue'
+import PrototypeViewer from './components/prototypes/PrototypeViewer.vue'
 
 // Load configuration
 const config = loadConfig()
 
 // Navigation state
-// Screens: 'home' | 'player' | 'journey' | 'profile' | 'settings'
+// Screens: 'home' | 'player' | 'journey' | 'profile' | 'settings' | 'prototypes'
 const currentScreen = ref('home')
 const selectedCourse = ref(null)
 const isLearning = ref(false)
@@ -36,6 +37,7 @@ const startLearning = (course) => navigate('player', course)
 const viewJourney = (course) => navigate('journey', course)
 const openProfile = () => navigate('profile')
 const openSettings = () => navigate('settings')
+const openPrototypes = () => navigate('prototypes')
 
 // Handle nav events
 const handleNavigation = (screen) => {
@@ -145,6 +147,15 @@ onMounted(() => {
     <Transition name="slide-right" mode="out-in">
       <SettingsScreen
         v-if="currentScreen === 'settings'"
+        @close="goHome"
+        @openPrototypes="openPrototypes"
+      />
+    </Transition>
+
+    <!-- Prototype Viewer -->
+    <Transition name="slide-up" mode="out-in">
+      <PrototypeViewer
+        v-if="currentScreen === 'prototypes'"
         @close="goHome"
       />
     </Transition>
