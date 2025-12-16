@@ -265,19 +265,6 @@ const avgMastery = computed(() => {
 
         <!-- Nodes -->
         <g class="nodes">
-          <!-- Outer glow for high-mastery nodes -->
-          <circle
-            v-for="node in nodes"
-            :key="'glow-' + node.id"
-            :cx="node.x"
-            :cy="node.y"
-            :r="node.size + 2"
-            :fill="currentBelt.color"
-            :opacity="node.mastery * 0.3"
-            class="node-glow"
-            filter="url(#glow2)"
-          />
-          <!-- Core node -->
           <circle
             v-for="node in nodes"
             :key="node.id"
