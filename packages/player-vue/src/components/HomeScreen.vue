@@ -238,10 +238,11 @@ const handleViewJourney = () => {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  background: #0a0a0f;
-  font-family: 'DM Sans', sans-serif;
+  background: #050508;
+  font-family: 'DM Sans', -apple-system, sans-serif;
   position: relative;
   overflow-x: hidden;
+  padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
 }
 
 /* Backgrounds */
@@ -249,8 +250,9 @@ const handleViewJourney = () => {
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(ellipse 120% 80% at 50% -30%, rgba(194, 58, 58, 0.1) 0%, transparent 50%),
-    radial-gradient(ellipse 80% 60% at 100% 100%, rgba(212, 168, 83, 0.08) 0%, transparent 50%);
+    radial-gradient(ellipse 100% 60% at 50% -20%, rgba(194, 58, 58, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse 60% 40% at 100% 80%, rgba(212, 168, 83, 0.05) 0%, transparent 50%),
+    linear-gradient(to bottom, #0a0a0f 0%, #050508 100%);
   pointer-events: none;
 }
 
@@ -258,49 +260,55 @@ const handleViewJourney = () => {
   position: fixed;
   inset: 0;
   background-image:
-    radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.3) 0%, transparent 100%),
-    radial-gradient(1px 1px at 40% 70%, rgba(255,255,255,0.2) 0%, transparent 100%),
-    radial-gradient(1px 1px at 60% 20%, rgba(255,255,255,0.4) 0%, transparent 100%),
-    radial-gradient(1px 1px at 80% 50%, rgba(255,255,255,0.3) 0%, transparent 100%),
-    radial-gradient(1px 1px at 10% 80%, rgba(255,255,255,0.2) 0%, transparent 100%),
-    radial-gradient(1px 1px at 90% 90%, rgba(255,255,255,0.3) 0%, transparent 100%);
+    radial-gradient(1.5px 1.5px at 18% 25%, rgba(255,255,255,0.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 38% 65%, rgba(255,255,255,0.3) 0%, transparent 100%),
+    radial-gradient(1.2px 1.2px at 58% 15%, rgba(255,255,255,0.45) 0%, transparent 100%),
+    radial-gradient(1px 1px at 78% 48%, rgba(255,255,255,0.35) 0%, transparent 100%),
+    radial-gradient(0.8px 0.8px at 12% 75%, rgba(255,255,255,0.2) 0%, transparent 100%),
+    radial-gradient(1px 1px at 88% 85%, rgba(255,255,255,0.3) 0%, transparent 100%);
+  animation: starfield 8s ease-in-out infinite;
   pointer-events: none;
+}
+
+@keyframes starfield {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
 }
 
 .bg-noise {
   position: fixed;
   inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
   opacity: 0.02;
   pointer-events: none;
 }
 
 .ambient-glow {
   position: fixed;
-  width: 300px;
-  height: 300px;
+  width: 280px;
+  height: 280px;
   border-radius: 50%;
-  filter: blur(100px);
+  filter: blur(80px);
   pointer-events: none;
-  animation: glow-drift 20s ease-in-out infinite;
+  animation: glow-drift 25s ease-in-out infinite;
 }
 
 .glow-1 {
-  top: -100px;
-  right: -100px;
-  background: rgba(194, 58, 58, 0.15);
+  top: -80px;
+  right: -80px;
+  background: rgba(194, 58, 58, 0.12);
 }
 
 .glow-2 {
-  bottom: -100px;
+  bottom: 100px;
   left: -100px;
-  background: rgba(212, 168, 83, 0.1);
-  animation-delay: -10s;
+  background: rgba(212, 168, 83, 0.08);
+  animation-delay: -12s;
 }
 
 @keyframes glow-drift {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(20px, 20px) scale(1.1); }
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 1; }
+  50% { transform: translate(15px, 15px) scale(1.05); opacity: 0.8; }
 }
 
 /* Header */
@@ -314,14 +322,14 @@ const handleViewJourney = () => {
 }
 
 .brand {
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'DM Sans', -apple-system, sans-serif;
   font-weight: 700;
-  font-size: 1.125rem;
+  font-size: 1.0625rem;
   letter-spacing: -0.02em;
 }
 
 .logo-say, .logo-in { color: var(--accent); }
-.logo-something { color: white; }
+.logo-something { color: rgba(255, 255, 255, 0.95); }
 
 .header-actions {
   display: flex;
@@ -329,28 +337,28 @@ const handleViewJourney = () => {
 }
 
 .icon-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .icon-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: white;
-  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .icon-btn svg {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
 }
 
 /* Main */
@@ -367,33 +375,43 @@ const handleViewJourney = () => {
 }
 
 .greeting {
-  font-size: 1.75rem;
+  font-size: 1.625rem;
   font-weight: 700;
-  color: white;
+  color: rgba(255, 255, 255, 0.95);
   margin: 0 0 0.25rem 0;
+  letter-spacing: -0.02em;
 }
 
 .subtitle {
-  font-size: 1rem;
-  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.9375rem;
+  color: rgba(255, 255, 255, 0.45);
   margin: 0;
 }
 
 /* Hero Card */
 .hero-card {
   position: relative;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 24px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(255, 255, 255, 0.02) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 20px;
   overflow: hidden;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.25s ease;
   margin-bottom: 1.5rem;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .hero-card:hover {
-  border-color: rgba(255, 255, 255, 0.15);
-  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
+}
+
+.hero-card:active {
+  transform: scale(0.99);
 }
 
 .hero-bg {
@@ -406,13 +424,13 @@ const handleViewJourney = () => {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 80% 20%, rgba(194, 58, 58, 0.1) 0%, transparent 50%),
-    radial-gradient(circle at 20% 80%, rgba(212, 168, 83, 0.08) 0%, transparent 50%);
+    radial-gradient(circle at 85% 15%, rgba(194, 58, 58, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 15% 85%, rgba(212, 168, 83, 0.06) 0%, transparent 50%);
 }
 
 .hero-content {
   position: relative;
-  padding: 1.5rem;
+  padding: 1.25rem;
 }
 
 .hero-header {
@@ -525,67 +543,81 @@ const handleViewJourney = () => {
   gap: 0.5rem;
   padding: 0.75rem 1.25rem;
   border-radius: 12px;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 0.9375rem;
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   border: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .btn svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
 }
 
 .btn-primary {
   flex: 1;
-  background: var(--accent);
+  background: linear-gradient(145deg, #d44545 0%, #b83232 100%);
   color: white;
-  box-shadow: 0 4px 20px rgba(194, 58, 58, 0.3);
+  box-shadow:
+    0 4px 14px rgba(194, 58, 58, 0.35),
+    0 6px 20px rgba(194, 58, 58, 0.2),
+    inset 0 1px 1px rgba(255, 255, 255, 0.2);
 }
 
 .btn-primary:hover {
-  background: #d44545;
   transform: translateY(-1px);
-  box-shadow: 0 6px 24px rgba(194, 58, 58, 0.4);
+  box-shadow:
+    0 5px 18px rgba(194, 58, 58, 0.4),
+    0 8px 24px rgba(194, 58, 58, 0.25),
+    inset 0 1px 1px rgba(255, 255, 255, 0.2);
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
 }
 
 .btn-ghost {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .btn-ghost:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.btn-ghost:active {
+  transform: scale(0.98);
 }
 
 /* Stats Row */
 .stats-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 0.75rem;
-  margin-bottom: 2rem;
+  gap: 0.625rem;
+  margin-bottom: 1.75rem;
 }
 
 .stat-card {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 16px;
-  padding: 1rem;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 14px;
+  padding: 0.875rem 0.75rem;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.375rem;
   text-align: center;
 }
 
 .stat-icon {
-  width: 32px;
-  height: 32px;
-  color: rgba(255, 255, 255, 0.4);
+  width: 26px;
+  height: 26px;
+  color: rgba(255, 255, 255, 0.35);
 }
 
 .stat-icon.flame {
@@ -605,16 +637,17 @@ const handleViewJourney = () => {
 
 .stat-value {
   font-family: 'Space Mono', monospace;
-  font-size: 1.25rem;
+  font-size: 1.125rem;
   font-weight: 700;
   color: white;
+  letter-spacing: -0.01em;
 }
 
 .stat-label {
-  font-size: 0.6875rem;
+  font-size: 0.5625rem;
   color: rgba(255, 255, 255, 0.4);
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.05em;
 }
 
 /* Courses Section */

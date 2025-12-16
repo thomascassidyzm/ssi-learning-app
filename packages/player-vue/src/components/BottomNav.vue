@@ -160,47 +160,70 @@ const isVisible = computed(() => !props.isLearning)
 </template>
 
 <style scoped>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+
 .bottom-nav {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
   z-index: 1000;
-  padding-top: 8px;
 }
 
 .nav-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(10, 10, 15, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: linear-gradient(
+    to top,
+    rgba(10, 10, 15, 0.98) 0%,
+    rgba(10, 10, 15, 0.95) 50%,
+    rgba(10, 10, 15, 0.88) 100%
+  );
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+/* Subtle top edge highlight */
+.nav-backdrop::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.08) 20%,
+    rgba(255, 255, 255, 0.08) 80%,
+    transparent
+  );
 }
 
 .nav-content {
   position: relative;
   display: flex;
   align-items: flex-end;
-  justify-content: space-between;
-  padding: 0 8px;
-  max-width: 500px;
+  justify-content: center;
+  padding: 0 12px;
+  max-width: 420px;
   margin: 0 auto;
+  height: 72px;
 }
 
 .nav-group {
   display: flex;
   flex: 1;
+  max-width: 140px;
 }
 
 .nav-group--left {
-  justify-content: flex-start;
-  gap: 4px;
+  justify-content: space-around;
 }
 
 .nav-group--right {
-  justify-content: flex-end;
-  gap: 4px;
+  justify-content: space-around;
 }
 
 /* Nav Item */
@@ -208,79 +231,82 @@ const isVisible = computed(() => !props.isLearning)
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 8px 16px 12px;
+  justify-content: flex-end;
+  gap: 5px;
+  padding: 0 12px 14px;
   background: transparent;
   border: none;
   cursor: pointer;
   position: relative;
   transition: all 0.2s ease;
-  border-radius: 12px;
+  min-width: 56px;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .nav-item:active,
 .nav-item.tapped {
-  transform: scale(0.92);
+  transform: scale(0.9);
 }
 
 .nav-icon {
-  width: 24px;
-  height: 24px;
-  color: rgba(255, 255, 255, 0.4);
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  width: 22px;
+  height: 22px;
+  color: rgba(255, 255, 255, 0.35);
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .nav-icon svg {
   width: 100%;
   height: 100%;
+  stroke-width: 1.8;
 }
 
 .nav-label {
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'DM Sans', -apple-system, sans-serif;
   font-size: 10px;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.4);
-  transition: all 0.3s ease;
-  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.35);
+  transition: all 0.25s ease;
+  letter-spacing: 0.01em;
 }
 
 /* Active state */
 .nav-item.active .nav-icon {
   color: #c23a3a;
-  transform: translateY(-2px);
+  transform: translateY(-1px) scale(1.05);
 }
 
 .nav-item.active .nav-label {
-  color: #c23a3a;
+  color: rgba(255, 255, 255, 0.9);
   font-weight: 600;
 }
 
 .active-indicator {
   position: absolute;
-  bottom: 4px;
+  bottom: 6px;
   width: 4px;
   height: 4px;
   border-radius: 50%;
   background: #c23a3a;
   opacity: 0;
-  transform: scale(0);
+  transform: scale(0) translateY(4px);
   transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 0 8px rgba(194, 58, 58, 0.6);
 }
 
 .nav-item.active .active-indicator {
   opacity: 1;
-  transform: scale(1);
+  transform: scale(1) translateY(0);
 }
 
 /* Hover state (desktop) */
 @media (hover: hover) {
   .nav-item:hover:not(.active) .nav-icon {
-    color: rgba(255, 255, 255, 0.7);
-    transform: translateY(-1px);
+    color: rgba(255, 255, 255, 0.6);
   }
 
   .nav-item:hover:not(.active) .nav-label {
-    color: rgba(255, 255, 255, 0.7);
+    color: rgba(255, 255, 255, 0.6);
   }
 }
 
@@ -289,51 +315,56 @@ const isVisible = computed(() => !props.isLearning)
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin: 0 8px;
+  margin: 0 16px;
   position: relative;
-  top: -12px;
+  top: -20px;
 }
 
 .play-button {
   position: relative;
-  width: 64px;
-  height: 64px;
+  width: 58px;
+  height: 58px;
   border-radius: 50%;
   border: none;
-  background: linear-gradient(135deg, #c23a3a 0%, #d44545 100%);
+  background: linear-gradient(145deg, #d44545 0%, #b83232 100%);
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   box-shadow:
-    0 4px 20px rgba(194, 58, 58, 0.4),
-    0 8px 32px rgba(194, 58, 58, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    0 4px 16px rgba(194, 58, 58, 0.45),
+    0 8px 24px rgba(194, 58, 58, 0.25),
+    inset 0 1px 1px rgba(255, 255, 255, 0.25),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.15);
+  -webkit-tap-highlight-color: transparent;
 }
 
 .play-button:active,
 .play-button.pressed {
-  transform: scale(0.9);
+  transform: scale(0.92);
   box-shadow:
-    0 2px 12px rgba(194, 58, 58, 0.5),
-    0 4px 16px rgba(194, 58, 58, 0.3);
+    0 2px 8px rgba(194, 58, 58, 0.5),
+    0 4px 12px rgba(194, 58, 58, 0.3),
+    inset 0 1px 1px rgba(255, 255, 255, 0.25),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.15);
 }
 
 .play-button-glow {
   position: absolute;
-  inset: -8px;
+  inset: -6px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(194, 58, 58, 0.4) 0%, transparent 70%);
-  opacity: 0;
+  background: radial-gradient(circle, rgba(194, 58, 58, 0.5) 0%, transparent 70%);
+  opacity: 0.5;
   transition: opacity 0.3s ease;
-  animation: glow-pulse 3s ease-in-out infinite;
+  animation: glow-pulse 2.5s ease-in-out infinite;
+  pointer-events: none;
 }
 
 @keyframes glow-pulse {
-  0%, 100% { opacity: 0.4; transform: scale(1); }
-  50% { opacity: 0.7; transform: scale(1.1); }
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.08); }
 }
 
 .play-button:hover .play-button-glow {
-  opacity: 1;
+  opacity: 0.9;
 }
 
 .play-button-inner {
@@ -346,62 +377,68 @@ const isVisible = computed(() => !props.isLearning)
 }
 
 .play-button-inner svg {
-  width: 26px;
-  height: 26px;
-  margin-left: 3px; /* Optical centering for play icon */
+  width: 24px;
+  height: 24px;
+  margin-left: 2px; /* Optical centering for play icon */
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
 }
 
 .play-label {
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'DM Sans', -apple-system, sans-serif;
   font-size: 10px;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.5);
-  margin-top: 6px;
+  margin-top: 8px;
   letter-spacing: 0.02em;
 }
 
 /* Streak badge */
 .streak-badge {
   position: absolute;
-  top: -4px;
-  right: -4px;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
+  top: -2px;
+  right: -2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
   background: linear-gradient(135deg, #ff9500 0%, #ffb340 100%);
-  border-radius: 10px;
+  border-radius: 9px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 8px rgba(255, 149, 0, 0.4);
-  animation: streak-bounce 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow:
+    0 2px 6px rgba(255, 149, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  animation: streak-bounce 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  border: 2px solid rgba(10, 10, 15, 0.95);
 }
 
 @keyframes streak-bounce {
   0% { transform: scale(0); }
+  60% { transform: scale(1.15); }
   100% { transform: scale(1); }
 }
 
 .streak-badge span {
-  font-family: 'Space Mono', monospace;
-  font-size: 10px;
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-size: 9px;
   font-weight: 700;
   color: white;
+  line-height: 1;
 }
 
 /* Safe area for PWA */
 .safe-area-spacer {
   height: env(safe-area-inset-bottom, 0px);
-  min-height: 8px;
+  min-height: 4px;
 }
 
 /* Nav slide transition */
 .nav-slide-enter-active {
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .nav-slide-leave-active {
-  transition: all 0.3s ease-in;
+  transition: all 0.25s ease-in;
 }
 
 .nav-slide-enter-from,
@@ -412,70 +449,123 @@ const isVisible = computed(() => !props.isLearning)
 
 /* Light theme */
 [data-theme="light"] .nav-backdrop {
-  background: rgba(248, 249, 250, 0.9);
-  border-top-color: rgba(0, 0, 0, 0.06);
+  background: linear-gradient(
+    to top,
+    rgba(248, 249, 250, 0.98) 0%,
+    rgba(248, 249, 250, 0.95) 50%,
+    rgba(248, 249, 250, 0.88) 100%
+  );
+  border-top-color: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .nav-backdrop::before {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(0, 0, 0, 0.06) 20%,
+    rgba(0, 0, 0, 0.06) 80%,
+    transparent
+  );
 }
 
 [data-theme="light"] .nav-icon {
-  color: rgba(26, 26, 46, 0.4);
+  color: rgba(26, 26, 46, 0.35);
 }
 
 [data-theme="light"] .nav-label {
-  color: rgba(26, 26, 46, 0.4);
+  color: rgba(26, 26, 46, 0.35);
 }
 
-[data-theme="light"] .nav-item.active .nav-icon,
 [data-theme="light"] .nav-item.active .nav-label {
-  color: #c23a3a;
+  color: rgba(26, 26, 46, 0.9);
 }
 
 [data-theme="light"] .play-label {
   color: rgba(26, 26, 46, 0.5);
 }
 
+[data-theme="light"] .streak-badge {
+  border-color: rgba(248, 249, 250, 0.95);
+}
+
 /* Responsive adjustments */
 @media (max-width: 360px) {
+  .nav-content {
+    padding: 0 8px;
+    height: 68px;
+  }
+
+  .nav-group {
+    max-width: 120px;
+  }
+
   .nav-item {
-    padding: 8px 12px 12px;
+    padding: 0 8px 12px;
+    min-width: 48px;
+  }
+
+  .nav-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .play-button-container {
+    margin: 0 12px;
+    top: -16px;
   }
 
   .play-button {
-    width: 56px;
-    height: 56px;
+    width: 52px;
+    height: 52px;
   }
 
   .play-button-inner svg {
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
+  }
+
+  .play-label {
+    margin-top: 6px;
   }
 }
 
 @media (min-width: 768px) {
   .nav-content {
-    max-width: 600px;
+    max-width: 480px;
+    height: 80px;
+  }
+
+  .nav-group {
+    max-width: 160px;
   }
 
   .nav-item {
-    padding: 10px 20px 14px;
+    padding: 0 16px 16px;
+    min-width: 64px;
   }
 
   .nav-icon {
-    width: 26px;
-    height: 26px;
+    width: 24px;
+    height: 24px;
   }
 
   .nav-label {
     font-size: 11px;
   }
 
+  .play-button-container {
+    margin: 0 20px;
+    top: -24px;
+  }
+
   .play-button {
-    width: 72px;
-    height: 72px;
+    width: 66px;
+    height: 66px;
   }
 
   .play-button-inner svg {
-    width: 30px;
-    height: 30px;
+    width: 28px;
+    height: 28px;
   }
 }
 </style>

@@ -306,9 +306,10 @@ const buildNumber = '2024.12.16'
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  background: #0a0a0f;
-  font-family: 'DM Sans', sans-serif;
+  background: #050508;
+  font-family: 'DM Sans', -apple-system, sans-serif;
   position: relative;
+  padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
 }
 
 /* Backgrounds */
@@ -316,15 +317,16 @@ const buildNumber = '2024.12.16'
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(194, 58, 58, 0.06) 0%, transparent 50%),
-    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(212, 168, 83, 0.04) 0%, transparent 40%);
+    radial-gradient(ellipse 70% 40% at 50% -10%, rgba(194, 58, 58, 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 30% at 80% 90%, rgba(212, 168, 83, 0.03) 0%, transparent 40%),
+    linear-gradient(to bottom, #0a0a0f 0%, #050508 100%);
   pointer-events: none;
 }
 
 .bg-noise {
   position: fixed;
   inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
   opacity: 0.02;
   pointer-events: none;
 }
@@ -338,15 +340,16 @@ const buildNumber = '2024.12.16'
   align-items: center;
   justify-content: center;
   padding: 1rem 1.5rem;
-  background: rgba(10, 10, 15, 0.9);
-  backdrop-filter: blur(20px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: linear-gradient(to bottom, rgba(5, 5, 8, 0.98) 0%, rgba(5, 5, 8, 0.95) 100%);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .title {
-  font-size: 1.25rem;
+  font-size: 1.125rem;
   font-weight: 600;
-  color: white;
+  color: rgba(255, 255, 255, 0.95);
   margin: 0;
 }
 
@@ -375,15 +378,19 @@ const buildNumber = '2024.12.16'
 
 /* Card */
 .card {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.035) 0%,
+    rgba(255, 255, 255, 0.02) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 16px;
   overflow: hidden;
 }
 
 .divider {
   height: 1px;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.05);
   margin: 0 1rem;
 }
 
@@ -391,17 +398,22 @@ const buildNumber = '2024.12.16'
 .setting-row {
   display: flex;
   align-items: center;
-  padding: 1rem;
+  padding: 0.875rem 1rem;
   gap: 1rem;
 }
 
 .setting-row.clickable {
   cursor: pointer;
   transition: background 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .setting-row.clickable:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.setting-row.clickable:active {
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .setting-row.danger .setting-label {
