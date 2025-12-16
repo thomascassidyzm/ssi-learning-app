@@ -11,6 +11,7 @@ import LearningPlayer from './components/LearningPlayer.vue'
 import JourneyMap from './components/JourneyMap.vue'
 import ProfileScreen from './components/ProfileScreen.vue'
 import SettingsScreen from './components/SettingsScreen.vue'
+import BottomNav from './components/BottomNav.vue'
 
 // Load configuration
 const config = loadConfig()
@@ -19,6 +20,7 @@ const config = loadConfig()
 // Screens: 'home' | 'player' | 'journey' | 'profile' | 'settings'
 const currentScreen = ref('home')
 const selectedCourse = ref(null)
+const isLearning = ref(false)
 
 // Navigation functions
 const navigate = (screen, data = null) => {
@@ -26,6 +28,7 @@ const navigate = (screen, data = null) => {
     selectedCourse.value = data
   }
   currentScreen.value = screen
+  isLearning.value = screen === 'player'
 }
 
 const goHome = () => navigate('home')
@@ -33,6 +36,15 @@ const startLearning = (course) => navigate('player', course)
 const viewJourney = (course) => navigate('journey', course)
 const openProfile = () => navigate('profile')
 const openSettings = () => navigate('settings')
+
+// Handle nav events
+const handleNavigation = (screen) => {
+  navigate(screen)
+}
+
+const handleStartLearning = () => {
+  startLearning(selectedCourse.value)
+}
 
 // Learner data (would come from database in production)
 const learnerStats = ref({
@@ -88,7 +100,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="app-container">
+  <div class="app-container" :class="{ 'has-nav': !isLearning }">
     <!-- Home Screen -->
     <Transition name="fade" mode="out-in">
       <HomeScreen
@@ -117,7 +129,7 @@ onMounted(() => {
         :currentStreak="learnerStats.currentStreak"
         :learningVelocity="learnerStats.learningVelocity"
         @close="goHome"
-        @startLearning="startLearning"
+        @startLearning="handleStartLearning"
       />
     </Transition>
 
@@ -136,6 +148,15 @@ onMounted(() => {
         @close="goHome"
       />
     </Transition>
+
+    <!-- Bottom Navigation -->
+    <BottomNav
+      :currentScreen="currentScreen"
+      :isLearning="isLearning"
+      :streak="learnerStats.currentStreak"
+      @navigate="handleNavigation"
+      @startLearning="handleStartLearning"
+    />
   </div>
 </template>
 
@@ -151,6 +172,10 @@ onMounted(() => {
   --text-muted: rgba(255, 255, 255, 0.4);
   --border-subtle: rgba(255, 255, 255, 0.06);
   --border-medium: rgba(255, 255, 255, 0.1);
+
+  /* Safe area for bottom nav */
+  --nav-height: 80px;
+  --nav-height-safe: calc(80px + env(safe-area-inset-bottom, 0px));
 }
 
 [data-theme="light"] {
@@ -177,10 +202,33 @@ html, body {
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Prevent overscroll bounce on iOS */
+  overscroll-behavior: none;
+}
+
+/* PWA standalone mode adjustments */
+@media (display-mode: standalone) {
+  body {
+    /* Prevent text selection on app-like interface */
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Allow text selection in specific areas */
+  .text-zone, .known-text, .target-text {
+    -webkit-user-select: text;
+    user-select: text;
+  }
 }
 
 button {
   font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
 }
 </style>
 
@@ -189,6 +237,11 @@ button {
   min-height: 100vh;
   min-height: 100dvh;
   background: var(--bg-primary);
+}
+
+/* Add bottom padding when nav is visible */
+.app-container.has-nav {
+  padding-bottom: var(--nav-height-safe);
 }
 
 /* Fade transition */

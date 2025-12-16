@@ -58,13 +58,7 @@ const buildNumber = '2024.12.16'
 
     <!-- Header -->
     <header class="header">
-      <button class="back-btn" @click="emit('close')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M19 12H5M12 19l-7-7 7-7"/>
-        </svg>
-      </button>
       <h1 class="title">Settings</h1>
-      <div class="spacer"></div>
     </header>
 
     <!-- Main Content -->
@@ -342,48 +336,18 @@ const buildNumber = '2024.12.16'
   z-index: 100;
   display: flex;
   align-items: center;
+  justify-content: center;
   padding: 1rem 1.5rem;
-  gap: 1rem;
   background: rgba(10, 10, 15, 0.9);
   backdrop-filter: blur(20px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.back-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: 1px solid rgba(255,255,255,0.1);
-  background: rgba(255,255,255,0.05);
-  color: rgba(255,255,255,0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.back-btn:hover {
-  background: rgba(255,255,255,0.1);
-  color: white;
-}
-
-.back-btn svg {
-  width: 20px;
-  height: 20px;
-}
-
 .title {
-  flex: 1;
   font-size: 1.25rem;
   font-weight: 600;
   color: white;
   margin: 0;
-  text-align: center;
-}
-
-.spacer {
-  width: 40px;
 }
 
 /* Main */
