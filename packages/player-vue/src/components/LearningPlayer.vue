@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, shallowRef } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, shallowRef, inject } from 'vue'
 import {
   CycleOrchestrator,
   AudioController,
@@ -7,6 +7,7 @@ import {
   DEFAULT_CONFIG,
 } from '@ssi/core'
 import SessionComplete from './SessionComplete.vue'
+import { useLearningSession } from '../composables/useLearningSession'
 
 // ============================================
 // DEMO DATA - Real Italian course audio from SSi
@@ -106,6 +107,28 @@ const demoItems = [
     }
   ),
 ]
+
+// ============================================
+// PERSISTENCE LAYER INTEGRATION
+// Inject stores from parent (App.vue)
+// ============================================
+
+const progressStore = inject('progressStore', { value: null })
+const sessionStore = inject('sessionStore', { value: null })
+const courseDataProvider = inject('courseDataProvider', { value: null })
+
+// Initialize learning session composable
+const learningSession = useLearningSession({
+  progressStore: progressStore.value,
+  sessionStore: sessionStore.value,
+  courseDataProvider: courseDataProvider.value,
+  learnerId: 'demo-learner', // TODO: Get from auth
+  courseId: 'spa_for_eng_v2',
+  demoItems,
+})
+
+// Use items from session (will be demo items if database not available)
+const sessionItems = computed(() => learningSession.items.value.length > 0 ? learningSession.items.value : demoItems)
 
 // ============================================
 // BELT PROGRESSION SYSTEM
@@ -218,13 +241,13 @@ const formattedSessionTime = computed(() => {
   return `${mins}:${secs.toString().padStart(2, '0')}`
 })
 
-// Computed
-const currentItem = computed(() => demoItems[currentItemIndex.value])
+// Computed - use sessionItems instead of demoItems
+const currentItem = computed(() => sessionItems.value[currentItemIndex.value])
 const currentPhrase = computed(() => ({
   known: currentItem.value?.phrase.phrase.known || '',
   target: currentItem.value?.phrase.phrase.target || '',
 }))
-const sessionProgress = computed(() => (itemsPracticed.value + 1) / demoItems.length)
+const sessionProgress = computed(() => (itemsPracticed.value + 1) / sessionItems.value.length)
 const showTargetText = computed(() => currentPhase.value === Phase.VOICE_2)
 
 // Phase symbols/icons - CORRECT ORDER
@@ -434,9 +457,18 @@ const handleCycleEvent = (event) => {
 
     case 'item_completed':
       itemsPracticed.value++
+
+      // Record progress if database is available
+      const completedItem = sessionItems.value[currentItemIndex.value]
+      if (completedItem) {
+        learningSession.recordCycleComplete(completedItem).catch(err => {
+          console.error('[LearningPlayer] Failed to record progress:', err)
+        })
+      }
+
       // Move to next item
-      currentItemIndex.value = (currentItemIndex.value + 1) % demoItems.length
-      const nextItem = demoItems[currentItemIndex.value]
+      currentItemIndex.value = (currentItemIndex.value + 1) % sessionItems.value.length
+      const nextItem = sessionItems.value[currentItemIndex.value]
 
       // Update pause duration for next item (2x target audio length)
       // Unless turbo mode is active
@@ -566,28 +598,47 @@ onMounted(() => {
   // Create real audio controller for S3 audio playback
   audioController.value = new RealAudioController()
 
-  // Calculate default pause duration from first item (2x target audio)
-  const defaultPauseDuration = Math.round(demoItems[0].audioDurations.target1 * 2 * 1000)
+  // Wait for session items to load
+  // Use a watcher to initialize the orchestrator once items are available
+  const initOrchestrator = () => {
+    if (sessionItems.value.length === 0) return
 
-  // Create CycleOrchestrator with dynamic pause duration
-  const demoConfig = {
-    ...DEFAULT_CONFIG.cycle,
-    pause_duration_ms: defaultPauseDuration,  // 2x target audio length
-    transition_gap_ms: 300,   // Shorter gap between phases
+    // Calculate default pause duration from first item (2x target audio)
+    const defaultPauseDuration = Math.round(sessionItems.value[0].audioDurations.target1 * 2 * 1000)
+
+    // Create CycleOrchestrator with dynamic pause duration
+    const demoConfig = {
+      ...DEFAULT_CONFIG.cycle,
+      pause_duration_ms: defaultPauseDuration,  // 2x target audio length
+      transition_gap_ms: 300,   // Shorter gap between phases
+    }
+    orchestrator.value = new CycleOrchestrator(
+      audioController.value,
+      demoConfig
+    )
+
+    // Subscribe to events
+    orchestrator.value.addEventListener(handleCycleEvent)
+
+    // Preload first few items
+    for (const item of sessionItems.value.slice(0, 3)) {
+      audioController.value.preload(item.phrase.audioRefs.known)
+      audioController.value.preload(item.phrase.audioRefs.target.voice1)
+      audioController.value.preload(item.phrase.audioRefs.target.voice2)
+    }
   }
-  orchestrator.value = new CycleOrchestrator(
-    audioController.value,
-    demoConfig
-  )
 
-  // Subscribe to events
-  orchestrator.value.addEventListener(handleCycleEvent)
-
-  // Preload first few items
-  for (const item of demoItems.slice(0, 3)) {
-    audioController.value.preload(item.phrase.audioRefs.known)
-    audioController.value.preload(item.phrase.audioRefs.target.voice1)
-    audioController.value.preload(item.phrase.audioRefs.target.voice2)
+  // Initialize immediately if items are already available
+  if (sessionItems.value.length > 0) {
+    initOrchestrator()
+  } else {
+    // Otherwise watch for items to load
+    const unwatch = watch(sessionItems, () => {
+      if (sessionItems.value.length > 0) {
+        initOrchestrator()
+        unwatch()
+      }
+    })
   }
 
   // Start session timer
@@ -647,19 +698,17 @@ onUnmounted(() => {
         <path class="mountain mountain--mid" d="M0,400 L0,260 Q180,210 360,240 Q540,180 720,220 Q900,160 1080,200 Q1260,140 1440,180 L1440,400 Z"/>
         <!-- Near hills (darkest) -->
         <path class="mountain mountain--near" d="M0,400 L0,320 Q240,290 480,310 Q720,280 960,300 Q1200,270 1440,300 L1440,400 Z"/>
-        <!-- Torii gate silhouette -->
-        <g class="torii" transform="translate(1180, 260)">
-          <rect x="0" y="0" width="5" height="50"/>
-          <rect x="40" y="0" width="5" height="50"/>
-          <rect x="-6" y="0" width="57" height="5"/>
-          <rect x="-2" y="9" width="49" height="3"/>
-          <path d="M-10,-6 Q22,-16 54,-6" stroke-width="5" fill="none" stroke="currentColor"/>
-        </g>
-        <!-- Ninja silhouette - walking the path -->
-        <g class="ninja-figure" transform="translate(280, 295)">
-          <circle cx="10" cy="3" r="3.5"/>
-          <path d="M10,7 L10,18 M10,10 L3,16 M10,10 L17,14 M10,18 L5,28 M10,18 L15,27"/>
-          <path d="M6,-1 L14,-1 L18,-4" stroke-width="1" fill="none"/>
+        <!-- Torii gate silhouette - elegant traditional form -->
+        <g class="torii" transform="translate(1160, 245)">
+          <!-- Main pillars with slight taper -->
+          <path d="M8,20 L6,70 L12,70 L10,20 Z"/>
+          <path d="M52,20 L50,70 L56,70 L54,20 Z"/>
+          <!-- Kasagi (top beam) with curved ends -->
+          <path d="M-4,8 Q30,-4 66,8 L64,14 Q30,4 -2,14 Z"/>
+          <!-- Nuki (tie beam) -->
+          <rect x="2" y="20" width="58" height="4" rx="1"/>
+          <!-- Gakuzuka (tablet) -->
+          <rect x="24" y="12" width="14" height="8" rx="1"/>
         </g>
       </svg>
     </div>
@@ -933,7 +982,8 @@ onUnmounted(() => {
         <div class="progress-fill" :style="{ width: `${sessionProgress * 100}%` }"></div>
       </div>
       <div class="footer-stats">
-        <span>{{ itemsPracticed }} / {{ demoItems.length }}</span>
+        <span>{{ itemsPracticed }} / {{ sessionItems.length }}</span>
+        <span v-if="learningSession.isDemoMode.value" class="demo-badge">Demo Mode</span>
       </div>
     </footer>
   </div>
@@ -1176,7 +1226,10 @@ onUnmounted(() => {
   /* Belt-colored fireflies - bioluminescent glow */
   background: var(--belt-color);
   box-shadow: 0 0 8px var(--belt-glow), 0 0 16px var(--belt-glow);
-  animation: mote-rise 20s ease-in-out infinite;
+  /* Layer two animations: rise + twinkle */
+  animation:
+    mote-rise 20s ease-in-out infinite,
+    firefly-twinkle 2s ease-in-out infinite;
   transition: background 0.5s ease, box-shadow 0.5s ease;
 }
 
@@ -1186,15 +1239,15 @@ onUnmounted(() => {
   box-shadow: 0 0 4px rgba(255, 255, 255, 0.2);
 }
 
-/* Distribute motes across the scene */
-.mote-1 { left: 10%; bottom: 20%; animation-delay: 0s; animation-duration: 22s; }
-.mote-2 { left: 25%; bottom: 35%; animation-delay: -4s; animation-duration: 18s; }
-.mote-3 { left: 40%; bottom: 15%; animation-delay: -8s; animation-duration: 25s; }
-.mote-4 { left: 55%; bottom: 28%; animation-delay: -12s; animation-duration: 20s; }
-.mote-5 { left: 70%; bottom: 22%; animation-delay: -3s; animation-duration: 24s; }
-.mote-6 { left: 85%; bottom: 32%; animation-delay: -16s; animation-duration: 19s; }
-.mote-7 { left: 15%; bottom: 40%; animation-delay: -7s; animation-duration: 23s; opacity: 0.6; }
-.mote-8 { left: 60%; bottom: 45%; animation-delay: -11s; animation-duration: 21s; opacity: 0.5; }
+/* Distribute motes across the scene - staggered rise + twinkle timings */
+.mote-1 { left: 10%; bottom: 20%; animation: mote-rise 22s ease-in-out infinite, firefly-twinkle 1.8s ease-in-out infinite; animation-delay: 0s, 0s; }
+.mote-2 { left: 25%; bottom: 35%; animation: mote-rise 18s ease-in-out infinite, firefly-twinkle 2.3s ease-in-out infinite; animation-delay: -4s, -0.7s; }
+.mote-3 { left: 40%; bottom: 15%; animation: mote-rise 25s ease-in-out infinite, firefly-twinkle 1.6s ease-in-out infinite; animation-delay: -8s, -1.2s; }
+.mote-4 { left: 55%; bottom: 28%; animation: mote-rise 20s ease-in-out infinite, firefly-twinkle 2.1s ease-in-out infinite; animation-delay: -12s, -0.3s; }
+.mote-5 { left: 70%; bottom: 22%; animation: mote-rise 24s ease-in-out infinite, firefly-twinkle 1.9s ease-in-out infinite; animation-delay: -3s, -1.5s; }
+.mote-6 { left: 85%; bottom: 32%; animation: mote-rise 19s ease-in-out infinite, firefly-twinkle 2.4s ease-in-out infinite; animation-delay: -16s, -0.9s; }
+.mote-7 { left: 15%; bottom: 40%; animation: mote-rise 23s ease-in-out infinite, firefly-twinkle 1.7s ease-in-out infinite; animation-delay: -7s, -1.8s; opacity: 0.6; }
+.mote-8 { left: 60%; bottom: 45%; animation: mote-rise 21s ease-in-out infinite, firefly-twinkle 2.2s ease-in-out infinite; animation-delay: -11s, -0.5s; opacity: 0.5; }
 
 @keyframes mote-rise {
   0% {
@@ -1214,6 +1267,30 @@ onUnmounted(() => {
   100% {
     transform: translateY(-200px) translateX(-10px) scale(0.5);
     opacity: 0;
+  }
+}
+
+/* Firefly twinkle - the characteristic bioluminescent pulse */
+@keyframes firefly-twinkle {
+  0%, 100% {
+    filter: brightness(1);
+    box-shadow: 0 0 8px var(--belt-glow), 0 0 16px var(--belt-glow);
+  }
+  20% {
+    filter: brightness(1.8);
+    box-shadow: 0 0 12px var(--belt-glow), 0 0 24px var(--belt-glow), 0 0 36px var(--belt-glow);
+  }
+  40% {
+    filter: brightness(0.4);
+    box-shadow: 0 0 4px var(--belt-glow);
+  }
+  60% {
+    filter: brightness(2);
+    box-shadow: 0 0 14px var(--belt-glow), 0 0 28px var(--belt-glow), 0 0 42px var(--belt-glow);
+  }
+  80% {
+    filter: brightness(0.6);
+    box-shadow: 0 0 6px var(--belt-glow), 0 0 10px var(--belt-glow);
   }
 }
 
@@ -1783,10 +1860,25 @@ onUnmounted(() => {
 }
 
 .footer-stats {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
   text-align: center;
   font-size: 0.75rem;
   color: var(--text-muted);
   font-family: 'Space Mono', monospace;
+}
+
+.demo-badge {
+  padding: 0.125rem 0.375rem;
+  background: rgba(212, 168, 83, 0.15);
+  border: 1px solid var(--gold);
+  border-radius: 4px;
+  font-size: 0.625rem;
+  color: var(--gold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 /* ============ TRANSITIONS ============ */

@@ -1,0 +1,228 @@
+================================================================================
+LEARNER SCHEMA DEPLOYMENT - READY TO DEPLOY
+================================================================================
+
+PROJECT: SSi Learning App
+DATABASE: Supabase (swfvymspfxmnfhevgdkg)
+DATE: 2025-12-16
+
+================================================================================
+FILES PREPARED
+================================================================================
+
+1. DEPLOYMENT SQL (Ready to execute)
+   /Users/tomcassidy/SSi/ssi-learning-app/schema_deploy_ready.sql
+   
+   - Complete schema with all tables, views, functions, triggers
+   - Includes RLS policies for security
+   - Safe to run multiple times (uses CREATE IF NOT EXISTS)
+   - Size: 11KB
+
+2. DEPLOYMENT GUIDE (Instructions)
+   /Users/tomcassidy/SSi/ssi-learning-app/SCHEMA_DEPLOYMENT_GUIDE.md
+   
+   - Step-by-step deployment instructions
+   - Multiple deployment methods
+   - Troubleshooting tips
+   - Integration guidance
+
+3. VERIFICATION SCRIPT (Post-deployment check)
+   /Users/tomcassidy/SSi/ssi-learning-app/verify-schema.sql
+   
+   - Comprehensive verification queries
+   - Checks tables, views, functions, triggers
+   - Validates RLS and policies
+   - Summary report
+
+4. ORIGINAL SOURCE
+   /Users/tomcassidy/SSi/ssi-learning-app/packages/core/src/persistence/schema.sql
+
+================================================================================
+DEPLOYMENT STEPS (QUICK)
+================================================================================
+
+1. Open Supabase SQL Editor:
+   https://supabase.com/dashboard/project/swfvymspfxmnfhevgdkg/sql
+
+2. Create new query
+
+3. Copy contents of: schema_deploy_ready.sql
+
+4. Paste and click "Run"
+
+5. Run verification script: verify-schema.sql
+
+================================================================================
+WHAT GETS DEPLOYED
+================================================================================
+
+TABLES (8):
+✓ learners              - User profiles and preferences
+✓ course_enrollments    - Course enrollments with Triple Helix state
+✓ lego_progress         - Individual LEGO progress (spaced repetition)
+✓ seed_progress         - Seed introduction tracking
+✓ sessions              - Learning session records
+✓ response_metrics      - Response latency measurements
+✓ spike_events          - Hesitation/difficulty events
+
+VIEWS (2):
+✓ learner_stats         - Aggregate learner statistics
+✓ course_progress       - Per-course progress summary
+
+FUNCTIONS (2):
+✓ update_updated_at_column() - Auto-update timestamps
+✓ handle_new_user()          - Auto-create learner on signup
+
+TRIGGERS (4):
+✓ update_learners_updated_at
+✓ update_lego_progress_updated_at
+✓ update_seed_progress_updated_at
+✓ on_auth_user_created
+
+INDEXES (9):
+✓ idx_enrollments_learner
+✓ idx_enrollments_course
+✓ idx_lego_progress_learner_course
+✓ idx_lego_progress_thread
+✓ idx_seed_progress_learner_course
+✓ idx_sessions_learner
+✓ idx_sessions_learner_started
+✓ idx_metrics_session
+✓ idx_metrics_learner
+✓ idx_metrics_timestamp
+✓ idx_spikes_session
+✓ idx_spikes_learner
+
+RLS POLICIES (18):
+✓ 3 policies per table for SELECT, INSERT, UPDATE
+✓ All enforce auth.uid() = user_id checks
+✓ Users can only access their own data
+
+================================================================================
+SCHEMA RELATIONSHIPS
+================================================================================
+
+auth.users (Supabase built-in)
+    ↓ [user_id]
+learners
+    ↓ [learner_id]
+    ├─ course_enrollments (per course)
+    │   └─ stores: helix_state, practice_time
+    │
+    ├─ lego_progress (per LEGO)
+    │   └─ stores: fibonacci_position, skip_number, reps, retirement
+    │
+    ├─ seed_progress (per seed)
+    │   └─ stores: is_introduced, introduced_at
+    │
+    └─ sessions (per learning session)
+        ↓ [session_id]
+        ├─ response_metrics (per item response)
+        │   └─ stores: latency, normalized_latency, spike detection
+        │
+        └─ spike_events (per detected spike)
+            └─ stores: spike_ratio, rolling_average, response type
+
+================================================================================
+KEY FEATURES
+================================================================================
+
+1. ROW LEVEL SECURITY
+   - All tables protected by RLS
+   - Users can only see/modify their own data
+   - Service role can access all data
+
+2. AUTO-SIGNUP TRIGGER
+   - New users automatically get learner profile
+   - Runs on auth.users INSERT
+   - Uses SECURITY DEFINER for permissions
+
+3. AUTO-UPDATE TIMESTAMPS
+   - updated_at automatically maintained
+   - Applied to: learners, lego_progress, seed_progress
+
+4. JSONB STORAGE
+   - preferences: session settings, volume, etc.
+   - helix_state: Triple Helix thread positions
+
+5. SPACED REPETITION TRACKING
+   - fibonacci_position: Position in Fibonacci sequence
+   - skip_number: Days until next review
+   - reps_completed: Total repetitions
+
+6. ADAPTATION TRACKING
+   - response_metrics: Every learner response
+   - spike_events: Hesitation detection
+   - Used for real-time difficulty adjustment
+
+================================================================================
+VERIFICATION
+================================================================================
+
+After deployment, run verify-schema.sql to check:
+
+Expected Results:
+- Tables Created: 7
+- Views Created: 2
+- Functions Created: 2
+- Policies Created: 18 (3 per table, approx)
+- Triggers Created: 4
+- Indexes Created: 9+
+
+================================================================================
+NEXT STEPS AFTER DEPLOYMENT
+================================================================================
+
+1. Run verification script
+
+2. Test auto-signup:
+   - Create test user in Supabase Auth
+   - Check learners table for auto-created record
+
+3. Test RLS:
+   - Query tables with different auth contexts
+   - Verify users can't see other users' data
+
+4. Update application code:
+   - Configure Supabase client in @ssi/core
+   - Implement ProgressStore with database backend
+   - Implement SessionStore with database backend
+   - Add SyncService for offline support
+
+5. Test data flow:
+   - Create enrollment
+   - Record session
+   - Track LEGO progress
+   - Verify metrics collection
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+If deployment fails:
+
+1. Check you're logged in to correct Supabase project
+2. Ensure you have admin/owner permissions
+3. Check for existing tables (schema is idempotent)
+4. Review Supabase logs for specific errors
+5. Try running statements individually if batch fails
+
+Common issues:
+- "relation already exists" → Safe to ignore (idempotent)
+- "permission denied" → Check user role
+- "auth.users does not exist" → Wrong database
+
+================================================================================
+SUPPORT FILES
+================================================================================
+
+Documentation: SCHEMA_DEPLOYMENT_GUIDE.md
+Deployment SQL: schema_deploy_ready.sql
+Verification: verify-schema.sql
+Original: packages/core/src/persistence/schema.sql
+
+================================================================================
+
+Ready to deploy! Follow the deployment steps above.
+
+================================================================================

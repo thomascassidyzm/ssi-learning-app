@@ -1,7 +1,7 @@
 # SSi Variable Registry
 # Single Source of Truth for all data structures across the SSi ecosystem
 #
-# Version: 1.3.0
+# Version: 1.4.0
 # Date: 2025-12-16
 # APML Version: 2.0.0
 #
@@ -18,7 +18,7 @@
 # - TypeScript type generation
 
 registry SSiContent:
-  version: "1.3.0"
+  version: "1.4.0"
   last_updated: "2025-12-16"
 
   # ============================================================================
@@ -502,11 +502,174 @@ registry SSiContent:
       - "quiero" [spa, target1] used by spa_for_eng, spa_for_fra, etc.
 
   # ============================================================================
+  # CANONICAL CONTENT (Welcomes & Encouragements)
+  # ============================================================================
+
+  entity CanonicalWelcome:
+    description: "Course welcome message, one per course"
+    primary_key: course_code
+    fields:
+      course_code:
+        type: text
+        required: true
+        foreign_key: Course.course_code
+
+      text:
+        type: text
+        required: true
+        description: "Full welcome text"
+
+      text_short:
+        type: text
+        required: false
+        description: "Optional short version"
+
+      audio_uuid:
+        type: text
+        required: false
+        foreign_key: AudioSample.uuid
+        description: "Reference to audio sample"
+
+      voice_id:
+        type: text
+        required: true
+        description: "Voice used for welcome"
+
+      language:
+        type: text
+        required: true
+        description: "Language welcome is spoken in (typically known_lang)"
+        example: "eng"
+
+      version:
+        type: text
+        required: true
+        default: "1.0.0"
+
+      created_at:
+        type: timestamp
+        auto: true
+
+      updated_at:
+        type: timestamp
+        auto: true
+
+  entity CanonicalEncouragement:
+    description: "Motivational messages for learners"
+    primary_key: id (serial)
+    fields:
+      id:
+        type: integer
+        auto: true
+
+      text:
+        type: text
+        required: true
+        unique: true
+        description: "Encouragement text"
+
+      type:
+        type: enum [pooled, ordered]
+        required: true
+        description: "pooled = random selection, ordered = sequential"
+
+      order_position:
+        type: integer
+        required: false
+        description: "For ordered encouragements (1, 2, 3...)"
+
+      audio_uuid:
+        type: text
+        required: false
+        foreign_key: AudioSample.uuid
+
+      voice_id:
+        type: text
+        required: false
+
+      language:
+        type: text
+        required: true
+        default: "eng"
+        description: "Typically English for English-known courses"
+
+      tags:
+        type: list of text
+        required: false
+        description: "Tags for filtering/selection"
+        example: ["brain_science", "motivation", "technique"]
+
+      min_seeds_completed:
+        type: integer
+        required: false
+        description: "Don't play until learner has done N seeds"
+
+      max_plays:
+        type: integer
+        required: false
+        description: "Max times to play this encouragement"
+
+      is_active:
+        type: boolean
+        required: true
+        default: true
+
+      created_at:
+        type: timestamp
+        auto: true
+
+      updated_at:
+        type: timestamp
+        auto: true
+
+  # ============================================================================
   # LEARNER PROGRESS
   # ============================================================================
 
-  entity LearnerProgress:
-    description: "Progress tracking for a learner in a course"
+  # ============================================================================
+  # LEARNER ACCOUNT & ENROLLMENTS
+  # ============================================================================
+
+  entity Learner:
+    description: "Learner account and profile"
+    primary_key: id (UUID)
+    unique_constraint: [user_id]
+    fields:
+      id:
+        type: uuid
+        auto: true
+
+      user_id:
+        type: uuid
+        required: true
+        description: "Reference to auth.users (Supabase auth)"
+
+      display_name:
+        type: text
+        required: true
+        default: ""
+
+      preferences:
+        type: jsonb
+        required: true
+        default: {}
+        description: "Learner preferences"
+        structure:
+          session_duration_minutes: "integer (default: 15)"
+          encouragements_enabled: "boolean (default: true)"
+          turbo_mode_enabled: "boolean (default: false)"
+          volume: "number (default: 1.0)"
+
+      created_at:
+        type: timestamp
+        auto: true
+
+      updated_at:
+        type: timestamp
+        auto: true
+
+  entity CourseEnrollment:
+    description: "Learner enrollment in a course"
     primary_key: id (UUID)
     unique_constraint: [learner_id, course_code]
     fields:
@@ -517,12 +680,27 @@ registry SSiContent:
       learner_id:
         type: uuid
         required: true
+        foreign_key: Learner.id
         description: "Reference to learner account"
 
       course_code:
         type: text
         required: true
         foreign_key: Course.course_code
+
+      enrolled_at:
+        type: timestamp
+        required: true
+        auto: true
+
+      last_practiced_at:
+        type: timestamp
+        required: false
+
+      total_practice_minutes:
+        type: integer
+        required: true
+        default: 0
 
       helix_state:
         type: jsonb
@@ -532,35 +710,299 @@ registry SSiContent:
         structure:
           active_thread: "number (1, 2, or 3)"
           threads:
-            1: { seed_order: [], current_seed: null, current_lego_index: 0 }
-            2: { seed_order: [], current_seed: null, current_lego_index: 0 }
-            3: { seed_order: [], current_seed: null, current_lego_index: 0 }
+            1: { seedOrder: [], currentSeedId: null, currentLegoIndex: 0 }
+            2: { seedOrder: [], currentSeedId: null, currentLegoIndex: 0 }
+            3: { seedOrder: [], currentSeedId: null, currentLegoIndex: 0 }
+          injected_content: {}
 
-      lego_progress:
-        type: jsonb
+  entity LegoProgress:
+    description: "Per-LEGO spaced repetition state for a learner"
+    primary_key: id (UUID)
+    unique_constraint: [learner_id, lego_id]
+    fields:
+      id:
+        type: uuid
+        auto: true
+
+      learner_id:
+        type: uuid
         required: true
-        default: {}
-        description: "Per-LEGO spaced repetition state"
-        structure:
-          "[lego_key]":
-            fibonacci_position: "number"
-            skip_number: "number"
-            reps_completed: "number"
-            is_retired: "boolean"
-            last_practiced_at: "timestamp"
+        foreign_key: Learner.id
 
-      last_session_at:
-        type: timestamp
-        required: false
+      lego_id:
+        type: text
+        required: true
+        description: "Reference to LEGO (e.g., S0001L01)"
 
-      total_practice_minutes:
+      course_id:
+        type: text
+        required: true
+        description: "Course code"
+
+      thread_id:
+        type: integer
+        required: true
+        range: [1, 3]
+        description: "Which helix thread (1, 2, or 3)"
+
+      fibonacci_position:
         type: integer
         required: true
         default: 0
+        description: "Position in Fibonacci sequence"
+
+      skip_number:
+        type: integer
+        required: true
+        default: 0
+        description: "Number of items to skip before next review"
+
+      reps_completed:
+        type: integer
+        required: true
+        default: 0
+        description: "Number of times practiced"
+
+      is_retired:
+        type: boolean
+        required: true
+        default: false
+        description: "Has LEGO reached retirement threshold"
+
+      last_practiced_at:
+        type: timestamp
+        required: false
+
+      created_at:
+        type: timestamp
+        auto: true
 
       updated_at:
         type: timestamp
         auto: true
+
+  entity SeedProgress:
+    description: "Track which seeds a learner has seen"
+    primary_key: id (UUID)
+    unique_constraint: [learner_id, seed_id]
+    fields:
+      id:
+        type: uuid
+        auto: true
+
+      learner_id:
+        type: uuid
+        required: true
+        foreign_key: Learner.id
+
+      seed_id:
+        type: text
+        required: true
+        description: "Reference to seed (e.g., S0001)"
+
+      course_id:
+        type: text
+        required: true
+
+      thread_id:
+        type: integer
+        required: true
+        range: [1, 3]
+
+      is_introduced:
+        type: boolean
+        required: true
+        default: false
+
+      introduced_at:
+        type: timestamp
+        required: false
+
+      created_at:
+        type: timestamp
+        auto: true
+
+      updated_at:
+        type: timestamp
+        auto: true
+
+  # ============================================================================
+  # SESSION & METRICS TRACKING
+  # ============================================================================
+
+  entity Session:
+    description: "Individual practice session"
+    primary_key: id (UUID)
+    fields:
+      id:
+        type: uuid
+        auto: true
+
+      learner_id:
+        type: uuid
+        required: true
+        foreign_key: Learner.id
+
+      course_id:
+        type: text
+        required: true
+
+      started_at:
+        type: timestamp
+        required: true
+        auto: true
+
+      ended_at:
+        type: timestamp
+        required: false
+
+      duration_seconds:
+        type: integer
+        required: true
+        default: 0
+
+      items_practiced:
+        type: integer
+        required: true
+        default: 0
+
+      spikes_detected:
+        type: integer
+        required: true
+        default: 0
+        description: "Number of hesitation/difficulty spikes detected"
+
+      final_rolling_average:
+        type: number
+        required: true
+        default: 0
+        description: "Final rolling average of normalized latencies"
+
+  entity ResponseMetric:
+    description: "Individual response time metric during practice"
+    primary_key: db_id (UUID)
+    fields:
+      db_id:
+        type: uuid
+        auto: true
+        description: "Database primary key"
+
+      id:
+        type: text
+        required: true
+        description: "Client-generated ID for deduplication"
+
+      session_id:
+        type: uuid
+        required: true
+        foreign_key: Session.id
+
+      learner_id:
+        type: uuid
+        required: true
+        foreign_key: Learner.id
+
+      course_id:
+        type: text
+        required: true
+
+      lego_id:
+        type: text
+        required: true
+
+      timestamp:
+        type: timestamp
+        required: true
+
+      response_latency_ms:
+        type: integer
+        required: true
+        description: "Raw response time in milliseconds"
+
+      phrase_length:
+        type: integer
+        required: true
+        description: "Length of phrase (for normalization)"
+
+      normalized_latency:
+        type: number
+        required: true
+        description: "Latency normalized by phrase length"
+
+      thread_id:
+        type: integer
+        required: true
+        description: "Which helix thread"
+
+      triggered_spike:
+        type: boolean
+        required: true
+        default: false
+        description: "Whether this response triggered a difficulty spike"
+
+      mode:
+        type: text
+        required: true
+        description: "Learning mode during response"
+
+  entity SpikeEvent:
+    description: "Detected hesitation/difficulty spike"
+    primary_key: db_id (UUID)
+    fields:
+      db_id:
+        type: uuid
+        auto: true
+
+      id:
+        type: text
+        required: true
+        description: "Client-generated ID"
+
+      session_id:
+        type: uuid
+        required: true
+        foreign_key: Session.id
+
+      learner_id:
+        type: uuid
+        required: true
+        foreign_key: Learner.id
+
+      course_id:
+        type: text
+        required: true
+
+      lego_id:
+        type: text
+        required: true
+
+      timestamp:
+        type: timestamp
+        required: true
+
+      latency:
+        type: number
+        required: true
+        description: "Normalized latency that triggered spike"
+
+      rolling_average:
+        type: number
+        required: true
+        description: "Rolling average at time of spike"
+
+      spike_ratio:
+        type: number
+        required: true
+        description: "Ratio of latency to rolling average"
+
+      response:
+        type: enum [repeat, breakdown]
+        required: true
+        description: "How system responded to spike"
+
+      thread_id:
+        type: integer
+        required: true
 
   # ============================================================================
   # CLASSIFICATION CONFIGURATION
@@ -1340,6 +1782,40 @@ registry SSiContent:
 # ============================================================================
 
 version_history:
+  v1.4.0:
+    date: "2025-12-16"
+    changes:
+      - "BREAKING: Restructured learner progress entities for database alignment"
+      - "Added Learner entity (separate from CourseEnrollment)"
+      - "Added CourseEnrollment entity (replaces LearnerProgress)"
+      - "Added LegoProgress entity (separate table for per-LEGO state)"
+      - "Added SeedProgress entity (track seed introduction)"
+      - "Added Session entity (individual practice sessions)"
+      - "Added ResponseMetric entity (detailed response time tracking)"
+      - "Added SpikeEvent entity (hesitation/difficulty detection)"
+      - "Added CanonicalWelcome entity (course welcome messages)"
+      - "Added CanonicalEncouragement entity (motivational content)"
+      - "Aligned with both learner schema (schema.sql) and dashboard schema (supabase-schema-v2.sql)"
+      - "All entities now match Supabase table structures for seamless database integration"
+    design_rationale: |
+      Database-first architecture requires exact alignment between APML types and SQL schemas.
+      This update ensures:
+      1. Learning app can query Supabase directly for course content
+      2. Learner progress persists correctly to database
+      3. Session metrics and analytics work with existing schemas
+      4. TypeScript types generated from APML match database types
+    breaking_changes:
+      - "LearnerProgress entity split into Learner + CourseEnrollment + LegoProgress"
+      - "lego_progress JSONB field now separate LegoProgress table"
+      - "Added learner preferences structure (session duration, volume, etc.)"
+    implementation_status:
+      All_entities: "Aligned with production schemas, ready for TypeScript generation"
+      Database_integration: "Ready for Supabase queries"
+      Type_safety: "Full type alignment between APML, TypeScript, and PostgreSQL"
+    contributors:
+      - "Tom Cassidy"
+      - "Claude (AI Assistant)"
+
   v1.3.0:
     date: "2025-12-16"
     changes:
