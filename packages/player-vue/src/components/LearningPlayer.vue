@@ -9,6 +9,8 @@ import {
 import SessionComplete from './SessionComplete.vue'
 import { useLearningSession } from '../composables/useLearningSession'
 
+const emit = defineEmits(['close'])
+
 // ============================================
 // DEMO DATA - Real Italian course audio from SSi
 // Audio files bundled locally in /public/audio/
@@ -585,6 +587,15 @@ const handleResumeLearning = () => {
   }
 }
 
+const handleExit = () => {
+  // Stop playback and exit the player
+  if (orchestrator.value) {
+    orchestrator.value.stop()
+  }
+  isPlaying.value = false
+  emit('close')
+}
+
 // ============================================
 // LIFECYCLE
 // ============================================
@@ -735,6 +746,11 @@ onUnmounted(() => {
 
     <!-- Header -->
     <header class="header">
+      <button class="close-btn" @click="handleExit" title="Exit to Home">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M19 12H5M12 19l-7-7 7-7"/>
+        </svg>
+      </button>
       <div class="brand">
         <span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span>
       </div>
@@ -1315,12 +1331,44 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 1rem 1.5rem;
+  gap: 0.75rem;
+}
+
+.close-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
+
+.close-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.close-btn:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+
+.close-btn:active {
+  transform: scale(0.95);
 }
 
 .brand {
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'DM Sans', -apple-system, sans-serif;
   font-weight: 700;
-  font-size: 1.125rem;
+  font-size: 1.0625rem;
   letter-spacing: -0.02em;
 }
 
