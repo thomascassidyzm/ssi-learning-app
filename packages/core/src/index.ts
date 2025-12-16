@@ -22,3 +22,6 @@ export * from './cache';
 
 // Data persistence (Supabase)
 export * from './persistence';
+
+// Audio analysis (VAD, Prosody)
+export * from './audio';

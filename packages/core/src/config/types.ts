@@ -3,6 +3,8 @@
  * Three-tier hierarchy: System Defaults → Course/School Overrides → Learner Adaptive Overrides
  */
 
+import type { VADConfig } from '../audio/types';
+
 export interface LearningConfig {
   // === TRIPLE HELIX ===
   helix: HelixConfig;
@@ -30,6 +32,9 @@ export interface LearningConfig {
 
   // === FEATURES ===
   features: FeaturesConfig;
+
+  // === VOICE ACTIVITY DETECTION ===
+  vad: VADConfig;
 }
 
 export interface HelixConfig {
@@ -84,6 +89,16 @@ export interface SpikeConfig {
   alternate_sequence: string[];
   /** Items to wait before next spike can trigger (default: 3) */
   cooldown_items: number;
+  /** Use standard deviation-based discontinuity detection (default: true) */
+  use_stddev_detection: boolean;
+  /** Number of standard deviations for discontinuity threshold (default: 2.0, range: 1.5-3.0) */
+  stddev_threshold: number;
+  /** Whether to extend pause duration after spike (default: true) */
+  pause_extension_enabled: boolean;
+  /** Factor to extend pause by on spike: pause * (1 + factor) (default: 0.3, range: 0.1-0.5) */
+  pause_extension_factor: number;
+  /** Number of items to maintain extended pause after spike (default: 3) */
+  pause_extension_duration: number;
 }
 
 export interface LegoIntroductionConfig {
@@ -137,6 +152,35 @@ export interface FeaturesConfig {
   turbo_mode_available: boolean;
   /** Listening mode available (default: true) */
   listening_mode_available: boolean;
+  /** Voice activity detection enabled (default: false - requires mic permission) */
+  vad_enabled: boolean;
+}
+
+export interface WeightedSelectionConfig {
+  /**
+   * Weight increase per day since last practice
+   * Formula: staleness_factor = 1 + (days_since_practice * staleness_rate)
+   * Default: 0.1
+   * Range: [0.05, 0.3]
+   */
+  staleness_rate: number;
+
+  /**
+   * Weight boost per discontinuity detected
+   * Formula: struggle_factor = 1 + (discontinuity_count * struggle_multiplier)
+   * Default: 0.5
+   * Range: [0.2, 1.0]
+   */
+  struggle_multiplier: number;
+
+  /**
+   * Minutes before recency penalty kicks in
+   * Formula: recency_factor = max(0.5, 1 - (minutes_since_practice / recency_window))
+   * Prevents "hammering" the same LEGO repeatedly
+   * Default: 30
+   * Range: [10, 60]
+   */
+  recency_window: number;
 }
 
 /**

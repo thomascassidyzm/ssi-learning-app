@@ -3,7 +3,11 @@
  *
  * Strategy:
  * - Maintains a rolling window of normalized response latencies
- * - Detects spikes when latency exceeds threshold_percent of rolling average
+ * - NEW: Differential-based discontinuity detection per APML spec
+ *   - Calculates latency_differential = current_latency - rolling_average
+ *   - Detects discontinuity when: abs(differential) > (stddev_threshold * rolling_stddev)
+ *   - Classifies severity: mild, moderate, severe based on magnitude (sigmas)
+ * - FALLBACK: Uses threshold_percent of rolling average (legacy approach)
  * - Threshold is relative to learner's OWN average (not absolute)
  * - Respects cooldown period to avoid over-triggering
  */
@@ -14,6 +18,7 @@ import type {
   SpikeResponse,
   SpikeEvent,
   AdaptationState,
+  SeverityLevel,
 } from './types';
 import { MetricsTracker } from './MetricsTracker';
 
@@ -38,9 +43,21 @@ export class SpikeDetector {
 
   /**
    * Analyze a response and determine if it's a spike
+   *
+   * Uses differential-based discontinuity detection per APML spec:
+   * 1. Calculate latency_differential = current_latency - rolling_average
+   * 2. Detect discontinuity when: abs(differential) > (stddev_threshold * rolling_stddev)
+   * 3. Calculate magnitude = abs(differential) / stddev (how many sigmas)
+   * 4. Classify severity: mild (<2.5σ), moderate (≥2.5σ), severe (>4.0σ)
+   *
+   * Falls back to threshold_percent approach if use_stddev_detection is false
    */
   detectSpike(normalizedLatency: number): SpikeDetectionResult {
     const rollingAverage = this.metricsTracker.getRollingAverage();
+    const rollingStdDev = this.metricsTracker.getRollingStdDev();
+
+    // Calculate differential (always computed for reporting)
+    const differential = normalizedLatency - rollingAverage;
 
     // If we don't have enough data, no spike
     if (!this.metricsTracker.hasEnoughData()) {
@@ -50,12 +67,65 @@ export class SpikeDetector {
         rolling_average: rollingAverage,
         threshold: 0,
         ratio: 0,
+        differential,
+        stddev: rollingStdDev,
+        magnitude: 0,
+        severity: 'none',
       };
     }
 
-    const threshold = rollingAverage * (this.config.spike.threshold_percent / 100);
+    let isSpike = false;
+    let magnitude = 0;
+    let severity: SeverityLevel = 'none';
+
+    // Determine spike using configured detection method
+    if (this.config.spike.use_stddev_detection && rollingStdDev > 0) {
+      // NEW: Standard deviation-based discontinuity detection
+      magnitude = Math.abs(differential) / rollingStdDev;
+      const threshold = this.config.spike.stddev_threshold * rollingStdDev;
+      isSpike = Math.abs(differential) > threshold;
+
+      // Classify severity based on magnitude
+      if (magnitude >= 4.0) {
+        severity = 'severe';
+      } else if (magnitude >= 2.5) {
+        severity = 'moderate';
+      } else if (isSpike) {
+        severity = 'mild';
+      }
+    } else {
+      // FALLBACK: Legacy threshold_percent approach
+      const threshold = rollingAverage * (this.config.spike.threshold_percent / 100);
+      isSpike = normalizedLatency > threshold;
+
+      // For backwards compatibility, calculate approximate magnitude
+      if (rollingStdDev > 0) {
+        magnitude = Math.abs(differential) / rollingStdDev;
+        if (magnitude >= 4.0) {
+          severity = 'severe';
+        } else if (magnitude >= 2.5) {
+          severity = 'moderate';
+        } else if (isSpike) {
+          severity = 'mild';
+        }
+      } else {
+        // No stddev available, use ratio-based severity
+        const ratio = rollingAverage > 0 ? normalizedLatency / rollingAverage : 0;
+        if (ratio > 2.5) {
+          severity = 'severe';
+        } else if (ratio > 1.8) {
+          severity = 'moderate';
+        } else if (isSpike) {
+          severity = 'mild';
+        }
+      }
+    }
+
+    const threshold = this.config.spike.use_stddev_detection && rollingStdDev > 0
+      ? this.config.spike.stddev_threshold * rollingStdDev
+      : rollingAverage * (this.config.spike.threshold_percent / 100);
+
     const ratio = rollingAverage > 0 ? normalizedLatency / rollingAverage : 0;
-    const isSpike = normalizedLatency > threshold;
 
     return {
       is_spike: isSpike,
@@ -63,6 +133,10 @@ export class SpikeDetector {
       rolling_average: rollingAverage,
       threshold,
       ratio,
+      differential,
+      stddev: rollingStdDev,
+      magnitude,
+      severity,
     };
   }
 

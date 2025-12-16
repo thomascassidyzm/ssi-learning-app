@@ -1,7 +1,7 @@
 # APML Learning: Triple Helix Engine Specification
-# SSI Learning App v1.0.0
-# Version: 1.0.0 (2025-12-03)
-# Status: Designed (partial implementation)
+# SSI Learning App v1.1.0
+# Version: 1.1.0 (2025-12-16)
+# Status: Designed
 
 ## ============================================================================
 ## OVERVIEW
@@ -9,212 +9,203 @@
 
 SPECIFICATION:
   name: "Triple Helix Engine"
-  purpose: "Interleave three learning threads for optimal spacing"
+  purpose: "Interleave three learning tubes for optimal spacing via card-dealt distribution"
   source: "packages/core/src/learning/TripleHelixEngine.ts"
-  version: "1.0.0"
+  version: "1.1.0"
 
 CORE_PRINCIPLE: |
-  Three threads of content interleave like DNA strands.
-  This creates natural spacing without explicit scheduling algorithms.
-  Thread 1 is primary, Thread 2 follows ~10 seeds behind, Thread 3 follows ~10 more.
+  Three parallel "tubes" of content, with SEEDs distributed equally across them
+  using a card-dealt pattern. This creates natural spaced repetition through
+  interleaving - by the time the learner returns to Tube A, time has passed
+  working on Tubes B and C. The material has had a chance to settle.
 
 PEDAGOGICAL_BENEFIT: |
-  While working on Thread 1 content, Thread 2 and 3 content gets
-  natural spaced repetition without complex algorithm overhead.
-  The interleaving creates implicit spacing.
+  The interleaving creates implicit spacing without complex scheduling algorithms.
+  Each tube progresses independently, and the rotation between tubes ensures
+  that related content is revisited at optimal intervals.
 
 ## ============================================================================
-## THREAD ARCHITECTURE
+## CARD-DEALT DISTRIBUTION
 ## ============================================================================
 
-THREAD_STRUCTURE:
+DISTRIBUTION_MODEL:
   description: |
-    The course is divided into three interleaved threads.
-    Each thread progresses through seeds sequentially.
-    Threads are offset by ~10 seeds to create spacing.
+    SEEDs are dealt like cards across three tubes in round-robin fashion.
+    This is NOT an offset system - each tube gets its own unique SEEDs.
 
-  THREAD_1:
-    name: "Primary Thread"
-    offset: 0
-    purpose: "Main progression - introduces new content"
-    seeds: "S0001-S0668 (primary sequence)"
-    priority: "Highest - always gets practice slots"
+  pattern: |
+    SEED 1  → Tube A
+    SEED 2  → Tube B
+    SEED 3  → Tube C
+    SEED 4  → Tube A
+    SEED 5  → Tube B
+    SEED 6  → Tube C
+    SEED 7  → Tube A
+    SEED 8  → Tube B
+    SEED 9  → Tube C
+    ...and so on
 
-  THREAD_2:
-    name: "Reinforcement Thread A"
-    offset: 10
-    purpose: "Review content 10 seeds behind Thread 1"
-    seeds: "Same content, delayed by 10 seeds"
-    priority: "Medium - fills practice slots"
+  resulting_tubes:
+    TUBE_A:
+      seeds: "S0001, S0004, S0007, S0010, S0013, ..."
+      description: "Every 3rd seed starting from 1"
 
-  THREAD_3:
-    name: "Reinforcement Thread B"
-    offset: 20
-    purpose: "Deep review content 20 seeds behind Thread 1"
-    seeds: "Same content, delayed by 20 more seeds"
-    priority: "Lower - fills remaining slots"
+    TUBE_B:
+      seeds: "S0002, S0005, S0008, S0011, S0014, ..."
+      description: "Every 3rd seed starting from 2"
 
-OFFSET_EXPLANATION: |
-  Example at seed S0030 progress:
-    Thread 1: Working on S0030 LEGOs (brand new)
-    Thread 2: Reviewing S0020 LEGOs (10 seeds ago)
-    Thread 3: Reviewing S0010 LEGOs (20 seeds ago)
+    TUBE_C:
+      seeds: "S0003, S0006, S0009, S0012, S0015, ..."
+      description: "Every 3rd seed starting from 3"
 
-  The learner practices all three in a mixed sequence,
-  creating natural interleaved spacing.
+  learner_experience: |
+    The learner cycles through: A, B, C, A, B, C, A, B, C...
+
+    This means:
+    - They learn SEED 1 content
+    - Then SEED 2 content (different topic, SEED 1 settles)
+    - Then SEED 3 content (different topic, SEEDs 1&2 settle)
+    - Then back to SEED 4 (Tube A again, related to SEED 1)
+
+    Natural spacing emerges from the interleaving itself.
 
 ## ============================================================================
-## CYCLE ALLOCATION
+## TUBE ARCHITECTURE
 ## ============================================================================
 
-CYCLE_ALLOCATION:
+TUBE_STRUCTURE:
   description: |
-    Each practice session allocates cycles to threads.
-    The ratio determines how much new vs review content.
+    Each tube is an independent progression track containing a subset of all SEEDs.
+    Unlike an offset model, tubes don't share content - each SEED belongs to exactly one tube.
 
-  allocation_strategy:
-    new_content_ratio: 0.4
-    review_ratio: 0.6
+  TUBE_A:
+    name: "Primary Tube"
+    purpose: "First tube in rotation, receives SEEDs 1, 4, 7, 10..."
+    allocation: "~33% of all course SEEDs"
 
-  example_session:
-    total_cycles: 50
-    thread_1_allocation: 20   # 40% new content
-    thread_2_allocation: 18   # 36% recent review
-    thread_3_allocation: 12   # 24% older review
+  TUBE_B:
+    name: "Secondary Tube"
+    purpose: "Second tube in rotation, receives SEEDs 2, 5, 8, 11..."
+    allocation: "~33% of all course SEEDs"
 
-  dynamic_adjustment: |
-    If learner is struggling (many spikes detected):
-      - Reduce Thread 1 allocation (less new content)
-      - Increase Thread 2/3 (more review)
+  TUBE_C:
+    name: "Tertiary Tube"
+    purpose: "Third tube in rotation, receives SEEDs 3, 6, 9, 12..."
+    allocation: "~34% of all course SEEDs"
 
-    If learner is cruising (fast responses):
-      - Increase Thread 1 allocation (more new content)
-      - Maintain Thread 2/3
+  tube_independence: |
+    Each tube maintains its own:
+    - Current position (which SEED within that tube)
+    - LEGO index (which LEGO within current SEED)
+    - Completion tracking (which LEGOs/SEEDs are done)
 
-## ============================================================================
-## INTERLEAVING ALGORITHM
-## ============================================================================
-
-INTERLEAVING:
-  description: "How cycles from different threads are mixed"
-
-  basic_pattern: |
-    Rather than completing all Thread 1, then Thread 2, etc.,
-    cycles are interleaved to mix new and review content.
-
-  interleave_strategy:
-    name: "Weighted Random Selection"
-    algorithm: |
-      1. Calculate weights based on allocation
-      2. For each cycle slot:
-         - Select thread based on weighted random
-         - Get next item from selected thread
-         - Decrease that thread's remaining allocation
-
-  example_sequence: |
-    [T1, T1, T2, T1, T3, T2, T1, T2, T3, T2, T1, ...]
-    This creates natural mixing of new and review.
-
-  prohibited_patterns:
-    - "More than 5 consecutive items from same thread"
-    - "Immediate repeat of same LEGO"
+    Tubes progress independently but are visited in strict rotation.
 
 ## ============================================================================
-## THREAD STATE MANAGEMENT
+## DYNAMIC REORGANISATION
 ## ============================================================================
 
-THREAD_STATE:
-  description: "State tracked per thread"
-
-  ThreadState:
-    seedOrder:
-      type: "string[]"
-      description: "Ordered list of seed IDs for this thread"
-      initial: "All 668 seeds in canonical order"
-
-    currentSeedId:
-      type: "string | null"
-      description: "Currently active seed"
-      initial: "First seed (S0001)"
-
-    currentLegoIndex:
-      type: number
-      description: "Index of current LEGO within current seed"
-      initial: 0
-
-    practicedLegos:
-      type: "Set<string>"
-      description: "LEGOs that have been practiced in this session"
-
-    completedSeeds:
-      type: "Set<string>"
-      description: "Seeds fully completed in this thread"
-
-  getNextItem:
-    description: "Get next learning item from this thread"
-    algorithm: |
-      1. Get current seed and current LEGO
-      2. If LEGO has remaining practice phrases:
-         - Return next phrase for this LEGO
-      3. If all phrases done for this LEGO:
-         - Advance to next LEGO in seed
-      4. If all LEGOs done for this seed:
-         - Advance to next seed
-         - Return first LEGO of new seed
-
-## ============================================================================
-## SUBJECT INJECTION
-## ============================================================================
-
-SUBJECT_INJECTION:
+DYNAMIC_REORGANISATION:
   description: |
-    Content can be "injected" into threads by subject/topic.
-    This allows targeted vocabulary practice.
+    The tube structure is flexible. Tubes can collapse to make room for
+    injected content, allowing targeted vocabulary without disrupting flow.
 
-  use_case: |
-    Teacher wants to inject "food vocabulary" into the session.
-    These LEGOs get temporarily prioritized across all threads.
+  collapse_mechanism:
+    two_tube_mode:
+      description: "Content collapses from 3 tubes to 2"
+      when: "New SEED content needs to be injected"
+      how: |
+        - Tube A and B continue as normal
+        - Tube C's content redistributes to A and B
+        - New content fills Tube C
 
-  implementation:
-    injected_content:
-      type: "Record<string, string[]>"
-      description: "Subject → LEGO IDs to inject"
-      example:
-        food: ["S0023L01", "S0045L03", "S0067L02"]
-        travel: ["S0012L01", "S0034L02"]
+    single_tube_mode:
+      description: "Content collapses to 1 tube temporarily"
+      when: "Significant new content injection required"
+      how: |
+        - All existing content merges into Tube A
+        - New content fills Tubes B and C
+        - Normal distribution resumes after injection complete
 
-    injection_priority:
-      description: "How often injected content appears"
-      ratio: 0.2
-      meaning: "20% of cycles reserved for injected content"
+  injection_use_cases:
+    - "Teacher wants to add food vocabulary mid-course"
+    - "Learner requests specific topic emphasis"
+    - "Content update adds new SEEDs to existing course"
+    - "A/B testing of new material alongside existing"
 
-    injection_exhaustion:
-      description: "What happens when injected content is all practiced"
-      behavior: "Falls back to normal thread allocation"
+  recovery:
+    description: |
+      After injection content is absorbed (mastered or completed),
+      the system can re-expand back to normal 3-tube distribution
+      with remaining course content redistributed evenly.
+
+## ============================================================================
+## ROTATION ALGORITHM
+## ============================================================================
+
+ROTATION:
+  description: "How the learner moves between tubes during a session"
+
+  basic_rotation: |
+    The learner experiences a strict rotation: A → B → C → A → B → C → ...
+
+    Within each tube visit:
+    1. Get next eligible LEGO from current tube
+    2. Run 4-phase cycle for that LEGO
+    3. Mark progress
+    4. Move to next tube
+
+    This ensures equal attention to all tubes.
+
+  item_selection_within_tube: |
+    When visiting a tube, select the next item based on:
+    1. Spaced repetition schedule (skip numbers)
+    2. Mastery state (acquisition items get priority)
+    3. Weighted selection (struggles get boosted)
+
+    The Triple Helix handles TUBE selection.
+    Spaced repetition handles ITEM selection within that tube.
+
+  rotation_variants:
+    strict_rotation:
+      pattern: "A, B, C, A, B, C, A, B, C, ..."
+      description: "Equal attention, predictable spacing"
+      default: true
+
+    weighted_rotation:
+      pattern: "A, A, B, C, A, B, A, C, ..."
+      description: "More frequent visits to struggling tube"
+      trigger: "One tube has significantly more difficult content"
+
+    collapsed_rotation:
+      pattern: "A, B, A, B, A, B, ..."
+      description: "Two-tube mode during content injection"
 
 ## ============================================================================
 ## SESSION FLOW
 ## ============================================================================
 
 SESSION_FLOW:
-  description: "How a practice session progresses"
+  description: "How a practice session progresses through the Triple Helix"
 
   session_start:
-    1: "Load thread states from persistence"
-    2: "Calculate session target (time or item count)"
-    3: "Initialize cycle allocation"
+    1: "Load tube states from persistence"
+    2: "Determine which tube was last visited"
+    3: "Calculate session target (time or item count)"
+    4: "Initialize at next tube in rotation"
 
   during_session:
     for_each_cycle:
-      1: "Select thread (weighted random based on allocation)"
-      2: "Get next item from selected thread"
+      1: "Get current tube in rotation (A, B, or C)"
+      2: "Select next eligible item from that tube"
       3: "Run 4-phase cycle (PROMPT → PAUSE → VOICE_1 → VOICE_2)"
-      4: "Record completion"
-      5: "Update thread state"
-      6: "Check session completion criteria"
+      4: "Record completion and metrics"
+      5: "Update tube state"
+      6: "Advance to next tube in rotation"
+      7: "Check session completion criteria"
 
   session_end:
-    1: "Persist thread states"
+    1: "Persist all tube states"
     2: "Calculate session metrics"
     3: "Show SessionComplete screen"
 
@@ -224,25 +215,119 @@ SESSION_FLOW:
 
 SPACED_REPETITION_INTEGRATION:
   description: |
-    Triple Helix provides the SELECTION of what to practice.
-    Spaced Repetition provides the SCHEDULING of when.
+    Triple Helix provides the TUBE selection (macro-level spacing).
+    Spaced Repetition provides the ITEM selection within tubes (micro-level spacing).
 
   coordination:
     triple_helix_role:
-      - "Selects which thread to pull from"
-      - "Manages progression through seeds/LEGOs"
-      - "Handles interleaving"
+      - "Determines which tube to visit next"
+      - "Manages progression through tubes"
+      - "Handles tube collapse/expansion for injection"
+      - "Creates macro-level interleaving"
 
     spaced_repetition_role:
-      - "Tracks individual LEGO mastery"
-      - "Determines skip numbers (how often to practice)"
-      - "Handles retirement (mastered LEGOs)"
+      - "Tracks individual LEGO mastery within each tube"
+      - "Determines skip numbers (Fibonacci: 1,1,2,3,5,8,13...)"
+      - "Selects which LEGO from current tube is due"
+      - "Handles retirement (mastered LEGOs reduce frequency)"
 
   example: |
-    Triple Helix: "Thread 2 is selected, get next item"
-    Thread 2: "Current seed is S0015, current LEGO is S0015L02"
-    Spaced Rep: "S0015L02 has skip=3, was just practiced 2 cycles ago"
-    Decision: "Skip S0015L02, get S0015L03 instead"
+    Rotation says: "Visit Tube B"
+    Tube B contains: [S0002, S0005, S0008, S0011...]
+
+    Within Tube B:
+    - S0002 L01: skip=8, practiced 5 cycles ago → not due
+    - S0002 L02: skip=3, practiced 4 cycles ago → DUE
+    - S0005 L01: skip=1, practiced 1 cycle ago → DUE
+
+    Spaced Rep selects S0005 L01 (higher priority for newer content)
+
+## ============================================================================
+## CONTENT INJECTION
+## ============================================================================
+
+CONTENT_INJECTION:
+  description: |
+    New content can be injected into the course mid-stream.
+    The flexible tube structure accommodates this gracefully.
+
+  injection_process:
+    1: "Receive injection request (subject/topic/SEED IDs)"
+    2: "Determine space needed (how many SEEDs)"
+    3: "Collapse tubes if necessary (3→2 or 3→1)"
+    4: "Insert new SEEDs into freed tube(s)"
+    5: "Resume normal rotation (including new content)"
+    6: "Expand back to 3 tubes when injection is absorbed"
+
+  injection_priority:
+    description: "New injected content gets acquisition-level priority"
+    behavior: |
+      Injected SEEDs start with skip=1 (see every rotation)
+      They progress through normal mastery stages
+      Eventually they become part of regular rotation
+
+  use_cases:
+    teacher_injection:
+      description: "Teacher adds vocabulary for upcoming lesson"
+      example: "Add food vocabulary before class field trip to restaurant"
+
+    learner_request:
+      description: "Learner requests specific topic focus"
+      example: "Learner traveling to Spain, wants travel phrases"
+
+    course_update:
+      description: "New content added to course"
+      example: "Course expanded with 50 new SEEDs"
+
+## ============================================================================
+## TUBE STATE MANAGEMENT
+## ============================================================================
+
+TUBE_STATE:
+  description: "State tracked per tube"
+
+  TubeState:
+    tube_id:
+      type: "'A' | 'B' | 'C'"
+      description: "Tube identifier"
+
+    seed_ids:
+      type: "string[]"
+      description: "Ordered list of SEED IDs assigned to this tube"
+      example: "['S0001', 'S0004', 'S0007', ...]"  # for Tube A
+
+    current_seed_index:
+      type: number
+      description: "Index into seed_ids array"
+      initial: 0
+
+    current_lego_index:
+      type: number
+      description: "Index of current LEGO within current seed"
+      initial: 0
+
+    completed_seeds:
+      type: "Set<string>"
+      description: "SEEDs fully completed in this tube"
+
+    is_collapsed:
+      type: boolean
+      description: "Whether this tube's content has been redistributed"
+      initial: false
+
+  HelixState:
+    current_tube:
+      type: "'A' | 'B' | 'C'"
+      description: "Which tube is currently active"
+
+    tubes:
+      type: "Record<'A' | 'B' | 'C', TubeState>"
+      description: "State for each tube"
+
+    collapse_mode:
+      type: "'normal' | 'two_tube' | 'single_tube'"
+      description: "Current collapse state"
+      initial: "normal"
 
 ## ============================================================================
 ## API INTERFACE
@@ -252,30 +337,48 @@ API:
   constructor:
     signature: "new TripleHelixEngine(config: HelixConfig)"
     config:
-      threadOffsets:
-        type: "[number, number, number]"
-        default: [0, 10, 20]
-      allocationRatios:
-        type: "[number, number, number]"
-        default: [0.4, 0.36, 0.24]
+      seed_ids:
+        type: "string[]"
+        description: "All SEED IDs in course order"
+
+      tube_count:
+        type: number
+        default: 3
+        description: "Number of tubes (3 for triple helix)"
 
   methods:
+    getCurrentTube:
+      signature: "() => 'A' | 'B' | 'C'"
+      description: "Get currently active tube"
+
+    advanceToNextTube:
+      signature: "() => void"
+      description: "Move to next tube in rotation"
+
     getNextItem:
       signature: "() => LearningItem | null"
-      description: "Get next item from selected thread"
-      returns: "LearningItem or null if session complete"
+      description: "Get next item from current tube"
+      returns: "LearningItem or null if tube exhausted"
 
     recordCompletion:
-      signature: "(item: LearningItem, response: ResponseMetrics) => void"
+      signature: "(item: LearningItem, metrics: ResponseMetrics) => void"
       description: "Record that item was completed"
+
+    injectContent:
+      signature: "(seedIds: string[], tube?: 'A' | 'B' | 'C') => void"
+      description: "Inject new content, optionally targeting specific tube"
+
+    collapseTubes:
+      signature: "(mode: 'two_tube' | 'single_tube') => void"
+      description: "Collapse tubes to make room for injection"
+
+    expandTubes:
+      signature: "() => void"
+      description: "Return to normal 3-tube operation"
 
     getProgress:
       signature: "() => HelixProgress"
-      description: "Get current progress across all threads"
-
-    injectContent:
-      signature: "(subject: string, legoIds: string[]) => void"
-      description: "Inject content for targeted practice"
+      description: "Get progress across all tubes"
 
     getState:
       signature: "() => HelixState"
@@ -290,17 +393,41 @@ API:
 ## ============================================================================
 
 VALIDATION:
-  thread_integrity:
-    - "All threads must have same seed count"
-    - "Thread offsets must be unique"
-    - "Allocation ratios must sum to 1.0"
+  distribution_integrity:
+    - "Each SEED belongs to exactly one tube"
+    - "SEEDs are dealt in order (no skipping)"
+    - "Distribution is deterministic given SEED order"
 
-  progression_integrity:
-    - "Cannot skip seeds within a thread"
-    - "Cannot practice LEGO before its seed is reached"
-    - "Injected content must be from reached seeds"
+  rotation_integrity:
+    - "Rotation follows strict A→B→C pattern (unless weighted)"
+    - "Each tube gets equal visits over time (in normal mode)"
+    - "Collapsed tubes are skipped in rotation"
+
+  injection_integrity:
+    - "Injected content doesn't duplicate existing SEEDs"
+    - "Injection properly collapses/expands tubes"
+    - "Original SEED assignment restored after expansion"
 
 ## ============================================================================
-## GENERATED: 2025-12-03
-## APML v1.0.0
+## VERSION HISTORY
+## ============================================================================
+
+VERSION_HISTORY:
+  - version: "1.1.0"
+    date: "2025-12-16"
+    changes:
+      - "MAJOR: Corrected model from offset-based to card-dealt distribution"
+      - "Added dynamic reorganisation (tube collapse/expansion)"
+      - "Added content injection mechanism"
+      - "Clarified tube vs thread terminology (now 'tubes')"
+      - "Updated API for collapse/expand operations"
+
+  - version: "1.0.0"
+    date: "2025-12-03"
+    changes:
+      - "Initial specification (deprecated offset-based model)"
+
+## ============================================================================
+## GENERATED: 2025-12-16
+## APML v1.1.0
 ## ============================================================================

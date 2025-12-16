@@ -1,16 +1,26 @@
 # Adaptation Engine Specification
 # SSi Learning App
 #
-# Version: 1.0.0
-# Date: 2025-12-15
+# Version: 1.3.0
+# Date: 2025-12-16
 # Grounded in: Distinction as Primitive (APML Design Principles v2.0.0)
 #
 # Core Insight: We don't measure absolutes. We measure DIFFERENCES.
 # A "slow" response is one that differs from THIS learner's pattern.
 # Everything is a parameter. We're looking for discontinuities.
+#
+# NEW in v1.3.0: HIERARCHICAL ADAPTATION
+# - Level 1 (Global): Learner Tempo Profile - what kind of learner overall?
+# - Level 2 (Local): Differential detection - how is this moment different?
+#
+# Implementation Status:
+# - MasteryStateMachine: INTEGRATED
+# - WeightedSelector: INTEGRATED
+# - VoiceActivityDetector: implemented, ready for integration
+# - LearnerTempoProfile: SPECIFIED, ready for implementation
 
 spec AdaptationEngine:
-  version: "1.0.0"
+  version: "1.3.0"
   philosophical_grounding: |
     Distinctions cost energy. Observers have finite budgets.
     Therefore: we detect DIFFERENCES, not absolutes.
@@ -370,6 +380,488 @@ spec AdaptationEngine:
         advancement: "completion_based (not adaptive)"
 
   # ===========================================================================
+  # LEARNER TEMPO PROFILE (Global Adaptation)
+  # ===========================================================================
+
+  learner_tempo_profile:
+    description: |
+      While differential detection measures deviations from a learner's OWN pattern,
+      the Tempo Profile captures their OVERALL learning pace compared to typical ranges.
+
+      This is hierarchical adaptation:
+        Level 1 (Global): What kind of learner are you? → Sets baseline parameters
+        Level 2 (Local):  How is this moment different? → Differential detection
+
+      A fast processor with 1.5s average needs different app timing than a
+      slow processor with 4s average. Both are valid - the app should adapt.
+
+    philosophical_grounding: |
+      Still honors "distinction as primitive" - we're measuring:
+        - Inter-learner distinction: How does THIS learner differ from typical?
+        - Intra-learner distinction: How does THIS moment differ from their pattern?
+
+      Both are differential. Both are personal. Different timescales.
+
+    assessment_phase:
+      description: |
+        Early in the learner's journey, we observe their natural pace
+        before applying global adjustments. This happens once per learner
+        (with ongoing refinement).
+
+      parameters:
+        assessment_item_count:
+          default: 20
+          range: [10, 50]
+          description: "Items to observe before initial classification"
+
+        assessment_complete_threshold:
+          default: 15
+          range: [8, 40]
+          description: "Minimum valid responses needed (excluding outliers)"
+
+      captured_metrics:
+        mean_latency_ms: "Average response time across assessment"
+        stddev_latency_ms: "Consistency of response times"
+        mean_normalized_latency: "Latency adjusted for phrase length"
+        response_variance_coefficient: "stddev / mean (consistency ratio)"
+
+    tempo_classification:
+      description: |
+        Based on assessment metrics, classify learner into tempo bands.
+        These bands set global parameter adjustments.
+
+        NOTE: Thresholds are parameters - can be tuned based on population data.
+
+      bands:
+        very_fast:
+          condition: "mean_normalized_latency < very_fast_threshold"
+          parameters:
+            very_fast_threshold:
+              default: 80
+              range: [50, 100]
+              unit: "ms per character"
+              description: "Upper bound for very_fast classification"
+
+        fast:
+          condition: "mean_normalized_latency < fast_threshold"
+          parameters:
+            fast_threshold:
+              default: 120
+              range: [80, 150]
+              unit: "ms per character"
+
+        medium:
+          condition: "mean_normalized_latency < medium_threshold"
+          parameters:
+            medium_threshold:
+              default: 180
+              range: [120, 220]
+              unit: "ms per character"
+
+        slow:
+          condition: "mean_normalized_latency < slow_threshold"
+          parameters:
+            slow_threshold:
+              default: 280
+              range: [180, 350]
+              unit: "ms per character"
+
+        very_slow:
+          condition: "mean_normalized_latency >= slow_threshold"
+          note: "Anything above slow_threshold"
+
+    consistency_classification:
+      description: |
+        Independent of speed, learners vary in consistency.
+        High variance learners need different handling than steady ones.
+
+      bands:
+        very_consistent:
+          condition: "variance_coefficient < 0.15"
+          implication: "Tight pattern - smaller stddev threshold for spikes"
+
+        consistent:
+          condition: "variance_coefficient < 0.25"
+          implication: "Normal variation"
+
+        variable:
+          condition: "variance_coefficient < 0.40"
+          implication: "Wide variation - larger stddev threshold needed"
+
+        highly_variable:
+          condition: "variance_coefficient >= 0.40"
+          implication: "Very inconsistent - may need different detection approach"
+
+    global_parameter_adjustments:
+      description: |
+        Based on tempo and consistency bands, adjust global parameters.
+        These become the BASELINE that differential detection operates on.
+
+        All adjustment factors are parameters themselves.
+
+      by_tempo_band:
+        very_fast:
+          base_pause_multiplier:
+            value: 0.7
+            range: [0.5, 0.85]
+            description: "Reduce pause duration to 70% of default"
+          transition_gap_multiplier:
+            value: 0.7
+            range: [0.5, 0.85]
+          extension_factor_adjustment:
+            value: -0.1
+            range: [-0.15, 0]
+            description: "Reduce spike extension (they recover faster)"
+          min_samples_adjustment:
+            value: -1
+            range: [-2, 0]
+            description: "Can detect patterns earlier"
+
+        fast:
+          base_pause_multiplier:
+            value: 0.85
+            range: [0.7, 0.95]
+          transition_gap_multiplier:
+            value: 0.85
+            range: [0.7, 0.95]
+          extension_factor_adjustment:
+            value: -0.05
+            range: [-0.1, 0]
+          min_samples_adjustment:
+            value: 0
+            range: [-1, 0]
+
+        medium:
+          base_pause_multiplier:
+            value: 1.0
+            description: "Default - no adjustment"
+          transition_gap_multiplier:
+            value: 1.0
+          extension_factor_adjustment:
+            value: 0
+          min_samples_adjustment:
+            value: 0
+
+        slow:
+          base_pause_multiplier:
+            value: 1.2
+            range: [1.1, 1.4]
+            description: "Increase pause to 120% of default"
+          transition_gap_multiplier:
+            value: 1.15
+            range: [1.05, 1.3]
+          extension_factor_adjustment:
+            value: 0.05
+            range: [0, 0.15]
+            description: "Slightly larger extension on spikes"
+          min_samples_adjustment:
+            value: 1
+            range: [0, 2]
+            description: "Need more data before pattern detection"
+
+        very_slow:
+          base_pause_multiplier:
+            value: 1.4
+            range: [1.25, 1.6]
+          transition_gap_multiplier:
+            value: 1.3
+            range: [1.15, 1.5]
+          extension_factor_adjustment:
+            value: 0.1
+            range: [0.05, 0.2]
+          min_samples_adjustment:
+            value: 2
+            range: [1, 3]
+
+      by_consistency_band:
+        very_consistent:
+          stddev_threshold_adjustment:
+            value: -0.3
+            range: [-0.5, -0.1]
+            description: "Tighter spike detection - small deviations matter"
+
+        consistent:
+          stddev_threshold_adjustment:
+            value: 0
+            description: "Default threshold"
+
+        variable:
+          stddev_threshold_adjustment:
+            value: 0.3
+            range: [0.1, 0.5]
+            description: "Looser spike detection - expect more variance"
+
+        highly_variable:
+          stddev_threshold_adjustment:
+            value: 0.5
+            range: [0.3, 0.8]
+            description: "Much looser - only big deviations count"
+          alternative_detection:
+            note: "May benefit from percentile-based detection instead of stddev"
+
+    profile_refinement:
+      description: |
+        After initial assessment, the profile continues to refine
+        but at a MUCH slower rate than item-level rolling stats.
+
+        Think: session-scale adaptation, not item-scale.
+
+      parameters:
+        refinement_window:
+          default: 100
+          range: [50, 200]
+          unit: "items"
+          description: "Items over which to calculate refined tempo"
+
+        refinement_weight:
+          default: 0.1
+          range: [0.05, 0.3]
+          description: "How much new data affects profile (exponential moving average)"
+
+        max_band_shift_per_session:
+          default: 1
+          range: [0, 2]
+          description: "Maximum tempo band shifts allowed per session"
+
+        stability_threshold:
+          default: 3
+          range: [2, 5]
+          unit: "sessions"
+          description: "Sessions of consistent data before band shift"
+
+      formula: |
+        new_tempo_estimate = (1 - refinement_weight) * current_estimate
+                          + refinement_weight * recent_window_mean
+
+        Band shift only if:
+          - new_estimate crosses threshold
+          - AND has been consistent for stability_threshold sessions
+
+    persistence:
+      description: "Tempo profile is stored per learner and loaded on session start"
+
+      stored_fields:
+        - tempo_band
+        - consistency_band
+        - mean_normalized_latency
+        - variance_coefficient
+        - assessment_complete
+        - last_refined_at
+        - sessions_in_current_band
+
+    integration_with_differential:
+      description: |
+        The tempo profile sets the STAGE. Differential detection runs the SHOW.
+
+        Example flow:
+          1. Load learner's tempo profile (slow, consistent)
+          2. Apply global adjustments: pause *= 1.2, stddev_threshold -= 0.0
+          3. Run session with adjusted parameters
+          4. Differential detection uses adjusted baseline
+          5. At session end, contribute to profile refinement
+
+      effective_parameters:
+        formula: |
+          effective_pause = base_pause * tempo_pause_multiplier * spike_extension_multiplier
+          effective_stddev_threshold = base_threshold + tempo_adjustment + consistency_adjustment
+          effective_min_samples = base_min_samples + tempo_adjustment
+
+  # ===========================================================================
+  # VOICE ACTIVITY DETECTION (VAD) - Phase 1
+  # ===========================================================================
+
+  voice_activity_detection:
+    description: |
+      Real-time detection of learner vocalization during PAUSE phase.
+      Uses Web Audio API to monitor microphone energy levels.
+      Browser-only, no server storage - privacy by design.
+
+    purpose:
+      - "Detect whether learner is actively speaking during PAUSE"
+      - "Measure engagement through activity_ratio"
+      - "Provide real-time feedback for UI (is_speaking indicator)"
+      - "Foundation for future prosody analysis"
+
+    implementation:
+      api: "Web Audio API (AudioContext, AnalyserNode)"
+      trigger: "User gesture required for microphone access"
+      lifecycle:
+        1: "initialize() - Request mic access (must be from user gesture)"
+        2: "startMonitoring() - Begin at PAUSE start"
+        3: "stopMonitoring() - End at PAUSE end, returns VADResult"
+        4: "dispose() - Clean up resources"
+
+    parameters:
+      energy_threshold_db:
+        default: -45
+        range: [-60, -30]
+        unit: dB
+        description: "RMS energy level above which we consider 'speaking'"
+
+      min_frames_above:
+        default: 3
+        range: [1, 10]
+        description: "Consecutive frames above threshold to confirm speech"
+
+      fft_size:
+        default: 2048
+        range: [512, 4096]
+        description: "FFT window size for frequency analysis"
+
+      smoothing:
+        default: 0.8
+        range: [0.0, 0.95]
+        description: "AnalyserNode smoothing time constant"
+
+    output_metrics:
+      speech_detected:
+        type: boolean
+        description: "Whether any speech was detected during PAUSE"
+
+      speech_duration_ms:
+        type: number
+        description: "Total milliseconds of detected speech"
+
+      activity_ratio:
+        type: number
+        range: [0, 1]
+        description: "Fraction of PAUSE with detected speech (engagement signal)"
+
+      peak_energy_db:
+        type: number
+        description: "Maximum energy level during monitoring"
+
+      average_energy_db:
+        type: number
+        description: "Mean energy level during monitoring"
+
+    adaptation_integration:
+      description: |
+        activity_ratio feeds into adaptation as an engagement signal.
+        Low activity_ratio during multiple consecutive PAUSEs may indicate:
+        - Disengagement
+        - Confusion
+        - Technical issues (mic not working)
+
+      rolling_activity_ratio:
+        window_size: 10
+        description: "Rolling average of activity_ratio across items"
+
+      response_to_low_engagement:
+        threshold: 0.3
+        description: "If rolling_activity_ratio < 0.3, consider engagement intervention"
+        possible_actions:
+          - "UI prompt to check microphone"
+          - "Adjust pause duration"
+          - "Simplify content selection"
+
+  # ===========================================================================
+  # PROSODY ANALYSIS - Phase 2 (Future-Proofed)
+  # ===========================================================================
+
+  prosody_analysis:
+    status: "designed, not yet implemented"
+    description: |
+      Future capability to analyze speech characteristics:
+      - Peak detection (syllable timing)
+      - Gradient analysis (articulation crispness)
+      - Comparison to model voice prosody
+
+    design_philosophy: |
+      Consistent with differential approach: we compare learner prosody
+      to model voice prosody, not to absolute standards.
+      Rolling averages smooth out noise for gradual adaptation.
+
+    future_metrics:
+      peaks:
+        description: "Detected energy peaks (roughly syllables)"
+        fields:
+          - time_ms: "Offset from recording start"
+          - amplitude: "Peak height (normalized 0-1)"
+          - gradient_rise: "Rate of ascent (sharpness)"
+          - gradient_fall: "Rate of descent (crispness)"
+          - prominence: "Height relative to surrounding signal"
+
+      prosody_profile:
+        description: "Complete analysis of an audio segment"
+        fields:
+          - peaks: "Array of detected peaks"
+          - rhythm_score: "Regularity of peak spacing (0-1)"
+          - speech_rate: "Estimated syllables per second"
+          - energy_variance: "Variation in energy levels"
+          - average_gradient_sharpness: "Overall crispness indicator"
+
+      model_comparison:
+        description: "Differential between learner and model"
+        fields:
+          - rate_differential: "learner_rate - model_rate"
+          - rhythm_similarity: "How similar the patterns are (0-1)"
+          - sharpness_differential: "Crispness comparison"
+          - overall_similarity: "Weighted combination (0-1)"
+
+    adaptation_integration:
+      description: |
+        Prosody differentials feed into adaptation similarly to latency:
+        - Large negative rate_differential = learner speaking slower
+        - Low rhythm_similarity = struggling with rhythm patterns
+        - Negative sharpness_differential = less crisp articulation
+
+        These inform mastery state transitions and pause adjustments,
+        but with slower adaptation (rolling averages) to avoid
+        creating discontinuities in the learner's experience.
+
+    parameters:
+      min_peak_prominence:
+        default: 0.1
+        range: [0.05, 0.3]
+        description: "Minimum prominence to detect a peak"
+
+      min_peak_distance_ms:
+        default: 80
+        range: [50, 150]
+        description: "Minimum milliseconds between peaks"
+
+      gradient_window:
+        default: 5
+        range: [3, 10]
+        description: "Samples for gradient calculation"
+
+      sample_rate:
+        default: 44100
+        description: "Audio sample rate (Hz)"
+
+  # ===========================================================================
+  # PAUSE EXTENSION
+  # ===========================================================================
+
+  pause_extension:
+    description: |
+      When discontinuity is detected, extend pause duration for
+      subsequent items to give learner more processing time.
+      Extension decays over a configurable number of items.
+
+    parameters:
+      enabled:
+        default: true
+        description: "Whether pause extension is active"
+
+      extension_factor:
+        default: 0.3
+        range: [0.1, 0.5]
+        description: "Multiplier: effective_pause = base_pause * (1 + factor)"
+
+      duration_items:
+        default: 3
+        range: [1, 10]
+        description: "Number of items to maintain extended pause"
+
+    behavior:
+      trigger: "On discontinuity detection (spike)"
+      effect: "getPauseDurationMultiplier() returns 1 + extension_factor"
+      decay: "Decremented each item, resets when itemsRemaining reaches 0"
+      stacking: "New trigger resets duration, doesn't stack multipliers"
+
+  # ===========================================================================
   # PARAMETERS SUMMARY (D01: Everything is a parameter)
   # ===========================================================================
 
@@ -396,6 +888,112 @@ spec AdaptationEngine:
 
     cold_start:
       - minimum_samples: 5 [3-10]
+
+    learner_tempo_profile:
+      assessment:
+        - assessment_item_count: 20 [10-50]
+        - assessment_complete_threshold: 15 [8-40]
+      tempo_thresholds:
+        - very_fast_threshold: 80 ms/char [50-100]
+        - fast_threshold: 120 ms/char [80-150]
+        - medium_threshold: 180 ms/char [120-220]
+        - slow_threshold: 280 ms/char [180-350]
+      consistency_thresholds:
+        - very_consistent: variance_coefficient < 0.15
+        - consistent: variance_coefficient < 0.25
+        - variable: variance_coefficient < 0.40
+        - highly_variable: variance_coefficient >= 0.40
+      global_adjustments_by_tempo:
+        - very_fast.base_pause_multiplier: 0.7 [0.5-0.85]
+        - fast.base_pause_multiplier: 0.85 [0.7-0.95]
+        - medium.base_pause_multiplier: 1.0
+        - slow.base_pause_multiplier: 1.2 [1.1-1.4]
+        - very_slow.base_pause_multiplier: 1.4 [1.25-1.6]
+      global_adjustments_by_consistency:
+        - very_consistent.stddev_adjustment: -0.3 [-0.5 to -0.1]
+        - consistent.stddev_adjustment: 0
+        - variable.stddev_adjustment: 0.3 [0.1-0.5]
+        - highly_variable.stddev_adjustment: 0.5 [0.3-0.8]
+      refinement:
+        - refinement_window: 100 items [50-200]
+        - refinement_weight: 0.1 [0.05-0.3]
+        - max_band_shift_per_session: 1 [0-2]
+        - stability_threshold: 3 sessions [2-5]
+
+    voice_activity_detection:
+      - energy_threshold_db: -45 [-60 to -30]
+      - min_frames_above: 3 [1-10]
+      - fft_size: 2048 [512-4096]
+      - smoothing: 0.8 [0.0-0.95]
+
+    pause_extension:
+      - enabled: true
+      - extension_factor: 0.3 [0.1-0.5]
+      - duration_items: 3 [1-10]
+
+    prosody_analysis_future:
+      - min_peak_prominence: 0.1 [0.05-0.3]
+      - min_peak_distance_ms: 80 [50-150]
+      - gradient_window: 5 [3-10]
+
+  # ===========================================================================
+  # UNIFIED ADAPTATION ENGINE API
+  # ===========================================================================
+
+  unified_api:
+    description: |
+      The AdaptationEngine class provides a unified interface that integrates
+      all adaptive learning subsystems. Callers interact with one object
+      that orchestrates metrics tracking, spike detection, mastery progression,
+      weighted selection, and pause extension.
+
+    primary_methods:
+      processCompletion:
+        signature: "processCompletion(item, latencyMs, wasFast?) → AdaptedItem + MasteryTransition"
+        description: |
+          Main entry point. Called after each learning cycle completes.
+          Returns what action to take (continue, repeat, breakdown) and
+          any mastery state transition that occurred.
+        flow:
+          1: "Record response metric (latency, phrase length, thread)"
+          2: "Update weighted selector (mark as recently practiced)"
+          3: "Process through spike detector (detect discontinuity)"
+          4: "Update mastery state (smooth or discontinuity)"
+          5: "If spike: record discontinuity in selector, trigger pause extension"
+          6: "Return adapted item and mastery transition"
+
+      selectFromCandidates:
+        signature: "selectFromCandidates(candidates) → legoId"
+        description: "Weighted random selection from eligible LEGOs"
+
+      getTypicalSkip:
+        signature: "getTypicalSkip(legoId) → number"
+        description: "Returns skip value based on current mastery state"
+
+      getPauseDurationMultiplier:
+        signature: "getPauseDurationMultiplier() → number"
+        description: "Returns 1.0 normally, or (1 + factor) if pause is extended"
+
+    mastery_methods:
+      getMasteryState: "Get mastery state for a specific LEGO"
+      getLegosByMasteryState: "Get all LEGOs in a given state (acquisition, etc.)"
+      getMasteryStats: "Aggregate stats: count by state, averages"
+
+    selection_methods:
+      getSelectionWeight: "Get calculated weight for a LEGO"
+      getSelectionData: "Get staleness/discontinuity data for a LEGO"
+      getCandidateWeights: "Get weights for all candidates"
+      initializeLego: "Initialize tracking when LEGO is introduced"
+
+    helper_methods:
+      getLegosNeedingAttention: "LEGOs in acquisition OR with discontinuities"
+      resetLegoTracking: "Reset both mastery and selection for a LEGO"
+
+    integration_point:
+      description: |
+        The AdaptationEngine is designed to sit between TripleHelixEngine
+        and CycleOrchestrator. The helix provides structure, the orchestrator
+        plays content, and adaptation makes it personal.
 
   # ===========================================================================
   # INTEGRATION WITH TRIPLE HELIX
@@ -446,11 +1044,84 @@ spec AdaptationEngine:
         Discontinuities are pattern breaks - distinctions that matter.
         Self-calibrating per learner - no universal thresholds.
 
+    hierarchical_adaptation:
+      status: "core principle (v1.3.0)"
+      evidence: |
+        Two levels of differential measurement:
+        - Inter-learner: How does THIS learner differ from typical? (Tempo Profile)
+        - Intra-learner: How does THIS moment differ from their pattern? (Differential)
+        Both are personal. Both honor distinction primacy. Different timescales.
+
 # =============================================================================
 # VERSION HISTORY
 # =============================================================================
 
 version_history:
+  v1.3.0:
+    date: "2025-12-16"
+    changes:
+      - "Added Learner Tempo Profile - global adaptation at learner level"
+      - "Two-tier hierarchical adaptation: global (tempo) + local (differential)"
+      - "Assessment phase: first 20 items establish baseline tempo"
+      - "Tempo bands: very_fast, fast, medium, slow, very_slow"
+      - "Consistency bands: very_consistent, consistent, variable, highly_variable"
+      - "Global parameter adjustments by tempo and consistency"
+      - "Profile refinement: session-scale updates with stability constraints"
+      - "All tempo thresholds and adjustment factors are parameters"
+    design_insight: |
+      Learners have different natural paces. A 1.5s average responder needs
+      different app timing than a 4s average responder. Both are valid.
+      The tempo profile sets the STAGE; differential detection runs the SHOW.
+    implementation_status:
+      learner_tempo_profile: "SPECIFIED - ready for implementation"
+      mastery_state_machine: "INTEGRATED"
+      weighted_selector: "INTEGRATED"
+      vad: "Implemented"
+      pause_extension: "INTEGRATED"
+    contributors:
+      - "Tom Cassidy"
+      - "Claude (AI Assistant)"
+
+  v1.2.0:
+    date: "2025-12-16"
+    changes:
+      - "Fully integrated MasteryStateMachine into AdaptationEngine"
+      - "Fully integrated WeightedSelector into AdaptationEngine"
+      - "Added unified API section documenting public interface"
+      - "processCompletion() now returns MasteryTransition alongside AdaptedItem"
+      - "Added methods: getMasteryState, getLegosByMasteryState, getMasteryStats"
+      - "Added methods: selectFromCandidates, getSelectionWeight, getCandidateWeights"
+      - "Added methods: getLegosNeedingAttention, resetLegoTracking, initializeLego"
+      - "Discontinuities now affect both mastery state AND selection priority"
+    implementation_status:
+      mastery_state_machine: "INTEGRATED - used by processCompletion()"
+      weighted_selector: "INTEGRATED - used by processCompletion() and selectFromCandidates()"
+      vad: "Implemented - standalone, ready for CycleOrchestrator integration"
+      prosody: "Types defined, implementation deferred"
+      pause_extension: "INTEGRATED - triggered by processCompletion()"
+    all_tests_passing: true
+    test_count: 589
+    contributors:
+      - "Tom Cassidy"
+      - "Claude (AI Assistant)"
+
+  v1.1.0:
+    date: "2025-12-16"
+    changes:
+      - "Added Voice Activity Detection (VAD) - Phase 1 implementation"
+      - "Added Prosody Analysis specification (Phase 2 - future-proofed)"
+      - "Added Pause Extension mechanism for discontinuity response"
+      - "Added VAD parameters: energy_threshold_db, min_frames_above, fft_size, smoothing"
+      - "Added prosody parameters (future): peak detection, gradient analysis"
+      - "Privacy by design: browser-only audio processing, no server storage"
+    implementation_status:
+      vad: "Implemented - VoiceActivityDetector.ts"
+      prosody: "Types defined, implementation deferred"
+      pause_extension: "Implemented in AdaptationEngine.ts"
+    contributors:
+      - "Tom Cassidy"
+      - "Claude (AI Assistant)"
+
   v1.0.0:
     date: "2025-12-15"
     changes:
@@ -467,6 +1138,6 @@ version_history:
       - "Claude (AI Assistant)"
 
 # =============================================================================
-# Generated: 2025-12-15
+# Generated: 2025-12-16
 # "We don't measure absolutes. We measure DIFFERENCES."
 # =============================================================================

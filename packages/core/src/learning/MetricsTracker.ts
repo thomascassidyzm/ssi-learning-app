@@ -3,7 +3,8 @@
  *
  * Tracks:
  * - Response latency (normalized by phrase length)
- * - Rolling averages for spike detection
+ * - Rolling averages and standard deviations for spike detection
+ * - Length delta (response_length - model_length) for speech analysis
  * - Session-level statistics
  */
 
@@ -24,6 +25,7 @@ export interface MetricsTrackerConfig {
 export class MetricsTracker {
   private config: MetricsTrackerConfig;
   private rollingWindow: ResponseMetric[] = [];
+  private lengthDeltaHistory: Array<{ timestamp: Date; length_delta: number | null }> = [];
   private currentSession: SessionMetrics | null = null;
   private listeners: MetricsListener[] = [];
 
@@ -52,6 +54,7 @@ export class MetricsTracker {
     };
 
     this.rollingWindow = [];
+    this.lengthDeltaHistory = [];
 
     this.emit({ type: 'session_started', session_id: sessionId });
   }
@@ -80,7 +83,9 @@ export class MetricsTracker {
     responseLatencyMs: number,
     phraseLength: number,
     threadId: number,
-    mode: string
+    mode: string,
+    responseLengthMs?: number,
+    modelLengthMs?: number
   ): ResponseMetric {
     const normalizedLatency = this.normalizeLatency(responseLatencyMs, phraseLength);
 
@@ -96,10 +101,25 @@ export class MetricsTracker {
       mode,
     };
 
+    // Calculate length_delta if both values provided
+    let lengthDelta: number | null = null;
+    if (responseLengthMs !== undefined && modelLengthMs !== undefined) {
+      lengthDelta = responseLengthMs - modelLengthMs;
+    }
+
     // Add to rolling window
     this.rollingWindow.push(metric);
     if (this.rollingWindow.length > this.config.spike.rolling_window_size) {
       this.rollingWindow.shift();
+    }
+
+    // Add to length delta history
+    this.lengthDeltaHistory.push({
+      timestamp: new Date(),
+      length_delta: lengthDelta,
+    });
+    if (this.lengthDeltaHistory.length > this.config.spike.rolling_window_size) {
+      this.lengthDeltaHistory.shift();
     }
 
     // Add to session
@@ -138,6 +158,52 @@ export class MetricsTracker {
 
     const sum = this.rollingWindow.reduce((acc, m) => acc + m.normalized_latency, 0);
     return sum / this.rollingWindow.length;
+  }
+
+  /**
+   * Get the rolling standard deviation (normalized latency)
+   * Formula: stddev = sqrt(sum((x - mean)^2) / n)
+   */
+  getRollingStdDev(): number {
+    if (this.rollingWindow.length === 0) return 0;
+
+    const mean = this.getRollingAverage();
+    const sumSquaredDiffs = this.rollingWindow.reduce((acc, m) => {
+      const diff = m.normalized_latency - mean;
+      return acc + diff * diff;
+    }, 0);
+
+    return Math.sqrt(sumSquaredDiffs / this.rollingWindow.length);
+  }
+
+  /**
+   * Get the rolling average of length_delta
+   */
+  getRollingAvgLengthDelta(): number {
+    // Filter out null values
+    const validDeltas = this.lengthDeltaHistory.filter((d) => d.length_delta !== null);
+    if (validDeltas.length === 0) return 0;
+
+    const sum = validDeltas.reduce((acc, d) => acc + (d.length_delta as number), 0);
+    return sum / validDeltas.length;
+  }
+
+  /**
+   * Get the rolling standard deviation of length_delta
+   * Formula: stddev = sqrt(sum((x - mean)^2) / n)
+   */
+  getRollingStdDevLengthDelta(): number {
+    // Filter out null values
+    const validDeltas = this.lengthDeltaHistory.filter((d) => d.length_delta !== null);
+    if (validDeltas.length === 0) return 0;
+
+    const mean = this.getRollingAvgLengthDelta();
+    const sumSquaredDiffs = validDeltas.reduce((acc, d) => {
+      const diff = (d.length_delta as number) - mean;
+      return acc + diff * diff;
+    }, 0);
+
+    return Math.sqrt(sumSquaredDiffs / validDeltas.length);
   }
 
   /**
@@ -186,10 +252,13 @@ export class MetricsTracker {
     if (config.spike) {
       this.config.spike = { ...this.config.spike, ...config.spike };
 
-      // Trim window if new size is smaller
+      // Trim windows if new size is smaller
       const newSize = this.config.spike.rolling_window_size;
       while (this.rollingWindow.length > newSize) {
         this.rollingWindow.shift();
+      }
+      while (this.lengthDeltaHistory.length > newSize) {
+        this.lengthDeltaHistory.shift();
       }
     }
   }

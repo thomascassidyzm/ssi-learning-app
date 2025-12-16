@@ -1,4 +1,15 @@
 import type { LearningConfig } from './types';
+import type { VADConfig } from '../audio/types';
+
+/**
+ * Default VAD configuration
+ */
+export const DEFAULT_VAD_CONFIG: VADConfig = {
+  energy_threshold_db: -45,
+  min_frames_above: 3,
+  fft_size: 2048,
+  smoothing: 0.8,
+};
 
 /**
  * System-level default configuration
@@ -36,6 +47,11 @@ export const DEFAULT_CONFIG: LearningConfig = {
     response_strategy: 'alternate',
     alternate_sequence: ['repeat', 'breakdown'],
     cooldown_items: 3,
+    use_stddev_detection: true,
+    stddev_threshold: 2.0,
+    pause_extension_enabled: true,
+    pause_extension_factor: 0.3,
+    pause_extension_duration: 3,
   },
 
   lego_introduction: {
@@ -70,5 +86,8 @@ export const DEFAULT_CONFIG: LearningConfig = {
     encouragements_enabled: true,
     turbo_mode_available: true,
     listening_mode_available: true,
+    vad_enabled: false, // Disabled by default - requires microphone permission
   },
+
+  vad: DEFAULT_VAD_CONFIG,
 };

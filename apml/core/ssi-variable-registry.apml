@@ -1,8 +1,8 @@
 # SSi Variable Registry
 # Single Source of Truth for all data structures across the SSi ecosystem
 #
-# Version: 1.1.0
-# Date: 2025-12-13
+# Version: 1.3.0
+# Date: 2025-12-16
 # APML Version: 2.0.0
 #
 # This registry defines:
@@ -18,8 +18,8 @@
 # - TypeScript type generation
 
 registry SSiContent:
-  version: "1.1.0"
-  last_updated: "2025-12-13"
+  version: "1.3.0"
+  last_updated: "2025-12-16"
 
   # ============================================================================
   # ENUM DEFINITIONS
@@ -623,6 +623,460 @@ registry SSiContent:
       4. Eternal phrases: Top N longest phrases (by word_count), used for spaced repetition
 
   # ============================================================================
+  # VOICE ACTIVITY DETECTION (VAD) CONFIGURATION
+  # ============================================================================
+
+  entity VADConfig:
+    description: "Configuration for Voice Activity Detection during PAUSE phase"
+    runtime_only: true
+    notes: "Browser-only processing using Web Audio API. No server storage."
+    fields:
+      energy_threshold_db:
+        type: number
+        required: true
+        default: -45
+        range: [-60, -30]
+        unit: dB
+        description: "RMS energy level above which we consider 'speaking'"
+
+      min_frames_above:
+        type: integer
+        required: true
+        default: 3
+        range: [1, 10]
+        description: "Consecutive frames above threshold to confirm speech"
+
+      fft_size:
+        type: integer
+        required: true
+        default: 2048
+        range: [512, 4096]
+        description: "FFT window size for frequency analysis"
+
+      smoothing:
+        type: number
+        required: true
+        default: 0.8
+        range: [0.0, 0.95]
+        description: "AnalyserNode smoothing time constant"
+
+  entity VADResult:
+    description: "Result of Voice Activity Detection for a single PAUSE phase"
+    runtime_only: true
+    notes: "Generated at runtime, not persisted to database"
+    fields:
+      speech_detected:
+        type: boolean
+        required: true
+        description: "Whether voice activity was detected"
+
+      speech_duration_ms:
+        type: number
+        required: true
+        description: "Duration of detected speech in milliseconds"
+
+      peak_energy_db:
+        type: number
+        required: true
+        description: "Peak energy level during monitoring (dB)"
+
+      average_energy_db:
+        type: number
+        required: true
+        description: "Average energy level during monitoring (dB)"
+
+      activity_ratio:
+        type: number
+        required: true
+        range: [0, 1]
+        description: "Percentage of PAUSE duration with detected speech"
+
+      start_time:
+        type: number
+        required: true
+        description: "Timestamp when monitoring started"
+
+      end_time:
+        type: number
+        required: true
+        description: "Timestamp when monitoring ended"
+
+  # ============================================================================
+  # PROSODY ANALYSIS (FUTURE-PROOFED)
+  # ============================================================================
+
+  entity ProsodyPeak:
+    description: "A detected prosody peak (roughly corresponds to a syllable)"
+    status: "designed, not yet implemented"
+    runtime_only: true
+    fields:
+      time_ms:
+        type: number
+        required: true
+        description: "Time offset from recording start in milliseconds"
+
+      amplitude:
+        type: number
+        required: true
+        range: [0, 1]
+        description: "Peak amplitude (normalized)"
+
+      gradient_rise:
+        type: number
+        required: true
+        description: "Rising gradient (rate of amplitude increase before peak)"
+
+      gradient_fall:
+        type: number
+        required: true
+        description: "Falling gradient (rate of amplitude decrease after peak)"
+
+      prominence:
+        type: number
+        required: true
+        description: "Peak prominence relative to surrounding signal"
+
+  entity ProsodyProfile:
+    description: "Complete prosody profile for an audio segment"
+    status: "designed, not yet implemented"
+    runtime_only: true
+    fields:
+      peaks:
+        type: list of ProsodyPeak
+        required: true
+        description: "Detected peaks (syllables)"
+
+      rhythm_score:
+        type: number
+        required: true
+        range: [0, 1]
+        description: "Overall rhythm regularity score (1=perfectly regular)"
+
+      speech_rate:
+        type: number
+        required: true
+        description: "Speech rate (estimated syllables per second)"
+
+      energy_variance:
+        type: number
+        required: true
+        description: "Energy variance across the segment"
+
+      duration_ms:
+        type: number
+        required: true
+        description: "Total duration in milliseconds"
+
+      average_gradient_sharpness:
+        type: number
+        required: true
+        description: "Average gradient sharpness (crispness indicator)"
+
+  entity ProsodyConfig:
+    description: "Configuration for prosody analysis"
+    status: "designed, not yet implemented"
+    runtime_only: true
+    fields:
+      min_peak_prominence:
+        type: number
+        required: true
+        default: 0.1
+        range: [0.05, 0.3]
+        description: "Minimum peak prominence to detect"
+
+      min_peak_distance_ms:
+        type: number
+        required: true
+        default: 80
+        range: [50, 150]
+        description: "Minimum time between peaks in milliseconds"
+
+      gradient_window:
+        type: integer
+        required: true
+        default: 5
+        range: [3, 10]
+        description: "Window size for gradient calculation in samples"
+
+      sample_rate:
+        type: integer
+        required: true
+        default: 44100
+        description: "Sample rate for analysis (Hz)"
+
+  # ============================================================================
+  # PAUSE EXTENSION CONFIGURATION
+  # ============================================================================
+
+  entity PauseExtensionConfig:
+    description: "Configuration for pause extension after discontinuity detection"
+    runtime_only: true
+    fields:
+      enabled:
+        type: boolean
+        required: true
+        default: true
+        description: "Whether pause extension is active"
+
+      extension_factor:
+        type: number
+        required: true
+        default: 0.3
+        range: [0.1, 0.5]
+        description: "Multiplier: effective_pause = base_pause * (1 + factor)"
+
+      duration_items:
+        type: integer
+        required: true
+        default: 3
+        range: [1, 10]
+        description: "Number of items to maintain extended pause"
+
+  entity PauseExtensionState:
+    description: "Runtime state for pause extension"
+    runtime_only: true
+    fields:
+      isExtended:
+        type: boolean
+        required: true
+        description: "Whether pause is currently extended"
+
+      itemsRemaining:
+        type: integer
+        required: true
+        description: "Number of items remaining with extended pause"
+
+      factor:
+        type: number
+        required: true
+        description: "The extension factor being applied"
+
+  # ============================================================================
+  # LEARNER TEMPO PROFILE (v1.3.0)
+  # Global adaptation layer - establishes learner's overall pace
+  # ============================================================================
+
+  enum TempoBand:
+    description: "Classification of learner's overall processing speed"
+    runtime_only: true
+    values:
+      very_fast:
+        description: "Very quick processor"
+        threshold_ms_per_char: 80
+        base_pause_multiplier: 0.7
+
+      fast:
+        description: "Quick processor"
+        threshold_ms_per_char: 120
+        base_pause_multiplier: 0.85
+
+      medium:
+        description: "Average processing speed"
+        threshold_ms_per_char: 180
+        base_pause_multiplier: 1.0
+
+      slow:
+        description: "Slower processor - needs more time"
+        threshold_ms_per_char: 280
+        base_pause_multiplier: 1.2
+
+      very_slow:
+        description: "Very slow processor - needs significant time"
+        threshold_ms_per_char: null
+        note: "Anything above slow threshold"
+        base_pause_multiplier: 1.4
+
+  enum ConsistencyBand:
+    description: "Classification of learner's response consistency"
+    runtime_only: true
+    values:
+      very_consistent:
+        description: "Very tight response pattern"
+        variance_coefficient_threshold: 0.15
+        stddev_threshold_adjustment: -0.3
+
+      consistent:
+        description: "Normal response variation"
+        variance_coefficient_threshold: 0.25
+        stddev_threshold_adjustment: 0
+
+      variable:
+        description: "Wide variation in responses"
+        variance_coefficient_threshold: 0.40
+        stddev_threshold_adjustment: 0.3
+
+      highly_variable:
+        description: "Very inconsistent responses"
+        variance_coefficient_threshold: null
+        note: "Anything above variable threshold"
+        stddev_threshold_adjustment: 0.5
+
+  entity LearnerTempoProfile:
+    description: "Persisted learner tempo profile for global adaptation"
+    storage: "Per-learner, persisted across sessions"
+    runtime_only: false
+    fields:
+      learner_id:
+        type: uuid
+        required: true
+        description: "Foreign key to learner"
+
+      tempo_band:
+        type: TempoBand
+        required: true
+        description: "Current tempo classification"
+
+      consistency_band:
+        type: ConsistencyBand
+        required: true
+        description: "Current consistency classification"
+
+      mean_normalized_latency:
+        type: number
+        required: true
+        unit: "ms per character"
+        description: "Average response time normalized by phrase length"
+
+      variance_coefficient:
+        type: number
+        required: true
+        description: "Response time stddev / mean (consistency measure)"
+
+      assessment_complete:
+        type: boolean
+        required: true
+        default: false
+        description: "Whether initial assessment phase is complete"
+
+      assessment_item_count:
+        type: integer
+        required: true
+        default: 0
+        description: "Number of items observed during assessment"
+
+      sessions_in_current_band:
+        type: integer
+        required: true
+        default: 0
+        description: "Sessions since last band change (for stability)"
+
+      last_refined_at:
+        type: timestamp
+        required: false
+        description: "When profile was last updated"
+
+      created_at:
+        type: timestamp
+        required: true
+        description: "When profile was created"
+
+  entity TempoProfileConfig:
+    description: "Configuration for tempo profile assessment and adjustments"
+    runtime_only: true
+    fields:
+      assessment_item_count:
+        type: integer
+        required: true
+        default: 20
+        range: [10, 50]
+        description: "Items to observe before initial classification"
+
+      assessment_complete_threshold:
+        type: integer
+        required: true
+        default: 15
+        range: [8, 40]
+        description: "Minimum valid responses needed"
+
+      very_fast_threshold:
+        type: number
+        required: true
+        default: 80
+        range: [50, 100]
+        unit: "ms per character"
+        description: "Upper bound for very_fast classification"
+
+      fast_threshold:
+        type: number
+        required: true
+        default: 120
+        range: [80, 150]
+        unit: "ms per character"
+
+      medium_threshold:
+        type: number
+        required: true
+        default: 180
+        range: [120, 220]
+        unit: "ms per character"
+
+      slow_threshold:
+        type: number
+        required: true
+        default: 280
+        range: [180, 350]
+        unit: "ms per character"
+
+      refinement_window:
+        type: integer
+        required: true
+        default: 100
+        range: [50, 200]
+        unit: "items"
+        description: "Items over which to calculate refined tempo"
+
+      refinement_weight:
+        type: number
+        required: true
+        default: 0.1
+        range: [0.05, 0.3]
+        description: "EMA weight for profile updates"
+
+      max_band_shift_per_session:
+        type: integer
+        required: true
+        default: 1
+        range: [0, 2]
+        description: "Maximum tempo band shifts per session"
+
+      stability_threshold:
+        type: integer
+        required: true
+        default: 3
+        range: [2, 5]
+        unit: "sessions"
+        description: "Sessions of consistent data before band shift"
+
+  entity TempoAdjustments:
+    description: "Calculated parameter adjustments based on tempo profile"
+    runtime_only: true
+    fields:
+      base_pause_multiplier:
+        type: number
+        required: true
+        description: "Multiplier for pause duration (0.7 - 1.4)"
+
+      transition_gap_multiplier:
+        type: number
+        required: true
+        description: "Multiplier for transition gaps"
+
+      stddev_threshold_adjustment:
+        type: number
+        required: true
+        description: "Adjustment to spike detection threshold"
+
+      extension_factor_adjustment:
+        type: number
+        required: true
+        description: "Adjustment to pause extension factor"
+
+      min_samples_adjustment:
+        type: integer
+        required: true
+        description: "Adjustment to minimum samples for pattern detection"
+
+  # ============================================================================
   # HELPER TYPES
   # ============================================================================
 
@@ -886,6 +1340,50 @@ registry SSiContent:
 # ============================================================================
 
 version_history:
+  v1.3.0:
+    date: "2025-12-16"
+    changes:
+      - "Added Learner Tempo Profile for global adaptation"
+      - "Added TempoBand enum (very_fast, fast, medium, slow, very_slow)"
+      - "Added ConsistencyBand enum (very_consistent, consistent, variable, highly_variable)"
+      - "Added LearnerTempoProfile entity (persisted per learner)"
+      - "Added TempoProfileConfig entity (assessment and classification parameters)"
+      - "Added TempoAdjustments entity (calculated parameter adjustments)"
+      - "Hierarchical adaptation: global tempo + local differential"
+      - "All tempo thresholds and adjustment factors are parameters"
+    design_insight: |
+      Two levels of adaptation:
+      - Inter-learner: How does THIS learner differ from typical? (Tempo Profile)
+      - Intra-learner: How does THIS moment differ from their pattern? (Differential)
+    implementation_status:
+      TempoBand: "Specified, ready for implementation"
+      ConsistencyBand: "Specified, ready for implementation"
+      LearnerTempoProfile: "Specified, ready for implementation"
+      TempoProfileConfig: "Specified, ready for implementation"
+      TempoAdjustments: "Specified, ready for implementation"
+    contributors:
+      - "Tom Cassidy"
+      - "Claude (AI Assistant)"
+
+  v1.2.0:
+    date: "2025-12-16"
+    changes:
+      - "Added VADConfig entity for Voice Activity Detection configuration"
+      - "Added VADResult entity for VAD output metrics"
+      - "Added ProsodyPeak, ProsodyProfile, ProsodyConfig entities (future-proofed)"
+      - "Added PauseExtensionConfig and PauseExtensionState entities"
+      - "All audio analysis entities marked runtime_only (browser-only, no server storage)"
+      - "Privacy by design: learner audio never leaves browser"
+    implementation_status:
+      VADConfig: "Implemented in @ssi/core/audio/types.ts"
+      VADResult: "Implemented in @ssi/core/audio/types.ts"
+      ProsodyPeak: "Types defined, implementation deferred"
+      ProsodyProfile: "Types defined, implementation deferred"
+      PauseExtensionState: "Implemented in @ssi/core/learning/types.ts"
+    contributors:
+      - "Tom Cassidy"
+      - "Claude (AI Assistant)"
+
   v1.1.0:
     date: "2025-12-13"
     changes:
@@ -916,7 +1414,7 @@ version_history:
       - "Claude (AI Assistant)"
 
 # ============================================================================
-# GENERATED: 2025-12-13
+# GENERATED: 2025-12-16
 # This file is the Single Source of Truth for SSi data structures.
 # Changes here should propagate to:
 # - Supabase schema

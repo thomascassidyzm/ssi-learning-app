@@ -14,6 +14,8 @@ describe('SpikeDetector', () => {
     response_strategy: 'alternate',
     alternate_sequence: ['repeat', 'breakdown'],
     cooldown_items: 3,
+    use_stddev_detection: true,
+    stddev_threshold: 2.0,
   };
 
   let metricsTracker: MetricsTracker;
@@ -267,6 +269,143 @@ describe('SpikeDetector', () => {
       const det = createSpikeDetector({ spike: defaultSpikeConfig }, tracker);
 
       expect(det).toBeInstanceOf(SpikeDetector);
+    });
+  });
+
+  describe('differential-based detection (stddev)', () => {
+    it('should include differential, stddev, and magnitude in result', () => {
+      recordNResponses(10, 1000, 10); // Avg = 100
+
+      const result = detector.detectSpike(150);
+
+      expect(result.differential).toBe(50); // 150 - 100
+      expect(result.stddev).toBeGreaterThanOrEqual(0);
+      expect(result.magnitude).toBeGreaterThanOrEqual(0);
+      expect(result.severity).toBeDefined();
+    });
+
+    it('should detect spike when differential exceeds stddev threshold', () => {
+      // Record responses with some variance
+      recordNResponses(5, 1000, 10); // 100
+      recordNResponses(5, 1100, 10); // 110
+      // Average will be 105, stddev ~5
+
+      const avg = metricsTracker.getRollingAverage();
+      const stddev = metricsTracker.getRollingStdDev();
+
+      // Test with value that's > 2.0 stddev from mean
+      const spikeValue = avg + (2.5 * stddev);
+      const result = detector.detectSpike(spikeValue);
+
+      expect(result.is_spike).toBe(true);
+      expect(result.magnitude).toBeGreaterThan(2.0);
+    });
+
+    it('should classify severity correctly', () => {
+      // Create responses with variance so stddev is non-zero
+      recordNResponses(5, 1000, 10); // 100
+      recordNResponses(5, 1200, 10); // 120
+
+      const avg = metricsTracker.getRollingAverage();
+      const stddev = metricsTracker.getRollingStdDev();
+
+      expect(stddev).toBeGreaterThan(0); // Ensure we have variance
+
+      // Mild: > stddev_threshold (2.0) but < 2.5 sigma
+      const mild = avg + (2.2 * stddev);
+      const mildResult = detector.detectSpike(mild);
+      expect(mildResult.severity).toBe('mild');
+
+      // Moderate: >= 2.5 sigma
+      const moderate = avg + (3.0 * stddev);
+      const moderateResult = detector.detectSpike(moderate);
+      expect(moderateResult.severity).toBe('moderate');
+
+      // Severe: >= 4.0 sigma
+      const severe = avg + (4.5 * stddev);
+      const severeResult = detector.detectSpike(severe);
+      expect(severeResult.severity).toBe('severe');
+    });
+
+    it('should fallback to threshold_percent when use_stddev_detection is false', () => {
+      detector.updateConfig({
+        spike: { ...defaultSpikeConfig, use_stddev_detection: false },
+      });
+
+      recordNResponses(10, 1000, 10); // Avg = 100
+
+      // 160 is 1.6x average, above 150% threshold
+      const result = detector.detectSpike(160);
+
+      expect(result.is_spike).toBe(true);
+      expect(result.ratio).toBeCloseTo(1.6);
+      expect(result.threshold).toBe(150); // 100 * 1.5
+      // Should still calculate differential and magnitude
+      expect(result.differential).toBe(60);
+    });
+
+    it('should handle negative differential (faster than average)', () => {
+      // Create responses with variance so stddev is non-zero
+      recordNResponses(5, 1000, 10); // 100
+      recordNResponses(5, 1200, 10); // 120
+
+      const avg = metricsTracker.getRollingAverage();
+      const stddev = metricsTracker.getRollingStdDev();
+
+      expect(stddev).toBeGreaterThan(0); // Ensure we have variance
+
+      // 50 is much faster than average
+      const result = detector.detectSpike(50);
+
+      expect(result.differential).toBeLessThan(0); // Negative because faster
+      expect(result.magnitude).toBeGreaterThan(0); // Uses abs(differential)
+
+      // Whether this is a "spike" depends on stddev, but differential is negative
+      if (result.is_spike) {
+        // Fast responses can also be discontinuities
+        expect(Math.abs(result.differential)).toBeGreaterThan(0);
+      }
+    });
+
+    it('should adjust stddev_threshold parameter', () => {
+      // Set higher threshold = fewer spikes
+      detector.updateConfig({
+        spike: { ...defaultSpikeConfig, stddev_threshold: 3.0 },
+      });
+
+      recordNResponses(10, 1000, 10);
+      const avg = metricsTracker.getRollingAverage();
+      const stddev = metricsTracker.getRollingStdDev();
+
+      // Value that's 2.5 sigma away - should NOT spike with 3.0 threshold
+      const value = avg + (2.5 * stddev);
+      const result = detector.detectSpike(value);
+
+      expect(result.is_spike).toBe(false);
+      expect(result.magnitude).toBeLessThan(3.0);
+    });
+
+    it('should handle zero stddev gracefully', () => {
+      // All identical values = zero stddev
+      recordNResponses(10, 1000, 10); // All exactly 100
+
+      // Force zero variance by ensuring all are identical
+      const tracker = createMetricsTracker({ spike: defaultSpikeConfig });
+      const det = createSpikeDetector({ spike: defaultSpikeConfig }, tracker);
+      tracker.startSession('zero-stddev-test');
+
+      for (let i = 0; i < 10; i++) {
+        tracker.recordResponse(`lego-${i}`, 1000, 10, 1, 'practice');
+      }
+
+      const stddev = tracker.getRollingStdDev();
+      expect(stddev).toBe(0);
+
+      // Should fallback to threshold_percent approach
+      const result = det.detectSpike(160);
+
+      expect(result.is_spike).toBe(true);
+      expect(result.stddev).toBe(0);
     });
   });
 });

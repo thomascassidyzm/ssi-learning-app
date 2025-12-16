@@ -69,6 +69,8 @@ export interface SessionMetrics {
 // SPIKE DETECTION
 // ============================================
 
+export type SeverityLevel = 'none' | 'mild' | 'moderate' | 'severe';
+
 export interface SpikeDetectionResult {
   /** Whether a spike was detected */
   is_spike: boolean;
@@ -80,6 +82,14 @@ export interface SpikeDetectionResult {
   threshold: number;
   /** Ratio of latency to rolling average */
   ratio: number;
+  /** Latency differential (current_latency - rolling_average) */
+  differential: number;
+  /** Rolling standard deviation */
+  stddev: number;
+  /** Magnitude (how many standard deviations from mean) */
+  magnitude: number;
+  /** Severity level based on magnitude */
+  severity: SeverityLevel;
 }
 
 export interface SpikeResponse {
@@ -126,3 +136,83 @@ export type MetricsEvent =
   | { type: 'session_ended'; session: SessionMetrics };
 
 export type MetricsListener = (event: MetricsEvent) => void;
+
+// ============================================
+// MASTERY STATE MACHINE
+// ============================================
+
+/**
+ * Four-state mastery progression
+ * Based on APML spec: adaptation-engine.apml
+ *
+ * States progress: acquisition → consolidating → confident → mastered
+ * Each state has a typical_skip value (items until next practice)
+ */
+export type MasteryState = 'acquisition' | 'consolidating' | 'confident' | 'mastered';
+
+/**
+ * Discontinuity severity levels (reuses SeverityLevel but without 'none')
+ * - mild: no change to state
+ * - moderate: hold position (reset consecutive counters)
+ * - severe: regress one state
+ */
+export type DiscontinuitySeverity = 'mild' | 'moderate' | 'severe';
+
+/**
+ * Per-LEGO mastery state tracking
+ */
+export interface LegoMasteryState {
+  /** Unique identifier for this LEGO */
+  lego_id: string;
+  /** Current mastery state */
+  current_state: MasteryState;
+  /** Count of consecutive smooth responses (no discontinuity) */
+  consecutive_smooth: number;
+  /** Count of consecutive fast responses (faster than learner's pattern) */
+  consecutive_fast: number;
+  /** Total discontinuities detected for this LEGO */
+  discontinuity_count: number;
+  /** Timestamp of most recent discontinuity */
+  last_discontinuity_at: Date | null;
+  /** When this state was created */
+  created_at: Date;
+  /** When this state was last updated */
+  updated_at: Date;
+}
+
+/**
+ * Configuration for mastery state machine
+ */
+export interface MasteryConfig {
+  /** Consecutive smooth responses needed to advance state (default: 3) */
+  advancement_threshold: number;
+  /** Consecutive fast responses needed to skip a state (default: 5) */
+  fast_track_threshold: number;
+}
+
+/**
+ * State transition result
+ */
+export interface MasteryTransition {
+  /** Previous state */
+  from_state: MasteryState;
+  /** New state */
+  to_state: MasteryState;
+  /** Reason for transition */
+  reason: 'advancement' | 'fast_track' | 'regression' | 'hold';
+  /** Timestamp of transition */
+  timestamp: Date;
+}
+
+/**
+ * Pause extension state
+ * Used by AdaptationEngine to extend pause duration after spike detection
+ */
+export interface PauseExtensionState {
+  /** Whether pause is currently extended */
+  isExtended: boolean;
+  /** Number of items remaining with extended pause */
+  itemsRemaining: number;
+  /** The extension factor to apply (e.g., 0.3 for 30% longer) */
+  factor: number;
+}
