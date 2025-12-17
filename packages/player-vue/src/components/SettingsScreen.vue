@@ -315,7 +315,6 @@ const buildNumber = '2024.12.16'
   inset: 0;
   background:
     radial-gradient(ellipse 70% 40% at 50% -10%, var(--accent-glow) 0%, transparent 50%),
-    radial-gradient(ellipse 50% 30% at 80% 90%, var(--gold-glow) 0%, transparent 40%),
     linear-gradient(to bottom, var(--bg-secondary) 0%, var(--bg-primary) 100%);
   pointer-events: none;
 }

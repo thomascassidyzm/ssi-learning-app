@@ -515,16 +515,6 @@ watch(() => props.completedSeeds, () => {
       </div>
     </div>
 
-    <!-- Continue Button -->
-    <footer class="footer">
-      <button class="continue-btn" @click="emit('startLearning')">
-        <span>Continue Learning</span>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M5 12h14M12 5l7 7-7 7"/>
-        </svg>
-      </button>
-    </footer>
-
     <!-- Node Detail Sheet -->
     <Transition name="sheet">
       <div v-if="showNodeDetail && selectedNode" class="node-detail-overlay" @click="closeNodeDetail">
@@ -758,6 +748,7 @@ watch(() => props.completedSeeds, () => {
   gap: 1.5rem;
   padding: 1rem;
   margin: 0 1rem;
+  margin-bottom: calc(1rem + env(safe-area-inset-bottom, 0px) + 80px);
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: 16px;
@@ -794,44 +785,6 @@ watch(() => props.completedSeeds, () => {
   width: 20px;
   height: 20px;
   border-radius: 6px;
-}
-
-/* Footer */
-.footer {
-  padding: 1rem 1.5rem;
-  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px) + 80px);
-}
-
-.continue-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.625rem;
-  padding: 0.875rem 1.75rem;
-  background: var(--gradient-accent);
-  color: var(--text-inverse);
-  border: none;
-  border-radius: 14px;
-  font-family: 'DM Sans', -apple-system, sans-serif;
-  font-size: 0.9375rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-  box-shadow: var(--glow-accent);
-}
-
-.continue-btn:hover {
-  transform: translateY(-2px);
-}
-
-.continue-btn:active {
-  transform: scale(0.98);
-}
-
-.continue-btn svg {
-  width: 18px;
-  height: 18px;
 }
 
 /* Node Detail Sheet */
@@ -1016,9 +969,8 @@ watch(() => props.completedSeeds, () => {
 @media (max-width: 480px) {
   .header { padding: 0.75rem 1rem; }
   .title { font-size: 1.125rem; }
-  .stats-panel { margin: 0 0.75rem; gap: 1rem; }
+  .stats-panel { margin: 0 0.75rem; gap: 1rem; margin-bottom: calc(0.75rem + 80px); }
   .stat-value { font-size: 1.125rem; }
-  .footer { padding: 0.75rem 1rem; padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px) + 76px); }
   .zoom-controls { right: 0.5rem; }
   .zoom-btn { width: 36px; height: 36px; }
 }

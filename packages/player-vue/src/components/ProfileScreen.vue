@@ -197,7 +197,6 @@ const getActivityIcon = (type) => {
   inset: 0;
   background:
     radial-gradient(ellipse 70% 40% at 50% -10%, rgba(167, 139, 250, 0.06) 0%, transparent 50%),
-    radial-gradient(ellipse 50% 30% at 80% 90%, var(--gold-glow) 0%, transparent 40%),
     linear-gradient(to bottom, var(--bg-secondary) 0%, var(--bg-primary) 100%);
   pointer-events: none;
 }

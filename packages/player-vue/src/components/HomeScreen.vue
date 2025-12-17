@@ -85,10 +85,6 @@ const handleViewJourney = () => {
     <div class="bg-stars"></div>
     <div class="bg-noise"></div>
 
-    <!-- Floating elements -->
-    <div class="ambient-glow glow-1"></div>
-    <div class="ambient-glow glow-2"></div>
-
     <!-- Header -->
     <header class="header">
       <div class="brand">
@@ -246,7 +242,6 @@ const handleViewJourney = () => {
   inset: 0;
   background:
     radial-gradient(ellipse 100% 60% at 50% -20%, var(--accent-glow) 0%, transparent 50%),
-    radial-gradient(ellipse 60% 40% at 100% 80%, var(--gold-glow) 0%, transparent 50%),
     linear-gradient(to bottom, var(--bg-secondary) 0%, var(--bg-primary) 100%);
   pointer-events: none;
 }
@@ -278,33 +273,6 @@ const handleViewJourney = () => {
   pointer-events: none;
 }
 
-.ambient-glow {
-  position: fixed;
-  width: 280px;
-  height: 280px;
-  border-radius: 50%;
-  filter: blur(80px);
-  pointer-events: none;
-  animation: glow-drift 25s ease-in-out infinite;
-}
-
-.glow-1 {
-  top: -80px;
-  right: -80px;
-  background: var(--accent-glow);
-}
-
-.glow-2 {
-  bottom: 100px;
-  left: -100px;
-  background: var(--gold-glow);
-  animation-delay: -12s;
-}
-
-@keyframes glow-drift {
-  0%, 100% { transform: translate(0, 0) scale(1); opacity: 1; }
-  50% { transform: translate(15px, 15px) scale(1.05); opacity: 0.8; }
-}
 
 /* Header */
 .header {
@@ -414,9 +382,7 @@ const handleViewJourney = () => {
 .hero-pattern {
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(circle at 85% 15%, var(--accent-glow) 0%, transparent 50%),
-    radial-gradient(circle at 15% 85%, var(--gold-glow) 0%, transparent 50%);
+  background: radial-gradient(circle at 85% 15%, var(--accent-glow) 0%, transparent 50%);
 }
 
 .hero-content {

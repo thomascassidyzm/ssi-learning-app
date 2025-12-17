@@ -21,7 +21,7 @@ const emit = defineEmits(['navigate', 'startLearning'])
 // Navigation items
 const navItems = [
   { id: 'home', label: 'Home', icon: 'home' },
-  { id: 'journey', label: 'Journey', icon: 'map' },
+  { id: 'journey', label: 'Progress', icon: 'network' },
   { id: 'profile', label: 'Profile', icon: 'user' },
   { id: 'settings', label: 'Settings', icon: 'settings' },
 ]
@@ -86,11 +86,14 @@ const isVisible = computed(() => !props.isLearning)
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
                 <polyline points="9 22 9 12 15 12 15 22"/>
               </svg>
-              <!-- Map/Journey icon -->
-              <svg v-else-if="item.icon === 'map'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 3l7 2 7-2 4 2v16l-4-2-7 2-7-2-4 2V3z"/>
-                <path d="M10 5v16"/>
-                <path d="M17 3v16"/>
+              <!-- Network/Brain icon -->
+              <svg v-else-if="item.icon === 'network'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="5" r="2.5"/>
+                <circle cx="5" cy="12" r="2.5"/>
+                <circle cx="19" cy="12" r="2.5"/>
+                <circle cx="8" cy="19" r="2.5"/>
+                <circle cx="16" cy="19" r="2.5"/>
+                <path d="M12 7.5v4M9.5 10.5l-2 1M14.5 10.5l2 1M9.5 17l-1-2.5M14.5 17l1-2.5"/>
               </svg>
             </div>
             <span class="nav-label">{{ item.label }}</span>
