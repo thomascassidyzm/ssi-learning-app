@@ -181,14 +181,11 @@ const getActivityIcon = (type) => {
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
 
 .profile-screen {
-  --accent: #c23a3a;
-  --gold: #d4a853;
-
   min-height: 100vh;
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  background: #050508;
+  background: var(--bg-primary);
   font-family: 'DM Sans', -apple-system, sans-serif;
   position: relative;
   padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
@@ -200,8 +197,8 @@ const getActivityIcon = (type) => {
   inset: 0;
   background:
     radial-gradient(ellipse 70% 40% at 50% -10%, rgba(167, 139, 250, 0.06) 0%, transparent 50%),
-    radial-gradient(ellipse 50% 30% at 80% 90%, rgba(212, 168, 83, 0.04) 0%, transparent 40%),
-    linear-gradient(to bottom, #0a0a0f 0%, #050508 100%);
+    radial-gradient(ellipse 50% 30% at 80% 90%, var(--gold-glow) 0%, transparent 40%),
+    linear-gradient(to bottom, var(--bg-secondary) 0%, var(--bg-primary) 100%);
   pointer-events: none;
 }
 
@@ -226,7 +223,7 @@ const getActivityIcon = (type) => {
 .title {
   font-size: 1.25rem;
   font-weight: 600;
-  color: white;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -245,8 +242,8 @@ const getActivityIcon = (type) => {
   align-items: center;
   gap: 1rem;
   padding: 1.25rem;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
   border-radius: 20px;
   margin-bottom: 1.5rem;
 }
@@ -255,7 +252,7 @@ const getActivityIcon = (type) => {
   width: 64px;
   height: 64px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent) 0%, var(--gold) 100%);
+  background: var(--gradient-accent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -265,7 +262,7 @@ const getActivityIcon = (type) => {
 .avatar-initial {
   font-size: 1.5rem;
   font-weight: 700;
-  color: white;
+  color: var(--text-inverse);
 }
 
 .profile-info {
@@ -276,13 +273,13 @@ const getActivityIcon = (type) => {
 .profile-name {
   font-size: 1.25rem;
   font-weight: 700;
-  color: white;
+  color: var(--text-primary);
   margin: 0 0 0.25rem 0;
 }
 
 .profile-meta {
   font-size: 0.8125rem;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted);
   margin: 0;
 }
 
@@ -290,9 +287,9 @@ const getActivityIcon = (type) => {
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.03);
-  color: rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  color: var(--text-muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -301,8 +298,8 @@ const getActivityIcon = (type) => {
 }
 
 .edit-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: white;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
 }
 
 .edit-btn svg {
@@ -319,8 +316,8 @@ const getActivityIcon = (type) => {
 }
 
 .stat-tile {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
   border-radius: 16px;
   padding: 1rem;
   text-align: center;
@@ -340,13 +337,13 @@ const getActivityIcon = (type) => {
   font-family: 'Space Mono', monospace;
   font-size: 1.5rem;
   font-weight: 700;
-  color: white;
+  color: var(--text-primary);
   margin-bottom: 0.25rem;
 }
 
 .stat-label {
   font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
@@ -359,7 +356,7 @@ const getActivityIcon = (type) => {
 .section-title {
   font-size: 0.875rem;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin: 0 0 1rem 0;
@@ -373,8 +370,8 @@ const getActivityIcon = (type) => {
 }
 
 .belt-tile {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
   border-radius: 16px;
   padding: 1rem;
   display: flex;
@@ -404,22 +401,22 @@ const getActivityIcon = (type) => {
 }
 
 .belt-tile.locked .belt-visual {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--bg-elevated);
 }
 
 .belt-tile.locked .belt-visual svg {
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--text-muted);
 }
 
 .belt-name {
   font-size: 0.8125rem;
   font-weight: 600;
-  color: white;
+  color: var(--text-primary);
 }
 
 .belt-date {
   font-size: 0.6875rem;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
 }
 
 /* Activity List */
@@ -434,8 +431,8 @@ const getActivityIcon = (type) => {
   align-items: flex-start;
   gap: 1rem;
   padding: 1rem;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
   border-radius: 14px;
 }
 
@@ -450,7 +447,7 @@ const getActivityIcon = (type) => {
 }
 
 .activity-icon.session {
-  background: rgba(194, 58, 58, 0.15);
+  background: var(--accent-glow);
   color: var(--accent);
 }
 
@@ -478,13 +475,13 @@ const getActivityIcon = (type) => {
   display: block;
   font-size: 0.9375rem;
   font-weight: 500;
-  color: white;
+  color: var(--text-primary);
   margin-bottom: 0.25rem;
 }
 
 .activity-meta {
   font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
 }
 
 /* Responsive */

@@ -299,14 +299,11 @@ const buildNumber = '2024.12.16'
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
 
 .settings-screen {
-  --accent: #c23a3a;
-  --gold: #d4a853;
-
   min-height: 100vh;
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  background: #050508;
+  background: var(--bg-primary);
   font-family: 'DM Sans', -apple-system, sans-serif;
   position: relative;
   padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
@@ -317,9 +314,9 @@ const buildNumber = '2024.12.16'
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(ellipse 70% 40% at 50% -10%, rgba(194, 58, 58, 0.05) 0%, transparent 50%),
-    radial-gradient(ellipse 50% 30% at 80% 90%, rgba(212, 168, 83, 0.03) 0%, transparent 40%),
-    linear-gradient(to bottom, #0a0a0f 0%, #050508 100%);
+    radial-gradient(ellipse 70% 40% at 50% -10%, var(--accent-glow) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 30% at 80% 90%, var(--gold-glow) 0%, transparent 40%),
+    linear-gradient(to bottom, var(--bg-secondary) 0%, var(--bg-primary) 100%);
   pointer-events: none;
 }
 
@@ -340,16 +337,16 @@ const buildNumber = '2024.12.16'
   align-items: center;
   justify-content: center;
   padding: 1rem 1.5rem;
-  background: linear-gradient(to bottom, rgba(5, 5, 8, 0.98) 0%, rgba(5, 5, 8, 0.95) 100%);
+  background: linear-gradient(to bottom, var(--bg-primary) 0%, transparent 100%);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .title {
   font-size: 1.125rem;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.95);
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -370,7 +367,7 @@ const buildNumber = '2024.12.16'
 .section-title {
   font-size: 0.75rem;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   margin: 0 0 0.75rem 0.25rem;
@@ -378,19 +375,15 @@ const buildNumber = '2024.12.16'
 
 /* Card */
 .card {
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.035) 0%,
-    rgba(255, 255, 255, 0.02) 100%
-  );
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
   border-radius: 16px;
   overflow: hidden;
 }
 
 .divider {
   height: 1px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--border-subtle);
   margin: 0 1rem;
 }
 
@@ -409,11 +402,11 @@ const buildNumber = '2024.12.16'
 }
 
 .setting-row.clickable:hover {
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--bg-elevated);
 }
 
 .setting-row.clickable:active {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--bg-card);
 }
 
 .setting-row.danger .setting-label {
@@ -429,25 +422,25 @@ const buildNumber = '2024.12.16'
   display: block;
   font-size: 0.9375rem;
   font-weight: 500;
-  color: white;
+  color: var(--text-primary);
   margin-bottom: 0.125rem;
 }
 
 .setting-desc {
   font-size: 0.8125rem;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
 }
 
 .setting-value {
   font-family: 'Space Mono', monospace;
   font-size: 0.8125rem;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted);
 }
 
 .chevron {
   width: 20px;
   height: 20px;
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 
@@ -455,7 +448,7 @@ const buildNumber = '2024.12.16'
 .toggle {
   width: 48px;
   height: 28px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--bg-elevated);
   border-radius: 100px;
   position: relative;
   cursor: pointer;
@@ -496,7 +489,7 @@ const buildNumber = '2024.12.16'
   align-items: center;
   gap: 0.5rem;
   padding: 1rem 0.5rem;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-elevated);
   border: 2px solid transparent;
   border-radius: 12px;
   cursor: pointer;
@@ -504,18 +497,18 @@ const buildNumber = '2024.12.16'
 }
 
 .theme-option:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-card);
 }
 
 .theme-option.active {
   border-color: var(--accent);
-  background: rgba(194, 58, 58, 0.1);
+  background: var(--accent-glow);
 }
 
 .theme-icon {
   width: 28px;
   height: 28px;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-secondary);
 }
 
 .theme-option.active .theme-icon {
@@ -530,11 +523,11 @@ const buildNumber = '2024.12.16'
 .theme-label {
   font-size: 0.8125rem;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-secondary);
 }
 
 .theme-option.active .theme-label {
-  color: white;
+  color: var(--text-primary);
 }
 
 /* Pause Options */
@@ -551,7 +544,7 @@ const buildNumber = '2024.12.16'
   align-items: center;
   gap: 0.25rem;
   padding: 0.875rem;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-elevated);
   border: 2px solid transparent;
   border-radius: 12px;
   cursor: pointer;
@@ -559,18 +552,18 @@ const buildNumber = '2024.12.16'
 }
 
 .pause-option:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-card);
 }
 
 .pause-option.active {
   border-color: var(--gold);
-  background: rgba(212, 168, 83, 0.1);
+  background: var(--gold-glow);
 }
 
 .pause-label {
   font-size: 0.875rem;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text-secondary);
 }
 
 .pause-option.active .pause-label {
@@ -579,7 +572,7 @@ const buildNumber = '2024.12.16'
 
 .pause-desc {
   font-size: 0.6875rem;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
 }
 
 /* Brand Footer */
@@ -598,11 +591,11 @@ const buildNumber = '2024.12.16'
 }
 
 .logo-say, .logo-in { color: var(--accent); }
-.logo-something { color: white; }
+.logo-something { color: var(--text-primary); }
 
 .copyright {
   font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--text-muted);
   margin: 0;
 }
 

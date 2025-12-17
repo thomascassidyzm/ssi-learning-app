@@ -229,16 +229,11 @@ const handleViewJourney = () => {
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
 
 .home-screen {
-  --accent: #c23a3a;
-  --accent-soft: rgba(194, 58, 58, 0.15);
-  --gold: #d4a853;
-  --gold-soft: rgba(212, 168, 83, 0.15);
-
   min-height: 100vh;
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  background: #050508;
+  background: var(--bg-primary);
   font-family: 'DM Sans', -apple-system, sans-serif;
   position: relative;
   overflow-x: hidden;
@@ -250,9 +245,9 @@ const handleViewJourney = () => {
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(ellipse 100% 60% at 50% -20%, rgba(194, 58, 58, 0.08) 0%, transparent 50%),
-    radial-gradient(ellipse 60% 40% at 100% 80%, rgba(212, 168, 83, 0.05) 0%, transparent 50%),
-    linear-gradient(to bottom, #0a0a0f 0%, #050508 100%);
+    radial-gradient(ellipse 100% 60% at 50% -20%, var(--accent-glow) 0%, transparent 50%),
+    radial-gradient(ellipse 60% 40% at 100% 80%, var(--gold-glow) 0%, transparent 50%),
+    linear-gradient(to bottom, var(--bg-secondary) 0%, var(--bg-primary) 100%);
   pointer-events: none;
 }
 
@@ -260,12 +255,12 @@ const handleViewJourney = () => {
   position: fixed;
   inset: 0;
   background-image:
-    radial-gradient(1.5px 1.5px at 18% 25%, rgba(255,255,255,0.5) 0%, transparent 100%),
-    radial-gradient(1px 1px at 38% 65%, rgba(255,255,255,0.3) 0%, transparent 100%),
-    radial-gradient(1.2px 1.2px at 58% 15%, rgba(255,255,255,0.45) 0%, transparent 100%),
-    radial-gradient(1px 1px at 78% 48%, rgba(255,255,255,0.35) 0%, transparent 100%),
-    radial-gradient(0.8px 0.8px at 12% 75%, rgba(255,255,255,0.2) 0%, transparent 100%),
-    radial-gradient(1px 1px at 88% 85%, rgba(255,255,255,0.3) 0%, transparent 100%);
+    radial-gradient(1.5px 1.5px at 18% 25%, var(--text-muted) 0%, transparent 100%),
+    radial-gradient(1px 1px at 38% 65%, var(--text-muted) 0%, transparent 100%),
+    radial-gradient(1.2px 1.2px at 58% 15%, var(--text-muted) 0%, transparent 100%),
+    radial-gradient(1px 1px at 78% 48%, var(--text-muted) 0%, transparent 100%),
+    radial-gradient(0.8px 0.8px at 12% 75%, var(--text-muted) 0%, transparent 100%),
+    radial-gradient(1px 1px at 88% 85%, var(--text-muted) 0%, transparent 100%);
   animation: starfield 8s ease-in-out infinite;
   pointer-events: none;
 }
@@ -296,13 +291,13 @@ const handleViewJourney = () => {
 .glow-1 {
   top: -80px;
   right: -80px;
-  background: rgba(194, 58, 58, 0.12);
+  background: var(--accent-glow);
 }
 
 .glow-2 {
   bottom: 100px;
   left: -100px;
-  background: rgba(212, 168, 83, 0.08);
+  background: var(--gold-glow);
   animation-delay: -12s;
 }
 
@@ -329,7 +324,7 @@ const handleViewJourney = () => {
 }
 
 .logo-say, .logo-in { color: var(--accent); }
-.logo-something { color: rgba(255, 255, 255, 0.95); }
+.logo-something { color: var(--text-primary); }
 
 .header-actions {
   display: flex;
@@ -340,9 +335,9 @@ const handleViewJourney = () => {
   width: 38px;
   height: 38px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
-  color: rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  color: var(--text-muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -352,8 +347,8 @@ const handleViewJourney = () => {
 }
 
 .icon-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.8);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
 }
 
 .icon-btn svg {
@@ -377,26 +372,22 @@ const handleViewJourney = () => {
 .greeting {
   font-size: 1.625rem;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.95);
+  color: var(--text-primary);
   margin: 0 0 0.25rem 0;
   letter-spacing: -0.02em;
 }
 
 .subtitle {
   font-size: 0.9375rem;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-muted);
   margin: 0;
 }
 
 /* Hero Card */
 .hero-card {
   position: relative;
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.04) 0%,
-    rgba(255, 255, 255, 0.02) 100%
-  );
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
   border-radius: 20px;
   overflow: hidden;
   cursor: pointer;
@@ -406,7 +397,7 @@ const handleViewJourney = () => {
 }
 
 .hero-card:hover {
-  border-color: rgba(255, 255, 255, 0.1);
+  border-color: var(--border-medium);
   transform: translateY(-1px);
 }
 
@@ -424,8 +415,8 @@ const handleViewJourney = () => {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 85% 15%, rgba(194, 58, 58, 0.08) 0%, transparent 50%),
-    radial-gradient(circle at 15% 85%, rgba(212, 168, 83, 0.06) 0%, transparent 50%);
+    radial-gradient(circle at 85% 15%, var(--accent-glow) 0%, transparent 50%),
+    radial-gradient(circle at 15% 85%, var(--gold-glow) 0%, transparent 50%);
 }
 
 .hero-content {
@@ -452,13 +443,13 @@ const handleViewJourney = () => {
 .course-title {
   font-size: 1.5rem;
   font-weight: 700;
-  color: white;
+  color: var(--text-primary);
   margin: 0;
 }
 
 .course-subtitle {
   font-size: 0.875rem;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted);
 }
 
 .streak-badge {
@@ -508,25 +499,25 @@ const handleViewJourney = () => {
 .belt-label {
   font-size: 0.8125rem;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text-secondary);
 }
 
 .progress-text {
   font-family: 'Space Mono', monospace;
   font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted);
 }
 
 .progress-bar {
   height: 6px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--bg-elevated);
   border-radius: 3px;
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--accent) 0%, var(--gold) 100%);
+  background: var(--gradient-accent);
   border-radius: 3px;
   transition: width 0.5s ease;
 }
@@ -559,20 +550,13 @@ const handleViewJourney = () => {
 
 .btn-primary {
   flex: 1;
-  background: linear-gradient(145deg, #d44545 0%, #b83232 100%);
-  color: white;
-  box-shadow:
-    0 4px 14px rgba(194, 58, 58, 0.35),
-    0 6px 20px rgba(194, 58, 58, 0.2),
-    inset 0 1px 1px rgba(255, 255, 255, 0.2);
+  background: var(--gradient-accent);
+  color: var(--text-inverse);
+  box-shadow: var(--glow-accent);
 }
 
 .btn-primary:hover {
   transform: translateY(-1px);
-  box-shadow:
-    0 5px 18px rgba(194, 58, 58, 0.4),
-    0 8px 24px rgba(194, 58, 58, 0.25),
-    inset 0 1px 1px rgba(255, 255, 255, 0.2);
 }
 
 .btn-primary:active {
@@ -580,14 +564,14 @@ const handleViewJourney = () => {
 }
 
 .btn-ghost {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.7);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
 }
 
 .btn-ghost:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.9);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
 }
 
 .btn-ghost:active {
@@ -603,8 +587,8 @@ const handleViewJourney = () => {
 }
 
 .stat-card {
-  background: rgba(255, 255, 255, 0.025);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
   border-radius: 14px;
   padding: 0.875rem 0.75rem;
   display: flex;
@@ -617,7 +601,7 @@ const handleViewJourney = () => {
 .stat-icon {
   width: 26px;
   height: 26px;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--text-muted);
 }
 
 .stat-icon.flame {
@@ -639,13 +623,13 @@ const handleViewJourney = () => {
   font-family: 'Space Mono', monospace;
   font-size: 1.125rem;
   font-weight: 700;
-  color: white;
+  color: var(--text-primary);
   letter-spacing: -0.01em;
 }
 
 .stat-label {
   font-size: 0.5625rem;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -658,7 +642,7 @@ const handleViewJourney = () => {
 .section-title {
   font-size: 0.875rem;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin: 0 0 1rem 0;
@@ -675,16 +659,16 @@ const handleViewJourney = () => {
   align-items: center;
   gap: 1rem;
   padding: 1rem;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
   border-radius: 16px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .course-card:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.1);
+  background: var(--bg-elevated);
+  border-color: var(--border-medium);
 }
 
 .course-card .course-flag {
@@ -701,18 +685,18 @@ const handleViewJourney = () => {
 .course-name {
   font-size: 1rem;
   font-weight: 600;
-  color: white;
+  color: var(--text-primary);
 }
 
 .course-status {
   font-size: 0.8125rem;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
 }
 
 .chevron {
   width: 20px;
   height: 20px;
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--text-muted);
 }
 
 /* Safe Area */

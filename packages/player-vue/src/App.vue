@@ -163,15 +163,39 @@ onMounted(() => {
 <style>
 /* Global theme variables */
 :root {
-  --bg-primary: #0a0a0f;
-  --bg-secondary: #12121a;
+  /* Backgrounds - Dark mode */
+  --bg-primary: #050508;
+  --bg-secondary: #0a0a0f;
   --bg-card: rgba(255, 255, 255, 0.03);
   --bg-elevated: rgba(255, 255, 255, 0.06);
+  --bg-overlay: rgba(0, 0, 0, 0.6);
+
+  /* Text - Dark mode */
   --text-primary: #ffffff;
   --text-secondary: rgba(255, 255, 255, 0.7);
   --text-muted: rgba(255, 255, 255, 0.4);
+  --text-inverse: #1a1a2e;
+
+  /* Borders - Dark mode */
   --border-subtle: rgba(255, 255, 255, 0.06);
   --border-medium: rgba(255, 255, 255, 0.1);
+
+  /* Accent colors (same for both modes) */
+  --accent: #c23a3a;
+  --accent-light: #d44545;
+  --accent-dark: #b83232;
+  --accent-glow: rgba(194, 58, 58, 0.4);
+  --gold: #d4a853;
+  --gold-glow: rgba(212, 168, 83, 0.4);
+
+  /* Gradients - Dark mode */
+  --gradient-accent: linear-gradient(145deg, #d44545 0%, #b83232 100%);
+  --glow-accent: 0 4px 16px rgba(194, 58, 58, 0.35);
+  --glow-soft: rgba(100, 100, 150, 0.06);
+
+  /* Network visualization - Dark mode */
+  --network-bg: radial-gradient(ellipse at 50% 50%, rgba(80,80,100,0.05) 0%, transparent 50%);
+  --node-grey: 60;
 
   /* Safe area for bottom nav */
   --nav-height: 80px;
@@ -179,15 +203,39 @@ onMounted(() => {
 }
 
 [data-theme="light"] {
-  --bg-primary: #f8f9fa;
-  --bg-secondary: #ffffff;
-  --bg-card: rgba(0, 0, 0, 0.02);
+  /* Backgrounds - Light mode (warm off-white, not harsh) */
+  --bg-primary: #f5f5f3;
+  --bg-secondary: #fafaf8;
+  --bg-card: rgba(0, 0, 0, 0.025);
   --bg-elevated: rgba(0, 0, 0, 0.04);
+  --bg-overlay: rgba(0, 0, 0, 0.4);
+
+  /* Text - Light mode */
   --text-primary: #1a1a2e;
   --text-secondary: rgba(26, 26, 46, 0.7);
   --text-muted: rgba(26, 26, 46, 0.4);
-  --border-subtle: rgba(0, 0, 0, 0.05);
+  --text-inverse: #ffffff;
+
+  /* Borders - Light mode */
+  --border-subtle: rgba(0, 0, 0, 0.06);
   --border-medium: rgba(0, 0, 0, 0.1);
+
+  /* Accent adjustments for light mode (slightly darker for contrast) */
+  --accent: #b83232;
+  --accent-light: #c23a3a;
+  --accent-dark: #a52929;
+  --accent-glow: rgba(194, 58, 58, 0.2);
+  --gold: #c49943;
+  --gold-glow: rgba(196, 153, 67, 0.25);
+
+  /* Gradients - Light mode */
+  --gradient-accent: linear-gradient(145deg, #c23a3a 0%, #a52929 100%);
+  --glow-accent: 0 4px 16px rgba(194, 58, 58, 0.2);
+  --glow-soft: rgba(100, 100, 150, 0.08);
+
+  /* Network visualization - Light mode */
+  --network-bg: radial-gradient(ellipse at 50% 50%, rgba(100,100,120,0.06) 0%, transparent 50%);
+  --node-grey: 180;
 }
 
 * {

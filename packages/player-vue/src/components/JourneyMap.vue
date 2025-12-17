@@ -88,7 +88,9 @@ const getNodeColor = (mastery) => {
   const g = parseInt(hex.slice(3, 5), 16)
   const b = parseInt(hex.slice(5, 7), 16)
 
-  const grey = 60
+  // Get grey value from CSS variable (60 for dark, 180 for light)
+  const computedStyle = getComputedStyle(document.documentElement)
+  const grey = parseInt(computedStyle.getPropertyValue('--node-grey')) || 60
   const t = mastery
 
   const finalR = Math.round(grey + (r - grey) * t)
@@ -457,7 +459,7 @@ watch(() => props.completedSeeds, () => {
             :key="family"
             :x="50 + Math.cos((i / 8) * Math.PI * 2) * 38"
             :y="50 + Math.sin((i / 8) * Math.PI * 2) * 38"
-            fill="rgba(255,255,255,0.25)"
+            class="cluster-label"
             font-size="2.5"
             text-anchor="middle"
             font-weight="500"
@@ -581,7 +583,7 @@ watch(() => props.completedSeeds, () => {
 .journey-map {
   position: fixed;
   inset: 0;
-  background: #050508;
+  background: var(--bg-primary);
   display: flex;
   flex-direction: column;
   font-family: 'DM Sans', -apple-system, sans-serif;
@@ -592,7 +594,7 @@ watch(() => props.completedSeeds, () => {
 .bg {
   position: fixed;
   inset: 0;
-  background: radial-gradient(ellipse at 50% 50%, rgba(80,80,100,0.05) 0%, transparent 50%);
+  background: var(--network-bg);
 }
 
 .glow-orb {
@@ -602,7 +604,7 @@ watch(() => props.completedSeeds, () => {
   width: 300px;
   height: 300px;
   transform: translate(-50%, -50%);
-  background: radial-gradient(circle, rgba(100,100,150,0.06) 0%, transparent 70%);
+  background: radial-gradient(circle, var(--glow-soft) 0%, transparent 70%);
   animation: breathe 4s ease-in-out infinite;
   pointer-events: none;
 }
@@ -630,13 +632,13 @@ watch(() => props.completedSeeds, () => {
 .title {
   font-size: 1.25rem;
   font-weight: 700;
-  color: rgba(255,255,255,0.95);
+  color: var(--text-primary);
   margin: 0;
 }
 
 .subtitle {
   font-size: 0.75rem;
-  color: rgba(255,255,255,0.4);
+  color: var(--text-muted);
   margin-top: 0.125rem;
 }
 
@@ -691,8 +693,12 @@ watch(() => props.completedSeeds, () => {
 }
 
 .node.selected {
-  stroke: white;
+  stroke: var(--text-primary);
   stroke-width: 0.5;
+}
+
+.cluster-label {
+  fill: var(--text-muted);
 }
 
 /* Zoom controls */
@@ -710,10 +716,10 @@ watch(() => props.completedSeeds, () => {
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  border: 1px solid rgba(255,255,255,0.1);
-  background: rgba(10,10,15,0.8);
+  border: 1px solid var(--border-medium);
+  background: var(--bg-elevated);
   backdrop-filter: blur(8px);
-  color: rgba(255,255,255,0.7);
+  color: var(--text-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -722,8 +728,8 @@ watch(() => props.completedSeeds, () => {
 }
 
 .zoom-btn:hover {
-  background: rgba(255,255,255,0.1);
-  color: white;
+  background: var(--bg-card);
+  color: var(--text-primary);
 }
 
 .zoom-btn svg {
@@ -736,12 +742,12 @@ watch(() => props.completedSeeds, () => {
   left: 1rem;
   top: 1rem;
   padding: 0.375rem 0.75rem;
-  background: rgba(10,10,15,0.8);
+  background: var(--bg-elevated);
   backdrop-filter: blur(8px);
   border-radius: 8px;
   font-family: 'Space Mono', monospace;
   font-size: 0.75rem;
-  color: rgba(255,255,255,0.6);
+  color: var(--text-muted);
 }
 
 /* Stats panel */
@@ -752,8 +758,8 @@ watch(() => props.completedSeeds, () => {
   gap: 1.5rem;
   padding: 1rem;
   margin: 0 1rem;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.05);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
   border-radius: 16px;
 }
 
@@ -768,12 +774,12 @@ watch(() => props.completedSeeds, () => {
   font-family: 'Space Mono', monospace;
   font-size: 1.25rem;
   font-weight: 700;
-  color: white;
+  color: var(--text-primary);
 }
 
 .stat-label {
   font-size: 0.625rem;
-  color: rgba(255,255,255,0.4);
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -781,7 +787,7 @@ watch(() => props.completedSeeds, () => {
 .stat-divider {
   width: 1px;
   height: 32px;
-  background: rgba(255,255,255,0.1);
+  background: var(--border-medium);
 }
 
 .belt-indicator {
@@ -803,8 +809,8 @@ watch(() => props.completedSeeds, () => {
   justify-content: center;
   gap: 0.625rem;
   padding: 0.875rem 1.75rem;
-  background: linear-gradient(145deg, #d44545 0%, #b83232 100%);
-  color: white;
+  background: var(--gradient-accent);
+  color: var(--text-inverse);
   border: none;
   border-radius: 14px;
   font-family: 'DM Sans', -apple-system, sans-serif;
@@ -812,9 +818,7 @@ watch(() => props.completedSeeds, () => {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-  box-shadow:
-    0 4px 16px rgba(194, 58, 58, 0.35),
-    0 8px 24px rgba(194, 58, 58, 0.2);
+  box-shadow: var(--glow-accent);
 }
 
 .continue-btn:hover {
@@ -834,7 +838,7 @@ watch(() => props.completedSeeds, () => {
 .node-detail-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.6);
+  background: var(--bg-overlay);
   z-index: 100;
   display: flex;
   align-items: flex-end;
@@ -844,7 +848,9 @@ watch(() => props.completedSeeds, () => {
 .node-detail-sheet {
   width: 100%;
   max-width: 500px;
-  background: linear-gradient(to bottom, #1a1a24 0%, #12121a 100%);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-bottom: none;
   border-radius: 24px 24px 0 0;
   padding: 0.75rem 1.5rem 2rem;
   padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
@@ -853,7 +859,7 @@ watch(() => props.completedSeeds, () => {
 .sheet-handle {
   width: 36px;
   height: 4px;
-  background: rgba(255,255,255,0.2);
+  background: var(--border-medium);
   border-radius: 2px;
   margin: 0 auto 1.25rem;
 }
@@ -880,13 +886,13 @@ watch(() => props.completedSeeds, () => {
 .sheet-phrase {
   font-size: 1.25rem;
   font-weight: 700;
-  color: white;
+  color: var(--text-primary);
   margin: 0 0 0.25rem;
 }
 
 .sheet-translation {
   font-size: 0.9375rem;
-  color: rgba(255,255,255,0.5);
+  color: var(--text-muted);
   margin: 0;
 }
 
@@ -894,9 +900,9 @@ watch(() => props.completedSeeds, () => {
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  border: 1px solid rgba(255,255,255,0.1);
-  background: rgba(255,255,255,0.05);
-  color: rgba(255,255,255,0.6);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -930,19 +936,19 @@ watch(() => props.completedSeeds, () => {
   font-family: 'Space Mono', monospace;
   font-size: 1.125rem;
   font-weight: 700;
-  color: white;
+  color: var(--text-primary);
 }
 
 .sheet-stat-label {
   font-size: 0.6875rem;
-  color: rgba(255,255,255,0.4);
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
 .sheet-mastery-bar {
   height: 6px;
-  background: rgba(255,255,255,0.1);
+  background: var(--bg-elevated);
   border-radius: 3px;
   overflow: hidden;
   margin-bottom: 1rem;
@@ -962,21 +968,21 @@ watch(() => props.completedSeeds, () => {
 }
 
 .sheet-family-label {
-  color: rgba(255,255,255,0.4);
+  color: var(--text-muted);
 }
 
 .sheet-family-value {
-  color: rgba(255,255,255,0.8);
+  color: var(--text-secondary);
   font-weight: 500;
 }
 
 .sheet-practice-btn {
   width: 100%;
   padding: 0.875rem;
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.1);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
   border-radius: 12px;
-  color: white;
+  color: var(--text-primary);
   font-size: 0.9375rem;
   font-weight: 600;
   cursor: pointer;
@@ -984,7 +990,7 @@ watch(() => props.completedSeeds, () => {
 }
 
 .sheet-practice-btn:hover {
-  background: rgba(255,255,255,0.12);
+  background: var(--bg-card);
 }
 
 /* Sheet transition */
