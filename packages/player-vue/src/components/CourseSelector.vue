@@ -17,7 +17,7 @@ const props = defineProps({
   },
   supabase: {
     type: Object,
-    required: true
+    default: null
   },
   enrolledCourses: {
     type: Array,
@@ -94,6 +94,14 @@ const isActive = (courseCode) => {
 const fetchCourses = async () => {
   isLoading.value = true
   error.value = null
+
+  // If no Supabase client, use mock data (demo mode)
+  if (!props.supabase) {
+    console.log('[CourseSelector] No Supabase client, using mock data')
+    allCourses.value = getMockCourses()
+    isLoading.value = false
+    return
+  }
 
   try {
     const { data, error: fetchError } = await props.supabase
