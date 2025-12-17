@@ -58,13 +58,74 @@ const learnerStats = ref({
 const progressStore = ref(null)
 const sessionStore = ref(null)
 const courseDataProvider = ref(null)
+const supabaseClient = ref(null)
 
-onMounted(() => {
+// Active course and enrolled courses state
+const activeCourse = ref(null)
+const enrolledCourses = ref([])
+
+// Handle course selection from CourseSelector
+const handleCourseSelect = async (course) => {
+  console.log('[App] Course selected:', course.course_code || course.id)
+  activeCourse.value = course
+
+  // Update courseDataProvider for the new course
+  if (supabaseClient.value) {
+    courseDataProvider.value = createCourseDataProvider({
+      supabaseClient: supabaseClient.value,
+      audioBaseUrl: config.s3.audioBaseUrl,
+      courseId: course.course_code || course.id,
+    })
+  }
+
+  // Update selected course for learning
+  selectedCourse.value = course
+}
+
+// Fetch enrolled courses from Supabase
+const fetchEnrolledCourses = async () => {
+  if (!supabaseClient.value) return
+
+  try {
+    // For now, we don't have a learner_id, so just get all active courses
+    // In production, this would filter by learner enrollment
+    const { data, error } = await supabaseClient.value
+      .from('courses')
+      .select('*')
+      .eq('is_active', true)
+      .order('title')
+
+    if (error) {
+      console.error('[App] Failed to fetch courses:', error)
+      return
+    }
+
+    // For demo, mark the first course as the active one
+    if (data && data.length > 0) {
+      enrolledCourses.value = data
+      // Set Italian as default active course if available
+      const italianCourse = data.find(c => c.course_code === 'ita_for_eng_v2')
+      if (italianCourse && !activeCourse.value) {
+        activeCourse.value = {
+          ...italianCourse,
+          completedSeeds: 42,
+          progress: 6.3,
+          streak: 7,
+          lastSession: '2 hours ago',
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[App] Error fetching enrolled courses:', err)
+  }
+}
+
+onMounted(async () => {
   // Only initialize Supabase if configured and feature flag is enabled
   if (config.features.useDatabase && isSupabaseConfigured(config)) {
     try {
       console.log('[App] Initializing Supabase client...')
-      const supabaseClient = createClient(
+      supabaseClient.value = createClient(
         config.supabase.url,
         config.supabase.anonKey,
         {
@@ -76,15 +137,18 @@ onMounted(() => {
       )
 
       // Create store instances
-      progressStore.value = createProgressStore({ client: supabaseClient })
-      sessionStore.value = createSessionStore({ client: supabaseClient })
+      progressStore.value = createProgressStore({ client: supabaseClient.value })
+      sessionStore.value = createSessionStore({ client: supabaseClient.value })
       courseDataProvider.value = createCourseDataProvider({
-        supabaseClient,
+        supabaseClient: supabaseClient.value,
         audioBaseUrl: config.s3.audioBaseUrl,
-        courseId: 'spa_for_eng_v2',
+        courseId: 'ita_for_eng_v2',
       })
 
       console.log('[App] Database stores initialized')
+
+      // Fetch enrolled courses
+      await fetchEnrolledCourses()
     } catch (err) {
       console.error('[App] Failed to initialize Supabase:', err)
     }
@@ -105,10 +169,14 @@ onMounted(() => {
     <Transition name="fade" mode="out-in">
       <HomeScreen
         v-if="currentScreen === 'home'"
+        :supabase="supabaseClient"
+        :activeCourse="activeCourse"
+        :enrolledCourses="enrolledCourses"
         @startLearning="startLearning"
         @viewJourney="viewJourney"
         @openProfile="openProfile"
         @openSettings="openSettings"
+        @selectCourse="handleCourseSelect"
       />
     </Transition>
 

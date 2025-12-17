@@ -85,6 +85,47 @@ export interface PracticePhraseRow {
   created_at?: string;
 }
 
+/**
+ * Course row from `courses` table
+ * Used for course catalog and selection UI
+ */
+export interface CourseRow {
+  course_code: string;
+  title: string;
+  subtitle: string | null;
+  known_language: string;
+  target_language: string;
+  known_language_name: string;
+  target_language_name: string;
+  known_flag: string;
+  target_flag: string;
+  total_seeds: number;
+  version: string;
+  is_active: boolean;
+  created_at?: string;
+}
+
+/**
+ * Enrolled course with progress data
+ * Combines CourseRow with learner enrollment data
+ */
+export interface EnrolledCourseRow extends CourseRow {
+  enrolled_at: string;
+  last_practiced_at: string | null;
+  completed_seeds: number;
+  progress: number;  // 0-100
+  streak: number;
+  is_currently_active: boolean;
+}
+
+/**
+ * Course catalog organized by known language
+ */
+export interface CourseCatalog {
+  knownLanguages: Array<{ code: string; name: string; flag: string }>;
+  coursesByKnown: Record<string, CourseRow[]>;
+}
+
 // ============================================
 // AUDIO URL CONSTRUCTION
 // ============================================

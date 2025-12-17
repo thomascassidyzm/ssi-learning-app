@@ -1,37 +1,44 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import CourseSelector from './CourseSelector.vue'
 
-const emit = defineEmits(['startLearning', 'viewJourney', 'openProfile', 'openSettings'])
+const props = defineProps({
+  supabase: {
+    type: Object,
+    required: true
+  },
+  activeCourse: {
+    type: Object,
+    default: null
+  },
+  enrolledCourses: {
+    type: Array,
+    default: () => []
+  }
+})
 
-// Mock data - in production this comes from Supabase
-const courses = ref([
-  {
-    id: 'ita_for_eng_v2',
+const emit = defineEmits(['startLearning', 'viewJourney', 'selectCourse'])
+
+// Course selector state
+const showCourseSelector = ref(false)
+
+// Use prop or fallback to mock data
+const activeCourseData = computed(() => {
+  if (props.activeCourse) return props.activeCourse
+  // Fallback mock data for development
+  return {
+    course_code: 'ita_for_eng_v2',
     title: 'Italian',
     subtitle: 'for English Speakers',
-    flag: '🇮🇹',
+    target_flag: '🇮🇹',
+    known_language: 'en',
     progress: 6.3,
     completedSeeds: 42,
     totalSeeds: 668,
     lastSession: '2 hours ago',
     streak: 7,
-    isActive: true,
-  },
-  {
-    id: 'spa_for_eng_v2',
-    title: 'Spanish',
-    subtitle: 'for English Speakers',
-    flag: '🇪🇸',
-    progress: 0,
-    completedSeeds: 0,
-    totalSeeds: 668,
-    lastSession: null,
-    streak: 0,
-    isActive: false,
-  },
-])
-
-const selectedCourse = ref(courses.value[0])
+  }
+})
 
 // Belt for display
 const BELT_CONFIG = {
@@ -57,8 +64,7 @@ const getCurrentBelt = (seeds) => {
   return belts[0]
 }
 
-const activeCourse = computed(() => courses.value.find(c => c.isActive))
-const activeBelt = computed(() => getCurrentBelt(activeCourse.value?.completedSeeds || 0))
+const activeBelt = computed(() => getCurrentBelt(activeCourseData.value?.completedSeeds || 0))
 
 // Greeting based on time
 const greeting = computed(() => {
@@ -70,11 +76,21 @@ const greeting = computed(() => {
 
 // Quick actions
 const handleStartLearning = () => {
-  emit('startLearning', selectedCourse.value)
+  emit('startLearning', activeCourseData.value)
 }
 
 const handleViewJourney = () => {
-  emit('viewJourney', selectedCourse.value)
+  emit('viewJourney', activeCourseData.value)
+}
+
+// Course selection
+const handleCourseSelect = (course) => {
+  showCourseSelector.value = false
+  emit('selectCourse', course)
+}
+
+const openCourseSelector = () => {
+  showCourseSelector.value = true
 }
 </script>
 
@@ -101,21 +117,28 @@ const handleViewJourney = () => {
       </section>
 
       <!-- Active Course Hero -->
-      <section class="hero-card" v-if="activeCourse" @click="handleStartLearning">
+      <section class="hero-card" v-if="activeCourseData">
         <div class="hero-bg">
           <div class="hero-pattern"></div>
         </div>
         <div class="hero-content">
-          <div class="hero-header">
-            <span class="course-flag">{{ activeCourse.flag }}</span>
+          <!-- Course Header - Tappable to change course -->
+          <div class="hero-header" @click="openCourseSelector">
+            <span class="course-flag">{{ activeCourseData.target_flag || activeCourseData.flag }}</span>
             <div class="course-info">
-              <h2 class="course-title">{{ activeCourse.title }}</h2>
-              <span class="course-subtitle">{{ activeCourse.subtitle }}</span>
+              <h2 class="course-title">{{ activeCourseData.title }}</h2>
+              <span class="course-subtitle">{{ activeCourseData.subtitle }}</span>
             </div>
-            <div class="streak-badge" v-if="activeCourse.streak > 0">
+            <div class="streak-badge" v-if="activeCourseData.streak > 0">
               <span class="streak-icon">🔥</span>
-              <span class="streak-count">{{ activeCourse.streak }}</span>
+              <span class="streak-count">{{ activeCourseData.streak }}</span>
             </div>
+            <!-- Change course indicator -->
+            <button class="change-course-btn" @click.stop="openCourseSelector">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M6 9l6 6 6-6"/>
+              </svg>
+            </button>
           </div>
 
           <div class="hero-progress">
@@ -124,10 +147,10 @@ const handleViewJourney = () => {
                 <div class="belt-swatch" :style="{ background: activeBelt.color }"></div>
                 <span class="belt-label">{{ activeBelt.label }}</span>
               </div>
-              <span class="progress-text">{{ activeCourse.completedSeeds }} / {{ activeCourse.totalSeeds }} seeds</span>
+              <span class="progress-text">{{ activeCourseData.completedSeeds || 0 }} / {{ activeCourseData.totalSeeds || activeCourseData.total_seeds || 668 }} seeds</span>
             </div>
             <div class="progress-bar">
-              <div class="progress-fill" :style="{ width: activeCourse.progress + '%' }"></div>
+              <div class="progress-fill" :style="{ width: (activeCourseData.progress || 0) + '%' }"></div>
             </div>
           </div>
 
@@ -160,7 +183,7 @@ const handleViewJourney = () => {
             </svg>
           </div>
           <div class="stat-content">
-            <span class="stat-value">{{ activeCourse?.completedSeeds || 0 }}</span>
+            <span class="stat-value">{{ activeCourseData?.completedSeeds || 0 }}</span>
             <span class="stat-label">Seeds Mastered</span>
           </div>
         </div>
@@ -172,7 +195,7 @@ const handleViewJourney = () => {
             </svg>
           </div>
           <div class="stat-content">
-            <span class="stat-value">{{ activeCourse?.streak || 0 }}</span>
+            <span class="stat-value">{{ activeCourseData?.streak || 0 }}</span>
             <span class="stat-label">Day Streak</span>
           </div>
         </div>
@@ -191,33 +214,40 @@ const handleViewJourney = () => {
         </div>
       </section>
 
-      <!-- Other Courses -->
-      <section class="courses-section" v-if="courses.filter(c => !c.isActive).length > 0">
-        <h3 class="section-title">Other Languages</h3>
-        <div class="course-list">
-          <div
-            v-for="course in courses.filter(c => !c.isActive)"
-            :key="course.id"
-            class="course-card"
-            @click="selectedCourse = course"
-          >
-            <span class="course-flag">{{ course.flag }}</span>
-            <div class="course-details">
-              <span class="course-name">{{ course.title }}</span>
-              <span class="course-status">
-                {{ course.completedSeeds > 0 ? `${course.progress}% complete` : 'Not started' }}
-              </span>
-            </div>
-            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 18l6-6-6-6"/>
+      <!-- Browse Courses Button -->
+      <section class="browse-section">
+        <button class="browse-btn" @click="openCourseSelector">
+          <div class="browse-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M2 12h20"/>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
             </svg>
           </div>
-        </div>
+          <div class="browse-content">
+            <span class="browse-title">Browse All Courses</span>
+            <span class="browse-subtitle">Learn another language or try language chaining</span>
+          </div>
+          <svg class="browse-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 18l6-6-6-6"/>
+          </svg>
+        </button>
       </section>
     </main>
 
     <!-- Bottom Safe Area -->
     <div class="safe-area"></div>
+
+    <!-- Course Selector Sheet -->
+    <CourseSelector
+      :isOpen="showCourseSelector"
+      :supabase="supabase"
+      :enrolledCourses="enrolledCourses"
+      :activeCourseId="activeCourseData?.course_code || activeCourseData?.id"
+      :defaultKnownLang="activeCourseData?.known_language || 'en'"
+      @close="showCourseSelector = false"
+      @selectCourse="handleCourseSelect"
+    />
   </div>
 </template>
 
@@ -663,6 +693,106 @@ const handleViewJourney = () => {
   width: 20px;
   height: 20px;
   color: var(--text-muted);
+}
+
+/* Change Course Button */
+.change-course-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.change-course-btn:hover {
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border-color: var(--border-medium);
+}
+
+.change-course-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Browse Courses Section */
+.browse-section {
+  margin-bottom: 1.5rem;
+}
+
+.browse-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.browse-btn:hover {
+  background: var(--bg-elevated);
+  border-color: var(--border-medium);
+  transform: translateY(-1px);
+}
+
+.browse-btn:active {
+  transform: scale(0.99);
+}
+
+.browse-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--accent-glow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.browse-icon svg {
+  width: 22px;
+  height: 22px;
+  color: var(--accent);
+}
+
+.browse-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.browse-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.browse-subtitle {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.browse-chevron {
+  width: 20px;
+  height: 20px;
+  color: var(--text-muted);
+  flex-shrink: 0;
 }
 
 /* Safe Area */
