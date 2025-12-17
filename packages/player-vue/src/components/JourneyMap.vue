@@ -1,5 +1,19 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+/**
+ * JourneyMap - Brain Network Visualization
+ *
+ * Visualizes learning progress as an organic neural network where:
+ * - Nodes = LEGOs (learning units)
+ * - Connections = relationships between LEGOs (same SEED, shared components)
+ * - Node color/opacity = mastery level
+ * - Clusters = SEED families
+ *
+ * Features:
+ * - Pinch-to-zoom and scroll wheel zoom
+ * - Pan/drag navigation
+ * - Tap node for details
+ */
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 
 const props = defineProps({
   completedSeeds: { type: Number, default: 42 },
@@ -10,477 +24,620 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'startLearning'])
 
-// Belt progression - these become topographic contour levels
-const BELT_CONFIG = {
-  belts: [
-    { name: 'white',   seedsRequired: 0,   color: '#f5f5f5', colorDark: '#e0e0e0', glow: 'rgba(245, 245, 245, 0.3)', label: 'Beginner' },
-    { name: 'yellow',  seedsRequired: 8,   color: '#fcd34d', colorDark: '#f59e0b', glow: 'rgba(252, 211, 77, 0.4)', label: 'Explorer' },
-    { name: 'orange',  seedsRequired: 20,  color: '#fb923c', colorDark: '#ea580c', glow: 'rgba(251, 146, 60, 0.4)', label: 'Apprentice' },
-    { name: 'green',   seedsRequired: 40,  color: '#4ade80', colorDark: '#16a34a', glow: 'rgba(74, 222, 128, 0.4)', label: 'Practitioner' },
-    { name: 'blue',    seedsRequired: 80,  color: '#60a5fa', colorDark: '#2563eb', glow: 'rgba(96, 165, 250, 0.4)', label: 'Adept' },
-    { name: 'purple',  seedsRequired: 150, color: '#a78bfa', colorDark: '#7c3aed', glow: 'rgba(167, 139, 250, 0.4)', label: 'Master' },
-    { name: 'brown',   seedsRequired: 280, color: '#a8856c', colorDark: '#78350f', glow: 'rgba(168, 133, 108, 0.4)', label: 'Expert' },
-    { name: 'black',   seedsRequired: 400, color: '#1f1f1f', colorDark: '#0a0a0a', glow: 'rgba(255, 255, 255, 0.15)', label: 'Sensei' },
-  ]
+// Belt progression for colors
+const BELTS = [
+  { seeds: 0,   color: '#f5f5f5', label: 'Beginner' },
+  { seeds: 8,   color: '#fcd34d', label: 'Explorer' },
+  { seeds: 20,  color: '#fb923c', label: 'Apprentice' },
+  { seeds: 40,  color: '#4ade80', label: 'Practitioner' },
+  { seeds: 80,  color: '#60a5fa', label: 'Adept' },
+  { seeds: 150, color: '#a78bfa', label: 'Master' },
+  { seeds: 280, color: '#a8856c', label: 'Expert' },
+  { seeds: 400, color: '#1f1f1f', label: 'Sensei' },
+]
+
+const currentBelt = computed(() => {
+  for (let i = BELTS.length - 1; i >= 0; i--) {
+    if (props.completedSeeds >= BELTS[i].seeds) return { ...BELTS[i], index: i }
+  }
+  return { ...BELTS[0], index: 0 }
+})
+
+// Mock LEGO data - in production this comes from the database
+const generateMockLegos = () => {
+  const legos = []
+  const seedFamilies = ['Greetings', 'Numbers', 'Colors', 'Food', 'Travel', 'Family', 'Time', 'Weather']
+
+  for (let i = 0; i < props.completedSeeds; i++) {
+    const familyIndex = i % seedFamilies.length
+    legos.push({
+      id: `lego-${i}`,
+      phrase: getMockPhrase(i),
+      translation: getMockTranslation(i),
+      family: seedFamilies[familyIndex],
+      familyIndex,
+      mastery: 0.2 + Math.random() * 0.8,
+      lastPracticed: getRandomDate(),
+      practiceCount: Math.floor(Math.random() * 20) + 1,
+    })
+  }
+  return legos
 }
 
-// SVG dimensions
-const SVG_WIDTH = 400
-const SVG_HEIGHT = 500
-const MOUNTAIN_TOP = 60
-const MOUNTAIN_BOTTOM = 460
-const MOUNTAIN_LEFT = 60
-const MOUNTAIN_RIGHT = 340
-const MOUNTAIN_CENTER = SVG_WIDTH / 2
+const getMockPhrase = (i) => {
+  const phrases = ['Buongiorno', 'Grazie', 'Come stai', 'Mi chiamo', 'Voglio', 'Posso', 'Dove', 'Quanto costa', 'Per favore', 'Arrivederci']
+  return phrases[i % phrases.length] + (i >= phrases.length ? ` ${Math.floor(i / phrases.length) + 1}` : '')
+}
 
-// Current belt
-const currentBelt = computed(() => {
-  const belts = BELT_CONFIG.belts
-  for (let i = belts.length - 1; i >= 0; i--) {
-    if (props.completedSeeds >= belts[i].seedsRequired) {
-      return { ...belts[i], index: i }
+const getMockTranslation = (i) => {
+  const translations = ['Good morning', 'Thank you', 'How are you', 'My name is', 'I want', 'Can I', 'Where', 'How much', 'Please', 'Goodbye']
+  return translations[i % translations.length]
+}
+
+const getRandomDate = () => {
+  const days = Math.floor(Math.random() * 14)
+  const date = new Date()
+  date.setDate(date.getDate() - days)
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+}
+
+// Interpolate node color from grey to vibrant based on mastery
+const getNodeColor = (mastery) => {
+  const hex = currentBelt.value.color
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+
+  const grey = 60
+  const t = mastery
+
+  const finalR = Math.round(grey + (r - grey) * t)
+  const finalG = Math.round(grey + (g - grey) * t)
+  const finalB = Math.round(grey + (b - grey) * t)
+
+  return `rgb(${finalR}, ${finalG}, ${finalB})`
+}
+
+// Network state
+const nodes = ref([])
+const connections = ref([])
+const legos = ref([])
+
+// Zoom and pan state
+const scale = ref(1)
+const panX = ref(0)
+const panY = ref(0)
+const isPanning = ref(false)
+const lastPanPoint = ref({ x: 0, y: 0 })
+
+// Selected node
+const selectedNode = ref(null)
+const showNodeDetail = ref(false)
+
+// SVG reference
+const svgRef = ref(null)
+const containerRef = ref(null)
+
+// Initialize network
+const initNetwork = () => {
+  legos.value = generateMockLegos()
+
+  const nodeList = []
+  const numClusters = 8
+  const nodesPerCluster = Math.ceil(legos.value.length / numClusters)
+
+  legos.value.forEach((lego, index) => {
+    const cluster = lego.familyIndex
+    const clusterAngle = (cluster / numClusters) * Math.PI * 2
+    const clusterRadius = 25
+    const cx = 50 + Math.cos(clusterAngle) * clusterRadius
+    const cy = 50 + Math.sin(clusterAngle) * clusterRadius
+
+    const nodeAngle = Math.random() * Math.PI * 2
+    const nodeRadius = Math.random() * 12
+    const x = cx + Math.cos(nodeAngle) * nodeRadius
+    const y = cy + Math.sin(nodeAngle) * nodeRadius
+
+    nodeList.push({
+      id: lego.id,
+      x,
+      y,
+      vx: 0,
+      vy: 0,
+      cluster,
+      mastery: lego.mastery,
+      size: 1.5 + lego.mastery * 2,
+      lego,
+    })
+  })
+
+  nodes.value = nodeList
+  initConnections()
+}
+
+const initConnections = () => {
+  const conns = []
+  const nodeList = nodes.value
+
+  for (let i = 0; i < nodeList.length; i++) {
+    for (let j = i + 1; j < nodeList.length; j++) {
+      const a = nodeList[i]
+      const b = nodeList[j]
+      const dist = Math.sqrt(Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2))
+
+      const sameCluster = a.cluster === b.cluster
+      const threshold = sameCluster ? 15 : 8
+
+      if (dist < threshold && Math.random() > (sameCluster ? 0.3 : 0.85)) {
+        const strength = sameCluster
+          ? Math.min(a.mastery, b.mastery)
+          : Math.min(a.mastery, b.mastery) * 0.4
+
+        conns.push({
+          id: `${a.id}-${b.id}`,
+          source: a.id,
+          target: b.id,
+          x1: a.x,
+          y1: a.y,
+          x2: b.x,
+          y2: b.y,
+          strength,
+        })
+      }
     }
   }
-  return { ...belts[0], index: 0 }
-})
 
-// Progress 0-1
-const progress = computed(() => Math.min(props.completedSeeds / props.totalSeeds, 1))
+  connections.value = conns
+}
 
-// Belt contour lines - horizontal bands across the mountain
-const contourLines = computed(() => {
-  return BELT_CONFIG.belts.map((belt, idx) => {
-    const progressY = belt.seedsRequired / props.totalSeeds
-    const y = MOUNTAIN_BOTTOM - (progressY * (MOUNTAIN_BOTTOM - MOUNTAIN_TOP))
+// Force simulation
+let animationFrame = null
+const simulate = () => {
+  const nodeList = nodes.value
+  const alpha = 0.08
 
-    // Mountain width at this elevation (narrower at top)
-    const widthRatio = 1 - (progressY * 0.7)
-    const halfWidth = ((MOUNTAIN_RIGHT - MOUNTAIN_LEFT) / 2) * widthRatio
-    const left = MOUNTAIN_CENTER - halfWidth
-    const right = MOUNTAIN_CENTER + halfWidth
+  for (const node of nodeList) {
+    // Centering force
+    const dx = 50 - node.x
+    const dy = 50 - node.y
+    node.vx += dx * 0.001
+    node.vy += dy * 0.001
 
-    const reached = props.completedSeeds >= belt.seedsRequired
-    const isCurrent = currentBelt.value.name === belt.name
+    // Repulsion from other nodes
+    for (const other of nodeList) {
+      if (node.id === other.id) continue
+      const ddx = node.x - other.x
+      const ddy = node.y - other.y
+      const dist = Math.sqrt(ddx * ddx + ddy * ddy) || 1
+      if (dist < 8) {
+        const force = (8 - dist) * 0.03
+        node.vx += (ddx / dist) * force
+        node.vy += (ddy / dist) * force
+      }
+    }
 
+    // Apply velocity with damping
+    node.x += node.vx * alpha
+    node.y += node.vy * alpha
+    node.vx *= 0.92
+    node.vy *= 0.92
+
+    // Boundary
+    node.x = Math.max(8, Math.min(92, node.x))
+    node.y = Math.max(8, Math.min(92, node.y))
+  }
+
+  // Update connection positions
+  connections.value = connections.value.map(conn => {
+    const source = nodeList.find(n => n.id === conn.source)
+    const target = nodeList.find(n => n.id === conn.target)
     return {
-      ...belt,
-      y,
-      left,
-      right,
-      reached,
-      isCurrent,
-      idx
+      ...conn,
+      x1: source?.x || conn.x1,
+      y1: source?.y || conn.y1,
+      x2: target?.x || conn.x2,
+      y2: target?.y || conn.y2,
     }
   })
-})
 
-// Generate snaking path based on velocity
-// High velocity = steep/direct, Low velocity = lots of switchbacks
-const generatePath = computed(() => {
-  const points = []
-  const steps = 50
+  animationFrame = requestAnimationFrame(simulate)
+}
 
-  // Velocity affects how much the path snakes
-  // velocity 2+ = almost straight up
-  // velocity 0.5 = lots of switchbacks
-  const snakiness = Math.max(0.2, Math.min(2, 2.5 - props.learningVelocity))
-  const amplitude = 80 * snakiness // Max horizontal deviation
-  const frequency = 3 + (snakiness * 2) // How many S-curves
+// Zoom controls
+const zoomIn = () => {
+  scale.value = Math.min(scale.value * 1.3, 5)
+}
 
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps // 0 to 1
+const zoomOut = () => {
+  scale.value = Math.max(scale.value / 1.3, 0.5)
+}
 
-    // Y position (bottom to top)
-    const y = MOUNTAIN_BOTTOM - (t * (MOUNTAIN_BOTTOM - MOUNTAIN_TOP))
+const resetView = () => {
+  scale.value = 1
+  panX.value = 0
+  panY.value = 0
+}
 
-    // Mountain width at this Y (narrower at top)
-    const widthRatio = 1 - (t * 0.7)
-    const maxDeviation = amplitude * widthRatio
+// Mouse wheel zoom
+const handleWheel = (e) => {
+  e.preventDefault()
+  const delta = e.deltaY > 0 ? 0.9 : 1.1
+  scale.value = Math.max(0.5, Math.min(5, scale.value * delta))
+}
 
-    // Sinusoidal X offset for snaking
-    const xOffset = Math.sin(t * Math.PI * frequency) * maxDeviation
-    const x = MOUNTAIN_CENTER + xOffset
+// Touch zoom (pinch)
+let initialPinchDistance = null
+let initialScale = 1
 
-    points.push({ x, y, t })
+const handleTouchStart = (e) => {
+  if (e.touches.length === 2) {
+    initialPinchDistance = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    )
+    initialScale = scale.value
+  } else if (e.touches.length === 1 && scale.value > 1) {
+    isPanning.value = true
+    lastPanPoint.value = { x: e.touches[0].clientX, y: e.touches[0].clientY }
   }
+}
 
-  return points
-})
-
-// Convert points to SVG path
-const pathData = computed(() => {
-  const pts = generatePath.value
-  if (pts.length < 2) return ''
-
-  let d = `M ${pts[0].x} ${pts[0].y}`
-
-  // Use quadratic curves for smooth path
-  for (let i = 1; i < pts.length; i++) {
-    const prev = pts[i - 1]
-    const curr = pts[i]
-    const cpX = (prev.x + curr.x) / 2
-    const cpY = (prev.y + curr.y) / 2
-    d += ` Q ${prev.x} ${prev.y}, ${cpX} ${cpY}`
+const handleTouchMove = (e) => {
+  if (e.touches.length === 2 && initialPinchDistance) {
+    e.preventDefault()
+    const currentDistance = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    )
+    const pinchScale = currentDistance / initialPinchDistance
+    scale.value = Math.max(0.5, Math.min(5, initialScale * pinchScale))
+  } else if (e.touches.length === 1 && isPanning.value) {
+    const dx = e.touches[0].clientX - lastPanPoint.value.x
+    const dy = e.touches[0].clientY - lastPanPoint.value.y
+    panX.value += dx
+    panY.value += dy
+    lastPanPoint.value = { x: e.touches[0].clientX, y: e.touches[0].clientY }
   }
+}
 
-  // Final point
-  const last = pts[pts.length - 1]
-  d += ` L ${last.x} ${last.y}`
+const handleTouchEnd = () => {
+  initialPinchDistance = null
+  isPanning.value = false
+}
 
-  return d
-})
-
-// Traveler position along the path
-const travelerPosition = computed(() => {
-  const pts = generatePath.value
-  const idx = Math.floor(progress.value * (pts.length - 1))
-  return pts[idx] || pts[0]
-})
-
-// Path length for animation (approximate)
-const pathLength = computed(() => {
-  const pts = generatePath.value
-  let len = 0
-  for (let i = 1; i < pts.length; i++) {
-    const dx = pts[i].x - pts[i-1].x
-    const dy = pts[i].y - pts[i-1].y
-    len += Math.sqrt(dx*dx + dy*dy)
+// Mouse pan
+const handleMouseDown = (e) => {
+  if (scale.value > 1) {
+    isPanning.value = true
+    lastPanPoint.value = { x: e.clientX, y: e.clientY }
   }
-  return len
-})
+}
 
-// Velocity description
-const velocityLabel = computed(() => {
-  if (props.learningVelocity >= 2) return 'Blazing'
-  if (props.learningVelocity >= 1.5) return 'Swift'
-  if (props.learningVelocity >= 1) return 'Steady'
-  if (props.learningVelocity >= 0.5) return 'Gradual'
-  return 'Gentle'
-})
+const handleMouseMove = (e) => {
+  if (isPanning.value) {
+    const dx = e.clientX - lastPanPoint.value.x
+    const dy = e.clientY - lastPanPoint.value.y
+    panX.value += dx
+    panY.value += dy
+    lastPanPoint.value = { x: e.clientX, y: e.clientY }
+  }
+}
 
-// CSS vars
-const cssVars = computed(() => ({
-  '--belt-color': currentBelt.value.color,
-  '--belt-glow': currentBelt.value.glow,
-  '--path-length': pathLength.value,
-  '--progress': progress.value,
+const handleMouseUp = () => {
+  isPanning.value = false
+}
+
+// Node interaction
+const handleNodeClick = (node) => {
+  selectedNode.value = node
+  showNodeDetail.value = true
+
+  // Haptic feedback
+  if (navigator.vibrate) {
+    navigator.vibrate(10)
+  }
+}
+
+const closeNodeDetail = () => {
+  showNodeDetail.value = false
+  selectedNode.value = null
+}
+
+// Computed transform
+const transformStyle = computed(() => ({
+  transform: `scale(${scale.value}) translate(${panX.value / scale.value}px, ${panY.value / scale.value}px)`,
+  transformOrigin: 'center center',
 }))
 
-// Animation
-const isAnimated = ref(false)
+// Stats
+const avgMastery = computed(() => {
+  if (!nodes.value.length) return 0
+  return nodes.value.reduce((sum, n) => sum + n.mastery, 0) / nodes.value.length
+})
+
+// Lifecycle
 onMounted(() => {
-  setTimeout(() => { isAnimated.value = true }, 100)
+  initNetwork()
+  simulate()
+})
+
+onUnmounted(() => {
+  if (animationFrame) cancelAnimationFrame(animationFrame)
+})
+
+// Watch for prop changes
+watch(() => props.completedSeeds, () => {
+  initNetwork()
 })
 </script>
 
 <template>
-  <div class="journey-map" :style="cssVars">
-    <!-- Atmospheric background -->
-    <div class="bg-gradient"></div>
-    <div class="bg-stars"></div>
-    <div class="bg-noise"></div>
-
-    <!-- Mist layers -->
-    <div class="mist mist-1"></div>
-    <div class="mist mist-2"></div>
+  <div class="journey-map">
+    <div class="bg"></div>
+    <div class="glow-orb"></div>
 
     <!-- Header -->
     <header class="header">
-      <h1 class="title">Your Journey</h1>
+      <div class="header-left">
+        <h1 class="title">Your Network</h1>
+        <div class="subtitle">{{ nodes.length }} nodes · {{ connections.length }} connections</div>
+      </div>
       <div class="streak-badge" v-if="currentStreak > 0">
         <span class="streak-icon">🔥</span>
         <span class="streak-num">{{ currentStreak }}</span>
       </div>
     </header>
 
-    <!-- Mountain Visualization -->
-    <main class="main">
+    <!-- Network Canvas -->
+    <main
+      class="main"
+      ref="containerRef"
+      @wheel.passive="handleWheel"
+      @touchstart="handleTouchStart"
+      @touchmove="handleTouchMove"
+      @touchend="handleTouchEnd"
+      @mousedown="handleMouseDown"
+      @mousemove="handleMouseMove"
+      @mouseup="handleMouseUp"
+      @mouseleave="handleMouseUp"
+    >
       <svg
-        class="mountain-svg"
-        :viewBox="`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`"
+        ref="svgRef"
+        class="network-svg"
+        viewBox="0 0 100 100"
         preserveAspectRatio="xMidYMid meet"
+        :style="transformStyle"
       >
         <defs>
-          <!-- Glow filter -->
-          <filter id="travelerGlow" x="-100%" y="-100%" width="300%" height="300%">
-            <feGaussianBlur stdDeviation="6" result="blur"/>
-            <feMerge>
-              <feMergeNode in="blur"/>
-              <feMergeNode in="SourceGraphic"/>
-            </feMerge>
-          </filter>
-
-          <!-- Mountain gradient -->
-          <linearGradient id="mountainGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stop-color="rgba(255,255,255,0.12)"/>
-            <stop offset="100%" stop-color="rgba(255,255,255,0.02)"/>
-          </linearGradient>
-
-          <!-- Path gradient -->
-          <linearGradient id="pathGrad" x1="0%" y1="100%" x2="0%" y2="0%">
-            <stop offset="0%" stop-color="rgba(255,255,255,0.1)"/>
-            <stop offset="100%" stop-color="rgba(255,255,255,0.3)"/>
-          </linearGradient>
+          <radialGradient id="centerGlow">
+            <stop offset="0%" :stop-color="currentBelt.color" stop-opacity="0.12"/>
+            <stop offset="100%" stop-color="transparent"/>
+          </radialGradient>
         </defs>
 
-        <!-- Mountain silhouette -->
-        <path
-          class="mountain-shape"
-          :d="`M ${MOUNTAIN_LEFT - 40} ${MOUNTAIN_BOTTOM + 20}
-               L ${MOUNTAIN_CENTER} ${MOUNTAIN_TOP - 20}
-               L ${MOUNTAIN_RIGHT + 40} ${MOUNTAIN_BOTTOM + 20} Z`"
-          fill="url(#mountainGrad)"
-        />
+        <!-- Center glow -->
+        <circle cx="50" cy="50" r="35" fill="url(#centerGlow)"/>
 
-        <!-- Torii gate at summit -->
-        <g class="torii" :transform="`translate(${MOUNTAIN_CENTER - 25}, ${MOUNTAIN_TOP - 10})`">
-          <rect x="5" y="15" width="3" height="35" fill="rgba(194,58,58,0.5)"/>
-          <rect x="42" y="15" width="3" height="35" fill="rgba(194,58,58,0.5)"/>
-          <path d="M0,8 Q25,0 50,8 L48,14 Q25,7 2,14 Z" fill="rgba(194,58,58,0.6)"/>
-          <rect x="4" y="17" width="42" height="3" fill="rgba(194,58,58,0.4)"/>
+        <!-- Connections -->
+        <g class="connections">
+          <line
+            v-for="conn in connections"
+            :key="conn.id"
+            :x1="conn.x1"
+            :y1="conn.y1"
+            :x2="conn.x2"
+            :y2="conn.y2"
+            :stroke="currentBelt.color"
+            :stroke-width="0.15 + conn.strength * 0.4"
+            :stroke-opacity="0.1 + conn.strength * 0.3"
+            stroke-linecap="round"
+          />
         </g>
 
-        <!-- Contour lines (belt levels) -->
-        <g class="contours">
-          <g v-for="contour in contourLines" :key="contour.name">
-            <!-- Contour line -->
-            <line
-              :x1="contour.left"
-              :y1="contour.y"
-              :x2="contour.right"
-              :y2="contour.y"
-              :stroke="contour.reached ? contour.color : 'rgba(255,255,255,0.1)'"
-              :stroke-width="contour.isCurrent ? 3 : 1.5"
-              stroke-linecap="round"
-              :opacity="contour.reached ? 0.8 : 0.3"
-              class="contour-line"
-              :class="{ reached: contour.reached, current: contour.isCurrent }"
-            />
-
-            <!-- Belt label on right -->
-            <text
-              v-if="contour.reached || contour.idx <= currentBelt.index + 1"
-              :x="contour.right + 8"
-              :y="contour.y + 4"
-              class="contour-label"
-              :fill="contour.reached ? contour.color : 'rgba(255,255,255,0.3)'"
-              :font-weight="contour.isCurrent ? '700' : '400'"
-            >
-              {{ contour.label }}
-            </text>
-          </g>
+        <!-- Nodes -->
+        <g class="nodes">
+          <circle
+            v-for="node in nodes"
+            :key="node.id"
+            :cx="node.x"
+            :cy="node.y"
+            :r="node.size"
+            :fill="getNodeColor(node.mastery)"
+            :opacity="0.3 + node.mastery * 0.7"
+            class="node"
+            :class="{ selected: selectedNode?.id === node.id }"
+            @click.stop="handleNodeClick(node)"
+          />
         </g>
 
-        <!-- The snaking path (background track) -->
-        <path
-          class="path-track"
-          :d="pathData"
-          fill="none"
-          stroke="rgba(255,255,255,0.08)"
-          stroke-width="12"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        />
-
-        <!-- The progress path (traveled portion) -->
-        <path
-          class="path-progress"
-          :class="{ animated: isAnimated }"
-          :d="pathData"
-          fill="none"
-          stroke="url(#pathGrad)"
-          stroke-width="4"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          :stroke-dasharray="pathLength"
-          :stroke-dashoffset="pathLength * (1 - progress)"
-        />
-
-        <!-- Dotted overlay on traveled path -->
-        <path
-          class="path-dots"
-          :class="{ animated: isAnimated }"
-          :d="pathData"
-          fill="none"
-          stroke="var(--belt-color)"
-          stroke-width="3"
-          stroke-linecap="round"
-          stroke-dasharray="2 8"
-          :style="{ strokeDashoffset: pathLength * (1 - progress) }"
-        />
-
-        <!-- Traveler marker -->
-        <g
-          class="traveler"
-          :transform="`translate(${travelerPosition.x}, ${travelerPosition.y})`"
-          filter="url(#travelerGlow)"
-        >
-          <!-- Glow ring -->
-          <circle r="20" fill="var(--belt-glow)" opacity="0.4">
-            <animate attributeName="r" values="16;24;16" dur="2s" repeatCount="indefinite"/>
-            <animate attributeName="opacity" values="0.4;0.2;0.4" dur="2s" repeatCount="indefinite"/>
-          </circle>
-          <!-- Inner marker -->
-          <circle r="8" fill="var(--belt-color)"/>
-          <circle r="4" fill="white" opacity="0.9"/>
+        <!-- Cluster labels (visible when zoomed) -->
+        <g class="cluster-labels" v-if="scale >= 1.5">
+          <text
+            v-for="(family, i) in ['Greetings', 'Numbers', 'Colors', 'Food', 'Travel', 'Family', 'Time', 'Weather']"
+            :key="family"
+            :x="50 + Math.cos((i / 8) * Math.PI * 2) * 38"
+            :y="50 + Math.sin((i / 8) * Math.PI * 2) * 38"
+            fill="rgba(255,255,255,0.25)"
+            font-size="2.5"
+            text-anchor="middle"
+            font-weight="500"
+          >
+            {{ family }}
+          </text>
         </g>
       </svg>
 
-      <!-- Stats panel -->
-      <div class="stats-panel">
-        <div class="stat-row">
-          <div class="stat">
-            <span class="stat-value">{{ completedSeeds }}</span>
-            <span class="stat-label">Seeds</span>
-          </div>
-          <div class="stat-divider"></div>
-          <div class="stat">
-            <span class="stat-value">{{ Math.round(progress * 100) }}%</span>
-            <span class="stat-label">Complete</span>
-          </div>
-          <div class="stat-divider"></div>
-          <div class="stat">
-            <span class="stat-value velocity">{{ velocityLabel }}</span>
-            <span class="stat-label">Pace</span>
-          </div>
-        </div>
+      <!-- Zoom Controls -->
+      <div class="zoom-controls">
+        <button class="zoom-btn" @click="zoomIn" title="Zoom in">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="M21 21l-4.35-4.35M11 8v6M8 11h6"/>
+          </svg>
+        </button>
+        <button class="zoom-btn" @click="zoomOut" title="Zoom out">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="M21 21l-4.35-4.35M8 11h6"/>
+          </svg>
+        </button>
+        <button class="zoom-btn" @click="resetView" title="Reset view" v-if="scale !== 1 || panX !== 0 || panY !== 0">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+            <path d="M3 3v5h5"/>
+          </svg>
+        </button>
+      </div>
 
-        <div class="current-belt">
-          <div class="belt-swatch" :style="{ background: currentBelt.color }"></div>
-          <span class="belt-name">{{ currentBelt.label }}</span>
-          <span class="belt-rank">{{ currentBelt.name }} belt</span>
-        </div>
+      <!-- Zoom indicator -->
+      <div class="zoom-indicator" v-if="scale !== 1">
+        {{ Math.round(scale * 100) }}%
       </div>
     </main>
 
-    <!-- Continue button -->
+    <!-- Stats Panel -->
+    <div class="stats-panel">
+      <div class="stat">
+        <span class="stat-value">{{ completedSeeds }}</span>
+        <span class="stat-label">Seeds</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat">
+        <span class="stat-value">{{ Math.round(avgMastery * 100) }}%</span>
+        <span class="stat-label">Mastery</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat">
+        <div class="belt-indicator" :style="{ background: currentBelt.color }"></div>
+        <span class="stat-label">{{ currentBelt.label }}</span>
+      </div>
+    </div>
+
+    <!-- Continue Button -->
     <footer class="footer">
       <button class="continue-btn" @click="emit('startLearning')">
-        <span>Continue Climbing</span>
+        <span>Continue Learning</span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M5 12h14M12 5l7 7-7 7"/>
         </svg>
       </button>
     </footer>
+
+    <!-- Node Detail Sheet -->
+    <Transition name="sheet">
+      <div v-if="showNodeDetail && selectedNode" class="node-detail-overlay" @click="closeNodeDetail">
+        <div class="node-detail-sheet" @click.stop>
+          <div class="sheet-handle"></div>
+
+          <div class="sheet-header">
+            <div class="sheet-node-indicator" :style="{ background: getNodeColor(selectedNode.mastery) }"></div>
+            <div class="sheet-title-group">
+              <h3 class="sheet-phrase">{{ selectedNode.lego.phrase }}</h3>
+              <p class="sheet-translation">{{ selectedNode.lego.translation }}</p>
+            </div>
+            <button class="sheet-close" @click="closeNodeDetail">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 6L6 18M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+
+          <div class="sheet-content">
+            <div class="sheet-stat-row">
+              <div class="sheet-stat">
+                <span class="sheet-stat-value">{{ Math.round(selectedNode.mastery * 100) }}%</span>
+                <span class="sheet-stat-label">Mastery</span>
+              </div>
+              <div class="sheet-stat">
+                <span class="sheet-stat-value">{{ selectedNode.lego.practiceCount }}</span>
+                <span class="sheet-stat-label">Practices</span>
+              </div>
+              <div class="sheet-stat">
+                <span class="sheet-stat-value">{{ selectedNode.lego.lastPracticed }}</span>
+                <span class="sheet-stat-label">Last Seen</span>
+              </div>
+            </div>
+
+            <div class="sheet-mastery-bar">
+              <div class="sheet-mastery-fill" :style="{ width: (selectedNode.mastery * 100) + '%', background: currentBelt.color }"></div>
+            </div>
+
+            <div class="sheet-family">
+              <span class="sheet-family-label">Family:</span>
+              <span class="sheet-family-value">{{ selectedNode.lego.family }}</span>
+            </div>
+          </div>
+
+          <button class="sheet-practice-btn" @click="emit('startLearning'); closeNodeDetail()">
+            Practice This
+          </button>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
-
 .journey-map {
-  --accent: #c23a3a;
-  --gold: #d4a853;
-
   position: fixed;
   inset: 0;
+  background: #050508;
   display: flex;
   flex-direction: column;
-  background: #050508;
   font-family: 'DM Sans', -apple-system, sans-serif;
   overflow: hidden;
+  user-select: none;
 }
 
-/* Layered backgrounds for depth */
-.bg-gradient {
+.bg {
   position: fixed;
   inset: 0;
-  background:
-    /* Warm glow from summit */
-    radial-gradient(ellipse 70% 40% at 50% 15%, rgba(194, 58, 58, 0.08) 0%, transparent 60%),
-    /* Subtle side accents */
-    radial-gradient(ellipse 50% 50% at 10% 60%, rgba(167, 139, 250, 0.03) 0%, transparent 50%),
-    radial-gradient(ellipse 50% 50% at 90% 70%, rgba(212, 168, 83, 0.03) 0%, transparent 50%),
-    /* Base gradient */
-    linear-gradient(to bottom, #0a0a0f 0%, #050508 100%);
-  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 50%, rgba(80,80,100,0.05) 0%, transparent 50%);
 }
 
-.bg-stars {
+.glow-orb {
   position: fixed;
-  inset: 0;
-  background-image:
-    /* Bright stars */
-    radial-gradient(1.5px 1.5px at 12% 18%, rgba(255,255,255,0.6) 0%, transparent 100%),
-    radial-gradient(1px 1px at 28% 42%, rgba(255,255,255,0.4) 0%, transparent 100%),
-    radial-gradient(1.5px 1.5px at 45% 8%, rgba(255,255,255,0.5) 0%, transparent 100%),
-    radial-gradient(1px 1px at 62% 35%, rgba(255,255,255,0.35) 0%, transparent 100%),
-    radial-gradient(1.2px 1.2px at 78% 22%, rgba(255,255,255,0.45) 0%, transparent 100%),
-    radial-gradient(1px 1px at 88% 55%, rgba(255,255,255,0.3) 0%, transparent 100%),
-    /* Dimmer stars */
-    radial-gradient(0.8px 0.8px at 22% 65%, rgba(255,255,255,0.2) 0%, transparent 100%),
-    radial-gradient(0.8px 0.8px at 55% 52%, rgba(255,255,255,0.2) 0%, transparent 100%),
-    radial-gradient(0.8px 0.8px at 72% 48%, rgba(255,255,255,0.2) 0%, transparent 100%);
-  animation: starfield 8s ease-in-out infinite;
+  top: 40%;
+  left: 50%;
+  width: 300px;
+  height: 300px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(100,100,150,0.06) 0%, transparent 70%);
+  animation: breathe 4s ease-in-out infinite;
   pointer-events: none;
 }
 
-@keyframes starfield {
-  0%, 100% { opacity: 0.8; }
-  50% { opacity: 1; }
-}
-
-.bg-noise {
-  position: fixed;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  opacity: 0.02;
-  pointer-events: none;
-}
-
-/* Layered mist for atmospheric depth */
-.mist {
-  position: fixed;
-  width: 100%;
-  pointer-events: none;
-}
-
-.mist-1 {
-  bottom: 0;
-  height: 200px;
-  background: linear-gradient(
-    to top,
-    rgba(5, 5, 8, 1) 0%,
-    rgba(5, 5, 8, 0.9) 30%,
-    rgba(10, 10, 15, 0.4) 70%,
-    transparent 100%
-  );
-}
-
-.mist-2 {
-  bottom: 100px;
-  height: 150px;
-  background: linear-gradient(
-    to top,
-    rgba(10, 10, 15, 0.6) 0%,
-    transparent 100%
-  );
-  opacity: 0.7;
-  filter: blur(30px);
-  animation: mistDrift 12s ease-in-out infinite alternate;
-}
-
-@keyframes mistDrift {
-  0% { transform: translateX(-5%); opacity: 0.7; }
-  100% { transform: translateX(5%); opacity: 0.5; }
+@keyframes breathe {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.5; }
+  50% { transform: translate(-50%, -50%) scale(1.1); opacity: 0.7; }
 }
 
 /* Header */
 .header {
-  position: relative;
-  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 1rem 1.5rem;
+  position: relative;
+  z-index: 10;
+}
+
+.header-left {
+  display: flex;
+  flex-direction: column;
 }
 
 .title {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.95);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: rgba(255,255,255,0.95);
   margin: 0;
-  letter-spacing: -0.01em;
+}
+
+.subtitle {
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.4);
+  margin-top: 0.125rem;
 }
 
 .streak-badge {
@@ -493,114 +650,111 @@ onMounted(() => {
   border-radius: 100px;
 }
 
-.streak-icon { font-size: 0.8125rem; }
+.streak-icon { font-size: 0.875rem; }
 
 .streak-num {
-  font-family: 'DM Sans', -apple-system, sans-serif;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 700;
   color: #ff9500;
 }
 
-/* Main */
+/* Main canvas area */
 .main {
   flex: 1;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  padding: 0 1rem;
+  justify-content: center;
   position: relative;
-  z-index: 10;
-  min-height: 0;
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
 }
 
-/* Mountain SVG */
-.mountain-svg {
-  width: 100%;
-  max-width: 380px;
+.main:active {
+  cursor: grabbing;
+}
+
+.network-svg {
+  width: 90%;
+  max-width: 400px;
   height: auto;
-  flex: 1;
-  min-height: 0;
+  transition: transform 0.1s ease-out;
 }
 
-.mountain-shape {
-  filter: drop-shadow(0 0 60px rgba(255,255,255,0.03));
+.node {
+  cursor: pointer;
+  transition: r 0.2s ease, opacity 0.2s ease;
 }
 
-/* Torii */
-.torii {
-  opacity: 0.9;
-  filter: drop-shadow(0 0 8px rgba(194, 58, 58, 0.4));
+.node:hover {
+  opacity: 1 !important;
 }
 
-/* Contour lines */
-.contour-line {
-  transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+.node.selected {
+  stroke: white;
+  stroke-width: 0.5;
 }
 
-.contour-line.current {
-  filter: drop-shadow(0 0 8px var(--belt-color));
+/* Zoom controls */
+.zoom-controls {
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.contour-label {
-  font-family: 'DM Sans', -apple-system, sans-serif;
-  font-size: 9px;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
+.zoom-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(10,10,15,0.8);
+  backdrop-filter: blur(8px);
+  color: rgba(255,255,255,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-/* Path */
-.path-track {
-  opacity: 0.4;
+.zoom-btn:hover {
+  background: rgba(255,255,255,0.1);
+  color: white;
 }
 
-.path-progress {
-  transition: stroke-dashoffset 2s cubic-bezier(0.16, 1, 0.3, 1);
-  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.3));
+.zoom-btn svg {
+  width: 20px;
+  height: 20px;
 }
 
-.path-progress:not(.animated) {
-  stroke-dashoffset: var(--path-length) !important;
-}
-
-.path-dots {
-  transition: stroke-dashoffset 2s cubic-bezier(0.16, 1, 0.3, 1);
-  animation: marchingAnts 0.8s linear infinite;
-  filter: drop-shadow(0 0 3px var(--belt-glow));
-}
-
-@keyframes marchingAnts {
-  to { stroke-dashoffset: -10; }
-}
-
-/* Traveler */
-.traveler {
-  transition: transform 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+.zoom-indicator {
+  position: absolute;
+  left: 1rem;
+  top: 1rem;
+  padding: 0.375rem 0.75rem;
+  background: rgba(10,10,15,0.8);
+  backdrop-filter: blur(8px);
+  border-radius: 8px;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.6);
 }
 
 /* Stats panel */
 .stats-panel {
-  width: 100%;
-  max-width: 340px;
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.04) 0%,
-    rgba(255, 255, 255, 0.02) 100%
-  );
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 20px;
-  padding: 1.25rem;
-  margin-top: 1rem;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-.stat-row {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 1.5rem;
-  margin-bottom: 1rem;
+  padding: 1rem;
+  margin: 0 1rem;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 16px;
 }
 
 .stat {
@@ -612,79 +766,38 @@ onMounted(() => {
 
 .stat-value {
   font-family: 'Space Mono', monospace;
-  font-size: 1.375rem;
+  font-size: 1.25rem;
   font-weight: 700;
   color: white;
-  letter-spacing: -0.02em;
-}
-
-.stat-value.velocity {
-  font-family: 'DM Sans', -apple-system, sans-serif;
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--gold);
 }
 
 .stat-label {
   font-size: 0.625rem;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255,255,255,0.4);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
 }
 
 .stat-divider {
   width: 1px;
-  height: 28px;
-  background: linear-gradient(
-    to bottom,
-    transparent,
-    rgba(255, 255, 255, 0.12),
-    transparent
-  );
+  height: 32px;
+  background: rgba(255,255,255,0.1);
 }
 
-.current-belt {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding-top: 1rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.belt-swatch {
-  width: 24px;
-  height: 24px;
+.belt-indicator {
+  width: 20px;
+  height: 20px;
   border-radius: 6px;
-  box-shadow:
-    0 0 12px var(--belt-glow),
-    inset 0 1px 1px rgba(255, 255, 255, 0.3);
-}
-
-.belt-name {
-  flex: 1;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.95);
-}
-
-.belt-rank {
-  font-size: 0.6875rem;
-  color: rgba(255, 255, 255, 0.35);
-  text-transform: capitalize;
 }
 
 /* Footer */
 .footer {
   padding: 1rem 1.5rem;
   padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px) + 80px);
-  position: relative;
-  z-index: 10;
 }
 
 .continue-btn {
   width: 100%;
-  max-width: 340px;
-  margin: 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -701,17 +814,11 @@ onMounted(() => {
   transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   box-shadow:
     0 4px 16px rgba(194, 58, 58, 0.35),
-    0 8px 24px rgba(194, 58, 58, 0.2),
-    inset 0 1px 1px rgba(255, 255, 255, 0.2);
-  -webkit-tap-highlight-color: transparent;
+    0 8px 24px rgba(194, 58, 58, 0.2);
 }
 
 .continue-btn:hover {
   transform: translateY(-2px);
-  box-shadow:
-    0 6px 20px rgba(194, 58, 58, 0.45),
-    0 12px 32px rgba(194, 58, 58, 0.25),
-    inset 0 1px 1px rgba(255, 255, 255, 0.2);
 }
 
 .continue-btn:active {
@@ -721,36 +828,192 @@ onMounted(() => {
 .continue-btn svg {
   width: 18px;
   height: 18px;
-  stroke-width: 2.5;
+}
+
+/* Node Detail Sheet */
+.node-detail-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.node-detail-sheet {
+  width: 100%;
+  max-width: 500px;
+  background: linear-gradient(to bottom, #1a1a24 0%, #12121a 100%);
+  border-radius: 24px 24px 0 0;
+  padding: 0.75rem 1.5rem 2rem;
+  padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
+}
+
+.sheet-handle {
+  width: 36px;
+  height: 4px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 2px;
+  margin: 0 auto 1.25rem;
+}
+
+.sheet-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.sheet-node-indicator {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  flex-shrink: 0;
+}
+
+.sheet-title-group {
+  flex: 1;
+  min-width: 0;
+}
+
+.sheet-phrase {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: white;
+  margin: 0 0 0.25rem;
+}
+
+.sheet-translation {
+  font-size: 0.9375rem;
+  color: rgba(255,255,255,0.5);
+  margin: 0;
+}
+
+.sheet-close {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.05);
+  color: rgba(255,255,255,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.sheet-close svg {
+  width: 18px;
+  height: 18px;
+}
+
+.sheet-content {
+  margin-bottom: 1.5rem;
+}
+
+.sheet-stat-row {
+  display: flex;
+  justify-content: space-around;
+  margin-bottom: 1.25rem;
+}
+
+.sheet-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.sheet-stat-value {
+  font-family: 'Space Mono', monospace;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: white;
+}
+
+.sheet-stat-label {
+  font-size: 0.6875rem;
+  color: rgba(255,255,255,0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sheet-mastery-bar {
+  height: 6px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+.sheet-mastery-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.sheet-family {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.sheet-family-label {
+  color: rgba(255,255,255,0.4);
+}
+
+.sheet-family-value {
+  color: rgba(255,255,255,0.8);
+  font-weight: 500;
+}
+
+.sheet-practice-btn {
+  width: 100%;
+  padding: 0.875rem;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  color: white;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sheet-practice-btn:hover {
+  background: rgba(255,255,255,0.12);
+}
+
+/* Sheet transition */
+.sheet-enter-active {
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.sheet-leave-active {
+  transition: all 0.25s ease-in;
+}
+
+.sheet-enter-from,
+.sheet-leave-to {
+  opacity: 0;
+}
+
+.sheet-enter-from .node-detail-sheet,
+.sheet-leave-to .node-detail-sheet {
+  transform: translateY(100%);
 }
 
 /* Responsive */
 @media (max-width: 480px) {
   .header { padding: 0.75rem 1rem; }
-  .title { font-size: 1rem; }
-  .main { padding: 0 0.75rem; }
-  .mountain-svg { max-width: 340px; }
-  .stats-panel {
-    padding: 1rem;
-    max-width: 300px;
-  }
-  .stat-row { gap: 1rem; }
-  .stat-value { font-size: 1.25rem; }
-  .stat-label { font-size: 0.5625rem; }
-  .footer {
-    padding: 0.75rem 1rem;
-    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px) + 76px);
-  }
-  .continue-btn {
-    max-width: 300px;
-    padding: 0.75rem 1.5rem;
-    font-size: 0.875rem;
-  }
-}
-
-@media (min-width: 768px) {
-  .mountain-svg { max-width: 420px; }
-  .stats-panel { max-width: 380px; padding: 1.5rem; }
-  .footer { padding-bottom: calc(1.5rem + 88px); }
+  .title { font-size: 1.125rem; }
+  .stats-panel { margin: 0 0.75rem; gap: 1rem; }
+  .stat-value { font-size: 1.125rem; }
+  .footer { padding: 0.75rem 1rem; padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px) + 76px); }
+  .zoom-controls { right: 0.5rem; }
+  .zoom-btn { width: 36px; height: 36px; }
 }
 </style>
