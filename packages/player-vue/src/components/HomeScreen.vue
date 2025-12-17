@@ -244,7 +244,7 @@ const openCourseSelector = () => {
       :supabase="supabase"
       :enrolledCourses="enrolledCourses"
       :activeCourseId="activeCourseData?.course_code || activeCourseData?.id"
-      :defaultKnownLang="activeCourseData?.known_language || 'en'"
+      :defaultKnownLang="activeCourseData?.known_lang || 'eng'"
       @close="showCourseSelector = false"
       @selectCourse="handleCourseSelect"
     />

@@ -6,9 +6,29 @@
  * - "I speak" pills for known language selection (enables language chaining)
  * - "I want to learn" grid of target languages
  * - Shows progress for enrolled courses, "NEW" badge for unenrolled
- * - Queries Supabase for available courses
+ * - Queries Supabase for available courses (uses dashboard schema as SSoT)
  */
 import { ref, computed, watch, onMounted } from 'vue'
+
+// Language metadata mapping (3-letter codes to display info)
+const LANGUAGE_META = {
+  eng: { name: 'English', flag: '🇬🇧' },
+  spa: { name: 'Spanish', flag: '🇪🇸' },
+  ita: { name: 'Italian', flag: '🇮🇹' },
+  fra: { name: 'French', flag: '🇫🇷' },
+  deu: { name: 'German', flag: '🇩🇪' },
+  por: { name: 'Portuguese', flag: '🇵🇹' },
+  cym: { name: 'Welsh', flag: '🏴󠁧󠁢󠁷󠁬󠁳󠁿' },
+  jpn: { name: 'Japanese', flag: '🇯🇵' },
+  zho: { name: 'Chinese', flag: '🇨🇳' },
+  kor: { name: 'Korean', flag: '🇰🇷' },
+  ara: { name: 'Arabic', flag: '🇸🇦' },
+  nld: { name: 'Dutch', flag: '🇳🇱' },
+  rus: { name: 'Russian', flag: '🇷🇺' },
+  pol: { name: 'Polish', flag: '🇵🇱' },
+}
+
+const getLangMeta = (code) => LANGUAGE_META[code] || { name: code.toUpperCase(), flag: '🌐' }
 
 const props = defineProps({
   isOpen: {
@@ -29,7 +49,7 @@ const props = defineProps({
   },
   defaultKnownLang: {
     type: String,
-    default: 'en'
+    default: 'eng'  // 3-letter code
   }
 })
 
@@ -45,18 +65,19 @@ const error = ref(null)
 const knownLanguages = computed(() => {
   const langMap = new Map()
   for (const course of allCourses.value) {
-    if (!langMap.has(course.known_language)) {
-      langMap.set(course.known_language, {
-        code: course.known_language,
-        name: course.known_language_name,
-        flag: course.known_flag
+    if (!langMap.has(course.known_lang)) {
+      const meta = getLangMeta(course.known_lang)
+      langMap.set(course.known_lang, {
+        code: course.known_lang,
+        name: meta.name,
+        flag: meta.flag
       })
     }
   }
   // Sort with English first, then alphabetically
   return [...langMap.values()].sort((a, b) => {
-    if (a.code === 'en') return -1
-    if (b.code === 'en') return 1
+    if (a.code === 'eng') return -1
+    if (b.code === 'eng') return 1
     return a.name.localeCompare(b.name)
   })
 })
@@ -64,8 +85,12 @@ const knownLanguages = computed(() => {
 // Computed: courses available for selected known language
 const availableCourses = computed(() => {
   return allCourses.value
-    .filter(c => c.known_language === selectedKnownLang.value)
-    .sort((a, b) => a.title.localeCompare(b.title))
+    .filter(c => c.known_lang === selectedKnownLang.value)
+    .sort((a, b) => {
+      const nameA = getLangMeta(a.target_lang).name
+      const nameB = getLangMeta(b.target_lang).name
+      return nameA.localeCompare(nameB)
+    })
 })
 
 // Check if a course is enrolled
@@ -90,7 +115,7 @@ const isActive = (courseCode) => {
   return props.activeCourseId === courseCode
 }
 
-// Fetch courses from Supabase
+// Fetch courses from Supabase (dashboard schema is SSoT)
 const fetchCourses = async () => {
   isLoading.value = true
   error.value = null
@@ -107,11 +132,11 @@ const fetchCourses = async () => {
     const { data, error: fetchError } = await props.supabase
       .from('courses')
       .select('*')
-      .eq('is_active', true)
-      .order('title')
+      .order('display_name')
 
     if (fetchError) throw fetchError
     allCourses.value = data || []
+    console.log('[CourseSelector] Loaded courses from Supabase:', data?.length || 0)
   } catch (e) {
     console.error('Failed to fetch courses:', e)
     error.value = 'Failed to load courses'
@@ -122,23 +147,22 @@ const fetchCourses = async () => {
   }
 }
 
-// Mock courses for development/fallback
+// Mock courses for development/fallback (matches dashboard schema)
 const getMockCourses = () => [
-  { course_code: 'spa_for_eng_v2', title: 'Spanish', subtitle: 'for English Speakers', known_language: 'en', target_language: 'es', known_language_name: 'English', target_language_name: 'Spanish', known_flag: '🇬🇧', target_flag: '🇪🇸', total_seeds: 668, is_active: true },
-  { course_code: 'ita_for_eng_v2', title: 'Italian', subtitle: 'for English Speakers', known_language: 'en', target_language: 'it', known_language_name: 'English', target_language_name: 'Italian', known_flag: '🇬🇧', target_flag: '🇮🇹', total_seeds: 668, is_active: true },
-  { course_code: 'fra_for_eng_v2', title: 'French', subtitle: 'for English Speakers', known_language: 'en', target_language: 'fr', known_language_name: 'English', target_language_name: 'French', known_flag: '🇬🇧', target_flag: '🇫🇷', total_seeds: 668, is_active: true },
-  { course_code: 'deu_for_eng_v2', title: 'German', subtitle: 'for English Speakers', known_language: 'en', target_language: 'de', known_language_name: 'English', target_language_name: 'German', known_flag: '🇬🇧', target_flag: '🇩🇪', total_seeds: 668, is_active: true },
-  { course_code: 'cym_for_eng_v2', title: 'Welsh', subtitle: 'for English Speakers', known_language: 'en', target_language: 'cy', known_language_name: 'English', target_language_name: 'Welsh', known_flag: '🇬🇧', target_flag: '🏴󠁧󠁢󠁷󠁬󠁳󠁿', total_seeds: 668, is_active: true },
-  { course_code: 'por_for_eng_v2', title: 'Portuguese', subtitle: 'for English Speakers', known_language: 'en', target_language: 'pt', known_language_name: 'English', target_language_name: 'Portuguese', known_flag: '🇬🇧', target_flag: '🇵🇹', total_seeds: 668, is_active: true },
-  { course_code: 'jpn_for_eng_v2', title: 'Japanese', subtitle: 'for English Speakers', known_language: 'en', target_language: 'ja', known_language_name: 'English', target_language_name: 'Japanese', known_flag: '🇬🇧', target_flag: '🇯🇵', total_seeds: 500, is_active: true },
-  { course_code: 'zho_for_eng_v2', title: 'Chinese', subtitle: 'for English Speakers', known_language: 'en', target_language: 'zh', known_language_name: 'English', target_language_name: 'Chinese', known_flag: '🇬🇧', target_flag: '🇨🇳', total_seeds: 500, is_active: true },
-  { course_code: 'kor_for_eng_v2', title: 'Korean', subtitle: 'for English Speakers', known_language: 'en', target_language: 'ko', known_language_name: 'English', target_language_name: 'Korean', known_flag: '🇬🇧', target_flag: '🇰🇷', total_seeds: 500, is_active: true },
-  { course_code: 'ara_for_eng_v2', title: 'Arabic', subtitle: 'for English Speakers', known_language: 'en', target_language: 'ar', known_language_name: 'English', target_language_name: 'Arabic', known_flag: '🇬🇧', target_flag: '🇸🇦', total_seeds: 500, is_active: true },
+  { course_code: 'spa_for_eng', known_lang: 'eng', target_lang: 'spa', display_name: 'Spanish for English Speakers', status: 'active' },
+  { course_code: 'ita_for_eng', known_lang: 'eng', target_lang: 'ita', display_name: 'Italian for English Speakers', status: 'active' },
+  { course_code: 'fra_for_eng', known_lang: 'eng', target_lang: 'fra', display_name: 'French for English Speakers', status: 'active' },
+  { course_code: 'deu_for_eng', known_lang: 'eng', target_lang: 'deu', display_name: 'German for English Speakers', status: 'active' },
+  { course_code: 'cym_for_eng', known_lang: 'eng', target_lang: 'cym', display_name: 'Welsh for English Speakers', status: 'active' },
+  { course_code: 'por_for_eng', known_lang: 'eng', target_lang: 'por', display_name: 'Portuguese for English Speakers', status: 'active' },
+  { course_code: 'jpn_for_eng', known_lang: 'eng', target_lang: 'jpn', display_name: 'Japanese for English Speakers', status: 'draft' },
+  { course_code: 'zho_for_eng', known_lang: 'eng', target_lang: 'zho', display_name: 'Chinese for English Speakers', status: 'draft' },
   // Language chaining from Spanish
-  { course_code: 'ita_for_spa_v1', title: 'Italian', subtitle: 'para hispanohablantes', known_language: 'es', target_language: 'it', known_language_name: 'Spanish', target_language_name: 'Italian', known_flag: '🇪🇸', target_flag: '🇮🇹', total_seeds: 500, is_active: true },
-  { course_code: 'fra_for_spa_v1', title: 'French', subtitle: 'para hispanohablantes', known_language: 'es', target_language: 'fr', known_language_name: 'Spanish', target_language_name: 'French', known_flag: '🇪🇸', target_flag: '🇫🇷', total_seeds: 500, is_active: true },
-  { course_code: 'por_for_spa_v1', title: 'Portuguese', subtitle: 'para hispanohablantes', known_language: 'es', target_language: 'pt', known_language_name: 'Spanish', target_language_name: 'Portuguese', known_flag: '🇪🇸', target_flag: '🇵🇹', total_seeds: 500, is_active: true },
-  { course_code: 'eng_for_spa_v1', title: 'English', subtitle: 'para hispanohablantes', known_language: 'es', target_language: 'en', known_language_name: 'Spanish', target_language_name: 'English', known_flag: '🇪🇸', target_flag: '🇬🇧', total_seeds: 500, is_active: true },
+  { course_code: 'ita_for_spa', known_lang: 'spa', target_lang: 'ita', display_name: 'Italian para hispanohablantes', status: 'draft' },
+  { course_code: 'fra_for_spa', known_lang: 'spa', target_lang: 'fra', display_name: 'French para hispanohablantes', status: 'draft' },
+  { course_code: 'eng_for_spa', known_lang: 'spa', target_lang: 'eng', display_name: 'English para hispanohablantes', status: 'draft' },
+  // From German
+  { course_code: 'spa_for_deu', known_lang: 'deu', target_lang: 'spa', display_name: 'Spanish for German Speakers', status: 'draft' },
 ]
 
 // Handle course selection
@@ -243,16 +267,16 @@ onMounted(() => {
                 <!-- NEW badge for unenrolled -->
                 <div v-else-if="!isEnrolled(course.course_code)" class="new-badge">NEW</div>
 
-                <span class="target-flag">{{ course.target_flag }}</span>
-                <span class="target-name">{{ course.title }}</span>
+                <span class="target-flag">{{ getLangMeta(course.target_lang).flag }}</span>
+                <span class="target-name">{{ getLangMeta(course.target_lang).name }}</span>
 
-                <!-- Progress or subtitle -->
+                <!-- Progress or status -->
                 <span class="target-status">
                   <template v-if="isEnrolled(course.course_code)">
                     {{ getProgress(course.course_code) }}%
                   </template>
                   <template v-else>
-                    {{ course.total_seeds }} seeds
+                    {{ course.status === 'active' ? 'Ready' : 'Coming soon' }}
                   </template>
                 </span>
               </button>

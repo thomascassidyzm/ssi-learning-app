@@ -86,23 +86,21 @@ export interface PracticePhraseRow {
 }
 
 /**
- * Course row from `courses` table
+ * Course row from `courses` table (matches dashboard schema - SSoT)
  * Used for course catalog and selection UI
  */
 export interface CourseRow {
-  course_code: string;
-  title: string;
-  subtitle: string | null;
-  known_language: string;
-  target_language: string;
-  known_language_name: string;
-  target_language_name: string;
-  known_flag: string;
-  target_flag: string;
-  total_seeds: number;
-  version: string;
-  is_active: boolean;
+  course_code: string;           // e.g., 'ita_for_eng'
+  known_lang: string;            // 3-letter code: 'eng', 'spa', 'deu'
+  target_lang: string;           // 3-letter code: 'ita', 'fra', 'spa'
+  display_name: string;          // e.g., 'Italian for English speakers'
+  known_voice: string | null;
+  target_voice_1: string | null;
+  target_voice_2: string | null;
+  presentation_voice: string | null;
+  status: 'draft' | 'active' | 'archived';
   created_at?: string;
+  updated_at?: string;
 }
 
 /**
@@ -124,6 +122,40 @@ export interface EnrolledCourseRow extends CourseRow {
 export interface CourseCatalog {
   knownLanguages: Array<{ code: string; name: string; flag: string }>;
   coursesByKnown: Record<string, CourseRow[]>;
+}
+
+/**
+ * Language metadata mapping (3-letter codes to display info)
+ * Used by UI to show flags and full names
+ */
+export const LANGUAGE_META: Record<string, { name: string; flag: string }> = {
+  eng: { name: 'English', flag: '🇬🇧' },
+  spa: { name: 'Spanish', flag: '🇪🇸' },
+  ita: { name: 'Italian', flag: '🇮🇹' },
+  fra: { name: 'French', flag: '🇫🇷' },
+  deu: { name: 'German', flag: '🇩🇪' },
+  por: { name: 'Portuguese', flag: '🇵🇹' },
+  cym: { name: 'Welsh', flag: '🏴󠁧󠁢󠁷󠁬󠁳󠁿' },
+  jpn: { name: 'Japanese', flag: '🇯🇵' },
+  zho: { name: 'Chinese', flag: '🇨🇳' },
+  kor: { name: 'Korean', flag: '🇰🇷' },
+  ara: { name: 'Arabic', flag: '🇸🇦' },
+  nld: { name: 'Dutch', flag: '🇳🇱' },
+  rus: { name: 'Russian', flag: '🇷🇺' },
+  pol: { name: 'Polish', flag: '🇵🇱' },
+  swe: { name: 'Swedish', flag: '🇸🇪' },
+  nor: { name: 'Norwegian', flag: '🇳🇴' },
+  dan: { name: 'Danish', flag: '🇩🇰' },
+  fin: { name: 'Finnish', flag: '🇫🇮' },
+  tur: { name: 'Turkish', flag: '🇹🇷' },
+  hin: { name: 'Hindi', flag: '🇮🇳' },
+};
+
+/**
+ * Get language metadata by code
+ */
+export function getLanguageMeta(code: string): { name: string; flag: string } {
+  return LANGUAGE_META[code] || { name: code.toUpperCase(), flag: '🌐' };
 }
 
 // ============================================
