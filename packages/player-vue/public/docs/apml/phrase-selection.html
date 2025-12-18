@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Phrase Selection | APML Specification</title>
+  <link rel="stylesheet" href="/docs/ssi-docs.css">
+</head>
+<body>
+  <div class="doc-bg">
+    <div class="stars"></div>
+    <div class="gradient"></div>
+  </div>
+
+  <div class="doc-container">
+    <nav class="doc-breadcrumb">
+      <a href="/docs/">Docs</a>
+      <span> / </span>
+      <a href="/docs/apml/">APML</a>
+      <span> / </span>
+      <span>Phrase Selection</span>
+    </nav>
+
+    <header class="doc-header">
+      <div class="doc-logo">
+        <span class="say">Say</span><span class="something">Something</span><span class="in">in</span>
+      </div>
+      <h1>Phrase <span class="accent">Selection</span></h1>
+      <p class="doc-subtitle">Cycle vs Round, Debut vs Eternal</p>
+      <p class="doc-meta">APML Specification v1.1.0</p>
+    </header>
+
+    <nav class="doc-toc">
+      <h3>Contents</h3>
+      <ul>
+        <li><a href="#philosophy">Philosophy</a></li>
+        <li><a href="#cycle-vs-round">Cycle vs Round</a></li>
+        <li><a href="#classification">Debut vs Eternal</a></li>
+        <li><a href="#round-structure">Round Structure</a></li>
+        <li><a href="#eternal-selection">Eternal Selection</a></li>
+        <li><a href="#parameters">Parameters</a></li>
+      </ul>
+    </nav>
+
+    <section id="philosophy">
+      <h2><span class="section-icon">💡</span> Philosophy</h2>
+
+      <blockquote>
+        "The LEGO is the unit of learning. Phrases are contexts. Spaced repetition tracks LEGOs; phrase selection provides variety."
+      </blockquote>
+
+      <div class="doc-card highlight">
+        <h4>Core Insight</h4>
+        <p>The learner's brain doesn't care about "words" - it cares about <strong>cognitive load</strong>: how much must I hold in working memory?</p>
+        <p style="margin-bottom:0"><strong>Syllable count</strong> is a language-agnostic proxy for cognitive load. A 4-syllable phrase in any language requires similar working memory.</p>
+      </div>
+
+      <div class="doc-card">
+        <h4>Key Principles (APML D02, D04)</h4>
+        <ul style="margin-bottom:0">
+          <li><strong>D02</strong>: Language-agnostic. Works for Welsh, Japanese, Arabic, anything.</li>
+          <li><strong>D04</strong>: Cognitive load over word count. Syllables, not words.</li>
+          <li><strong>D06</strong>: The LEGO is the unit. Spaced rep tracks LEGOs, not phrases.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="cycle-vs-round">
+      <h2><span class="section-icon">🔄</span> Cycle vs Round</h2>
+
+      <div class="doc-card highlight">
+        <p style="margin-bottom:0">Two orthogonal concepts govern learning delivery. They are <strong>different dimensions</strong>, not variations of the same thing.</p>
+      </div>
+
+      <div class="doc-card">
+        <pre><code>                WHAT (content structure)
+                  │
+            Round │  "One LEGO's learning progression"
+                  │
+  ────────────────┼──────────────────────────────────────
+                  │
+            Cycle │  "Forced production delivery mechanism"
+                  │
+                HOW (delivery mechanism)</code></pre>
+      </div>
+
+      <div class="two-col">
+        <div class="doc-card">
+          <h4 style="margin-top:0">Cycle</h4>
+          <p><strong>Definition:</strong> The delivery mechanism for forced production</p>
+          <p><strong>Level:</strong> App/Engine</p>
+          <p><strong>Structure:</strong> PROMPT → PAUSE → VOICE_1 → VOICE_2</p>
+          <p style="margin-bottom:0">The Cycle is the fundamental unit of the SSi methodology. It is language-agnostic and content-agnostic.</p>
+        </div>
+
+        <div class="doc-card">
+          <h4 style="margin-top:0">Round</h4>
+          <p><strong>Definition:</strong> The content structure for one LEGO's learning progression</p>
+          <p><strong>Level:</strong> Curriculum/Pedagogy</p>
+          <p><strong>Contains:</strong> Introduction + Components + Debut + Spaced Rep + Consolidation</p>
+          <p style="margin-bottom:0">The Round answers: "What does the learner experience when encountering a new LEGO?"</p>
+        </div>
+      </div>
+
+      <div class="doc-card info">
+        <h4>Relationship</h4>
+        <ul style="margin-bottom:0">
+          <li>A Session contains many Rounds</li>
+          <li>A Round contains many Cycles (plus spaced rep)</li>
+          <li>The Session ends by time, not by Round completion</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="classification">
+      <h2><span class="section-icon">📊</span> Debut vs Eternal</h2>
+
+      <p>Phrases are classified by cognitive load (syllable count) into two pools:</p>
+
+      <div class="two-col">
+        <div class="doc-card">
+          <h4 style="margin-top:0;color:var(--ssi-gold)">Debut Pool</h4>
+          <p><strong>Size:</strong> 7 shortest phrases by syllable count</p>
+          <p><strong>Purpose:</strong> Build confidence during introduction</p>
+          <p><strong>When used:</strong> During initial Round (phases 2-4)</p>
+          <p style="margin-bottom:0"><strong>Rationale:</strong> Shorter phrases = lower cognitive load = easier success</p>
+        </div>
+
+        <div class="doc-card">
+          <h4 style="margin-top:0;color:var(--ssi-red)">Eternal Pool</h4>
+          <p><strong>Size:</strong> 5 longest phrases by syllable count</p>
+          <p><strong>Purpose:</strong> Provide variety during spaced repetition</p>
+          <p><strong>When used:</strong> After introduction complete</p>
+          <p style="margin-bottom:0"><strong>Rationale:</strong> Longer phrases = more challenge = deeper encoding</p>
+        </div>
+      </div>
+
+      <div class="doc-card">
+        <h4>Classification Algorithm</h4>
+        <pre><code>function classifyBasket(phrases: PracticeCycleRow[]): ClassifiedBasket {
+  // Sort by target syllable count (ascending)
+  const sorted = phrases.sort((a, b) =>
+    a.target_syllable_count - b.target_syllable_count
+  )
+
+  return {
+    introduction: basket.introduction_audio,
+    components: sorted.filter(p => p.position === 0),  // M-type only
+    lego_debut: sorted.find(p => p.position === 1),    // The LEGO phrase
+    debut: sorted.slice(0, DEBUT_POOL_SIZE),           // 7 shortest
+    eternal: sorted.slice(-ETERNAL_POOL_SIZE)          // 5 longest
+  }
+}</code></pre>
+      </div>
+
+      <div class="doc-card warning">
+        <h4>Small Basket Handling</h4>
+        <p style="margin-bottom:0">Debut and eternal may overlap for small baskets. This is intentional. A basket with 6 phrases might have all 6 in both pools.</p>
+      </div>
+    </section>
+
+    <section id="round-structure">
+      <h2><span class="section-icon">🎯</span> Round Structure</h2>
+
+      <p>A Round is the complete learning sequence for one LEGO:</p>
+
+      <div class="doc-card">
+        <table>
+          <tr>
+            <th>Phase</th>
+            <th>Name</th>
+            <th>Description</th>
+          </tr>
+          <tr>
+            <td>1</td>
+            <td><strong>Introduction Audio</strong></td>
+            <td>"The Spanish for X is..." - always replays on resume</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td><strong>Components</strong></td>
+            <td>Individual word parts (M-type LEGOs only)</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td><strong>LEGO Debut</strong></td>
+            <td>Practice the full LEGO phrase itself</td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td><strong>Debut Phrases</strong></td>
+            <td>Shortest phrases (build confidence)</td>
+          </tr>
+          <tr>
+            <td>5</td>
+            <td><strong>Interleaved Spaced Rep</strong></td>
+            <td>Review previous LEGOs while new one settles</td>
+          </tr>
+          <tr>
+            <td>6</td>
+            <td><strong>Consolidation</strong></td>
+            <td>2 eternal phrases before next Round</td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="doc-card">
+        <pre><code>Round = [
+  introduction_audio,        // "The Spanish for X is..."
+  ...component_cycles,       // Individual parts (M-type only)
+  lego_debut_cycle,          // The LEGO phrase itself
+  ...debut_cycles,           // Shortest phrases (build confidence)
+  ...spaced_rep_cycles,      // Reviews of previous LEGOs
+  ...consolidation_cycles    // 1-2 eternals before next Round
+]</code></pre>
+      </div>
+
+      <div class="doc-card info">
+        <h4>State Persistence</h4>
+        <p><code>introduction_index</code> tracks position across sessions.</p>
+        <p style="margin-bottom:0">If learner quits mid-Round: Introduction replays (context), practice resumes from saved index.</p>
+      </div>
+    </section>
+
+    <section id="eternal-selection">
+      <h2><span class="section-icon">🎲</span> Eternal Selection Algorithms</h2>
+
+      <p>After introduction completes, how do we select phrases for spaced rep reviews?</p>
+
+      <div class="doc-card highlight">
+        <h4>Default: Random Urn</h4>
+        <p>Shuffle eternal pool into an "urn". Draw without replacement. When empty, refill and reshuffle.</p>
+        <p style="margin-bottom:0"><strong>Guarantees:</strong> All phrases seen before any repeats. Random order. No consecutive repeats.</p>
+      </div>
+
+      <div class="doc-card">
+        <h4>Random Urn Algorithm</h4>
+        <pre><code>function selectFromEternal(basket, progress) {
+  // Initialize urn if empty
+  if (progress.eternal_urn.length === 0) {
+    progress.eternal_urn = shuffle(
+      basket.eternal.map(p => p.id)
+    )
+  }
+
+  // Pop next phrase
+  const phrase_id = progress.eternal_urn.pop()
+  return basket.eternal.find(p => p.id === phrase_id)
+}</code></pre>
+      </div>
+
+      <div class="doc-card">
+        <h4>Alternative Algorithms</h4>
+        <table>
+          <tr>
+            <th>Mode</th>
+            <th>Description</th>
+            <th>Use Case</th>
+          </tr>
+          <tr>
+            <td><code>round_robin</code></td>
+            <td>Cycle through in fixed order</td>
+            <td>Predictable, even coverage</td>
+          </tr>
+          <tr>
+            <td><code>weighted_random</code></td>
+            <td>Bias toward less recent</td>
+            <td>Probabilistic variety</td>
+          </tr>
+          <tr>
+            <td><code>max_distance</code></td>
+            <td>Most different from last played</td>
+            <td>Maximum variety</td>
+          </tr>
+        </table>
+      </div>
+    </section>
+
+    <section id="parameters">
+      <h2><span class="section-icon">⚙️</span> Parameters</h2>
+
+      <div class="doc-card">
+        <table>
+          <tr>
+            <th>Parameter</th>
+            <th>Default</th>
+            <th>Range</th>
+            <th>Description</th>
+          </tr>
+          <tr>
+            <td><code>debut_pool_size</code></td>
+            <td>7</td>
+            <td>[3, 15]</td>
+            <td>Shortest phrases for introduction</td>
+          </tr>
+          <tr>
+            <td><code>eternal_pool_size</code></td>
+            <td>5</td>
+            <td>[3, 10]</td>
+            <td>Longest phrases for spaced rep</td>
+          </tr>
+          <tr>
+            <td><code>consolidation_count</code></td>
+            <td>2</td>
+            <td>[1, 3]</td>
+            <td>Eternals before next Round</td>
+          </tr>
+          <tr>
+            <td><code>selection_mode</code></td>
+            <td>random_urn</td>
+            <td>enum</td>
+            <td>Eternal selection algorithm</td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="doc-card success">
+        <h4>APML D03: Everything is a Parameter</h4>
+        <p style="margin-bottom:0">No magic numbers in code. All values are configurable and can be tuned based on learner data.</p>
+      </div>
+    </section>
+
+    <section id="integration">
+      <h2><span class="section-icon">🔌</span> Integration Points</h2>
+
+      <div class="doc-card">
+        <table>
+          <tr>
+            <th>Component</th>
+            <th>Responsibility</th>
+          </tr>
+          <tr>
+            <td><code>CourseDataProvider</code></td>
+            <td>Provides PracticeCycleRow[] from database</td>
+          </tr>
+          <tr>
+            <td><code>SpacedRepetitionQueue</code></td>
+            <td>Determines WHEN a LEGO is due for review</td>
+          </tr>
+          <tr>
+            <td><code>TripleHelixEngine</code></td>
+            <td>Coordinates LEGO selection and phrase selection</td>
+          </tr>
+          <tr>
+            <td><code>ProgressStore</code></td>
+            <td>Persists introduction_index and eternal_urn</td>
+          </tr>
+          <tr>
+            <td><code>CycleOrchestrator</code></td>
+            <td>Plays selected phrase through the 4-phase loop</td>
+          </tr>
+        </table>
+      </div>
+    </section>
+
+    <footer class="doc-footer">
+      <p style="font-style:italic">"Build confidence with debut. Build mastery with eternal."</p>
+      <a href="/docs/apml/">← Back to APML Specifications</a>
+    </footer>
+  </div>
+</body>
+</html>

@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SSi Schools | App Documentation</title>
+  <link rel="stylesheet" href="/docs/ssi-docs.css">
+  <style>
+    .mockup-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.5rem;
+      margin: 2rem 0;
+    }
+    .mockup-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .mockup-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+    }
+    .mockup-preview {
+      background: linear-gradient(135deg, var(--bg-secondary), var(--bg-primary));
+      height: 180px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 4rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .mockup-info {
+      padding: 1.25rem;
+    }
+    .mockup-info h4 {
+      margin: 0 0 0.5rem;
+      color: var(--text-primary);
+    }
+    .mockup-info p {
+      margin: 0;
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+    }
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1rem;
+      margin: 1.5rem 0;
+    }
+    .feature-item {
+      display: flex;
+      gap: 1rem;
+      padding: 1rem;
+      background: var(--bg-secondary);
+      border-radius: 8px;
+    }
+    .feature-icon {
+      font-size: 1.5rem;
+      flex-shrink: 0;
+    }
+    .feature-content h5 {
+      margin: 0 0 0.25rem;
+      font-size: 0.95rem;
+    }
+    .feature-content p {
+      margin: 0;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+  </style>
+</head>
+<body>
+  <div class="doc-bg">
+    <div class="stars"></div>
+    <div class="gradient"></div>
+  </div>
+
+  <div class="doc-container">
+    <nav class="doc-breadcrumb">
+      <a href="/docs/">Docs</a>
+      <span> / </span>
+      <a href="/docs/app/">App</a>
+      <span> / </span>
+      <span>SSi Schools</span>
+    </nav>
+
+    <header class="doc-header">
+      <div class="doc-logo">
+        <span class="say">Say</span><span class="something">Something</span><span class="in">in</span>
+      </div>
+      <h1>SSi <span class="accent">Schools</span></h1>
+      <p class="doc-subtitle">Classroom Dashboard for Language Learning</p>
+      <p class="doc-meta">Chrome PWA for Education</p>
+    </header>
+
+    <nav class="doc-toc">
+      <h3>Contents</h3>
+      <ul>
+        <li><a href="#vision">Vision</a></li>
+        <li><a href="#screens">Interface Screens</a></li>
+        <li><a href="#features">Key Features</a></li>
+        <li><a href="#integration">Integration</a></li>
+        <li><a href="#technology">Technology</a></li>
+      </ul>
+    </nav>
+
+    <section id="vision">
+      <h2><span class="section-icon">🎯</span> Vision</h2>
+
+      <div class="doc-card highlight">
+        <p>SSi Schools brings the SSi methodology to the classroom. Teachers manage classes, track progress, and launch whole-class learning sessions. Students learn together while each builds their own mastery journey.</p>
+        <p style="margin-bottom:0"><strong>Target:</strong> Welsh schools, language teachers, after-school programs.</p>
+      </div>
+
+      <blockquote>
+        "The teacher sees the forest. Each student grows their own tree."
+      </blockquote>
+
+      <div class="doc-card success">
+        <h4>Why Schools?</h4>
+        <ul style="margin-bottom:0">
+          <li><strong>Welsh Government contract:</strong> ~£30k/month for classroom deployment</li>
+          <li><strong>Built-in advocacy:</strong> Teachers become SSi champions</li>
+          <li><strong>Collective learning:</strong> Class-wide progress, friendly competition</li>
+          <li><strong>Real-time visibility:</strong> "Who's learning now?" dashboard</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="screens">
+      <h2><span class="section-icon">🖥️</span> Interface Screens</h2>
+
+      <div class="mockup-grid">
+        <div class="mockup-card">
+          <div class="mockup-preview">📊</div>
+          <div class="mockup-info">
+            <h4>Dashboard</h4>
+            <p>School overview with teacher list, weekly activity chart, belt distribution, and live activity feed.</p>
+          </div>
+        </div>
+
+        <div class="mockup-card">
+          <div class="mockup-preview">👩‍🏫</div>
+          <div class="mockup-info">
+            <h4>Teachers</h4>
+            <p>Manage teaching staff, assign courses, view per-teacher metrics and class assignments.</p>
+          </div>
+        </div>
+
+        <div class="mockup-card">
+          <div class="mockup-preview">📚</div>
+          <div class="mockup-info">
+            <h4>Classes</h4>
+            <p>Class cards with student count, course info, stats, and "Play as Class" button to launch sessions.</p>
+          </div>
+        </div>
+
+        <div class="mockup-card">
+          <div class="mockup-preview">📈</div>
+          <div class="mockup-info">
+            <h4>Analytics</h4>
+            <p>Deep metrics: phrases learned, hours studied, belt promotions, top learners, course performance.</p>
+          </div>
+        </div>
+
+        <div class="mockup-card">
+          <div class="mockup-preview">👥</div>
+          <div class="mockup-info">
+            <h4>Students</h4>
+            <p>Student roster with individual progress, belt level, session history, and export capabilities.</p>
+          </div>
+        </div>
+
+        <div class="mockup-card">
+          <div class="mockup-preview">⚙️</div>
+          <div class="mockup-info">
+            <h4>Settings</h4>
+            <p>School configuration, course assignments, teacher join codes, and system preferences.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="features">
+      <h2><span class="section-icon">✨</span> Key Features</h2>
+
+      <h3>Teacher Experience</h3>
+
+      <div class="feature-grid">
+        <div class="feature-item">
+          <span class="feature-icon">🎮</span>
+          <div class="feature-content">
+            <h5>Play as Class</h5>
+            <p>Launch whole-class learning sessions with one click. All students progress together.</p>
+          </div>
+        </div>
+
+        <div class="feature-item">
+          <span class="feature-icon">📊</span>
+          <div class="feature-content">
+            <h5>Real-time Progress</h5>
+            <p>See which students are learning right now, track phrases completed, monitor engagement.</p>
+          </div>
+        </div>
+
+        <div class="feature-item">
+          <span class="feature-icon">🥋</span>
+          <div class="feature-content">
+            <h5>Belt Distribution</h5>
+            <p>Visual breakdown of class belt levels. Celebrate promotions. Identify who needs help.</p>
+          </div>
+        </div>
+
+        <div class="feature-item">
+          <span class="feature-icon">🏆</span>
+          <div class="feature-content">
+            <h5>Top Learners</h5>
+            <p>Monthly leaderboard showing top performers. Healthy competition, hidden algorithms.</p>
+          </div>
+        </div>
+      </div>
+
+      <h3>Analytics Dashboard</h3>
+
+      <div class="doc-card">
+        <h4>Key Metrics</h4>
+        <table>
+          <tr>
+            <th>Metric</th>
+            <th>Description</th>
+            <th>Trend</th>
+          </tr>
+          <tr>
+            <td><strong>Phrases Learned</strong></td>
+            <td>Total phrases completed across all students</td>
+            <td>Week-over-week comparison</td>
+          </tr>
+          <tr>
+            <td><strong>Hours Learned</strong></td>
+            <td>Total learning time</td>
+            <td>Target vs actual</td>
+          </tr>
+          <tr>
+            <td><strong>Active Classes</strong></td>
+            <td>Percentage of classes with recent activity</td>
+            <td>Engagement health</td>
+          </tr>
+          <tr>
+            <td><strong>Belt Promotions</strong></td>
+            <td>Students advancing to next belt level</td>
+            <td>Progress velocity</td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="doc-card">
+        <h4>Course Performance</h4>
+        <p>Per-course breakdown showing:</p>
+        <ul style="margin-bottom:0">
+          <li>Welsh (Northern) - 8 classes, 156 students, 94% active</li>
+          <li>Welsh (Southern) - 6 classes, 89 students, 91% active</li>
+          <li>Spanish (Latin American) - 4 classes, 39 students, 88% active</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="integration">
+      <h2><span class="section-icon">🔌</span> Integration with SSi Player</h2>
+
+      <div class="doc-card">
+        <h4>Class Context</h4>
+        <p>When teacher clicks "Play as Class", the SSi web player loads with class context:</p>
+        <pre><code>// Stored in localStorage
+const activeClass = {
+  id: 'year-7-welsh',
+  name: 'Year 7 Welsh',
+  timestamp: '2025-12-18T10:30:00Z'
+}
+
+// Player reads context
+const classContext = JSON.parse(
+  localStorage.getItem('ssi-active-class')
+)
+
+// Progress syncs to class aggregate</code></pre>
+      </div>
+
+      <div class="doc-card">
+        <h4>Data Flow</h4>
+        <pre><code>┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  SSi Schools    │────▶│  SSi Player     │────▶│   Supabase      │
+│  Dashboard      │     │  (Class Mode)   │     │   (Progress)    │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+        │                                               │
+        │◀──────────────────────────────────────────────┘
+        │              Real-time subscriptions
+        ▼
+┌─────────────────┐
+│  Live Updates   │
+│  (who's active) │
+└─────────────────┘</code></pre>
+      </div>
+    </section>
+
+    <section id="technology">
+      <h2><span class="section-icon">🛠️</span> Technology Stack</h2>
+
+      <div class="doc-card">
+        <h4>Platform: Chrome PWA</h4>
+        <table>
+          <tr>
+            <th>Choice</th>
+            <th>Rationale</th>
+          </tr>
+          <tr>
+            <td><strong>Chrome-only PWA</strong></td>
+            <td>Schools use Chromebooks; single browser target simplifies</td>
+          </tr>
+          <tr>
+            <td><strong>Supabase Realtime</strong></td>
+            <td>Live updates for "who's learning now" dashboard</td>
+          </tr>
+          <tr>
+            <td><strong>Dark/Light Theme</strong></td>
+            <td>Teacher preference; classroom lighting varies</td>
+          </tr>
+          <tr>
+            <td><strong>SSi Brand Aesthetic</strong></td>
+            <td>Consistent with learner app; professional appearance</td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="doc-card">
+        <h4>Design System</h4>
+        <ul style="margin-bottom:0">
+          <li><strong>Colors:</strong> SSi Red (#c23a3a), SSi Gold (#d4a853), Dark backgrounds</li>
+          <li><strong>Fonts:</strong> Noto Sans JP (display), Source Sans 3 (body)</li>
+          <li><strong>Components:</strong> Cards, tables, charts, belt icons, sparklines</li>
+          <li><strong>Animations:</strong> Subtle fade-in, hover states, progress bars</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="roadmap">
+      <h2><span class="section-icon">🗺️</span> Roadmap</h2>
+
+      <div class="doc-card">
+        <h4>Current: Mockups Complete</h4>
+        <p>Full HTML/CSS mockups for all screens. Ready for implementation.</p>
+      </div>
+
+      <div class="doc-card">
+        <h4>Next Steps</h4>
+        <ol style="margin-bottom:0">
+          <li>Supabase schema for schools, teachers, classes</li>
+          <li>Authentication with teacher roles</li>
+          <li>Class-mode player integration</li>
+          <li>Real-time progress subscriptions</li>
+          <li>Export/reporting functionality</li>
+        </ol>
+      </div>
+    </section>
+
+    <footer class="doc-footer">
+      <p style="font-style:italic">"The teacher sees the forest. Each student grows their own tree."</p>
+      <a href="/docs/app/">← Back to App Documentation</a>
+    </footer>
+  </div>
+</body>
+</html>

@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Triple Helix Engine | APML Specification</title>
+  <link rel="stylesheet" href="/docs/ssi-docs.css">
+</head>
+<body>
+  <div class="doc-bg">
+    <div class="stars"></div>
+    <div class="gradient"></div>
+  </div>
+
+  <div class="doc-container">
+    <nav class="doc-breadcrumb">
+      <a href="/docs/">Docs</a>
+      <span> / </span>
+      <a href="/docs/apml/">APML</a>
+      <span> / </span>
+      <span>Triple Helix Engine</span>
+    </nav>
+
+    <header class="doc-header">
+      <div class="doc-logo">
+        <span class="say">Say</span><span class="something">Something</span><span class="in">in</span>
+      </div>
+      <h1>Triple <span class="accent">Helix</span> Engine</h1>
+      <p class="doc-subtitle">Card-Dealt Distribution Across Three Parallel Tubes</p>
+      <p class="doc-meta">APML Specification v1.1.0</p>
+    </header>
+
+    <nav class="doc-toc">
+      <h3>Contents</h3>
+      <ul>
+        <li><a href="#principle">Core Principle</a></li>
+        <li><a href="#distribution">Card-Dealt Distribution</a></li>
+        <li><a href="#rotation">Rotation Algorithm</a></li>
+        <li><a href="#spacing">Natural Spacing</a></li>
+        <li><a href="#injection">Content Injection</a></li>
+        <li><a href="#state">State Management</a></li>
+      </ul>
+    </nav>
+
+    <section id="principle">
+      <h2><span class="section-icon">🧬</span> Core Principle</h2>
+
+      <blockquote>
+        "Three parallel tubes of content, with SEEDs distributed equally using a card-dealt pattern. Natural spaced repetition emerges from the interleaving itself."
+      </blockquote>
+
+      <div class="doc-card highlight">
+        <h4>Pedagogical Benefit</h4>
+        <p>The interleaving creates implicit spacing without complex scheduling algorithms. Each tube progresses independently, and the rotation between tubes ensures related content is revisited at optimal intervals.</p>
+        <p style="margin-bottom:0">By the time the learner returns to Tube A, time has passed working on Tubes B and C. The material has had a chance to settle.</p>
+      </div>
+    </section>
+
+    <section id="distribution">
+      <h2><span class="section-icon">🃏</span> Card-Dealt Distribution</h2>
+
+      <div class="doc-card">
+        <h4>Distribution Pattern</h4>
+        <pre><code>SEEDs are dealt like cards across three tubes:
+
+    SEED 1  → Tube A
+    SEED 2  → Tube B
+    SEED 3  → Tube C
+    SEED 4  → Tube A
+    SEED 5  → Tube B
+    SEED 6  → Tube C
+    SEED 7  → Tube A
+    ...and so on</code></pre>
+      </div>
+
+      <div class="doc-card">
+        <h4>Resulting Tubes</h4>
+        <table>
+          <tr>
+            <th>Tube</th>
+            <th>SEEDs</th>
+            <th>Pattern</th>
+            <th>Allocation</th>
+          </tr>
+          <tr>
+            <td style="color:var(--ssi-red)"><strong>Tube A</strong></td>
+            <td>S0001, S0004, S0007, S0010...</td>
+            <td>Every 3rd seed starting from 1</td>
+            <td>~33%</td>
+          </tr>
+          <tr>
+            <td style="color:var(--ssi-gold)"><strong>Tube B</strong></td>
+            <td>S0002, S0005, S0008, S0011...</td>
+            <td>Every 3rd seed starting from 2</td>
+            <td>~33%</td>
+          </tr>
+          <tr>
+            <td style="color:var(--success)"><strong>Tube C</strong></td>
+            <td>S0003, S0006, S0009, S0012...</td>
+            <td>Every 3rd seed starting from 3</td>
+            <td>~34%</td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="doc-card info">
+        <h4>Key Insight</h4>
+        <p style="margin-bottom:0">This is NOT an offset model. Each tube gets its own unique SEEDs. No content is shared between tubes.</p>
+      </div>
+    </section>
+
+    <section id="rotation">
+      <h2><span class="section-icon">🔄</span> Rotation Algorithm</h2>
+
+      <div class="doc-card">
+        <pre><code>Learner Experience: A → B → C → A → B → C → A → B → C ...
+
+┌─────────┐    ┌─────────┐    ┌─────────┐
+│ TUBE A  │───▶│ TUBE B  │───▶│ TUBE C  │───▶ repeat
+│ S1, S4  │    │ S2, S5  │    │ S3, S6  │
+└─────────┘    └─────────┘    └─────────┘
+     ▲                                │
+     └────────────────────────────────┘</code></pre>
+      </div>
+
+      <div class="doc-card">
+        <h4>Within Each Tube Visit</h4>
+        <ol style="margin-bottom:0">
+          <li>Get next eligible LEGO from current tube</li>
+          <li>Run 4-phase cycle for that LEGO</li>
+          <li>Mark progress</li>
+          <li>Move to next tube</li>
+        </ol>
+      </div>
+
+      <div class="doc-card">
+        <h4>Rotation Variants</h4>
+        <table>
+          <tr>
+            <th>Mode</th>
+            <th>Pattern</th>
+            <th>Use Case</th>
+          </tr>
+          <tr>
+            <td><code>strict</code></td>
+            <td>A, B, C, A, B, C...</td>
+            <td>Default: equal attention</td>
+          </tr>
+          <tr>
+            <td><code>weighted</code></td>
+            <td>A, A, B, C, A, B...</td>
+            <td>More visits to struggling tube</td>
+          </tr>
+          <tr>
+            <td><code>collapsed</code></td>
+            <td>A, B, A, B...</td>
+            <td>During content injection</td>
+          </tr>
+        </table>
+      </div>
+    </section>
+
+    <section id="spacing">
+      <h2><span class="section-icon">⏱️</span> Natural Spacing</h2>
+
+      <div class="doc-card highlight">
+        <h4>The Magic of Interleaving</h4>
+        <p>Time between Tube A visits: approximately <strong>5-7 minutes</strong></p>
+        <p style="margin-bottom:0">Each 4-phase cycle is ~11 seconds. Two tubes × multiple LEGOs = natural gap before returning.</p>
+      </div>
+
+      <div class="doc-card">
+        <pre><code>Session Timeline Example:
+
+t=0:00  Tube A: S0001 L01 (learn "quiero")
+t=0:11  Tube B: S0002 L01 (learn "puedo")
+t=0:22  Tube C: S0003 L01 (learn "tengo")
+t=0:33  Tube A: S0001 L02 (continue S0001)
+...
+t=5:00  Tube A: S0004 L01 (new seed in Tube A)
+
+By the time we return to Tube A's content,
+5 minutes have passed. Material has settled.</code></pre>
+      </div>
+
+      <div class="doc-card info">
+        <h4>Coordination with Spaced Repetition</h4>
+        <p><strong>Triple Helix:</strong> Determines which TUBE to visit next (macro-level spacing)</p>
+        <p style="margin-bottom:0"><strong>Spaced Repetition:</strong> Determines which ITEM within that tube is due (micro-level spacing)</p>
+      </div>
+    </section>
+
+    <section id="injection">
+      <h2><span class="section-icon">💉</span> Content Injection</h2>
+
+      <p>New content can be injected mid-course via tube collapse:</p>
+
+      <div class="doc-card">
+        <h4>Collapse Modes</h4>
+        <table>
+          <tr>
+            <th>Mode</th>
+            <th>Active Tubes</th>
+            <th>Behavior</th>
+          </tr>
+          <tr>
+            <td><code>normal</code></td>
+            <td>A, B, C</td>
+            <td>Standard 3-tube rotation</td>
+          </tr>
+          <tr>
+            <td><code>two_tube</code></td>
+            <td>A, B</td>
+            <td>C's content → A,B; new content → C</td>
+          </tr>
+          <tr>
+            <td><code>single_tube</code></td>
+            <td>A</td>
+            <td>All content → A; new content → B,C</td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="doc-card">
+        <h4>Injection Use Cases</h4>
+        <ul style="margin-bottom:0">
+          <li><strong>Teacher injection:</strong> "Add food vocabulary before restaurant field trip"</li>
+          <li><strong>Learner request:</strong> "Traveling to Spain, need travel phrases"</li>
+          <li><strong>Course update:</strong> "50 new SEEDs added to course"</li>
+          <li><strong>A/B testing:</strong> "Test new material alongside existing"</li>
+        </ul>
+      </div>
+
+      <div class="doc-card success">
+        <h4>Recovery</h4>
+        <p style="margin-bottom:0">After injection content is absorbed (mastered), the system re-expands to normal 3-tube distribution with remaining content redistributed evenly.</p>
+      </div>
+    </section>
+
+    <section id="state">
+      <h2><span class="section-icon">💾</span> State Management</h2>
+
+      <div class="doc-card">
+        <h4>TubeState (per tube)</h4>
+        <pre><code>interface TubeState {
+  tube_id: 'A' | 'B' | 'C'
+  seed_ids: string[]           // SEEDs assigned to this tube
+  current_seed_index: number   // Position in seed_ids
+  current_lego_index: number   // Position within current SEED
+  completed_seeds: Set<string> // Fully completed SEEDs
+  is_collapsed: boolean        // Content redistributed?
+}</code></pre>
+      </div>
+
+      <div class="doc-card">
+        <h4>HelixState (global)</h4>
+        <pre><code>interface HelixState {
+  current_tube: 'A' | 'B' | 'C'
+  tubes: Record<'A' | 'B' | 'C', TubeState>
+  collapse_mode: 'normal' | 'two_tube' | 'single_tube'
+}</code></pre>
+      </div>
+
+      <div class="doc-card">
+        <h4>Key API Methods</h4>
+        <table>
+          <tr>
+            <th>Method</th>
+            <th>Description</th>
+          </tr>
+          <tr>
+            <td><code>getCurrentTube()</code></td>
+            <td>Get currently active tube</td>
+          </tr>
+          <tr>
+            <td><code>advanceToNextTube()</code></td>
+            <td>Move to next tube in rotation</td>
+          </tr>
+          <tr>
+            <td><code>getNextItem()</code></td>
+            <td>Get next learning item from current tube</td>
+          </tr>
+          <tr>
+            <td><code>injectContent(seedIds)</code></td>
+            <td>Inject new content, collapsing tubes as needed</td>
+          </tr>
+          <tr>
+            <td><code>collapseTubes(mode)</code></td>
+            <td>Collapse to two_tube or single_tube</td>
+          </tr>
+          <tr>
+            <td><code>expandTubes()</code></td>
+            <td>Return to normal 3-tube operation</td>
+          </tr>
+        </table>
+      </div>
+    </section>
+
+    <section id="validation">
+      <h2><span class="section-icon">✅</span> Validation Rules</h2>
+
+      <div class="doc-card">
+        <h4>Distribution Integrity</h4>
+        <ul style="margin-bottom:0">
+          <li>Each SEED belongs to exactly one tube</li>
+          <li>SEEDs are dealt in order (no skipping)</li>
+          <li>Distribution is deterministic given SEED order</li>
+        </ul>
+      </div>
+
+      <div class="doc-card">
+        <h4>Rotation Integrity</h4>
+        <ul style="margin-bottom:0">
+          <li>Rotation follows strict A→B→C pattern (unless weighted)</li>
+          <li>Each tube gets equal visits over time (in normal mode)</li>
+          <li>Collapsed tubes are skipped in rotation</li>
+        </ul>
+      </div>
+    </section>
+
+    <footer class="doc-footer">
+      <p style="font-style:italic">"Natural spacing emerges from the interleaving itself."</p>
+      <a href="/docs/apml/">← Back to APML Specifications</a>
+    </footer>
+  </div>
+</body>
+</html>

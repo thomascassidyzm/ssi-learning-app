@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spaced Repetition | APML Specification</title>
+  <link rel="stylesheet" href="/docs/ssi-docs.css">
+</head>
+<body>
+  <div class="doc-bg">
+    <div class="stars"></div>
+    <div class="gradient"></div>
+  </div>
+
+  <div class="doc-container">
+    <nav class="doc-breadcrumb">
+      <a href="/docs/">Docs</a>
+      <span> / </span>
+      <a href="/docs/apml/">APML</a>
+      <span> / </span>
+      <span>Spaced Repetition</span>
+    </nav>
+
+    <header class="doc-header">
+      <div class="doc-logo">
+        <span class="say">Say</span><span class="something">Something</span><span class="in">in</span>
+      </div>
+      <h1>Spaced <span class="accent">Repetition</span></h1>
+      <p class="doc-subtitle">Fibonacci-Based Memory Optimization</p>
+      <p class="doc-meta">APML Specification v1.0.0</p>
+    </header>
+
+    <nav class="doc-toc">
+      <h3>Contents</h3>
+      <ul>
+        <li><a href="#principle">Core Principle</a></li>
+        <li><a href="#fibonacci">Fibonacci Sequence</a></li>
+        <li><a href="#lifecycle">LEGO Lifecycle</a></li>
+        <li><a href="#progression">Progression Rules</a></li>
+        <li><a href="#eternal">Eternal Pool</a></li>
+        <li><a href="#integration">Integration</a></li>
+      </ul>
+    </nav>
+
+    <section id="principle">
+      <h2><span class="section-icon">🎯</span> Core Principle</h2>
+
+      <blockquote>
+        "LEGOs graduate through increasing intervals based on the Fibonacci sequence. Early repetitions are frequent, then spacing increases exponentially. Eventually LEGOs retire to an eternal rotation."
+      </blockquote>
+
+      <div class="doc-card highlight">
+        <h4>Pedagogical Basis</h4>
+        <p>The Fibonacci sequence mirrors the forgetting curve.</p>
+        <p style="margin-bottom:0"><code>1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89...</code></p>
+        <p style="margin-bottom:0">Each number represents "cycles until next practice".</p>
+      </div>
+    </section>
+
+    <section id="fibonacci">
+      <h2><span class="section-icon">🔢</span> Fibonacci Sequence</h2>
+
+      <div class="doc-card">
+        <h4>Skip Numbers by Position</h4>
+        <table>
+          <tr>
+            <th>Position</th>
+            <th>Skip</th>
+            <th>Meaning</th>
+            <th>Phase</th>
+          </tr>
+          <tr>
+            <td>0</td>
+            <td style="color:var(--ssi-red)"><strong>1</strong></td>
+            <td>Practice every cycle</td>
+            <td>Initial learning</td>
+          </tr>
+          <tr>
+            <td>1</td>
+            <td><strong>1</strong></td>
+            <td>Still every cycle</td>
+            <td>Consolidation</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td><strong>2</strong></td>
+            <td>Every 2nd cycle</td>
+            <td>Early spacing</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td><strong>3</strong></td>
+            <td>Every 3rd cycle</td>
+            <td>Building retention</td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td><strong>5</strong></td>
+            <td>Every 5th cycle</td>
+            <td>Moderate spacing</td>
+          </tr>
+          <tr>
+            <td>5</td>
+            <td><strong>8</strong></td>
+            <td>Every 8th cycle</td>
+            <td>Established</td>
+          </tr>
+          <tr>
+            <td>6</td>
+            <td><strong>13</strong></td>
+            <td>Every 13th cycle</td>
+            <td>Confident</td>
+          </tr>
+          <tr>
+            <td>7</td>
+            <td><strong>21</strong></td>
+            <td>Every 21st cycle</td>
+            <td>Near mastery</td>
+          </tr>
+          <tr>
+            <td>8+</td>
+            <td style="color:var(--ssi-gold)"><strong>34+</strong></td>
+            <td>Retired to eternal pool</td>
+            <td>Mastery</td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="doc-card">
+        <h4>Skip Calculation</h4>
+        <pre><code>const FIBONACCI = [1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
+
+function getSkipNumber(position: number): number {
+  if (position >= FIBONACCI.length) {
+    return Infinity  // Retired
+  }
+  return FIBONACCI[position]
+}
+
+// When should this LEGO next appear?
+const next_practice = current_cycle + skip_number
+
+// Example: position 4, current cycle 100
+// skip = 5, next practice at cycle 105</code></pre>
+      </div>
+    </section>
+
+    <section id="lifecycle">
+      <h2><span class="section-icon">🌱</span> LEGO Lifecycle</h2>
+
+      <div class="doc-card">
+        <pre><code>LEGO Lifecycle Stages:
+
+  INTRODUCTION ───▶ ACTIVE LEARNING ───▶ CONSOLIDATION ───▶ RETIREMENT
+       │                   │                   │                │
+  Position 0          Positions 0-5      Positions 6-7     Position 8+
+  Skip: 1             Skip: 1-8          Skip: 13-21       Eternal Pool
+       │                   │                   │                │
+  First encounter    Regular practice    Longer gaps       Very rare
+  3 initial reps     Mix phrase types    Longer phrases    Fill empty slots</code></pre>
+      </div>
+
+      <div class="doc-card">
+        <h4>Stage Details</h4>
+        <table>
+          <tr>
+            <th>Stage</th>
+            <th>Positions</th>
+            <th>Behavior</th>
+          </tr>
+          <tr>
+            <td><strong>Introduction</strong></td>
+            <td>0</td>
+            <td>Show LEGO introduction, component breakdown (M-type), 3 initial reps required</td>
+          </tr>
+          <tr>
+            <td><strong>Active Learning</strong></td>
+            <td>0-5</td>
+            <td>Practice with increasing intervals, mix phrase lengths, track latency</td>
+          </tr>
+          <tr>
+            <td><strong>Consolidation</strong></td>
+            <td>6-7</td>
+            <td>Longer intervals, only in longer phrases, reduced session frequency</td>
+          </tr>
+          <tr>
+            <td><strong>Retirement</strong></td>
+            <td>8+</td>
+            <td>Moves to eternal pool, practiced very rarely, essentially mastered</td>
+          </tr>
+        </table>
+      </div>
+    </section>
+
+    <section id="progression">
+      <h2><span class="section-icon">📈</span> Progression Rules</h2>
+
+      <div class="two-col">
+        <div class="doc-card success">
+          <h4 style="margin-top:0">Advance (+1)</h4>
+          <p><strong>Trigger:</strong> Correct response (timely, no hesitation)</p>
+          <p><strong>Action:</strong> Increment position by 1</p>
+          <p style="margin-bottom:0"><strong>Cap:</strong> Maximum position 8 (retirement)</p>
+        </div>
+
+        <div class="doc-card warning">
+          <h4 style="margin-top:0">Maintain (0)</h4>
+          <p><strong>Trigger:</strong> Slow response (hesitation detected)</p>
+          <p><strong>Action:</strong> Keep position unchanged</p>
+          <p style="margin-bottom:0"><strong>Note:</strong> Gets another chance at same interval</p>
+        </div>
+      </div>
+
+      <div class="doc-card" style="border-color:var(--ssi-red)">
+        <h4 style="color:var(--ssi-red)">Regress (-1)</h4>
+        <p><strong>Trigger:</strong> Very slow or clearly wrong response</p>
+        <p><strong>Action:</strong> Decrease position by 1</p>
+        <p style="margin-bottom:0"><strong>Floor:</strong> Minimum position 0</p>
+      </div>
+
+      <div class="doc-card info">
+        <h4>Initial Reps Requirement</h4>
+        <p>New LEGOs must practice <strong>3 times at position 0</strong> before advancing.</p>
+        <p style="margin-bottom:0">This ensures basic encoding before spacing can begin.</p>
+      </div>
+    </section>
+
+    <section id="eternal">
+      <h2><span class="section-icon">♾️</span> Eternal Rotation Pool</h2>
+
+      <div class="doc-card highlight">
+        <h4>Where Mastered LEGOs Go</h4>
+        <p><strong>Membership:</strong> fibonacci_position >= 8</p>
+        <p><strong>Removal:</strong> Never (once retired, always retired)</p>
+        <p style="margin-bottom:0"><strong>Purpose:</strong> Prevents "learned and forgotten" - even mastered content gets occasional review.</p>
+      </div>
+
+      <div class="doc-card">
+        <h4>Practice Frequency</h4>
+        <p><strong>Strategy:</strong> Fill empty slots</p>
+        <p>When a session has cycles allocated but no active LEGOs need practice, pull from eternal pool.</p>
+        <pre><code>function selectFromEternalPool(count: number): LegoProgress[] {
+  return eternalPool
+    .sort((a, b) => a.last_practiced_at - b.last_practiced_at)
+    .slice(0, count)
+}
+
+// Selection: Least recently practiced first</code></pre>
+      </div>
+    </section>
+
+    <section id="integration">
+      <h2><span class="section-icon">🔌</span> Integration with Triple Helix</h2>
+
+      <div class="doc-card">
+        <h4>Responsibility Split</h4>
+        <table>
+          <tr>
+            <th>Component</th>
+            <th>Responsibility</th>
+          </tr>
+          <tr>
+            <td><strong>Triple Helix</strong></td>
+            <td>Which TUBE to visit next (macro-level spacing)</td>
+          </tr>
+          <tr>
+            <td><strong>Spaced Repetition</strong></td>
+            <td>Which ITEM within that tube is due (micro-level spacing)</td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="doc-card">
+        <h4>Coordination Flow</h4>
+        <pre><code>1. Triple Helix says: "Visit Tube B"
+2. Tube B has candidates: [S0002 L01, S0002 L02, S0005 L01, ...]
+
+3. Spaced Rep evaluates each:
+   - S0002 L01: skip=8, practiced 5 cycles ago → NOT DUE
+   - S0002 L02: skip=3, practiced 4 cycles ago → DUE
+   - S0005 L01: skip=1, practiced 1 cycle ago → DUE
+
+4. Spaced Rep returns: [S0002 L02, S0005 L01]
+
+5. Triple Helix selects from filtered list</code></pre>
+      </div>
+    </section>
+
+    <section id="persistence">
+      <h2><span class="section-icon">💾</span> Persistence</h2>
+
+      <div class="doc-card">
+        <h4>Stored Per LEGO</h4>
+        <pre><code>interface LegoProgress {
+  lego_id: string
+  course_id: string
+  fibonacci_position: number
+  skip_number: number
+  reps_at_position_0: number
+  is_retired: boolean
+  last_practiced_at: Date
+  last_cycle: number
+}</code></pre>
+      </div>
+
+      <div class="doc-card">
+        <h4>Storage Strategy</h4>
+        <table>
+          <tr>
+            <th>Location</th>
+            <th>Purpose</th>
+          </tr>
+          <tr>
+            <td><strong>IndexedDB</strong></td>
+            <td>Local persistence, offline-first</td>
+          </tr>
+          <tr>
+            <td><strong>Supabase</strong></td>
+            <td>Cloud sync, cross-device</td>
+          </tr>
+        </table>
+        <p style="margin-bottom:0"><strong>Conflict Resolution:</strong> Last-write-wins with timestamp</p>
+      </div>
+    </section>
+
+    <footer class="doc-footer">
+      <p style="font-style:italic">"Review just before you forget. LEGOs as the unit of tracking."</p>
+      <a href="/docs/apml/">← Back to APML Specifications</a>
+    </footer>
+  </div>
+</body>
+</html>

@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cycle Orchestrator | APML Specification</title>
+  <link rel="stylesheet" href="/docs/ssi-docs.css">
+</head>
+<body>
+  <div class="doc-bg">
+    <div class="stars"></div>
+    <div class="gradient"></div>
+  </div>
+
+  <div class="doc-container">
+    <nav class="doc-breadcrumb">
+      <a href="/docs/">Docs</a>
+      <span> / </span>
+      <a href="/docs/apml/">APML</a>
+      <span> / </span>
+      <span>Cycle Orchestrator</span>
+    </nav>
+
+    <header class="doc-header">
+      <div class="doc-logo">
+        <span class="say">Say</span><span class="something">Something</span><span class="in">in</span>
+      </div>
+      <h1>Cycle <span class="accent">Orchestrator</span></h1>
+      <p class="doc-subtitle">The 4-Phase Learning Cycle State Machine</p>
+      <p class="doc-meta">APML Specification v1.0.0</p>
+    </header>
+
+    <nav class="doc-toc">
+      <h3>Contents</h3>
+      <ul>
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#phases">The 4 Phases</a></li>
+        <li><a href="#state-machine">State Machine</a></li>
+        <li><a href="#text-visibility">Text Visibility Rules</a></li>
+        <li><a href="#events">Events</a></li>
+        <li><a href="#configuration">Configuration</a></li>
+      </ul>
+    </nav>
+
+    <section id="overview">
+      <h2><span class="section-icon">🎯</span> Overview</h2>
+
+      <div class="doc-card highlight">
+        <p><strong>The CycleOrchestrator is the heart of SSi methodology.</strong></p>
+        <p style="margin-bottom:0">Each learning cycle takes the learner through PROMPT → PAUSE → VOICE_1 → VOICE_2. Text visibility is carefully controlled to force recall, not reading.</p>
+      </div>
+
+      <blockquote>
+        "You learn to speak by speaking. The cycle forces production before revealing the answer."
+      </blockquote>
+    </section>
+
+    <section id="phases">
+      <h2><span class="section-icon">🔄</span> The 4 Phases</h2>
+
+      <div class="doc-card">
+        <pre><code>┌───────────────────────────────────────────────────────────────────────┐
+│                        4-PHASE LEARNING CYCLE                         │
+├───────────────────────────────────────────────────────────────────────┤
+│                                                                       │
+│  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐        │
+│  │  PROMPT  │───▶│  PAUSE   │───▶│ VOICE_1  │───▶│ VOICE_2  │───▶END │
+│  └──────────┘    └──────────┘    └──────────┘    └──────────┘        │
+│       │               │               │               │              │
+│  Known audio    Silence (2x)    Target V1       Target V2           │
+│  Known text✓    Known text✓     Known text✓     Known text✓         │
+│  Target text✗   Target text✗    Target text✗    Target text✓        │
+│                                                                       │
+└───────────────────────────────────────────────────────────────────────┘</code></pre>
+      </div>
+
+      <div class="two-col">
+        <div class="doc-card">
+          <h4 style="margin-top:0">1. PROMPT</h4>
+          <p><strong>Purpose:</strong> Play known language audio to prompt learner</p>
+          <p><strong>Audio:</strong> Known language (e.g., "I want coffee")</p>
+          <p><strong>Text:</strong> Known visible, target hidden</p>
+          <p style="margin-bottom:0"><strong>Learner:</strong> Listen and prepare to speak</p>
+        </div>
+
+        <div class="doc-card">
+          <h4 style="margin-top:0">2. PAUSE</h4>
+          <p><strong>Purpose:</strong> Gap for learner to attempt target language</p>
+          <p><strong>Audio:</strong> Silence (timed gap)</p>
+          <p><strong>Text:</strong> Known visible, target hidden</p>
+          <p style="margin-bottom:0"><strong>Learner:</strong> Speak the target aloud!</p>
+        </div>
+
+        <div class="doc-card">
+          <h4 style="margin-top:0">3. VOICE_1</h4>
+          <p><strong>Purpose:</strong> First exposure to correct pronunciation</p>
+          <p><strong>Audio:</strong> Target voice A (e.g., Maria's voice)</p>
+          <p><strong>Text:</strong> Known visible, target STILL hidden</p>
+          <p style="margin-bottom:0"><strong>Learner:</strong> Listen and compare</p>
+        </div>
+
+        <div class="doc-card">
+          <h4 style="margin-top:0">4. VOICE_2</h4>
+          <p><strong>Purpose:</strong> Second exposure with visual confirmation</p>
+          <p><strong>Audio:</strong> Target voice B (e.g., Giovanni's voice)</p>
+          <p><strong>Text:</strong> Known visible, target NOW visible</p>
+          <p style="margin-bottom:0"><strong>Learner:</strong> See and verify</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="state-machine">
+      <h2><span class="section-icon">⚙️</span> State Machine</h2>
+
+      <div class="doc-card">
+        <h4>States</h4>
+        <table>
+          <tr>
+            <th>State</th>
+            <th>Description</th>
+            <th>Actions Allowed</th>
+          </tr>
+          <tr>
+            <td><code>IDLE</code></td>
+            <td>No active cycle, waiting for input</td>
+            <td>startItem</td>
+          </tr>
+          <tr>
+            <td><code>PROMPT</code></td>
+            <td>Playing known language audio</td>
+            <td>skip, abort</td>
+          </tr>
+          <tr>
+            <td><code>PAUSE</code></td>
+            <td>Waiting for learner response</td>
+            <td>skip, abort, extend</td>
+          </tr>
+          <tr>
+            <td><code>VOICE_1</code></td>
+            <td>Playing first target voice</td>
+            <td>skip, abort</td>
+          </tr>
+          <tr>
+            <td><code>VOICE_2</code></td>
+            <td>Playing second target voice</td>
+            <td>skip, abort</td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="doc-card">
+        <h4>Transitions</h4>
+        <table>
+          <tr>
+            <th>Transition</th>
+            <th>From → To</th>
+            <th>Trigger</th>
+          </tr>
+          <tr>
+            <td><code>start_item</code></td>
+            <td>IDLE → PROMPT</td>
+            <td>startItem(item) called</td>
+          </tr>
+          <tr>
+            <td><code>prompt_complete</code></td>
+            <td>PROMPT → PAUSE</td>
+            <td>Audio playback ended</td>
+          </tr>
+          <tr>
+            <td><code>pause_complete</code></td>
+            <td>PAUSE → VOICE_1</td>
+            <td>Timer elapsed</td>
+          </tr>
+          <tr>
+            <td><code>voice1_complete</code></td>
+            <td>VOICE_1 → VOICE_2</td>
+            <td>Audio playback ended</td>
+          </tr>
+          <tr>
+            <td><code>voice2_complete</code></td>
+            <td>VOICE_2 → IDLE</td>
+            <td>Audio playback ended</td>
+          </tr>
+          <tr>
+            <td><code>skip</code></td>
+            <td>Any → IDLE</td>
+            <td>User presses skip</td>
+          </tr>
+        </table>
+      </div>
+    </section>
+
+    <section id="text-visibility">
+      <h2><span class="section-icon">👁️</span> Text Visibility Rules</h2>
+
+      <div class="doc-card highlight">
+        <h4>Critical Design Principle</h4>
+        <p style="margin-bottom:0">Target text is <strong>HIDDEN until VOICE_2</strong>. This forces active recall, not passive reading. The learner must produce from memory, then verify.</p>
+      </div>
+
+      <div class="doc-card">
+        <table>
+          <tr>
+            <th>Phase</th>
+            <th>Known Text</th>
+            <th>Target Text</th>
+          </tr>
+          <tr>
+            <td>PROMPT</td>
+            <td style="color:var(--success)">✓ Visible</td>
+            <td style="color:var(--ssi-red)">✗ Hidden</td>
+          </tr>
+          <tr>
+            <td>PAUSE</td>
+            <td style="color:var(--success)">✓ Visible</td>
+            <td style="color:var(--ssi-red)">✗ Hidden</td>
+          </tr>
+          <tr>
+            <td>VOICE_1</td>
+            <td style="color:var(--success)">✓ Visible</td>
+            <td style="color:var(--ssi-red)">✗ Hidden</td>
+          </tr>
+          <tr>
+            <td>VOICE_2</td>
+            <td style="color:var(--success)">✓ Visible</td>
+            <td style="color:var(--success)">✓ Visible</td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="doc-card info">
+        <h4>Implementation</h4>
+        <pre><code>const showTargetText = computed(() =>
+  currentPhase.value === 'VOICE_2'
+)</code></pre>
+      </div>
+    </section>
+
+    <section id="events">
+      <h2><span class="section-icon">📡</span> Events</h2>
+
+      <div class="doc-card">
+        <h4>phase_changed</h4>
+        <p>Emitted when transitioning between phases.</p>
+        <pre><code>{
+  type: 'phase_changed',
+  payload: {
+    phase: 'VOICE_1',
+    previousPhase: 'PAUSE',
+    item: LearningItem
+  }
+}</code></pre>
+      </div>
+
+      <div class="doc-card">
+        <h4>pause_started</h4>
+        <p>Emitted when PAUSE phase begins.</p>
+        <pre><code>{
+  type: 'pause_started',
+  payload: {
+    duration_ms: 4000,
+    item: LearningItem
+  }
+}</code></pre>
+      </div>
+
+      <div class="doc-card">
+        <h4>pause_progress</h4>
+        <p>Emitted periodically during PAUSE for countdown animation.</p>
+        <pre><code>{
+  type: 'pause_progress',
+  payload: {
+    elapsed_ms: 2000,
+    total_ms: 4000,
+    percent: 50
+  }
+}</code></pre>
+      </div>
+
+      <div class="doc-card">
+        <h4>item_completed</h4>
+        <p>Emitted when full cycle completes.</p>
+        <pre><code>{
+  type: 'item_completed',
+  payload: {
+    item: LearningItem,
+    duration_ms: 11000
+  }
+}</code></pre>
+      </div>
+    </section>
+
+    <section id="configuration">
+      <h2><span class="section-icon">🔧</span> Configuration</h2>
+
+      <div class="doc-card">
+        <h4>Pause Duration</h4>
+        <table>
+          <tr>
+            <th>Parameter</th>
+            <th>Default</th>
+            <th>Description</th>
+          </tr>
+          <tr>
+            <td><code>multiplier</code></td>
+            <td>2.0</td>
+            <td>Pause = target audio × multiplier</td>
+          </tr>
+          <tr>
+            <td><code>minimum</code></td>
+            <td>1500ms</td>
+            <td>Floor for very short phrases</td>
+          </tr>
+          <tr>
+            <td><code>maximum</code></td>
+            <td>10000ms</td>
+            <td>Cap for very long phrases</td>
+          </tr>
+          <tr>
+            <td><code>fallback</code></td>
+            <td>3000ms</td>
+            <td>When duration unknown</td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="doc-card">
+        <h4>Other Settings</h4>
+        <table>
+          <tr>
+            <th>Parameter</th>
+            <th>Default</th>
+            <th>Description</th>
+          </tr>
+          <tr>
+            <td><code>auto_advance</code></td>
+            <td>true</td>
+            <td>Automatically advance phases</td>
+          </tr>
+          <tr>
+            <td><code>preload_ahead</code></td>
+            <td>3</td>
+            <td>Items to preload</td>
+          </tr>
+        </table>
+      </div>
+    </section>
+
+    <section id="implementation">
+      <h2><span class="section-icon">💻</span> Implementation</h2>
+
+      <div class="doc-card">
+        <h4>Usage Example</h4>
+        <pre><code>import { CycleOrchestrator } from '@ssi/core'
+
+const orchestrator = new CycleOrchestrator(audioController, config)
+
+orchestrator.addEventListener((event) => {
+  switch (event.type) {
+    case 'phase_changed':
+      currentPhase.value = event.payload.phase
+      break
+    case 'pause_started':
+      startRingAnimation(event.payload.duration_ms)
+      break
+    case 'item_completed':
+      requestNextItem()
+      break
+  }
+})
+
+await orchestrator.startItem(learningItem)</code></pre>
+      </div>
+
+      <div class="doc-card warning">
+        <h4>Mobile Compatibility</h4>
+        <p style="margin-bottom:0"><strong>Critical:</strong> Reuse a single Audio element to preserve "user gesture unlock" state. Creating new Audio() elements per playback breaks autoplay on iOS Safari.</p>
+      </div>
+    </section>
+
+    <footer class="doc-footer">
+      <p style="font-style:italic">"The 4-phase cycle is the fundamental unit of SSi methodology."</p>
+      <a href="/docs/apml/">← Back to APML Specifications</a>
+    </footer>
+  </div>
+</body>
+</html>
