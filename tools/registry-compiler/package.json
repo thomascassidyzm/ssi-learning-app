@@ -1,0 +1,19 @@
+{
+  "name": "@ssi/registry-compiler",
+  "version": "0.1.0",
+  "description": "Compiles SSi Variable Registry APML to SQL and TypeScript",
+  "main": "dist/index.js",
+  "bin": {
+    "registry-compile": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "compile": "ts-node src/index.ts",
+    "test": "ts-node src/index.ts ../../apml/core/ssi-variable-registry.apml --sql --ts --out ./test-output"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0",
+    "ts-node": "^10.9.0"
+  }
+}

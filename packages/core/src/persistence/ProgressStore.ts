@@ -18,7 +18,9 @@ import type {
   CourseEnrollmentRecord,
   LegoProgressRecord,
   SeedProgressRecord,
+  LearnerBaselineRecord,
 } from './types';
+import type { LearnerBaseline } from '../learning/types';
 
 export interface ProgressStoreConfig {
   /** Supabase client instance */
@@ -351,6 +353,97 @@ export class ProgressStore implements IProgressStore {
   }
 
   // ============================================
+  // LEARNER BASELINE (Calibration)
+  // ============================================
+
+  async getBaseline(
+    learnerId: string,
+    courseId: string
+  ): Promise<LearnerBaselineRecord | null> {
+    const { data, error } = await this.client
+      .schema(this.schema)
+      .from('learner_baselines')
+      .select('*')
+      .eq('learner_id', learnerId)
+      .eq('course_id', courseId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null; // Not found
+      throw new Error(`Failed to get learner baseline: ${error.message}`);
+    }
+
+    return this.mapToBaselineRecord(data);
+  }
+
+  async saveBaseline(
+    learnerId: string,
+    courseId: string,
+    baseline: LearnerBaseline
+  ): Promise<LearnerBaselineRecord> {
+    const now = new Date().toISOString();
+
+    const { data, error } = await this.client
+      .schema(this.schema)
+      .from('learner_baselines')
+      .insert({
+        learner_id: learnerId,
+        course_id: courseId,
+        calibrated_at: baseline.calibrated_at.toISOString(),
+        calibration_items: baseline.calibration_items,
+        latency_mean: baseline.latency.mean,
+        latency_std_dev: baseline.latency.stdDev,
+        duration_delta_mean: baseline.durationDelta.mean,
+        duration_delta_std_dev: baseline.durationDelta.stdDev,
+        had_timing_data: baseline.hadTimingData,
+        metadata: baseline.metadata ?? null,
+        created_at: now,
+        updated_at: now,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to save learner baseline: ${error.message}`);
+    }
+
+    return this.mapToBaselineRecord(data);
+  }
+
+  async updateBaseline(
+    learnerId: string,
+    courseId: string,
+    baseline: LearnerBaseline
+  ): Promise<LearnerBaselineRecord> {
+    const now = new Date().toISOString();
+
+    const { data, error } = await this.client
+      .schema(this.schema)
+      .from('learner_baselines')
+      .update({
+        calibrated_at: baseline.calibrated_at.toISOString(),
+        calibration_items: baseline.calibration_items,
+        latency_mean: baseline.latency.mean,
+        latency_std_dev: baseline.latency.stdDev,
+        duration_delta_mean: baseline.durationDelta.mean,
+        duration_delta_std_dev: baseline.durationDelta.stdDev,
+        had_timing_data: baseline.hadTimingData,
+        metadata: baseline.metadata ?? null,
+        updated_at: now,
+      })
+      .eq('learner_id', learnerId)
+      .eq('course_id', courseId)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to update learner baseline: ${error.message}`);
+    }
+
+    return this.mapToBaselineRecord(data);
+  }
+
+  // ============================================
   // MAPPERS
   // ============================================
 
@@ -409,6 +502,28 @@ export class ProgressStore implements IProgressStore {
       introduced_at: data.introduced_at
         ? new Date(data.introduced_at as string)
         : null,
+      created_at: new Date(data.created_at as string),
+      updated_at: new Date(data.updated_at as string),
+    };
+  }
+
+  private mapToBaselineRecord(data: Record<string, unknown>): LearnerBaselineRecord {
+    return {
+      id: data.id as string,
+      learner_id: data.learner_id as string,
+      course_id: data.course_id as string,
+      calibrated_at: new Date(data.calibrated_at as string),
+      calibration_items: data.calibration_items as number,
+      latency: {
+        mean: data.latency_mean as number,
+        stdDev: data.latency_std_dev as number,
+      },
+      durationDelta: {
+        mean: data.duration_delta_mean as number,
+        stdDev: data.duration_delta_std_dev as number,
+      },
+      hadTimingData: data.had_timing_data as boolean,
+      metadata: data.metadata as LearnerBaseline['metadata'],
       created_at: new Date(data.created_at as string),
       updated_at: new Date(data.updated_at as string),
     };

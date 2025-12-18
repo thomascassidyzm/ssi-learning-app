@@ -18,8 +18,8 @@
 # - TypeScript type generation
 
 registry SSiContent:
-  version: "1.4.0"
-  last_updated: "2025-12-16"
+  version: "1.5.0"
+  last_updated: "2025-12-18"
 
   # ============================================================================
   # ENUM DEFINITIONS
@@ -1005,6 +1005,99 @@ registry SSiContent:
         required: true
 
   # ============================================================================
+  # LEARNER BASELINE (Calibration)
+  # ============================================================================
+
+  entity LearnerBaseline:
+    description: "Calibrated timing baseline per learner per course for continuous adaptation"
+    primary_key: id (UUID)
+    unique_constraint: [learner_id, course_id]
+    table_name: "learner_baselines"
+    fields:
+      id:
+        type: uuid
+        auto: true
+
+      learner_id:
+        type: uuid
+        required: true
+        foreign_key: Learner.id
+
+      course_id:
+        type: text
+        required: true
+        description: "Course code (baseline may vary by language pair)"
+
+      calibrated_at:
+        type: timestamp
+        required: true
+        description: "When the baseline was established"
+
+      calibration_items:
+        type: integer
+        required: true
+        description: "Number of items used to establish baseline"
+
+      latency_mean:
+        type: number
+        required: true
+        description: "Mean normalized latency (ms per character)"
+
+      latency_std_dev:
+        type: number
+        required: true
+        description: "Standard deviation of normalized latency"
+
+      duration_delta_mean:
+        type: number
+        required: true
+        description: "Mean difference between learner and model duration (ms)"
+
+      duration_delta_std_dev:
+        type: number
+        required: true
+        description: "Standard deviation of duration delta"
+
+      had_timing_data:
+        type: boolean
+        required: true
+        default: false
+        description: "Whether microphone/VAD timing was available during calibration"
+
+      metadata:
+        type: jsonb
+        required: false
+        description: "Optional metadata (device type, notes, etc.)"
+        potential_fields:
+          - courseId
+          - deviceType
+          - notes
+
+      created_at:
+        type: timestamp
+        auto: true
+
+      updated_at:
+        type: timestamp
+        auto: true
+
+    notes: |
+      The learner baseline captures each learner's natural timing patterns before adaptation.
+      This enables the adaptation engine to calculate z-scores relative to the learner's
+      personal baseline, not arbitrary defaults.
+
+      Calibration process:
+      1. First 20-50 items are observed without adaptation (multiplier stays at 1.0)
+      2. Statistics are calculated from the calibration items
+      3. Baseline is persisted to Supabase via ProgressStore
+      4. Subsequent sessions load the baseline and blend it with session data
+
+      The baseline allows:
+      - Personalized adaptation from the first session after calibration
+      - Consistent experience across devices/sessions
+      - Detection of improvement over time (baseline can be recalibrated)
+
+  # ============================================================================
   # CLASSIFICATION CONFIGURATION
   # ============================================================================
 
@@ -1782,6 +1875,35 @@ registry SSiContent:
 # ============================================================================
 
 version_history:
+  v1.5.0:
+    date: "2025-12-18"
+    changes:
+      - "Added LearnerBaseline entity for calibration data persistence"
+      - "LearnerBaseline captures learner's natural timing patterns"
+      - "Enables z-score calculation relative to personal baseline"
+      - "Supports calibration phase (first 20-50 items without adaptation)"
+      - "Persisted per learner per course in Supabase"
+      - "Added corresponding migration: 20251218130000_learner_baselines.sql"
+    design_rationale: |
+      Continuous adaptation requires a baseline to compare against.
+      Rather than using fixed thresholds (2000ms, 5000ms), the adaptation
+      engine now calculates z-scores relative to each learner's personal
+      timing patterns. This makes adaptation invisible and personalized.
+
+      Calibration flow:
+      1. New learner starts course → startCalibration()
+      2. First 20-50 items: gather data, multiplier stays at 1.0
+      3. completeCalibration() → exportBaseline() → saveBaseline()
+      4. Subsequent sessions: importBaseline() → blend with session data
+    implementation_status:
+      AdaptationEngine: "Implemented - continuous scoring with baseline blending"
+      ProgressStore: "Implemented - getBaseline, saveBaseline, updateBaseline"
+      SyncService: "Updated - learner_baseline entity type added"
+      Migration: "Created - supabase/migrations/20251218130000_learner_baselines.sql"
+    contributors:
+      - "Tom Cassidy"
+      - "Claude (AI Assistant)"
+
   v1.4.0:
     date: "2025-12-16"
     changes:
@@ -1890,7 +2012,7 @@ version_history:
       - "Claude (AI Assistant)"
 
 # ============================================================================
-# GENERATED: 2025-12-16
+# GENERATED: 2025-12-18
 # This file is the Single Source of Truth for SSi data structures.
 # Changes here should propagate to:
 # - Supabase schema

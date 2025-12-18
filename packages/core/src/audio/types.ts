@@ -56,6 +56,119 @@ export interface VADStatus {
 }
 
 // ============================================
+// CONTINUOUS VAD & SPEECH TIMING
+// ============================================
+
+/**
+ * Phase names for marking transitions during continuous monitoring.
+ * Matches CyclePhase enum values from engine/types.ts
+ */
+export type TimingPhase = 'IDLE' | 'PROMPT' | 'PAUSE' | 'VOICE_1' | 'VOICE_2' | 'TRANSITION';
+
+/**
+ * Configuration for continuous VAD monitoring across full learning cycle.
+ * Extends VADConfig with timing-specific settings.
+ */
+export interface ContinuousVADConfig extends VADConfig {
+  /** Minimum speech duration (ms) to register as valid speech (default: 100) */
+  min_speech_duration_ms: number;
+  /** Debounce time (ms) before speech_end is confirmed (default: 200) */
+  speech_end_debounce_ms: number;
+}
+
+/**
+ * Result of continuous VAD monitoring across a full learning cycle.
+ * Captures when the learner spoke relative to cycle phases.
+ *
+ * All timestamps are relative to prompt_start_ms = 0.
+ * This allows easy comparison: "did they start before prompt ended?"
+ */
+export interface SpeechTimingResult {
+  // ==========================================
+  // Core timestamps (relative to prompt start)
+  // ==========================================
+
+  /** Always 0 - reference point for all other timestamps */
+  prompt_start_ms: 0;
+  /** When PROMPT audio finished playing */
+  prompt_end_ms: number;
+  /** When VOICE_1 phase started */
+  voice1_start_ms: number;
+
+  /** When learner started speaking (null if no speech detected) */
+  speech_start_ms: number | null;
+  /** When learner stopped speaking (null if no speech detected) */
+  speech_end_ms: number | null;
+
+  // ==========================================
+  // Derived metrics
+  // ==========================================
+
+  /** Time from prompt start to speech start (null if no speech) */
+  response_latency_ms: number | null;
+  /** How long the learner spoke (null if no speech) */
+  learner_duration_ms: number | null;
+  /** learner_duration - model_duration (null if no speech) */
+  duration_delta_ms: number | null;
+
+  // ==========================================
+  // Overlap flags (key competence signals)
+  // ==========================================
+
+  /** Learner started speaking before prompt audio finished (anticipation) */
+  started_during_prompt: boolean;
+  /** Learner was still speaking when VOICE_1 started (struggling) */
+  still_speaking_at_voice1: boolean;
+
+  // ==========================================
+  // Raw VAD data (for debugging/analysis)
+  // ==========================================
+
+  /** Whether any speech was detected */
+  speech_detected: boolean;
+  /** Peak energy level during monitoring (dB) */
+  peak_energy_db: number;
+  /** Average energy level during monitoring (dB) */
+  average_energy_db: number;
+}
+
+/**
+ * Default values for ContinuousVADConfig
+ */
+export const DEFAULT_CONTINUOUS_VAD_CONFIG: ContinuousVADConfig = {
+  energy_threshold_db: -45,
+  min_frames_above: 3,
+  fft_size: 2048,
+  smoothing: 0.8,
+  min_speech_duration_ms: 100,
+  speech_end_debounce_ms: 200,
+};
+
+/**
+ * Create an empty SpeechTimingResult (no speech detected)
+ */
+export function createEmptySpeechTimingResult(
+  promptEndMs: number,
+  voice1StartMs: number
+): SpeechTimingResult {
+  return {
+    prompt_start_ms: 0,
+    prompt_end_ms: promptEndMs,
+    voice1_start_ms: voice1StartMs,
+    speech_start_ms: null,
+    speech_end_ms: null,
+    response_latency_ms: null,
+    learner_duration_ms: null,
+    duration_delta_ms: null,
+    started_during_prompt: false,
+    still_speaking_at_voice1: false,
+    speech_detected: false,
+    peak_energy_db: -100,
+    average_energy_db: -100,
+  };
+}
+
+// ============================================
 // PHASE 2: PROSODY ANALYSIS (FUTURE-PROOFED)
 // ============================================
 

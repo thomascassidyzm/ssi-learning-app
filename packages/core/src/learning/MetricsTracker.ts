@@ -5,10 +5,12 @@
  * - Response latency (normalized by phrase length)
  * - Rolling averages and standard deviations for spike detection
  * - Length delta (response_length - model_length) for speech analysis
+ * - Speech timing data from VAD (latency, duration delta, overlap flags)
  * - Session-level statistics
  */
 
 import type { SpikeConfig } from '../config/types';
+import type { SpeechTimingResult } from '../audio/types';
 import type {
   ResponseMetric,
   SessionMetrics,
@@ -77,6 +79,15 @@ export class MetricsTracker {
 
   /**
    * Record a response metric
+   *
+   * @param legoId - The LEGO that was practiced
+   * @param responseLatencyMs - Legacy latency measurement (pause duration)
+   * @param phraseLength - Length of target phrase in characters
+   * @param threadId - Which triple helix thread
+   * @param mode - Learning mode (component, debut, practice, etc.)
+   * @param timing - Optional speech timing data from VAD
+   * @param responseLengthMs - Optional: learner response length (legacy, use timing instead)
+   * @param modelLengthMs - Optional: model audio length (legacy, use timing instead)
    */
   recordResponse(
     legoId: string,
@@ -84,6 +95,7 @@ export class MetricsTracker {
     phraseLength: number,
     threadId: number,
     mode: string,
+    timing?: SpeechTimingResult,
     responseLengthMs?: number,
     modelLengthMs?: number
   ): ResponseMetric {
@@ -99,11 +111,20 @@ export class MetricsTracker {
       thread_id: threadId,
       triggered_spike: false, // Will be updated by SpikeDetector
       mode,
+      // Speech timing data (from VAD)
+      speech_detected: timing?.speech_detected,
+      true_latency_ms: timing?.response_latency_ms,
+      learner_duration_ms: timing?.learner_duration_ms,
+      duration_delta_ms: timing?.duration_delta_ms,
+      started_during_prompt: timing?.started_during_prompt,
+      still_speaking_at_voice1: timing?.still_speaking_at_voice1,
     };
 
-    // Calculate length_delta if both values provided
+    // Calculate length_delta from timing data or legacy parameters
     let lengthDelta: number | null = null;
-    if (responseLengthMs !== undefined && modelLengthMs !== undefined) {
+    if (timing?.duration_delta_ms !== undefined && timing.duration_delta_ms !== null) {
+      lengthDelta = timing.duration_delta_ms;
+    } else if (responseLengthMs !== undefined && modelLengthMs !== undefined) {
       lengthDelta = responseLengthMs - modelLengthMs;
     }
 

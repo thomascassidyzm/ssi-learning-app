@@ -283,6 +283,7 @@ export class SyncService implements ISyncService {
       metric: 'response_metrics',
       spike: 'spike_events',
       enrollment: 'course_enrollments',
+      learner_baseline: 'learner_baselines',
     };
 
     return tableMap[entity];

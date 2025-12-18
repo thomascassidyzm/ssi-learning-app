@@ -40,6 +40,18 @@ export interface CycleState {
   isPlaying: boolean;
   /** Current item index in session */
   itemIndex: number;
+
+  // ==========================================
+  // Phase timestamps for timing analysis
+  // (used by SpeechTimingAnalyzer)
+  // ==========================================
+
+  /** When PROMPT phase started (performance.now()) */
+  promptStartTime: number | null;
+  /** When PROMPT audio finished playing (performance.now()) */
+  promptEndTime: number | null;
+  /** When VOICE_1 phase started (performance.now()) */
+  voice1StartTime: number | null;
 }
 
 // ============================================

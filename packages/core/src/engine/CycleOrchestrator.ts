@@ -43,6 +43,10 @@ export class CycleOrchestrator implements ICycleOrchestrator {
       pauseStartTime: null,
       isPlaying: false,
       itemIndex: 0,
+      // Phase timestamps for timing analysis
+      promptStartTime: null,
+      promptEndTime: null,
+      voice1StartTime: null,
     };
   }
 
@@ -162,6 +166,9 @@ export class CycleOrchestrator implements ICycleOrchestrator {
     const item = this.state.currentItem;
     if (!item) return;
 
+    // Record prompt start time for timing analysis
+    this.state.promptStartTime = performance.now();
+
     // Play KNOWN language audio
     const knownAudio = item.phrase.audioRefs.known;
 
@@ -170,12 +177,18 @@ export class CycleOrchestrator implements ICycleOrchestrator {
     try {
       // Set up handler for when audio ends
       this.setupAudioEndedHandler(() => {
+        // Record prompt end time for timing analysis
+        this.state.promptEndTime = performance.now();
+
         this.emit('audio_completed', { audioType: 'known' });
         this.advancePhase();
       });
 
       await this.audioController.play(knownAudio);
     } catch (error) {
+      // Still record prompt end time on error
+      this.state.promptEndTime = performance.now();
+
       this.emit('error', { error, phase: CyclePhase.PROMPT });
       this.advancePhase(); // Continue even on error
     }
@@ -195,6 +208,9 @@ export class CycleOrchestrator implements ICycleOrchestrator {
   private async handleVoice1Phase(): Promise<void> {
     const item = this.state.currentItem;
     if (!item) return;
+
+    // Record voice1 start time for timing analysis
+    this.state.voice1StartTime = performance.now();
 
     // Play TARGET language audio (voice 1)
     const targetAudio = item.phrase.audioRefs.target.voice1;
@@ -265,6 +281,12 @@ export class CycleOrchestrator implements ICycleOrchestrator {
       item,
       pauseStartTime: this.state.pauseStartTime,
       completedAt: Date.now(),
+      // Include phase timestamps for timing analysis
+      timingData: {
+        promptStartTime: this.state.promptStartTime,
+        promptEndTime: this.state.promptEndTime,
+        voice1StartTime: this.state.voice1StartTime,
+      },
     });
 
     // Reset to idle
@@ -272,6 +294,11 @@ export class CycleOrchestrator implements ICycleOrchestrator {
     this.state.currentItem = null;
     this.state.pauseStartTime = null;
     this.state.isPlaying = false;
+
+    // Reset timing timestamps
+    this.state.promptStartTime = null;
+    this.state.promptEndTime = null;
+    this.state.voice1StartTime = null;
   }
 
   private calculatePauseDuration(item: LearningItem): number {

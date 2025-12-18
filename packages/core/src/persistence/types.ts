@@ -13,7 +13,7 @@ import type {
   SeedProgress,
   HelixState,
 } from '../data/types';
-import type { SessionMetrics, ResponseMetric, SpikeEvent } from '../learning/types';
+import type { SessionMetrics, ResponseMetric, SpikeEvent, LearnerBaseline } from '../learning/types';
 
 // ============================================
 // DATABASE RECORDS (what gets stored)
@@ -105,6 +105,23 @@ export interface SpikeRecord extends SpikeEvent {
   course_id: string;
 }
 
+/**
+ * Learner baseline record for Supabase storage.
+ * Stores the calibrated timing baseline per learner per course.
+ */
+export interface LearnerBaselineRecord extends LearnerBaseline {
+  /** Database ID */
+  id: string;
+  /** Learner ID */
+  learner_id: string;
+  /** Course ID (baseline may vary by language pair) */
+  course_id: string;
+  /** When created */
+  created_at: Date;
+  /** When last updated */
+  updated_at: Date;
+}
+
 // ============================================
 // SYNC QUEUE (for offline support)
 // ============================================
@@ -116,7 +133,8 @@ export type SyncEntity =
   | 'session'
   | 'metric'
   | 'spike'
-  | 'enrollment';
+  | 'enrollment'
+  | 'learner_baseline';
 
 export interface SyncQueueItem {
   id: string;
@@ -162,6 +180,11 @@ export interface IProgressStore {
   getSeedProgress(learnerId: string, courseId: string): Promise<SeedProgressRecord[]>;
   saveSeedProgress(progress: Omit<SeedProgressRecord, 'id' | 'created_at' | 'updated_at'>): Promise<SeedProgressRecord>;
   updateSeedProgress(id: string, updates: Partial<SeedProgress>): Promise<void>;
+
+  // Learner baseline (calibration data)
+  getBaseline(learnerId: string, courseId: string): Promise<LearnerBaselineRecord | null>;
+  saveBaseline(learnerId: string, courseId: string, baseline: LearnerBaseline): Promise<LearnerBaselineRecord>;
+  updateBaseline(learnerId: string, courseId: string, baseline: LearnerBaseline): Promise<LearnerBaselineRecord>;
 }
 
 export interface ISessionStore {
