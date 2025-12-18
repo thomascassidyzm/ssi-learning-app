@@ -13,7 +13,7 @@ onMounted(() => {
     // Small delay to let the player render first
     setTimeout(() => {
       isVisible.value = true
-    }, 800)
+    }, 600)
   }
 })
 
@@ -35,44 +35,40 @@ defineExpose({ resetOnboarding })
 
 <template>
   <Transition name="onboarding">
-    <div v-if="isVisible" class="onboarding-overlay" @click.self="dismissOnboarding">
-      <!-- Semi-transparent backdrop -->
-      <div class="onboarding-backdrop"></div>
+    <div v-if="isVisible" class="onboarding-overlay" @click="dismissOnboarding">
 
-      <!-- Post-it: Belt indicator (top left area) -->
-      <div class="postit postit-belt" style="--rotation: -2deg">
-        <div class="postit-tape"></div>
-        <p>Your <strong>belt</strong> shows progress toward mastery</p>
+      <!-- Post-it: Belt indicator - points left to belt -->
+      <div class="postit postit-belt">
+        <span class="postit-arrow">←</span>
+        <span>Your belt = progress</span>
       </div>
 
-      <!-- Post-it: 4-phase dots (top center) -->
-      <div class="postit postit-phases" style="--rotation: 1.5deg">
-        <div class="postit-tape"></div>
-        <p>4 phases: <strong>Hear → Speak → Listen → See</strong></p>
+      <!-- Post-it: Timer - points left to timer -->
+      <div class="postit postit-timer">
+        <span>Tap to pause</span>
+        <span class="postit-arrow">→</span>
       </div>
 
-      <!-- Post-it: Timer (top right) -->
-      <div class="postit postit-timer" style="--rotation: -1deg">
-        <div class="postit-tape"></div>
-        <p>Tap the <strong>timer</strong> to pause & see summary</p>
+      <!-- Post-it: Ring - points up to ring -->
+      <div class="postit postit-ring">
+        <span class="postit-arrow">↑</span>
+        <span>Tap to start</span>
       </div>
 
-      <!-- Post-it: The ring (center) -->
-      <div class="postit postit-ring" style="--rotation: 2deg">
-        <div class="postit-tape"></div>
-        <p><strong>Tap to start!</strong> Speak during the countdown</p>
+      <!-- Post-it: Phases - points down to phase dots -->
+      <div class="postit postit-phases">
+        <span>Hear → Speak → Listen → See</span>
+        <span class="postit-arrow">↓</span>
       </div>
 
-      <!-- Post-it: Controls (bottom) -->
-      <div class="postit postit-controls" style="--rotation: -1.5deg">
-        <div class="postit-tape"></div>
-        <p><strong>Replay</strong>, <strong>skip</strong>, or <strong>turbo</strong> for speed</p>
+      <!-- Post-it: Controls - points up to controls -->
+      <div class="postit postit-controls">
+        <span class="postit-arrow">↑</span>
+        <span>Skip, replay, turbo</span>
       </div>
 
-      <!-- Got it button -->
-      <button class="got-it-btn" @click="dismissOnboarding">
-        Got it, let's learn!
-      </button>
+      <!-- Dismiss hint -->
+      <div class="dismiss-hint">tap anywhere to start</div>
     </div>
   </Transition>
 </template>
@@ -82,155 +78,108 @@ defineExpose({ resetOnboarding })
   position: fixed;
   inset: 0;
   z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  cursor: pointer;
 }
 
-.onboarding-backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(2px);
-}
-
-/* Base post-it style */
+/* Base post-it style - Apple Notes yellow, small horizontal strip */
 .postit {
   position: absolute;
-  background: #fef9c3;
-  padding: 0.625rem 0.875rem;
-  border-radius: 2px;
+  background: #FFD60A;
+  padding: 0.375rem 0.625rem;
+  border-radius: 3px;
   box-shadow:
-    2px 2px 8px rgba(0, 0, 0, 0.15),
-    0 0 1px rgba(0, 0, 0, 0.1);
-  transform: rotate(var(--rotation, 0deg));
-  max-width: 180px;
+    1px 2px 4px rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(0, 0, 0, 0.05);
   z-index: 1001;
 
-  /* Subtle paper texture feel */
-  background-image:
-    linear-gradient(180deg,
-      rgba(255,255,255,0.4) 0%,
-      transparent 30%,
-      transparent 100%
-    );
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  white-space: nowrap;
 }
 
-.postit p {
-  margin: 0;
-  font-family: 'Caveat', 'Segoe Script', 'Comic Sans MS', cursive;
-  font-size: 0.9375rem;
-  line-height: 1.35;
-  color: #44403c;
+.postit span {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #1a1a1a;
+  letter-spacing: -0.01em;
 }
 
-.postit strong {
-  color: #1c1917;
-  font-weight: 600;
+.postit-arrow {
+  font-weight: 400;
+  opacity: 0.6;
 }
 
-/* Tape effect at top */
-.postit-tape {
-  position: absolute;
-  top: -6px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 40px;
-  height: 12px;
-  background: rgba(255, 255, 255, 0.5);
-  border-radius: 1px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-/* Position each post-it near its target */
+/* Position each post-it to point at its target */
 
 .postit-belt {
-  top: 70px;
-  left: 50%;
-  transform: translateX(-50%) rotate(var(--rotation));
-}
-
-.postit-phases {
-  top: 140px;
-  left: 50%;
-  transform: translateX(-50%) rotate(var(--rotation));
+  top: 12px;
+  left: 200px;
 }
 
 .postit-timer {
-  top: 60px;
-  right: 20px;
-  transform: rotate(var(--rotation));
+  top: 12px;
+  right: 160px;
+}
+
+.postit-phases {
+  top: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  flex-direction: column;
+  gap: 0.125rem;
 }
 
 .postit-ring {
   top: 50%;
   left: 50%;
-  transform: translate(-50%, 60px) rotate(var(--rotation));
+  transform: translate(-50%, 120px);
+  flex-direction: column;
+  gap: 0.125rem;
 }
 
 .postit-controls {
-  bottom: 140px;
-  left: 50%;
-  transform: translateX(-50%) rotate(var(--rotation));
-}
-
-/* Got it button */
-.got-it-btn {
-  position: absolute;
-  bottom: 60px;
+  bottom: 100px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 1002;
-
-  padding: 0.875rem 2rem;
-  background: #c23a3a;
-  color: white;
-  border: none;
-  border-radius: 100px;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-
-  box-shadow:
-    0 4px 16px rgba(194, 58, 58, 0.4),
-    0 0 0 4px rgba(194, 58, 58, 0.15);
-
-  transition: all 0.2s ease;
+  flex-direction: column;
+  gap: 0.125rem;
 }
 
-.got-it-btn:hover {
-  transform: translateX(-50%) scale(1.05);
-  box-shadow:
-    0 6px 24px rgba(194, 58, 58, 0.5),
-    0 0 0 6px rgba(194, 58, 58, 0.2);
-}
-
-.got-it-btn:active {
-  transform: translateX(-50%) scale(0.98);
+/* Dismiss hint */
+.dismiss-hint {
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.8125rem;
+  color: rgba(255, 255, 255, 0.5);
+  letter-spacing: 0.02em;
 }
 
 /* Transitions */
 .onboarding-enter-active {
-  transition: opacity 0.4s ease;
+  transition: opacity 0.3s ease;
 }
 
 .onboarding-enter-active .postit {
-  animation: postit-appear 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+  animation: postit-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
 }
 
-.onboarding-enter-active .postit-belt { animation-delay: 0.1s; }
-.onboarding-enter-active .postit-phases { animation-delay: 0.2s; }
-.onboarding-enter-active .postit-timer { animation-delay: 0.3s; }
-.onboarding-enter-active .postit-ring { animation-delay: 0.4s; }
-.onboarding-enter-active .postit-controls { animation-delay: 0.5s; }
+.onboarding-enter-active .postit-belt { animation-delay: 0.05s; }
+.onboarding-enter-active .postit-timer { animation-delay: 0.1s; }
+.onboarding-enter-active .postit-phases { animation-delay: 0.15s; }
+.onboarding-enter-active .postit-ring { animation-delay: 0.2s; }
+.onboarding-enter-active .postit-controls { animation-delay: 0.25s; }
 
-.onboarding-enter-active .got-it-btn {
-  animation: btn-appear 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) 0.7s backwards;
+.onboarding-enter-active .dismiss-hint {
+  animation: fade-in 0.3s ease 0.4s backwards;
 }
 
 .onboarding-leave-active {
-  transition: opacity 0.3s ease;
+  transition: opacity 0.2s ease;
 }
 
 .onboarding-enter-from,
@@ -238,71 +187,63 @@ defineExpose({ resetOnboarding })
   opacity: 0;
 }
 
-@keyframes postit-appear {
+@keyframes postit-pop {
   from {
     opacity: 0;
-    transform: translateY(-20px) rotate(var(--rotation)) scale(0.8);
+    transform: scale(0.8);
   }
 }
 
-@keyframes btn-appear {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(20px) scale(0.9);
-  }
+@keyframes fade-in {
+  from { opacity: 0; }
 }
 
 /* Mobile adjustments */
-@media (max-width: 480px) {
+@media (max-width: 600px) {
   .postit {
-    max-width: 150px;
-    padding: 0.5rem 0.75rem;
+    padding: 0.3rem 0.5rem;
   }
 
-  .postit p {
-    font-size: 0.8125rem;
+  .postit span {
+    font-size: 0.6875rem;
   }
 
   .postit-belt {
-    top: 100px;
-    left: 20px;
-    transform: rotate(var(--rotation));
+    top: 8px;
+    left: 120px;
+  }
+
+  .postit-timer {
+    top: 8px;
+    right: 100px;
   }
 
   .postit-phases {
-    top: 160px;
-    left: 50%;
-  }
-
-  .postit-timer {
-    top: 80px;
-    right: 10px;
+    top: 130px;
   }
 
   .postit-ring {
-    top: 45%;
-    transform: translate(-50%, 80px) rotate(var(--rotation));
+    transform: translate(-50%, 100px);
   }
 
   .postit-controls {
-    bottom: 160px;
+    bottom: 120px;
   }
 
-  .got-it-btn {
-    bottom: 80px;
-    padding: 0.75rem 1.5rem;
-    font-size: 0.9375rem;
+  .dismiss-hint {
+    font-size: 0.75rem;
+    bottom: 30px;
   }
 }
 
-/* Tablet adjustments */
-@media (min-width: 481px) and (max-width: 768px) {
+/* Large screens */
+@media (min-width: 1024px) {
   .postit-belt {
-    left: 30%;
+    left: calc(50% - 200px);
   }
 
   .postit-timer {
-    right: 30px;
+    right: calc(50% - 200px);
   }
 }
 </style>
