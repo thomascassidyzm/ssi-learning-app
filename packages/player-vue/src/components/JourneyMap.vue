@@ -120,117 +120,127 @@ const showNodeDetail = ref(false)
 const svgRef = ref(null)
 const containerRef = ref(null)
 
-// Brain silhouette boundary check (2D side view - left profile)
-// Returns true if point (x, y) is inside the brain shape
+// Brain outline points (side view profile - facing left)
+// These define the distinctive brain silhouette
+const BRAIN_OUTLINE = [
+  // Frontal lobe (left side, bulging forward)
+  { x: 15, y: 45 },
+  { x: 12, y: 38 },
+  { x: 14, y: 30 },
+  { x: 20, y: 22 },
+  // Parietal (top curve)
+  { x: 30, y: 16 },
+  { x: 42, y: 12 },
+  { x: 55, y: 13 },
+  { x: 68, y: 18 },
+  // Occipital (back bulge)
+  { x: 78, y: 26 },
+  { x: 82, y: 36 },
+  { x: 80, y: 46 },
+  // Brain stem / cerebellum area (bottom right)
+  { x: 76, y: 54 },
+  { x: 78, y: 62 },
+  { x: 82, y: 70 },
+  { x: 78, y: 78 },
+  { x: 70, y: 82 },
+  { x: 62, y: 78 },
+  // Temporal lobe (bottom curve back to front)
+  { x: 55, y: 72 },
+  { x: 45, y: 68 },
+  { x: 35, y: 66 },
+  { x: 25, y: 62 },
+  { x: 18, y: 55 },
+]
+
+// Check if point is inside brain polygon
 const isInsideBrain = (x, y) => {
-  // Brain center and scale (in 0-100 viewBox)
-  const cx = 50, cy = 50
-  const scaleX = 38, scaleY = 32
-
-  // Normalize coordinates to -1..1 range relative to brain center
-  const nx = (x - cx) / scaleX
-  const ny = (y - cy) / scaleY
-
-  // Brain shape approximation (side view silhouette)
-  // Frontal lobe bulges forward (left), occipital curves back (right)
-  // Temporal lobe dips down, parietal curves up
-
-  // Basic ellipse with modulations for brain-like shape
-  const angle = Math.atan2(ny, nx)
-
-  // Radius varies with angle to create brain silhouette
-  // Front (left): larger bulge, Back (right): smaller curve
-  // Top: parietal bulge, Bottom: temporal lobe indent
-  let targetRadius = 1.0
-
-  // Frontal lobe bulge (front-left)
-  if (angle > 2.0 || angle < -2.0) {
-    targetRadius = 0.95 + Math.cos((angle + Math.PI) * 0.8) * 0.15
+  const outline = BRAIN_OUTLINE
+  let inside = false
+  for (let i = 0, j = outline.length - 1; i < outline.length; j = i++) {
+    const xi = outline[i].x, yi = outline[i].y
+    const xj = outline[j].x, yj = outline[j].y
+    if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
+      inside = !inside
+    }
   }
-  // Temporal lobe (bottom)
-  else if (angle > 0.3 && angle < 1.8) {
-    targetRadius = 0.85 + Math.sin(angle * 1.2) * 0.1
-  }
-  // Parietal/top curve
-  else if (angle < -0.3 && angle > -1.8) {
-    targetRadius = 0.9 + Math.cos(angle * 1.5) * 0.12
-  }
-  // Occipital (back-right)
-  else {
-    targetRadius = 0.8 + Math.cos(angle * 2) * 0.1
-  }
-
-  const dist = Math.sqrt(nx * nx + ny * ny)
-  return dist < targetRadius
+  return inside
 }
 
-// Generate random point inside brain shape
+// Get point along brain outline at parameter t (0-1)
+const getOutlinePoint = (t) => {
+  const outline = BRAIN_OUTLINE
+  const totalPoints = outline.length
+  const index = t * totalPoints
+  const i = Math.floor(index) % totalPoints
+  const j = (i + 1) % totalPoints
+  const frac = index - Math.floor(index)
+  return {
+    x: outline[i].x + (outline[j].x - outline[i].x) * frac,
+    y: outline[i].y + (outline[j].y - outline[i].y) * frac
+  }
+}
+
+// Generate random point inside brain
 const getRandomBrainPoint = () => {
   let x, y
   let attempts = 0
   do {
-    // Random point within bounding box
-    x = 12 + Math.random() * 76  // 12-88 range
-    y = 18 + Math.random() * 64  // 18-82 range
+    x = 10 + Math.random() * 75
+    y = 10 + Math.random() * 75
     attempts++
   } while (!isInsideBrain(x, y) && attempts < 100)
-
   return { x, y }
 }
 
-// Initialize network
+// Initialize network with brain-shaped distribution
 const initNetwork = () => {
   legos.value = generateMockLegos()
-
   const nodeList = []
-  const numClusters = 8
+  const totalNodes = legos.value.length
 
-  // Cluster centers distributed within brain regions
-  const clusterCenters = [
-    { x: 25, y: 45 },  // Frontal lobe (front-bottom)
-    { x: 30, y: 35 },  // Frontal lobe (front-top)
-    { x: 45, y: 30 },  // Parietal (top-center)
-    { x: 60, y: 32 },  // Parietal (top-back)
-    { x: 72, y: 45 },  // Occipital (back)
-    { x: 65, y: 58 },  // Temporal (back-bottom)
-    { x: 50, y: 62 },  // Temporal (center-bottom)
-    { x: 38, y: 55 },  // Temporal (front-bottom)
-  ]
+  // Distribute nodes: ~30% on perimeter, ~70% interior
+  const perimeterCount = Math.floor(totalNodes * 0.35)
+  const interiorCount = totalNodes - perimeterCount
 
-  legos.value.forEach((lego, index) => {
-    const cluster = lego.familyIndex
-    const center = clusterCenters[cluster % clusterCenters.length]
-
-    // Spread nodes around cluster center, but keep within brain
-    let x, y
-    let attempts = 0
-    do {
-      const angle = Math.random() * Math.PI * 2
-      const radius = Math.random() * 10
-      x = center.x + Math.cos(angle) * radius
-      y = center.y + Math.sin(angle) * radius
-      attempts++
-    } while (!isInsideBrain(x, y) && attempts < 50)
-
-    // Fallback if can't find valid point
-    if (!isInsideBrain(x, y)) {
-      const pt = getRandomBrainPoint()
-      x = pt.x
-      y = pt.y
-    }
-
+  // Place perimeter nodes along brain outline
+  for (let i = 0; i < perimeterCount && i < legos.value.length; i++) {
+    const lego = legos.value[i]
+    const t = i / perimeterCount
+    const pt = getOutlinePoint(t)
+    // Add slight inward offset and jitter
+    const jitterX = (Math.random() - 0.5) * 4
+    const jitterY = (Math.random() - 0.5) * 4
     nodeList.push({
       id: lego.id,
-      x,
-      y,
+      x: pt.x + jitterX,
+      y: pt.y + jitterY,
       vx: 0,
       vy: 0,
-      cluster,
+      cluster: lego.familyIndex,
       mastery: lego.mastery,
-      size: 0.8 + lego.mastery * 0.8,  // Smaller nodes: 0.8-1.6 instead of 1.5-3.5
+      size: 0.6 + lego.mastery * 0.6,  // Small nodes: 0.6-1.2
       lego,
+      isPerimeter: true,
     })
-  })
+  }
+
+  // Place interior nodes randomly within brain
+  for (let i = perimeterCount; i < legos.value.length; i++) {
+    const lego = legos.value[i]
+    const pt = getRandomBrainPoint()
+    nodeList.push({
+      id: lego.id,
+      x: pt.x,
+      y: pt.y,
+      vx: 0,
+      vy: 0,
+      cluster: lego.familyIndex,
+      mastery: lego.mastery,
+      size: 0.6 + lego.mastery * 0.6,
+      lego,
+      isPerimeter: false,
+    })
+  }
 
   nodes.value = nodeList
   initConnections()
@@ -240,58 +250,75 @@ const initConnections = () => {
   const conns = []
   const nodeList = nodes.value
 
+  // Create triangulated mesh - connect each node to its nearest neighbors
   for (let i = 0; i < nodeList.length; i++) {
-    for (let j = i + 1; j < nodeList.length; j++) {
-      const a = nodeList[i]
-      const b = nodeList[j]
-      const dist = Math.sqrt(Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2))
+    const a = nodeList[i]
 
-      const sameCluster = a.cluster === b.cluster
-      const threshold = sameCluster ? 15 : 8
+    // Find distances to all other nodes
+    const distances = nodeList
+      .map((b, j) => ({ node: b, index: j, dist: Math.sqrt(Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2)) }))
+      .filter(d => d.index !== i)
+      .sort((x, y) => x.dist - y.dist)
 
-      if (dist < threshold && Math.random() > (sameCluster ? 0.3 : 0.85)) {
-        const strength = sameCluster
-          ? Math.min(a.mastery, b.mastery)
-          : Math.min(a.mastery, b.mastery) * 0.4
+    // Connect to nearest 3-5 neighbors (creates triangulated mesh)
+    const connectCount = 3 + Math.floor(Math.random() * 3)
+    for (let k = 0; k < Math.min(connectCount, distances.length); k++) {
+      const b = distances[k].node
+      const dist = distances[k].dist
 
-        conns.push({
-          id: `${a.id}-${b.id}`,
-          source: a.id,
-          target: b.id,
-          x1: a.x,
-          y1: a.y,
-          x2: b.x,
-          y2: b.y,
-          strength,
-        })
-      }
+      // Only connect if within reasonable distance (prevents very long lines)
+      if (dist > 25) continue
+
+      // Avoid duplicate connections
+      const connId = a.id < b.id ? `${a.id}-${b.id}` : `${b.id}-${a.id}`
+      if (conns.some(c => c.id === connId)) continue
+
+      const strength = Math.min(a.mastery, b.mastery)
+
+      conns.push({
+        id: connId,
+        source: a.id,
+        target: b.id,
+        x1: a.x,
+        y1: a.y,
+        x2: b.x,
+        y2: b.y,
+        strength,
+      })
     }
   }
 
   connections.value = conns
 }
 
-// Force simulation
+// Force simulation - very gentle to maintain brain shape
 let animationFrame = null
 const simulate = () => {
   const nodeList = nodes.value
-  const alpha = 0.08
+  const alpha = 0.05
 
   for (const node of nodeList) {
-    // Gentle centering force toward brain center
-    const dx = 50 - node.x
-    const dy = 50 - node.y
-    node.vx += dx * 0.0005
-    node.vy += dy * 0.0005
+    // Perimeter nodes should stay mostly in place
+    if (node.isPerimeter) {
+      node.vx *= 0.8
+      node.vy *= 0.8
+      continue
+    }
 
-    // Repulsion from other nodes (smaller distance for smaller nodes)
+    // Very gentle centering force
+    const dx = 47 - node.x
+    const dy = 47 - node.y
+    node.vx += dx * 0.0002
+    node.vy += dy * 0.0002
+
+    // Gentle repulsion from nearby nodes
     for (const other of nodeList) {
       if (node.id === other.id) continue
       const ddx = node.x - other.x
       const ddy = node.y - other.y
       const dist = Math.sqrt(ddx * ddx + ddy * ddy) || 1
-      if (dist < 4) {
-        const force = (4 - dist) * 0.02
+      if (dist < 3) {
+        const force = (3 - dist) * 0.01
         node.vx += (ddx / dist) * force
         node.vy += (ddy / dist) * force
       }
@@ -306,13 +333,12 @@ const simulate = () => {
       node.x = newX
       node.y = newY
     } else {
-      // Bounce back toward center if hitting brain boundary
-      node.vx *= -0.3
-      node.vy *= -0.3
+      node.vx *= -0.2
+      node.vy *= -0.2
     }
 
-    node.vx *= 0.92
-    node.vy *= 0.92
+    node.vx *= 0.95
+    node.vy *= 0.95
   }
 
   // Update connection positions
@@ -503,25 +529,40 @@ watch(() => props.completedSeeds, () => {
           </radialGradient>
         </defs>
 
-        <!-- Brain silhouette outline (subtle) -->
+        <!-- Brain silhouette outline (subtle) - matches BRAIN_OUTLINE points -->
         <path
           class="brain-silhouette"
-          d="M 15 50
-             C 12 35, 18 20, 35 18
-             C 45 16, 55 16, 65 20
-             C 78 25, 85 35, 85 50
-             C 85 60, 80 70, 70 75
-             C 60 80, 45 78, 35 75
-             C 20 70, 15 60, 15 50
+          d="M 15 45
+             C 12 40, 12 32, 14 30
+             C 16 24, 18 22, 20 22
+             C 24 18, 28 16, 30 16
+             C 36 13, 40 12, 42 12
+             C 48 12, 52 12, 55 13
+             C 62 15, 66 17, 68 18
+             C 72 21, 76 24, 78 26
+             C 80 30, 82 34, 82 36
+             C 82 40, 81 44, 80 46
+             C 78 50, 77 52, 76 54
+             C 77 58, 78 60, 78 62
+             C 80 66, 82 68, 82 70
+             C 81 74, 79 77, 78 78
+             C 75 80, 72 82, 70 82
+             C 66 81, 64 79, 62 78
+             C 59 76, 57 74, 55 72
+             C 51 70, 48 69, 45 68
+             C 40 67, 37 66, 35 66
+             C 30 65, 27 63, 25 62
+             C 22 60, 19 57, 18 55
+             C 16 51, 15 48, 15 45
              Z"
           fill="none"
           :stroke="currentBelt.color"
-          stroke-width="0.3"
-          stroke-opacity="0.08"
+          stroke-width="0.25"
+          stroke-opacity="0.06"
         />
 
         <!-- Center glow (adjusted for brain shape) -->
-        <ellipse cx="50" cy="48" rx="32" ry="28" fill="url(#centerGlow)"/>
+        <ellipse cx="47" cy="45" rx="30" ry="26" fill="url(#centerGlow)"/>
 
         <!-- Connections -->
         <g class="connections">
