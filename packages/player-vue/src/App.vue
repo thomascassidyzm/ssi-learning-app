@@ -22,6 +22,9 @@ const currentScreen = ref('home')
 const selectedCourse = ref(null)
 const isLearning = ref(false)
 
+// Class context (when launched from Schools)
+const classContext = ref(null)
+
 // Navigation functions
 const navigate = (screen, data = null) => {
   if (data) {
@@ -120,7 +123,56 @@ const fetchEnrolledCourses = async () => {
   }
 }
 
+// Check for class context from Schools
+const checkClassContext = () => {
+  const params = new URLSearchParams(window.location.search)
+  const classId = params.get('class')
+
+  if (classId) {
+    // Read class details from localStorage (set by Schools)
+    const stored = localStorage.getItem('ssi-active-class')
+    if (stored) {
+      try {
+        classContext.value = JSON.parse(stored)
+        console.log('[App] Class context loaded:', classContext.value)
+      } catch (e) {
+        console.error('[App] Failed to parse class context:', e)
+      }
+    }
+    return true
+  }
+  return false
+}
+
+// Clear class context (when exiting player back to home)
+const clearClassContext = () => {
+  classContext.value = null
+  localStorage.removeItem('ssi-active-class')
+  // Remove query param from URL without reload
+  const url = new URL(window.location.href)
+  url.searchParams.delete('class')
+  window.history.replaceState({}, '', url)
+}
+
+// Handle going home from player
+const handleGoHome = () => {
+  if (classContext.value) {
+    // If came from Schools, go back to Schools
+    window.location.href = '/schools/classes.html'
+  } else {
+    goHome()
+  }
+}
+
 onMounted(async () => {
+  // Check if launched from Schools with class context
+  const hasClassContext = checkClassContext()
+  if (hasClassContext) {
+    // Auto-start player when coming from Schools
+    currentScreen.value = 'player'
+    isLearning.value = true
+  }
+
   // Only initialize Supabase if configured and feature flag is enabled
   if (config.features.useDatabase && isSupabaseConfigured(config)) {
     try {
@@ -184,7 +236,8 @@ onMounted(async () => {
     <Transition name="slide-up" mode="out-in">
       <LearningPlayer
         v-if="currentScreen === 'player'"
-        @close="goHome"
+        :classContext="classContext"
+        @close="handleGoHome"
       />
     </Transition>
 

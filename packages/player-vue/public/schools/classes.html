@@ -1280,20 +1280,21 @@
 
         // Play as Class - this is the key integration point with SSi web player
         function playAsClass(classId, className) {
+            // Get course info from the class card
+            const card = event.target.closest('.class-card');
+            const courseText = card.querySelector('.course-tag')?.textContent || 'Welsh';
+
             // Store the active class context for the SSi web player
             const activeClass = {
                 id: classId,
                 name: className,
+                course: courseText,
                 timestamp: new Date().toISOString()
             };
             localStorage.setItem('ssi-active-class', JSON.stringify(activeClass));
 
-            // This is where you'd redirect to the SSi web player
-            // For now, show a confirmation
-            alert(`Starting SSi session as "${className}"\n\nThis would launch the SSi web player with this class context.`);
-
-            // In production, this would be:
-            // window.location.href = '/player?class=' + classId;
+            // Launch the SSi web player
+            window.location.href = '/?class=' + encodeURIComponent(classId);
         }
 
         // Create new class
