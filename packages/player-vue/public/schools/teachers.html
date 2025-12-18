@@ -1,0 +1,1297 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSi Schools - Teachers</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&family=Source+Sans+3:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --ssi-red: #c23a3a;
+            --ssi-red-dark: #9a2e2e;
+            --ssi-red-light: #e54545;
+            --ssi-gold: #d4a853;
+            --ssi-gold-dark: #b8923d;
+            --success: #4ade80;
+            --warning: #fbbf24;
+            --error: #ef4444;
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #121212;
+            --bg-secondary: #1a1a1a;
+            --bg-card: #242424;
+            --bg-card-hover: #2d2d2d;
+            --bg-elevated: #333333;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --text-muted: #707070;
+            --border-subtle: rgba(255,255,255,0.08);
+            --border-medium: rgba(255,255,255,0.15);
+            --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
+            --shadow-md: 0 4px 20px rgba(0,0,0,0.4);
+            --shadow-lg: 0 8px 40px rgba(0,0,0,0.5);
+            --shadow-glow: 0 0 30px rgba(194,58,58,0.3);
+            --nav-bg: rgba(18,18,18,0.95);
+            --logo-bubble-bg: #121212;
+        }
+
+        [data-theme="light"] {
+            --bg-primary: #f5f5f7;
+            --bg-secondary: #ffffff;
+            --bg-card: #ffffff;
+            --bg-card-hover: #f9f9f9;
+            --bg-elevated: #f0f0f2;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --text-muted: #999999;
+            --border-subtle: rgba(0,0,0,0.06);
+            --border-medium: rgba(0,0,0,0.12);
+            --shadow-sm: 0 2px 8px rgba(0,0,0,0.08);
+            --shadow-md: 0 4px 20px rgba(0,0,0,0.12);
+            --shadow-lg: 0 8px 40px rgba(0,0,0,0.16);
+            --shadow-glow: 0 0 30px rgba(194,58,58,0.2);
+            --nav-bg: rgba(255,255,255,0.95);
+            --logo-bubble-bg: #f5f5f7;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Source Sans 3', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        /* Navigation - same as index */
+        .top-nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 64px;
+            background: var(--nav-bg);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            z-index: 100;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .logo-text {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-weight: 700;
+            font-size: 20px;
+        }
+
+        .logo-text .say { color: var(--ssi-red); }
+        .logo-text .something { color: var(--text-primary); }
+        .logo-text .in { color: var(--ssi-red); }
+
+        .logo-bubble {
+            width: 20px;
+            height: 16px;
+            border: 2px solid var(--ssi-red);
+            border-radius: 3px;
+            position: relative;
+        }
+
+        .logo-bubble::after {
+            content: '';
+            position: absolute;
+            bottom: -6px;
+            right: 4px;
+            width: 6px;
+            height: 6px;
+            border-right: 2px solid var(--ssi-red);
+            border-bottom: 2px solid var(--ssi-red);
+            transform: rotate(45deg);
+            background: var(--logo-bubble-bg);
+        }
+
+        /* Theme Toggle */
+        .theme-toggle {
+            width: 40px;
+            height: 40px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-medium);
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .theme-toggle:hover { border-color: var(--ssi-gold); transform: scale(1.05); }
+        .theme-toggle svg { width: 20px; height: 20px; transition: all 0.3s ease; }
+        .theme-toggle .sun-icon { color: var(--ssi-gold); position: absolute; opacity: 0; transform: rotate(-90deg) scale(0); }
+        .theme-toggle .moon-icon { color: var(--text-secondary); position: absolute; opacity: 1; transform: rotate(0deg) scale(1); }
+        [data-theme="light"] .theme-toggle .sun-icon { opacity: 1; transform: rotate(0deg) scale(1); }
+        [data-theme="light"] .theme-toggle .moon-icon { opacity: 0; transform: rotate(90deg) scale(0); }
+
+        .nav-tabs {
+            display: flex;
+            gap: 4px;
+            background: var(--bg-card);
+            padding: 4px;
+            border-radius: 12px;
+        }
+
+        .nav-tab {
+            padding: 8px 20px;
+            border-radius: 8px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+        }
+
+        .nav-tab:hover {
+            color: var(--text-primary);
+            background: var(--bg-elevated);
+        }
+
+        .nav-tab.active {
+            background: var(--ssi-red);
+            color: white;
+        }
+
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .school-badge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 14px 6px 10px;
+            background: var(--bg-card);
+            border-radius: 20px;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .school-avatar {
+            width: 28px;
+            height: 28px;
+            background: linear-gradient(135deg, var(--ssi-red), var(--ssi-gold));
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 12px;
+        }
+
+        .school-name { font-size: 13px; font-weight: 600; }
+
+        .user-menu {
+            width: 40px;
+            height: 40px;
+            background: var(--bg-card);
+            border-radius: 50%;
+            border: 2px solid var(--border-medium);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .user-menu:hover { border-color: var(--ssi-red); }
+        .user-menu svg { width: 20px; height: 20px; color: var(--text-secondary); }
+
+        /* Main Content */
+        .main-content {
+            margin-top: 64px;
+            padding: 32px;
+            max-width: 1400px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* Page Header */
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+        }
+
+        .page-title {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .page-title h1 {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .teacher-count {
+            background: var(--bg-card);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .teacher-count span {
+            color: var(--ssi-gold);
+            font-weight: 700;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            border-radius: 10px;
+            border: none;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: var(--ssi-red);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--ssi-red-light);
+            box-shadow: var(--shadow-glow);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border-medium);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-elevated);
+            border-color: var(--ssi-red);
+        }
+
+        /* Search & Filters */
+        .filters-bar {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .search-box {
+            flex: 1;
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 14px 16px 14px 48px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--ssi-red);
+            box-shadow: 0 0 0 3px rgba(194,58,58,0.2);
+        }
+
+        .search-box input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .search-box svg {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+        }
+
+        .filter-dropdown {
+            position: relative;
+        }
+
+        .filter-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .filter-btn:hover {
+            border-color: var(--border-medium);
+        }
+
+        /* Teachers Grid */
+        .teachers-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+            gap: 20px;
+        }
+
+        .teacher-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 24px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .teacher-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--border-medium);
+            box-shadow: var(--shadow-md);
+        }
+
+        .teacher-card-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .teacher-avatar-lg {
+            width: 64px;
+            height: 64px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 24px;
+            position: relative;
+        }
+
+        .teacher-avatar-lg.belt-white { background: linear-gradient(135deg, #f5f5f5, #e0e0e0); color: #333; }
+        .teacher-avatar-lg.belt-yellow { background: linear-gradient(135deg, #fbbf24, #d97706); color: #333; }
+        .teacher-avatar-lg.belt-orange { background: linear-gradient(135deg, #f97316, #ea580c); color: white; }
+        .teacher-avatar-lg.belt-green { background: linear-gradient(135deg, #22c55e, #16a34a); color: white; }
+        .teacher-avatar-lg.belt-blue { background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; }
+        .teacher-avatar-lg.belt-brown { background: linear-gradient(135deg, #92400e, #78350f); color: white; }
+        .teacher-avatar-lg.belt-black { background: linear-gradient(135deg, #1f2937, #111827); color: white; }
+
+        .status-indicator {
+            position: absolute;
+            bottom: -4px;
+            right: -4px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 3px solid var(--bg-card);
+        }
+
+        .status-indicator.active { background: var(--success); }
+        .status-indicator.inactive { background: var(--text-muted); }
+
+        .teacher-card-info {
+            flex: 1;
+        }
+
+        .teacher-card-name {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .teacher-card-email {
+            color: var(--text-secondary);
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+
+        .teacher-card-meta {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .meta-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .meta-tag.course {
+            background: rgba(194,58,58,0.15);
+            color: var(--ssi-red-light);
+        }
+
+        .meta-tag.belt {
+            background: rgba(212,168,83,0.15);
+            color: var(--ssi-gold);
+        }
+
+        .teacher-card-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .action-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            border: 1px solid var(--border-subtle);
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .action-btn:hover {
+            background: var(--ssi-red);
+            border-color: var(--ssi-red);
+            color: white;
+        }
+
+        .action-btn.danger:hover {
+            background: var(--error);
+            border-color: var(--error);
+        }
+
+        /* Stats Row */
+        .teacher-card-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .stat-mini {
+            text-align: center;
+        }
+
+        .stat-mini-value {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .stat-mini-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Progress Bar */
+        .teacher-progress {
+            margin-top: 16px;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+
+        .progress-label { color: var(--text-secondary); }
+        .progress-value { color: var(--ssi-gold); font-weight: 600; }
+
+        .progress-track {
+            height: 6px;
+            background: var(--bg-secondary);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--ssi-red) 0%, var(--ssi-gold) 100%);
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+
+        /* Add Teacher Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background: var(--bg-card);
+            border: 1px solid var(--border-medium);
+            border-radius: 20px;
+            width: 100%;
+            max-width: 480px;
+            max-height: 90vh;
+            overflow-y: auto;
+            transform: translateY(20px) scale(0.95);
+            transition: all 0.3s ease;
+        }
+
+        .modal-overlay.active .modal {
+            transform: translateY(0) scale(1);
+        }
+
+        .modal-header {
+            padding: 24px;
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            border: none;
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .modal-close:hover {
+            background: var(--error);
+            color: white;
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 14px 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--ssi-red);
+            box-shadow: 0 0 0 3px rgba(194,58,58,0.2);
+        }
+
+        .form-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .form-select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23707070' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 16px center;
+            padding-right: 48px;
+        }
+
+        .form-hint {
+            margin-top: 6px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .modal-footer {
+            padding: 24px;
+            border-top: 1px solid var(--border-subtle);
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        /* Animations */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-in {
+            animation: fadeInUp 0.5s ease forwards;
+        }
+
+        .delay-1 { animation-delay: 0.1s; opacity: 0; }
+        .delay-2 { animation-delay: 0.2s; opacity: 0; }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .main-content { padding: 16px; }
+            .page-header { flex-direction: column; gap: 16px; }
+            .filters-bar { flex-direction: column; }
+            .teachers-grid { grid-template-columns: 1fr; }
+            .nav-tabs { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="top-nav">
+        <div class="logo">
+            <span class="logo-text">
+                <span class="say">Say</span><span class="something">Something</span><span class="in">in</span>
+            </span>
+            <span class="logo-bubble"></span>
+        </div>
+
+        <div class="nav-tabs">
+            <a href="index.html" class="nav-tab">Dashboard</a>
+            <button class="nav-tab active">Teachers</button>
+            <a href="classes.html" class="nav-tab">Classes</a>
+            <a href="analytics.html" class="nav-tab">Analytics</a>
+            <a href="settings.html" class="nav-tab">Settings</a>
+        </div>
+
+        <div class="nav-right">
+            <a href="flows/index.html" class="btn btn-secondary" style="padding: 8px 14px; font-size: 13px;" title="View Flow Documentation">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+                Flows
+            </a>
+            <div class="school-badge">
+                <div class="school-avatar">YC</div>
+                <span class="school-name">Ysgol Cymraeg</span>
+            </div>
+            <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+                <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                    <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                </svg>
+                <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                </svg>
+            </button>
+            <button class="user-menu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="8" r="4"/>
+                    <path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+                </svg>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Page Header -->
+        <div class="page-header animate-in">
+            <div class="page-title">
+                <h1>👩‍🏫 Teachers</h1>
+                <div class="teacher-count"><span>12</span> teachers</div>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-secondary">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    Export
+                </button>
+                <button class="btn btn-primary" onclick="openModal()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"/>
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    Add Teacher
+                </button>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filters-bar animate-in delay-1">
+            <div class="search-box">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"/>
+                    <path d="m21 21-4.35-4.35"/>
+                </svg>
+                <input type="text" placeholder="Search teachers by name or email...">
+            </div>
+            <div class="filter-dropdown">
+                <button class="filter-btn">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+                    </svg>
+                    All Courses
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="6 9 12 15 18 9"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="filter-dropdown">
+                <button class="filter-btn">
+                    🥋 All Belts
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="6 9 12 15 18 9"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Teachers Grid -->
+        <div class="teachers-grid animate-in delay-2">
+            <!-- Teacher 1 -->
+            <div class="teacher-card">
+                <div class="teacher-card-header">
+                    <div class="teacher-avatar-lg belt-black">
+                        SM
+                        <span class="status-indicator active"></span>
+                    </div>
+                    <div class="teacher-card-info">
+                        <div class="teacher-card-name">Siân Morgan</div>
+                        <div class="teacher-card-email">sian.morgan@ysgolcymraeg.edu</div>
+                        <div class="teacher-card-meta">
+                            <span class="meta-tag course">🏴󠁧󠁢󠁷󠁬󠁳󠁿 Welsh (Northern)</span>
+                            <span class="meta-tag belt">⬛ Black Belt</span>
+                        </div>
+                    </div>
+                    <div class="teacher-card-actions">
+                        <button class="action-btn" title="View Details">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn" title="Edit">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn danger" title="Remove">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"/>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="teacher-card-stats">
+                    <div class="stat-mini">
+                        <div class="stat-mini-value">3</div>
+                        <div class="stat-mini-label">Classes</div>
+                    </div>
+                    <div class="stat-mini">
+                        <div class="stat-mini-value">67</div>
+                        <div class="stat-mini-label">Classes</div>
+                    </div>
+                    <div class="stat-mini">
+                        <div class="stat-mini-value">2,450</div>
+                        <div class="stat-mini-label">Phrases</div>
+                    </div>
+                    <div class="stat-mini">
+                        <div class="stat-mini-value">98%</div>
+                        <div class="stat-mini-label">Active</div>
+                    </div>
+                </div>
+                <div class="teacher-progress">
+                    <div class="progress-header">
+                        <span class="progress-label">Student Engagement</span>
+                        <span class="progress-value">92%</span>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-fill" style="width: 92%;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Teacher 2 -->
+            <div class="teacher-card">
+                <div class="teacher-card-header">
+                    <div class="teacher-avatar-lg belt-blue">
+                        RJ
+                        <span class="status-indicator active"></span>
+                    </div>
+                    <div class="teacher-card-info">
+                        <div class="teacher-card-name">Rhys Jones</div>
+                        <div class="teacher-card-email">rhys.jones@ysgolcymraeg.edu</div>
+                        <div class="teacher-card-meta">
+                            <span class="meta-tag course">🏴󠁧󠁢󠁷󠁬󠁳󠁿 Welsh (Southern)</span>
+                            <span class="meta-tag belt">🔵 Blue Belt</span>
+                        </div>
+                    </div>
+                    <div class="teacher-card-actions">
+                        <button class="action-btn" title="View Details">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn" title="Edit">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn danger" title="Remove">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"/>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="teacher-card-stats">
+                    <div class="stat-mini">
+                        <div class="stat-mini-value">2</div>
+                        <div class="stat-mini-label">Classes</div>
+                    </div>
+                    <div class="stat-mini">
+                        <div class="stat-mini-value">48</div>
+                        <div class="stat-mini-label">Classes</div>
+                    </div>
+                    <div class="stat-mini">
+                        <div class="stat-mini-value">1,820</div>
+                        <div class="stat-mini-label">Phrases</div>
+                    </div>
+                    <div class="stat-mini">
+                        <div class="stat-mini-value">95%</div>
+                        <div class="stat-mini-label">Active</div>
+                    </div>
+                </div>
+                <div class="teacher-progress">
+                    <div class="progress-header">
+                        <span class="progress-label">Student Engagement</span>
+                        <span class="progress-value">87%</span>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-fill" style="width: 87%;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Teacher 3 -->
+            <div class="teacher-card">
+                <div class="teacher-card-header">
+                    <div class="teacher-avatar-lg belt-yellow">
+                        EW
+                        <span class="status-indicator active"></span>
+                    </div>
+                    <div class="teacher-card-info">
+                        <div class="teacher-card-name">Elen Williams</div>
+                        <div class="teacher-card-email">elen.williams@ysgolcymraeg.edu</div>
+                        <div class="teacher-card-meta">
+                            <span class="meta-tag course">🏴󠁧󠁢󠁷󠁬󠁳󠁿 Welsh (Northern)</span>
+                            <span class="meta-tag belt">🟡 Yellow Belt</span>
+                        </div>
+                    </div>
+                    <div class="teacher-card-actions">
+                        <button class="action-btn" title="View Details">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn" title="Edit">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn danger" title="Remove">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"/>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="teacher-card-stats">
+                    <div class="stat-mini">
+                        <div class="stat-mini-value">2</div>
+                        <div class="stat-mini-label">Classes</div>
+                    </div>
+                    <div class="stat-mini">
+                        <div class="stat-mini-value">52</div>
+                        <div class="stat-mini-label">Classes</div>
+                    </div>
+                    <div class="stat-mini">
+                        <div class="stat-mini-value">980</div>
+                        <div class="stat-mini-label">Phrases</div>
+                    </div>
+                    <div class="stat-mini">
+                        <div class="stat-mini-value">89%</div>
+                        <div class="stat-mini-label">Active</div>
+                    </div>
+                </div>
+                <div class="teacher-progress">
+                    <div class="progress-header">
+                        <span class="progress-label">Student Engagement</span>
+                        <span class="progress-value">78%</span>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-fill" style="width: 78%;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Teacher 4 -->
+            <div class="teacher-card">
+                <div class="teacher-card-header">
+                    <div class="teacher-avatar-lg belt-green">
+                        DP
+                        <span class="status-indicator inactive"></span>
+                    </div>
+                    <div class="teacher-card-info">
+                        <div class="teacher-card-name">Dewi Pritchard</div>
+                        <div class="teacher-card-email">dewi.pritchard@ysgolcymraeg.edu</div>
+                        <div class="teacher-card-meta">
+                            <span class="meta-tag course">🏴󠁧󠁢󠁷󠁬󠁳󠁿 Welsh (Southern)</span>
+                            <span class="meta-tag belt">🟢 Green Belt</span>
+                        </div>
+                    </div>
+                    <div class="teacher-card-actions">
+                        <button class="action-btn" title="View Details">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn" title="Edit">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn danger" title="Remove">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"/>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="teacher-card-stats">
+                    <div class="stat-mini">
+                        <div class="stat-mini-value">2</div>
+                        <div class="stat-mini-label">Classes</div>
+                    </div>
+                    <div class="stat-mini">
+                        <div class="stat-mini-value">38</div>
+                        <div class="stat-mini-label">Classes</div>
+                    </div>
+                    <div class="stat-mini">
+                        <div class="stat-mini-value">1,240</div>
+                        <div class="stat-mini-label">Phrases</div>
+                    </div>
+                    <div class="stat-mini">
+                        <div class="stat-mini-value">72%</div>
+                        <div class="stat-mini-label">Active</div>
+                    </div>
+                </div>
+                <div class="teacher-progress">
+                    <div class="progress-header">
+                        <span class="progress-label">Student Engagement</span>
+                        <span class="progress-value">65%</span>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-fill" style="width: 65%;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Teacher 5 - Spanish -->
+            <div class="teacher-card">
+                <div class="teacher-card-header">
+                    <div class="teacher-avatar-lg belt-orange">
+                        MG
+                        <span class="status-indicator active"></span>
+                    </div>
+                    <div class="teacher-card-info">
+                        <div class="teacher-card-name">María García</div>
+                        <div class="teacher-card-email">maria.garcia@ysgolcymraeg.edu</div>
+                        <div class="teacher-card-meta">
+                            <span class="meta-tag course">🇪🇸 Spanish (Latin Am)</span>
+                            <span class="meta-tag belt">🟠 Orange Belt</span>
+                        </div>
+                    </div>
+                    <div class="teacher-card-actions">
+                        <button class="action-btn" title="View Details">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn" title="Edit">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn danger" title="Remove">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"/>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="teacher-card-stats">
+                    <div class="stat-mini">
+                        <div class="stat-mini-value">3</div>
+                        <div class="stat-mini-label">Classes</div>
+                    </div>
+                    <div class="stat-mini">
+                        <div class="stat-mini-value">79</div>
+                        <div class="stat-mini-label">Classes</div>
+                    </div>
+                    <div class="stat-mini">
+                        <div class="stat-mini-value">1,650</div>
+                        <div class="stat-mini-label">Phrases</div>
+                    </div>
+                    <div class="stat-mini">
+                        <div class="stat-mini-value">94%</div>
+                        <div class="stat-mini-label">Active</div>
+                    </div>
+                </div>
+                <div class="teacher-progress">
+                    <div class="progress-header">
+                        <span class="progress-label">Student Engagement</span>
+                        <span class="progress-value">88%</span>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-fill" style="width: 88%;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Teacher 6 - New Teacher -->
+            <div class="teacher-card">
+                <div class="teacher-card-header">
+                    <div class="teacher-avatar-lg belt-white">
+                        CT
+                        <span class="status-indicator active"></span>
+                    </div>
+                    <div class="teacher-card-info">
+                        <div class="teacher-card-name">Carys Thomas</div>
+                        <div class="teacher-card-email">carys.thomas@ysgolcymraeg.edu</div>
+                        <div class="teacher-card-meta">
+                            <span class="meta-tag course">🏴󠁧󠁢󠁷󠁬󠁳󠁿 Welsh (Northern)</span>
+                            <span class="meta-tag belt">⬜ White Belt</span>
+                        </div>
+                    </div>
+                    <div class="teacher-card-actions">
+                        <button class="action-btn" title="View Details">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn" title="Edit">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn danger" title="Remove">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"/>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="teacher-card-stats">
+                    <div class="stat-mini">
+                        <div class="stat-mini-value">1</div>
+                        <div class="stat-mini-label">Classes</div>
+                    </div>
+                    <div class="stat-mini">
+                        <div class="stat-mini-value">18</div>
+                        <div class="stat-mini-label">Classes</div>
+                    </div>
+                    <div class="stat-mini">
+                        <div class="stat-mini-value">156</div>
+                        <div class="stat-mini-label">Phrases</div>
+                    </div>
+                    <div class="stat-mini">
+                        <div class="stat-mini-value">100%</div>
+                        <div class="stat-mini-label">Active</div>
+                    </div>
+                </div>
+                <div class="teacher-progress">
+                    <div class="progress-header">
+                        <span class="progress-label">Student Engagement</span>
+                        <span class="progress-value">95%</span>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-fill" style="width: 95%;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Add Teacher Modal -->
+    <div class="modal-overlay" id="addTeacherModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Add New Teacher</h2>
+                <button class="modal-close" onclick="closeModal()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Teacher's Name</label>
+                    <input type="text" class="form-input" placeholder="e.g., Siân Morgan">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Email Address</label>
+                    <input type="email" class="form-input" placeholder="e.g., sian.morgan@school.edu">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Course / Language</label>
+                    <select class="form-input form-select">
+                        <option>Welsh (Northern)</option>
+                        <option>Welsh (Southern)</option>
+                        <option>Spanish (Latin American)</option>
+                        <option>Spanish (Castilian)</option>
+                        <option>Dutch</option>
+                        <option>Cornish</option>
+                        <option>Manx</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Subject / Department (Optional)</label>
+                    <input type="text" class="form-input" placeholder="e.g., Languages">
+                    <p class="form-hint">Help organize teachers by department</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                    Send Invitation
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Theme Management
+        function initTheme() {
+            const savedTheme = localStorage.getItem('ssi-theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        }
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('ssi-theme', newTheme);
+        }
+        initTheme();
+
+        function openModal() {
+            document.getElementById('addTeacherModal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('addTeacherModal').classList.remove('active');
+        }
+
+        // Close modal on overlay click
+        document.getElementById('addTeacherModal').addEventListener('click', function(e) {
+            if (e.target === this) closeModal();
+        });
+
+        // Close modal on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeModal();
+        });
+    </script>
+</body>
+</html>

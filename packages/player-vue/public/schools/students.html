@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSi Schools - Students</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&family=Source+Sans+3:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --ssi-red: #c23a3a;
+            --ssi-red-dark: #9a2e2e;
+            --ssi-red-light: #e54545;
+            --ssi-gold: #d4a853;
+            --ssi-gold-dark: #b8923d;
+            --success: #4ade80;
+            --warning: #fbbf24;
+            --error: #ef4444;
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #121212;
+            --bg-secondary: #1a1a1a;
+            --bg-card: #242424;
+            --bg-card-hover: #2d2d2d;
+            --bg-elevated: #333333;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --text-muted: #707070;
+            --border-subtle: rgba(255,255,255,0.08);
+            --border-medium: rgba(255,255,255,0.15);
+            --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
+            --shadow-md: 0 4px 20px rgba(0,0,0,0.4);
+            --nav-bg: rgba(18,18,18,0.95);
+            --logo-bubble-bg: #121212;
+        }
+
+        [data-theme="light"] {
+            --bg-primary: #f5f5f7;
+            --bg-secondary: #ffffff;
+            --bg-card: #ffffff;
+            --bg-card-hover: #f9f9f9;
+            --bg-elevated: #f0f0f2;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --text-muted: #999999;
+            --border-subtle: rgba(0,0,0,0.06);
+            --border-medium: rgba(0,0,0,0.12);
+            --shadow-sm: 0 2px 8px rgba(0,0,0,0.08);
+            --shadow-md: 0 4px 20px rgba(0,0,0,0.12);
+            --nav-bg: rgba(255,255,255,0.95);
+            --logo-bubble-bg: #f5f5f7;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Source Sans 3', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        /* Navigation */
+        .top-nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 64px;
+            background: var(--nav-bg);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            z-index: 100;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .logo-text {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-weight: 700;
+            font-size: 20px;
+        }
+
+        .logo-text .say { color: var(--ssi-red); }
+        .logo-text .something { color: var(--text-primary); }
+        .logo-text .in { color: var(--ssi-red); }
+
+        .logo-bubble {
+            width: 20px;
+            height: 16px;
+            border: 2px solid var(--ssi-red);
+            border-radius: 3px;
+            position: relative;
+        }
+
+        .logo-bubble::after {
+            content: '';
+            position: absolute;
+            bottom: -6px;
+            right: 4px;
+            width: 6px;
+            height: 6px;
+            border-right: 2px solid var(--ssi-red);
+            border-bottom: 2px solid var(--ssi-red);
+            transform: rotate(45deg);
+            background: var(--logo-bubble-bg);
+        }
+
+        /* Theme Toggle */
+        .theme-toggle {
+            width: 40px;
+            height: 40px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-medium);
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .theme-toggle:hover { border-color: var(--ssi-gold); transform: scale(1.05); }
+        .theme-toggle svg { width: 20px; height: 20px; transition: all 0.3s ease; }
+        .theme-toggle .sun-icon { color: var(--ssi-gold); position: absolute; opacity: 0; transform: rotate(-90deg) scale(0); }
+        .theme-toggle .moon-icon { color: var(--text-secondary); position: absolute; opacity: 1; transform: rotate(0deg) scale(1); }
+        [data-theme="light"] .theme-toggle .sun-icon { opacity: 1; transform: rotate(0deg) scale(1); }
+        [data-theme="light"] .theme-toggle .moon-icon { opacity: 0; transform: rotate(90deg) scale(0); }
+
+        .nav-tabs {
+            display: flex;
+            gap: 4px;
+            background: var(--bg-card);
+            padding: 4px;
+            border-radius: 12px;
+        }
+
+        .nav-tab {
+            padding: 8px 20px;
+            border-radius: 8px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+        }
+
+        .nav-tab:hover {
+            color: var(--text-primary);
+            background: var(--bg-elevated);
+        }
+
+        .nav-tab.active {
+            background: var(--ssi-red);
+            color: white;
+        }
+
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .school-badge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 14px 6px 10px;
+            background: var(--bg-card);
+            border-radius: 20px;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .school-avatar {
+            width: 28px;
+            height: 28px;
+            background: linear-gradient(135deg, var(--ssi-red), var(--ssi-gold));
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 12px;
+        }
+
+        .school-name { font-size: 13px; font-weight: 600; }
+
+        .user-menu {
+            width: 40px;
+            height: 40px;
+            background: var(--bg-card);
+            border-radius: 50%;
+            border: 2px solid var(--border-medium);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .user-menu:hover { border-color: var(--ssi-red); }
+        .user-menu svg { width: 20px; height: 20px; color: var(--text-secondary); }
+
+        /* Main Content */
+        .main-content {
+            margin-top: 64px;
+            padding: 32px;
+            max-width: 1400px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* Page Header */
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+        }
+
+        .page-title {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .page-title h1 {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .student-count {
+            background: var(--bg-card);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .student-count span {
+            color: var(--ssi-gold);
+            font-weight: 700;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            border-radius: 10px;
+            border: none;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: var(--ssi-red);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--ssi-red-light);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border-medium);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-elevated);
+            border-color: var(--ssi-red);
+        }
+
+        /* Filters Bar */
+        .filters-bar {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 300px;
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 14px 16px 14px 48px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--ssi-red);
+            box-shadow: 0 0 0 3px rgba(194,58,58,0.2);
+        }
+
+        .search-box input::placeholder { color: var(--text-muted); }
+
+        .search-box svg {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+        }
+
+        .filter-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .filter-btn:hover { border-color: var(--border-medium); }
+
+        .filter-btn.active {
+            background: rgba(194,58,58,0.15);
+            border-color: var(--ssi-red);
+            color: var(--ssi-red);
+        }
+
+        /* View Tabs */
+        .view-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+        }
+
+        .view-tab {
+            padding: 10px 20px;
+            border-radius: 10px;
+            border: 1px solid var(--border-subtle);
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .view-tab:hover {
+            border-color: var(--border-medium);
+            color: var(--text-primary);
+        }
+
+        .view-tab.active {
+            background: var(--ssi-red);
+            border-color: var(--ssi-red);
+            color: white;
+        }
+
+        /* Students Table */
+        .students-table-wrapper {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        .students-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .students-table th {
+            text-align: left;
+            padding: 16px 20px;
+            background: var(--bg-secondary);
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .students-table th.sortable {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .students-table th.sortable:hover {
+            color: var(--text-secondary);
+        }
+
+        .students-table th svg {
+            vertical-align: middle;
+            margin-left: 4px;
+            opacity: 0.5;
+        }
+
+        .students-table td {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-subtle);
+            vertical-align: middle;
+        }
+
+        .students-table tr:hover td {
+            background: var(--bg-secondary);
+        }
+
+        .students-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* Student Row */
+        .student-cell {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .student-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        .student-avatar.belt-white { background: linear-gradient(135deg, #f5f5f5, #e0e0e0); color: #333; }
+        .student-avatar.belt-yellow { background: linear-gradient(135deg, #fbbf24, #d97706); color: #333; }
+        .student-avatar.belt-orange { background: linear-gradient(135deg, #f97316, #ea580c); color: white; }
+        .student-avatar.belt-green { background: linear-gradient(135deg, #22c55e, #16a34a); color: white; }
+        .student-avatar.belt-blue { background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; }
+        .student-avatar.belt-brown { background: linear-gradient(135deg, #92400e, #78350f); color: white; }
+        .student-avatar.belt-black { background: linear-gradient(135deg, #1f2937, #111827); color: white; }
+
+        .student-name {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .student-email {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        /* Belt Badge */
+        .belt-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .belt-badge.white { background: rgba(255,255,255,0.1); color: #e0e0e0; }
+        .belt-badge.yellow { background: rgba(251,191,36,0.15); color: #fbbf24; }
+        .belt-badge.orange { background: rgba(249,115,22,0.15); color: #f97316; }
+        .belt-badge.green { background: rgba(34,197,94,0.15); color: #22c55e; }
+        .belt-badge.blue { background: rgba(59,130,246,0.15); color: #3b82f6; }
+        .belt-badge.brown { background: rgba(146,64,14,0.15); color: #d97706; }
+        .belt-badge.black { background: rgba(31,41,55,0.5); color: #9ca3af; border: 1px solid #374151; }
+
+        /* Progress Mini */
+        .progress-mini {
+            width: 100px;
+        }
+
+        .progress-mini-track {
+            height: 6px;
+            background: var(--bg-secondary);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 4px;
+        }
+
+        .progress-mini-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--ssi-red) 0%, var(--ssi-gold) 100%);
+            border-radius: 3px;
+        }
+
+        .progress-mini-label {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        /* Stats Cell */
+        .stat-cell {
+            text-align: center;
+        }
+
+        .stat-cell-value {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-weight: 700;
+            font-size: 16px;
+            color: var(--ssi-gold);
+        }
+
+        .stat-cell-label {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        /* Status Badge */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-badge.active {
+            background: rgba(74,222,128,0.15);
+            color: var(--success);
+        }
+
+        .status-badge.inactive {
+            background: rgba(107,114,128,0.15);
+            color: var(--text-muted);
+        }
+
+        .status-badge .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+
+        .status-badge.active .dot { background: var(--success); }
+        .status-badge.inactive .dot { background: var(--text-muted); }
+
+        /* Action Buttons */
+        .action-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            border: 1px solid var(--border-subtle);
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            margin-left: 4px;
+        }
+
+        .action-btn:hover {
+            background: var(--ssi-red);
+            border-color: var(--ssi-red);
+            color: white;
+        }
+
+        /* Pagination */
+        .table-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .results-info {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .pagination {
+            display: flex;
+            gap: 4px;
+        }
+
+        .page-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            border: 1px solid var(--border-subtle);
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .page-btn:hover {
+            border-color: var(--border-medium);
+            color: var(--text-primary);
+        }
+
+        .page-btn.active {
+            background: var(--ssi-red);
+            border-color: var(--ssi-red);
+            color: white;
+        }
+
+        /* Class Filter Dropdown */
+        .class-filter {
+            position: relative;
+        }
+
+        .class-filter-content {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            margin-top: 8px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-medium);
+            border-radius: 12px;
+            padding: 8px;
+            min-width: 240px;
+            box-shadow: var(--shadow-md);
+            z-index: 50;
+            display: none;
+        }
+
+        .class-filter.open .class-filter-content {
+            display: block;
+        }
+
+        .class-filter-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .class-filter-item:hover {
+            background: var(--bg-elevated);
+        }
+
+        .class-filter-item.selected {
+            background: rgba(194,58,58,0.15);
+        }
+
+        .class-filter-check {
+            width: 18px;
+            height: 18px;
+            border: 2px solid var(--border-medium);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .class-filter-item.selected .class-filter-check {
+            background: var(--ssi-red);
+            border-color: var(--ssi-red);
+        }
+
+        .class-filter-item.selected .class-filter-check svg {
+            color: white;
+        }
+
+        /* Animations */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-in {
+            animation: fadeInUp 0.5s ease forwards;
+        }
+
+        .delay-1 { animation-delay: 0.1s; opacity: 0; }
+        .delay-2 { animation-delay: 0.2s; opacity: 0; }
+
+        @media (max-width: 1024px) {
+            .students-table { font-size: 13px; }
+            .students-table th, .students-table td { padding: 12px 14px; }
+        }
+
+        @media (max-width: 768px) {
+            .main-content { padding: 16px; }
+            .page-header { flex-direction: column; gap: 16px; }
+            .filters-bar { flex-direction: column; }
+            .search-box { min-width: 100%; }
+            .nav-tabs { display: none; }
+            .students-table-wrapper { overflow-x: auto; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="top-nav">
+        <div class="logo">
+            <span class="logo-text">
+                <span class="say">Say</span><span class="something">Something</span><span class="in">in</span>
+            </span>
+            <span class="logo-bubble"></span>
+        </div>
+
+        <div class="nav-tabs">
+            <a href="index.html" class="nav-tab">Dashboard</a>
+            <a href="teachers.html" class="nav-tab">Teachers</a>
+            <button class="nav-tab active">Students</button>
+            <a href="analytics.html" class="nav-tab">Analytics</a>
+            <a href="settings.html" class="nav-tab">Settings</a>
+        </div>
+
+        <div class="nav-right">
+            <div class="school-badge">
+                <div class="school-avatar">YC</div>
+                <span class="school-name">Ysgol Cymraeg</span>
+            </div>
+            <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+                <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                    <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                </svg>
+                <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                </svg>
+            </button>
+            <button class="user-menu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="8" r="4"/>
+                    <path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+                </svg>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Page Header -->
+        <div class="page-header animate-in">
+            <div class="page-title">
+                <h1>🥋 Students</h1>
+                <div class="student-count"><span>284</span> students across 18 classes</div>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-secondary">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    Export CSV
+                </button>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filters-bar animate-in delay-1">
+            <div class="search-box">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"/>
+                    <path d="m21 21-4.35-4.35"/>
+                </svg>
+                <input type="text" placeholder="Search students by name or email...">
+            </div>
+
+            <div class="class-filter" onclick="this.classList.toggle('open')">
+                <button class="filter-btn">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    All Classes
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="6 9 12 15 18 9"/>
+                    </svg>
+                </button>
+                <div class="class-filter-content">
+                    <div class="class-filter-item selected">
+                        <div class="class-filter-check">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                        </div>
+                        <span>All Classes (284)</span>
+                    </div>
+                    <div class="class-filter-item">
+                        <div class="class-filter-check"></div>
+                        <span>Welsh 101 - Siân Morgan (32)</span>
+                    </div>
+                    <div class="class-filter-item">
+                        <div class="class-filter-check"></div>
+                        <span>Welsh 201 - Siân Morgan (24)</span>
+                    </div>
+                    <div class="class-filter-item">
+                        <div class="class-filter-check"></div>
+                        <span>Advanced Welsh - Rhys Jones (18)</span>
+                    </div>
+                    <div class="class-filter-item">
+                        <div class="class-filter-check"></div>
+                        <span>Beginners Welsh - Elen Williams (28)</span>
+                    </div>
+                </div>
+            </div>
+
+            <button class="filter-btn">
+                🥋 All Belts
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"/>
+                </svg>
+            </button>
+
+            <button class="filter-btn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                </svg>
+                Last 7 days
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"/>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Students Table -->
+        <div class="students-table-wrapper animate-in delay-2">
+            <table class="students-table">
+                <thead>
+                    <tr>
+                        <th class="sortable">
+                            Student
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="m7 15 5 5 5-5"/>
+                                <path d="m7 9 5-5 5 5"/>
+                            </svg>
+                        </th>
+                        <th>Class</th>
+                        <th>Teacher</th>
+                        <th class="sortable">
+                            Belt
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="m7 15 5 5 5-5"/>
+                                <path d="m7 9 5-5 5 5"/>
+                            </svg>
+                        </th>
+                        <th>Progress</th>
+                        <th class="sortable">
+                            Phrases
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="m7 15 5 5 5-5"/>
+                                <path d="m7 9 5-5 5 5"/>
+                            </svg>
+                        </th>
+                        <th class="sortable">
+                            Hours
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="m7 15 5 5 5-5"/>
+                                <path d="m7 9 5-5 5 5"/>
+                            </svg>
+                        </th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>
+                            <div class="student-cell">
+                                <div class="student-avatar belt-yellow">GL</div>
+                                <div>
+                                    <div class="student-name">Gareth Llywelyn</div>
+                                    <div class="student-email">gareth.l@student.edu</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>Welsh 101</td>
+                        <td>Siân Morgan</td>
+                        <td><span class="belt-badge yellow">🟡 Yellow</span></td>
+                        <td>
+                            <div class="progress-mini">
+                                <div class="progress-mini-track">
+                                    <div class="progress-mini-fill" style="width: 45%;"></div>
+                                </div>
+                                <span class="progress-mini-label">45% to Orange</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="stat-cell">
+                                <div class="stat-cell-value">156</div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="stat-cell">
+                                <div class="stat-cell-value">12.5</div>
+                            </div>
+                        </td>
+                        <td><span class="status-badge active"><span class="dot"></span>Active</span></td>
+                        <td>
+                            <button class="action-btn" title="View Profile">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td>
+                            <div class="student-cell">
+                                <div class="student-avatar belt-blue">MD</div>
+                                <div>
+                                    <div class="student-name">Megan Davies</div>
+                                    <div class="student-email">megan.d@student.edu</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>Welsh 201</td>
+                        <td>Siân Morgan</td>
+                        <td><span class="belt-badge blue">🔵 Blue</span></td>
+                        <td>
+                            <div class="progress-mini">
+                                <div class="progress-mini-track">
+                                    <div class="progress-mini-fill" style="width: 72%;"></div>
+                                </div>
+                                <span class="progress-mini-label">72% to Brown</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="stat-cell">
+                                <div class="stat-cell-value">489</div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="stat-cell">
+                                <div class="stat-cell-value">34.2</div>
+                            </div>
+                        </td>
+                        <td><span class="status-badge active"><span class="dot"></span>Active</span></td>
+                        <td>
+                            <button class="action-btn" title="View Profile">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td>
+                            <div class="student-cell">
+                                <div class="student-avatar belt-white">OP</div>
+                                <div>
+                                    <div class="student-name">Owen Price</div>
+                                    <div class="student-email">owen.p@student.edu</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>Beginners Welsh</td>
+                        <td>Elen Williams</td>
+                        <td><span class="belt-badge white">⬜ White</span></td>
+                        <td>
+                            <div class="progress-mini">
+                                <div class="progress-mini-track">
+                                    <div class="progress-mini-fill" style="width: 28%;"></div>
+                                </div>
+                                <span class="progress-mini-label">28% to Yellow</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="stat-cell">
+                                <div class="stat-cell-value">42</div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="stat-cell">
+                                <div class="stat-cell-value">3.1</div>
+                            </div>
+                        </td>
+                        <td><span class="status-badge active"><span class="dot"></span>Active</span></td>
+                        <td>
+                            <button class="action-btn" title="View Profile">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td>
+                            <div class="student-cell">
+                                <div class="student-avatar belt-green">CE</div>
+                                <div>
+                                    <div class="student-name">Catrin Edwards</div>
+                                    <div class="student-email">catrin.e@student.edu</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>Welsh 101</td>
+                        <td>Siân Morgan</td>
+                        <td><span class="belt-badge green">🟢 Green</span></td>
+                        <td>
+                            <div class="progress-mini">
+                                <div class="progress-mini-track">
+                                    <div class="progress-mini-fill" style="width: 89%;"></div>
+                                </div>
+                                <span class="progress-mini-label">89% to Blue</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="stat-cell">
+                                <div class="stat-cell-value">312</div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="stat-cell">
+                                <div class="stat-cell-value">22.8</div>
+                            </div>
+                        </td>
+                        <td><span class="status-badge active"><span class="dot"></span>Active</span></td>
+                        <td>
+                            <button class="action-btn" title="View Profile">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td>
+                            <div class="student-cell">
+                                <div class="student-avatar belt-orange">TH</div>
+                                <div>
+                                    <div class="student-name">Tomos Hughes</div>
+                                    <div class="student-email">tomos.h@student.edu</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>Advanced Welsh</td>
+                        <td>Rhys Jones</td>
+                        <td><span class="belt-badge orange">🟠 Orange</span></td>
+                        <td>
+                            <div class="progress-mini">
+                                <div class="progress-mini-track">
+                                    <div class="progress-mini-fill" style="width: 56%;"></div>
+                                </div>
+                                <span class="progress-mini-label">56% to Green</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="stat-cell">
+                                <div class="stat-cell-value">234</div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="stat-cell">
+                                <div class="stat-cell-value">18.4</div>
+                            </div>
+                        </td>
+                        <td><span class="status-badge inactive"><span class="dot"></span>Inactive</span></td>
+                        <td>
+                            <button class="action-btn" title="View Profile">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td>
+                            <div class="student-cell">
+                                <div class="student-avatar belt-black">AR</div>
+                                <div>
+                                    <div class="student-name">Angharad Roberts</div>
+                                    <div class="student-email">angharad.r@student.edu</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>Welsh 201</td>
+                        <td>Siân Morgan</td>
+                        <td><span class="belt-badge black">⬛ Black</span></td>
+                        <td>
+                            <div class="progress-mini">
+                                <div class="progress-mini-track">
+                                    <div class="progress-mini-fill" style="width: 100%;"></div>
+                                </div>
+                                <span class="progress-mini-label">🏆 Mastered!</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="stat-cell">
+                                <div class="stat-cell-value">1,247</div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="stat-cell">
+                                <div class="stat-cell-value">89.3</div>
+                            </div>
+                        </td>
+                        <td><span class="status-badge active"><span class="dot"></span>Active</span></td>
+                        <td>
+                            <button class="action-btn" title="View Profile">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <!-- Pagination -->
+            <div class="table-footer">
+                <div class="results-info">
+                    Showing <strong>1-6</strong> of <strong>284</strong> students
+                </div>
+                <div class="pagination">
+                    <button class="page-btn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="15 18 9 12 15 6"/>
+                        </svg>
+                    </button>
+                    <button class="page-btn active">1</button>
+                    <button class="page-btn">2</button>
+                    <button class="page-btn">3</button>
+                    <button class="page-btn">...</button>
+                    <button class="page-btn">48</button>
+                    <button class="page-btn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="9 18 15 12 9 6"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Theme Management
+        function initTheme() {
+            const savedTheme = localStorage.getItem('ssi-theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        }
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('ssi-theme', newTheme);
+        }
+        initTheme();
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.class-filter')) {
+                document.querySelectorAll('.class-filter').forEach(f => f.classList.remove('open'));
+            }
+        });
+    </script>
+</body>
+</html>

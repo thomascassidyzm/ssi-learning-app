@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSi Schools - Flow Documentation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&family=Source+Sans+3:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --ssi-red: #c23a3a;
+            --ssi-red-dark: #9a2e2e;
+            --ssi-red-light: #e54545;
+            --ssi-gold: #d4a853;
+            --ssi-gold-dark: #b8923d;
+            --success: #4ade80;
+            --warning: #fbbf24;
+            --error: #ef4444;
+            --info: #60a5fa;
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #141414;
+            --bg-card: #1e1e1e;
+            --bg-card-hover: #282828;
+            --bg-elevated: #333333;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --text-muted: #606060;
+            --border-subtle: rgba(255,255,255,0.08);
+            --border-medium: rgba(255,255,255,0.15);
+            --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
+            --shadow-md: 0 4px 20px rgba(0,0,0,0.4);
+            --shadow-lg: 0 8px 40px rgba(0,0,0,0.5);
+        }
+
+        [data-theme="light"] {
+            --bg-primary: #f8f8f8;
+            --bg-secondary: #ffffff;
+            --bg-card: #ffffff;
+            --bg-card-hover: #f5f5f5;
+            --bg-elevated: #f0f0f0;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --text-muted: #999999;
+            --border-subtle: rgba(0,0,0,0.06);
+            --border-medium: rgba(0,0,0,0.12);
+            --shadow-sm: 0 2px 8px rgba(0,0,0,0.08);
+            --shadow-md: 0 4px 20px rgba(0,0,0,0.12);
+            --shadow-lg: 0 8px 40px rgba(0,0,0,0.16);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Source Sans 3', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        /* Header */
+        .doc-header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 24px 48px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .doc-brand {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .doc-logo {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-weight: 700;
+            font-size: 20px;
+        }
+
+        .doc-logo .say { color: var(--ssi-red); }
+        .doc-logo .something { color: var(--text-primary); }
+        .doc-logo .in { color: var(--ssi-red); }
+
+        .doc-badge {
+            background: linear-gradient(135deg, var(--ssi-red), var(--ssi-gold));
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .doc-nav {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .doc-nav a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: color 0.2s ease;
+        }
+
+        .doc-nav a:hover {
+            color: var(--ssi-red);
+        }
+
+        .theme-toggle {
+            width: 36px;
+            height: 36px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-medium);
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .theme-toggle:hover { border-color: var(--ssi-gold); }
+        .theme-toggle svg { width: 18px; height: 18px; color: var(--text-secondary); }
+
+        /* Hero */
+        .hero {
+            padding: 80px 48px;
+            text-align: center;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .hero h1 {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 48px;
+            font-weight: 900;
+            margin-bottom: 16px;
+            background: linear-gradient(135deg, var(--text-primary), var(--text-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero p {
+            font-size: 20px;
+            color: var(--text-secondary);
+            margin-bottom: 40px;
+        }
+
+        .hero-actions {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 16px 32px;
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            border: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--ssi-red), var(--ssi-red-dark));
+            color: white;
+            box-shadow: 0 4px 20px rgba(194,58,58,0.4);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 30px rgba(194,58,58,0.5);
+        }
+
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border-medium);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--ssi-red);
+            background: var(--bg-card-hover);
+        }
+
+        /* Flows Grid */
+        .flows-section {
+            padding: 0 48px 80px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 32px;
+        }
+
+        .section-title {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .flows-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 24px;
+        }
+
+        .flow-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 20px;
+            padding: 32px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .flow-card:hover {
+            border-color: var(--ssi-red);
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .flow-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--ssi-red), var(--ssi-gold));
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .flow-card:hover::before {
+            opacity: 1;
+        }
+
+        .flow-icon {
+            width: 56px;
+            height: 56px;
+            background: linear-gradient(135deg, var(--bg-elevated), var(--bg-card));
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .flow-card h3 {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .flow-card p {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+
+        .flow-meta {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .flow-meta-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .flow-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .flow-status.ready {
+            background: rgba(74, 222, 128, 0.15);
+            color: var(--success);
+        }
+
+        .flow-status.wip {
+            background: rgba(251, 191, 36, 0.15);
+            color: var(--warning);
+        }
+
+        .flow-status.planned {
+            background: rgba(96, 165, 250, 0.15);
+            color: var(--info);
+        }
+
+        .flow-arrow {
+            position: absolute;
+            right: 24px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 40px;
+            height: 40px;
+            background: var(--bg-elevated);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+
+        .flow-card:hover .flow-arrow {
+            opacity: 1;
+            right: 20px;
+        }
+
+        .flow-arrow svg {
+            width: 20px;
+            height: 20px;
+            color: var(--ssi-red);
+        }
+
+        /* Pages Section */
+        .pages-section {
+            padding: 60px 48px;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .pages-section .section-title {
+            margin-bottom: 32px;
+            text-align: center;
+        }
+
+        .pages-grid {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .page-link {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            color: var(--text-primary);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .page-link:hover {
+            border-color: var(--ssi-red);
+            background: var(--bg-card-hover);
+        }
+
+        .page-link svg {
+            width: 18px;
+            height: 18px;
+            color: var(--text-muted);
+        }
+
+        /* Footer */
+        .doc-footer {
+            padding: 40px 48px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 14px;
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .doc-footer a {
+            color: var(--ssi-red);
+            text-decoration: none;
+        }
+
+        /* Animations */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-in {
+            animation: fadeInUp 0.6s ease forwards;
+        }
+
+        .delay-1 { animation-delay: 0.1s; opacity: 0; }
+        .delay-2 { animation-delay: 0.2s; opacity: 0; }
+        .delay-3 { animation-delay: 0.3s; opacity: 0; }
+        .delay-4 { animation-delay: 0.4s; opacity: 0; }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="doc-header">
+        <div class="doc-brand">
+            <span class="doc-logo">
+                <span class="say">Say</span><span class="something">Something</span><span class="in">in</span>
+            </span>
+            <span class="doc-badge">Schools Flow Spec</span>
+        </div>
+        <nav class="doc-nav">
+            <a href="../index.html">Dashboard</a>
+            <a href="../classes.html">Classes</a>
+            <a href="../teachers.html">Teachers</a>
+            <button class="theme-toggle" onclick="toggleTheme()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                </svg>
+            </button>
+        </nav>
+    </header>
+
+    <!-- Hero -->
+    <section class="hero animate-in">
+        <h1>SSi Schools Interface Flows</h1>
+        <p>Interactive documentation showing every user journey in the Schools admin system. Click a flow to see it demo itself step-by-step.</p>
+        <div class="hero-actions">
+            <a href="school-onboarding.html" class="btn btn-primary">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+                Start Full Demo
+            </a>
+            <a href="../index.html" class="btn btn-secondary">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <path d="M3 9h18"/>
+                </svg>
+                View Mockups
+            </a>
+        </div>
+    </section>
+
+    <!-- Flows Grid -->
+    <section class="flows-section">
+        <div class="section-header">
+            <h2 class="section-title">User Flows</h2>
+        </div>
+
+        <div class="flows-grid">
+            <!-- Flow 1: School Onboarding -->
+            <a href="school-onboarding.html" class="flow-card animate-in delay-1">
+                <div class="flow-icon">🏫</div>
+                <h3>School Onboarding</h3>
+                <p>How a new school signs up, configures their account, and gets their join code for teachers.</p>
+                <div class="flow-meta">
+                    <span class="flow-status ready">Ready</span>
+                    <span class="flow-meta-item">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                        5 steps
+                    </span>
+                </div>
+                <div class="flow-arrow">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                </div>
+            </a>
+
+            <!-- Flow 2: Teacher Join -->
+            <a href="teacher-join.html" class="flow-card animate-in delay-2">
+                <div class="flow-icon">👩‍🏫</div>
+                <h3>Teacher Joins School</h3>
+                <p>A teacher receives a join code, creates their account, and gets added to the school.</p>
+                <div class="flow-meta">
+                    <span class="flow-status ready">Ready</span>
+                    <span class="flow-meta-item">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                        4 steps
+                    </span>
+                </div>
+                <div class="flow-arrow">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                </div>
+            </a>
+
+            <!-- Flow 3: Create Class -->
+            <a href="create-class.html" class="flow-card animate-in delay-3">
+                <div class="flow-icon">📚</div>
+                <h3>Create a Class</h3>
+                <p>Teacher creates a new class, selects the course, and prepares for their first session.</p>
+                <div class="flow-meta">
+                    <span class="flow-status ready">Ready</span>
+                    <span class="flow-meta-item">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                        3 steps
+                    </span>
+                </div>
+                <div class="flow-arrow">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                </div>
+            </a>
+
+            <!-- Flow 4: Play Session -->
+            <a href="play-session.html" class="flow-card animate-in delay-4">
+                <div class="flow-icon">▶️</div>
+                <h3>Play as Class</h3>
+                <p>Teacher selects a class and launches into the SSi learning player for a group session.</p>
+                <div class="flow-meta">
+                    <span class="flow-status ready">Ready</span>
+                    <span class="flow-meta-item">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                        3 steps
+                    </span>
+                </div>
+                <div class="flow-arrow">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                </div>
+            </a>
+
+            <!-- Page Guide: Analytics -->
+            <a href="view-analytics.html" class="flow-card animate-in delay-4">
+                <div class="flow-icon">📊</div>
+                <h3>Analytics Page Guide</h3>
+                <p>Track learning progress across the school. View metrics, belt distribution, top learners, and export reports.</p>
+                <div class="flow-meta">
+                    <span class="flow-status ready">Ready</span>
+                    <span class="flow-meta-item">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/>
+                        </svg>
+                        7 features
+                    </span>
+                </div>
+                <div class="flow-arrow">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                </div>
+            </a>
+
+            <!-- Page Guide: Settings -->
+            <a href="manage-settings.html" class="flow-card animate-in delay-4">
+                <div class="flow-icon">⚙️</div>
+                <h3>Settings Page Guide</h3>
+                <p>Manage school profile, subscription, teacher join codes, notifications, and account settings.</p>
+                <div class="flow-meta">
+                    <span class="flow-status ready">Ready</span>
+                    <span class="flow-meta-item">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/>
+                        </svg>
+                        5 sections
+                    </span>
+                </div>
+                <div class="flow-arrow">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                </div>
+            </a>
+        </div>
+    </section>
+
+    <!-- Quick Links to Pages -->
+    <section class="pages-section">
+        <h2 class="section-title">Quick Access to Mockup Pages</h2>
+        <div class="pages-grid">
+            <a href="../index.html" class="page-link">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/>
+                </svg>
+                Dashboard
+            </a>
+            <a href="../teachers.html" class="page-link">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+                </svg>
+                Teachers
+            </a>
+            <a href="../classes.html" class="page-link">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                </svg>
+                Classes
+            </a>
+            <a href="../analytics.html" class="page-link">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 20V10M12 20V4M6 20v-6"/>
+                </svg>
+                Analytics
+            </a>
+            <a href="../settings.html" class="page-link">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+                </svg>
+                Settings
+            </a>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="doc-footer">
+        <p>SSi Schools Interface Specification • Built for the development team • <a href="#">View on GitHub</a></p>
+    </footer>
+
+    <script>
+        // Theme Management
+        function initTheme() {
+            const savedTheme = localStorage.getItem('ssi-theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        }
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('ssi-theme', newTheme);
+        }
+        initTheme();
+    </script>
+</body>
+</html>

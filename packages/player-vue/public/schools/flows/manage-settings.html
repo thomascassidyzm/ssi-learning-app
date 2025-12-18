@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Page Guide: Settings - SSi Schools</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&family=Source+Sans+3:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --ssi-red: #c23a3a;
+            --ssi-red-dark: #9a2e2e;
+            --ssi-gold: #d4a853;
+            --success: #4ade80;
+            --warning: #fbbf24;
+            --info: #60a5fa;
+            --error: #ef4444;
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #141414;
+            --bg-card: #1e1e1e;
+            --bg-elevated: #282828;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --text-muted: #606060;
+            --border-subtle: rgba(255,255,255,0.08);
+            --border-medium: rgba(255,255,255,0.15);
+            --shadow-lg: 0 8px 40px rgba(0,0,0,0.5);
+        }
+
+        [data-theme="light"] {
+            --bg-primary: #f0f0f0;
+            --bg-secondary: #ffffff;
+            --bg-card: #ffffff;
+            --bg-elevated: #f5f5f5;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --text-muted: #999999;
+            --border-subtle: rgba(0,0,0,0.06);
+            --border-medium: rgba(0,0,0,0.12);
+            --shadow-lg: 0 8px 40px rgba(0,0,0,0.15);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Source Sans 3', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .flow-header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 16px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 200;
+        }
+
+        .flow-header-left { display: flex; align-items: center; gap: 16px; }
+
+        .back-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .back-btn:hover { border-color: var(--ssi-red); color: var(--text-primary); }
+
+        .flow-title { font-family: 'Noto Sans JP', sans-serif; font-size: 18px; font-weight: 700; }
+        .flow-title span { color: var(--text-muted); font-weight: 400; }
+
+        .page-type-badge {
+            padding: 6px 14px;
+            background: rgba(96, 165, 250, 0.15);
+            color: var(--info);
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .header-actions { display: flex; gap: 12px; }
+
+        .view-page-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            background: linear-gradient(135deg, var(--ssi-red), var(--ssi-red-dark));
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        .view-page-btn:hover { transform: scale(1.02); }
+        .view-page-btn svg { width: 16px; height: 16px; }
+
+        .flow-content { flex: 1; display: flex; margin-top: 72px; }
+
+        .guide-panel {
+            width: 420px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-subtle);
+            padding: 32px;
+            overflow-y: auto;
+        }
+
+        .guide-header {
+            margin-bottom: 32px;
+        }
+
+        .guide-icon {
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, var(--bg-elevated), var(--bg-card));
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .guide-title {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .guide-subtitle {
+            color: var(--text-secondary);
+            font-size: 16px;
+            line-height: 1.6;
+        }
+
+        .features-section {
+            margin-bottom: 32px;
+        }
+
+        .section-title {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section-title::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border-subtle);
+        }
+
+        .feature-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .feature-card:hover {
+            border-color: var(--ssi-red);
+        }
+
+        .feature-card.danger {
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        .feature-card.danger:hover {
+            border-color: var(--error);
+        }
+
+        .feature-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        .feature-icon {
+            width: 36px;
+            height: 36px;
+            background: var(--bg-elevated);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .feature-icon.danger {
+            background: rgba(239, 68, 68, 0.15);
+        }
+
+        .feature-name {
+            font-weight: 600;
+            font-size: 15px;
+        }
+
+        .feature-desc {
+            color: var(--text-secondary);
+            font-size: 13px;
+            line-height: 1.5;
+            margin-left: 48px;
+        }
+
+        .settings-nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 24px;
+        }
+
+        .settings-nav-item {
+            padding: 8px 14px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .settings-nav-item:hover {
+            border-color: var(--ssi-red);
+            color: var(--text-primary);
+        }
+
+        .settings-nav-item.active {
+            background: var(--ssi-red);
+            border-color: var(--ssi-red);
+            color: white;
+        }
+
+        .dev-notes {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            padding: 16px;
+        }
+
+        .dev-notes h4 {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            margin-bottom: 12px;
+            color: var(--ssi-gold);
+        }
+
+        .dev-notes ul {
+            list-style: none;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .dev-notes li {
+            padding: 6px 0;
+            padding-left: 16px;
+            position: relative;
+        }
+
+        .dev-notes li::before {
+            content: '•';
+            position: absolute;
+            left: 0;
+            color: var(--text-muted);
+        }
+
+        .preview-frame {
+            flex: 1;
+            background: var(--bg-primary);
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+        }
+
+        .preview-container {
+            width: 100%;
+            max-width: 1000px;
+            height: 100%;
+            background: var(--bg-card);
+            border-radius: 16px;
+            border: 1px solid var(--border-subtle);
+            box-shadow: var(--shadow-lg);
+            overflow: hidden;
+        }
+
+        .preview-container iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .fade-in { animation: fadeIn 0.4s ease forwards; }
+        .delay-1 { animation-delay: 0.1s; opacity: 0; }
+        .delay-2 { animation-delay: 0.2s; opacity: 0; }
+        .delay-3 { animation-delay: 0.3s; opacity: 0; }
+    </style>
+</head>
+<body>
+    <header class="flow-header">
+        <div class="flow-header-left">
+            <a href="index.html" class="back-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <path d="M19 12H5M12 19l-7-7 7-7"/>
+                </svg>
+                All Flows
+            </a>
+            <h1 class="flow-title">Settings Page <span>• Feature Guide</span></h1>
+            <span class="page-type-badge">Page Overview</span>
+        </div>
+
+        <div class="header-actions">
+            <a href="../settings.html" class="view-page-btn" target="_blank">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                    <polyline points="15 3 21 3 21 9"/>
+                    <line x1="10" y1="14" x2="21" y2="3"/>
+                </svg>
+                Open Page
+            </a>
+        </div>
+    </header>
+
+    <div class="flow-content">
+        <aside class="guide-panel">
+            <div class="guide-header fade-in">
+                <div class="guide-icon">⚙️</div>
+                <h2 class="guide-title">School Settings</h2>
+                <p class="guide-subtitle">Manage school profile, subscription, join codes, notifications, and administrative options.</p>
+            </div>
+
+            <div class="settings-nav fade-in">
+                <span class="settings-nav-item active">Profile</span>
+                <span class="settings-nav-item">Subscription</span>
+                <span class="settings-nav-item">Join Codes</span>
+                <span class="settings-nav-item">Notifications</span>
+                <span class="settings-nav-item">Danger Zone</span>
+            </div>
+
+            <div class="features-section fade-in delay-1">
+                <div class="section-title">Profile Section</div>
+
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon">🏫</div>
+                        <span class="feature-name">School Name & Details</span>
+                    </div>
+                    <p class="feature-desc">Edit school name, address, and contact information. This appears on reports and in the navigation.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon">🖼️</div>
+                        <span class="feature-name">School Logo</span>
+                    </div>
+                    <p class="feature-desc">Upload school logo for branding. Used in reports and can be shown in the player.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon">👤</div>
+                        <span class="feature-name">Admin Contact</span>
+                    </div>
+                    <p class="feature-desc">Primary administrator email for account notifications and billing.</p>
+                </div>
+            </div>
+
+            <div class="features-section fade-in delay-1">
+                <div class="section-title">Subscription Section</div>
+
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon">💳</div>
+                        <span class="feature-name">Current Plan</span>
+                    </div>
+                    <p class="feature-desc">View current subscription tier (Free / Premium), usage limits, and renewal date.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon">⬆️</div>
+                        <span class="feature-name">Upgrade Plan</span>
+                    </div>
+                    <p class="feature-desc">Compare plans and upgrade to Premium for unlimited teachers and advanced analytics.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon">📜</div>
+                        <span class="feature-name">Billing History</span>
+                    </div>
+                    <p class="feature-desc">View past invoices and download receipts for accounting.</p>
+                </div>
+            </div>
+
+            <div class="features-section fade-in delay-2">
+                <div class="section-title">Join Codes Section</div>
+
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon">🔑</div>
+                        <span class="feature-name">Teacher Join Code</span>
+                    </div>
+                    <p class="feature-desc">View and copy the current join code. Teachers use this to self-register and link to the school.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon">🔄</div>
+                        <span class="feature-name">Regenerate Code</span>
+                    </div>
+                    <p class="feature-desc">Generate a new code if the current one is compromised. Old code immediately stops working.</p>
+                </div>
+            </div>
+
+            <div class="features-section fade-in delay-2">
+                <div class="section-title">Notifications Section</div>
+
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon">📧</div>
+                        <span class="feature-name">Email Preferences</span>
+                    </div>
+                    <p class="feature-desc">Toggle email notifications for new teacher signups, weekly reports, and billing alerts.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon">📊</div>
+                        <span class="feature-name">Weekly Digest</span>
+                    </div>
+                    <p class="feature-desc">Opt in/out of weekly summary emails with key metrics and activity highlights.</p>
+                </div>
+            </div>
+
+            <div class="features-section fade-in delay-3">
+                <div class="section-title">Danger Zone</div>
+
+                <div class="feature-card danger">
+                    <div class="feature-header">
+                        <div class="feature-icon danger">📤</div>
+                        <span class="feature-name">Export All Data</span>
+                    </div>
+                    <p class="feature-desc">Download complete data export (teachers, classes, sessions, progress) as JSON/CSV.</p>
+                </div>
+
+                <div class="feature-card danger">
+                    <div class="feature-header">
+                        <div class="feature-icon danger">🔄</div>
+                        <span class="feature-name">Transfer Ownership</span>
+                    </div>
+                    <p class="feature-desc">Transfer school admin role to another user. Requires confirmation from both parties.</p>
+                </div>
+
+                <div class="feature-card danger">
+                    <div class="feature-header">
+                        <div class="feature-icon danger">🗑️</div>
+                        <span class="feature-name">Delete School</span>
+                    </div>
+                    <p class="feature-desc">Permanently delete school and all associated data. Requires typing school name to confirm.</p>
+                </div>
+            </div>
+
+            <div class="features-section fade-in delay-3">
+                <div class="section-title">Dev Notes</div>
+                <div class="dev-notes">
+                    <h4>💡 Implementation Notes</h4>
+                    <ul>
+                        <li>Profile updates go to schools table</li>
+                        <li>Logo upload to Supabase Storage with public URL</li>
+                        <li>Subscription via Stripe - store customer_id</li>
+                        <li>Join code regeneration invalidates old code immediately</li>
+                        <li>Notification prefs stored in school_settings JSONB</li>
+                        <li>Delete requires CASCADE on all related tables</li>
+                        <li>Transfer ownership updates school.admin_user_id</li>
+                        <li>All destructive actions need confirmation modal</li>
+                    </ul>
+                </div>
+            </div>
+        </aside>
+
+        <main class="preview-frame">
+            <div class="preview-container">
+                <iframe src="../settings.html"></iframe>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        function initTheme() {
+            const savedTheme = localStorage.getItem('ssi-theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        }
+        initTheme();
+    </script>
+</body>
+</html>

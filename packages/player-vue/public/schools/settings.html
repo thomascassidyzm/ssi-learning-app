@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSi Schools - Settings</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&family=Source+Sans+3:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --ssi-red: #c23a3a;
+            --ssi-red-dark: #9a2e2e;
+            --ssi-red-light: #e54545;
+            --ssi-gold: #d4a853;
+            --ssi-gold-dark: #b8923d;
+            --success: #4ade80;
+            --warning: #fbbf24;
+            --error: #ef4444;
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #121212;
+            --bg-secondary: #1a1a1a;
+            --bg-card: #242424;
+            --bg-card-hover: #2d2d2d;
+            --bg-elevated: #333333;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --text-muted: #707070;
+            --border-subtle: rgba(255,255,255,0.08);
+            --border-medium: rgba(255,255,255,0.15);
+            --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
+            --shadow-md: 0 4px 20px rgba(0,0,0,0.4);
+            --nav-bg: rgba(18,18,18,0.95);
+            --logo-bubble-bg: #121212;
+        }
+
+        [data-theme="light"] {
+            --bg-primary: #f5f5f7;
+            --bg-secondary: #ffffff;
+            --bg-card: #ffffff;
+            --bg-card-hover: #f9f9f9;
+            --bg-elevated: #f0f0f2;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --text-muted: #999999;
+            --border-subtle: rgba(0,0,0,0.06);
+            --border-medium: rgba(0,0,0,0.12);
+            --shadow-sm: 0 2px 8px rgba(0,0,0,0.08);
+            --shadow-md: 0 4px 20px rgba(0,0,0,0.12);
+            --nav-bg: rgba(255,255,255,0.95);
+            --logo-bubble-bg: #f5f5f7;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Source Sans 3', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        /* Navigation */
+        .top-nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 64px;
+            background: var(--nav-bg);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            z-index: 100;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .logo-text {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-weight: 700;
+            font-size: 20px;
+        }
+
+        .logo-text .say { color: var(--ssi-red); }
+        .logo-text .something { color: var(--text-primary); }
+        .logo-text .in { color: var(--ssi-red); }
+
+        .logo-bubble {
+            width: 20px;
+            height: 16px;
+            border: 2px solid var(--ssi-red);
+            border-radius: 3px;
+            position: relative;
+        }
+
+        .logo-bubble::after {
+            content: '';
+            position: absolute;
+            bottom: -6px;
+            right: 4px;
+            width: 6px;
+            height: 6px;
+            border-right: 2px solid var(--ssi-red);
+            border-bottom: 2px solid var(--ssi-red);
+            transform: rotate(45deg);
+            background: var(--logo-bubble-bg);
+        }
+
+        /* Theme Toggle */
+        .theme-toggle {
+            width: 40px;
+            height: 40px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-medium);
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .theme-toggle:hover { border-color: var(--ssi-gold); transform: scale(1.05); }
+        .theme-toggle svg { width: 20px; height: 20px; transition: all 0.3s ease; }
+        .theme-toggle .sun-icon { color: var(--ssi-gold); position: absolute; opacity: 0; transform: rotate(-90deg) scale(0); }
+        .theme-toggle .moon-icon { color: var(--text-secondary); position: absolute; opacity: 1; transform: rotate(0deg) scale(1); }
+        [data-theme="light"] .theme-toggle .sun-icon { opacity: 1; transform: rotate(0deg) scale(1); }
+        [data-theme="light"] .theme-toggle .moon-icon { opacity: 0; transform: rotate(90deg) scale(0); }
+
+        .nav-tabs {
+            display: flex;
+            gap: 4px;
+            background: var(--bg-card);
+            padding: 4px;
+            border-radius: 12px;
+        }
+
+        .nav-tab {
+            padding: 8px 20px;
+            border-radius: 8px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+        }
+
+        .nav-tab:hover {
+            color: var(--text-primary);
+            background: var(--bg-elevated);
+        }
+
+        .nav-tab.active {
+            background: var(--ssi-red);
+            color: white;
+        }
+
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .school-badge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 14px 6px 10px;
+            background: var(--bg-card);
+            border-radius: 20px;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .school-avatar {
+            width: 28px;
+            height: 28px;
+            background: linear-gradient(135deg, var(--ssi-red), var(--ssi-gold));
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 12px;
+        }
+
+        .school-name { font-size: 13px; font-weight: 600; }
+
+        .user-menu {
+            width: 40px;
+            height: 40px;
+            background: var(--bg-card);
+            border-radius: 50%;
+            border: 2px solid var(--border-medium);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .user-menu:hover { border-color: var(--ssi-red); }
+        .user-menu svg { width: 20px; height: 20px; color: var(--text-secondary); }
+
+        /* Main Content */
+        .main-content {
+            margin-top: 64px;
+            padding: 32px;
+            max-width: 1000px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* Page Header */
+        .page-header {
+            margin-bottom: 32px;
+        }
+
+        .page-title h1 {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .page-subtitle {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        /* Settings Navigation */
+        .settings-layout {
+            display: grid;
+            grid-template-columns: 240px 1fr;
+            gap: 32px;
+        }
+
+        .settings-nav {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .settings-nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            font-family: inherit;
+            font-size: 14px;
+            text-align: left;
+        }
+
+        .settings-nav-item:hover {
+            background: var(--bg-card);
+            color: var(--text-primary);
+        }
+
+        .settings-nav-item.active {
+            background: rgba(194,58,58,0.15);
+            color: var(--ssi-red);
+        }
+
+        .settings-nav-item svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        /* Settings Sections */
+        .settings-section {
+            display: none;
+        }
+
+        .settings-section.active {
+            display: block;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            margin-bottom: 24px;
+        }
+
+        .card-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .card-description {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .card-body {
+            padding: 24px;
+        }
+
+        /* Form Styles */
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .form-row.single {
+            grid-template-columns: 1fr;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .form-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .form-input {
+            padding: 14px 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--ssi-red);
+            box-shadow: 0 0 0 3px rgba(194,58,58,0.2);
+        }
+
+        .form-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .form-input:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        textarea.form-input {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .form-hint {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .form-select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23707070' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 16px center;
+            padding-right: 48px;
+        }
+
+        /* Toggle Switch */
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 0;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .toggle-row:last-child {
+            border-bottom: none;
+        }
+
+        .toggle-info {
+            flex: 1;
+        }
+
+        .toggle-label {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .toggle-description {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 48px;
+            height: 26px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            inset: 0;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-medium);
+            border-radius: 13px;
+            transition: all 0.3s ease;
+        }
+
+        .toggle-slider::before {
+            content: '';
+            position: absolute;
+            height: 20px;
+            width: 20px;
+            left: 2px;
+            bottom: 2px;
+            background: white;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }
+
+        .toggle-switch input:checked + .toggle-slider {
+            background: var(--ssi-red);
+            border-color: var(--ssi-red);
+        }
+
+        .toggle-switch input:checked + .toggle-slider::before {
+            transform: translateX(22px);
+        }
+
+        /* School Logo Upload */
+        .logo-upload {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .logo-preview {
+            width: 100px;
+            height: 100px;
+            border-radius: 16px;
+            background: var(--bg-secondary);
+            border: 2px dashed var(--border-medium);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            color: var(--text-muted);
+        }
+
+        .logo-upload-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            border-radius: 10px;
+            border: none;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: var(--ssi-red);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--ssi-red-light);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+            border: 1px solid var(--border-medium);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-card-hover);
+        }
+
+        .btn-danger {
+            background: rgba(239,68,68,0.15);
+            color: var(--error);
+            border: 1px solid rgba(239,68,68,0.3);
+        }
+
+        .btn-danger:hover {
+            background: var(--error);
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 8px 14px;
+            font-size: 13px;
+        }
+
+        /* Subscription Card */
+        .subscription-card {
+            background: linear-gradient(135deg, var(--bg-card) 0%, rgba(194,58,58,0.1) 100%);
+            border: 1px solid rgba(194,58,58,0.3);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .subscription-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .subscription-plan {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .plan-badge {
+            padding: 6px 14px;
+            background: var(--bg-secondary);
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .plan-badge.premium {
+            background: linear-gradient(135deg, var(--ssi-gold), var(--ssi-gold-dark));
+            color: #1f2937;
+        }
+
+        .subscription-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        .sub-stat {
+            text-align: center;
+            padding: 16px;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+        }
+
+        .sub-stat-value {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .sub-stat-value.highlight {
+            color: var(--ssi-gold);
+        }
+
+        .sub-stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        /* Danger Zone */
+        .danger-zone {
+            background: rgba(239,68,68,0.05);
+            border: 1px solid rgba(239,68,68,0.2);
+            border-radius: 16px;
+            padding: 24px;
+        }
+
+        .danger-zone-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .danger-zone-header h3 {
+            color: var(--error);
+            font-size: 16px;
+        }
+
+        .danger-zone-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 0;
+            border-bottom: 1px solid rgba(239,68,68,0.1);
+        }
+
+        .danger-zone-item:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .danger-zone-info h4 {
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+
+        .danger-zone-info p {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        /* Join Code Display */
+        .join-code-section {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 20px;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+        }
+
+        .join-code-box {
+            font-family: 'Noto Sans JP', monospace;
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--ssi-red);
+            letter-spacing: 4px;
+        }
+
+        .join-code-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        /* Animations */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-in {
+            animation: fadeInUp 0.5s ease forwards;
+        }
+
+        @media (max-width: 768px) {
+            .main-content { padding: 16px; }
+            .settings-layout { grid-template-columns: 1fr; }
+            .settings-nav { flex-direction: row; overflow-x: auto; padding-bottom: 16px; }
+            .form-row { grid-template-columns: 1fr; }
+            .nav-tabs { display: none; }
+            .subscription-stats { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="top-nav">
+        <div class="logo">
+            <span class="logo-text">
+                <span class="say">Say</span><span class="something">Something</span><span class="in">in</span>
+            </span>
+            <span class="logo-bubble"></span>
+        </div>
+
+        <div class="nav-tabs">
+            <a href="index.html" class="nav-tab">Dashboard</a>
+            <a href="teachers.html" class="nav-tab">Teachers</a>
+            <a href="classes.html" class="nav-tab">Classes</a>
+            <a href="analytics.html" class="nav-tab">Analytics</a>
+            <button class="nav-tab active">Settings</button>
+        </div>
+
+        <div class="nav-right">
+            <a href="flows/index.html" class="btn btn-secondary" style="padding: 8px 14px; font-size: 13px;" title="View Flow Documentation">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+                Flows
+            </a>
+            <div class="school-badge">
+                <div class="school-avatar">YC</div>
+                <span class="school-name">Ysgol Cymraeg</span>
+            </div>
+            <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+                <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                    <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                </svg>
+                <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                </svg>
+            </button>
+            <button class="user-menu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="8" r="4"/>
+                    <path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+                </svg>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Page Header -->
+        <div class="page-header animate-in">
+            <div class="page-title">
+                <h1>⚙️ School Settings</h1>
+                <p class="page-subtitle">Manage your school profile, subscription, and preferences</p>
+            </div>
+        </div>
+
+        <div class="settings-layout animate-in">
+            <!-- Settings Navigation -->
+            <nav class="settings-nav">
+                <button class="settings-nav-item active" onclick="showSection('profile')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                        <polyline points="9 22 9 12 15 12 15 22"/>
+                    </svg>
+                    School Profile
+                </button>
+                <button class="settings-nav-item" onclick="showSection('subscription')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+                        <line x1="1" y1="10" x2="23" y2="10"/>
+                    </svg>
+                    Subscription
+                </button>
+                <button class="settings-nav-item" onclick="showSection('joincode')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                    Join Codes
+                </button>
+                <button class="settings-nav-item" onclick="showSection('notifications')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                    </svg>
+                    Notifications
+                </button>
+                <button class="settings-nav-item" onclick="showSection('danger')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                        <line x1="12" y1="9" x2="12" y2="13"/>
+                        <line x1="12" y1="17" x2="12.01" y2="17"/>
+                    </svg>
+                    Danger Zone
+                </button>
+            </nav>
+
+            <!-- Settings Content -->
+            <div class="settings-content">
+                <!-- School Profile Section -->
+                <div id="profile" class="settings-section active">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">School Information</h2>
+                            <p class="card-description">Basic information about your school</p>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-group" style="margin-bottom: 24px;">
+                                <label class="form-label">School Logo</label>
+                                <div class="logo-upload">
+                                    <div class="logo-preview">🏫</div>
+                                    <div class="logo-upload-actions">
+                                        <button class="btn btn-secondary btn-sm">Upload Logo</button>
+                                        <span class="form-hint">PNG, JPG up to 2MB. Recommended 200x200px.</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">School Name</label>
+                                    <input type="text" class="form-input" value="Ysgol Cymraeg Caerdydd">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">School Type</label>
+                                    <select class="form-input form-select">
+                                        <option>Primary School</option>
+                                        <option selected>Secondary School</option>
+                                        <option>College</option>
+                                        <option>University</option>
+                                        <option>Language School</option>
+                                        <option>Other</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">Country</label>
+                                    <select class="form-input form-select">
+                                        <option selected>Wales</option>
+                                        <option>England</option>
+                                        <option>Scotland</option>
+                                        <option>Ireland</option>
+                                        <option>Other</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">City / Town</label>
+                                    <input type="text" class="form-input" value="Cardiff">
+                                </div>
+                            </div>
+
+                            <div class="form-row single">
+                                <div class="form-group">
+                                    <label class="form-label">School Website</label>
+                                    <input type="url" class="form-input" value="https://ysgolcymraeg.edu" placeholder="https://yourschool.edu">
+                                </div>
+                            </div>
+
+                            <div style="display: flex; justify-content: flex-end; padding-top: 16px; border-top: 1px solid var(--border-subtle);">
+                                <button class="btn btn-primary">Save Changes</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">Administrator Account</h2>
+                            <p class="card-description">Your personal admin account settings</p>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">Full Name</label>
+                                    <input type="text" class="form-input" value="Dafydd Evans">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Email Address</label>
+                                    <input type="email" class="form-input" value="dafydd.evans@ysgolcymraeg.edu">
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">Phone Number</label>
+                                    <input type="tel" class="form-input" value="+44 29 2087 1234" placeholder="+44 ...">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Role</label>
+                                    <input type="text" class="form-input" value="School Administrator" disabled>
+                                </div>
+                            </div>
+
+                            <div style="display: flex; justify-content: flex-end; gap: 12px; padding-top: 16px; border-top: 1px solid var(--border-subtle);">
+                                <button class="btn btn-secondary">Change Password</button>
+                                <button class="btn btn-primary">Save Changes</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Subscription Section -->
+                <div id="subscription" class="settings-section">
+                    <div class="subscription-card">
+                        <div class="subscription-header">
+                            <div class="subscription-plan">
+                                <h3 style="font-size: 20px; font-weight: 700;">Current Plan</h3>
+                                <span class="plan-badge">Free Tier</span>
+                            </div>
+                            <button class="btn btn-primary">
+                                ⭐ Upgrade to Premium
+                            </button>
+                        </div>
+                        <div class="subscription-stats">
+                            <div class="sub-stat">
+                                <div class="sub-stat-value highlight">12 / 15</div>
+                                <div class="sub-stat-label">Teachers Used</div>
+                            </div>
+                            <div class="sub-stat">
+                                <div class="sub-stat-value highlight">284 / 500</div>
+                                <div class="sub-stat-label">Classes Used</div>
+                            </div>
+                            <div class="sub-stat">
+                                <div class="sub-stat-value">∞</div>
+                                <div class="sub-stat-label">Classes</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">Plan Comparison</h2>
+                        </div>
+                        <div class="card-body">
+                            <table style="width: 100%; border-collapse: collapse;">
+                                <thead>
+                                    <tr style="border-bottom: 1px solid var(--border-subtle);">
+                                        <th style="text-align: left; padding: 12px 0; font-weight: 500; color: var(--text-secondary);">Feature</th>
+                                        <th style="text-align: center; padding: 12px 0; font-weight: 500; color: var(--text-secondary);">Free</th>
+                                        <th style="text-align: center; padding: 12px 0; font-weight: 500; color: var(--ssi-gold);">Premium</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr style="border-bottom: 1px solid var(--border-subtle);">
+                                        <td style="padding: 16px 0;">Teachers</td>
+                                        <td style="text-align: center; padding: 16px 0;">Up to 15</td>
+                                        <td style="text-align: center; padding: 16px 0; color: var(--ssi-gold);">Unlimited</td>
+                                    </tr>
+                                    <tr style="border-bottom: 1px solid var(--border-subtle);">
+                                        <td style="padding: 16px 0;">Classes</td>
+                                        <td style="text-align: center; padding: 16px 0;">Up to 500</td>
+                                        <td style="text-align: center; padding: 16px 0; color: var(--ssi-gold);">Unlimited</td>
+                                    </tr>
+                                    <tr style="border-bottom: 1px solid var(--border-subtle);">
+                                        <td style="padding: 16px 0;">Analytics</td>
+                                        <td style="text-align: center; padding: 16px 0;">Basic</td>
+                                        <td style="text-align: center; padding: 16px 0; color: var(--ssi-gold);">Advanced + Export</td>
+                                    </tr>
+                                    <tr style="border-bottom: 1px solid var(--border-subtle);">
+                                        <td style="padding: 16px 0;">School Branding</td>
+                                        <td style="text-align: center; padding: 16px 0;">—</td>
+                                        <td style="text-align: center; padding: 16px 0; color: var(--success);">✓</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 16px 0;">Priority Support</td>
+                                        <td style="text-align: center; padding: 16px 0;">—</td>
+                                        <td style="text-align: center; padding: 16px 0; color: var(--success);">✓</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Join Codes Section -->
+                <div id="joincode" class="settings-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">Teacher Join Code</h2>
+                            <p class="card-description">Share this code with teachers to let them join your school</p>
+                        </div>
+                        <div class="card-body">
+                            <div class="join-code-section">
+                                <div>
+                                    <div class="form-label" style="margin-bottom: 8px;">Current Code</div>
+                                    <div class="join-code-box">CYM-247</div>
+                                </div>
+                                <div class="join-code-actions">
+                                    <button class="btn btn-secondary btn-sm" onclick="copyCode()">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                                        </svg>
+                                        Copy
+                                    </button>
+                                    <button class="btn btn-secondary btn-sm">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M23 7l-7 5 7 5V7z"/>
+                                            <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+                                        </svg>
+                                        Share
+                                    </button>
+                                    <button class="btn btn-danger btn-sm">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <polyline points="1 4 1 10 7 10"/>
+                                            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                                        </svg>
+                                        Regenerate
+                                    </button>
+                                </div>
+                            </div>
+                            <p class="form-hint" style="margin-top: 12px;">
+                                Regenerating the code will invalidate the current code. Any pending teacher invitations will need a new code.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notifications Section -->
+                <div id="notifications" class="settings-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">Email Notifications</h2>
+                            <p class="card-description">Control which emails you receive from SSi Schools</p>
+                        </div>
+                        <div class="card-body">
+                            <div class="toggle-row">
+                                <div class="toggle-info">
+                                    <div class="toggle-label">Weekly Progress Report</div>
+                                    <div class="toggle-description">Receive a summary of school-wide learning progress</div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+
+                            <div class="toggle-row">
+                                <div class="toggle-info">
+                                    <div class="toggle-label">New Teacher Joined</div>
+                                    <div class="toggle-description">Get notified when a teacher joins your school</div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+
+                            <div class="toggle-row">
+                                <div class="toggle-info">
+                                    <div class="toggle-label">Belt Promotions</div>
+                                    <div class="toggle-description">Celebrate when students earn new belts</div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+
+                            <div class="toggle-row">
+                                <div class="toggle-info">
+                                    <div class="toggle-label">Inactive Student Alerts</div>
+                                    <div class="toggle-description">Get notified when students haven't practiced in 7+ days</div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+
+                            <div class="toggle-row">
+                                <div class="toggle-info">
+                                    <div class="toggle-label">Product Updates</div>
+                                    <div class="toggle-description">Learn about new features and improvements</div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Danger Zone Section -->
+                <div id="danger" class="settings-section">
+                    <div class="danger-zone">
+                        <div class="danger-zone-header">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--error)" stroke-width="2">
+                                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                                <line x1="12" y1="9" x2="12" y2="13"/>
+                                <line x1="12" y1="17" x2="12.01" y2="17"/>
+                            </svg>
+                            <h3>Danger Zone</h3>
+                        </div>
+
+                        <div class="danger-zone-item">
+                            <div class="danger-zone-info">
+                                <h4>Export All Data</h4>
+                                <p>Download all school data including teachers, students, and progress</p>
+                            </div>
+                            <button class="btn btn-secondary btn-sm">Export Data</button>
+                        </div>
+
+                        <div class="danger-zone-item">
+                            <div class="danger-zone-info">
+                                <h4>Transfer School Ownership</h4>
+                                <p>Transfer admin rights to another teacher at this school</p>
+                            </div>
+                            <button class="btn btn-danger btn-sm">Transfer</button>
+                        </div>
+
+                        <div class="danger-zone-item">
+                            <div class="danger-zone-info">
+                                <h4>Delete School</h4>
+                                <p>Permanently delete this school and all associated data. This cannot be undone.</p>
+                            </div>
+                            <button class="btn btn-danger btn-sm">Delete School</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Theme Management
+        function initTheme() {
+            const savedTheme = localStorage.getItem('ssi-theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        }
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('ssi-theme', newTheme);
+        }
+        initTheme();
+
+        function showSection(sectionId) {
+            // Hide all sections
+            document.querySelectorAll('.settings-section').forEach(s => s.classList.remove('active'));
+            // Show selected section
+            document.getElementById(sectionId).classList.add('active');
+
+            // Update nav
+            document.querySelectorAll('.settings-nav-item').forEach(n => n.classList.remove('active'));
+            event.target.closest('.settings-nav-item').classList.add('active');
+        }
+
+        function copyCode() {
+            navigator.clipboard.writeText('CYM-247');
+            alert('Code copied to clipboard!');
+        }
+    </script>
+</body>
+</html>

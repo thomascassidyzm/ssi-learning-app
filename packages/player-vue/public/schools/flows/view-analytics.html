@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Page Guide: Analytics - SSi Schools</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&family=Source+Sans+3:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --ssi-red: #c23a3a;
+            --ssi-red-dark: #9a2e2e;
+            --ssi-gold: #d4a853;
+            --success: #4ade80;
+            --warning: #fbbf24;
+            --info: #60a5fa;
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #141414;
+            --bg-card: #1e1e1e;
+            --bg-elevated: #282828;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --text-muted: #606060;
+            --border-subtle: rgba(255,255,255,0.08);
+            --border-medium: rgba(255,255,255,0.15);
+            --shadow-lg: 0 8px 40px rgba(0,0,0,0.5);
+        }
+
+        [data-theme="light"] {
+            --bg-primary: #f0f0f0;
+            --bg-secondary: #ffffff;
+            --bg-card: #ffffff;
+            --bg-elevated: #f5f5f5;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --text-muted: #999999;
+            --border-subtle: rgba(0,0,0,0.06);
+            --border-medium: rgba(0,0,0,0.12);
+            --shadow-lg: 0 8px 40px rgba(0,0,0,0.15);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Source Sans 3', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .flow-header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 16px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 200;
+        }
+
+        .flow-header-left { display: flex; align-items: center; gap: 16px; }
+
+        .back-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .back-btn:hover { border-color: var(--ssi-red); color: var(--text-primary); }
+
+        .flow-title { font-family: 'Noto Sans JP', sans-serif; font-size: 18px; font-weight: 700; }
+        .flow-title span { color: var(--text-muted); font-weight: 400; }
+
+        .page-type-badge {
+            padding: 6px 14px;
+            background: rgba(96, 165, 250, 0.15);
+            color: var(--info);
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .header-actions { display: flex; gap: 12px; }
+
+        .view-page-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            background: linear-gradient(135deg, var(--ssi-red), var(--ssi-red-dark));
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        .view-page-btn:hover { transform: scale(1.02); }
+        .view-page-btn svg { width: 16px; height: 16px; }
+
+        .flow-content { flex: 1; display: flex; margin-top: 72px; }
+
+        .guide-panel {
+            width: 420px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-subtle);
+            padding: 32px;
+            overflow-y: auto;
+        }
+
+        .guide-header {
+            margin-bottom: 32px;
+        }
+
+        .guide-icon {
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, var(--bg-elevated), var(--bg-card));
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .guide-title {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .guide-subtitle {
+            color: var(--text-secondary);
+            font-size: 16px;
+            line-height: 1.6;
+        }
+
+        .features-section {
+            margin-bottom: 32px;
+        }
+
+        .section-title {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section-title::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border-subtle);
+        }
+
+        .feature-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .feature-card:hover {
+            border-color: var(--ssi-red);
+        }
+
+        .feature-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        .feature-icon {
+            width: 36px;
+            height: 36px;
+            background: var(--bg-elevated);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .feature-name {
+            font-weight: 600;
+            font-size: 15px;
+        }
+
+        .feature-desc {
+            color: var(--text-secondary);
+            font-size: 13px;
+            line-height: 1.5;
+            margin-left: 48px;
+        }
+
+        .dev-notes {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            padding: 16px;
+        }
+
+        .dev-notes h4 {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            margin-bottom: 12px;
+            color: var(--ssi-gold);
+        }
+
+        .dev-notes ul {
+            list-style: none;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .dev-notes li {
+            padding: 6px 0;
+            padding-left: 16px;
+            position: relative;
+        }
+
+        .dev-notes li::before {
+            content: '•';
+            position: absolute;
+            left: 0;
+            color: var(--text-muted);
+        }
+
+        .preview-frame {
+            flex: 1;
+            background: var(--bg-primary);
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+        }
+
+        .preview-container {
+            width: 100%;
+            max-width: 1000px;
+            height: 100%;
+            background: var(--bg-card);
+            border-radius: 16px;
+            border: 1px solid var(--border-subtle);
+            box-shadow: var(--shadow-lg);
+            overflow: hidden;
+        }
+
+        .preview-container iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .fade-in { animation: fadeIn 0.4s ease forwards; }
+        .delay-1 { animation-delay: 0.1s; opacity: 0; }
+        .delay-2 { animation-delay: 0.2s; opacity: 0; }
+        .delay-3 { animation-delay: 0.3s; opacity: 0; }
+    </style>
+</head>
+<body>
+    <header class="flow-header">
+        <div class="flow-header-left">
+            <a href="index.html" class="back-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <path d="M19 12H5M12 19l-7-7 7-7"/>
+                </svg>
+                All Flows
+            </a>
+            <h1 class="flow-title">Analytics Page <span>• Feature Guide</span></h1>
+            <span class="page-type-badge">Page Overview</span>
+        </div>
+
+        <div class="header-actions">
+            <a href="../analytics.html" class="view-page-btn" target="_blank">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                    <polyline points="15 3 21 3 21 9"/>
+                    <line x1="10" y1="14" x2="21" y2="3"/>
+                </svg>
+                Open Page
+            </a>
+        </div>
+    </header>
+
+    <div class="flow-content">
+        <aside class="guide-panel">
+            <div class="guide-header fade-in">
+                <div class="guide-icon">📊</div>
+                <h2 class="guide-title">School Analytics</h2>
+                <p class="guide-subtitle">Track learning progress and engagement across the entire school. View performance at school, class, and course levels.</p>
+            </div>
+
+            <div class="features-section fade-in delay-1">
+                <div class="section-title">Key Features</div>
+
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon">📈</div>
+                        <span class="feature-name">Key Metrics Dashboard</span>
+                    </div>
+                    <p class="feature-desc">At-a-glance stats showing total sessions, phrases learned, active time, and engagement rate with trend indicators.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon">📅</div>
+                        <span class="feature-name">Time Period Selector</span>
+                    </div>
+                    <p class="feature-desc">Filter analytics by This Week, This Month, This Term, or All Time to compare performance across periods.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon">📊</div>
+                        <span class="feature-name">Activity Chart</span>
+                    </div>
+                    <p class="feature-desc">Visual bar chart showing daily/weekly activity patterns. Identify peak learning times and engagement trends.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon">🥋</div>
+                        <span class="feature-name">Belt Distribution</span>
+                    </div>
+                    <p class="feature-desc">Visual breakdown of students across belt levels (White → Black). Shows progression across the school.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon">🏆</div>
+                        <span class="feature-name">Top Learners</span>
+                    </div>
+                    <p class="feature-desc">Leaderboard showing highest-performing classes or students. Celebrates achievement and encourages engagement.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon">🌍</div>
+                        <span class="feature-name">Course Performance</span>
+                    </div>
+                    <p class="feature-desc">Compare engagement and progress across different courses (Welsh, Spanish, etc.). Identify which courses need attention.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon">📥</div>
+                        <span class="feature-name">Export Reports</span>
+                    </div>
+                    <p class="feature-desc">Download analytics as CSV or PDF for reporting to leadership, governors, or parents.</p>
+                </div>
+            </div>
+
+            <div class="features-section fade-in delay-2">
+                <div class="section-title">Dev Notes</div>
+                <div class="dev-notes">
+                    <h4>💡 Implementation Notes</h4>
+                    <ul>
+                        <li>Aggregate data from sessions table grouped by class_id, school_id</li>
+                        <li>Pre-compute daily/weekly rollups for performance</li>
+                        <li>Belt levels derived from total phrases learned thresholds</li>
+                        <li>Consider caching analytics with 15-min refresh</li>
+                        <li>Export functionality can use client-side CSV generation</li>
+                        <li>Charts can use Chart.js or similar lightweight library</li>
+                    </ul>
+                </div>
+            </div>
+        </aside>
+
+        <main class="preview-frame">
+            <div class="preview-container">
+                <iframe src="../analytics.html"></iframe>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        function initTheme() {
+            const savedTheme = localStorage.getItem('ssi-theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        }
+        initTheme();
+    </script>
+</body>
+</html>

@@ -1,0 +1,1343 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSi Schools - Classes</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&family=Source+Sans+3:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --ssi-red: #c23a3a;
+            --ssi-red-dark: #9a2e2e;
+            --ssi-red-light: #e54545;
+            --ssi-gold: #d4a853;
+            --ssi-gold-dark: #b8923d;
+            --success: #4ade80;
+            --warning: #fbbf24;
+            --error: #ef4444;
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #121212;
+            --bg-secondary: #1a1a1a;
+            --bg-card: #242424;
+            --bg-card-hover: #2d2d2d;
+            --bg-elevated: #333333;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --text-muted: #707070;
+            --border-subtle: rgba(255,255,255,0.08);
+            --border-medium: rgba(255,255,255,0.15);
+            --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
+            --shadow-md: 0 4px 20px rgba(0,0,0,0.4);
+            --nav-bg: rgba(18,18,18,0.95);
+            --logo-bubble-bg: #121212;
+        }
+
+        [data-theme="light"] {
+            --bg-primary: #f5f5f7;
+            --bg-secondary: #ffffff;
+            --bg-card: #ffffff;
+            --bg-card-hover: #f9f9f9;
+            --bg-elevated: #f0f0f2;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --text-muted: #999999;
+            --border-subtle: rgba(0,0,0,0.06);
+            --border-medium: rgba(0,0,0,0.12);
+            --shadow-sm: 0 2px 8px rgba(0,0,0,0.08);
+            --shadow-md: 0 4px 20px rgba(0,0,0,0.12);
+            --nav-bg: rgba(255,255,255,0.95);
+            --logo-bubble-bg: #f5f5f7;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Source Sans 3', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        /* Navigation */
+        .top-nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 64px;
+            background: var(--nav-bg);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            z-index: 100;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .logo-text {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-weight: 700;
+            font-size: 20px;
+        }
+
+        .logo-text .say { color: var(--ssi-red); }
+        .logo-text .something { color: var(--text-primary); }
+        .logo-text .in { color: var(--ssi-red); }
+
+        .logo-bubble {
+            width: 20px;
+            height: 16px;
+            border: 2px solid var(--ssi-red);
+            border-radius: 3px;
+            position: relative;
+        }
+
+        .logo-bubble::after {
+            content: '';
+            position: absolute;
+            bottom: -6px;
+            right: 4px;
+            width: 6px;
+            height: 6px;
+            border-right: 2px solid var(--ssi-red);
+            border-bottom: 2px solid var(--ssi-red);
+            transform: rotate(45deg);
+            background: var(--logo-bubble-bg);
+        }
+
+        /* Theme Toggle */
+        .theme-toggle {
+            width: 40px;
+            height: 40px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-medium);
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .theme-toggle:hover { border-color: var(--ssi-gold); transform: scale(1.05); }
+        .theme-toggle svg { width: 20px; height: 20px; transition: all 0.3s ease; }
+        .theme-toggle .sun-icon { color: var(--ssi-gold); position: absolute; opacity: 0; transform: rotate(-90deg) scale(0); }
+        .theme-toggle .moon-icon { color: var(--text-secondary); position: absolute; opacity: 1; transform: rotate(0deg) scale(1); }
+        [data-theme="light"] .theme-toggle .sun-icon { opacity: 1; transform: rotate(0deg) scale(1); }
+        [data-theme="light"] .theme-toggle .moon-icon { opacity: 0; transform: rotate(90deg) scale(0); }
+
+        .nav-tabs {
+            display: flex;
+            gap: 4px;
+            background: var(--bg-card);
+            padding: 4px;
+            border-radius: 12px;
+        }
+
+        .nav-tab {
+            padding: 8px 20px;
+            border-radius: 8px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+        }
+
+        .nav-tab:hover {
+            color: var(--text-primary);
+            background: var(--bg-elevated);
+        }
+
+        .nav-tab.active {
+            background: var(--ssi-red);
+            color: white;
+        }
+
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .school-badge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 14px 6px 10px;
+            background: var(--bg-card);
+            border-radius: 20px;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .school-avatar {
+            width: 28px;
+            height: 28px;
+            background: linear-gradient(135deg, var(--ssi-red), var(--ssi-gold));
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 12px;
+        }
+
+        .school-name { font-size: 13px; font-weight: 600; }
+
+        .user-menu {
+            width: 40px;
+            height: 40px;
+            background: var(--bg-card);
+            border-radius: 50%;
+            border: 2px solid var(--border-medium);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .user-menu:hover { border-color: var(--ssi-red); }
+        .user-menu svg { width: 20px; height: 20px; color: var(--text-secondary); }
+
+        /* Main Content */
+        .main-content {
+            margin-top: 64px;
+            padding: 32px;
+            max-width: 1400px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* Page Header */
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+        }
+
+        .page-title h1 {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .page-subtitle {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            border-radius: 10px;
+            border: none;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: var(--ssi-red);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--ssi-red-light);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border-medium);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-elevated);
+            border-color: var(--ssi-red);
+        }
+
+        .btn-play {
+            background: linear-gradient(135deg, var(--ssi-red), var(--ssi-red-dark));
+            color: white;
+            padding: 14px 28px;
+            font-size: 15px;
+            box-shadow: 0 4px 15px rgba(194,58,58,0.4);
+        }
+
+        .btn-play:hover {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 6px 20px rgba(194,58,58,0.5);
+        }
+
+        .btn-play svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        /* Search and Filters */
+        .filters-bar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .search-box {
+            flex: 1;
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 14px 16px 14px 48px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--ssi-red);
+            box-shadow: 0 0 0 3px rgba(194,58,58,0.2);
+        }
+
+        .search-box input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .search-box svg {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+        }
+
+        .filter-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .filter-btn:hover {
+            border-color: var(--ssi-red);
+            background: var(--bg-card-hover);
+        }
+
+        /* Classes Grid */
+        .classes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 24px;
+        }
+
+        .class-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 24px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .class-card:hover {
+            border-color: var(--ssi-red);
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .class-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--ssi-red), var(--ssi-gold));
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .class-card:hover::before {
+            opacity: 1;
+        }
+
+        .class-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .class-info {
+            flex: 1;
+        }
+
+        .class-name {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 4px;
+            cursor: text;
+            padding: 2px 6px;
+            margin: -2px -6px 4px -6px;
+            border-radius: 6px;
+            border: 1px solid transparent;
+            transition: all 0.2s ease;
+            display: inline-block;
+        }
+
+        .class-name:hover {
+            background: var(--bg-secondary);
+            border-color: var(--border-subtle);
+        }
+
+        .class-name:focus {
+            outline: none;
+            background: var(--bg-secondary);
+            border-color: var(--ssi-red);
+            box-shadow: 0 0 0 3px rgba(194,58,58,0.2);
+        }
+
+        .class-name-hint {
+            font-size: 10px;
+            color: var(--text-muted);
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            margin-left: 4px;
+        }
+
+        .class-info:hover .class-name-hint {
+            opacity: 1;
+        }
+
+        .class-meta {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .class-meta-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .class-course {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .class-course-flag {
+            font-size: 16px;
+        }
+
+        .class-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin: 20px 0;
+            padding: 16px;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+        }
+
+        .class-stat {
+            text-align: center;
+        }
+
+        .class-stat-value {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--ssi-gold);
+        }
+
+        .class-stat-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .class-teacher {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .teacher-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 12px;
+            color: white;
+        }
+
+        .teacher-name {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .teacher-name strong {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .class-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .class-actions .btn-play {
+            flex: 1;
+        }
+
+        .class-actions .btn-secondary {
+            padding: 14px;
+        }
+
+        .last-played {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 12px;
+        }
+
+        .last-played.recent {
+            color: var(--success);
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 80px 40px;
+            background: var(--bg-card);
+            border: 2px dashed var(--border-medium);
+            border-radius: 16px;
+        }
+
+        .empty-state-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .empty-state h3 {
+            font-size: 20px;
+            margin-bottom: 8px;
+        }
+
+        .empty-state p {
+            color: var(--text-secondary);
+            margin-bottom: 24px;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background: var(--bg-card);
+            border-radius: 20px;
+            width: 100%;
+            max-width: 480px;
+            max-height: 90vh;
+            overflow-y: auto;
+            transform: translateY(20px) scale(0.95);
+            transition: all 0.3s ease;
+        }
+
+        .modal-overlay.active .modal {
+            transform: translateY(0) scale(1);
+        }
+
+        .modal-header {
+            padding: 24px 24px 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-title {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .modal-close {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: none;
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .modal-close:hover {
+            background: var(--error);
+            color: white;
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .form-input, .form-select {
+            width: 100%;
+            padding: 14px 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: var(--ssi-red);
+            box-shadow: 0 0 0 3px rgba(194,58,58,0.2);
+        }
+
+        .form-select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23707070' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 16px center;
+            cursor: pointer;
+        }
+
+        .modal-footer {
+            padding: 0 24px 24px;
+            display: flex;
+            gap: 12px;
+        }
+
+        .modal-footer .btn {
+            flex: 1;
+        }
+
+        /* Animations */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-in {
+            animation: fadeInUp 0.5s ease forwards;
+        }
+
+        .delay-1 { animation-delay: 0.1s; opacity: 0; }
+        .delay-2 { animation-delay: 0.2s; opacity: 0; }
+
+        /* View Toggle */
+        .view-toggle {
+            display: flex;
+            background: var(--bg-card);
+            border-radius: 10px;
+            padding: 4px;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .view-toggle-btn {
+            padding: 8px 16px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .view-toggle-btn.active {
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+        }
+
+        .view-toggle-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        @media (max-width: 768px) {
+            .main-content { padding: 16px; }
+            .page-header { flex-direction: column; gap: 16px; align-items: flex-start; }
+            .classes-grid { grid-template-columns: 1fr; }
+            .nav-tabs { display: none; }
+            .class-stats { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="top-nav">
+        <div class="logo">
+            <span class="logo-text">
+                <span class="say">Say</span><span class="something">Something</span><span class="in">in</span>
+            </span>
+            <span class="logo-bubble"></span>
+        </div>
+
+        <div class="nav-tabs">
+            <a href="index.html" class="nav-tab">Dashboard</a>
+            <a href="teachers.html" class="nav-tab">Teachers</a>
+            <button class="nav-tab active">Classes</button>
+            <a href="analytics.html" class="nav-tab">Analytics</a>
+            <a href="settings.html" class="nav-tab">Settings</a>
+        </div>
+
+        <div class="nav-right">
+            <a href="flows/index.html" class="btn btn-secondary" style="padding: 8px 14px; font-size: 13px;" title="View Flow Documentation">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+                Flows
+            </a>
+            <div class="school-badge">
+                <div class="school-avatar">YC</div>
+                <span class="school-name">Ysgol Cymraeg</span>
+            </div>
+            <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+                <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                    <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                </svg>
+                <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                </svg>
+            </button>
+            <button class="user-menu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="8" r="4"/>
+                    <path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+                </svg>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Page Header -->
+        <div class="page-header animate-in">
+            <div class="page-title">
+                <h1>📚 Classes</h1>
+                <p class="page-subtitle">Manage your classes and start learning sessions</p>
+            </div>
+            <div class="header-actions">
+                <div class="view-toggle">
+                    <button class="view-toggle-btn active">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                            <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+                        </svg>
+                        All Classes
+                    </button>
+                    <button class="view-toggle-btn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+                        </svg>
+                        My Classes
+                    </button>
+                </div>
+                <button class="btn btn-primary" onclick="openModal()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    New Class
+                </button>
+            </div>
+        </div>
+
+        <!-- Search and Filters -->
+        <div class="filters-bar animate-in delay-1">
+            <div class="search-box">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"/>
+                    <path d="m21 21-4.35-4.35"/>
+                </svg>
+                <input type="text" id="classSearch" placeholder="Search classes by name or teacher..." oninput="filterClasses()">
+            </div>
+            <button class="filter-btn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+                </svg>
+                All Courses
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"/>
+                </svg>
+            </button>
+            <button class="filter-btn">
+                All Teachers
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"/>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Classes Grid -->
+        <div class="classes-grid animate-in delay-2" id="classesGrid">
+            <!-- Class Card 1 -->
+            <div class="class-card">
+                <div class="class-header">
+                    <div class="class-info">
+                        <h3 class="class-name" contenteditable="true" data-class-id="year-7-welsh" onblur="saveClassName(this)" onkeydown="handleClassNameKey(event, this)">Year 7 Welsh</h3>
+                        <span class="class-name-hint">click to edit</span>
+                        <div class="class-meta">
+                            <span class="class-meta-item">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+                                </svg>
+                                28 students
+                            </span>
+                        </div>
+                    </div>
+                    <div class="class-course">
+                        <span class="class-course-flag">🏴󠁧󠁢󠁷󠁬󠁳󠁿</span>
+                        Welsh (Northern)
+                    </div>
+                </div>
+
+                <div class="class-teacher">
+                    <div class="teacher-avatar" style="background: linear-gradient(135deg, #3b82f6, #2563eb);">SR</div>
+                    <div class="teacher-name">Taught by <strong>Siân Roberts</strong></div>
+                </div>
+
+                <div class="class-stats">
+                    <div class="class-stat">
+                        <div class="class-stat-value">47</div>
+                        <div class="class-stat-label">Sessions</div>
+                    </div>
+                    <div class="class-stat">
+                        <div class="class-stat-value">1,284</div>
+                        <div class="class-stat-label">Phrases</div>
+                    </div>
+                    <div class="class-stat">
+                        <div class="class-stat-value">23h</div>
+                        <div class="class-stat-label">Total Time</div>
+                    </div>
+                </div>
+
+                <div class="class-actions">
+                    <button class="btn btn-play" onclick="playAsClass('year-7-welsh', this.closest('.class-card').querySelector('.class-name').textContent)">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <polygon points="5 3 19 12 5 21 5 3"/>
+                        </svg>
+                        Play as Class
+                    </button>
+                    <button class="btn btn-secondary" title="Class settings">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="last-played recent">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    Last played 2 hours ago
+                </div>
+            </div>
+
+            <!-- Class Card 2 -->
+            <div class="class-card">
+                <div class="class-header">
+                    <div class="class-info">
+                        <h3 class="class-name" contenteditable="true" data-class-id="year-8-advanced" onblur="saveClassName(this)" onkeydown="handleClassNameKey(event, this)">Year 8 Advanced</h3>
+                        <span class="class-name-hint">click to edit</span>
+                        <div class="class-meta">
+                            <span class="class-meta-item">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+                                </svg>
+                                24 students
+                            </span>
+                        </div>
+                    </div>
+                    <div class="class-course">
+                        <span class="class-course-flag">🏴󠁧󠁢󠁷󠁬󠁳󠁿</span>
+                        Welsh (Northern)
+                    </div>
+                </div>
+
+                <div class="class-teacher">
+                    <div class="teacher-avatar" style="background: linear-gradient(135deg, #3b82f6, #2563eb);">SR</div>
+                    <div class="teacher-name">Taught by <strong>Siân Roberts</strong></div>
+                </div>
+
+                <div class="class-stats">
+                    <div class="class-stat">
+                        <div class="class-stat-value">62</div>
+                        <div class="class-stat-label">Sessions</div>
+                    </div>
+                    <div class="class-stat">
+                        <div class="class-stat-value">2,847</div>
+                        <div class="class-stat-label">Phrases</div>
+                    </div>
+                    <div class="class-stat">
+                        <div class="class-stat-value">38h</div>
+                        <div class="class-stat-label">Total Time</div>
+                    </div>
+                </div>
+
+                <div class="class-actions">
+                    <button class="btn btn-play" onclick="playAsClass('year-8-advanced', this.closest('.class-card').querySelector('.class-name').textContent)">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <polygon points="5 3 19 12 5 21 5 3"/>
+                        </svg>
+                        Play as Class
+                    </button>
+                    <button class="btn btn-secondary" title="Class settings">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="last-played">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    Last played yesterday
+                </div>
+            </div>
+
+            <!-- Class Card 3 -->
+            <div class="class-card">
+                <div class="class-header">
+                    <div class="class-info">
+                        <h3 class="class-name" contenteditable="true" data-class-id="year-9-beginners" onblur="saveClassName(this)" onkeydown="handleClassNameKey(event, this)">Year 9 Beginners</h3>
+                        <span class="class-name-hint">click to edit</span>
+                        <div class="class-meta">
+                            <span class="class-meta-item">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+                                </svg>
+                                31 students
+                            </span>
+                        </div>
+                    </div>
+                    <div class="class-course">
+                        <span class="class-course-flag">🏴󠁧󠁢󠁷󠁬󠁳󠁿</span>
+                        Welsh (Southern)
+                    </div>
+                </div>
+
+                <div class="class-teacher">
+                    <div class="teacher-avatar" style="background: linear-gradient(135deg, #22c55e, #16a34a);">DE</div>
+                    <div class="teacher-name">Taught by <strong>Dafydd Evans</strong></div>
+                </div>
+
+                <div class="class-stats">
+                    <div class="class-stat">
+                        <div class="class-stat-value">23</div>
+                        <div class="class-stat-label">Sessions</div>
+                    </div>
+                    <div class="class-stat">
+                        <div class="class-stat-value">542</div>
+                        <div class="class-stat-label">Phrases</div>
+                    </div>
+                    <div class="class-stat">
+                        <div class="class-stat-value">12h</div>
+                        <div class="class-stat-label">Total Time</div>
+                    </div>
+                </div>
+
+                <div class="class-actions">
+                    <button class="btn btn-play" onclick="playAsClass('year-9-beginners', this.closest('.class-card').querySelector('.class-name').textContent)">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <polygon points="5 3 19 12 5 21 5 3"/>
+                        </svg>
+                        Play as Class
+                    </button>
+                    <button class="btn btn-secondary" title="Class settings">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="last-played">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    Last played 3 days ago
+                </div>
+            </div>
+
+            <!-- Class Card 4 -->
+            <div class="class-card">
+                <div class="class-header">
+                    <div class="class-info">
+                        <h3 class="class-name" contenteditable="true" data-class-id="staff-spanish" onblur="saveClassName(this)" onkeydown="handleClassNameKey(event, this)">Staff Spanish Club</h3>
+                        <span class="class-name-hint">click to edit</span>
+                        <div class="class-meta">
+                            <span class="class-meta-item">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+                                </svg>
+                                12 students
+                            </span>
+                        </div>
+                    </div>
+                    <div class="class-course">
+                        <span class="class-course-flag">🇪🇸</span>
+                        Spanish (Latin Am.)
+                    </div>
+                </div>
+
+                <div class="class-teacher">
+                    <div class="teacher-avatar" style="background: linear-gradient(135deg, #f97316, #ea580c);">MJ</div>
+                    <div class="teacher-name">Taught by <strong>Mair Jones</strong></div>
+                </div>
+
+                <div class="class-stats">
+                    <div class="class-stat">
+                        <div class="class-stat-value">8</div>
+                        <div class="class-stat-label">Sessions</div>
+                    </div>
+                    <div class="class-stat">
+                        <div class="class-stat-value">187</div>
+                        <div class="class-stat-label">Phrases</div>
+                    </div>
+                    <div class="class-stat">
+                        <div class="class-stat-value">4h</div>
+                        <div class="class-stat-label">Total Time</div>
+                    </div>
+                </div>
+
+                <div class="class-actions">
+                    <button class="btn btn-play" onclick="playAsClass('staff-spanish', this.closest('.class-card').querySelector('.class-name').textContent)">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <polygon points="5 3 19 12 5 21 5 3"/>
+                        </svg>
+                        Play as Class
+                    </button>
+                    <button class="btn btn-secondary" title="Class settings">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="last-played">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    Last played 1 week ago
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Create Class Modal -->
+    <div class="modal-overlay" id="createClassModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Create New Class</h2>
+                <button class="modal-close" onclick="closeModal()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Class Name</label>
+                    <input type="text" class="form-input" id="className" placeholder="e.g., Year 7 Welsh">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Course / Language</label>
+                    <select class="form-select" id="classCourse">
+                        <option value="">Select a course...</option>
+                        <option value="welsh-north">🏴󠁧󠁢󠁷󠁬󠁳󠁿 Welsh (Northern)</option>
+                        <option value="welsh-south">🏴󠁧󠁢󠁷󠁬󠁳󠁿 Welsh (Southern)</option>
+                        <option value="spanish-latam">🇪🇸 Spanish (Latin American)</option>
+                        <option value="spanish-eu">🇪🇸 Spanish (European)</option>
+                        <option value="dutch">🇳🇱 Dutch</option>
+                        <option value="cornish">🏴󠁧󠁢󠁥󠁮󠁧󠁿 Cornish</option>
+                        <option value="manx">🇮🇲 Manx</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Number of Students (optional)</label>
+                    <input type="number" class="form-input" id="classSize" placeholder="e.g., 28">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Assign to Teacher</label>
+                    <select class="form-select" id="classTeacher">
+                        <option value="me">Myself</option>
+                        <option value="sian-roberts">Siân Roberts</option>
+                        <option value="dafydd-evans">Dafydd Evans</option>
+                        <option value="mair-jones">Mair Jones</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="createClass()">Create Class</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Theme Management
+        function initTheme() {
+            const savedTheme = localStorage.getItem('ssi-theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        }
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('ssi-theme', newTheme);
+        }
+        initTheme();
+
+        // Inline class name editing
+        function saveClassName(element) {
+            const classId = element.dataset.classId;
+            const newName = element.textContent.trim();
+
+            if (!newName) {
+                // Restore previous name if empty
+                element.textContent = element.dataset.previousName || 'Untitled Class';
+                return;
+            }
+
+            // Save to localStorage
+            const classNames = JSON.parse(localStorage.getItem('ssi-class-names') || '{}');
+            classNames[classId] = newName;
+            localStorage.setItem('ssi-class-names', JSON.stringify(classNames));
+
+            // Brief visual feedback
+            element.style.background = 'rgba(74, 222, 128, 0.2)';
+            element.style.borderColor = 'var(--success)';
+            setTimeout(() => {
+                element.style.background = '';
+                element.style.borderColor = '';
+            }, 500);
+        }
+
+        function handleClassNameKey(event, element) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                element.blur(); // Triggers save via onblur
+            }
+            if (event.key === 'Escape') {
+                // Restore previous name
+                element.textContent = element.dataset.previousName || element.textContent;
+                element.blur();
+            }
+        }
+
+        // Store original name on focus for escape key restore
+        document.querySelectorAll('.class-name').forEach(el => {
+            el.addEventListener('focus', function() {
+                this.dataset.previousName = this.textContent;
+            });
+        });
+
+        // Search/filter classes
+        function filterClasses() {
+            const searchTerm = document.getElementById('classSearch').value.toLowerCase();
+            const cards = document.querySelectorAll('.class-card');
+
+            cards.forEach(card => {
+                const className = card.querySelector('.class-name').textContent.toLowerCase();
+                const teacherName = card.querySelector('.teacher-name')?.textContent.toLowerCase() || '';
+                const course = card.querySelector('.class-course')?.textContent.toLowerCase() || '';
+
+                const matches = className.includes(searchTerm) ||
+                               teacherName.includes(searchTerm) ||
+                               course.includes(searchTerm);
+
+                card.style.display = matches ? '' : 'none';
+            });
+        }
+
+        // Modal functions
+        function openModal() {
+            document.getElementById('createClassModal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('createClassModal').classList.remove('active');
+        }
+
+        // Close modal on overlay click
+        document.getElementById('createClassModal').addEventListener('click', function(e) {
+            if (e.target === this) closeModal();
+        });
+
+        // Close modal on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeModal();
+        });
+
+        // Play as Class - this is the key integration point with SSi web player
+        function playAsClass(classId, className) {
+            // Store the active class context for the SSi web player
+            const activeClass = {
+                id: classId,
+                name: className,
+                timestamp: new Date().toISOString()
+            };
+            localStorage.setItem('ssi-active-class', JSON.stringify(activeClass));
+
+            // This is where you'd redirect to the SSi web player
+            // For now, show a confirmation
+            alert(`Starting SSi session as "${className}"\n\nThis would launch the SSi web player with this class context.`);
+
+            // In production, this would be:
+            // window.location.href = '/player?class=' + classId;
+        }
+
+        // Create new class
+        function createClass() {
+            const name = document.getElementById('className').value;
+            const course = document.getElementById('classCourse').value;
+            const size = document.getElementById('classSize').value;
+            const teacher = document.getElementById('classTeacher').value;
+
+            if (!name || !course) {
+                alert('Please enter a class name and select a course.');
+                return;
+            }
+
+            // Store in localStorage
+            const classes = JSON.parse(localStorage.getItem('ssi-classes') || '[]');
+            const newClass = {
+                id: 'class-' + Date.now(),
+                name: name,
+                course: course,
+                size: size || 0,
+                teacher: teacher,
+                created: new Date().toISOString(),
+                sessions: 0,
+                phrases: 0,
+                totalTime: 0
+            };
+            classes.push(newClass);
+            localStorage.setItem('ssi-classes', JSON.stringify(classes));
+
+            closeModal();
+            alert(`Class "${name}" created successfully!`);
+
+            // In a full implementation, we'd refresh the grid here
+            // For now, the demo shows the concept
+        }
+
+        // View toggle
+        document.querySelectorAll('.view-toggle-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.view-toggle-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+    </script>
+</body>
+</html>

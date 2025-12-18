@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flow: Play as Class - SSi Schools</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&family=Source+Sans+3:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --ssi-red: #c23a3a;
+            --ssi-red-dark: #9a2e2e;
+            --ssi-red-light: #e54545;
+            --ssi-gold: #d4a853;
+            --success: #4ade80;
+            --warning: #fbbf24;
+            --info: #60a5fa;
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #141414;
+            --bg-card: #1e1e1e;
+            --bg-elevated: #282828;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --text-muted: #606060;
+            --border-subtle: rgba(255,255,255,0.08);
+            --border-medium: rgba(255,255,255,0.15);
+            --shadow-lg: 0 8px 40px rgba(0,0,0,0.5);
+        }
+
+        [data-theme="light"] {
+            --bg-primary: #f0f0f0;
+            --bg-secondary: #ffffff;
+            --bg-card: #ffffff;
+            --bg-elevated: #f5f5f5;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --text-muted: #999999;
+            --border-subtle: rgba(0,0,0,0.06);
+            --border-medium: rgba(0,0,0,0.12);
+            --shadow-lg: 0 8px 40px rgba(0,0,0,0.15);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Source Sans 3', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .flow-header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 16px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 200;
+        }
+
+        .flow-header-left { display: flex; align-items: center; gap: 16px; }
+
+        .back-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .back-btn:hover { border-color: var(--ssi-red); color: var(--text-primary); }
+
+        .flow-title { font-family: 'Noto Sans JP', sans-serif; font-size: 18px; font-weight: 700; }
+        .flow-title span { color: var(--text-muted); font-weight: 400; }
+
+        .steps-nav { display: flex; align-items: center; gap: 8px; }
+
+        .step-dot {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: var(--bg-card); border: 2px solid var(--border-medium);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 13px; font-weight: 600; color: var(--text-muted);
+            cursor: pointer; transition: all 0.3s ease;
+        }
+
+        .step-dot.active { background: var(--ssi-red); border-color: var(--ssi-red); color: white; transform: scale(1.1); }
+        .step-dot.complete { background: var(--success); border-color: var(--success); color: white; }
+        .step-connector { width: 24px; height: 2px; background: var(--border-medium); transition: background 0.3s ease; }
+        .step-connector.complete { background: var(--success); }
+
+        .playback-controls { display: flex; align-items: center; gap: 12px; }
+
+        .play-btn {
+            display: flex; align-items: center; gap: 8px;
+            padding: 10px 20px;
+            background: linear-gradient(135deg, var(--ssi-red), var(--ssi-red-dark));
+            border: none; border-radius: 8px; color: white;
+            font-family: inherit; font-size: 14px; font-weight: 600;
+            cursor: pointer; transition: all 0.2s ease;
+        }
+
+        .play-btn:hover { transform: scale(1.02); }
+        .play-btn.paused { background: var(--bg-card); border: 1px solid var(--border-medium); color: var(--text-primary); }
+        .play-btn svg { width: 16px; height: 16px; }
+
+        .speed-control {
+            display: flex; align-items: center; gap: 4px;
+            padding: 6px 12px; background: var(--bg-card);
+            border: 1px solid var(--border-subtle); border-radius: 6px;
+            font-size: 12px; color: var(--text-secondary);
+        }
+
+        .flow-content { flex: 1; display: flex; margin-top: 72px; }
+
+        .annotation-panel {
+            width: 380px; background: var(--bg-secondary);
+            border-right: 1px solid var(--border-subtle);
+            padding: 32px; overflow-y: auto;
+            display: flex; flex-direction: column;
+        }
+
+        .step-badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 6px 12px; background: rgba(194,58,58,0.15);
+            color: var(--ssi-red); border-radius: 20px;
+            font-size: 12px; font-weight: 600; margin-bottom: 16px;
+        }
+
+        .step-heading { font-family: 'Noto Sans JP', sans-serif; font-size: 28px; font-weight: 700; margin-bottom: 12px; line-height: 1.3; }
+        .step-description { color: var(--text-secondary); font-size: 16px; line-height: 1.7; margin-bottom: 32px; }
+        .step-details { flex: 1; }
+        .detail-section { margin-bottom: 24px; }
+        .detail-section h4 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 12px; }
+
+        .detail-item {
+            display: flex; align-items: flex-start; gap: 12px;
+            padding: 12px; background: var(--bg-card);
+            border-radius: 10px; margin-bottom: 8px;
+        }
+
+        .detail-icon {
+            width: 32px; height: 32px; background: var(--bg-elevated);
+            border-radius: 8px; display: flex; align-items: center;
+            justify-content: center; font-size: 16px; flex-shrink: 0;
+        }
+
+        .detail-text { flex: 1; }
+        .detail-text strong { display: block; font-size: 14px; margin-bottom: 2px; }
+        .detail-text span { font-size: 13px; color: var(--text-secondary); }
+
+        .step-nav {
+            display: flex; gap: 12px; margin-top: auto;
+            padding-top: 24px; border-top: 1px solid var(--border-subtle);
+        }
+
+        .nav-btn {
+            flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;
+            padding: 14px; border-radius: 10px; font-family: inherit;
+            font-size: 14px; font-weight: 600; cursor: pointer;
+            transition: all 0.2s ease; text-decoration: none;
+        }
+
+        .nav-btn.prev { background: var(--bg-card); border: 1px solid var(--border-medium); color: var(--text-primary); }
+        .nav-btn.prev:hover { border-color: var(--ssi-red); }
+        .nav-btn.next { background: linear-gradient(135deg, var(--ssi-red), var(--ssi-red-dark)); border: none; color: white; }
+        .nav-btn.next:hover { transform: translateY(-2px); }
+        .nav-btn svg { width: 18px; height: 18px; }
+
+        .preview-frame {
+            flex: 1; background: var(--bg-primary); position: relative;
+            display: flex; align-items: center; justify-content: center; padding: 40px;
+        }
+
+        .preview-container {
+            width: 100%; max-width: 1000px; height: 100%;
+            background: var(--bg-card); border-radius: 16px;
+            border: 1px solid var(--border-subtle); box-shadow: var(--shadow-lg);
+            overflow: hidden; position: relative;
+        }
+
+        .preview-container iframe { width: 100%; height: 100%; border: none; }
+
+        .autoplay-progress {
+            position: absolute; bottom: 0; left: 0; height: 4px;
+            background: linear-gradient(90deg, var(--ssi-red), var(--ssi-gold));
+            transition: width 0.1s linear;
+        }
+
+        /* Player mockup */
+        .player-mockup {
+            width: 100%; height: 100%;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .player-mockup h2 {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 36px;
+            margin-bottom: 16px;
+        }
+
+        .player-mockup .class-context {
+            background: rgba(255,255,255,0.1);
+            padding: 12px 24px;
+            border-radius: 30px;
+            font-size: 16px;
+            margin-bottom: 40px;
+        }
+
+        .player-mockup .phrase-display {
+            font-size: 48px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: var(--ssi-gold);
+        }
+
+        .player-mockup .translation {
+            font-size: 24px;
+            opacity: 0.7;
+            margin-bottom: 40px;
+        }
+
+        .player-mockup .controls {
+            display: flex;
+            gap: 20px;
+        }
+
+        .player-mockup .control-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .player-mockup .control-btn.play {
+            background: var(--ssi-red);
+            width: 80px;
+            height: 80px;
+        }
+
+        .player-mockup .control-btn.secondary {
+            background: rgba(255,255,255,0.1);
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .fade-in { animation: fadeIn 0.4s ease forwards; }
+    </style>
+</head>
+<body>
+    <header class="flow-header">
+        <div class="flow-header-left">
+            <a href="index.html" class="back-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <path d="M19 12H5M12 19l-7-7 7-7"/>
+                </svg>
+                All Flows
+            </a>
+            <h1 class="flow-title">Play as Class <span>• 3 steps</span></h1>
+        </div>
+
+        <div class="steps-nav">
+            <div class="step-dot active" data-step="1">1</div>
+            <div class="step-connector"></div>
+            <div class="step-dot" data-step="2">2</div>
+            <div class="step-connector"></div>
+            <div class="step-dot" data-step="3">3</div>
+        </div>
+
+        <div class="playback-controls">
+            <button class="play-btn" id="playPauseBtn" onclick="toggleAutoplay()">
+                <svg class="play-icon" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                <svg class="pause-icon" viewBox="0 0 24 24" fill="currentColor" style="display:none;"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                <span>Auto-play</span>
+            </button>
+            <div class="speed-control">
+                <span>Speed:</span>
+                <select id="speedSelect" onchange="setSpeed(this.value)">
+                    <option value="3000">Slow</option>
+                    <option value="2000" selected>Normal</option>
+                    <option value="1000">Fast</option>
+                </select>
+            </div>
+        </div>
+    </header>
+
+    <div class="flow-content">
+        <aside class="annotation-panel" id="annotationPanel"></aside>
+        <main class="preview-frame">
+            <div class="preview-container" id="previewContainer">
+                <iframe id="previewFrame" src="../classes.html"></iframe>
+                <div class="autoplay-progress" id="autoplayProgress" style="width: 0%"></div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const steps = [
+            {
+                id: 1,
+                badge: "Step 1 of 3",
+                title: "Select a Class",
+                description: "Teacher navigates to the Classes page and finds the class they want to run a session with. Each card has a prominent 'Play as Class' button.",
+                details: [
+                    { icon: "📚", title: "Class Cards", desc: "Visual grid of all available classes" },
+                    { icon: "🔍", title: "Quick Find", desc: "Search by name, teacher, or course" },
+                    { icon: "📊", title: "Quick Stats", desc: "See sessions, phrases, time at a glance" }
+                ],
+                page: "../classes.html",
+                devNotes: "Classes sorted by 'last played' by default for quick access to recent classes."
+            },
+            {
+                id: 2,
+                badge: "Step 2 of 3",
+                title: "Click 'Play as Class'",
+                description: "Teacher clicks the red 'Play as Class' button. The system stores the class context and prepares to launch the SSi learning player.",
+                details: [
+                    { icon: "▶️", title: "Hero Action", desc: "Most prominent button on each card" },
+                    { icon: "💾", title: "Store Context", desc: "class_id saved for player handoff" },
+                    { icon: "🔄", title: "Seamless Transition", desc: "Smooth redirect to player" }
+                ],
+                page: "../classes.html",
+                devNotes: "localStorage.setItem('ssi-active-class', {id, name, course_id}). Player reads this on load."
+            },
+            {
+                id: 3,
+                badge: "Step 3 of 3",
+                title: "SSi Player Launches",
+                description: "The SSi learning player loads with the class context. Progress is tracked against this class. The whole class participates together.",
+                details: [
+                    { icon: "🎮", title: "Player Interface", desc: "Full SSi learning experience" },
+                    { icon: "📈", title: "Progress Tracking", desc: "Phrases learned saved to class" },
+                    { icon: "👥", title: "Group Session", desc: "Designed for whole-class participation" }
+                ],
+                page: "player-mockup",
+                devNotes: "Player is a separate app/route. Reads class context from localStorage or URL param. Progress syncs to Supabase with class_id."
+            }
+        ];
+
+        let currentStep = 1;
+        let isPlaying = false;
+        let autoplayInterval = null;
+        let stepDuration = 2000;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initTheme();
+            renderStep(currentStep);
+            setupStepClicks();
+        });
+
+        function initTheme() {
+            const savedTheme = localStorage.getItem('ssi-theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        }
+
+        function renderStep(stepNum) {
+            const step = steps[stepNum - 1];
+            const panel = document.getElementById('annotationPanel');
+            const container = document.getElementById('previewContainer');
+
+            panel.innerHTML = `
+                <div class="fade-in">
+                    <span class="step-badge">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                        ${step.badge}
+                    </span>
+                    <h2 class="step-heading">${step.title}</h2>
+                    <p class="step-description">${step.description}</p>
+
+                    <div class="step-details">
+                        <div class="detail-section">
+                            <h4>What Happens</h4>
+                            ${step.details.map(d => `
+                                <div class="detail-item">
+                                    <div class="detail-icon">${d.icon}</div>
+                                    <div class="detail-text">
+                                        <strong>${d.title}</strong>
+                                        <span>${d.desc}</span>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+
+                        <div class="detail-section">
+                            <h4>Dev Notes</h4>
+                            <div class="detail-item">
+                                <div class="detail-icon">💡</div>
+                                <div class="detail-text">
+                                    <span>${step.devNotes}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="step-nav">
+                        ${stepNum > 1 ? `
+                            <button class="nav-btn prev" onclick="goToStep(${stepNum - 1})">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                                Previous
+                            </button>
+                        ` : `
+                            <a href="create-class.html" class="nav-btn prev">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                                Prev Flow
+                            </a>
+                        `}
+                        ${stepNum < steps.length ? `
+                            <button class="nav-btn next" onclick="goToStep(${stepNum + 1})">
+                                Next Step
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                            </button>
+                        ` : `
+                            <a href="index.html" class="nav-btn next">
+                                Back to Flows
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                            </a>
+                        `}
+                    </div>
+                </div>
+            `;
+
+            // Handle player mockup vs iframe
+            if (step.page === 'player-mockup') {
+                container.innerHTML = `
+                    <div class="player-mockup">
+                        <div class="class-context">Playing as: Year 7 Welsh</div>
+                        <h2>SSi Learning Player</h2>
+                        <div class="phrase-display">Bore da!</div>
+                        <div class="translation">Good morning!</div>
+                        <div class="controls">
+                            <button class="control-btn secondary">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M19 20L9 12l10-8v16z"/></svg>
+                            </button>
+                            <button class="control-btn play">
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="white"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                            </button>
+                            <button class="control-btn secondary">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M5 4l10 8-10 8V4z"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="autoplay-progress" id="autoplayProgress" style="width: 0%"></div>
+                `;
+            } else {
+                container.innerHTML = `
+                    <iframe id="previewFrame" src="${step.page}"></iframe>
+                    <div class="autoplay-progress" id="autoplayProgress" style="width: 0%"></div>
+                `;
+            }
+
+            document.querySelectorAll('.step-dot').forEach((dot, i) => {
+                dot.classList.remove('active', 'complete');
+                if (i + 1 < stepNum) dot.classList.add('complete');
+                if (i + 1 === stepNum) dot.classList.add('active');
+            });
+
+            document.querySelectorAll('.step-connector').forEach((conn, i) => {
+                conn.classList.toggle('complete', i < stepNum - 1);
+            });
+
+            currentStep = stepNum;
+        }
+
+        function goToStep(stepNum) {
+            if (stepNum >= 1 && stepNum <= steps.length) {
+                renderStep(stepNum);
+                resetAutoplayProgress();
+            }
+        }
+
+        function setupStepClicks() {
+            document.querySelectorAll('.step-dot').forEach(dot => {
+                dot.addEventListener('click', () => goToStep(parseInt(dot.dataset.step)));
+            });
+        }
+
+        function toggleAutoplay() {
+            isPlaying = !isPlaying;
+            const btn = document.getElementById('playPauseBtn');
+            const playIcon = btn.querySelector('.play-icon');
+            const pauseIcon = btn.querySelector('.pause-icon');
+            const label = btn.querySelector('span');
+
+            if (isPlaying) {
+                playIcon.style.display = 'none';
+                pauseIcon.style.display = 'block';
+                label.textContent = 'Pause';
+                btn.classList.add('paused');
+                startAutoplay();
+            } else {
+                playIcon.style.display = 'block';
+                pauseIcon.style.display = 'none';
+                label.textContent = 'Auto-play';
+                btn.classList.remove('paused');
+                stopAutoplay();
+            }
+        }
+
+        function startAutoplay() {
+            let progress = 0;
+            autoplayInterval = setInterval(() => {
+                progress += 100 / (stepDuration / 100);
+                const progressBar = document.getElementById('autoplayProgress');
+                if (progressBar) progressBar.style.width = progress + '%';
+                if (progress >= 100) {
+                    progress = 0;
+                    currentStep < steps.length ? goToStep(currentStep + 1) : goToStep(1);
+                }
+            }, 100);
+        }
+
+        function stopAutoplay() { clearInterval(autoplayInterval); resetAutoplayProgress(); }
+        function resetAutoplayProgress() {
+            const bar = document.getElementById('autoplayProgress');
+            if (bar) bar.style.width = '0%';
+        }
+        function setSpeed(ms) { stepDuration = parseInt(ms); if (isPlaying) { stopAutoplay(); startAutoplay(); } }
+    </script>
+</body>
+</html>

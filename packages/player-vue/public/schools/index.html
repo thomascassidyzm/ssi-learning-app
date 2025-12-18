@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSi Schools - Admin Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&family=Source+Sans+3:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* SSi Brand Colors */
+            --ssi-red: #c23a3a;
+            --ssi-red-dark: #9a2e2e;
+            --ssi-red-light: #e54545;
+            --ssi-gold: #d4a853;
+            --ssi-gold-dark: #b8923d;
+
+            /* Status Colors (same for both themes) */
+            --success: #4ade80;
+            --warning: #fbbf24;
+            --error: #ef4444;
+        }
+
+        /* Dark Theme (default) */
+        [data-theme="dark"] {
+            --bg-primary: #121212;
+            --bg-secondary: #1a1a1a;
+            --bg-card: #242424;
+            --bg-card-hover: #2d2d2d;
+            --bg-elevated: #333333;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --text-muted: #707070;
+            --border-subtle: rgba(255,255,255,0.08);
+            --border-medium: rgba(255,255,255,0.15);
+            --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
+            --shadow-md: 0 4px 20px rgba(0,0,0,0.4);
+            --shadow-lg: 0 8px 40px rgba(0,0,0,0.5);
+            --shadow-glow: 0 0 30px rgba(194,58,58,0.3);
+            --nav-bg: rgba(18,18,18,0.95);
+            --logo-bubble-bg: var(--bg-primary);
+            --mountain-opacity: 1;
+        }
+
+        /* Light Theme */
+        [data-theme="light"] {
+            --bg-primary: #f5f5f7;
+            --bg-secondary: #ffffff;
+            --bg-card: #ffffff;
+            --bg-card-hover: #f9f9f9;
+            --bg-elevated: #f0f0f2;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --text-muted: #999999;
+            --border-subtle: rgba(0,0,0,0.06);
+            --border-medium: rgba(0,0,0,0.12);
+            --shadow-sm: 0 2px 8px rgba(0,0,0,0.08);
+            --shadow-md: 0 4px 20px rgba(0,0,0,0.12);
+            --shadow-lg: 0 8px 40px rgba(0,0,0,0.16);
+            --shadow-glow: 0 0 30px rgba(194,58,58,0.2);
+            --nav-bg: rgba(255,255,255,0.95);
+            --logo-bubble-bg: var(--bg-primary);
+            --mountain-opacity: 0.5;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Source Sans 3', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ========== NAVIGATION ========== */
+        .top-nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 64px;
+            background: var(--nav-bg);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            z-index: 100;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .logo-text {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-weight: 700;
+            font-size: 20px;
+        }
+
+        .logo-text .say { color: var(--ssi-red); }
+        .logo-text .something { color: var(--text-primary); }
+        .logo-text .in { color: var(--ssi-red); }
+
+        .logo-bubble {
+            width: 20px;
+            height: 16px;
+            border: 2px solid var(--ssi-red);
+            border-radius: 3px;
+            position: relative;
+        }
+
+        .logo-bubble::after {
+            content: '';
+            position: absolute;
+            bottom: -6px;
+            right: 4px;
+            width: 6px;
+            height: 6px;
+            border-right: 2px solid var(--ssi-red);
+            border-bottom: 2px solid var(--ssi-red);
+            transform: rotate(45deg);
+            background: var(--logo-bubble-bg);
+        }
+
+        /* Theme Toggle Button */
+        .theme-toggle {
+            width: 40px;
+            height: 40px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-medium);
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .theme-toggle:hover {
+            border-color: var(--ssi-gold);
+            transform: scale(1.05);
+        }
+
+        .theme-toggle svg {
+            width: 20px;
+            height: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .theme-toggle .sun-icon {
+            color: var(--ssi-gold);
+            position: absolute;
+            opacity: 0;
+            transform: rotate(-90deg) scale(0);
+        }
+
+        .theme-toggle .moon-icon {
+            color: var(--text-secondary);
+            position: absolute;
+            opacity: 1;
+            transform: rotate(0deg) scale(1);
+        }
+
+        [data-theme="light"] .theme-toggle .sun-icon {
+            opacity: 1;
+            transform: rotate(0deg) scale(1);
+        }
+
+        [data-theme="light"] .theme-toggle .moon-icon {
+            opacity: 0;
+            transform: rotate(90deg) scale(0);
+        }
+
+        .nav-tabs {
+            display: flex;
+            gap: 4px;
+            background: var(--bg-card);
+            padding: 4px;
+            border-radius: 12px;
+        }
+
+        .nav-tab {
+            padding: 8px 20px;
+            border-radius: 8px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .nav-tab:hover {
+            color: var(--text-primary);
+            background: var(--bg-elevated);
+        }
+
+        .nav-tab.active {
+            background: var(--ssi-red);
+            color: white;
+        }
+
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .school-badge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 14px 6px 10px;
+            background: var(--bg-card);
+            border-radius: 20px;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .school-avatar {
+            width: 28px;
+            height: 28px;
+            background: linear-gradient(135deg, var(--ssi-red), var(--ssi-gold));
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 12px;
+        }
+
+        .school-name {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .user-menu {
+            width: 40px;
+            height: 40px;
+            background: var(--bg-card);
+            border-radius: 50%;
+            border: 2px solid var(--border-medium);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .user-menu:hover {
+            border-color: var(--ssi-red);
+        }
+
+        .user-menu svg {
+            width: 20px;
+            height: 20px;
+            color: var(--text-secondary);
+        }
+
+        /* ========== MAIN CONTENT ========== */
+        .main-content {
+            margin-top: 64px;
+            min-height: calc(100vh - 64px);
+            position: relative;
+        }
+
+        /* Mountain Background */
+        .bg-mountains {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 300px;
+            pointer-events: none;
+            z-index: 0;
+            opacity: var(--mountain-opacity);
+            transition: opacity 0.3s ease;
+        }
+
+        .mountain-layer {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            fill: var(--bg-secondary);
+        }
+
+        .mountain-layer.back { opacity: 0.3; }
+        .mountain-layer.mid { opacity: 0.5; }
+        .mountain-layer.front { opacity: 0.8; }
+
+        .torii-gate {
+            position: absolute;
+            bottom: 40px;
+            right: 10%;
+            width: 30px;
+            height: 40px;
+            opacity: 0.2;
+        }
+
+        .samurai-silhouette {
+            position: absolute;
+            bottom: 60px;
+            left: 15%;
+            width: 40px;
+            height: 50px;
+            opacity: 0.15;
+        }
+
+        /* Dashboard Layout */
+        .dashboard {
+            position: relative;
+            z-index: 1;
+            padding: 32px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        /* Header Section */
+        .dashboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 32px;
+        }
+
+        .welcome-section h1 {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .welcome-section h1 span {
+            color: var(--ssi-red);
+        }
+
+        .welcome-section p {
+            color: var(--text-secondary);
+            font-size: 15px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            border-radius: 10px;
+            border: none;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: var(--ssi-red);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--ssi-red-light);
+            box-shadow: var(--shadow-glow);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border-medium);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-elevated);
+            border-color: var(--ssi-red);
+        }
+
+        /* Join Code Banner */
+        .join-code-banner {
+            background: linear-gradient(135deg, var(--bg-card) 0%, rgba(194,58,58,0.15) 100%);
+            border: 1px solid rgba(194,58,58,0.3);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .join-code-info h3 {
+            font-size: 16px;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .join-code-info h3 svg {
+            color: var(--ssi-gold);
+        }
+
+        .join-code-info p {
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+
+        .join-code-display {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .code-box {
+            background: var(--bg-primary);
+            border: 2px solid var(--ssi-red);
+            border-radius: 12px;
+            padding: 12px 24px;
+            font-family: 'Noto Sans JP', monospace;
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: 4px;
+            color: var(--ssi-red);
+        }
+
+        .copy-btn {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-medium);
+            border-radius: 10px;
+            padding: 12px 16px;
+            color: var(--text-primary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .copy-btn:hover {
+            background: var(--ssi-red);
+            border-color: var(--ssi-red);
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 32px;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 24px;
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--border-medium);
+            box-shadow: var(--shadow-md);
+        }
+
+        .stat-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .stat-icon.teachers { background: rgba(194,58,58,0.15); }
+        .stat-icon.students { background: rgba(212,168,83,0.15); }
+        .stat-icon.classes { background: rgba(74,222,128,0.15); }
+        .stat-icon.active { background: rgba(96,165,250,0.15); }
+
+        .stat-trend {
+            font-size: 12px;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
+
+        .stat-trend.up {
+            background: rgba(74,222,128,0.15);
+            color: var(--success);
+        }
+
+        .stat-trend.down {
+            background: rgba(239,68,68,0.15);
+            color: var(--error);
+        }
+
+        .stat-value {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        /* Main Grid */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 24px;
+        }
+
+        /* Card Styles */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card-title svg {
+            color: var(--ssi-red);
+        }
+
+        .card-body {
+            padding: 24px;
+        }
+
+        /* Teachers List */
+        .teacher-item {
+            display: flex;
+            align-items: center;
+            padding: 16px;
+            border-radius: 12px;
+            margin-bottom: 12px;
+            background: var(--bg-secondary);
+            border: 1px solid transparent;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .teacher-item:hover {
+            border-color: var(--border-medium);
+            background: var(--bg-elevated);
+        }
+
+        .teacher-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .teacher-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 18px;
+            margin-right: 16px;
+        }
+
+        .teacher-avatar.belt-white { background: linear-gradient(135deg, #f5f5f5, #e0e0e0); color: #333; }
+        .teacher-avatar.belt-yellow { background: linear-gradient(135deg, #fbbf24, #d97706); color: #333; }
+        .teacher-avatar.belt-orange { background: linear-gradient(135deg, #f97316, #ea580c); color: white; }
+        .teacher-avatar.belt-green { background: linear-gradient(135deg, #22c55e, #16a34a); color: white; }
+        .teacher-avatar.belt-blue { background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; }
+        .teacher-avatar.belt-brown { background: linear-gradient(135deg, #92400e, #78350f); color: white; }
+        .teacher-avatar.belt-black { background: linear-gradient(135deg, #1f2937, #111827); color: white; }
+
+        .teacher-info {
+            flex: 1;
+        }
+
+        .teacher-name {
+            font-weight: 600;
+            font-size: 15px;
+            margin-bottom: 4px;
+        }
+
+        .teacher-meta {
+            display: flex;
+            gap: 16px;
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+
+        .teacher-meta span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .teacher-stats {
+            display: flex;
+            gap: 20px;
+            margin-right: 16px;
+        }
+
+        .teacher-stat {
+            text-align: center;
+        }
+
+        .teacher-stat-value {
+            font-weight: 700;
+            font-size: 18px;
+            color: var(--ssi-gold);
+        }
+
+        .teacher-stat-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .teacher-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .icon-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            border: 1px solid var(--border-subtle);
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .icon-btn:hover {
+            background: var(--ssi-red);
+            border-color: var(--ssi-red);
+            color: white;
+        }
+
+        /* Activity Feed */
+        .activity-item {
+            display: flex;
+            align-items: flex-start;
+            padding: 16px 0;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .activity-item:last-child {
+            border-bottom: none;
+        }
+
+        .activity-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 14px;
+            font-size: 18px;
+        }
+
+        .activity-icon.join { background: rgba(74,222,128,0.15); }
+        .activity-icon.progress { background: rgba(212,168,83,0.15); }
+        .activity-icon.achievement { background: rgba(194,58,58,0.15); }
+        .activity-icon.class { background: rgba(96,165,250,0.15); }
+
+        .activity-content {
+            flex: 1;
+        }
+
+        .activity-text {
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 4px;
+        }
+
+        .activity-text strong {
+            color: var(--ssi-gold);
+        }
+
+        .activity-time {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        /* Progress Ring */
+        .weekly-progress {
+            padding: 24px;
+        }
+
+        .progress-chart {
+            height: 200px;
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .progress-bars {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            height: 100%;
+            padding: 0 10px;
+        }
+
+        .day-bar {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .bar-container {
+            width: 32px;
+            height: 160px;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .bar-fill {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(180deg, var(--ssi-red) 0%, var(--ssi-red-dark) 100%);
+            border-radius: 8px;
+            transition: height 0.5s ease;
+        }
+
+        .day-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .day-label.today {
+            color: var(--ssi-gold);
+        }
+
+        .progress-summary {
+            display: flex;
+            justify-content: space-around;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .progress-stat {
+            text-align: center;
+        }
+
+        .progress-stat-value {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--ssi-red);
+        }
+
+        .progress-stat-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .empty-state-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+            opacity: 0.3;
+        }
+
+        .empty-state h3 {
+            font-size: 18px;
+            margin-bottom: 8px;
+        }
+
+        .empty-state p {
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+        }
+
+        /* Belt Badge */
+        .belt-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .belt-badge.white { background: rgba(255,255,255,0.1); color: #f5f5f5; }
+        .belt-badge.yellow { background: rgba(251,191,36,0.15); color: #fbbf24; }
+        .belt-badge.black { background: rgba(31,41,55,0.5); color: #9ca3af; border: 1px solid #374151; }
+
+        /* Animations */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-in {
+            animation: fadeInUp 0.5s ease forwards;
+        }
+
+        .delay-1 { animation-delay: 0.1s; opacity: 0; }
+        .delay-2 { animation-delay: 0.2s; opacity: 0; }
+        .delay-3 { animation-delay: 0.3s; opacity: 0; }
+        .delay-4 { animation-delay: 0.4s; opacity: 0; }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .dashboard {
+                padding: 16px;
+            }
+
+            .dashboard-header {
+                flex-direction: column;
+                gap: 16px;
+            }
+
+            .join-code-banner {
+                flex-direction: column;
+                gap: 16px;
+                text-align: center;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .nav-tabs {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Navigation -->
+    <nav class="top-nav">
+        <div class="logo">
+            <span class="logo-text">
+                <span class="say">Say</span><span class="something">Something</span><span class="in">in</span>
+            </span>
+            <span class="logo-bubble"></span>
+        </div>
+
+        <div class="nav-tabs">
+            <button class="nav-tab active">Dashboard</button>
+            <a href="teachers.html" class="nav-tab">Teachers</a>
+            <a href="classes.html" class="nav-tab">Classes</a>
+            <a href="analytics.html" class="nav-tab">Analytics</a>
+            <a href="settings.html" class="nav-tab">Settings</a>
+        </div>
+
+        <div class="nav-right">
+            <a href="flows/index.html" class="btn btn-secondary" style="padding: 8px 14px; font-size: 13px;" title="View Flow Documentation">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+                Flows
+            </a>
+            <div class="school-badge">
+                <div class="school-avatar">YC</div>
+                <span class="school-name">Ysgol Cymraeg</span>
+            </div>
+            <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+                <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="5"/>
+                    <line x1="12" y1="1" x2="12" y2="3"/>
+                    <line x1="12" y1="21" x2="12" y2="23"/>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                    <line x1="1" y1="12" x2="3" y2="12"/>
+                    <line x1="21" y1="12" x2="23" y2="12"/>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                </svg>
+                <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                </svg>
+            </button>
+            <button class="user-menu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="8" r="4"/>
+                    <path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+                </svg>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Background Mountains -->
+    <div class="bg-mountains">
+        <svg class="mountain-layer back" viewBox="0 0 1440 300" preserveAspectRatio="none">
+            <path d="M0,300 L0,150 Q180,80 360,150 T720,120 T1080,160 T1440,140 L1440,300 Z"/>
+        </svg>
+        <svg class="mountain-layer mid" viewBox="0 0 1440 300" preserveAspectRatio="none">
+            <path d="M0,300 L0,180 Q240,100 480,180 T960,150 T1440,170 L1440,300 Z"/>
+        </svg>
+        <svg class="mountain-layer front" viewBox="0 0 1440 300" preserveAspectRatio="none">
+            <path d="M0,300 L0,220 Q360,160 720,220 T1440,200 L1440,300 Z"/>
+        </svg>
+
+        <!-- Torii Gate Silhouette -->
+        <svg class="torii-gate" viewBox="0 0 40 50" fill="currentColor">
+            <rect x="2" y="8" width="4" height="42"/>
+            <rect x="34" y="8" width="4" height="42"/>
+            <rect x="0" y="0" width="40" height="6" rx="1"/>
+            <rect x="4" y="12" width="32" height="4"/>
+        </svg>
+
+        <!-- Samurai Silhouette -->
+        <svg class="samurai-silhouette" viewBox="0 0 40 50" fill="currentColor">
+            <ellipse cx="20" cy="8" rx="6" ry="7"/>
+            <path d="M12,16 Q20,14 28,16 L30,35 L26,50 L22,50 L20,38 L18,50 L14,50 L10,35 Z"/>
+            <path d="M8,20 Q4,25 6,32 L12,28"/>
+            <path d="M32,20 Q40,18 42,30 L28,26"/>
+        </svg>
+    </div>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="dashboard">
+            <!-- Header -->
+            <div class="dashboard-header animate-in">
+                <div class="welcome-section">
+                    <h1>Welcome back, <span>Dafydd</span></h1>
+                    <p>Ysgol Cymraeg Caerdydd • School Administrator</p>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-secondary">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        Export Data
+                    </button>
+                    <button class="btn btn-primary">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"/>
+                            <line x1="5" y1="12" x2="19" y2="12"/>
+                        </svg>
+                        Add Teacher
+                    </button>
+                </div>
+            </div>
+
+            <!-- Join Code Banner -->
+            <div class="join-code-banner animate-in delay-1">
+                <div class="join-code-info">
+                    <h3>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                        Teacher Join Code
+                    </h3>
+                    <p>Share this code with teachers to let them join your school</p>
+                </div>
+                <div class="join-code-display">
+                    <div class="code-box">CYM-247</div>
+                    <button class="copy-btn" onclick="copyCode()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                        </svg>
+                        Copy Code
+                    </button>
+                </div>
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card animate-in delay-1">
+                    <div class="stat-header">
+                        <div class="stat-icon teachers">👩‍🏫</div>
+                        <span class="stat-trend up">+2 this month</span>
+                    </div>
+                    <div class="stat-value">12</div>
+                    <div class="stat-label">Teachers</div>
+                </div>
+
+                <div class="stat-card animate-in delay-2">
+                    <div class="stat-header">
+                        <div class="stat-icon students">🥋</div>
+                        <span class="stat-trend up">+47 this month</span>
+                    </div>
+                    <div class="stat-value">284</div>
+                    <div class="stat-label">Classes</div>
+                </div>
+
+                <div class="stat-card animate-in delay-3">
+                    <div class="stat-header">
+                        <div class="stat-icon classes">📚</div>
+                    </div>
+                    <div class="stat-value">18</div>
+                    <div class="stat-label">Active Classes</div>
+                </div>
+
+                <div class="stat-card animate-in delay-4">
+                    <div class="stat-header">
+                        <div class="stat-icon active">⚡</div>
+                        <span class="stat-trend up">+15%</span>
+                    </div>
+                    <div class="stat-value">1,247</div>
+                    <div class="stat-label">Phrases Learned This Week</div>
+                </div>
+            </div>
+
+            <!-- Main Grid -->
+            <div class="main-grid">
+                <!-- Teachers Panel -->
+                <div class="card animate-in delay-2">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                                <circle cx="9" cy="7" r="4"/>
+                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                            </svg>
+                            Your Teachers
+                        </h2>
+                        <a href="teachers.html" class="btn btn-secondary" style="padding: 8px 14px; font-size: 13px;">
+                            View All
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="9 18 15 12 9 6"/>
+                            </svg>
+                        </a>
+                    </div>
+                    <div class="card-body">
+                        <div class="teacher-item">
+                            <div class="teacher-avatar belt-black">SM</div>
+                            <div class="teacher-info">
+                                <div class="teacher-name">Siân Morgan</div>
+                                <div class="teacher-meta">
+                                    <span>🎓 Welsh (Northern)</span>
+                                    <span class="belt-badge black">⬛ Black Belt</span>
+                                </div>
+                            </div>
+                            <div class="teacher-stats">
+                                <div class="teacher-stat">
+                                    <div class="teacher-stat-value">3</div>
+                                    <div class="teacher-stat-label">Classes</div>
+                                </div>
+                                <div class="teacher-stat">
+                                    <div class="teacher-stat-value">67</div>
+                                    <div class="teacher-stat-label">Classes</div>
+                                </div>
+                            </div>
+                            <div class="teacher-actions">
+                                <button class="icon-btn" title="View Details">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                        <circle cx="12" cy="12" r="3"/>
+                                    </svg>
+                                </button>
+                                <button class="icon-btn" title="Message">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="teacher-item">
+                            <div class="teacher-avatar belt-blue">RJ</div>
+                            <div class="teacher-info">
+                                <div class="teacher-name">Rhys Jones</div>
+                                <div class="teacher-meta">
+                                    <span>🎓 Welsh (Southern)</span>
+                                    <span class="belt-badge" style="background: rgba(59,130,246,0.15); color: #60a5fa;">🔵 Blue Belt</span>
+                                </div>
+                            </div>
+                            <div class="teacher-stats">
+                                <div class="teacher-stat">
+                                    <div class="teacher-stat-value">2</div>
+                                    <div class="teacher-stat-label">Classes</div>
+                                </div>
+                                <div class="teacher-stat">
+                                    <div class="teacher-stat-value">48</div>
+                                    <div class="teacher-stat-label">Classes</div>
+                                </div>
+                            </div>
+                            <div class="teacher-actions">
+                                <button class="icon-btn" title="View Details">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                        <circle cx="12" cy="12" r="3"/>
+                                    </svg>
+                                </button>
+                                <button class="icon-btn" title="Message">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="teacher-item">
+                            <div class="teacher-avatar belt-yellow">EW</div>
+                            <div class="teacher-info">
+                                <div class="teacher-name">Elen Williams</div>
+                                <div class="teacher-meta">
+                                    <span>🎓 Welsh (Northern)</span>
+                                    <span class="belt-badge yellow">🟡 Yellow Belt</span>
+                                </div>
+                            </div>
+                            <div class="teacher-stats">
+                                <div class="teacher-stat">
+                                    <div class="teacher-stat-value">2</div>
+                                    <div class="teacher-stat-label">Classes</div>
+                                </div>
+                                <div class="teacher-stat">
+                                    <div class="teacher-stat-value">52</div>
+                                    <div class="teacher-stat-label">Classes</div>
+                                </div>
+                            </div>
+                            <div class="teacher-actions">
+                                <button class="icon-btn" title="View Details">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                        <circle cx="12" cy="12" r="3"/>
+                                    </svg>
+                                </button>
+                                <button class="icon-btn" title="Message">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column -->
+                <div class="right-column" style="display: flex; flex-direction: column; gap: 24px;">
+                    <!-- Weekly Progress -->
+                    <div class="card animate-in delay-3">
+                        <div class="card-header">
+                            <h2 class="card-title">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="18" y1="20" x2="18" y2="10"/>
+                                    <line x1="12" y1="20" x2="12" y2="4"/>
+                                    <line x1="6" y1="20" x2="6" y2="14"/>
+                                </svg>
+                                This Week
+                            </h2>
+                        </div>
+                        <div class="weekly-progress">
+                            <div class="progress-chart">
+                                <div class="progress-bars">
+                                    <div class="day-bar">
+                                        <div class="bar-container">
+                                            <div class="bar-fill" style="height: 65%;"></div>
+                                        </div>
+                                        <span class="day-label">M</span>
+                                    </div>
+                                    <div class="day-bar">
+                                        <div class="bar-container">
+                                            <div class="bar-fill" style="height: 80%;"></div>
+                                        </div>
+                                        <span class="day-label">T</span>
+                                    </div>
+                                    <div class="day-bar">
+                                        <div class="bar-container">
+                                            <div class="bar-fill" style="height: 45%;"></div>
+                                        </div>
+                                        <span class="day-label">W</span>
+                                    </div>
+                                    <div class="day-bar">
+                                        <div class="bar-container">
+                                            <div class="bar-fill" style="height: 90%;"></div>
+                                        </div>
+                                        <span class="day-label">T</span>
+                                    </div>
+                                    <div class="day-bar">
+                                        <div class="bar-container">
+                                            <div class="bar-fill" style="height: 70%;"></div>
+                                        </div>
+                                        <span class="day-label">F</span>
+                                    </div>
+                                    <div class="day-bar">
+                                        <div class="bar-container">
+                                            <div class="bar-fill" style="height: 30%;"></div>
+                                        </div>
+                                        <span class="day-label today">S</span>
+                                    </div>
+                                    <div class="day-bar">
+                                        <div class="bar-container">
+                                            <div class="bar-fill" style="height: 0%;"></div>
+                                        </div>
+                                        <span class="day-label">S</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="progress-summary">
+                                <div class="progress-stat">
+                                    <div class="progress-stat-value">847</div>
+                                    <div class="progress-stat-label">Hours Learned</div>
+                                </div>
+                                <div class="progress-stat">
+                                    <div class="progress-stat-value">92%</div>
+                                    <div class="progress-stat-label">Engagement</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Activity -->
+                    <div class="card animate-in delay-4">
+                        <div class="card-header">
+                            <h2 class="card-title">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                                </svg>
+                                Recent Activity
+                            </h2>
+                        </div>
+                        <div class="card-body" style="padding-top: 8px; padding-bottom: 8px;">
+                            <div class="activity-item">
+                                <div class="activity-icon join">🎉</div>
+                                <div class="activity-content">
+                                    <div class="activity-text"><strong>Megan Davies</strong> joined Siân's Welsh 101 class</div>
+                                    <div class="activity-time">2 minutes ago</div>
+                                </div>
+                            </div>
+
+                            <div class="activity-item">
+                                <div class="activity-icon achievement">🏆</div>
+                                <div class="activity-content">
+                                    <div class="activity-text"><strong>Gareth Llywelyn</strong> earned Yellow Belt!</div>
+                                    <div class="activity-time">15 minutes ago</div>
+                                </div>
+                            </div>
+
+                            <div class="activity-item">
+                                <div class="activity-icon progress">📈</div>
+                                <div class="activity-content">
+                                    <div class="activity-text"><strong>Welsh 201</strong> reached 500 phrases milestone</div>
+                                    <div class="activity-time">1 hour ago</div>
+                                </div>
+                            </div>
+
+                            <div class="activity-item">
+                                <div class="activity-icon class">📚</div>
+                                <div class="activity-content">
+                                    <div class="activity-text"><strong>Elen Williams</strong> created a new class</div>
+                                    <div class="activity-time">3 hours ago</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Theme Management
+        function initTheme() {
+            const savedTheme = localStorage.getItem('ssi-theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        }
+
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('ssi-theme', newTheme);
+        }
+
+        // Initialize theme immediately
+        initTheme();
+
+        function copyCode() {
+            navigator.clipboard.writeText('CYM-247');
+            const btn = document.querySelector('.copy-btn');
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                Copied!
+            `;
+            btn.style.background = 'var(--success)';
+            btn.style.borderColor = 'var(--success)';
+
+            setTimeout(() => {
+                btn.innerHTML = originalHTML;
+                btn.style.background = '';
+                btn.style.borderColor = '';
+            }, 2000);
+        }
+
+        // Animate bars on load
+        document.addEventListener('DOMContentLoaded', () => {
+            const bars = document.querySelectorAll('.bar-fill');
+            bars.forEach((bar, index) => {
+                const height = bar.style.height;
+                bar.style.height = '0%';
+                setTimeout(() => {
+                    bar.style.height = height;
+                }, 100 + (index * 100));
+            });
+        });
+    </script>
+</body>
+</html>
