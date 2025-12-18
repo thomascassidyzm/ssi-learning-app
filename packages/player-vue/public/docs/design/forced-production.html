@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Forced Production | SSi Methodology</title>
+  <link rel="stylesheet" href="/docs/ssi-docs.css">
+</head>
+<body>
+  <div class="doc-bg">
+    <div class="stars"></div>
+    <div class="gradient"></div>
+  </div>
+
+  <div class="doc-container">
+    <nav class="doc-breadcrumb">
+      <a href="/docs/">Docs</a>
+      <span> / </span>
+      <a href="/docs/design/">Design</a>
+      <span> / </span>
+      <span>Forced Production</span>
+    </nav>
+
+    <header class="doc-header">
+      <div class="doc-logo">
+        <span class="say">Say</span><span class="something">Something</span><span class="in">in</span>
+      </div>
+      <h1>Forced <span class="accent">Production</span></h1>
+      <p class="doc-subtitle">The Core Mechanic That Makes SSi Work</p>
+      <p class="doc-meta">Methodology • Core Principle</p>
+    </header>
+
+    <nav class="doc-toc">
+      <h3>Contents</h3>
+      <ul>
+        <li><a href="#insight">The Core Insight</a></li>
+        <li><a href="#cycle">The 4-Phase Cycle</a></li>
+        <li><a href="#why">Why Forced Production Works</a></li>
+        <li><a href="#pause">The Power of the Pause</a></li>
+        <li><a href="#text">Text Visibility Rules</a></li>
+        <li><a href="#compare">Comparison with Traditional Methods</a></li>
+      </ul>
+    </nav>
+
+    <section id="insight">
+      <h2><span class="section-icon">💡</span> The Core Insight</h2>
+
+      <blockquote>
+        "You learn to speak by speaking, not by listening."
+      </blockquote>
+
+      <p>Most language learning methods focus on <strong>input</strong>: reading, listening, memorizing vocabulary lists, studying grammar rules. But speaking is a <strong>production skill</strong>, and production skills require production practice.</p>
+
+      <div class="doc-card highlight">
+        <h4>The Piano Analogy</h4>
+        <p style="margin-bottom:0">You cannot learn to play piano by listening to piano music. You cannot learn to ride a bike by watching videos about cycling. You cannot learn to speak a language by consuming content about that language.</p>
+      </div>
+
+      <p>SSi's fundamental innovation is to <strong>force production from minute one</strong>. Every single learning cycle requires the learner to attempt to produce the target language <em>before</em> hearing the correct answer.</p>
+    </section>
+
+    <section id="cycle">
+      <h2><span class="section-icon">🔄</span> The 4-Phase Cycle</h2>
+
+      <p>Every practice item follows the same 4-phase loop:</p>
+
+      <div class="doc-card">
+        <pre><code>PROMPT → PAUSE → VOICE_1 → VOICE_2 → [next item]
+  │        │        │         │
+Known    Learner  Target    Target
+audio    speaks   audio     audio
+plays    aloud    (verify)  + text</code></pre>
+      </div>
+
+      <table>
+        <tr>
+          <th>Phase</th>
+          <th>Duration</th>
+          <th>What Happens</th>
+          <th>Target Text</th>
+        </tr>
+        <tr>
+          <td><strong>PROMPT</strong></td>
+          <td>~2-4s</td>
+          <td>Play known language audio</td>
+          <td>Hidden</td>
+        </tr>
+        <tr>
+          <td><strong>PAUSE</strong></td>
+          <td>2x target</td>
+          <td>Learner produces target language</td>
+          <td>Hidden</td>
+        </tr>
+        <tr>
+          <td><strong>VOICE_1</strong></td>
+          <td>~2-4s</td>
+          <td>Play target audio (verification)</td>
+          <td>Hidden</td>
+        </tr>
+        <tr>
+          <td><strong>VOICE_2</strong></td>
+          <td>~2-4s</td>
+          <td>Play target audio again</td>
+          <td>Revealed</td>
+        </tr>
+      </table>
+
+      <div class="doc-card info">
+        <h4>Timing Math</h4>
+        <p>One cycle ≈ 11 seconds</p>
+        <p>≈ 5 cycles per minute</p>
+        <p style="margin-bottom:0">30-minute session = ~150 production attempts</p>
+      </div>
+    </section>
+
+    <section id="why">
+      <h2><span class="section-icon">🧠</span> Why Forced Production Works</h2>
+
+      <h3>1. Active Recall vs. Passive Recognition</h3>
+      <p>Recognition ("I know that word when I hear it") and recall ("I can produce that word on demand") use different neural pathways. Only active recall builds speaking ability.</p>
+
+      <h3>2. The Generation Effect</h3>
+      <p>Information you generate yourself is remembered better than information you passively receive. Attempting to produce the target language—even incorrectly—creates stronger memory traces than simply hearing it.</p>
+
+      <h3>3. Desirable Difficulty</h3>
+      <p>Learning that feels easy often doesn't stick. The struggle of forced production creates the cognitive effort that leads to durable learning.</p>
+
+      <h3>4. Immediate Feedback Loop</h3>
+      <p>The pause-then-answer structure provides immediate feedback. You know within seconds whether your attempt was correct. This tight loop accelerates learning.</p>
+
+      <div class="doc-card success">
+        <h4>The Result</h4>
+        <p style="margin-bottom:0">Learners who complete SSi courses can <strong>actually speak</strong>. They haven't just accumulated knowledge about the language—they've built production capability through thousands of production attempts.</p>
+      </div>
+    </section>
+
+    <section id="pause">
+      <h2><span class="section-icon">⏸️</span> The Power of the Pause</h2>
+
+      <p>The PAUSE phase is where learning happens. Everything else is setup and feedback.</p>
+
+      <h3>Dynamic Pause Duration</h3>
+      <p>The pause isn't fixed—it's calculated based on the target audio duration:</p>
+
+      <div class="doc-card">
+        <pre><code>pause_duration = target_audio_duration × pause_multiplier
+
+Default: pause_multiplier = 2.0
+Range: 1.5 to 3.0 (adaptive based on learner performance)</code></pre>
+      </div>
+
+      <h3>What Happens During the Pause</h3>
+      <ol>
+        <li><strong>Retrieval attempt</strong>: Brain searches for the target phrase</li>
+        <li><strong>Production attempt</strong>: Mouth, tongue, vocal cords engage</li>
+        <li><strong>Self-assessment</strong>: Learner evaluates their own attempt</li>
+        <li><strong>Anticipation</strong>: Brain prepares to compare with correct answer</li>
+      </ol>
+
+      <h3>The Pause Must Be Uncomfortable</h3>
+      <p>If the pause feels easy, the learner isn't being challenged enough. A slight sense of struggle—the 10% beyond comfort zone—is where growth happens.</p>
+
+      <div class="doc-card warning">
+        <h4>What Happens Without Forced Production</h4>
+        <p style="margin-bottom:0">Without the pause, learners passively listen. Their brains switch to reception mode. They feel like they're learning (it's comfortable!) but they're not building production capability.</p>
+      </div>
+    </section>
+
+    <section id="text">
+      <h2><span class="section-icon">👁️</span> Text Visibility Rules</h2>
+
+      <p>Text visibility is carefully controlled to prevent cheating the production requirement:</p>
+
+      <table>
+        <tr>
+          <th>Phase</th>
+          <th>Known Language</th>
+          <th>Target Language</th>
+        </tr>
+        <tr>
+          <td>PROMPT</td>
+          <td>Visible</td>
+          <td>Hidden</td>
+        </tr>
+        <tr>
+          <td>PAUSE</td>
+          <td>Visible</td>
+          <td>Hidden</td>
+        </tr>
+        <tr>
+          <td>VOICE_1</td>
+          <td>Visible</td>
+          <td>Hidden</td>
+        </tr>
+        <tr>
+          <td>VOICE_2</td>
+          <td>Visible</td>
+          <td><strong>Visible</strong></td>
+        </tr>
+      </table>
+
+      <div class="doc-card highlight">
+        <h4>Why Hide Target Text Until VOICE_2?</h4>
+        <p style="margin-bottom:0">If learners can see the target text during PAUSE, they read instead of recall. Reading is not speaking. The eyes must be denied the answer to force the brain to produce it.</p>
+      </div>
+
+      <h3>The VOICE_2 Reveal</h3>
+      <p>Target text appears only during VOICE_2 for:</p>
+      <ul>
+        <li><strong>Verification</strong>: "Was my attempt correct?"</li>
+        <li><strong>Spelling awareness</strong>: Connection between sound and written form</li>
+        <li><strong>Confidence building</strong>: "I got it right!"</li>
+      </ul>
+    </section>
+
+    <section id="compare">
+      <h2><span class="section-icon">⚖️</span> Comparison with Traditional Methods</h2>
+
+      <table>
+        <tr>
+          <th>Aspect</th>
+          <th>Traditional</th>
+          <th>SSi Forced Production</th>
+        </tr>
+        <tr>
+          <td>Primary activity</td>
+          <td>Listening, reading</td>
+          <td>Speaking</td>
+        </tr>
+        <tr>
+          <td>Production timing</td>
+          <td>"When you're ready"</td>
+          <td>From minute one</td>
+        </tr>
+        <tr>
+          <td>Comfort level</td>
+          <td>Comfortable (passive)</td>
+          <td>Challenging (active)</td>
+        </tr>
+        <tr>
+          <td>Production per hour</td>
+          <td>~0-20 attempts</td>
+          <td>~300 attempts</td>
+        </tr>
+        <tr>
+          <td>Feedback loop</td>
+          <td>Delayed (tests, teachers)</td>
+          <td>Immediate (seconds)</td>
+        </tr>
+        <tr>
+          <td>Result after 30 hours</td>
+          <td>"I know some words"</td>
+          <td>"I can have conversations"</td>
+        </tr>
+      </table>
+
+      <div class="doc-card success">
+        <h4>The SSi Promise</h4>
+        <p style="margin-bottom:0">Thousands of production attempts, spaced over time, with immediate feedback. This is how you build speaking capability. Everything else in the system—spaced repetition, triple helix, adaptation—exists to optimize this core loop.</p>
+      </div>
+    </section>
+
+    <section id="implementation">
+      <h2><span class="section-icon">⚙️</span> Implementation Notes</h2>
+
+      <div class="doc-card">
+        <h4>CycleOrchestrator</h4>
+        <p>The <code>CycleOrchestrator</code> in <code>@ssi/core</code> manages the 4-phase cycle as a state machine. It handles:</p>
+        <ul style="margin-bottom:0">
+          <li>Audio playback sequencing</li>
+          <li>Pause duration calculation</li>
+          <li>Text visibility state</li>
+          <li>Phase transition events</li>
+        </ul>
+      </div>
+
+      <div class="doc-card">
+        <h4>Audio Controller Requirements</h4>
+        <p>To maintain the cycle's rhythm:</p>
+        <ul style="margin-bottom:0">
+          <li>Single Audio element (mobile compatibility)</li>
+          <li>Preload next 2-3 items</li>
+          <li>Seamless transitions (&lt;50ms gap)</li>
+          <li>Handle ended callbacks reliably</li>
+        </ul>
+      </div>
+    </section>
+
+    <footer class="doc-footer">
+      <p style="font-style:italic">"You learn to speak by speaking."</p>
+      <a href="/docs/design/">← Back to Design</a>
+    </footer>
+  </div>
+</body>
+</html>

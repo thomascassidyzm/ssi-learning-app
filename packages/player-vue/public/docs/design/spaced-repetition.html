@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spaced Repetition | SSi Methodology</title>
+  <link rel="stylesheet" href="/docs/ssi-docs.css">
+</head>
+<body>
+  <div class="doc-bg">
+    <div class="stars"></div>
+    <div class="gradient"></div>
+  </div>
+
+  <div class="doc-container">
+    <nav class="doc-breadcrumb">
+      <a href="/docs/">Docs</a>
+      <span> / </span>
+      <a href="/docs/design/">Design</a>
+      <span> / </span>
+      <span>Spaced Repetition</span>
+    </nav>
+
+    <header class="doc-header">
+      <div class="doc-logo">
+        <span class="say">Say</span><span class="something">Something</span><span class="in">in</span>
+      </div>
+      <h1>Spaced <span class="accent">Repetition</span></h1>
+      <p class="doc-subtitle">Memory Optimization Through Strategic Timing</p>
+      <p class="doc-meta">Methodology • Learning Science</p>
+    </header>
+
+    <nav class="doc-toc">
+      <h3>Contents</h3>
+      <ul>
+        <li><a href="#science">The Science</a></li>
+        <li><a href="#forgetting">The Forgetting Curve</a></li>
+        <li><a href="#fibonacci">Fibonacci-Based Scheduling</a></li>
+        <li><a href="#lego">LEGOs as the Unit</a></li>
+        <li><a href="#interleaving">Interleaving During Rounds</a></li>
+        <li><a href="#retirement">Mastery and Retirement</a></li>
+      </ul>
+    </nav>
+
+    <section id="science">
+      <h2><span class="section-icon">🔬</span> The Science</h2>
+
+      <blockquote>
+        "To remember something forever, review it at increasing intervals just before you would forget it."
+      </blockquote>
+
+      <p>Spaced repetition exploits a fundamental property of human memory: <strong>retrieval strengthens storage</strong>. Each time you successfully recall something, the memory becomes more durable and the interval before you need to recall it again gets longer.</p>
+
+      <div class="doc-card highlight">
+        <h4>The Spacing Effect</h4>
+        <p style="margin-bottom:0">Discovered by Hermann Ebbinghaus in 1885. Information reviewed at spaced intervals is remembered far better than information crammed in a single session. This is one of the most robust findings in cognitive psychology.</p>
+      </div>
+    </section>
+
+    <section id="forgetting">
+      <h2><span class="section-icon">📉</span> The Forgetting Curve</h2>
+
+      <p>Without review, memories decay exponentially:</p>
+
+      <div class="doc-card">
+        <pre><code>Memory Strength
+    │
+100%├── Initial learning
+    │    ╲
+ 80%├─────╲
+    │      ╲
+ 60%├───────╲
+    │        ╲
+ 40%├─────────╲───────────────────
+    │          ╲
+ 20%├───────────╲─────────────────
+    │            ╲________________
+  0%├─────────────────────────────→ Time
+    Day 1   Day 2   Week 1   Month 1</code></pre>
+      </div>
+
+      <p>The goal of spaced repetition is to <strong>review just before forgetting</strong>. This optimal timing:</p>
+      <ul>
+        <li>Maximizes the retrieval effort (desirable difficulty)</li>
+        <li>Extends the interval until next review</li>
+        <li>Moves information toward permanent storage</li>
+      </ul>
+
+      <div class="doc-card success">
+        <h4>With Spaced Repetition</h4>
+        <pre style="margin-bottom:0"><code>Memory Strength
+    │      Review    Review      Review
+100%├── ●───────●───────────●──────────────●
+    │    ╲     ╱ ╲         ╱ ╲            ╱
+ 80%├─────╲───╱───╲───────╱───╲──────────╱
+    │      ╲ ╱     ╲     ╱     ╲        ╱
+ 60%├───────●───────╲───╱───────╲──────╱
+    │               ╲ ╱         ╲    ╱
+ 40%├────────────────●───────────╲──╱
+    │                             ╲╱
+    └─────────────────────────────→ Time
+    Each review flattens the decay curve</code></pre>
+      </div>
+    </section>
+
+    <section id="fibonacci">
+      <h2><span class="section-icon">🔢</span> Fibonacci-Based Scheduling</h2>
+
+      <p>SSi uses Fibonacci numbers for review intervals. Each LEGO has a <strong>skip number</strong> that determines when it next appears:</p>
+
+      <div class="doc-card">
+        <pre><code>Position    Skip Number    Interval Pattern
+────────────────────────────────────────────
+   0            1          Review next cycle
+   1            1          Review next cycle
+   2            2          Skip 1, review
+   3            3          Skip 2, review
+   4            5          Skip 4, review
+   5            8          Skip 7, review
+   6           13          Skip 12, review
+   7           21          Skip 20, review
+   8           34          Skip 33, review
+   ...         ...         ...</code></pre>
+      </div>
+
+      <h3>Why Fibonacci?</h3>
+      <ul>
+        <li><strong>Natural growth</strong>: Each number is ~1.618x the previous (golden ratio)</li>
+        <li><strong>Biological resonance</strong>: Memory decay roughly follows similar curves</li>
+        <li><strong>Practical spacing</strong>: Early reviews close together, later reviews spread out</li>
+        <li><strong>Simple computation</strong>: No complex calculations needed</li>
+      </ul>
+
+      <div class="doc-card info">
+        <h4>Progression Example</h4>
+        <p>A new LEGO appears at position 0 (skip=1). After each successful review:</p>
+        <p style="margin-bottom:0">1 → 1 → 2 → 3 → 5 → 8 → 13 → 21 → 34 → 55 → 89 → <strong>retired</strong></p>
+      </div>
+    </section>
+
+    <section id="lego">
+      <h2><span class="section-icon">🧱</span> LEGOs as the Unit</h2>
+
+      <p>Spaced repetition tracks <strong>LEGOs</strong>, not phrases or seeds:</p>
+
+      <div class="doc-card">
+        <pre><code>SEED (sentence)
+  │
+  ├── LEGO 1 ← Tracked independently
+  ├── LEGO 2 ← Tracked independently
+  └── LEGO 3 ← Tracked independently
+
+Each LEGO has its own:
+  - fibonacci_position
+  - skip_number
+  - reps_completed
+  - last_practiced_at</code></pre>
+      </div>
+
+      <h3>Why LEGOs, Not Phrases?</h3>
+      <ul>
+        <li><strong>LEGOs are the learning unit</strong>: The thing the brain must acquire</li>
+        <li><strong>Phrases are contexts</strong>: Different ways to practice the same LEGO</li>
+        <li><strong>Flexibility</strong>: Same LEGO can appear in varied phrase contexts</li>
+        <li><strong>Efficiency</strong>: One LEGO mastery = all its phrases covered</li>
+      </ul>
+
+      <div class="doc-card highlight">
+        <h4>Key Insight</h4>
+        <p style="margin-bottom:0">When a LEGO is due for review, we select a <strong>phrase</strong> (from the eternal pool) as the practice context. The phrase provides variety; the LEGO is what we're tracking.</p>
+      </div>
+    </section>
+
+    <section id="interleaving">
+      <h2><span class="section-icon">🔀</span> Interleaving During Rounds</h2>
+
+      <p>A Round (one LEGO's learning progression) includes interleaved spaced rep of previous LEGOs:</p>
+
+      <div class="doc-card">
+        <pre><code>Round Structure:
+──────────────────────────────────────────────
+1. Introduction Audio    "The Spanish for X is..."
+2. Components           (M-type LEGOs only)
+3. LEGO Debut           The LEGO phrase itself
+4. Debut Phrases        Shortest phrases (confidence)
+5. Interleaved Spaced Rep   ← PREVIOUS LEGOS
+6. Consolidation        1-2 eternal phrases
+──────────────────────────────────────────────</code></pre>
+      </div>
+
+      <h3>Why Interleave?</h3>
+      <ul>
+        <li><strong>Context switching</strong>: Prevents rote memorization</li>
+        <li><strong>Desirable difficulty</strong>: Mixed practice is harder but more effective</li>
+        <li><strong>Natural spacing</strong>: New learning interspersed with review</li>
+        <li><strong>Time efficiency</strong>: Review happens "for free" within new learning</li>
+      </ul>
+
+      <div class="doc-card warning">
+        <h4>Blocked vs. Interleaved Practice</h4>
+        <p><strong>Blocked</strong>: AAAA BBBB CCCC (feels easier, worse retention)</p>
+        <p style="margin-bottom:0"><strong>Interleaved</strong>: ABCA BCAB CABC (feels harder, better retention)</p>
+      </div>
+    </section>
+
+    <section id="retirement">
+      <h2><span class="section-icon">🏆</span> Mastery and Retirement</h2>
+
+      <p>LEGOs eventually "graduate" from active spaced repetition:</p>
+
+      <div class="doc-card">
+        <pre><code>LEGO Lifecycle:
+──────────────────────────────────────────────
+1. Introduction      First encounter, position 0
+2. Active Review     Fibonacci progression
+3. Consolidation     Interval > 30 days
+4. Seed Bank         Interval > 60 days, retired
+──────────────────────────────────────────────</code></pre>
+      </div>
+
+      <h3>Retirement Criteria</h3>
+      <ul>
+        <li><strong>Skip number threshold</strong>: e.g., skip > 89</li>
+        <li><strong>Time-based</strong>: Interval exceeds ~60 days</li>
+        <li><strong>Performance-based</strong>: Consistent low-latency responses</li>
+      </ul>
+
+      <h3>After Retirement: The Seed Bank</h3>
+      <p>Retired LEGOs enter the <strong>Seed Bank</strong> and become available for:</p>
+      <ul>
+        <li><strong>Listening exercises</strong>: Full seed playback</li>
+        <li><strong>Eternal phrase comprehension</strong>: Target-only audio</li>
+        <li><strong>Accelerated listening</strong>: Bulk input mode</li>
+      </ul>
+
+      <div class="doc-card success">
+        <h4>The Goal</h4>
+        <p style="margin-bottom:0">Move LEGOs from "needs active practice" to "solidly in long-term memory" as efficiently as possible. Spaced repetition is the engine; retirement is the destination.</p>
+      </div>
+    </section>
+
+    <section id="parameters">
+      <h2><span class="section-icon">⚙️</span> Configurable Parameters</h2>
+
+      <table>
+        <tr>
+          <th>Parameter</th>
+          <th>Default</th>
+          <th>Description</th>
+        </tr>
+        <tr>
+          <td><code>initial_skip</code></td>
+          <td>1</td>
+          <td>Starting skip number for new LEGOs</td>
+        </tr>
+        <tr>
+          <td><code>retirement_threshold</code></td>
+          <td>89</td>
+          <td>Skip number triggering retirement</td>
+        </tr>
+        <tr>
+          <td><code>seed_bank_interval_days</code></td>
+          <td>60</td>
+          <td>Days before LEGO moves to Seed Bank</td>
+        </tr>
+        <tr>
+          <td><code>interleave_ratio</code></td>
+          <td>0.3</td>
+          <td>Fraction of Round devoted to review</td>
+        </tr>
+      </table>
+
+      <p>All parameters can be tuned based on learner performance data and A/B testing.</p>
+    </section>
+
+    <footer class="doc-footer">
+      <p style="font-style:italic">"Review just before you forget."</p>
+      <a href="/docs/design/">← Back to Design</a>
+    </footer>
+  </div>
+</body>
+</html>

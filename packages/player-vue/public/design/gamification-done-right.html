@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gamification Done Right | SSi Design</title>
+  <link rel="stylesheet" href="/docs/ssi-docs.css">
+</head>
+<body>
+  <div class="doc-bg">
+    <div class="stars"></div>
+    <div class="gradient"></div>
+  </div>
+
+  <div class="doc-container">
+    <nav class="doc-breadcrumb">
+      <a href="/docs/">Docs</a>
+      <span> / </span>
+      <a href="/docs/design/">Design</a>
+      <span> / </span>
+      <span>Gamification Done Right</span>
+    </nav>
+
+    <header class="doc-header">
+      <div class="doc-logo">
+        <span class="say">Say</span><span class="something">Something</span><span class="in">in</span>
+      </div>
+      <h1>Gamification <span class="accent">Done Right</span></h1>
+      <p class="doc-subtitle">A Framework for Intrinsic Motivation in Language Learning</p>
+      <p class="doc-meta">Discussion Draft • December 2025</p>
+    </header>
+
+    <nav class="doc-toc">
+      <h3>Contents</h3>
+      <ul>
+        <li><a href="#problem">The Problem With Traditional Gamification</a></li>
+        <li><a href="#philosophy">The SSi Philosophy</a></li>
+        <li><a href="#points">Points Every Cycle (Hidden Formula)</a></li>
+        <li><a href="#evolution">Evolution System</a></li>
+        <li><a href="#leaderboard">Leaderboard: Top 5 + Percentile</a></li>
+        <li><a href="#contribution">Contribution Counter</a></li>
+        <li><a href="#consistency">Hidden Consistency Bonuses</a></li>
+        <li><a href="#return">Return Celebration</a></li>
+        <li><a href="#pomodoro">Gentle Pomodoro Nudges</a></li>
+        <li><a href="#transformation">Evidence of Transformation</a></li>
+        <li><a href="#seedbank">The Seed Bank & Listening</a></li>
+      </ul>
+    </nav>
+
+    <section id="problem">
+      <h2><span class="section-icon">⚠️</span> The Problem With Traditional Gamification</h2>
+
+      <p>Most learning apps borrow mechanics from games without understanding what makes games actually compelling. The result is <strong>extrinsic motivation systems</strong> that ultimately harm learning.</p>
+
+      <div class="doc-card warning">
+        <table>
+          <tr><th>Pattern</th><th>Why It's Toxic</th></tr>
+          <tr><td>🔥 Streaks</td><td>Creates guilt, shame, and dependency on external validation</td></tr>
+          <tr><td>🎯 Visible points</td><td>Shifts focus from learning to accumulation; easily gamed</td></tr>
+          <tr><td>🏆 Leaderboards</td><td>Comparison anxiety; competition over growth</td></tr>
+          <tr><td>🏅 Explicit achievements</td><td>Can be gamed; shifts focus to gaming the system</td></tr>
+          <tr><td>📊 Progress bars</td><td>"Not there yet" framing instead of "look how far"</td></tr>
+        </table>
+      </div>
+
+      <div class="doc-card info">
+        <h4>The Overjustification Effect</h4>
+        <p style="margin-bottom:0">Research shows that adding external rewards to intrinsically enjoyable activities <em>destroys</em> the intrinsic motivation. Once you pay someone to do something they loved, they stop loving it.</p>
+      </div>
+
+      <p><strong>Kids especially will game any system they understand.</strong> If they know "5 minutes = 10 points", they'll optimize for time-in-app, not learning.</p>
+    </section>
+
+    <section id="philosophy">
+      <h2><span class="section-icon">💡</span> The SSi Philosophy</h2>
+
+      <blockquote>
+        "We don't motivate people to learn. We help them notice that they're becoming someone they didn't think they could be."
+      </blockquote>
+
+      <div class="doc-card success">
+        <h4>Core Principle</h4>
+        <p style="margin-bottom:0">Show the <em>results</em> of good behavior, hide the <em>mechanics</em> of what triggers rewards.</p>
+      </div>
+
+      <h3>Psychological Foundations</h3>
+
+      <div class="two-col">
+        <div class="doc-card">
+          <h4>Self-Determination Theory</h4>
+          <p style="margin-bottom:0"><strong>Autonomy</strong>: I choose to do this<br>
+          <strong>Competence</strong>: I can see I'm getting better<br>
+          <strong>Relatedness</strong>: I'm part of something meaningful</p>
+        </div>
+        <div class="doc-card">
+          <h4>Self-Efficacy (Bandura)</h4>
+          <p style="margin-bottom:0">Built through <strong>mastery experiences</strong> (I did it), not through external validation.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="points">
+      <h2><span class="section-icon">✨</span> Points Every Cycle (Hidden Formula)</h2>
+
+      <p>Every practice cycle where audio is detected awards points:</p>
+
+      <div class="two-col">
+        <div class="doc-card">
+          <h4>What happens internally</h4>
+          <pre><code>Base points (audio detected):     +1
+Latency bonus (hidden tiers):     +0 to +3
+Duration match (prosody proxy):   +0 to +2
+Consistency modifier (rolling):   x1.0 to x3.0
+Skip/Revisit behavior bonus:      +1 to +5</code></pre>
+        </div>
+        <div class="doc-card highlight">
+          <h4>What they see</h4>
+          <p style="font-size:3rem;text-align:center;margin:1rem 0;color:var(--success)">+7</p>
+          <p style="text-align:center;margin-bottom:0;color:var(--text-secondary)">Just the total. Never the breakdown.</p>
+        </div>
+      </div>
+
+      <h3>Latency Rewards (Hidden)</h3>
+      <ul>
+        <li><strong>Much faster than baseline:</strong> +3 (flow state!)</li>
+        <li><strong>Faster than usual:</strong> +2</li>
+        <li><strong>At baseline:</strong> +1</li>
+        <li><strong>Slower:</strong> +0 (no penalty, just no bonus)</li>
+      </ul>
+
+      <h3>Consistency Multiplier (Rolling Window)</h3>
+      <div class="doc-card">
+        <pre><code>Sessions in last 10 days:     Sessions in last 30 days:
+  7-10 days: x1.5               25-30 days: x2.0 (stacks!)
+  5-6 days:  x1.3               20-24 days: x1.5
+  3-4 days:  x1.1               15-19 days: x1.2
+  1-2 days:  x1.0</code></pre>
+        <p style="margin-bottom:0;margin-top:1rem">A highly consistent learner might be getting <strong>x3.0</strong> on every cycle without knowing exactly why.</p>
+      </div>
+
+      <h3>Skip/Revisit Bonuses</h3>
+      <p>Both behaviors show agency and self-awareness:</p>
+      <ul>
+        <li><strong>Skip</strong> (confident): +3 "confidence bonus" if LEGO is consolidated</li>
+        <li><strong>Revisit</strong> (honest): +2 "self-awareness bonus"</li>
+      </ul>
+      <p>The learner who skips confidently AND revisits honestly is demonstrating excellent metacognition. Reward both.</p>
+    </section>
+
+    <section id="evolution">
+      <h2><span class="section-icon">🌱</span> Evolution System</h2>
+
+      <p><strong>Evolution Score</strong> = f(consistency, latency_improvement, prosody_match, session_frequency)</p>
+
+      <p>What they see:</p>
+      <ul>
+        <li>A single "Evolution Score" number</li>
+        <li>Current evolution level with name/image</li>
+        <li>Progress bar to next level</li>
+        <li>Occasional: "Something contributed to your evolution"</li>
+      </ul>
+
+      <h3>Language-Themed Levels</h3>
+      <table>
+        <tr><th>Level</th><th>Name</th><th>Description</th></tr>
+        <tr><td>1</td><td>🌱 First Words</td><td>The journey begins</td></tr>
+        <tr><td>5</td><td>💬 Confident Speaker</td><td>Words flowing naturally</td></tr>
+        <tr><td>10</td><td>🤝 Conversation Starter</td><td>Ready to engage</td></tr>
+        <tr><td>15</td><td>🌊 Native Rhythm</td><td>Speaking feels like home</td></tr>
+        <tr><td>20</td><td>🛡️ Language Guardian</td><td>Keeper of the tongue</td></tr>
+      </table>
+    </section>
+
+    <section id="leaderboard">
+      <h2><span class="section-icon">🏆</span> Leaderboard: Top 5 + Percentile</h2>
+
+      <div class="doc-card">
+        <pre><code>🥇 User_A  - 4,230
+🥈 User_B  - 3,890
+🥉 User_C  - 3,654
+4. User_D  - 3,201
+5. User_E  - 3,089
+
+You: Top 23% of Welsh learners this week</code></pre>
+      </div>
+
+      <ul>
+        <li><strong>Top 5 only</strong> (not full leaderboard)</li>
+        <li><strong>Anonymous usernames</strong> or initials only</li>
+        <li><strong>Never show exact rank below 5th</strong> - just percentile</li>
+        <li><strong>Points come from hidden formula</strong> - can't game it</li>
+      </ul>
+    </section>
+
+    <section id="contribution">
+      <h2><span class="section-icon">🌍</span> Contribution Counter (Collective Purpose)</h2>
+
+      <div class="contribution-box">
+        <h4>Welsh Spoken Today</h4>
+        <div class="contribution-stats">
+          <div class="stat">
+            <div class="value">🗣️ 47,293</div>
+            <div class="label">phrases</div>
+          </div>
+          <div class="stat">
+            <div class="value">⏱️ 1,247</div>
+            <div class="label">minutes</div>
+          </div>
+          <div class="stat">
+            <div class="value">👥 312</div>
+            <div class="label">speakers now</div>
+          </div>
+        </div>
+        <p style="margin-bottom:0.5rem;color:var(--text-primary)">You contributed: 15 mins (47 phrases)</p>
+        <p style="margin-bottom:0;font-style:italic;color:var(--text-secondary)">"Every phrase keeps Welsh alive"</p>
+      </div>
+
+      <p>For endangered languages: motivation shifts from "my achievement" to "our collective contribution."</p>
+    </section>
+
+    <section id="consistency">
+      <h2><span class="section-icon">🎯</span> Hidden Consistency Bonuses</h2>
+
+      <table>
+        <tr><th>Pattern</th><th>Internal Bonus</th><th>What User Sees</th></tr>
+        <tr><td>7 of last 10 days</td><td>+100 points</td><td>"✨ Consistency bonus activated"</td></tr>
+        <tr><td>25 of last 30 days</td><td>x2 session points</td><td>"✨ Something special happened"</td></tr>
+        <tr><td>Return after 3+ days</td><td>+50</td><td>"Welcome back! Consolidation bonus"</td></tr>
+        <tr><td>Return after 7+ days</td><td>+100</td><td>"Deep consolidation complete!"</td></tr>
+      </table>
+
+      <p><strong>Never reveal the exact triggers.</strong></p>
+    </section>
+
+    <section id="return">
+      <h2><span class="section-icon">👋</span> Return Celebration (Not Guilt)</h2>
+
+      <table>
+        <tr><th>Time Away</th><th>Message</th></tr>
+        <tr><td>1 day</td><td>"Ready when you are."</td></tr>
+        <tr><td>3 days</td><td>"Your brain has been consolidating. Let's see what stuck!"</td></tr>
+        <tr><td>7+ days</td><td>"Deep consolidation complete. You might surprise yourself."</td></tr>
+        <tr><td>30+ days</td><td>"Welcome back. Your brain remembers more than you think."</td></tr>
+      </table>
+
+      <div class="doc-card warning">
+        <h4>Never say:</h4>
+        <ul style="margin-bottom:0">
+          <li>"You broke your streak"</li>
+          <li>"You missed X days"</li>
+          <li>Sad emojis or guilt language</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="pomodoro">
+      <h2><span class="section-icon">⏰</span> Gentle Pomodoro Nudges (Not Fascism)</h2>
+
+      <table>
+        <tr><th>Time</th><th>Nudge</th></tr>
+        <tr><td>25 mins</td><td>"Your brain has been working hard. Good moment to pause."</td></tr>
+        <tr><td>35 mins</td><td>"Research shows learning in chunks works better."</td></tr>
+        <tr><td>45 mins</td><td>"You've been amazing today. Time for your brain to rest?"</td></tr>
+        <tr><td>60+ mins</td><td>Offer listening mode. <strong>Never block.</strong></td></tr>
+      </table>
+
+      <div class="doc-card info">
+        <p style="margin-bottom:0"><strong>Critical:</strong> Some learners will do 10-hour days. Polyglots exist. We nudge, we never dictate.</p>
+      </div>
+    </section>
+
+    <section id="transformation">
+      <h2><span class="section-icon">🦋</span> Evidence of Transformation</h2>
+
+      <h3>The "30 Minutes Ago" Mirror</h3>
+      <div class="doc-card">
+        <p>"New phrases you produced today: <strong>6</strong>"</p>
+        <p style="margin-bottom:0">"Your response time improved <strong>8%</strong> this session"</p>
+      </div>
+
+      <h3>The Timeline (Not a Streak)</h3>
+      <div class="doc-card">
+        <div class="journey-line">
+          <div class="journey-item">
+            <span class="date">March 1</span>
+            <span class="event">🌱 First session: "dw i"</span>
+          </div>
+          <div class="journey-item">
+            <span class="date">March 5</span>
+            <span class="event">📈 10 LEGOs confident</span>
+          </div>
+          <div class="journey-item">
+            <span class="date">March 12</span>
+            <span class="event">🎯 Response time under 2s</span>
+          </div>
+          <div class="journey-item">
+            <span class="date">April 2</span>
+            <span class="event">🌊 Natural prosody emerging</span>
+          </div>
+        </div>
+      </div>
+
+      <h3>Transformation Audio (opt-in)</h3>
+      <p>After 30 days, offer to play their session 1 recording. Let them hear how far they've come.</p>
+    </section>
+
+    <section id="seedbank">
+      <h2><span class="section-icon">🏦</span> The Seed Bank & Listening Exercises</h2>
+
+      <h3>LEGO Lifecycle</h3>
+      <div class="doc-card">
+        <pre><code>1. Introduction → 2. Active Spaced Rep → 3. Consolidation → 4. Seed Bank</code></pre>
+        <p style="margin-bottom:0;margin-top:1rem">When spaced rep interval exceeds ~60 days, the LEGO is "mastered" and enters the Seed Bank.</p>
+      </div>
+
+      <h3>Listening Exercise Types</h3>
+      <table>
+        <tr><th>Type</th><th>Trigger</th><th>Content</th></tr>
+        <tr><td>Full Seed Playback</td><td>All LEGOs in seed reach Seed Bank</td><td>Entire seed as connected audio</td></tr>
+        <tr><td>Eternal Phrases</td><td>Seed Bank LEGOs</td><td>Target language only, comprehension</td></tr>
+        <tr><td>Accelerated Listening</td><td>After ~150 seeds</td><td>Batch playback, bulk acquisition</td></tr>
+      </table>
+
+      <h3>Session Structure Evolution</h3>
+      <table>
+        <tr><th>Stage</th><th>Production</th><th>Listening</th></tr>
+        <tr><td>Seeds 1-50</td><td>90%</td><td>10%</td></tr>
+        <tr><td>Seeds 50-150</td><td>70%</td><td>30%</td></tr>
+        <tr><td>Seeds 150+</td><td>50%</td><td>50%</td></tr>
+      </table>
+      <p>After ~150 seeds, the brain needs bulk input for acquisition. More listening, less production pressure.</p>
+    </section>
+
+    <section id="summary">
+      <h2><span class="section-icon">✅</span> Summary: What Makes This Different</h2>
+
+      <table>
+        <tr><th>Element</th><th>Visible?</th><th>Gameable?</th><th>Purpose</th></tr>
+        <tr><td>Evolution Score</td><td>Yes</td><td>No</td><td>Progress sense</td></tr>
+        <tr><td>Points per cycle</td><td>Yes (total)</td><td>No (formula hidden)</td><td>Micro-rewards</td></tr>
+        <tr><td>Top 5 Leaderboard</td><td>Yes</td><td>No</td><td>Social proof</td></tr>
+        <tr><td>Percentile</td><td>Yes</td><td>No</td><td>Context without competition</td></tr>
+        <tr><td>Consistency bonuses</td><td>Trigger only</td><td>No</td><td>Reward frequency</td></tr>
+        <tr><td>Contribution counter</td><td>Yes</td><td>No</td><td>Collective purpose</td></tr>
+        <tr><td>Timeline</td><td>Yes</td><td>No</td><td>Transformation evidence</td></tr>
+      </table>
+
+      <div class="doc-card success">
+        <p style="margin-bottom:0"><strong>The Magic:</strong> They know good practice leads to good things. They can't reverse-engineer the exact formula. So they just... practice well.</p>
+      </div>
+    </section>
+
+    <section id="questions">
+      <h2><span class="section-icon">❓</span> Open Questions for Discussion</h2>
+
+      <ol>
+        <li><strong>Listening exercise scoring:</strong> Points for listening? Or "free" practice?</li>
+        <li><strong>Seed Bank visualization:</strong> How to show mastered content? Garden? Library? Map?</li>
+        <li><strong>Cross-seed content:</strong> After 150+ seeds, generate "stories" using multiple seeds?</li>
+        <li><strong>Social features:</strong> Share recordings? Community challenges? Group contribution goals?</li>
+        <li><strong>School/classroom mode:</strong> Different mechanics for managed learning environments?</li>
+      </ol>
+
+      <div class="doc-card">
+        <h4>Implementation Note</h4>
+        <p><strong>Everything is a parameter.</strong></p>
+        <p style="margin-bottom:0">All thresholds, multipliers, and triggers are configurable. This allows experimentation before committing to final values.</p>
+      </div>
+    </section>
+
+    <footer class="doc-footer">
+      <p style="font-style:italic">"The best gamification is the kind you can't see."</p>
+      <a href="/docs/">← Back to Documentation</a>
+    </footer>
+  </div>
+</body>
+</html>

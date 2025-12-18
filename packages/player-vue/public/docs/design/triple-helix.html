@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Triple Helix | SSi Methodology</title>
+  <link rel="stylesheet" href="/docs/ssi-docs.css">
+</head>
+<body>
+  <div class="doc-bg">
+    <div class="stars"></div>
+    <div class="gradient"></div>
+  </div>
+
+  <div class="doc-container">
+    <nav class="doc-breadcrumb">
+      <a href="/docs/">Docs</a>
+      <span> / </span>
+      <a href="/docs/design/">Design</a>
+      <span> / </span>
+      <span>Triple Helix</span>
+    </nav>
+
+    <header class="doc-header">
+      <div class="doc-logo">
+        <span class="say">Say</span><span class="something">Something</span><span class="in">in</span>
+      </div>
+      <h1>Triple <span class="accent">Helix</span></h1>
+      <p class="doc-subtitle">Three Parallel Learning Streams</p>
+      <p class="doc-meta">Methodology • Content Architecture</p>
+    </header>
+
+    <nav class="doc-toc">
+      <h3>Contents</h3>
+      <ul>
+        <li><a href="#concept">The Concept</a></li>
+        <li><a href="#dealing">Card Dealing Distribution</a></li>
+        <li><a href="#rotation">Tube Rotation</a></li>
+        <li><a href="#benefits">Why Three Tubes?</a></li>
+        <li><a href="#collapse">Tube Collapse</a></li>
+        <li><a href="#implementation">Implementation</a></li>
+      </ul>
+    </nav>
+
+    <section id="concept">
+      <h2><span class="section-icon">🧬</span> The Concept</h2>
+
+      <blockquote>
+        "Three intertwined streams of content, experienced in rotation, creating natural spacing without complex algorithms."
+      </blockquote>
+
+      <p>The Triple Helix is a content distribution system that divides learning material into three parallel "tubes" (or threads). The learner rotates between tubes, ensuring that by the time they return to any given tube, time has passed and spacing has occurred naturally.</p>
+
+      <div class="doc-card">
+        <pre><code>      Tube A        Tube B        Tube C
+        │             │             │
+        ▼             ▼             ▼
+    ┌───────┐    ┌───────┐    ┌───────┐
+    │ SEED 1│    │ SEED 2│    │ SEED 3│
+    │ SEED 4│    │ SEED 5│    │ SEED 6│
+    │ SEED 7│    │ SEED 8│    │ SEED 9│
+    │  ...  │    │  ...  │    │  ...  │
+    └───────┘    └───────┘    └───────┘
+        │             │             │
+        └──────┬──────┘──────┬──────┘
+               │             │
+           Learner rotates: A → B → C → A → B → C</code></pre>
+      </div>
+    </section>
+
+    <section id="dealing">
+      <h2><span class="section-icon">🃏</span> Card Dealing Distribution</h2>
+
+      <p>Seeds are distributed to tubes like dealing cards:</p>
+
+      <div class="doc-card">
+        <pre><code>Seed 1  → Tube A
+Seed 2  → Tube B
+Seed 3  → Tube C
+Seed 4  → Tube A  (back to A)
+Seed 5  → Tube B
+Seed 6  → Tube C
+Seed 7  → Tube A
+...
+
+Formula: tube = (seed_number - 1) % 3
+  Seed 1: (1-1) % 3 = 0 → Tube A
+  Seed 2: (2-1) % 3 = 1 → Tube B
+  Seed 3: (3-1) % 3 = 2 → Tube C
+  Seed 4: (4-1) % 3 = 0 → Tube A</code></pre>
+      </div>
+
+      <h3>Why "Card Dealing"?</h3>
+      <ul>
+        <li><strong>Even distribution</strong>: Each tube gets roughly equal content</li>
+        <li><strong>Deterministic</strong>: Same seed always maps to same tube</li>
+        <li><strong>Simple</strong>: No complex assignment algorithms</li>
+        <li><strong>Progressive</strong>: Tubes advance together through the course</li>
+      </ul>
+    </section>
+
+    <section id="rotation">
+      <h2><span class="section-icon">🔄</span> Tube Rotation</h2>
+
+      <p>During a session, the learner rotates through tubes:</p>
+
+      <div class="doc-card">
+        <pre><code>Session Timeline:
+────────────────────────────────────────────────────────
+  Tube A    │    Tube B    │    Tube C    │    Tube A
+────────────────────────────────────────────────────────
+  Round 1   │    Round 2   │    Round 3   │    Round 4
+ (SEED 1)   │   (SEED 2)   │   (SEED 3)   │   (SEED 4)
+────────────────────────────────────────────────────────
+            ↓              ↓              ↓
+      ~5-7 minutes between returns to same tube</code></pre>
+      </div>
+
+      <h3>Natural Spacing</h3>
+      <p>When you practice SEED 1 in Tube A, then rotate through B and C, approximately 5-7 minutes pass before you return to Tube A. This creates natural spaced repetition without explicit scheduling.</p>
+
+      <div class="doc-card info">
+        <h4>The Spacing Window</h4>
+        <p style="margin-bottom:0">Each Round takes ~2-3 minutes. Rotating through 3 tubes means ~5-7 minutes between tube visits. This is optimal for short-term consolidation within a session.</p>
+      </div>
+    </section>
+
+    <section id="benefits">
+      <h2><span class="section-icon">✨</span> Why Three Tubes?</h2>
+
+      <h3>1. Cognitive Reset</h3>
+      <p>Switching tubes forces a context switch. The brain "sets aside" Tube A content while working on Tube B, allowing background consolidation.</p>
+
+      <h3>2. Variety Without Chaos</h3>
+      <p>Three tubes provide enough variety to prevent monotony while remaining manageable. Two would be too binary; four or more would fragment attention too much.</p>
+
+      <h3>3. Failure Isolation</h3>
+      <p>If a learner struggles in Tube A, they get a break in Tubes B and C. Frustration doesn't compound continuously.</p>
+
+      <h3>4. Progress Perception</h3>
+      <p>The learner sees three "tracks" of progress. This feels more substantial than a single linear path.</p>
+
+      <div class="doc-card success">
+        <h4>The Triple Helix Effect</h4>
+        <p style="margin-bottom:0">Like strands of DNA intertwined, the three tubes weave together to create a learning experience that is varied, spaced, and cognitively sustainable.</p>
+      </div>
+    </section>
+
+    <section id="collapse">
+      <h2><span class="section-icon">📐</span> Tube Collapse</h2>
+
+      <p>Tubes can "collapse" to make room for new content or adapt to learner needs:</p>
+
+      <div class="doc-card">
+        <pre><code>Normal State (3 tubes):
+  A ─────────────────────
+  B ─────────────────────
+  C ─────────────────────
+
+Collapse Tube C (for content injection):
+  A ─────────────────────
+  B ─────────────────────
+  [C content merged into A and B]
+
+Use cases:
+  - Vocabulary injection (new words needed)
+  - Remediation (struggling learner needs simpler content)
+  - Adaptive difficulty adjustment</code></pre>
+      </div>
+
+      <h3>When to Collapse</h3>
+      <ul>
+        <li><strong>Content injection</strong>: Need to introduce vocabulary outside the normal sequence</li>
+        <li><strong>Catch-up</strong>: Learner fell behind in one tube</li>
+        <li><strong>Mastery acceleration</strong>: One tube content is fully consolidated</li>
+      </ul>
+
+      <div class="doc-card warning">
+        <h4>Collapse is Rare</h4>
+        <p style="margin-bottom:0">In normal operation, all three tubes remain active. Collapse is an edge-case mechanism for adaptive scenarios.</p>
+      </div>
+    </section>
+
+    <section id="implementation">
+      <h2><span class="section-icon">⚙️</span> Implementation</h2>
+
+      <div class="doc-card">
+        <h4>TripleHelixEngine</h4>
+        <p>The <code>TripleHelixEngine</code> in <code>@ssi/core</code> manages:</p>
+        <ul style="margin-bottom:0">
+          <li>Tube assignment (seed → tube mapping)</li>
+          <li>Rotation logic (which tube is next)</li>
+          <li>Per-tube progress tracking</li>
+          <li>Collapse mechanics</li>
+        </ul>
+      </div>
+
+      <h3>State Tracking</h3>
+      <div class="doc-card">
+        <pre><code>helix_state: {
+  active_tube: 0,           // Currently active (0, 1, 2)
+  tube_positions: [4, 3, 3], // Current seed in each tube
+  cycle_count: 12,          // Full rotations completed
+  collapsed_tubes: []       // Any collapsed tubes
+}</code></pre>
+      </div>
+
+      <h3>Parameters</h3>
+      <table>
+        <tr>
+          <th>Parameter</th>
+          <th>Default</th>
+          <th>Description</th>
+        </tr>
+        <tr>
+          <td><code>num_tubes</code></td>
+          <td>3</td>
+          <td>Number of parallel tubes</td>
+        </tr>
+        <tr>
+          <td><code>rounds_per_tube</code></td>
+          <td>1</td>
+          <td>Rounds before rotating</td>
+        </tr>
+        <tr>
+          <td><code>collapse_threshold</code></td>
+          <td>null</td>
+          <td>Trigger for tube collapse</td>
+        </tr>
+      </table>
+    </section>
+
+    <footer class="doc-footer">
+      <p style="font-style:italic">"Three strands, intertwined."</p>
+      <a href="/docs/design/">← Back to Design</a>
+    </footer>
+  </div>
+</body>
+</html>

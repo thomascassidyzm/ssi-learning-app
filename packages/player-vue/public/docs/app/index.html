@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>App Documentation | SSi</title>
+  <link rel="stylesheet" href="/docs/ssi-docs.css">
+</head>
+<body>
+  <div class="doc-bg">
+    <div class="stars"></div>
+    <div class="gradient"></div>
+  </div>
+
+  <div class="doc-container">
+    <nav class="doc-breadcrumb">
+      <a href="/docs/">Docs</a>
+      <span> / </span>
+      <span>App Documentation</span>
+    </nav>
+
+    <header class="doc-header">
+      <div class="doc-logo" style="font-size:1.25rem">
+        <span class="say">Say</span><span class="something">Something</span><span class="in">in</span>
+      </div>
+      <h1>App <span class="accent">Documentation</span></h1>
+      <p class="doc-subtitle">Technical reference for implementation</p>
+    </header>
+
+    <div class="doc-card highlight">
+      <p>Implementation details, API references, and architectural documentation. This is where APML specs meet code.</p>
+      <p style="margin-bottom:0">For design rationale, see <a href="/docs/design/">Design Considerations</a>. For specifications, see <a href="/docs/apml/">APML Specs</a>.</p>
+    </div>
+
+    <h2><span class="section-icon">🏗️</span> Architecture</h2>
+
+    <div class="two-col">
+      <a href="/docs/app/architecture.html" class="doc-card" style="text-decoration:none">
+        <h4 style="margin-top:0">🏗️ Architecture Overview</h4>
+        <p style="margin-bottom:0.5rem">Package structure, data flow, component hierarchy.</p>
+        <span class="status status-planned">Coming Soon</span>
+      </a>
+
+      <a href="/docs/app/database.html" class="doc-card" style="text-decoration:none">
+        <h4 style="margin-top:0">🗄️ Database Schema</h4>
+        <p style="margin-bottom:0.5rem">Tables, views, RLS policies, cycle views.</p>
+        <span class="status status-planned">Coming Soon</span>
+      </a>
+    </div>
+
+    <h2><span class="section-icon">🔌</span> API Reference</h2>
+
+    <div class="two-col">
+      <a href="/docs/app/course-data-provider.html" class="doc-card" style="text-decoration:none">
+        <h4 style="margin-top:0">📦 CourseDataProvider</h4>
+        <p style="margin-bottom:0.5rem">Loading course content via cycle views.</p>
+        <span class="status status-planned">Coming Soon</span>
+      </a>
+
+      <a href="/docs/app/progress-store.html" class="doc-card" style="text-decoration:none">
+        <h4 style="margin-top:0">📊 ProgressStore</h4>
+        <p style="margin-bottom:0.5rem">Learner progress and spaced repetition state.</p>
+        <span class="status status-planned">Coming Soon</span>
+      </a>
+
+      <a href="/docs/app/cycle-orchestrator.html" class="doc-card" style="text-decoration:none">
+        <h4 style="margin-top:0">⚙️ CycleOrchestrator</h4>
+        <p style="margin-bottom:0.5rem">The PROMPT → PAUSE → VOICE_1 → VOICE_2 loop.</p>
+        <span class="status status-planned">Coming Soon</span>
+      </a>
+
+      <a href="/docs/app/triple-helix-engine.html" class="doc-card" style="text-decoration:none">
+        <h4 style="margin-top:0">🧬 TripleHelixEngine</h4>
+        <p style="margin-bottom:0.5rem">Thread management and learning orchestration.</p>
+        <span class="status status-planned">Coming Soon</span>
+      </a>
+    </div>
+
+    <h2><span class="section-icon">📦</span> Package Structure</h2>
+
+    <div class="doc-card">
+      <table>
+        <tr>
+          <th>Package</th>
+          <th>Description</th>
+        </tr>
+        <tr>
+          <td><code>@ssi/core</code></td>
+          <td>Engine, data, algorithms (platform-agnostic TypeScript)</td>
+        </tr>
+        <tr>
+          <td><code>@ssi/player-vue</code></td>
+          <td>Vue.js web player (current implementation)</td>
+        </tr>
+        <tr>
+          <td><code>@ssi/player-react-native</code></td>
+          <td>React Native mobile app (future)</td>
+        </tr>
+      </table>
+    </div>
+
+    <div style="text-align:center;margin-top:2rem">
+      <a href="/" class="doc-card" style="display:inline-block;padding:1rem 2rem;text-decoration:none">
+        <span style="font-size:1.5rem">🎮</span>
+        <span style="margin-left:0.5rem;color:var(--ssi-red);font-weight:600">Launch the App</span>
+      </a>
+    </div>
+
+    <footer class="doc-footer">
+      <a href="/docs/">← Back to Documentation</a>
+    </footer>
+  </div>
+</body>
+</html>

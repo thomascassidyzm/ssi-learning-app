@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>APML Specifications | SSi</title>
+  <link rel="stylesheet" href="/docs/ssi-docs.css">
+</head>
+<body>
+  <div class="doc-bg">
+    <div class="stars"></div>
+    <div class="gradient"></div>
+  </div>
+
+  <div class="doc-container">
+    <nav class="doc-breadcrumb">
+      <a href="/docs/">Docs</a>
+      <span> / </span>
+      <span>APML Specifications</span>
+    </nav>
+
+    <header class="doc-header">
+      <div class="doc-logo" style="font-size:1.25rem">
+        <span class="say">Say</span><span class="something">Something</span><span class="in">in</span>
+      </div>
+      <h1>APML <span class="accent">Specifications</span></h1>
+      <p class="doc-subtitle">Accelerated Production Markup Language</p>
+    </header>
+
+    <div class="doc-card highlight">
+      <p><strong>APML</strong> is the specification language for the SSi learning system. It defines what we build, why we build it, and how the pieces fit together.</p>
+      <p style="margin-bottom:0">These specs are the source of truth. Code implements the spec; the spec doesn't document the code.</p>
+    </div>
+
+    <h2><span class="section-icon">📐</span> Core Specifications</h2>
+
+    <div class="two-col">
+      <a href="/docs/apml/intent.html" class="doc-card" style="text-decoration:none">
+        <h4 style="margin-top:0">🎯 Intent</h4>
+        <p style="margin-bottom:0.5rem">The foundational "why". What problem we solve and for whom.</p>
+        <span class="status status-planned">Coming Soon</span>
+      </a>
+
+      <a href="/docs/apml/registry.html" class="doc-card" style="text-decoration:none">
+        <h4 style="margin-top:0">📦 Registry</h4>
+        <p style="margin-bottom:0.5rem">Content model: Seeds, LEGOs, Phrases, Audio samples.</p>
+        <span class="status status-planned">Coming Soon</span>
+      </a>
+
+      <a href="/docs/apml/learning.html" class="doc-card" style="text-decoration:none">
+        <h4 style="margin-top:0">🧠 Learning</h4>
+        <p style="margin-bottom:0.5rem">Spaced repetition, triple helix, adaptation algorithms.</p>
+        <span class="status status-planned">Coming Soon</span>
+      </a>
+
+      <a href="/docs/apml/engine.html" class="doc-card" style="text-decoration:none">
+        <h4 style="margin-top:0">⚙️ Engine</h4>
+        <p style="margin-bottom:0.5rem">Cycle orchestration, playback, state management.</p>
+        <span class="status status-planned">Coming Soon</span>
+      </a>
+    </div>
+
+    <h2><span class="section-icon">🔧</span> Domain Specifications</h2>
+
+    <div class="two-col">
+      <a href="/docs/apml/phrase-selection.html" class="doc-card" style="text-decoration:none">
+        <h4 style="margin-top:0">🔤 Phrase Selection</h4>
+        <p style="margin-bottom:0.5rem">Cycle vs Round, debut vs eternal, cognitive load.</p>
+        <span class="status status-planned">Coming Soon</span>
+      </a>
+
+      <a href="/docs/apml/audio.html" class="doc-card" style="text-decoration:none">
+        <h4 style="margin-top:0">🔊 Audio</h4>
+        <p style="margin-bottom:0.5rem">TTS generation, prosody profiles, audio resolution.</p>
+        <span class="status status-planned">Coming Soon</span>
+      </a>
+
+      <a href="/docs/apml/metrics.html" class="doc-card" style="text-decoration:none">
+        <h4 style="margin-top:0">📊 Metrics</h4>
+        <p style="margin-bottom:0.5rem">Response latency, prosody matching, competence signals.</p>
+        <span class="status status-planned">Coming Soon</span>
+      </a>
+
+      <a href="/docs/apml/gamification.html" class="doc-card" style="text-decoration:none">
+        <h4 style="margin-top:0">🏆 Gamification</h4>
+        <p style="margin-bottom:0.5rem">Points, evolution, hidden rewards, contribution metrics.</p>
+        <span class="status status-planned">Coming Soon</span>
+      </a>
+    </div>
+
+    <h2><span class="section-icon">📖</span> APML Design Principles</h2>
+
+    <div class="doc-card">
+      <table>
+        <tr>
+          <th>Code</th>
+          <th>Principle</th>
+        </tr>
+        <tr>
+          <td><strong>D01</strong></td>
+          <td>Spec first, code second. The spec is the source of truth.</td>
+        </tr>
+        <tr>
+          <td><strong>D02</strong></td>
+          <td>Language-agnostic. Works for Welsh, Japanese, Arabic, anything.</td>
+        </tr>
+        <tr>
+          <td><strong>D03</strong></td>
+          <td>Everything is a parameter. No magic numbers in code.</td>
+        </tr>
+        <tr>
+          <td><strong>D04</strong></td>
+          <td>Cognitive load over word count. Syllables, not words.</td>
+        </tr>
+        <tr>
+          <td><strong>D05</strong></td>
+          <td>Store raw, compute derived. Don't persist calculations.</td>
+        </tr>
+        <tr>
+          <td><strong>D06</strong></td>
+          <td>The LEGO is the unit. Spaced rep tracks LEGOs, not phrases.</td>
+        </tr>
+        <tr>
+          <td><strong>D07</strong></td>
+          <td>Context-agnostic reuse. Same audio in different contexts.</td>
+        </tr>
+      </table>
+    </div>
+
+    <footer class="doc-footer">
+      <a href="/docs/">← Back to Documentation</a>
+    </footer>
+  </div>
+</body>
+</html>
