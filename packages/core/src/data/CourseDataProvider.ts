@@ -101,7 +101,7 @@ export class CourseDataProvider {
     }
 
     const { data, error } = await this.supabase
-      .from('seeds')
+      .from('course_seeds')
       .select('*')
       .eq('course_code', this.courseCode)
       .gte('position', startPosition)
@@ -128,7 +128,7 @@ export class CourseDataProvider {
     }
 
     const { data, error } = await this.supabase
-      .from('seeds')
+      .from('course_seeds')
       .select('*')
       .eq('seed_id', seedId)
       .eq('course_code', this.courseCode)
@@ -162,7 +162,7 @@ export class CourseDataProvider {
     }
 
     const { data, error } = await this.supabase
-      .from('legos')
+      .from('course_legos')
       .select('*')
       .in('seed_id', seedIds)
       .order('seed_id', { ascending: true })
@@ -195,7 +195,7 @@ export class CourseDataProvider {
     }
 
     const { data, error } = await this.supabase
-      .from('legos')
+      .from('course_legos')
       .select('*')
       .eq('lego_id', legoId)
       .single();
@@ -227,7 +227,7 @@ export class CourseDataProvider {
     }
 
     const { data, error } = await this.supabase
-      .from('lego_practice_phrases')
+      .from('course_practice_phrases')
       .select('*')
       .in('lego_id', legoIds)
       .order('lego_id', { ascending: true })
@@ -484,7 +484,7 @@ export class CourseDataProvider {
    */
   async getTotalSeeds(): Promise<number> {
     const { count, error } = await this.supabase
-      .from('seeds')
+      .from('course_seeds')
       .select('*', { count: 'exact', head: true })
       .eq('course_code', this.courseCode);
 

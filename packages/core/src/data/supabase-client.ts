@@ -29,7 +29,7 @@ export interface ExtendedSupabaseClientOptions extends SupabaseClientOptions {
  *   { url: 'https://...', anonKey: '...' }
  * );
  * const { data, error } = await supabase
- *   .from('seeds')
+ *   .from('course_seeds')
  *   .select('*')
  *   .eq('course_code', 'spa_for_eng_v2');
  * ```

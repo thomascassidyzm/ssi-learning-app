@@ -485,12 +485,26 @@ Text update is instantaneous on phase change. No drift possible.
 
 ### Future: Supabase Direct Queries
 ```sql
--- Get LEGOs for a session
-SELECT * FROM lego_with_phrases
-WHERE course_code = 'spa_for_eng_v2'
-  AND seed_position >= 1 AND seed_position <= 30;
+-- Table naming convention:
+-- course_* prefix = course-specific (course_seeds, course_legos, course_practice_phrases)
+-- No prefix = global (audio_samples, voices)
 
--- Get audio for a phrase
+-- Get seeds for a session
+SELECT * FROM course_seeds
+WHERE course_code = 'spa_for_eng_v2'
+  AND position >= 1 AND position <= 30;
+
+-- Get LEGOs for seeds
+SELECT * FROM course_legos
+WHERE seed_id IN ('S0001', 'S0002', ...)
+ORDER BY seed_id, lego_index;
+
+-- Get practice phrases for LEGOs
+SELECT * FROM course_practice_phrases
+WHERE lego_id IN ('S0001L01', 'S0001L02', ...)
+ORDER BY lego_id, sort_order;
+
+-- Get audio (global - shared across courses)
 SELECT uuid, duration_ms, s3_key
 FROM audio_samples
 WHERE text_normalized = lower(trim('quiero aprender'))

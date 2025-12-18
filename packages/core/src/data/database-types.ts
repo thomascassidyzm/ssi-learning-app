@@ -2,7 +2,9 @@
  * Database types and conversion utilities
  *
  * Maps database rows (from Supabase) to core application types.
- * These types match the dashboard schema tables: seeds, legos, audio_samples.
+ * Table naming convention:
+ * - course_* prefix for course-specific data (course_seeds, course_legos, course_practice_phrases)
+ * - No prefix for global data (audio_samples, voices)
  */
 
 import type {
@@ -19,7 +21,7 @@ import type {
 // ============================================
 
 /**
- * Seed row from `seeds` table
+ * Seed row from `course_seeds` table
  */
 export interface SeedRow {
   seed_id: string;
@@ -34,7 +36,7 @@ export interface SeedRow {
 }
 
 /**
- * LEGO row from `legos` table
+ * LEGO row from `course_legos` table
  */
 export interface LegoRow {
   lego_id: string;
@@ -68,7 +70,7 @@ export interface AudioSampleRow {
 }
 
 /**
- * Practice phrase row from `lego_practice_phrases` table
+ * Practice phrase row from `course_practice_phrases` table
  */
 export interface PracticePhraseRow {
   phrase_id: string;
