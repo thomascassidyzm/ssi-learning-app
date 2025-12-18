@@ -7,6 +7,7 @@ import {
   DEFAULT_CONFIG,
 } from '@ssi/core'
 import SessionComplete from './SessionComplete.vue'
+import OnboardingTooltips from './OnboardingTooltips.vue'
 import { useLearningSession } from '../composables/useLearningSession'
 
 const emit = defineEmits(['close'])
@@ -1002,6 +1003,9 @@ onUnmounted(() => {
         <span v-if="learningSession.isDemoMode.value" class="demo-badge">Demo Mode</span>
       </div>
     </footer>
+
+    <!-- First-time onboarding tooltips -->
+    <OnboardingTooltips />
   </div>
 </template>
 
