@@ -568,11 +568,16 @@ const handlePause = () => {
 
 const handleResume = () => {
   // On first play, ask for adaptation consent (user gesture context)
+  // Wait for response before starting playback
   if (adaptationConsent.value === null) {
     showAdaptationPrompt.value = true
-    // Continue playing - consent prompt is non-blocking
+    return // Don't start until consent is resolved
   }
 
+  startPlayback()
+}
+
+const startPlayback = () => {
   isPlaying.value = true
   if (orchestrator.value && currentItem.value) {
     // Set pause duration for current item (2x target audio length)
@@ -650,6 +655,9 @@ const handleAdaptationConsent = async (granted) => {
   } else {
     console.log('[LearningPlayer] Adaptation declined - learning continues normally')
   }
+
+  // Now start playback (consent resolved)
+  startPlayback()
 }
 
 // Initialize VAD (must be called from user gesture)
