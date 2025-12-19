@@ -48,6 +48,14 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
+// Map 2-letter to 3-letter language codes
+const LANG_MAP = {
+  en: 'eng', es: 'spa', cy: 'cym', it: 'ita', fr: 'fra',
+  de: 'deu', pt: 'por', zh: 'zho', ja: 'jpn', ko: 'kor',
+  ar: 'ara', nl: 'nld', ru: 'rus', pl: 'pol'
+}
+const toLang3 = (code) => LANG_MAP[code] || code
+
 // Normalize text for audio lookup (trim, consistent spacing)
 function normalizeText(text) {
   return text?.trim().replace(/\s+/g, ' ') || ''
@@ -58,8 +66,8 @@ async function importManifest(manifestPath) {
   const manifest = JSON.parse(readFileSync(resolve(manifestPath), 'utf-8'))
 
   const courseCode = manifest.id // e.g., "en-es"
-  const knownLang = manifest.known // e.g., "en"
-  const targetLang = manifest.target // e.g., "es"
+  const knownLang = toLang3(manifest.known) // e.g., "en" -> "eng"
+  const targetLang = toLang3(manifest.target) // e.g., "es" -> "spa"
 
   console.log(`📚 Course: ${courseCode} (${knownLang} → ${targetLang})`)
   console.log(`📦 Slices: ${manifest.slices?.length || 0}`)
