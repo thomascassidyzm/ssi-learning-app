@@ -2,6 +2,26 @@
 import { ref, computed, onMounted } from 'vue'
 import CourseSelector from './CourseSelector.vue'
 
+// Language metadata mapping (3-letter codes to display info)
+const LANGUAGE_META = {
+  eng: { name: 'English', flag: '🇬🇧' },
+  spa: { name: 'Spanish', flag: '🇪🇸' },
+  ita: { name: 'Italian', flag: '🇮🇹' },
+  fra: { name: 'French', flag: '🇫🇷' },
+  deu: { name: 'German', flag: '🇩🇪' },
+  por: { name: 'Portuguese', flag: '🇵🇹' },
+  cym: { name: 'Welsh', flag: '🏴󠁧󠁢󠁷󠁬󠁳󠁿' },
+  jpn: { name: 'Japanese', flag: '🇯🇵' },
+  zho: { name: 'Chinese', flag: '🇨🇳' },
+  kor: { name: 'Korean', flag: '🇰🇷' },
+  ara: { name: 'Arabic', flag: '🇸🇦' },
+  nld: { name: 'Dutch', flag: '🇳🇱' },
+  rus: { name: 'Russian', flag: '🇷🇺' },
+  pol: { name: 'Polish', flag: '🇵🇱' },
+}
+
+const getLangMeta = (code) => LANGUAGE_META[code] || { name: code?.toUpperCase() || '?', flag: '🌐' }
+
 const props = defineProps({
   supabase: {
     type: Object,
@@ -22,21 +42,40 @@ const emit = defineEmits(['startLearning', 'viewJourney', 'selectCourse'])
 // Course selector state
 const showCourseSelector = ref(false)
 
-// Use prop or fallback to mock data
+// Normalize course data from database to display format
 const activeCourseData = computed(() => {
-  if (props.activeCourse) return props.activeCourse
-  // Fallback mock data for development
+  const course = props.activeCourse
+  if (!course) {
+    // Fallback mock data for development
+    return {
+      course_code: 'ita_for_eng_v2',
+      title: 'Italian',
+      subtitle: 'for English Speakers',
+      target_flag: '🇮🇹',
+      known_lang: 'eng',
+      progress: 6.3,
+      completedSeeds: 42,
+      totalSeeds: 668,
+      lastSession: '2 hours ago',
+      streak: 7,
+    }
+  }
+
+  // Get language metadata for display
+  const targetMeta = getLangMeta(course.target_lang)
+  const knownMeta = getLangMeta(course.known_lang)
+
   return {
-    course_code: 'ita_for_eng_v2',
-    title: 'Italian',
-    subtitle: 'for English Speakers',
-    target_flag: '🇮🇹',
-    known_language: 'en',
-    progress: 6.3,
-    completedSeeds: 42,
-    totalSeeds: 668,
-    lastSession: '2 hours ago',
-    streak: 7,
+    ...course,
+    // Display fields derived from database fields
+    title: course.title || targetMeta.name,
+    subtitle: course.subtitle || `for ${knownMeta.name} Speakers`,
+    target_flag: course.target_flag || targetMeta.flag,
+    // Progress fields (from learner data or defaults)
+    completedSeeds: course.completedSeeds || course.completed_seeds || 0,
+    totalSeeds: course.totalSeeds || course.total_seeds || 668,
+    progress: course.progress || 0,
+    streak: course.streak || 0,
   }
 })
 
