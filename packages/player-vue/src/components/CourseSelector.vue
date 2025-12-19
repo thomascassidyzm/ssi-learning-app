@@ -294,6 +294,7 @@ onMounted(() => {
 .course-selector-overlay {
   position: fixed;
   inset: 0;
+  bottom: 0; /* Sits above nav bar if z-index is right */
   background: var(--bg-overlay, rgba(0, 0, 0, 0.6));
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
@@ -301,6 +302,7 @@ onMounted(() => {
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  padding-bottom: 70px; /* Space for bottom nav */
 }
 
 .course-selector-sheet {
@@ -418,7 +420,8 @@ onMounted(() => {
   flex: 1;
   overflow-y: auto;
   padding: 0 1.5rem 2rem;
-  padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
+  -webkit-overflow-scrolling: touch;
 }
 
 .section {
