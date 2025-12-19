@@ -15,8 +15,6 @@ const user = ref({
 const stats = ref({
   totalSeeds: 42,
   totalHours: 12.5,
-  longestStreak: 14,
-  currentStreak: 7,
   coursesStarted: 2,
   coursesCompleted: 0,
 })
@@ -35,7 +33,6 @@ const recentActivity = ref([
   { type: 'session', course: 'Italian', date: 'Yesterday', details: '22 minutes, 18 seeds' },
   { type: 'belt', course: 'Italian', date: '3 days ago', details: 'Earned Green Belt' },
   { type: 'session', course: 'Italian', date: '4 days ago', details: '18 minutes, 14 seeds' },
-  { type: 'streak', course: null, date: '1 week ago', details: '7 day streak milestone' },
 ])
 
 // Format dates
@@ -54,7 +51,6 @@ const getActivityIcon = (type) => {
   switch (type) {
     case 'session': return 'play'
     case 'belt': return 'award'
-    case 'streak': return 'flame'
     default: return 'circle'
   }
 }
@@ -100,13 +96,9 @@ const getActivityIcon = (type) => {
           <span class="stat-value">{{ stats.totalHours }}h</span>
           <span class="stat-label">Learning Time</span>
         </div>
-        <div class="stat-tile highlight">
-          <span class="stat-value">{{ stats.currentStreak }}</span>
-          <span class="stat-label">Current Streak</span>
-        </div>
         <div class="stat-tile">
-          <span class="stat-value">{{ stats.longestStreak }}</span>
-          <span class="stat-label">Best Streak</span>
+          <span class="stat-value">{{ stats.coursesStarted }}</span>
+          <span class="stat-label">Courses</span>
         </div>
       </section>
 
@@ -453,11 +445,6 @@ const getActivityIcon = (type) => {
 .activity-icon.belt {
   background: rgba(167, 139, 250, 0.15);
   color: #a78bfa;
-}
-
-.activity-icon.streak {
-  background: rgba(255, 149, 0, 0.15);
-  color: #ff9500;
 }
 
 .activity-icon svg {

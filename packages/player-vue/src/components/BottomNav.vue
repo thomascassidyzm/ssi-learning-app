@@ -9,10 +9,6 @@ const props = defineProps({
   isLearning: {
     type: Boolean,
     default: false
-  },
-  streak: {
-    type: Number,
-    default: 0
   }
 })
 
@@ -115,10 +111,6 @@ const isVisible = computed(() => !props.isLearning)
               <svg viewBox="0 0 24 24" fill="currentColor">
                 <polygon points="6 3 20 12 6 21 6 3"/>
               </svg>
-            </div>
-            <!-- Streak badge -->
-            <div v-if="streak > 0" class="streak-badge">
-              <span>{{ streak }}</span>
             </div>
           </button>
           <span class="play-label">Learn</span>
@@ -395,40 +387,6 @@ const isVisible = computed(() => !props.isLearning)
   letter-spacing: 0.02em;
 }
 
-/* Streak badge */
-.streak-badge {
-  position: absolute;
-  top: -2px;
-  right: -2px;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  background: linear-gradient(135deg, #ff9500 0%, #ffb340 100%);
-  border-radius: 9px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow:
-    0 2px 6px rgba(255, 149, 0, 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3);
-  animation: streak-bounce 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-  border: 2px solid rgba(10, 10, 15, 0.95);
-}
-
-@keyframes streak-bounce {
-  0% { transform: scale(0); }
-  60% { transform: scale(1.15); }
-  100% { transform: scale(1); }
-}
-
-.streak-badge span {
-  font-family: 'DM Sans', -apple-system, sans-serif;
-  font-size: 9px;
-  font-weight: 700;
-  color: white;
-  line-height: 1;
-}
-
 /* Safe area for PWA */
 .safe-area-spacer {
   height: env(safe-area-inset-bottom, 0px);
@@ -485,10 +443,6 @@ const isVisible = computed(() => !props.isLearning)
 
 [data-theme="light"] .play-label {
   color: rgba(26, 26, 46, 0.5);
-}
-
-[data-theme="light"] .streak-badge {
-  border-color: rgba(248, 249, 250, 0.95);
 }
 
 /* Responsive adjustments */

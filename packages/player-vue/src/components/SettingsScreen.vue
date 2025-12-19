@@ -12,7 +12,6 @@ const settings = ref({
   pauseDuration: 'adaptive', // 'adaptive', 'short', 'normal', 'long'
   notificationsEnabled: true,
   dailyReminder: '09:00',
-  streakReminder: true,
 })
 
 // Theme options
@@ -175,7 +174,7 @@ const buildNumber = '2024.12.16'
           <div class="setting-row clickable" @click="toggleSetting('notificationsEnabled')">
             <div class="setting-info">
               <span class="setting-label">Push Notifications</span>
-              <span class="setting-desc">Daily reminders and streak alerts</span>
+              <span class="setting-desc">Daily reminders</span>
             </div>
             <div class="toggle" :class="{ active: settings.notificationsEnabled }">
               <div class="toggle-thumb"></div>
@@ -183,18 +182,6 @@ const buildNumber = '2024.12.16'
           </div>
 
           <template v-if="settings.notificationsEnabled">
-            <div class="divider"></div>
-
-            <div class="setting-row clickable" @click="toggleSetting('streakReminder')">
-              <div class="setting-info">
-                <span class="setting-label">Streak Reminders</span>
-                <span class="setting-desc">Alert before losing your streak</span>
-              </div>
-              <div class="toggle" :class="{ active: settings.streakReminder }">
-                <div class="toggle-thumb"></div>
-              </div>
-            </div>
-
             <div class="divider"></div>
 
             <div class="setting-row">

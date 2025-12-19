@@ -18,7 +18,6 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 const props = defineProps({
   completedSeeds: { type: Number, default: 42 },
   totalSeeds: { type: Number, default: 668 },
-  currentStreak: { type: Number, default: 7 },
   learningVelocity: { type: Number, default: 1.2 },
 })
 
@@ -496,10 +495,6 @@ watch(() => props.completedSeeds, () => {
         <h1 class="title">Your Network</h1>
         <div class="subtitle">{{ nodes.length }} nodes · {{ connections.length }} connections</div>
       </div>
-      <div class="streak-badge" v-if="currentStreak > 0">
-        <span class="streak-icon">🔥</span>
-        <span class="streak-num">{{ currentStreak }}</span>
-      </div>
     </header>
 
     <!-- Network Canvas -->
@@ -774,24 +769,6 @@ watch(() => props.completedSeeds, () => {
   font-size: 0.75rem;
   color: var(--text-muted);
   margin-top: 0.125rem;
-}
-
-.streak-badge {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.375rem 0.75rem;
-  background: rgba(255, 149, 0, 0.12);
-  border: 1px solid rgba(255, 149, 0, 0.25);
-  border-radius: 100px;
-}
-
-.streak-icon { font-size: 0.875rem; }
-
-.streak-num {
-  font-size: 0.875rem;
-  font-weight: 700;
-  color: #ff9500;
 }
 
 /* Main canvas area */

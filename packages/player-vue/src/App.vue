@@ -54,7 +54,6 @@ const handleStartLearning = () => {
 const learnerStats = ref({
   completedSeeds: 42,
   totalSeeds: 668,
-  currentStreak: 7,
   learningVelocity: 1.2,
 })
 
@@ -113,7 +112,6 @@ const fetchEnrolledCourses = async () => {
           ...defaultCourse,
           completedSeeds: 0,
           progress: 0,
-          streak: 0,
           lastSession: null,
         }
         // Create courseDataProvider for the default course
@@ -252,7 +250,6 @@ onMounted(async () => {
         v-if="currentScreen === 'journey'"
         :completedSeeds="learnerStats.completedSeeds"
         :totalSeeds="learnerStats.totalSeeds"
-        :currentStreak="learnerStats.currentStreak"
         :learningVelocity="learnerStats.learningVelocity"
         @close="goHome"
         @startLearning="handleStartLearning"
@@ -279,7 +276,6 @@ onMounted(async () => {
     <BottomNav
       :currentScreen="currentScreen"
       :isLearning="isLearning"
-      :streak="learnerStats.currentStreak"
       @navigate="handleNavigation"
       @startLearning="handleStartLearning"
     />

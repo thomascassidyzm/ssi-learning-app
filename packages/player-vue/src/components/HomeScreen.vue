@@ -57,7 +57,6 @@ const activeCourseData = computed(() => {
       completedSeeds: 42,
       totalSeeds: 668,
       lastSession: '2 hours ago',
-      streak: 7,
     }
   }
 
@@ -75,7 +74,6 @@ const activeCourseData = computed(() => {
     completedSeeds: course.completedSeeds || course.completed_seeds || 0,
     totalSeeds: course.totalSeeds || course.total_seeds || 668,
     progress: course.progress || 0,
-    streak: course.streak || 0,
   }
 })
 
@@ -168,10 +166,6 @@ const openCourseSelector = () => {
               <h2 class="course-title">{{ activeCourseData.title }}</h2>
               <span class="course-subtitle">{{ activeCourseData.subtitle }}</span>
             </div>
-            <div class="streak-badge" v-if="activeCourseData.streak > 0">
-              <span class="streak-icon">🔥</span>
-              <span class="streak-count">{{ activeCourseData.streak }}</span>
-            </div>
             <!-- Change course indicator -->
             <button class="change-course-btn" @click.stop="openCourseSelector">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -224,18 +218,6 @@ const openCourseSelector = () => {
           <div class="stat-content">
             <span class="stat-value">{{ activeCourseData?.completedSeeds || 0 }}</span>
             <span class="stat-label">Seeds Mastered</span>
-          </div>
-        </div>
-
-        <div class="stat-card">
-          <div class="stat-icon flame">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2c-4 4-6 8-6 10a6 6 0 1 0 12 0c0-2-2-6-6-10z"/>
-            </svg>
-          </div>
-          <div class="stat-content">
-            <span class="stat-value">{{ activeCourseData?.streak || 0 }}</span>
-            <span class="stat-label">Day Streak</span>
           </div>
         </div>
 
@@ -485,27 +467,6 @@ const openCourseSelector = () => {
 .course-subtitle {
   font-size: 0.875rem;
   color: var(--text-muted);
-}
-
-.streak-badge {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.375rem 0.75rem;
-  background: rgba(255, 149, 0, 0.15);
-  border: 1px solid rgba(255, 149, 0, 0.3);
-  border-radius: 100px;
-}
-
-.streak-icon {
-  font-size: 0.875rem;
-}
-
-.streak-count {
-  font-family: 'Space Mono', monospace;
-  font-size: 0.875rem;
-  font-weight: 700;
-  color: #ff9500;
 }
 
 .hero-progress {
