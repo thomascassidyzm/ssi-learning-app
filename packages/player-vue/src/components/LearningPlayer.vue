@@ -466,8 +466,8 @@ const handleCycleEvent = (event) => {
 
   switch (event.type) {
     case 'phase_changed':
-      // Mark phase transitions for timing analyzer
-      if (listeningMode.value && vadInitialized.value) {
+      // Mark phase transitions for timing analyzer (if adaptation enabled)
+      if (isAdaptationActive.value) {
         // Map CyclePhase to timing phases
         switch (event.phase) {
           case CyclePhase.PAUSE:
@@ -505,7 +505,7 @@ const handleCycleEvent = (event) => {
 
       // End timing cycle and capture results
       const completedItem = sessionItems.value[currentItemIndex.value]
-      if (listeningMode.value && vadInitialized.value && timingAnalyzer.value?.isAnalyzing()) {
+      if (isAdaptationActive.value && timingAnalyzer.value?.isAnalyzing()) {
         const modelDuration = completedItem?.audioDurations?.target1
           ? completedItem.audioDurations.target1 * 1000
           : 2000
@@ -567,6 +567,12 @@ const handlePause = () => {
 }
 
 const handleResume = () => {
+  // On first play, ask for adaptation consent (user gesture context)
+  if (adaptationConsent.value === null) {
+    showAdaptationPrompt.value = true
+    // Continue playing - consent prompt is non-blocking
+  }
+
   isPlaying.value = true
   if (orchestrator.value && currentItem.value) {
     // Set pause duration for current item (2x target audio length)
@@ -594,7 +600,18 @@ const handleRevisit = () => {
 
 // Mode toggles
 const turboActive = ref(false)
-const listeningMode = ref(false)
+const listeningModeComingSoon = ref(false) // Future: passive listening mode
+
+// ============================================
+// ADAPTATION CONSENT & TIMING
+// Learner consents once, then timing runs silently
+// ============================================
+
+const ADAPTATION_CONSENT_KEY = 'ssi-adaptation-consent'
+
+// Consent states: null (not asked), true (granted), false (declined)
+const adaptationConsent = ref(null)
+const showAdaptationPrompt = ref(false)
 
 // Voice Activity Detection (VAD) and Speech Timing state
 const vadInstance = shallowRef(null)
@@ -602,9 +619,38 @@ const timingAnalyzer = shallowRef(null)
 const vadInitialized = ref(false)
 const vadInitializing = ref(false)
 const isSpeaking = ref(false)
-const currentEnergyDb = ref(-100)
 const lastTimingResult = ref(null)
 let vadStatusInterval = null
+
+// Load consent from localStorage
+const loadAdaptationConsent = () => {
+  const stored = localStorage.getItem(ADAPTATION_CONSENT_KEY)
+  if (stored === 'true') adaptationConsent.value = true
+  else if (stored === 'false') adaptationConsent.value = false
+  else adaptationConsent.value = null
+}
+
+// Save consent to localStorage
+const saveAdaptationConsent = (value) => {
+  adaptationConsent.value = value
+  localStorage.setItem(ADAPTATION_CONSENT_KEY, String(value))
+}
+
+// Handle consent response
+const handleAdaptationConsent = async (granted) => {
+  showAdaptationPrompt.value = false
+  saveAdaptationConsent(granted)
+
+  if (granted) {
+    // Initialize VAD now (user gesture context)
+    const success = await initializeVad()
+    if (success) {
+      console.log('[LearningPlayer] Adaptation enabled - timing will run silently')
+    }
+  } else {
+    console.log('[LearningPlayer] Adaptation declined - learning continues normally')
+  }
+}
 
 // Initialize VAD (must be called from user gesture)
 const initializeVad = async () => {
@@ -626,6 +672,8 @@ const initializeVad = async () => {
       console.log('[LearningPlayer] VAD + SpeechTimingAnalyzer initialized')
     } else {
       console.warn('[LearningPlayer] VAD initialization failed (mic permission denied?)')
+      // If mic denied, treat as declined consent
+      saveAdaptationConsent(false)
     }
 
     return success
@@ -637,26 +685,29 @@ const initializeVad = async () => {
   }
 }
 
+// Check if adaptation is active (consented + initialized)
+const isAdaptationActive = computed(() =>
+  adaptationConsent.value === true && vadInitialized.value
+)
+
 // Start timing cycle at PROMPT start
 const startTimingCycle = () => {
-  if (!timingAnalyzer.value || !listeningMode.value) return
+  if (!timingAnalyzer.value || !isAdaptationActive.value) return
 
-  console.log('[LearningPlayer] Starting timing cycle at PROMPT')
   timingAnalyzer.value.startCycle()
 
-  // Poll status for UI feedback during the cycle
+  // Poll status for UI feedback during the cycle (subtle, not intrusive)
   vadStatusInterval = setInterval(() => {
     if (vadInstance.value) {
       const status = vadInstance.value.getStatus()
       isSpeaking.value = status.is_speaking
-      currentEnergyDb.value = status.current_energy_db
     }
-  }, 50) // 20fps for smooth UI
+  }, 100) // 10fps - less frequent since it's subtle
 }
 
 // Mark phase transition during timing cycle
 const markPhaseTransition = (phase) => {
-  if (!timingAnalyzer.value || !listeningMode.value) return
+  if (!timingAnalyzer.value || !isAdaptationActive.value) return
   timingAnalyzer.value.onPhaseChange(phase)
 }
 
@@ -674,16 +725,21 @@ const endTimingCycle = (modelDurationMs) => {
   isSpeaking.value = false
 
   if (result.speech_detected) {
-    console.log('[LearningPlayer] Timing result:', {
-      response_latency_ms: result.response_latency_ms !== null ? Math.round(result.response_latency_ms) : null,
-      learner_duration_ms: result.learner_duration_ms !== null ? Math.round(result.learner_duration_ms) : null,
-      duration_delta_ms: result.duration_delta_ms !== null ? Math.round(result.duration_delta_ms) : null,
-      started_during_prompt: result.started_during_prompt,
-      still_speaking_at_voice1: result.still_speaking_at_voice1,
+    console.log('[LearningPlayer] Timing:', {
+      latency: result.response_latency_ms !== null ? Math.round(result.response_latency_ms) + 'ms' : null,
+      delta: result.duration_delta_ms !== null ? Math.round(result.duration_delta_ms) + 'ms' : null,
     })
   }
 
   return result
+}
+
+// Show "coming soon" for listening mode
+const handleListeningMode = () => {
+  listeningModeComingSoon.value = true
+  setTimeout(() => {
+    listeningModeComingSoon.value = false
+  }, 2000)
 }
 
 const toggleTurbo = () => {
@@ -702,18 +758,6 @@ const toggleTurbo = () => {
       orchestrator.value.updateConfig({ pause_duration_ms: pauseMs })
     }
   }
-}
-
-const toggleListening = async () => {
-  if (!listeningMode.value) {
-    // Enabling listening mode - initialize VAD if needed (user gesture)
-    const success = await initializeVad()
-    if (!success) {
-      console.warn('[LearningPlayer] Cannot enable listening mode - VAD not available')
-      return
-    }
-  }
-  listeningMode.value = !listeningMode.value
 }
 
 // ============================================
@@ -751,7 +795,15 @@ const handleExit = () => {
 // LIFECYCLE
 // ============================================
 
-onMounted(() => {
+onMounted(async () => {
+  // Load adaptation consent preference
+  loadAdaptationConsent()
+
+  // If previously consented, initialize VAD silently
+  if (adaptationConsent.value === true) {
+    await initializeVad()
+  }
+
   // Initialize theme
   const savedTheme = localStorage.getItem('ssi-theme') || 'dark'
   theme.value = savedTheme
@@ -845,6 +897,34 @@ onUnmounted(() => {
       :next-belt="nextBelt"
       @resume="handleResumeLearning"
     />
+  </Transition>
+
+  <!-- Adaptation Consent Prompt -->
+  <Transition name="fade">
+    <div v-if="showAdaptationPrompt" class="consent-overlay">
+      <div class="consent-card">
+        <div class="consent-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M12 2a3 3 0 0 0-3 3v4a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="22"/>
+          </svg>
+        </div>
+        <h3 class="consent-title">Personalise your learning?</h3>
+        <p class="consent-description">
+          SSi can learn from your timing to adapt the experience to you.
+          This uses your microphone to detect when you speak — no audio is recorded or stored.
+        </p>
+        <div class="consent-actions">
+          <button class="consent-btn consent-btn--secondary" @click="handleAdaptationConsent(false)">
+            No thanks
+          </button>
+          <button class="consent-btn consent-btn--primary" @click="handleAdaptationConsent(true)">
+            Yes, personalise
+          </button>
+        </div>
+      </div>
+    </div>
   </Transition>
 
   <div
@@ -1019,9 +1099,7 @@ onUnmounted(() => {
         @click="handleRingTap"
         :class="{
           'is-speak': currentPhase === Phase.SPEAK,
-          'is-paused': !isPlaying,
-          'is-speaking': isSpeaking && listeningMode,
-          'listening-active': listeningMode && currentPhase === Phase.SPEAK
+          'is-paused': !isPlaying
         }"
       >
         <!-- Ambient glow -->
@@ -1056,14 +1134,7 @@ onUnmounted(() => {
         </svg>
 
         <!-- Center content -->
-        <div class="ring-center" :class="{ 'is-speaking': isSpeaking && listeningMode }">
-          <!-- Voice activity visualizer (only during listening mode) -->
-          <div
-            v-if="listeningMode && currentPhase === Phase.SPEAK"
-            class="vad-visualizer"
-            :class="{ active: isSpeaking }"
-          ></div>
-
+        <div class="ring-center">
           <!-- Show play button when paused -->
           <div v-if="!isPlaying" class="play-indicator">
             <svg viewBox="0 0 24 24" fill="currentColor">
@@ -1071,7 +1142,7 @@ onUnmounted(() => {
             </svg>
           </div>
           <!-- Phase icon when playing -->
-          <div v-else class="phase-icon" :class="[currentPhase, { 'is-speaking': isSpeaking && listeningMode }]">
+          <div v-else class="phase-icon" :class="currentPhase">
             <!-- Speaker (Phase 1: Hear prompt) -->
             <svg v-if="phaseInfo.icon === 'speaker'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
               <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
@@ -1116,14 +1187,15 @@ onUnmounted(() => {
     <div class="control-bar">
       <button
         class="mode-btn"
-        :class="{ active: listeningMode }"
-        @click="toggleListening"
-        title="Listening Mode"
+        :class="{ 'coming-soon': listeningModeComingSoon }"
+        @click="handleListeningMode"
+        title="Listening Mode (Coming Soon)"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
           <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
         </svg>
+        <span v-if="listeningModeComingSoon" class="coming-soon-label">Coming Soon</span>
       </button>
 
       <div class="transport-controls">
@@ -1975,67 +2047,116 @@ onUnmounted(() => {
   50% { transform: scale(1.1); }
 }
 
-/* ============ VOICE ACTIVITY DETECTION VISUALS ============ */
+/* ============ CONSENT PROMPT ============ */
 
-/* Listening mode active during SPEAK phase */
-.ring-container.listening-active .ring-ambient {
-  opacity: 0.8;
-  background: radial-gradient(circle, rgba(74, 222, 128, 0.2) 0%, transparent 70%);
+.consent-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-overlay);
+  backdrop-filter: blur(8px);
+  padding: 1.5rem;
 }
 
-/* Voice detected - ring glows green */
-.ring-container.is-speaking .ring-ambient {
-  opacity: 1;
-  background: radial-gradient(circle, rgba(74, 222, 128, 0.4) 0%, transparent 60%);
-  animation: vad-glow 0.15s ease-out;
+.consent-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-medium);
+  border-radius: 1rem;
+  padding: 2rem;
+  max-width: 360px;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
-@keyframes vad-glow {
-  0% { transform: scale(0.95); opacity: 0.6; }
-  100% { transform: scale(1); opacity: 1; }
+.consent-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 1rem;
+  color: var(--accent);
 }
 
-/* Ring center glows when speaking */
-.ring-center.is-speaking {
-  border-color: var(--success);
-  box-shadow: 0 0 20px rgba(74, 222, 128, 0.4), inset 0 0 20px rgba(74, 222, 128, 0.1);
+.consent-icon svg {
+  width: 100%;
+  height: 100%;
 }
 
-/* VAD visualizer - pulsing circle behind the icon */
-.vad-visualizer {
+.consent-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.75rem;
+}
+
+.consent-description {
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 1.5rem;
+}
+
+.consent-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.consent-btn {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.consent-btn--secondary {
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+}
+
+.consent-btn--secondary:hover {
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+.consent-btn--primary {
+  background: var(--gradient-accent);
+  color: white;
+}
+
+.consent-btn--primary:hover {
+  filter: brightness(1.1);
+}
+
+/* ============ COMING SOON LABEL ============ */
+
+.mode-btn.coming-soon {
+  position: relative;
+}
+
+.coming-soon-label {
   position: absolute;
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(74, 222, 128, 0.15) 0%, transparent 70%);
-  opacity: 0;
-  transition: opacity 0.1s ease, transform 0.1s ease;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: 0.625rem;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  white-space: nowrap;
+  animation: fade-in-out 2s ease-out;
 }
 
-.vad-visualizer.active {
-  opacity: 1;
-  animation: vad-pulse 0.3s ease-out;
-}
-
-@keyframes vad-pulse {
-  0% { transform: scale(0.8); opacity: 0.5; }
-  50% { transform: scale(1.1); opacity: 1; }
-  100% { transform: scale(1); opacity: 0.8; }
-}
-
-/* Mic icon glows green when speaking */
-.phase-icon.is-speaking {
-  color: var(--success);
-  filter: drop-shadow(0 0 8px rgba(74, 222, 128, 0.6));
-}
-
-.phase-icon.speak.is-speaking {
-  animation: mic-speaking 0.2s ease-out infinite;
-}
-
-@keyframes mic-speaking {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.15); }
+@keyframes fade-in-out {
+  0% { opacity: 0; transform: translateX(-50%) translateY(4px); }
+  10% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 .ring-label {
