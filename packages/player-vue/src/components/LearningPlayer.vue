@@ -229,7 +229,7 @@ const corePhaseToUiPhase = (corePhase) => {
     case CyclePhase.VOICE_1: return Phase.VOICE_1
     case CyclePhase.VOICE_2: return Phase.VOICE_2
     case CyclePhase.IDLE: return Phase.PROMPT
-    case CyclePhase.TRANSITION: return Phase.VOICE_2
+    case CyclePhase.TRANSITION: return Phase.PROMPT  // Hide target text during item transition
     default: return Phase.PROMPT
   }
 }

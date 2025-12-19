@@ -77,20 +77,23 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
         items.value = demoItems
       }
 
-      // Start session tracking if database is available
-      if (sessionStore && learnerId && courseId) {
+      // Start session tracking if database is available (skip for demo-learner)
+      const isDemoLearner = learnerId === 'demo-learner'
+      if (sessionStore && learnerId && courseId && !isDemoLearner) {
         try {
           const session = await sessionStore.startSession(learnerId, courseId)
           sessionId.value = session.id
           console.log('[useLearningSession] Session started:', session.id)
         } catch (err) {
-          console.error('[useLearningSession] Failed to start session tracking:', err)
-          // Continue in demo mode without session tracking
+          console.warn('[useLearningSession] Session tracking unavailable:', err.message)
+          // Continue without session tracking
         }
+      } else if (isDemoLearner) {
+        console.log('[useLearningSession] Demo mode - session tracking disabled')
       }
 
-      // Get or create enrollment if database is available
-      if (progressStore && learnerId && courseId) {
+      // Get or create enrollment if database is available (skip for demo-learner)
+      if (progressStore && learnerId && courseId && !isDemoLearner) {
         try {
           let enrollment = await progressStore.getEnrollment(learnerId, courseId)
           if (!enrollment) {
@@ -100,7 +103,7 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
             console.log('[useLearningSession] Found existing enrollment')
           }
         } catch (err) {
-          console.error('[useLearningSession] Failed to get/create enrollment:', err)
+          console.warn('[useLearningSession] Enrollment tracking unavailable:', err.message)
           // Continue without enrollment tracking
         }
       }
@@ -120,8 +123,8 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
   const recordCycleComplete = async (item: LearningItem) => {
     itemsPracticed.value++
 
-    // Only track if we have database stores
-    if (!progressStore || !learnerId || !courseId) {
+    // Only track if we have database stores and not demo-learner
+    if (!progressStore || !learnerId || !courseId || learnerId === 'demo-learner') {
       return
     }
 
