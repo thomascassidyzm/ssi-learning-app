@@ -182,6 +182,7 @@ provide('progressStore', progressStore)
 provide('sessionStore', sessionStore)
 provide('courseDataProvider', courseDataProvider)
 provide('auth', auth)
+provide('supabase', supabaseClient)
 
 onMounted(async () => {
   // Check if launched from Schools with class context

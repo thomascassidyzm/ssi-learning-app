@@ -408,6 +408,16 @@ const isPlaying = ref(false) // Start paused until engine ready
 const itemsPracticed = ref(0)
 const showSessionComplete = ref(false)
 
+// Introduction playback state
+const playedIntroductions = ref(new Set()) // LEGOs that have had their intro played this session
+const isPlayingIntroduction = ref(false) // True when introduction audio is playing
+const introductionPhase = ref(false) // True during introduction phase (shows different UI)
+
+// Welcome audio state (plays once on first course load)
+const welcomeChecked = ref(false) // True after we've checked welcome status
+const isPlayingWelcome = ref(false) // True when welcome audio is playing
+const showWelcomeSkip = ref(false) // Show skip button during welcome
+
 // Smooth ring progress (0-100) - continuous animation
 const ringProgressRaw = ref(0)
 let ringAnimationFrame = null
@@ -699,9 +709,15 @@ const handleCycleEvent = (event) => {
         orchestrator.value?.updateConfig({ pause_duration_ms: pauseMs })
       }
 
-      setTimeout(() => {
+      // Start next item (with introduction if needed)
+      setTimeout(async () => {
         if (isPlaying.value && orchestrator.value) {
-          orchestrator.value.startItem(nextItem)
+          // Check if next LEGO needs an introduction first
+          await playIntroductionIfNeeded(nextItem)
+          // Then start the practice cycles
+          if (isPlaying.value) {
+            orchestrator.value.startItem(nextItem)
+          }
         }
       }, 300)
       break
@@ -746,9 +762,171 @@ const handleResume = () => {
   startPlayback()
 }
 
-const startPlayback = () => {
+/**
+ * Check if a LEGO needs its introduction played.
+ * Returns true if intro was played (caller should wait for it to finish).
+ */
+const playIntroductionIfNeeded = async (item) => {
+  // Only play intro for new LEGOs
+  if (!item?.lego?.new) return false
+
+  const legoId = item.lego.id
+
+  // Skip if already played this session
+  if (playedIntroductions.value.has(legoId)) return false
+
+  // Check if introduction audio exists in database
+  if (!courseDataProvider.value) return false
+
+  try {
+    const introAudio = await courseDataProvider.value.getIntroductionAudio(legoId)
+    if (!introAudio || !introAudio.url) return false
+
+    console.log('[LearningPlayer] Playing introduction for LEGO:', legoId)
+
+    // Mark as playing intro
+    isPlayingIntroduction.value = true
+    introductionPhase.value = true
+    playedIntroductions.value.add(legoId)
+
+    // Play the introduction audio
+    return new Promise((resolve) => {
+      const audio = audioController.value?.audio || new Audio()
+
+      const onEnded = () => {
+        audio.removeEventListener('ended', onEnded)
+        audio.removeEventListener('error', onError)
+        isPlayingIntroduction.value = false
+        introductionPhase.value = false
+        console.log('[LearningPlayer] Introduction complete for LEGO:', legoId)
+        resolve(true)
+      }
+
+      const onError = (e) => {
+        console.error('[LearningPlayer] Introduction audio error:', e)
+        audio.removeEventListener('ended', onEnded)
+        audio.removeEventListener('error', onError)
+        isPlayingIntroduction.value = false
+        introductionPhase.value = false
+        resolve(false)
+      }
+
+      audio.addEventListener('ended', onEnded)
+      audio.addEventListener('error', onError)
+      audio.src = introAudio.url
+      audio.load()
+
+      audio.play().catch((e) => {
+        console.error('[LearningPlayer] Failed to play introduction:', e)
+        onError(e)
+      })
+    })
+  } catch (err) {
+    console.error('[LearningPlayer] Error checking for introduction:', err)
+    return false
+  }
+}
+
+/**
+ * Play welcome audio if this is the learner's first time with the course.
+ * Returns true if welcome was played (or skipped), false if no welcome needed.
+ */
+let welcomeAudioElement = null // Store reference for skip functionality
+const playWelcomeIfNeeded = async () => {
+  // Only check once per session
+  if (welcomeChecked.value) return false
+  welcomeChecked.value = true
+
+  if (!courseDataProvider.value) return false
+
+  try {
+    // Check if learner has already heard the welcome
+    const alreadyPlayed = await courseDataProvider.value.hasPlayedWelcome(learnerId.value)
+    if (alreadyPlayed) {
+      console.log('[LearningPlayer] Welcome already played for this learner')
+      return false
+    }
+
+    // Get welcome audio
+    const welcomeAudio = await courseDataProvider.value.getWelcomeAudio()
+    if (!welcomeAudio || !welcomeAudio.url) {
+      console.log('[LearningPlayer] No welcome audio for this course')
+      // Mark as played anyway so we don't keep checking
+      await courseDataProvider.value.markWelcomePlayed(learnerId.value)
+      return false
+    }
+
+    console.log('[LearningPlayer] Playing welcome audio:', welcomeAudio.id)
+    isPlayingWelcome.value = true
+    showWelcomeSkip.value = true
+
+    return new Promise((resolve) => {
+      const audio = audioController.value?.audio || new Audio()
+      welcomeAudioElement = audio
+
+      const cleanup = async () => {
+        audio.removeEventListener('ended', onEnded)
+        audio.removeEventListener('error', onError)
+        isPlayingWelcome.value = false
+        showWelcomeSkip.value = false
+        welcomeAudioElement = null
+        // Mark as played
+        await courseDataProvider.value.markWelcomePlayed(learnerId.value)
+      }
+
+      const onEnded = async () => {
+        console.log('[LearningPlayer] Welcome audio complete')
+        await cleanup()
+        resolve(true)
+      }
+
+      const onError = async (e) => {
+        console.error('[LearningPlayer] Welcome audio error:', e)
+        await cleanup()
+        resolve(false)
+      }
+
+      audio.addEventListener('ended', onEnded)
+      audio.addEventListener('error', onError)
+      audio.src = welcomeAudio.url
+      audio.load()
+
+      audio.play().catch((e) => {
+        console.error('[LearningPlayer] Failed to play welcome:', e)
+        onError(e)
+      })
+    })
+  } catch (err) {
+    console.error('[LearningPlayer] Error checking for welcome:', err)
+    return false
+  }
+}
+
+const skipWelcome = async () => {
+  if (welcomeAudioElement) {
+    welcomeAudioElement.pause()
+    welcomeAudioElement.currentTime = 0
+  }
+  isPlayingWelcome.value = false
+  showWelcomeSkip.value = false
+  welcomeAudioElement = null
+  // Mark as played (skipped counts as played)
+  if (courseDataProvider.value) {
+    await courseDataProvider.value.markWelcomePlayed(learnerId.value)
+  }
+  console.log('[LearningPlayer] Welcome skipped')
+}
+
+const startPlayback = async () => {
   isPlaying.value = true
+
   if (orchestrator.value && currentItem.value) {
+    // Check if welcome audio needs to play first (only on first ever play)
+    await playWelcomeIfNeeded()
+
+    // Check if this LEGO needs an introduction first
+    await playIntroductionIfNeeded(currentItem.value)
+
     // Set pause duration for current item (2x target audio length)
     if (!turboActive.value && currentItem.value.audioDurations) {
       const pauseMs = Math.round(currentItem.value.audioDurations.target1 * 2 * 1000)
@@ -955,12 +1133,16 @@ const showPausedSummary = () => {
   }
 }
 
-const handleResumeLearning = () => {
+const handleResumeLearning = async () => {
   // Hide summary and continue the infinite stream
   showSessionComplete.value = false
   isPlaying.value = true
   if (orchestrator.value && currentItem.value) {
-    orchestrator.value.startItem(currentItem.value)
+    // Check for introduction before starting
+    await playIntroductionIfNeeded(currentItem.value)
+    if (isPlaying.value) {
+      orchestrator.value.startItem(currentItem.value)
+    }
   }
 }
 
@@ -1107,6 +1289,23 @@ onUnmounted(() => {
             Yes, personalise
           </button>
         </div>
+      </div>
+    </div>
+  </Transition>
+
+  <!-- Welcome Audio Overlay (with skip button) -->
+  <Transition name="fade">
+    <div v-if="isPlayingWelcome" class="welcome-overlay">
+      <div class="welcome-content">
+        <div class="welcome-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M12 2v20M2 12h20M12 2a10 10 0 0 1 10 10M12 2a10 10 0 0 0-10 10"/>
+          </svg>
+        </div>
+        <p class="welcome-text">Welcome to your course</p>
+        <button class="welcome-skip" @click="skipWelcome">
+          Skip intro
+        </button>
       </div>
     </div>
   </Transition>
@@ -2335,6 +2534,67 @@ onUnmounted(() => {
 
 .consent-btn--primary:hover {
   filter: brightness(1.1);
+}
+
+/* ============ WELCOME OVERLAY ============ */
+
+.welcome-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-overlay);
+  backdrop-filter: blur(8px);
+  padding: 1.5rem;
+}
+
+.welcome-content {
+  text-align: center;
+}
+
+.welcome-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 1.5rem;
+  color: var(--accent);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.welcome-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.welcome-text {
+  font-size: 1.25rem;
+  color: var(--text-primary);
+  margin-bottom: 2rem;
+  opacity: 0.9;
+}
+
+.welcome-skip {
+  padding: 0.75rem 2rem;
+  border-radius: 2rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid var(--border-medium);
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.welcome-skip:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
 }
 
 /* ============ COMING SOON LABEL ============ */

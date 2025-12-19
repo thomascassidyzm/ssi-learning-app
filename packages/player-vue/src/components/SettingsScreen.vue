@@ -1,7 +1,17 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, inject } from 'vue'
 
 const emit = defineEmits(['close'])
+
+// Inject auth and data providers
+const auth = inject('auth', null)
+const supabase = inject('supabase', null)
+
+// Reset progress state
+const showResetConfirm = ref(false)
+const isResetting = ref(false)
+const resetError = ref(null)
+const resetSuccess = ref(false)
 
 // Settings state
 const settings = ref({
@@ -47,6 +57,75 @@ const setPauseDuration = (duration) => {
 // App info
 const appVersion = '1.0.0'
 const buildNumber = '2024.12.16'
+
+// Reset progress functions
+const handleResetClick = () => {
+  showResetConfirm.value = true
+  resetError.value = null
+  resetSuccess.value = false
+}
+
+const cancelReset = () => {
+  showResetConfirm.value = false
+}
+
+const confirmReset = async () => {
+  if (!supabase?.value || !auth?.learnerId?.value) {
+    resetError.value = 'Unable to reset - not signed in'
+    return
+  }
+
+  isResetting.value = true
+  resetError.value = null
+
+  try {
+    const learnerId = auth.learnerId.value
+
+    // Delete from tables in order (respecting FK constraints)
+    const tables = [
+      'response_metrics',
+      'spike_events',
+      'lego_progress',
+      'seed_progress',
+      'sessions',
+    ]
+
+    for (const table of tables) {
+      const { error } = await supabase.value
+        .from(table)
+        .delete()
+        .eq('learner_id', learnerId)
+
+      if (error) {
+        console.warn(`[Reset] Error clearing ${table}:`, error.message)
+      }
+    }
+
+    // Reset enrollment stats (don't delete enrollment, just reset)
+    await supabase.value
+      .from('course_enrollments')
+      .update({
+        total_practice_minutes: 0,
+        last_practiced_at: null,
+        welcome_played: false,
+      })
+      .eq('learner_id', learnerId)
+
+    resetSuccess.value = true
+    console.log('[Settings] Progress reset complete for learner:', learnerId)
+
+    // Close dialog after brief success message
+    setTimeout(() => {
+      showResetConfirm.value = false
+      resetSuccess.value = false
+    }, 1500)
+  } catch (err) {
+    console.error('[Settings] Reset error:', err)
+    resetError.value = 'Failed to reset progress'
+  } finally {
+    isResetting.value = false
+  }
+}
 </script>
 
 <template>
@@ -54,6 +133,33 @@ const buildNumber = '2024.12.16'
     <!-- Background layers -->
     <div class="bg-gradient"></div>
     <div class="bg-noise"></div>
+
+    <!-- Reset Confirmation Dialog -->
+    <Transition name="fade">
+      <div v-if="showResetConfirm" class="reset-overlay">
+        <div class="reset-dialog">
+          <div class="reset-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 9v4M12 17h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+            </svg>
+          </div>
+          <h3 class="reset-title">Reset all progress?</h3>
+          <p class="reset-desc">
+            This will clear all your learning progress, session history, and start you from the beginning. This cannot be undone.
+          </p>
+          <p v-if="resetError" class="reset-error">{{ resetError }}</p>
+          <p v-if="resetSuccess" class="reset-success">Progress reset!</p>
+          <div class="reset-actions">
+            <button class="reset-btn reset-btn--cancel" @click="cancelReset" :disabled="isResetting">
+              Cancel
+            </button>
+            <button class="reset-btn reset-btn--confirm" @click="confirmReset" :disabled="isResetting">
+              {{ isResetting ? 'Resetting...' : 'Reset Progress' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
 
     <!-- Header -->
     <header class="header">
@@ -213,7 +319,7 @@ const buildNumber = '2024.12.16'
 
           <div class="divider"></div>
 
-          <div class="setting-row clickable danger">
+          <div class="setting-row clickable danger" @click="handleResetClick">
             <div class="setting-info">
               <span class="setting-label">Reset Progress</span>
               <span class="setting-desc">Start fresh (cannot be undone)</span>
@@ -583,6 +689,117 @@ const buildNumber = '2024.12.16'
   font-size: 0.75rem;
   color: var(--text-muted);
   margin: 0;
+}
+
+/* Reset Dialog */
+.reset-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  padding: 1.5rem;
+}
+
+.reset-dialog {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-medium);
+  border-radius: 1rem;
+  padding: 2rem;
+  max-width: 340px;
+  text-align: center;
+}
+
+.reset-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 1rem;
+  color: #ef4444;
+}
+
+.reset-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.reset-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 0.75rem;
+}
+
+.reset-desc {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0 0 1.5rem;
+}
+
+.reset-error {
+  font-size: 0.875rem;
+  color: #ef4444;
+  margin: -0.5rem 0 1rem;
+}
+
+.reset-success {
+  font-size: 0.875rem;
+  color: #22c55e;
+  margin: -0.5rem 0 1rem;
+}
+
+.reset-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.reset-btn {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.reset-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.reset-btn--cancel {
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+}
+
+.reset-btn--cancel:hover:not(:disabled) {
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+.reset-btn--confirm {
+  background: #ef4444;
+  color: white;
+}
+
+.reset-btn--confirm:hover:not(:disabled) {
+  background: #dc2626;
+}
+
+/* Fade transition */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 
 /* Responsive */

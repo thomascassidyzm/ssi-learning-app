@@ -233,6 +233,75 @@ export class CourseDataProvider {
   }
 
   /**
+   * Get welcome audio for the course (plays once on first load)
+   */
+  async getWelcomeAudio(): Promise<AudioRef | null> {
+    if (!this.client) return null
+
+    try {
+      const { data, error } = await this.client
+        .from('courses')
+        .select('welcome_audio_uuid, welcome_audio_duration_ms')
+        .eq('course_code', this.courseId)
+        .single()
+
+      if (error || !data?.welcome_audio_uuid) return null
+
+      return {
+        id: data.welcome_audio_uuid,
+        url: this.resolveAudioUrl(data.welcome_audio_uuid),
+        duration_ms: data.welcome_audio_duration_ms,
+      }
+    } catch (err) {
+      console.error('[CourseDataProvider] Error loading welcome audio:', err)
+      return null
+    }
+  }
+
+  /**
+   * Check if learner has already heard the welcome audio
+   */
+  async hasPlayedWelcome(learnerId: string): Promise<boolean> {
+    if (!this.client || !learnerId) return true // Assume played if can't check
+
+    try {
+      const { data, error } = await this.client
+        .from('course_enrollments')
+        .select('welcome_played')
+        .eq('learner_id', learnerId)
+        .eq('course_id', this.courseId)
+        .single()
+
+      if (error || !data) return false // Not enrolled = hasn't played
+      return data.welcome_played === true
+    } catch (err) {
+      console.error('[CourseDataProvider] Error checking welcome status:', err)
+      return true // Assume played on error
+    }
+  }
+
+  /**
+   * Mark welcome audio as played (or skipped) for a learner
+   */
+  async markWelcomePlayed(learnerId: string): Promise<void> {
+    if (!this.client || !learnerId) return
+
+    try {
+      const { error } = await this.client
+        .from('course_enrollments')
+        .update({ welcome_played: true })
+        .eq('learner_id', learnerId)
+        .eq('course_id', this.courseId)
+
+      if (error) {
+        console.error('[CourseDataProvider] Error marking welcome played:', error)
+      }
+    } catch (err) {
+      console.error('[CourseDataProvider] Error updating welcome status:', err)
+    }
+  }
+
+  /**
    * Load a ClassifiedBasket for a LEGO
    * Contains all phrases for the LEGO organized by type
    */

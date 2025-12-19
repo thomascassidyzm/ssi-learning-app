@@ -69,7 +69,15 @@ async function importManifest(manifestPath) {
   const knownLang = toLang3(manifest.known) // e.g., "en" -> "eng"
   const targetLang = toLang3(manifest.target) // e.g., "es" -> "spa"
 
+  // Extract welcome audio if present
+  const welcomeAudio = manifest.introduction
+  const welcomeAudioUuid = welcomeAudio?.id || null
+  const welcomeAudioDuration = welcomeAudio?.duration ? Math.round(welcomeAudio.duration * 1000) : null
+
   console.log(`📚 Course: ${courseCode} (${knownLang} → ${targetLang})`)
+  if (welcomeAudioUuid) {
+    console.log(`🎙️  Welcome audio: ${welcomeAudioUuid}`)
+  }
   console.log(`📦 Slices: ${manifest.slices?.length || 0}`)
 
   // Track what we'll insert
@@ -228,15 +236,21 @@ async function importManifest(manifestPath) {
 
   // 1. Insert course (minimal columns - schema may vary)
   console.log(`   Creating course ${courseCode}...`)
+  const courseData = {
+    course_code: courseCode,
+    known_lang: knownLang,
+    target_lang: targetLang,
+    display_name: `${knownLang.toUpperCase()} → ${targetLang.toUpperCase()}`,
+    status: 'draft'
+  }
+  // Add welcome audio if present
+  if (welcomeAudioUuid) {
+    courseData.welcome_audio_uuid = welcomeAudioUuid
+    courseData.welcome_audio_duration_ms = welcomeAudioDuration
+  }
   const { error: courseError } = await supabase
     .from('courses')
-    .upsert({
-      course_code: courseCode,
-      known_lang: knownLang,
-      target_lang: targetLang,
-      display_name: `${knownLang.toUpperCase()} → ${targetLang.toUpperCase()}`,
-      status: 'draft'
-    }, { onConflict: 'course_code', ignoreDuplicates: false })
+    .upsert(courseData, { onConflict: 'course_code', ignoreDuplicates: false })
 
   if (courseError) {
     console.error(`   ❌ ERROR creating course:`, courseError)
