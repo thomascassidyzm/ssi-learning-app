@@ -134,8 +134,8 @@ const sessionStore = inject('sessionStore', { value: null })
 const courseDataProvider = inject('courseDataProvider', { value: null })
 const auth = inject('auth', null)
 
-// Get course code from prop, falling back to Italian demo
-const courseCode = computed(() => props.course?.course_code || 'ita_for_eng_v2')
+// Get course code from prop, falling back to Chinese course (has full data)
+const courseCode = computed(() => props.course?.course_code || 'zho_for_eng')
 
 // Get learner ID from auth (or fallback to 'demo-learner' for dev)
 const learnerId = computed(() => auth?.learnerId?.value || 'demo-learner')
@@ -152,6 +152,166 @@ const learningSession = useLearningSession({
 
 // Use items from session (will be demo items if database not available)
 const sessionItems = computed(() => learningSession.items.value.length > 0 ? learningSession.items.value : demoItems)
+
+// ============================================
+// INK SPIRIT REWARDS
+// Target language congratulations that drift upward
+// Hidden formula - show results, not mechanics
+// ============================================
+
+const REWARD_WORDS = {
+  // Chinese - common encouragements
+  zho: [
+    { word: '好', weight: 1 },        // hǎo - good (common)
+    { word: '不错', weight: 2 },      // bù cuò - not bad
+    { word: '很好', weight: 2 },      // hěn hǎo - very good
+    { word: '对', weight: 1 },        // duì - correct
+    { word: '棒', weight: 3 },        // bàng - great
+    { word: '厉害', weight: 4 },      // lìhai - impressive
+    { word: '太棒了', weight: 5 },    // tài bàng le - awesome (rare)
+    { word: '加油', weight: 3 },      // jiā yóu - keep going
+  ],
+  // Italian
+  ita: [
+    { word: 'bene', weight: 1 },
+    { word: 'bravo', weight: 2 },
+    { word: 'perfetto', weight: 4 },
+    { word: 'ottimo', weight: 3 },
+    { word: 'così', weight: 1 },
+    { word: 'esatto', weight: 2 },
+    { word: 'fantastico', weight: 5 },
+  ],
+  // Spanish
+  spa: [
+    { word: 'bien', weight: 1 },
+    { word: 'muy bien', weight: 2 },
+    { word: 'genial', weight: 3 },
+    { word: 'perfecto', weight: 4 },
+    { word: 'excelente', weight: 5 },
+    { word: 'así', weight: 1 },
+    { word: 'eso', weight: 1 },
+  ],
+  // Welsh
+  cym: [
+    { word: 'da', weight: 1 },        // good
+    { word: 'da iawn', weight: 2 },   // very good
+    { word: 'gwych', weight: 3 },     // great
+    { word: 'ardderchog', weight: 5 }, // excellent
+    { word: 'bendigedig', weight: 4 }, // wonderful
+  ],
+  // Fallback
+  default: [
+    { word: '✓', weight: 1 },
+    { word: '◆', weight: 2 },
+    { word: '★', weight: 4 },
+  ]
+}
+
+// Active floating rewards
+const floatingRewards = ref([])
+let rewardIdCounter = 0
+
+// Get target language from course code
+const targetLang = computed(() => {
+  const code = courseCode.value
+  if (code?.startsWith('zho')) return 'zho'
+  if (code?.startsWith('ita') || code?.includes('_ita')) return 'ita'
+  if (code?.startsWith('spa') || code?.includes('_spa')) return 'spa'
+  if (code?.startsWith('cym') || code?.includes('_cym')) return 'cym'
+  // Check if target is in the code (e.g., "zho_for_eng")
+  if (code?.includes('zho')) return 'zho'
+  if (code?.includes('ita')) return 'ita'
+  if (code?.includes('spa')) return 'spa'
+  if (code?.includes('cym')) return 'cym'
+  return 'default'
+})
+
+// Calculate points for a cycle (hidden formula)
+const calculateCyclePoints = () => {
+  let points = 1 // Base point for completing cycle
+  let bonusLevel = 0 // 0=normal, 1=good, 2=great, 3=amazing
+
+  // Check timing results if available
+  if (lastTimingResult.value?.speech_detected) {
+    points += 1 // Bonus for detected speech
+
+    const latency = lastTimingResult.value.response_latency_ms
+    if (latency !== null) {
+      if (latency < 500) {
+        points += 3 // Flow state - very fast
+        bonusLevel = 3
+      } else if (latency < 1000) {
+        points += 2 // Quick response
+        bonusLevel = 2
+      } else if (latency < 2000) {
+        points += 1 // Good response
+        bonusLevel = 1
+      }
+    }
+
+    // Duration match bonus
+    const delta = lastTimingResult.value.duration_delta_ms
+    if (delta !== null) {
+      const absDelta = Math.abs(delta)
+      if (absDelta < 200) {
+        points += 2 // Natural rhythm
+        bonusLevel = Math.max(bonusLevel, 2)
+      } else if (absDelta < 500) {
+        points += 1
+        bonusLevel = Math.max(bonusLevel, 1)
+      }
+    }
+  }
+
+  // Add some controlled randomness (±1) so it feels alive
+  const variance = Math.random() < 0.3 ? (Math.random() < 0.5 ? -1 : 1) : 0
+  points = Math.max(1, points + variance)
+
+  return { points, bonusLevel }
+}
+
+// Select reward word based on points/bonus level
+const selectRewardWord = (bonusLevel) => {
+  const words = REWARD_WORDS[targetLang.value] || REWARD_WORDS.default
+
+  // Filter words by weight - higher bonus = access to rarer words
+  const maxWeight = bonusLevel + 2 // 0→2, 1→3, 2→4, 3→5
+  const eligible = words.filter(w => w.weight <= maxWeight)
+
+  // Weighted random selection favoring higher weights when earned
+  const weighted = eligible.flatMap(w => {
+    // More bonus = more likely to get the better words
+    const copies = bonusLevel >= w.weight ? 2 : 1
+    return Array(copies).fill(w.word)
+  })
+
+  return weighted[Math.floor(Math.random() * weighted.length)]
+}
+
+// Trigger floating reward animation
+const triggerRewardAnimation = (points, bonusLevel) => {
+  const word = selectRewardWord(bonusLevel)
+  const id = ++rewardIdCounter
+
+  // Random horizontal offset for variety
+  const xOffset = (Math.random() - 0.5) * 60 // -30 to +30 px
+
+  floatingRewards.value.push({
+    id,
+    word,
+    points,
+    bonusLevel,
+    xOffset,
+  })
+
+  // Remove after animation completes
+  setTimeout(() => {
+    floatingRewards.value = floatingRewards.value.filter(r => r.id !== id)
+  }, 2000)
+}
+
+// Session points total
+const sessionPoints = ref(0)
 
 // ============================================
 // BELT PROGRESSION SYSTEM
@@ -515,6 +675,11 @@ const handleCycleEvent = (event) => {
           : 2000
         endTimingCycle(modelDuration)
       }
+
+      // Trigger floating reward animation (Ink Spirit)
+      const { points, bonusLevel } = calculateCyclePoints()
+      sessionPoints.value += points
+      triggerRewardAnimation(points, bonusLevel)
 
       // Record progress if database is available
       if (completedItem) {
@@ -1189,6 +1354,20 @@ onUnmounted(() => {
 
         <!-- Phase label below -->
         <div class="ring-label">{{ phaseInfo.instruction }}</div>
+
+        <!-- Ink Spirit Rewards - Float upward like incense -->
+        <TransitionGroup name="ink-spirit" tag="div" class="ink-spirit-container">
+          <div
+            v-for="reward in floatingRewards"
+            :key="reward.id"
+            class="ink-spirit-reward"
+            :class="`bonus-${reward.bonusLevel}`"
+            :style="{ '--x-offset': `${reward.xOffset}px` }"
+          >
+            <span class="ink-word">{{ reward.word }}</span>
+            <span class="ink-points">+{{ reward.points }}</span>
+          </div>
+        </TransitionGroup>
       </div>
 
       <!-- Target Language Text - Fixed Height (Always Reserved) -->
@@ -1281,7 +1460,7 @@ onUnmounted(() => {
    Refined minimalism, premium feel
    ============================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Noto+Serif+SC:wght@600&family=Noto+Serif:wght@500&display=swap');
 
 .player {
   --accent: #c23a3a;
@@ -2198,6 +2377,130 @@ onUnmounted(() => {
 
 .ring-container.is-paused .ring-label {
   opacity: 0.5;
+}
+
+/* ============ INK SPIRIT REWARDS ============ */
+/* Calligraphic rewards that drift upward like incense smoke */
+
+.ink-spirit-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 20;
+}
+
+.ink-spirit-reward {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  transform: translate(calc(-50% + var(--x-offset, 0px)), -50%);
+  animation: ink-rise 1.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.ink-word {
+  font-family: 'Noto Serif SC', 'Noto Serif', Georgia, serif;
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: var(--belt-color, var(--text-primary));
+  text-shadow:
+    0 0 20px var(--belt-glow, rgba(255,255,255,0.2)),
+    0 2px 4px rgba(0,0,0,0.3);
+  opacity: 0;
+  animation: ink-appear 0.4s ease-out 0.1s forwards;
+  letter-spacing: 0.05em;
+}
+
+.ink-points {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  opacity: 0;
+  animation: ink-appear 0.3s ease-out 0.3s forwards;
+}
+
+/* Bonus level variations - rarer words glow more */
+.ink-spirit-reward.bonus-0 .ink-word {
+  opacity: 0;
+  animation: ink-appear 0.4s ease-out 0.1s forwards;
+}
+
+.ink-spirit-reward.bonus-1 .ink-word {
+  filter: brightness(1.1);
+}
+
+.ink-spirit-reward.bonus-2 .ink-word {
+  filter: brightness(1.2);
+  text-shadow:
+    0 0 30px var(--belt-glow, rgba(255,255,255,0.3)),
+    0 0 60px var(--belt-glow, rgba(255,255,255,0.15)),
+    0 2px 4px rgba(0,0,0,0.3);
+}
+
+.ink-spirit-reward.bonus-3 .ink-word {
+  filter: brightness(1.3);
+  font-size: 2rem;
+  text-shadow:
+    0 0 40px var(--belt-glow, rgba(255,255,255,0.4)),
+    0 0 80px var(--belt-glow, rgba(255,255,255,0.2)),
+    0 2px 4px rgba(0,0,0,0.3);
+}
+
+.ink-spirit-reward.bonus-3 .ink-points {
+  color: var(--belt-color, var(--gold));
+}
+
+@keyframes ink-rise {
+  0% {
+    transform: translate(calc(-50% + var(--x-offset, 0px)), -50%);
+  }
+  100% {
+    transform: translate(calc(-50% + var(--x-offset, 0px)), calc(-50% - 100px));
+  }
+}
+
+@keyframes ink-appear {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+}
+
+/* Fade out at end of animation */
+.ink-spirit-reward {
+  animation: ink-rise 1.8s cubic-bezier(0.22, 1, 0.36, 1) forwards,
+             ink-fade 0.6s ease-in 1.2s forwards;
+}
+
+@keyframes ink-fade {
+  to {
+    opacity: 0;
+  }
+}
+
+/* Vue transition hooks */
+.ink-spirit-enter-active {
+  transition: none; /* Let CSS animations handle it */
+}
+
+.ink-spirit-leave-active {
+  transition: opacity 0.3s ease-out;
+}
+
+.ink-spirit-leave-to {
+  opacity: 0;
 }
 
 /* ============ CONTROLS ============ */

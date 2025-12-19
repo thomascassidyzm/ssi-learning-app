@@ -46,17 +46,17 @@ const showCourseSelector = ref(false)
 const activeCourseData = computed(() => {
   const course = props.activeCourse
   if (!course) {
-    // Fallback mock data for development
+    // Fallback mock data for development (Chinese course has full data)
     return {
-      course_code: 'ita_for_eng_v2',
-      title: 'Italian',
+      course_code: 'zho_for_eng',
+      title: 'Chinese',
       subtitle: 'for English Speakers',
-      target_flag: '🇮🇹',
+      target_flag: '🇨🇳',
       known_lang: 'eng',
-      progress: 6.3,
-      completedSeeds: 42,
+      progress: 0,
+      completedSeeds: 0,
       totalSeeds: 668,
-      lastSession: '2 hours ago',
+      lastSession: 'Never',
     }
   }
 

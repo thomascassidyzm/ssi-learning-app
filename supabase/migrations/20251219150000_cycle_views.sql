@@ -7,9 +7,7 @@
 -- learning engine. One query = one playable unit.
 -- ============================================
 
--- Performance index for text-based audio lookups
-CREATE INDEX IF NOT EXISTS idx_audio_samples_text_role
-ON audio_samples (text_normalized, role);
+-- Note: idx_audio_samples_text_role created in content_tables migration
 
 -- ============================================
 -- LEGO CYCLES
@@ -125,7 +123,7 @@ CREATE OR REPLACE VIEW seed_cycles AS
 SELECT
   -- Identity
   s.id,
-  s.seed_id,
+  'S' || lpad(s.seed_number::text, 4, '0') AS seed_id,
   s.course_code,
   s.seed_number,
 
