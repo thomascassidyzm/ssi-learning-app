@@ -77,15 +77,16 @@ export class CourseDataProvider {
     }
 
     try {
-      // Query lego_with_phrases view for the session range
+      // Query lego_cycles view for the session range
+      // This view contains LEGOs with their audio UUIDs
       const { data, error } = await this.client
-        .from('lego_with_phrases')
+        .from('lego_cycles')
         .select('*')
         .eq('course_code', this.courseId)
-        .gte('seed_position', startSeed)
-        .lt('seed_position', startSeed + count)
-        .order('seed_position', { ascending: true })
-        .order('lego_order', { ascending: true })
+        .gte('seed_number', startSeed)
+        .lt('seed_number', startSeed + count)
+        .order('seed_number', { ascending: true })
+        .order('lego_index', { ascending: true })
 
       if (error) {
         console.error('[CourseDataProvider] Query error:', error)
@@ -97,6 +98,8 @@ export class CourseDataProvider {
         return []
       }
 
+      console.log('[CourseDataProvider] Loaded', data.length, 'items for', this.courseId)
+
       // Transform database records to LearningItem format
       return this.transformToLearningItems(data)
     } catch (err) {
@@ -107,23 +110,23 @@ export class CourseDataProvider {
 
   /**
    * Transform database records to LearningItem format
+   * Maps lego_cycles view fields to LearningItem structure
    */
   private transformToLearningItems(records: any[]): LearningItem[] {
     return records.map((record) => {
       const legoId = record.lego_id
-      const phraseId = record.phrase_id
-      const seedId = record.seed_id
+      const seedId = `S${String(record.seed_number).padStart(4, '0')}`
 
-      // Resolve audio URLs from UUIDs
+      // Resolve audio URLs from UUIDs (field names from lego_cycles view)
       const knownAudioUrl = this.resolveAudioUrl(record.known_audio_uuid)
-      const target1AudioUrl = this.resolveAudioUrl(record.target_audio_uuid_1)
-      const target2AudioUrl = this.resolveAudioUrl(record.target_audio_uuid_2)
+      const target1AudioUrl = this.resolveAudioUrl(record.target1_audio_uuid)
+      const target2AudioUrl = this.resolveAudioUrl(record.target2_audio_uuid)
 
       return {
         lego: {
           id: legoId,
-          type: record.lego_type,
-          new: record.is_debut,
+          type: record.type || 'A',
+          new: record.is_new,
           lego: {
             known: record.known_text,
             target: record.target_text,
@@ -135,19 +138,19 @@ export class CourseDataProvider {
             },
             target: {
               voice1: {
-                id: record.target_audio_uuid_1,
+                id: record.target1_audio_uuid,
                 url: target1AudioUrl
               },
               voice2: {
-                id: record.target_audio_uuid_2,
+                id: record.target2_audio_uuid,
                 url: target2AudioUrl
               },
             },
           },
         },
         phrase: {
-          id: phraseId,
-          phraseType: record.is_debut ? 'debut' : 'practice',
+          id: `${legoId}_P1`,
+          phraseType: record.is_new ? 'debut' : 'practice',
           phrase: {
             known: record.known_text,
             target: record.target_text,
@@ -159,32 +162,32 @@ export class CourseDataProvider {
             },
             target: {
               voice1: {
-                id: record.target_audio_uuid_1,
+                id: record.target1_audio_uuid,
                 url: target1AudioUrl
               },
               voice2: {
-                id: record.target_audio_uuid_2,
+                id: record.target2_audio_uuid,
                 url: target2AudioUrl
               },
             },
           },
-          wordCount: record.target_text.split(' ').length,
+          wordCount: record.target_text ? record.target_text.split(/\s+/).length : 1,
           containsLegos: [legoId],
         },
         seed: {
           seed_id: seedId,
           seed_pair: {
-            known: record.seed_known_text,
-            target: record.seed_target_text,
+            known: record.known_text,  // For now, use LEGO text (seed text would come from seed_cycles)
+            target: record.target_text,
           },
           legos: [legoId],
         },
-        thread_id: record.thread_id || 1,
-        mode: 'practice',
+        thread_id: (record.seed_number % 3) + 1,  // Card-deal distribution: 1→A, 2→B, 3→C, 4→A...
+        mode: record.is_new ? 'introduction' : 'practice',
         audioDurations: {
           source: record.known_duration_ms ? record.known_duration_ms / 1000 : 2.0,
-          target1: record.target_duration_1_ms ? record.target_duration_1_ms / 1000 : 2.5,
-          target2: record.target_duration_2_ms ? record.target_duration_2_ms / 1000 : 2.5,
+          target1: record.target1_duration_ms ? record.target1_duration_ms / 1000 : 2.5,
+          target2: record.target2_duration_ms ? record.target2_duration_ms / 1000 : 2.5,
         },
       }
     })

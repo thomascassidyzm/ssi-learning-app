@@ -103,19 +103,26 @@ const fetchEnrolledCourses = async () => {
       return
     }
 
-    // For demo, mark the first course as the active one
+    // Set first available course as active (or Chinese if available for testing)
     if (data && data.length > 0) {
       enrolledCourses.value = data
-      // Set Italian as default active course if available
-      const italianCourse = data.find(c => c.course_code === 'ita_for_eng_v2')
-      if (italianCourse && !activeCourse.value) {
+      // Prefer Chinese for testing, otherwise first course
+      const defaultCourse = data.find(c => c.course_code === 'zho_for_eng') || data[0]
+      if (defaultCourse && !activeCourse.value) {
         activeCourse.value = {
-          ...italianCourse,
-          completedSeeds: 42,
-          progress: 6.3,
-          streak: 7,
-          lastSession: '2 hours ago',
+          ...defaultCourse,
+          completedSeeds: 0,
+          progress: 0,
+          streak: 0,
+          lastSession: null,
         }
+        // Create courseDataProvider for the default course
+        courseDataProvider.value = createCourseDataProvider({
+          supabaseClient: supabaseClient.value,
+          audioBaseUrl: config.s3.audioBaseUrl,
+          courseId: defaultCourse.course_code,
+        })
+        console.log('[App] Default course set:', defaultCourse.course_code)
       }
     }
   } catch (err) {
@@ -164,6 +171,11 @@ const handleGoHome = () => {
   }
 }
 
+// Provide stores to child components (provide at setup level for reactivity)
+provide('progressStore', progressStore)
+provide('sessionStore', sessionStore)
+provide('courseDataProvider', courseDataProvider)
+
 onMounted(async () => {
   // Check if launched from Schools with class context
   const hasClassContext = checkClassContext()
@@ -191,12 +203,9 @@ onMounted(async () => {
       // Create store instances
       progressStore.value = createProgressStore({ client: supabaseClient.value })
       sessionStore.value = createSessionStore({ client: supabaseClient.value })
-      courseDataProvider.value = createCourseDataProvider({
-        supabaseClient: supabaseClient.value,
-        audioBaseUrl: config.s3.audioBaseUrl,
-        courseId: 'ita_for_eng_v2',
-      })
 
+      // courseDataProvider will be created when a course is selected
+      // For now, don't create with default - let course selection handle it
       console.log('[App] Database stores initialized')
 
       // Fetch enrolled courses
@@ -207,11 +216,6 @@ onMounted(async () => {
   } else {
     console.log('[App] Running in demo mode (database not configured or disabled)')
   }
-
-  // Provide stores to child components (will be null in demo mode)
-  provide('progressStore', progressStore)
-  provide('sessionStore', sessionStore)
-  provide('courseDataProvider', courseDataProvider)
 })
 </script>
 
@@ -237,6 +241,7 @@ onMounted(async () => {
       <LearningPlayer
         v-if="currentScreen === 'player'"
         :classContext="classContext"
+        :course="activeCourse"
         @close="handleGoHome"
       />
     </Transition>

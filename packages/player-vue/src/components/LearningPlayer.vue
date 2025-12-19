@@ -16,6 +16,10 @@ const props = defineProps({
   classContext: {
     type: Object,
     default: null
+  },
+  course: {
+    type: Object,
+    default: null
   }
 })
 
@@ -127,13 +131,16 @@ const progressStore = inject('progressStore', { value: null })
 const sessionStore = inject('sessionStore', { value: null })
 const courseDataProvider = inject('courseDataProvider', { value: null })
 
+// Get course code from prop, falling back to Italian demo
+const courseCode = computed(() => props.course?.course_code || 'ita_for_eng_v2')
+
 // Initialize learning session composable
 const learningSession = useLearningSession({
   progressStore: progressStore.value,
   sessionStore: sessionStore.value,
   courseDataProvider: courseDataProvider.value,
   learnerId: 'demo-learner', // TODO: Get from auth
-  courseId: 'spa_for_eng_v2',
+  courseId: courseCode.value,
   demoItems,
 })
 
