@@ -6,3 +6,5 @@ export * from './SpikeDetector';
 export * from './AdaptationEngine';
 export * from './WeightedSelector';
 export * from './MasteryStateMachine';
+export * from './PhraseSelector';
+export * from './RoundEngine';

@@ -5,6 +5,7 @@
  * - SEEDs are distributed via card-dealing across threads
  * - Each thread has its own SpacedRepetitionQueue for LEGOs
  * - Rotation between threads provides natural inter-thread spacing
+ * - ROUND-based introduction for new LEGOs (via RoundEngine)
  */
 
 import type {
@@ -16,9 +17,19 @@ import type {
   LegoProgress,
   LearningMode,
   PracticePhrase,
+  ClassifiedBasket,
+  RoundState,
 } from '../data/types';
+import { createDefaultLegoProgress } from '../data/types';
 import type { HelixConfig, RepetitionConfig } from '../config/types';
 import { SpacedRepetitionQueue } from './SpacedRepetitionQueue';
+import {
+  getNextRoundItem,
+  createRoundState,
+  needsRound,
+  type RoundEngineConfig,
+} from './RoundEngine';
+import { selectEternalPhrase } from './PhraseSelector';
 
 interface ThreadState {
   /** Queue for this thread's LEGOs */
@@ -40,6 +51,23 @@ export class TripleHelixEngine {
   private courseId: string;
   private allSeeds: SeedPair[] = [];
 
+  // ROUND-based learning state
+  private baskets: Map<string, ClassifiedBasket> = new Map();
+  private roundStates: Map<string, RoundState> = new Map();
+  private legoProgressMap: Map<string, LegoProgress> = new Map();
+  private roundConfig: RoundEngineConfig = {
+    spacedRepInterleaveCount: 3,
+    consolidationCount: 2,
+    skipComponents: false,
+    phraseSelector: {
+      eternalSelectionMode: 'random_urn',
+      minEternalsBeforeRepeat: 3,
+    },
+  };
+
+  // Currently active round (if any)
+  private activeRoundLegoId: string | null = null;
+
   constructor(
     helixConfig: HelixConfig,
     repetitionConfig: RepetitionConfig,
@@ -58,6 +86,35 @@ export class TripleHelixEngine {
         introducedSeeds: new Set(),
       });
     }
+  }
+
+  /**
+   * Register a ClassifiedBasket for a LEGO (for ROUND-based phrase selection)
+   */
+  registerBasket(legoId: string, basket: ClassifiedBasket): void {
+    this.baskets.set(legoId, basket);
+  }
+
+  /**
+   * Register multiple baskets at once
+   */
+  registerBaskets(baskets: ClassifiedBasket[]): void {
+    for (const basket of baskets) {
+      this.baskets.set(basket.lego_id, basket);
+    }
+  }
+
+  /**
+   * Get the currently active round (if any)
+   */
+  getActiveRound(): { legoId: string; roundState: RoundState } | null {
+    if (this.activeRoundLegoId) {
+      const roundState = this.roundStates.get(this.activeRoundLegoId);
+      if (roundState) {
+        return { legoId: this.activeRoundLegoId, roundState };
+      }
+    }
+    return null;
   }
 
   /**
@@ -124,8 +181,19 @@ export class TripleHelixEngine {
 
   /**
    * Get the next learning item to practice
+   *
+   * Enhanced with ROUND-based learning:
+   * - If there's an active Round, continue it
+   * - If Round needs spaced rep, get it from another thread
+   * - Otherwise, normal thread rotation
    */
   getNextItem(): LearningItem | null {
+    // If there's an active Round, continue it
+    if (this.activeRoundLegoId) {
+      const result = this.continueActiveRound();
+      if (result) return result;
+    }
+
     // Try current thread first
     let item = this.getItemFromThread(this.activeThread);
 
@@ -142,6 +210,93 @@ export class TripleHelixEngine {
     }
 
     return item;
+  }
+
+  /**
+   * Continue the active Round, handling all phases including spaced rep
+   */
+  private continueActiveRound(): LearningItem | null {
+    const legoId = this.activeRoundLegoId;
+    if (!legoId) return null;
+
+    const basket = this.baskets.get(legoId);
+    const roundState = this.roundStates.get(legoId);
+    const progress = this.legoProgressMap.get(legoId);
+
+    if (!basket || !roundState || !progress) {
+      // Missing data, abandon round
+      this.activeRoundLegoId = null;
+      return null;
+    }
+
+    // Find the LEGO and SEED
+    const lego = this.findLego(legoId);
+    const seed = this.findSeedForLego(legoId);
+
+    if (!lego || !seed) {
+      this.activeRoundLegoId = null;
+      return null;
+    }
+
+    // Get next item from RoundEngine
+    const result = getNextRoundItem(
+      lego,
+      seed,
+      basket,
+      progress,
+      roundState,
+      this.roundConfig
+    );
+
+    // Update state
+    this.legoProgressMap.set(legoId, result.updatedProgress);
+    this.roundStates.set(legoId, result.updatedRoundState);
+
+    // Check if Round is complete
+    if (result.roundComplete) {
+      this.activeRoundLegoId = null;
+      // Update the queue with the completed progress
+      const thread = this.findThreadForLego(legoId);
+      if (thread) {
+        thread.queue.updateProgress(legoId, result.updatedProgress);
+      }
+      return null; // Get next item normally
+    }
+
+    // If Round needs spaced rep item, get from another thread
+    if (result.needsSpacedRepItem) {
+      const spacedRepItem = this.getSpacedRepItemForRound(progress.thread_id);
+      if (spacedRepItem) {
+        return spacedRepItem;
+      }
+      // No spaced rep available, continue Round
+      return this.continueActiveRound();
+    }
+
+    return result.item;
+  }
+
+  /**
+   * Get a spaced rep item from a thread OTHER than the active Round's thread
+   */
+  private getSpacedRepItemForRound(excludeThreadId: number): LearningItem | null {
+    for (const [threadId, thread] of this.threads) {
+      if (threadId === excludeThreadId) continue;
+
+      const readyLego = thread.queue.getNext();
+      if (readyLego) {
+        const seed = this.findSeedForLego(readyLego.lego.id);
+        if (seed) {
+          return this.createLearningItemWithBasket(
+            readyLego.lego,
+            seed,
+            threadId,
+            'review'
+          );
+        }
+      }
+    }
+    return null;
   }
 
   /**
@@ -273,12 +428,23 @@ export class TripleHelixEngine {
     // First check if there's a LEGO ready for review
     const readyLego = thread.queue.getNext();
     if (readyLego) {
-      return this.createLearningItem(
-        readyLego.lego,
-        thread.seeds.find(s => s.legos.some(l => l.id === readyLego.lego.id))!,
-        threadId,
-        'review'
-      );
+      // Check if this LEGO needs a Round (introduction not complete)
+      const progress = this.legoProgressMap.get(readyLego.lego.id);
+      if (progress && needsRound(progress)) {
+        // Start/continue a Round for this LEGO
+        return this.startRoundForLego(readyLego.lego.id, threadId);
+      }
+
+      // Normal review - use basket for phrase variety if available
+      const seed = this.findSeedForLego(readyLego.lego.id);
+      if (seed) {
+        return this.createLearningItemWithBasket(
+          readyLego.lego,
+          seed,
+          threadId,
+          'review'
+        );
+      }
     }
 
     // Otherwise, introduce new content
@@ -310,10 +476,83 @@ export class TripleHelixEngine {
       thread.queue.addNew(lego, threadId, this.courseId);
     }
 
+    // Create initial progress if needed
+    if (!this.legoProgressMap.has(lego.id)) {
+      this.legoProgressMap.set(
+        lego.id,
+        createDefaultLegoProgress(lego.id, this.courseId, threadId)
+      );
+    }
+
     // Advance to next LEGO for next call
     thread.currentLegoIndex++;
 
+    // Start a Round for this new LEGO (if basket is available)
+    const basket = this.baskets.get(lego.id);
+    if (basket) {
+      return this.startRoundForLego(lego.id, threadId);
+    }
+
+    // Fallback: simple introduction without Round structure
     return this.createLearningItem(lego, seed, threadId, 'introduction');
+  }
+
+  /**
+   * Start a Round for a LEGO (or continue an existing one)
+   */
+  private startRoundForLego(legoId: string, _threadId: number): LearningItem | null {
+    // Get or create round state
+    if (!this.roundStates.has(legoId)) {
+      this.roundStates.set(legoId, createRoundState(legoId, this.roundConfig));
+    }
+
+    // Set as active round
+    this.activeRoundLegoId = legoId;
+
+    // Continue the round
+    return this.continueActiveRound();
+  }
+
+  /**
+   * Create a learning item using basket for phrase variety
+   */
+  private createLearningItemWithBasket(
+    lego: LegoPair,
+    seed: SeedPair,
+    threadId: number,
+    mode: LearningMode
+  ): LearningItem {
+    const basket = this.baskets.get(lego.id);
+    const progress = this.legoProgressMap.get(lego.id);
+
+    // If we have a basket and progress, select an eternal phrase with variety
+    if (basket && progress && basket.eternal_phrases.length > 0) {
+      const { phrase, updatedUrn } = selectEternalPhrase(
+        basket,
+        progress,
+        this.roundConfig.phraseSelector
+      );
+
+      if (phrase) {
+        // Update progress with new urn state
+        this.legoProgressMap.set(lego.id, {
+          ...progress,
+          eternal_urn: updatedUrn,
+          last_eternal_phrase_id: phrase.id,
+        });
+
+        return {
+          lego,
+          phrase,
+          seed,
+          thread_id: threadId,
+          mode,
+        };
+      }
+    }
+
+    // Fallback to simple phrase
+    return this.createLearningItem(lego, seed, threadId, mode);
   }
 
   private createLearningItem(
@@ -350,6 +589,24 @@ export class TripleHelixEngine {
     for (const seed of this.allSeeds) {
       const lego = seed.legos.find(l => l.id === legoId);
       if (lego) return lego;
+    }
+    return null;
+  }
+
+  private findSeedForLego(legoId: string): SeedPair | null {
+    for (const seed of this.allSeeds) {
+      if (seed.legos.some(l => l.id === legoId)) {
+        return seed;
+      }
+    }
+    return null;
+  }
+
+  private findThreadForLego(legoId: string): ThreadState | null {
+    for (const thread of this.threads.values()) {
+      if (thread.queue.getProgress(legoId)) {
+        return thread;
+      }
     }
     return null;
   }

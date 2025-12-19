@@ -137,6 +137,20 @@ export interface LegoProgress {
   is_retired: boolean;
   /** When last practiced */
   last_practiced_at: Date | null;
+
+  // ROUND tracking
+  /** Whether introduction audio has been played */
+  introduction_played: boolean;
+  /** Current position in introduction sequence (phases 2-4) */
+  introduction_index: number;
+  /** Whether the full ROUND is complete (ready for spaced rep) */
+  introduction_complete: boolean;
+
+  // Eternal selection state (for spaced rep variety)
+  /** Remaining phrase IDs in the urn (for random_urn selection) */
+  eternal_urn: string[];
+  /** Last eternal phrase ID used (for max_distance mode) */
+  last_eternal_phrase_id: string | null;
 }
 
 export interface SeedProgress {
@@ -190,3 +204,76 @@ export type LearningMode =
   | 'review'        // Spaced repetition review
   | 'breakdown'     // Component breakdown for M-types
   | 'buildup';      // Building back up after breakdown
+
+// ============================================
+// CLASSIFIED BASKET (for ROUND phrase selection)
+// ============================================
+
+/**
+ * A basket of phrases organized by cognitive load (syllable count).
+ * Used by PhraseSelector for intelligent phrase ordering.
+ */
+export interface ClassifiedBasket {
+  /** LEGO ID this basket is for */
+  lego_id: string;
+  /** Components (for M-type LEGOs only) - individual parts */
+  components: PracticePhrase[];
+  /** The LEGO debut phrase (the LEGO itself in minimal context) */
+  debut: PracticePhrase | null;
+  /** Debut phrases sorted by syllable count (easiest first) */
+  debut_phrases: PracticePhrase[];
+  /** Eternal phrases for ongoing spaced rep (varied contexts) */
+  eternal_phrases: PracticePhrase[];
+  /** Introduction audio ref ("The Spanish for X is...") */
+  introduction_audio: AudioRef | null;
+}
+
+/**
+ * Current state of a ROUND in progress.
+ * A ROUND is the complete introduction sequence for one LEGO.
+ */
+export type RoundPhase =
+  | 'intro_audio'      // Phase 1: Play "The Spanish for X is..."
+  | 'components'       // Phase 2: Practice individual parts (M-type only)
+  | 'debut_lego'       // Phase 3: Practice the LEGO itself
+  | 'debut_phrases'    // Phase 4: Practice shortest phrases
+  | 'spaced_rep'       // Phase 5: Interleaved review of older LEGOs
+  | 'consolidation';   // Phase 6: 1-2 eternals before next Round
+
+export interface RoundState {
+  /** LEGO being introduced */
+  lego_id: string;
+  /** Current phase in the ROUND */
+  current_phase: RoundPhase;
+  /** Position within current phase (for multi-item phases) */
+  phase_index: number;
+  /** How many spaced rep items to interleave */
+  spaced_rep_target: number;
+  /** How many spaced rep items completed */
+  spaced_rep_completed: number;
+  /** How many consolidation eternals remaining (usually 1-2) */
+  consolidation_remaining: number;
+}
+
+/**
+ * Default LegoProgress for a new LEGO
+ */
+export function createDefaultLegoProgress(legoId: string, courseId: string, threadId: number): LegoProgress {
+  return {
+    lego_id: legoId,
+    course_id: courseId,
+    thread_id: threadId,
+    fibonacci_position: 0,
+    skip_number: 1,
+    reps_completed: 0,
+    is_retired: false,
+    last_practiced_at: null,
+    // ROUND tracking
+    introduction_played: false,
+    introduction_index: 0,
+    introduction_complete: false,
+    // Eternal selection
+    eternal_urn: [],
+    last_eternal_phrase_id: null,
+  };
+}

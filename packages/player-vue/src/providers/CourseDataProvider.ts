@@ -5,6 +5,12 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type {
+  ClassifiedBasket,
+  PracticePhrase,
+  AudioRef,
+  LegoPair,
+} from '@ssi/core'
 
 export interface LearningItem {
   lego: {
@@ -223,6 +229,246 @@ export class CourseDataProvider {
     } catch (err) {
       console.error('[CourseDataProvider] Error fetching metadata:', err)
       return null
+    }
+  }
+
+  /**
+   * Load a ClassifiedBasket for a LEGO
+   * Contains all phrases for the LEGO organized by type
+   */
+  async getLegoBasket(legoId: string, lego?: LegoPair): Promise<ClassifiedBasket | null> {
+    if (!this.client) {
+      console.warn('[CourseDataProvider] No Supabase client, returning empty basket')
+      return this.createEmptyBasket(legoId, lego)
+    }
+
+    try {
+      // Query practice_cycles view for all phrases containing this LEGO
+      const { data, error } = await this.client
+        .from('practice_cycles')
+        .select('*')
+        .eq('lego_id', legoId)
+        .eq('course_code', this.courseId)
+        .order('position', { ascending: true })
+        .order('target_syllable_count', { ascending: true })
+
+      if (error) {
+        console.error('[CourseDataProvider] Failed to load basket:', error)
+        return this.createEmptyBasket(legoId, lego)
+      }
+
+      if (!data || data.length === 0) {
+        console.warn('[CourseDataProvider] No phrases found for LEGO:', legoId)
+        return this.createEmptyBasket(legoId, lego)
+      }
+
+      // Transform to ClassifiedBasket
+      return this.transformToBasket(legoId, data, lego)
+    } catch (err) {
+      console.error('[CourseDataProvider] Error loading basket:', err)
+      return this.createEmptyBasket(legoId, lego)
+    }
+  }
+
+  /**
+   * Load baskets for multiple LEGOs at once (more efficient)
+   */
+  async getLegoBasketsForSeed(seedId: string): Promise<Map<string, ClassifiedBasket>> {
+    const baskets = new Map<string, ClassifiedBasket>()
+
+    if (!this.client) return baskets
+
+    try {
+      // Query practice_cycles for all LEGOs in this seed
+      const { data, error } = await this.client
+        .from('practice_cycles')
+        .select('*')
+        .eq('seed_id', seedId)
+        .eq('course_code', this.courseId)
+        .order('lego_id', { ascending: true })
+        .order('position', { ascending: true })
+        .order('target_syllable_count', { ascending: true })
+
+      if (error) {
+        console.error('[CourseDataProvider] Failed to load seed baskets:', error)
+        return baskets
+      }
+
+      if (!data || data.length === 0) return baskets
+
+      // Group by lego_id
+      const grouped = new Map<string, any[]>()
+      for (const row of data) {
+        const legoId = row.lego_id
+        if (!grouped.has(legoId)) {
+          grouped.set(legoId, [])
+        }
+        grouped.get(legoId)!.push(row)
+      }
+
+      // Transform each group to a basket
+      for (const [legoId, rows] of grouped) {
+        const basket = this.transformToBasket(legoId, rows)
+        if (basket) {
+          baskets.set(legoId, basket)
+        }
+      }
+
+      console.log('[CourseDataProvider] Loaded baskets for', baskets.size, 'LEGOs')
+      return baskets
+    } catch (err) {
+      console.error('[CourseDataProvider] Error loading seed baskets:', err)
+      return baskets
+    }
+  }
+
+  /**
+   * Get introduction audio for a LEGO ("The Spanish for X is...")
+   */
+  async getIntroductionAudio(legoId: string): Promise<AudioRef | null> {
+    if (!this.client) return null
+
+    try {
+      const { data, error } = await this.client
+        .from('lego_introductions')
+        .select('audio_uuid, duration_ms')
+        .eq('lego_id', legoId)
+        .eq('course_code', this.courseId)
+        .single()
+
+      if (error || !data) return null
+
+      return {
+        id: data.audio_uuid,
+        url: this.resolveAudioUrl(data.audio_uuid),
+        duration_ms: data.duration_ms,
+      }
+    } catch (err) {
+      console.error('[CourseDataProvider] Error loading intro audio:', err)
+      return null
+    }
+  }
+
+  /**
+   * Transform database records to ClassifiedBasket
+   */
+  private transformToBasket(
+    legoId: string,
+    records: any[],
+    lego?: LegoPair
+  ): ClassifiedBasket {
+    const components: PracticePhrase[] = []
+    let debut: PracticePhrase | null = null
+    const debutPhrases: PracticePhrase[] = []
+    const eternalPhrases: PracticePhrase[] = []
+
+    for (const record of records) {
+      const phrase: PracticePhrase = {
+        id: record.phrase_id || `${legoId}_P${record.position}`,
+        phraseType: this.mapPhraseType(record.position, record.phrase_type),
+        phrase: {
+          known: record.known_text,
+          target: record.target_text,
+        },
+        audioRefs: {
+          known: {
+            id: record.known_audio_uuid,
+            url: this.resolveAudioUrl(record.known_audio_uuid),
+            duration_ms: record.known_duration_ms,
+          },
+          target: {
+            voice1: {
+              id: record.target1_audio_uuid,
+              url: this.resolveAudioUrl(record.target1_audio_uuid),
+              duration_ms: record.target1_duration_ms,
+            },
+            voice2: {
+              id: record.target2_audio_uuid,
+              url: this.resolveAudioUrl(record.target2_audio_uuid),
+              duration_ms: record.target2_duration_ms,
+            },
+          },
+        },
+        wordCount: record.target_word_count || (record.target_text?.split(/\s+/).length || 1),
+        containsLegos: [legoId],
+      }
+
+      // Classify by position (from APML spec)
+      // position 0 = component, position 1 = lego debut, position 2+ = phrases
+      const position = record.position || 0
+      if (position === 0) {
+        components.push(phrase)
+      } else if (position === 1) {
+        debut = phrase
+      } else if (position <= 4) {
+        // Positions 2-4 are debut phrases (shortest)
+        debutPhrases.push(phrase)
+      } else {
+        // Position 5+ are eternal phrases
+        eternalPhrases.push(phrase)
+      }
+    }
+
+    // If no explicit debut, create from lego
+    if (!debut && lego) {
+      debut = {
+        id: `${legoId}_debut`,
+        phraseType: 'debut',
+        phrase: lego.lego,
+        audioRefs: lego.audioRefs,
+        wordCount: lego.lego.target.split(/\s+/).length,
+        containsLegos: [legoId],
+      }
+    }
+
+    return {
+      lego_id: legoId,
+      components,
+      debut,
+      debut_phrases: debutPhrases,
+      eternal_phrases: eternalPhrases,
+      introduction_audio: null, // Loaded separately via getIntroductionAudio
+    }
+  }
+
+  /**
+   * Map database phrase_type/position to PhraseType
+   */
+  private mapPhraseType(
+    position: number,
+    dbType?: string
+  ): 'component' | 'debut' | 'practice' | 'eternal' {
+    if (position === 0) return 'component'
+    if (position === 1) return 'debut'
+    if (dbType === 'eternal') return 'eternal'
+    if (position <= 4) return 'debut' // Short phrases still debut
+    return 'eternal'
+  }
+
+  /**
+   * Create an empty basket when database isn't available
+   */
+  private createEmptyBasket(legoId: string, lego?: LegoPair): ClassifiedBasket {
+    let debut: PracticePhrase | null = null
+
+    if (lego) {
+      debut = {
+        id: `${legoId}_debut`,
+        phraseType: 'debut',
+        phrase: lego.lego,
+        audioRefs: lego.audioRefs,
+        wordCount: lego.lego.target.split(/\s+/).length,
+        containsLegos: [legoId],
+      }
+    }
+
+    return {
+      lego_id: legoId,
+      components: [],
+      debut,
+      debut_phrases: [],
+      eternal_phrases: [],
+      introduction_audio: null,
     }
   }
 }

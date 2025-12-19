@@ -486,6 +486,13 @@ export class ProgressStore implements IProgressStore {
       last_practiced_at: data.last_practiced_at
         ? new Date(data.last_practiced_at as string)
         : null,
+      // ROUND tracking
+      introduction_played: (data.introduction_played as boolean) ?? false,
+      introduction_index: (data.introduction_index as number) ?? 0,
+      introduction_complete: (data.introduction_complete as boolean) ?? false,
+      // Eternal selection
+      eternal_urn: (data.eternal_urn as string[]) ?? [],
+      last_eternal_phrase_id: (data.last_eternal_phrase_id as string) ?? null,
       created_at: new Date(data.created_at as string),
       updated_at: new Date(data.updated_at as string),
     };

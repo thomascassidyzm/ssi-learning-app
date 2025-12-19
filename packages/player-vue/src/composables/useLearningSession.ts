@@ -5,10 +5,16 @@
  * - Session initialization and cleanup
  * - Progress tracking via ProgressStore and SessionStore
  * - Course data loading with fallback to demo mode
+ * - ROUND-based learning via TripleHelixEngine
  */
 
-import { ref, computed, onMounted, onUnmounted, type Ref } from 'vue'
-import type { ProgressStore, SessionStore } from '@ssi/core'
+import { ref, computed, onMounted, onUnmounted, shallowRef, type Ref } from 'vue'
+import type { ProgressStore, SessionStore, ClassifiedBasket } from '@ssi/core'
+import {
+  createTripleHelixEngine,
+  type TripleHelixEngine,
+  DEFAULT_CONFIG,
+} from '@ssi/core'
 import type { CourseDataProvider, LearningItem } from '../providers/CourseDataProvider'
 
 export interface UseLearningSessionOptions {
@@ -26,6 +32,13 @@ export interface LearningSessionState {
   error: Ref<string | null>
   items: Ref<LearningItem[]>
   isDemoMode: Ref<boolean>
+}
+
+export interface RoundInfo {
+  isInRound: boolean
+  legoId: string | null
+  phase: string | null
+  phaseIndex: number
 }
 
 export function useLearningSession(options: UseLearningSessionOptions = {}) {
@@ -46,9 +59,20 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
   const itemsPracticed = ref(0)
   const sessionStartTime = ref<Date | null>(null)
 
+  // TripleHelixEngine for ROUND-based learning
+  const helixEngine = shallowRef<TripleHelixEngine | null>(null)
+  const baskets = shallowRef<Map<string, ClassifiedBasket>>(new Map())
+  const currentRoundInfo = ref<RoundInfo>({
+    isInRound: false,
+    legoId: null,
+    phase: null,
+    phaseIndex: 0,
+  })
+
   // Computed
   const isDemoMode = computed(() => !progressStore || !sessionStore)
   const hasDatabase = computed(() => Boolean(progressStore && sessionStore))
+  const hasHelixEngine = computed(() => Boolean(helixEngine.value))
 
   /**
    * Initialize session on mount
@@ -67,6 +91,9 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
         if (dbItems.length > 0) {
           items.value = dbItems
           console.log(`[useLearningSession] Loaded ${dbItems.length} items from database`)
+
+          // Initialize TripleHelixEngine with loaded items
+          await initializeHelixEngine(dbItems)
         } else {
           // Fall back to demo items
           console.log('[useLearningSession] No database items, using demo mode')
@@ -84,7 +111,7 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
           const session = await sessionStore.startSession(learnerId, courseId)
           sessionId.value = session.id
           console.log('[useLearningSession] Session started:', session.id)
-        } catch (err) {
+        } catch (err: any) {
           console.warn('[useLearningSession] Session tracking unavailable:', err.message)
           // Continue without session tracking
         }
@@ -102,7 +129,7 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
           } else {
             console.log('[useLearningSession] Found existing enrollment')
           }
-        } catch (err) {
+        } catch (err: any) {
           console.warn('[useLearningSession] Enrollment tracking unavailable:', err.message)
           // Continue without enrollment tracking
         }
@@ -118,12 +145,165 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
   }
 
   /**
+   * Initialize TripleHelixEngine with loaded items
+   */
+  const initializeHelixEngine = async (loadedItems: LearningItem[]) => {
+    try {
+      // Create engine
+      const engine = createTripleHelixEngine(
+        DEFAULT_CONFIG.helix,
+        DEFAULT_CONFIG.repetition,
+        courseId
+      )
+
+      // Convert LearningItem[] to SeedPair[] format for the engine
+      const seedsMap = new Map<string, any>()
+      for (const item of loadedItems) {
+        const seedId = item.seed.seed_id
+        if (!seedsMap.has(seedId)) {
+          seedsMap.set(seedId, {
+            seed_id: seedId,
+            seed_pair: item.seed.seed_pair,
+            legos: [],
+            audioRefs: undefined, // Seeds may not have audio
+          })
+        }
+        // Add LEGO to seed
+        seedsMap.get(seedId).legos.push({
+          id: item.lego.id,
+          type: item.lego.type as 'A' | 'M',
+          new: item.lego.new,
+          lego: item.lego.lego,
+          audioRefs: item.lego.audioRefs,
+        })
+      }
+
+      // Load seeds into engine
+      const seeds = Array.from(seedsMap.values())
+      engine.loadSeeds(seeds)
+
+      // Load baskets for LEGOs (if provider available)
+      if (courseDataProvider) {
+        await loadBasketsForItems(loadedItems, engine)
+      }
+
+      helixEngine.value = engine
+      console.log('[useLearningSession] TripleHelixEngine initialized with', seeds.length, 'seeds')
+    } catch (err) {
+      console.error('[useLearningSession] Failed to initialize HelixEngine:', err)
+      // Continue without engine - will fall back to sequential items
+    }
+  }
+
+  /**
+   * Load baskets for all LEGOs in the session
+   */
+  const loadBasketsForItems = async (
+    loadedItems: LearningItem[],
+    engine: TripleHelixEngine
+  ) => {
+    if (!courseDataProvider) return
+
+    try {
+      // Get unique seed IDs
+      const seedIds = new Set(loadedItems.map(item => item.seed.seed_id))
+
+      // Load baskets for each seed
+      for (const seedId of seedIds) {
+        const seedBaskets = await courseDataProvider.getLegoBasketsForSeed(seedId)
+        for (const [legoId, basket] of seedBaskets) {
+          baskets.value.set(legoId, basket)
+          engine.registerBasket(legoId, basket)
+        }
+      }
+
+      console.log('[useLearningSession] Loaded baskets for', baskets.value.size, 'LEGOs')
+    } catch (err) {
+      console.warn('[useLearningSession] Failed to load baskets:', err)
+      // Continue without baskets - engine will use simple phrases
+    }
+  }
+
+  /**
+   * Get the next learning item from the engine
+   * Falls back to sequential items if engine not available
+   */
+  const getNextItem = (currentIndex: number): LearningItem | null => {
+    // If we have an engine, use it for intelligent selection
+    if (helixEngine.value) {
+      const engineItem = helixEngine.value.getNextItem()
+      if (engineItem) {
+        // Update round info
+        const activeRound = helixEngine.value.getActiveRound()
+        if (activeRound) {
+          currentRoundInfo.value = {
+            isInRound: true,
+            legoId: activeRound.legoId,
+            phase: activeRound.roundState.current_phase,
+            phaseIndex: activeRound.roundState.phase_index,
+          }
+        } else {
+          currentRoundInfo.value = {
+            isInRound: false,
+            legoId: null,
+            phase: null,
+            phaseIndex: 0,
+          }
+        }
+
+        // Convert engine LearningItem to our LearningItem format
+        return {
+          lego: {
+            id: engineItem.lego.id,
+            type: engineItem.lego.type,
+            new: engineItem.lego.new,
+            lego: engineItem.lego.lego,
+            audioRefs: engineItem.lego.audioRefs,
+          },
+          phrase: {
+            id: engineItem.phrase.id,
+            phraseType: engineItem.phrase.phraseType,
+            phrase: engineItem.phrase.phrase,
+            audioRefs: engineItem.phrase.audioRefs,
+            wordCount: engineItem.phrase.wordCount,
+            containsLegos: engineItem.phrase.containsLegos,
+          },
+          seed: {
+            seed_id: engineItem.seed.seed_id,
+            seed_pair: engineItem.seed.seed_pair,
+            legos: engineItem.seed.legos.map(l => l.id),
+          },
+          thread_id: engineItem.thread_id,
+          mode: engineItem.mode,
+        }
+      }
+    }
+
+    // Fallback: sequential items
+    if (currentIndex < items.value.length) {
+      return items.value[currentIndex]
+    }
+
+    return null
+  }
+
+  /**
    * Record progress for a completed cycle
    */
-  const recordCycleComplete = async (item: LearningItem) => {
+  const recordCycleComplete = async (item: LearningItem, wasSuccessful: boolean = true, wasSpike: boolean = false) => {
     itemsPracticed.value++
 
-    // Only track if we have database stores and not demo-learner
+    // Record in engine if available
+    if (helixEngine.value) {
+      helixEngine.value.recordPractice(
+        item.lego.id,
+        item.thread_id,
+        wasSuccessful,
+        wasSpike
+      )
+    }
+
+    // Only track in database if we have stores and not demo-learner
     if (!progressStore || !learnerId || !courseId || learnerId === 'demo-learner') {
       return
     }
@@ -153,12 +333,19 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
           reps_completed: 1,
           is_retired: false,
           last_practiced_at: new Date(),
+          // ROUND tracking
+          introduction_played: false,
+          introduction_index: 0,
+          introduction_complete: false,
+          // Eternal selection
+          eternal_urn: [],
+          last_eternal_phrase_id: null,
         })
       }
 
       console.log('[useLearningSession] Progress recorded for LEGO:', item.lego.id)
     } catch (err) {
-      console.error('[usLearningSession] Failed to record progress:', err)
+      console.error('[useLearningSession] Failed to record progress:', err)
       // Don't throw - continue learning even if tracking fails
     }
   }
@@ -203,6 +390,13 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
     }
   }
 
+  /**
+   * Get basket for a specific LEGO
+   */
+  const getBasket = (legoId: string): ClassifiedBasket | undefined => {
+    return baskets.value.get(legoId)
+  }
+
   // Lifecycle hooks
   onMounted(() => {
     initializeSession()
@@ -220,11 +414,15 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
     items,
     isDemoMode,
     hasDatabase,
+    hasHelixEngine,
     itemsPracticed,
+    currentRoundInfo,
 
     // Methods
+    getNextItem,
     recordCycleComplete,
     saveMetrics,
     endSession,
+    getBasket,
   }
 }

@@ -40,6 +40,13 @@ export class SpacedRepetitionQueue {
       reps_completed: 0,
       is_retired: false,
       last_practiced_at: null,
+      // ROUND tracking
+      introduction_played: false,
+      introduction_index: 0,
+      introduction_complete: false,
+      // Eternal selection
+      eternal_urn: [],
+      last_eternal_phrase_id: null,
     };
 
     this.queue.set(lego.id, {
@@ -49,6 +56,17 @@ export class SpacedRepetitionQueue {
     });
 
     return progress;
+  }
+
+  /**
+   * Update progress for a LEGO in the queue
+   */
+  updateProgress(legoId: string, progress: LegoProgress): void {
+    const entry = this.queue.get(legoId);
+    if (entry) {
+      entry.progress = progress;
+      entry.priority = this.calculatePriority(progress);
+    }
   }
 
   /**
