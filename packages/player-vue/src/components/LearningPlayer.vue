@@ -910,10 +910,9 @@ onUnmounted(() => {
             <line x1="12" y1="19" x2="12" y2="22"/>
           </svg>
         </div>
-        <h3 class="consent-title">Learn faster with adaptation</h3>
+        <h3 class="consent-title">Learn at your natural pace</h3>
         <p class="consent-description">
-          SSi notices when you hesitate or respond quickly, and adjusts the pace to match you.
-          Struggling items get more practice. Confident ones move faster.
+          SSi adapts to your rhythm, keeping you in the optimal learning zone — not too fast, not too slow, just right for you.
         </p>
         <p class="consent-detail">
           Uses your microphone to detect timing only — no audio is recorded or stored.
