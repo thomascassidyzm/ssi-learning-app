@@ -90,13 +90,12 @@ const fetchEnrolledCourses = async () => {
   if (!supabaseClient.value) return
 
   try {
-    // For now, we don't have a learner_id, so just get all active courses
+    // For now, we don't have a learner_id, so just get all courses
     // In production, this would filter by learner enrollment
     const { data, error } = await supabaseClient.value
       .from('courses')
       .select('*')
-      .eq('is_active', true)
-      .order('title')
+      .order('display_name')
 
     if (error) {
       console.error('[App] Failed to fetch courses:', error)
