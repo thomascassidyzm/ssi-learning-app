@@ -7,7 +7,7 @@ import { loadConfig, isSupabaseConfigured, isClerkConfigured } from './config/en
 import { useAuth } from './composables/useAuth'
 
 // Clerk components (conditionally imported)
-import { SignedIn, SignedOut, UserButton } from '@clerk/vue'
+import { SignedIn, SignedOut, UserButton, SignInButton } from '@clerk/vue'
 
 // Screen components
 import HomeScreen from './components/HomeScreen.vue'
@@ -298,7 +298,7 @@ onMounted(async () => {
     <!-- Build Badge (dev/staging visibility) -->
     <BuildBadge v-if="!isLearning" />
 
-    <!-- Clerk User Button (when authenticated) -->
+    <!-- Clerk Auth Button -->
     <div v-if="clerkEnabled && !isLearning" class="user-button-container">
       <SignedIn>
         <UserButton
@@ -310,6 +310,11 @@ onMounted(async () => {
           }"
         />
       </SignedIn>
+      <SignedOut>
+        <SignInButton mode="modal" class="sign-in-btn">
+          Sign in
+        </SignInButton>
+      </SignedOut>
     </div>
   </div>
 </template>
@@ -501,5 +506,22 @@ html {
   top: 1rem;
   right: 1rem;
   z-index: 100;
+}
+
+.sign-in-btn {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sign-in-btn:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
 }
 </style>
