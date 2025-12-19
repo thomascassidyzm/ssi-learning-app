@@ -5,6 +5,8 @@ import {
   AudioController,
   CyclePhase,
   DEFAULT_CONFIG,
+  createVoiceActivityDetector,
+  createSpeechTimingAnalyzer,
 } from '@ssi/core'
 import SessionComplete from './SessionComplete.vue'
 import OnboardingTooltips from './OnboardingTooltips.vue'
@@ -464,6 +466,32 @@ const handleCycleEvent = (event) => {
 
   switch (event.type) {
     case 'phase_changed':
+      // Mark phase transitions for timing analyzer
+      if (listeningMode.value && vadInitialized.value) {
+        // Map CyclePhase to timing phases
+        switch (event.phase) {
+          case CyclePhase.PAUSE:
+            markPhaseTransition('PROMPT_END')
+            markPhaseTransition('PAUSE')
+            break
+          case CyclePhase.VOICE_1:
+            markPhaseTransition('VOICE_1')
+            break
+          case CyclePhase.VOICE_2:
+            markPhaseTransition('VOICE_2')
+            break
+          case CyclePhase.PROMPT:
+            // New PROMPT = new cycle, start timing
+            if (timingAnalyzer.value?.isAnalyzing()) {
+              // End previous cycle if still active (shouldn't happen normally)
+              const item = currentItem.value
+              const modelDuration = item?.audioDurations?.target1 ? item.audioDurations.target1 * 1000 : 2000
+              endTimingCycle(modelDuration)
+            }
+            startTimingCycle()
+            break
+        }
+      }
       currentPhase.value = corePhaseToUiPhase(event.phase)
       break
 
@@ -475,8 +503,16 @@ const handleCycleEvent = (event) => {
     case 'item_completed':
       itemsPracticed.value++
 
-      // Record progress if database is available
+      // End timing cycle and capture results
       const completedItem = sessionItems.value[currentItemIndex.value]
+      if (listeningMode.value && vadInitialized.value && timingAnalyzer.value?.isAnalyzing()) {
+        const modelDuration = completedItem?.audioDurations?.target1
+          ? completedItem.audioDurations.target1 * 1000
+          : 2000
+        endTimingCycle(modelDuration)
+      }
+
+      // Record progress if database is available
       if (completedItem) {
         learningSession.recordCycleComplete(completedItem).catch(err => {
           console.error('[LearningPlayer] Failed to record progress:', err)
@@ -560,6 +596,96 @@ const handleRevisit = () => {
 const turboActive = ref(false)
 const listeningMode = ref(false)
 
+// Voice Activity Detection (VAD) and Speech Timing state
+const vadInstance = shallowRef(null)
+const timingAnalyzer = shallowRef(null)
+const vadInitialized = ref(false)
+const vadInitializing = ref(false)
+const isSpeaking = ref(false)
+const currentEnergyDb = ref(-100)
+const lastTimingResult = ref(null)
+let vadStatusInterval = null
+
+// Initialize VAD (must be called from user gesture)
+const initializeVad = async () => {
+  if (vadInitialized.value || vadInitializing.value) return true
+
+  vadInitializing.value = true
+  try {
+    vadInstance.value = createVoiceActivityDetector({
+      energy_threshold_db: -45,
+      min_frames_above: 3,
+    })
+
+    const success = await vadInstance.value.initialize()
+    vadInitialized.value = success
+
+    if (success) {
+      // Create the SpeechTimingAnalyzer wrapper
+      timingAnalyzer.value = createSpeechTimingAnalyzer(vadInstance.value)
+      console.log('[LearningPlayer] VAD + SpeechTimingAnalyzer initialized')
+    } else {
+      console.warn('[LearningPlayer] VAD initialization failed (mic permission denied?)')
+    }
+
+    return success
+  } catch (err) {
+    console.error('[LearningPlayer] VAD initialization error:', err)
+    return false
+  } finally {
+    vadInitializing.value = false
+  }
+}
+
+// Start timing cycle at PROMPT start
+const startTimingCycle = () => {
+  if (!timingAnalyzer.value || !listeningMode.value) return
+
+  console.log('[LearningPlayer] Starting timing cycle at PROMPT')
+  timingAnalyzer.value.startCycle()
+
+  // Poll status for UI feedback during the cycle
+  vadStatusInterval = setInterval(() => {
+    if (vadInstance.value) {
+      const status = vadInstance.value.getStatus()
+      isSpeaking.value = status.is_speaking
+      currentEnergyDb.value = status.current_energy_db
+    }
+  }, 50) // 20fps for smooth UI
+}
+
+// Mark phase transition during timing cycle
+const markPhaseTransition = (phase) => {
+  if (!timingAnalyzer.value || !listeningMode.value) return
+  timingAnalyzer.value.onPhaseChange(phase)
+}
+
+// End timing cycle and get results
+const endTimingCycle = (modelDurationMs) => {
+  if (!timingAnalyzer.value) return null
+
+  if (vadStatusInterval) {
+    clearInterval(vadStatusInterval)
+    vadStatusInterval = null
+  }
+
+  const result = timingAnalyzer.value.endCycle(modelDurationMs)
+  lastTimingResult.value = result
+  isSpeaking.value = false
+
+  if (result.speech_detected) {
+    console.log('[LearningPlayer] Timing result:', {
+      response_latency_ms: result.response_latency_ms !== null ? Math.round(result.response_latency_ms) : null,
+      learner_duration_ms: result.learner_duration_ms !== null ? Math.round(result.learner_duration_ms) : null,
+      duration_delta_ms: result.duration_delta_ms !== null ? Math.round(result.duration_delta_ms) : null,
+      started_during_prompt: result.started_during_prompt,
+      still_speaking_at_voice1: result.still_speaking_at_voice1,
+    })
+  }
+
+  return result
+}
+
 const toggleTurbo = () => {
   turboActive.value = !turboActive.value
   // Update orchestrator config for faster timings
@@ -578,7 +704,17 @@ const toggleTurbo = () => {
   }
 }
 
-const toggleListening = () => listeningMode.value = !listeningMode.value
+const toggleListening = async () => {
+  if (!listeningMode.value) {
+    // Enabling listening mode - initialize VAD if needed (user gesture)
+    const success = await initializeVad()
+    if (!success) {
+      console.warn('[LearningPlayer] Cannot enable listening mode - VAD not available')
+      return
+    }
+  }
+  listeningMode.value = !listeningMode.value
+}
 
 // ============================================
 // PAUSE/RESUME HANDLERS
@@ -684,6 +820,15 @@ onUnmounted(() => {
   }
   if (ringAnimationFrame) cancelAnimationFrame(ringAnimationFrame)
   if (sessionTimerInterval) clearInterval(sessionTimerInterval)
+  if (vadStatusInterval) clearInterval(vadStatusInterval)
+  if (timingAnalyzer.value) {
+    timingAnalyzer.value.reset()
+    timingAnalyzer.value = null
+  }
+  if (vadInstance.value) {
+    vadInstance.value.dispose()
+    vadInstance.value = null
+  }
 })
 </script>
 
@@ -874,7 +1019,9 @@ onUnmounted(() => {
         @click="handleRingTap"
         :class="{
           'is-speak': currentPhase === Phase.SPEAK,
-          'is-paused': !isPlaying
+          'is-paused': !isPlaying,
+          'is-speaking': isSpeaking && listeningMode,
+          'listening-active': listeningMode && currentPhase === Phase.SPEAK
         }"
       >
         <!-- Ambient glow -->
@@ -909,7 +1056,14 @@ onUnmounted(() => {
         </svg>
 
         <!-- Center content -->
-        <div class="ring-center">
+        <div class="ring-center" :class="{ 'is-speaking': isSpeaking && listeningMode }">
+          <!-- Voice activity visualizer (only during listening mode) -->
+          <div
+            v-if="listeningMode && currentPhase === Phase.SPEAK"
+            class="vad-visualizer"
+            :class="{ active: isSpeaking }"
+          ></div>
+
           <!-- Show play button when paused -->
           <div v-if="!isPlaying" class="play-indicator">
             <svg viewBox="0 0 24 24" fill="currentColor">
@@ -917,7 +1071,7 @@ onUnmounted(() => {
             </svg>
           </div>
           <!-- Phase icon when playing -->
-          <div v-else class="phase-icon" :class="currentPhase">
+          <div v-else class="phase-icon" :class="[currentPhase, { 'is-speaking': isSpeaking && listeningMode }]">
             <!-- Speaker (Phase 1: Hear prompt) -->
             <svg v-if="phaseInfo.icon === 'speaker'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
               <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
@@ -1819,6 +1973,69 @@ onUnmounted(() => {
 @keyframes icon-pulse {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.1); }
+}
+
+/* ============ VOICE ACTIVITY DETECTION VISUALS ============ */
+
+/* Listening mode active during SPEAK phase */
+.ring-container.listening-active .ring-ambient {
+  opacity: 0.8;
+  background: radial-gradient(circle, rgba(74, 222, 128, 0.2) 0%, transparent 70%);
+}
+
+/* Voice detected - ring glows green */
+.ring-container.is-speaking .ring-ambient {
+  opacity: 1;
+  background: radial-gradient(circle, rgba(74, 222, 128, 0.4) 0%, transparent 60%);
+  animation: vad-glow 0.15s ease-out;
+}
+
+@keyframes vad-glow {
+  0% { transform: scale(0.95); opacity: 0.6; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Ring center glows when speaking */
+.ring-center.is-speaking {
+  border-color: var(--success);
+  box-shadow: 0 0 20px rgba(74, 222, 128, 0.4), inset 0 0 20px rgba(74, 222, 128, 0.1);
+}
+
+/* VAD visualizer - pulsing circle behind the icon */
+.vad-visualizer {
+  position: absolute;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(74, 222, 128, 0.15) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity 0.1s ease, transform 0.1s ease;
+}
+
+.vad-visualizer.active {
+  opacity: 1;
+  animation: vad-pulse 0.3s ease-out;
+}
+
+@keyframes vad-pulse {
+  0% { transform: scale(0.8); opacity: 0.5; }
+  50% { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1); opacity: 0.8; }
+}
+
+/* Mic icon glows green when speaking */
+.phase-icon.is-speaking {
+  color: var(--success);
+  filter: drop-shadow(0 0 8px rgba(74, 222, 128, 0.6));
+}
+
+.phase-icon.speak.is-speaking {
+  animation: mic-speaking 0.2s ease-out infinite;
+}
+
+@keyframes mic-speaking {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
 }
 
 .ring-label {
