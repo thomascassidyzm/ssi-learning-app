@@ -1,5 +1,12 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, inject, ref } from 'vue'
+import AuthPrompt from './AuthPrompt.vue'
+
+// Get auth state from App
+const auth = inject('auth')
+
+// Local state for auth modal
+const showAuthModal = ref(false)
 
 const props = defineProps({
   // Stats from this learning period
@@ -44,6 +51,29 @@ const beltCssVars = computed(() => ({
   '--belt-color-dark': props.currentBelt.colorDark,
   '--belt-glow': props.currentBelt.glow,
 }))
+
+// Show auth prompt for guests after first session
+const shouldShowAuthPrompt = computed(() => {
+  if (!auth) return false
+  return auth.isGuest.value
+    && auth.completedSessionsCount.value >= 1
+    && !auth.hasSeenSignupPrompt.value
+    && props.itemsPracticed > 0
+})
+
+// Handle signup click
+const handleSignup = () => {
+  if (auth) {
+    auth.openSignIn()
+  }
+}
+
+// Handle dismiss
+const handleDismiss = () => {
+  if (auth) {
+    auth.markSignupPromptSeen()
+  }
+}
 </script>
 
 <template>
@@ -88,6 +118,13 @@ const beltCssVars = computed(() => ({
         <span class="stat-divider">·</span>
         <span class="stat stat--encouragement">{{ encouragement }}</span>
       </div>
+
+      <!-- Auth prompt for guests (after first session) -->
+      <AuthPrompt
+        v-if="shouldShowAuthPrompt"
+        @signup="handleSignup"
+        @dismiss="handleDismiss"
+      />
 
       <!-- Single action - just resume -->
       <button class="resume-btn" @click="$emit('resume')">

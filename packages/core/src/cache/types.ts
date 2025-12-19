@@ -74,6 +74,23 @@ export interface CachedManifest {
   cachedAt: Date;
 }
 
+export interface CachedProgress {
+  /** Composite key: `${learnerId}:${courseId}` */
+  id: string;
+  /** Learner ID */
+  learnerId: string;
+  /** Course ID */
+  courseId: string;
+  /** Triple Helix state */
+  helixState: HelixState;
+  /** LEGO progress records */
+  legoProgress: LegoProgress[];
+  /** SEED progress records */
+  seedProgress: SeedProgress[];
+  /** When last updated */
+  updatedAt: Date;
+}
+
 // ============================================
 // OFFLINE CACHE INTERFACE
 // ============================================
@@ -101,6 +118,8 @@ export interface IOfflineCache {
     legoProgress: LegoProgress[];
     seedProgress: SeedProgress[];
   } | null>;
+  getProgressByLearner(learnerId: string): Promise<CachedProgress[]>;
+  deleteProgressByLearner(learnerId: string): Promise<void>;
 
   // Prefetching
   prefetchForDuration(courseId: string, minutes: number): Promise<void>;

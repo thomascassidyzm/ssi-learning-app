@@ -13,6 +13,9 @@ export interface AppConfig {
     bucket: string
     region: string
   }
+  clerk: {
+    publishableKey: string
+  }
   features: {
     useDatabase: boolean
     useDemoMode: boolean
@@ -34,6 +37,9 @@ export function loadConfig(): AppConfig {
       bucket: import.meta.env.VITE_S3_AUDIO_BUCKET || 'ssi-audio-stage',
       region: import.meta.env.VITE_S3_REGION || 'eu-west-1',
     },
+    clerk: {
+      publishableKey: import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || '',
+    },
     features: {
       useDatabase: import.meta.env.VITE_USE_DATABASE === 'true',
       useDemoMode: import.meta.env.VITE_USE_DEMO_MODE === 'true',
@@ -53,4 +59,11 @@ export function isSupabaseConfigured(config: AppConfig): boolean {
  */
 export function isS3Configured(config: AppConfig): boolean {
   return Boolean(config.s3.audioBaseUrl)
+}
+
+/**
+ * Check if Clerk is configured
+ */
+export function isClerkConfigured(config: AppConfig): boolean {
+  return Boolean(config.clerk.publishableKey)
 }

@@ -21,6 +21,7 @@ import type { SessionMetrics, ResponseMetric, SpikeEvent, LearnerBaseline } from
 
 export interface LearnerRecord {
   id: string;
+  /** Clerk user ID (string, e.g., "user_2abc123") */
   user_id: string;
   display_name: string;
   created_at: Date;

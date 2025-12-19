@@ -14,20 +14,11 @@ import type {
   CacheStats,
   CachedAudio,
   CachedManifest,
+  CachedProgress,
 } from './types';
 
 const DB_NAME = 'ssi-offline-cache';
 const DB_VERSION = 1;
-
-interface CachedProgress {
-  id: string; // `${learnerId}:${courseId}`
-  learnerId: string;
-  courseId: string;
-  helixState: HelixState;
-  legoProgress: LegoProgress[];
-  seedProgress: SeedProgress[];
-  updatedAt: Date;
-}
 
 interface SSiCacheDB {
   audio: {
@@ -220,6 +211,48 @@ export class OfflineCache implements IOfflineCache {
       legoProgress: cached.legoProgress,
       seedProgress: cached.seedProgress,
     };
+  }
+
+  /**
+   * Get all progress records for a learner (used for migration)
+   */
+  async getProgressByLearner(learnerId: string): Promise<CachedProgress[]> {
+    await this.init();
+    if (!this.db) return [];
+
+    const index = this.db.transaction('progress', 'readonly')
+      .objectStore('progress')
+      .index('by-learner');
+
+    const results: CachedProgress[] = [];
+    let cursor = await index.openCursor(learnerId);
+
+    while (cursor) {
+      results.push(cursor.value);
+      cursor = await cursor.continue();
+    }
+
+    return results;
+  }
+
+  /**
+   * Delete all progress records for a learner (used after migration)
+   */
+  async deleteProgressByLearner(learnerId: string): Promise<void> {
+    await this.init();
+    if (!this.db) return;
+
+    const tx = this.db.transaction('progress', 'readwrite');
+    const store = tx.objectStore('progress');
+    const index = store.index('by-learner');
+
+    let cursor = await index.openCursor(learnerId);
+    while (cursor) {
+      await cursor.delete();
+      cursor = await cursor.continue();
+    }
+
+    await tx.done;
   }
 
   // ============================================

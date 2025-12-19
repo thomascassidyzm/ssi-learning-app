@@ -132,16 +132,20 @@ const demoItems = [
 const progressStore = inject('progressStore', { value: null })
 const sessionStore = inject('sessionStore', { value: null })
 const courseDataProvider = inject('courseDataProvider', { value: null })
+const auth = inject('auth', null)
 
 // Get course code from prop, falling back to Italian demo
 const courseCode = computed(() => props.course?.course_code || 'ita_for_eng_v2')
+
+// Get learner ID from auth (or fallback to 'demo-learner' for dev)
+const learnerId = computed(() => auth?.learnerId?.value || 'demo-learner')
 
 // Initialize learning session composable
 const learningSession = useLearningSession({
   progressStore: progressStore.value,
   sessionStore: sessionStore.value,
   courseDataProvider: courseDataProvider.value,
-  learnerId: 'demo-learner', // TODO: Get from auth
+  learnerId: learnerId.value,
   courseId: courseCode.value,
   demoItems,
 })
@@ -779,6 +783,11 @@ const showPausedSummary = () => {
   }
   isPlaying.value = false
   showSessionComplete.value = true
+
+  // Increment session count for guests (triggers signup prompt)
+  if (auth && itemsPracticed.value > 0) {
+    auth.incrementSessionCount()
+  }
 }
 
 const handleResumeLearning = () => {

@@ -3,7 +3,11 @@ import { ref, provide, onMounted, computed } from 'vue'
 import { createClient } from '@supabase/supabase-js'
 import { createProgressStore, createSessionStore } from '@ssi/core'
 import { createCourseDataProvider } from './providers/CourseDataProvider'
-import { loadConfig, isSupabaseConfigured } from './config/env'
+import { loadConfig, isSupabaseConfigured, isClerkConfigured } from './config/env'
+import { useAuth } from './composables/useAuth'
+
+// Clerk components (conditionally imported)
+import { SignedIn, SignedOut, UserButton } from '@clerk/vue'
 
 // Screen components
 import HomeScreen from './components/HomeScreen.vue'
@@ -16,6 +20,10 @@ import BuildBadge from './components/BuildBadge.vue'
 
 // Load configuration
 const config = loadConfig()
+const clerkEnabled = isClerkConfigured(config)
+
+// Auth state (only if Clerk is configured)
+const auth = clerkEnabled ? useAuth() : null
 
 // Navigation state
 // Screens: 'home' | 'player' | 'journey' | 'profile' | 'settings'
@@ -173,6 +181,7 @@ const handleGoHome = () => {
 provide('progressStore', progressStore)
 provide('sessionStore', sessionStore)
 provide('courseDataProvider', courseDataProvider)
+provide('auth', auth)
 
 onMounted(async () => {
   // Check if launched from Schools with class context
@@ -201,6 +210,12 @@ onMounted(async () => {
       // Create store instances
       progressStore.value = createProgressStore({ client: supabaseClient.value })
       sessionStore.value = createSessionStore({ client: supabaseClient.value })
+
+      // Initialize auth with Supabase client (for learner management)
+      if (auth) {
+        await auth.initialize(supabaseClient.value)
+        console.log('[App] Auth initialized, learnerId:', auth.learnerId.value)
+      }
 
       // courseDataProvider will be created when a course is selected
       // For now, don't create with default - let course selection handle it
@@ -282,6 +297,20 @@ onMounted(async () => {
 
     <!-- Build Badge (dev/staging visibility) -->
     <BuildBadge v-if="!isLearning" />
+
+    <!-- Clerk User Button (when authenticated) -->
+    <div v-if="clerkEnabled && !isLearning" class="user-button-container">
+      <SignedIn>
+        <UserButton
+          :appearance="{
+            elements: {
+              avatarBox: 'w-10 h-10',
+              userButtonTrigger: 'focus:shadow-none'
+            }
+          }"
+        />
+      </SignedIn>
+    </div>
   </div>
 </template>
 
@@ -464,5 +493,13 @@ html {
 .slide-right-leave-to {
   opacity: 0;
   transform: translateX(-10px);
+}
+
+/* Clerk User Button positioning */
+.user-button-container {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 100;
 }
 </style>
