@@ -12,6 +12,7 @@ import JourneyMap from './components/JourneyMap.vue'
 import ProfileScreen from './components/ProfileScreen.vue'
 import SettingsScreen from './components/SettingsScreen.vue'
 import BottomNav from './components/BottomNav.vue'
+import BuildBadge from './components/BuildBadge.vue'
 
 // Load configuration
 const config = loadConfig()
@@ -277,6 +278,9 @@ onMounted(async () => {
       @navigate="handleNavigation"
       @startLearning="handleStartLearning"
     />
+
+    <!-- Build Badge (dev/staging visibility) -->
+    <BuildBadge v-if="!isLearning" />
   </div>
 </template>
 
