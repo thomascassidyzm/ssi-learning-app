@@ -1,25 +1,26 @@
 /**
  * CourseDataProvider - Queries course data from Supabase
  *
- * Provides methods to fetch SEEDs, LEGOs, practice phrases, and audio samples
- * from the dashboard database. Converts database rows to core application types.
+ * Uses cycle views (lego_cycles, practice_cycles, seed_cycles) that
+ * pre-join content with audio for single-query session loading.
+ *
+ * Each "cycle" is a self-contained learning unit ready to play:
+ * - Text pair (known + target)
+ * - Audio refs (known, target1, target2)
+ * - Metadata (type, status, etc.)
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { SeedPair, LegoPair, PracticePhrase } from './types';
 import type {
-  SeedRow,
-  LegoRow,
-  AudioSampleRow,
-  PracticePhraseRow,
+  LegoCycleRow,
+  PracticeCycleRow,
+  SeedCycleRow,
 } from './database-types';
 import {
-  buildSeedPairWithLegos,
-  groupLegosBySeed,
-  convertLegoRowToLegoPair,
-  convertPracticePhraseRowToPracticePhrase,
-  createAudioSampleMap,
-  enrichAudioRefs,
+  convertLegoCycleToLegoPair,
+  convertPracticeCycleToPracticePhrase,
+  buildSeedPairFromCycles,
 } from './database-types';
 
 export interface CourseDataProviderConfig {
@@ -38,8 +39,6 @@ export interface SessionContentOptions {
   endPosition: number;
   /** Whether to include practice phrases (default: true) */
   includePractices?: boolean;
-  /** Whether to include audio metadata (default: true) */
-  includeAudio?: boolean;
 }
 
 export interface SessionContent {
@@ -56,6 +55,9 @@ export interface SessionContent {
 /**
  * CourseDataProvider - Main data access layer for course content
  *
+ * Uses pre-joined cycle views for efficient single-query loading.
+ * Each query returns complete learning units with audio already resolved.
+ *
  * @example
  * ```typescript
  * const provider = new CourseDataProvider({
@@ -64,17 +66,18 @@ export interface SessionContent {
  *   debug: true
  * });
  *
- * // Get seeds 1-30 with all LEGOs and practices
+ * // Get seeds 1-30 with all LEGOs and practices (single efficient query each)
  * const content = await provider.getSessionContent({
  *   startPosition: 1,
  *   endPosition: 30
  * });
  *
- * // Query specific LEGOs
- * const legos = await provider.getLegosBySeedId('S0001');
- *
- * // Get practices for a LEGO
- * const practices = await provider.getPracticesForLego('S0001L01');
+ * // Each LEGO is ready to play - audio already resolved!
+ * for (const seed of content.seeds) {
+ *   for (const lego of seed.legos) {
+ *     console.log(lego.audioRefs.known.url);  // Ready to play
+ *   }
+ * }
  * ```
  */
 export class CourseDataProvider {
@@ -89,113 +92,108 @@ export class CourseDataProvider {
   }
 
   // ============================================
-  // SEED QUERIES
+  // CYCLE VIEW QUERIES (Recommended)
+  // Single query returns complete learning units
   // ============================================
 
   /**
-   * Fetches seeds by position range
+   * Fetches LEGO cycles by seed number range
+   * Returns complete learning units with audio pre-resolved
    */
-  async getSeedsByPositionRange(startPosition: number, endPosition: number): Promise<SeedRow[]> {
+  async getLegoCycles(startSeed: number, endSeed: number): Promise<LegoCycleRow[]> {
     if (this.debug) {
-      console.log(`[CourseDataProvider] Fetching seeds ${startPosition}-${endPosition} for ${this.courseCode}`);
+      console.log(`[CourseDataProvider] Fetching lego_cycles for seeds ${startSeed}-${endSeed}`);
     }
 
     const { data, error } = await this.supabase
-      .from('course_seeds')
+      .from('lego_cycles')
       .select('*')
       .eq('course_code', this.courseCode)
-      .gte('position', startPosition)
-      .lte('position', endPosition)
-      .order('position', { ascending: true });
-
-    if (error) {
-      throw new Error(`Failed to fetch seeds: ${error.message}`);
-    }
-
-    if (this.debug) {
-      console.log(`[CourseDataProvider] Found ${data?.length || 0} seeds`);
-    }
-
-    return (data as SeedRow[]) || [];
-  }
-
-  /**
-   * Fetches a single seed by ID
-   */
-  async getSeedById(seedId: string): Promise<SeedRow | null> {
-    if (this.debug) {
-      console.log(`[CourseDataProvider] Fetching seed ${seedId}`);
-    }
-
-    const { data, error } = await this.supabase
-      .from('course_seeds')
-      .select('*')
-      .eq('seed_id', seedId)
-      .eq('course_code', this.courseCode)
-      .single();
-
-    if (error) {
-      if (error.code === 'PGRST116') {
-        // Not found
-        return null;
-      }
-      throw new Error(`Failed to fetch seed: ${error.message}`);
-    }
-
-    return data as SeedRow;
-  }
-
-  // ============================================
-  // LEGO QUERIES
-  // ============================================
-
-  /**
-   * Fetches all LEGOs for given seed IDs
-   */
-  async getLegosForSeeds(seedIds: string[]): Promise<LegoRow[]> {
-    if (seedIds.length === 0) {
-      return [];
-    }
-
-    if (this.debug) {
-      console.log(`[CourseDataProvider] Fetching LEGOs for ${seedIds.length} seeds`);
-    }
-
-    const { data, error } = await this.supabase
-      .from('course_legos')
-      .select('*')
-      .in('seed_id', seedIds)
-      .order('seed_id', { ascending: true })
+      .gte('seed_number', startSeed)
+      .lte('seed_number', endSeed)
+      .order('seed_number', { ascending: true })
       .order('lego_index', { ascending: true });
 
     if (error) {
-      throw new Error(`Failed to fetch LEGOs: ${error.message}`);
+      throw new Error(`Failed to fetch lego cycles: ${error.message}`);
     }
 
     if (this.debug) {
-      console.log(`[CourseDataProvider] Found ${data?.length || 0} LEGOs`);
+      console.log(`[CourseDataProvider] Found ${data?.length || 0} lego cycles`);
     }
 
-    return (data as LegoRow[]) || [];
+    return (data as LegoCycleRow[]) || [];
   }
 
   /**
-   * Fetches LEGOs for a specific seed
+   * Fetches practice cycles by seed number range
+   * Returns complete practice items with audio pre-resolved
    */
-  async getLegosBySeedId(seedId: string): Promise<LegoRow[]> {
-    return this.getLegosForSeeds([seedId]);
-  }
-
-  /**
-   * Fetches a single LEGO by ID
-   */
-  async getLegoById(legoId: string): Promise<LegoRow | null> {
+  async getPracticeCycles(startSeed: number, endSeed: number): Promise<PracticeCycleRow[]> {
     if (this.debug) {
-      console.log(`[CourseDataProvider] Fetching LEGO ${legoId}`);
+      console.log(`[CourseDataProvider] Fetching practice_cycles for seeds ${startSeed}-${endSeed}`);
     }
 
     const { data, error } = await this.supabase
-      .from('course_legos')
+      .from('practice_cycles')
+      .select('*')
+      .eq('course_code', this.courseCode)
+      .gte('seed_number', startSeed)
+      .lte('seed_number', endSeed)
+      .order('seed_number', { ascending: true })
+      .order('lego_index', { ascending: true })
+      .order('position', { ascending: true });
+
+    if (error) {
+      throw new Error(`Failed to fetch practice cycles: ${error.message}`);
+    }
+
+    if (this.debug) {
+      console.log(`[CourseDataProvider] Found ${data?.length || 0} practice cycles`);
+    }
+
+    return (data as PracticeCycleRow[]) || [];
+  }
+
+  /**
+   * Fetches seed cycles by position range
+   * Returns complete seed items with audio pre-resolved
+   */
+  async getSeedCycles(startSeed: number, endSeed: number): Promise<SeedCycleRow[]> {
+    if (this.debug) {
+      console.log(`[CourseDataProvider] Fetching seed_cycles for seeds ${startSeed}-${endSeed}`);
+    }
+
+    const { data, error } = await this.supabase
+      .from('seed_cycles')
+      .select('*')
+      .eq('course_code', this.courseCode)
+      .gte('seed_number', startSeed)
+      .lte('seed_number', endSeed)
+      .order('seed_number', { ascending: true });
+
+    if (error) {
+      throw new Error(`Failed to fetch seed cycles: ${error.message}`);
+    }
+
+    if (this.debug) {
+      console.log(`[CourseDataProvider] Found ${data?.length || 0} seed cycles`);
+    }
+
+    return (data as SeedCycleRow[]) || [];
+  }
+
+  /**
+   * Fetches a single LEGO cycle by ID
+   * Returns complete learning unit with audio pre-resolved
+   */
+  async getLegoCycleById(legoId: string): Promise<LegoCycleRow | null> {
+    if (this.debug) {
+      console.log(`[CourseDataProvider] Fetching lego_cycle ${legoId}`);
+    }
+
+    const { data, error } = await this.supabase
+      .from('lego_cycles')
       .select('*')
       .eq('lego_id', legoId)
       .single();
@@ -204,139 +202,32 @@ export class CourseDataProvider {
       if (error.code === 'PGRST116') {
         return null;
       }
-      throw new Error(`Failed to fetch LEGO: ${error.message}`);
+      throw new Error(`Failed to fetch lego cycle: ${error.message}`);
     }
 
-    return data as LegoRow;
+    return data as LegoCycleRow;
   }
 
   // ============================================
-  // PRACTICE PHRASE QUERIES
-  // ============================================
-
-  /**
-   * Fetches practice phrases for given LEGO IDs
-   */
-  async getPracticesForLegos(legoIds: string[]): Promise<PracticePhraseRow[]> {
-    if (legoIds.length === 0) {
-      return [];
-    }
-
-    if (this.debug) {
-      console.log(`[CourseDataProvider] Fetching practices for ${legoIds.length} LEGOs`);
-    }
-
-    const { data, error } = await this.supabase
-      .from('course_practice_phrases')
-      .select('*')
-      .in('lego_id', legoIds)
-      .order('lego_id', { ascending: true })
-      .order('sort_order', { ascending: true });
-
-    if (error) {
-      throw new Error(`Failed to fetch practices: ${error.message}`);
-    }
-
-    if (this.debug) {
-      console.log(`[CourseDataProvider] Found ${data?.length || 0} practice phrases`);
-    }
-
-    return (data as PracticePhraseRow[]) || [];
-  }
-
-  /**
-   * Fetches practice phrases for a specific LEGO
-   */
-  async getPracticesForLego(legoId: string): Promise<PracticePhraseRow[]> {
-    return this.getPracticesForLegos([legoId]);
-  }
-
-  // ============================================
-  // AUDIO QUERIES
-  // ============================================
-
-  /**
-   * Fetches audio samples by UUIDs
-   */
-  async getAudioSamplesByUuids(uuids: string[]): Promise<AudioSampleRow[]> {
-    if (uuids.length === 0) {
-      return [];
-    }
-
-    if (this.debug) {
-      console.log(`[CourseDataProvider] Fetching ${uuids.length} audio samples`);
-    }
-
-    const { data, error } = await this.supabase
-      .from('audio_samples')
-      .select('*')
-      .in('uuid', uuids);
-
-    if (error) {
-      throw new Error(`Failed to fetch audio samples: ${error.message}`);
-    }
-
-    if (this.debug) {
-      console.log(`[CourseDataProvider] Found ${data?.length || 0} audio samples`);
-    }
-
-    return (data as AudioSampleRow[]) || [];
-  }
-
-  /**
-   * Fetches audio samples for a course
-   *
-   * Use this to get all audio metadata at once for duration info.
-   */
-  async getAudioSamplesForCourse(): Promise<AudioSampleRow[]> {
-    if (this.debug) {
-      console.log(`[CourseDataProvider] Fetching all audio for ${this.courseCode}`);
-    }
-
-    const { data, error } = await this.supabase
-      .from('audio_samples')
-      .select('*')
-      .eq('course_code', this.courseCode);
-
-    if (error) {
-      throw new Error(`Failed to fetch audio samples: ${error.message}`);
-    }
-
-    if (this.debug) {
-      console.log(`[CourseDataProvider] Found ${data?.length || 0} audio samples`);
-    }
-
-    return (data as AudioSampleRow[]) || [];
-  }
-
-  // ============================================
-  // HIGH-LEVEL QUERIES
+  // HIGH-LEVEL SESSION QUERIES
   // ============================================
 
   /**
    * Gets all content needed for a learning session
    *
-   * This is the main method used by the learning app to load a session.
-   * It fetches seeds, LEGOs, practices, and optionally audio metadata.
+   * Uses cycle views for efficient single-query loading.
+   * Audio is pre-resolved - no post-processing needed!
    *
    * @example
    * ```typescript
-   * // Load seeds 1-30 (first session)
    * const content = await provider.getSessionContent({
    *   startPosition: 1,
    *   endPosition: 30
    * });
    *
+   * // Everything is ready to use
    * console.log(`Loaded ${content.totalLegos} LEGOs`);
-   * console.log(`Estimated duration: ${content.estimatedDurationSeconds}s`);
-   *
-   * // Use in learning engine
-   * for (const seed of content.seeds) {
-   *   for (const lego of seed.legos) {
-   *     const practices = content.practices.get(lego.id) || [];
-   *     // ... use in TripleHelixEngine
-   *   }
-   * }
+   * console.log(`Duration: ${content.estimatedDurationSeconds}s`);
    * ```
    */
   async getSessionContent(options: SessionContentOptions): Promise<SessionContent> {
@@ -344,133 +235,105 @@ export class CourseDataProvider {
       startPosition,
       endPosition,
       includePractices = true,
-      includeAudio = true,
     } = options;
 
     if (this.debug) {
-      console.log(`[CourseDataProvider] Loading session content (seeds ${startPosition}-${endPosition})`);
+      console.log(`[CourseDataProvider] Loading session (seeds ${startPosition}-${endPosition})`);
     }
 
-    // 1. Fetch seeds
-    const seedRows = await this.getSeedsByPositionRange(startPosition, endPosition);
+    // 1. Fetch seed cycles and lego cycles in parallel
+    const [seedCycles, legoCycles] = await Promise.all([
+      this.getSeedCycles(startPosition, endPosition),
+      this.getLegoCycles(startPosition, endPosition),
+    ]);
 
-    if (seedRows.length === 0) {
+    if (seedCycles.length === 0) {
       throw new Error(`No seeds found for positions ${startPosition}-${endPosition}`);
     }
 
-    // 2. Fetch LEGOs for all seeds
-    const seedIds = seedRows.map((s) => s.seed_id);
-    const legoRows = await this.getLegosForSeeds(seedIds);
-    const legosBySeeds = groupLegosBySeed(legoRows);
+    // 2. Group lego cycles by seed_number
+    const legosBySeedNumber = new Map<number, LegoCycleRow[]>();
+    for (const lego of legoCycles) {
+      const existing = legosBySeedNumber.get(lego.seed_number) || [];
+      existing.push(lego);
+      legosBySeedNumber.set(lego.seed_number, existing);
+    }
 
-    // 3. Build SeedPairs with LEGOs
-    const seeds: SeedPair[] = seedRows.map((seedRow) => {
-      const legosForSeed = legosBySeeds.get(seedRow.seed_id) || [];
-      return buildSeedPairWithLegos(seedRow, legosForSeed);
+    // 3. Build SeedPairs with LEGOs (audio already resolved!)
+    const seeds: SeedPair[] = seedCycles.map((seedCycle) => {
+      const legosForSeed = legosBySeedNumber.get(seedCycle.seed_number) || [];
+      return buildSeedPairFromCycles(seedCycle, legosForSeed);
     });
 
-    // 4. Fetch practice phrases if requested
+    // 4. Fetch practice cycles if requested
     const practices = new Map<string, PracticePhrase[]>();
     if (includePractices) {
-      const legoIds = legoRows.map((l) => l.lego_id);
-      const practiceRows = await this.getPracticesForLegos(legoIds);
+      const practiceCycles = await this.getPracticeCycles(startPosition, endPosition);
 
-      // Group by LEGO
-      for (const practiceRow of practiceRows) {
-        const existing = practices.get(practiceRow.lego_id) || [];
-        existing.push(convertPracticePhraseRowToPracticePhrase(practiceRow));
-        practices.set(practiceRow.lego_id, existing);
+      // Group by LEGO ID
+      for (const practiceCycle of practiceCycles) {
+        const existing = practices.get(practiceCycle.lego_id) || [];
+        existing.push(convertPracticeCycleToPracticePhrase(practiceCycle));
+        practices.set(practiceCycle.lego_id, existing);
+      }
+
+      if (this.debug) {
+        console.log(`[CourseDataProvider] Loaded ${practiceCycles.length} practice cycles`);
       }
     }
 
-    // 5. Enrich with audio metadata if requested
+    // 5. Calculate estimated duration from audio
     let estimatedDurationSeconds = 0;
-    if (includeAudio) {
-      // Collect all audio UUIDs
-      const audioUuids = new Set<string>();
-
-      for (const seedRow of seedRows) {
-        if (seedRow.known_audio_uuid) audioUuids.add(seedRow.known_audio_uuid);
-        if (seedRow.target_audio_uuid) audioUuids.add(seedRow.target_audio_uuid);
-      }
-
-      for (const legoRow of legoRows) {
-        if (legoRow.known_audio_uuid) audioUuids.add(legoRow.known_audio_uuid);
-        if (legoRow.target_audio_uuid) audioUuids.add(legoRow.target_audio_uuid);
-        if (legoRow.target_audio_uuid_alt) audioUuids.add(legoRow.target_audio_uuid_alt);
-      }
-
-      // Fetch audio samples
-      const audioSamples = await this.getAudioSamplesByUuids(Array.from(audioUuids));
-      const audioMap = createAudioSampleMap(audioSamples);
-
-      // Enrich seeds and LEGOs with duration info
-      for (const seed of seeds) {
-        if (seed.audioRefs) {
-          seed.audioRefs = enrichAudioRefs(seed.audioRefs, audioMap);
-        }
-
-        for (const lego of seed.legos) {
-          lego.audioRefs = enrichAudioRefs(lego.audioRefs, audioMap);
-
-          // Estimate duration: known + pause (2x target) + target1 + gap (1s) + target2
-          const knownDur = lego.audioRefs.known.duration_ms || 2000;
-          const targetDur = lego.audioRefs.target.voice1.duration_ms || 2000;
-          const cycleDuration = knownDur + (targetDur * 2) + targetDur + 1000 + targetDur;
-          estimatedDurationSeconds += cycleDuration / 1000;
-        }
-      }
-
-      // Enrich practice phrases
-      for (const practicePhraseList of practices.values()) {
-        for (const practice of practicePhraseList) {
-          practice.audioRefs = enrichAudioRefs(practice.audioRefs, audioMap);
-        }
+    for (const seed of seeds) {
+      for (const lego of seed.legos) {
+        // Cycle: known + pause (2x target) + target1 + gap (1s) + target2
+        const knownDur = lego.audioRefs?.known.duration_ms || 2000;
+        const targetDur = lego.audioRefs?.target.voice1.duration_ms || 2000;
+        const cycleDuration = knownDur + (targetDur * 2) + targetDur + 1000 + targetDur;
+        estimatedDurationSeconds += cycleDuration / 1000;
       }
     }
 
     if (this.debug) {
-      console.log(`[CourseDataProvider] Session loaded: ${seeds.length} seeds, ${legoRows.length} LEGOs`);
-      console.log(`[CourseDataProvider] Estimated duration: ${estimatedDurationSeconds}s (${Math.round(estimatedDurationSeconds / 60)} min)`);
+      console.log(`[CourseDataProvider] Session loaded: ${seeds.length} seeds, ${legoCycles.length} LEGOs`);
+      console.log(`[CourseDataProvider] Duration: ${estimatedDurationSeconds}s (${Math.round(estimatedDurationSeconds / 60)} min)`);
     }
 
     return {
       seeds,
       practices,
-      totalLegos: legoRows.length,
+      totalLegos: legoCycles.length,
       estimatedDurationSeconds,
     };
   }
 
   /**
-   * Builds a complete SeedPair with all LEGOs and components
-   */
-  async getSeedPairWithLegos(seedId: string): Promise<SeedPair | null> {
-    const seedRow = await this.getSeedById(seedId);
-    if (!seedRow) {
-      return null;
-    }
-
-    const legoRows = await this.getLegosBySeedId(seedId);
-    return buildSeedPairWithLegos(seedRow, legoRows);
-  }
-
-  /**
-   * Builds a complete LegoPair with practice phrases
+   * Gets a single LEGO with its practice phrases
+   * Returns complete learning unit ready to play
    */
   async getLegoPairWithPractices(
     legoId: string
   ): Promise<{ lego: LegoPair; practices: PracticePhrase[] } | null> {
-    const legoRow = await this.getLegoById(legoId);
-    if (!legoRow) {
+    const legoCycle = await this.getLegoCycleById(legoId);
+    if (!legoCycle) {
       return null;
     }
 
-    const practiceRows = await this.getPracticesForLego(legoId);
-    const practices = practiceRows.map(convertPracticePhraseRowToPracticePhrase);
+    // Fetch practice cycles for this LEGO
+    const { data: practiceCycles, error } = await this.supabase
+      .from('practice_cycles')
+      .select('*')
+      .eq('lego_id', legoId)
+      .order('position', { ascending: true });
+
+    if (error) {
+      throw new Error(`Failed to fetch practice cycles: ${error.message}`);
+    }
+
+    const practices = (practiceCycles || []).map(convertPracticeCycleToPracticePhrase);
 
     return {
-      lego: convertLegoRowToLegoPair(legoRow),
+      lego: convertLegoCycleToLegoPair(legoCycle),
       practices,
     };
   }
@@ -484,7 +347,7 @@ export class CourseDataProvider {
    */
   async getTotalSeeds(): Promise<number> {
     const { count, error } = await this.supabase
-      .from('course_seeds')
+      .from('seed_cycles')
       .select('*', { count: 'exact', head: true })
       .eq('course_code', this.courseCode);
 

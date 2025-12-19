@@ -1,0 +1,499 @@
+# Phrase Selection Specification
+# SSi Learning App
+#
+# Version: 1.1.0
+# Date: 2025-12-18
+# Grounded in: APML Design Principles (Language-Agnostic, Parameterized)
+#
+# Core Insight: The LEGO is the unit of learning. Phrases are contexts.
+# Spaced repetition tracks LEGOs. Phrase selection provides variety.
+#
+# Key Principle: Cognitive load is proxied by TARGET syllable count,
+# not word count. This is language-agnostic (works for Chinese, Arabic, etc.)
+#
+# Fundamental Concepts:
+# - CYCLE: The delivery mechanism (HOW) - forced production loop
+# - ROUND: The content structure (WHAT) - one LEGO's learning progression
+#
+# Implementation Status:
+# - PhraseSelector: SPECIFIED, ready for implementation
+# - Round structure: SPECIFIED
+# - EternalSelection: SPECIFIED (random_urn default)
+
+spec PhraseSelector:
+  version: "1.1.0"
+  philosophical_grounding: |
+    The learner's brain doesn't care about "words" - it cares about
+    cognitive load: how much must I hold in working memory?
+
+    Syllable count is a language-agnostic proxy for cognitive load.
+    A 4-syllable phrase in any language requires similar working memory.
+
+    We build confidence with shorter phrases (debut), then challenge
+    with longer phrases (eternal) during spaced repetition.
+
+    The phrase is the CONTEXT for practicing the LEGO. Different contexts
+    prevent rote memorization and build flexible retrieval.
+
+  # ===========================================================================
+  # FUNDAMENTAL CONCEPTS: CYCLE vs ROUND
+  # ===========================================================================
+
+  fundamental_concepts:
+    description: |
+      Two orthogonal concepts govern learning delivery:
+      - CYCLE: The delivery mechanism (HOW practice happens)
+      - ROUND: The content structure (WHAT is being learned)
+
+      These are different dimensions, not atomic/molecular of the same thing.
+
+    cycle:
+      definition: "The delivery mechanism for forced production"
+      level: "App/Engine"
+      structure: "PROMPT → PAUSE → VOICE_1 → VOICE_2"
+      description: |
+        A Cycle is how the app delivers one practice phrase to the learner.
+        It forces production through the 4-phase loop:
+        1. PROMPT: Play known language audio
+        2. PAUSE: Learner produces target language (forced production)
+        3. VOICE_1: Play target audio (verification, no text)
+        4. VOICE_2: Play target audio (with text revealed)
+
+        The Cycle is the fundamental unit of the SSi methodology.
+        It is language-agnostic and content-agnostic.
+
+      see_also: "engine/cycle-orchestrator.apml"
+
+    round:
+      definition: "The content structure for one LEGO's learning progression"
+      level: "Curriculum/Pedagogy"
+      structure: |
+        Round = [
+          introduction_audio,        # "The Spanish for X is..."
+          ...component_cycles,       # Individual parts (M-type only)
+          lego_debut_cycle,          # The LEGO phrase itself
+          ...debut_cycles,           # Shortest phrases (build confidence)
+          ...spaced_rep_cycles,      # Reviews of previous LEGOs
+          ...consolidation_cycles    # 1-2 eternals before next Round
+        ]
+
+      description: |
+        A Round represents one LEGO's journey from introduction to initial
+        consolidation. It answers "what does the learner experience when
+        encountering a new LEGO?"
+
+        Key insight: A Round contains multiple Cycles, plus interleaved
+        spaced repetition of previous LEGOs. The consolidation eternals
+        at the end ensure the new LEGO is practiced in harder contexts
+        before moving to the next Round.
+
+        After a Round completes, the LEGO enters spaced repetition and
+        will appear in future Rounds' spaced_rep_cycles.
+
+      parameters:
+        consolidation_count:
+          type: integer
+          default: 2
+          range: [1, 3]
+          description: "Eternal phrases to practice before next Round"
+
+    relationship: |
+      Rounds contain Cycles, but they're fundamentally different:
+
+                  WHAT (content structure)
+                    │
+              Round │  "One LEGO's learning progression"
+                    │
+      ──────────────┼──────────────────────────────────────
+                    │
+              Cycle │  "Forced production delivery mechanism"
+                    │
+                  HOW (delivery mechanism)
+
+      A Session contains many Rounds.
+      A Round contains many Cycles (plus spaced rep).
+      The Session ends by time, not by Round completion.
+
+  # ===========================================================================
+  # DATA MODEL
+  # ===========================================================================
+
+  data_model:
+    description: "Structures for phrase selection"
+
+    LegoBasket:
+      description: "All practice phrases for a single LEGO"
+      fields:
+        lego_id:
+          type: string
+          description: "The LEGO these phrases practice (e.g., 'S0001L01')"
+
+        introduction_audio:
+          type: AudioRef
+          description: "Pre-generated introduction audio ('The Spanish for X is...')"
+
+        phrases:
+          type: array[PracticeCycleRow]
+          description: "All practice phrases, ordered by target_syllable_count"
+          source: "practice_cycles view, filtered by lego_id"
+
+    ClassifiedBasket:
+      description: "Phrases classified by cognitive load for selection"
+      fields:
+        introduction:
+          type: AudioRef
+          description: "Introduction audio (always present)"
+
+        components:
+          type: array[PracticeCycleRow]
+          description: "Component phrases (position 0, M-type only)"
+          filter: "position = 0"
+
+        lego_debut:
+          type: PracticeCycleRow
+          description: "The LEGO phrase itself (position 1)"
+          filter: "position = 1"
+
+        debut:
+          type: array[PracticeCycleRow]
+          description: "N shortest phrases by syllable count (confidence building)"
+          derivation: "First debut_pool_size phrases after components/lego, sorted by target_syllable_count ASC"
+
+        eternal:
+          type: array[PracticeCycleRow]
+          description: "M longest phrases by syllable count (spaced rep variety)"
+          derivation: "Last eternal_pool_size phrases, sorted by target_syllable_count DESC"
+
+        note: |
+          Debut and eternal may overlap for small baskets. This is intentional.
+          A basket with 6 phrases might have all 6 in both pools.
+
+    LegoProgress:
+      description: "Learner's progress through a LEGO's introduction and practice"
+      fields:
+        lego_id:
+          type: string
+
+        introduction_played:
+          type: boolean
+          default: false
+          description: "Has the introduction audio been played?"
+
+        introduction_index:
+          type: integer
+          default: 0
+          description: "Position in introduction sequence (0 = first component)"
+
+        introduction_complete:
+          type: boolean
+          default: false
+          description: "Has the full introduction sequence been completed?"
+
+        eternal_urn:
+          type: array[string]
+          default: []
+          description: "Remaining phrase IDs in current urn (for random_urn selection)"
+
+        reps_completed:
+          type: integer
+          default: 0
+          description: "Total spaced rep reviews completed"
+
+  # ===========================================================================
+  # PARAMETERS (Everything is configurable)
+  # ===========================================================================
+
+  parameters:
+    description: "Configurable values for phrase selection algorithms"
+
+    debut_pool_size:
+      type: integer
+      default: 7
+      range: [3, 15]
+      description: "Number of shortest phrases (by syllable) for introduction sequence"
+      rationale: "7 provides variety while keeping cognitive load manageable"
+
+    eternal_pool_size:
+      type: integer
+      default: 5
+      range: [3, 10]
+      description: "Number of longest phrases (by syllable) for spaced rep"
+      rationale: "5 ensures variety across reviews without overwhelming"
+
+    selection_mode:
+      type: enum
+      values: [random_urn, round_robin, weighted_random, max_distance]
+      default: random_urn
+      description: "Algorithm for selecting eternal phrase during spaced rep"
+
+      mode_descriptions:
+        random_urn: |
+          Shuffle eternal pool into an "urn". Draw without replacement.
+          When empty, refill and reshuffle. Guarantees all phrases seen
+          before any repeats.
+
+        round_robin: |
+          Cycle through eternal pool in fixed order.
+          Predictable but ensures even coverage.
+
+        weighted_random: |
+          Random selection weighted by recency (prefer less recent).
+          Probabilistic variety without strict guarantees.
+
+        max_distance: |
+          Select phrase most different from last played (by text similarity).
+          Maximizes variety but requires distance computation.
+
+    syllable_count_field:
+      type: string
+      default: "target_syllable_count"
+      description: "Field used for cognitive load classification"
+      note: "TARGET syllable count (what learner produces), not source"
+
+  # ===========================================================================
+  # ROUND STRUCTURE (One LEGO's learning progression)
+  # ===========================================================================
+
+  round_structure:
+    description: |
+      A Round is the content structure for one LEGO's learning progression.
+      It contains the introduction, debut practice, interleaved spaced rep
+      of previous LEGOs, and consolidation eternals before moving on.
+
+      The Round answers: "What does the learner experience when encountering
+      a new LEGO, from first introduction to being ready for the next?"
+
+    trigger: "New LEGO ready to introduce (from TripleHelixEngine)"
+
+    structure:
+      - phase: 1
+        name: "Introduction Audio"
+        description: |
+          Play pre-generated introduction ("The Spanish for X is...")
+          ALWAYS replayed if Round not complete (provides context on resume)
+        action: "Play ClassifiedBasket.introduction"
+        replay_behavior: |
+          If learner quit mid-Round and returns:
+            - Replay introduction audio (context setting)
+            - Resume practice sequence from introduction_index
+
+      - phase: 2
+        name: "Components"
+        description: "Practice individual word parts (M-type LEGOs only)"
+        condition: "ClassifiedBasket.components.length > 0"
+        action: "Play each component as practice Cycle"
+        iteration: "Increment introduction_index after each"
+
+      - phase: 3
+        name: "LEGO Debut"
+        description: "Practice the full LEGO phrase itself"
+        action: "Play ClassifiedBasket.lego_debut as practice Cycle"
+        iteration: "Increment introduction_index"
+
+      - phase: 4
+        name: "Debut Phrases"
+        description: "Practice in context with shortest phrases (build confidence)"
+        action: "Play debut[i] as practice Cycle"
+        iteration: "Increment introduction_index for each phrase"
+
+      - phase: 5
+        name: "Interleaved Spaced Rep"
+        description: |
+          Practice previous LEGOs due for review.
+          This is where spaced repetition happens - reviewing older LEGOs
+          while the new one settles in memory.
+        action: "Play eternal Cycles for LEGOs due in SpacedRepetitionQueue"
+        note: "Number of reviews depends on queue state, not fixed"
+
+      - phase: 6
+        name: "Consolidation"
+        description: |
+          Practice the NEW LEGO with eternal phrases (longer, harder contexts)
+          before moving to the next Round. This ensures initial consolidation.
+        action: "Play consolidation_count eternal Cycles for current LEGO"
+        on_complete: "Set LegoProgress.introduction_complete = true"
+        parameters:
+          consolidation_count:
+            default: 2
+            description: "Eternal phrases before next Round"
+
+    state_persistence: |
+      introduction_index tracks position in phases 2-4 across sessions.
+      If learner quits mid-Round:
+        - Introduction audio replays (context)
+        - Practice resumes from saved introduction_index
+        - introduction_complete remains false until phase 6 completes
+
+    completion: |
+      A Round is complete when:
+        1. All debut phrases practiced
+        2. Interleaved spaced rep executed
+        3. Consolidation eternals practiced
+        4. introduction_complete = true
+
+      The LEGO then enters the spaced rep system and will appear
+      in future Rounds' "Interleaved Spaced Rep" phase.
+
+  # ===========================================================================
+  # ETERNAL SELECTION (Spaced repetition reviews)
+  # ===========================================================================
+
+  eternal_selection:
+    description: |
+      Selects phrase for spaced rep review. The LEGO has been introduced;
+      now we're reinforcing with varied contexts.
+
+    trigger: "LegoProgress.introduction_complete = true AND LEGO due for review"
+
+    algorithms:
+      random_urn:
+        description: "Default selection mode - random without replacement"
+
+        initialization: |
+          If eternal_urn is empty:
+            eternal_urn = shuffle(ClassifiedBasket.eternal.map(p => p.id))
+
+        selection: |
+          phrase_id = eternal_urn.pop()
+          phrase = ClassifiedBasket.eternal.find(p => p.id == phrase_id)
+          return phrase
+
+        refill: |
+          When eternal_urn becomes empty after selection:
+            eternal_urn = shuffle(ClassifiedBasket.eternal.map(p => p.id))
+
+        guarantees:
+          - "All eternal phrases seen before any repeats"
+          - "Random order within each cycle"
+          - "No consecutive repeats (except pool size = 1)"
+
+      round_robin:
+        description: "Deterministic cycling through eternal pool"
+
+        selection: |
+          index = reps_completed % eternal_pool_size
+          return ClassifiedBasket.eternal[index]
+
+        guarantees:
+          - "Even coverage across all phrases"
+          - "Predictable sequence"
+
+      weighted_random:
+        description: "Probabilistic selection biased by recency"
+
+        state:
+          last_played: map[phrase_id → timestamp]
+
+        selection: |
+          weights = eternal.map(p => time_since_last_played(p.id))
+          return weighted_random_choice(eternal, weights)
+
+        guarantees:
+          - "Recently played phrases less likely"
+          - "All phrases have non-zero probability"
+
+      max_distance:
+        description: "Select phrase most different from last played"
+
+        state:
+          last_phrase_id: string
+
+        selection: |
+          distances = eternal.map(p => text_distance(p, last_phrase))
+          return argmax(distances)
+
+        distance_metric: "Levenshtein edit distance on target_text"
+
+        guarantees:
+          - "Maximum variety in consecutive phrases"
+          - "Requires O(n) distance computation per selection"
+
+  # ===========================================================================
+  # INTEGRATION POINTS
+  # ===========================================================================
+
+  integration:
+    description: "How PhraseSelector integrates with other components"
+
+    data_source:
+      component: "CourseDataProvider"
+      method: "getPracticeCycles(startSeed, endSeed)"
+      returns: "PracticeCycleRow[] from practice_cycles view"
+      note: "Phrases come pre-joined with audio refs"
+
+    scheduling:
+      component: "SpacedRepetitionQueue"
+      responsibility: "Determines WHEN a LEGO is due for review"
+      interface: "getNext() returns QueuedLego"
+      note: "PhraseSelector determines WHICH phrase, not WHEN"
+
+    orchestration:
+      component: "TripleHelixEngine"
+      responsibility: "Coordinates LEGO selection, phrase selection, and playback"
+      method: "createLearningItem(lego, basket, progress)"
+      calls: "PhraseSelector.select(basket, progress, mode)"
+
+    persistence:
+      component: "ProgressStore"
+      responsibility: "Persists LegoProgress including introduction_index and eternal_urn"
+      note: "Urn state must survive app restart"
+
+    playback:
+      component: "CycleOrchestrator"
+      responsibility: "Plays the selected phrase through PROMPT → PAUSE → VOICE_1 → VOICE_2"
+      input: "PracticePhrase with audio refs"
+
+  # ===========================================================================
+  # IMPLEMENTATION NOTES
+  # ===========================================================================
+
+  implementation_notes:
+    classification_timing: |
+      Phrases are classified at load time, not per-selection.
+      When basket is loaded, immediately compute ClassifiedBasket.
+      This avoids repeated sorting on each selection.
+
+    syllable_count_source: |
+      target_syllable_count is computed by Dashboard Phase 3 agents
+      during basket generation. The agent generates phrases in
+      syllable order, so position roughly correlates with syllable count.
+      Explicit syllable_count field is source of truth.
+
+    small_basket_handling: |
+      If basket has fewer phrases than debut_pool_size + eternal_pool_size:
+        - debut and eternal will overlap
+        - This is fine - same phrase serves both roles
+        - Extreme case: 1 phrase basket uses same phrase always
+
+    m_type_vs_a_type: |
+      A-type LEGOs have no components (atomic).
+      Introduction sequence skips step 2 (components) for A-type.
+      Check: ClassifiedBasket.components.length === 0
+
+    audio_preloading: |
+      For introduction: preload next 2-3 phrases in sequence
+      For review: preload all eternal phrases (only 5)
+      Audio is small (~25KB each), preloading is cheap
+
+  # ===========================================================================
+  # FUTURE EXTENSIONS
+  # ===========================================================================
+
+  future_extensions:
+    adaptive_selection: |
+      Use learner performance to bias selection:
+      - Struggled phrases get more exposure
+      - Confident phrases get less
+      Requires per-phrase performance tracking.
+
+    difficulty_progression: |
+      Within eternal pool, progress from easier to harder:
+      - Early reviews use shorter eternals
+      - Later reviews use longer eternals
+      Requires tracking review count per LEGO.
+
+    context_awareness: |
+      Select phrases that complement recent practice:
+      - Avoid similar sentence structures
+      - Vary vocabulary beyond the target LEGO
+      Requires semantic analysis of phrases.

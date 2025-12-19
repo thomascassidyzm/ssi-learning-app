@@ -262,6 +262,14 @@ CREATE TYPE lego_type AS ENUM ('A', 'M');
 
 ## Views
 
+### Cycle Views (Learning App)
+Self-contained learning units with audio pre-joined. One row = one playable cycle.
+
+- `lego_cycles` - LEGOs with audio (known, target1, target2) pre-resolved
+- `practice_cycles` - Practice phrases with audio pre-resolved, includes computed `phrase_type`
+- `seed_cycles` - Seeds with audio pre-resolved
+
+### Dashboard Views
 - `course_practice_phrases_with_type` - Phrases with runtime-computed phrase_type
 - `course_summary` - Course statistics
 - `seed_with_legos` - Seeds with their LEGOs for manifest generation

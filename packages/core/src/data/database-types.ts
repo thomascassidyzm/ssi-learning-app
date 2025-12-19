@@ -13,7 +13,6 @@ import type {
   AudioRef,
   AudioLanguagePair,
   PracticePhrase,
-  PhraseType,
 } from './types';
 
 // ============================================
@@ -22,69 +21,214 @@ import type {
 
 /**
  * Seed row from `course_seeds` table
+ * Note: Audio is resolved by text lookup, not stored UUIDs
  */
 export interface SeedRow {
-  seed_id: string;
+  id: string;  // UUID primary key
+  seed_id: string;  // Generated: 'S0001', 'S0002', etc.
   course_code: string;
-  position: number;
+  seed_number: number;  // Position in learning sequence
   known_text: string;
   target_text: string;
-  known_audio_uuid: string | null;
-  target_audio_uuid: string | null;
+  status: 'draft' | 'released' | 'deprecated';
+  release_batch?: number;
+  version: number;
   created_at?: string;
   updated_at?: string;
 }
 
 /**
  * LEGO row from `course_legos` table
+ * Note: Audio is resolved by text lookup, not stored UUIDs
  */
 export interface LegoRow {
-  lego_id: string;
-  seed_id: string;
+  id: string;  // UUID primary key
+  lego_id: string;  // Generated: 'S0001L01', 'S0001L02', etc.
+  course_code: string;
+  seed_number: number;
   lego_index: number;
   known_text: string;
   target_text: string;
   type: 'A' | 'M';
   is_new: boolean;
-  known_audio_uuid: string | null;
-  target_audio_uuid: string | null;
-  target_audio_uuid_alt: string | null;  // Second voice
-  component_of_lego_id: string | null;
+  components?: Array<{ known: string; target: string }>;  // For M-type LEGOs
+  status: 'draft' | 'released' | 'deprecated';
+  release_batch?: number;
+  version: number;
   created_at?: string;
   updated_at?: string;
 }
 
 /**
  * Audio sample row from `audio_samples` table
+ * Note: Audio is GLOBAL (no course_code) - same audio shared across courses
  */
 export interface AudioSampleRow {
   uuid: string;
-  s3_key: string;
-  duration_ms: number;
+  voice_id: string;
   text: string;
   text_normalized: string;
-  role: 'known' | 'target1' | 'target2';
-  voice_id: string | null;
-  course_code: string;
+  lang: string;  // 'eng', 'spa', etc.
+  role: 'source' | 'target1' | 'target2';  // 'source' = known language
+  cadence: 'natural' | 'slow';
+  s3_bucket?: string;
+  s3_key: string;
+  duration_ms?: number;
+  file_size_bytes?: number;
+  checksum_md5?: string;
+  source?: 'tts' | 'human';
+  tts_engine?: string;
+  tts_voice_variant?: string;
+  tts_text?: string;
   created_at?: string;
+  updated_at?: string;
 }
 
 /**
  * Practice phrase row from `course_practice_phrases` table
+ * Note: phrase_type is computed at runtime from position, not stored
+ * Audio is resolved by text lookup, not stored UUIDs
  */
 export interface PracticePhraseRow {
-  phrase_id: string;
-  lego_id: string;
-  seed_id: string;
+  id: string;  // UUID primary key
+  course_code: string;
+  seed_number: number;
+  lego_index: number;
+  position: number;  // 0=component, 1=lego, 2-7=debut, 8+=eternal
   known_text: string;
   target_text: string;
-  phrase_type: 'component' | 'debut' | 'practice' | 'eternal';
-  sort_order: number;
   word_count: number;
-  known_audio_uuid: string | null;
-  target_audio_uuid: string | null;
-  target_audio_uuid_alt: string | null;
+  lego_count: number;
+  difficulty?: 'easy' | 'medium' | 'hard';
+  register?: 'casual' | 'formal';
+  metadata?: Record<string, unknown>;
+  status: 'draft' | 'released' | 'deprecated';
+  release_batch?: number;
+  version: number;
   created_at?: string;
+  updated_at?: string;
+}
+
+// ============================================
+// CYCLE VIEW TYPES (Self-contained learning units)
+// These come from database views that JOIN content with audio
+// ============================================
+
+/**
+ * LEGO Cycle - Self-contained LEGO learning item with audio
+ * From `lego_cycles` view
+ */
+export interface LegoCycleRow {
+  // Identity
+  id: string;
+  lego_id: string;
+  course_code: string;
+  seed_number: number;
+  lego_index: number;
+
+  // LEGO metadata
+  type: 'A' | 'M';
+  is_new: boolean;
+  components?: Array<{ known: string; target: string }>;
+  status: 'draft' | 'released' | 'deprecated';
+  version: number;
+
+  // Text pair
+  known_text: string;
+  target_text: string;
+
+  // Audio refs (pre-joined from audio_samples)
+  known_audio_uuid: string | null;
+  known_duration_ms: number | null;
+  target1_audio_uuid: string | null;
+  target1_duration_ms: number | null;
+  target2_audio_uuid: string | null;
+  target2_duration_ms: number | null;
+}
+
+/**
+ * Practice Cycle - Self-contained practice phrase item with audio
+ * From `practice_cycles` view
+ */
+export interface PracticeCycleRow {
+  // Identity
+  id: string;
+  course_code: string;
+  seed_number: number;
+  lego_index: number;
+  position: number;
+  lego_id: string;  // Computed in view
+
+  // Phrase type (computed in view from position)
+  phrase_type: 'component' | 'debut' | 'practice' | 'eternal';
+
+  // Practice metadata
+  word_count: number;
+  lego_count: number;
+  difficulty?: 'easy' | 'medium' | 'hard';
+  register?: 'casual' | 'formal';
+  status: 'draft' | 'released' | 'deprecated';
+  version: number;
+
+  // Text pair
+  known_text: string;
+  target_text: string;
+
+  // Audio refs (pre-joined from audio_samples)
+  known_audio_uuid: string | null;
+  known_duration_ms: number | null;
+  target1_audio_uuid: string | null;
+  target1_duration_ms: number | null;
+  target2_audio_uuid: string | null;
+  target2_duration_ms: number | null;
+}
+
+/**
+ * Seed Cycle - Self-contained seed item with audio
+ * From `seed_cycles` view
+ */
+export interface SeedCycleRow {
+  // Identity
+  id: string;
+  seed_id: string;
+  course_code: string;
+  seed_number: number;
+
+  // Seed metadata
+  status: 'draft' | 'released' | 'deprecated';
+  version: number;
+
+  // Text pair
+  known_text: string;
+  target_text: string;
+
+  // Audio refs (pre-joined from audio_samples)
+  known_audio_uuid: string | null;
+  known_duration_ms: number | null;
+  target1_audio_uuid: string | null;
+  target1_duration_ms: number | null;
+  target2_audio_uuid: string | null;
+  target2_duration_ms: number | null;
+}
+
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
+
+/**
+ * Computes phrase_type from position (runtime classification)
+ *
+ * Position mapping:
+ * - 0: component (individual word parts of M-type LEGOs)
+ * - 1: debut (the LEGO phrase itself - its debut appearance)
+ * - 2-7: practice (first 6 practice sentences using the LEGO)
+ * - 8+: eternal (long-term spaced repetition rotation)
+ */
+export function computePhraseType(position: number): 'component' | 'debut' | 'practice' | 'eternal' {
+  if (position === 0) return 'component';
+  if (position === 1) return 'debut';
+  if (position >= 2 && position <= 7) return 'practice';
+  return 'eternal';
 }
 
 /**
@@ -213,6 +357,7 @@ export function createAudioRef(uuid: string | null, duration_ms?: number): Audio
  * Converts a SeedRow to a SeedPair
  *
  * Note: LEGOs must be fetched separately and added to the result.
+ * Audio refs are resolved later via text-based lookup.
  */
 export function convertSeedRowToSeedPair(row: SeedRow): Omit<SeedPair, 'legos'> {
   return {
@@ -221,18 +366,14 @@ export function convertSeedRowToSeedPair(row: SeedRow): Omit<SeedPair, 'legos'> 
       known: row.known_text,
       target: row.target_text,
     },
-    audioRefs: row.known_audio_uuid && row.target_audio_uuid ? {
-      known: createAudioRef(row.known_audio_uuid),
-      target: {
-        voice1: createAudioRef(row.target_audio_uuid),
-        voice2: createAudioRef(row.target_audio_uuid), // Use same audio if no alt
-      },
-    } : undefined,
+    // Audio resolved later via resolveAudioForContent()
+    audioRefs: undefined,
   };
 }
 
 /**
  * Converts a LegoRow to a LegoPair
+ * Audio refs are resolved later via text-based lookup.
  */
 export function convertLegoRowToLegoPair(row: LegoRow): LegoPair {
   return {
@@ -243,12 +384,13 @@ export function convertLegoRowToLegoPair(row: LegoRow): LegoPair {
       known: row.known_text,
       target: row.target_text,
     },
-    components: undefined, // Components must be queried separately
+    components: row.components,  // Already in the row for M-type LEGOs
+    // Placeholder audioRefs - resolved later via resolveAudioForContent()
     audioRefs: {
-      known: createAudioRef(row.known_audio_uuid),
+      known: createAudioRef(null),
       target: {
-        voice1: createAudioRef(row.target_audio_uuid),
-        voice2: createAudioRef(row.target_audio_uuid_alt || row.target_audio_uuid),
+        voice1: createAudioRef(null),
+        voice2: createAudioRef(null),
       },
     },
   };
@@ -256,24 +398,29 @@ export function convertLegoRowToLegoPair(row: LegoRow): LegoPair {
 
 /**
  * Converts a PracticePhraseRow to a PracticePhrase
+ * Audio refs are resolved later via text-based lookup.
  */
 export function convertPracticePhraseRowToPracticePhrase(row: PracticePhraseRow): PracticePhrase {
+  // Build lego_id from seed_number and lego_index
+  const legoId = `S${String(row.seed_number).padStart(4, '0')}L${String(row.lego_index).padStart(2, '0')}`;
+
   return {
-    id: row.phrase_id,
-    phraseType: row.phrase_type as PhraseType,
+    id: row.id,
+    phraseType: computePhraseType(row.position),
     phrase: {
       known: row.known_text,
       target: row.target_text,
     },
+    // Placeholder audioRefs - resolved later via resolveAudioForContent()
     audioRefs: {
-      known: createAudioRef(row.known_audio_uuid),
+      known: createAudioRef(null),
       target: {
-        voice1: createAudioRef(row.target_audio_uuid),
-        voice2: createAudioRef(row.target_audio_uuid_alt || row.target_audio_uuid),
+        voice1: createAudioRef(null),
+        voice2: createAudioRef(null),
       },
     },
     wordCount: row.word_count,
-    containsLegos: [row.lego_id], // Single LEGO reference
+    containsLegos: [legoId],
   };
 }
 
@@ -294,15 +441,15 @@ export function buildSeedPairWithLegos(
 }
 
 /**
- * Groups LEGOs by their parent SEED
+ * Groups LEGOs by their parent SEED (using seed_number)
  */
-export function groupLegosBySeed(legoRows: LegoRow[]): Map<string, LegoRow[]> {
-  const grouped = new Map<string, LegoRow[]>();
+export function groupLegosBySeedNumber(legoRows: LegoRow[]): Map<number, LegoRow[]> {
+  const grouped = new Map<number, LegoRow[]>();
 
   for (const lego of legoRows) {
-    const existing = grouped.get(lego.seed_id) || [];
+    const existing = grouped.get(lego.seed_number) || [];
     existing.push(lego);
-    grouped.set(lego.seed_id, existing);
+    grouped.set(lego.seed_number, existing);
   }
 
   // Sort LEGOs by index within each seed
@@ -311,6 +458,97 @@ export function groupLegosBySeed(legoRows: LegoRow[]): Map<string, LegoRow[]> {
   }
 
   return grouped;
+}
+
+// ============================================
+// CYCLE ROW CONVERSIONS
+// These convert cycle view rows directly to core types
+// with audio already resolved - no post-processing needed
+// ============================================
+
+/**
+ * Converts a LegoCycleRow to a LegoPair
+ * Audio is already resolved from the view - no extra lookups needed!
+ */
+export function convertLegoCycleToLegoPair(row: LegoCycleRow): LegoPair {
+  return {
+    id: row.lego_id,
+    type: row.type,
+    new: row.is_new,
+    lego: {
+      known: row.known_text,
+      target: row.target_text,
+    },
+    components: row.components,
+    audioRefs: {
+      known: createAudioRef(row.known_audio_uuid, row.known_duration_ms ?? undefined),
+      target: {
+        voice1: createAudioRef(row.target1_audio_uuid, row.target1_duration_ms ?? undefined),
+        voice2: createAudioRef(row.target2_audio_uuid, row.target2_duration_ms ?? undefined),
+      },
+    },
+  };
+}
+
+/**
+ * Converts a PracticeCycleRow to a PracticePhrase
+ * Audio is already resolved from the view - no extra lookups needed!
+ */
+export function convertPracticeCycleToPracticePhrase(row: PracticeCycleRow): PracticePhrase {
+  return {
+    id: row.id,
+    phraseType: row.phrase_type,  // Already computed in view
+    phrase: {
+      known: row.known_text,
+      target: row.target_text,
+    },
+    audioRefs: {
+      known: createAudioRef(row.known_audio_uuid, row.known_duration_ms ?? undefined),
+      target: {
+        voice1: createAudioRef(row.target1_audio_uuid, row.target1_duration_ms ?? undefined),
+        voice2: createAudioRef(row.target2_audio_uuid, row.target2_duration_ms ?? undefined),
+      },
+    },
+    wordCount: row.word_count,
+    containsLegos: [row.lego_id],
+  };
+}
+
+/**
+ * Converts a SeedCycleRow to a partial SeedPair (without legos)
+ * Audio is already resolved from the view - no extra lookups needed!
+ */
+export function convertSeedCycleToSeedPair(row: SeedCycleRow): Omit<SeedPair, 'legos'> {
+  return {
+    seed_id: row.seed_id,
+    seed_pair: {
+      known: row.known_text,
+      target: row.target_text,
+    },
+    audioRefs: {
+      known: createAudioRef(row.known_audio_uuid, row.known_duration_ms ?? undefined),
+      target: {
+        voice1: createAudioRef(row.target1_audio_uuid, row.target1_duration_ms ?? undefined),
+        voice2: createAudioRef(row.target2_audio_uuid, row.target2_duration_ms ?? undefined),
+      },
+    },
+  };
+}
+
+/**
+ * Builds a complete SeedPair from cycle rows
+ */
+export function buildSeedPairFromCycles(
+  seedRow: SeedCycleRow,
+  legoRows: LegoCycleRow[]
+): SeedPair {
+  const seed = convertSeedCycleToSeedPair(seedRow);
+  const legos = legoRows.map(convertLegoCycleToLegoPair);
+
+  return {
+    ...seed,
+    legos,
+  };
 }
 
 /**
@@ -350,13 +588,25 @@ export function enrichAudioRefs(
 // ============================================
 
 /**
+ * Audio role mapping: application role → database role
+ * The database uses 'source' for known language audio
+ */
+export type AppAudioRole = 'known' | 'target1' | 'target2';
+export type DbAudioRole = 'source' | 'target1' | 'target2';
+
+export function appRoleToDbRole(role: AppAudioRole): DbAudioRole {
+  return role === 'known' ? 'source' : role;
+}
+
+/**
  * Audio sample lookup key generator
  *
  * Used to find audio by text + role when UUIDs aren't directly available.
  */
-export function getAudioLookupKey(text: string, role: 'known' | 'target1' | 'target2'): string {
+export function getAudioLookupKey(text: string, role: AppAudioRole): string {
   const normalized = text.toLowerCase().trim();
-  return `${normalized}::${role}`;
+  const dbRole = appRoleToDbRole(role);
+  return `${normalized}::${dbRole}`;
 }
 
 /**
@@ -369,12 +619,67 @@ export function createAudioSampleMap(samples: AudioSampleRow[]): Map<string, Aud
     // Index by UUID
     map.set(sample.uuid, sample);
 
-    // Also index by text+role for lookups
-    const key = getAudioLookupKey(sample.text, sample.role);
+    // Also index by text_normalized+role for lookups
+    const key = `${sample.text_normalized}::${sample.role}`;
     map.set(key, sample);
   }
 
   return map;
+}
+
+/**
+ * Resolves audio for a text+role pair from the audio map
+ */
+export function resolveAudioRef(
+  text: string,
+  role: AppAudioRole,
+  audioMap: Map<string, AudioSampleRow>
+): AudioRef {
+  const key = getAudioLookupKey(text, role);
+  const sample = audioMap.get(key);
+
+  if (sample) {
+    return {
+      id: sample.uuid,
+      url: getAudioUrl(sample.uuid),
+      duration_ms: sample.duration_ms,
+    };
+  }
+
+  // Fallback to silence if audio not found
+  return createAudioRef(null);
+}
+
+/**
+ * Resolves all audio refs for a LegoPair
+ */
+export function resolveLegoAudio(
+  lego: LegoPair,
+  audioMap: Map<string, AudioSampleRow>
+): AudioLanguagePair {
+  return {
+    known: resolveAudioRef(lego.lego.known, 'known', audioMap),
+    target: {
+      voice1: resolveAudioRef(lego.lego.target, 'target1', audioMap),
+      voice2: resolveAudioRef(lego.lego.target, 'target2', audioMap),
+    },
+  };
+}
+
+/**
+ * Resolves all audio refs for a PracticePhrase
+ */
+export function resolvePhraseAudio(
+  phrase: PracticePhrase,
+  audioMap: Map<string, AudioSampleRow>
+): AudioLanguagePair {
+  return {
+    known: resolveAudioRef(phrase.phrase.known, 'known', audioMap),
+    target: {
+      voice1: resolveAudioRef(phrase.phrase.target, 'target1', audioMap),
+      voice2: resolveAudioRef(phrase.phrase.target, 'target2', audioMap),
+    },
+  };
 }
 
 /**
@@ -399,7 +704,7 @@ export function isLegoRow(value: unknown): value is LegoRow {
     typeof value === 'object' &&
     value !== null &&
     'lego_id' in value &&
-    'seed_id' in value &&
+    'seed_number' in value &&
     'type' in value &&
     'is_new' in value
   );
