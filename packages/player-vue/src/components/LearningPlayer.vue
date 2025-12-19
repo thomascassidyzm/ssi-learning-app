@@ -910,10 +910,13 @@ onUnmounted(() => {
             <line x1="12" y1="19" x2="12" y2="22"/>
           </svg>
         </div>
-        <h3 class="consent-title">Personalise your learning?</h3>
+        <h3 class="consent-title">Learn faster with adaptation</h3>
         <p class="consent-description">
-          SSi can learn from your timing to adapt the experience to you.
-          This uses your microphone to detect when you speak — no audio is recorded or stored.
+          SSi notices when you hesitate or respond quickly, and adjusts the pace to match you.
+          Struggling items get more practice. Confident ones move faster.
+        </p>
+        <p class="consent-detail">
+          Uses your microphone to detect timing only — no audio is recorded or stored.
         </p>
         <div class="consent-actions">
           <button class="consent-btn consent-btn--secondary" @click="handleAdaptationConsent(false)">
@@ -2092,8 +2095,15 @@ onUnmounted(() => {
 
 .consent-description {
   font-size: 0.9375rem;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   line-height: 1.5;
+  margin-bottom: 0.75rem;
+}
+
+.consent-detail {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  line-height: 1.4;
   margin-bottom: 1.5rem;
 }
 
