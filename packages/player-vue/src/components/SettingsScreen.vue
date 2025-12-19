@@ -3,6 +3,13 @@ import { ref, computed, inject } from 'vue'
 
 const emit = defineEmits(['close'])
 
+const props = defineProps({
+  course: {
+    type: Object,
+    default: null
+  }
+})
+
 // Inject auth and data providers
 const auth = inject('auth', null)
 const supabase = inject('supabase', null)
@@ -12,6 +19,10 @@ const showResetConfirm = ref(false)
 const isResetting = ref(false)
 const resetError = ref(null)
 const resetSuccess = ref(false)
+
+// Current course info for reset
+const courseName = computed(() => props.course?.display_name || props.course?.course_code || 'this course')
+const courseCode = computed(() => props.course?.course_code)
 
 // Settings state
 const settings = ref({
@@ -75,13 +86,20 @@ const confirmReset = async () => {
     return
   }
 
+  if (!courseCode.value) {
+    resetError.value = 'No course selected'
+    return
+  }
+
   isResetting.value = true
   resetError.value = null
 
   try {
     const learnerId = auth.learnerId.value
+    const course = courseCode.value
 
     // Delete from tables in order (respecting FK constraints)
+    // Filter by both learner_id AND course_id
     const tables = [
       'response_metrics',
       'spike_events',
@@ -95,13 +113,14 @@ const confirmReset = async () => {
         .from(table)
         .delete()
         .eq('learner_id', learnerId)
+        .eq('course_id', course)
 
       if (error) {
         console.warn(`[Reset] Error clearing ${table}:`, error.message)
       }
     }
 
-    // Reset enrollment stats (don't delete enrollment, just reset)
+    // Reset enrollment stats for this course only
     await supabase.value
       .from('course_enrollments')
       .update({
@@ -110,9 +129,10 @@ const confirmReset = async () => {
         welcome_played: false,
       })
       .eq('learner_id', learnerId)
+      .eq('course_id', course)
 
     resetSuccess.value = true
-    console.log('[Settings] Progress reset complete for learner:', learnerId)
+    console.log('[Settings] Progress reset complete for course:', course)
 
     // Close dialog after brief success message
     setTimeout(() => {
@@ -143,9 +163,9 @@ const confirmReset = async () => {
               <path d="M12 9v4M12 17h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
             </svg>
           </div>
-          <h3 class="reset-title">Reset all progress?</h3>
+          <h3 class="reset-title">Reset {{ courseName }}?</h3>
           <p class="reset-desc">
-            This will clear all your learning progress, session history, and start you from the beginning. This cannot be undone.
+            This will clear your progress for this course and start you from the beginning. Other courses are not affected. This cannot be undone.
           </p>
           <p v-if="resetError" class="reset-error">{{ resetError }}</p>
           <p v-if="resetSuccess" class="reset-success">Progress reset!</p>
