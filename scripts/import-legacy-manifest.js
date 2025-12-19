@@ -76,7 +76,24 @@ async function importManifest(manifestPath) {
   const courseSeeds = []
   const courseLegos = []
   const coursePracticePhrases = []
+  const legoIntroductions = [] // LEGO introduction audio links
   const audioSamples = new Map() // Dedup by uuid
+
+  // Build samples lookup for presentation audio matching
+  const allSampleSources = [manifest.samples]
+  for (const slice of manifest.slices || []) {
+    if (slice.samples) allSampleSources.push(slice.samples)
+  }
+  const presentationLookup = new Map() // text -> sample
+  for (const samplesObj of allSampleSources) {
+    for (const [text, samples] of Object.entries(samplesObj || {})) {
+      for (const sample of samples) {
+        if (sample.role === 'presentation') {
+          presentationLookup.set(text, sample)
+        }
+      }
+    }
+  }
 
   let seedNumber = 0
 
@@ -123,6 +140,7 @@ async function importManifest(manifestPath) {
         const legoType = wordCount === 1 ? 'A' : 'M'
 
         // Add LEGO
+        const legoId = `S${String(seedNumber).padStart(4, '0')}L${String(legoIndex).padStart(2, '0')}`
         courseLegos.push({
           course_code: courseCode,
           seed_number: seedNumber,
@@ -133,6 +151,20 @@ async function importManifest(manifestPath) {
           target_text: legoTargetText,
           status: 'draft'
         })
+
+        // Link presentation audio to LEGO
+        const presentationText = intro.presentation
+        if (presentationText) {
+          const presAudio = presentationLookup.get(presentationText)
+          if (presAudio) {
+            legoIntroductions.push({
+              course_code: courseCode,
+              lego_id: legoId,
+              audio_uuid: presAudio.id,
+              duration_ms: Math.round((presAudio.duration || 0) * 1000)
+            })
+          }
+        }
 
         // Process practice phrases (nodes array)
         let position = 0
@@ -160,12 +192,7 @@ async function importManifest(manifestPath) {
     }
   }
 
-  // Process audio samples (can be at root or per-slice)
-  const allSampleSources = [manifest.samples]
-  for (const slice of manifest.slices || []) {
-    if (slice.samples) allSampleSources.push(slice.samples)
-  }
-
+  // Process audio samples (reuse allSampleSources from presentation lookup)
   for (const samplesObj of allSampleSources) {
     for (const [text, samples] of Object.entries(samplesObj || {})) {
       for (const sample of samples) {
@@ -193,6 +220,7 @@ async function importManifest(manifestPath) {
   console.log(`   Seeds: ${courseSeeds.length}`)
   console.log(`   LEGOs: ${courseLegos.length}`)
   console.log(`   Practice Phrases: ${coursePracticePhrases.length}`)
+  console.log(`   LEGO Introductions: ${legoIntroductions.length}`)
   console.log(`   Audio Samples: ${audioSamples.size}`)
 
   // Insert into database
@@ -256,7 +284,22 @@ async function importManifest(manifestPath) {
   }
   console.log(`   ✓ Practice phrases inserted`)
 
-  // 5. Insert audio samples (batch, smaller chunks to avoid payload limits)
+  // 5. Insert LEGO introductions (links LEGOs to their presentation audio)
+  if (legoIntroductions.length > 0) {
+    console.log(`   Inserting ${legoIntroductions.length} LEGO introductions...`)
+    const { error: introError } = await supabase
+      .from('lego_introductions')
+      .upsert(legoIntroductions, { onConflict: 'course_code,lego_id' })
+
+    if (introError) {
+      console.error(`   ❌ ERROR inserting LEGO introductions:`, introError)
+      // Non-fatal - continue with audio samples
+    } else {
+      console.log(`   ✓ LEGO introductions inserted`)
+    }
+  }
+
+  // 6. Insert audio samples (batch, smaller chunks to avoid payload limits)
   const samplesArray = Array.from(audioSamples.values())
   const CHUNK_SIZE = 500
   console.log(`   Inserting ${samplesArray.length} audio samples...`)
