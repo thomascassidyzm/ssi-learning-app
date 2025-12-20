@@ -69,6 +69,11 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
     phaseIndex: 0,
   })
 
+  // Helper to check if learner is a guest (guest IDs start with 'guest-')
+  const isGuestLearner = (id: string | undefined) => {
+    return !id || id === 'demo-learner' || id.startsWith('guest-')
+  }
+
   // Computed
   const isDemoMode = computed(() => !progressStore || !sessionStore)
   const hasDatabase = computed(() => Boolean(progressStore && sessionStore))
@@ -104,9 +109,8 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
         items.value = demoItems
       }
 
-      // Start session tracking if database is available (skip for demo-learner)
-      const isDemoLearner = learnerId === 'demo-learner'
-      if (sessionStore && learnerId && courseId && !isDemoLearner) {
+      // Start session tracking if database is available (skip for guests)
+      if (sessionStore && learnerId && courseId && !isGuestLearner(learnerId)) {
         try {
           const session = await sessionStore.startSession(learnerId, courseId)
           sessionId.value = session.id
@@ -115,12 +119,12 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
           console.warn('[useLearningSession] Session tracking unavailable:', err.message)
           // Continue without session tracking
         }
-      } else if (isDemoLearner) {
-        console.log('[useLearningSession] Demo mode - session tracking disabled')
+      } else if (isGuestLearner(learnerId)) {
+        console.log('[useLearningSession] Guest mode - session tracking disabled')
       }
 
-      // Get or create enrollment if database is available (skip for demo-learner)
-      if (progressStore && learnerId && courseId && !isDemoLearner) {
+      // Get or create enrollment if database is available (skip for guests)
+      if (progressStore && learnerId && courseId && !isGuestLearner(learnerId)) {
         try {
           let enrollment = await progressStore.getEnrollment(learnerId, courseId)
           if (!enrollment) {
@@ -303,8 +307,8 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
       )
     }
 
-    // Only track in database if we have stores and not demo-learner
-    if (!progressStore || !learnerId || !courseId || learnerId === 'demo-learner') {
+    // Only track in database if we have stores and not a guest
+    if (!progressStore || !learnerId || !courseId || isGuestLearner(learnerId)) {
       return
     }
 

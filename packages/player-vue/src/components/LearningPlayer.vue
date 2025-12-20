@@ -698,13 +698,30 @@ const handleCycleEvent = (event) => {
         })
       }
 
-      // Move to next item
-      currentItemIndex.value = (currentItemIndex.value + 1) % sessionItems.value.length
-      const nextItem = sessionItems.value[currentItemIndex.value]
+      // Move to next item - skip identical consecutive phrases
+      let nextIndex = (currentItemIndex.value + 1) % sessionItems.value.length
+      let nextItem = sessionItems.value[nextIndex]
+
+      // Prevent identical consecutive phrases (same known AND target text)
+      const maxSkips = sessionItems.value.length // Don't infinite loop
+      let skips = 0
+      while (
+        skips < maxSkips &&
+        nextItem &&
+        completedItem &&
+        nextItem.phrase?.phrase?.known === completedItem.phrase?.phrase?.known &&
+        nextItem.phrase?.phrase?.target === completedItem.phrase?.phrase?.target
+      ) {
+        console.log('[LearningPlayer] Skipping duplicate phrase:', nextItem.phrase?.phrase?.target)
+        nextIndex = (nextIndex + 1) % sessionItems.value.length
+        nextItem = sessionItems.value[nextIndex]
+        skips++
+      }
+      currentItemIndex.value = nextIndex
 
       // Update pause duration for next item (2x target audio length)
       // Unless turbo mode is active
-      if (!turboActive.value && nextItem.audioDurations) {
+      if (!turboActive.value && nextItem?.audioDurations) {
         const pauseMs = Math.round(nextItem.audioDurations.target1 * 2 * 1000)
         orchestrator.value?.updateConfig({ pause_duration_ms: pauseMs })
       }

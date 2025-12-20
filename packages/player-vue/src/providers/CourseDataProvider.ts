@@ -259,10 +259,18 @@ export class CourseDataProvider {
   }
 
   /**
+   * Check if a learner ID is a guest (not stored in database)
+   */
+  private isGuestLearner(learnerId: string | null | undefined): boolean {
+    return !learnerId || learnerId === 'demo-learner' || learnerId.startsWith('guest-')
+  }
+
+  /**
    * Check if learner has already heard the welcome audio
    */
   async hasPlayedWelcome(learnerId: string): Promise<boolean> {
-    if (!this.client || !learnerId) return true // Assume played if can't check
+    // Guests don't have persistent welcome tracking - always play
+    if (!this.client || this.isGuestLearner(learnerId)) return false
 
     try {
       const { data, error } = await this.client
@@ -284,7 +292,8 @@ export class CourseDataProvider {
    * Mark welcome audio as played (or skipped) for a learner
    */
   async markWelcomePlayed(learnerId: string): Promise<void> {
-    if (!this.client || !learnerId) return
+    // Guests don't have persistent welcome tracking - skip silently
+    if (!this.client || this.isGuestLearner(learnerId)) return
 
     try {
       const { error } = await this.client
