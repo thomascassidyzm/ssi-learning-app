@@ -167,8 +167,8 @@ const loadContent = async () => {
 
     totalSeeds.value = seedData?.length || 0
 
-    // Load all LEGOs
-    const items = await courseDataProvider.value.loadSessionItems(1, 1000)
+    // Load all unique LEGOs (without spaced repetition duplicates)
+    const items = await courseDataProvider.value.loadAllUniqueLegos(2000)
     allItems.value = items
     totalLegos.value = items.length
 
@@ -474,7 +474,6 @@ onUnmounted(() => {
             <div class="item-meta">
               <span class="seed-badge">{{ item.seed.seed_id }}</span>
               <span class="lego-id">{{ item.lego.id }}</span>
-              <span v-if="item.lego.new" class="new-badge">NEW</span>
             </div>
             <div class="item-text">
               <p class="known-text">{{ item.phrase.phrase.known }}</p>

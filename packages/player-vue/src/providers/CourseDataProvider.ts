@@ -524,6 +524,135 @@ export class CourseDataProvider {
   }
 
   /**
+   * Load all unique LEGOs for a course (without spaced repetition cycles)
+   * Used by Course Explorer for QA script view
+   */
+  async loadAllUniqueLegos(limit: number = 1000): Promise<LearningItem[]> {
+    if (!this.client) {
+      console.warn('[CourseDataProvider] No Supabase client, returning empty array')
+      return []
+    }
+
+    try {
+      // Query course_legos directly to get unique LEGOs (not lego_cycles which has repeats)
+      const { data, error } = await this.client
+        .from('course_legos')
+        .select(`
+          lego_id,
+          seed_number,
+          lego_index,
+          known_text,
+          target_text,
+          type,
+          known_audio_uuid,
+          target1_audio_uuid,
+          target2_audio_uuid,
+          known_duration_ms,
+          target1_duration_ms,
+          target2_duration_ms
+        `)
+        .eq('course_code', this.courseId)
+        .order('seed_number', { ascending: true })
+        .order('lego_index', { ascending: true })
+        .limit(limit)
+
+      if (error) {
+        console.error('[CourseDataProvider] Query error:', error)
+        return []
+      }
+
+      if (!data || data.length === 0) {
+        console.warn('[CourseDataProvider] No LEGOs found for course:', this.courseId)
+        return []
+      }
+
+      console.log('[CourseDataProvider] Loaded', data.length, 'unique LEGOs for', this.courseId)
+
+      // Transform to LearningItem format (similar to loadSessionItems but without is_new field)
+      return data.map((record) => {
+        const legoId = record.lego_id
+        const seedId = `S${String(record.seed_number).padStart(4, '0')}`
+
+        const knownAudioUrl = this.resolveAudioUrl(record.known_audio_uuid)
+        const target1AudioUrl = this.resolveAudioUrl(record.target1_audio_uuid)
+        const target2AudioUrl = this.resolveAudioUrl(record.target2_audio_uuid)
+
+        return {
+          lego: {
+            id: legoId,
+            type: record.type || 'A',
+            new: false, // All shown in explorer, no "new" distinction
+            lego: {
+              known: record.known_text,
+              target: record.target_text,
+            },
+            audioRefs: {
+              known: {
+                id: record.known_audio_uuid,
+                url: knownAudioUrl
+              },
+              target: {
+                voice1: {
+                  id: record.target1_audio_uuid,
+                  url: target1AudioUrl
+                },
+                voice2: {
+                  id: record.target2_audio_uuid,
+                  url: target2AudioUrl
+                },
+              },
+            },
+          },
+          phrase: {
+            id: `${legoId}_P1`,
+            phraseType: 'debut',
+            phrase: {
+              known: record.known_text,
+              target: record.target_text,
+            },
+            audioRefs: {
+              known: {
+                id: record.known_audio_uuid,
+                url: knownAudioUrl
+              },
+              target: {
+                voice1: {
+                  id: record.target1_audio_uuid,
+                  url: target1AudioUrl
+                },
+                voice2: {
+                  id: record.target2_audio_uuid,
+                  url: target2AudioUrl
+                },
+              },
+            },
+            wordCount: record.target_text ? record.target_text.split(/\s+/).length : 1,
+            containsLegos: [legoId],
+          },
+          seed: {
+            seed_id: seedId,
+            seed_pair: {
+              known: record.known_text,
+              target: record.target_text,
+            },
+            legos: [legoId],
+          },
+          thread_id: (record.seed_number % 3) + 1,
+          mode: 'introduction',
+          audioDurations: {
+            source: record.known_duration_ms ? record.known_duration_ms / 1000 : 2.0,
+            target1: record.target1_duration_ms ? record.target1_duration_ms / 1000 : 2.5,
+            target2: record.target2_duration_ms ? record.target2_duration_ms / 1000 : 2.5,
+          },
+        }
+      })
+    } catch (err) {
+      console.error('[CourseDataProvider] Failed to load unique LEGOs:', err)
+      return []
+    }
+  }
+
+  /**
    * Create an empty basket when database isn't available
    */
   private createEmptyBasket(legoId: string, lego?: LegoPair): ClassifiedBasket {
