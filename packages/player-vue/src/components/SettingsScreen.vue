@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, inject } from 'vue'
 
-const emit = defineEmits(['close', 'openExplorer'])
+const emit = defineEmits(['close'])
 
 const props = defineProps({
   course: {
@@ -343,22 +343,6 @@ const confirmReset = async () => {
             <div class="setting-info">
               <span class="setting-label">Reset Progress</span>
               <span class="setting-desc">Start fresh (cannot be undone)</span>
-            </div>
-            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 18l6-6-6-6"/>
-            </svg>
-          </div>
-        </div>
-      </section>
-
-      <!-- Developer Tools Section (QA) -->
-      <section v-if="course" class="section">
-        <h3 class="section-title">Developer Tools</h3>
-        <div class="card">
-          <div class="setting-row clickable" @click="emit('openExplorer')">
-            <div class="setting-info">
-              <span class="setting-label">View Course Script</span>
-              <span class="setting-desc">Browse all phrases with click-to-play</span>
             </div>
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6"/>

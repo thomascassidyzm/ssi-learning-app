@@ -249,6 +249,7 @@ onMounted(async () => {
         @openProfile="openProfile"
         @openSettings="openSettings"
         @selectCourse="handleCourseSelect"
+        @openExplorer="openExplorer"
       />
     </Transition>
 
@@ -288,7 +289,6 @@ onMounted(async () => {
         v-if="currentScreen === 'settings'"
         :course="activeCourse"
         @close="goHome"
-        @openExplorer="openExplorer"
       />
     </Transition>
 
@@ -297,7 +297,7 @@ onMounted(async () => {
       <CourseExplorer
         v-if="currentScreen === 'explorer'"
         :course="activeCourse"
-        @close="openSettings"
+        @close="goHome"
       />
     </Transition>
 
