@@ -523,7 +523,7 @@ onUnmounted(() => {
   background: var(--bg-primary);
   font-family: 'DM Sans', -apple-system, sans-serif;
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
 }
 
 /* Ambient background */
@@ -617,6 +617,8 @@ onUnmounted(() => {
 
 /* Stats Bar */
 .stats-bar {
+  position: relative;
+  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -656,6 +658,8 @@ onUnmounted(() => {
 
 /* Tabs */
 .tabs {
+  position: relative;
+  z-index: 10;
   display: flex;
   gap: 0.5rem;
   padding: 0.75rem 1.5rem;
@@ -696,6 +700,8 @@ onUnmounted(() => {
 
 /* Loading */
 .loading {
+  position: relative;
+  z-index: 10;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -720,6 +726,8 @@ onUnmounted(() => {
 
 /* Error */
 .error-state {
+  position: relative;
+  z-index: 10;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -740,6 +748,8 @@ onUnmounted(() => {
 
 /* Summary View */
 .summary-view {
+  position: relative;
+  z-index: 10;
   flex: 1;
   padding: 1rem 1.5rem;
   overflow-y: auto;
@@ -852,6 +862,7 @@ onUnmounted(() => {
 .script-view {
   flex: 1;
   position: relative;
+  z-index: 10;
   overflow-y: auto;
   scroll-behavior: smooth;
 }
