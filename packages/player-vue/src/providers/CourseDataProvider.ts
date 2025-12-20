@@ -677,8 +677,322 @@ export class CourseDataProvider {
 }
 
 /**
+ * Fibonacci sequence for spaced repetition
+ */
+const FIBONACCI = [1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
+
+/**
+ * ScriptItem - one item in the learning script
+ */
+export interface ScriptItem {
+  type: 'intro' | 'component' | 'debut' | 'debut_phrase' | 'spaced_rep' | 'consolidation'
+  roundNumber: number
+  legoId: string
+  legoIndex: number // 1-based position in course
+  seedId: string
+  knownText: string
+  targetText: string
+  audioRefs: {
+    known: { id: string; url: string }
+    target: {
+      voice1: { id: string; url: string }
+      voice2: { id: string; url: string }
+    }
+  }
+  audioDurations?: {
+    source: number
+    target1: number
+    target2: number
+  }
+  reviewOf?: number // For spaced_rep: which LEGO is being reviewed (1-based index)
+  fibonacciPosition?: number // For spaced_rep: which Fibonacci position triggered this
+}
+
+/**
+ * RoundData - one ROUND in the learning journey
+ */
+export interface RoundData {
+  roundNumber: number
+  legoId: string
+  legoIndex: number
+  seedId: string
+  items: ScriptItem[]
+  spacedRepReviews: number[] // LEGO indices being reviewed
+}
+
+/**
+ * Calculate which previous LEGOs to review during ROUND N
+ * Based on formula: N - fibonacci[i] >= 1
+ *
+ * IMPORTANT: Each LEGO only appears once per round (deduplicated).
+ * The Fibonacci sequence has [1, 1, ...] but we don't review the same LEGO twice.
+ */
+function calculateSpacedRepReviews(roundNumber: number): Array<{ legoIndex: number; fibPosition: number }> {
+  const reviews: Array<{ legoIndex: number; fibPosition: number }> = []
+  const seenLegos = new Set<number>()
+
+  for (let i = 0; i < FIBONACCI.length; i++) {
+    const skip = FIBONACCI[i]
+    const reviewLego = roundNumber - skip
+
+    if (reviewLego < 1) {
+      // N - x < 1, stop
+      break
+    }
+
+    // Skip if we've already added this LEGO to this round's reviews
+    if (seenLegos.has(reviewLego)) {
+      continue
+    }
+
+    seenLegos.add(reviewLego)
+    reviews.push({
+      legoIndex: reviewLego,
+      fibPosition: i
+    })
+  }
+
+  return reviews
+}
+
+/**
  * Factory function
  */
 export function createCourseDataProvider(config: CourseDataProviderConfig): CourseDataProvider {
   return new CourseDataProvider(config)
+}
+
+/**
+ * Phrase data for eternal pool selection
+ */
+interface EternalPhrase {
+  knownText: string
+  targetText: string
+  syllableCount: number
+  audioRefs: {
+    known: { id: string; url: string }
+    target: {
+      voice1: { id: string; url: string }
+      voice2: { id: string; url: string }
+    }
+  }
+}
+
+/**
+ * Load eternal phrases for all LEGOs in one query
+ * Returns a map of legoId -> array of eternal phrases (up to 5 longest)
+ */
+async function loadEternalPhrases(
+  supabase: any,
+  courseId: string,
+  audioBaseUrl: string
+): Promise<Map<string, EternalPhrase[]>> {
+  const eternalMap = new Map<string, EternalPhrase[]>()
+
+  if (!supabase) return eternalMap
+
+  try {
+    // Query practice_cycles for all phrases (position >= 2 are practice phrases)
+    const { data, error } = await supabase
+      .from('practice_cycles')
+      .select('*')
+      .eq('course_code', courseId)
+      .gte('position', 2) // Skip components (0) and debut (1)
+      .order('lego_id', { ascending: true })
+      .order('target_syllable_count', { ascending: false }) // Longest first
+
+    if (error) {
+      console.error('[loadEternalPhrases] Query error:', error)
+      return eternalMap
+    }
+
+    if (!data) return eternalMap
+
+    // Group by lego_id and take top 5 longest for each
+    const grouped = new Map<string, any[]>()
+    for (const row of data) {
+      if (!grouped.has(row.lego_id)) {
+        grouped.set(row.lego_id, [])
+      }
+      const phrases = grouped.get(row.lego_id)!
+      if (phrases.length < 5) { // Keep only top 5 longest
+        phrases.push(row)
+      }
+    }
+
+    // Transform to EternalPhrase format
+    for (const [legoId, rows] of grouped) {
+      const phrases: EternalPhrase[] = rows.map(row => ({
+        knownText: row.known_text,
+        targetText: row.target_text,
+        syllableCount: row.target_syllable_count || 0,
+        audioRefs: {
+          known: {
+            id: row.known_audio_uuid,
+            url: row.known_audio_uuid ? `${audioBaseUrl}/${row.known_audio_uuid}.mp3` : ''
+          },
+          target: {
+            voice1: {
+              id: row.target1_audio_uuid,
+              url: row.target1_audio_uuid ? `${audioBaseUrl}/${row.target1_audio_uuid}.mp3` : ''
+            },
+            voice2: {
+              id: row.target2_audio_uuid,
+              url: row.target2_audio_uuid ? `${audioBaseUrl}/${row.target2_audio_uuid}.mp3` : ''
+            }
+          }
+        }
+      }))
+      eternalMap.set(legoId, phrases)
+    }
+
+    console.log(`[loadEternalPhrases] Loaded eternal phrases for ${eternalMap.size} LEGOs`)
+    return eternalMap
+  } catch (err) {
+    console.error('[loadEternalPhrases] Error:', err)
+    return eternalMap
+  }
+}
+
+/**
+ * Pick a random phrase from the eternal pool
+ */
+function pickRandomEternal(phrases: EternalPhrase[]): EternalPhrase | null {
+  if (!phrases || phrases.length === 0) return null
+  const idx = Math.floor(Math.random() * phrases.length)
+  return phrases[idx]
+}
+
+/**
+ * Generate the complete learning script with ROUNDs and spaced repetition
+ * This shows exactly what the learner will experience
+ */
+export async function generateLearningScript(
+  provider: CourseDataProvider,
+  supabase: any,
+  courseId: string,
+  audioBaseUrl: string,
+  maxLegos: number = 50
+): Promise<{ rounds: RoundData[]; allItems: ScriptItem[] }> {
+  // Load all unique LEGOs
+  const legos = await provider.loadAllUniqueLegos(maxLegos)
+
+  if (legos.length === 0) {
+    return { rounds: [], allItems: [] }
+  }
+
+  // Load eternal phrases for all LEGOs (for spaced rep and consolidation)
+  const eternalPhrases = await loadEternalPhrases(supabase, courseId, audioBaseUrl)
+
+  const rounds: RoundData[] = []
+  const allItems: ScriptItem[] = []
+
+  // Create a lookup map for LEGOs by index
+  const legoMap = new Map<number, typeof legos[0]>()
+  legos.forEach((lego, idx) => {
+    legoMap.set(idx + 1, lego) // 1-based indexing
+  })
+
+  // Generate each ROUND
+  for (let n = 1; n <= legos.length; n++) {
+    const currentLego = legos[n - 1]
+    const currentEternals = eternalPhrases.get(currentLego.lego.id) || []
+    const roundItems: ScriptItem[] = []
+
+    const baseItem: Omit<ScriptItem, 'type' | 'reviewOf' | 'fibonacciPosition'> = {
+      roundNumber: n,
+      legoId: currentLego.lego.id,
+      legoIndex: n,
+      seedId: currentLego.seed.seed_id,
+      knownText: currentLego.phrase.phrase.known,
+      targetText: currentLego.phrase.phrase.target,
+      audioRefs: currentLego.phrase.audioRefs,
+      audioDurations: currentLego.audioDurations,
+    }
+
+    // Phase 1: Introduction Audio (placeholder - actual intro audio would be separate)
+    roundItems.push({
+      ...baseItem,
+      type: 'intro',
+    })
+
+    // Phase 2: Components (for M-type LEGOs - skipped for now as we don't have component data)
+    // Phase 3: LEGO Debut
+    roundItems.push({
+      ...baseItem,
+      type: 'debut',
+    })
+
+    // Phase 4: Debut Phrases (we'd need basket data for multiple phrases)
+    // For now, add one debut phrase
+    roundItems.push({
+      ...baseItem,
+      type: 'debut_phrase',
+    })
+
+    // Phase 5: Interleaved Spaced Rep - select from ETERNAL phrases
+    const reviews = calculateSpacedRepReviews(n)
+    const reviewIndices: number[] = []
+
+    for (const review of reviews) {
+      const reviewLego = legoMap.get(review.legoIndex)
+      if (reviewLego) {
+        reviewIndices.push(review.legoIndex)
+
+        // Pick a random eternal phrase for this review
+        const reviewEternals = eternalPhrases.get(reviewLego.lego.id) || []
+        const selectedPhrase = pickRandomEternal(reviewEternals)
+
+        roundItems.push({
+          roundNumber: n,
+          legoId: reviewLego.lego.id,
+          legoIndex: review.legoIndex,
+          seedId: reviewLego.seed.seed_id,
+          // Use eternal phrase if available, otherwise fall back to debut
+          knownText: selectedPhrase?.knownText || reviewLego.phrase.phrase.known,
+          targetText: selectedPhrase?.targetText || reviewLego.phrase.phrase.target,
+          audioRefs: selectedPhrase?.audioRefs || reviewLego.phrase.audioRefs,
+          audioDurations: reviewLego.audioDurations,
+          type: 'spaced_rep',
+          reviewOf: review.legoIndex,
+          fibonacciPosition: review.fibPosition,
+        })
+      }
+    }
+
+    // Phase 6: Consolidation (2 eternal phrases for the new LEGO)
+    // Pick random eternals for consolidation too
+    const consolidation1 = pickRandomEternal(currentEternals)
+    const consolidation2 = pickRandomEternal(currentEternals)
+
+    roundItems.push({
+      ...baseItem,
+      type: 'consolidation',
+      knownText: consolidation1?.knownText || baseItem.knownText,
+      targetText: consolidation1?.targetText || baseItem.targetText,
+      audioRefs: consolidation1?.audioRefs || baseItem.audioRefs,
+    })
+    roundItems.push({
+      ...baseItem,
+      type: 'consolidation',
+      knownText: consolidation2?.knownText || baseItem.knownText,
+      targetText: consolidation2?.targetText || baseItem.targetText,
+      audioRefs: consolidation2?.audioRefs || baseItem.audioRefs,
+    })
+
+    rounds.push({
+      roundNumber: n,
+      legoId: currentLego.lego.id,
+      legoIndex: n,
+      seedId: currentLego.seed.seed_id,
+      items: roundItems,
+      spacedRepReviews: reviewIndices,
+    })
+
+    allItems.push(...roundItems)
+  }
+
+  console.log(`[generateLearningScript] Generated ${rounds.length} rounds with ${allItems.length} total items`)
+
+  return { rounds, allItems }
 }

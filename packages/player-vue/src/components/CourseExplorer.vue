@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, inject, onMounted, onUnmounted, nextTick } from 'vue'
 import { CycleOrchestrator, CyclePhase, DEFAULT_CONFIG } from '@ssi/core'
+import { generateLearningScript } from '../providers/CourseDataProvider'
 
 // Simple audio controller for script preview playback
 class ScriptAudioController {
@@ -93,14 +94,17 @@ const courseDataProvider = inject('courseDataProvider', null)
 const supabase = inject('supabase', null)
 
 // State
-const view = ref('summary') // 'summary' | 'script'
+const view = ref('summary') // 'summary' | 'script' | 'journey'
 const isLoading = ref(true)
 const error = ref(null)
 
 // Course content
 const allItems = ref([])
+const rounds = ref([])
+const scriptItems = ref([])
 const totalSeeds = ref(0)
 const totalLegos = ref(0)
+const totalCycles = ref(0)
 const estimatedMinutes = ref(0)
 
 // Playback state
@@ -143,6 +147,7 @@ const loadContent = async () => {
     allItems.value = createDemoItems()
     totalSeeds.value = 10
     totalLegos.value = allItems.value.length
+    totalCycles.value = allItems.value.length * 6
     estimatedMinutes.value = 30
     isLoading.value = false
     return
@@ -152,8 +157,8 @@ const loadContent = async () => {
     isLoading.value = true
     error.value = null
 
-    // Load from lego_cycles view
     const courseId = props.course?.course_code || 'demo'
+    const audioBaseUrl = 'https://ssi-audio.s3.eu-west-2.amazonaws.com/mastered'
 
     // Get total seed count first
     const { data: seedData, error: seedError } = await supabase.value
@@ -167,15 +172,28 @@ const loadContent = async () => {
 
     totalSeeds.value = seedData?.length || 0
 
-    // Load all unique LEGOs (without spaced repetition duplicates)
-    const items = await courseDataProvider.value.loadAllUniqueLegos(2000)
+    // Load all unique LEGOs (for the simple script view)
+    const items = await courseDataProvider.value.loadAllUniqueLegos(100)
     allItems.value = items
     totalLegos.value = items.length
 
-    // Estimate duration (avg 11 sec per cycle)
-    estimatedMinutes.value = Math.round((items.length * 11) / 60)
+    // Generate the full learning script with ROUNDs and spaced repetition
+    const script = await generateLearningScript(
+      courseDataProvider.value,
+      supabase.value,
+      courseId,
+      audioBaseUrl,
+      50 // Limit to first 50 LEGOs for preview
+    )
 
-    console.log('[CourseExplorer] Loaded', items.length, 'items')
+    rounds.value = script.rounds
+    scriptItems.value = script.allItems
+    totalCycles.value = script.allItems.length
+
+    // Estimate duration (avg 11 sec per cycle)
+    estimatedMinutes.value = Math.round((script.allItems.length * 11) / 60)
+
+    console.log('[CourseExplorer] Loaded', items.length, 'LEGOs,', script.rounds.length, 'rounds,', script.allItems.length, 'total cycles')
   } catch (err) {
     console.error('[CourseExplorer] Load error:', err)
     error.value = 'Failed to load course content'
@@ -368,6 +386,17 @@ onUnmounted(() => {
       </button>
       <button
         class="tab"
+        :class="{ active: view === 'journey' }"
+        @click="view = 'journey'"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M12 6v6l4 2"/>
+        </svg>
+        Journey
+      </button>
+      <button
+        class="tab"
         :class="{ active: view === 'script' }"
         @click="view = 'script'"
       >
@@ -376,7 +405,7 @@ onUnmounted(() => {
           <path d="M14 2v6h6"/><line x1="16" y1="13" x2="8" y2="13"/>
           <line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/>
         </svg>
-        Script
+        LEGOs
       </button>
     </nav>
 
@@ -421,7 +450,7 @@ onUnmounted(() => {
           <div class="overview-item">
             <div class="overview-icon cycles"></div>
             <div class="overview-info">
-              <span class="overview-value">{{ totalLegos * 6 }}</span>
+              <span class="overview-value">{{ totalCycles }}</span>
               <span class="overview-label">Total Cycles</span>
             </div>
           </div>
@@ -429,15 +458,66 @@ onUnmounted(() => {
       </div>
 
       <div class="summary-card">
-        <h2>Content Preview</h2>
-        <p class="preview-hint">Switch to Script view to browse all phrases and click to play from any point.</p>
-        <button class="view-script-btn" @click="view = 'script'">
+        <h2>Learning Journey</h2>
+        <p class="preview-hint">View the exact sequence of ROUNDs with spaced repetition interleaving.</p>
+        <button class="view-script-btn" @click="view = 'journey'">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <path d="M14 2v6h6"/>
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 6v6l4 2"/>
           </svg>
-          View Full Script
+          View Learning Journey
         </button>
+      </div>
+    </div>
+
+    <!-- Journey View - Shows ROUNDs with spaced rep -->
+    <div v-else-if="view === 'journey'" class="journey-view" ref="scriptContainer">
+      <div class="journey-content">
+        <div
+          v-for="round in rounds"
+          :key="round.roundNumber"
+          class="round-card"
+        >
+          <!-- Round Header -->
+          <div class="round-header">
+            <div class="round-number">ROUND {{ round.roundNumber }}</div>
+            <div class="round-lego">
+              <span class="round-lego-id">{{ round.legoId }}</span>
+              <span class="round-seed">{{ round.seedId }}</span>
+            </div>
+          </div>
+
+          <!-- Round Items -->
+          <div class="round-items">
+            <div
+              v-for="(item, idx) in round.items"
+              :key="`${round.roundNumber}-${idx}`"
+              class="round-item"
+              :class="item.type"
+            >
+              <div class="item-type-badge" :class="item.type">
+                <template v-if="item.type === 'intro'">INTRO</template>
+                <template v-else-if="item.type === 'debut'">DEBUT</template>
+                <template v-else-if="item.type === 'debut_phrase'">PHRASE</template>
+                <template v-else-if="item.type === 'spaced_rep'">REP #{{ item.reviewOf }}</template>
+                <template v-else-if="item.type === 'consolidation'">ETERNAL</template>
+              </div>
+              <div class="item-text-content">
+                <span class="item-known">{{ item.knownText }}</span>
+                <span class="item-arrow">→</span>
+                <span class="item-target">{{ item.targetText }}</span>
+              </div>
+              <div v-if="item.type === 'spaced_rep'" class="fib-badge">
+                fib[{{ item.fibonacciPosition }}]
+              </div>
+            </div>
+          </div>
+
+          <!-- Spaced Rep Summary -->
+          <div v-if="round.spacedRepReviews.length > 0" class="spaced-rep-summary">
+            Reviews LEGOs: {{ round.spacedRepReviews.join(', ') }}
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1175,6 +1255,184 @@ onUnmounted(() => {
   transform: translateY(100%);
 }
 
+/* Journey View */
+.journey-view {
+  flex: 1;
+  position: relative;
+  z-index: 10;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+}
+
+.journey-content {
+  padding: 1rem 1rem 120px;
+}
+
+.round-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  overflow: hidden;
+}
+
+.round-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.round-number {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--gold);
+  background: var(--gold-glow);
+  padding: 0.25rem 0.75rem;
+  border-radius: 6px;
+}
+
+.round-lego {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.round-lego-id {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.round-seed {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.625rem;
+  color: var(--text-muted);
+  padding: 0.125rem 0.375rem;
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border-radius: 4px;
+}
+
+.round-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.round-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.625rem;
+  background: var(--bg-elevated);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.round-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.item-type-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  min-width: 50px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.item-type-badge.intro {
+  background: rgba(139, 92, 246, 0.2);
+  color: #a78bfa;
+}
+
+.item-type-badge.debut {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+}
+
+.item-type-badge.debut_phrase {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+}
+
+.item-type-badge.spaced_rep {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+}
+
+.item-type-badge.consolidation {
+  background: rgba(236, 72, 153, 0.2);
+  color: #f472b6;
+}
+
+.item-text-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.item-known {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item-arrow {
+  font-size: 0.625rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.item-target {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.round-item.spaced_rep .item-target {
+  color: #fbbf24;
+}
+
+.fib-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.5rem;
+  color: var(--text-muted);
+  padding: 0.125rem 0.25rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.spaced-rep-summary {
+  margin-top: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--border-subtle);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.625rem;
+  color: var(--text-muted);
+  text-align: right;
+}
+
 /* Responsive */
 @media (max-width: 480px) {
   .stats-bar {
@@ -1188,6 +1446,17 @@ onUnmounted(() => {
 
   .tabs {
     padding: 0.5rem 1rem;
+    gap: 0.25rem;
+  }
+
+  .tab {
+    padding: 0.625rem 0.5rem;
+    font-size: 0.75rem;
+  }
+
+  .tab svg {
+    width: 14px;
+    height: 14px;
   }
 
   .script-content {
@@ -1201,6 +1470,29 @@ onUnmounted(() => {
 
   .overview-grid {
     grid-template-columns: 1fr;
+  }
+
+  .journey-content {
+    padding: 0.75rem 0.75rem 120px;
+  }
+
+  .round-card {
+    padding: 0.75rem;
+  }
+
+  .round-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .item-type-badge {
+    min-width: 40px;
+    font-size: 0.5rem;
+  }
+
+  .item-known, .item-target {
+    font-size: 0.75rem;
   }
 }
 </style>
