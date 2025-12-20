@@ -286,7 +286,7 @@ onMounted(async () => {
     <Transition name="slide-right" mode="out-in">
       <SettingsScreen
         v-if="currentScreen === 'settings'"
-        :course="selectedCourse"
+        :course="activeCourse"
         @close="goHome"
         @openExplorer="openExplorer"
       />
