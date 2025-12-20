@@ -534,27 +534,13 @@ export class CourseDataProvider {
     }
 
     try {
-      // Query course_legos directly to get unique LEGOs (not lego_cycles which has repeats)
+      // Query lego_cycles view (which has audio UUIDs) then dedupe by lego_id
       const { data, error } = await this.client
-        .from('course_legos')
-        .select(`
-          lego_id,
-          seed_number,
-          lego_index,
-          known_text,
-          target_text,
-          type,
-          known_audio_uuid,
-          target1_audio_uuid,
-          target2_audio_uuid,
-          known_duration_ms,
-          target1_duration_ms,
-          target2_duration_ms
-        `)
+        .from('lego_cycles')
+        .select('*')
         .eq('course_code', this.courseId)
         .order('seed_number', { ascending: true })
         .order('lego_index', { ascending: true })
-        .limit(limit)
 
       if (error) {
         console.error('[CourseDataProvider] Query error:', error)
@@ -566,10 +552,20 @@ export class CourseDataProvider {
         return []
       }
 
-      console.log('[CourseDataProvider] Loaded', data.length, 'unique LEGOs for', this.courseId)
+      // Deduplicate by lego_id - keep only first occurrence of each LEGO
+      const seenLegos = new Set<string>()
+      const uniqueRecords = data.filter(record => {
+        if (seenLegos.has(record.lego_id)) {
+          return false
+        }
+        seenLegos.add(record.lego_id)
+        return true
+      })
 
-      // Transform to LearningItem format (similar to loadSessionItems but without is_new field)
-      return data.map((record) => {
+      console.log('[CourseDataProvider] Loaded', uniqueRecords.length, 'unique LEGOs for', this.courseId)
+
+      // Transform to LearningItem format
+      return uniqueRecords.slice(0, limit).map((record) => {
         const legoId = record.lego_id
         const seedId = `S${String(record.seed_number).padStart(4, '0')}`
 
