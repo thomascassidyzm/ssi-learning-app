@@ -780,7 +780,7 @@ interface EternalPhrase {
 
 /**
  * Load eternal phrases for all LEGOs in one query
- * Returns a map of legoId -> array of eternal phrases (up to 5 longest)
+ * Returns a map of legoId -> array of eternal phrases (up to 5 longest by word_count)
  */
 async function loadEternalPhrases(
   supabase: any,
@@ -793,13 +793,15 @@ async function loadEternalPhrases(
 
   try {
     // Query practice_cycles for all phrases (position >= 2 are practice phrases)
+    // Columns: id, course_code, seed_number, lego_index, position, lego_id, phrase_type,
+    //          word_count, known_text, target_text, known_audio_uuid, target1_audio_uuid, target2_audio_uuid
     const { data, error } = await supabase
       .from('practice_cycles')
       .select('*')
       .eq('course_code', courseId)
       .gte('position', 2) // Skip components (0) and debut (1)
       .order('lego_id', { ascending: true })
-      .order('target_syllable_count', { ascending: false }) // Longest first
+      .order('word_count', { ascending: false }) // Longest (by word count) first
 
     if (error) {
       console.error('[loadEternalPhrases] Query error:', error)
@@ -807,6 +809,8 @@ async function loadEternalPhrases(
     }
 
     if (!data) return eternalMap
+
+    console.log(`[loadEternalPhrases] Loaded ${data.length} practice phrases from practice_cycles`)
 
     // Group by lego_id and take top 5 longest for each
     const grouped = new Map<string, any[]>()
@@ -825,7 +829,7 @@ async function loadEternalPhrases(
       const phrases: EternalPhrase[] = rows.map(row => ({
         knownText: row.known_text,
         targetText: row.target_text,
-        syllableCount: row.target_syllable_count || 0,
+        syllableCount: row.word_count || 0,
         audioRefs: {
           known: {
             id: row.known_audio_uuid,
@@ -846,7 +850,7 @@ async function loadEternalPhrases(
       eternalMap.set(legoId, phrases)
     }
 
-    console.log(`[loadEternalPhrases] Loaded eternal phrases for ${eternalMap.size} LEGOs`)
+    console.log(`[loadEternalPhrases] Grouped into ${eternalMap.size} LEGOs with eternal phrases`)
     return eternalMap
   } catch (err) {
     console.error('[loadEternalPhrases] Error:', err)
