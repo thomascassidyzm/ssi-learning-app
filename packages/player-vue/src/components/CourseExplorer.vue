@@ -365,18 +365,10 @@ const buildAudioMap = async (courseId, items) => {
   for (let i = 0; i < textsArray.length; i += 100) {
     const batch = textsArray.slice(i, i + 100)
 
-    // Query texts with their audio_files
-    // audio_files schema: id (uuid), text_id (fk), voice_id (fk to voices)
-    const { data: textsWithAudio, error: textsError } = await supabase.value
+    // Step 1: Get text IDs for this batch
+    const { data: textsData, error: textsError } = await supabase.value
       .from('texts')
-      .select(`
-        id,
-        text_target,
-        audio_files (
-          id,
-          voice_id
-        )
-      `)
+      .select('id, text_target')
       .in('text_target', batch)
 
     if (textsError) {
@@ -384,21 +376,62 @@ const buildAudioMap = async (courseId, items) => {
       continue
     }
 
+    if (!textsData || textsData.length === 0) continue
+
+    // Create text lookup map
+    const textIdToTarget = new Map()
+    const textIds = []
+    for (const t of textsData) {
+      textIdToTarget.set(t.id, t.text_target)
+      textIds.push(t.id)
+    }
+
+    // Step 2: Get audio files for these texts
+    const { data: audioFilesData, error: audioFilesError } = await supabase.value
+      .from('audio_files')
+      .select('id, text_id')
+      .in('text_id', textIds)
+
+    if (audioFilesError) {
+      console.warn('[CourseExplorer] Could not query audio_files:', audioFilesError)
+      continue
+    }
+
+    if (!audioFilesData || audioFilesData.length === 0) continue
+
+    // Create audio lookup map
+    const audioIdToTextId = new Map()
+    const audioIds = []
+    for (const af of audioFilesData) {
+      audioIdToTextId.set(af.id, af.text_id)
+      audioIds.push(af.id)
+    }
+
+    // Step 3: Get course_audio entries with roles
+    const { data: courseAudioData, error: courseAudioError } = await supabase.value
+      .from('course_audio')
+      .select('audio_id, role')
+      .eq('course_code', courseId)
+      .in('audio_id', audioIds)
+
+    if (courseAudioError) {
+      console.warn('[CourseExplorer] Could not query course_audio:', courseAudioError)
+      continue
+    }
+
     // Build map: target_text -> { target1: audio_file_id, target2: audio_file_id }
-    for (const textRow of (textsWithAudio || [])) {
-      const targetText = textRow.text_target
+    for (const row of (courseAudioData || [])) {
+      const textId = audioIdToTextId.get(row.audio_id)
+      const targetText = textIdToTarget.get(textId)
+      if (!targetText) continue
+
       if (!map.has(targetText)) {
         map.set(targetText, {})
       }
 
-      // audio_files uses voice_id to distinguish voices
-      // We'll assign first audio as target1, second as target2
-      const audioFiles = textRow.audio_files || []
-      if (audioFiles.length > 0) {
-        map.get(targetText).target1 = audioFiles[0].id
-      }
-      if (audioFiles.length > 1) {
-        map.get(targetText).target2 = audioFiles[1].id
+      // role is 'target1', 'target2', 'known', etc.
+      if (row.role) {
+        map.get(targetText)[row.role] = row.audio_id
       }
     }
   }
