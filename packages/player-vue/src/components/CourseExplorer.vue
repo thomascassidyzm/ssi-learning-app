@@ -676,13 +676,13 @@ const startPhase = async (phase) => {
     }
 
     case 'pause': {
-      // Wait for learner to speak (3 seconds)
+      // Brief pause for preview rhythm (500ms - this is QA preview, not learning)
       if (pauseTimer.value) clearTimeout(pauseTimer.value)
       pauseTimer.value = setTimeout(() => {
         if (isPlaying.value) {
           handlePhaseEnded()
         }
-      }, 3000)
+      }, 500)
       break
     }
 
