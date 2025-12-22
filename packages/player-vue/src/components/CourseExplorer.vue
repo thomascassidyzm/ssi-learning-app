@@ -3,7 +3,77 @@ import { ref, computed, inject, onMounted, onUnmounted, nextTick } from 'vue'
 import { CyclePhase } from '@ssi/core'
 import { generateLearningScript } from '../providers/CourseDataProvider'
 
+// ============================================================================
+// IndexedDB Cache for Script Data
+// ============================================================================
+const DB_NAME = 'ssi-script-cache'
+const DB_VERSION = 1
+const STORE_NAME = 'scripts'
+
+let dbInstance = null
+
+const openDB = () => {
+  return new Promise((resolve, reject) => {
+    if (dbInstance) {
+      resolve(dbInstance)
+      return
+    }
+
+    const request = indexedDB.open(DB_NAME, DB_VERSION)
+
+    request.onerror = () => reject(request.error)
+    request.onsuccess = () => {
+      dbInstance = request.result
+      resolve(dbInstance)
+    }
+
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: 'courseCode' })
+      }
+    }
+  })
+}
+
+const getCachedScript = async (courseCode) => {
+  try {
+    const db = await openDB()
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly')
+      const store = tx.objectStore(STORE_NAME)
+      const request = store.get(courseCode)
+      request.onerror = () => reject(request.error)
+      request.onsuccess = () => resolve(request.result || null)
+    })
+  } catch (err) {
+    console.warn('[Cache] Could not read cache:', err)
+    return null
+  }
+}
+
+const setCachedScript = async (courseCode, data) => {
+  try {
+    const db = await openDB()
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite')
+      const store = tx.objectStore(STORE_NAME)
+      const request = store.put({
+        courseCode,
+        ...data,
+        cachedAt: Date.now()
+      })
+      request.onerror = () => reject(request.error)
+      request.onsuccess = () => resolve()
+    })
+  } catch (err) {
+    console.warn('[Cache] Could not write cache:', err)
+  }
+}
+
+// ============================================================================
 // Simple audio controller for script preview playback
+// ============================================================================
 class ScriptAudioController {
   constructor() {
     this.audio = null
@@ -96,6 +166,9 @@ const supabase = inject('supabase', null)
 // State
 const view = ref('summary') // 'summary' | 'script'
 const isLoading = ref(true)
+const isRefreshing = ref(false)
+const loadedFromCache = ref(false)
+const cachedAt = ref(null)
 const error = ref(null)
 
 // Course content
@@ -148,8 +221,8 @@ const phaseLabel = computed(() => {
   }
 })
 
-// Load course content
-const loadContent = async () => {
+// Load course content (with cache-first strategy)
+const loadContent = async (forceRefresh = false) => {
   if (!courseDataProvider?.value) {
     // Demo mode - create sample rounds
     rounds.value = createDemoRounds()
@@ -161,11 +234,39 @@ const loadContent = async () => {
     return
   }
 
-  try {
-    isLoading.value = true
-    error.value = null
+  const courseId = props.course?.course_code || 'demo'
 
-    const courseId = props.course?.course_code || 'demo'
+  // Try cache first (unless forcing refresh)
+  if (!forceRefresh) {
+    try {
+      const cached = await getCachedScript(courseId)
+      if (cached) {
+        console.log('[CourseExplorer] Using cached data from', new Date(cached.cachedAt).toLocaleString())
+        rounds.value = cached.rounds
+        totalSeeds.value = cached.totalSeeds
+        totalLegos.value = cached.totalLegos
+        totalCycles.value = cached.totalCycles
+        estimatedMinutes.value = cached.estimatedMinutes
+        // Restore audio map from cached object
+        audioMap.value = new Map(Object.entries(cached.audioMapObj || {}))
+        loadedFromCache.value = true
+        cachedAt.value = cached.cachedAt
+        isLoading.value = false
+        return
+      }
+    } catch (err) {
+      console.warn('[CourseExplorer] Cache read failed:', err)
+    }
+  }
+
+  try {
+    // Show appropriate loading state
+    if (forceRefresh) {
+      isRefreshing.value = true
+    } else {
+      isLoading.value = true
+    }
+    error.value = null
 
     // Get total seed count first
     const { data: seedData, error: seedError } = await supabase.value
@@ -198,13 +299,33 @@ const loadContent = async () => {
     // Estimate duration (avg 11 sec per cycle)
     estimatedMinutes.value = Math.round((script.allItems.length * 11) / 60)
 
-    console.log('[CourseExplorer] Loaded', script.rounds.length, 'rounds,', script.allItems.length, 'total cycles')
+    // Cache the results (convert Map to Object for storage)
+    const audioMapObj = Object.fromEntries(audioMap.value)
+    await setCachedScript(courseId, {
+      rounds: script.rounds,
+      totalSeeds: totalSeeds.value,
+      totalLegos: totalLegos.value,
+      totalCycles: totalCycles.value,
+      estimatedMinutes: estimatedMinutes.value,
+      audioMapObj
+    })
+
+    loadedFromCache.value = false
+    cachedAt.value = Date.now()
+
+    console.log('[CourseExplorer] Loaded', script.rounds.length, 'rounds,', script.allItems.length, 'total cycles (fresh)')
   } catch (err) {
     console.error('[CourseExplorer] Load error:', err)
     error.value = 'Failed to load course content'
   } finally {
     isLoading.value = false
+    isRefreshing.value = false
   }
+}
+
+// Force refresh from database
+const refreshContent = () => {
+  loadContent(true)
 }
 
 // Build audio map by querying audio_samples for unique texts
@@ -435,16 +556,19 @@ const getSpacedRepLabel = (round, item) => {
   return ` (${n1Count}/3)`
 }
 
+// Format cached date for display
+const formatCachedDate = computed(() => {
+  if (!cachedAt.value) return ''
+  const date = new Date(cachedAt.value)
+  return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+})
+
 // Lifecycle
 onMounted(() => {
   loadContent()
 })
 
 onUnmounted(() => {
-  if (orchestrator.value) {
-    orchestrator.value.stop()
-    orchestrator.value.removeEventListener(handleCycleEvent)
-  }
   if (audioController.value) {
     audioController.value.stop()
   }
@@ -467,7 +591,30 @@ onUnmounted(() => {
       <div class="header-content">
         <h1 class="header-title">{{ courseName }}</h1>
         <span class="header-badge">QA Preview</span>
+        <span v-if="loadedFromCache && formatCachedDate" class="cache-indicator" :title="'Cached: ' + formatCachedDate">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/>
+          </svg>
+          cached
+        </span>
       </div>
+      <button
+        class="refresh-btn"
+        @click="refreshContent"
+        :disabled="isRefreshing"
+        :title="loadedFromCache ? 'Refresh from database' : 'Data is fresh'"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          :class="{ spinning: isRefreshing }"
+        >
+          <path d="M23 4v6h-6M1 20v-6h6"/>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+        </svg>
+      </button>
     </header>
 
     <!-- Stats Bar -->
@@ -768,6 +915,67 @@ onUnmounted(() => {
   color: var(--gold);
   border: 1px solid var(--gold);
   border-radius: 4px;
+}
+
+.cache-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.5625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  padding: 0.125rem 0.375rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+.cache-indicator svg {
+  width: 10px;
+  height: 10px;
+  opacity: 0.6;
+}
+
+.refresh-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.refresh-btn:hover:not(:disabled) {
+  background: var(--bg-elevated);
+  color: var(--gold);
+  border-color: var(--gold);
+}
+
+.refresh-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.refresh-btn svg {
+  width: 18px;
+  height: 18px;
+  transition: transform 0.3s ease;
+}
+
+.refresh-btn svg.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 /* Stats Bar */
