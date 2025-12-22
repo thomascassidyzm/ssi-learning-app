@@ -974,7 +974,8 @@ async function loadDebutPhrases(
  *    - N-2, N-3, N-5, N-8, etc. get 1x each
  * 6. CONSOLIDATION - 2 eternal phrases for the new LEGO
  *
- * RULE: No consecutive duplicate phrases (same prompt/response)
+ * RULE: No duplicate phrases within a ROUND (except consolidation can reuse debut phrases)
+ * Early rounds will be SHORT - learners don't have vocabulary yet, and that's fine!
  */
 export async function generateLearningScript(
   provider: CourseDataProvider,
@@ -1005,9 +1006,6 @@ export async function generateLearningScript(
     legoMap.set(idx + 1, lego) // 1-based indexing
   })
 
-  // Track last used phrase per LEGO to prevent consecutive duplicates
-  const lastUsedPhrase = new Map<string, string>()
-
   // Generate each ROUND
   for (let n = 1; n <= legos.length; n++) {
     const currentLego = legos[n - 1]
@@ -1015,8 +1013,8 @@ export async function generateLearningScript(
     const currentEternals = eternalPhrases.get(currentLego.lego.id) || []
     const roundItems: ScriptItem[] = []
 
-    // Track last phrase used in this round (for duplicate prevention)
-    let lastPhraseText: string | null = null
+    // Track ALL phrases used in this round (no duplicates within a round!)
+    const usedPhrasesInRound = new Set<string>()
 
     const baseItem: Omit<ScriptItem, 'type' | 'reviewOf' | 'fibonacciPosition'> = {
       roundNumber: n,
@@ -1029,7 +1027,7 @@ export async function generateLearningScript(
       audioDurations: currentLego.audioDurations,
     }
 
-    // Phase 1: Introduction Audio
+    // Phase 1: Introduction Audio (not a phrase, doesn't count)
     roundItems.push({
       ...baseItem,
       type: 'intro',
@@ -1042,13 +1040,13 @@ export async function generateLearningScript(
       ...baseItem,
       type: 'debut',
     })
-    lastPhraseText = baseItem.targetText
+    usedPhrasesInRound.add(baseItem.targetText)
 
     // Phase 4: Debut Phrases - up to 7 shortest phrases by syllable count
     for (let i = 0; i < Math.min(currentDebuts.length, 7); i++) {
       const phrase = currentDebuts[i]
-      // Skip if this would be a consecutive duplicate
-      if (phrase.targetText === lastPhraseText) continue
+      // Skip if already used in this round
+      if (usedPhrasesInRound.has(phrase.targetText)) continue
 
       roundItems.push({
         ...baseItem,
@@ -1057,7 +1055,7 @@ export async function generateLearningScript(
         targetText: phrase.targetText,
         audioRefs: phrase.audioRefs,
       })
-      lastPhraseText = phrase.targetText
+      usedPhrasesInRound.add(phrase.targetText)
     }
 
     // Phase 5: Interleaved Spaced Rep - select from ETERNAL phrases
@@ -1070,76 +1068,74 @@ export async function generateLearningScript(
 
       reviewIndices.push(review.legoIndex)
       const reviewEternals = eternalPhrases.get(reviewLego.lego.id) || []
-      const lastUsed = lastUsedPhrase.get(reviewLego.lego.id) || null
 
-      // N-1 (first revisit, fibPosition 0 or 1) gets 3x phrases
-      // All others get 1x
+      // N-1 (first revisit) gets 3x phrases, others get 1x
       const isFirstRevisit = review.legoIndex === n - 1
-      const phraseCount = isFirstRevisit ? 3 : 1
+      const targetPhraseCount = isFirstRevisit ? 3 : 1
 
-      for (let p = 0; p < phraseCount; p++) {
-        const selectedPhrase = pickRandomPhrase(reviewEternals, lastPhraseText)
+      // Find unused phrases from the eternal pool
+      const availablePhrases = reviewEternals.filter(p => !usedPhrasesInRound.has(p.targetText))
 
-        const phraseText = selectedPhrase?.targetText || reviewLego.phrase.phrase.target
+      // Add as many as we can (up to target), but don't duplicate!
+      const phrasesToAdd = Math.min(targetPhraseCount, availablePhrases.length)
 
-        // Skip if consecutive duplicate
-        if (phraseText === lastPhraseText && reviewEternals.length > 1) {
-          // Try to find a different phrase
-          const altPhrase = pickRandomPhrase(reviewEternals, phraseText)
-          if (altPhrase && altPhrase.targetText !== lastPhraseText) {
-            roundItems.push({
-              roundNumber: n,
-              legoId: reviewLego.lego.id,
-              legoIndex: review.legoIndex,
-              seedId: reviewLego.seed.seed_id,
-              knownText: altPhrase.knownText,
-              targetText: altPhrase.targetText,
-              audioRefs: altPhrase.audioRefs,
-              audioDurations: reviewLego.audioDurations,
-              type: 'spaced_rep',
-              reviewOf: review.legoIndex,
-              fibonacciPosition: review.fibPosition,
-            })
-            lastPhraseText = altPhrase.targetText
-            lastUsedPhrase.set(reviewLego.lego.id, altPhrase.targetText)
-            continue
-          }
-        }
+      for (let p = 0; p < phrasesToAdd; p++) {
+        // Pick randomly from remaining available phrases
+        const remainingAvailable = availablePhrases.filter(ph => !usedPhrasesInRound.has(ph.targetText))
+        if (remainingAvailable.length === 0) break
+
+        const idx = Math.floor(Math.random() * remainingAvailable.length)
+        const selectedPhrase = remainingAvailable[idx]
 
         roundItems.push({
           roundNumber: n,
           legoId: reviewLego.lego.id,
           legoIndex: review.legoIndex,
           seedId: reviewLego.seed.seed_id,
-          knownText: selectedPhrase?.knownText || reviewLego.phrase.phrase.known,
-          targetText: phraseText,
-          audioRefs: selectedPhrase?.audioRefs || reviewLego.phrase.audioRefs,
+          knownText: selectedPhrase.knownText,
+          targetText: selectedPhrase.targetText,
+          audioRefs: selectedPhrase.audioRefs,
           audioDurations: reviewLego.audioDurations,
           type: 'spaced_rep',
           reviewOf: review.legoIndex,
           fibonacciPosition: review.fibPosition,
         })
-        lastPhraseText = phraseText
-        lastUsedPhrase.set(reviewLego.lego.id, phraseText)
+        usedPhrasesInRound.add(selectedPhrase.targetText)
       }
     }
 
     // Phase 6: Consolidation (2 eternal phrases for the new LEGO)
-    for (let c = 0; c < 2; c++) {
-      const consolidation = pickRandomPhrase(currentEternals, lastPhraseText)
-      const consolText = consolidation?.targetText || baseItem.targetText
+    // These CAN overlap with debut phrases since eternal/debut pools overlap
+    // So we use a separate tracking set for consolidation
+    const usedConsolidation = new Set<string>()
 
-      // Skip if consecutive duplicate
-      if (consolText !== lastPhraseText || currentEternals.length <= 1) {
-        roundItems.push({
-          ...baseItem,
-          type: 'consolidation',
-          knownText: consolidation?.knownText || baseItem.knownText,
-          targetText: consolText,
-          audioRefs: consolidation?.audioRefs || baseItem.audioRefs,
-        })
-        lastPhraseText = consolText
+    for (let c = 0; c < 2; c++) {
+      // Find phrases not yet used in consolidation (but may overlap with debut)
+      const availableForConsolidation = currentEternals.filter(p => !usedConsolidation.has(p.targetText))
+
+      if (availableForConsolidation.length === 0) {
+        // Fall back to debut if no eternals available
+        if (!usedConsolidation.has(baseItem.targetText)) {
+          roundItems.push({
+            ...baseItem,
+            type: 'consolidation',
+          })
+          usedConsolidation.add(baseItem.targetText)
+        }
+        continue
       }
+
+      const idx = Math.floor(Math.random() * availableForConsolidation.length)
+      const consolidation = availableForConsolidation[idx]
+
+      roundItems.push({
+        ...baseItem,
+        type: 'consolidation',
+        knownText: consolidation.knownText,
+        targetText: consolidation.targetText,
+        audioRefs: consolidation.audioRefs,
+      })
+      usedConsolidation.add(consolidation.targetText)
     }
 
     rounds.push({
