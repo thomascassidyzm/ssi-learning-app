@@ -132,6 +132,7 @@ const fetchCourses = async () => {
     const { data, error: fetchError } = await props.supabase
       .from('courses')
       .select('*')
+      .eq('status', 'released')  // Only show released courses
       .order('display_name')
 
     if (fetchError) throw fetchError

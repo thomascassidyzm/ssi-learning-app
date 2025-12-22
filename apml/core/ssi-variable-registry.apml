@@ -18,8 +18,8 @@
 # - TypeScript type generation
 
 registry SSiContent:
-  version: "1.5.0"
-  last_updated: "2025-12-18"
+  version: "1.6.0"
+  last_updated: "2025-12-21"
 
   # ============================================================================
   # ENUM DEFINITIONS
@@ -90,9 +90,12 @@ registry SSiContent:
         sequence_order: 4
         applies_to: "All LEGOs on spaced repetition revisit"
         used_when: "Every revisit after acquisition"
-        selection_rule: "Top 5 longest phrases in basket by word count"
+        selection_rule: "Top 5 longest phrases in basket by target_syllable_count (language-agnostic)"
         overlap_note: "May include phrases also shown during debut - that's fine"
         legacy_code: "ETER"
+        spaced_rep_counts:
+          first_revisit: 3  # N-1 LEGO gets 3x eternal phrases
+          subsequent_revisits: 1  # N-2, N-3, N-5, etc. get 1x each
 
   enum AudioRole:
     description: "Role of audio in the learning cycle"
@@ -364,7 +367,14 @@ registry SSiContent:
       word_count:
         type: integer
         required: true
-        description: "Word count in target language for classification"
+        description: "Word count in target language (legacy, use target_syllable_count for classification)"
+
+      target_syllable_count:
+        type: integer
+        required: true
+        description: "Syllable count in target language - language-agnostic cognitive load measure"
+        rationale: "Syllables work for all scripts (Chinese, Arabic, etc.) unlike word count"
+        used_for: "Debut/Eternal phrase classification, cognitive load estimation"
 
       lego_count:
         type: integer
@@ -1154,8 +1164,12 @@ registry SSiContent:
       Runtime classification algorithm:
       1. Component phrases: Identified by is_component flag (M-type LEGOs only)
       2. LEGO phrase: Identified by is_lego flag (first encounter of LEGO itself)
-      3. Debut phrases: Remaining phrases up to debut_max, sorted by word_count ascending
-      4. Eternal phrases: Top N longest phrases (by word_count), used for spaced repetition
+      3. Debut phrases: Shortest phrases up to debut_max (7), sorted by target_syllable_count ascending
+      4. Eternal phrases: Top N longest phrases (by target_syllable_count), used for spaced repetition
+
+      Spaced rep phrase counts:
+      - N-1 (first revisit): 3x eternal phrases
+      - N-2, N-3, N-5, N-8, etc.: 1x eternal phrase each
 
   # ============================================================================
   # VOICE ACTIVITY DETECTION (VAD) CONFIGURATION
@@ -1875,6 +1889,32 @@ registry SSiContent:
 # ============================================================================
 
 version_history:
+  v1.6.0:
+    date: "2025-12-21"
+    changes:
+      - "Added target_syllable_count field to CoursePracticePhrase entity"
+      - "Updated PhraseType.eternal to use target_syllable_count instead of word_count"
+      - "Updated ClassificationConfig notes to use syllable-based classification"
+      - "Added spaced_rep_counts to eternal phrase type (3x for N-1, 1x for others)"
+      - "Added migration: 20251221143000_add_syllable_count_to_view.sql"
+      - "Backfilled all Welsh (en-cy-north) phrases with syllable counts (5,797 phrases)"
+    design_rationale: |
+      Word count fails for non-Roman scripts (Chinese, Arabic, etc.) where
+      a single "word" may represent multiple syllables or vice versa.
+      Syllable count is a language-agnostic proxy for cognitive load.
+
+      Spaced rep phrase counts refined:
+      - N-1 (first revisit after introduction): 3x eternal phrases
+      - N-2, N-3, N-5, N-8, N-13, N-21, N-34: 1x eternal phrase each
+      This gives the most recently introduced LEGO extra reinforcement.
+    implementation_status:
+      target_syllable_count: "Added to practice_cycles view"
+      Welsh_course: "100% backfilled (5,797 phrases, 8,747 practice_cycles rows)"
+      phrase_selection: "APML spec updated in learning/phrase-selection.apml"
+    contributors:
+      - "Tom Cassidy"
+      - "Claude (AI Assistant)"
+
   v1.5.0:
     date: "2025-12-18"
     changes:
@@ -2012,7 +2052,7 @@ version_history:
       - "Claude (AI Assistant)"
 
 # ============================================================================
-# GENERATED: 2025-12-18
+# GENERATED: 2025-12-21
 # This file is the Single Source of Truth for SSi data structures.
 # Changes here should propagate to:
 # - Supabase schema

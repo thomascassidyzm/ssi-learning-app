@@ -292,18 +292,59 @@ spec PhraseSelector:
 
       - phase: 4
         name: "Debut Phrases"
-        description: "Practice in context with shortest phrases (build confidence)"
+        description: |
+          Practice in context with shortest phrases (build confidence).
+          Up to debut_pool_size (default 7) phrases, ordered by syllable count ASC.
+        phrases: 7  # debut_pool_size
+        selection: "ClassifiedBasket.debut (shortest by target_syllable_count)"
         action: "Play debut[i] as practice Cycle"
         iteration: "Increment introduction_index for each phrase"
 
       - phase: 5
         name: "Interleaved Spaced Rep"
         description: |
-          Practice previous LEGOs due for review.
-          This is where spaced repetition happens - reviewing older LEGOs
-          while the new one settles in memory.
-        action: "Play eternal Cycles for LEGOs due in SpacedRepetitionQueue"
-        note: "Number of reviews depends on queue state, not fixed"
+          Practice previous LEGOs due for review using Fibonacci schedule.
+          The most recently introduced LEGO (N-1) gets extra reinforcement.
+
+        fibonacci_schedule:
+          description: "LEGOs to review based on Fibonacci skip values"
+          sequence: [1, 1, 2, 3, 5, 8, 13, 21, 34]  # deduplicated in practice
+          formula: "Review LEGO (N - fibonacci[i]) for each i where result >= 1"
+          deduplication: "First two Fibonacci values are both 1, but LEGO N-1 is only reviewed once"
+
+        phrase_counts:
+          first_revisit:
+            description: "N-1 (first time a LEGO is reviewed after introduction)"
+            phrases: 3
+            rationale: "Most recent LEGO needs strongest reinforcement"
+
+          subsequent_revisits:
+            description: "N-2, N-3, N-5, N-8, N-13, N-21, N-34..."
+            phrases: 1
+            rationale: "Older LEGOs need maintenance, not heavy drilling"
+
+        example:
+          introducing_lego: 35
+          reviews:
+            - lego: 34  # N-1
+              phrases: 3  # First revisit = 3x
+            - lego: 33  # N-2
+              phrases: 1
+            - lego: 32  # N-3
+              phrases: 1
+            - lego: 30  # N-5
+              phrases: 1
+            - lego: 27  # N-8
+              phrases: 1
+            - lego: 22  # N-13
+              phrases: 1
+            - lego: 14  # N-21
+              phrases: 1
+            - lego: 1   # N-34
+              phrases: 1
+
+        action: "Play eternal Cycles for LEGOs per fibonacci_schedule with phrase_counts"
+        total_reviews: "3 + 7 = 10 eternal phrases (for LEGO 35 example)"
 
       - phase: 6
         name: "Consolidation"

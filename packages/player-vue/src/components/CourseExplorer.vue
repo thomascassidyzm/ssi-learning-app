@@ -318,6 +318,32 @@ const getItemState = (index) => {
   return 'upcoming'
 }
 
+// Get debut phrase index (1-based) within the round
+const getDebutPhraseIndex = (round, itemIdx) => {
+  let count = 0
+  for (let i = 0; i <= itemIdx; i++) {
+    if (round.items[i].type === 'debut_phrase') count++
+  }
+  return count
+}
+
+// Get spaced rep label (e.g., "(1/3)" for N-1 reviews)
+const getSpacedRepLabel = (round, item) => {
+  // N-1 reviews get 3x phrases, show (1/3), (2/3), (3/3)
+  const isN1 = item.reviewOf === round.roundNumber - 1
+  if (!isN1) return ''
+
+  // Count how many N-1 reviews came before this one
+  let n1Count = 0
+  for (const ri of round.items) {
+    if (ri.type === 'spaced_rep' && ri.reviewOf === item.reviewOf) {
+      n1Count++
+      if (ri === item) break
+    }
+  }
+  return ` (${n1Count}/3)`
+}
+
 // Lifecycle
 onMounted(() => {
   loadContent()
@@ -498,8 +524,10 @@ onUnmounted(() => {
               <div class="item-type-badge" :class="item.type">
                 <template v-if="item.type === 'intro'">INTRO</template>
                 <template v-else-if="item.type === 'debut'">DEBUT</template>
-                <template v-else-if="item.type === 'debut_phrase'">PHRASE</template>
-                <template v-else-if="item.type === 'spaced_rep'">REP #{{ item.reviewOf }}</template>
+                <template v-else-if="item.type === 'debut_phrase'">PHRASE {{ getDebutPhraseIndex(round, idx) }}</template>
+                <template v-else-if="item.type === 'spaced_rep'">
+                  REP #{{ item.reviewOf }}{{ getSpacedRepLabel(round, item) }}
+                </template>
                 <template v-else-if="item.type === 'consolidation'">ETERNAL</template>
               </div>
               <div class="item-text-content">
@@ -508,7 +536,7 @@ onUnmounted(() => {
                 <span class="item-target">{{ item.targetText }}</span>
               </div>
               <div v-if="item.type === 'spaced_rep'" class="fib-badge">
-                fib[{{ item.fibonacciPosition }}]
+                {{ item.reviewOf === round.roundNumber - 1 ? '3x' : '1x' }}
               </div>
             </div>
           </div>
