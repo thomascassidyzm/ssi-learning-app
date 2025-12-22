@@ -182,12 +182,13 @@ const estimatedMinutes = ref(0)
 const audioMap = ref(new Map())
 const audioBaseUrl = 'https://ssi-audio-stage.s3.eu-west-1.amazonaws.com/mastered'
 
-// Playback state
+// Playback state - 4-phase cycle: prompt → pause → voice1 → voice2
 const isPlaying = ref(false)
 const currentRoundIndex = ref(-1)
 const currentItemIndex = ref(-1)
-const currentPhase = ref('idle') // 'idle' | 'playing_target'
+const currentPhase = ref('idle') // 'idle' | 'prompt' | 'pause' | 'voice1' | 'voice2'
 const audioController = ref(null)
+const pauseTimer = ref(null)
 
 // Scroll container ref
 const scriptContainer = ref(null)
@@ -216,7 +217,10 @@ const currentPlayingItem = computed(() => {
 // Phase display info
 const phaseLabel = computed(() => {
   switch (currentPhase.value) {
-    case 'playing_target': return 'PLAYING'
+    case 'prompt': return 'PROMPT'
+    case 'pause': return 'YOUR TURN'
+    case 'voice1': return 'VOICE 1'
+    case 'voice2': return 'VOICE 2'
     default: return ''
   }
 })
@@ -341,29 +345,34 @@ const buildAudioMap = async (courseId, items) => {
   console.log('[CourseExplorer] Building audio map for courseId:', courseId)
   if (!supabase?.value) return
 
-  // Collect unique target texts and LEGO IDs for intro audio
-  const uniqueTexts = new Set()
+  // Collect unique texts (both known and target) and LEGO IDs for intro audio
+  const uniqueTargetTexts = new Set()
+  const uniqueKnownTexts = new Set()
   const legoIds = new Set()
 
   for (const item of items) {
     if (item.targetText) {
-      uniqueTexts.add(item.targetText)
+      uniqueTargetTexts.add(item.targetText)
+    }
+    if (item.knownText) {
+      uniqueKnownTexts.add(item.knownText)
     }
     if (item.type === 'intro' && item.legoId) {
       legoIds.add(item.legoId)
     }
   }
 
-  console.log('[CourseExplorer] Building audio map for', uniqueTexts.size, 'unique texts,', legoIds.size, 'LEGOs')
+  console.log('[CourseExplorer] Building audio map for', uniqueTargetTexts.size, 'target texts,', uniqueKnownTexts.size, 'known texts,', legoIds.size, 'LEGOs')
 
   const map = new Map()
-  const textsArray = [...uniqueTexts]
+  const targetTextsArray = [...uniqueTargetTexts]
+  const knownTextsArray = [...uniqueKnownTexts]
   let foundInV12 = false
 
   // Try v12 schema first (texts + audio_files + course_audio)
   // Batch in chunks of 100 to avoid query limits
-  for (let i = 0; i < textsArray.length; i += 100) {
-    const batch = textsArray.slice(i, i + 100)
+  for (let i = 0; i < targetTextsArray.length; i += 100) {
+    const batch = targetTextsArray.slice(i, i + 100)
 
     // Step 1: Get text IDs for this batch
     const { data: textsData, error: textsError } = await supabase.value
@@ -423,8 +432,9 @@ const buildAudioMap = async (courseId, items) => {
   if (!foundInV12) {
     console.log('[CourseExplorer] V12 schema empty, falling back to legacy audio_samples table')
 
-    for (let i = 0; i < textsArray.length; i += 100) {
-      const batch = textsArray.slice(i, i + 100)
+    // Query for target audio (target1, target2)
+    for (let i = 0; i < targetTextsArray.length; i += 100) {
+      const batch = targetTextsArray.slice(i, i + 100)
 
       const { data: audioData, error: audioError } = await supabase.value
         .from('audio_samples')
@@ -455,6 +465,37 @@ const buildAudioMap = async (courseId, items) => {
           }
           if (row.s3_bucket) {
             map.get(row.text)[`${row.role}_bucket`] = row.s3_bucket
+          }
+        }
+      }
+    }
+
+    // Query for source/known audio (prompt)
+    for (let i = 0; i < knownTextsArray.length; i += 100) {
+      const batch = knownTextsArray.slice(i, i + 100)
+
+      const { data: audioData, error: audioError } = await supabase.value
+        .from('audio_samples')
+        .select('uuid, text, role, s3_key, s3_bucket')
+        .in('text', batch)
+        .eq('role', 'source')
+
+      if (audioError) {
+        console.warn('[CourseExplorer] Could not query source audio:', audioError)
+        continue
+      }
+
+      for (const row of (audioData || [])) {
+        if (!map.has(row.text)) {
+          map.set(row.text, {})
+        }
+        if (!map.get(row.text).source) {
+          map.get(row.text).source = row.uuid
+          if (row.s3_key) {
+            map.get(row.text).source_s3_key = row.s3_key
+          }
+          if (row.s3_bucket) {
+            map.get(row.text).source_bucket = row.s3_bucket
           }
         }
       }
@@ -528,59 +569,61 @@ const createDemoRounds = () => {
   ]
 }
 
-// Get audio URL for a target text or intro
-const getAudioUrl = (targetText, item = null) => {
+// Get audio URL by text and role (source, target1, target2, intro)
+const getAudioUrl = (text, role, item = null) => {
   // For INTRO items, look up by lego_id in lego_introductions
-  if (item?.type === 'intro' && item?.legoId) {
+  if (role === 'intro' && item?.legoId) {
     const introEntry = audioMap.value.get(`intro:${item.legoId}`)
     if (introEntry?.intro) {
       return `${audioBaseUrl}/${introEntry.intro}.mp3`
     }
-    // Fall through to try target text if no intro audio found
+    return null
   }
 
-  // For other items, look up by target text
-  const audioEntry = audioMap.value.get(targetText)
-  if (audioEntry?.target1) {
-    // Debug: log the entry details
-    console.log('[CourseExplorer] Audio entry for', targetText, ':', JSON.stringify(audioEntry))
+  // Look up by text
+  const audioEntry = audioMap.value.get(text)
+  if (!audioEntry) return null
 
-    // If we have s3_key, use it directly (it might contain the full path)
-    if (audioEntry.target1_s3_key) {
-      const bucket = audioEntry.target1_bucket || 'ssi-audio-stage'
-      return `https://${bucket}.s3.eu-west-1.amazonaws.com/${audioEntry.target1_s3_key}`
-    }
-    // Otherwise construct from uuid
-    return `${audioBaseUrl}/${audioEntry.target1}.mp3`
+  const uuid = audioEntry[role]
+  if (!uuid) return null
+
+  // If we have s3_key, use it directly
+  const s3Key = audioEntry[`${role}_s3_key`]
+  if (s3Key) {
+    const bucket = audioEntry[`${role}_bucket`] || 'ssi-audio-stage'
+    return `https://${bucket}.s3.eu-west-1.amazonaws.com/${s3Key}`
   }
-  return null
+
+  // Otherwise construct from uuid
+  return `${audioBaseUrl}/${uuid}.mp3`
 }
 
-// Check if item has audio available
+// Check if item has audio available (at least target1)
 const hasAudio = (item) => {
-  return !!getAudioUrl(item.targetText, item)
+  return !!getAudioUrl(item.targetText, 'target1', item)
 }
 
-// Playback controls - play a specific item
+// Playback controls - start a complete 4-phase cycle for an item
+// Cycle: PROMPT (known audio) → PAUSE (3s) → VOICE1 (target1) → VOICE2 (target2)
 const playItem = async (roundIndex, itemIndex) => {
   const round = rounds.value[roundIndex]
   if (!round || !round.items[itemIndex]) return
 
   const item = round.items[itemIndex]
-  const audioUrl = getAudioUrl(item.targetText, item)
 
-  if (!audioUrl) {
-    console.warn('[CourseExplorer] No audio for:', item.targetText)
+  // Check if we have at least target1 audio
+  const target1Url = getAudioUrl(item.targetText, 'target1', item)
+  if (!target1Url) {
+    console.warn('[CourseExplorer] No target1 audio for:', item.targetText)
     return
   }
 
-  console.log('[CourseExplorer] Playing:', item.targetText, '→', audioUrl)
+  console.log('[CourseExplorer] Starting cycle for:', item.knownText, '→', item.targetText)
 
   // Update current position
   currentRoundIndex.value = roundIndex
   currentItemIndex.value = itemIndex
   isPlaying.value = true
-  currentPhase.value = 'playing_target'
 
   // Scroll to current item
   await nextTick()
@@ -590,24 +633,122 @@ const playItem = async (roundIndex, itemIndex) => {
   if (!audioController.value) {
     audioController.value = new ScriptAudioController()
     audioController.value.onEnded(() => {
-      handleAudioEnded()
+      handlePhaseEnded()
     })
   }
 
-  // Play the audio
-  try {
-    await audioController.value.play({ url: audioUrl })
-  } catch (err) {
-    console.error('[CourseExplorer] Playback error:', err)
-    handleAudioEnded()
+  // Start the cycle with PROMPT phase
+  await startPhase('prompt')
+}
+
+// Start a specific phase of the cycle
+const startPhase = async (phase) => {
+  if (!isPlaying.value) return
+
+  const round = rounds.value[currentRoundIndex.value]
+  const item = round?.items[currentItemIndex.value]
+  if (!item) {
+    stopPlayback()
+    return
+  }
+
+  currentPhase.value = phase
+  console.log('[CourseExplorer] Phase:', phase)
+
+  switch (phase) {
+    case 'prompt': {
+      // Play known/source audio
+      const promptUrl = getAudioUrl(item.knownText, 'source', item)
+      if (promptUrl) {
+        try {
+          await audioController.value.play({ url: promptUrl })
+          // handlePhaseEnded will be called when audio ends
+        } catch (err) {
+          console.warn('[CourseExplorer] No prompt audio, skipping to pause')
+          handlePhaseEnded()
+        }
+      } else {
+        // No prompt audio, skip to pause
+        console.log('[CourseExplorer] No prompt audio, skipping to pause')
+        handlePhaseEnded()
+      }
+      break
+    }
+
+    case 'pause': {
+      // Wait for learner to speak (3 seconds)
+      if (pauseTimer.value) clearTimeout(pauseTimer.value)
+      pauseTimer.value = setTimeout(() => {
+        if (isPlaying.value) {
+          handlePhaseEnded()
+        }
+      }, 3000)
+      break
+    }
+
+    case 'voice1': {
+      // Play target1 audio
+      const voice1Url = getAudioUrl(item.targetText, 'target1', item)
+      if (voice1Url) {
+        try {
+          await audioController.value.play({ url: voice1Url })
+        } catch (err) {
+          console.error('[CourseExplorer] Voice1 playback error:', err)
+          handlePhaseEnded()
+        }
+      } else {
+        handlePhaseEnded()
+      }
+      break
+    }
+
+    case 'voice2': {
+      // Play target2 audio
+      const voice2Url = getAudioUrl(item.targetText, 'target2', item)
+      if (voice2Url) {
+        try {
+          await audioController.value.play({ url: voice2Url })
+        } catch (err) {
+          console.warn('[CourseExplorer] Voice2 playback error, finishing cycle')
+          handlePhaseEnded()
+        }
+      } else {
+        // No voice2, finish the cycle
+        handlePhaseEnded()
+      }
+      break
+    }
   }
 }
 
-// Handle audio ended - advance to next item
-const handleAudioEnded = () => {
+// Handle end of a phase - advance to next phase or next item
+const handlePhaseEnded = () => {
   if (!isPlaying.value) return
 
-  // Find next item
+  // Advance through phases
+  switch (currentPhase.value) {
+    case 'prompt':
+      startPhase('pause')
+      break
+    case 'pause':
+      startPhase('voice1')
+      break
+    case 'voice1':
+      startPhase('voice2')
+      break
+    case 'voice2':
+      // Cycle complete - advance to next item
+      advanceToNextItem()
+      break
+    default:
+      stopPlayback()
+  }
+}
+
+// Advance to the next item after cycle completes
+const advanceToNextItem = () => {
+  if (!isPlaying.value) return
+
   const round = rounds.value[currentRoundIndex.value]
   if (!round) {
     stopPlayback()
@@ -621,7 +762,7 @@ const handleAudioEnded = () => {
       if (isPlaying.value) {
         playItem(currentRoundIndex.value, nextItemIndex)
       }
-    }, 500) // Brief pause between items
+    }, 500)
     return
   }
 
@@ -632,7 +773,7 @@ const handleAudioEnded = () => {
       if (isPlaying.value) {
         playItem(nextRoundIndex, 0)
       }
-    }, 800) // Slightly longer pause between rounds
+    }, 800)
     return
   }
 
@@ -645,6 +786,13 @@ const stopPlayback = () => {
   currentPhase.value = 'idle'
   currentRoundIndex.value = -1
   currentItemIndex.value = -1
+
+  // Clear pause timer
+  if (pauseTimer.value) {
+    clearTimeout(pauseTimer.value)
+    pauseTimer.value = null
+  }
+
   if (audioController.value) {
     audioController.value.stop()
   }
@@ -704,6 +852,9 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  if (pauseTimer.value) {
+    clearTimeout(pauseTimer.value)
+  }
   if (audioController.value) {
     audioController.value.stop()
   }
