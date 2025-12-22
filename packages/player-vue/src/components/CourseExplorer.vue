@@ -570,6 +570,7 @@ const createDemoRounds = () => {
 }
 
 // Get audio URL by text and role (source, target1, target2, intro)
+// Always use ssi-audio-stage bucket (public) - ignore s3_bucket from database
 const getAudioUrl = (text, role, item = null) => {
   // For INTRO items, look up by lego_id in lego_introductions
   if (role === 'intro' && item?.legoId) {
@@ -587,14 +588,7 @@ const getAudioUrl = (text, role, item = null) => {
   const uuid = audioEntry[role]
   if (!uuid) return null
 
-  // If we have s3_key, use it directly
-  const s3Key = audioEntry[`${role}_s3_key`]
-  if (s3Key) {
-    const bucket = audioEntry[`${role}_bucket`] || 'ssi-audio-stage'
-    return `https://${bucket}.s3.eu-west-1.amazonaws.com/${s3Key}`
-  }
-
-  // Otherwise construct from uuid
+  // Always use the public ssi-audio-stage bucket with mastered/ prefix
   return `${audioBaseUrl}/${uuid}.mp3`
 }
 
@@ -662,16 +656,14 @@ const startPhase = async (phase) => {
       if (promptUrl) {
         try {
           await audioController.value.play({ url: promptUrl })
-          // handlePhaseEnded will be called when audio ends
+          // handlePhaseEnded will be called when audio ends via onEnded callback
+          return // Wait for audio to finish
         } catch (err) {
-          console.warn('[CourseExplorer] No prompt audio, skipping to pause')
-          handlePhaseEnded()
+          console.warn('[CourseExplorer] Prompt audio failed, skipping to pause')
         }
-      } else {
-        // No prompt audio, skip to pause
-        console.log('[CourseExplorer] No prompt audio, skipping to pause')
-        handlePhaseEnded()
       }
+      // No prompt audio or it failed - go directly to pause
+      startPhase('pause')
       break
     }
 
@@ -680,7 +672,7 @@ const startPhase = async (phase) => {
       if (pauseTimer.value) clearTimeout(pauseTimer.value)
       pauseTimer.value = setTimeout(() => {
         if (isPlaying.value) {
-          handlePhaseEnded()
+          startPhase('voice1')
         }
       }, 500)
       break
@@ -692,13 +684,18 @@ const startPhase = async (phase) => {
       if (voice1Url) {
         try {
           await audioController.value.play({ url: voice1Url })
+          // handlePhaseEnded will be called when audio ends via onEnded callback
+          return // Wait for audio to finish
         } catch (err) {
           console.error('[CourseExplorer] Voice1 playback error:', err)
-          handlePhaseEnded()
+          // Audio failed - stop the cycle, don't continue
+          stopPlayback()
+          return
         }
-      } else {
-        handlePhaseEnded()
       }
+      // No voice1 URL - stop (this is required audio)
+      console.warn('[CourseExplorer] No voice1 audio available')
+      stopPlayback()
       break
     }
 
@@ -708,14 +705,14 @@ const startPhase = async (phase) => {
       if (voice2Url) {
         try {
           await audioController.value.play({ url: voice2Url })
+          // handlePhaseEnded will be called when audio ends via onEnded callback
+          return // Wait for audio to finish
         } catch (err) {
           console.warn('[CourseExplorer] Voice2 playback error, finishing cycle')
-          handlePhaseEnded()
         }
-      } else {
-        // No voice2, finish the cycle
-        handlePhaseEnded()
       }
+      // No voice2 or it failed - finish cycle and advance to next item
+      advanceToNextItem()
       break
     }
   }
