@@ -1080,7 +1080,7 @@ onUnmounted(() => {
 
     <!-- Playback Bar (when playing) -->
     <Transition name="slide-up">
-      <div v-if="isPlaying && currentPlayingItem" class="playback-bar">
+      <div v-if="isPlaying && currentPlayingItem" class="playback-bar" @click.stop>
         <div class="playback-phase" :class="currentPhase">
           {{ phaseLabel }}
         </div>
@@ -1088,7 +1088,7 @@ onUnmounted(() => {
           <span class="playback-lego">{{ currentPlayingItem.round.legoId }}</span>
           <span class="playback-text">{{ currentPlayingItem.item.targetText }}</span>
         </div>
-        <button class="playback-stop" @click="stopPlayback">
+        <button class="playback-stop" @click.stop="stopPlayback">
           <svg viewBox="0 0 24 24" fill="currentColor">
             <rect x="6" y="6" width="12" height="12" rx="1"/>
           </svg>
