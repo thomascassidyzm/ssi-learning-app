@@ -356,35 +356,25 @@ const buildAudioMap = async (courseId, items) => {
   console.log('[CourseExplorer] Building audio map for', uniqueTexts.size, 'unique texts,', legoIds.size, 'LEGOs')
 
   const map = new Map()
-
-  // 1. Query texts table to get text_ids, then join to audio_files
-  // This is the correct schema: texts (573 records) + audio_files (828 records)
   const textsArray = [...uniqueTexts]
+  let foundInV12 = false
 
+  // Try v12 schema first (texts + audio_files + course_audio)
   // Batch in chunks of 100 to avoid query limits
   for (let i = 0; i < textsArray.length; i += 100) {
     const batch = textsArray.slice(i, i + 100)
 
     // Step 1: Get text IDs for this batch
-    // texts schema: id, content, language, content_normalized
     const { data: textsData, error: textsError } = await supabase.value
       .from('texts')
       .select('id, content')
       .in('content', batch)
 
-    if (textsError) {
-      console.warn('[CourseExplorer] Could not query texts:', textsError)
-      continue
+    if (textsError || !textsData || textsData.length === 0) {
+      continue // Will fall back to legacy
     }
 
-    console.log(`[CourseExplorer] Step 1: Found ${textsData?.length || 0} texts for batch of ${batch.length}`)
-
-    if (!textsData || textsData.length === 0) {
-      console.log('[CourseExplorer] Sample texts not found:', batch.slice(0, 3))
-      continue
-    }
-
-    // Create text lookup map
+    foundInV12 = true
     const textIdToTarget = new Map()
     const textIds = []
     for (const t of textsData) {
@@ -393,24 +383,13 @@ const buildAudioMap = async (courseId, items) => {
     }
 
     // Step 2: Get audio files for these texts
-    const { data: audioFilesData, error: audioFilesError } = await supabase.value
+    const { data: audioFilesData } = await supabase.value
       .from('audio_files')
       .select('id, text_id')
       .in('text_id', textIds)
 
-    if (audioFilesError) {
-      console.warn('[CourseExplorer] Could not query audio_files:', audioFilesError)
-      continue
-    }
+    if (!audioFilesData || audioFilesData.length === 0) continue
 
-    console.log(`[CourseExplorer] Step 2: Found ${audioFilesData?.length || 0} audio_files for ${textIds.length} text_ids`)
-
-    if (!audioFilesData || audioFilesData.length === 0) {
-      console.log('[CourseExplorer] No audio_files for text_ids:', textIds.slice(0, 3))
-      continue
-    }
-
-    // Create audio lookup map
     const audioIdToTextId = new Map()
     const audioIds = []
     for (const af of audioFilesData) {
@@ -419,20 +398,12 @@ const buildAudioMap = async (courseId, items) => {
     }
 
     // Step 3: Get course_audio entries with roles
-    const { data: courseAudioData, error: courseAudioError } = await supabase.value
+    const { data: courseAudioData } = await supabase.value
       .from('course_audio')
       .select('audio_id, role')
       .eq('course_code', courseId)
       .in('audio_id', audioIds)
 
-    if (courseAudioError) {
-      console.warn('[CourseExplorer] Could not query course_audio:', courseAudioError)
-      continue
-    }
-
-    console.log(`[CourseExplorer] Step 3: Found ${courseAudioData?.length || 0} course_audio entries for course ${courseId}, ${audioIds.length} audio_ids`)
-
-    // Build map: target_text -> { target1: audio_file_id, target2: audio_file_id }
     for (const row of (courseAudioData || [])) {
       const textId = audioIdToTextId.get(row.audio_id)
       const targetText = textIdToTarget.get(textId)
@@ -441,12 +412,41 @@ const buildAudioMap = async (courseId, items) => {
       if (!map.has(targetText)) {
         map.set(targetText, {})
       }
-
-      // role is 'target1', 'target2', 'known', etc.
       if (row.role) {
         map.get(targetText)[row.role] = row.audio_id
       }
     }
+  }
+
+  // Fallback to legacy audio_samples table if v12 schema has no data
+  if (!foundInV12) {
+    console.log('[CourseExplorer] V12 schema empty, falling back to legacy audio_samples table')
+
+    for (let i = 0; i < textsArray.length; i += 100) {
+      const batch = textsArray.slice(i, i + 100)
+
+      const { data: audioData, error: audioError } = await supabase.value
+        .from('audio_samples')
+        .select('uuid, text, role')
+        .in('text', batch)
+        .in('role', ['target1', 'target2'])
+
+      if (audioError) {
+        console.warn('[CourseExplorer] Could not query audio_samples:', audioError)
+        continue
+      }
+
+      for (const row of (audioData || [])) {
+        if (!map.has(row.text)) {
+          map.set(row.text, {})
+        }
+        if (!map.get(row.text)[row.role]) {
+          map.get(row.text)[row.role] = row.uuid
+        }
+      }
+    }
+
+    console.log('[CourseExplorer] Legacy fallback found', map.size, 'texts with audio')
   }
 
   // 2. Query lego_introductions for INTRO audio (35 records)
