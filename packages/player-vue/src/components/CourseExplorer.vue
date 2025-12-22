@@ -377,7 +377,12 @@ const buildAudioMap = async (courseId, items) => {
       continue
     }
 
-    if (!textsData || textsData.length === 0) continue
+    console.log(`[CourseExplorer] Step 1: Found ${textsData?.length || 0} texts for batch of ${batch.length}`)
+
+    if (!textsData || textsData.length === 0) {
+      console.log('[CourseExplorer] Sample texts not found:', batch.slice(0, 3))
+      continue
+    }
 
     // Create text lookup map
     const textIdToTarget = new Map()
@@ -398,7 +403,12 @@ const buildAudioMap = async (courseId, items) => {
       continue
     }
 
-    if (!audioFilesData || audioFilesData.length === 0) continue
+    console.log(`[CourseExplorer] Step 2: Found ${audioFilesData?.length || 0} audio_files for ${textIds.length} text_ids`)
+
+    if (!audioFilesData || audioFilesData.length === 0) {
+      console.log('[CourseExplorer] No audio_files for text_ids:', textIds.slice(0, 3))
+      continue
+    }
 
     // Create audio lookup map
     const audioIdToTextId = new Map()
@@ -419,6 +429,8 @@ const buildAudioMap = async (courseId, items) => {
       console.warn('[CourseExplorer] Could not query course_audio:', courseAudioError)
       continue
     }
+
+    console.log(`[CourseExplorer] Step 3: Found ${courseAudioData?.length || 0} course_audio entries for course ${courseId}, ${audioIds.length} audio_ids`)
 
     // Build map: target_text -> { target1: audio_file_id, target2: audio_file_id }
     for (const row of (courseAudioData || [])) {
