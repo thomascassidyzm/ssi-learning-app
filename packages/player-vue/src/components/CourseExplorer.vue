@@ -7,7 +7,7 @@ import { generateLearningScript } from '../providers/CourseDataProvider'
 // IndexedDB Cache for Script Data
 // ============================================================================
 const DB_NAME = 'ssi-script-cache'
-const DB_VERSION = 1
+const DB_VERSION = 2  // Bumped to force cache refresh after audio schema change (texts+audio_files)
 const STORE_NAME = 'scripts'
 
 let dbInstance = null
@@ -328,42 +328,86 @@ const refreshContent = () => {
   loadContent(true)
 }
 
-// Build audio map by querying audio_samples for unique texts
+// Build audio map by querying texts + audio_files tables (correct schema v12)
+// DO NOT use audio_samples table - it's legacy with 145k embedded text records
 const buildAudioMap = async (courseId, items) => {
   if (!supabase?.value) return
 
-  // Collect unique target texts
+  // Collect unique target texts and LEGO IDs for intro audio
   const uniqueTexts = new Set()
+  const legoIds = new Set()
+
   for (const item of items) {
     if (item.targetText) {
       uniqueTexts.add(item.targetText)
     }
-  }
-
-  console.log('[CourseExplorer] Building audio map for', uniqueTexts.size, 'unique texts')
-
-  // Query audio_samples for these texts
-  // Note: This is a simplified query - in production we'd batch this
-  const { data: audioData, error: audioError } = await supabase.value
-    .from('audio_samples')
-    .select('uuid, text, role, voice_id')
-    .in('text', [...uniqueTexts])
-    .in('role', ['target1', 'target2'])
-
-  if (audioError) {
-    console.warn('[CourseExplorer] Could not load audio map:', audioError)
-    return
-  }
-
-  // Build the map: text -> { target1: uuid, target2: uuid }
-  const map = new Map()
-  for (const row of (audioData || [])) {
-    if (!map.has(row.text)) {
-      map.set(row.text, {})
+    if (item.type === 'intro' && item.legoId) {
+      legoIds.add(item.legoId)
     }
-    // Store first matching UUID for each role
-    if (!map.get(row.text)[row.role]) {
-      map.get(row.text)[row.role] = row.uuid
+  }
+
+  console.log('[CourseExplorer] Building audio map for', uniqueTexts.size, 'unique texts,', legoIds.size, 'LEGOs')
+
+  const map = new Map()
+
+  // 1. Query texts table to get text_ids, then join to audio_files
+  // This is the correct schema: texts (573 records) + audio_files (828 records)
+  const textsArray = [...uniqueTexts]
+
+  // Batch in chunks of 100 to avoid query limits
+  for (let i = 0; i < textsArray.length; i += 100) {
+    const batch = textsArray.slice(i, i + 100)
+
+    // Query texts with their audio_files
+    const { data: textsWithAudio, error: textsError } = await supabase.value
+      .from('texts')
+      .select(`
+        id,
+        text_target,
+        audio_files (
+          id,
+          voice_label
+        )
+      `)
+      .in('text_target', batch)
+
+    if (textsError) {
+      console.warn('[CourseExplorer] Could not query texts:', textsError)
+      continue
+    }
+
+    // Build map: target_text -> { target1: audio_file_id, target2: audio_file_id }
+    for (const textRow of (textsWithAudio || [])) {
+      const targetText = textRow.text_target
+      if (!map.has(targetText)) {
+        map.set(targetText, {})
+      }
+
+      // audio_files may have voice_label like 'target1', 'target2', etc.
+      for (const audioFile of (textRow.audio_files || [])) {
+        const role = audioFile.voice_label || 'target1'
+        if (!map.get(targetText)[role]) {
+          map.get(targetText)[role] = audioFile.id
+        }
+      }
+    }
+  }
+
+  // 2. Query lego_introductions for INTRO audio (35 records)
+  if (legoIds.size > 0) {
+    const { data: introData, error: introError } = await supabase.value
+      .from('lego_introductions')
+      .select('lego_id, audio_uuid')
+      .in('lego_id', [...legoIds])
+
+    if (introError) {
+      console.warn('[CourseExplorer] Could not query lego_introductions:', introError)
+    } else {
+      // Store intro audio under special key format: intro:{lego_id}
+      for (const intro of (introData || [])) {
+        map.set(`intro:${intro.lego_id}`, { intro: intro.audio_uuid })
+      }
+      console.log('[CourseExplorer] Added', introData?.length || 0, 'LEGO intro audio entries')
     }
   }
 
@@ -414,8 +458,18 @@ const createDemoRounds = () => {
   ]
 }
 
-// Get audio URL for a target text
-const getAudioUrl = (targetText) => {
+// Get audio URL for a target text or intro
+const getAudioUrl = (targetText, item = null) => {
+  // For INTRO items, look up by lego_id in lego_introductions
+  if (item?.type === 'intro' && item?.legoId) {
+    const introEntry = audioMap.value.get(`intro:${item.legoId}`)
+    if (introEntry?.intro) {
+      return `${audioBaseUrl}/${introEntry.intro}.mp3`
+    }
+    // Fall through to try target text if no intro audio found
+  }
+
+  // For other items, look up by target text
   const audioEntry = audioMap.value.get(targetText)
   if (audioEntry?.target1) {
     return `${audioBaseUrl}/${audioEntry.target1}.mp3`
@@ -425,7 +479,7 @@ const getAudioUrl = (targetText) => {
 
 // Check if item has audio available
 const hasAudio = (item) => {
-  return !!getAudioUrl(item.targetText)
+  return !!getAudioUrl(item.targetText, item)
 }
 
 // Playback controls - play a specific item
@@ -434,7 +488,7 @@ const playItem = async (roundIndex, itemIndex) => {
   if (!round || !round.items[itemIndex]) return
 
   const item = round.items[itemIndex]
-  const audioUrl = getAudioUrl(item.targetText)
+  const audioUrl = getAudioUrl(item.targetText, item)
 
   if (!audioUrl) {
     console.warn('[CourseExplorer] No audio for:', item.targetText)
