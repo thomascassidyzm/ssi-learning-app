@@ -300,15 +300,22 @@ const loadContent = async (forceRefresh = false) => {
     estimatedMinutes.value = Math.round((script.allItems.length * 11) / 60)
 
     // Cache the results (convert Map to Object for storage)
+    // Deep clone via JSON to ensure all data is serializable for IndexedDB
     const audioMapObj = Object.fromEntries(audioMap.value)
-    await setCachedScript(courseId, {
-      rounds: script.rounds,
-      totalSeeds: totalSeeds.value,
-      totalLegos: totalLegos.value,
-      totalCycles: totalCycles.value,
-      estimatedMinutes: estimatedMinutes.value,
-      audioMapObj
-    })
+    try {
+      const serializableRounds = JSON.parse(JSON.stringify(script.rounds))
+      await setCachedScript(courseId, {
+        rounds: serializableRounds,
+        totalSeeds: totalSeeds.value,
+        totalLegos: totalLegos.value,
+        totalCycles: totalCycles.value,
+        estimatedMinutes: estimatedMinutes.value,
+        audioMapObj
+      })
+    } catch (cacheErr) {
+      console.warn('[CourseExplorer] Could not cache data:', cacheErr)
+      // Continue without caching - data is still loaded in memory
+    }
 
     loadedFromCache.value = false
     cachedAt.value = Date.now()
@@ -359,6 +366,7 @@ const buildAudioMap = async (courseId, items) => {
     const batch = textsArray.slice(i, i + 100)
 
     // Query texts with their audio_files
+    // audio_files schema: id (uuid), text_id (fk), voice_id (fk to voices)
     const { data: textsWithAudio, error: textsError } = await supabase.value
       .from('texts')
       .select(`
@@ -366,7 +374,7 @@ const buildAudioMap = async (courseId, items) => {
         text_target,
         audio_files (
           id,
-          voice_label
+          voice_id
         )
       `)
       .in('text_target', batch)
@@ -383,12 +391,14 @@ const buildAudioMap = async (courseId, items) => {
         map.set(targetText, {})
       }
 
-      // audio_files may have voice_label like 'target1', 'target2', etc.
-      for (const audioFile of (textRow.audio_files || [])) {
-        const role = audioFile.voice_label || 'target1'
-        if (!map.get(targetText)[role]) {
-          map.get(targetText)[role] = audioFile.id
-        }
+      // audio_files uses voice_id to distinguish voices
+      // We'll assign first audio as target1, second as target2
+      const audioFiles = textRow.audio_files || []
+      if (audioFiles.length > 0) {
+        map.get(targetText).target1 = audioFiles[0].id
+      }
+      if (audioFiles.length > 1) {
+        map.get(targetText).target2 = audioFiles[1].id
       }
     }
   }
