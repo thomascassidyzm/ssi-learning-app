@@ -792,15 +792,15 @@ async function loadEternalPhrases(
   if (!supabase) return eternalMap
 
   try {
-    // Query practice_cycles for all phrases (position >= 2 are practice phrases)
-    // Columns: id, course_code, seed_number, lego_index, position, lego_id, phrase_type,
-    //          word_count, known_text, target_text, known_audio_uuid, target1_audio_uuid, target2_audio_uuid
+    // Query course_practice_phrases directly (practice_cycles view filters by audio existence)
+    // Use the source table to get ALL phrases, even those without audio yet
     const { data, error } = await supabase
-      .from('practice_cycles')
+      .from('course_practice_phrases')
       .select('*')
       .eq('course_code', courseId)
       .gte('position', 2) // Skip components (0) and debut (1)
-      .order('lego_id', { ascending: true })
+      .order('seed_number', { ascending: true })
+      .order('lego_index', { ascending: true })
       .order('word_count', { ascending: false }) // Longest (by word count) first
 
     if (error) {
@@ -810,40 +810,35 @@ async function loadEternalPhrases(
 
     if (!data) return eternalMap
 
-    console.log(`[loadEternalPhrases] Loaded ${data.length} practice phrases from practice_cycles`)
+    console.log(`[loadEternalPhrases] Loaded ${data.length} practice phrases from course_practice_phrases`)
 
-    // Group by lego_id and take top 5 longest for each
+    // Group by lego_id (constructed from seed_number + lego_index) and take top 5 longest for each
     const grouped = new Map<string, any[]>()
     for (const row of data) {
-      if (!grouped.has(row.lego_id)) {
-        grouped.set(row.lego_id, [])
+      // Construct lego_id from seed_number and lego_index
+      const legoId = `S${String(row.seed_number).padStart(4, '0')}L${String(row.lego_index).padStart(2, '0')}`
+      if (!grouped.has(legoId)) {
+        grouped.set(legoId, [])
       }
-      const phrases = grouped.get(row.lego_id)!
+      const phrases = grouped.get(legoId)!
       if (phrases.length < 5) { // Keep only top 5 longest
-        phrases.push(row)
+        phrases.push({ ...row, lego_id: legoId })
       }
     }
 
     // Transform to EternalPhrase format
+    // Note: Audio refs are empty since course_practice_phrases doesn't have audio columns
+    // Audio would be resolved separately via audio_samples table if needed for playback
     for (const [legoId, rows] of grouped) {
       const phrases: EternalPhrase[] = rows.map(row => ({
         knownText: row.known_text,
         targetText: row.target_text,
         syllableCount: row.word_count || 0,
         audioRefs: {
-          known: {
-            id: row.known_audio_uuid,
-            url: row.known_audio_uuid ? `${audioBaseUrl}/${row.known_audio_uuid}.mp3` : ''
-          },
+          known: { id: '', url: '' },
           target: {
-            voice1: {
-              id: row.target1_audio_uuid,
-              url: row.target1_audio_uuid ? `${audioBaseUrl}/${row.target1_audio_uuid}.mp3` : ''
-            },
-            voice2: {
-              id: row.target2_audio_uuid,
-              url: row.target2_audio_uuid ? `${audioBaseUrl}/${row.target2_audio_uuid}.mp3` : ''
-            }
+            voice1: { id: '', url: '' },
+            voice2: { id: '', url: '' }
           }
         }
       }))
@@ -895,14 +890,16 @@ async function loadDebutPhrases(
   if (!supabase) return debutMap
 
   try {
-    // Query practice_cycles for phrases with position >= 2
+    // Query course_practice_phrases directly (practice_cycles view filters by audio existence)
+    // Use the source table to get ALL phrases, even those without audio yet
     // Ordered by target_syllable_count ASC to get shortest first
     const { data, error } = await supabase
-      .from('practice_cycles')
+      .from('course_practice_phrases')
       .select('*')
       .eq('course_code', courseId)
       .gte('position', 2)
-      .order('lego_id', { ascending: true })
+      .order('seed_number', { ascending: true })
+      .order('lego_index', { ascending: true })
       .order('target_syllable_count', { ascending: true }) // Shortest first for debut
 
     if (error) {
@@ -912,40 +909,34 @@ async function loadDebutPhrases(
 
     if (!data) return debutMap
 
-    console.log(`[loadDebutPhrases] Loaded ${data.length} practice phrases`)
+    console.log(`[loadDebutPhrases] Loaded ${data.length} practice phrases from course_practice_phrases`)
 
-    // Group by lego_id and take shortest 7 for each
+    // Group by lego_id (constructed from seed_number + lego_index) and take shortest 7 for each
     const grouped = new Map<string, any[]>()
     for (const row of data) {
-      if (!grouped.has(row.lego_id)) {
-        grouped.set(row.lego_id, [])
+      // Construct lego_id from seed_number and lego_index
+      const legoId = `S${String(row.seed_number).padStart(4, '0')}L${String(row.lego_index).padStart(2, '0')}`
+      if (!grouped.has(legoId)) {
+        grouped.set(legoId, [])
       }
-      const phrases = grouped.get(row.lego_id)!
+      const phrases = grouped.get(legoId)!
       if (phrases.length < 7) { // Keep shortest 7
-        phrases.push(row)
+        phrases.push({ ...row, lego_id: legoId })
       }
     }
 
     // Transform to EternalPhrase format (reuse the same interface)
+    // Note: Audio refs are empty since course_practice_phrases doesn't have audio columns
     for (const [legoId, rows] of grouped) {
       const phrases: EternalPhrase[] = rows.map(row => ({
         knownText: row.known_text,
         targetText: row.target_text,
         syllableCount: row.target_syllable_count || row.word_count || 0,
         audioRefs: {
-          known: {
-            id: row.known_audio_uuid,
-            url: row.known_audio_uuid ? `${audioBaseUrl}/${row.known_audio_uuid}.mp3` : ''
-          },
+          known: { id: '', url: '' },
           target: {
-            voice1: {
-              id: row.target1_audio_uuid,
-              url: row.target1_audio_uuid ? `${audioBaseUrl}/${row.target1_audio_uuid}.mp3` : ''
-            },
-            voice2: {
-              id: row.target2_audio_uuid,
-              url: row.target2_audio_uuid ? `${audioBaseUrl}/${row.target2_audio_uuid}.mp3` : ''
-            }
+            voice1: { id: '', url: '' },
+            voice2: { id: '', url: '' }
           }
         }
       }))
