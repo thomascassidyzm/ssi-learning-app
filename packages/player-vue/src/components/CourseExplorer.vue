@@ -782,6 +782,7 @@ const advanceToNextItem = () => {
 }
 
 const stopPlayback = () => {
+  console.log('[CourseExplorer] Stop button clicked')
   isPlaying.value = false
   currentPhase.value = 'idle'
   currentRoundIndex.value = -1
@@ -1083,7 +1084,7 @@ onUnmounted(() => {
     <!-- Playback Bar (when playing) -->
     <Transition name="slide-up">
       <div v-if="isPlaying && currentPlayingItem" class="playback-bar">
-        <div class="playback-phase playing">
+        <div class="playback-phase" :class="currentPhase">
           {{ phaseLabel }}
         </div>
         <div class="playback-info">
@@ -1550,8 +1551,8 @@ onUnmounted(() => {
 
 .playback-phase.prompt { background: #22c55e20; color: #22c55e; }
 .playback-phase.pause { background: #f59e0b20; color: #f59e0b; }
-.playback-phase.voice_1 { background: #3b82f620; color: #3b82f6; }
-.playback-phase.voice_2 { background: #8b5cf620; color: #8b5cf6; }
+.playback-phase.voice1 { background: #3b82f620; color: #3b82f6; }
+.playback-phase.voice2 { background: #8b5cf620; color: #8b5cf6; }
 
 .playback-info {
   flex: 1;
