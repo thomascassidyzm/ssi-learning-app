@@ -338,6 +338,7 @@ const refreshContent = () => {
 // Build audio map by querying texts + audio_files tables (correct schema v12)
 // DO NOT use audio_samples table - it's legacy with 145k embedded text records
 const buildAudioMap = async (courseId, items) => {
+  console.log('[CourseExplorer] Building audio map for courseId:', courseId)
   if (!supabase?.value) return
 
   // Collect unique target texts and LEGO IDs for intro audio
