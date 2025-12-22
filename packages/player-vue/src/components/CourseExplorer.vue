@@ -366,10 +366,11 @@ const buildAudioMap = async (courseId, items) => {
     const batch = textsArray.slice(i, i + 100)
 
     // Step 1: Get text IDs for this batch
+    // texts schema: id, content, language, content_normalized
     const { data: textsData, error: textsError } = await supabase.value
       .from('texts')
-      .select('id, text_target')
-      .in('text_target', batch)
+      .select('id, content')
+      .in('content', batch)
 
     if (textsError) {
       console.warn('[CourseExplorer] Could not query texts:', textsError)
@@ -382,7 +383,7 @@ const buildAudioMap = async (courseId, items) => {
     const textIdToTarget = new Map()
     const textIds = []
     for (const t of textsData) {
-      textIdToTarget.set(t.id, t.text_target)
+      textIdToTarget.set(t.id, t.content)
       textIds.push(t.id)
     }
 
