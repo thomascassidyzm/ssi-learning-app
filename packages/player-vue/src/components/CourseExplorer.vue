@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, inject, onMounted, onUnmounted, nextTick } from 'vue'
-import { CycleOrchestrator, CyclePhase, DEFAULT_CONFIG } from '@ssi/core'
+import { CyclePhase } from '@ssi/core'
 import { generateLearningScript } from '../providers/CourseDataProvider'
 
 // Simple audio controller for script preview playback
@@ -94,25 +94,27 @@ const courseDataProvider = inject('courseDataProvider', null)
 const supabase = inject('supabase', null)
 
 // State
-const view = ref('summary') // 'summary' | 'script' | 'journey'
+const view = ref('summary') // 'summary' | 'script'
 const isLoading = ref(true)
 const error = ref(null)
 
 // Course content
-const allItems = ref([])
 const rounds = ref([])
-const scriptItems = ref([])
 const totalSeeds = ref(0)
 const totalLegos = ref(0)
 const totalCycles = ref(0)
 const estimatedMinutes = ref(0)
 
+// Audio map for resolving text -> audio UUIDs
+const audioMap = ref(new Map())
+const audioBaseUrl = 'https://ssi-audio-stage.s3.eu-west-1.amazonaws.com/mastered'
+
 // Playback state
 const isPlaying = ref(false)
-const currentIndex = ref(-1)
-const currentPhase = ref(CyclePhase.PROMPT)
+const currentRoundIndex = ref(-1)
+const currentItemIndex = ref(-1)
+const currentPhase = ref('idle') // 'idle' | 'playing_target'
 const audioController = ref(null)
-const orchestrator = ref(null)
 
 // Scroll container ref
 const scriptContainer = ref(null)
@@ -122,9 +124,18 @@ const courseName = computed(() => props.course?.display_name || props.course?.ti
 const courseCode = computed(() => props.course?.course_code || '')
 const estimatedHours = computed(() => Math.round(estimatedMinutes.value / 60 * 10) / 10)
 
-const currentItem = computed(() => {
-  if (currentIndex.value >= 0 && currentIndex.value < allItems.value.length) {
-    return allItems.value[currentIndex.value]
+// Get the currently playing item
+const currentPlayingItem = computed(() => {
+  if (currentRoundIndex.value >= 0 && currentItemIndex.value >= 0) {
+    const round = rounds.value[currentRoundIndex.value]
+    if (round && round.items[currentItemIndex.value]) {
+      return {
+        round: round,
+        item: round.items[currentItemIndex.value],
+        roundIndex: currentRoundIndex.value,
+        itemIndex: currentItemIndex.value
+      }
+    }
   }
   return null
 })
@@ -132,10 +143,7 @@ const currentItem = computed(() => {
 // Phase display info
 const phaseLabel = computed(() => {
   switch (currentPhase.value) {
-    case CyclePhase.PROMPT: return 'LISTEN'
-    case CyclePhase.PAUSE: return 'SPEAK'
-    case CyclePhase.VOICE_1: return 'VOICE 1'
-    case CyclePhase.VOICE_2: return 'VOICE 2'
+    case 'playing_target': return 'PLAYING'
     default: return ''
   }
 })
@@ -143,12 +151,12 @@ const phaseLabel = computed(() => {
 // Load course content
 const loadContent = async () => {
   if (!courseDataProvider?.value) {
-    // Demo mode - create sample items
-    allItems.value = createDemoItems()
+    // Demo mode - create sample rounds
+    rounds.value = createDemoRounds()
     totalSeeds.value = 10
-    totalLegos.value = allItems.value.length
-    totalCycles.value = allItems.value.length * 6
-    estimatedMinutes.value = 30
+    totalLegos.value = 10
+    totalCycles.value = 50
+    estimatedMinutes.value = 10
     isLoading.value = false
     return
   }
@@ -158,7 +166,6 @@ const loadContent = async () => {
     error.value = null
 
     const courseId = props.course?.course_code || 'demo'
-    const audioBaseUrl = 'https://ssi-audio.s3.eu-west-2.amazonaws.com/mastered'
 
     // Get total seed count first
     const { data: seedData, error: seedError } = await supabase.value
@@ -172,11 +179,6 @@ const loadContent = async () => {
 
     totalSeeds.value = seedData?.length || 0
 
-    // Load all unique LEGOs (for the simple script view)
-    const items = await courseDataProvider.value.loadAllUniqueLegos(100)
-    allItems.value = items
-    totalLegos.value = items.length
-
     // Generate the full learning script with ROUNDs and spaced repetition
     const script = await generateLearningScript(
       courseDataProvider.value,
@@ -187,13 +189,16 @@ const loadContent = async () => {
     )
 
     rounds.value = script.rounds
-    scriptItems.value = script.allItems
+    totalLegos.value = script.rounds.length
     totalCycles.value = script.allItems.length
+
+    // Build audio map from script items
+    await buildAudioMap(courseId, script.allItems)
 
     // Estimate duration (avg 11 sec per cycle)
     estimatedMinutes.value = Math.round((script.allItems.length * 11) / 60)
 
-    console.log('[CourseExplorer] Loaded', items.length, 'LEGOs,', script.rounds.length, 'rounds,', script.allItems.length, 'total cycles')
+    console.log('[CourseExplorer] Loaded', script.rounds.length, 'rounds,', script.allItems.length, 'total cycles')
   } catch (err) {
     console.error('[CourseExplorer] Load error:', err)
     error.value = 'Failed to load course content'
@@ -202,120 +207,206 @@ const loadContent = async () => {
   }
 }
 
-// Create demo items for testing
-const createDemoItems = () => {
-  const demos = [
-    { seed: 'S0001', lego: 'L01', known: 'I want', target: 'Quiero' },
-    { seed: 'S0001', lego: 'L02', known: 'to speak', target: 'hablar' },
-    { seed: 'S0001', lego: 'L03', known: 'Spanish', target: 'español' },
-    { seed: 'S0002', lego: 'L01', known: 'with you', target: 'contigo' },
-    { seed: 'S0002', lego: 'L02', known: 'now', target: 'ahora' },
-    { seed: 'S0003', lego: 'L01', known: 'how to speak', target: 'cómo hablar' },
-    { seed: 'S0003', lego: 'L02', known: 'a little', target: 'un poco' },
-    { seed: 'S0004', lego: 'L01', known: 'very well', target: 'muy bien' },
-    { seed: 'S0005', lego: 'L01', known: 'thank you', target: 'gracias' },
-    { seed: 'S0005', lego: 'L02', known: 'please', target: 'por favor' },
-  ]
+// Build audio map by querying audio_samples for unique texts
+const buildAudioMap = async (courseId, items) => {
+  if (!supabase?.value) return
 
-  return demos.map((d, i) => ({
-    lego: { id: `${d.seed}${d.lego}`, type: 'A', new: i < 3 },
-    phrase: { phrase: { known: d.known, target: d.target } },
-    seed: { seed_id: d.seed },
-    thread_id: (i % 3) + 1,
-    mode: i < 3 ? 'introduction' : 'practice'
-  }))
+  // Collect unique target texts
+  const uniqueTexts = new Set()
+  for (const item of items) {
+    if (item.targetText) {
+      uniqueTexts.add(item.targetText)
+    }
+  }
+
+  console.log('[CourseExplorer] Building audio map for', uniqueTexts.size, 'unique texts')
+
+  // Query audio_samples for these texts
+  // Note: This is a simplified query - in production we'd batch this
+  const { data: audioData, error: audioError } = await supabase.value
+    .from('audio_samples')
+    .select('uuid, text, role, voice_id')
+    .in('text', [...uniqueTexts])
+    .in('role', ['target1', 'target2'])
+
+  if (audioError) {
+    console.warn('[CourseExplorer] Could not load audio map:', audioError)
+    return
+  }
+
+  // Build the map: text -> { target1: uuid, target2: uuid }
+  const map = new Map()
+  for (const row of (audioData || [])) {
+    if (!map.has(row.text)) {
+      map.set(row.text, {})
+    }
+    // Store first matching UUID for each role
+    if (!map.get(row.text)[row.role]) {
+      map.get(row.text)[row.role] = row.uuid
+    }
+  }
+
+  audioMap.value = map
+  console.log('[CourseExplorer] Audio map built with', map.size, 'entries')
 }
 
-// Playback controls
-const playFromIndex = async (index) => {
-  if (!allItems.value[index]) return
+// Create demo rounds for testing without database
+const createDemoRounds = () => {
+  return [
+    {
+      roundNumber: 1,
+      legoId: 'S0001L01',
+      seedId: 'S0001',
+      items: [
+        { type: 'intro', knownText: 'I want', targetText: '我想' },
+        { type: 'debut', knownText: 'I want', targetText: '我想' },
+        { type: 'debut_phrase', knownText: 'I want to speak', targetText: '我想说' },
+        { type: 'debut_phrase', knownText: 'I want to learn', targetText: '我想学' },
+      ],
+      spacedRepReviews: []
+    },
+    {
+      roundNumber: 2,
+      legoId: 'S0001L02',
+      seedId: 'S0001',
+      items: [
+        { type: 'intro', knownText: 'to speak', targetText: '说' },
+        { type: 'debut', knownText: 'to speak', targetText: '说' },
+        { type: 'debut_phrase', knownText: 'speak Chinese', targetText: '说中文' },
+        { type: 'spaced_rep', knownText: 'I want', targetText: '我想', reviewOf: 1 },
+      ],
+      spacedRepReviews: [1]
+    },
+    {
+      roundNumber: 3,
+      legoId: 'S0001L03',
+      seedId: 'S0001',
+      items: [
+        { type: 'intro', knownText: 'Chinese', targetText: '中文' },
+        { type: 'debut', knownText: 'Chinese', targetText: '中文' },
+        { type: 'spaced_rep', knownText: 'to speak', targetText: '说', reviewOf: 2 },
+        { type: 'spaced_rep', knownText: 'I want', targetText: '我想', reviewOf: 1 },
+        { type: 'consolidation', knownText: 'I want to speak Chinese', targetText: '我想说中文' },
+      ],
+      spacedRepReviews: [1, 2]
+    }
+  ]
+}
 
-  currentIndex.value = index
+// Get audio URL for a target text
+const getAudioUrl = (targetText) => {
+  const audioEntry = audioMap.value.get(targetText)
+  if (audioEntry?.target1) {
+    return `${audioBaseUrl}/${audioEntry.target1}.mp3`
+  }
+  return null
+}
+
+// Check if item has audio available
+const hasAudio = (item) => {
+  return !!getAudioUrl(item.targetText)
+}
+
+// Playback controls - play a specific item
+const playItem = async (roundIndex, itemIndex) => {
+  const round = rounds.value[roundIndex]
+  if (!round || !round.items[itemIndex]) return
+
+  const item = round.items[itemIndex]
+  const audioUrl = getAudioUrl(item.targetText)
+
+  if (!audioUrl) {
+    console.warn('[CourseExplorer] No audio for:', item.targetText)
+    return
+  }
+
+  // Update current position
+  currentRoundIndex.value = roundIndex
+  currentItemIndex.value = itemIndex
   isPlaying.value = true
+  currentPhase.value = 'playing_target'
 
   // Scroll to current item
   await nextTick()
   scrollToCurrentItem()
 
-  // Initialize audio if needed
+  // Initialize audio controller if needed
   if (!audioController.value) {
     audioController.value = new ScriptAudioController()
+    audioController.value.onEnded(() => {
+      handleAudioEnded()
+    })
   }
 
-  // Create orchestrator if needed
-  if (!orchestrator.value) {
-    const config = {
-      ...DEFAULT_CONFIG.cycle,
-      pause_duration_ms: 3000,
-      transition_gap_ms: 200,
-    }
-    orchestrator.value = new CycleOrchestrator(audioController.value, config)
-    orchestrator.value.addEventListener(handleCycleEvent)
+  // Play the audio
+  try {
+    await audioController.value.play({ url: audioUrl })
+  } catch (err) {
+    console.error('[CourseExplorer] Playback error:', err)
+    handleAudioEnded()
+  }
+}
+
+// Handle audio ended - advance to next item
+const handleAudioEnded = () => {
+  if (!isPlaying.value) return
+
+  // Find next item
+  const round = rounds.value[currentRoundIndex.value]
+  if (!round) {
+    stopPlayback()
+    return
   }
 
-  // Start playing
-  const item = allItems.value[index]
-  if (item.audioDurations?.target1) {
-    const pauseMs = Math.round(item.audioDurations.target1 * 2 * 1000)
-    orchestrator.value.updateConfig({ pause_duration_ms: pauseMs })
+  // Try next item in same round
+  if (currentItemIndex.value < round.items.length - 1) {
+    const nextItemIndex = currentItemIndex.value + 1
+    setTimeout(() => {
+      if (isPlaying.value) {
+        playItem(currentRoundIndex.value, nextItemIndex)
+      }
+    }, 500) // Brief pause between items
+    return
   }
-  orchestrator.value.startItem(item)
+
+  // Try next round
+  if (currentRoundIndex.value < rounds.value.length - 1) {
+    const nextRoundIndex = currentRoundIndex.value + 1
+    setTimeout(() => {
+      if (isPlaying.value) {
+        playItem(nextRoundIndex, 0)
+      }
+    }, 800) // Slightly longer pause between rounds
+    return
+  }
+
+  // End of content
+  stopPlayback()
 }
 
 const stopPlayback = () => {
   isPlaying.value = false
-  if (orchestrator.value) {
-    orchestrator.value.stop()
-  }
-}
-
-const handleCycleEvent = (event) => {
-  switch (event.type) {
-    case 'phase_changed':
-      currentPhase.value = event.data.phase
-      break
-
-    case 'item_completed':
-      // Auto-advance to next item
-      if (isPlaying.value && currentIndex.value < allItems.value.length - 1) {
-        const nextIdx = currentIndex.value + 1
-        currentIndex.value = nextIdx
-        scrollToCurrentItem()
-
-        setTimeout(() => {
-          if (isPlaying.value && orchestrator.value) {
-            const nextItem = allItems.value[nextIdx]
-            if (nextItem?.audioDurations?.target1) {
-              const pauseMs = Math.round(nextItem.audioDurations.target1 * 2 * 1000)
-              orchestrator.value.updateConfig({ pause_duration_ms: pauseMs })
-            }
-            orchestrator.value.startItem(nextItem)
-          }
-        }, 300)
-      } else {
-        stopPlayback()
-      }
-      break
-
-    case 'cycle_stopped':
-      isPlaying.value = false
-      break
+  currentPhase.value = 'idle'
+  currentRoundIndex.value = -1
+  currentItemIndex.value = -1
+  if (audioController.value) {
+    audioController.value.stop()
   }
 }
 
 const scrollToCurrentItem = () => {
   if (!scriptContainer.value) return
-  const currentEl = scriptContainer.value.querySelector('.script-item.current')
+  const currentEl = scriptContainer.value.querySelector('.round-item.playing')
   if (currentEl) {
     currentEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
 }
 
-// Get visual state for item
-const getItemState = (index) => {
-  if (index === currentIndex.value) return 'current'
-  if (index < currentIndex.value) return 'past'
-  return 'upcoming'
+// Check if an item is currently playing
+const isItemPlaying = (roundIndex, itemIndex) => {
+  return isPlaying.value &&
+         currentRoundIndex.value === roundIndex &&
+         currentItemIndex.value === itemIndex
 }
 
 // Get debut phrase index (1-based) within the round
@@ -412,17 +503,6 @@ onUnmounted(() => {
       </button>
       <button
         class="tab"
-        :class="{ active: view === 'journey' }"
-        @click="view = 'journey'"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <path d="M12 6v6l4 2"/>
-        </svg>
-        Journey
-      </button>
-      <button
-        class="tab"
         :class="{ active: view === 'script' }"
         @click="view = 'script'"
       >
@@ -431,7 +511,7 @@ onUnmounted(() => {
           <path d="M14 2v6h6"/><line x1="16" y1="13" x2="8" y2="13"/>
           <line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/>
         </svg>
-        LEGOs
+        Script
       </button>
     </nav>
 
@@ -484,23 +564,23 @@ onUnmounted(() => {
       </div>
 
       <div class="summary-card">
-        <h2>Learning Journey</h2>
-        <p class="preview-hint">View the exact sequence of ROUNDs with spaced repetition interleaving.</p>
-        <button class="view-script-btn" @click="view = 'journey'">
+        <h2>Learning Script</h2>
+        <p class="preview-hint">View the complete learning journey with all cycles. Click any phrase to play its audio.</p>
+        <button class="view-script-btn" @click="view = 'script'">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/>
-            <path d="M12 6v6l4 2"/>
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <path d="M14 2v6h6"/>
           </svg>
-          View Learning Journey
+          View Script
         </button>
       </div>
     </div>
 
-    <!-- Journey View - Shows ROUNDs with spaced rep -->
-    <div v-else-if="view === 'journey'" class="journey-view" ref="scriptContainer">
-      <div class="journey-content">
+    <!-- Script View - Unified view with clickable items -->
+    <div v-else class="script-view" ref="scriptContainer">
+      <div class="script-content">
         <div
-          v-for="round in rounds"
+          v-for="(round, roundIdx) in rounds"
           :key="round.roundNumber"
           class="round-card"
         >
@@ -513,14 +593,28 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- Round Items -->
+          <!-- Round Items - Clickable -->
           <div class="round-items">
             <div
               v-for="(item, idx) in round.items"
               :key="`${round.roundNumber}-${idx}`"
               class="round-item"
-              :class="item.type"
+              :class="[item.type, { playing: isItemPlaying(roundIdx, idx), 'has-audio': hasAudio(item) }]"
+              @click="playItem(roundIdx, idx)"
             >
+              <!-- Play indicator -->
+              <div class="item-play-indicator">
+                <svg v-if="isItemPlaying(roundIdx, idx)" class="playing-icon" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="6" y="4" width="4" height="16" rx="1"/>
+                  <rect x="14" y="4" width="4" height="16" rx="1"/>
+                </svg>
+                <svg v-else-if="hasAudio(item)" class="play-icon" viewBox="0 0 24 24" fill="currentColor">
+                  <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+                <span v-else class="no-audio">—</span>
+              </div>
+
+              <!-- Type badge -->
               <div class="item-type-badge" :class="item.type">
                 <template v-if="item.type === 'intro'">INTRO</template>
                 <template v-else-if="item.type === 'debut'">DEBUT</template>
@@ -530,11 +624,15 @@ onUnmounted(() => {
                 </template>
                 <template v-else-if="item.type === 'consolidation'">ETERNAL</template>
               </div>
+
+              <!-- Text content -->
               <div class="item-text-content">
                 <span class="item-known">{{ item.knownText }}</span>
                 <span class="item-arrow">→</span>
                 <span class="item-target">{{ item.targetText }}</span>
               </div>
+
+              <!-- Fibonacci badge for spaced rep -->
               <div v-if="item.type === 'spaced_rep'" class="fib-badge">
                 {{ item.reviewOf === round.roundNumber - 1 ? '3x' : '1x' }}
               </div>
@@ -542,58 +640,8 @@ onUnmounted(() => {
           </div>
 
           <!-- Spaced Rep Summary -->
-          <div v-if="round.spacedRepReviews.length > 0" class="spaced-rep-summary">
+          <div v-if="round.spacedRepReviews && round.spacedRepReviews.length > 0" class="spaced-rep-summary">
             Reviews LEGOs: {{ round.spacedRepReviews.join(', ') }}
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Script View -->
-    <div v-else class="script-view" ref="scriptContainer">
-      <!-- Gradient overlays for depth -->
-      <div class="script-gradient-top"></div>
-      <div class="script-gradient-bottom"></div>
-
-      <!-- Script items -->
-      <div class="script-content">
-        <div
-          v-for="(item, index) in allItems"
-          :key="item.lego.id + '-' + index"
-          class="script-item"
-          :class="[getItemState(index), { playing: isPlaying && index === currentIndex }]"
-          @click="playFromIndex(index)"
-        >
-          <div class="item-marker">
-            <span v-if="getItemState(index) === 'past'" class="marker-done">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                <path d="M20 6L9 17l-5-5"/>
-              </svg>
-            </span>
-            <span v-else-if="getItemState(index) === 'current'" class="marker-current">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <polygon points="5 3 19 12 5 21 5 3"/>
-              </svg>
-            </span>
-            <span v-else class="marker-index">{{ index + 1 }}</span>
-          </div>
-
-          <div class="item-content">
-            <div class="item-meta">
-              <span class="seed-badge">{{ item.seed.seed_id }}</span>
-              <span class="lego-id">{{ item.lego.id }}</span>
-            </div>
-            <div class="item-text">
-              <p class="known-text">{{ item.phrase.phrase.known }}</p>
-              <span class="arrow">→</span>
-              <p class="target-text">{{ item.phrase.phrase.target }}</p>
-            </div>
-          </div>
-
-          <div class="item-play">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <polygon points="5 3 19 12 5 21 5 3"/>
-            </svg>
           </div>
         </div>
       </div>
@@ -601,13 +649,13 @@ onUnmounted(() => {
 
     <!-- Playback Bar (when playing) -->
     <Transition name="slide-up">
-      <div v-if="isPlaying" class="playback-bar">
-        <div class="playback-phase" :class="currentPhase">
+      <div v-if="isPlaying && currentPlayingItem" class="playback-bar">
+        <div class="playback-phase playing">
           {{ phaseLabel }}
         </div>
         <div class="playback-info">
-          <span class="playback-lego">{{ currentItem?.lego.id }}</span>
-          <span class="playback-text">{{ currentItem?.phrase.phrase.target }}</span>
+          <span class="playback-lego">{{ currentPlayingItem.round.legoId }}</span>
+          <span class="playback-text">{{ currentPlayingItem.item.targetText }}</span>
         </div>
         <button class="playback-stop" @click="stopPlayback">
           <svg viewBox="0 0 24 24" fill="currentColor">
@@ -974,221 +1022,8 @@ onUnmounted(() => {
   scroll-behavior: smooth;
 }
 
-.script-gradient-top,
-.script-gradient-bottom {
-  position: sticky;
-  left: 0;
-  right: 0;
-  height: 60px;
-  pointer-events: none;
-  z-index: 10;
-}
-
-.script-gradient-top {
-  top: 0;
-  background: linear-gradient(to bottom, var(--bg-primary) 0%, transparent 100%);
-}
-
-.script-gradient-bottom {
-  bottom: 0;
-  background: linear-gradient(to top, var(--bg-primary) 0%, transparent 100%);
-}
-
 .script-content {
   padding: 1rem 1rem 120px;
-}
-
-.script-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.875rem 1rem;
-  margin-bottom: 0.5rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.script-item:hover {
-  background: var(--bg-elevated);
-  border-color: var(--border-medium);
-  transform: translateX(4px);
-}
-
-.script-item.past {
-  opacity: 0.5;
-}
-
-.script-item.past .known-text,
-.script-item.past .target-text {
-  text-decoration: line-through;
-  text-decoration-color: var(--text-muted);
-}
-
-.script-item.current {
-  background: linear-gradient(135deg, rgba(212, 168, 83, 0.1), rgba(212, 168, 83, 0.05));
-  border-color: var(--gold);
-  box-shadow: 0 0 20px rgba(212, 168, 83, 0.15);
-  transform: scale(1.02);
-}
-
-.script-item.playing {
-  animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { box-shadow: 0 0 20px rgba(212, 168, 83, 0.15); }
-  50% { box-shadow: 0 0 30px rgba(212, 168, 83, 0.3); }
-}
-
-/* Item marker */
-.item-marker {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.marker-index {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--text-muted);
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-elevated);
-  border-radius: 50%;
-}
-
-.marker-done {
-  width: 24px;
-  height: 24px;
-  color: #22c55e;
-}
-
-.marker-done svg {
-  width: 100%;
-  height: 100%;
-}
-
-.marker-current {
-  width: 28px;
-  height: 28px;
-  color: var(--gold);
-  animation: bounce 1s ease-in-out infinite;
-}
-
-.marker-current svg {
-  width: 100%;
-  height: 100%;
-}
-
-@keyframes bounce {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.15); }
-}
-
-/* Item content */
-.item-content {
-  flex: 1;
-  min-width: 0;
-}
-
-.item-meta {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.375rem;
-}
-
-.seed-badge {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.625rem;
-  font-weight: 600;
-  padding: 0.125rem 0.375rem;
-  background: rgba(59, 130, 246, 0.15);
-  color: #60a5fa;
-  border-radius: 4px;
-}
-
-.lego-id {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.625rem;
-  color: var(--text-muted);
-}
-
-.new-badge {
-  font-size: 0.5625rem;
-  font-weight: 700;
-  padding: 0.125rem 0.375rem;
-  background: var(--accent-glow);
-  color: var(--accent);
-  border-radius: 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.item-text {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.known-text {
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-  margin: 0;
-}
-
-.arrow {
-  color: var(--text-muted);
-  font-size: 0.75rem;
-}
-
-.target-text {
-  font-size: 0.9375rem;
-  font-weight: 500;
-  color: var(--text-primary);
-  margin: 0;
-}
-
-.script-item.current .target-text {
-  color: var(--gold);
-}
-
-/* Item play button */
-.item-play {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-muted);
-  opacity: 0;
-  transition: all 0.2s ease;
-}
-
-.script-item:hover .item-play {
-  opacity: 1;
-  color: var(--text-secondary);
-}
-
-.script-item.current .item-play {
-  opacity: 1;
-  color: var(--gold);
-}
-
-.item-play svg {
-  width: 16px;
-  height: 16px;
 }
 
 /* Playback Bar */
@@ -1283,19 +1118,7 @@ onUnmounted(() => {
   transform: translateY(100%);
 }
 
-/* Journey View */
-.journey-view {
-  flex: 1;
-  position: relative;
-  z-index: 10;
-  overflow-y: auto;
-  scroll-behavior: smooth;
-}
-
-.journey-content {
-  padding: 1rem 1rem 120px;
-}
-
+/* Round Cards */
 .round-card {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
@@ -1361,10 +1184,80 @@ onUnmounted(() => {
   background: var(--bg-elevated);
   border-radius: 8px;
   transition: all 0.2s ease;
+  cursor: pointer;
 }
 
 .round-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.round-item.has-audio:hover {
+  background: rgba(212, 168, 83, 0.1);
+  border-left: 2px solid var(--gold);
+  padding-left: calc(0.625rem - 2px);
+}
+
+.round-item.playing {
+  background: linear-gradient(135deg, rgba(212, 168, 83, 0.15), rgba(212, 168, 83, 0.08));
+  border-left: 3px solid var(--gold);
+  padding-left: calc(0.625rem - 3px);
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(212, 168, 83, 0.2); }
+  50% { box-shadow: 0 0 16px rgba(212, 168, 83, 0.4); }
+}
+
+/* Play indicator */
+.item-play-indicator {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: all 0.2s ease;
+}
+
+.round-item:hover .item-play-indicator {
+  color: var(--text-secondary);
+}
+
+.round-item.has-audio:hover .item-play-indicator {
+  color: var(--gold);
+}
+
+.round-item.playing .item-play-indicator {
+  color: var(--gold);
+}
+
+.item-play-indicator .play-icon {
+  width: 12px;
+  height: 12px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.round-item:hover .item-play-indicator .play-icon {
+  opacity: 1;
+}
+
+.item-play-indicator .playing-icon {
+  width: 14px;
+  height: 14px;
+  animation: bounce-play 0.6s ease-in-out infinite;
+}
+
+@keyframes bounce-play {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+.item-play-indicator .no-audio {
+  font-size: 0.75rem;
+  opacity: 0.3;
 }
 
 .item-type-badge {
@@ -1439,6 +1332,11 @@ onUnmounted(() => {
 
 .round-item.spaced_rep .item-target {
   color: #fbbf24;
+}
+
+.round-item.playing .item-target {
+  color: var(--gold);
+  font-weight: 600;
 }
 
 .fib-badge {
