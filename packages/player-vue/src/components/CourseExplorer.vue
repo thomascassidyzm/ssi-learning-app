@@ -779,21 +779,24 @@ const advanceToNextItem = () => {
 }
 
 const stopPlayback = () => {
-  console.log('[CourseExplorer] Stop button clicked')
-  isPlaying.value = false
-  currentPhase.value = 'idle'
-  currentRoundIndex.value = -1
-  currentItemIndex.value = -1
+  console.log('[CourseExplorer] stopPlayback called, isPlaying was:', isPlaying.value)
 
-  // Clear pause timer
+  // Clear pause timer FIRST
   if (pauseTimer.value) {
     clearTimeout(pauseTimer.value)
     pauseTimer.value = null
   }
 
+  // Stop audio BEFORE changing state (to prevent onEnded from firing after)
   if (audioController.value) {
     audioController.value.stop()
   }
+
+  // Now update state
+  isPlaying.value = false
+  currentPhase.value = 'idle'
+  currentRoundIndex.value = -1
+  currentItemIndex.value = -1
 }
 
 const scrollToCurrentItem = () => {
@@ -1529,9 +1532,11 @@ onUnmounted(() => {
   align-items: center;
   gap: 1rem;
   padding: 1rem 1.5rem calc(1rem + env(safe-area-inset-bottom, 0px));
-  background: linear-gradient(to top, var(--bg-secondary) 80%, transparent);
+  background: var(--bg-secondary);
   backdrop-filter: blur(24px);
   border-top: 1px solid var(--border-subtle);
+  /* Ensure clicks don't pass through */
+  pointer-events: auto;
 }
 
 .playback-phase {
