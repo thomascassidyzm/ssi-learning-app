@@ -427,7 +427,7 @@ const buildAudioMap = async (courseId, items) => {
 
       const { data: audioData, error: audioError } = await supabase.value
         .from('audio_samples')
-        .select('uuid, text, role')
+        .select('uuid, text, role, s3_key, s3_bucket')
         .in('text', batch)
         .in('role', ['target1', 'target2'])
 
@@ -436,12 +436,25 @@ const buildAudioMap = async (courseId, items) => {
         continue
       }
 
+      // Debug: log first sample to see the actual format
+      if (audioData?.length > 0 && i === 0) {
+        console.log('[CourseExplorer] Sample audio_samples entry:', audioData[0])
+      }
+
       for (const row of (audioData || [])) {
         if (!map.has(row.text)) {
           map.set(row.text, {})
         }
         if (!map.get(row.text)[row.role]) {
+          // Store both uuid and s3_key info
           map.get(row.text)[row.role] = row.uuid
+          // Store s3_key if available for debugging
+          if (row.s3_key) {
+            map.get(row.text)[`${row.role}_s3_key`] = row.s3_key
+          }
+          if (row.s3_bucket) {
+            map.get(row.text)[`${row.role}_bucket`] = row.s3_bucket
+          }
         }
       }
     }
@@ -528,6 +541,15 @@ const getAudioUrl = (targetText, item = null) => {
   // For other items, look up by target text
   const audioEntry = audioMap.value.get(targetText)
   if (audioEntry?.target1) {
+    // Debug: log the entry details
+    console.log('[CourseExplorer] Audio entry for', targetText, ':', JSON.stringify(audioEntry))
+
+    // If we have s3_key, use it directly (it might contain the full path)
+    if (audioEntry.target1_s3_key) {
+      const bucket = audioEntry.target1_bucket || 'ssi-audio-stage'
+      return `https://${bucket}.s3.eu-west-1.amazonaws.com/${audioEntry.target1_s3_key}`
+    }
+    // Otherwise construct from uuid
     return `${audioBaseUrl}/${audioEntry.target1}.mp3`
   }
   return null
