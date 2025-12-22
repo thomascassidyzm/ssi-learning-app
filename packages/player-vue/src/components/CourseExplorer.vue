@@ -623,12 +623,9 @@ const playItem = async (roundIndex, itemIndex) => {
   await nextTick()
   scrollToCurrentItem()
 
-  // Initialize audio controller if needed
+  // Initialize audio controller if needed (no onEnded callback - we manage phases directly)
   if (!audioController.value) {
     audioController.value = new ScriptAudioController()
-    audioController.value.onEnded(() => {
-      handlePhaseEnded()
-    })
   }
 
   // Start the cycle with PROMPT phase
@@ -656,14 +653,15 @@ const startPhase = async (phase) => {
       if (promptUrl) {
         try {
           await audioController.value.play({ url: promptUrl })
-          // handlePhaseEnded will be called when audio ends via onEnded callback
-          return // Wait for audio to finish
+          // Audio finished - advance to pause if still playing
+          if (isPlaying.value) startPhase('pause')
+          return
         } catch (err) {
           console.warn('[CourseExplorer] Prompt audio failed, skipping to pause')
         }
       }
       // No prompt audio or it failed - go directly to pause
-      startPhase('pause')
+      if (isPlaying.value) startPhase('pause')
       break
     }
 
@@ -684,11 +682,11 @@ const startPhase = async (phase) => {
       if (voice1Url) {
         try {
           await audioController.value.play({ url: voice1Url })
-          // handlePhaseEnded will be called when audio ends via onEnded callback
-          return // Wait for audio to finish
+          // Audio finished - advance to voice2 if still playing
+          if (isPlaying.value) startPhase('voice2')
+          return
         } catch (err) {
           console.error('[CourseExplorer] Voice1 playback error:', err)
-          // Audio failed - stop the cycle, don't continue
           stopPlayback()
           return
         }
@@ -705,40 +703,17 @@ const startPhase = async (phase) => {
       if (voice2Url) {
         try {
           await audioController.value.play({ url: voice2Url })
-          // handlePhaseEnded will be called when audio ends via onEnded callback
-          return // Wait for audio to finish
+          // Audio finished - advance to next item if still playing
+          if (isPlaying.value) advanceToNextItem()
+          return
         } catch (err) {
           console.warn('[CourseExplorer] Voice2 playback error, finishing cycle')
         }
       }
       // No voice2 or it failed - finish cycle and advance to next item
-      advanceToNextItem()
+      if (isPlaying.value) advanceToNextItem()
       break
     }
-  }
-}
-
-// Handle end of a phase - advance to next phase or next item
-const handlePhaseEnded = () => {
-  if (!isPlaying.value) return
-
-  // Advance through phases
-  switch (currentPhase.value) {
-    case 'prompt':
-      startPhase('pause')
-      break
-    case 'pause':
-      startPhase('voice1')
-      break
-    case 'voice1':
-      startPhase('voice2')
-      break
-    case 'voice2':
-      // Cycle complete - advance to next item
-      advanceToNextItem()
-      break
-    default:
-      stopPlayback()
   }
 }
 
