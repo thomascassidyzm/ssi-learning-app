@@ -551,6 +551,8 @@ const playItem = async (roundIndex, itemIndex) => {
     return
   }
 
+  console.log('[CourseExplorer] Playing:', item.targetText, '→', audioUrl)
+
   // Update current position
   currentRoundIndex.value = roundIndex
   currentItemIndex.value = itemIndex
