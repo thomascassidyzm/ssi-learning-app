@@ -79,17 +79,29 @@ const supabaseClient = ref(null)
 const activeCourse = ref(null)
 const enrolledCourses = ref([])
 
+// Course persistence key
+const LAST_COURSE_KEY = 'ssi-last-course'
+
 // Handle course selection from CourseSelector
 const handleCourseSelect = async (course) => {
-  console.log('[App] Course selected:', course.course_code || course.id)
+  const courseCode = course.course_code || course.id
+  console.log('[App] Course selected:', courseCode)
   activeCourse.value = course
+
+  // Persist course selection
+  try {
+    localStorage.setItem(LAST_COURSE_KEY, courseCode)
+    console.log('[App] Course persisted to localStorage:', courseCode)
+  } catch (e) {
+    console.warn('[App] Failed to persist course selection:', e)
+  }
 
   // Update courseDataProvider for the new course
   if (supabaseClient.value) {
     courseDataProvider.value = createCourseDataProvider({
       supabaseClient: supabaseClient.value,
       audioBaseUrl: config.s3.audioBaseUrl,
-      courseId: course.course_code || course.id,
+      courseId: courseCode,
     })
   }
 
@@ -114,11 +126,32 @@ const fetchEnrolledCourses = async () => {
       return
     }
 
-    // Set first available course as active (or Chinese if available for testing)
+    // Set active course from: 1) localStorage, 2) first available
     if (data && data.length > 0) {
       enrolledCourses.value = data
-      // Prefer Chinese for testing, otherwise first course
-      const defaultCourse = data.find(c => c.course_code === 'zho_for_eng') || data[0]
+
+      // Check for saved course preference
+      let savedCourseCode = null
+      try {
+        savedCourseCode = localStorage.getItem(LAST_COURSE_KEY)
+      } catch (e) {
+        console.warn('[App] Failed to read saved course:', e)
+      }
+
+      // Find saved course or fall back to first available
+      let defaultCourse = null
+      if (savedCourseCode) {
+        defaultCourse = data.find(c => c.course_code === savedCourseCode)
+        if (defaultCourse) {
+          console.log('[App] Restored saved course:', savedCourseCode)
+        } else {
+          console.log('[App] Saved course not found:', savedCourseCode, '- using first available')
+        }
+      }
+      if (!defaultCourse) {
+        defaultCourse = data[0]
+      }
+
       if (defaultCourse && !activeCourse.value) {
         activeCourse.value = {
           ...defaultCourse,
@@ -132,7 +165,7 @@ const fetchEnrolledCourses = async () => {
           audioBaseUrl: config.s3.audioBaseUrl,
           courseId: defaultCourse.course_code,
         })
-        console.log('[App] Default course set:', defaultCourse.course_code)
+        console.log('[App] Active course set:', defaultCourse.course_code)
       }
     }
   } catch (err) {
