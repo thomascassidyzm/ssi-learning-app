@@ -365,13 +365,21 @@ const loadContent = async (forceRefresh = false) => {
       console.log('[CourseExplorer] Serializing rounds...')
       const serializableRounds = JSON.parse(JSON.stringify(script.rounds))
       console.log('[CourseExplorer] Caching to IndexedDB...')
+
+      // Extract course welcome from course metadata if present
+      const courseWelcome = props.course?.welcome || null
+      if (courseWelcome) {
+        console.log('[CourseExplorer] Including course welcome:', courseWelcome.id)
+      }
+
       await setCachedScript(courseId, {
         rounds: serializableRounds,
         totalSeeds: totalSeeds.value,
         totalLegos: totalLegos.value,
         totalCycles: totalCycles.value,
         estimatedMinutes: estimatedMinutes.value,
-        audioMapObj
+        audioMapObj,
+        courseWelcome
       })
       console.log('[CourseExplorer] Cache write completed')
     } catch (cacheErr) {

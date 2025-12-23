@@ -48,6 +48,10 @@ export interface CourseEnrollmentRecord {
   last_practiced_at: Date | null;
   total_practice_minutes: number;
   helix_state: HelixState;
+  /** Last completed LEGO ID - used for round-based resumption */
+  last_completed_lego_id: string | null;
+  /** Last completed round index - for faster resumption */
+  last_completed_round_index: number | null;
 }
 
 export interface LegoProgressRecord extends LegoProgress {
@@ -169,6 +173,7 @@ export interface IProgressStore {
   getEnrollment(learnerId: string, courseId: string): Promise<CourseEnrollmentRecord | null>;
   createEnrollment(learnerId: string, courseId: string): Promise<CourseEnrollmentRecord>;
   updateHelixState(learnerId: string, courseId: string, state: HelixState): Promise<void>;
+  updateEnrollmentProgress(learnerId: string, courseId: string, legoId: string, roundIndex: number): Promise<void>;
 
   // LEGO progress
   getLegoProgress(learnerId: string, courseId: string): Promise<LegoProgressRecord[]>;

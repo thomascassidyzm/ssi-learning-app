@@ -10,7 +10,10 @@ import {
 } from '@ssi/core'
 import SessionComplete from './SessionComplete.vue'
 import OnboardingTooltips from './OnboardingTooltips.vue'
+import AwakeningLoader from './AwakeningLoader.vue'
 import { useLearningSession } from '../composables/useLearningSession'
+import { useScriptCache } from '../composables/useScriptCache'
+import { generateLearningScript } from '../providers/CourseDataProvider'
 
 const emit = defineEmits(['close'])
 
@@ -132,6 +135,7 @@ const demoItems = [
 const progressStore = inject('progressStore', { value: null })
 const sessionStore = inject('sessionStore', { value: null })
 const courseDataProvider = inject('courseDataProvider', { value: null })
+const supabase = inject('supabase', { value: null })
 const auth = inject('auth', null)
 
 // Get course code from prop, falling back to Chinese course (has full data)
@@ -139,6 +143,191 @@ const courseCode = computed(() => props.course?.course_code || 'zho_for_eng')
 
 // Get learner ID from auth (or fallback to 'demo-learner' for dev)
 const learnerId = computed(() => auth?.learnerId?.value || 'demo-learner')
+
+// Helper to check if learner is a guest (no persistence for guests)
+const isGuestLearner = computed(() => {
+  const id = learnerId.value
+  return !id || id === 'demo-learner' || id.startsWith('guest-')
+})
+
+// Save round completion progress to database
+const saveRoundProgress = async (legoId, roundIndex) => {
+  if (isGuestLearner.value || !progressStore?.value) {
+    console.log('[LearningPlayer] Skipping progress save (guest mode)')
+    return
+  }
+
+  try {
+    await progressStore.value.updateEnrollmentProgress(
+      learnerId.value,
+      courseCode.value,
+      legoId,
+      roundIndex
+    )
+    console.log('[LearningPlayer] Saved progress: round', roundIndex, 'LEGO:', legoId)
+  } catch (err) {
+    console.warn('[LearningPlayer] Failed to save progress:', err)
+    // Don't throw - continue learning even if save fails
+  }
+}
+
+// Load saved progress from database
+const loadSavedProgress = async () => {
+  if (isGuestLearner.value || !progressStore?.value) {
+    return null
+  }
+
+  try {
+    const enrollment = await progressStore.value.getEnrollment(
+      learnerId.value,
+      courseCode.value
+    )
+    if (enrollment && enrollment.last_completed_round_index !== null) {
+      return {
+        lastCompletedLegoId: enrollment.last_completed_lego_id,
+        lastCompletedRoundIndex: enrollment.last_completed_round_index
+      }
+    }
+  } catch (err) {
+    console.warn('[LearningPlayer] Failed to load saved progress:', err)
+  }
+  return null
+}
+
+// ============================================
+// SCRIPT CACHE - Shared with CourseExplorer
+// ============================================
+const {
+  audioMap,
+  currentCourseCode,
+  getCachedScript,
+  loadIntroAudio,
+  getAudioUrl: getAudioUrlFromCache,
+} = useScriptCache()
+
+// Script-based learning state
+const cachedRounds = ref([])
+const currentRoundIndex = ref(0)
+const currentItemInRound = ref(0)
+
+// Course welcome from cached script (plays once on first visit)
+const cachedCourseWelcome = ref(null)
+
+// Are we using round-based playback?
+const useRoundBasedPlayback = computed(() => cachedRounds.value.length > 0)
+
+// Current round
+const currentRound = computed(() =>
+  useRoundBasedPlayback.value ? cachedRounds.value[currentRoundIndex.value] : null
+)
+
+// Audio base URL for S3
+const AUDIO_S3_BASE_URL = 'https://ssi-audio-stage.s3.eu-west-1.amazonaws.com/mastered'
+
+/**
+ * Convert a ScriptItem to a playable item for the orchestrator.
+ * Uses lazy audio lookup from the audioMap cache.
+ */
+const scriptItemToPlayableItem = async (scriptItem) => {
+  if (!scriptItem) return null
+
+  // Look up audio URLs from cache (lazy loaded)
+  const knownAudioUrl = await getAudioUrlFromCache(
+    supabase?.value,
+    scriptItem.knownText,
+    'source',
+    scriptItem.type === 'intro' ? scriptItem : null,
+    AUDIO_S3_BASE_URL
+  )
+
+  const target1AudioUrl = await getAudioUrlFromCache(
+    supabase?.value,
+    scriptItem.targetText,
+    'target1',
+    null,
+    AUDIO_S3_BASE_URL
+  )
+
+  const target2AudioUrl = await getAudioUrlFromCache(
+    supabase?.value,
+    scriptItem.targetText,
+    'target2',
+    null,
+    AUDIO_S3_BASE_URL
+  )
+
+  // Build the playable item
+  return {
+    lego: {
+      id: scriptItem.legoId,
+      type: 'M', // Default to molecular
+      new: scriptItem.type === 'intro' || scriptItem.type === 'debut',
+      lego: {
+        known: scriptItem.knownText,
+        target: scriptItem.targetText,
+      },
+      audioRefs: {
+        known: knownAudioUrl ? { id: 'known', url: knownAudioUrl } : null,
+        target: {
+          voice1: target1AudioUrl ? { id: 'target1', url: target1AudioUrl } : null,
+          voice2: target2AudioUrl ? { id: 'target2', url: target2AudioUrl } : null,
+        },
+      },
+    },
+    phrase: {
+      id: `${scriptItem.legoId}-${scriptItem.legoIndex}`,
+      phraseType: scriptItem.type,
+      phrase: {
+        known: scriptItem.knownText,
+        target: scriptItem.targetText,
+      },
+      audioRefs: {
+        known: knownAudioUrl ? { id: 'known', url: knownAudioUrl } : null,
+        target: {
+          voice1: target1AudioUrl ? { id: 'target1', url: target1AudioUrl } : null,
+          voice2: target2AudioUrl ? { id: 'target2', url: target2AudioUrl } : null,
+        },
+      },
+      wordCount: scriptItem.targetText.split(' ').length,
+      containsLegos: [scriptItem.legoId],
+    },
+    seed: {
+      seed_id: scriptItem.seedId,
+      seed_pair: {
+        known: scriptItem.knownText,
+        target: scriptItem.targetText,
+      },
+      legos: [scriptItem.legoId],
+    },
+    thread_id: 1,
+    mode: scriptItem.type,
+    // Durations from cache or defaults
+    audioDurations: scriptItem.audioDurations || {
+      source: 2.0,
+      target1: 2.5,
+      target2: 2.5,
+    },
+    // Track original script item data
+    _scriptItem: scriptItem,
+  }
+}
+
+// Current script item (from round)
+const currentScriptItem = computed(() => {
+  if (!currentRound.value || !currentRound.value.items) return null
+  return currentRound.value.items[currentItemInRound.value] || null
+})
+
+// Round progress tracking
+const isRoundComplete = computed(() => {
+  if (!currentRound.value) return false
+  return currentItemInRound.value >= currentRound.value.items.length
+})
+
+const roundProgress = computed(() => {
+  if (!currentRound.value || !currentRound.value.items.length) return 0
+  return (currentItemInRound.value / currentRound.value.items.length) * 100
+})
 
 // Initialize learning session composable
 const learningSession = useLearningSession({
@@ -371,6 +560,65 @@ const beltCssVars = computed(() => ({
 }))
 
 // ============================================
+// ROUND BOUNDARY INTERRUPTIONS
+// Belt promotions, encouragements, break suggestions
+// ============================================
+
+// Track rounds completed in this session (for break suggestions)
+const roundsThisSession = ref(0)
+const previousBeltIndex = ref(0)
+const showBreakSuggestion = ref(false)
+const beltJustEarned = ref(null)
+
+// Handle round boundary - called when a round completes
+const handleRoundBoundary = async (completedRoundIndex, completedLegoId) => {
+  roundsThisSession.value++
+
+  // Track previous belt for promotion detection
+  const oldBeltIndex = currentBelt.value.index
+  previousBeltIndex.value = oldBeltIndex
+
+  // Update completed seeds based on round (each round = ~1 seed progress)
+  // In production this would come from actual progress tracking
+  completedSeeds.value = Math.min(completedSeeds.value + 1, BELT_CONFIG.totalSeeds)
+
+  // Check for belt promotion
+  const newBeltIndex = currentBelt.value.index
+  if (newBeltIndex > oldBeltIndex) {
+    beltJustEarned.value = currentBelt.value
+    console.log('[LearningPlayer] 🥋 Belt promotion!', currentBelt.value.name)
+    // Play celebration sound and show animation
+    triggerRewardAnimation(100, 5) // Max bonus for belt promotion
+    // Belt promotion animation will show via beltJustEarned reactive state
+    setTimeout(() => {
+      beltJustEarned.value = null
+    }, 4000)
+  }
+
+  // Show encouragement every 3-5 rounds (random to feel natural)
+  const encouragementInterval = 3 + Math.floor(Math.random() * 3) // 3, 4, or 5
+  if (roundsThisSession.value % encouragementInterval === 0 && !beltJustEarned.value) {
+    // Trigger encouragement animation
+    triggerRewardAnimation(25, Math.min(roundsThisSession.value / 3, 4))
+  }
+
+  // Suggest break every 10 rounds (roughly 15-20 minutes of learning)
+  if (roundsThisSession.value > 0 && roundsThisSession.value % 10 === 0) {
+    showBreakSuggestion.value = true
+    console.log('[LearningPlayer] ☕ Suggesting break after', roundsThisSession.value, 'rounds')
+    // Auto-dismiss after 5 seconds if they keep playing
+    setTimeout(() => {
+      showBreakSuggestion.value = false
+    }, 5000)
+  }
+}
+
+// Dismiss break suggestion (user chose to continue)
+const dismissBreakSuggestion = () => {
+  showBreakSuggestion.value = false
+}
+
+// ============================================
 // CORE ENGINE INTEGRATION
 // Using @ssi/core CycleOrchestrator
 // ============================================
@@ -408,6 +656,22 @@ const isPlaying = ref(false) // Start paused until engine ready
 const itemsPracticed = ref(0)
 const showSessionComplete = ref(false)
 
+// Current playable item (for round-based playback)
+const currentPlayableItem = ref(null)
+
+// ============================================
+// AWAKENING LOADER STATE
+// Progressive loading stages for atmospheric effect
+// ============================================
+const loadingStage = ref('awakening') // 'awakening' | 'finding' | 'preparing' | 'ready'
+const isAwakening = computed(() => loadingStage.value !== 'ready')
+
+// Transition to next loading stage
+const setLoadingStage = (stage) => {
+  console.log('[LearningPlayer] Loading stage:', stage)
+  loadingStage.value = stage
+}
+
 // Introduction playback state
 const playedIntroductions = ref(new Set()) // LEGOs that have had their intro played this session
 const isPlayingIntroduction = ref(false) // True when introduction audio is playing
@@ -434,13 +698,25 @@ const formattedSessionTime = computed(() => {
   return `${mins}:${secs.toString().padStart(2, '0')}`
 })
 
-// Computed - use sessionItems instead of demoItems
-const currentItem = computed(() => sessionItems.value[currentItemIndex.value])
+// Computed - use round-based item when available, fallback to session items
+const currentItem = computed(() => {
+  if (useRoundBasedPlayback.value && currentPlayableItem.value) {
+    return currentPlayableItem.value
+  }
+  return sessionItems.value[currentItemIndex.value]
+})
 const currentPhrase = computed(() => ({
-  known: currentItem.value?.phrase.phrase.known || '',
-  target: currentItem.value?.phrase.phrase.target || '',
+  known: currentItem.value?.phrase?.phrase?.known || '',
+  target: currentItem.value?.phrase?.phrase?.target || '',
 }))
-const sessionProgress = computed(() => (itemsPracticed.value + 1) / sessionItems.value.length)
+const sessionProgress = computed(() => {
+  if (useRoundBasedPlayback.value && cachedRounds.value.length > 0) {
+    // Total items across all rounds
+    const totalItems = cachedRounds.value.reduce((sum, r) => sum + (r.items?.length || 0), 0)
+    return (itemsPracticed.value + 1) / totalItems
+  }
+  return (itemsPracticed.value + 1) / sessionItems.value.length
+})
 const showTargetText = computed(() => currentPhase.value === Phase.VOICE_2)
 
 // Phase symbols/icons - CORRECT ORDER
@@ -678,7 +954,10 @@ const handleCycleEvent = (event) => {
       itemsPracticed.value++
 
       // End timing cycle and capture results
-      const completedItem = sessionItems.value[currentItemIndex.value]
+      const completedItem = useRoundBasedPlayback.value
+        ? currentPlayableItem.value
+        : sessionItems.value[currentItemIndex.value]
+
       if (isAdaptationActive.value && timingAnalyzer.value?.isAnalyzing()) {
         const modelDuration = completedItem?.audioDurations?.target1
           ? completedItem.audioDurations.target1 * 1000
@@ -698,45 +977,106 @@ const handleCycleEvent = (event) => {
         })
       }
 
-      // Move to next item - skip identical consecutive phrases
-      let nextIndex = (currentItemIndex.value + 1) % sessionItems.value.length
-      let nextItem = sessionItems.value[nextIndex]
+      // ============================================
+      // ROUND-BASED PROGRESSION
+      // ============================================
+      if (useRoundBasedPlayback.value) {
+        // Advance within current round
+        currentItemInRound.value++
 
-      // Prevent identical consecutive phrases (same known AND target text)
-      const maxSkips = sessionItems.value.length // Don't infinite loop
-      let skips = 0
-      while (
-        skips < maxSkips &&
-        nextItem &&
-        completedItem &&
-        nextItem.phrase?.phrase?.known === completedItem.phrase?.phrase?.known &&
-        nextItem.phrase?.phrase?.target === completedItem.phrase?.phrase?.target
-      ) {
-        console.log('[LearningPlayer] Skipping duplicate phrase:', nextItem.phrase?.phrase?.target)
-        nextIndex = (nextIndex + 1) % sessionItems.value.length
-        nextItem = sessionItems.value[nextIndex]
-        skips++
-      }
-      currentItemIndex.value = nextIndex
+        // Check if round is complete
+        if (currentItemInRound.value >= currentRound.value.items.length) {
+          const completedLegoId = currentRound.value.legoId
+          const completedRoundIndex = currentRoundIndex.value
+          console.log('[LearningPlayer] Round', completedRoundIndex, 'complete! LEGO:', completedLegoId)
 
-      // Update pause duration for next item (2x target audio length)
-      // Unless turbo mode is active
-      if (!turboActive.value && nextItem?.audioDurations) {
-        const pauseMs = Math.round(nextItem.audioDurations.target1 * 2 * 1000)
-        orchestrator.value?.updateConfig({ pause_duration_ms: pauseMs })
-      }
+          // Persist progress (async, fire-and-forget)
+          saveRoundProgress(completedLegoId, completedRoundIndex)
 
-      // Start next item (with introduction if needed)
-      setTimeout(async () => {
-        if (isPlaying.value && orchestrator.value) {
-          // Check if next LEGO needs an introduction first
-          await playIntroductionIfNeeded(nextItem)
-          // Then start the practice cycles
-          if (isPlaying.value) {
-            orchestrator.value.startItem(nextItem)
+          // Handle round boundary events (belt check, encouragements, breaks)
+          handleRoundBoundary(completedRoundIndex, completedLegoId)
+
+          // Move to next round
+          currentRoundIndex.value++
+          currentItemInRound.value = 0
+
+          // Check if we've completed all rounds
+          if (currentRoundIndex.value >= cachedRounds.value.length) {
+            console.log('[LearningPlayer] All rounds complete!')
+            showPausedSummary()
+            return
           }
+
+          console.log('[LearningPlayer] Starting round', currentRoundIndex.value, 'LEGO:', cachedRounds.value[currentRoundIndex.value].legoId)
         }
-      }, 300)
+
+        // Get next script item and convert to playable
+        const nextScriptItem = currentRound.value?.items[currentItemInRound.value]
+        if (!nextScriptItem) {
+          console.warn('[LearningPlayer] No next script item found')
+          return
+        }
+
+        // Start next item after short delay
+        setTimeout(async () => {
+          if (isPlaying.value && orchestrator.value) {
+            const nextPlayable = await scriptItemToPlayableItem(nextScriptItem)
+            if (nextPlayable) {
+              // Update pause duration
+              if (!turboActive.value && nextPlayable.audioDurations) {
+                const pauseMs = Math.round(nextPlayable.audioDurations.target1 * 2 * 1000)
+                orchestrator.value.updateConfig({ pause_duration_ms: pauseMs })
+              }
+              // Store for currentItem computed
+              currentPlayableItem.value = nextPlayable
+              orchestrator.value.startItem(nextPlayable)
+            }
+          }
+        }, 300)
+      } else {
+        // ============================================
+        // FALLBACK: SESSION-BASED PROGRESSION (demo mode)
+        // ============================================
+        // Move to next item - skip identical consecutive phrases
+        let nextIndex = (currentItemIndex.value + 1) % sessionItems.value.length
+        let nextItem = sessionItems.value[nextIndex]
+
+        // Prevent identical consecutive phrases (same known AND target text)
+        const maxSkips = sessionItems.value.length // Don't infinite loop
+        let skips = 0
+        while (
+          skips < maxSkips &&
+          nextItem &&
+          completedItem &&
+          nextItem.phrase?.phrase?.known === completedItem.phrase?.phrase?.known &&
+          nextItem.phrase?.phrase?.target === completedItem.phrase?.phrase?.target
+        ) {
+          console.log('[LearningPlayer] Skipping duplicate phrase:', nextItem.phrase?.phrase?.target)
+          nextIndex = (nextIndex + 1) % sessionItems.value.length
+          nextItem = sessionItems.value[nextIndex]
+          skips++
+        }
+        currentItemIndex.value = nextIndex
+
+        // Update pause duration for next item (2x target audio length)
+        // Unless turbo mode is active
+        if (!turboActive.value && nextItem?.audioDurations) {
+          const pauseMs = Math.round(nextItem.audioDurations.target1 * 2 * 1000)
+          orchestrator.value?.updateConfig({ pause_duration_ms: pauseMs })
+        }
+
+        // Start next item (with introduction if needed)
+        setTimeout(async () => {
+          if (isPlaying.value && orchestrator.value) {
+            // Check if next LEGO needs an introduction first
+            await playIntroductionIfNeeded(nextItem)
+            // Then start the practice cycles
+            if (isPlaying.value) {
+              orchestrator.value.startItem(nextItem)
+            }
+          }
+        }, 300)
+      }
       break
 
     case 'cycle_stopped':
@@ -845,7 +1185,8 @@ const playIntroductionIfNeeded = async (item) => {
 }
 
 /**
- * Play welcome audio if this is the learner's first time with the course.
+ * Play welcome/introduction audio if this is the learner's first time with the course.
+ * Checks cached course introduction first, then falls back to database lookup.
  * Returns true if welcome was played (or skipped), false if no welcome needed.
  */
 let welcomeAudioElement = null // Store reference for skip functionality
@@ -854,22 +1195,43 @@ const playWelcomeIfNeeded = async () => {
   if (welcomeChecked.value) return false
   welcomeChecked.value = true
 
-  if (!courseDataProvider.value) return false
-
   try {
-    // Check if learner has already heard the welcome
-    const alreadyPlayed = await courseDataProvider.value.hasPlayedWelcome(learnerId.value)
-    if (alreadyPlayed) {
-      console.log('[LearningPlayer] Welcome already played for this learner')
-      return false
+    // Check if learner has already heard the welcome (requires courseDataProvider)
+    if (courseDataProvider.value) {
+      const alreadyPlayed = await courseDataProvider.value.hasPlayedWelcome(learnerId.value)
+      if (alreadyPlayed) {
+        console.log('[LearningPlayer] Welcome already played for this learner')
+        return false
+      }
     }
 
-    // Get welcome audio
-    const welcomeAudio = await courseDataProvider.value.getWelcomeAudio()
+    // Get welcome audio - prefer cached course welcome, fall back to database
+    let welcomeAudio = null
+
+    // Try cached course welcome first (from database via cache)
+    if (cachedCourseWelcome.value && cachedCourseWelcome.value.id) {
+      const welcomeId = cachedCourseWelcome.value.id
+      const audioUrl = `${AUDIO_S3_BASE_URL}/${welcomeId.toUpperCase()}.mp3`
+      welcomeAudio = {
+        id: welcomeId,
+        url: audioUrl,
+        duration_ms: cachedCourseWelcome.value.duration
+          ? cachedCourseWelcome.value.duration * 1000
+          : null,
+      }
+      console.log('[LearningPlayer] Using cached course welcome:', welcomeId)
+    }
+    // Fall back to database lookup
+    else if (courseDataProvider.value) {
+      welcomeAudio = await courseDataProvider.value.getWelcomeAudio()
+    }
+
     if (!welcomeAudio || !welcomeAudio.url) {
       console.log('[LearningPlayer] No welcome audio for this course')
       // Mark as played anyway so we don't keep checking
-      await courseDataProvider.value.markWelcomePlayed(learnerId.value)
+      if (courseDataProvider.value) {
+        await courseDataProvider.value.markWelcomePlayed(learnerId.value)
+      }
       return false
     }
 
@@ -888,7 +1250,9 @@ const playWelcomeIfNeeded = async () => {
         showWelcomeSkip.value = false
         welcomeAudioElement = null
         // Mark as played
-        await courseDataProvider.value.markWelcomePlayed(learnerId.value)
+        if (courseDataProvider.value) {
+          await courseDataProvider.value.markWelcomePlayed(learnerId.value)
+        }
       }
 
       const onEnded = async () => {
@@ -937,10 +1301,49 @@ const skipWelcome = async () => {
 const startPlayback = async () => {
   isPlaying.value = true
 
-  if (orchestrator.value && currentItem.value) {
-    // Check if welcome audio needs to play first (only on first ever play)
-    await playWelcomeIfNeeded()
+  // Check if welcome audio needs to play first (only on first ever play)
+  await playWelcomeIfNeeded()
 
+  // ============================================
+  // ROUND-BASED PLAYBACK
+  // ============================================
+  if (useRoundBasedPlayback.value && orchestrator.value) {
+    // Get the first item from the current round
+    const scriptItem = currentRound.value?.items[currentItemInRound.value]
+    if (!scriptItem) {
+      console.warn('[LearningPlayer] No script item to play')
+      return
+    }
+
+    console.log('[LearningPlayer] Starting round-based playback, round:', currentRoundIndex.value, 'LEGO:', currentRound.value?.legoId)
+
+    // Convert to playable item
+    const playableItem = await scriptItemToPlayableItem(scriptItem)
+    if (!playableItem) {
+      console.error('[LearningPlayer] Failed to convert script item')
+      return
+    }
+
+    // Store for currentItem computed
+    currentPlayableItem.value = playableItem
+
+    // Check if this LEGO needs an introduction first
+    await playIntroductionIfNeeded(playableItem)
+
+    // Set pause duration for current item (2x target audio length)
+    if (!turboActive.value && playableItem.audioDurations) {
+      const pauseMs = Math.round(playableItem.audioDurations.target1 * 2 * 1000)
+      orchestrator.value.updateConfig({ pause_duration_ms: pauseMs })
+    }
+
+    orchestrator.value.startItem(playableItem)
+    return
+  }
+
+  // ============================================
+  // FALLBACK: SESSION-BASED PLAYBACK (demo mode)
+  // ============================================
+  if (orchestrator.value && currentItem.value) {
     // Check if this LEGO needs an introduction first
     await playIntroductionIfNeeded(currentItem.value)
 
@@ -1177,13 +1580,15 @@ const handleExit = () => {
 // ============================================
 
 onMounted(async () => {
+  // ============================================
+  // AWAKENING SEQUENCE - Progressive loading
+  // ============================================
+
+  // Stage 1: Awakening (immediate)
+  setLoadingStage('awakening')
+
   // Load adaptation consent preference
   loadAdaptationConsent()
-
-  // If previously consented, initialize VAD silently
-  if (adaptationConsent.value === true) {
-    await initializeVad()
-  }
 
   // Initialize theme
   const savedTheme = localStorage.getItem('ssi-theme') || 'dark'
@@ -1193,9 +1598,78 @@ onMounted(async () => {
   // Create real audio controller for S3 audio playback
   audioController.value = new RealAudioController()
 
+  // Small delay for visual feedback
+  await new Promise(r => setTimeout(r, 400))
+
+  // Stage 2: Finding your place
+  setLoadingStage('finding')
+
+  // Set the current course code for audio lookups
+  currentCourseCode.value = courseCode.value
+
+  // Check if script is already cached (from CourseExplorer preview)
+  let cachedScript = null
+  try {
+    cachedScript = await getCachedScript(courseCode.value)
+    if (cachedScript) {
+      console.log('[LearningPlayer] Found cached script with', cachedScript.rounds.length, 'rounds')
+      cachedRounds.value = cachedScript.rounds
+
+      // Capture course welcome if present
+      if (cachedScript.courseWelcome) {
+        cachedCourseWelcome.value = cachedScript.courseWelcome
+        console.log('[LearningPlayer] Found course welcome:', cachedScript.courseWelcome.id)
+      }
+
+      // Restore audio map from cache
+      if (cachedScript.audioMapObj) {
+        for (const [key, value] of Object.entries(cachedScript.audioMapObj)) {
+          audioMap.value.set(key, value)
+        }
+        console.log('[LearningPlayer] Restored', audioMap.value.size, 'audio entries from cache')
+      }
+
+      // Check for saved progress to resume from
+      const savedProgress = await loadSavedProgress()
+      if (savedProgress && savedProgress.lastCompletedRoundIndex !== null) {
+        // Resume from the next round after the last completed one
+        const resumeIndex = savedProgress.lastCompletedRoundIndex + 1
+        if (resumeIndex < cachedScript.rounds.length) {
+          currentRoundIndex.value = resumeIndex
+          console.log('[LearningPlayer] Resuming from round', resumeIndex, '(after completing LEGO:', savedProgress.lastCompletedLegoId + ')')
+        } else {
+          console.log('[LearningPlayer] All rounds previously completed, starting from beginning')
+          currentRoundIndex.value = 0
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[LearningPlayer] Cache check failed:', err)
+  }
+
+  // If previously consented, initialize VAD silently
+  if (adaptationConsent.value === true) {
+    await initializeVad()
+  }
+
+  await new Promise(r => setTimeout(r, 400))
+
+  // Stage 3: Preparing session
+  setLoadingStage('preparing')
+
+  // If we have cached rounds, preload intro audio for visible LEGOs
+  if (cachedRounds.value.length > 0 && supabase?.value) {
+    const legoIds = new Set()
+    // Get first 5 rounds' LEGOs for preloading intros
+    for (const round of cachedRounds.value.slice(0, 5)) {
+      if (round.legoId) legoIds.add(round.legoId)
+    }
+    await loadIntroAudio(supabase.value, courseCode.value, legoIds, audioMap.value)
+  }
+
   // Wait for session items to load
   // Use a watcher to initialize the orchestrator once items are available
-  const initOrchestrator = () => {
+  const initOrchestrator = async () => {
     if (sessionItems.value.length === 0) return
 
     // Calculate default pause duration from first item (2x target audio)
@@ -1221,19 +1695,33 @@ onMounted(async () => {
       audioController.value.preload(item.phrase.audioRefs.target.voice1)
       audioController.value.preload(item.phrase.audioRefs.target.voice2)
     }
+
+    // Small delay for audio preload, then ready
+    await new Promise(r => setTimeout(r, 600))
+
+    // Stage 4: Ready - mist clears
+    setLoadingStage('ready')
   }
 
   // Initialize immediately if items are already available
   if (sessionItems.value.length > 0) {
-    initOrchestrator()
+    await initOrchestrator()
   } else {
     // Otherwise watch for items to load
-    const unwatch = watch(sessionItems, () => {
+    const unwatch = watch(sessionItems, async () => {
       if (sessionItems.value.length > 0) {
-        initOrchestrator()
+        await initOrchestrator()
         unwatch()
       }
     })
+
+    // Set a timeout to go ready even if loading fails
+    setTimeout(() => {
+      if (loadingStage.value !== 'ready') {
+        console.log('[LearningPlayer] Loading timeout - proceeding with demo mode')
+        setLoadingStage('ready')
+      }
+    }, 5000)
   }
 
   // Start session timer
@@ -1266,6 +1754,13 @@ onUnmounted(() => {
 </script>
 
 <template>
+  <!-- Awakening Loader - Shows while initializing -->
+  <AwakeningLoader
+    v-if="isAwakening"
+    :stage="loadingStage"
+    :belt-color="currentBelt.color"
+  />
+
   <!-- Paused Summary Overlay -->
   <Transition name="session-complete">
     <SessionComplete
@@ -1331,7 +1826,7 @@ onUnmounted(() => {
     class="player"
     :class="[`belt-${currentBelt.name}`, { 'is-paused': !isPlaying }]"
     :style="beltCssVars"
-    v-show="!showSessionComplete"
+    v-show="!showSessionComplete && !isAwakening"
   >
     <!-- Moonlit Dojo Background Layers -->
     <div class="bg-gradient"></div>
@@ -1596,6 +2091,40 @@ onUnmounted(() => {
         </transition>
       </div>
     </main>
+
+    <!-- Break Suggestion Overlay -->
+    <Transition name="break-fade">
+      <div v-if="showBreakSuggestion" class="break-suggestion-overlay" @click="dismissBreakSuggestion">
+        <div class="break-card" @click.stop>
+          <div class="break-icon">☕</div>
+          <h3 class="break-title">Time for a break?</h3>
+          <p class="break-message">You've completed {{ roundsThisSession }} rounds. Great progress!</p>
+          <div class="break-actions">
+            <button class="break-btn break-btn--continue" @click="dismissBreakSuggestion">
+              Keep Going
+            </button>
+            <button class="break-btn break-btn--pause" @click="handlePause">
+              Take a Break
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Belt Promotion Celebration -->
+    <Transition name="belt-celebration">
+      <div v-if="beltJustEarned" class="belt-celebration-overlay">
+        <div class="belt-celebration-card">
+          <div class="belt-celebration-glow" :style="{ '--belt-glow-color': beltJustEarned.color }"></div>
+          <div class="belt-icon-large" :style="{ background: beltJustEarned.color }">🥋</div>
+          <h2 class="belt-title">New Belt Earned!</h2>
+          <p class="belt-name" :style="{ color: beltJustEarned.color }">
+            {{ beltJustEarned.name.charAt(0).toUpperCase() + beltJustEarned.name.slice(1) }} Belt
+          </p>
+          <p class="belt-seeds">{{ completedSeeds }} seeds mastered</p>
+        </div>
+      </div>
+    </Transition>
 
     <!-- Control Bar -->
     <div class="control-bar">
@@ -3154,5 +3683,198 @@ onUnmounted(() => {
     opacity: 0;
     transform: scale(1.05);
   }
+}
+
+/* ============================================
+   ROUND BOUNDARY INTERRUPTIONS
+   Break suggestions & Belt celebrations
+   ============================================ */
+
+/* Break Suggestion Overlay */
+.break-suggestion-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  backdrop-filter: blur(4px);
+}
+
+.break-card {
+  background: linear-gradient(145deg, rgba(30, 30, 35, 0.98), rgba(20, 20, 25, 0.98));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 1.5rem;
+  padding: 2.5rem;
+  text-align: center;
+  max-width: 320px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.break-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+  filter: drop-shadow(0 0 20px rgba(210, 180, 140, 0.3));
+}
+
+.break-title {
+  font-family: var(--font-display, 'Crimson Pro', serif);
+  font-size: 1.75rem;
+  color: var(--text-primary, #f5f5f5);
+  margin: 0 0 0.75rem 0;
+}
+
+.break-message {
+  color: var(--text-secondary, rgba(245, 245, 245, 0.7));
+  font-size: 0.95rem;
+  margin: 0 0 1.5rem 0;
+  line-height: 1.5;
+}
+
+.break-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.break-btn {
+  padding: 0.75rem 1.25rem;
+  border-radius: 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.break-btn--continue {
+  background: var(--belt-color, #4ade80);
+  color: #1a1a1a;
+}
+
+.break-btn--continue:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(74, 222, 128, 0.3);
+}
+
+.break-btn--pause {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary, #f5f5f5);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.break-btn--pause:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Break fade transition */
+.break-fade-enter-active,
+.break-fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.break-fade-enter-from,
+.break-fade-leave-to {
+  opacity: 0;
+}
+
+/* Belt Celebration Overlay */
+.belt-celebration-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 150;
+}
+
+.belt-celebration-card {
+  position: relative;
+  text-align: center;
+  padding: 3rem;
+}
+
+.belt-celebration-glow {
+  position: absolute;
+  inset: -50px;
+  background: radial-gradient(circle, var(--belt-glow-color, #4ade80) 0%, transparent 70%);
+  opacity: 0.4;
+  filter: blur(40px);
+  animation: belt-glow-pulse 2s ease-in-out infinite;
+}
+
+@keyframes belt-glow-pulse {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.1); }
+}
+
+.belt-icon-large {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+  margin: 0 auto 1.5rem;
+  box-shadow: 0 0 40px rgba(255, 255, 255, 0.3);
+  animation: belt-bounce 0.6s ease-out;
+}
+
+@keyframes belt-bounce {
+  0% { transform: scale(0); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+.belt-title {
+  font-family: var(--font-display, 'Crimson Pro', serif);
+  font-size: 2rem;
+  color: var(--text-primary, #f5f5f5);
+  margin: 0 0 0.5rem 0;
+  animation: belt-title-in 0.5s ease-out 0.2s both;
+}
+
+@keyframes belt-title-in {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.belt-name {
+  font-family: var(--font-display, 'Crimson Pro', serif);
+  font-size: 2.5rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+  text-transform: capitalize;
+  text-shadow: 0 0 30px currentColor;
+  animation: belt-title-in 0.5s ease-out 0.4s both;
+}
+
+.belt-seeds {
+  color: var(--text-secondary, rgba(245, 245, 245, 0.7));
+  font-size: 1rem;
+  margin: 0;
+  animation: belt-title-in 0.5s ease-out 0.6s both;
+}
+
+/* Belt celebration transition */
+.belt-celebration-enter-active {
+  animation: belt-celebration-in 0.5s ease-out;
+}
+
+.belt-celebration-leave-active {
+  animation: belt-celebration-out 0.4s ease-in;
+}
+
+@keyframes belt-celebration-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes belt-celebration-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 </style>

@@ -125,6 +125,8 @@ export class ProgressStore implements IProgressStore {
         last_practiced_at: null,
         total_practice_minutes: 0,
         helix_state: initialHelixState,
+        last_completed_lego_id: null,
+        last_completed_round_index: null,
       })
       .select()
       .single();
@@ -153,6 +155,28 @@ export class ProgressStore implements IProgressStore {
 
     if (error) {
       throw new Error(`Failed to update helix state: ${error.message}`);
+    }
+  }
+
+  async updateEnrollmentProgress(
+    learnerId: string,
+    courseId: string,
+    legoId: string,
+    roundIndex: number
+  ): Promise<void> {
+    const { error } = await this.client
+      .schema(this.schema)
+      .from('course_enrollments')
+      .update({
+        last_completed_lego_id: legoId,
+        last_completed_round_index: roundIndex,
+        last_practiced_at: new Date().toISOString(),
+      })
+      .eq('learner_id', learnerId)
+      .eq('course_id', courseId);
+
+    if (error) {
+      throw new Error(`Failed to update enrollment progress: ${error.message}`);
     }
   }
 
@@ -469,6 +493,8 @@ export class ProgressStore implements IProgressStore {
         : null,
       total_practice_minutes: data.total_practice_minutes as number,
       helix_state: data.helix_state as HelixState,
+      last_completed_lego_id: (data.last_completed_lego_id as string) ?? null,
+      last_completed_round_index: (data.last_completed_round_index as number) ?? null,
     };
   }
 
