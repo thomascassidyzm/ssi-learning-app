@@ -239,18 +239,23 @@ export class CourseDataProvider {
     if (!this.client) return null
 
     try {
+      // Use 'welcome' field (new v12 schema) with fallback to old fields
       const { data, error } = await this.client
         .from('courses')
-        .select('welcome_audio_uuid, welcome_audio_duration_ms')
+        .select('welcome, welcome_audio_uuid, welcome_audio_duration_ms')
         .eq('course_code', this.courseId)
         .single()
 
-      if (error || !data?.welcome_audio_uuid) return null
+      if (error) return null
+
+      // Prefer new 'welcome' field, fall back to old 'welcome_audio_uuid'
+      const welcomeId = data?.welcome || data?.welcome_audio_uuid
+      if (!welcomeId) return null
 
       return {
-        id: data.welcome_audio_uuid,
-        url: this.resolveAudioUrl(data.welcome_audio_uuid),
-        duration_ms: data.welcome_audio_duration_ms,
+        id: welcomeId,
+        url: this.resolveAudioUrl(welcomeId),
+        duration_ms: data.welcome_audio_duration_ms || null,
       }
     } catch (err) {
       console.error('[CourseDataProvider] Error loading welcome audio:', err)

@@ -89,7 +89,7 @@ const openDB = (): Promise<IDBDatabase> => {
 // Get cached script
 export const getCachedScript = async (courseCode: string): Promise<CachedScript | null> => {
   const timeoutPromise = new Promise<never>((_, reject) => {
-    setTimeout(() => reject(new Error('Cache timeout')), 3000)
+    setTimeout(() => reject(new Error('Cache timeout after 10s')), 10000)
   })
 
   try {
@@ -124,7 +124,7 @@ export const getCachedScript = async (courseCode: string): Promise<CachedScript 
 // Set cached script
 export const setCachedScript = async (courseCode: string, data: Omit<CachedScript, 'courseCode' | 'cachedAt'>): Promise<void> => {
   const timeoutPromise = new Promise<never>((_, reject) => {
-    setTimeout(() => reject(new Error('Cache write timeout')), 5000)
+    setTimeout(() => reject(new Error('Cache write timeout after 15s')), 15000)
   })
 
   try {

@@ -366,11 +366,28 @@ const loadContent = async (forceRefresh = false) => {
       const serializableRounds = JSON.parse(JSON.stringify(script.rounds))
       console.log('[CourseExplorer] Caching to IndexedDB...')
 
-      // Extract course welcome from course metadata if present
-      const courseWelcome = props.course?.welcome || null
-      if (courseWelcome) {
-        console.log('[CourseExplorer] Including course welcome:', courseWelcome.id)
+      // Extract course welcome UUID from course metadata
+      // The 'welcome' field is just a UUID string, convert to object format for cache
+      let welcomeUuid = props.course?.welcome || null
+
+      // Fallback: fetch welcome directly from database if not in props
+      if (!welcomeUuid && supabase?.value && courseId) {
+        console.log('[CourseExplorer] Welcome not in props, fetching from database...')
+        try {
+          const { data: courseData } = await supabase.value
+            .from('courses')
+            .select('welcome')
+            .eq('course_code', courseId)
+            .single()
+          welcomeUuid = courseData?.welcome || null
+          console.log('[CourseExplorer] Fetched welcome from database:', welcomeUuid)
+        } catch (e) {
+          console.warn('[CourseExplorer] Could not fetch welcome from database:', e)
+        }
       }
+
+      const courseWelcome = welcomeUuid ? { id: welcomeUuid } : null
+      console.log('[CourseExplorer] Including course welcome:', welcomeUuid)
 
       await setCachedScript(courseId, {
         rounds: serializableRounds,
