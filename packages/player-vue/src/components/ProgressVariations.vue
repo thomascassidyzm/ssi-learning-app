@@ -730,4 +730,3 @@ watch([emergenceConfig, flowConfig, constellationConfig, minimalConfig, momentum
   margin: 0;
 }
 </style>
-</script>
