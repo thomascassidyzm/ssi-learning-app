@@ -536,4 +536,3 @@ const discussionPoints = [
   }
 }
 </style>
-</script>
