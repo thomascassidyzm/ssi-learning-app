@@ -755,6 +755,8 @@ const runPhase = async (phase, myCycleId) => {
     case 'voice1': {
       // Play target1 audio
       const voice1Url = getAudioUrl(item.targetText, 'target1', item)
+      console.log('[CourseExplorer] Voice1 URL for "' + item.targetText + '":', voice1Url)
+      console.log('[CourseExplorer] audioMap entry:', audioMap.value.get(item.targetText))
       if (voice1Url) {
         try {
           await audioController.value.play({ url: voice1Url })
