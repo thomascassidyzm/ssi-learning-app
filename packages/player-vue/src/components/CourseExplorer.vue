@@ -387,7 +387,7 @@ const buildAudioMap = async (courseId, items) => {
       continue // Will fall back to legacy
     }
 
-    foundInV12 = true
+    // Don't set foundInV12 yet - wait to see if we actually find audio
     const textIdToTarget = new Map()
     const textIds = []
     for (const t of textsData) {
@@ -427,6 +427,7 @@ const buildAudioMap = async (courseId, items) => {
       }
       if (row.role) {
         map.get(targetText)[row.role] = row.audio_id
+        foundInV12 = true // Only set when we actually find audio
       }
     }
   }
