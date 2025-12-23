@@ -493,80 +493,9 @@ const buildAudioMap = async (courseId, items) => {
     }
   }
 
-  // Fallback to legacy audio_samples table if v12 schema has no data
+  // REMOVED: Legacy audio_samples fallback - only use v12 schema (ssi-audio-stage bucket)
   if (!foundInV12) {
-    console.log('[CourseExplorer] V12 schema empty, falling back to legacy audio_samples table')
-
-    // Query for target audio (target1, target2)
-    for (let i = 0; i < targetTextsArray.length; i += 100) {
-      const batch = targetTextsArray.slice(i, i + 100)
-
-      const { data: audioData, error: audioError } = await supabase.value
-        .from('audio_samples')
-        .select('uuid, text, role, s3_key, s3_bucket')
-        .in('text', batch)
-        .in('role', ['target1', 'target2'])
-
-      if (audioError) {
-        console.warn('[CourseExplorer] Could not query audio_samples:', audioError)
-        continue
-      }
-
-      // Debug: log first sample to see the actual format
-      if (audioData?.length > 0 && i === 0) {
-        console.log('[CourseExplorer] Sample audio_samples entry:', audioData[0])
-      }
-
-      for (const row of (audioData || [])) {
-        if (!map.has(row.text)) {
-          map.set(row.text, {})
-        }
-        if (!map.get(row.text)[row.role]) {
-          // Store both uuid and s3_key info
-          map.get(row.text)[row.role] = row.uuid
-          // Store s3_key if available for debugging
-          if (row.s3_key) {
-            map.get(row.text)[`${row.role}_s3_key`] = row.s3_key
-          }
-          if (row.s3_bucket) {
-            map.get(row.text)[`${row.role}_bucket`] = row.s3_bucket
-          }
-        }
-      }
-    }
-
-    // Query for source/known audio (prompt)
-    for (let i = 0; i < knownTextsArray.length; i += 100) {
-      const batch = knownTextsArray.slice(i, i + 100)
-
-      const { data: audioData, error: audioError } = await supabase.value
-        .from('audio_samples')
-        .select('uuid, text, role, s3_key, s3_bucket')
-        .in('text', batch)
-        .eq('role', 'source')
-
-      if (audioError) {
-        console.warn('[CourseExplorer] Could not query source audio:', audioError)
-        continue
-      }
-
-      for (const row of (audioData || [])) {
-        if (!map.has(row.text)) {
-          map.set(row.text, {})
-        }
-        if (!map.get(row.text).source) {
-          map.get(row.text).source = row.uuid
-          if (row.s3_key) {
-            map.get(row.text).source_s3_key = row.s3_key
-          }
-          if (row.s3_bucket) {
-            map.get(row.text).source_bucket = row.s3_bucket
-          }
-        }
-      }
-    }
-
-    console.log('[CourseExplorer] Legacy fallback found', map.size, 'texts with audio')
+    console.warn('[CourseExplorer] V12 schema returned no audio - check RLS policies on texts/audio_files/course_audio tables')
   }
 
   // 2. Query lego_introductions for INTRO audio - MUST filter by course_code!
