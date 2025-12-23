@@ -579,7 +579,7 @@ const getAudioUrl = (text, role, item = null) => {
   if (role === 'intro' && item?.legoId) {
     const introEntry = audioMap.value.get(`intro:${item.legoId}`)
     if (introEntry?.intro) {
-      return `${audioBaseUrl}/${introEntry.intro.toLowerCase()}.mp3`
+      return `${audioBaseUrl}/${introEntry.intro.toUpperCase()}.mp3`
     }
     return null
   }
@@ -593,7 +593,7 @@ const getAudioUrl = (text, role, item = null) => {
 
   // Always use the public ssi-audio-stage bucket with mastered/ prefix
   // S3 keys are lowercase, DB may store uppercase UUIDs
-  return `${audioBaseUrl}/${uuid.toLowerCase()}.mp3`
+  return `${audioBaseUrl}/${uuid.toUpperCase()}.mp3`
 }
 
 // Check if item has audio available
