@@ -507,36 +507,29 @@ const buildAudioMap = async (courseId, items) => {
     console.log('[CourseExplorer] Legacy fallback found', map.size, 'texts with audio')
   }
 
-  // 2. Query lego_introductions for INTRO audio
+  // 2. Query lego_introductions for INTRO audio - MUST filter by course_code!
   if (legoIds.size > 0) {
-    console.log('[CourseExplorer] Looking for intro audio for LEGOs:', [...legoIds].slice(0, 5), '...')
+    console.log('[CourseExplorer] Looking for intro audio for course:', courseId, 'LEGOs:', [...legoIds].slice(0, 5), '...')
 
-    // Get ALL columns to see what's available
     const { data: introData, error: introError } = await supabase.value
       .from('lego_introductions')
-      .select('*')
+      .select('lego_id, audio_uuid, course_code')
+      .eq('course_code', courseId)  // CRITICAL: Filter by course!
       .in('lego_id', [...legoIds])
 
     if (introError) {
       console.warn('[CourseExplorer] Could not query lego_introductions:', introError)
     } else {
-      console.log('[CourseExplorer] Found', introData?.length || 0, 'intro audio entries out of', legoIds.size, 'LEGOs')
+      console.log('[CourseExplorer] Found', introData?.length || 0, 'intro audio entries for', courseId)
       if (introData?.length > 0) {
-        // Log the FULL record to see all available columns
-        console.log('[CourseExplorer] FULL intro record (first):', JSON.stringify(introData[0], null, 2))
-        console.log('[CourseExplorer] All columns:', Object.keys(introData[0]))
+        console.log('[CourseExplorer] Sample intro:', introData[0])
+      } else {
+        console.warn('[CourseExplorer] NO intro audio found for this course! Intros may not be recorded yet.')
       }
 
       // Store intro audio under special key format: intro:{lego_id}
       for (const intro of (introData || [])) {
-        // Check if there's s3_key, s3_bucket, or other path info
-        const audioId = intro.audio_uuid || intro.audio_id || intro.uuid
-        map.set(`intro:${intro.lego_id}`, {
-          intro: audioId,
-          s3_key: intro.s3_key,
-          s3_bucket: intro.s3_bucket,
-          full_record: intro
-        })
+        map.set(`intro:${intro.lego_id}`, { intro: intro.audio_uuid })
       }
     }
   }
@@ -1175,7 +1168,12 @@ onUnmounted(() => {
           <span class="playback-lego">{{ currentPlayingItem.round.legoId }}</span>
           <span class="playback-text">{{ currentPlayingItem.item.targetText }}</span>
         </div>
-        <button class="playback-stop" @click.stop="stopPlayback">
+        <button
+          class="playback-stop"
+          @click.stop.prevent="stopPlayback"
+          @touchend.stop.prevent="stopPlayback"
+          @mousedown.stop
+        >
           <svg viewBox="0 0 24 24" fill="currentColor">
             <rect x="6" y="6" width="12" height="12" rx="1"/>
           </svg>
@@ -1676,6 +1674,12 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all 0.2s ease;
   box-shadow: 0 4px 16px rgba(194, 58, 58, 0.4);
+  /* Ensure button is clickable */
+  position: relative;
+  z-index: 10;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .playback-stop:hover {
