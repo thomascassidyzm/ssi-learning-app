@@ -196,9 +196,10 @@ const error = ref(null)
 // Course content
 const rounds = ref([])
 const totalSeeds = ref(0)
-const totalLegos = ref(0)
-const totalCycles = ref(0)
-const estimatedMinutes = ref(0)
+const totalLegos = ref(0)        // Total LEGOs in course (from DB)
+const loadedLegos = ref(0)       // LEGOs loaded in current script preview
+const totalCycles = ref(0)       // Cycles in current script preview
+const LEGOS_PER_PAGE = 50        // How many LEGOs to load at a time
 
 // Audio map for resolving text -> audio UUIDs
 const audioMap = ref(new Map())
@@ -221,7 +222,7 @@ const scriptContainer = ref(null)
 // Computed
 const courseName = computed(() => props.course?.display_name || props.course?.title || 'Course')
 const courseCode = computed(() => props.course?.course_code || '')
-const estimatedHours = computed(() => Math.round(estimatedMinutes.value / 60 * 10) / 10)
+const hasMoreLegos = computed(() => loadedLegos.value < totalLegos.value)
 
 // Get the currently playing item
 const currentPlayingItem = computed(() => {
@@ -263,8 +264,8 @@ const loadContent = async (forceRefresh = false) => {
     rounds.value = createDemoRounds()
     totalSeeds.value = 10
     totalLegos.value = 10
+    loadedLegos.value = 10
     totalCycles.value = 50
-    estimatedMinutes.value = 10
     isLoading.value = false
     return
   }
@@ -285,8 +286,8 @@ const loadContent = async (forceRefresh = false) => {
         rounds.value = cached.rounds
         totalSeeds.value = cached.totalSeeds
         totalLegos.value = cached.totalLegos
+        loadedLegos.value = cached.loadedLegos || cached.totalLegos // Backwards compat
         totalCycles.value = cached.totalCycles
-        estimatedMinutes.value = cached.estimatedMinutes
         // Restore audio map from cached object (may be partial - lazy loading fills in the rest)
         audioMap.value = new Map(Object.entries(cached.audioMapObj || {}))
         loadedFromCache.value = true
@@ -324,22 +325,34 @@ const loadContent = async (forceRefresh = false) => {
     totalSeeds.value = seedData?.length || 0
     console.log('[CourseExplorer] Seed count:', totalSeeds.value)
 
+    // Query TOTAL LEGO count for the entire course (for stats display)
+    const { data: legoCountData, error: legoCountError } = await supabase.value
+      .from('course_legos')
+      .select('lego_id', { count: 'exact' })
+      .eq('course_code', courseId)
+
+    if (legoCountError) {
+      console.warn('[CourseExplorer] Could not get LEGO count:', legoCountError)
+    }
+    totalLegos.value = legoCountData?.length || 0
+    console.log('[CourseExplorer] Total LEGO count:', totalLegos.value)
+
     // Store course ID for lazy audio lookups
     currentCourseId.value = courseId
 
-    // Generate the full learning script with ROUNDs and spaced repetition
+    // Generate learning script for first N LEGOs (preview mode)
     console.log('[CourseExplorer] Calling generateLearningScript for courseId:', courseId)
     const script = await generateLearningScript(
       courseDataProvider.value,
       supabase.value,
       courseId,
       audioBaseUrl,
-      50 // Limit to first 50 LEGOs for preview
+      LEGOS_PER_PAGE // Limit to first 50 LEGOs for preview
     )
     console.log('[CourseExplorer] generateLearningScript returned:', script?.rounds?.length, 'rounds')
 
     rounds.value = script.rounds
-    totalLegos.value = script.rounds.length
+    loadedLegos.value = script.rounds.length  // How many LEGOs we actually loaded
     totalCycles.value = script.allItems.length
 
     // FAST: Only load intro audio upfront - target/source audio is loaded lazily on play
@@ -351,10 +364,6 @@ const loadContent = async (forceRefresh = false) => {
     }
     await loadIntroAudio(courseId, legoIds)
     console.log('[CourseExplorer] Intro audio loaded (target/source will load lazily)')
-
-    // Estimate duration (avg 11 sec per cycle)
-    estimatedMinutes.value = Math.round((script.allItems.length * 11) / 60)
-    console.log('[CourseExplorer] Estimated duration:', estimatedMinutes.value, 'minutes')
 
     // Cache the script structure (audio map is minimal now - just intros)
     // Target/source audio will be cached as it's lazily loaded
@@ -393,8 +402,8 @@ const loadContent = async (forceRefresh = false) => {
         rounds: serializableRounds,
         totalSeeds: totalSeeds.value,
         totalLegos: totalLegos.value,
+        loadedLegos: loadedLegos.value,
         totalCycles: totalCycles.value,
-        estimatedMinutes: estimatedMinutes.value,
         audioMapObj,
         courseWelcome
       })
@@ -1200,8 +1209,8 @@ onUnmounted(() => {
       </div>
       <div class="stat-divider"></div>
       <div class="stat">
-        <span class="stat-value">~{{ estimatedHours }}h</span>
-        <span class="stat-label">Duration</span>
+        <span class="stat-value">{{ loadedLegos }}/{{ totalLegos }}</span>
+        <span class="stat-label">Loaded</span>
       </div>
     </div>
 
@@ -1264,17 +1273,10 @@ onUnmounted(() => {
             </div>
           </div>
           <div class="overview-item">
-            <div class="overview-icon time"></div>
-            <div class="overview-info">
-              <span class="overview-value">~{{ estimatedHours }}h</span>
-              <span class="overview-label">Est. Duration</span>
-            </div>
-          </div>
-          <div class="overview-item">
             <div class="overview-icon cycles"></div>
             <div class="overview-info">
               <span class="overview-value">{{ totalCycles }}</span>
-              <span class="overview-label">Total Cycles</span>
+              <span class="overview-label">Cycles (loaded)</span>
             </div>
           </div>
         </div>
