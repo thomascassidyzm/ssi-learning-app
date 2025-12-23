@@ -834,17 +834,23 @@ const advanceToNextItem = (myCycleId) => {
 
 // Stop playback completely
 const stopPlayback = () => {
-  console.log('[CourseExplorer] stopPlayback called')
+  console.log('[CourseExplorer] ========== STOP BUTTON CLICKED ==========')
+  console.log('[CourseExplorer] Current cycleId:', cycleId, 'isPlaying:', isPlaying.value)
+  console.log('[CourseExplorer] Pending timers:', pendingTimers.length)
 
-  // CRITICAL: Increment cycleId to invalidate all pending operations
+  // CRITICAL: Increment cycleId FIRST to invalidate all pending operations
+  const oldCycleId = cycleId
   cycleId++
+  console.log('[CourseExplorer] cycleId changed from', oldCycleId, 'to', cycleId)
 
   // Clear ALL pending timers
   clearAllTimers()
+  console.log('[CourseExplorer] Timers cleared')
 
   // Stop audio
   if (audioController.value) {
     audioController.value.stop()
+    console.log('[CourseExplorer] Audio stopped')
   }
 
   // Update state
@@ -852,6 +858,7 @@ const stopPlayback = () => {
   currentPhase.value = 'idle'
   currentRoundIndex.value = -1
   currentItemIndex.value = -1
+  console.log('[CourseExplorer] State reset, isPlaying now:', isPlaying.value)
 }
 
 const scrollToCurrentItem = () => {
