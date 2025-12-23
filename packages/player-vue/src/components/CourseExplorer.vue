@@ -507,8 +507,10 @@ const buildAudioMap = async (courseId, items) => {
     console.log('[CourseExplorer] Legacy fallback found', map.size, 'texts with audio')
   }
 
-  // 2. Query lego_introductions for INTRO audio (35 records)
+  // 2. Query lego_introductions for INTRO audio
   if (legoIds.size > 0) {
+    console.log('[CourseExplorer] Looking for intro audio for LEGOs:', [...legoIds].slice(0, 5), '...')
+
     const { data: introData, error: introError } = await supabase.value
       .from('lego_introductions')
       .select('lego_id, audio_uuid')
@@ -521,7 +523,10 @@ const buildAudioMap = async (courseId, items) => {
       for (const intro of (introData || [])) {
         map.set(`intro:${intro.lego_id}`, { intro: intro.audio_uuid })
       }
-      console.log('[CourseExplorer] Added', introData?.length || 0, 'LEGO intro audio entries')
+      console.log('[CourseExplorer] Found', introData?.length || 0, 'intro audio entries out of', legoIds.size, 'LEGOs')
+      if (introData?.length > 0) {
+        console.log('[CourseExplorer] Sample intro:', introData[0])
+      }
     }
   }
 
@@ -702,7 +707,14 @@ const runPhase = async (phase, myCycleId) => {
       let promptUrl
       if (item.type === 'intro' && item.legoId) {
         promptUrl = getAudioUrl(null, 'intro', item)
-        console.log('[CourseExplorer] Playing intro audio for LEGO:', item.legoId)
+        if (promptUrl) {
+          console.log('[CourseExplorer] Playing intro audio for LEGO:', item.legoId, '→', promptUrl)
+        } else {
+          console.warn('[CourseExplorer] NO intro audio found for LEGO:', item.legoId)
+          // Check what's in the audio map for debugging
+          const introKey = `intro:${item.legoId}`
+          console.log('[CourseExplorer] Looked for key:', introKey, 'audioMap has:', audioMap.value.has(introKey))
+        }
       } else {
         promptUrl = getAudioUrl(item.knownText, 'source', item)
       }
