@@ -63,19 +63,31 @@ const getCachedScript = async (courseCode) => {
 }
 
 const setCachedScript = async (courseCode, data) => {
+  // Add timeout to prevent hanging on IndexedDB issues
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('Cache write timeout after 5s')), 5000)
+  })
+
   try {
-    const db = await openDB()
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readwrite')
-      const store = tx.objectStore(STORE_NAME)
-      const request = store.put({
-        courseCode,
-        ...data,
-        cachedAt: Date.now()
-      })
-      request.onerror = () => reject(request.error)
-      request.onsuccess = () => resolve()
-    })
+    console.log('[Cache] Opening IndexedDB for write...')
+    const db = await Promise.race([openDB(), timeoutPromise])
+    console.log('[Cache] DB opened for write, storing data...')
+
+    await Promise.race([
+      new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite')
+        const store = tx.objectStore(STORE_NAME)
+        const request = store.put({
+          courseCode,
+          ...data,
+          cachedAt: Date.now()
+        })
+        request.onerror = () => reject(request.error)
+        request.onsuccess = () => resolve()
+      }),
+      timeoutPromise
+    ])
+    console.log('[Cache] Write completed successfully')
   } catch (err) {
     console.warn('[Cache] Could not write cache:', err)
   }
