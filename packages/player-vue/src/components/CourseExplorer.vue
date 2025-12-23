@@ -203,31 +203,18 @@ const estimatedHours = computed(() => Math.round(estimatedMinutes.value / 60 * 1
 
 // Get the currently playing item
 const currentPlayingItem = computed(() => {
-  const result = (() => {
-    if (currentRoundIndex.value >= 0 && currentItemIndex.value >= 0) {
-      const round = rounds.value[currentRoundIndex.value]
-      if (round && round.items[currentItemIndex.value]) {
-        return {
-          round: round,
-          item: round.items[currentItemIndex.value],
-          roundIndex: currentRoundIndex.value,
-          itemIndex: currentItemIndex.value
-        }
+  if (currentRoundIndex.value >= 0 && currentItemIndex.value >= 0) {
+    const round = rounds.value[currentRoundIndex.value]
+    if (round && round.items[currentItemIndex.value]) {
+      return {
+        round: round,
+        item: round.items[currentItemIndex.value],
+        roundIndex: currentRoundIndex.value,
+        itemIndex: currentItemIndex.value
       }
     }
-    return null
-  })()
-
-  // Debug: Log playback bar visibility conditions
-  console.log('[CourseExplorer] Playback bar visibility:', {
-    isPlaying: isPlaying.value,
-    currentPlayingItem: result ? 'exists' : 'null',
-    roundIndex: currentRoundIndex.value,
-    itemIndex: currentItemIndex.value,
-    shouldShowBar: isPlaying.value && result !== null
-  })
-
-  return result
+  }
+  return null
 })
 
 // Phase display info
@@ -1172,28 +1159,18 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Playback Bar (when playing) -->
-    <Transition name="slide-up">
-      <div v-if="isPlaying && currentPlayingItem" class="playback-bar" @click.stop>
-        <div class="playback-phase" :class="currentPhase">
-          {{ phaseLabel }}
-        </div>
-        <div class="playback-info">
-          <span class="playback-lego">{{ currentPlayingItem.round.legoId }}</span>
-          <span class="playback-text">{{ currentPlayingItem.item.targetText }}</span>
-        </div>
-        <button
-          class="playback-stop"
-          @click.stop.prevent="stopPlayback"
-          @touchend.stop.prevent="stopPlayback"
-          @mousedown.stop
-        >
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <rect x="6" y="6" width="12" height="12" rx="1"/>
-          </svg>
-        </button>
-      </div>
-    </Transition>
+    <!-- Global floating stop button - always visible when playing -->
+    <button
+      v-if="isPlaying"
+      class="global-stop-btn"
+      @click.stop.prevent="stopPlayback"
+      @touchend.stop.prevent="stopPlayback"
+    >
+      <svg viewBox="0 0 24 24" fill="currentColor">
+        <rect x="6" y="6" width="12" height="12" rx="2"/>
+      </svg>
+      <span>STOP</span>
+    </button>
   </div>
 </template>
 
@@ -1617,104 +1594,50 @@ onUnmounted(() => {
   padding: 1rem 1rem 120px;
 }
 
-/* Playback Bar */
-.playback-bar {
+/* Global floating stop button */
+.global-stop-btn {
   position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 200;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  right: 24px;
+  z-index: 9999;
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 1rem 1.5rem calc(1rem + env(safe-area-inset-bottom, 0px));
-  background: var(--bg-secondary);
-  backdrop-filter: blur(24px);
-  border-top: 1px solid var(--border-subtle);
-  /* Ensure clicks don't pass through */
-  pointer-events: auto;
-}
-
-.playback-phase {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  padding: 0.375rem 0.625rem;
-  border-radius: 6px;
-  min-width: 70px;
-  text-align: center;
-}
-
-.playback-phase.prompt { background: #22c55e20; color: #22c55e; }
-.playback-phase.pause { background: #f59e0b20; color: #f59e0b; }
-.playback-phase.voice1 { background: #3b82f620; color: #3b82f6; }
-.playback-phase.voice2 { background: #8b5cf620; color: #8b5cf6; }
-
-.playback-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-}
-
-.playback-lego {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.6875rem;
-  color: var(--text-muted);
-}
-
-.playback-text {
-  font-size: 0.9375rem;
-  font-weight: 500;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.playback-stop {
-  width: 44px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--accent);
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  background: #dc2626; /* Bright red */
   border: none;
-  border-radius: 50%;
+  border-radius: 50px;
   color: white;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 4px 16px rgba(194, 58, 58, 0.4);
-  /* Ensure button is clickable */
-  position: relative;
-  z-index: 10;
+  box-shadow: 0 4px 20px rgba(220, 38, 38, 0.5);
   pointer-events: auto;
-  -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  animation: pulse-stop 2s ease-in-out infinite;
 }
 
-.playback-stop:hover {
+.global-stop-btn:hover {
+  background: #b91c1c;
   transform: scale(1.05);
 }
 
-.playback-stop svg {
+.global-stop-btn:active {
+  transform: scale(0.95);
+}
+
+.global-stop-btn svg {
   width: 20px;
   height: 20px;
 }
 
-/* Transitions */
-.slide-up-enter-active,
-.slide-up-leave-active {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.slide-up-enter-from,
-.slide-up-leave-to {
-  opacity: 0;
-  transform: translateY(100%);
+@keyframes pulse-stop {
+  0%, 100% { box-shadow: 0 4px 20px rgba(220, 38, 38, 0.5); }
+  50% { box-shadow: 0 4px 30px rgba(220, 38, 38, 0.8); }
 }
 
 /* Round Cards */
