@@ -327,15 +327,21 @@ const loadContent = async (forceRefresh = false) => {
 
     // Build audio map from script items
     await buildAudioMap(courseId, script.allItems)
+    console.log('[CourseExplorer] buildAudioMap completed')
 
     // Estimate duration (avg 11 sec per cycle)
     estimatedMinutes.value = Math.round((script.allItems.length * 11) / 60)
+    console.log('[CourseExplorer] Estimated duration:', estimatedMinutes.value, 'minutes')
 
     // Cache the results (convert Map to Object for storage)
     // Deep clone via JSON to ensure all data is serializable for IndexedDB
+    console.log('[CourseExplorer] Converting audioMap to object...')
     const audioMapObj = Object.fromEntries(audioMap.value)
+    console.log('[CourseExplorer] audioMapObj keys:', Object.keys(audioMapObj).length)
     try {
+      console.log('[CourseExplorer] Serializing rounds...')
       const serializableRounds = JSON.parse(JSON.stringify(script.rounds))
+      console.log('[CourseExplorer] Caching to IndexedDB...')
       await setCachedScript(courseId, {
         rounds: serializableRounds,
         totalSeeds: totalSeeds.value,
@@ -344,6 +350,7 @@ const loadContent = async (forceRefresh = false) => {
         estimatedMinutes: estimatedMinutes.value,
         audioMapObj
       })
+      console.log('[CourseExplorer] Cache write completed')
     } catch (cacheErr) {
       console.warn('[CourseExplorer] Could not cache data:', cacheErr)
       // Continue without caching - data is still loaded in memory
@@ -357,6 +364,7 @@ const loadContent = async (forceRefresh = false) => {
     console.error('[CourseExplorer] Load error:', err)
     error.value = 'Failed to load course content'
   } finally {
+    console.log('[CourseExplorer] Finally block - setting isLoading=false')
     isLoading.value = false
     isRefreshing.value = false
   }
