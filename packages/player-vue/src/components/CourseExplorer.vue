@@ -203,18 +203,31 @@ const estimatedHours = computed(() => Math.round(estimatedMinutes.value / 60 * 1
 
 // Get the currently playing item
 const currentPlayingItem = computed(() => {
-  if (currentRoundIndex.value >= 0 && currentItemIndex.value >= 0) {
-    const round = rounds.value[currentRoundIndex.value]
-    if (round && round.items[currentItemIndex.value]) {
-      return {
-        round: round,
-        item: round.items[currentItemIndex.value],
-        roundIndex: currentRoundIndex.value,
-        itemIndex: currentItemIndex.value
+  const result = (() => {
+    if (currentRoundIndex.value >= 0 && currentItemIndex.value >= 0) {
+      const round = rounds.value[currentRoundIndex.value]
+      if (round && round.items[currentItemIndex.value]) {
+        return {
+          round: round,
+          item: round.items[currentItemIndex.value],
+          roundIndex: currentRoundIndex.value,
+          itemIndex: currentItemIndex.value
+        }
       }
     }
-  }
-  return null
+    return null
+  })()
+
+  // Debug: Log playback bar visibility conditions
+  console.log('[CourseExplorer] Playback bar visibility:', {
+    isPlaying: isPlaying.value,
+    currentPlayingItem: result ? 'exists' : 'null',
+    roundIndex: currentRoundIndex.value,
+    itemIndex: currentItemIndex.value,
+    shouldShowBar: isPlaying.value && result !== null
+  })
+
+  return result
 })
 
 // Phase display info
