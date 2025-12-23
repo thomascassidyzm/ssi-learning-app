@@ -511,21 +511,32 @@ const buildAudioMap = async (courseId, items) => {
   if (legoIds.size > 0) {
     console.log('[CourseExplorer] Looking for intro audio for LEGOs:', [...legoIds].slice(0, 5), '...')
 
+    // Get ALL columns to see what's available
     const { data: introData, error: introError } = await supabase.value
       .from('lego_introductions')
-      .select('lego_id, audio_uuid')
+      .select('*')
       .in('lego_id', [...legoIds])
 
     if (introError) {
       console.warn('[CourseExplorer] Could not query lego_introductions:', introError)
     } else {
-      // Store intro audio under special key format: intro:{lego_id}
-      for (const intro of (introData || [])) {
-        map.set(`intro:${intro.lego_id}`, { intro: intro.audio_uuid })
-      }
       console.log('[CourseExplorer] Found', introData?.length || 0, 'intro audio entries out of', legoIds.size, 'LEGOs')
       if (introData?.length > 0) {
-        console.log('[CourseExplorer] Sample intro:', introData[0])
+        // Log the FULL record to see all available columns
+        console.log('[CourseExplorer] FULL intro record (first):', JSON.stringify(introData[0], null, 2))
+        console.log('[CourseExplorer] All columns:', Object.keys(introData[0]))
+      }
+
+      // Store intro audio under special key format: intro:{lego_id}
+      for (const intro of (introData || [])) {
+        // Check if there's s3_key, s3_bucket, or other path info
+        const audioId = intro.audio_uuid || intro.audio_id || intro.uuid
+        map.set(`intro:${intro.lego_id}`, {
+          intro: audioId,
+          s3_key: intro.s3_key,
+          s3_bucket: intro.s3_bucket,
+          full_record: intro
+        })
       }
     }
   }
