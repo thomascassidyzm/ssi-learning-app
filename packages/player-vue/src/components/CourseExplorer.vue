@@ -928,6 +928,7 @@ const formatCachedDate = computed(() => {
 
 // Lifecycle
 onMounted(() => {
+  console.log('[CourseExplorer] === VERSION 2024-12-23-A === Component mounted')
   loadContent()
 })
 
