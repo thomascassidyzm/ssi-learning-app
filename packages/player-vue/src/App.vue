@@ -16,6 +16,7 @@ import JourneyMap from './components/JourneyMap.vue'
 import ProfileScreen from './components/ProfileScreen.vue'
 import SettingsScreen from './components/SettingsScreen.vue'
 import CourseExplorer from './components/CourseExplorer.vue'
+import ProgressDemo from './components/ProgressDemo.vue'
 import BottomNav from './components/BottomNav.vue'
 import BuildBadge from './components/BuildBadge.vue'
 
@@ -27,7 +28,7 @@ const clerkEnabled = isClerkConfigured(config)
 const auth = clerkEnabled ? useAuth() : null
 
 // Navigation state
-// Screens: 'home' | 'player' | 'journey' | 'profile' | 'settings' | 'explorer'
+// Screens: 'home' | 'player' | 'journey' | 'profile' | 'settings' | 'explorer' | 'progress-demo'
 const currentScreen = ref('home')
 const selectedCourse = ref(null)
 const isLearning = ref(false)
@@ -50,6 +51,7 @@ const viewJourney = (course) => navigate('journey', course)
 const openProfile = () => navigate('profile')
 const openSettings = () => navigate('settings')
 const openExplorer = () => navigate('explorer')
+const openProgressDemo = () => navigate('progress-demo')
 
 // Handle nav events
 const handleNavigation = (screen) => {
@@ -289,6 +291,8 @@ onMounted(async () => {
         v-if="currentScreen === 'settings'"
         :course="activeCourse"
         @close="goHome"
+        @openExplorer="openExplorer"
+        @openProgressDemo="openProgressDemo"
       />
     </Transition>
 
@@ -297,6 +301,14 @@ onMounted(async () => {
       <CourseExplorer
         v-if="currentScreen === 'explorer'"
         :course="activeCourse"
+        @close="goHome"
+      />
+    </Transition>
+
+    <!-- Progress Demo (UX Variations) -->
+    <Transition name="slide-right" mode="out-in">
+      <ProgressDemo
+        v-if="currentScreen === 'progress-demo'"
         @close="goHome"
       />
     </Transition>
