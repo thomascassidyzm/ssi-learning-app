@@ -190,8 +190,8 @@ const currentRoundIndex = ref(-1)
 const currentItemIndex = ref(-1)
 const currentPhase = ref('idle') // 'idle' | 'prompt' | 'pause' | 'voice1' | 'voice2'
 const audioController = ref(null)
-const pauseTimer = ref(null)
 let cycleId = 0 // Increments on each new playback to invalidate old operations
+let pendingTimers = [] // Track all timers for cleanup
 
 // Scroll container ref
 const scriptContainer = ref(null)
@@ -647,13 +647,29 @@ const playItem = async (roundIndex, itemIndex) => {
   await runPhase('prompt', myCycleId)
 }
 
+// Schedule a timer and track it for cleanup
+const scheduleTimer = (callback, delay) => {
+  const timerId = setTimeout(() => {
+    // Remove from tracking when it fires
+    pendingTimers = pendingTimers.filter(id => id !== timerId)
+    callback()
+  }, delay)
+  pendingTimers.push(timerId)
+  return timerId
+}
+
+// Clear all pending timers
+const clearAllTimers = () => {
+  for (const timerId of pendingTimers) {
+    clearTimeout(timerId)
+  }
+  pendingTimers = []
+}
+
 // Cancel current playback - invalidates all pending operations
 const cancelCurrentPlayback = () => {
-  // Clear any pending timer
-  if (pauseTimer.value) {
-    clearTimeout(pauseTimer.value)
-    pauseTimer.value = null
-  }
+  // Clear ALL pending timers
+  clearAllTimers()
 
   // Stop audio immediately
   if (audioController.value) {
@@ -710,8 +726,7 @@ const runPhase = async (phase, myCycleId) => {
 
     case 'pause': {
       // Brief pause for preview rhythm (500ms - this is QA preview, not learning)
-      if (pauseTimer.value) clearTimeout(pauseTimer.value)
-      pauseTimer.value = setTimeout(() => {
+      scheduleTimer(() => {
         // Check if still valid after timeout
         if (myCycleId === cycleId) {
           runPhase('voice1', myCycleId)
@@ -780,7 +795,7 @@ const advanceToNextItem = (myCycleId) => {
   if (currentItemIndex.value < round.items.length - 1) {
     const nextItemIndex = currentItemIndex.value + 1
     const nextRoundIndex = currentRoundIndex.value
-    setTimeout(() => {
+    scheduleTimer(() => {
       // Check if still valid after timeout
       if (myCycleId === cycleId) {
         playItem(nextRoundIndex, nextItemIndex)
@@ -792,7 +807,7 @@ const advanceToNextItem = (myCycleId) => {
   // Try next round
   if (currentRoundIndex.value < rounds.value.length - 1) {
     const nextRoundIndex = currentRoundIndex.value + 1
-    setTimeout(() => {
+    scheduleTimer(() => {
       // Check if still valid after timeout
       if (myCycleId === cycleId) {
         playItem(nextRoundIndex, 0)
@@ -812,11 +827,8 @@ const stopPlayback = () => {
   // CRITICAL: Increment cycleId to invalidate all pending operations
   cycleId++
 
-  // Clear any pending timer
-  if (pauseTimer.value) {
-    clearTimeout(pauseTimer.value)
-    pauseTimer.value = null
-  }
+  // Clear ALL pending timers
+  clearAllTimers()
 
   // Stop audio
   if (audioController.value) {
@@ -854,7 +866,13 @@ const getDebutPhraseIndex = (round, itemIdx) => {
   return count
 }
 
+// Check if this is an N-1 review (gets 3 phrases, needs -1, -2, -3 suffix)
+const isN1Review = (round, item) => {
+  return item.reviewOf === round.roundNumber - 1
+}
+
 // Get spaced rep occurrence number (e.g., 1, 2, 3 for REP #8-1, REP #8-2, REP #8-3)
+// Only used for N-1 reviews which have 3 phrases
 const getSpacedRepOccurrence = (round, item, currentIdx) => {
   // Count how many spaced rep items for this reviewOf came before this one
   let count = 0
@@ -891,9 +909,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  if (pauseTimer.value) {
-    clearTimeout(pauseTimer.value)
-  }
+  clearAllTimers()
   if (audioController.value) {
     audioController.value.stop()
   }
@@ -1089,10 +1105,10 @@ onUnmounted(() => {
               <!-- Type badge -->
               <div class="item-type-badge" :class="item.type">
                 <template v-if="item.type === 'intro'">INTRO</template>
-                <template v-else-if="item.type === 'debut'">DEBUT</template>
+                <template v-else-if="item.type === 'debut'">LEGO</template>
                 <template v-else-if="item.type === 'debut_phrase'">DEBUT-{{ getDebutPhraseIndex(round, idx) }}</template>
                 <template v-else-if="item.type === 'spaced_rep'">
-                  REP #{{ item.reviewOf }}-{{ getSpacedRepOccurrence(round, item, idx) }}
+                  REP #{{ item.reviewOf }}{{ isN1Review(round, item) ? '-' + getSpacedRepOccurrence(round, item, idx) : '' }}
                 </template>
                 <template v-else-if="item.type === 'consolidation'">ETERNAL-{{ getConsolidationIndex(round, idx) }}</template>
               </div>
