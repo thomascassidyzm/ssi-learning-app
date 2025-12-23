@@ -419,6 +419,9 @@ const buildAudioMap = async (courseId, items) => {
 
   // Try v12 schema first (texts + audio_files + course_audio)
   // Batch in chunks of 100 to avoid query limits
+  console.log('[CourseExplorer] V12 lookup: checking', targetTextsArray.length, 'target texts')
+  console.log('[CourseExplorer] V12 lookup: sample texts:', targetTextsArray.slice(0, 3))
+
   for (let i = 0; i < targetTextsArray.length; i += 100) {
     const batch = targetTextsArray.slice(i, i + 100)
 
@@ -427,6 +430,11 @@ const buildAudioMap = async (courseId, items) => {
       .from('texts')
       .select('id, content')
       .in('content', batch)
+
+    if (i === 0) {
+      console.log('[CourseExplorer] V12 step 1: textsData count:', textsData?.length || 0, 'error:', textsError?.message || 'none')
+      if (textsData?.length > 0) console.log('[CourseExplorer] V12 step 1: sample:', textsData[0])
+    }
 
     if (textsError || !textsData || textsData.length === 0) {
       continue // Will fall back to legacy
@@ -441,10 +449,14 @@ const buildAudioMap = async (courseId, items) => {
     }
 
     // Step 2: Get audio files for these texts
-    const { data: audioFilesData } = await supabase.value
+    const { data: audioFilesData, error: afError } = await supabase.value
       .from('audio_files')
       .select('id, text_id')
       .in('text_id', textIds)
+
+    if (i === 0) {
+      console.log('[CourseExplorer] V12 step 2: audioFilesData count:', audioFilesData?.length || 0, 'error:', afError?.message || 'none')
+    }
 
     if (!audioFilesData || audioFilesData.length === 0) continue
 
@@ -456,11 +468,15 @@ const buildAudioMap = async (courseId, items) => {
     }
 
     // Step 3: Get course_audio entries with roles
-    const { data: courseAudioData } = await supabase.value
+    const { data: courseAudioData, error: caError } = await supabase.value
       .from('course_audio')
       .select('audio_id, role')
       .eq('course_code', courseId)
       .in('audio_id', audioIds)
+
+    if (i === 0) {
+      console.log('[CourseExplorer] V12 step 3: courseAudioData count:', courseAudioData?.length || 0, 'error:', caError?.message || 'none')
+    }
 
     for (const row of (courseAudioData || [])) {
       const textId = audioIdToTextId.get(row.audio_id)
