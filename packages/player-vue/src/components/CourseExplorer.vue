@@ -237,6 +237,7 @@ const loadContent = async (forceRefresh = false) => {
 
   if (!courseDataProvider?.value) {
     // Demo mode - create sample rounds
+    console.log('[CourseExplorer] No courseDataProvider, using demo mode')
     rounds.value = createDemoRounds()
     totalSeeds.value = 10
     totalLegos.value = 10
@@ -247,11 +248,14 @@ const loadContent = async (forceRefresh = false) => {
   }
 
   const courseId = props.course?.course_code || 'demo'
+  console.log('[CourseExplorer] Using courseId:', courseId)
 
   // Try cache first (unless forcing refresh)
   if (!forceRefresh) {
+    console.log('[CourseExplorer] Checking cache...')
     try {
       const cached = await getCachedScript(courseId)
+      console.log('[CourseExplorer] Cache result:', cached ? 'HIT' : 'MISS')
       if (cached) {
         console.log('[CourseExplorer] Using cached data from', new Date(cached.cachedAt).toLocaleString())
         rounds.value = cached.rounds
@@ -271,6 +275,8 @@ const loadContent = async (forceRefresh = false) => {
     }
   }
 
+  console.log('[CourseExplorer] Proceeding to load fresh data...')
+
   try {
     // Show appropriate loading state
     if (forceRefresh) {
@@ -281,6 +287,7 @@ const loadContent = async (forceRefresh = false) => {
     error.value = null
 
     // Get total seed count first
+    console.log('[CourseExplorer] Querying seed count for:', courseId)
     const { data: seedData, error: seedError } = await supabase.value
       .from('course_seeds')
       .select('seed_number', { count: 'exact' })
@@ -291,6 +298,7 @@ const loadContent = async (forceRefresh = false) => {
     }
 
     totalSeeds.value = seedData?.length || 0
+    console.log('[CourseExplorer] Seed count:', totalSeeds.value)
 
     // Generate the full learning script with ROUNDs and spaced repetition
     console.log('[CourseExplorer] Calling generateLearningScript for courseId:', courseId)
