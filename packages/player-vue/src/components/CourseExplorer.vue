@@ -493,7 +493,59 @@ const buildAudioMap = async (courseId, items) => {
     }
   }
 
-  // REMOVED: Legacy audio_samples fallback - only use v12 schema (ssi-audio-stage bucket)
+  // Also lookup source/known audio (for prompts)
+  console.log('[CourseExplorer] V12 lookup: checking', knownTextsArray.length, 'known/source texts')
+  for (let i = 0; i < knownTextsArray.length; i += 100) {
+    const batch = knownTextsArray.slice(i, i + 100)
+
+    const { data: textsData, error: textsError } = await supabase.value
+      .from('texts')
+      .select('id, content')
+      .in('content', batch)
+
+    if (textsError || !textsData || textsData.length === 0) continue
+
+    const textIdToKnown = new Map()
+    const textIds = []
+    for (const t of textsData) {
+      textIdToKnown.set(t.id, t.content)
+      textIds.push(t.id)
+    }
+
+    const { data: audioFilesData } = await supabase.value
+      .from('audio_files')
+      .select('id, text_id')
+      .in('text_id', textIds)
+
+    if (!audioFilesData || audioFilesData.length === 0) continue
+
+    const audioIdToTextId = new Map()
+    const audioIds = []
+    for (const af of audioFilesData) {
+      audioIdToTextId.set(af.id, af.text_id)
+      audioIds.push(af.id)
+    }
+
+    const { data: courseAudioData } = await supabase.value
+      .from('course_audio')
+      .select('audio_id, role')
+      .eq('course_code', courseId)
+      .in('audio_id', audioIds)
+
+    for (const row of (courseAudioData || [])) {
+      if (row.role !== 'known') continue // Known audio for prompts
+      const textId = audioIdToTextId.get(row.audio_id)
+      const knownText = textIdToKnown.get(textId)
+      if (!knownText) continue
+
+      if (!map.has(knownText)) {
+        map.set(knownText, {})
+      }
+      map.get(knownText).source = row.audio_id // Store as 'source' for getAudioUrl
+      foundInV12 = true
+    }
+  }
+
   if (!foundInV12) {
     console.warn('[CourseExplorer] V12 schema returned no audio - check RLS policies on texts/audio_files/course_audio tables')
   }
