@@ -200,6 +200,8 @@ const totalLegos = ref(0)        // Total LEGOs in course (from DB)
 const loadedLegos = ref(0)       // LEGOs loaded in current script preview
 const totalCycles = ref(0)       // Cycles in current script preview
 const LEGOS_PER_PAGE = 50        // How many LEGOs to load at a time
+const currentPage = ref(0)       // Current pagination page (0-indexed)
+const isLoadingMore = ref(false) // Loading state for pagination
 
 // Audio map for resolving text -> audio UUIDs
 const audioMap = ref(new Map())
@@ -222,7 +224,10 @@ const scriptContainer = ref(null)
 // Computed
 const courseName = computed(() => props.course?.display_name || props.course?.title || 'Course')
 const courseCode = computed(() => props.course?.course_code || '')
-const hasMoreLegos = computed(() => loadedLegos.value < totalLegos.value)
+const hasMoreLegos = computed(() => (currentPage.value + 1) * LEGOS_PER_PAGE < totalLegos.value)
+const hasPreviousPage = computed(() => currentPage.value > 0)
+const pageStart = computed(() => currentPage.value * LEGOS_PER_PAGE + 1)
+const pageEnd = computed(() => Math.min((currentPage.value + 1) * LEGOS_PER_PAGE, totalLegos.value))
 
 // Get the currently playing item
 const currentPlayingItem = computed(() => {
@@ -429,7 +434,66 @@ const loadContent = async (forceRefresh = false) => {
 
 // Force refresh from database
 const refreshContent = () => {
+  currentPage.value = 0
   loadContent(true)
+}
+
+// Load a specific page of LEGOs
+const loadPage = async (page) => {
+  if (!courseDataProvider?.value || !supabase?.value) return
+
+  const courseId = props.course?.course_code || 'demo'
+  const offset = page * LEGOS_PER_PAGE
+
+  console.log('[CourseExplorer] Loading page', page, 'offset', offset)
+  isLoadingMore.value = true
+
+  try {
+    // Stop any current playback
+    stopPlayback()
+
+    const script = await generateLearningScript(
+      courseDataProvider.value,
+      supabase.value,
+      courseId,
+      audioBaseUrl,
+      LEGOS_PER_PAGE,
+      offset
+    )
+
+    rounds.value = script.rounds
+    loadedLegos.value = script.rounds.length
+    totalCycles.value = script.allItems.length
+    currentPage.value = page
+
+    // Load intro audio for new LEGOs
+    const legoIds = new Set()
+    for (const item of script.allItems) {
+      if (item.type === 'intro' && item.legoId) {
+        legoIds.add(item.legoId)
+      }
+    }
+    await loadIntroAudio(courseId, legoIds)
+
+    console.log('[CourseExplorer] Loaded page', page, 'with', script.rounds.length, 'rounds')
+  } catch (err) {
+    console.error('[CourseExplorer] Error loading page:', err)
+  } finally {
+    isLoadingMore.value = false
+  }
+}
+
+// Pagination controls
+const nextPage = () => {
+  if (hasMoreLegos.value) {
+    loadPage(currentPage.value + 1)
+  }
+}
+
+const previousPage = () => {
+  if (hasPreviousPage.value) {
+    loadPage(currentPage.value - 1)
+  }
 }
 
 // Store current course ID for lazy lookups
@@ -1363,6 +1427,36 @@ onUnmounted(() => {
             Reviews LEGOs: {{ round.spacedRepReviews.join(', ') }}
           </div>
         </div>
+
+        <!-- Pagination Controls -->
+        <div class="pagination-bar">
+          <button
+            class="pagination-btn"
+            :disabled="!hasPreviousPage || isLoadingMore"
+            @click="previousPage"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 18l-6-6 6-6"/>
+            </svg>
+            Previous 50
+          </button>
+
+          <span class="pagination-info">
+            <span v-if="isLoadingMore" class="loading-dots">Loading...</span>
+            <span v-else>LEGOs {{ pageStart }}–{{ pageEnd }} of {{ totalLegos }}</span>
+          </span>
+
+          <button
+            class="pagination-btn"
+            :disabled="!hasMoreLegos || isLoadingMore"
+            @click="nextPage"
+          >
+            Next 50
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -1799,6 +1893,62 @@ onUnmounted(() => {
 
 .script-content {
   padding: 1rem 1rem 120px;
+}
+
+/* Pagination Controls */
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.5rem 1rem;
+  margin-top: 1rem;
+  background: var(--bg-elevated);
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+}
+
+.pagination-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg-primary);
+}
+
+.pagination-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pagination-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.pagination-info {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.loading-dots {
+  animation: pulse 1.5s ease-in-out infinite;
 }
 
 /* Global floating stop button */

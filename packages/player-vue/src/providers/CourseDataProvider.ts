@@ -532,7 +532,7 @@ export class CourseDataProvider {
    * Load all unique LEGOs for a course (without spaced repetition cycles)
    * Used by Course Explorer for QA script view
    */
-  async loadAllUniqueLegos(limit: number = 1000): Promise<LearningItem[]> {
+  async loadAllUniqueLegos(limit: number = 1000, offset: number = 0): Promise<LearningItem[]> {
     if (!this.client) {
       console.warn('[CourseDataProvider] No Supabase client, returning empty array')
       return []
@@ -569,8 +569,8 @@ export class CourseDataProvider {
 
       console.log('[CourseDataProvider] Loaded', uniqueRecords.length, 'unique LEGOs for', this.courseId)
 
-      // Transform to LearningItem format
-      return uniqueRecords.slice(0, limit).map((record) => {
+      // Transform to LearningItem format (with pagination)
+      return uniqueRecords.slice(offset, offset + limit).map((record) => {
         const legoId = record.lego_id
         const seedId = `S${String(record.seed_number).padStart(4, '0')}`
 
@@ -978,10 +978,11 @@ export async function generateLearningScript(
   supabase: any,
   courseId: string,
   audioBaseUrl: string,
-  maxLegos: number = 50
+  maxLegos: number = 50,
+  offset: number = 0
 ): Promise<{ rounds: RoundData[]; allItems: ScriptItem[] }> {
-  // Load all unique LEGOs
-  const legos = await provider.loadAllUniqueLegos(maxLegos)
+  // Load unique LEGOs with pagination
+  const legos = await provider.loadAllUniqueLegos(maxLegos, offset)
 
   if (legos.length === 0) {
     return { rounds: [], allItems: [] }
