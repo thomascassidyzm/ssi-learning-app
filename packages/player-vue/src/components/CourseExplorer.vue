@@ -183,12 +183,15 @@ const audioMap = ref(new Map())
 const audioBaseUrl = 'https://ssi-audio-stage.s3.eu-west-1.amazonaws.com/mastered'
 
 // Playback state - 4-phase cycle: prompt → pause → voice1 → voice2
+// Uses cycle ID system for proper cancellation - each new playback increments the ID
+// All async operations check their cycle ID is still current before proceeding
 const isPlaying = ref(false)
 const currentRoundIndex = ref(-1)
 const currentItemIndex = ref(-1)
 const currentPhase = ref('idle') // 'idle' | 'prompt' | 'pause' | 'voice1' | 'voice2'
 const audioController = ref(null)
 const pauseTimer = ref(null)
+let cycleId = 0 // Increments on each new playback to invalidate old operations
 
 // Scroll container ref
 const scriptContainer = ref(null)
@@ -592,27 +595,39 @@ const getAudioUrl = (text, role, item = null) => {
   return `${audioBaseUrl}/${uuid}.mp3`
 }
 
-// Check if item has audio available (at least target1)
+// Check if item has audio available
+// For INTRO items: check intro audio; for others: check target1
 const hasAudio = (item) => {
+  if (item.type === 'intro' && item.legoId) {
+    return !!getAudioUrl(null, 'intro', item)
+  }
   return !!getAudioUrl(item.targetText, 'target1', item)
 }
 
-// Playback controls - start a complete 4-phase cycle for an item
-// Cycle: PROMPT (known audio) → PAUSE (3s) → VOICE1 (target1) → VOICE2 (target2)
+// ============================================================================
+// Playback controls with CYCLE ID system for proper cancellation
+// ============================================================================
+// Key insight: async operations can race. When user clicks a new item while
+// previous cycle is still running, the old cycle's pending operations continue.
+//
+// Solution: Each playback gets a unique cycleId. All async operations capture
+// this ID and check it's still current before proceeding. Stop/new-playback
+// increments the ID to invalidate all pending operations.
+// ============================================================================
+
+// Start playback from a specific item
 const playItem = async (roundIndex, itemIndex) => {
   const round = rounds.value[roundIndex]
   if (!round || !round.items[itemIndex]) return
 
   const item = round.items[itemIndex]
 
-  // Check if we have at least target1 audio
-  const target1Url = getAudioUrl(item.targetText, 'target1', item)
-  if (!target1Url) {
-    console.warn('[CourseExplorer] No target1 audio for:', item.targetText)
-    return
-  }
+  // CRITICAL: Stop any existing playback and invalidate its operations
+  cancelCurrentPlayback()
 
-  console.log('[CourseExplorer] Starting cycle for:', item.knownText, '→', item.targetText)
+  // Start new cycle with new ID
+  const myCycleId = ++cycleId
+  console.log('[CourseExplorer] Starting cycle', myCycleId, 'for:', item.knownText, '→', item.targetText)
 
   // Update current position
   currentRoundIndex.value = roundIndex
@@ -623,18 +638,37 @@ const playItem = async (roundIndex, itemIndex) => {
   await nextTick()
   scrollToCurrentItem()
 
-  // Initialize audio controller if needed (no onEnded callback - we manage phases directly)
+  // Initialize audio controller if needed
   if (!audioController.value) {
     audioController.value = new ScriptAudioController()
   }
 
-  // Start the cycle with PROMPT phase
-  await startPhase('prompt')
+  // Start the cycle - pass cycleId to all operations
+  await runPhase('prompt', myCycleId)
 }
 
-// Start a specific phase of the cycle
-const startPhase = async (phase) => {
-  if (!isPlaying.value) return
+// Cancel current playback - invalidates all pending operations
+const cancelCurrentPlayback = () => {
+  // Clear any pending timer
+  if (pauseTimer.value) {
+    clearTimeout(pauseTimer.value)
+    pauseTimer.value = null
+  }
+
+  // Stop audio immediately
+  if (audioController.value) {
+    audioController.value.stop()
+  }
+}
+
+// Run a specific phase of the cycle
+// CRITICAL: myCycleId must match current cycleId or we abort
+const runPhase = async (phase, myCycleId) => {
+  // Check if this cycle is still valid
+  if (myCycleId !== cycleId) {
+    console.log('[CourseExplorer] Cycle', myCycleId, 'cancelled (current is', cycleId + ')')
+    return
+  }
 
   const round = rounds.value[currentRoundIndex.value]
   const item = round?.items[currentItemIndex.value]
@@ -644,24 +678,33 @@ const startPhase = async (phase) => {
   }
 
   currentPhase.value = phase
-  console.log('[CourseExplorer] Phase:', phase)
+  console.log('[CourseExplorer] Cycle', myCycleId, 'phase:', phase)
 
   switch (phase) {
     case 'prompt': {
-      // Play known/source audio
-      const promptUrl = getAudioUrl(item.knownText, 'source', item)
+      // For INTRO items, play intro audio; otherwise play known/source audio
+      let promptUrl
+      if (item.type === 'intro' && item.legoId) {
+        promptUrl = getAudioUrl(null, 'intro', item)
+        console.log('[CourseExplorer] Playing intro audio for LEGO:', item.legoId)
+      } else {
+        promptUrl = getAudioUrl(item.knownText, 'source', item)
+      }
+
       if (promptUrl) {
         try {
           await audioController.value.play({ url: promptUrl })
-          // Audio finished - advance to pause if still playing
-          if (isPlaying.value) startPhase('pause')
+          // Check if still valid after await
+          if (myCycleId !== cycleId) return
+          runPhase('pause', myCycleId)
           return
         } catch (err) {
+          if (myCycleId !== cycleId) return // Cancelled
           console.warn('[CourseExplorer] Prompt audio failed, skipping to pause')
         }
       }
       // No prompt audio or it failed - go directly to pause
-      if (isPlaying.value) startPhase('pause')
+      if (myCycleId === cycleId) runPhase('pause', myCycleId)
       break
     }
 
@@ -669,8 +712,9 @@ const startPhase = async (phase) => {
       // Brief pause for preview rhythm (500ms - this is QA preview, not learning)
       if (pauseTimer.value) clearTimeout(pauseTimer.value)
       pauseTimer.value = setTimeout(() => {
-        if (isPlaying.value) {
-          startPhase('voice1')
+        // Check if still valid after timeout
+        if (myCycleId === cycleId) {
+          runPhase('voice1', myCycleId)
         }
       }, 500)
       break
@@ -682,10 +726,12 @@ const startPhase = async (phase) => {
       if (voice1Url) {
         try {
           await audioController.value.play({ url: voice1Url })
-          // Audio finished - advance to voice2 if still playing
-          if (isPlaying.value) startPhase('voice2')
+          // Check if still valid after await
+          if (myCycleId !== cycleId) return
+          runPhase('voice2', myCycleId)
           return
         } catch (err) {
+          if (myCycleId !== cycleId) return // Cancelled
           console.error('[CourseExplorer] Voice1 playback error:', err)
           stopPlayback()
           return
@@ -703,23 +749,26 @@ const startPhase = async (phase) => {
       if (voice2Url) {
         try {
           await audioController.value.play({ url: voice2Url })
-          // Audio finished - advance to next item if still playing
-          if (isPlaying.value) advanceToNextItem()
+          // Check if still valid after await
+          if (myCycleId !== cycleId) return
+          advanceToNextItem(myCycleId)
           return
         } catch (err) {
+          if (myCycleId !== cycleId) return // Cancelled
           console.warn('[CourseExplorer] Voice2 playback error, finishing cycle')
         }
       }
       // No voice2 or it failed - finish cycle and advance to next item
-      if (isPlaying.value) advanceToNextItem()
+      if (myCycleId === cycleId) advanceToNextItem(myCycleId)
       break
     }
   }
 }
 
 // Advance to the next item after cycle completes
-const advanceToNextItem = () => {
-  if (!isPlaying.value) return
+const advanceToNextItem = (myCycleId) => {
+  // Check if still valid
+  if (myCycleId !== cycleId) return
 
   const round = rounds.value[currentRoundIndex.value]
   if (!round) {
@@ -730,9 +779,11 @@ const advanceToNextItem = () => {
   // Try next item in same round
   if (currentItemIndex.value < round.items.length - 1) {
     const nextItemIndex = currentItemIndex.value + 1
+    const nextRoundIndex = currentRoundIndex.value
     setTimeout(() => {
-      if (isPlaying.value) {
-        playItem(currentRoundIndex.value, nextItemIndex)
+      // Check if still valid after timeout
+      if (myCycleId === cycleId) {
+        playItem(nextRoundIndex, nextItemIndex)
       }
     }, 500)
     return
@@ -742,7 +793,8 @@ const advanceToNextItem = () => {
   if (currentRoundIndex.value < rounds.value.length - 1) {
     const nextRoundIndex = currentRoundIndex.value + 1
     setTimeout(() => {
-      if (isPlaying.value) {
+      // Check if still valid after timeout
+      if (myCycleId === cycleId) {
         playItem(nextRoundIndex, 0)
       }
     }, 800)
@@ -753,21 +805,25 @@ const advanceToNextItem = () => {
   stopPlayback()
 }
 
+// Stop playback completely
 const stopPlayback = () => {
-  console.log('[CourseExplorer] stopPlayback called, isPlaying was:', isPlaying.value)
+  console.log('[CourseExplorer] stopPlayback called')
 
-  // Clear pause timer FIRST
+  // CRITICAL: Increment cycleId to invalidate all pending operations
+  cycleId++
+
+  // Clear any pending timer
   if (pauseTimer.value) {
     clearTimeout(pauseTimer.value)
     pauseTimer.value = null
   }
 
-  // Stop audio BEFORE changing state (to prevent onEnded from firing after)
+  // Stop audio
   if (audioController.value) {
     audioController.value.stop()
   }
 
-  // Now update state
+  // Update state
   isPlaying.value = false
   currentPhase.value = 'idle'
   currentRoundIndex.value = -1
@@ -798,21 +854,28 @@ const getDebutPhraseIndex = (round, itemIdx) => {
   return count
 }
 
-// Get spaced rep label (e.g., "(1/3)" for N-1 reviews)
-const getSpacedRepLabel = (round, item) => {
-  // N-1 reviews get 3x phrases, show (1/3), (2/3), (3/3)
-  const isN1 = item.reviewOf === round.roundNumber - 1
-  if (!isN1) return ''
-
-  // Count how many N-1 reviews came before this one
-  let n1Count = 0
-  for (const ri of round.items) {
+// Get spaced rep occurrence number (e.g., 1, 2, 3 for REP #8-1, REP #8-2, REP #8-3)
+const getSpacedRepOccurrence = (round, item, currentIdx) => {
+  // Count how many spaced rep items for this reviewOf came before this one
+  let count = 0
+  for (let i = 0; i <= currentIdx; i++) {
+    const ri = round.items[i]
     if (ri.type === 'spaced_rep' && ri.reviewOf === item.reviewOf) {
-      n1Count++
-      if (ri === item) break
+      count++
     }
   }
-  return ` (${n1Count}/3)`
+  return count
+}
+
+// Get consolidation index (e.g., 1, 2, 3 for ETERNAL-1, ETERNAL-2)
+const getConsolidationIndex = (round, currentIdx) => {
+  let count = 0
+  for (let i = 0; i <= currentIdx; i++) {
+    if (round.items[i].type === 'consolidation') {
+      count++
+    }
+  }
+  return count
 }
 
 // Format cached date for display
@@ -1027,11 +1090,11 @@ onUnmounted(() => {
               <div class="item-type-badge" :class="item.type">
                 <template v-if="item.type === 'intro'">INTRO</template>
                 <template v-else-if="item.type === 'debut'">DEBUT</template>
-                <template v-else-if="item.type === 'debut_phrase'">PHRASE {{ getDebutPhraseIndex(round, idx) }}</template>
+                <template v-else-if="item.type === 'debut_phrase'">DEBUT-{{ getDebutPhraseIndex(round, idx) }}</template>
                 <template v-else-if="item.type === 'spaced_rep'">
-                  REP #{{ item.reviewOf }}{{ getSpacedRepLabel(round, item) }}
+                  REP #{{ item.reviewOf }}-{{ getSpacedRepOccurrence(round, item, idx) }}
                 </template>
-                <template v-else-if="item.type === 'consolidation'">ETERNAL</template>
+                <template v-else-if="item.type === 'consolidation'">ETERNAL-{{ getConsolidationIndex(round, idx) }}</template>
               </div>
 
               <!-- Text content -->
