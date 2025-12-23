@@ -37,15 +37,25 @@ const openDB = () => {
 }
 
 const getCachedScript = async (courseCode) => {
+  // Add timeout to prevent hanging on IndexedDB issues
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('Cache timeout after 3s')), 3000)
+  })
+
   try {
-    const db = await openDB()
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readonly')
-      const store = tx.objectStore(STORE_NAME)
-      const request = store.get(courseCode)
-      request.onerror = () => reject(request.error)
-      request.onsuccess = () => resolve(request.result || null)
-    })
+    console.log('[Cache] Opening IndexedDB...')
+    const db = await Promise.race([openDB(), timeoutPromise])
+    console.log('[Cache] DB opened, reading cache for:', courseCode)
+    return await Promise.race([
+      new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readonly')
+        const store = tx.objectStore(STORE_NAME)
+        const request = store.get(courseCode)
+        request.onerror = () => reject(request.error)
+        request.onsuccess = () => resolve(request.result || null)
+      }),
+      timeoutPromise
+    ])
   } catch (err) {
     console.warn('[Cache] Could not read cache:', err)
     return null
