@@ -230,6 +230,11 @@ const phaseLabel = computed(() => {
 
 // Load course content (with cache-first strategy)
 const loadContent = async (forceRefresh = false) => {
+  console.log('[CourseExplorer] loadContent called, forceRefresh:', forceRefresh)
+  console.log('[CourseExplorer] courseDataProvider:', !!courseDataProvider?.value)
+  console.log('[CourseExplorer] supabase:', !!supabase?.value)
+  console.log('[CourseExplorer] course:', props.course?.course_code)
+
   if (!courseDataProvider?.value) {
     // Demo mode - create sample rounds
     rounds.value = createDemoRounds()
@@ -288,6 +293,7 @@ const loadContent = async (forceRefresh = false) => {
     totalSeeds.value = seedData?.length || 0
 
     // Generate the full learning script with ROUNDs and spaced repetition
+    console.log('[CourseExplorer] Calling generateLearningScript for courseId:', courseId)
     const script = await generateLearningScript(
       courseDataProvider.value,
       supabase.value,
@@ -295,6 +301,7 @@ const loadContent = async (forceRefresh = false) => {
       audioBaseUrl,
       50 // Limit to first 50 LEGOs for preview
     )
+    console.log('[CourseExplorer] generateLearningScript returned:', script?.rounds?.length, 'rounds')
 
     rounds.value = script.rounds
     totalLegos.value = script.rounds.length
