@@ -7,7 +7,7 @@ import { generateLearningScript } from '../providers/CourseDataProvider'
 // IndexedDB Cache for Script Data
 // ============================================================================
 const DB_NAME = 'ssi-script-cache'
-const DB_VERSION = 2  // Bumped to force cache refresh after audio schema change (texts+audio_files)
+const DB_VERSION = 3  // Bumped: v3 uses lazy audio loading (cache only has intros)
 const STORE_NAME = 'scripts'
 
 let dbInstance = null
@@ -280,12 +280,14 @@ const loadContent = async (forceRefresh = false) => {
       console.log('[CourseExplorer] Cache result:', cached ? 'HIT' : 'MISS')
       if (cached) {
         console.log('[CourseExplorer] Using cached data from', new Date(cached.cachedAt).toLocaleString())
+        // Store course ID for lazy audio lookups (even from cache)
+        currentCourseId.value = courseId
         rounds.value = cached.rounds
         totalSeeds.value = cached.totalSeeds
         totalLegos.value = cached.totalLegos
         totalCycles.value = cached.totalCycles
         estimatedMinutes.value = cached.estimatedMinutes
-        // Restore audio map from cached object
+        // Restore audio map from cached object (may be partial - lazy loading fills in the rest)
         audioMap.value = new Map(Object.entries(cached.audioMapObj || {}))
         loadedFromCache.value = true
         cachedAt.value = cached.cachedAt
@@ -322,6 +324,9 @@ const loadContent = async (forceRefresh = false) => {
     totalSeeds.value = seedData?.length || 0
     console.log('[CourseExplorer] Seed count:', totalSeeds.value)
 
+    // Store course ID for lazy audio lookups
+    currentCourseId.value = courseId
+
     // Generate the full learning script with ROUNDs and spaced repetition
     console.log('[CourseExplorer] Calling generateLearningScript for courseId:', courseId)
     const script = await generateLearningScript(
@@ -337,19 +342,25 @@ const loadContent = async (forceRefresh = false) => {
     totalLegos.value = script.rounds.length
     totalCycles.value = script.allItems.length
 
-    // Build audio map from script items
-    await buildAudioMap(courseId, script.allItems)
-    console.log('[CourseExplorer] buildAudioMap completed')
+    // FAST: Only load intro audio upfront - target/source audio is loaded lazily on play
+    const legoIds = new Set()
+    for (const item of script.allItems) {
+      if (item.type === 'intro' && item.legoId) {
+        legoIds.add(item.legoId)
+      }
+    }
+    await loadIntroAudio(courseId, legoIds)
+    console.log('[CourseExplorer] Intro audio loaded (target/source will load lazily)')
 
     // Estimate duration (avg 11 sec per cycle)
     estimatedMinutes.value = Math.round((script.allItems.length * 11) / 60)
     console.log('[CourseExplorer] Estimated duration:', estimatedMinutes.value, 'minutes')
 
-    // Cache the results (convert Map to Object for storage)
-    // Deep clone via JSON to ensure all data is serializable for IndexedDB
+    // Cache the script structure (audio map is minimal now - just intros)
+    // Target/source audio will be cached as it's lazily loaded
     console.log('[CourseExplorer] Converting audioMap to object...')
     const audioMapObj = Object.fromEntries(audioMap.value)
-    console.log('[CourseExplorer] audioMapObj keys:', Object.keys(audioMapObj).length)
+    console.log('[CourseExplorer] audioMapObj keys:', Object.keys(audioMapObj).length, '(intros only, rest loads lazily)')
     try {
       console.log('[CourseExplorer] Serializing rounds...')
       const serializableRounds = JSON.parse(JSON.stringify(script.rounds))
@@ -371,7 +382,7 @@ const loadContent = async (forceRefresh = false) => {
     loadedFromCache.value = false
     cachedAt.value = Date.now()
 
-    console.log('[CourseExplorer] Loaded', script.rounds.length, 'rounds,', script.allItems.length, 'total cycles (fresh)')
+    console.log('[CourseExplorer] Loaded', script.rounds.length, 'rounds,', script.allItems.length, 'total cycles (FAST - lazy audio)')
   } catch (err) {
     console.error('[CourseExplorer] Load error:', err)
     error.value = 'Failed to load course content'
@@ -387,8 +398,128 @@ const refreshContent = () => {
   loadContent(true)
 }
 
+// Store current course ID for lazy lookups
+const currentCourseId = ref('')
+
+// ============================================================================
+// LAZY AUDIO LOADING - Look up audio on-demand instead of pre-loading all
+// ============================================================================
+
+// Lookup audio for a single text on-demand (cache-first)
+const lookupAudioLazy = async (text, role, isKnown = false) => {
+  if (!supabase?.value || !currentCourseId.value) return null
+
+  // Check cache first
+  const cached = audioMap.value.get(text)
+  if (cached?.[role]) {
+    return cached[role]
+  }
+
+  // Query the v12 chain: texts → audio_files → course_audio
+  try {
+    const { data: textsData } = await supabase.value
+      .from('texts')
+      .select('id')
+      .eq('content', text)
+      .limit(1)
+
+    if (!textsData || textsData.length === 0) return null
+
+    const textId = textsData[0].id
+
+    const { data: audioData } = await supabase.value
+      .from('audio_files')
+      .select('id')
+      .eq('text_id', textId)
+
+    if (!audioData || audioData.length === 0) return null
+
+    const audioIds = audioData.map(a => a.id)
+
+    // For known/source audio, look for 'known' role; for target, look for target1/target2
+    const targetRole = isKnown ? 'known' : role
+
+    const { data: courseAudio } = await supabase.value
+      .from('course_audio')
+      .select('audio_id, role')
+      .eq('course_code', currentCourseId.value)
+      .in('audio_id', audioIds)
+
+    // Find matching role
+    for (const ca of (courseAudio || [])) {
+      const matchRole = isKnown ? 'known' : role
+      if (ca.role === matchRole) {
+        // Cache the result
+        if (!audioMap.value.has(text)) {
+          audioMap.value.set(text, {})
+        }
+        // Store as 'source' for known audio (for compatibility)
+        const storeRole = isKnown ? 'source' : role
+        audioMap.value.get(text)[storeRole] = ca.audio_id
+        return ca.audio_id
+      }
+    }
+
+    return null
+  } catch (err) {
+    console.warn('[CourseExplorer] Lazy audio lookup failed:', err)
+    return null
+  }
+}
+
+// Async get audio URL - uses lazy lookup on cache miss
+const getAudioUrlAsync = async (text, role, item = null) => {
+  // For INTRO items, look up by lego_id in lego_introductions
+  if (role === 'intro' && item?.legoId) {
+    const introEntry = audioMap.value.get(`intro:${item.legoId}`)
+    if (introEntry?.intro) {
+      return `${audioBaseUrl}/${introEntry.intro.toUpperCase()}.mp3`
+    }
+    return null
+  }
+
+  // Check cache first
+  const audioEntry = audioMap.value.get(text)
+  let uuid = audioEntry?.[role]
+
+  // Lazy load if not in cache
+  if (!uuid) {
+    const isKnown = role === 'source'
+    uuid = await lookupAudioLazy(text, role, isKnown)
+  }
+
+  if (!uuid) return null
+
+  return `${audioBaseUrl}/${uuid.toUpperCase()}.mp3`
+}
+
+// Load only intro audio (fast) - skip target/source which are loaded lazily
+const loadIntroAudio = async (courseId, legoIds) => {
+  if (!supabase?.value || legoIds.size === 0) return
+
+  console.log('[CourseExplorer] Loading intro audio for', legoIds.size, 'LEGOs')
+
+  const { data: introData, error: introError } = await supabase.value
+    .from('lego_introductions')
+    .select('lego_id, audio_uuid, course_code')
+    .eq('course_code', courseId)
+    .in('lego_id', [...legoIds])
+
+  if (introError) {
+    console.warn('[CourseExplorer] Could not query lego_introductions:', introError)
+    return
+  }
+
+  console.log('[CourseExplorer] Found', introData?.length || 0, 'intro audio entries')
+
+  for (const intro of (introData || [])) {
+    audioMap.value.set(`intro:${intro.lego_id}`, { intro: intro.audio_uuid })
+  }
+}
+
 // Build audio map by querying texts + audio_files tables (correct schema v12)
 // DO NOT use audio_samples table - it's legacy with 145k embedded text records
+// NOTE: This is now only used for cache restoration - new loads use lazy loading
 const buildAudioMap = async (courseId, items) => {
   console.log('[CourseExplorer] Building audio map for courseId:', courseId)
   if (!supabase?.value) return
@@ -754,17 +885,19 @@ const runPhase = async (phase, myCycleId) => {
       // For INTRO items, play intro audio; otherwise play known/source audio
       let promptUrl
       if (item.type === 'intro' && item.legoId) {
+        // Intro audio is pre-loaded, use sync lookup
         promptUrl = getAudioUrl(null, 'intro', item)
         if (promptUrl) {
           console.log('[CourseExplorer] Playing intro audio for LEGO:', item.legoId, '→', promptUrl)
         } else {
           console.warn('[CourseExplorer] NO intro audio found for LEGO:', item.legoId)
-          // Check what's in the audio map for debugging
           const introKey = `intro:${item.legoId}`
           console.log('[CourseExplorer] Looked for key:', introKey, 'audioMap has:', audioMap.value.has(introKey))
         }
       } else {
-        promptUrl = getAudioUrl(item.knownText, 'source', item)
+        // Source/known audio uses lazy loading
+        promptUrl = await getAudioUrlAsync(item.knownText, 'source', item)
+        if (myCycleId !== cycleId) return // Check after async
       }
 
       if (promptUrl) {
@@ -796,10 +929,10 @@ const runPhase = async (phase, myCycleId) => {
     }
 
     case 'voice1': {
-      // Play target1 audio
-      const voice1Url = getAudioUrl(item.targetText, 'target1', item)
+      // Play target1 audio (lazy load)
+      const voice1Url = await getAudioUrlAsync(item.targetText, 'target1', item)
+      if (myCycleId !== cycleId) return // Check after async
       console.log('[CourseExplorer] Voice1 URL for "' + item.targetText + '":', voice1Url)
-      console.log('[CourseExplorer] audioMap entry:', audioMap.value.get(item.targetText))
       if (voice1Url) {
         try {
           await audioController.value.play({ url: voice1Url })
@@ -815,14 +948,15 @@ const runPhase = async (phase, myCycleId) => {
         }
       }
       // No voice1 URL - stop (this is required audio)
-      console.warn('[CourseExplorer] No voice1 audio available')
+      console.warn('[CourseExplorer] No voice1 audio available for:', item.targetText)
       stopPlayback()
       break
     }
 
     case 'voice2': {
-      // Play target2 audio
-      const voice2Url = getAudioUrl(item.targetText, 'target2', item)
+      // Play target2 audio (lazy load)
+      const voice2Url = await getAudioUrlAsync(item.targetText, 'target2', item)
+      if (myCycleId !== cycleId) return // Check after async
       if (voice2Url) {
         try {
           await audioController.value.play({ url: voice2Url })
