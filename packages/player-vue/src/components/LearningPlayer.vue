@@ -1267,12 +1267,14 @@ const playIntroductionAudioDirectly = async (legoId) => {
     // Play the introduction audio
     return new Promise((resolve) => {
       const audio = audioController.value?.audio || new Audio()
+      introAudioElement = audio // Store for skip functionality
 
       const onEnded = () => {
         audio.removeEventListener('ended', onEnded)
         audio.removeEventListener('error', onError)
         isPlayingIntroduction.value = false
         introductionPhase.value = false
+        introAudioElement = null
         console.log('[LearningPlayer] Introduction complete for:', legoId)
         resolve(true)
       }
@@ -1283,6 +1285,7 @@ const playIntroductionAudioDirectly = async (legoId) => {
         audio.removeEventListener('error', onError)
         isPlayingIntroduction.value = false
         introductionPhase.value = false
+        introAudioElement = null
         resolve(false)
       }
 
@@ -1308,6 +1311,8 @@ const playIntroductionAudioDirectly = async (legoId) => {
  * Returns true if welcome was played (or skipped), false if no welcome needed.
  */
 let welcomeAudioElement = null // Store reference for skip functionality
+let introAudioElement = null // Store reference for intro skip functionality
+
 const playWelcomeIfNeeded = async () => {
   // Only check once per session
   if (welcomeChecked.value) return false
@@ -1414,6 +1419,17 @@ const skipWelcome = async () => {
     await courseDataProvider.value.markWelcomePlayed(learnerId.value)
   }
   console.log('[LearningPlayer] Welcome skipped')
+}
+
+const skipIntroduction = () => {
+  if (introAudioElement) {
+    introAudioElement.pause()
+    introAudioElement.currentTime = 0
+  }
+  isPlayingIntroduction.value = false
+  introductionPhase.value = false
+  introAudioElement = null
+  console.log('[LearningPlayer] Introduction skipped')
 }
 
 const startPlayback = async () => {
@@ -1887,7 +1903,13 @@ onMounted(async () => {
   await Promise.all([loadAllData(), runAnimationTimeline()])
 
   // ============================================
-  // ORCHESTRATOR INITIALIZATION
+  // STAGE 4: READY - Splash animation done
+  // Show player immediately, orchestrator inits in background
+  // ============================================
+  setLoadingStage('ready')
+
+  // ============================================
+  // ORCHESTRATOR INITIALIZATION (async, non-blocking)
   // ============================================
   const initOrchestrator = async () => {
     if (sessionItems.value.length === 0) return
@@ -1915,30 +1937,19 @@ onMounted(async () => {
       audioController.value.preload(item.phrase.audioRefs.target.voice1)
       audioController.value.preload(item.phrase.audioRefs.target.voice2)
     }
-
-    // Stage 4: Ready - mist clears
-    setLoadingStage('ready')
   }
 
-  // Initialize immediately if items are already available
+  // Initialize orchestrator when items become available
   if (sessionItems.value.length > 0) {
     await initOrchestrator()
   } else {
-    // Otherwise watch for items to load
+    // Watch for items to load
     const unwatch = watch(sessionItems, async () => {
       if (sessionItems.value.length > 0) {
         await initOrchestrator()
         unwatch()
       }
     })
-
-    // Set a timeout to go ready even if loading fails
-    setTimeout(() => {
-      if (loadingStage.value !== 'ready') {
-        console.log('[LearningPlayer] Loading timeout - proceeding with demo mode')
-        setLoadingStage('ready')
-      }
-    }, 5000)
   }
 
   // Start session timer
@@ -2037,6 +2048,15 @@ onUnmounted(() => {
           Skip intro
         </button>
       </div>
+    </div>
+  </Transition>
+
+  <!-- Introduction Audio Overlay (with skip button) -->
+  <Transition name="fade">
+    <div v-if="isPlayingIntroduction" class="intro-overlay">
+      <button class="intro-skip" @click="skipIntroduction">
+        Skip →
+      </button>
     </div>
   </Transition>
 
@@ -3355,6 +3375,34 @@ onUnmounted(() => {
 
 .welcome-skip:hover {
   background: var(--bg-elevated);
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+/* ============ INTRO SKIP BUTTON ============ */
+
+.intro-overlay {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 100;
+}
+
+.intro-skip {
+  padding: 0.5rem 1rem;
+  border-radius: 1.5rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid var(--border-medium);
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  color: var(--text-secondary);
+}
+
+.intro-skip:hover {
+  background: rgba(0, 0, 0, 0.8);
   color: var(--text-primary);
   border-color: var(--accent);
 }
