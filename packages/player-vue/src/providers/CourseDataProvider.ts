@@ -362,11 +362,18 @@ export class CourseDataProvider {
     if (!this.client) return baskets
 
     try {
+      // Convert seed_id (e.g., "S0001") to seed_number (e.g., 1)
+      const seedNumber = parseInt(seedId.replace(/^S0*/, ''), 10)
+      if (isNaN(seedNumber)) {
+        console.warn('[CourseDataProvider] Invalid seed_id format:', seedId)
+        return baskets
+      }
+
       // Query practice_cycles for all LEGOs in this seed
       const { data, error } = await this.client
         .from('practice_cycles')
         .select('*')
-        .eq('seed_id', seedId)
+        .eq('seed_number', seedNumber)
         .eq('course_code', this.courseId)
         .order('lego_id', { ascending: true })
         .order('position', { ascending: true })
