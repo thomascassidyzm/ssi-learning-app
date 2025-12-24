@@ -257,11 +257,15 @@ const scriptItemToPlayableItem = async (scriptItem) => {
   )
 
   // Build the playable item
+  // LEGO is "new" when it's being introduced in its own round (legoIndex === roundNumber)
+  // Spaced rep items review OLD LEGOs from previous rounds, so they're not "new"
+  const isNewLego = scriptItem.legoIndex === scriptItem.roundNumber
+
   return {
     lego: {
       id: scriptItem.legoId,
       type: 'M', // Default to molecular
-      new: scriptItem.type === 'intro' || scriptItem.type === 'debut',
+      new: isNewLego,
       lego: {
         known: scriptItem.knownText,
         target: scriptItem.targetText,
