@@ -12,7 +12,7 @@ import { ref, type Ref } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 // Cache configuration
-const SCRIPT_KEY_PREFIX = 'ssi-script-'
+const SCRIPT_KEY_PREFIX = 'ssi-script-v2-' // v2: fixed DEBUT items in rounds
 const AUDIO_CACHE_NAME = 'ssi-audio-v1'
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
 
