@@ -57,7 +57,7 @@ app SSiLearningApp:
     shared_resources:
       variable_registry: "apml/core/ssi-variable-registry.apml"
       supabase_project: "Shared between dashboard and learning app"
-      audio_storage: "S3 popty-bach-lfs (audio reused across courses)"
+      audio_storage: "S3 ssi-audio-stage (audio reused across courses)"
 
   ## ==========================================================================
   ## CORE SPECIFICATIONS

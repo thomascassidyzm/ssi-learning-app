@@ -235,7 +235,7 @@ const scriptItemToPlayableItem = async (scriptItem) => {
   const knownAudioUrl = await getAudioUrlFromCache(
     supabase?.value,
     scriptItem.knownText,
-    'source',
+    'known',
     scriptItem.type === 'intro' ? scriptItem : null,
     AUDIO_S3_BASE_URL
   )

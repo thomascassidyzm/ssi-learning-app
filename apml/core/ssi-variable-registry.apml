@@ -100,7 +100,7 @@ registry SSiContent:
   enum AudioRole:
     description: "Role of audio in the learning cycle"
     values:
-      source:
+      known:
         description: "Known language prompt audio"
         cadence: "natural"
         learning_cycle_phase: "PROMPT"
@@ -1880,7 +1880,7 @@ registry SSiContent:
     legacy_manifest:
       description: "Map to legacy manifest format for native app"
       mappings:
-        source: "known"
+        known: "known"
         target1: "target_slow"
         target2: "target_natural"
 

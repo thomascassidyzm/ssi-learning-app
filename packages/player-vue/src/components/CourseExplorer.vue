@@ -491,9 +491,8 @@ const lookupAudioLazy = async (text, role, isKnown = false) => {
         if (!audioMap.value.has(text)) {
           audioMap.value.set(text, {})
         }
-        // Store as 'source' for known audio (for compatibility)
-        const storeRole = isKnown ? 'source' : role
-        audioMap.value.get(text)[storeRole] = ca.audio_id
+        // Store with the role key
+        audioMap.value.get(text)[role] = ca.audio_id
         return ca.audio_id
       }
     }
@@ -522,7 +521,7 @@ const getAudioUrlAsync = async (text, role, item = null) => {
 
   // Lazy load if not in cache
   if (!uuid) {
-    const isKnown = role === 'source'
+    const isKnown = role === 'known'
     uuid = await lookupAudioLazy(text, role, isKnown)
   }
 
@@ -710,7 +709,7 @@ const buildAudioMap = async (courseId, items) => {
       if (!map.has(knownText)) {
         map.set(knownText, {})
       }
-      map.get(knownText).source = row.audio_id // Store as 'source' for getAudioUrl
+      map.get(knownText).known = row.audio_id // Store with 'known' role
       foundInV12 = true
     }
   }
@@ -933,8 +932,8 @@ const runPhase = async (phase, myCycleId) => {
           console.log('[CourseExplorer] Looked for key:', introKey, 'audioMap has:', audioMap.value.has(introKey))
         }
       } else {
-        // Source/known audio uses lazy loading
-        promptUrl = await getAudioUrlAsync(item.knownText, 'source', item)
+        // Known language audio uses lazy loading
+        promptUrl = await getAudioUrlAsync(item.knownText, 'known', item)
         if (myCycleId !== cycleId) return // Check after async
       }
 

@@ -254,9 +254,8 @@ export const lookupAudioLazy = async (
 ): Promise<string | null> => {
   // Check in-memory cache first
   const cached = audioMap.get(text)
-  const cacheRole = role === 'source' ? 'source' : role
-  if (cached?.[cacheRole]) {
-    return cached[cacheRole]
+  if (cached?.[role]) {
+    return cached[role]
   }
 
   // Query Supabase: texts → audio_files → course_audio
@@ -279,7 +278,6 @@ export const lookupAudioLazy = async (
     if (!audioData || audioData.length === 0) return null
 
     const audioIds = audioData.map((a: any) => a.id)
-    const dbRole = role === 'source' ? 'known' : role
 
     const { data: courseAudio } = await supabase
       .from('course_audio')
@@ -288,12 +286,11 @@ export const lookupAudioLazy = async (
       .in('audio_id', audioIds)
 
     for (const ca of (courseAudio || [])) {
-      if (ca.role === dbRole) {
+      if (ca.role === role) {
         if (!audioMap.has(text)) {
           audioMap.set(text, {})
         }
-        const storeRole = role === 'source' ? 'source' : role
-        audioMap.get(text)[storeRole] = ca.audio_id
+        audioMap.get(text)[role] = ca.audio_id
         return ca.audio_id
       }
     }
