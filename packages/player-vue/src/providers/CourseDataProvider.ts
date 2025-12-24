@@ -1142,16 +1142,28 @@ export async function generateLearningScript(
       usedConsolidation.add(consolidation.targetText)
     }
 
+    // CRITICAL: Remove consecutive identical phrases
+    // Early rounds may be very short - that's OK!
+    const dedupedItems: ScriptItem[] = []
+    for (const item of roundItems) {
+      const prevItem = dedupedItems[dedupedItems.length - 1]
+      // Skip if same targetText as previous item (but INTRO is never skipped - it's audio-only)
+      if (prevItem && item.type !== 'intro' && prevItem.type !== 'intro' && item.targetText === prevItem.targetText) {
+        continue // Skip this duplicate
+      }
+      dedupedItems.push(item)
+    }
+
     rounds.push({
       roundNumber: n,
       legoId: currentLego.lego.id,
       legoIndex: n,
       seedId: currentLego.seed.seed_id,
-      items: roundItems,
+      items: dedupedItems,
       spacedRepReviews: reviewIndices,
     })
 
-    allItems.push(...roundItems)
+    allItems.push(...dedupedItems)
   }
 
   console.log(`[generateLearningScript] Generated ${rounds.length} rounds with ${allItems.length} total items`)
