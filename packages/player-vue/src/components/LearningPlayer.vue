@@ -1581,94 +1581,133 @@ const handleExit = () => {
 
 onMounted(async () => {
   // ============================================
-  // AWAKENING SEQUENCE - Progressive loading
+  // AWAKENING SEQUENCE - Parallel loading with cinematic timing
+  // Data loads in background while animation plays
+  // Ready = BOTH data loaded AND animation enjoyed
   // ============================================
+
+  const startTime = Date.now()
+  const MINIMUM_ANIMATION_MS = 2800 // Let users enjoy the awakening
 
   // Stage 1: Awakening (immediate)
   setLoadingStage('awakening')
 
-  // Load adaptation consent preference
+  // Initialize sync stuff immediately (no await needed)
   loadAdaptationConsent()
-
-  // Initialize theme
   const savedTheme = localStorage.getItem('ssi-theme') || 'dark'
   theme.value = savedTheme
   document.documentElement.setAttribute('data-theme', savedTheme)
-
-  // Create real audio controller for S3 audio playback
   audioController.value = new RealAudioController()
-
-  // Small delay for visual feedback
-  await new Promise(r => setTimeout(r, 400))
-
-  // Stage 2: Finding your place
-  setLoadingStage('finding')
-
-  // Set the current course code for audio lookups
   currentCourseCode.value = courseCode.value
 
-  // Check if script is already cached (from CourseExplorer preview)
+  // Track data loading state
+  let dataReady = false
   let cachedScript = null
-  try {
-    cachedScript = await getCachedScript(courseCode.value)
-    if (cachedScript) {
-      console.log('[LearningPlayer] Found cached script with', cachedScript.rounds.length, 'rounds')
-      cachedRounds.value = cachedScript.rounds
 
-      // Capture course welcome if present
-      if (cachedScript.courseWelcome) {
-        cachedCourseWelcome.value = cachedScript.courseWelcome
-        console.log('[LearningPlayer] Found course welcome:', cachedScript.courseWelcome.id)
-      }
+  // ============================================
+  // PARALLEL TASK 1: Load all data
+  // ============================================
+  const loadAllData = async () => {
+    try {
+      // Load cache first (needed for other operations)
+      cachedScript = await getCachedScript(courseCode.value)
 
-      // Restore audio map from cache
-      if (cachedScript.audioMapObj) {
-        for (const [key, value] of Object.entries(cachedScript.audioMapObj)) {
-          audioMap.value.set(key, value)
+      if (cachedScript) {
+        console.log('[LearningPlayer] Found cached script with', cachedScript.rounds.length, 'rounds')
+        cachedRounds.value = cachedScript.rounds
+
+        // Capture course welcome if present
+        if (cachedScript.courseWelcome) {
+          cachedCourseWelcome.value = cachedScript.courseWelcome
+          console.log('[LearningPlayer] Found course welcome:', cachedScript.courseWelcome.id)
         }
-        console.log('[LearningPlayer] Restored', audioMap.value.size, 'audio entries from cache')
-      }
 
-      // Check for saved progress to resume from
-      const savedProgress = await loadSavedProgress()
-      if (savedProgress && savedProgress.lastCompletedRoundIndex !== null) {
-        // Resume from the next round after the last completed one
-        const resumeIndex = savedProgress.lastCompletedRoundIndex + 1
-        if (resumeIndex < cachedScript.rounds.length) {
-          currentRoundIndex.value = resumeIndex
-          console.log('[LearningPlayer] Resuming from round', resumeIndex, '(after completing LEGO:', savedProgress.lastCompletedLegoId + ')')
-        } else {
-          console.log('[LearningPlayer] All rounds previously completed, starting from beginning')
-          currentRoundIndex.value = 0
+        // Restore audio map from cache
+        if (cachedScript.audioMapObj) {
+          for (const [key, value] of Object.entries(cachedScript.audioMapObj)) {
+            audioMap.value.set(key, value)
+          }
+          console.log('[LearningPlayer] Restored', audioMap.value.size, 'audio entries from cache')
         }
+
+        // Now run remaining tasks in parallel
+        const parallelTasks = []
+
+        // Task: Load saved progress
+        parallelTasks.push(
+          loadSavedProgress().then(savedProgress => {
+            if (savedProgress?.lastCompletedRoundIndex !== null) {
+              const resumeIndex = savedProgress.lastCompletedRoundIndex + 1
+              if (resumeIndex < cachedScript.rounds.length) {
+                currentRoundIndex.value = resumeIndex
+                console.log('[LearningPlayer] Resuming from round', resumeIndex)
+              } else {
+                console.log('[LearningPlayer] All rounds completed, starting fresh')
+                currentRoundIndex.value = 0
+              }
+            }
+          }).catch(() => {})
+        )
+
+        // Task: Preload intro audio for first 5 LEGOs
+        if (supabase?.value) {
+          const legoIds = new Set(
+            cachedRounds.value.slice(0, 5).map(r => r.legoId).filter(Boolean)
+          )
+          if (legoIds.size > 0) {
+            parallelTasks.push(
+              loadIntroAudio(supabase.value, courseCode.value, legoIds, audioMap.value)
+            )
+          }
+        }
+
+        // Task: Initialize VAD if previously consented
+        if (adaptationConsent.value === true) {
+          parallelTasks.push(initializeVad().catch(() => {}))
+        }
+
+        // Wait for all parallel tasks
+        await Promise.all(parallelTasks)
       }
+    } catch (err) {
+      console.warn('[LearningPlayer] Data load error:', err)
     }
-  } catch (err) {
-    console.warn('[LearningPlayer] Cache check failed:', err)
+
+    dataReady = true
+    console.log('[LearningPlayer] Data loading complete in', Date.now() - startTime, 'ms')
   }
 
-  // If previously consented, initialize VAD silently
-  if (adaptationConsent.value === true) {
-    await initializeVad()
-  }
+  // ============================================
+  // PARALLEL TASK 2: Run animation timeline
+  // Stage transitions happen on fixed timing for visual consistency
+  // ============================================
+  const runAnimationTimeline = async () => {
+    // Stage 1: awakening (already set)
+    await new Promise(r => setTimeout(r, 800))
 
-  await new Promise(r => setTimeout(r, 400))
+    // Stage 2: finding
+    setLoadingStage('finding')
+    await new Promise(r => setTimeout(r, 900))
 
-  // Stage 3: Preparing session
-  setLoadingStage('preparing')
+    // Stage 3: preparing
+    setLoadingStage('preparing')
 
-  // If we have cached rounds, preload intro audio for visible LEGOs
-  if (cachedRounds.value.length > 0 && supabase?.value) {
-    const legoIds = new Set()
-    // Get first 5 rounds' LEGOs for preloading intros
-    for (const round of cachedRounds.value.slice(0, 5)) {
-      if (round.legoId) legoIds.add(round.legoId)
+    // Wait for minimum animation time
+    const elapsed = Date.now() - startTime
+    const remaining = Math.max(0, MINIMUM_ANIMATION_MS - elapsed)
+    if (remaining > 0) {
+      await new Promise(r => setTimeout(r, remaining))
     }
-    await loadIntroAudio(supabase.value, courseCode.value, legoIds, audioMap.value)
   }
 
-  // Wait for session items to load
-  // Use a watcher to initialize the orchestrator once items are available
+  // ============================================
+  // RUN BOTH IN PARALLEL
+  // ============================================
+  await Promise.all([loadAllData(), runAnimationTimeline()])
+
+  // ============================================
+  // ORCHESTRATOR INITIALIZATION
+  // ============================================
   const initOrchestrator = async () => {
     if (sessionItems.value.length === 0) return
 
@@ -1678,8 +1717,8 @@ onMounted(async () => {
     // Create CycleOrchestrator with dynamic pause duration
     const demoConfig = {
       ...DEFAULT_CONFIG.cycle,
-      pause_duration_ms: defaultPauseDuration,  // 2x target audio length
-      transition_gap_ms: 300,   // Shorter gap between phases
+      pause_duration_ms: defaultPauseDuration,
+      transition_gap_ms: 300,
     }
     orchestrator.value = new CycleOrchestrator(
       audioController.value,
@@ -1689,15 +1728,12 @@ onMounted(async () => {
     // Subscribe to events
     orchestrator.value.addEventListener(handleCycleEvent)
 
-    // Preload first few items
+    // Preload first few items (fire and forget - don't wait)
     for (const item of sessionItems.value.slice(0, 3)) {
       audioController.value.preload(item.phrase.audioRefs.known)
       audioController.value.preload(item.phrase.audioRefs.target.voice1)
       audioController.value.preload(item.phrase.audioRefs.target.voice2)
     }
-
-    // Small delay for audio preload, then ready
-    await new Promise(r => setTimeout(r, 600))
 
     // Stage 4: Ready - mist clears
     setLoadingStage('ready')
@@ -1730,8 +1766,9 @@ onMounted(async () => {
   }, 1000)
 
   // Don't auto-start - wait for user to click play
-  // This also respects browser autoplay policies
   isPlaying.value = false
+
+  console.log('[LearningPlayer] Total awakening time:', Date.now() - startTime, 'ms')
 })
 
 onUnmounted(() => {
