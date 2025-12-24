@@ -672,35 +672,23 @@ const isAwakening = computed(() => loadingStage.value !== 'ready')
 const loadingMessages = ref([]) // Messages that have finished typing
 const currentLoadingMessage = ref('') // Message currently being typed
 
-// Loading message definitions
-const LOADING_MESSAGES = {
-  awakening: 'locating your progress',
-  finding: 'preparing audio',
-  preparing: 'almost ready',
-}
+// Single loading message - simple and quick
+const LOADING_MESSAGE = 'preparing your session'
 
 // Transition to next loading stage
 const setLoadingStage = (stage) => {
   console.log('[LearningPlayer] Loading stage:', stage)
   loadingStage.value = stage
 
-  // Start typing the message for this stage
-  const message = LOADING_MESSAGES[stage]
-  if (message) {
-    typeLoadingMessage(message)
+  // Start typing on first stage only
+  if (stage === 'awakening') {
+    typeLoadingMessage(LOADING_MESSAGE)
   }
 }
 
-// Typewriter effect for loading messages
+// Typewriter effect for loading message
 let typewriterTimeout = null
 const typeLoadingMessage = (message) => {
-  // Move current to completed
-  if (currentLoadingMessage.value) {
-    loadingMessages.value.push(currentLoadingMessage.value)
-    if (loadingMessages.value.length > 3) loadingMessages.value.shift()
-  }
-
-  // Type new message
   currentLoadingMessage.value = ''
   let charIndex = 0
 
@@ -708,7 +696,7 @@ const typeLoadingMessage = (message) => {
     if (charIndex < message.length) {
       currentLoadingMessage.value += message[charIndex]
       charIndex++
-      typewriterTimeout = setTimeout(typeChar, 35)
+      typewriterTimeout = setTimeout(typeChar, 40)
     }
   }
   typeChar()
