@@ -1896,16 +1896,20 @@ onUnmounted(() => {
       </svg>
     </div>
 
-    <!-- Dust motes / fireflies - barely visible, slowly rising -->
-    <div class="dust-motes">
-      <div class="mote mote-1"></div>
-      <div class="mote mote-2"></div>
-      <div class="mote mote-3"></div>
-      <div class="mote mote-4"></div>
-      <div class="mote mote-5"></div>
-      <div class="mote mote-6"></div>
-      <div class="mote mote-7"></div>
-      <div class="mote mote-8"></div>
+    <!-- Fireflies - dancing through the dojo -->
+    <div class="fireflies">
+      <div class="firefly firefly-1"></div>
+      <div class="firefly firefly-2"></div>
+      <div class="firefly firefly-3"></div>
+      <div class="firefly firefly-4"></div>
+      <div class="firefly firefly-5"></div>
+      <div class="firefly firefly-6"></div>
+      <div class="firefly firefly-7"></div>
+      <div class="firefly firefly-8"></div>
+      <div class="firefly firefly-9"></div>
+      <div class="firefly firefly-10"></div>
+      <div class="firefly firefly-11"></div>
+      <div class="firefly firefly-12"></div>
     </div>
 
     <!-- Floating mist particles -->
@@ -2456,8 +2460,11 @@ onUnmounted(() => {
   background: radial-gradient(ellipse, rgba(0,0,0,0.02) 0%, transparent 70%);
 }
 
-/* ============ DUST MOTES / FIREFLIES ============ */
-.dust-motes {
+/* ===========================================
+   FIREFLIES - Dancing through the dojo
+   Harmonized with AwakeningLoader style
+   =========================================== */
+.fireflies {
   position: fixed;
   inset: 0;
   pointer-events: none;
@@ -2465,92 +2472,88 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-.mote {
+.firefly {
   position: absolute;
-  width: 3px;
-  height: 3px;
+  width: 4px;
+  height: 4px;
   border-radius: 50%;
-  /* Belt-colored fireflies - bioluminescent glow */
+  /* Belt-colored glow with soft spread */
   background: var(--belt-color);
-  box-shadow: 0 0 8px var(--belt-glow), 0 0 16px var(--belt-glow);
-  /* Layer two animations: rise + twinkle */
-  animation:
-    mote-rise 20s ease-in-out infinite,
-    firefly-twinkle 2s ease-in-out infinite;
+  box-shadow:
+    0 0 6px 2px var(--belt-glow),
+    0 0 14px 4px color-mix(in srgb, var(--belt-glow) 35%, transparent);
+  animation: firefly-dance 12s ease-in-out infinite;
+  opacity: 0;
   transition: background 0.5s ease, box-shadow 0.5s ease;
 }
 
 /* Black belt = subtle white fireflies, pure zen */
-.belt-black .mote {
-  background: rgba(255, 255, 255, 0.3);
-  box-shadow: 0 0 4px rgba(255, 255, 255, 0.2);
+.belt-black .firefly {
+  background: rgba(255, 255, 255, 0.4);
+  box-shadow:
+    0 0 6px 2px rgba(255, 255, 255, 0.3),
+    0 0 14px 4px rgba(255, 255, 255, 0.15);
 }
 
-/* Distribute motes across the scene - staggered rise + twinkle timings */
-.mote-1 { left: 10%; bottom: 20%; animation: mote-rise 22s ease-in-out infinite, firefly-twinkle 1.8s ease-in-out infinite; animation-delay: 0s, 0s; }
-.mote-2 { left: 25%; bottom: 35%; animation: mote-rise 18s ease-in-out infinite, firefly-twinkle 2.3s ease-in-out infinite; animation-delay: -4s, -0.7s; }
-.mote-3 { left: 40%; bottom: 15%; animation: mote-rise 25s ease-in-out infinite, firefly-twinkle 1.6s ease-in-out infinite; animation-delay: -8s, -1.2s; }
-.mote-4 { left: 55%; bottom: 28%; animation: mote-rise 20s ease-in-out infinite, firefly-twinkle 2.1s ease-in-out infinite; animation-delay: -12s, -0.3s; }
-.mote-5 { left: 70%; bottom: 22%; animation: mote-rise 24s ease-in-out infinite, firefly-twinkle 1.9s ease-in-out infinite; animation-delay: -3s, -1.5s; }
-.mote-6 { left: 85%; bottom: 32%; animation: mote-rise 19s ease-in-out infinite, firefly-twinkle 2.4s ease-in-out infinite; animation-delay: -16s, -0.9s; }
-.mote-7 { left: 15%; bottom: 40%; animation: mote-rise 23s ease-in-out infinite, firefly-twinkle 1.7s ease-in-out infinite; animation-delay: -7s, -1.8s; opacity: 0.6; }
-.mote-8 { left: 60%; bottom: 45%; animation: mote-rise 21s ease-in-out infinite, firefly-twinkle 2.2s ease-in-out infinite; animation-delay: -11s, -0.5s; opacity: 0.5; }
+/* Distribute fireflies across the scene with staggered timing */
+.firefly-1 { left: 8%; top: 65%; animation-delay: 0s; animation-duration: 11s; }
+.firefly-2 { left: 82%; top: 38%; animation-delay: -1.2s; animation-duration: 13s; }
+.firefly-3 { left: 38%; top: 72%; animation-delay: -2.5s; animation-duration: 10s; }
+.firefly-4 { left: 92%; top: 55%; animation-delay: -3.8s; animation-duration: 14s; }
+.firefly-5 { left: 18%; top: 42%; animation-delay: -5s; animation-duration: 12s; }
+.firefly-6 { left: 68%; top: 68%; animation-delay: -6.2s; animation-duration: 11s; }
+.firefly-7 { left: 28%; top: 48%; animation-delay: -7.5s; animation-duration: 13s; }
+.firefly-8 { left: 58%; top: 58%; animation-delay: -8.8s; animation-duration: 10s; }
+.firefly-9 { left: 48%; top: 35%; animation-delay: -10s; animation-duration: 12s; }
+.firefly-10 { left: 75%; top: 78%; animation-delay: -11.2s; animation-duration: 14s; }
+.firefly-11 { left: 5%; top: 52%; animation-delay: -12.5s; animation-duration: 11s; }
+.firefly-12 { left: 88%; top: 28%; animation-delay: -13.8s; animation-duration: 13s; }
 
-@keyframes mote-rise {
-  0% {
-    transform: translateY(0) translateX(0) scale(1);
+/* Firefly dance - organic curved paths like the awakening loader */
+@keyframes firefly-dance {
+  0%, 100% {
+    transform: translate(0, 0);
     opacity: 0;
   }
-  10% {
+  8% {
     opacity: 0.6;
   }
+  20% {
+    transform: translate(30px, -20px);
+    opacity: 1;
+  }
+  35% {
+    transform: translate(50px, -45px);
+    opacity: 0.5;
+  }
   50% {
-    transform: translateY(-100px) translateX(15px) scale(0.8);
+    transform: translate(25px, -60px);
+    opacity: 0.9;
+  }
+  65% {
+    transform: translate(-15px, -40px);
     opacity: 0.4;
   }
-  90% {
-    opacity: 0.2;
-  }
-  100% {
-    transform: translateY(-200px) translateX(-10px) scale(0.5);
-    opacity: 0;
-  }
-}
-
-/* Firefly twinkle - the characteristic bioluminescent pulse */
-@keyframes firefly-twinkle {
-  0%, 100% {
-    filter: brightness(1);
-    box-shadow: 0 0 8px var(--belt-glow), 0 0 16px var(--belt-glow);
-  }
-  20% {
-    filter: brightness(1.8);
-    box-shadow: 0 0 12px var(--belt-glow), 0 0 24px var(--belt-glow), 0 0 36px var(--belt-glow);
-  }
-  40% {
-    filter: brightness(0.4);
-    box-shadow: 0 0 4px var(--belt-glow);
-  }
-  60% {
-    filter: brightness(2);
-    box-shadow: 0 0 14px var(--belt-glow), 0 0 28px var(--belt-glow), 0 0 42px var(--belt-glow);
-  }
   80% {
-    filter: brightness(0.6);
-    box-shadow: 0 0 6px var(--belt-glow), 0 0 10px var(--belt-glow);
+    transform: translate(-25px, -20px);
+    opacity: 0.7;
+  }
+  92% {
+    opacity: 0.3;
   }
 }
 
-/* Light theme motes - still use belt colors but slightly more visible */
-[data-theme="light"] .mote {
+/* Light theme fireflies - still use belt colors but slightly more visible */
+[data-theme="light"] .firefly {
   background: var(--belt-color);
-  box-shadow: 0 0 6px var(--belt-glow), 0 0 12px var(--belt-glow);
-  opacity: 0.7;
+  box-shadow:
+    0 0 5px 2px var(--belt-glow),
+    0 0 10px 3px color-mix(in srgb, var(--belt-glow) 30%, transparent);
 }
 
-/* Light theme black belt - subtle grey motes */
-[data-theme="light"] .belt-black .mote {
-  background: rgba(0, 0, 0, 0.2);
+/* Light theme black belt - subtle grey fireflies */
+[data-theme="light"] .belt-black .firefly {
+  background: rgba(0, 0, 0, 0.25);
   box-shadow: 0 0 4px rgba(0, 0, 0, 0.1);
 }
 
