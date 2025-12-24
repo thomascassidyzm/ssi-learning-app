@@ -210,11 +210,15 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
 
     try {
       // Get unique seed IDs
-      const seedIds = new Set(loadedItems.map(item => item.seed.seed_id))
+      const seedIds = [...new Set(loadedItems.map(item => item.seed.seed_id))]
 
-      // Load baskets for each seed
-      for (const seedId of seedIds) {
-        const seedBaskets = await courseDataProvider.getLegoBasketsForSeed(seedId)
+      // Load all baskets in parallel (not sequentially!)
+      const basketResults = await Promise.all(
+        seedIds.map(seedId => courseDataProvider.getLegoBasketsForSeed(seedId))
+      )
+
+      // Merge all results
+      for (const seedBaskets of basketResults) {
         for (const [legoId, basket] of seedBaskets) {
           baskets.value.set(legoId, basket)
           engine.registerBasket(legoId, basket)
