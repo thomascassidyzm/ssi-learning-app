@@ -2254,7 +2254,12 @@ onUnmounted(() => {
       <!-- Known Language Text - Fixed Height -->
       <div class="text-zone text-zone--known">
         <transition name="text-fade" mode="out-in">
-          <p class="known-text" :key="currentPhrase.known">
+          <!-- Loading message when awakening -->
+          <p v-if="isAwakening" class="known-text loading-text" key="loading">
+            {{ currentLoadingMessage }}<span class="loading-cursor">▌</span>
+          </p>
+          <!-- Normal known text -->
+          <p v-else class="known-text" :key="currentPhrase.known">
             {{ currentPhrase.known }}
           </p>
         </transition>
@@ -2301,26 +2306,9 @@ onUnmounted(() => {
         </svg>
 
         <!-- Center content -->
-        <div class="ring-center">
-          <!-- Loading terminal when awakening -->
-          <div v-if="isAwakening" class="loading-terminal">
-            <div
-              v-for="(msg, idx) in loadingMessages"
-              :key="idx"
-              class="loading-line loading-line-done"
-            >
-              <span class="loading-prefix">›</span>
-              <span>{{ msg }}</span>
-              <span class="loading-check">✓</span>
-            </div>
-            <div v-if="currentLoadingMessage" class="loading-line loading-line-current">
-              <span class="loading-prefix">›</span>
-              <span>{{ currentLoadingMessage }}</span>
-              <span class="loading-cursor">▌</span>
-            </div>
-          </div>
-          <!-- Show play button when paused (not loading) -->
-          <div v-else-if="!isPlaying" class="play-indicator">
+        <div class="ring-center" :class="{ 'is-loading': isAwakening }">
+          <!-- Play button - fades in when ready -->
+          <div v-if="!isPlaying" class="play-indicator" :class="{ 'fade-in': !isAwakening }">
             <svg viewBox="0 0 24 24" fill="currentColor">
               <polygon points="6 3 20 12 6 21 6 3"/>
             </svg>
@@ -3250,6 +3238,12 @@ onUnmounted(() => {
 
 .play-indicator {
   color: white;
+  opacity: 0.3;
+  transition: opacity 0.5s ease;
+}
+
+.play-indicator.fade-in {
+  opacity: 1;
 }
 
 .play-indicator svg {
@@ -3258,51 +3252,26 @@ onUnmounted(() => {
   margin-left: 4px; /* Optical centering */
 }
 
-/* Loading terminal inside ring */
-.loading-terminal {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+/* Loading state styles */
+.loading-text {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 0.6875rem;
-  text-align: left;
-  padding: 0.5rem;
-}
-
-.loading-line {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  white-space: nowrap;
-}
-
-.loading-line-done {
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.loading-line-current {
-  color: var(--accent, #fcd34d);
-}
-
-.loading-prefix {
-  color: var(--accent, #fcd34d);
-  opacity: 0.7;
-}
-
-.loading-check {
-  color: rgba(120, 200, 120, 0.6);
-  font-size: 0.5625rem;
-  margin-left: 0.25rem;
+  color: var(--text-secondary);
 }
 
 .loading-cursor {
+  color: var(--accent, #fcd34d);
   animation: cursor-blink 1s step-end infinite;
-  margin-left: -2px;
 }
 
 @keyframes cursor-blink {
   0%, 50% { opacity: 1; }
   51%, 100% { opacity: 0; }
+}
+
+/* Ring during loading - subtle appearance */
+.ring-center.is-loading {
+  background: rgba(0, 0, 0, 0.3);
+  border-color: transparent;
 }
 
 .phase-icon {
