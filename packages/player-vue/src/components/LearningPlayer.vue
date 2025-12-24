@@ -1024,6 +1024,27 @@ const handleCycleEvent = (event) => {
         // Start next item after short delay
         setTimeout(async () => {
           if (isPlaying.value && orchestrator.value) {
+            // INTRO items: play introduction audio directly, then advance
+            if (nextScriptItem.type === 'intro') {
+              console.log('[LearningPlayer] Playing INTRO item for:', nextScriptItem.legoId)
+              const nextPlayable = await scriptItemToPlayableItem(nextScriptItem)
+              if (nextPlayable) {
+                currentPlayableItem.value = nextPlayable
+                // Play intro audio and wait for completion
+                const introPlayed = await playIntroductionAudioDirectly(nextScriptItem.legoId)
+                if (introPlayed) {
+                  console.log('[LearningPlayer] INTRO complete, advancing to next item')
+                }
+                // Advance to next item in round (the debut)
+                currentItemInRound.value++
+                // Trigger next item by emitting a fake completion
+                if (isPlaying.value) {
+                  handleCycleEvent({ type: 'item_completed' })
+                }
+              }
+              return
+            }
+
             const nextPlayable = await scriptItemToPlayableItem(nextScriptItem)
             if (nextPlayable) {
               // Update pause duration
@@ -1203,6 +1224,80 @@ const playIntroductionIfNeeded = async (item) => {
     })
   } catch (err) {
     console.error('[LearningPlayer] Error checking for introduction:', err)
+    return false
+  }
+}
+
+/**
+ * Play introduction audio directly for a LEGO (for script-based playback).
+ * Unlike playIntroductionIfNeeded, this doesn't check if the LEGO is "new" -
+ * it just plays the intro audio for the given legoId.
+ */
+const playIntroductionAudioDirectly = async (legoId) => {
+  console.log('[LearningPlayer] playIntroductionAudioDirectly for:', legoId)
+
+  // Skip if already played this session
+  if (playedIntroductions.value.has(legoId)) {
+    console.log('[LearningPlayer] Intro already played this session for:', legoId)
+    return false
+  }
+
+  // Get intro audio from cache or database
+  if (!courseDataProvider.value) {
+    console.log('[LearningPlayer] No courseDataProvider')
+    return false
+  }
+
+  try {
+    const introAudio = await courseDataProvider.value.getIntroductionAudio(legoId)
+    console.log('[LearningPlayer] Intro audio for', legoId, ':', introAudio)
+
+    if (!introAudio || !introAudio.url) {
+      console.log('[LearningPlayer] No intro audio found for:', legoId)
+      return false
+    }
+
+    // Mark as playing intro
+    isPlayingIntroduction.value = true
+    introductionPhase.value = true
+    playedIntroductions.value.add(legoId)
+
+    console.log('[LearningPlayer] Playing introduction audio:', introAudio.url)
+
+    // Play the introduction audio
+    return new Promise((resolve) => {
+      const audio = audioController.value?.audio || new Audio()
+
+      const onEnded = () => {
+        audio.removeEventListener('ended', onEnded)
+        audio.removeEventListener('error', onError)
+        isPlayingIntroduction.value = false
+        introductionPhase.value = false
+        console.log('[LearningPlayer] Introduction complete for:', legoId)
+        resolve(true)
+      }
+
+      const onError = (e) => {
+        console.error('[LearningPlayer] Introduction audio error:', e)
+        audio.removeEventListener('ended', onEnded)
+        audio.removeEventListener('error', onError)
+        isPlayingIntroduction.value = false
+        introductionPhase.value = false
+        resolve(false)
+      }
+
+      audio.addEventListener('ended', onEnded)
+      audio.addEventListener('error', onError)
+      audio.src = introAudio.url
+      audio.load()
+
+      audio.play().catch((e) => {
+        console.error('[LearningPlayer] Failed to play introduction:', e)
+        onError(e)
+      })
+    })
+  } catch (err) {
+    console.error('[LearningPlayer] Error playing introduction:', err)
     return false
   }
 }
