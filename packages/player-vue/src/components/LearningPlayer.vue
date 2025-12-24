@@ -1506,6 +1506,12 @@ const startPlayback = async () => {
 }
 
 const handleSkip = () => {
+  // Skip intro audio if playing
+  if (isPlayingIntroduction.value) {
+    skipIntroduction()
+    return
+  }
+  // Otherwise skip current orchestrator phase
   if (orchestrator.value) {
     orchestrator.value.skipPhase()
   }
@@ -2051,14 +2057,6 @@ onUnmounted(() => {
     </div>
   </Transition>
 
-  <!-- Introduction Audio Overlay (with skip button) -->
-  <Transition name="fade">
-    <div v-if="isPlayingIntroduction" class="intro-overlay">
-      <button class="intro-skip" @click="skipIntroduction">
-        Skip →
-      </button>
-    </div>
-  </Transition>
 
   <div
     class="player"
@@ -3379,33 +3377,6 @@ onUnmounted(() => {
   border-color: var(--accent);
 }
 
-/* ============ INTRO SKIP BUTTON ============ */
-
-.intro-overlay {
-  position: fixed;
-  top: 1rem;
-  right: 1rem;
-  z-index: 100;
-}
-
-.intro-skip {
-  padding: 0.5rem 1rem;
-  border-radius: 1.5rem;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border: 1px solid var(--border-medium);
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(8px);
-  color: var(--text-secondary);
-}
-
-.intro-skip:hover {
-  background: rgba(0, 0, 0, 0.8);
-  color: var(--text-primary);
-  border-color: var(--accent);
-}
 
 @keyframes pulse {
   0%, 100% { opacity: 0.6; transform: scale(1); }
