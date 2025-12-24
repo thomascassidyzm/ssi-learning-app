@@ -904,12 +904,14 @@ async function loadDebutPhrases(
   try {
     // Query course_practice_phrases directly (practice_cycles view filters by audio existence)
     // Use the source table to get ALL phrases, even those without audio yet
+    // Include position >= 1 to get DEBUT phrases (position 1) and practice phrases (position >= 2)
+    // Position 0 = components (skip), Position 1 = debut combinations, Position >= 2 = practice
     // Ordered by target_syllable_count ASC to get shortest first
     const { data, error } = await supabase
       .from('course_practice_phrases')
       .select('*')
       .eq('course_code', courseId)
-      .gte('position', 2)
+      .gte('position', 1) // Include debut (1) and practice (2+), skip components (0)
       .order('seed_number', { ascending: true })
       .order('lego_index', { ascending: true })
       .order('target_syllable_count', { ascending: true }) // Shortest first for debut
