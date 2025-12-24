@@ -1128,20 +1128,39 @@ const handleResume = () => {
  * Returns true if intro was played (caller should wait for it to finish).
  */
 const playIntroductionIfNeeded = async (item) => {
+  console.log('[LearningPlayer] playIntroductionIfNeeded called:', {
+    legoId: item?.lego?.id,
+    isNew: item?.lego?.new,
+    phraseType: item?.phrase?.phraseType,
+  })
+
   // Only play intro for new LEGOs
-  if (!item?.lego?.new) return false
+  if (!item?.lego?.new) {
+    console.log('[LearningPlayer] Skipping intro - LEGO not new')
+    return false
+  }
 
   const legoId = item.lego.id
 
   // Skip if already played this session
-  if (playedIntroductions.value.has(legoId)) return false
+  if (playedIntroductions.value.has(legoId)) {
+    console.log('[LearningPlayer] Skipping intro - already played this session')
+    return false
+  }
 
   // Check if introduction audio exists in database
-  if (!courseDataProvider.value) return false
+  if (!courseDataProvider.value) {
+    console.log('[LearningPlayer] Skipping intro - no courseDataProvider')
+    return false
+  }
 
   try {
     const introAudio = await courseDataProvider.value.getIntroductionAudio(legoId)
-    if (!introAudio || !introAudio.url) return false
+    console.log('[LearningPlayer] Intro audio lookup result:', introAudio)
+    if (!introAudio || !introAudio.url) {
+      console.log('[LearningPlayer] Skipping intro - no audio found')
+      return false
+    }
 
     console.log('[LearningPlayer] Playing introduction for LEGO:', legoId)
 
