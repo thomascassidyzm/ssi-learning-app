@@ -1148,13 +1148,31 @@ export async function generateLearningScript(
 
     // CRITICAL: Remove consecutive identical phrases
     // Early rounds may be very short - that's OK!
+    // INTRO is special (plays introduction audio like "The Welsh for X is Y")
+    // After INTRO, first practice should NOT be identical to the LEGO text
     const dedupedItems: ScriptItem[] = []
+    const legoTargetText = baseItem.targetText // The LEGO's own text
+
     for (const item of roundItems) {
-      const prevItem = dedupedItems[dedupedItems.length - 1]
-      // Skip if same targetText as previous item (but INTRO is never skipped - it's audio-only)
-      if (prevItem && item.type !== 'intro' && prevItem.type !== 'intro' && item.targetText === prevItem.targetText) {
-        continue // Skip this duplicate
+      // INTRO is always added
+      if (item.type === 'intro') {
+        dedupedItems.push(item)
+        continue
       }
+
+      const prevItem = dedupedItems[dedupedItems.length - 1]
+
+      // After INTRO, skip if this item is the same as the LEGO text
+      // (first practice should be a combination, not the bare LEGO repeated)
+      if (prevItem?.type === 'intro' && item.targetText === legoTargetText) {
+        continue
+      }
+
+      // Skip consecutive identical phrases
+      if (prevItem && item.targetText === prevItem.targetText) {
+        continue
+      }
+
       dedupedItems.push(item)
     }
 
