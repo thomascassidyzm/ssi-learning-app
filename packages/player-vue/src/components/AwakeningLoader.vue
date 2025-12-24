@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 
 const props = defineProps({
   stage: {
@@ -14,35 +14,104 @@ const props = defineProps({
 
 const emit = defineEmits(['ready'])
 
-// Status messages - appear like brushstrokes
-const STAGES = {
-  awakening: { message: 'Awakening', dots: true },
-  finding: { message: 'Finding your place', dots: true },
-  preparing: { message: 'Preparing your session', dots: true },
-  ready: { message: 'Ready', dots: false }
+// ============================================
+// TYPEWRITER STATUS MESSAGES
+// Each stage has a sequence of messages that type out
+// ============================================
+const STAGE_MESSAGES = {
+  awakening: [
+    'initializing neural pathways',
+    'warming up language engines',
+  ],
+  finding: [
+    'locating your progress',
+    'retrieving session data',
+  ],
+  preparing: [
+    'preparing audio streams',
+    'calibrating rhythm patterns',
+  ],
+  ready: [
+    'ready',
+  ]
 }
 
-const stageConfig = computed(() => STAGES[props.stage] || STAGES.awakening)
+// Current message state
+const displayedLines = ref([]) // Lines already typed
+const currentLine = ref('') // Line currently being typed
+const cursorVisible = ref(true)
+const isTyping = ref(false)
 
-// Animated dots for loading states
-const dots = ref('')
-let dotsInterval = null
+let typewriterInterval = null
+let cursorInterval = null
+let messageQueue = []
+let charIndex = 0
 
+// Cursor blink
 onMounted(() => {
-  dotsInterval = setInterval(() => {
-    if (stageConfig.value.dots) {
-      dots.value = dots.value.length >= 3 ? '' : dots.value + '.'
-    } else {
-      dots.value = ''
-    }
-  }, 400)
+  cursorInterval = setInterval(() => {
+    cursorVisible.value = !cursorVisible.value
+  }, 530)
 })
 
-// Cleanup
-import { onUnmounted } from 'vue'
-onUnmounted(() => {
-  if (dotsInterval) clearInterval(dotsInterval)
-})
+// Type out messages for current stage
+const typeMessages = async (messages) => {
+  messageQueue = [...messages]
+  await typeNextMessage()
+}
+
+const typeNextMessage = () => {
+  return new Promise((resolve) => {
+    if (messageQueue.length === 0) {
+      resolve()
+      return
+    }
+
+    const message = messageQueue.shift()
+    charIndex = 0
+    currentLine.value = ''
+    isTyping.value = true
+
+    typewriterInterval = setInterval(() => {
+      if (charIndex < message.length) {
+        currentLine.value += message[charIndex]
+        charIndex++
+      } else {
+        clearInterval(typewriterInterval)
+        isTyping.value = false
+
+        // Move current line to displayed lines (max 4 visible)
+        displayedLines.value.push(currentLine.value)
+        if (displayedLines.value.length > 4) {
+          displayedLines.value.shift()
+        }
+        currentLine.value = ''
+
+        // Small delay before next message
+        setTimeout(() => {
+          typeNextMessage().then(resolve)
+        }, 400)
+      }
+    }, 35) // Typing speed - 35ms per char
+  })
+}
+
+// Watch stage changes
+watch(() => props.stage, async (newStage, oldStage) => {
+  // Clear any ongoing typing
+  if (typewriterInterval) clearInterval(typewriterInterval)
+
+  // Get messages for this stage
+  const messages = STAGE_MESSAGES[newStage] || []
+
+  // Type them out
+  await typeMessages(messages)
+
+  // If ready, emit after transition
+  if (newStage === 'ready') {
+    setTimeout(() => emit('ready'), 1500)
+  }
+}, { immediate: true })
 
 // Mist intensity based on stage
 const mistIntensity = computed(() => {
@@ -55,11 +124,10 @@ const mistIntensity = computed(() => {
   }
 })
 
-// When stage becomes 'ready', emit after transition
-watch(() => props.stage, (newStage) => {
-  if (newStage === 'ready') {
-    setTimeout(() => emit('ready'), 1200) // Wait for mist to clear
-  }
+// Cleanup
+onUnmounted(() => {
+  if (typewriterInterval) clearInterval(typewriterInterval)
+  if (cursorInterval) clearInterval(cursorInterval)
 })
 </script>
 
@@ -96,25 +164,43 @@ watch(() => props.stage, (newStage) => {
       <div class="firefly firefly-4"></div>
       <div class="firefly firefly-5"></div>
       <div class="firefly firefly-6"></div>
+      <div class="firefly firefly-7"></div>
+      <div class="firefly firefly-8"></div>
     </div>
 
-    <!-- Status Message - Brushstroke Style -->
-    <div class="status-container">
-      <div class="status-message" :key="stage">
-        <span class="status-text">{{ stageConfig.message }}</span>
-        <span class="status-dots">{{ dots }}</span>
-      </div>
+    <!-- Terminal-style Status Display -->
+    <div class="terminal-container">
+      <div class="terminal-frame">
+        <!-- Past lines (dimmed) -->
+        <div
+          v-for="(line, idx) in displayedLines"
+          :key="idx"
+          class="terminal-line terminal-line-past"
+          :style="{ opacity: 0.3 + (idx / displayedLines.length) * 0.4 }"
+        >
+          <span class="line-prefix">›</span>
+          <span class="line-text">{{ line }}</span>
+          <span class="line-check">✓</span>
+        </div>
 
-      <!-- Subtle progress indicator -->
-      <div class="progress-breath">
-        <div class="breath-circle"></div>
+        <!-- Current typing line -->
+        <div v-if="currentLine || isTyping" class="terminal-line terminal-line-current">
+          <span class="line-prefix">›</span>
+          <span class="line-text">{{ currentLine }}</span>
+          <span class="cursor" :class="{ visible: cursorVisible }">▌</span>
+        </div>
+
+        <!-- Waiting cursor when not typing -->
+        <div v-else-if="stage !== 'ready'" class="terminal-line terminal-line-waiting">
+          <span class="line-prefix">›</span>
+          <span class="cursor" :class="{ visible: cursorVisible }">▌</span>
+        </div>
       </div>
     </div>
 
     <!-- Torii gate silhouette emerges -->
     <div class="torii-reveal">
       <svg viewBox="0 0 120 100" class="torii-svg">
-        <!-- Outer glow when ready -->
         <defs>
           <filter id="torii-glow" x="-50%" y="-50%" width="200%" height="200%">
             <feGaussianBlur stdDeviation="3" result="blur"/>
@@ -137,10 +223,15 @@ watch(() => props.stage, (newStage) => {
         </g>
       </svg>
     </div>
+
+    <!-- Subtle scan line overlay for tech feel -->
+    <div class="scanlines"></div>
   </div>
 </template>
 
 <style scoped>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&family=Noto+Sans+JP:wght@300;400&display=swap');
+
 .awakening {
   position: fixed;
   inset: 0;
@@ -151,18 +242,107 @@ watch(() => props.stage, (newStage) => {
   justify-content: center;
   background: linear-gradient(
     180deg,
-    #0a0a12 0%,
-    #0d0d18 30%,
-    #12121f 60%,
-    #0a0a12 100%
+    #050508 0%,
+    #0a0a12 30%,
+    #0d0d18 60%,
+    #080810 100%
   );
   overflow: hidden;
-  transition: opacity 0.8s ease-out;
+  transition: opacity 1s ease-out;
 }
 
 .awakening.stage-ready {
   opacity: 0;
   pointer-events: none;
+}
+
+/* Subtle scanlines for tech feel */
+.scanlines {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.15) 2px,
+    rgba(0, 0, 0, 0.15) 4px
+  );
+  pointer-events: none;
+  opacity: 0.4;
+}
+
+/* ===========================================
+   TERMINAL STATUS DISPLAY
+   =========================================== */
+.terminal-container {
+  position: relative;
+  z-index: 20;
+  margin-bottom: 4rem;
+}
+
+.terminal-frame {
+  min-width: 280px;
+  max-width: 400px;
+  padding: 1.5rem 2rem;
+  background: rgba(10, 10, 18, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  backdrop-filter: blur(8px);
+  box-shadow:
+    0 0 40px rgba(0, 0, 0, 0.5),
+    inset 0 0 20px rgba(255, 255, 255, 0.02);
+}
+
+.terminal-line {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.875rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  line-height: 1.8;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.terminal-line-past {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.terminal-line-current {
+  color: var(--belt-glow, #fcd34d);
+}
+
+.terminal-line-waiting {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.line-prefix {
+  color: var(--belt-glow, #fcd34d);
+  opacity: 0.7;
+  font-weight: 500;
+}
+
+.line-text {
+  flex: 1;
+}
+
+.line-check {
+  color: rgba(120, 200, 120, 0.6);
+  font-size: 0.75rem;
+  margin-left: 0.5rem;
+}
+
+.cursor {
+  color: var(--belt-glow, #fcd34d);
+  opacity: 0;
+  transition: opacity 0.1s;
+  font-weight: 300;
+  margin-left: -2px;
+}
+
+.cursor.visible {
+  opacity: 1;
 }
 
 /* ===========================================
@@ -200,11 +380,11 @@ watch(() => props.stage, (newStage) => {
   height: 40%;
   background: radial-gradient(
     ellipse 100% 100% at 50% 100%,
-    rgba(200, 210, 230, 0.15) 0%,
-    rgba(180, 190, 210, 0.08) 40%,
+    rgba(180, 190, 210, 0.12) 0%,
+    rgba(160, 170, 190, 0.06) 40%,
     transparent 70%
   );
-  animation: mist-drift 20s ease-in-out infinite;
+  animation: mist-drift 25s ease-in-out infinite;
 }
 
 .mist-bank-1 {
@@ -214,13 +394,13 @@ watch(() => props.stage, (newStage) => {
 
 .mist-bank-2 {
   left: -20%;
-  animation-delay: -7s;
+  animation-delay: -9s;
   opacity: 0.7;
 }
 
 .mist-bank-3 {
   left: 10%;
-  animation-delay: -14s;
+  animation-delay: -17s;
   opacity: 0.5;
 }
 
@@ -231,17 +411,17 @@ watch(() => props.stage, (newStage) => {
   height: 150px;
   background: radial-gradient(
     ellipse at center,
-    rgba(200, 210, 230, 0.12) 0%,
+    rgba(180, 190, 210, 0.1) 0%,
     transparent 70%
   );
   border-radius: 50%;
-  animation: wisp-float 15s ease-in-out infinite;
+  animation: wisp-float 18s ease-in-out infinite;
 }
 
 .mist-wisp-1 { left: 10%; top: 50%; animation-delay: 0s; }
-.mist-wisp-2 { left: 40%; top: 40%; animation-delay: -4s; width: 400px; }
-.mist-wisp-3 { left: 70%; top: 55%; animation-delay: -8s; }
-.mist-wisp-4 { left: 25%; top: 35%; animation-delay: -12s; width: 250px; }
+.mist-wisp-2 { left: 40%; top: 40%; animation-delay: -5s; width: 400px; }
+.mist-wisp-3 { left: 70%; top: 55%; animation-delay: -10s; }
+.mist-wisp-4 { left: 25%; top: 35%; animation-delay: -15s; width: 250px; }
 
 /* Mist tendrils - highest, most ethereal */
 .mist-tendril {
@@ -251,16 +431,16 @@ watch(() => props.stage, (newStage) => {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(200, 210, 230, 0.06) 30%,
-    rgba(200, 210, 230, 0.08) 50%,
-    rgba(200, 210, 230, 0.06) 70%,
+    rgba(180, 190, 210, 0.05) 30%,
+    rgba(180, 190, 210, 0.07) 50%,
+    rgba(180, 190, 210, 0.05) 70%,
     transparent 100%
   );
-  animation: tendril-drift 25s ease-in-out infinite;
+  animation: tendril-drift 30s ease-in-out infinite;
 }
 
 .mist-tendril-1 { left: -10%; top: 25%; }
-.mist-tendril-2 { right: -10%; top: 20%; animation-delay: -12s; animation-direction: reverse; }
+.mist-tendril-2 { right: -10%; top: 20%; animation-delay: -15s; animation-direction: reverse; }
 
 @keyframes mist-drift {
   0%, 100% { transform: translateX(0); }
@@ -286,7 +466,7 @@ watch(() => props.stage, (newStage) => {
 }
 
 /* ===========================================
-   FIREFLIES - Dancing through the mist
+   FIREFLIES - More of them, more magical
    =========================================== */
 .fireflies {
   position: absolute;
@@ -296,137 +476,49 @@ watch(() => props.stage, (newStage) => {
 
 .firefly {
   position: absolute;
-  width: 4px;
-  height: 4px;
+  width: 3px;
+  height: 3px;
   background: var(--belt-glow, #fcd34d);
   border-radius: 50%;
   box-shadow:
     0 0 6px 2px var(--belt-glow, #fcd34d),
-    0 0 12px 4px rgba(252, 211, 77, 0.3);
-  animation: firefly-dance 8s ease-in-out infinite;
+    0 0 12px 4px rgba(252, 211, 77, 0.25);
+  animation: firefly-dance 10s ease-in-out infinite;
   opacity: 0;
 }
 
-.firefly-1 { left: 15%; top: 60%; animation-delay: 0s; }
-.firefly-2 { left: 75%; top: 45%; animation-delay: -1.5s; }
-.firefly-3 { left: 45%; top: 70%; animation-delay: -3s; }
-.firefly-4 { left: 85%; top: 55%; animation-delay: -4.5s; }
-.firefly-5 { left: 25%; top: 40%; animation-delay: -6s; }
-.firefly-6 { left: 60%; top: 65%; animation-delay: -7s; }
+.firefly-1 { left: 12%; top: 65%; animation-delay: 0s; }
+.firefly-2 { left: 78%; top: 42%; animation-delay: -1.2s; }
+.firefly-3 { left: 42%; top: 72%; animation-delay: -2.5s; }
+.firefly-4 { left: 88%; top: 58%; animation-delay: -3.8s; }
+.firefly-5 { left: 22%; top: 38%; animation-delay: -5s; }
+.firefly-6 { left: 65%; top: 68%; animation-delay: -6.2s; }
+.firefly-7 { left: 35%; top: 45%; animation-delay: -7.5s; }
+.firefly-8 { left: 55%; top: 55%; animation-delay: -8.8s; }
 
 @keyframes firefly-dance {
   0%, 100% {
     transform: translate(0, 0);
     opacity: 0;
   }
-  10% { opacity: 0.8; }
-  25% {
-    transform: translate(30px, -20px);
+  8% { opacity: 0.7; }
+  20% {
+    transform: translate(25px, -15px);
     opacity: 1;
   }
-  50% {
-    transform: translate(15px, -40px);
+  40% {
+    transform: translate(40px, -35px);
+    opacity: 0.5;
+  }
+  60% {
+    transform: translate(20px, -50px);
+    opacity: 0.8;
+  }
+  80% {
+    transform: translate(-15px, -30px);
     opacity: 0.6;
   }
-  75% {
-    transform: translate(-20px, -25px);
-    opacity: 0.9;
-  }
-  90% { opacity: 0.4; }
-}
-
-/* ===========================================
-   STATUS MESSAGE - Brushstroke aesthetic
-   =========================================== */
-.status-container {
-  position: relative;
-  z-index: 10;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2rem;
-}
-
-.status-message {
-  font-family: 'Noto Sans JP', sans-serif;
-  font-size: 1.5rem;
-  font-weight: 300;
-  letter-spacing: 0.15em;
-  color: rgba(255, 255, 255, 0.85);
-  text-transform: lowercase;
-  animation: message-appear 0.8s ease-out;
-}
-
-.status-text {
-  display: inline-block;
-}
-
-.status-dots {
-  display: inline-block;
-  width: 2em;
-  text-align: left;
-  opacity: 0.6;
-}
-
-@keyframes message-appear {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-    filter: blur(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-    filter: blur(0);
-  }
-}
-
-/* Progress breath - subtle pulsing circle */
-.progress-breath {
-  position: relative;
-  width: 60px;
-  height: 60px;
-}
-
-.breath-circle {
-  position: absolute;
-  inset: 0;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 50%;
-  animation: breath 3s ease-in-out infinite;
-}
-
-.breath-circle::before {
-  content: '';
-  position: absolute;
-  inset: 8px;
-  border: 1px solid var(--belt-glow, #fcd34d);
-  border-radius: 50%;
-  opacity: 0.4;
-  animation: breath 3s ease-in-out infinite reverse;
-}
-
-@keyframes breath {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 0.3;
-  }
-  50% {
-    transform: scale(1.15);
-    opacity: 0.6;
-  }
-}
-
-/* Stage-specific states */
-.stage-ready .progress-breath {
-  animation: breath-complete 0.6s ease-out forwards;
-}
-
-@keyframes breath-complete {
-  to {
-    transform: scale(1.5);
-    opacity: 0;
-  }
+  92% { opacity: 0.3; }
 }
 
 /* ===========================================
@@ -434,12 +526,12 @@ watch(() => props.stage, (newStage) => {
    =========================================== */
 .torii-reveal {
   position: absolute;
-  bottom: 15%;
+  bottom: 12%;
   left: 50%;
   transform: translateX(-50%);
-  width: 120px;
-  height: 100px;
-  opacity: calc(1 - var(--mist-opacity) * 0.8);
+  width: 100px;
+  height: 85px;
+  opacity: calc(1 - var(--mist-opacity) * 0.85);
   transition: opacity 2s ease-out;
 }
 
@@ -449,31 +541,31 @@ watch(() => props.stage, (newStage) => {
 }
 
 .torii-gate {
-  fill: rgba(15, 15, 25, 0.9);
-  transition: fill 1s ease-out;
+  fill: rgba(20, 20, 35, 0.85);
+  transition: fill 1.2s ease-out;
 }
 
 .stage-ready .torii-gate {
-  fill: rgba(30, 30, 45, 0.95);
+  fill: rgba(35, 35, 55, 0.9);
 }
 
 /* ===========================================
    RESPONSIVE
    =========================================== */
 @media (max-width: 480px) {
-  .status-message {
-    font-size: 1.2rem;
+  .terminal-frame {
+    min-width: 260px;
+    padding: 1.25rem 1.5rem;
   }
 
-  .progress-breath {
-    width: 50px;
-    height: 50px;
+  .terminal-line {
+    font-size: 0.8rem;
   }
 
   .torii-reveal {
-    width: 80px;
-    height: 70px;
-    bottom: 20%;
+    width: 70px;
+    height: 60px;
+    bottom: 18%;
   }
 }
 </style>
