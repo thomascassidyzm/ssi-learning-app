@@ -1047,9 +1047,9 @@ const handleCycleEvent = (event) => {
 
             const nextPlayable = await scriptItemToPlayableItem(nextScriptItem)
             if (nextPlayable) {
-              // Update pause duration
+              // Update pause duration: 1.5s boot up + target1 duration
               if (!turboActive.value && nextPlayable.audioDurations) {
-                const pauseMs = Math.round(nextPlayable.audioDurations.target1 * 2 * 1000)
+                const pauseMs = 1500 + Math.round(nextPlayable.audioDurations.target1 * 1000)
                 orchestrator.value.updateConfig({ pause_duration_ms: pauseMs })
               }
               // Store for currentItem computed
@@ -1083,10 +1083,10 @@ const handleCycleEvent = (event) => {
         }
         currentItemIndex.value = nextIndex
 
-        // Update pause duration for next item (2x target audio length)
+        // Update pause duration: 1.5s boot up + target1 duration
         // Unless turbo mode is active
         if (!turboActive.value && nextItem?.audioDurations) {
-          const pauseMs = Math.round(nextItem.audioDurations.target1 * 2 * 1000)
+          const pauseMs = 1500 + Math.round(nextItem.audioDurations.target1 * 1000)
           orchestrator.value?.updateConfig({ pause_duration_ms: pauseMs })
         }
 
@@ -1435,6 +1435,24 @@ const startPlayback = async () => {
 
     console.log('[LearningPlayer] Starting round-based playback, round:', currentRoundIndex.value, 'LEGO:', currentRound.value?.legoId)
 
+    // INTRO items: play intro audio directly, then advance to next item
+    if (scriptItem.type === 'intro') {
+      console.log('[LearningPlayer] First item is INTRO for:', scriptItem.legoId)
+      const playableItem = await scriptItemToPlayableItem(scriptItem)
+      if (playableItem) {
+        currentPlayableItem.value = playableItem
+        // Play intro audio and wait for completion
+        await playIntroductionAudioDirectly(scriptItem.legoId)
+        // Advance to next item in round (the debut)
+        currentItemInRound.value++
+        // Continue with next item
+        if (isPlaying.value) {
+          handleCycleEvent({ type: 'item_completed' })
+        }
+      }
+      return
+    }
+
     // Convert to playable item
     const playableItem = await scriptItemToPlayableItem(scriptItem)
     if (!playableItem) {
@@ -1445,12 +1463,9 @@ const startPlayback = async () => {
     // Store for currentItem computed
     currentPlayableItem.value = playableItem
 
-    // Check if this LEGO needs an introduction first
-    await playIntroductionIfNeeded(playableItem)
-
-    // Set pause duration for current item (2x target audio length)
+    // Set pause duration: 1.5s boot up + target1 duration
     if (!turboActive.value && playableItem.audioDurations) {
-      const pauseMs = Math.round(playableItem.audioDurations.target1 * 2 * 1000)
+      const pauseMs = 1500 + Math.round(playableItem.audioDurations.target1 * 1000)
       orchestrator.value.updateConfig({ pause_duration_ms: pauseMs })
     }
 
@@ -1465,9 +1480,9 @@ const startPlayback = async () => {
     // Check if this LEGO needs an introduction first
     await playIntroductionIfNeeded(currentItem.value)
 
-    // Set pause duration for current item (2x target audio length)
+    // Set pause duration: 1.5s boot up + target1 duration
     if (!turboActive.value && currentItem.value.audioDurations) {
-      const pauseMs = Math.round(currentItem.value.audioDurations.target1 * 2 * 1000)
+      const pauseMs = 1500 + Math.round(currentItem.value.audioDurations.target1 * 1000)
       orchestrator.value.updateConfig({ pause_duration_ms: pauseMs })
     }
     orchestrator.value.startItem(currentItem.value)
@@ -1643,10 +1658,10 @@ const toggleTurbo = () => {
       // Turbo mode: fixed 2s pause
       orchestrator.value.updateConfig({ pause_duration_ms: 2000 })
     } else {
-      // Normal mode: 2x target audio duration
+      // Normal mode: 1.5s boot up + target1 duration
       const item = currentItem.value
       const pauseMs = item?.audioDurations
-        ? Math.round(item.audioDurations.target1 * 2 * 1000)
+        ? 1500 + Math.round(item.audioDurations.target1 * 1000)
         : 5000 // Fallback
       orchestrator.value.updateConfig({ pause_duration_ms: pauseMs })
     }
@@ -1877,8 +1892,8 @@ onMounted(async () => {
   const initOrchestrator = async () => {
     if (sessionItems.value.length === 0) return
 
-    // Calculate default pause duration from first item (2x target audio)
-    const defaultPauseDuration = Math.round(sessionItems.value[0].audioDurations.target1 * 2 * 1000)
+    // Calculate default pause duration from first item (1.5s boot up + target1)
+    const defaultPauseDuration = 1500 + Math.round(sessionItems.value[0].audioDurations.target1 * 1000)
 
     // Create CycleOrchestrator with dynamic pause duration
     const demoConfig = {
