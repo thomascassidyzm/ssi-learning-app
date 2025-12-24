@@ -530,12 +530,33 @@ const getAudioUrlAsync = async (text, role, item = null) => {
   return `${audioBaseUrl}/${uuid.toUpperCase()}.mp3`
 }
 
-// Load only intro audio (fast) - skip target/source which are loaded lazily
+// Load only intro audio (fast) - skip target/known which are loaded lazily
+// Tries v12 schema (course_audio with role='presentation') first, falls back to legacy lego_introductions
 const loadIntroAudio = async (courseId, legoIds) => {
   if (!supabase?.value || legoIds.size === 0) return
 
   console.log('[CourseExplorer] Loading intro audio for', legoIds.size, 'LEGOs')
 
+  // Try v12 schema first: course_audio with role='presentation'
+  // context field contains the lego_id (e.g., 'S0001L01')
+  const { data: v12Data, error: v12Error } = await supabase.value
+    .from('course_audio')
+    .select('context, audio_id')
+    .eq('course_code', courseId)
+    .eq('role', 'presentation')
+    .in('context', [...legoIds])
+
+  if (!v12Error && v12Data && v12Data.length > 0) {
+    for (const intro of v12Data) {
+      if (intro.context && intro.audio_id) {
+        audioMap.value.set(`intro:${intro.context}`, { intro: intro.audio_id })
+      }
+    }
+    console.log('[CourseExplorer] Found', v12Data.length, 'intro audio entries (v12 schema)')
+    return
+  }
+
+  // Fall back to legacy lego_introductions table
   const { data: introData, error: introError } = await supabase.value
     .from('lego_introductions')
     .select('lego_id, audio_uuid, course_code')
@@ -547,7 +568,7 @@ const loadIntroAudio = async (courseId, legoIds) => {
     return
   }
 
-  console.log('[CourseExplorer] Found', introData?.length || 0, 'intro audio entries')
+  console.log('[CourseExplorer] Found', introData?.length || 0, 'intro audio entries (legacy)')
 
   for (const intro of (introData || [])) {
     audioMap.value.set(`intro:${intro.lego_id}`, { intro: intro.audio_uuid })

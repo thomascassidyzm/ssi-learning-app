@@ -303,6 +303,7 @@ export const lookupAudioLazy = async (
 }
 
 // Load intro audio UUIDs for LEGOs
+// Tries v12 schema (course_audio with role='presentation') first, falls back to legacy lego_introductions
 export const loadIntroAudio = async (
   supabase: SupabaseClient,
   courseCode: string,
@@ -312,6 +313,26 @@ export const loadIntroAudio = async (
   if (legoIds.size === 0) return
 
   try {
+    // Try v12 schema first: course_audio with role='presentation'
+    // context field contains the lego_id (e.g., 'S0001L01')
+    const { data: v12Data, error: v12Error } = await supabase
+      .from('course_audio')
+      .select('context, audio_id')
+      .eq('course_code', courseCode)
+      .eq('role', 'presentation')
+      .in('context', [...legoIds])
+
+    if (!v12Error && v12Data && v12Data.length > 0) {
+      for (const intro of v12Data) {
+        if (intro.context && intro.audio_id) {
+          audioMap.set(`intro:${intro.context}`, { intro: intro.audio_id })
+        }
+      }
+      console.log('[ScriptCache] Loaded', v12Data.length, 'intro audio entries (v12 schema)')
+      return
+    }
+
+    // Fall back to legacy lego_introductions table
     const { data: introData, error } = await supabase
       .from('lego_introductions')
       .select('lego_id, audio_uuid')
@@ -327,7 +348,7 @@ export const loadIntroAudio = async (
       audioMap.set(`intro:${intro.lego_id}`, { intro: intro.audio_uuid })
     }
 
-    console.log('[ScriptCache] Loaded', introData?.length || 0, 'intro audio entries')
+    console.log('[ScriptCache] Loaded', introData?.length || 0, 'intro audio entries (legacy)')
   } catch (err) {
     console.warn('[ScriptCache] Intro audio load failed:', err)
   }
