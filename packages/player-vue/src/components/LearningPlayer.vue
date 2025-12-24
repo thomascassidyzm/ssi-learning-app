@@ -12,7 +12,7 @@ import SessionComplete from './SessionComplete.vue'
 import OnboardingTooltips from './OnboardingTooltips.vue'
 import AwakeningLoader from './AwakeningLoader.vue'
 import { useLearningSession } from '../composables/useLearningSession'
-import { useScriptCache } from '../composables/useScriptCache'
+import { useScriptCache, setCachedScript } from '../composables/useScriptCache'
 import { generateLearningScript } from '../providers/CourseDataProvider'
 
 const emit = defineEmits(['close'])
@@ -1668,6 +1668,54 @@ onMounted(async () => {
 
         // Wait for all parallel tasks
         await Promise.all(parallelTasks)
+      } else if (courseDataProvider.value && supabase?.value) {
+        // ============================================
+        // GENERATE NEW SCRIPT (cache was empty)
+        // ============================================
+        console.log('[LearningPlayer] No cached script, generating new one...')
+
+        try {
+          const { rounds, allItems } = await generateLearningScript(
+            courseDataProvider.value,
+            supabase.value,
+            courseCode.value,
+            AUDIO_S3_BASE_URL,
+            50, // maxLegos
+            0   // offset
+          )
+
+          if (rounds.length > 0) {
+            console.log('[LearningPlayer] Generated script with', rounds.length, 'rounds')
+            cachedRounds.value = rounds
+
+            // Cache for next time
+            const audioMapObj = Object.fromEntries(audioMap.value)
+            const totalCycles = allItems.length
+            const estimatedMinutes = Math.round(totalCycles * 0.2) // ~12s per cycle
+
+            await setCachedScript(courseCode.value, {
+              rounds,
+              totalSeeds: rounds.length,
+              totalLegos: rounds.length,
+              totalCycles,
+              estimatedMinutes,
+              audioMapObj,
+            })
+
+            console.log('[LearningPlayer] Cached script for future use')
+
+            // Preload intro audio for first 5 LEGOs
+            const legoIds = new Set(
+              rounds.slice(0, 5).map(r => r.legoId).filter(Boolean)
+            )
+            if (legoIds.size > 0) {
+              await loadIntroAudio(supabase.value, courseCode.value, legoIds, audioMap.value)
+            }
+          }
+        } catch (genErr) {
+          console.warn('[LearningPlayer] Script generation failed:', genErr)
+          // Will fall back to session-based progression
+        }
       }
     } catch (err) {
       console.warn('[LearningPlayer] Data load error:', err)
