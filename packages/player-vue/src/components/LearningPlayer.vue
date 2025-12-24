@@ -10,7 +10,7 @@ import {
 } from '@ssi/core'
 import SessionComplete from './SessionComplete.vue'
 import OnboardingTooltips from './OnboardingTooltips.vue'
-import AwakeningLoader from './AwakeningLoader.vue'
+// AwakeningLoader removed - loading state now shown inline in player
 import { useLearningSession } from '../composables/useLearningSession'
 import { useScriptCache, setCachedScript } from '../composables/useScriptCache'
 import { generateLearningScript } from '../providers/CourseDataProvider'
@@ -669,11 +669,49 @@ const currentPlayableItem = ref(null)
 // ============================================
 const loadingStage = ref('awakening') // 'awakening' | 'finding' | 'preparing' | 'ready'
 const isAwakening = computed(() => loadingStage.value !== 'ready')
+const loadingMessages = ref([]) // Messages that have finished typing
+const currentLoadingMessage = ref('') // Message currently being typed
+
+// Loading message definitions
+const LOADING_MESSAGES = {
+  awakening: 'locating your progress',
+  finding: 'preparing audio',
+  preparing: 'almost ready',
+}
 
 // Transition to next loading stage
 const setLoadingStage = (stage) => {
   console.log('[LearningPlayer] Loading stage:', stage)
   loadingStage.value = stage
+
+  // Start typing the message for this stage
+  const message = LOADING_MESSAGES[stage]
+  if (message) {
+    typeLoadingMessage(message)
+  }
+}
+
+// Typewriter effect for loading messages
+let typewriterTimeout = null
+const typeLoadingMessage = (message) => {
+  // Move current to completed
+  if (currentLoadingMessage.value) {
+    loadingMessages.value.push(currentLoadingMessage.value)
+    if (loadingMessages.value.length > 3) loadingMessages.value.shift()
+  }
+
+  // Type new message
+  currentLoadingMessage.value = ''
+  let charIndex = 0
+
+  const typeChar = () => {
+    if (charIndex < message.length) {
+      currentLoadingMessage.value += message[charIndex]
+      charIndex++
+      typewriterTimeout = setTimeout(typeChar, 35)
+    }
+  }
+  typeChar()
 }
 
 // Introduction playback state
@@ -1989,12 +2027,6 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <!-- Awakening Loader - Shows while initializing -->
-  <AwakeningLoader
-    v-if="isAwakening"
-    :stage="loadingStage"
-    :belt-color="currentBelt.color"
-  />
 
   <!-- Paused Summary Overlay -->
   <Transition name="session-complete">
@@ -2062,7 +2094,7 @@ onUnmounted(() => {
     class="player"
     :class="[`belt-${currentBelt.name}`, { 'is-paused': !isPlaying }]"
     :style="beltCssVars"
-    v-show="!showSessionComplete && !isAwakening"
+    v-show="!showSessionComplete"
   >
     <!-- Moonlit Dojo Background Layers -->
     <div class="bg-gradient"></div>
@@ -2270,8 +2302,25 @@ onUnmounted(() => {
 
         <!-- Center content -->
         <div class="ring-center">
-          <!-- Show play button when paused -->
-          <div v-if="!isPlaying" class="play-indicator">
+          <!-- Loading terminal when awakening -->
+          <div v-if="isAwakening" class="loading-terminal">
+            <div
+              v-for="(msg, idx) in loadingMessages"
+              :key="idx"
+              class="loading-line loading-line-done"
+            >
+              <span class="loading-prefix">›</span>
+              <span>{{ msg }}</span>
+              <span class="loading-check">✓</span>
+            </div>
+            <div v-if="currentLoadingMessage" class="loading-line loading-line-current">
+              <span class="loading-prefix">›</span>
+              <span>{{ currentLoadingMessage }}</span>
+              <span class="loading-cursor">▌</span>
+            </div>
+          </div>
+          <!-- Show play button when paused (not loading) -->
+          <div v-else-if="!isPlaying" class="play-indicator">
             <svg viewBox="0 0 24 24" fill="currentColor">
               <polygon points="6 3 20 12 6 21 6 3"/>
             </svg>
@@ -3207,6 +3256,53 @@ onUnmounted(() => {
   width: 40px;
   height: 40px;
   margin-left: 4px; /* Optical centering */
+}
+
+/* Loading terminal inside ring */
+.loading-terminal {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6875rem;
+  text-align: left;
+  padding: 0.5rem;
+}
+
+.loading-line {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.loading-line-done {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.loading-line-current {
+  color: var(--accent, #fcd34d);
+}
+
+.loading-prefix {
+  color: var(--accent, #fcd34d);
+  opacity: 0.7;
+}
+
+.loading-check {
+  color: rgba(120, 200, 120, 0.6);
+  font-size: 0.5625rem;
+  margin-left: 0.25rem;
+}
+
+.loading-cursor {
+  animation: cursor-blink 1s step-end infinite;
+  margin-left: -2px;
+}
+
+@keyframes cursor-blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
 }
 
 .phase-icon {
