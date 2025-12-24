@@ -202,6 +202,8 @@ const totalCycles = ref(0)       // Cycles in current script preview
 const LEGOS_PER_PAGE = 50        // How many LEGOs to load at a time
 const currentPage = ref(0)       // Current pagination page (0-indexed)
 const isLoadingMore = ref(false) // Loading state for pagination
+const scriptLoaded = ref(false)  // Has script been loaded yet?
+const isLoadingScript = ref(false) // Loading state for script tab
 
 // Audio map for resolving text -> audio UUIDs
 const audioMap = ref(new Map())
@@ -256,48 +258,79 @@ const phaseLabel = computed(() => {
   }
 })
 
-// Load course content (with cache-first strategy)
-const loadContent = async (forceRefresh = false) => {
-  console.log('[CourseExplorer] loadContent called, forceRefresh:', forceRefresh)
-  console.log('[CourseExplorer] courseDataProvider:', !!courseDataProvider?.value)
-  console.log('[CourseExplorer] supabase:', !!supabase?.value)
-  console.log('[CourseExplorer] course:', props.course?.course_code)
+// FAST: Load just summary stats (seed count, LEGO count) - called on mount
+const loadSummary = async () => {
+  console.log('[CourseExplorer] loadSummary called (FAST)')
 
-  if (!courseDataProvider?.value) {
-    // Demo mode - create sample rounds
-    console.log('[CourseExplorer] No courseDataProvider, using demo mode')
-    rounds.value = createDemoRounds()
+  if (!supabase?.value) {
+    console.log('[CourseExplorer] No supabase, using demo mode')
     totalSeeds.value = 10
     totalLegos.value = 10
-    loadedLegos.value = 10
-    totalCycles.value = 50
     isLoading.value = false
     return
   }
 
   const courseId = props.course?.course_code || 'demo'
-  console.log('[CourseExplorer] Using courseId:', courseId)
+  currentCourseId.value = courseId
+
+  try {
+    // Run both count queries in parallel - FAST
+    const [seedResult, legoResult] = await Promise.all([
+      supabase.value
+        .from('course_seeds')
+        .select('seed_number', { count: 'exact', head: true })
+        .eq('course_code', courseId),
+      supabase.value
+        .from('course_legos')
+        .select('lego_id', { count: 'exact', head: true })
+        .eq('course_code', courseId)
+    ])
+
+    totalSeeds.value = seedResult.count || 0
+    totalLegos.value = legoResult.count || 0
+    console.log('[CourseExplorer] Summary loaded: ', totalSeeds.value, 'seeds,', totalLegos.value, 'LEGOs')
+  } catch (err) {
+    console.warn('[CourseExplorer] Summary load error:', err)
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// DEFERRED: Load script and audio (only when Script tab is opened)
+const loadScript = async (forceRefresh = false) => {
+  console.log('[CourseExplorer] loadScript called, forceRefresh:', forceRefresh)
+
+  // Skip if already loaded and not forcing refresh
+  if (scriptLoaded.value && !forceRefresh) {
+    console.log('[CourseExplorer] Script already loaded, skipping')
+    return
+  }
+
+  if (!courseDataProvider?.value) {
+    // Demo mode
+    rounds.value = createDemoRounds()
+    loadedLegos.value = 10
+    totalCycles.value = 50
+    scriptLoaded.value = true
+    return
+  }
+
+  const courseId = props.course?.course_code || 'demo'
 
   // Try cache first (unless forcing refresh)
   if (!forceRefresh) {
-    console.log('[CourseExplorer] Checking cache...')
     try {
       const cached = await getCachedScript(courseId)
-      console.log('[CourseExplorer] Cache result:', cached ? 'HIT' : 'MISS')
       if (cached) {
-        console.log('[CourseExplorer] Using cached data from', new Date(cached.cachedAt).toLocaleString())
-        // Store course ID for lazy audio lookups (even from cache)
-        currentCourseId.value = courseId
+        console.log('[CourseExplorer] Using cached script from', new Date(cached.cachedAt).toLocaleString())
         rounds.value = cached.rounds
-        totalSeeds.value = cached.totalSeeds
-        totalLegos.value = cached.totalLegos
-        loadedLegos.value = cached.loadedLegos || cached.totalLegos // Backwards compat
+        loadedLegos.value = cached.loadedLegos || cached.rounds?.length || 0
         totalCycles.value = cached.totalCycles
-        // Restore audio map from cached object (may be partial - lazy loading fills in the rest)
         audioMap.value = new Map(Object.entries(cached.audioMapObj || {}))
         loadedFromCache.value = true
         cachedAt.value = cached.cachedAt
-        isLoading.value = false
+        scriptLoaded.value = true
+        isLoadingScript.value = false
         return
       }
     } catch (err) {
@@ -305,70 +338,55 @@ const loadContent = async (forceRefresh = false) => {
     }
   }
 
-  console.log('[CourseExplorer] Proceeding to load fresh data...')
-
   try {
-    // Show appropriate loading state
-    if (forceRefresh) {
-      isRefreshing.value = true
-    } else {
-      isLoading.value = true
-    }
+    isLoadingScript.value = true
+    if (forceRefresh) isRefreshing.value = true
     error.value = null
 
-    // Get total seed count first
-    console.log('[CourseExplorer] Querying seed count for:', courseId)
-    const { data: seedData, error: seedError } = await supabase.value
-      .from('course_seeds')
-      .select('seed_number', { count: 'exact' })
-      .eq('course_code', courseId)
-
-    if (seedError) {
-      console.warn('[CourseExplorer] Could not get seed count:', seedError)
-    }
-
-    totalSeeds.value = seedData?.length || 0
-    console.log('[CourseExplorer] Seed count:', totalSeeds.value)
-
-    // Query TOTAL LEGO count for the entire course (for stats display)
-    const { data: legoCountData, error: legoCountError } = await supabase.value
-      .from('course_legos')
-      .select('lego_id', { count: 'exact' })
-      .eq('course_code', courseId)
-
-    if (legoCountError) {
-      console.warn('[CourseExplorer] Could not get LEGO count:', legoCountError)
-    }
-    totalLegos.value = legoCountData?.length || 0
-    console.log('[CourseExplorer] Total LEGO count:', totalLegos.value)
-
-    // Store course ID for lazy audio lookups
-    currentCourseId.value = courseId
-
-    // Generate learning script for first N LEGOs (preview mode)
-    console.log('[CourseExplorer] Calling generateLearningScript for courseId:', courseId)
+    // Generate learning script for first N LEGOs
+    console.log('[CourseExplorer] Generating script for:', courseId)
     const script = await generateLearningScript(
       courseDataProvider.value,
       supabase.value,
       courseId,
       audioBaseUrl,
-      LEGOS_PER_PAGE // Limit to first 50 LEGOs for preview
+      LEGOS_PER_PAGE
     )
-    console.log('[CourseExplorer] generateLearningScript returned:', script?.rounds?.length, 'rounds')
+    console.log('[CourseExplorer] Script generated:', script?.rounds?.length, 'rounds')
 
     rounds.value = script.rounds
-    loadedLegos.value = script.rounds.length  // How many LEGOs we actually loaded
+    loadedLegos.value = script.rounds.length
     totalCycles.value = script.allItems.length
 
-    // FAST: Only load intro audio upfront - target/source audio is loaded lazily on play
+    // Load intro audio for first few rounds only (rest loads lazily)
     const legoIds = new Set()
-    for (const item of script.allItems) {
-      if (item.type === 'intro' && item.legoId) {
-        legoIds.add(item.legoId)
+    const PRELOAD_ROUNDS = 5
+    for (let i = 0; i < Math.min(PRELOAD_ROUNDS, script.rounds.length); i++) {
+      for (const item of script.rounds[i].items) {
+        if (item.type === 'intro' && item.legoId) {
+          legoIds.add(item.legoId)
+        }
       }
     }
     await loadIntroAudio(courseId, legoIds)
-    console.log('[CourseExplorer] Intro audio loaded (target/source will load lazily)')
+    console.log('[CourseExplorer] Preloaded intro audio for first', PRELOAD_ROUNDS, 'rounds')
+
+    // Load remaining intro audio in background (non-blocking)
+    const remainingLegoIds = new Set()
+    for (let i = PRELOAD_ROUNDS; i < script.rounds.length; i++) {
+      for (const item of script.rounds[i].items) {
+        if (item.type === 'intro' && item.legoId) {
+          remainingLegoIds.add(item.legoId)
+        }
+      }
+    }
+    if (remainingLegoIds.size > 0) {
+      loadIntroAudio(courseId, remainingLegoIds).then(() => {
+        console.log('[CourseExplorer] Background loaded remaining intro audio')
+      })
+    }
+
+    scriptLoaded.value = true
 
     // Cache the script structure (audio map is minimal now - just intros)
     // Target/source audio will be cached as it's lazily loaded
@@ -421,21 +439,29 @@ const loadContent = async (forceRefresh = false) => {
     loadedFromCache.value = false
     cachedAt.value = Date.now()
 
-    console.log('[CourseExplorer] Loaded', script.rounds.length, 'rounds,', script.allItems.length, 'total cycles (FAST - lazy audio)')
+    console.log('[CourseExplorer] Loaded', script.rounds.length, 'rounds,', script.allItems.length, 'total cycles')
   } catch (err) {
-    console.error('[CourseExplorer] Load error:', err)
-    error.value = 'Failed to load course content'
+    console.error('[CourseExplorer] Script load error:', err)
+    error.value = 'Failed to load script'
   } finally {
-    console.log('[CourseExplorer] Finally block - setting isLoading=false')
-    isLoading.value = false
+    isLoadingScript.value = false
     isRefreshing.value = false
+  }
+}
+
+// Switch to script view (triggers load if needed)
+const switchToScript = () => {
+  view.value = 'script'
+  if (!scriptLoaded.value) {
+    loadScript()
   }
 }
 
 // Force refresh from database
 const refreshContent = () => {
   currentPage.value = 0
-  loadContent(true)
+  scriptLoaded.value = false
+  loadScript(true)
 }
 
 // Load a specific page of LEGOs
@@ -1206,8 +1232,10 @@ const formatCachedDate = computed(() => {
 
 // Lifecycle
 onMounted(() => {
-  console.log('[CourseExplorer] === VERSION 2024-12-23-A === Component mounted')
-  loadContent()
+  console.log('[CourseExplorer] === VERSION 2024-12-24-A === Component mounted')
+  // FAST: Only load summary stats on mount (seeds + LEGOs count)
+  // Script is loaded lazily when user switches to Script tab
+  loadSummary()
 })
 
 onUnmounted(() => {
@@ -1294,7 +1322,7 @@ onUnmounted(() => {
       <button
         class="tab"
         :class="{ active: view === 'script' }"
-        @click="view = 'script'"
+        @click="switchToScript"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -1349,7 +1377,7 @@ onUnmounted(() => {
       <div class="summary-card">
         <h2>Learning Script</h2>
         <p class="preview-hint">View the complete learning journey with all cycles. Click any phrase to play its audio.</p>
-        <button class="view-script-btn" @click="view = 'script'">
+        <button class="view-script-btn" @click="switchToScript">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
             <path d="M14 2v6h6"/>
@@ -1361,7 +1389,13 @@ onUnmounted(() => {
 
     <!-- Script View - Unified view with clickable items -->
     <div v-else class="script-view" ref="scriptContainer">
-      <div class="script-content">
+      <!-- Loading state for script -->
+      <div v-if="isLoadingScript" class="script-loading">
+        <div class="loading-spinner"></div>
+        <p>Loading script...</p>
+      </div>
+
+      <div v-else class="script-content">
         <div
           v-for="(round, roundIdx) in rounds"
           :key="round.roundNumber"
@@ -1893,6 +1927,21 @@ onUnmounted(() => {
 
 .script-content {
   padding: 1rem 1rem 120px;
+}
+
+.script-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  gap: 1rem;
+  color: var(--text-secondary);
+}
+
+.script-loading p {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.875rem;
 }
 
 /* Pagination Controls */
