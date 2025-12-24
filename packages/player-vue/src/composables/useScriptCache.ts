@@ -15,8 +15,28 @@ const DB_NAME = 'ssi-script-cache'
 const DB_VERSION = 3 // Must match CourseExplorer
 const STORE_NAME = 'scripts'
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
+const LS_KEY_PREFIX = 'ssi-script-'
 
 let dbInstance: IDBDatabase | null = null
+let indexedDBFailed = false // Track if IndexedDB is broken, skip it next time
+
+// Reset cache state - useful for debugging or recovering from corruption
+export const resetCacheState = async (): Promise<void> => {
+  indexedDBFailed = false
+  dbInstance = null
+  try {
+    // Try to delete the corrupted database
+    const deleteRequest = indexedDB.deleteDatabase(DB_NAME)
+    await new Promise<void>((resolve) => {
+      deleteRequest.onsuccess = () => resolve()
+      deleteRequest.onerror = () => resolve() // Don't fail, just continue
+      deleteRequest.onblocked = () => resolve()
+    })
+    console.log('[ScriptCache] Database reset complete')
+  } catch (err) {
+    console.warn('[ScriptCache] Database reset failed:', err)
+  }
+}
 
 // Types
 export interface ScriptItem {
@@ -61,6 +81,43 @@ export interface CachedScript {
   courseWelcome?: CourseWelcome
 }
 
+// localStorage fallback functions (for when IndexedDB fails)
+const getFromLocalStorage = (courseCode: string): CachedScript | null => {
+  try {
+    const key = `${LS_KEY_PREFIX}${courseCode}`
+    const stored = localStorage.getItem(key)
+    if (!stored) return null
+
+    const data = JSON.parse(stored) as CachedScript
+    // Check TTL
+    if (Date.now() - data.cachedAt < CACHE_TTL_MS) {
+      console.log('[ScriptCache] Loaded from localStorage fallback')
+      return data
+    }
+    // Expired, remove it
+    localStorage.removeItem(key)
+    return null
+  } catch (err) {
+    console.warn('[ScriptCache] localStorage read failed:', err)
+    return null
+  }
+}
+
+const setToLocalStorage = (courseCode: string, data: CachedScript): boolean => {
+  try {
+    const key = `${LS_KEY_PREFIX}${courseCode}`
+    // Strip audioMapObj to save space - it can be rebuilt
+    const slimData = { ...data, audioMapObj: {} }
+    localStorage.setItem(key, JSON.stringify(slimData))
+    console.log('[ScriptCache] Saved to localStorage fallback')
+    return true
+  } catch (err) {
+    // localStorage might be full (5MB limit)
+    console.warn('[ScriptCache] localStorage write failed:', err)
+    return false
+  }
+}
+
 // Open IndexedDB
 const openDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
@@ -88,6 +145,11 @@ const openDB = (): Promise<IDBDatabase> => {
 
 // Get cached script
 export const getCachedScript = async (courseCode: string): Promise<CachedScript | null> => {
+  // If IndexedDB previously failed, go straight to localStorage
+  if (indexedDBFailed) {
+    return getFromLocalStorage(courseCode)
+  }
+
   const timeoutPromise = new Promise<never>((_, reject) => {
     setTimeout(() => reject(new Error('Cache timeout after 500ms')), 500)
   })
@@ -116,15 +178,29 @@ export const getCachedScript = async (courseCode: string): Promise<CachedScript 
 
     return result
   } catch (err) {
-    console.warn('[ScriptCache] Read failed:', err)
-    return null
+    console.warn('[ScriptCache] IndexedDB read failed, trying localStorage:', err)
+    indexedDBFailed = true
+    dbInstance = null // Reset so we don't keep a bad reference
+    return getFromLocalStorage(courseCode)
   }
 }
 
 // Set cached script
 export const setCachedScript = async (courseCode: string, data: Omit<CachedScript, 'courseCode' | 'cachedAt'>): Promise<void> => {
+  const fullData: CachedScript = {
+    courseCode,
+    ...data,
+    cachedAt: Date.now()
+  }
+
+  // If IndexedDB previously failed, go straight to localStorage
+  if (indexedDBFailed) {
+    setToLocalStorage(courseCode, fullData)
+    return
+  }
+
   const timeoutPromise = new Promise<never>((_, reject) => {
-    setTimeout(() => reject(new Error('Cache write timeout after 15s')), 15000)
+    setTimeout(() => reject(new Error('Cache write timeout after 2s')), 2000)
   })
 
   try {
@@ -134,18 +210,18 @@ export const setCachedScript = async (courseCode: string, data: Omit<CachedScrip
       new Promise<void>((resolve, reject) => {
         const tx = db.transaction(STORE_NAME, 'readwrite')
         const store = tx.objectStore(STORE_NAME)
-        const request = store.put({
-          courseCode,
-          ...data,
-          cachedAt: Date.now()
-        })
+        const request = store.put(fullData)
         request.onerror = () => reject(request.error)
         request.onsuccess = () => resolve()
       }),
       timeoutPromise
     ])
+    console.log('[ScriptCache] Saved to IndexedDB')
   } catch (err) {
-    console.warn('[ScriptCache] Write failed:', err)
+    console.warn('[ScriptCache] IndexedDB write failed, trying localStorage:', err)
+    indexedDBFailed = true
+    dbInstance = null
+    setToLocalStorage(courseCode, fullData)
   }
 }
 
@@ -287,6 +363,7 @@ export function useScriptCache() {
     setCachedScript,
     loadIntroAudio,
     lookupAudioLazy,
-    getAudioUrl
+    getAudioUrl,
+    resetCacheState
   }
 }
