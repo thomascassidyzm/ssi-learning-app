@@ -1146,33 +1146,31 @@ export async function generateLearningScript(
       usedConsolidation.add(consolidation.targetText)
     }
 
-    // CRITICAL: Remove consecutive identical phrases
-    // Early rounds may be very short - that's OK!
-    // INTRO plays introduction audio ("The Welsh for X is Y")
-    // DEBUT is the first practice of the LEGO itself - this MUST happen!
+    // CRITICAL: Remove consecutive identical phrases (case-insensitive)
+    // INTRO is always kept - it plays introduction audio ("The Spanish for X is Y")
+    // All other items: skip if same known+target text as previous non-INTRO item
     const dedupedItems: ScriptItem[] = []
+    let lastPracticeItem: ScriptItem | null = null // Track last non-INTRO item
 
     for (const item of roundItems) {
-      // INTRO is always added
+      // INTRO is always added (plays different audio - the explanation)
       if (item.type === 'intro') {
         dedupedItems.push(item)
         continue
       }
 
-      // DEBUT (LEGO itself) is always added - it's the critical first practice!
-      if (item.type === 'debut') {
-        dedupedItems.push(item)
-        continue
-      }
-
-      const prevItem = dedupedItems[dedupedItems.length - 1]
-
-      // Skip consecutive identical phrases (but not INTRO → DEBUT which are different)
-      if (prevItem && prevItem.type !== 'intro' && item.targetText === prevItem.targetText) {
-        continue
+      // For practice items, check for consecutive duplicates (case-insensitive)
+      if (lastPracticeItem) {
+        const sameKnown = item.knownText.toLowerCase() === lastPracticeItem.knownText.toLowerCase()
+        const sameTarget = item.targetText.toLowerCase() === lastPracticeItem.targetText.toLowerCase()
+        if (sameKnown && sameTarget) {
+          // Skip this duplicate - don't update lastPracticeItem
+          continue
+        }
       }
 
       dedupedItems.push(item)
+      lastPracticeItem = item
     }
 
     rounds.push({
