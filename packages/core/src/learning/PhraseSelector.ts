@@ -77,11 +77,12 @@ export function classifyBasket(
     }
   }
 
-  // Sort debut phrases by word count (cognitive load proxy)
-  debutPhrases.sort((a, b) => a.wordCount - b.wordCount);
+  // Sort debut phrases by target text character length (cognitive load proxy)
+  // Character count works better than word count across all languages
+  debutPhrases.sort((a, b) => a.phrase.target.length - b.phrase.target.length);
 
-  // Sort eternal phrases by word count too (for consistent ordering)
-  eternalPhrases.sort((a, b) => a.wordCount - b.wordCount);
+  // Sort eternal phrases by target text character length too (for consistent ordering)
+  eternalPhrases.sort((a, b) => a.phrase.target.length - b.phrase.target.length);
 
   // If no explicit debut phrase, create one from the LEGO itself
   if (!debut && lego) {
