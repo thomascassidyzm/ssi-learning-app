@@ -806,11 +806,13 @@ async function loadEternalPhrases(
   try {
     // Query course_practice_phrases directly (practice_cycles view filters by audio existence)
     // Use the source table to get ALL phrases, even those without audio yet
+    // Include position >= 1 (skip only components at position 0)
+    // The SORT ORDER determines debut vs eternal - shortest vs longest
     const { data, error } = await supabase
       .from('course_practice_phrases')
       .select('*')
       .eq('course_code', courseId)
-      .gte('position', 2) // Skip components (0) and debut (1)
+      .gte('position', 1) // Skip components (0), include debut (1) and practice (2+)
       .order('seed_number', { ascending: true })
       .order('lego_index', { ascending: true })
       .order('word_count', { ascending: false }) // Longest (by word count) first
