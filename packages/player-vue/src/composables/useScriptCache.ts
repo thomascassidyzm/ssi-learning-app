@@ -52,10 +52,11 @@ export interface CachedScript {
   totalSeeds: number
   totalLegos: number
   totalCycles: number
-  estimatedMinutes: number
+  estimatedMinutes?: number
   audioMapObj: Record<string, any>
   cachedAt: number
   courseWelcome?: CourseWelcome
+  loadedLegos?: number // For CourseExplorer pagination
 }
 
 // ============================================================================

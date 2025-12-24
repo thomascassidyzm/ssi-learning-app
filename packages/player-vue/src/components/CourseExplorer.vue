@@ -2,96 +2,10 @@
 import { ref, computed, inject, onMounted, onUnmounted, nextTick } from 'vue'
 import { CyclePhase } from '@ssi/core'
 import { generateLearningScript } from '../providers/CourseDataProvider'
-
-// ============================================================================
-// IndexedDB Cache for Script Data
-// ============================================================================
-const DB_NAME = 'ssi-script-cache'
-const DB_VERSION = 3  // Bumped: v3 uses lazy audio loading (cache only has intros)
-const STORE_NAME = 'scripts'
-
-let dbInstance = null
-
-const openDB = () => {
-  return new Promise((resolve, reject) => {
-    if (dbInstance) {
-      resolve(dbInstance)
-      return
-    }
-
-    const request = indexedDB.open(DB_NAME, DB_VERSION)
-
-    request.onerror = () => reject(request.error)
-    request.onsuccess = () => {
-      dbInstance = request.result
-      resolve(dbInstance)
-    }
-
-    request.onupgradeneeded = (event) => {
-      const db = event.target.result
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: 'courseCode' })
-      }
-    }
-  })
-}
-
-const getCachedScript = async (courseCode) => {
-  // Add timeout to prevent hanging on IndexedDB issues
-  const timeoutPromise = new Promise((_, reject) => {
-    setTimeout(() => reject(new Error('Cache timeout after 3s')), 3000)
-  })
-
-  try {
-    console.log('[Cache] Opening IndexedDB...')
-    const db = await Promise.race([openDB(), timeoutPromise])
-    console.log('[Cache] DB opened, reading cache for:', courseCode)
-    return await Promise.race([
-      new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, 'readonly')
-        const store = tx.objectStore(STORE_NAME)
-        const request = store.get(courseCode)
-        request.onerror = () => reject(request.error)
-        request.onsuccess = () => resolve(request.result || null)
-      }),
-      timeoutPromise
-    ])
-  } catch (err) {
-    console.warn('[Cache] Could not read cache:', err)
-    return null
-  }
-}
-
-const setCachedScript = async (courseCode, data) => {
-  // Add timeout to prevent hanging on IndexedDB issues
-  const timeoutPromise = new Promise((_, reject) => {
-    setTimeout(() => reject(new Error('Cache write timeout after 5s')), 5000)
-  })
-
-  try {
-    console.log('[Cache] Opening IndexedDB for write...')
-    const db = await Promise.race([openDB(), timeoutPromise])
-    console.log('[Cache] DB opened for write, storing data...')
-
-    await Promise.race([
-      new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, 'readwrite')
-        const store = tx.objectStore(STORE_NAME)
-        const request = store.put({
-          courseCode,
-          ...data,
-          cachedAt: Date.now()
-        })
-        request.onerror = () => reject(request.error)
-        request.onsuccess = () => resolve()
-      }),
-      timeoutPromise
-    ])
-    console.log('[Cache] Write completed successfully')
-  } catch (err) {
-    console.warn('[Cache] Could not write cache:', err)
-  }
-}
+import {
+  getCachedScript,
+  setCachedScript,
+} from '../composables/useScriptCache'
 
 // ============================================================================
 // Simple audio controller for script preview playback
@@ -396,7 +310,7 @@ const loadScript = async (forceRefresh = false) => {
     try {
       console.log('[CourseExplorer] Serializing rounds...')
       const serializableRounds = JSON.parse(JSON.stringify(script.rounds))
-      console.log('[CourseExplorer] Caching to IndexedDB...')
+      console.log('[CourseExplorer] Caching to localStorage...')
 
       // Extract course welcome UUID from course metadata
       // The 'welcome' field is just a UUID string, convert to object format for cache
