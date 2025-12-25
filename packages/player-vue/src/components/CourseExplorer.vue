@@ -132,9 +132,6 @@ let pendingTimers = []
 const selectedRound = ref(1)
 const selectedSeed = ref('')
 
-// Virtual list container ref
-const listContainerRef = ref(null)
-
 // Computed
 const courseName = computed(() => props.course?.display_name || props.course?.title || 'Course')
 const courseCode = computed(() => props.course?.course_code || '')
@@ -948,7 +945,7 @@ onUnmounted(() => {
         </div>
 
         <!-- Virtual List Container -->
-        <div class="virtual-list-container" v-bind="containerProps" ref="listContainerRef">
+        <div class="virtual-list-container" v-bind="containerProps">
           <div v-bind="wrapperProps">
             <div
               v-for="{ data: item, index } in virtualItems"
@@ -1383,6 +1380,8 @@ onUnmounted(() => {
 /* Virtual List Container */
 .virtual-list-container {
   flex: 1;
+  height: 0; /* Critical: forces flex item to respect overflow */
+  min-height: 0;
   overflow-y: auto;
   padding-bottom: 100px;
 }
