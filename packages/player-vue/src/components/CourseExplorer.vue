@@ -976,13 +976,13 @@ const runPhase = async (phase, myCycleId) => {
     }
 
     case 'pause': {
-      // Brief pause for preview rhythm (500ms - this is QA preview, not learning)
+      // Pause for preview rhythm (1000ms - QA preview)
       scheduleTimer(() => {
         // Check if still valid after timeout
         if (myCycleId === cycleId) {
           runPhase('voice1', myCycleId)
         }
-      }, 500)
+      }, 1000)
       break
     }
 
