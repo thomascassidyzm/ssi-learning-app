@@ -1022,9 +1022,10 @@ export async function generateLearningScript(
     const roundItems: ScriptItem[] = []
 
     // Track ALL phrases used in this round (no duplicates within a round!)
-    // Use lowercase for case-insensitive comparison
+    // Normalize: lowercase, trim, strip punctuation for matching
     const usedPhrasesInRound = new Set<string>()
-    const normalizePhrase = (text: string) => text.toLowerCase()
+    const normalizePhrase = (text: string) =>
+      text.toLowerCase().trim().replace(/[.,!?;:¡¿'"]+/g, '')
 
     const baseItem: Omit<ScriptItem, 'type' | 'reviewOf' | 'fibonacciPosition'> = {
       roundNumber: n,
