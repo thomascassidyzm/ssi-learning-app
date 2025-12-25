@@ -1063,15 +1063,8 @@ const handleCycleEvent = (event) => {
                 if (introPlayed) {
                   console.log('[LearningPlayer] INTRO complete, advancing to next item')
                 }
-                // Advance past INTRO
+                // Advance to next item in round
                 currentItemInRound.value++
-                // Skip DEBUT if it follows (intro audio already contains target voices)
-                const round = script.value?.rounds?.[currentRound.value]
-                const nextItem = round?.items?.[currentItemInRound.value]
-                if (nextItem?.type === 'debut' && nextItem?.legoId === nextScriptItem.legoId) {
-                  console.log('[LearningPlayer] Skipping DEBUT (intro already has target voices)')
-                  currentItemInRound.value++
-                }
                 // Trigger next item by emitting a fake completion
                 if (isPlaying.value) {
                   handleCycleEvent({ type: 'item_completed' })
@@ -1491,7 +1484,6 @@ const startPlayback = async () => {
     console.log('[LearningPlayer] Starting round-based playback, round:', currentRoundIndex.value, 'LEGO:', currentRound.value?.legoId)
 
     // INTRO items: play intro audio directly, then advance to next item
-    // NOTE: Skip DEBUT that follows since intro audio already contains target voices
     if (scriptItem.type === 'intro') {
       console.log('[LearningPlayer] First item is INTRO for:', scriptItem.legoId)
       const playableItem = await scriptItemToPlayableItem(scriptItem)
@@ -1499,15 +1491,8 @@ const startPlayback = async () => {
         currentPlayableItem.value = playableItem
         // Play intro audio and wait for completion
         await playIntroductionAudioDirectly(scriptItem.legoId)
-        // Advance past INTRO
+        // Advance to next item in round
         currentItemInRound.value++
-        // Skip DEBUT if it follows (intro audio already contains target voices)
-        const round = script.value?.rounds?.[currentRound.value]
-        const nextItem = round?.items?.[currentItemInRound.value]
-        if (nextItem?.type === 'debut' && nextItem?.legoId === scriptItem.legoId) {
-          console.log('[LearningPlayer] Skipping DEBUT (intro already has target voices)')
-          currentItemInRound.value++
-        }
         // Continue with next item
         if (isPlaying.value) {
           handleCycleEvent({ type: 'item_completed' })
