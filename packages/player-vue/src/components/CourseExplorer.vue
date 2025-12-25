@@ -977,11 +977,13 @@ const runPhase = async (phase, myCycleId) => {
 
     case 'pause': {
       // Pause for preview rhythm (1000ms - QA preview)
+      // Capture whether this is an intro item NOW (before timeout)
+      const isIntroItem = item.type === 'intro'
       scheduleTimer(() => {
         // Check if still valid after timeout
         if (myCycleId === cycleId) {
           // INTRO items: skip voice1/voice2 (intro audio already contains target voices)
-          if (item.type === 'intro') {
+          if (isIntroItem) {
             advanceToNextItem(myCycleId)
           } else {
             runPhase('voice1', myCycleId)
