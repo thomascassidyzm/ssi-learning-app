@@ -418,6 +418,9 @@ const loadPage = async (page) => {
     loadedLegos.value = script.rounds.length
     totalCycles.value = script.allItems.length
     currentPage.value = page
+    // Reset to first item of new page
+    currentRoundIndex.value = 0
+    currentItemIndex.value = 0
 
     // Load intro audio for new LEGOs
     const legoIds = new Set()
