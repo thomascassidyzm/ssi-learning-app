@@ -1022,7 +1022,9 @@ export async function generateLearningScript(
     const roundItems: ScriptItem[] = []
 
     // Track ALL phrases used in this round (no duplicates within a round!)
+    // Use lowercase for case-insensitive comparison
     const usedPhrasesInRound = new Set<string>()
+    const normalizePhrase = (text: string) => text.toLowerCase()
 
     const baseItem: Omit<ScriptItem, 'type' | 'reviewOf' | 'fibonacciPosition'> = {
       roundNumber: n,
@@ -1048,13 +1050,13 @@ export async function generateLearningScript(
       ...baseItem,
       type: 'debut',
     })
-    usedPhrasesInRound.add(baseItem.targetText)
+    usedPhrasesInRound.add(normalizePhrase(baseItem.targetText))
 
     // Phase 4: Debut Phrases - up to 7 shortest phrases by syllable count
     for (let i = 0; i < Math.min(currentDebuts.length, 7); i++) {
       const phrase = currentDebuts[i]
-      // Skip if already used in this round
-      if (usedPhrasesInRound.has(phrase.targetText)) continue
+      // Skip if already used in this round (case-insensitive)
+      if (usedPhrasesInRound.has(normalizePhrase(phrase.targetText))) continue
 
       roundItems.push({
         ...baseItem,
@@ -1063,7 +1065,7 @@ export async function generateLearningScript(
         targetText: phrase.targetText,
         audioRefs: phrase.audioRefs,
       })
-      usedPhrasesInRound.add(phrase.targetText)
+      usedPhrasesInRound.add(normalizePhrase(phrase.targetText))
     }
 
     // Phase 5: Interleaved Spaced Rep - select from ETERNAL phrases
@@ -1081,15 +1083,15 @@ export async function generateLearningScript(
       const isFirstRevisit = review.legoIndex === n - 1
       const targetPhraseCount = isFirstRevisit ? 3 : 1
 
-      // Find unused phrases from the eternal pool
-      const availablePhrases = reviewEternals.filter(p => !usedPhrasesInRound.has(p.targetText))
+      // Find unused phrases from the eternal pool (case-insensitive)
+      const availablePhrases = reviewEternals.filter(p => !usedPhrasesInRound.has(normalizePhrase(p.targetText)))
 
       // Add as many as we can (up to target), but don't duplicate!
       const phrasesToAdd = Math.min(targetPhraseCount, availablePhrases.length)
 
       for (let p = 0; p < phrasesToAdd; p++) {
-        // Pick randomly from remaining available phrases
-        const remainingAvailable = availablePhrases.filter(ph => !usedPhrasesInRound.has(ph.targetText))
+        // Pick randomly from remaining available phrases (case-insensitive)
+        const remainingAvailable = availablePhrases.filter(ph => !usedPhrasesInRound.has(normalizePhrase(ph.targetText)))
         if (remainingAvailable.length === 0) break
 
         const idx = Math.floor(Math.random() * remainingAvailable.length)
@@ -1108,27 +1110,27 @@ export async function generateLearningScript(
           reviewOf: review.legoIndex,
           fibonacciPosition: review.fibPosition,
         })
-        usedPhrasesInRound.add(selectedPhrase.targetText)
+        usedPhrasesInRound.add(normalizePhrase(selectedPhrase.targetText))
       }
     }
 
     // Phase 6: Consolidation (2 eternal phrases for the new LEGO)
     // These CAN overlap with debut phrases since eternal/debut pools overlap
-    // So we use a separate tracking set for consolidation
+    // So we use a separate tracking set for consolidation (case-insensitive)
     const usedConsolidation = new Set<string>()
 
     for (let c = 0; c < 2; c++) {
-      // Find phrases not yet used in consolidation (but may overlap with debut)
-      const availableForConsolidation = currentEternals.filter(p => !usedConsolidation.has(p.targetText))
+      // Find phrases not yet used in consolidation (case-insensitive)
+      const availableForConsolidation = currentEternals.filter(p => !usedConsolidation.has(normalizePhrase(p.targetText)))
 
       if (availableForConsolidation.length === 0) {
         // Fall back to debut if no eternals available
-        if (!usedConsolidation.has(baseItem.targetText)) {
+        if (!usedConsolidation.has(normalizePhrase(baseItem.targetText))) {
           roundItems.push({
             ...baseItem,
             type: 'consolidation',
           })
-          usedConsolidation.add(baseItem.targetText)
+          usedConsolidation.add(normalizePhrase(baseItem.targetText))
         }
         continue
       }
@@ -1143,7 +1145,7 @@ export async function generateLearningScript(
         targetText: consolidation.targetText,
         audioRefs: consolidation.audioRefs,
       })
-      usedConsolidation.add(consolidation.targetText)
+      usedConsolidation.add(normalizePhrase(consolidation.targetText))
     }
 
     // CRITICAL: Remove consecutive identical phrases (case-insensitive)
