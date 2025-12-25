@@ -814,6 +814,7 @@ class RealAudioController {
     this.audio = null  // Single reusable Audio element for mobile compatibility
     this.currentCleanup = null
     this.preloadedUrls = new Set()
+    this.skipNextNotify = false  // Set true to skip orchestrator callbacks (for intro/welcome)
   }
 
   async play(audioRef) {
@@ -890,6 +891,11 @@ class RealAudioController {
   }
 
   _notifyEnded() {
+    // Skip notification if intro/welcome is playing (they handle their own ended events)
+    if (this.skipNextNotify) {
+      this.skipNextNotify = false
+      return
+    }
     // Snapshot callbacks to avoid issues if callbacks modify the Set
     const callbacks = [...this.endedCallbacks]
     for (const cb of callbacks) {
@@ -1218,10 +1224,17 @@ const playIntroductionIfNeeded = async (item) => {
     introductionPhase.value = true
     playedIntroductions.value.add(legoId)
 
-    // Play the introduction audio using a SEPARATE audio element
-    // DO NOT use audioController.audio - it has orchestrator callbacks that would trigger target playback
+    // Play intro using shared audio element (for mobile compatibility)
+    // Set skipNextNotify to prevent orchestrator callbacks from firing when intro ends
     return new Promise((resolve) => {
-      const audio = new Audio()
+      audioController.value?.stop()
+
+      // Tell audioController to skip notifying orchestrator when this audio ends
+      if (audioController.value) {
+        audioController.value.skipNextNotify = true
+      }
+
+      const audio = audioController.value?.audio || new Audio()
 
       const onEnded = () => {
         audio.removeEventListener('ended', onEnded)
@@ -1293,10 +1306,17 @@ const playIntroductionAudioDirectly = async (legoId) => {
 
     console.log('[LearningPlayer] Playing introduction audio:', introAudio.url)
 
-    // Play the introduction audio using a SEPARATE audio element
-    // DO NOT use audioController.audio - it has orchestrator callbacks that would trigger target playback
+    // Play intro using shared audio element (for mobile compatibility)
+    // Set skipNextNotify to prevent orchestrator callbacks from firing when intro ends
     return new Promise((resolve) => {
-      const audio = new Audio()
+      audioController.value?.stop()
+
+      // Tell audioController to skip notifying orchestrator when this audio ends
+      if (audioController.value) {
+        audioController.value.skipNextNotify = true
+      }
+
+      const audio = audioController.value?.audio || new Audio()
       introAudioElement = audio // Store for skip functionality
 
       const onEnded = () => {
@@ -1392,10 +1412,17 @@ const playWelcomeIfNeeded = async () => {
     isPlayingWelcome.value = true
     showWelcomeSkip.value = true
 
-    // Use a SEPARATE audio element for welcome audio
-    // DO NOT use audioController.audio - it has orchestrator callbacks
+    // Play welcome using shared audio element (for mobile compatibility)
+    // Set skipNextNotify to prevent orchestrator callbacks from firing when welcome ends
     return new Promise((resolve) => {
-      const audio = new Audio()
+      audioController.value?.stop()
+
+      // Tell audioController to skip notifying orchestrator when this audio ends
+      if (audioController.value) {
+        audioController.value.skipNextNotify = true
+      }
+
+      const audio = audioController.value?.audio || new Audio()
       welcomeAudioElement = audio
 
       const cleanup = async () => {
