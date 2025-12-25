@@ -1027,13 +1027,41 @@ export async function generateLearningScript(
     const normalizePhrase = (text: string) =>
       text.toLowerCase().trim().replace(/[.,!?;:¡¿'"]+/g, '')
 
+    // Proper nouns to preserve when normalizing display text
+    const properNouns = new Set([
+      // English pronoun
+      'I',
+      // Languages
+      'English', 'Spanish', 'Chinese', 'Welsh', 'French', 'German', 'Italian',
+      'Portuguese', 'Japanese', 'Korean', 'Arabic', 'Russian', 'Dutch', 'Greek',
+      'Hebrew', 'Hindi', 'Polish', 'Swedish', 'Turkish', 'Vietnamese',
+      // Countries/regions
+      'England', 'Spain', 'China', 'Wales', 'France', 'Germany', 'Italy',
+      'Portugal', 'Japan', 'Korea', 'Mexico', 'Brazil', 'Argentina',
+      'America', 'Britain', 'Ireland', 'Scotland',
+    ])
+    const properNounsLower = new Map([...properNouns].map(n => [n.toLowerCase(), n]))
+
+    // Normalize display text: lowercase but preserve proper nouns
+    const normalizeDisplay = (text: string): string => {
+      return text.split(/(\s+)/).map(word => {
+        const stripped = word.replace(/[.,!?;:¡¿'"]+/g, '')
+        const proper = properNounsLower.get(stripped.toLowerCase())
+        if (proper) {
+          // Restore proper noun, keeping any punctuation
+          return word.replace(stripped, proper)
+        }
+        return word.toLowerCase()
+      }).join('')
+    }
+
     const baseItem: Omit<ScriptItem, 'type' | 'reviewOf' | 'fibonacciPosition'> = {
       roundNumber: n,
       legoId: currentLego.lego.id,
       legoIndex: n,
       seedId: currentLego.seed.seed_id,
-      knownText: currentLego.phrase.phrase.known,
-      targetText: currentLego.phrase.phrase.target,
+      knownText: normalizeDisplay(currentLego.phrase.phrase.known),
+      targetText: normalizeDisplay(currentLego.phrase.phrase.target),
       audioRefs: currentLego.phrase.audioRefs,
       audioDurations: currentLego.audioDurations,
     }
@@ -1062,8 +1090,8 @@ export async function generateLearningScript(
       roundItems.push({
         ...baseItem,
         type: 'debut_phrase',
-        knownText: phrase.knownText,
-        targetText: phrase.targetText,
+        knownText: normalizeDisplay(phrase.knownText),
+        targetText: normalizeDisplay(phrase.targetText),
         audioRefs: phrase.audioRefs,
       })
       usedPhrasesInRound.add(normalizePhrase(phrase.targetText))
@@ -1103,8 +1131,8 @@ export async function generateLearningScript(
           legoId: reviewLego.lego.id,
           legoIndex: review.legoIndex,
           seedId: reviewLego.seed.seed_id,
-          knownText: selectedPhrase.knownText,
-          targetText: selectedPhrase.targetText,
+          knownText: normalizeDisplay(selectedPhrase.knownText),
+          targetText: normalizeDisplay(selectedPhrase.targetText),
           audioRefs: selectedPhrase.audioRefs,
           audioDurations: reviewLego.audioDurations,
           type: 'spaced_rep',
@@ -1145,8 +1173,8 @@ export async function generateLearningScript(
       roundItems.push({
         ...baseItem,
         type: 'consolidation',
-        knownText: consolidation.knownText,
-        targetText: consolidation.targetText,
+        knownText: normalizeDisplay(consolidation.knownText),
+        targetText: normalizeDisplay(consolidation.targetText),
         audioRefs: consolidation.audioRefs,
       })
       usedConsolidation.add(normalizePhrase(consolidation.targetText))
