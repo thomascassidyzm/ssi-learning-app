@@ -980,7 +980,12 @@ const runPhase = async (phase, myCycleId) => {
       scheduleTimer(() => {
         // Check if still valid after timeout
         if (myCycleId === cycleId) {
-          runPhase('voice1', myCycleId)
+          // INTRO items: skip voice1/voice2 (intro audio already contains target voices)
+          if (item.type === 'intro') {
+            advanceToNextItem(myCycleId)
+          } else {
+            runPhase('voice1', myCycleId)
+          }
         }
       }, 1000)
       break
