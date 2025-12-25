@@ -1116,22 +1116,25 @@ export async function generateLearningScript(
     }
 
     // Phase 6: Consolidation (2 eternal phrases for the new LEGO)
-    // These CAN overlap with debut phrases since eternal/debut pools overlap
-    // So we use a separate tracking set for consolidation (case-insensitive)
+    // Must also check usedPhrasesInRound to avoid repeating LEGO/DEBUT phrases
     const usedConsolidation = new Set<string>()
 
     for (let c = 0; c < 2; c++) {
-      // Find phrases not yet used in consolidation (case-insensitive)
-      const availableForConsolidation = currentEternals.filter(p => !usedConsolidation.has(normalizePhrase(p.targetText)))
+      // Find phrases not yet used in round OR consolidation
+      const availableForConsolidation = currentEternals.filter(p =>
+        !usedPhrasesInRound.has(normalizePhrase(p.targetText)) &&
+        !usedConsolidation.has(normalizePhrase(p.targetText))
+      )
 
       if (availableForConsolidation.length === 0) {
-        // Fall back to debut if no eternals available
-        if (!usedConsolidation.has(normalizePhrase(baseItem.targetText))) {
+        // Fall back to debut if no eternals available AND not already used in round
+        const baseNormalized = normalizePhrase(baseItem.targetText)
+        if (!usedPhrasesInRound.has(baseNormalized) && !usedConsolidation.has(baseNormalized)) {
           roundItems.push({
             ...baseItem,
             type: 'consolidation',
           })
-          usedConsolidation.add(normalizePhrase(baseItem.targetText))
+          usedConsolidation.add(baseNormalized)
         }
         continue
       }
@@ -1162,10 +1165,10 @@ export async function generateLearningScript(
         continue
       }
 
-      // For practice items, check for consecutive duplicates (case-insensitive)
+      // For practice items, check for consecutive duplicates (normalized)
       if (lastPracticeItem) {
-        const sameKnown = item.knownText.toLowerCase() === lastPracticeItem.knownText.toLowerCase()
-        const sameTarget = item.targetText.toLowerCase() === lastPracticeItem.targetText.toLowerCase()
+        const sameKnown = normalizePhrase(item.knownText) === normalizePhrase(lastPracticeItem.knownText)
+        const sameTarget = normalizePhrase(item.targetText) === normalizePhrase(lastPracticeItem.targetText)
         if (sameKnown && sameTarget) {
           // Skip this duplicate - don't update lastPracticeItem
           continue
