@@ -245,6 +245,19 @@ const loadScript = async (forceRefresh = false) => {
         cachedAt.value = cached.cachedAt
         scriptLoaded.value = true
         isLoadingScript.value = false
+
+        // Still load intro audio from database (cache may not have it)
+        const legoIds = new Set()
+        for (const round of cached.rounds || []) {
+          for (const item of round.items || []) {
+            if (item.type === 'intro' && item.legoId) {
+              legoIds.add(item.legoId)
+            }
+          }
+        }
+        if (legoIds.size > 0) {
+          loadIntroAudio(courseId, legoIds)
+        }
         return
       }
     } catch (err) {
