@@ -1051,6 +1051,8 @@ const handleCycleEvent = (event) => {
         setTimeout(async () => {
           if (isPlaying.value && orchestrator.value) {
             // INTRO items: play introduction audio directly, then advance
+            // NOTE: Some courses (e.g., Spanish) have target voices baked into intro audio,
+            // so we skip the DEBUT item that follows to avoid repeating the same audio.
             if (nextScriptItem.type === 'intro') {
               console.log('[LearningPlayer] Playing INTRO item for:', nextScriptItem.legoId)
               const nextPlayable = await scriptItemToPlayableItem(nextScriptItem)
@@ -1061,8 +1063,15 @@ const handleCycleEvent = (event) => {
                 if (introPlayed) {
                   console.log('[LearningPlayer] INTRO complete, advancing to next item')
                 }
-                // Advance to next item in round (the debut)
+                // Advance past INTRO
                 currentItemInRound.value++
+                // Skip DEBUT if it follows (intro audio already contains target voices)
+                const round = script.value?.rounds?.[currentRound.value]
+                const nextItem = round?.items?.[currentItemInRound.value]
+                if (nextItem?.type === 'debut' && nextItem?.legoId === nextScriptItem.legoId) {
+                  console.log('[LearningPlayer] Skipping DEBUT (intro already has target voices)')
+                  currentItemInRound.value++
+                }
                 // Trigger next item by emitting a fake completion
                 if (isPlaying.value) {
                   handleCycleEvent({ type: 'item_completed' })
@@ -1216,9 +1225,10 @@ const playIntroductionIfNeeded = async (item) => {
     introductionPhase.value = true
     playedIntroductions.value.add(legoId)
 
-    // Play the introduction audio
+    // Play the introduction audio using a SEPARATE audio element
+    // DO NOT use audioController.audio - it has orchestrator callbacks that would trigger target playback
     return new Promise((resolve) => {
-      const audio = audioController.value?.audio || new Audio()
+      const audio = new Audio()
 
       const onEnded = () => {
         audio.removeEventListener('ended', onEnded)
@@ -1290,9 +1300,10 @@ const playIntroductionAudioDirectly = async (legoId) => {
 
     console.log('[LearningPlayer] Playing introduction audio:', introAudio.url)
 
-    // Play the introduction audio
+    // Play the introduction audio using a SEPARATE audio element
+    // DO NOT use audioController.audio - it has orchestrator callbacks that would trigger target playback
     return new Promise((resolve) => {
-      const audio = audioController.value?.audio || new Audio()
+      const audio = new Audio()
       introAudioElement = audio // Store for skip functionality
 
       const onEnded = () => {
@@ -1388,8 +1399,10 @@ const playWelcomeIfNeeded = async () => {
     isPlayingWelcome.value = true
     showWelcomeSkip.value = true
 
+    // Use a SEPARATE audio element for welcome audio
+    // DO NOT use audioController.audio - it has orchestrator callbacks
     return new Promise((resolve) => {
-      const audio = audioController.value?.audio || new Audio()
+      const audio = new Audio()
       welcomeAudioElement = audio
 
       const cleanup = async () => {
@@ -1478,6 +1491,7 @@ const startPlayback = async () => {
     console.log('[LearningPlayer] Starting round-based playback, round:', currentRoundIndex.value, 'LEGO:', currentRound.value?.legoId)
 
     // INTRO items: play intro audio directly, then advance to next item
+    // NOTE: Skip DEBUT that follows since intro audio already contains target voices
     if (scriptItem.type === 'intro') {
       console.log('[LearningPlayer] First item is INTRO for:', scriptItem.legoId)
       const playableItem = await scriptItemToPlayableItem(scriptItem)
@@ -1485,8 +1499,15 @@ const startPlayback = async () => {
         currentPlayableItem.value = playableItem
         // Play intro audio and wait for completion
         await playIntroductionAudioDirectly(scriptItem.legoId)
-        // Advance to next item in round (the debut)
+        // Advance past INTRO
         currentItemInRound.value++
+        // Skip DEBUT if it follows (intro audio already contains target voices)
+        const round = script.value?.rounds?.[currentRound.value]
+        const nextItem = round?.items?.[currentItemInRound.value]
+        if (nextItem?.type === 'debut' && nextItem?.legoId === scriptItem.legoId) {
+          console.log('[LearningPlayer] Skipping DEBUT (intro already has target voices)')
+          currentItemInRound.value++
+        }
         // Continue with next item
         if (isPlaying.value) {
           handleCycleEvent({ type: 'item_completed' })
