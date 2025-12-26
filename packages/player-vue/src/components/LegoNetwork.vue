@@ -164,8 +164,7 @@ const courseCode = computed(() => props.course?.course_code || '')
 
 // Stats
 const legoCount = computed(() => nodes.value.length)
-const seedCount = computed(() => new Set(nodes.value.map(n => n.seedId)).size)
-const linkCount = computed(() => links.value.length)
+const practiceCount = computed(() => totalPractices.value)
 const masteredCount = computed(() => nodes.value.filter(n => n.isEternal).length)
 
 // Audio base URL
@@ -932,12 +931,12 @@ watch(currentBelt, () => {
         </div>
         <div class="stats-group">
           <div class="stat">
-            <span class="stat-value">{{ seedCount }}</span>
-            <span class="stat-label">Seeds</span>
-          </div>
-          <div class="stat">
             <span class="stat-value">{{ legoCount }}</span>
             <span class="stat-label">LEGOs</span>
+          </div>
+          <div class="stat">
+            <span class="stat-value">{{ practiceCount }}</span>
+            <span class="stat-label">Practices</span>
           </div>
           <div class="stat">
             <span class="stat-value">{{ masteredCount }}</span>
