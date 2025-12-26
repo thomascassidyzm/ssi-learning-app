@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, inject } from 'vue'
 
-const emit = defineEmits(['close', 'openProgressDemo', 'openExplorer'])
+const emit = defineEmits(['close', 'openProgressDemo', 'openExplorer', 'openNetwork'])
 
 const props = defineProps({
   course: {
@@ -359,6 +359,18 @@ const confirmReset = async () => {
             <div class="setting-info">
               <span class="setting-label">Course Explorer</span>
               <span class="setting-desc">View course script with click-to-play</span>
+            </div>
+            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row clickable" @click="$emit('openNetwork')">
+            <div class="setting-info">
+              <span class="setting-label">LEGO Network</span>
+              <span class="setting-desc">Visualize your learning as a constellation</span>
             </div>
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6"/>

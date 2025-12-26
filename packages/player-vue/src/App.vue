@@ -16,6 +16,7 @@ import JourneyMap from './components/JourneyMap.vue'
 import ProfileScreen from './components/ProfileScreen.vue'
 import SettingsScreen from './components/SettingsScreen.vue'
 import CourseExplorer from './components/CourseExplorer.vue'
+import LegoNetwork from './components/LegoNetwork.vue'
 import ProgressDemo from './components/ProgressDemo.vue'
 import BottomNav from './components/BottomNav.vue'
 import BuildBadge from './components/BuildBadge.vue'
@@ -51,6 +52,7 @@ const viewJourney = (course) => navigate('journey', course)
 const openProfile = () => navigate('profile')
 const openSettings = () => navigate('settings')
 const openExplorer = () => navigate('explorer')
+const openNetwork = () => navigate('network')
 const openProgressDemo = () => navigate('progress-demo')
 
 // Handle nav events
@@ -325,6 +327,7 @@ onMounted(async () => {
         :course="activeCourse"
         @close="goHome"
         @openExplorer="openExplorer"
+        @openNetwork="openNetwork"
         @openProgressDemo="openProgressDemo"
       />
     </Transition>
@@ -334,6 +337,16 @@ onMounted(async () => {
       <CourseExplorer
         v-if="currentScreen === 'explorer'"
         :course="activeCourse"
+        @close="goHome"
+      />
+    </Transition>
+
+    <!-- LEGO Network Visualization -->
+    <Transition name="slide-right" mode="out-in">
+      <LegoNetwork
+        v-if="currentScreen === 'network'"
+        :course="activeCourse"
+        beltLevel="white"
         @close="goHome"
       />
     </Transition>
