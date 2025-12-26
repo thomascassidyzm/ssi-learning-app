@@ -369,8 +369,8 @@ const confirmReset = async () => {
 
           <div class="setting-row clickable" @click="$emit('openNetwork')">
             <div class="setting-info">
-              <span class="setting-label">LEGO Network</span>
-              <span class="setting-desc">Visualize your learning as a constellation</span>
+              <span class="setting-label">Progress Map</span>
+              <span class="setting-desc">Watch your learning grow as a network</span>
             </div>
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6"/>

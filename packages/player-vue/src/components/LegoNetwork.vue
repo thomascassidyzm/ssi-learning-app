@@ -920,7 +920,7 @@ watch(currentBelt, () => {
           </svg>
         </button>
         <div class="header-content">
-          <h1 class="network-title">LEGO Network</h1>
+          <h1 class="network-title">Progress Map</h1>
           <p class="network-subtitle">{{ courseName }}</p>
         </div>
       </div>

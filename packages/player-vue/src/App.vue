@@ -341,7 +341,7 @@ onMounted(async () => {
       />
     </Transition>
 
-    <!-- LEGO Network Visualization -->
+    <!-- Progress Map Visualization -->
     <Transition name="slide-right" mode="out-in">
       <LegoNetwork
         v-if="currentScreen === 'network'"
