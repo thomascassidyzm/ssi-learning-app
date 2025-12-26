@@ -17,7 +17,7 @@ const emit = defineEmits(['navigate', 'startLearning'])
 // Navigation items
 const navItems = [
   { id: 'home', label: 'Home', icon: 'home' },
-  { id: 'journey', label: 'Progress', icon: 'network' },
+  { id: 'network', label: 'Progress', icon: 'network' },
   { id: 'profile', label: 'Profile', icon: 'user' },
   { id: 'settings', label: 'Settings', icon: 'settings' },
 ]
