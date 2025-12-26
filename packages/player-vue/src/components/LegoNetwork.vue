@@ -163,7 +163,8 @@ const courseName = computed(() => props.course?.display_name || props.course?.ti
 const courseCode = computed(() => props.course?.course_code || '')
 
 // Stats
-const nodeCount = computed(() => nodes.value.length)
+const legoCount = computed(() => nodes.value.length)
+const seedCount = computed(() => new Set(nodes.value.map(n => n.seedId)).size)
 const linkCount = computed(() => links.value.length)
 const masteredCount = computed(() => nodes.value.filter(n => n.isEternal).length)
 
@@ -931,16 +932,16 @@ watch(currentBelt, () => {
         </div>
         <div class="stats-group">
           <div class="stat">
-            <span class="stat-value">{{ nodeCount }}</span>
+            <span class="stat-value">{{ seedCount }}</span>
+            <span class="stat-label">Seeds</span>
+          </div>
+          <div class="stat">
+            <span class="stat-value">{{ legoCount }}</span>
             <span class="stat-label">LEGOs</span>
           </div>
           <div class="stat">
             <span class="stat-value">{{ masteredCount }}</span>
             <span class="stat-label">Eternal</span>
-          </div>
-          <div class="stat">
-            <span class="stat-value">{{ totalPractices }}</span>
-            <span class="stat-label">Practices</span>
           </div>
         </div>
       </div>
