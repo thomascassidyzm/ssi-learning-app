@@ -10,6 +10,12 @@
  * - Edge thickness = transition frequency
  * - Ambient palette = current belt level
  * - No forced clustering - natural groupings emerge from practice patterns
+ *
+ * Demo Mode:
+ * - Simulates learning journey growth over rounds
+ * - Milestones at 50, 100, 150 rounds etc.
+ * - Adjustable speed controls (1x, 2x, 4x, 8x)
+ * - Watch the network grow organically
  */
 
 import { ref, computed, inject, onMounted, onUnmounted, watch, nextTick } from 'vue'
@@ -40,6 +46,9 @@ const nodes = ref([])
 const links = ref([])
 const totalPractices = ref(0)
 
+// All available LEGOs for simulation (not yet in network)
+const allAvailableLegos = ref([])
+
 // D3 elements
 const containerRef = ref(null)
 const svgRef = ref(null)
@@ -57,7 +66,17 @@ const isPanelOpen = ref(false)
 const audioController = ref(null)
 const isPlayingAudio = ref(false)
 
-// Belt color palettes - the whole network shifts with belt level
+// Demo/Simulation state
+const isDemoRunning = ref(false)
+const currentRound = ref(0)
+const demoSpeed = ref(1) // 1x, 2x, 4x, 8x
+const maxRounds = ref(300)
+let demoInterval = null
+const milestones = [50, 100, 150, 200, 250, 300]
+const reachedMilestones = ref([])
+const lastAddedNode = ref(null)
+
+// Belt color palettes - 8 main belts, no stripes
 const beltPalettes = {
   white: {
     name: 'White Belt',
@@ -125,7 +144,20 @@ const beltPalettes = {
   },
 }
 
-const currentPalette = computed(() => beltPalettes[props.beltLevel] || beltPalettes.white)
+// Calculate current belt based on round count
+const currentBelt = computed(() => {
+  const r = currentRound.value
+  if (r >= 280) return 'black'
+  if (r >= 150) return 'brown'
+  if (r >= 80) return 'purple'
+  if (r >= 40) return 'blue'
+  if (r >= 20) return 'green'
+  if (r >= 10) return 'orange'
+  if (r >= 5) return 'yellow'
+  return 'white'
+})
+
+const currentPalette = computed(() => beltPalettes[currentBelt.value] || beltPalettes.white)
 
 const courseName = computed(() => props.course?.display_name || props.course?.title || 'Course')
 const courseCode = computed(() => props.course?.course_code || '')
@@ -137,6 +169,176 @@ const masteredCount = computed(() => nodes.value.filter(n => n.isEternal).length
 
 // Audio base URL
 const audioBaseUrl = 'https://ssi-audio-stage.s3.eu-west-1.amazonaws.com/mastered'
+
+// ============================================================================
+// Demo Mode Controls
+// ============================================================================
+
+const startDemo = () => {
+  if (isDemoRunning.value) return
+
+  isDemoRunning.value = true
+  currentRound.value = 0
+  reachedMilestones.value = []
+
+  // Reset network to empty
+  nodes.value = []
+  links.value = []
+  totalPractices.value = 0
+
+  // Reinitialize visualization with empty data
+  initVisualization()
+
+  // Start the simulation
+  runDemoStep()
+}
+
+const stopDemo = () => {
+  isDemoRunning.value = false
+  if (demoInterval) {
+    clearTimeout(demoInterval)
+    demoInterval = null
+  }
+}
+
+const pauseDemo = () => {
+  if (demoInterval) {
+    clearTimeout(demoInterval)
+    demoInterval = null
+  }
+}
+
+const resumeDemo = () => {
+  if (isDemoRunning.value && !demoInterval) {
+    runDemoStep()
+  }
+}
+
+const setSpeed = (speed) => {
+  demoSpeed.value = speed
+}
+
+const jumpToRound = (targetRound) => {
+  const wasRunning = isDemoRunning.value
+  stopDemo()
+
+  // Reset and fast-forward
+  nodes.value = []
+  links.value = []
+  currentRound.value = 0
+  reachedMilestones.value = []
+
+  // Add nodes up to target round
+  for (let i = 0; i < targetRound && allAvailableLegos.value.length > 0; i++) {
+    addNextLego()
+    currentRound.value = i + 1
+
+    // Check milestones
+    if (milestones.includes(currentRound.value) && !reachedMilestones.value.includes(currentRound.value)) {
+      reachedMilestones.value.push(currentRound.value)
+    }
+  }
+
+  // Reinitialize visualization
+  initVisualization()
+
+  if (wasRunning) {
+    isDemoRunning.value = true
+    runDemoStep()
+  }
+}
+
+const runDemoStep = () => {
+  if (!isDemoRunning.value) return
+
+  if (currentRound.value >= maxRounds.value || allAvailableLegos.value.length === 0) {
+    stopDemo()
+    return
+  }
+
+  // Add a new LEGO to the network
+  addNextLego()
+  currentRound.value++
+
+  // Check for milestone
+  if (milestones.includes(currentRound.value) && !reachedMilestones.value.includes(currentRound.value)) {
+    reachedMilestones.value.push(currentRound.value)
+  }
+
+  // Update visualization
+  updateVisualization()
+
+  // Schedule next step based on speed
+  const baseDelay = 500 // 500ms at 1x speed
+  const delay = baseDelay / demoSpeed.value
+  demoInterval = setTimeout(runDemoStep, delay)
+}
+
+const addNextLego = () => {
+  if (allAvailableLegos.value.length === 0) return
+
+  // Pick a LEGO to add (prefer sequential order for demo)
+  const nextLego = allAvailableLegos.value.shift()
+
+  // Add as a new node with initial low mastery
+  const newNode = {
+    ...nextLego,
+    totalPractices: 1,
+    mastery: 0.1,
+    isEternal: false,
+    isNew: true, // Flag for animation
+  }
+
+  nodes.value.push(newNode)
+  lastAddedNode.value = newNode
+
+  // Create links to existing nodes (if they share a seed or are sequential)
+  const existingNodes = nodes.value.slice(0, -1)
+
+  // Link to previous LEGOs in same seed
+  existingNodes.forEach(existing => {
+    if (existing.seedId === newNode.seedId) {
+      links.value.push({
+        source: existing.id,
+        target: newNode.id,
+        count: Math.floor(Math.random() * 10) + 1,
+      })
+    }
+  })
+
+  // Random cross-links for variety (simulating phrase reuse)
+  if (existingNodes.length > 3 && Math.random() > 0.7) {
+    const randomIdx = Math.floor(Math.random() * existingNodes.length)
+    const randomNode = existingNodes[randomIdx]
+    if (!links.value.some(l =>
+      (l.source === randomNode.id && l.target === newNode.id) ||
+      (l.source.id === randomNode.id && l.target.id === newNode.id)
+    )) {
+      links.value.push({
+        source: randomNode.id,
+        target: newNode.id,
+        count: Math.floor(Math.random() * 5) + 1,
+      })
+    }
+  }
+
+  // Increase mastery of existing nodes (simulated spaced repetition)
+  nodes.value.forEach(n => {
+    if (n.id !== newNode.id) {
+      // Random chance of practice
+      if (Math.random() > 0.6) {
+        n.totalPractices++
+        n.mastery = Math.min(1, n.mastery + 0.05 + Math.random() * 0.05)
+        // Check for eternal status
+        if (n.totalPractices > 30 && n.mastery > 0.8) {
+          n.isEternal = true
+        }
+      }
+    }
+  })
+
+  totalPractices.value = nodes.value.reduce((sum, n) => sum + n.totalPractices, 0)
+}
 
 // ============================================================================
 // Data Loading
@@ -154,62 +356,39 @@ const loadNetworkData = async () => {
     isLoading.value = true
     error.value = null
 
-    // For now, load LEGOs that have been practiced
-    // In a full implementation, this would come from learner progress data
+    // Load all LEGOs for the course (for simulation)
     const { data: legos, error: legoError } = await supabase.value
       .from('course_legos')
       .select('lego_id, seed_id, lego_index, known_text, target_text')
       .eq('course_code', courseCode.value)
       .order('seed_id')
       .order('lego_index')
-      .limit(100) // Start with first 100 LEGOs for prototype
+      .limit(300) // Load enough for 300 rounds
 
     if (legoError) throw legoError
 
-    // Transform to network nodes
-    const networkNodes = (legos || []).map((lego, idx) => ({
+    // Store all LEGOs for simulation
+    allAvailableLegos.value = (legos || []).map((lego, idx) => ({
       id: lego.lego_id,
       seedId: lego.seed_id,
       legoIndex: lego.lego_index,
       knownText: lego.known_text,
       targetText: lego.target_text,
-      // Simulated progress data (would come from learner_progress table)
-      totalPractices: Math.floor(Math.random() * 50) + 1,
+      totalPractices: 0,
       usedInPhrases: Math.floor(Math.random() * 15) + 1,
-      mastery: Math.random(), // 0-1
-      isEternal: Math.random() > 0.7,
-      // Position hints (will be overridden by force simulation)
+      mastery: 0,
+      isEternal: false,
       x: undefined,
       y: undefined,
     }))
 
-    // Create links based on sequential practice (simulated)
-    // In reality, this would come from actual transition tracking
-    const networkLinks = []
-    for (let i = 0; i < networkNodes.length - 1; i++) {
-      // Connect to next LEGO in seed
-      if (networkNodes[i].seedId === networkNodes[i + 1].seedId) {
-        networkLinks.push({
-          source: networkNodes[i].id,
-          target: networkNodes[i + 1].id,
-          count: Math.floor(Math.random() * 30) + 5,
-        })
-      }
-      // Random cross-seed connections (simulating phrase reuse)
-      if (Math.random() > 0.85 && i + 5 < networkNodes.length) {
-        networkLinks.push({
-          source: networkNodes[i].id,
-          target: networkNodes[i + Math.floor(Math.random() * 5) + 2].id,
-          count: Math.floor(Math.random() * 15) + 1,
-        })
-      }
-    }
+    // Start with empty network (demo mode shows growth)
+    nodes.value = []
+    links.value = []
+    totalPractices.value = 0
+    maxRounds.value = Math.min(allAvailableLegos.value.length, 300)
 
-    nodes.value = networkNodes
-    links.value = networkLinks
-    totalPractices.value = networkNodes.reduce((sum, n) => sum + n.totalPractices, 0)
-
-    console.log('[LegoNetwork] Loaded', networkNodes.length, 'nodes,', networkLinks.length, 'links')
+    console.log('[LegoNetwork] Loaded', allAvailableLegos.value.length, 'LEGOs for simulation')
 
   } catch (err) {
     console.error('[LegoNetwork] Load error:', err)
@@ -221,8 +400,8 @@ const loadNetworkData = async () => {
 }
 
 const createDemoData = () => {
-  // Create demo nodes
-  const demoNodes = []
+  // Create demo LEGOs for simulation
+  const demoLegos = []
   const phrases = [
     { known: 'I want', target: 'quiero' },
     { known: 'to speak', target: 'hablar' },
@@ -236,42 +415,70 @@ const createDemoData = () => {
     { known: 'to practice', target: 'practicar' },
     { known: 'every day', target: 'cada dia' },
     { known: 'a little', target: 'un poco' },
+    { known: 'how', target: 'como' },
+    { known: 'to say', target: 'decir' },
+    { known: 'this', target: 'esto' },
+    { known: 'I understand', target: 'entiendo' },
+    { known: 'but', target: 'pero' },
+    { known: 'slowly', target: 'despacio' },
+    { known: 'please', target: 'por favor' },
+    { known: 'thank you', target: 'gracias' },
+    { known: 'yes', target: 'si' },
+    { known: 'no', target: 'no' },
+    { known: 'hello', target: 'hola' },
+    { known: 'goodbye', target: 'adios' },
+    { known: 'good morning', target: 'buenos dias' },
+    { known: 'good night', target: 'buenas noches' },
+    { known: 'how are you', target: 'como estas' },
+    { known: 'very well', target: 'muy bien' },
+    { known: 'and you', target: 'y tu' },
+    { known: 'my name is', target: 'me llamo' },
+    { known: 'nice to meet you', target: 'mucho gusto' },
+    { known: 'where', target: 'donde' },
+    { known: 'when', target: 'cuando' },
+    { known: 'why', target: 'por que' },
+    { known: 'who', target: 'quien' },
+    { known: 'what', target: 'que' },
+    { known: 'I have', target: 'tengo' },
+    { known: 'you have', target: 'tienes' },
+    { known: 'he has', target: 'tiene' },
+    { known: 'we have', target: 'tenemos' },
+    { known: 'I am', target: 'soy' },
+    { known: 'you are', target: 'eres' },
+    { known: 'it is', target: 'es' },
+    { known: 'we are', target: 'somos' },
+    { known: 'to go', target: 'ir' },
+    { known: 'to come', target: 'venir' },
+    { known: 'to eat', target: 'comer' },
+    { known: 'to drink', target: 'beber' },
+    { known: 'water', target: 'agua' },
+    { known: 'food', target: 'comida' },
   ]
 
-  phrases.forEach((phrase, i) => {
-    demoNodes.push({
-      id: `S000${Math.floor(i / 4) + 1}L0${(i % 4) + 1}`,
-      seedId: `S000${Math.floor(i / 4) + 1}`,
-      legoIndex: (i % 4) + 1,
+  // Generate 300 LEGOs by cycling through phrases with variations
+  for (let i = 0; i < 300; i++) {
+    const phrase = phrases[i % phrases.length]
+    const seedNum = Math.floor(i / 4) + 1
+    const legoIdx = (i % 4) + 1
+
+    demoLegos.push({
+      id: `S${String(seedNum).padStart(4, '0')}L${String(legoIdx).padStart(2, '0')}`,
+      seedId: `S${String(seedNum).padStart(4, '0')}`,
+      legoIndex: legoIdx,
       knownText: phrase.known,
       targetText: phrase.target,
-      totalPractices: Math.floor(Math.random() * 50) + 5,
+      totalPractices: 0,
       usedInPhrases: Math.floor(Math.random() * 10) + 1,
-      mastery: Math.random(),
-      isEternal: Math.random() > 0.6,
+      mastery: 0,
+      isEternal: false,
     })
-  })
-
-  // Create demo links
-  const demoLinks = []
-  for (let i = 0; i < demoNodes.length - 1; i++) {
-    demoLinks.push({
-      source: demoNodes[i].id,
-      target: demoNodes[i + 1].id,
-      count: Math.floor(Math.random() * 40) + 10,
-    })
-    if (i + 3 < demoNodes.length && Math.random() > 0.5) {
-      demoLinks.push({
-        source: demoNodes[i].id,
-        target: demoNodes[i + 3].id,
-        count: Math.floor(Math.random() * 20) + 5,
-      })
-    }
   }
 
-  nodes.value = demoNodes
-  links.value = demoLinks
-  totalPractices.value = demoNodes.reduce((sum, n) => sum + n.totalPractices, 0)
+  allAvailableLegos.value = demoLegos
+  nodes.value = []
+  links.value = []
+  totalPractices.value = 0
+  maxRounds.value = 300
 }
 
 // ============================================================================
@@ -279,7 +486,7 @@ const createDemoData = () => {
 // ============================================================================
 
 const initVisualization = () => {
-  if (!containerRef.value || nodes.value.length === 0) return
+  if (!containerRef.value) return
 
   const width = containerRef.value.clientWidth
   const height = containerRef.value.clientHeight
@@ -324,92 +531,166 @@ const initVisualization = () => {
     .force('x', d3.forceX(width / 2).strength(0.03))
     .force('y', d3.forceY(height / 2).strength(0.03))
 
-  // Render links
+  // Initial render
+  updateVisualization()
+}
+
+const updateVisualization = () => {
+  if (!svg || !linksLayer || !nodesLayer) return
+
+  const palette = currentPalette.value
+  const width = containerRef.value?.clientWidth || 800
+  const height = containerRef.value?.clientHeight || 600
+
+  // Update links
   const link = linksLayer.selectAll('.link')
-    .data(links.value)
-    .join('path')
+    .data(links.value, d => `${d.source.id || d.source}-${d.target.id || d.target}`)
+
+  link.exit().remove()
+
+  link.enter()
+    .append('path')
     .attr('class', 'link')
     .attr('fill', 'none')
-    .attr('stroke', currentPalette.value.link.base)
+    .attr('stroke', palette.link.base)
     .attr('stroke-width', d => Math.min(1 + d.count / 15, 4))
+    .attr('opacity', 0)
+    .transition()
+    .duration(300)
     .attr('opacity', 0.6)
 
-  // Render nodes
+  link.attr('stroke', palette.link.base)
+
+  // Update nodes
   const node = nodesLayer.selectAll('.node')
-    .data(nodes.value)
-    .join('g')
+    .data(nodes.value, d => d.id)
+
+  node.exit()
+    .transition()
+    .duration(200)
+    .attr('opacity', 0)
+    .remove()
+
+  const nodeEnter = node.enter()
+    .append('g')
     .attr('class', 'node')
     .attr('data-id', d => d.id)
+    .attr('opacity', 0)
     .call(d3.drag()
       .on('start', dragstarted)
       .on('drag', dragged)
       .on('end', dragended))
 
-  // Node outer glow (mastery indicator)
-  node.append('circle')
+  // Node outer glow
+  nodeEnter.append('circle')
     .attr('class', 'node-glow')
     .attr('r', 18)
     .attr('fill', 'none')
-    .attr('stroke', currentPalette.value.glow)
+    .attr('stroke', palette.glow)
     .attr('stroke-width', 2)
     .attr('opacity', d => d.mastery * 0.7)
     .attr('filter', d => d.mastery > 0.5 ? 'url(#glow)' : null)
 
   // Node core
-  node.append('circle')
+  nodeEnter.append('circle')
     .attr('class', 'node-core')
-    .attr('r', 12)
+    .attr('r', 0)
     .attr('fill', d => {
-      const palette = currentPalette.value.node
-      if (d.mastery > 0.7) return palette.bright
-      if (d.mastery > 0.3) return palette.mid
-      return palette.base
+      if (d.mastery > 0.7) return palette.node.bright
+      if (d.mastery > 0.3) return palette.node.mid
+      return palette.node.base
     })
-    .attr('stroke', currentPalette.value.glow)
+    .attr('stroke', palette.glow)
     .attr('stroke-width', d => d.isEternal ? 2.5 : 1.5)
     .attr('stroke-opacity', d => 0.3 + d.mastery * 0.5)
+    .transition()
+    .duration(300)
+    .attr('r', 12)
 
   // Node inner dot
-  node.append('circle')
+  nodeEnter.append('circle')
     .attr('class', 'node-inner')
     .attr('r', 4)
-    .attr('fill', currentPalette.value.glow)
+    .attr('fill', palette.glow)
     .attr('opacity', d => 0.3 + d.mastery * 0.6)
 
-  // Eternal indicator (small star/diamond)
-  node.filter(d => d.isEternal)
-    .append('circle')
-    .attr('class', 'node-eternal')
-    .attr('r', 2)
-    .attr('cy', -16)
-    .attr('fill', currentPalette.value.accent)
-    .attr('opacity', 0.8)
+  // Fade in new nodes
+  nodeEnter.transition()
+    .duration(300)
+    .attr('opacity', 1)
 
   // Node interactions
-  node
+  nodeEnter
     .on('mouseenter', handleNodeHover)
     .on('mouseleave', handleNodeLeave)
     .on('click', handleNodeClick)
 
+  // Update existing nodes
+  const allNodes = nodesLayer.selectAll('.node')
+
+  allNodes.select('.node-glow')
+    .attr('stroke', palette.glow)
+    .attr('opacity', d => d.mastery * 0.7)
+    .attr('filter', d => d.mastery > 0.5 ? 'url(#glow)' : null)
+
+  allNodes.select('.node-core')
+    .attr('fill', d => {
+      if (d.mastery > 0.7) return palette.node.bright
+      if (d.mastery > 0.3) return palette.node.mid
+      return palette.node.base
+    })
+    .attr('stroke', palette.glow)
+    .attr('stroke-width', d => d.isEternal ? 2.5 : 1.5)
+
+  allNodes.select('.node-inner')
+    .attr('fill', palette.glow)
+    .attr('opacity', d => 0.3 + d.mastery * 0.6)
+
+  // Eternal indicators
+  allNodes.each(function(d) {
+    const g = d3.select(this)
+    const hasEternal = g.select('.node-eternal').size() > 0
+
+    if (d.isEternal && !hasEternal) {
+      g.append('circle')
+        .attr('class', 'node-eternal')
+        .attr('r', 0)
+        .attr('cy', -16)
+        .attr('fill', palette.accent)
+        .attr('opacity', 0.8)
+        .transition()
+        .duration(200)
+        .attr('r', 2)
+    }
+  })
+
+  // Update simulation
+  simulation.nodes(nodes.value)
+  simulation.force('link').links(links.value)
+  simulation.alpha(0.3).restart()
+
   // Tick function
   simulation.on('tick', () => {
-    // Keep nodes in bounds
     nodes.value.forEach(d => {
-      d.x = Math.max(30, Math.min(width - 30, d.x))
-      d.y = Math.max(30, Math.min(height - 30, d.y))
+      d.x = Math.max(30, Math.min(width - 30, d.x || width/2))
+      d.y = Math.max(30, Math.min(height - 30, d.y || height/2))
     })
 
-    link.attr('d', linkArc)
-    node.attr('transform', d => `translate(${d.x},${d.y})`)
+    linksLayer.selectAll('.link').attr('d', linkArc)
+    nodesLayer.selectAll('.node').attr('transform', d => `translate(${d.x},${d.y})`)
   })
 }
 
 // Curved link path generator
 const linkArc = (d) => {
-  const dx = d.target.x - d.source.x
-  const dy = d.target.y - d.source.y
+  const sx = d.source.x || 0
+  const sy = d.source.y || 0
+  const tx = d.target.x || 0
+  const ty = d.target.y || 0
+  const dx = tx - sx
+  const dy = ty - sy
   const dr = Math.sqrt(dx * dx + dy * dy) * 1.2
-  return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`
+  return `M${sx},${sy}A${dr},${dr} 0 0,1 ${tx},${ty}`
 }
 
 // Drag functions
@@ -515,18 +796,12 @@ const playNodeAudio = async (node) => {
 
   isPlayingAudio.value = true
 
-  // For prototype, construct audio URLs (in production, look up from course_audio)
-  // This is simplified - real implementation would query Supabase
   try {
     if (!audioController.value) {
       audioController.value = new Audio()
     }
 
-    // Try to play target1 then target2 (simplified for prototype)
-    // In production, we'd look up UUIDs from course_audio table
     console.log('[LegoNetwork] Playing audio for:', node.targetText)
-
-    // Simulate audio playback delay
     await new Promise(resolve => setTimeout(resolve, 1500))
 
   } catch (err) {
@@ -543,7 +818,6 @@ const playNodeAudio = async (node) => {
 const getTopFollowsFrom = computed(() => {
   if (!selectedNode.value) return []
 
-  // Get links where selected node is the target
   const incoming = links.value
     .filter(l => {
       const tId = l.target.id || l.target
@@ -567,7 +841,6 @@ const getTopFollowsFrom = computed(() => {
 const getTopLeadsTo = computed(() => {
   if (!selectedNode.value) return []
 
-  // Get links where selected node is the source
   const outgoing = links.value
     .filter(l => {
       const sId = l.source.id || l.source
@@ -604,6 +877,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
+  stopDemo()
   if (simulation) simulation.stop()
   if (audioController.value) {
     audioController.value.pause()
@@ -625,10 +899,9 @@ const handleResize = () => {
 }
 
 // Watch for palette changes
-watch(() => props.beltLevel, () => {
+watch(currentBelt, () => {
   if (simulation) {
-    // Re-render with new colors
-    initVisualization()
+    updateVisualization()
   }
 })
 </script>
@@ -647,12 +920,12 @@ watch(() => props.beltLevel, () => {
           </svg>
         </button>
         <div class="header-content">
-          <h1 class="network-title">Your LEGO Network</h1>
+          <h1 class="network-title">LEGO Network</h1>
           <p class="network-subtitle">{{ courseName }}</p>
         </div>
       </div>
       <div class="header-right">
-        <div class="belt-indicator" :class="beltLevel">
+        <div class="belt-indicator" :class="currentBelt">
           <span class="belt-dot"></span>
           <span class="belt-name">{{ currentPalette.name }}</span>
         </div>
@@ -673,6 +946,83 @@ watch(() => props.beltLevel, () => {
       </div>
     </header>
 
+    <!-- Demo Controls -->
+    <div class="demo-controls">
+      <div class="demo-row">
+        <!-- Play/Pause/Stop -->
+        <button
+          v-if="!isDemoRunning"
+          class="demo-btn primary"
+          @click="startDemo"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+            <polygon points="5 3 19 12 5 21 5 3"/>
+          </svg>
+          <span>Watch it Grow</span>
+        </button>
+        <button
+          v-else
+          class="demo-btn danger"
+          @click="stopDemo"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+            <rect x="6" y="6" width="12" height="12"/>
+          </svg>
+          <span>Stop</span>
+        </button>
+
+        <!-- Speed controls -->
+        <div class="speed-controls">
+          <span class="speed-label">Speed:</span>
+          <button
+            v-for="speed in [1, 2, 4, 8]"
+            :key="speed"
+            class="speed-btn"
+            :class="{ active: demoSpeed === speed }"
+            @click="setSpeed(speed)"
+          >
+            {{ speed }}x
+          </button>
+        </div>
+
+        <!-- Round counter -->
+        <div class="round-counter">
+          <span class="round-label">Round</span>
+          <span class="round-value">{{ currentRound }}</span>
+          <span class="round-max">/ {{ maxRounds }}</span>
+        </div>
+      </div>
+
+      <!-- Milestone markers -->
+      <div class="milestone-track">
+        <div class="milestone-bar">
+          <div
+            class="milestone-progress"
+            :style="{ width: `${(currentRound / maxRounds) * 100}%` }"
+          ></div>
+        </div>
+        <div class="milestone-markers">
+          <button
+            v-for="m in milestones"
+            :key="m"
+            class="milestone-marker"
+            :class="{ reached: reachedMilestones.includes(m), current: currentRound >= m }"
+            :style="{ left: `${(m / maxRounds) * 100}%` }"
+            @click="jumpToRound(m)"
+          >
+            {{ m }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Last added LEGO label -->
+      <div v-if="lastAddedNode && isDemoRunning" class="last-added">
+        <span class="last-added-label">Just learned:</span>
+        <span class="last-added-target">{{ lastAddedNode.targetText }}</span>
+        <span class="last-added-known">({{ lastAddedNode.knownText }})</span>
+      </div>
+    </div>
+
     <!-- Loading -->
     <div v-if="isLoading" class="loading">
       <div class="loading-spinner"></div>
@@ -682,6 +1032,11 @@ watch(() => props.beltLevel, () => {
     <!-- Network Viewport -->
     <div v-else class="network-viewport" ref="containerRef" @click="closePanel">
       <svg class="network-svg" ref="svgRef"></svg>
+
+      <!-- Empty state -->
+      <div v-if="nodes.length === 0 && !isDemoRunning" class="empty-state">
+        <p>Press "Watch it Grow" to simulate a learning journey</p>
+      </div>
 
       <!-- Tooltip -->
       <div
@@ -900,6 +1255,7 @@ watch(() => props.beltLevel, () => {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 20px;
+  transition: all 0.3s ease;
 }
 
 .belt-dot {
@@ -948,6 +1304,224 @@ watch(() => props.beltLevel, () => {
   color: rgba(255, 255, 255, 0.4);
 }
 
+/* Demo Controls */
+.demo-controls {
+  position: absolute;
+  top: 80px;
+  left: 1.5rem;
+  right: 1.5rem;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.demo-row {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.demo-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.demo-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.demo-btn.primary {
+  background: rgba(34, 197, 94, 0.2);
+  border-color: rgba(34, 197, 94, 0.4);
+  color: #4ade80;
+}
+
+.demo-btn.primary:hover {
+  background: rgba(34, 197, 94, 0.3);
+}
+
+.demo-btn.danger {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #f87171;
+}
+
+.demo-btn.danger:hover {
+  background: rgba(239, 68, 68, 0.3);
+}
+
+.demo-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.speed-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.speed-label {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.speed-btn {
+  padding: 0.375rem 0.625rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.6);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.speed-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.speed-btn.active {
+  background: rgba(59, 130, 246, 0.3);
+  border-color: rgba(59, 130, 246, 0.5);
+  color: #60a5fa;
+}
+
+.round-counter {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.round-label {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.round-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: white;
+}
+
+.round-max {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* Milestone Track */
+.milestone-track {
+  position: relative;
+  width: 100%;
+  padding: 1rem 0;
+}
+
+.milestone-bar {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.milestone-progress {
+  height: 100%;
+  background: linear-gradient(90deg, #22c55e, #3b82f6, #8b5cf6);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.milestone-markers {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100%;
+  pointer-events: none;
+}
+
+.milestone-marker {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 0.25rem 0.5rem;
+  background: rgba(20, 20, 30, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.5);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.625rem;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: all 0.2s;
+}
+
+.milestone-marker:hover {
+  background: rgba(40, 40, 60, 0.95);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: white;
+}
+
+.milestone-marker.current {
+  border-color: rgba(59, 130, 246, 0.6);
+  color: #60a5fa;
+}
+
+.milestone-marker.reached {
+  background: rgba(34, 197, 94, 0.2);
+  border-color: rgba(34, 197, 94, 0.5);
+  color: #4ade80;
+}
+
+/* Last Added Label */
+.last-added {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: rgba(212, 168, 83, 0.1);
+  border: 1px solid rgba(212, 168, 83, 0.3);
+  border-radius: 8px;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.last-added-label {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.last-added-target {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #d4a853;
+}
+
+.last-added-known {
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
 /* Loading */
 .loading {
   position: absolute;
@@ -975,12 +1549,23 @@ watch(() => props.beltLevel, () => {
 .network-viewport {
   position: absolute;
   inset: 0;
-  padding-top: 80px;
+  padding-top: 180px;
 }
 
 .network-svg {
   width: 100%;
   height: 100%;
+}
+
+/* Empty State */
+.empty-state {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 1rem;
 }
 
 /* Tooltip */
@@ -1353,9 +1938,24 @@ watch(() => props.beltLevel, () => {
     gap: 1rem;
   }
 
+  .demo-controls {
+    top: 120px;
+    left: 1rem;
+    right: 1rem;
+  }
+
+  .demo-row {
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .round-counter {
+    margin-left: 0;
+  }
+
   .network-legend {
     bottom: auto;
-    top: 8rem;
+    top: 260px;
     left: 1rem;
     padding: 0.75rem;
   }
@@ -1364,6 +1964,10 @@ watch(() => props.beltLevel, () => {
     flex-direction: row;
     flex-wrap: wrap;
     gap: 0.75rem;
+  }
+
+  .network-viewport {
+    padding-top: 280px;
   }
 }
 </style>
