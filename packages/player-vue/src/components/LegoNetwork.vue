@@ -940,7 +940,7 @@ watch(currentBelt, () => {
           </div>
           <div class="stat">
             <span class="stat-value">{{ masteredCount }}</span>
-            <span class="stat-label">Eternal</span>
+            <span class="stat-label">Mastered</span>
           </div>
         </div>
       </div>
@@ -1079,7 +1079,7 @@ watch(currentBelt, () => {
         <div class="panel-meta">
           <span class="meta-id">{{ selectedNode.id }}</span>
           <span class="meta-seed">{{ selectedNode.seedId }}</span>
-          <span v-if="selectedNode.isEternal" class="meta-eternal">Eternal</span>
+          <span v-if="selectedNode.isEternal" class="meta-mastered">Mastered</span>
         </div>
 
         <!-- Stats -->
@@ -1144,19 +1144,15 @@ watch(currentBelt, () => {
       <div class="legend-items">
         <div class="legend-item">
           <span class="legend-dot dim"></span>
-          <span>Learning</span>
+          <span>New</span>
         </div>
         <div class="legend-item">
           <span class="legend-dot mid"></span>
           <span>Practicing</span>
         </div>
         <div class="legend-item">
-          <span class="legend-dot bright"></span>
-          <span>Mastered</span>
-        </div>
-        <div class="legend-item">
           <span class="legend-dot eternal"></span>
-          <span>Eternal</span>
+          <span>Mastered</span>
         </div>
       </div>
     </div>
@@ -1722,7 +1718,7 @@ watch(currentBelt, () => {
   margin-bottom: 1.5rem;
 }
 
-.meta-id, .meta-seed, .meta-eternal {
+.meta-id, .meta-seed, .meta-mastered {
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.625rem;
   text-transform: uppercase;
@@ -1740,7 +1736,7 @@ watch(currentBelt, () => {
   color: #60a5fa;
 }
 
-.meta-eternal {
+.meta-mastered {
   background: rgba(212, 168, 83, 0.15);
   color: #d4a853;
 }
