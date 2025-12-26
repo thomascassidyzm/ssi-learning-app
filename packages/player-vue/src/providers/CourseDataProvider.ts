@@ -1045,7 +1045,13 @@ export async function generateLearningScript(
     // Normalize display text: lowercase but preserve proper nouns
     const normalizeDisplay = (text: string): string => {
       return text.split(/(\s+)/).map(word => {
-        const stripped = word.replace(/[.,!?;:¡¿'"]+/g, '')
+        // Handle "I" and "I'" contractions (I'm, I'll, I've, I'd)
+        if (/^i$/i.test(word) || /^i['']/i.test(word)) {
+          // Capitalize the I, keep rest as-is
+          return 'I' + word.slice(1).toLowerCase()
+        }
+
+        const stripped = word.replace(/[.,!?;:¡¿''"]+/g, '')
         const proper = properNounsLower.get(stripped.toLowerCase())
         if (proper) {
           // Restore proper noun, keeping any punctuation
