@@ -54,8 +54,11 @@ const containerRef = ref(null)
 const svgRef = ref(null)
 let simulation = null
 let svg = null
+let zoomGroup = null
 let linksLayer = null
 let nodesLayer = null
+let zoomBehavior = null
+const currentZoom = ref(1)
 
 // UI state
 const selectedNode = ref(null)
@@ -166,6 +169,22 @@ const courseCode = computed(() => props.course?.course_code || '')
 const legoCount = computed(() => nodes.value.length)
 const practiceCount = computed(() => totalPractices.value)
 const masteredCount = computed(() => nodes.value.filter(n => n.isEternal).length)
+
+// Track current transform for tooltip positioning
+const currentTransform = ref({ x: 0, y: 0, k: 1 })
+
+// Tooltip position accounting for zoom/pan
+const tooltipPosition = computed(() => {
+  if (!hoveredNode.value) return { left: '0px', top: '0px' }
+  const t = currentTransform.value
+  // Transform node coordinates to screen space
+  const screenX = hoveredNode.value.x * t.k + t.x + 20
+  const screenY = hoveredNode.value.y * t.k + t.y - 10
+  return {
+    left: `${screenX}px`,
+    top: `${screenY}px`
+  }
+})
 
 // Audio base URL
 const audioBaseUrl = 'https://ssi-audio-stage.s3.eu-west-1.amazonaws.com/mastered'
@@ -513,26 +532,63 @@ const initVisualization = () => {
   feMerge.append('feMergeNode').attr('in', 'blur')
   feMerge.append('feMergeNode').attr('in', 'SourceGraphic')
 
-  // Create layers
-  linksLayer = svg.append('g').attr('class', 'links-layer')
-  nodesLayer = svg.append('g').attr('class', 'nodes-layer')
+  // Create zoom container group
+  zoomGroup = svg.append('g').attr('class', 'zoom-container')
 
-  // Create force simulation
+  // Create layers inside zoom group
+  linksLayer = zoomGroup.append('g').attr('class', 'links-layer')
+  nodesLayer = zoomGroup.append('g').attr('class', 'nodes-layer')
+
+  // Setup zoom behavior
+  zoomBehavior = d3.zoom()
+    .scaleExtent([0.2, 4]) // Min 20%, max 400%
+    .on('zoom', (event) => {
+      zoomGroup.attr('transform', event.transform)
+      currentZoom.value = event.transform.k
+      currentTransform.value = { x: event.transform.x, y: event.transform.y, k: event.transform.k }
+    })
+
+  // Apply zoom to SVG
+  svg.call(zoomBehavior)
+    .on('dblclick.zoom', null) // Disable double-click zoom (conflicts with node selection)
+
+  // Create force simulation with SPREAD OUT parameters (neuron/synapse aesthetic)
   simulation = d3.forceSimulation(nodes.value)
     .force('link', d3.forceLink(links.value)
       .id(d => d.id)
-      .distance(60)
-      .strength(0.4))
+      .distance(120) // Increased from 60 - longer dendrite-like connections
+      .strength(0.3)) // Reduced strength for more organic feel
     .force('charge', d3.forceManyBody()
-      .strength(-150)
-      .distanceMax(250))
+      .strength(-400) // Much stronger repulsion (was -150)
+      .distanceMax(500)) // Increased range of repulsion
     .force('center', d3.forceCenter(width / 2, height / 2))
-    .force('collision', d3.forceCollide().radius(20))
-    .force('x', d3.forceX(width / 2).strength(0.03))
-    .force('y', d3.forceY(height / 2).strength(0.03))
+    .force('collision', d3.forceCollide().radius(35)) // Increased from 20
+    .force('x', d3.forceX(width / 2).strength(0.015)) // Reduced centering force
+    .force('y', d3.forceY(height / 2).strength(0.015)) // Reduced centering force
 
   // Initial render
   updateVisualization()
+}
+
+// Zoom control functions
+const zoomIn = () => {
+  if (!svg || !zoomBehavior) return
+  svg.transition().duration(300).call(zoomBehavior.scaleBy, 1.4)
+}
+
+const zoomOut = () => {
+  if (!svg || !zoomBehavior) return
+  svg.transition().duration(300).call(zoomBehavior.scaleBy, 0.7)
+}
+
+const zoomReset = () => {
+  if (!svg || !zoomBehavior || !containerRef.value) return
+  const width = containerRef.value.clientWidth
+  const height = containerRef.value.clientHeight
+  svg.transition().duration(500).call(
+    zoomBehavior.transform,
+    d3.zoomIdentity.translate(0, 0).scale(1)
+  )
 }
 
 const updateVisualization = () => {
@@ -669,11 +725,16 @@ const updateVisualization = () => {
   simulation.force('link').links(links.value)
   simulation.alpha(0.3).restart()
 
-  // Tick function
+  // Tick function - allow nodes to spread beyond viewport (can zoom/pan to see)
   simulation.on('tick', () => {
+    // Soft boundary - gentle pull back if too far from center
+    const softMargin = 200
     nodes.value.forEach(d => {
-      d.x = Math.max(30, Math.min(width - 30, d.x || width/2))
-      d.y = Math.max(30, Math.min(height - 30, d.y || height/2))
+      // Allow spreading but with soft bounds
+      if (d.x < -softMargin) d.vx += 0.5
+      if (d.x > width + softMargin) d.vx -= 0.5
+      if (d.y < -softMargin) d.vy += 0.5
+      if (d.y > height + softMargin) d.vy -= 0.5
     })
 
     linksLayer.selectAll('.link').attr('d', linkArc)
@@ -1038,14 +1099,35 @@ watch(currentBelt, () => {
         <p>Press "Watch it Grow" to simulate a learning journey</p>
       </div>
 
+      <!-- Zoom Controls -->
+      <div class="zoom-controls">
+        <button class="zoom-btn" @click.stop="zoomIn" title="Zoom in">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="M21 21l-4.35-4.35M11 8v6M8 11h6"/>
+          </svg>
+        </button>
+        <div class="zoom-level">{{ Math.round(currentZoom * 100) }}%</div>
+        <button class="zoom-btn" @click.stop="zoomOut" title="Zoom out">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="M21 21l-4.35-4.35M8 11h6"/>
+          </svg>
+        </button>
+        <button class="zoom-btn reset" @click.stop="zoomReset" title="Reset view">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+            <path d="M3 3v5h5"/>
+          </svg>
+        </button>
+        <div class="zoom-hint">Scroll to zoom<br/>Drag to pan</div>
+      </div>
+
       <!-- Tooltip -->
       <div
         class="node-tooltip"
         :class="{ visible: hoveredNode && !isPanelOpen }"
-        :style="hoveredNode ? {
-          left: `${hoveredNode.x + 20}px`,
-          top: `${hoveredNode.y - 10}px`
-        } : {}"
+        :style="tooltipPosition"
       >
         <span class="tooltip-target">{{ hoveredNode?.targetText }}</span>
         <span class="tooltip-known">{{ hoveredNode?.knownText }}</span>
@@ -1551,6 +1633,11 @@ watch(currentBelt, () => {
 .network-svg {
   width: 100%;
   height: 100%;
+  cursor: grab;
+}
+
+.network-svg:active {
+  cursor: grabbing;
 }
 
 /* Empty State */
@@ -1562,6 +1649,82 @@ watch(currentBelt, () => {
   text-align: center;
   color: rgba(255, 255, 255, 0.4);
   font-size: 1rem;
+}
+
+/* Zoom Controls */
+.zoom-controls {
+  position: absolute;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(18, 18, 26, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 0.75rem;
+  z-index: 20;
+  backdrop-filter: blur(8px);
+}
+
+.zoom-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.zoom-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.zoom-btn:active {
+  transform: scale(0.95);
+}
+
+.zoom-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.zoom-btn.reset {
+  margin-top: 0.25rem;
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: #60a5fa;
+}
+
+.zoom-btn.reset:hover {
+  background: rgba(59, 130, 246, 0.25);
+  border-color: rgba(59, 130, 246, 0.5);
+}
+
+.zoom-level {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6875rem;
+  color: rgba(255, 255, 255, 0.5);
+  min-width: 40px;
+  text-align: center;
+}
+
+.zoom-hint {
+  font-size: 0.625rem;
+  color: rgba(255, 255, 255, 0.35);
+  text-align: center;
+  line-height: 1.4;
+  margin-top: 0.25rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 /* Tooltip */
