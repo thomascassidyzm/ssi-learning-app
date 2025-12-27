@@ -21,13 +21,60 @@
 import { ref, computed, inject, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import * as d3 from 'd3'
 import { useLegoNetwork } from '../composables/useLegoNetwork'
-import {
-  CycleOrchestrator,
-  AudioController,
-  CyclePhase,
-  DEFAULT_CONFIG,
-} from '@ssi/core'
 import { generateLearningScript } from '../providers/CourseDataProvider'
+
+// ============================================================================
+// Simple audio controller (same as CourseExplorer)
+// ============================================================================
+class ScriptAudioController {
+  constructor() {
+    this.audio = null
+  }
+
+  async play(audioRef) {
+    if (!audioRef?.url) {
+      console.warn('[ScriptAudioController] No audio URL provided')
+      return
+    }
+
+    if (!this.audio) {
+      this.audio = new Audio()
+    }
+
+    this.audio.src = audioRef.url
+    this.audio.load()
+
+    return new Promise((resolve, reject) => {
+      const onEnded = () => {
+        this.audio.removeEventListener('ended', onEnded)
+        this.audio.removeEventListener('error', onError)
+        resolve()
+      }
+
+      const onError = (e) => {
+        console.error('[ScriptAudioController] Playback error:', e)
+        this.audio.removeEventListener('ended', onEnded)
+        this.audio.removeEventListener('error', onError)
+        reject(e)
+      }
+
+      this.audio.addEventListener('ended', onEnded)
+      this.audio.addEventListener('error', onError)
+
+      this.audio.play().catch((e) => {
+        console.error('[ScriptAudioController] Play failed:', e)
+        onError(e)
+      })
+    })
+  }
+
+  stop() {
+    if (this.audio) {
+      this.audio.pause()
+      this.audio.currentTime = 0
+    }
+  }
+}
 
 const emit = defineEmits(['close'])
 
@@ -104,11 +151,12 @@ const isPlayingAudio = ref(false)
 // ============================================================================
 const isPlaybackMode = ref(false)
 const isPlaybackLoading = ref(false)
-const playbackQueue = ref([]) // All learning items for the session
+const playbackQueue = ref([]) // All flat items for the session (same structure as CourseExplorer)
 const playbackIndex = ref(0) // Current position in queue
 const currentItem = ref(null) // Current learning item being played
-const currentPhase = ref('idle') // 'idle' | 'prompt' | 'pause' | 'voice_1' | 'voice_2'
-const orchestrator = ref(null) // CycleOrchestrator instance
+const currentPhase = ref('idle') // 'idle' | 'prompt' | 'pause' | 'voice1' | 'voice2'
+let cycleId = 0 // For cancellation
+let playbackTimers = [] // Timers to clear on stop
 const activeLegoIds = ref([]) // LEGOs highlighted during current phrase
 const introducedLegoIds = ref(new Set()) // LEGOs that have been introduced
 const isIntroducingLego = ref(false) // True when showing intro animation
@@ -122,8 +170,8 @@ const phaseLabels = {
   idle: 'Ready',
   prompt: 'Listen...',
   pause: 'Your turn!',
-  voice_1: 'Voice 1',
-  voice_2: 'Voice 2',
+  voice1: 'Voice 1',
+  voice2: 'Voice 2',
 }
 
 // Demo/Simulation state
@@ -449,8 +497,20 @@ const addNextLego = () => {
 }
 
 // ============================================================================
-// BRAIN VIEW PLAYBACK CONTROLS
+// BRAIN VIEW PLAYBACK CONTROLS (CourseExplorer-style phase playback)
 // ============================================================================
+
+// Timer helpers
+const scheduleTimer = (fn, delay) => {
+  const timer = setTimeout(fn, delay)
+  playbackTimers.push(timer)
+  return timer
+}
+
+const clearAllTimers = () => {
+  playbackTimers.forEach(t => clearTimeout(t))
+  playbackTimers = []
+}
 
 /**
  * Start playback mode - load session and begin playing
@@ -474,29 +534,30 @@ const startPlayback = async () => {
       )
 
       if (allItems && allItems.length > 0) {
-        playbackQueue.value = allItems
+        // Flatten into our format
+        const flatItems = []
+        for (const round of rounds) {
+          for (const item of round.items) {
+            flatItems.push({
+              ...item,
+              roundNumber: round.roundNumber,
+            })
+          }
+        }
+
+        playbackQueue.value = flatItems
         playbackIndex.value = 0
         introducedLegoIds.value = new Set(nodes.value.map(n => n.id))
 
-        console.log('[LegoNetwork] Loaded', allItems.length, 'items for playback')
+        console.log('[LegoNetwork] Loaded', flatItems.length, 'items for playback')
 
         // Initialize audio controller
         if (!audioController.value) {
-          audioController.value = new AudioController()
+          audioController.value = new ScriptAudioController()
         }
-
-        // Create orchestrator
-        const config = {
-          ...DEFAULT_CONFIG.cycle,
-          pauseDurationMultiplier: 2.0,
-        }
-        orchestrator.value = new CycleOrchestrator(audioController.value, config)
-
-        // Set up event handlers
-        setupOrchestratorEvents()
 
         // Start first item
-        await playNextItem()
+        await playFromIndex(0)
       } else {
         console.warn('[LegoNetwork] No items loaded for playback')
         error.value = 'No learning content available'
@@ -521,81 +582,189 @@ const startPlayback = async () => {
  */
 const stopPlayback = () => {
   console.log('[LegoNetwork] Stopping playback')
+  cycleId++
+  clearAllTimers()
+  if (audioController.value) audioController.value.stop()
+
   isPlaybackMode.value = false
   currentPhase.value = 'idle'
   currentItem.value = null
   activeLegoIds.value = []
   isIntroducingLego.value = false
   introLego.value = null
-
-  if (orchestrator.value) {
-    orchestrator.value.stop()
-    orchestrator.value = null
-  }
+  playbackIndex.value = -1
 
   // Reset node highlights
   updateNodeHighlights([])
 }
 
 /**
- * Play the next item in the queue
+ * Play from a specific index
  */
-const playNextItem = async () => {
-  if (!orchestrator.value || playbackIndex.value >= playbackQueue.value.length) {
+const playFromIndex = async (flatIndex) => {
+  const item = playbackQueue.value[flatIndex]
+  if (!item) return
+
+  clearAllTimers()
+  if (audioController.value) audioController.value.stop()
+
+  const myCycleId = ++cycleId
+  console.log('[LegoNetwork] Starting cycle', myCycleId, 'at index', flatIndex, 'item:', item.legoId, item.targetText)
+
+  playbackIndex.value = flatIndex
+  currentItem.value = item
+
+  // Check if this introduces a new LEGO
+  const legoId = item.legoId
+  if (legoId && !introducedLegoIds.value.has(legoId)) {
+    await introduceNewLego(item)
+  }
+
+  // Highlight active nodes
+  activeLegoIds.value = [legoId]
+  updateNodeHighlights([legoId])
+
+  // Start phase cycle
+  await runPhase('prompt', myCycleId)
+}
+
+/**
+ * Run a playback phase
+ */
+const runPhase = async (phase, myCycleId) => {
+  if (myCycleId !== cycleId) return
+
+  const item = playbackQueue.value[playbackIndex.value]
+  if (!item) {
+    advanceToNextItem(myCycleId)
+    return
+  }
+
+  currentPhase.value = phase
+  console.log('[LegoNetwork] Cycle', myCycleId, 'phase:', phase)
+  updatePhaseHighlighting()
+
+  switch (phase) {
+    case 'prompt': {
+      // For intro items, we might skip or handle differently
+      const isIntro = item.type === 'intro'
+      let promptUrl = null
+
+      if (isIntro) {
+        // Skip intro items for now (or could play intro audio if available)
+        scheduleTimer(() => {
+          if (myCycleId === cycleId) advanceToNextItem(myCycleId)
+        }, 500)
+        return
+      }
+
+      // Get known audio URL
+      promptUrl = item.audioRefs?.known?.url
+
+      if (promptUrl) {
+        try {
+          await audioController.value.play({ url: promptUrl })
+          if (myCycleId !== cycleId) return
+          runPhase('pause', myCycleId)
+          return
+        } catch (err) {
+          console.warn('[LegoNetwork] Prompt audio failed:', err)
+          if (myCycleId !== cycleId) return
+        }
+      }
+      if (myCycleId === cycleId) runPhase('pause', myCycleId)
+      break
+    }
+
+    case 'pause': {
+      // Pause for learner to speak (2 seconds)
+      scheduleTimer(() => {
+        if (myCycleId === cycleId) {
+          runPhase('voice1', myCycleId)
+        }
+      }, 2000)
+      break
+    }
+
+    case 'voice1': {
+      const voice1Url = item.audioRefs?.target?.voice1?.url
+      if (voice1Url) {
+        try {
+          await audioController.value.play({ url: voice1Url })
+          if (myCycleId !== cycleId) return
+          runPhase('voice2', myCycleId)
+          return
+        } catch (err) {
+          console.warn('[LegoNetwork] Voice1 audio failed:', err)
+          if (myCycleId !== cycleId) return
+        }
+      }
+      if (myCycleId === cycleId) runPhase('voice2', myCycleId)
+      break
+    }
+
+    case 'voice2': {
+      const voice2Url = item.audioRefs?.target?.voice2?.url
+      if (voice2Url) {
+        try {
+          await audioController.value.play({ url: voice2Url })
+          if (myCycleId !== cycleId) return
+          advanceToNextItem(myCycleId)
+          return
+        } catch (err) {
+          console.warn('[LegoNetwork] Voice2 audio failed:', err)
+          if (myCycleId !== cycleId) return
+        }
+      }
+      if (myCycleId === cycleId) advanceToNextItem(myCycleId)
+      break
+    }
+  }
+}
+
+/**
+ * Advance to the next item
+ */
+const advanceToNextItem = (myCycleId) => {
+  if (myCycleId !== cycleId) return
+
+  const nextIndex = playbackIndex.value + 1
+  if (nextIndex >= playbackQueue.value.length) {
     console.log('[LegoNetwork] Playback complete')
     stopPlayback()
     return
   }
 
-  const item = playbackQueue.value[playbackIndex.value]
-  currentItem.value = item
-  playbackIndex.value++
-
-  console.log('[LegoNetwork] Playing item:', item.lego?.id, item.phrase?.phrase?.target)
-
-  // Check if this introduces a new LEGO
-  const legoId = item.lego?.id
-  if (legoId && !introducedLegoIds.value.has(legoId)) {
-    // New LEGO! Show introduction animation
-    await introduceNewLego(item)
-  }
-
-  // Determine which LEGOs are active in this phrase
-  const phraseLegoIds = getLegoIdsFromPhrase(item)
-  activeLegoIds.value = phraseLegoIds
-
-  // Highlight active nodes
-  updateNodeHighlights(phraseLegoIds)
-
-  // Start the audio cycle
-  try {
-    await orchestrator.value.startItem(item)
-  } catch (err) {
-    console.error('[LegoNetwork] Error playing item:', err)
-    // Continue to next item on error
-    setTimeout(playNextItem, 500)
-  }
+  scheduleTimer(() => {
+    if (myCycleId === cycleId) {
+      playFromIndex(nextIndex)
+    }
+  }, 500)
 }
 
 /**
  * Introduce a new LEGO with animation
  */
 const introduceNewLego = async (item) => {
-  const legoId = item.lego?.id
+  const legoId = item.legoId
   if (!legoId) return
 
   console.log('[LegoNetwork] Introducing new LEGO:', legoId)
 
   isIntroducingLego.value = true
-  introLego.value = item.lego
+  introLego.value = {
+    id: legoId,
+    target: item.targetText,
+    known: item.knownText,
+  }
 
   // Add the new node to the network
   const newNode = {
     id: legoId,
-    seedId: item.seed?.seed_id || '',
+    seedId: item.seedId || '',
     legoIndex: parseInt(legoId.split('L')[1]) || 1,
-    knownText: item.lego?.lego?.known || '',
-    targetText: item.lego?.lego?.target || '',
+    knownText: item.knownText || '',
+    targetText: item.targetText || '',
     totalPractices: 0,
     usedInPhrases: 1,
     mastery: 0.1,
@@ -630,94 +799,6 @@ const introduceNewLego = async (item) => {
   // Show intro for a moment
   await new Promise(resolve => setTimeout(resolve, 1500))
   isIntroducingLego.value = false
-}
-
-/**
- * Get LEGO IDs from a phrase (using decomposition)
- */
-const getLegoIdsFromPhrase = (item) => {
-  const legoIds = []
-
-  // Primary LEGO
-  if (item.lego?.id) {
-    legoIds.push(item.lego.id)
-  }
-
-  // Phrase may contain multiple LEGOs
-  if (item.phrase?.containsLegos) {
-    for (const id of item.phrase.containsLegos) {
-      if (!legoIds.includes(id)) {
-        legoIds.push(id)
-      }
-    }
-  }
-
-  return legoIds
-}
-
-/**
- * Set up orchestrator event handlers
- */
-const setupOrchestratorEvents = () => {
-  if (!orchestrator.value) return
-
-  orchestrator.value.addEventListener((event) => {
-    switch (event.type) {
-      case 'phase_changed':
-        handlePhaseChange(event.data.phase)
-        break
-
-      case 'item_completed':
-        handleItemCompleted()
-        break
-
-      case 'error':
-        console.error('[LegoNetwork] Orchestrator error:', event.data?.error)
-        // Continue to next item on error
-        setTimeout(playNextItem, 500)
-        break
-    }
-  })
-}
-
-/**
- * Handle phase changes - update visualization
- */
-const handlePhaseChange = (phase) => {
-  // Map CyclePhase to our phase names
-  switch (phase) {
-    case CyclePhase.PROMPT:
-      currentPhase.value = 'prompt'
-      break
-    case CyclePhase.PAUSE:
-      currentPhase.value = 'pause'
-      break
-    case CyclePhase.VOICE_1:
-      currentPhase.value = 'voice_1'
-      break
-    case CyclePhase.VOICE_2:
-      currentPhase.value = 'voice_2'
-      break
-    default:
-      currentPhase.value = 'idle'
-  }
-
-  // Update node highlighting based on phase
-  updatePhaseHighlighting()
-}
-
-/**
- * Handle item completion - move to next
- */
-const handleItemCompleted = () => {
-  console.log('[LegoNetwork] Item completed, moving to next')
-
-  // Brief pause between items
-  setTimeout(() => {
-    if (isPlaybackMode.value) {
-      playNextItem()
-    }
-  }, 300)
 }
 
 /**
@@ -763,13 +844,12 @@ const updatePhaseHighlighting = () => {
   if (!nodesLayer) return
 
   const phase = currentPhase.value
-  const isActive = phase !== 'idle'
 
   // Phase-specific visual effects
   nodesLayer.selectAll('.node.active .node-core')
     .transition()
     .duration(200)
-    .attr('r', phase === 'pause' ? 16 : phase === 'voice_2' ? 14 : 12)
+    .attr('r', phase === 'pause' ? 16 : phase === 'voice2' ? 14 : 12)
 
   // Pulse effect during pause (learner speaking)
   if (phase === 'pause') {
@@ -784,8 +864,8 @@ const updatePhaseHighlighting = () => {
       .attr('opacity', 0.7)
   }
 
-  // Bright flash on voice_2 (answer revealed)
-  if (phase === 'voice_2') {
+  // Bright flash on voice2 (answer revealed)
+  if (phase === 'voice2') {
     nodesLayer.selectAll('.node.active .node-glow')
       .transition()
       .duration(100)
@@ -1640,11 +1720,11 @@ watch(courseCode, async (newCode, oldCode) => {
         <div class="now-playing-content">
           <!-- Target phrase -->
           <div class="phrase-display">
-            <span class="phrase-target" :class="{ revealed: currentPhase === 'voice_2' }">
-              {{ currentItem.phrase?.phrase?.target || currentItem.lego?.lego?.target }}
+            <span class="phrase-target" :class="{ revealed: currentPhase === 'voice2' }">
+              {{ currentItem.targetText }}
             </span>
             <span class="phrase-known">
-              {{ currentItem.phrase?.phrase?.known || currentItem.lego?.lego?.known }}
+              {{ currentItem.knownText }}
             </span>
           </div>
 
@@ -1654,7 +1734,7 @@ watch(courseCode, async (newCode, oldCode) => {
               v-for="legoId in activeLegoIds"
               :key="legoId"
               class="lego-chip"
-              :class="{ primary: legoId === currentItem.lego?.id }"
+              :class="{ primary: legoId === currentItem.legoId }"
             >
               {{ legoId }}
             </span>
@@ -1676,8 +1756,8 @@ watch(courseCode, async (newCode, oldCode) => {
       <div v-if="isIntroducingLego && introLego" class="intro-overlay">
         <div class="intro-content">
           <div class="intro-badge">NEW LEGO</div>
-          <div class="intro-target">{{ introLego.lego?.target }}</div>
-          <div class="intro-known">{{ introLego.lego?.known }}</div>
+          <div class="intro-target">{{ introLego.target }}</div>
+          <div class="intro-known">{{ introLego.known }}</div>
           <div class="intro-burst"></div>
         </div>
       </div>
@@ -2944,14 +3024,14 @@ watch(courseCode, async (newCode, oldCode) => {
   animation: phase-pulse 0.6s ease-in-out infinite;
 }
 
-.phase-badge.voice_1 {
+.phase-badge.voice1 {
   background: rgba(34, 197, 94, 0.3);
   border: 1px solid rgba(34, 197, 94, 0.5);
   color: #4ade80;
   animation: phase-pulse 1s ease-in-out infinite;
 }
 
-.phase-badge.voice_2 {
+.phase-badge.voice2 {
   background: rgba(139, 92, 246, 0.3);
   border: 1px solid rgba(139, 92, 246, 0.5);
   color: #a78bfa;
