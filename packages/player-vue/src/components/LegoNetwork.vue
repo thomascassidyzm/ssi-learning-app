@@ -387,6 +387,14 @@ const loadNetworkData = async () => {
   const useMode = props.mode
   const shouldTryReal = useMode === 'auto' || useMode === 'real'
 
+  console.log('[LegoNetwork] loadNetworkData called:', {
+    mode: useMode,
+    courseCode: courseCode.value,
+    hasCourse: !!props.course,
+    courseName: props.course?.display_name,
+    hasSupabase: !!supabase?.value
+  })
+
   // Try to load real data from database (phrase co-occurrence)
   if (shouldTryReal && supabase?.value && courseCode.value) {
     try {
@@ -1050,6 +1058,16 @@ const handleResize = () => {
 watch(currentBelt, () => {
   if (simulation) {
     updateVisualization()
+  }
+})
+
+// Watch for course changes - reload data when course changes
+watch(courseCode, async (newCode, oldCode) => {
+  if (newCode && newCode !== oldCode) {
+    console.log('[LegoNetwork] Course changed:', oldCode, '→', newCode)
+    await loadNetworkData()
+    await nextTick()
+    initVisualization()
   }
 })
 </script>

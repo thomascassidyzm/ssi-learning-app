@@ -10,6 +10,7 @@ import {
 } from '@ssi/core'
 import SessionComplete from './SessionComplete.vue'
 import OnboardingTooltips from './OnboardingTooltips.vue'
+import ReportIssueButton from './ReportIssueButton.vue'
 // AwakeningLoader removed - loading state now shown inline in player
 import { useLearningSession } from '../composables/useLearningSession'
 import { useScriptCache, setCachedScript } from '../composables/useScriptCache'
@@ -140,6 +141,16 @@ const auth = inject('auth', null)
 
 // Get course code from prop, falling back to Chinese course (has full data)
 const courseCode = computed(() => props.course?.course_code || 'zho_for_eng')
+
+// Alias for ReportIssueButton
+const activeCourseCode = courseCode
+
+// Check if launched from dashboard in QA mode
+const isQaMode = computed(() => {
+  if (typeof window === 'undefined') return false
+  const params = new URLSearchParams(window.location.search)
+  return params.get('qa_mode') === 'true'
+})
 
 // Get learner ID from auth (or fallback to 'demo-learner' for dev)
 const learnerId = computed(() => auth?.learnerId?.value || 'demo-learner')
@@ -2479,6 +2490,15 @@ onUnmounted(() => {
           <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
         </svg>
       </button>
+
+      <!-- Report Issue Button (for QA feedback) -->
+      <ReportIssueButton
+        :course-code="activeCourseCode"
+        :current-item="currentItem"
+        :current-known="visibleTexts.known"
+        :current-target="visibleTexts.target"
+        :qa-mode="isQaMode"
+      />
     </div>
 
     <!-- Footer -->
