@@ -21,6 +21,13 @@
 import { ref, computed, inject, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import * as d3 from 'd3'
 import { useLegoNetwork } from '../composables/useLegoNetwork'
+import {
+  CycleOrchestrator,
+  AudioController,
+  CyclePhase,
+  DEFAULT_CONFIG,
+} from '@ssi/core'
+import { generateLearningScript } from '../providers/CourseDataProvider'
 
 const emit = defineEmits(['close'])
 
@@ -43,6 +50,7 @@ const props = defineProps({
 const supabase = inject('supabase', null)
 const auth = inject('auth', null)
 const progressStore = inject('progressStore', null)
+const courseDataProvider = inject('courseDataProvider', null)
 
 // Use the LEGO network composable for real data
 const {
@@ -89,6 +97,34 @@ const isPanelOpen = ref(false)
 // Audio
 const audioController = ref(null)
 const isPlayingAudio = ref(false)
+
+// ============================================================================
+// BRAIN VIEW PLAYBACK MODE
+// Play the course with real-time visualization of learning
+// ============================================================================
+const isPlaybackMode = ref(false)
+const isPlaybackLoading = ref(false)
+const playbackQueue = ref([]) // All learning items for the session
+const playbackIndex = ref(0) // Current position in queue
+const currentItem = ref(null) // Current learning item being played
+const currentPhase = ref('idle') // 'idle' | 'prompt' | 'pause' | 'voice_1' | 'voice_2'
+const orchestrator = ref(null) // CycleOrchestrator instance
+const activeLegoIds = ref([]) // LEGOs highlighted during current phrase
+const introducedLegoIds = ref(new Set()) // LEGOs that have been introduced
+const isIntroducingLego = ref(false) // True when showing intro animation
+const introLego = ref(null) // The LEGO being introduced
+
+// Audio S3 base URL
+const AUDIO_S3_BASE_URL = 'https://ssi-audio-stage.s3.eu-west-1.amazonaws.com/mastered'
+
+// Phase display names
+const phaseLabels = {
+  idle: 'Ready',
+  prompt: 'Listen...',
+  pause: 'Your turn!',
+  voice_1: 'Voice 1',
+  voice_2: 'Voice 2',
+}
 
 // Demo/Simulation state
 const isDemoRunning = ref(false)
@@ -410,6 +446,355 @@ const addNextLego = () => {
   })
 
   totalPractices.value = nodes.value.reduce((sum, n) => sum + n.totalPractices, 0)
+}
+
+// ============================================================================
+// BRAIN VIEW PLAYBACK CONTROLS
+// ============================================================================
+
+/**
+ * Start playback mode - load session and begin playing
+ */
+const startPlayback = async () => {
+  if (isPlaybackMode.value || !courseCode.value) return
+
+  console.log('[LegoNetwork] Starting playback mode for:', courseCode.value)
+  isPlaybackLoading.value = true
+  isPlaybackMode.value = true
+
+  try {
+    // Load learning script for this course
+    if (courseDataProvider?.value && supabase?.value) {
+      const { rounds, allItems } = await generateLearningScript(
+        courseDataProvider.value,
+        supabase.value,
+        courseCode.value,
+        AUDIO_S3_BASE_URL,
+        30, // maxLegos - start with 30 for brain view
+      )
+
+      if (allItems && allItems.length > 0) {
+        playbackQueue.value = allItems
+        playbackIndex.value = 0
+        introducedLegoIds.value = new Set(nodes.value.map(n => n.id))
+
+        console.log('[LegoNetwork] Loaded', allItems.length, 'items for playback')
+
+        // Initialize audio controller
+        if (!audioController.value) {
+          audioController.value = new AudioController()
+        }
+
+        // Create orchestrator
+        const config = {
+          ...DEFAULT_CONFIG.cycle,
+          pauseDurationMultiplier: 2.0,
+        }
+        orchestrator.value = new CycleOrchestrator(audioController.value, config)
+
+        // Set up event handlers
+        setupOrchestratorEvents()
+
+        // Start first item
+        await playNextItem()
+      } else {
+        console.warn('[LegoNetwork] No items loaded for playback')
+        error.value = 'No learning content available'
+        stopPlayback()
+      }
+    } else {
+      console.warn('[LegoNetwork] No courseDataProvider or supabase available')
+      error.value = 'Database not available'
+      stopPlayback()
+    }
+  } catch (err) {
+    console.error('[LegoNetwork] Failed to start playback:', err)
+    error.value = 'Failed to load learning content'
+    stopPlayback()
+  } finally {
+    isPlaybackLoading.value = false
+  }
+}
+
+/**
+ * Stop playback mode
+ */
+const stopPlayback = () => {
+  console.log('[LegoNetwork] Stopping playback')
+  isPlaybackMode.value = false
+  currentPhase.value = 'idle'
+  currentItem.value = null
+  activeLegoIds.value = []
+  isIntroducingLego.value = false
+  introLego.value = null
+
+  if (orchestrator.value) {
+    orchestrator.value.stop()
+    orchestrator.value = null
+  }
+
+  // Reset node highlights
+  updateNodeHighlights([])
+}
+
+/**
+ * Play the next item in the queue
+ */
+const playNextItem = async () => {
+  if (!orchestrator.value || playbackIndex.value >= playbackQueue.value.length) {
+    console.log('[LegoNetwork] Playback complete')
+    stopPlayback()
+    return
+  }
+
+  const item = playbackQueue.value[playbackIndex.value]
+  currentItem.value = item
+  playbackIndex.value++
+
+  console.log('[LegoNetwork] Playing item:', item.lego?.id, item.phrase?.phrase?.target)
+
+  // Check if this introduces a new LEGO
+  const legoId = item.lego?.id
+  if (legoId && !introducedLegoIds.value.has(legoId)) {
+    // New LEGO! Show introduction animation
+    await introduceNewLego(item)
+  }
+
+  // Determine which LEGOs are active in this phrase
+  const phraseLegoIds = getLegoIdsFromPhrase(item)
+  activeLegoIds.value = phraseLegoIds
+
+  // Highlight active nodes
+  updateNodeHighlights(phraseLegoIds)
+
+  // Start the audio cycle
+  try {
+    await orchestrator.value.startItem(item)
+  } catch (err) {
+    console.error('[LegoNetwork] Error playing item:', err)
+    // Continue to next item on error
+    setTimeout(playNextItem, 500)
+  }
+}
+
+/**
+ * Introduce a new LEGO with animation
+ */
+const introduceNewLego = async (item) => {
+  const legoId = item.lego?.id
+  if (!legoId) return
+
+  console.log('[LegoNetwork] Introducing new LEGO:', legoId)
+
+  isIntroducingLego.value = true
+  introLego.value = item.lego
+
+  // Add the new node to the network
+  const newNode = {
+    id: legoId,
+    seedId: item.seed?.seed_id || '',
+    legoIndex: parseInt(legoId.split('L')[1]) || 1,
+    knownText: item.lego?.lego?.known || '',
+    targetText: item.lego?.lego?.target || '',
+    totalPractices: 0,
+    usedInPhrases: 1,
+    mastery: 0.1,
+    isEternal: false,
+    birthBelt: currentBelt.value,
+    isNew: true,
+  }
+
+  nodes.value.push(newNode)
+  introducedLegoIds.value.add(legoId)
+
+  // Add connections from fullNetworkData if available
+  if (fullNetworkData.value) {
+    const existingNodeIds = new Set(nodes.value.slice(0, -1).map(n => n.id))
+    const realConnections = fullNetworkData.value.connections.filter(conn =>
+      (conn.source === legoId && existingNodeIds.has(conn.target)) ||
+      (conn.target === legoId && existingNodeIds.has(conn.source))
+    )
+
+    for (const conn of realConnections) {
+      links.value.push({
+        source: conn.source,
+        target: conn.target,
+        count: conn.count,
+      })
+    }
+  }
+
+  // Update visualization
+  updateVisualization()
+
+  // Show intro for a moment
+  await new Promise(resolve => setTimeout(resolve, 1500))
+  isIntroducingLego.value = false
+}
+
+/**
+ * Get LEGO IDs from a phrase (using decomposition)
+ */
+const getLegoIdsFromPhrase = (item) => {
+  const legoIds = []
+
+  // Primary LEGO
+  if (item.lego?.id) {
+    legoIds.push(item.lego.id)
+  }
+
+  // Phrase may contain multiple LEGOs
+  if (item.phrase?.containsLegos) {
+    for (const id of item.phrase.containsLegos) {
+      if (!legoIds.includes(id)) {
+        legoIds.push(id)
+      }
+    }
+  }
+
+  return legoIds
+}
+
+/**
+ * Set up orchestrator event handlers
+ */
+const setupOrchestratorEvents = () => {
+  if (!orchestrator.value) return
+
+  orchestrator.value.addEventListener((event) => {
+    switch (event.type) {
+      case 'phase_changed':
+        handlePhaseChange(event.data.phase)
+        break
+
+      case 'item_completed':
+        handleItemCompleted()
+        break
+
+      case 'error':
+        console.error('[LegoNetwork] Orchestrator error:', event.data?.error)
+        // Continue to next item on error
+        setTimeout(playNextItem, 500)
+        break
+    }
+  })
+}
+
+/**
+ * Handle phase changes - update visualization
+ */
+const handlePhaseChange = (phase) => {
+  // Map CyclePhase to our phase names
+  switch (phase) {
+    case CyclePhase.PROMPT:
+      currentPhase.value = 'prompt'
+      break
+    case CyclePhase.PAUSE:
+      currentPhase.value = 'pause'
+      break
+    case CyclePhase.VOICE_1:
+      currentPhase.value = 'voice_1'
+      break
+    case CyclePhase.VOICE_2:
+      currentPhase.value = 'voice_2'
+      break
+    default:
+      currentPhase.value = 'idle'
+  }
+
+  // Update node highlighting based on phase
+  updatePhaseHighlighting()
+}
+
+/**
+ * Handle item completion - move to next
+ */
+const handleItemCompleted = () => {
+  console.log('[LegoNetwork] Item completed, moving to next')
+
+  // Brief pause between items
+  setTimeout(() => {
+    if (isPlaybackMode.value) {
+      playNextItem()
+    }
+  }, 300)
+}
+
+/**
+ * Update node highlighting based on active LEGOs
+ */
+const updateNodeHighlights = (legoIds) => {
+  if (!nodesLayer) return
+
+  const activeSet = new Set(legoIds)
+
+  nodesLayer.selectAll('.node')
+    .classed('active', d => activeSet.has(d.id))
+    .classed('inactive', d => legoIds.length > 0 && !activeSet.has(d.id))
+
+  // Update glow intensity
+  nodesLayer.selectAll('.node.active .node-glow')
+    .attr('opacity', 1)
+    .attr('filter', 'url(#glow)')
+
+  nodesLayer.selectAll('.node.inactive .node-glow')
+    .attr('opacity', 0.2)
+
+  // Highlight connections between active nodes
+  if (linksLayer) {
+    linksLayer.selectAll('.link')
+      .classed('active', d => {
+        const sId = d.source.id || d.source
+        const tId = d.target.id || d.target
+        return activeSet.has(sId) && activeSet.has(tId)
+      })
+      .attr('stroke-opacity', d => {
+        const sId = d.source.id || d.source
+        const tId = d.target.id || d.target
+        return (activeSet.has(sId) && activeSet.has(tId)) ? 1 : 0.3
+      })
+  }
+}
+
+/**
+ * Update visual style based on current phase
+ */
+const updatePhaseHighlighting = () => {
+  if (!nodesLayer) return
+
+  const phase = currentPhase.value
+  const isActive = phase !== 'idle'
+
+  // Phase-specific visual effects
+  nodesLayer.selectAll('.node.active .node-core')
+    .transition()
+    .duration(200)
+    .attr('r', phase === 'pause' ? 16 : phase === 'voice_2' ? 14 : 12)
+
+  // Pulse effect during pause (learner speaking)
+  if (phase === 'pause') {
+    nodesLayer.selectAll('.node.active .node-glow')
+      .transition()
+      .duration(400)
+      .attr('r', 24)
+      .attr('opacity', 0.9)
+      .transition()
+      .duration(400)
+      .attr('r', 18)
+      .attr('opacity', 0.7)
+  }
+
+  // Bright flash on voice_2 (answer revealed)
+  if (phase === 'voice_2') {
+    nodesLayer.selectAll('.node.active .node-glow')
+      .transition()
+      .duration(100)
+      .attr('opacity', 1)
+      .attr('stroke-width', 4)
+      .transition()
+      .duration(500)
+      .attr('stroke-width', 2)
+  }
 }
 
 // ============================================================================
@@ -1214,8 +1599,86 @@ watch(courseCode, async (newCode, oldCode) => {
       <span class="data-mode-info">Your brain map will grow as you learn each LEGO</span>
     </div>
 
+    <!-- BRAIN VIEW PLAYBACK CONTROLS -->
+    <div class="playback-controls" :class="{ 'with-data': isRealData && nodes.length > 0 }">
+      <button
+        v-if="!isPlaybackMode"
+        class="playback-btn magic"
+        :disabled="isPlaybackLoading || !courseCode"
+        @click="startPlayback"
+      >
+        <span class="playback-icon">🧠</span>
+        <span>{{ isPlaybackLoading ? 'Loading...' : 'Learn in Brain View' }}</span>
+        <span class="playback-sparkle">✨</span>
+      </button>
+      <button
+        v-else
+        class="playback-btn stop"
+        @click="stopPlayback"
+      >
+        <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+          <rect x="6" y="6" width="12" height="12"/>
+        </svg>
+        <span>Stop Learning</span>
+      </button>
+    </div>
+
+    <!-- NOW PLAYING PANEL (during playback) -->
+    <Transition name="slide-up">
+      <div v-if="isPlaybackMode && currentItem" class="now-playing-panel">
+        <div class="now-playing-header">
+          <span class="now-playing-label">Now Learning</span>
+          <span class="phase-badge" :class="currentPhase">{{ phaseLabels[currentPhase] }}</span>
+        </div>
+
+        <div class="now-playing-content">
+          <!-- Target phrase -->
+          <div class="phrase-display">
+            <span class="phrase-target" :class="{ revealed: currentPhase === 'voice_2' }">
+              {{ currentItem.phrase?.phrase?.target || currentItem.lego?.lego?.target }}
+            </span>
+            <span class="phrase-known">
+              {{ currentItem.phrase?.phrase?.known || currentItem.lego?.lego?.known }}
+            </span>
+          </div>
+
+          <!-- Active LEGOs indicator -->
+          <div class="active-legos">
+            <span
+              v-for="legoId in activeLegoIds"
+              :key="legoId"
+              class="lego-chip"
+              :class="{ primary: legoId === currentItem.lego?.id }"
+            >
+              {{ legoId }}
+            </span>
+          </div>
+
+          <!-- Progress -->
+          <div class="playback-progress">
+            <span class="progress-text">{{ playbackIndex }} / {{ playbackQueue.length }}</span>
+            <div class="progress-bar">
+              <div class="progress-fill" :style="{ width: `${(playbackIndex / playbackQueue.length) * 100}%` }"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- NEW LEGO INTRODUCTION OVERLAY -->
+    <Transition name="intro-burst">
+      <div v-if="isIntroducingLego && introLego" class="intro-overlay">
+        <div class="intro-content">
+          <div class="intro-badge">NEW LEGO</div>
+          <div class="intro-target">{{ introLego.lego?.target }}</div>
+          <div class="intro-known">{{ introLego.lego?.known }}</div>
+          <div class="intro-burst"></div>
+        </div>
+      </div>
+    </Transition>
+
     <!-- Demo Controls (always available for simulation preview) -->
-    <div class="demo-controls" :class="{ 'with-data': isRealData && nodes.length > 0 }">
+    <div v-if="!isPlaybackMode" class="demo-controls" :class="{ 'with-data': isRealData && nodes.length > 0 }">
       <div class="demo-row">
         <!-- Play/Pause/Stop -->
         <button
@@ -2315,6 +2778,438 @@ watch(courseCode, async (newCode, oldCode) => {
   letter-spacing: 0.05em;
 }
 
+/* ============================================================================
+   BRAIN VIEW PLAYBACK MODE STYLES
+   ============================================================================ */
+
+/* Playback Controls - Bottom center */
+.playback-controls {
+  position: absolute;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+}
+
+.playback-controls.with-data {
+  bottom: 2.5rem;
+}
+
+.playback-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1.5rem;
+  border-radius: 50px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.playback-btn.magic {
+  background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 50%, #d946ef 100%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  position: relative;
+  overflow: hidden;
+}
+
+.playback-btn.magic::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, transparent 0%, rgba(255, 255, 255, 0.1) 50%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.playback-btn.magic:hover::before {
+  opacity: 1;
+}
+
+.playback-btn.magic:hover {
+  transform: scale(1.05);
+  box-shadow: 0 8px 30px rgba(139, 92, 246, 0.4);
+}
+
+.playback-btn.magic:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.playback-icon {
+  font-size: 1.25rem;
+  animation: gentle-pulse 2s ease-in-out infinite;
+}
+
+.playback-sparkle {
+  font-size: 0.875rem;
+  animation: sparkle 1.5s ease-in-out infinite;
+}
+
+@keyframes gentle-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+@keyframes sparkle {
+  0%, 100% { opacity: 0.5; transform: rotate(0deg); }
+  50% { opacity: 1; transform: rotate(180deg); }
+}
+
+.playback-btn.stop {
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #f87171;
+}
+
+.playback-btn.stop:hover {
+  background: rgba(239, 68, 68, 0.3);
+  box-shadow: 0 8px 30px rgba(239, 68, 68, 0.3);
+}
+
+.playback-btn.stop svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Now Playing Panel - Appears during playback */
+.now-playing-panel {
+  position: absolute;
+  bottom: 6rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  min-width: 360px;
+  max-width: 500px;
+  background: rgba(18, 18, 26, 0.95);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 16px;
+  padding: 1.25rem 1.5rem;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5), 0 0 60px rgba(139, 92, 246, 0.15);
+}
+
+.now-playing-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.now-playing-label {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.phase-badge {
+  padding: 0.375rem 0.875rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: all 0.3s ease;
+}
+
+.phase-badge.idle {
+  background: rgba(107, 114, 128, 0.3);
+  color: #9ca3af;
+}
+
+.phase-badge.prompt {
+  background: rgba(59, 130, 246, 0.3);
+  border: 1px solid rgba(59, 130, 246, 0.5);
+  color: #60a5fa;
+  animation: phase-pulse 1s ease-in-out infinite;
+}
+
+.phase-badge.pause {
+  background: rgba(251, 191, 36, 0.3);
+  border: 1px solid rgba(251, 191, 36, 0.5);
+  color: #fbbf24;
+  animation: phase-pulse 0.6s ease-in-out infinite;
+}
+
+.phase-badge.voice_1 {
+  background: rgba(34, 197, 94, 0.3);
+  border: 1px solid rgba(34, 197, 94, 0.5);
+  color: #4ade80;
+  animation: phase-pulse 1s ease-in-out infinite;
+}
+
+.phase-badge.voice_2 {
+  background: rgba(139, 92, 246, 0.3);
+  border: 1px solid rgba(139, 92, 246, 0.5);
+  color: #a78bfa;
+  animation: phase-pulse 1s ease-in-out infinite;
+}
+
+@keyframes phase-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 currentColor; }
+  50% { box-shadow: 0 0 15px currentColor; }
+}
+
+/* Phrase Display */
+.now-playing-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.phrase-display {
+  text-align: center;
+}
+
+.phrase-target {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: transparent;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  transition: all 0.5s ease;
+  filter: blur(4px);
+  margin-bottom: 0.5rem;
+  letter-spacing: 0.02em;
+}
+
+.phrase-target.revealed {
+  color: white;
+  background: none;
+  filter: blur(0);
+  text-shadow: 0 0 30px rgba(139, 92, 246, 0.5);
+}
+
+.phrase-known {
+  display: block;
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Active LEGOs chips */
+.active-legos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.lego-chip {
+  padding: 0.25rem 0.625rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6875rem;
+  color: rgba(255, 255, 255, 0.6);
+  transition: all 0.3s ease;
+}
+
+.lego-chip.primary {
+  background: rgba(139, 92, 246, 0.2);
+  border-color: rgba(139, 92, 246, 0.4);
+  color: #a78bfa;
+  box-shadow: 0 0 10px rgba(139, 92, 246, 0.3);
+}
+
+/* Playback Progress */
+.playback-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.progress-text {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  min-width: 70px;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #8b5cf6, #d946ef);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+/* New LEGO Introduction Overlay */
+.intro-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(8px);
+}
+
+.intro-content {
+  position: relative;
+  text-align: center;
+  padding: 3rem 4rem;
+}
+
+.intro-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: #fbbf24;
+  margin-bottom: 1.5rem;
+  animation: badge-appear 0.5s ease-out;
+}
+
+@keyframes badge-appear {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.intro-target {
+  font-size: 3rem;
+  font-weight: 700;
+  color: white;
+  margin-bottom: 0.75rem;
+  text-shadow: 0 0 60px rgba(139, 92, 246, 0.8);
+  animation: text-reveal 0.6s ease-out 0.2s both;
+}
+
+.intro-known {
+  font-size: 1.5rem;
+  color: rgba(255, 255, 255, 0.6);
+  animation: text-reveal 0.6s ease-out 0.4s both;
+}
+
+@keyframes text-reveal {
+  from {
+    opacity: 0;
+    transform: scale(0.8) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.intro-burst {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 300px;
+  height: 300px;
+  margin: -150px 0 0 -150px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.3) 0%, transparent 70%);
+  animation: burst-expand 1s ease-out forwards;
+  pointer-events: none;
+  z-index: -1;
+}
+
+@keyframes burst-expand {
+  from {
+    transform: scale(0);
+    opacity: 1;
+  }
+  to {
+    transform: scale(3);
+    opacity: 0;
+  }
+}
+
+/* Transition animations */
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.slide-up-enter-from,
+.slide-up-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(20px);
+}
+
+.intro-burst-enter-active {
+  transition: all 0.3s ease-out;
+}
+
+.intro-burst-leave-active {
+  transition: all 0.5s ease-in;
+}
+
+.intro-burst-enter-from {
+  opacity: 0;
+}
+
+.intro-burst-leave-to {
+  opacity: 0;
+  transform: scale(1.1);
+}
+
+/* Node highlighting during playback (D3 classes) */
+.network-viewport :deep(.node.active) {
+  filter: drop-shadow(0 0 15px currentColor);
+  transition: filter 0.3s ease;
+}
+
+.network-viewport :deep(.node.inactive) {
+  opacity: 0.3;
+  transition: opacity 0.3s ease;
+}
+
+.network-viewport :deep(.node.newly-introduced) {
+  animation: node-birth 1s ease-out;
+}
+
+@keyframes node-birth {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.5);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Connection pulse during playback */
+.network-viewport :deep(.link.active) {
+  stroke-dasharray: 8 4;
+  animation: connection-pulse 0.5s linear infinite;
+}
+
+@keyframes connection-pulse {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: 12; }
+}
+
 /* Responsive */
 @media (max-width: 900px) {
   .detail-panel {
@@ -2376,6 +3271,45 @@ watch(courseCode, async (newCode, oldCode) => {
 
   .network-viewport {
     padding-top: 280px;
+  }
+
+  /* Playback controls responsive */
+  .playback-controls {
+    bottom: 1.5rem;
+    left: 1rem;
+    right: 1rem;
+    transform: none;
+  }
+
+  .playback-btn {
+    width: 100%;
+    justify-content: center;
+    padding: 1rem;
+  }
+
+  .now-playing-panel {
+    left: 1rem;
+    right: 1rem;
+    bottom: 5rem;
+    min-width: auto;
+    max-width: none;
+    transform: none;
+  }
+
+  .phrase-target {
+    font-size: 1.25rem;
+  }
+
+  .intro-overlay .intro-content {
+    padding: 2rem;
+  }
+
+  .intro-target {
+    font-size: 2rem;
+  }
+
+  .intro-known {
+    font-size: 1.125rem;
   }
 }
 </style>
