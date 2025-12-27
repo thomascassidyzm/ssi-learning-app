@@ -22,6 +22,7 @@ import { ref, computed, inject, onMounted, onUnmounted, watch, nextTick } from '
 import * as d3 from 'd3'
 import { useLegoNetwork } from '../composables/useLegoNetwork'
 import { generateLearningScript } from '../providers/CourseDataProvider'
+import { getCachedScript } from '../composables/useScriptCache'
 
 // ============================================================================
 // Simple audio controller (same as CourseExplorer)
@@ -856,9 +857,35 @@ const startPlayback = async () => {
   currentCourseId.value = courseCode.value
 
   try {
-    // Load learning script for this course
-    if (courseDataProvider?.value && supabase?.value) {
-      const { rounds, allItems } = await generateLearningScript(
+    // Try to load from cache first (includes audioMap)
+    const cached = await getCachedScript(courseCode.value)
+
+    let rounds = []
+    let flatItems = []
+    const legoIds = new Set()
+
+    if (cached) {
+      console.log('[LegoNetwork] Using cached script with audioMap')
+      rounds = cached.rounds || []
+      // CRITICAL: Load the audioMap from cache - this has the audio UUIDs
+      audioMap.value = new Map(Object.entries(cached.audioMapObj || {}))
+
+      // Flatten cached rounds
+      for (const round of rounds) {
+        for (const item of round.items || []) {
+          flatItems.push({
+            ...item,
+            roundNumber: round.roundNumber,
+          })
+          if (item.type === 'intro' && item.legoId) {
+            legoIds.add(item.legoId)
+          }
+        }
+      }
+    } else if (courseDataProvider?.value && supabase?.value) {
+      // Generate fresh script if no cache
+      console.log('[LegoNetwork] Generating fresh script')
+      const script = await generateLearningScript(
         courseDataProvider.value,
         supabase.value,
         courseCode.value,
@@ -866,49 +893,44 @@ const startPlayback = async () => {
         30, // maxLegos - start with 30 for brain view
       )
 
-      if (allItems && allItems.length > 0) {
-        // Flatten into our format
-        const flatItems = []
-        const legoIds = new Set()
-        for (const round of rounds) {
-          for (const item of round.items) {
-            flatItems.push({
-              ...item,
-              roundNumber: round.roundNumber,
-            })
-            // Collect LEGO IDs for intro audio
-            if (item.type === 'intro' && item.legoId) {
-              legoIds.add(item.legoId)
-            }
+      rounds = script.rounds || []
+
+      // Flatten into our format
+      for (const round of rounds) {
+        for (const item of round.items) {
+          flatItems.push({
+            ...item,
+            roundNumber: round.roundNumber,
+          })
+          if (item.type === 'intro' && item.legoId) {
+            legoIds.add(item.legoId)
           }
         }
-
-        // Load intro audio for all LEGOs
-        if (legoIds.size > 0) {
-          await loadIntroAudio(courseCode.value, legoIds)
-        }
-
-        playbackQueue.value = flatItems
-        playbackIndex.value = 0
-        introducedLegoIds.value = new Set(nodes.value.map(n => n.id))
-
-        console.log('[LegoNetwork] Loaded', flatItems.length, 'items for playback')
-
-        // Initialize audio controller
-        if (!audioController.value) {
-          audioController.value = new ScriptAudioController()
-        }
-
-        // Start first item
-        await playFromIndex(0)
-      } else {
-        console.warn('[LegoNetwork] No items loaded for playback')
-        error.value = 'No learning content available'
-        stopPlayback()
       }
+    }
+
+    if (flatItems.length > 0) {
+      // Load intro audio for all LEGOs
+      if (legoIds.size > 0) {
+        await loadIntroAudio(courseCode.value, legoIds)
+      }
+
+      playbackQueue.value = flatItems
+      playbackIndex.value = 0
+      introducedLegoIds.value = new Set(nodes.value.map(n => n.id))
+
+      console.log('[LegoNetwork] Loaded', flatItems.length, 'items for playback')
+
+      // Initialize audio controller
+      if (!audioController.value) {
+        audioController.value = new ScriptAudioController()
+      }
+
+      // Start first item
+      await playFromIndex(0)
     } else {
-      console.warn('[LegoNetwork] No courseDataProvider or supabase available')
-      error.value = 'Database not available'
+      console.warn('[LegoNetwork] No items loaded for playback')
+      error.value = 'No learning content available'
       stopPlayback()
     }
   } catch (err) {
