@@ -322,6 +322,39 @@ VISUAL_DESIGN:
     glow_intensity: "Current activity level"
     pulse: "Introduction or activation animation"
 
+  SEMANTIC_ZOOM:
+    description: |
+      Like Google Maps - more detail appears as you zoom in.
+      At distance, nodes are just glowing dots (clean constellation).
+      As you zoom in, target text labels appear above nodes.
+
+    zoom_thresholds:
+      zoomed_out: # k < 0.8
+        nodes: "Dots only, no labels"
+        edges: "Thin lines"
+        selected_node: "Shows label even at distance"
+
+      medium_zoom: # 0.8 <= k < 1.5
+        nodes: "Dots with faint labels on hover"
+        edges: "Normal thickness"
+        selected_node: "Full label visible"
+
+      zoomed_in: # k >= 1.5
+        nodes: "Labels always visible above nodes"
+        edges: "Full thickness, direction visible"
+        selected_node: "Detailed panel available"
+
+    label_appearance:
+      position: "Centered above node"
+      content: "Target text (e.g., 'quiero')"
+      font: "Clean, legible, matches theme"
+      fade_in: "Smooth opacity transition as zoom crosses threshold"
+
+    implementation_note: |
+      Use D3 zoom transform 'k' value to determine visibility.
+      Labels can be CSS opacity transitions for smooth fade.
+      Selected node always shows label regardless of zoom level.
+
   edge_visual_encoding:
     thickness: "Traversal count (more = thicker)"
     opacity: "Base low, increases when path is active"
@@ -351,6 +384,40 @@ SHAREABILITY:
     image: "Static constellation with stats overlay"
     video: "Time-lapse of network growth"
     interactive: "Shareable link to explore brain (future)"
+
+  REPLAY_EXPORT:
+    status: "Future feature"
+    description: |
+      Export the learning journey as a video or animated GIF.
+      Watch the network build from empty to current state.
+
+    export_options:
+      video_mp4:
+        description: "High quality video export"
+        includes: "Network animation, optional audio, stats overlay"
+        duration: "Configurable speed (10s, 30s, 60s)"
+
+      animated_gif:
+        description: "Lightweight shareable format"
+        includes: "Network animation only"
+        optimization: "Reduced frame rate, optimized palette"
+
+      image_sequence:
+        description: "Key milestones as images"
+        includes: "Network at 25%, 50%, 75%, 100%"
+
+    metadata_overlay:
+      - "Learner name (optional)"
+      - "Language pair"
+      - "Time invested"
+      - "LEGOs learned"
+      - "Connections formed"
+      - "Current belt level"
+
+    implementation_approach: |
+      Use HTML Canvas recording (e.g., MediaRecorder API) or
+      server-side rendering for high-quality exports.
+      Could also use libraries like html2canvas + gif.js.
 
 ## ============================================================================
 ## PSYCHOLOGICAL IMPACT
