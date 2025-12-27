@@ -297,6 +297,132 @@ const tooltipPosition = computed(() => {
 // Audio base URL
 const audioBaseUrl = 'https://ssi-audio-stage.s3.eu-west-1.amazonaws.com/mastered'
 
+// Audio map for resolving text -> audio UUIDs (same as CourseExplorer)
+const audioMap = ref(new Map())
+const currentCourseId = ref('')
+
+// ============================================================================
+// Audio Lookup Functions (from CourseExplorer)
+// ============================================================================
+
+/**
+ * Load intro audio for a set of LEGO IDs
+ */
+const loadIntroAudio = async (courseId, legoIds) => {
+  if (!supabase?.value || legoIds.size === 0) return
+
+  console.log('[LegoNetwork] Loading intro audio for', legoIds.size, 'LEGOs')
+
+  // Try v12 schema first
+  const { data: v12Data, error: v12Error } = await supabase.value
+    .from('course_audio')
+    .select('context, audio_id')
+    .eq('course_code', courseId)
+    .eq('role', 'presentation')
+    .in('context', [...legoIds])
+
+  if (!v12Error && v12Data && v12Data.length > 0) {
+    for (const intro of v12Data) {
+      if (intro.context && intro.audio_id) {
+        audioMap.value.set(`intro:${intro.context}`, { intro: intro.audio_id })
+      }
+    }
+    console.log('[LegoNetwork] Found', v12Data.length, 'intro audio entries (v12)')
+    return
+  }
+
+  // Fall back to legacy
+  const { data: introData, error: introError } = await supabase.value
+    .from('lego_introductions')
+    .select('lego_id, audio_uuid, course_code')
+    .eq('course_code', courseId)
+    .in('lego_id', [...legoIds])
+
+  if (!introError) {
+    for (const intro of (introData || [])) {
+      audioMap.value.set(`intro:${intro.lego_id}`, { intro: intro.audio_uuid })
+    }
+    console.log('[LegoNetwork] Found', introData?.length || 0, 'intro audio entries (legacy)')
+  }
+}
+
+/**
+ * Lazy lookup audio UUID from database
+ */
+const lookupAudioLazy = async (text, role, isKnown = false) => {
+  if (!supabase?.value || !currentCourseId.value) return null
+
+  const cached = audioMap.value.get(text)
+  if (cached?.[role]) return cached[role]
+
+  try {
+    const { data: textsData } = await supabase.value
+      .from('texts')
+      .select('id')
+      .eq('content', text)
+      .limit(1)
+
+    if (!textsData?.length) return null
+
+    const textId = textsData[0].id
+    const { data: audioData } = await supabase.value
+      .from('audio_files')
+      .select('id')
+      .eq('text_id', textId)
+
+    if (!audioData?.length) return null
+
+    const audioIds = audioData.map(a => a.id)
+    const targetRole = isKnown ? 'known' : role
+
+    const { data: courseAudio } = await supabase.value
+      .from('course_audio')
+      .select('audio_id, role')
+      .eq('course_code', currentCourseId.value)
+      .in('audio_id', audioIds)
+
+    for (const ca of (courseAudio || [])) {
+      const matchRole = isKnown ? 'known' : role
+      if (ca.role === matchRole) {
+        if (!audioMap.value.has(text)) audioMap.value.set(text, {})
+        audioMap.value.get(text)[role] = ca.audio_id
+        return ca.audio_id
+      }
+    }
+    return null
+  } catch (err) {
+    console.warn('[LegoNetwork] Lazy audio lookup failed:', err)
+    return null
+  }
+}
+
+/**
+ * Get audio URL for text+role (async, with lazy lookup)
+ */
+const getAudioUrlAsync = async (text, role, item = null) => {
+  // Handle intro audio
+  if (role === 'intro' && item?.legoId) {
+    const introEntry = audioMap.value.get(`intro:${item.legoId}`)
+    if (introEntry?.intro) {
+      return `${audioBaseUrl}/${introEntry.intro.toUpperCase()}.mp3`
+    }
+    return null
+  }
+
+  // Check cache first
+  const audioEntry = audioMap.value.get(text)
+  let uuid = audioEntry?.[role]
+
+  // Lazy lookup if not cached
+  if (!uuid) {
+    const isKnown = role === 'known'
+    uuid = await lookupAudioLazy(text, role, isKnown)
+  }
+
+  if (!uuid) return null
+  return `${audioBaseUrl}/${uuid.toUpperCase()}.mp3`
+}
+
 // ============================================================================
 // Demo Mode Controls
 // ============================================================================
@@ -522,6 +648,9 @@ const startPlayback = async () => {
   isPlaybackLoading.value = true
   isPlaybackMode.value = true
 
+  // Set current course ID for audio lookups
+  currentCourseId.value = courseCode.value
+
   try {
     // Load learning script for this course
     if (courseDataProvider?.value && supabase?.value) {
@@ -536,13 +665,23 @@ const startPlayback = async () => {
       if (allItems && allItems.length > 0) {
         // Flatten into our format
         const flatItems = []
+        const legoIds = new Set()
         for (const round of rounds) {
           for (const item of round.items) {
             flatItems.push({
               ...item,
               roundNumber: round.roundNumber,
             })
+            // Collect LEGO IDs for intro audio
+            if (item.type === 'intro' && item.legoId) {
+              legoIds.add(item.legoId)
+            }
           }
+        }
+
+        // Load intro audio for all LEGOs
+        if (legoIds.size > 0) {
+          await loadIntroAudio(courseCode.value, legoIds)
         }
 
         playbackQueue.value = flatItems
@@ -646,20 +785,33 @@ const runPhase = async (phase, myCycleId) => {
 
   switch (phase) {
     case 'prompt': {
-      // For intro items, we might skip or handle differently
+      // For intro items, play intro audio if available
       const isIntro = item.type === 'intro'
       let promptUrl = null
 
       if (isIntro) {
-        // Skip intro items for now (or could play intro audio if available)
+        // Try to play intro audio
+        promptUrl = await getAudioUrlAsync(null, 'intro', item)
+        if (myCycleId !== cycleId) return
+
+        if (promptUrl) {
+          try {
+            await audioController.value.play({ url: promptUrl })
+            if (myCycleId !== cycleId) return
+          } catch (err) {
+            console.warn('[LegoNetwork] Intro audio failed:', err)
+          }
+        }
+        // After intro, advance to next item
         scheduleTimer(() => {
           if (myCycleId === cycleId) advanceToNextItem(myCycleId)
         }, 500)
         return
       }
 
-      // Get known audio URL
-      promptUrl = item.audioRefs?.known?.url
+      // Get known audio URL using async lookup
+      promptUrl = await getAudioUrlAsync(item.knownText, 'known', item)
+      if (myCycleId !== cycleId) return
 
       if (promptUrl) {
         try {
@@ -687,7 +839,9 @@ const runPhase = async (phase, myCycleId) => {
     }
 
     case 'voice1': {
-      const voice1Url = item.audioRefs?.target?.voice1?.url
+      const voice1Url = await getAudioUrlAsync(item.targetText, 'target1', item)
+      if (myCycleId !== cycleId) return
+
       if (voice1Url) {
         try {
           await audioController.value.play({ url: voice1Url })
@@ -704,7 +858,9 @@ const runPhase = async (phase, myCycleId) => {
     }
 
     case 'voice2': {
-      const voice2Url = item.audioRefs?.target?.voice2?.url
+      const voice2Url = await getAudioUrlAsync(item.targetText, 'target2', item)
+      if (myCycleId !== cycleId) return
+
       if (voice2Url) {
         try {
           await audioController.value.play({ url: voice2Url })
