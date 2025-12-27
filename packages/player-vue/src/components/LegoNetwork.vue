@@ -162,6 +162,9 @@ const currentBelt = computed(() => {
 
 const currentPalette = computed(() => beltPalettes[currentBelt.value] || beltPalettes.white)
 
+// Get palette for a specific belt (used for node birth colors)
+const getPalette = (belt) => beltPalettes[belt] || beltPalettes.white
+
 const courseName = computed(() => props.course?.display_name || props.course?.title || 'Course')
 const courseCode = computed(() => props.course?.course_code || '')
 
@@ -300,12 +303,14 @@ const addNextLego = () => {
   const nextLego = allAvailableLegos.value.shift()
 
   // Add as a new node with initial low mastery
+  // Store birthBelt - the belt level when this LEGO was introduced
   const newNode = {
     ...nextLego,
     totalPractices: 1,
     mastery: 0.1,
     isEternal: false,
     isNew: true, // Flag for animation
+    birthBelt: currentBelt.value, // Remember which belt this was learned at
   }
 
   nodes.value.push(newNode)
@@ -637,37 +642,38 @@ const updateVisualization = () => {
       .on('drag', dragged)
       .on('end', dragended))
 
-  // Node outer glow
+  // Node outer glow - uses BIRTH BELT color (when this LEGO was learned)
   nodeEnter.append('circle')
     .attr('class', 'node-glow')
     .attr('r', 18)
     .attr('fill', 'none')
-    .attr('stroke', palette.glow)
+    .attr('stroke', d => getPalette(d.birthBelt).glow)
     .attr('stroke-width', 2)
     .attr('opacity', d => d.mastery * 0.7)
     .attr('filter', d => d.mastery > 0.5 ? 'url(#glow)' : null)
 
-  // Node core
+  // Node core - uses BIRTH BELT color
   nodeEnter.append('circle')
     .attr('class', 'node-core')
     .attr('r', 0)
     .attr('fill', d => {
-      if (d.mastery > 0.7) return palette.node.bright
-      if (d.mastery > 0.3) return palette.node.mid
-      return palette.node.base
+      const nodePalette = getPalette(d.birthBelt)
+      if (d.mastery > 0.7) return nodePalette.node.bright
+      if (d.mastery > 0.3) return nodePalette.node.mid
+      return nodePalette.node.base
     })
-    .attr('stroke', palette.glow)
+    .attr('stroke', d => getPalette(d.birthBelt).glow)
     .attr('stroke-width', d => d.isEternal ? 2.5 : 1.5)
     .attr('stroke-opacity', d => 0.3 + d.mastery * 0.5)
     .transition()
     .duration(300)
     .attr('r', 12)
 
-  // Node inner dot
+  // Node inner dot - uses BIRTH BELT color
   nodeEnter.append('circle')
     .attr('class', 'node-inner')
     .attr('r', 4)
-    .attr('fill', palette.glow)
+    .attr('fill', d => getPalette(d.birthBelt).glow)
     .attr('opacity', d => 0.3 + d.mastery * 0.6)
 
   // Fade in new nodes
@@ -681,28 +687,29 @@ const updateVisualization = () => {
     .on('mouseleave', handleNodeLeave)
     .on('click', handleNodeClick)
 
-  // Update existing nodes
+  // Update existing nodes - use BIRTH BELT colors
   const allNodes = nodesLayer.selectAll('.node')
 
   allNodes.select('.node-glow')
-    .attr('stroke', palette.glow)
+    .attr('stroke', d => getPalette(d.birthBelt).glow)
     .attr('opacity', d => d.mastery * 0.7)
     .attr('filter', d => d.mastery > 0.5 ? 'url(#glow)' : null)
 
   allNodes.select('.node-core')
     .attr('fill', d => {
-      if (d.mastery > 0.7) return palette.node.bright
-      if (d.mastery > 0.3) return palette.node.mid
-      return palette.node.base
+      const nodePalette = getPalette(d.birthBelt)
+      if (d.mastery > 0.7) return nodePalette.node.bright
+      if (d.mastery > 0.3) return nodePalette.node.mid
+      return nodePalette.node.base
     })
-    .attr('stroke', palette.glow)
+    .attr('stroke', d => getPalette(d.birthBelt).glow)
     .attr('stroke-width', d => d.isEternal ? 2.5 : 1.5)
 
   allNodes.select('.node-inner')
-    .attr('fill', palette.glow)
+    .attr('fill', d => getPalette(d.birthBelt).glow)
     .attr('opacity', d => 0.3 + d.mastery * 0.6)
 
-  // Eternal indicators
+  // Eternal indicators - use birth belt accent color
   allNodes.each(function(d) {
     const g = d3.select(this)
     const hasEternal = g.select('.node-eternal').size() > 0
@@ -712,7 +719,7 @@ const updateVisualization = () => {
         .attr('class', 'node-eternal')
         .attr('r', 0)
         .attr('cy', -16)
-        .attr('fill', palette.accent)
+        .attr('fill', getPalette(d.birthBelt).accent)
         .attr('opacity', 0.8)
         .transition()
         .duration(200)
@@ -834,17 +841,17 @@ const closePanel = () => {
   isPanelOpen.value = false
   selectedNode.value = null
 
-  // Reset node styles
+  // Reset node styles - restore birth belt colors
   nodesLayer.selectAll('.node')
     .classed('selected', false)
 
   nodesLayer.selectAll('.node-glow')
-    .attr('stroke', currentPalette.value.glow)
+    .attr('stroke', d => getPalette(d.birthBelt).glow)
     .attr('opacity', d => d.mastery * 0.7)
     .attr('filter', d => d.mastery > 0.5 ? 'url(#glow)' : null)
 
   nodesLayer.selectAll('.node-core')
-    .attr('stroke', currentPalette.value.glow)
+    .attr('stroke', d => getPalette(d.birthBelt).glow)
     .attr('stroke-width', d => d.isEternal ? 2.5 : 1.5)
 }
 
@@ -1222,21 +1229,17 @@ watch(currentBelt, () => {
 
     <!-- Legend -->
     <div class="network-legend">
-      <div class="legend-title">Node Brightness = Mastery</div>
-      <div class="legend-items">
-        <div class="legend-item">
-          <span class="legend-dot dim"></span>
-          <span>New</span>
-        </div>
-        <div class="legend-item">
-          <span class="legend-dot mid"></span>
-          <span>Practicing</span>
-        </div>
-        <div class="legend-item">
-          <span class="legend-dot eternal"></span>
-          <span>Mastered</span>
-        </div>
+      <div class="legend-title">Node Color = Belt When Learned</div>
+      <div class="legend-belts">
+        <span
+          v-for="belt in ['white', 'yellow', 'orange', 'green', 'blue', 'purple', 'brown', 'black']"
+          :key="belt"
+          class="legend-belt-dot"
+          :style="{ background: beltPalettes[belt].glow }"
+          :title="beltPalettes[belt].name"
+        ></span>
       </div>
+      <div class="legend-subtitle">Links = Current Progress</div>
     </div>
   </div>
 </template>
@@ -2012,58 +2015,43 @@ watch(currentBelt, () => {
   background: rgba(18, 18, 26, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
-  padding: 1rem;
+  padding: 0.875rem 1rem;
   z-index: 10;
+  backdrop-filter: blur(8px);
 }
 
 .legend-title {
   font-size: 0.625rem;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: rgba(255, 255, 255, 0.4);
-  margin-bottom: 0.75rem;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 0.5rem;
 }
 
-.legend-items {
+.legend-belts {
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.375rem;
+  margin-bottom: 0.5rem;
 }
 
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.6);
-}
-
-.legend-dot {
-  width: 12px;
-  height: 12px;
+.legend-belt-dot {
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
-  border: 1.5px solid;
+  box-shadow: 0 0 6px currentColor;
+  cursor: help;
+  transition: transform 0.15s ease;
 }
 
-.legend-dot.dim {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
+.legend-belt-dot:hover {
+  transform: scale(1.3);
 }
 
-.legend-dot.mid {
-  background: rgba(255, 255, 255, 0.25);
-  border-color: rgba(255, 255, 255, 0.4);
-}
-
-.legend-dot.bright {
-  background: rgba(255, 255, 255, 0.5);
-  border-color: rgba(255, 255, 255, 0.7);
-}
-
-.legend-dot.eternal {
-  background: rgba(212, 168, 83, 0.4);
-  border-color: #d4a853;
-  box-shadow: 0 0 8px rgba(212, 168, 83, 0.5);
+.legend-subtitle {
+  font-size: 0.5625rem;
+  color: rgba(255, 255, 255, 0.35);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 /* Responsive */
