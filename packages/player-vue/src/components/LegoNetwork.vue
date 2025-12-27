@@ -837,7 +837,11 @@ const loadNetworkData = async () => {
         // Load learner's progress to see which LEGOs they've practiced
         let practicedLegoIds = new Set()
 
-        if (learnerId && progressStore?.value) {
+        // Only query progress for authenticated users (not guests)
+        // Guest IDs start with 'guest-' and aren't valid UUIDs for the database
+        const isGuest = !learnerId || learnerId.startsWith('guest-')
+
+        if (!isGuest && progressStore?.value) {
           try {
             const progress = await progressStore.value.getLegoProgress(learnerId, courseCode.value)
             learnerProgress.value = progress || []
@@ -846,6 +850,8 @@ const loadNetworkData = async () => {
           } catch (err) {
             console.warn('[LegoNetwork] Failed to load learner progress:', err)
           }
+        } else if (isGuest) {
+          console.log('[LegoNetwork] Guest user - skipping progress query')
         }
 
         // Filter to only show LEGOs the learner has practiced
@@ -2782,10 +2788,10 @@ watch(courseCode, async (newCode, oldCode) => {
    BRAIN VIEW PLAYBACK MODE STYLES
    ============================================================================ */
 
-/* Playback Controls - Bottom center */
+/* Playback Controls - Bottom center, above nav bar */
 .playback-controls {
   position: absolute;
-  bottom: 2rem;
+  bottom: 6rem; /* Above the 80px nav bar */
   left: 50%;
   transform: translateX(-50%);
   z-index: 20;
@@ -2794,7 +2800,7 @@ watch(courseCode, async (newCode, oldCode) => {
 }
 
 .playback-controls.with-data {
-  bottom: 2.5rem;
+  bottom: 6.5rem;
 }
 
 .playback-btn {
@@ -2881,7 +2887,7 @@ watch(courseCode, async (newCode, oldCode) => {
 /* Now Playing Panel - Appears during playback */
 .now-playing-panel {
   position: absolute;
-  bottom: 6rem;
+  bottom: 10rem; /* Above the playback button and nav bar */
   left: 50%;
   transform: translateX(-50%);
   z-index: 20;
@@ -3275,7 +3281,7 @@ watch(courseCode, async (newCode, oldCode) => {
 
   /* Playback controls responsive */
   .playback-controls {
-    bottom: 1.5rem;
+    bottom: 6rem; /* Above nav bar on mobile too */
     left: 1rem;
     right: 1rem;
     transform: none;
@@ -3290,7 +3296,7 @@ watch(courseCode, async (newCode, oldCode) => {
   .now-playing-panel {
     left: 1rem;
     right: 1rem;
-    bottom: 5rem;
+    bottom: 10rem; /* Above playback button and nav */
     min-width: auto;
     max-width: none;
     transform: none;
