@@ -41,6 +41,8 @@ const props = defineProps({
 
 // Inject providers
 const supabase = inject('supabase', null)
+const auth = inject('auth', null)
+const progressStore = inject('progressStore', null)
 
 // Use the LEGO network composable for real data
 const {
@@ -54,7 +56,11 @@ const {
 // State
 const isLoading = ref(true)
 const error = ref(null)
-const isRealData = ref(false) // true if showing real data, false if demo
+const isRealData = ref(false) // true if showing learner's actual progress
+const learnerProgress = ref([]) // LEGOs the learner has practiced
+
+// Full network data (for simulation)
+const fullNetworkData = ref(null)
 
 // Graph data
 const nodes = ref([])
@@ -331,33 +337,60 @@ const addNextLego = () => {
   nodes.value.push(newNode)
   lastAddedNode.value = newNode
 
-  // Create links to existing nodes (if they share a seed or are sequential)
-  const existingNodes = nodes.value.slice(0, -1)
+  // Get existing node IDs for connection lookup
+  const existingNodeIds = new Set(nodes.value.slice(0, -1).map(n => n.id))
 
-  // Link to previous LEGOs in same seed
-  existingNodes.forEach(existing => {
-    if (existing.seedId === newNode.seedId) {
-      links.value.push({
-        source: existing.id,
-        target: newNode.id,
-        count: Math.floor(Math.random() * 10) + 1,
-      })
+  // Use real connections from fullNetworkData if available
+  if (fullNetworkData.value) {
+    // Find real connections involving the new node and existing nodes
+    const realConnections = fullNetworkData.value.connections.filter(conn =>
+      (conn.source === newNode.id && existingNodeIds.has(conn.target)) ||
+      (conn.target === newNode.id && existingNodeIds.has(conn.source))
+    )
+
+    for (const conn of realConnections) {
+      // Check if link already exists
+      const exists = links.value.some(l =>
+        (l.source === conn.source || l.source?.id === conn.source) &&
+        (l.target === conn.target || l.target?.id === conn.target)
+      )
+      if (!exists) {
+        links.value.push({
+          source: conn.source,
+          target: conn.target,
+          count: conn.count,
+        })
+      }
     }
-  })
+  } else {
+    // Fallback to simulated connections
+    const existingNodes = nodes.value.slice(0, -1)
 
-  // Random cross-links for variety (simulating phrase reuse)
-  if (existingNodes.length > 3 && Math.random() > 0.7) {
-    const randomIdx = Math.floor(Math.random() * existingNodes.length)
-    const randomNode = existingNodes[randomIdx]
-    if (!links.value.some(l =>
-      (l.source === randomNode.id && l.target === newNode.id) ||
-      (l.source.id === randomNode.id && l.target.id === newNode.id)
-    )) {
-      links.value.push({
-        source: randomNode.id,
-        target: newNode.id,
-        count: Math.floor(Math.random() * 5) + 1,
-      })
+    // Link to previous LEGOs in same seed
+    existingNodes.forEach(existing => {
+      if (existing.seedId === newNode.seedId) {
+        links.value.push({
+          source: existing.id,
+          target: newNode.id,
+          count: Math.floor(Math.random() * 10) + 1,
+        })
+      }
+    })
+
+    // Random cross-links for variety (simulating phrase reuse)
+    if (existingNodes.length > 3 && Math.random() > 0.7) {
+      const randomIdx = Math.floor(Math.random() * existingNodes.length)
+      const randomNode = existingNodes[randomIdx]
+      if (!links.value.some(l =>
+        (l.source === randomNode.id && l.target === newNode.id) ||
+        (l.source.id === randomNode.id && l.target.id === newNode.id)
+      )) {
+        links.value.push({
+          source: randomNode.id,
+          target: newNode.id,
+          count: Math.floor(Math.random() * 5) + 1,
+        })
+      }
     }
   }
 
@@ -387,12 +420,16 @@ const loadNetworkData = async () => {
   const useMode = props.mode
   const shouldTryReal = useMode === 'auto' || useMode === 'real'
 
+  const learnerId = auth?.learnerId?.value
   console.log('[LegoNetwork] loadNetworkData called:', {
     mode: useMode,
     courseCode: courseCode.value,
     hasCourse: !!props.course,
     courseName: props.course?.display_name,
-    hasSupabase: !!supabase?.value
+    hasSupabase: !!supabase?.value,
+    hasAuth: !!auth,
+    learnerId,
+    hasProgressStore: !!progressStore?.value
   })
 
   // Try to load real data from database (phrase co-occurrence)
@@ -403,47 +440,100 @@ const loadNetworkData = async () => {
 
       console.log('[LegoNetwork] Attempting to load real network data for:', courseCode.value)
 
+      // Load full network data (all LEGOs and connections)
       const realData = await loadRealNetworkData(courseCode.value)
 
       if (realData && realData.nodes.length > 0) {
-        console.log('[LegoNetwork] Real data loaded:', realData.stats)
-        isRealData.value = true
+        console.log('[LegoNetwork] Full network loaded:', realData.stats)
 
-        // Convert real data to visualization format
-        // Assign belt colors based on node order (simulating introduction order)
+        // Store full network for simulation
+        fullNetworkData.value = realData
+
+        // Load learner's progress to see which LEGOs they've practiced
+        let practicedLegoIds = new Set()
+
+        if (learnerId && progressStore?.value) {
+          try {
+            const progress = await progressStore.value.getLegoProgress(learnerId, courseCode.value)
+            learnerProgress.value = progress || []
+            practicedLegoIds = new Set(progress.map(p => p.lego_id))
+            console.log('[LegoNetwork] Learner has practiced', practicedLegoIds.size, 'LEGOs')
+          } catch (err) {
+            console.warn('[LegoNetwork] Failed to load learner progress:', err)
+          }
+        }
+
+        // Filter to only show LEGOs the learner has practiced
+        const practicedNodes = realData.nodes.filter(n => practicedLegoIds.has(n.id))
+
+        if (practicedNodes.length > 0) {
+          isRealData.value = true
+
+          // Assign belt colors based on when learner practiced each LEGO
+          // Sort by first_practiced_at if available, otherwise by order in progress
+          const progressMap = new Map(learnerProgress.value.map(p => [p.lego_id, p]))
+          const beltProgression = ['white', 'yellow', 'orange', 'green', 'blue', 'purple', 'brown', 'black']
+          const nodesPerBelt = Math.max(1, Math.ceil(practicedNodes.length / beltProgression.length))
+
+          nodes.value = practicedNodes.map((node, idx) => {
+            const progress = progressMap.get(node.id)
+            return {
+              id: node.id,
+              seedId: node.seedId,
+              legoIndex: node.legoIndex,
+              knownText: node.knownText,
+              targetText: node.targetText,
+              totalPractices: progress?.practice_count || 0,
+              usedInPhrases: node.usedInPhrases,
+              mastery: progress?.mastery_score || 0,
+              isEternal: progress?.is_eternal || false,
+              birthBelt: beltProgression[Math.floor(idx / nodesPerBelt)] || 'black',
+              x: undefined,
+              y: undefined,
+            }
+          })
+
+          // Filter connections to only include practiced LEGOs
+          links.value = realData.connections
+            .filter(conn => practicedLegoIds.has(conn.source) && practicedLegoIds.has(conn.target))
+            .map(conn => ({
+              source: conn.source,
+              target: conn.target,
+              count: conn.count,
+            }))
+
+          totalPractices.value = nodes.value.reduce((sum, n) => sum + n.totalPractices, 0)
+          currentRound.value = nodes.value.length
+
+          console.log('[LegoNetwork] Learner network ready:', nodes.value.length, 'nodes,', links.value.length, 'connections')
+        } else {
+          // No LEGOs practiced yet - show empty state with simulation available
+          console.log('[LegoNetwork] No LEGOs practiced yet, showing empty state')
+          isRealData.value = true // Still "real" mode, just empty
+          nodes.value = []
+          links.value = []
+          totalPractices.value = 0
+          currentRound.value = 0
+        }
+
+        // Prepare simulation data (all LEGOs not yet practiced)
         const beltProgression = ['white', 'yellow', 'orange', 'green', 'blue', 'purple', 'brown', 'black']
-        const nodesPerBelt = Math.ceil(realData.nodes.length / beltProgression.length)
+        allAvailableLegos.value = realData.nodes
+          .filter(n => !practicedLegoIds.has(n.id))
+          .map((node, idx) => ({
+            id: node.id,
+            seedId: node.seedId,
+            legoIndex: node.legoIndex,
+            knownText: node.knownText,
+            targetText: node.targetText,
+            totalPractices: 0,
+            usedInPhrases: node.usedInPhrases,
+            mastery: 0,
+            isEternal: false,
+          }))
 
-        nodes.value = realData.nodes.map((node, idx) => ({
-          id: node.id,
-          seedId: node.seedId,
-          legoIndex: node.legoIndex,
-          knownText: node.knownText,
-          targetText: node.targetText,
-          totalPractices: node.totalPractices,
-          usedInPhrases: node.usedInPhrases,
-          mastery: Math.min(node.usedInPhrases / 20, 1), // Derive mastery from usage
-          isEternal: node.usedInPhrases > 15, // "Mastered" if used in many phrases
-          birthBelt: beltProgression[Math.floor(idx / nodesPerBelt)] || 'black',
-          x: undefined,
-          y: undefined,
-        }))
+        maxRounds.value = allAvailableLegos.value.length
 
-        // Use real connections from phrase co-occurrence
-        links.value = realData.connections.map(conn => ({
-          source: conn.source,
-          target: conn.target,
-          count: conn.count,
-        }))
-
-        totalPractices.value = nodes.value.reduce((sum, n) => sum + n.usedInPhrases, 0)
-
-        // Set simulation to show all nodes immediately (no demo growth)
-        allAvailableLegos.value = []
-        maxRounds.value = 0
-        currentRound.value = nodes.value.length
-
-        console.log('[LegoNetwork] Real network ready:', nodes.value.length, 'nodes,', links.value.length, 'connections')
         isLoading.value = false
         return
       }
@@ -1112,14 +1202,20 @@ watch(courseCode, async (newCode, oldCode) => {
       </div>
     </header>
 
-    <!-- Data Mode Indicator (Real Data) -->
-    <div v-if="isRealData" class="data-mode-indicator">
-      <span class="data-mode-badge real">Real Data</span>
-      <span class="data-mode-info">{{ nodes.length }} LEGOs · {{ links.length }} connections from phrase co-occurrence</span>
+    <!-- Your Brain Map (learner has progress) -->
+    <div v-if="isRealData && nodes.length > 0" class="data-mode-indicator">
+      <span class="data-mode-badge real">Your Brain Map</span>
+      <span class="data-mode-info">{{ nodes.length }} LEGOs learned · {{ links.length }} connections</span>
     </div>
 
-    <!-- Demo Controls (only when NOT in real data mode) -->
-    <div v-else class="demo-controls">
+    <!-- Empty state for new learners -->
+    <div v-else-if="isRealData && nodes.length === 0" class="data-mode-indicator empty">
+      <span class="data-mode-badge empty">Start Learning</span>
+      <span class="data-mode-info">Your brain map will grow as you learn each LEGO</span>
+    </div>
+
+    <!-- Demo Controls (always available for simulation preview) -->
+    <div class="demo-controls" :class="{ 'with-data': isRealData && nodes.length > 0 }">
       <div class="demo-row">
         <!-- Play/Pause/Stop -->
         <button
@@ -1130,7 +1226,7 @@ watch(courseCode, async (newCode, oldCode) => {
           <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
             <polygon points="5 3 19 12 5 21 5 3"/>
           </svg>
-          <span>Watch it Grow</span>
+          <span>{{ isRealData && nodes.length > 0 ? 'Preview Growth' : 'Watch it Grow' }}</span>
         </button>
         <button
           v-else
@@ -1207,7 +1303,9 @@ watch(courseCode, async (newCode, oldCode) => {
 
       <!-- Empty state -->
       <div v-if="nodes.length === 0 && !isDemoRunning" class="empty-state">
-        <p>Press "Watch it Grow" to simulate a learning journey</p>
+        <div class="empty-icon">🧠</div>
+        <p v-if="isRealData">Start learning to see your brain map grow</p>
+        <p v-else>Press "Watch it Grow" to preview the learning journey</p>
       </div>
 
       <!-- Zoom Controls -->
@@ -1521,9 +1619,25 @@ watch(courseCode, async (newCode, oldCode) => {
   border: 1px solid rgba(34, 197, 94, 0.4);
 }
 
+.data-mode-badge.empty {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.4);
+}
+
+.data-mode-indicator.empty {
+  background: rgba(251, 191, 36, 0.1);
+  border-color: rgba(251, 191, 36, 0.3);
+}
+
 .data-mode-info {
   font-size: 0.875rem;
   color: rgba(255, 255, 255, 0.6);
+}
+
+/* Demo controls positioning when showing real data */
+.demo-controls.with-data {
+  top: 130px;
 }
 
 /* Demo Controls */
@@ -1793,6 +1907,12 @@ watch(courseCode, async (newCode, oldCode) => {
   text-align: center;
   color: rgba(255, 255, 255, 0.4);
   font-size: 1rem;
+}
+
+.empty-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+  opacity: 0.3;
 }
 
 /* Zoom Controls */
