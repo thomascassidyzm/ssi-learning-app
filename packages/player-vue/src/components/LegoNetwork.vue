@@ -133,6 +133,7 @@ let svg = null
 let zoomGroup = null
 let linksLayer = null
 let nodesLayer = null
+let labelsLayer = null
 let zoomBehavior = null
 const currentZoom = ref(1)
 
@@ -161,6 +162,9 @@ const activeLegoIds = ref([]) // LEGOs highlighted during current phrase
 const introducedLegoIds = ref(new Set()) // LEGOs that have been introduced
 const isIntroducingLego = ref(false) // True when showing intro animation
 const introLego = ref(null) // The LEGO being introduced
+const pathAnimationIds = ref([]) // LEGO IDs in the current path animation (Voice 2)
+const pathAnimationActive = ref(false) // True when path animation is running
+let pathAnimationTimers = [] // Timers for path animation sequence
 
 // Audio S3 base URL
 const AUDIO_S3_BASE_URL = 'https://ssi-audio-stage.s3.eu-west-1.amazonaws.com/mastered'
@@ -639,6 +643,206 @@ const clearAllTimers = () => {
 }
 
 /**
+ * Clear path animation timers
+ */
+const clearPathAnimationTimers = () => {
+  pathAnimationTimers.forEach(t => clearTimeout(t))
+  pathAnimationTimers = []
+}
+
+/**
+ * Normalize text for matching (lowercase, trim, single spaces)
+ */
+const normalizeText = (text) => {
+  return text?.toLowerCase().trim().replace(/\s+/g, ' ') || ''
+}
+
+/**
+ * Decompose a phrase into LEGO IDs using greedy longest-match
+ * Uses the legoMap from networkData
+ */
+const decomposePhrase = (phraseText) => {
+  if (!networkData.value?.legoMap || !phraseText) return []
+
+  const legoMap = networkData.value.legoMap
+  const normalized = normalizeText(phraseText)
+  const words = normalized.split(' ')
+  const result = []
+  let i = 0
+
+  while (i < words.length) {
+    let longestMatch = null
+    let longestLength = 0
+
+    // Try to find longest matching LEGO starting at position i
+    for (let len = words.length - i; len > 0; len--) {
+      const candidate = words.slice(i, i + len).join(' ')
+      const legoId = legoMap.get(candidate)
+      if (legoId) {
+        longestMatch = legoId
+        longestLength = len
+        break
+      }
+    }
+
+    if (longestMatch) {
+      result.push(longestMatch)
+      i += longestLength
+    } else {
+      i++ // Skip unmatched word
+    }
+  }
+
+  return result
+}
+
+/**
+ * Animate path sequence during Voice 2 phase
+ * Lights up nodes in traversal order with edge animation between consecutive nodes
+ */
+const animatePathSequence = (legoPath, totalDuration = 2000) => {
+  if (!legoPath || legoPath.length === 0 || !nodesLayer || !linksLayer) return
+
+  clearPathAnimationTimers()
+  pathAnimationActive.value = true
+  pathAnimationIds.value = [...legoPath]
+
+  // Calculate timing - distribute animation over the audio duration
+  const stepDelay = totalDuration / Math.max(legoPath.length, 1)
+  const animatedNodes = new Set()
+  const animatedEdges = new Set()
+
+  // First, dim all nodes and edges
+  nodesLayer.selectAll('.node')
+    .classed('path-inactive', true)
+    .classed('path-active', false)
+
+  nodesLayer.selectAll('.node .node-glow')
+    .transition()
+    .duration(200)
+    .attr('opacity', 0.15)
+
+  nodesLayer.selectAll('.node .node-core')
+    .transition()
+    .duration(200)
+    .attr('opacity', 0.3)
+
+  linksLayer.selectAll('.link')
+    .classed('path-inactive', true)
+    .classed('path-active', false)
+    .transition()
+    .duration(200)
+    .attr('stroke-opacity', 0.1)
+
+  // Animate each node in sequence
+  legoPath.forEach((legoId, index) => {
+    const timer = setTimeout(() => {
+      if (!pathAnimationActive.value) return
+
+      // Light up this node
+      animatedNodes.add(legoId)
+
+      nodesLayer.selectAll('.node')
+        .filter(d => d.id === legoId)
+        .classed('path-inactive', false)
+        .classed('path-active', true)
+        .raise() // Bring to front
+
+      // Animate node glow
+      nodesLayer.selectAll('.node')
+        .filter(d => d.id === legoId)
+        .select('.node-glow')
+        .transition()
+        .duration(150)
+        .attr('opacity', 1)
+        .attr('r', 24)
+        .attr('filter', 'url(#glow)')
+        .transition()
+        .duration(300)
+        .attr('r', 20)
+
+      // Animate node core
+      nodesLayer.selectAll('.node')
+        .filter(d => d.id === legoId)
+        .select('.node-core')
+        .transition()
+        .duration(150)
+        .attr('opacity', 1)
+        .attr('r', 14)
+        .transition()
+        .duration(300)
+        .attr('r', 12)
+
+      // Animate edge from previous node
+      if (index > 0) {
+        const prevLegoId = legoPath[index - 1]
+        const edgeKey = `${prevLegoId}->${legoId}`
+
+        if (!animatedEdges.has(edgeKey)) {
+          animatedEdges.add(edgeKey)
+
+          // Find and animate the edge
+          linksLayer.selectAll('.link')
+            .filter(d => {
+              const sId = d.source.id || d.source
+              const tId = d.target.id || d.target
+              return (sId === prevLegoId && tId === legoId) ||
+                     (sId === legoId && tId === prevLegoId)
+            })
+            .classed('path-inactive', false)
+            .classed('path-active', true)
+            .each(function() {
+              const link = d3.select(this)
+              const totalLength = this.getTotalLength ? this.getTotalLength() : 100
+
+              // Animate stroke-dashoffset for "drawing" effect
+              link
+                .attr('stroke-dasharray', totalLength)
+                .attr('stroke-dashoffset', totalLength)
+                .transition()
+                .duration(stepDelay * 0.8)
+                .ease(d3.easeLinear)
+                .attr('stroke-dashoffset', 0)
+                .attr('stroke-opacity', 0.9)
+                .attr('stroke-width', 3)
+            })
+        }
+      }
+    }, index * stepDelay)
+
+    pathAnimationTimers.push(timer)
+  })
+
+  console.log('[LegoNetwork] Path animation started:', legoPath.length, 'nodes over', totalDuration, 'ms')
+}
+
+/**
+ * Reset path animation - keeps highlighted nodes but clears animation state
+ */
+const resetPathAnimation = () => {
+  clearPathAnimationTimers()
+  pathAnimationActive.value = false
+
+  // Remove stroke-dasharray (reset edge style)
+  if (linksLayer) {
+    linksLayer.selectAll('.link')
+      .classed('path-inactive', false)
+      .classed('path-active', false)
+      .attr('stroke-dasharray', null)
+      .attr('stroke-dashoffset', null)
+  }
+
+  // Reset node classes
+  if (nodesLayer) {
+    nodesLayer.selectAll('.node')
+      .classed('path-inactive', false)
+      .classed('path-active', false)
+  }
+
+  pathAnimationIds.value = []
+}
+
+/**
  * Start playback mode - load session and begin playing
  */
 const startPlayback = async () => {
@@ -723,6 +927,7 @@ const stopPlayback = () => {
   console.log('[LegoNetwork] Stopping playback')
   cycleId++
   clearAllTimers()
+  clearPathAnimationTimers()
   if (audioController.value) audioController.value.stop()
 
   isPlaybackMode.value = false
@@ -733,7 +938,8 @@ const stopPlayback = () => {
   introLego.value = null
   playbackIndex.value = -1
 
-  // Reset node highlights
+  // Reset path animation and node highlights
+  resetPathAnimation()
   updateNodeHighlights([])
 }
 
@@ -746,6 +952,9 @@ const playFromIndex = async (flatIndex) => {
 
   clearAllTimers()
   if (audioController.value) audioController.value.stop()
+
+  // Reset path animation from previous cycle
+  resetPathAnimation()
 
   const myCycleId = ++cycleId
   console.log('[LegoNetwork] Starting cycle', myCycleId, 'at index', flatIndex, 'item:', item.legoId, item.targetText)
@@ -858,6 +1067,17 @@ const runPhase = async (phase, myCycleId) => {
     }
 
     case 'voice2': {
+      // Decompose target text into LEGO path and start path animation
+      const legoPath = decomposePhrase(item.targetText)
+      if (legoPath.length > 0) {
+        console.log('[LegoNetwork] Voice2 path:', item.targetText, '->', legoPath)
+        // Estimate audio duration (approximately 2 seconds for most phrases)
+        const estimatedDuration = 2000
+        animatePathSequence(legoPath, estimatedDuration)
+        // Update activeLegoIds to include all path nodes
+        activeLegoIds.value = [...legoPath]
+      }
+
       const voice2Url = await getAudioUrlAsync(item.targetText, 'target2', item)
       if (myCycleId !== cycleId) return
 
@@ -865,6 +1085,7 @@ const runPhase = async (phase, myCycleId) => {
         try {
           await audioController.value.play({ url: voice2Url })
           if (myCycleId !== cycleId) return
+          // Keep path highlighted - will be reset on next cycle
           advanceToNextItem(myCycleId)
           return
         } catch (err) {
@@ -1348,6 +1569,7 @@ const initVisualization = () => {
   // Create layers inside zoom group
   linksLayer = zoomGroup.append('g').attr('class', 'links-layer')
   nodesLayer = zoomGroup.append('g').attr('class', 'nodes-layer')
+  labelsLayer = zoomGroup.append('g').attr('class', 'labels-layer')
 
   // Setup zoom behavior
   zoomBehavior = d3.zoom()
@@ -1356,6 +1578,8 @@ const initVisualization = () => {
       zoomGroup.attr('transform', event.transform)
       currentZoom.value = event.transform.k
       currentTransform.value = { x: event.transform.x, y: event.transform.y, k: event.transform.k }
+      // Update label visibility based on zoom level (semantic zoom)
+      updateLabelOpacities()
     })
 
   // Apply zoom to SVG
@@ -1402,7 +1626,7 @@ const zoomReset = () => {
 }
 
 const updateVisualization = () => {
-  if (!svg || !linksLayer || !nodesLayer) return
+  if (!svg || !linksLayer || !nodesLayer || !labelsLayer) return
 
   const palette = currentPalette.value
   const width = containerRef.value?.clientWidth || 800
@@ -1532,6 +1756,63 @@ const updateVisualization = () => {
     }
   })
 
+  // Update labels (semantic zoom - text above nodes)
+  const label = labelsLayer.selectAll('.node-label')
+    .data(nodes.value, d => d.id)
+
+  label.exit()
+    .transition()
+    .duration(200)
+    .style('opacity', 0)
+    .remove()
+
+  const labelEnter = label.enter()
+    .append('g')
+    .attr('class', 'node-label')
+    .attr('data-id', d => d.id)
+    .style('opacity', 0)
+    .style('pointer-events', 'none')
+
+  // Label background for readability
+  labelEnter.append('rect')
+    .attr('class', 'label-bg')
+    .attr('rx', 3)
+    .attr('ry', 3)
+    .attr('fill', 'rgba(10, 10, 12, 0.85)')
+
+  // Label text - targetText positioned above node
+  labelEnter.append('text')
+    .attr('class', 'label-text')
+    .attr('y', -22)
+    .attr('text-anchor', 'middle')
+    .attr('dominant-baseline', 'auto')
+    .attr('fill', d => getPalette(d.birthBelt).glow)
+    .attr('font-family', "'DM Sans', sans-serif")
+    .attr('font-size', '11px')
+    .attr('font-weight', '500')
+    .text(d => truncateText(d.targetText))
+
+  // Size the background rect to fit text
+  labelEnter.each(function(d) {
+    const g = d3.select(this)
+    const textEl = g.select('.label-text').node()
+    if (textEl) {
+      const bbox = textEl.getBBox()
+      g.select('.label-bg')
+        .attr('x', bbox.x - 4)
+        .attr('y', bbox.y - 2)
+        .attr('width', bbox.width + 8)
+        .attr('height', bbox.height + 4)
+    }
+  })
+
+  // Update existing label colors based on birth belt
+  labelsLayer.selectAll('.node-label .label-text')
+    .attr('fill', d => getPalette(d.birthBelt).glow)
+
+  // Update label opacities based on current zoom
+  updateLabelOpacities()
+
   // Update simulation
   simulation.nodes(nodes.value)
   simulation.force('link').links(links.value)
@@ -1551,7 +1832,50 @@ const updateVisualization = () => {
 
     linksLayer.selectAll('.link').attr('d', linkArc)
     nodesLayer.selectAll('.node').attr('transform', d => `translate(${d.x},${d.y})`)
+    labelsLayer.selectAll('.node-label').attr('transform', d => `translate(${d.x},${d.y})`)
   })
+}
+
+// Calculate label opacity based on zoom level and node state
+// Semantic zoom behavior (Google Maps style):
+// - k < 0.8: No labels (zoomed out, dots only)
+// - 0.8 <= k < 1.5: Faint labels on hover
+// - k >= 1.5: Always visible labels
+const getLabelOpacity = (node, k, isHovered, isSelected) => {
+  // Selected node always shows label
+  if (isSelected) return 1
+
+  // Zoomed out (k < 0.8): No labels
+  if (k < 0.8) return 0
+
+  // Medium zoom (0.8 <= k < 1.5): Faint labels on hover only
+  if (k < 1.5) {
+    return isHovered ? 0.7 : 0
+  }
+
+  // Zoomed in (k >= 1.5): Always visible
+  // Opacity increases with zoom level, maxing at 1.0
+  const opacity = Math.min(0.6 + (k - 1.5) * 0.4, 1.0)
+  return opacity
+}
+
+// Update all label opacities based on current zoom
+const updateLabelOpacities = () => {
+  if (!labelsLayer) return
+
+  const k = currentZoom.value
+  const selectedId = selectedNode.value?.id
+  const hoveredId = hoveredNode.value?.id
+
+  labelsLayer.selectAll('.node-label')
+    .style('opacity', d => getLabelOpacity(d, k, d.id === hoveredId, d.id === selectedId))
+}
+
+// Truncate text to prevent overlap (max 15 chars)
+const truncateText = (text, maxLength = 15) => {
+  if (!text) return ''
+  if (text.length <= maxLength) return text
+  return text.slice(0, maxLength - 1) + '...'
 }
 
 // Curved link path generator
@@ -1609,6 +1933,9 @@ const handleNodeHover = (event, d) => {
       }
       return Math.min(1 + l.count / 15, 4)
     })
+
+  // Update label visibility (semantic zoom - show on hover at medium zoom)
+  updateLabelOpacities()
 }
 
 const handleNodeLeave = () => {
@@ -1618,6 +1945,9 @@ const handleNodeLeave = () => {
   linksLayer.selectAll('.link')
     .attr('stroke', currentPalette.value.link.base)
     .attr('stroke-width', d => Math.min(1 + d.count / 15, 4))
+
+  // Update label visibility (semantic zoom)
+  updateLabelOpacities()
 }
 
 const handleNodeClick = (event, d) => {
@@ -1637,6 +1967,16 @@ const handleNodeClick = (event, d) => {
   nodesLayer.selectAll('.node.selected .node-core')
     .attr('stroke', '#fbbf24')
     .attr('stroke-width', 3)
+
+  // Update label visibility (selected node always shows label)
+  updateLabelOpacities()
+
+  // Highlight selected node's label
+  labelsLayer.selectAll('.node-label')
+    .classed('selected', n => n.id === d.id)
+
+  labelsLayer.selectAll('.node-label.selected .label-text')
+    .attr('fill', '#fbbf24')
 
   // Play audio
   playNodeAudio(d)
@@ -1658,6 +1998,16 @@ const closePanel = () => {
   nodesLayer.selectAll('.node-core')
     .attr('stroke', d => getPalette(d.birthBelt).glow)
     .attr('stroke-width', d => d.isEternal ? 2.5 : 1.5)
+
+  // Reset label styles and visibility
+  labelsLayer.selectAll('.node-label')
+    .classed('selected', false)
+
+  labelsLayer.selectAll('.node-label .label-text')
+    .attr('fill', d => getPalette(d.birthBelt).glow)
+
+  // Update label visibility (semantic zoom)
+  updateLabelOpacities()
 }
 
 // ============================================================================
@@ -3450,6 +3800,52 @@ watch(courseCode, async (newCode, oldCode) => {
 @keyframes connection-pulse {
   from { stroke-dashoffset: 0; }
   to { stroke-dashoffset: 12; }
+}
+
+/* ============================================================================
+   SEMANTIC ZOOM NODE LABELS
+   Google Maps-style label visibility based on zoom level
+   ============================================================================ */
+
+/* Labels layer positioned above nodes */
+.network-viewport :deep(.labels-layer) {
+  pointer-events: none;
+}
+
+/* Node label container */
+.network-viewport :deep(.node-label) {
+  pointer-events: none;
+  /* Smooth opacity transitions for semantic zoom */
+  transition: opacity 0.25s ease-out;
+}
+
+/* Label background - subtle dark pill for readability */
+.network-viewport :deep(.node-label .label-bg) {
+  fill: rgba(10, 10, 12, 0.85);
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 0.5;
+}
+
+/* Label text styling - clean, small font matching Moonlit Dojo theme */
+.network-viewport :deep(.node-label .label-text) {
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  /* Smooth color transitions for hover/selection states */
+  transition: fill 0.2s ease;
+  /* Text rendering for clarity */
+  text-rendering: optimizeLegibility;
+}
+
+/* Selected node label gets highlight color */
+.network-viewport :deep(.node-label.selected .label-text) {
+  fill: #fbbf24 !important;
+}
+
+.network-viewport :deep(.node-label.selected .label-bg) {
+  fill: rgba(251, 191, 36, 0.15);
+  stroke: rgba(251, 191, 36, 0.3);
 }
 
 /* Responsive */
