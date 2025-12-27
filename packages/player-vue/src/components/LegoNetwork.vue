@@ -20,6 +20,7 @@
 
 import { ref, computed, inject, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import * as d3 from 'd3'
+import { useLegoNetwork } from '../composables/useLegoNetwork'
 
 const emit = defineEmits(['close'])
 
@@ -31,15 +32,29 @@ const props = defineProps({
   beltLevel: {
     type: String,
     default: 'white' // white, yellow, orange, green, blue, purple, brown, black
+  },
+  mode: {
+    type: String,
+    default: 'auto' // 'auto' | 'demo' | 'real' - auto tries real first, falls back to demo
   }
 })
 
 // Inject providers
 const supabase = inject('supabase', null)
 
+// Use the LEGO network composable for real data
+const {
+  isLoading: networkLoading,
+  error: networkError,
+  networkData,
+  loadNetworkData: loadRealNetworkData,
+  getLegoConnections
+} = useLegoNetwork(supabase)
+
 // State
 const isLoading = ref(true)
 const error = ref(null)
+const isRealData = ref(false) // true if showing real data, false if demo
 
 // Graph data
 const nodes = ref([])
@@ -369,8 +384,73 @@ const addNextLego = () => {
 // ============================================================================
 
 const loadNetworkData = async () => {
+  const useMode = props.mode
+  const shouldTryReal = useMode === 'auto' || useMode === 'real'
+
+  // Try to load real data from database (phrase co-occurrence)
+  if (shouldTryReal && supabase?.value && courseCode.value) {
+    try {
+      isLoading.value = true
+      error.value = null
+
+      console.log('[LegoNetwork] Attempting to load real network data for:', courseCode.value)
+
+      const realData = await loadRealNetworkData(courseCode.value)
+
+      if (realData && realData.nodes.length > 0) {
+        console.log('[LegoNetwork] Real data loaded:', realData.stats)
+        isRealData.value = true
+
+        // Convert real data to visualization format
+        // Assign belt colors based on node order (simulating introduction order)
+        const beltProgression = ['white', 'yellow', 'orange', 'green', 'blue', 'purple', 'brown', 'black']
+        const nodesPerBelt = Math.ceil(realData.nodes.length / beltProgression.length)
+
+        nodes.value = realData.nodes.map((node, idx) => ({
+          id: node.id,
+          seedId: node.seedId,
+          legoIndex: node.legoIndex,
+          knownText: node.knownText,
+          targetText: node.targetText,
+          totalPractices: node.totalPractices,
+          usedInPhrases: node.usedInPhrases,
+          mastery: Math.min(node.usedInPhrases / 20, 1), // Derive mastery from usage
+          isEternal: node.usedInPhrases > 15, // "Mastered" if used in many phrases
+          birthBelt: beltProgression[Math.floor(idx / nodesPerBelt)] || 'black',
+          x: undefined,
+          y: undefined,
+        }))
+
+        // Use real connections from phrase co-occurrence
+        links.value = realData.connections.map(conn => ({
+          source: conn.source,
+          target: conn.target,
+          count: conn.count,
+        }))
+
+        totalPractices.value = nodes.value.reduce((sum, n) => sum + n.usedInPhrases, 0)
+
+        // Set simulation to show all nodes immediately (no demo growth)
+        allAvailableLegos.value = []
+        maxRounds.value = 0
+        currentRound.value = nodes.value.length
+
+        console.log('[LegoNetwork] Real network ready:', nodes.value.length, 'nodes,', links.value.length, 'connections')
+        isLoading.value = false
+        return
+      }
+    } catch (err) {
+      console.warn('[LegoNetwork] Failed to load real data, falling back:', err)
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  // Fallback to demo/simulation mode
+  isRealData.value = false
+
   if (!supabase?.value || !courseCode.value) {
-    // Demo data
+    // Pure demo data
     createDemoData()
     isLoading.value = false
     return
@@ -1014,8 +1094,14 @@ watch(currentBelt, () => {
       </div>
     </header>
 
-    <!-- Demo Controls -->
-    <div class="demo-controls">
+    <!-- Data Mode Indicator (Real Data) -->
+    <div v-if="isRealData" class="data-mode-indicator">
+      <span class="data-mode-badge real">Real Data</span>
+      <span class="data-mode-info">{{ nodes.length }} LEGOs · {{ links.length }} connections from phrase co-occurrence</span>
+    </div>
+
+    <!-- Demo Controls (only when NOT in real data mode) -->
+    <div v-else class="demo-controls">
       <div class="demo-row">
         <!-- Play/Pause/Stop -->
         <button
@@ -1383,6 +1469,43 @@ watch(currentBelt, () => {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: rgba(255, 255, 255, 0.4);
+}
+
+/* Data Mode Indicator (Real Data) */
+.data-mode-indicator {
+  position: absolute;
+  top: 80px;
+  left: 1.5rem;
+  right: 1.5rem;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.875rem 1.25rem;
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: 10px;
+  backdrop-filter: blur(8px);
+}
+
+.data-mode-badge {
+  padding: 0.375rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.data-mode-badge.real {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.4);
+}
+
+.data-mode-info {
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.6);
 }
 
 /* Demo Controls */
