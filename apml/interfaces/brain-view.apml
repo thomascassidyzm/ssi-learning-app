@@ -1,0 +1,477 @@
+# APML Interface: Brain View Specification
+# SSI Learning App
+# Version: 1.0.0 (2025-12-27)
+# Status: Design Complete
+
+## ============================================================================
+## OVERVIEW
+## ============================================================================
+
+SPECIFICATION:
+  name: "Brain View"
+  purpose: "Visualization of learner's growing language network"
+  source: "packages/player-vue/src/components/LegoNetwork.vue"
+  version: "1.0.0"
+
+CORE_PRINCIPLE: |
+  The Brain View visualizes the learner's language acquisition as a growing
+  network of LEGOs (nodes) connected by practice pathways (edges).
+
+  This is not just a progress indicator - it's a mirror of what's actually
+  happening in the learner's brain: building a network of certainties that
+  can be traversed to CREATE novel utterances.
+
+## ============================================================================
+## PEDAGOGICAL FOUNDATION
+## ============================================================================
+
+PEDAGOGICAL_MODEL:
+  name: "Network of Generative Capacity"
+
+  core_insight: |
+    LEGOs are certainties. Phrases are creations.
+
+    The learner is NEVER repeating target language phrases.
+    The learner is CREATING target language phrases by traversing
+    the network of LEGOs they have acquired.
+
+    CREATING >> REPEATING (in pedagogical effectiveness)
+
+  LEGO_definition:
+    name: "Minimum Viable Unit of Zero Uncertainty"
+    description: |
+      A LEGO is an atomic mapping: Known → Target
+      Every time the learner hears X (known), they produce exactly Y (target).
+      There is no ambiguity, no guessing. Zero uncertainty.
+
+    example:
+      known: "I want"
+      target: "quiero"
+      certainty: "100% - hearing 'I want' always produces 'quiero'"
+
+  phrase_creation:
+    description: |
+      Practice phrases are NOVEL COMBINATIONS of LEGOs.
+      The learner has NEVER heard the complete target phrase before.
+      They must CREATE it by piecing together known LEGOs.
+
+    example:
+      taught_legos:
+        - { known: "I want", target: "quiero" }
+        - { known: "to speak", target: "hablar" }
+        - { known: "Spanish", target: "español" }
+
+      practice_prompt: "I want to speak Spanish"
+
+      learner_creates: "quiero hablar español"
+      # They've NEVER heard this as a complete phrase
+      # They BUILT it by traversing their LEGO network
+
+  network_metaphor:
+    nodes: "LEGOs - points of certainty"
+    edges: "Pathways - connections formed by practice"
+    traversal: "The act of creating a phrase by walking node-to-node"
+
+    key_insight: |
+      The network represents not "what you know" but "what you can CREATE".
+      More nodes + more connections = more generative capacity.
+
+      Each phrase practiced strengthens the pathways traversed.
+      "Nodes that fire together, wire together."
+
+## ============================================================================
+## NETWORK DATA MODEL
+## ============================================================================
+
+DATA_MODEL:
+
+  Node:
+    description: "A LEGO - minimum unit of certainty"
+    properties:
+      id: "LEGO identifier (e.g., 'S0001L01')"
+      seedId: "Parent seed identifier"
+      legoIndex: "Position within seed"
+      knownText: "Known language text"
+      targetText: "Target language text"
+      practiceCount: "Number of times practiced"
+      mastery: "0.0-1.0 mastery score"
+      isEternal: "Has reached 'eternal' status (fully mastered)"
+      birthBelt: "Belt level when LEGO was introduced"
+
+  Edge:
+    description: "A pathway - connection between LEGOs"
+    properties:
+      source: "Source LEGO id"
+      target: "Target LEGO id"
+      traversalCount: "Number of times this path was walked"
+      phrases: "List of phrase IDs that use this edge"
+
+    interpretation: |
+      Edge strength (traversalCount) represents synaptic strength.
+      Each time a phrase using this edge is practiced, the pathway
+      is reinforced - literally "wiring together" the nodes.
+
+  PathDecomposition:
+    description: "Algorithm to find LEGO path within a phrase"
+
+    algorithm: |
+      Given a phrase and a LEGO vocabulary, find the sequence of LEGOs
+      that compose the phrase. Uses greedy longest-match approach.
+
+      For "quiero hablar en español un rato":
+      - "quiero" matches LEGO → add, advance
+      - "hablar" matches LEGO → add, advance
+      - "en" no match → skip
+      - "español" matches LEGO → add, advance
+      - "un rato" matches LEGO (2-word) → add, advance
+
+      Result: [quiero_id, hablar_id, español_id, un_rato_id]
+
+      Note: Non-LEGO words ("en") are skipped but don't break the path.
+      The path represents the LEGOs the learner is activating.
+
+    implementation_reference: "useLegoNetwork.ts:decomposePhrase()"
+
+## ============================================================================
+## VISUALIZATION BEHAVIOR BY PHASE
+## ============================================================================
+
+PHASE_VISUALIZATION:
+  description: |
+    The Brain View must coordinate with the 4-phase learning cycle.
+    Visual feedback is carefully timed to support (not distract from) learning.
+
+  PROMPT_PHASE:
+    audio: "Known language plays"
+    network_state: "Idle/ambient"
+    highlighting: "None"
+    focus: "LISTEN to the prompt"
+    rationale: |
+      The learner needs to focus on understanding what they must translate.
+      No visual distraction from the network.
+
+  PAUSE_PHASE:
+    audio: "Silence (learner speaks)"
+    network_state: "Idle/ambient"
+    highlighting: "None"
+    focus: "CREATE the target phrase internally"
+    rationale: |
+      The learner is doing the mental work of traversing their own
+      internal network. We don't visualize this - it would be distraction.
+
+      We record latency and duration as confidence proxies (via voice
+      activation, not voice recognition). No gates block the flow.
+
+  VOICE_1_PHASE:
+    audio: "First target voice plays"
+    network_state: "Idle/ambient"
+    highlighting: "None"
+    focus: "LISTEN to the correct pronunciation"
+    rationale: |
+      Ears are PRIMARY. The learner compares what they said to the model.
+      Still no visual feedback - pure auditory processing.
+
+  VOICE_2_PHASE:
+    audio: "Second target voice plays"
+    network_state: "ACTIVE - path lights up"
+    highlighting: "Sequential path animation"
+    focus: "CONFIRM and REINFORCE"
+    rationale: |
+      NOW we visualize. The learner sees the path they just traversed.
+      Each node lights up in sequence. Edges glow to show the pathway.
+      Visual reinforcement of the network structure they activated.
+
+PATH_ANIMATION:
+  trigger: "Voice 2 phase begins"
+
+  sequence:
+    description: |
+      Light up nodes and edges in traversal order as Voice 2 plays.
+
+    timing_strategy: |
+      Option A: Estimate word timing from audio duration / LEGO count
+      Option B: Quick cascade at Voice 2 start (all light in rapid sequence)
+      Option C: All nodes light simultaneously, then path "flows" through
+
+      Recommended: Quick cascade - creates sense of traversal without
+      requiring word-level audio timestamps.
+
+    visual_states:
+      inactive: "Node at base opacity (e.g., 15%)"
+      activating: "Node pulses brighter (e.g., 80%)"
+      active: "Node remains highlighted (e.g., 60%)"
+      edge_activating: "Edge animates from source to target"
+      edge_active: "Edge remains visible at elevated opacity"
+
+    example:
+      phrase: "quiero hablar español"
+      legos: [quiero, hablar, español]
+
+      animation_sequence:
+        t0: "quiero node pulses"
+        t1: "edge quiero→hablar animates, hablar pulses"
+        t2: "edge hablar→español animates, español pulses"
+        t3: "all nodes remain highlighted until cycle ends"
+
+## ============================================================================
+## OPERATING MODES
+## ============================================================================
+
+OPERATING_MODES:
+
+  LIVE_LEARNING_MODE:
+    description: "Full learning experience with audio and visualization"
+    primary_interface: true
+
+    behavior:
+      - "Full 4-phase cycle with audio playback"
+      - "New LEGOs emerge with introduction animation"
+      - "Path lights up during Voice 2 phase only"
+      - "Adaptation engine adjusts based on performance"
+      - "Real-time, with pause/skip controls"
+
+    zoom_behavior:
+      during_cycle: "Zoomed to current node neighborhood"
+      between_rounds: "Brief zoom-out to show new node joining"
+      session_complete: "Full network reveal"
+
+  REPLAY_MODE:
+    description: "Summary tool - watch network build from start"
+
+    behavior:
+      - "Fast-forward through learning journey"
+      - "Watch network grow from empty to current state"
+      - "Adjustable speed (1x, 4x, 16x)"
+      - "Click any node/cycle to hear audio"
+      - "No voice activation recording"
+
+    use_cases:
+      - "Build confidence by seeing progress"
+      - "Review the learning journey"
+      - "Share 'my brain after X days'"
+
+  EXPLORATION_MODE:
+    description: "Study tool - freely explore the network"
+
+    behavior:
+      - "Free pan and zoom"
+      - "Click any node to see details and play audio"
+      - "View connection strengths"
+      - "Filter by mastery level, belt, etc."
+      - "Answer 'what do I know that connects to X?'"
+
+    use_cases:
+      - "Understand network structure"
+      - "Find weak connections"
+      - "Prepare for specific topics"
+
+## ============================================================================
+## MOBILE ADAPTATION
+## ============================================================================
+
+MOBILE_DESIGN:
+  constraints:
+    - "Limited screen real estate"
+    - "Cannot run full D3 force simulation continuously"
+    - "Touch interactions vs mouse hover"
+
+  simplifications:
+    - "Show current node + 1-hop neighbors only during cycles"
+    - "Use Canvas/WebGL instead of SVG for performance"
+    - "Pre-calculate node positions (no real-time physics)"
+    - "Gesture-based navigation in exploration mode"
+
+  ambient_presence:
+    description: |
+      On mobile, the network is ambient - visible but not demanding.
+      A glimpse of the growing structure above/below the focused area.
+
+    layout:
+      top: "Faint constellation peek (10-15% of screen)"
+      center: "Main learning UI (phrase, phase indicator)"
+      bottom: "More constellation peek + navigation"
+
+## ============================================================================
+## VISUAL DESIGN
+## ============================================================================
+
+VISUAL_DESIGN:
+  theme: "Extension of Moonlit Dojo aesthetic"
+
+  metaphor: "Constellation / Star Map"
+
+  elements:
+    background: "Deep space / night sky"
+    nodes: "Stars / fireflies with belt-color glow"
+    edges: "Gossamer threads / constellation lines"
+    animations: "Organic, meditative, breathing quality"
+
+  belt_color_progression:
+    white: "Subtle white glow"
+    yellow: "Warm yellow radiance"
+    orange: "Vibrant orange"
+    green: "Natural green"
+    blue: "Electric blue"
+    purple: "Royal purple"
+    brown: "Warm amber"
+    black: "Golden accent on dark nodes"
+
+  node_visual_encoding:
+    size: "Base size + mastery bonus"
+    brightness: "Correlates with practice count"
+    glow_intensity: "Current activity level"
+    pulse: "Introduction or activation animation"
+
+  edge_visual_encoding:
+    thickness: "Traversal count (more = thicker)"
+    opacity: "Base low, increases when path is active"
+    animation: "Flowing particles during activation (optional)"
+
+## ============================================================================
+## SHAREABILITY / VIRALITY
+## ============================================================================
+
+SHAREABILITY:
+
+  shareable_moments:
+    - "My brain after X days"
+    - "Belt achievement (constellation with belt color)"
+    - "Milestone (100 LEGOs, 500 connections)"
+    - "Language comparison (side-by-side brains)"
+    - "Time-lapse of growth"
+
+  viral_messaging:
+    not_this: "I memorized 500 phrases"
+    but_this: |
+      I built a network of 127 LEGOs with 342 creative pathways.
+      I can generate thousands of sentences by walking different paths
+      through my brain.
+
+  share_format:
+    image: "Static constellation with stats overlay"
+    video: "Time-lapse of network growth"
+    interactive: "Shareable link to explore brain (future)"
+
+## ============================================================================
+## PSYCHOLOGICAL IMPACT
+## ============================================================================
+
+PSYCHOLOGICAL_BENEFITS:
+
+  progress_visibility:
+    problem: "'Am I making progress?' anxiety"
+    solution: "You can SEE nodes accumulating, connections forming"
+
+  plateau_anxiety:
+    problem: "'I feel stuck' during natural plateaus"
+    solution: "Network proves growth even when it doesn't feel like it"
+
+  spaced_rep_understanding:
+    problem: "'Why am I reviewing this again?' frustration"
+    solution: "Watch the node glow brighter with each review"
+
+  confidence_through_tangibility:
+    problem: "Abstract '247 words learned' feels meaningless"
+    solution: "247 connected nodes with visible structure = tangible"
+
+  completion_satisfaction:
+    problem: "Sessions feel like they just... end"
+    solution: "Session ends with full constellation reveal"
+
+## ============================================================================
+## INTEGRATION WITH ENGINE
+## ============================================================================
+
+ENGINE_INTEGRATION:
+
+  required_events_from_orchestrator:
+    cycle_started:
+      payload: "{ item, legoIds, phraseText }"
+      brain_view_action: "Prepare path decomposition"
+
+    phase_changed:
+      payload: "{ phase, item }"
+      brain_view_action: |
+        if phase == 'voice2':
+          animatePathSequence(decomposedPath)
+
+    cycle_completed:
+      payload: "{ item }"
+      brain_view_action: "Fade path highlighting, update edge strengths"
+
+    round_completed:
+      payload: "{ roundNumber, newLegoId }"
+      brain_view_action: "Zoom out briefly to show new node integration"
+
+  data_requirements:
+    lego_map: "Map<normalizedText, legoId> for decomposition"
+    connections: "Array of edges for visualization"
+    progress: "Practice counts, mastery levels per node"
+
+## ============================================================================
+## IMPLEMENTATION PHASES
+## ============================================================================
+
+IMPLEMENTATION_PHASES:
+
+  PHASE_1_EXPLORATION:
+    status: "Complete"
+    features:
+      - "Static network visualization"
+      - "Click to explore nodes"
+      - "Belt color theming"
+      - "Demo simulation mode"
+
+  PHASE_2_PLAYBACK_BASIC:
+    status: "In Progress"
+    features:
+      - "Audio playback through network"
+      - "Current node highlighting"
+      - "Phase-aware visualization"
+    remaining:
+      - "Path decomposition during Voice 2"
+      - "Sequential path animation"
+
+  PHASE_3_PATH_ANIMATION:
+    status: "Planned"
+    features:
+      - "Decompose phrases to LEGO paths"
+      - "Animate paths during Voice 2"
+      - "Edge traversal visualization"
+      - "Strengthen edges on practice"
+
+  PHASE_4_FULL_INTEGRATION:
+    status: "Future"
+    features:
+      - "Brain View as primary learning interface"
+      - "Mobile-optimized rendering"
+      - "Replay mode"
+      - "Share functionality"
+      - "Triple Helix integration"
+
+## ============================================================================
+## VALIDATION RULES
+## ============================================================================
+
+VALIDATION:
+
+  pedagogical_integrity:
+    - "Path animation ONLY during Voice 2 phase"
+    - "No visual distraction during Pause phase"
+    - "Ears primary during Voice 1"
+
+  performance:
+    - "Smooth animation on mobile devices"
+    - "No frame drops during cycle playback"
+    - "Lazy loading for large networks"
+
+  accuracy:
+    - "Path decomposition matches actual LEGO vocabulary"
+    - "Edge strengths reflect actual practice counts"
+    - "Node mastery reflects actual progress"
+
+## ============================================================================
+## GENERATED: 2025-12-27
+## APML v1.0.0
+## Author: Tom Cassidy + Claude
+## ============================================================================

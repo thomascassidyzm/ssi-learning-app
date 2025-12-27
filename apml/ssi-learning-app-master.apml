@@ -164,6 +164,15 @@ app SSiLearningApp:
     source: "packages/player-vue/src/components/SessionComplete.vue"
     coverage: "Session summary, progress display, resume action"
 
+  import interfaces/brain-view:
+    status: "design-complete"
+    date: "2025-12-27"
+    source: "packages/player-vue/src/components/LegoNetwork.vue"
+    coverage: |
+      Network visualization, pedagogical model (LEGOs as certainties,
+      phrases as creations), phase-specific behavior, path animation,
+      operating modes (live/replay/exploration), shareability
+
   ## ==========================================================================
   ## PSS COMPLIANCE (Project Structure Standard)
   ## ==========================================================================
@@ -283,6 +292,7 @@ app SSiLearningApp:
       - "core/data-types.apml (100%)"
       - "engine/cycle-orchestrator.apml (100%)"
       - "interfaces/learning-player.apml (100%)"
+      - "interfaces/brain-view.apml (design complete)"
 
     in_progress:
       - "core/variable-registry.apml"
