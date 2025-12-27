@@ -2166,118 +2166,17 @@ watch(courseCode, async (newCode, oldCode) => {
     <!-- Background layer -->
     <div class="bg-layer"></div>
 
-    <!-- Header -->
-    <header class="network-header">
-      <div class="header-left">
-        <button class="back-btn" @click="$emit('close')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M19 12H5M12 19l-7-7 7-7"/>
-          </svg>
-        </button>
-        <div class="header-content">
-          <h1 class="network-title">Progress Map</h1>
-          <p class="network-subtitle">{{ courseName }}</p>
-        </div>
-      </div>
-      <div class="header-right">
-        <div class="belt-indicator" :class="currentBelt">
-          <span class="belt-dot"></span>
-          <span class="belt-name">{{ currentPalette.name }}</span>
-        </div>
-        <div class="stats-group">
-          <div class="stat">
-            <span class="stat-value">{{ legoCount }}</span>
-            <span class="stat-label">LEGOs</span>
-          </div>
-          <div class="stat">
-            <span class="stat-value">{{ practiceCount }}</span>
-            <span class="stat-label">Practices</span>
-          </div>
-          <div class="stat">
-            <span class="stat-value">{{ masteredCount }}</span>
-            <span class="stat-label">Mastered</span>
-          </div>
-        </div>
-      </div>
-    </header>
+    <!-- Minimal back button - top left corner -->
+    <button class="minimal-back-btn" @click="$emit('close')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M19 12H5M12 19l-7-7 7-7"/>
+      </svg>
+    </button>
 
-    <!-- Your Brain Map (learner has progress) -->
-    <div v-if="isRealData && nodes.length > 0" class="data-mode-indicator">
-      <span class="data-mode-badge real">Your Brain Map</span>
-      <span class="data-mode-info">{{ nodes.length }} LEGOs learned · {{ links.length }} connections</span>
+    <!-- Minimal stats badge - top right (only during exploration, not playback) -->
+    <div v-if="!isPlaybackMode && nodes.length > 0" class="minimal-stats">
+      <span class="stat-pill">{{ nodes.length }} LEGOs</span>
     </div>
-
-    <!-- Empty state for new learners -->
-    <div v-else-if="isRealData && nodes.length === 0" class="data-mode-indicator empty">
-      <span class="data-mode-badge empty">Start Learning</span>
-      <span class="data-mode-info">Your brain map will grow as you learn each LEGO</span>
-    </div>
-
-    <!-- BRAIN VIEW PLAYBACK CONTROLS -->
-    <div class="playback-controls" :class="{ 'with-data': isRealData && nodes.length > 0 }">
-      <button
-        v-if="!isPlaybackMode"
-        class="playback-btn magic"
-        :disabled="isPlaybackLoading || !courseCode"
-        @click="startPlayback"
-      >
-        <span class="playback-icon">🧠</span>
-        <span>{{ isPlaybackLoading ? 'Loading...' : 'Learn in Brain View' }}</span>
-        <span class="playback-sparkle">✨</span>
-      </button>
-      <button
-        v-else
-        class="playback-btn stop"
-        @click="stopPlayback"
-      >
-        <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-          <rect x="6" y="6" width="12" height="12"/>
-        </svg>
-        <span>Stop Learning</span>
-      </button>
-    </div>
-
-    <!-- NOW PLAYING PANEL (during playback) -->
-    <Transition name="slide-up">
-      <div v-if="isPlaybackMode && currentItem" class="now-playing-panel">
-        <div class="now-playing-header">
-          <span class="now-playing-label">Now Learning</span>
-          <span class="phase-badge" :class="currentPhase">{{ phaseLabels[currentPhase] }}</span>
-        </div>
-
-        <div class="now-playing-content">
-          <!-- Target phrase -->
-          <div class="phrase-display">
-            <span class="phrase-target" :class="{ revealed: currentPhase === 'voice2' }">
-              {{ currentItem.targetText }}
-            </span>
-            <span class="phrase-known">
-              {{ currentItem.knownText }}
-            </span>
-          </div>
-
-          <!-- Active LEGOs indicator -->
-          <div class="active-legos">
-            <span
-              v-for="legoId in activeLegoIds"
-              :key="legoId"
-              class="lego-chip"
-              :class="{ primary: legoId === currentItem.legoId }"
-            >
-              {{ legoId }}
-            </span>
-          </div>
-
-          <!-- Progress -->
-          <div class="playback-progress">
-            <span class="progress-text">{{ playbackIndex }} / {{ playbackQueue.length }}</span>
-            <div class="progress-bar">
-              <div class="progress-fill" :style="{ width: `${(playbackIndex / playbackQueue.length) * 100}%` }"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Transition>
 
     <!-- NEW LEGO INTRODUCTION OVERLAY -->
     <Transition name="intro-burst">
@@ -2291,122 +2190,28 @@ watch(courseCode, async (newCode, oldCode) => {
       </div>
     </Transition>
 
-    <!-- Demo Controls (always available for simulation preview) -->
-    <div v-if="!isPlaybackMode" class="demo-controls" :class="{ 'with-data': isRealData && nodes.length > 0 }">
-      <div class="demo-row">
-        <!-- Play/Pause/Stop -->
-        <button
-          v-if="!isDemoRunning"
-          class="demo-btn primary"
-          @click="startDemo"
-        >
-          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-            <polygon points="5 3 19 12 5 21 5 3"/>
-          </svg>
-          <span>{{ isRealData && nodes.length > 0 ? 'Preview Growth' : 'Watch it Grow' }}</span>
-        </button>
-        <button
-          v-else
-          class="demo-btn danger"
-          @click="stopDemo"
-        >
-          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-            <rect x="6" y="6" width="12" height="12"/>
-          </svg>
-          <span>Stop</span>
-        </button>
-
-        <!-- Speed controls -->
-        <div class="speed-controls">
-          <span class="speed-label">Speed:</span>
-          <button
-            v-for="speed in [1, 2, 4, 8]"
-            :key="speed"
-            class="speed-btn"
-            :class="{ active: demoSpeed === speed }"
-            @click="setSpeed(speed)"
-          >
-            {{ speed }}x
-          </button>
-        </div>
-
-        <!-- Round counter -->
-        <div class="round-counter">
-          <span class="round-label">Round</span>
-          <span class="round-value">{{ currentRound }}</span>
-          <span class="round-max">/ {{ maxRounds }}</span>
-        </div>
-      </div>
-
-      <!-- Milestone markers -->
-      <div class="milestone-track">
-        <div class="milestone-bar">
-          <div
-            class="milestone-progress"
-            :style="{ width: `${(currentRound / maxRounds) * 100}%` }"
-          ></div>
-        </div>
-        <div class="milestone-markers">
-          <button
-            v-for="m in milestones"
-            :key="m"
-            class="milestone-marker"
-            :class="{ reached: reachedMilestones.includes(m), current: currentRound >= m }"
-            :style="{ left: `${(m / maxRounds) * 100}%` }"
-            @click="jumpToRound(m)"
-          >
-            {{ m }}
-          </button>
-        </div>
-      </div>
-
-      <!-- Last added LEGO label -->
-      <div v-if="lastAddedNode && isDemoRunning" class="last-added">
-        <span class="last-added-label">Just learned:</span>
-        <span class="last-added-target">{{ lastAddedNode.targetText }}</span>
-        <span class="last-added-known">({{ lastAddedNode.knownText }})</span>
-      </div>
-    </div>
-
     <!-- Loading -->
     <div v-if="isLoading" class="loading">
       <div class="loading-spinner"></div>
       <p>Loading network...</p>
     </div>
 
-    <!-- Network Viewport -->
+    <!-- Network Viewport - FULL SCREEN -->
     <div v-else class="network-viewport" ref="containerRef" @click="closePanel">
       <svg class="network-svg" ref="svgRef"></svg>
 
       <!-- Empty state -->
-      <div v-if="nodes.length === 0 && !isDemoRunning" class="empty-state">
+      <div v-if="nodes.length === 0 && !isDemoRunning && !isPlaybackMode" class="empty-state">
         <div class="empty-icon">🧠</div>
-        <p v-if="isRealData">Start learning to see your brain map grow</p>
-        <p v-else>Press "Watch it Grow" to preview the learning journey</p>
+        <p v-if="isRealData">Your brain map will grow as you learn</p>
+        <p v-else>Tap Learn to begin your journey</p>
       </div>
 
-      <!-- Zoom Controls -->
+      <!-- Minimal Zoom Controls -->
       <div class="zoom-controls">
-        <button class="zoom-btn" @click.stop="zoomIn" title="Zoom in">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8"/>
-            <path d="M21 21l-4.35-4.35M11 8v6M8 11h6"/>
-          </svg>
-        </button>
-        <div class="zoom-level">{{ Math.round(currentZoom * 100) }}%</div>
-        <button class="zoom-btn" @click.stop="zoomOut" title="Zoom out">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8"/>
-            <path d="M21 21l-4.35-4.35M8 11h6"/>
-          </svg>
-        </button>
-        <button class="zoom-btn reset" @click.stop="zoomReset" title="Reset view">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-            <path d="M3 3v5h5"/>
-          </svg>
-        </button>
-        <div class="zoom-hint">Scroll to zoom<br/>Drag to pan</div>
+        <button class="zoom-btn" @click.stop="zoomIn" title="Zoom in">+</button>
+        <button class="zoom-btn" @click.stop="zoomOut" title="Zoom out">−</button>
+        <button class="zoom-btn reset" @click.stop="zoomReset" title="Reset">⟲</button>
       </div>
 
       <!-- Tooltip -->
@@ -2417,8 +2222,42 @@ watch(courseCode, async (newCode, oldCode) => {
       >
         <span class="tooltip-target">{{ hoveredNode?.targetText }}</span>
         <span class="tooltip-known">{{ hoveredNode?.knownText }}</span>
-        <span class="tooltip-practices">{{ hoveredNode?.totalPractices }} practices</span>
       </div>
+    </div>
+
+    <!-- ====================================================================
+         FLOATING LEARNING PILL - Minimal overlay during playback
+         ==================================================================== -->
+    <Transition name="pill-slide">
+      <div v-if="isPlaybackMode" class="learning-pill">
+        <!-- Phase dots -->
+        <div class="phase-dots">
+          <span class="phase-dot" :class="{ active: currentPhase === 'prompt' }" title="Listen"></span>
+          <span class="phase-dot" :class="{ active: currentPhase === 'pause' }" title="Speak"></span>
+          <span class="phase-dot" :class="{ active: currentPhase === 'voice1' }" title="Check"></span>
+          <span class="phase-dot" :class="{ active: currentPhase === 'voice2' }" title="Confirm"></span>
+        </div>
+
+        <!-- Phrase text - minimal -->
+        <div class="pill-content">
+          <span class="pill-known">{{ currentItem?.knownText || 'Ready...' }}</span>
+          <Transition name="reveal">
+            <span v-if="currentPhase === 'voice2'" class="pill-target">{{ currentItem?.targetText }}</span>
+          </Transition>
+        </div>
+
+        <!-- Stop button -->
+        <button class="pill-stop" @click="stopPlayback" title="Stop">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12">
+            <rect x="6" y="6" width="12" height="12"/>
+          </svg>
+        </button>
+      </div>
+    </Transition>
+
+    <!-- Progress bar - super minimal, at very bottom -->
+    <div v-if="isPlaybackMode" class="progress-line">
+      <div class="progress-fill" :style="{ width: `${(playbackIndex / Math.max(playbackQueue.length, 1)) * 100}%` }"></div>
     </div>
 
     <!-- Detail Panel -->
@@ -2506,20 +2345,6 @@ watch(courseCode, async (newCode, oldCode) => {
       </div>
     </div>
 
-    <!-- Legend -->
-    <div class="network-legend">
-      <div class="legend-title">Node Color = Belt When Learned</div>
-      <div class="legend-belts">
-        <span
-          v-for="belt in ['white', 'yellow', 'orange', 'green', 'blue', 'purple', 'brown', 'black']"
-          :key="belt"
-          class="legend-belt-dot"
-          :style="{ background: beltPalettes[belt].glow }"
-          :title="beltPalettes[belt].name"
-        ></span>
-      </div>
-      <div class="legend-subtitle">Links = Current Progress</div>
-    </div>
   </div>
 </template>
 
@@ -2544,395 +2369,60 @@ watch(courseCode, async (newCode, oldCode) => {
   pointer-events: none;
 }
 
-/* Header */
-.network-header {
+/* ============================================================================
+   MINIMAL CONSTELLATION-FIRST UI
+   ============================================================================ */
+
+/* Minimal back button - top left */
+.minimal-back-btn {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: 1.25rem 1.5rem;
-  z-index: 10;
-  background: linear-gradient(180deg, #0a0a0c 0%, transparent 100%);
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.back-btn {
-  width: 40px;
-  height: 40px;
+  top: env(safe-area-inset-top, 12px);
+  left: 12px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
-  color: rgba(255, 255, 255, 0.6);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.back-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
-}
-
-.back-btn svg {
-  width: 20px;
-  height: 20px;
-}
-
-.network-title {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: white;
-  margin: 0;
-}
-
-.network-subtitle {
-  font-size: 0.875rem;
-  color: rgba(255, 255, 255, 0.5);
-  margin: 0.25rem 0 0;
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 2rem;
-}
-
-.belt-indicator {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 20px;
-  transition: all 0.3s ease;
-}
-
-.belt-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.belt-indicator.white { color: #ffffff; }
-.belt-indicator.yellow { color: #fbbf24; }
-.belt-indicator.orange { color: #f97316; }
-.belt-indicator.green { color: #22c55e; }
-.belt-indicator.blue { color: #3b82f6; }
-.belt-indicator.purple { color: #8b5cf6; }
-.belt-indicator.brown { color: #b45309; }
-.belt-indicator.black { color: #d4a853; }
-
-.belt-name {
-  font-size: 0.8125rem;
-  font-weight: 500;
-}
-
-.stats-group {
-  display: flex;
-  gap: 1.5rem;
-}
-
-.stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.stat-value {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: white;
-}
-
-.stat-label {
-  font-size: 0.625rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: rgba(255, 255, 255, 0.4);
-}
-
-/* Data Mode Indicator (Real Data) */
-.data-mode-indicator {
-  position: absolute;
-  top: 80px;
-  left: 1.5rem;
-  right: 1.5rem;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.875rem 1.25rem;
-  background: rgba(34, 197, 94, 0.1);
-  border: 1px solid rgba(34, 197, 94, 0.3);
-  border-radius: 10px;
-  backdrop-filter: blur(8px);
-}
-
-.data-mode-badge {
-  padding: 0.375rem 0.75rem;
-  border-radius: 6px;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.data-mode-badge.real {
-  background: rgba(34, 197, 94, 0.2);
-  color: #4ade80;
-  border: 1px solid rgba(34, 197, 94, 0.4);
-}
-
-.data-mode-badge.empty {
-  background: rgba(251, 191, 36, 0.2);
-  color: #fbbf24;
-  border: 1px solid rgba(251, 191, 36, 0.4);
-}
-
-.data-mode-indicator.empty {
-  background: rgba(251, 191, 36, 0.1);
-  border-color: rgba(251, 191, 36, 0.3);
-}
-
-.data-mode-info {
-  font-size: 0.875rem;
-  color: rgba(255, 255, 255, 0.6);
-}
-
-/* Demo controls positioning when showing real data */
-.demo-controls.with-data {
-  top: 130px;
-}
-
-/* Demo Controls */
-.demo-controls {
-  position: absolute;
-  top: 80px;
-  left: 1.5rem;
-  right: 1.5rem;
-  z-index: 10;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.demo-row {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-}
-
-.demo-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.625rem 1rem;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.4);
   border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 8px;
-  color: white;
-  font-size: 0.875rem;
-  font-weight: 500;
+  border-radius: 50%;
+  color: rgba(255, 255, 255, 0.7);
   cursor: pointer;
   transition: all 0.2s;
+  z-index: 30;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
-.demo-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.25);
-}
-
-.demo-btn.primary {
-  background: rgba(34, 197, 94, 0.2);
-  border-color: rgba(34, 197, 94, 0.4);
-  color: #4ade80;
-}
-
-.demo-btn.primary:hover {
-  background: rgba(34, 197, 94, 0.3);
-}
-
-.demo-btn.danger {
-  background: rgba(239, 68, 68, 0.2);
-  border-color: rgba(239, 68, 68, 0.4);
-  color: #f87171;
-}
-
-.demo-btn.danger:hover {
-  background: rgba(239, 68, 68, 0.3);
-}
-
-.demo-btn svg {
-  width: 14px;
-  height: 14px;
-}
-
-.speed-controls {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.speed-label {
-  font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.speed-btn {
-  padding: 0.375rem 0.625rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
-  color: rgba(255, 255, 255, 0.6);
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.75rem;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.speed-btn:hover {
+.minimal-back-btn:hover {
   background: rgba(255, 255, 255, 0.1);
   color: white;
 }
 
-.speed-btn.active {
-  background: rgba(59, 130, 246, 0.3);
-  border-color: rgba(59, 130, 246, 0.5);
-  color: #60a5fa;
+.minimal-back-btn svg {
+  width: 18px;
+  height: 18px;
 }
 
-.round-counter {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  margin-left: auto;
-}
-
-.round-label {
-  font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.round-value {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: white;
-}
-
-.round-max {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.875rem;
-  color: rgba(255, 255, 255, 0.4);
-}
-
-/* Milestone Track */
-.milestone-track {
-  position: relative;
-  width: 100%;
-  padding: 1rem 0;
-}
-
-.milestone-bar {
-  height: 4px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.milestone-progress {
-  height: 100%;
-  background: linear-gradient(90deg, #22c55e, #3b82f6, #8b5cf6);
-  border-radius: 2px;
-  transition: width 0.3s ease;
-}
-
-.milestone-markers {
+/* Minimal stats badge - top right */
+.minimal-stats {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 100%;
-  pointer-events: none;
+  top: env(safe-area-inset-top, 12px);
+  right: 12px;
+  z-index: 30;
 }
 
-.milestone-marker {
-  position: absolute;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  padding: 0.25rem 0.5rem;
-  background: rgba(20, 20, 30, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 4px;
-  color: rgba(255, 255, 255, 0.5);
+.stat-pill {
+  display: inline-block;
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 0.625rem;
-  cursor: pointer;
-  pointer-events: auto;
-  transition: all 0.2s;
-}
-
-.milestone-marker:hover {
-  background: rgba(40, 40, 60, 0.95);
-  border-color: rgba(255, 255, 255, 0.4);
-  color: white;
-}
-
-.milestone-marker.current {
-  border-color: rgba(59, 130, 246, 0.6);
-  color: #60a5fa;
-}
-
-.milestone-marker.reached {
-  background: rgba(34, 197, 94, 0.2);
-  border-color: rgba(34, 197, 94, 0.5);
-  color: #4ade80;
-}
-
-/* Last Added Label */
-.last-added {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  background: rgba(212, 168, 83, 0.1);
-  border: 1px solid rgba(212, 168, 83, 0.3);
-  border-radius: 8px;
-  animation: fadeIn 0.3s ease;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.last-added-label {
   font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.last-added-target {
-  font-size: 1rem;
-  font-weight: 600;
-  color: #d4a853;
-}
-
-.last-added-known {
-  font-size: 0.875rem;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 /* Loading */
@@ -2958,11 +2448,11 @@ watch(courseCode, async (newCode, oldCode) => {
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* Viewport */
+/* Viewport - FULL SCREEN for constellation-first */
 .network-viewport {
   position: absolute;
   inset: 0;
-  padding-top: 180px;
+  /* No padding - constellation fills entire screen */
 }
 
 .network-svg {
@@ -2992,40 +2482,37 @@ watch(courseCode, async (newCode, oldCode) => {
   opacity: 0.3;
 }
 
-/* Zoom Controls */
+/* Zoom Controls - Minimal, bottom right */
 .zoom-controls {
   position: absolute;
-  bottom: 1.5rem;
-  right: 1.5rem;
+  bottom: 100px; /* Above nav bar */
+  right: 12px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  background: rgba(18, 18, 26, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  padding: 0.75rem;
+  gap: 4px;
   z-index: 20;
-  backdrop-filter: blur(8px);
 }
 
 .zoom-btn {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  color: rgba(255, 255, 255, 0.6);
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 50%;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 1.125rem;
+  font-weight: 300;
   cursor: pointer;
   transition: all 0.2s;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .zoom-btn:hover {
   background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
   color: white;
 }
 
@@ -3033,39 +2520,8 @@ watch(courseCode, async (newCode, oldCode) => {
   transform: scale(0.95);
 }
 
-.zoom-btn svg {
-  width: 18px;
-  height: 18px;
-}
-
 .zoom-btn.reset {
-  margin-top: 0.25rem;
-  background: rgba(59, 130, 246, 0.15);
-  border-color: rgba(59, 130, 246, 0.3);
-  color: #60a5fa;
-}
-
-.zoom-btn.reset:hover {
-  background: rgba(59, 130, 246, 0.25);
-  border-color: rgba(59, 130, 246, 0.5);
-}
-
-.zoom-level {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.6875rem;
-  color: rgba(255, 255, 255, 0.5);
-  min-width: 40px;
-  text-align: center;
-}
-
-.zoom-hint {
-  font-size: 0.625rem;
-  color: rgba(255, 255, 255, 0.35);
-  text-align: center;
-  line-height: 1.4;
-  margin-top: 0.25rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.875rem;
 }
 
 /* Tooltip */
@@ -3345,323 +2801,154 @@ watch(courseCode, async (newCode, oldCode) => {
   text-align: right;
 }
 
-/* Legend */
-.network-legend {
-  position: absolute;
-  bottom: 1.5rem;
-  left: 1.5rem;
-  background: rgba(18, 18, 26, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
-  padding: 0.875rem 1rem;
-  z-index: 10;
-  backdrop-filter: blur(8px);
-}
-
-.legend-title {
-  font-size: 0.625rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.5);
-  margin-bottom: 0.5rem;
-}
-
-.legend-belts {
-  display: flex;
-  gap: 0.375rem;
-  margin-bottom: 0.5rem;
-}
-
-.legend-belt-dot {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  box-shadow: 0 0 6px currentColor;
-  cursor: help;
-  transition: transform 0.15s ease;
-}
-
-.legend-belt-dot:hover {
-  transform: scale(1.3);
-}
-
-.legend-subtitle {
-  font-size: 0.5625rem;
-  color: rgba(255, 255, 255, 0.35);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
 /* ============================================================================
-   BRAIN VIEW PLAYBACK MODE STYLES
+   MINIMAL FLOATING LEARNING PILL
    ============================================================================ */
 
-/* Playback Controls - Bottom center, above nav bar */
-.playback-controls {
+/* Learning Pill - Minimal floating overlay during playback */
+.learning-pill {
   position: absolute;
-  bottom: 6rem; /* Above the 80px nav bar */
+  bottom: 100px; /* Above nav bar */
   left: 50%;
   transform: translateX(-50%);
-  z-index: 20;
-  display: flex;
-  justify-content: center;
-}
-
-.playback-controls.with-data {
-  bottom: 6.5rem;
-}
-
-.playback-btn {
+  z-index: 25;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.875rem 1.5rem;
-  border-radius: 50px;
-  font-size: 0.9375rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-}
-
-.playback-btn.magic {
-  background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 50%, #d946ef 100%);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: white;
-  position: relative;
-  overflow: hidden;
-}
-
-.playback-btn.magic::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, transparent 0%, rgba(255, 255, 255, 0.1) 50%, transparent 100%);
-  opacity: 0;
-  transition: opacity 0.3s;
-}
-
-.playback-btn.magic:hover::before {
-  opacity: 1;
-}
-
-.playback-btn.magic:hover {
-  transform: scale(1.05);
-  box-shadow: 0 8px 30px rgba(139, 92, 246, 0.4);
-}
-
-.playback-btn.magic:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.playback-icon {
-  font-size: 1.25rem;
-  animation: gentle-pulse 2s ease-in-out infinite;
-}
-
-.playback-sparkle {
-  font-size: 0.875rem;
-  animation: sparkle 1.5s ease-in-out infinite;
-}
-
-@keyframes gentle-pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.1); }
-}
-
-@keyframes sparkle {
-  0%, 100% { opacity: 0.5; transform: rotate(0deg); }
-  50% { opacity: 1; transform: rotate(180deg); }
-}
-
-.playback-btn.stop {
-  background: rgba(239, 68, 68, 0.2);
-  border: 1px solid rgba(239, 68, 68, 0.4);
-  color: #f87171;
-}
-
-.playback-btn.stop:hover {
-  background: rgba(239, 68, 68, 0.3);
-  box-shadow: 0 8px 30px rgba(239, 68, 68, 0.3);
-}
-
-.playback-btn.stop svg {
-  width: 16px;
-  height: 16px;
-}
-
-/* Now Playing Panel - Appears during playback */
-.now-playing-panel {
-  position: absolute;
-  bottom: 10rem; /* Above the playback button and nav bar */
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 20;
-  min-width: 360px;
-  max-width: 500px;
-  background: rgba(18, 18, 26, 0.95);
-  border: 1px solid rgba(139, 92, 246, 0.3);
-  border-radius: 16px;
-  padding: 1.25rem 1.5rem;
+  gap: 12px;
+  padding: 10px 16px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 30px;
   backdrop-filter: blur(20px);
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5), 0 0 60px rgba(139, 92, 246, 0.15);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
-.now-playing-header {
+/* Phase dots - 4 dots showing current phase */
+.phase-dots {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
+  gap: 6px;
 }
 
-.now-playing-label {
-  font-size: 0.6875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.phase-badge {
-  padding: 0.375rem 0.875rem;
-  border-radius: 20px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+.phase-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
   transition: all 0.3s ease;
 }
 
-.phase-badge.idle {
-  background: rgba(107, 114, 128, 0.3);
-  color: #9ca3af;
+.phase-dot.active {
+  background: #8b5cf6;
+  box-shadow: 0 0 10px rgba(139, 92, 246, 0.8);
+  animation: dot-pulse 1s ease-in-out infinite;
 }
 
-.phase-badge.prompt {
-  background: rgba(59, 130, 246, 0.3);
-  border: 1px solid rgba(59, 130, 246, 0.5);
-  color: #60a5fa;
-  animation: phase-pulse 1s ease-in-out infinite;
+.phase-dot:nth-child(1).active { background: #60a5fa; box-shadow: 0 0 10px rgba(96, 165, 250, 0.8); } /* prompt - blue */
+.phase-dot:nth-child(2).active { background: #fbbf24; box-shadow: 0 0 10px rgba(251, 191, 36, 0.8); } /* pause - yellow */
+.phase-dot:nth-child(3).active { background: #4ade80; box-shadow: 0 0 10px rgba(74, 222, 128, 0.8); } /* voice1 - green */
+.phase-dot:nth-child(4).active { background: #a78bfa; box-shadow: 0 0 10px rgba(167, 139, 250, 0.8); } /* voice2 - purple */
+
+@keyframes dot-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.3); }
 }
 
-.phase-badge.pause {
-  background: rgba(251, 191, 36, 0.3);
-  border: 1px solid rgba(251, 191, 36, 0.5);
-  color: #fbbf24;
-  animation: phase-pulse 0.6s ease-in-out infinite;
-}
-
-.phase-badge.voice1 {
-  background: rgba(34, 197, 94, 0.3);
-  border: 1px solid rgba(34, 197, 94, 0.5);
-  color: #4ade80;
-  animation: phase-pulse 1s ease-in-out infinite;
-}
-
-.phase-badge.voice2 {
-  background: rgba(139, 92, 246, 0.3);
-  border: 1px solid rgba(139, 92, 246, 0.5);
-  color: #a78bfa;
-  animation: phase-pulse 1s ease-in-out infinite;
-}
-
-@keyframes phase-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 currentColor; }
-  50% { box-shadow: 0 0 15px currentColor; }
-}
-
-/* Phrase Display */
-.now-playing-content {
+/* Pill content - phrase text */
+.pill-content {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 2px;
+  max-width: 200px;
 }
 
-.phrase-display {
-  text-align: center;
+.pill-known {
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.phrase-target {
-  display: block;
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: transparent;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.2));
-  -webkit-background-clip: text;
-  background-clip: text;
-  transition: all 0.5s ease;
-  filter: blur(4px);
-  margin-bottom: 0.5rem;
-  letter-spacing: 0.02em;
-}
-
-.phrase-target.revealed {
-  color: white;
-  background: none;
-  filter: blur(0);
-  text-shadow: 0 0 30px rgba(139, 92, 246, 0.5);
-}
-
-.phrase-known {
-  display: block;
-  font-size: 1rem;
-  color: rgba(255, 255, 255, 0.6);
-}
-
-/* Active LEGOs chips */
-.active-legos {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  justify-content: center;
-}
-
-.lego-chip {
-  padding: 0.25rem 0.625rem;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 6px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.6875rem;
-  color: rgba(255, 255, 255, 0.6);
-  transition: all 0.3s ease;
-}
-
-.lego-chip.primary {
-  background: rgba(139, 92, 246, 0.2);
-  border-color: rgba(139, 92, 246, 0.4);
+.pill-target {
+  font-size: 0.8125rem;
   color: #a78bfa;
-  box-shadow: 0 0 10px rgba(139, 92, 246, 0.3);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* Playback Progress */
-.playback-progress {
+/* Stop button in pill */
+.pill-stop {
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  justify-content: center;
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: 50%;
+  color: #f87171;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
 }
 
-.progress-text {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.5);
-  min-width: 70px;
+.pill-stop:hover {
+  background: rgba(239, 68, 68, 0.3);
 }
 
-.progress-bar {
-  flex: 1;
-  height: 4px;
+/* Progress line - super thin at bottom */
+.progress-line {
+  position: absolute;
+  bottom: 80px; /* Just above nav bar */
+  left: 20%;
+  right: 20%;
+  height: 2px;
   background: rgba(255, 255, 255, 0.1);
-  border-radius: 2px;
+  border-radius: 1px;
+  z-index: 20;
   overflow: hidden;
 }
 
-.progress-fill {
+.progress-line .progress-fill {
   height: 100%;
   background: linear-gradient(90deg, #8b5cf6, #d946ef);
-  border-radius: 2px;
+  border-radius: 1px;
   transition: width 0.3s ease;
+}
+
+/* Pill slide transition */
+.pill-slide-enter-active,
+.pill-slide-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pill-slide-enter-from,
+.pill-slide-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(20px);
+}
+
+/* Reveal transition for target text */
+.reveal-enter-active {
+  transition: all 0.4s ease-out;
+}
+
+.reveal-leave-active {
+  transition: all 0.2s ease-in;
+}
+
+.reveal-enter-from {
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+.reveal-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 
 /* New LEGO Introduction Overlay */
@@ -3870,96 +3157,53 @@ watch(courseCode, async (newCode, oldCode) => {
   stroke: rgba(251, 191, 36, 0.3);
 }
 
-/* Responsive */
-@media (max-width: 900px) {
+/* ============================================================================
+   RESPONSIVE - Mobile-first, constellation-first
+   ============================================================================ */
+
+/* Mobile: Bottom sheet detail panel */
+@media (max-width: 768px) {
   .detail-panel {
     width: 100%;
-    height: 60%;
+    height: 50%;
     top: auto;
     bottom: 0;
     transform: translateY(100%);
     border-left: none;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px 20px 0 0;
   }
 
   .detail-panel.open {
     transform: translateY(0);
   }
 
-  .network-header {
-    flex-direction: column;
-    gap: 1rem;
-    padding: 1rem;
+  /* Learning pill adjustments for mobile */
+  .learning-pill {
+    bottom: 90px;
+    max-width: calc(100% - 24px);
+    padding: 8px 12px;
   }
 
-  .header-right {
-    width: 100%;
-    justify-content: space-between;
+  .pill-content {
+    max-width: 150px;
   }
 
-  .stats-group {
-    gap: 1rem;
+  .pill-known {
+    font-size: 0.8125rem;
   }
 
-  .demo-controls {
-    top: 120px;
-    left: 1rem;
-    right: 1rem;
+  .pill-target {
+    font-size: 0.75rem;
   }
 
-  .demo-row {
-    flex-wrap: wrap;
-    gap: 1rem;
+  /* Progress line for mobile */
+  .progress-line {
+    left: 10%;
+    right: 10%;
   }
 
-  .round-counter {
-    margin-left: 0;
-  }
-
-  .network-legend {
-    bottom: auto;
-    top: 260px;
-    left: 1rem;
-    padding: 0.75rem;
-  }
-
-  .legend-items {
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-  }
-
-  .network-viewport {
-    padding-top: 280px;
-  }
-
-  /* Playback controls responsive */
-  .playback-controls {
-    bottom: 6rem; /* Above nav bar on mobile too */
-    left: 1rem;
-    right: 1rem;
-    transform: none;
-  }
-
-  .playback-btn {
-    width: 100%;
-    justify-content: center;
-    padding: 1rem;
-  }
-
-  .now-playing-panel {
-    left: 1rem;
-    right: 1rem;
-    bottom: 10rem; /* Above playback button and nav */
-    min-width: auto;
-    max-width: none;
-    transform: none;
-  }
-
-  .phrase-target {
-    font-size: 1.25rem;
-  }
-
+  /* Intro overlay for mobile */
   .intro-overlay .intro-content {
     padding: 2rem;
   }
@@ -3970,6 +3214,77 @@ watch(courseCode, async (newCode, oldCode) => {
 
   .intro-known {
     font-size: 1.125rem;
+  }
+
+  /* Zoom controls for mobile */
+  .zoom-controls {
+    bottom: 90px;
+  }
+}
+
+/* Desktop enhancements */
+@media (min-width: 769px) {
+  /* Larger learning pill on desktop */
+  .learning-pill {
+    padding: 12px 20px;
+    gap: 16px;
+  }
+
+  .pill-content {
+    max-width: 280px;
+  }
+
+  .pill-known {
+    font-size: 1rem;
+  }
+
+  .pill-target {
+    font-size: 0.9375rem;
+  }
+
+  .phase-dot {
+    width: 10px;
+    height: 10px;
+  }
+
+  /* More subtle stats on desktop */
+  .minimal-stats {
+    top: 16px;
+    right: 16px;
+  }
+
+  .stat-pill {
+    padding: 8px 16px;
+    font-size: 0.8125rem;
+  }
+
+  /* Zoom controls with more spacing */
+  .zoom-controls {
+    bottom: 120px;
+    right: 16px;
+    gap: 6px;
+  }
+
+  .zoom-btn {
+    width: 36px;
+    height: 36px;
+    font-size: 1.25rem;
+  }
+}
+
+/* Large desktop - more generous spacing */
+@media (min-width: 1200px) {
+  .learning-pill {
+    padding: 14px 24px;
+  }
+
+  .pill-content {
+    max-width: 350px;
+  }
+
+  .zoom-controls {
+    right: 24px;
+    bottom: 140px;
   }
 }
 </style>
