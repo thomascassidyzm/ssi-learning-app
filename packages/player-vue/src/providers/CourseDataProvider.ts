@@ -1,7 +1,17 @@
 /**
  * CourseDataProvider - Load course data from Supabase or manifest fallback
  *
- * Provides abstraction for loading learning items with backwards compatibility
+ * Provides abstraction for loading learning items with backwards compatibility.
+ *
+ * Audio Architecture (v12):
+ * - texts: Normalized text storage (one row per unique text+language)
+ * - audio_files: Audio renderings (one row per text+voice+cadence)
+ * - course_audio: Course-specific usage (role is context, not identity)
+ *
+ * The cycle views (lego_cycles, practice_cycles, seed_cycles) prefer v12
+ * audio_registry over legacy audio_samples for backwards compatibility.
+ *
+ * @see apml/core/ssi-variable-registry.apml for full schema specification
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -436,6 +446,169 @@ export class CourseDataProvider {
     } catch (err) {
       console.error('[CourseDataProvider] Error loading intro audio:', err)
       return null
+    }
+  }
+
+  /**
+   * Look up audio by text content using v12 audio_registry
+   * This is the canonical way to find audio for a phrase.
+   *
+   * @param text - The text content to look up
+   * @param role - 'known' | 'target1' | 'target2' - determines voice selection
+   * @returns AudioRef or null if not found
+   */
+  async lookupAudioByText(
+    text: string,
+    role: 'known' | 'target1' | 'target2'
+  ): Promise<AudioRef | null> {
+    if (!this.client) return null
+
+    try {
+      // Get course voice configuration
+      const { data: course, error: courseError } = await this.client
+        .from('courses')
+        .select('known_lang, target_lang, known_voice, target_voice_1, target_voice_2')
+        .eq('course_code', this.courseId)
+        .single()
+
+      if (courseError || !course) {
+        console.warn('[CourseDataProvider] Course not found for audio lookup:', this.courseId)
+        return null
+      }
+
+      // Determine language, voice, and cadence based on role
+      let language: string
+      let voiceId: string
+      let cadence: string
+
+      switch (role) {
+        case 'known':
+          language = course.known_lang
+          voiceId = course.known_voice
+          cadence = 'natural'
+          break
+        case 'target1':
+          language = course.target_lang
+          voiceId = course.target_voice_1
+          cadence = 'slow'
+          break
+        case 'target2':
+          language = course.target_lang
+          voiceId = course.target_voice_2
+          cadence = 'slow'
+          break
+      }
+
+      // Try v12 audio_registry first
+      const { data: v12Audio, error: v12Error } = await this.client
+        .from('audio_registry')
+        .select('audio_id, s3_key, duration_ms')
+        .eq('content_normalized', text.toLowerCase().trim())
+        .eq('language', language)
+        .eq('voice_id', voiceId)
+        .eq('cadence', cadence)
+        .maybeSingle()
+
+      if (!v12Error && v12Audio && v12Audio.audio_id) {
+        console.log('[CourseDataProvider] v12 audio found for', role, ':', text)
+        return {
+          id: v12Audio.audio_id,
+          url: this.resolveAudioUrl(v12Audio.audio_id),
+          duration_ms: v12Audio.duration_ms,
+        }
+      }
+
+      // Fall back to legacy audio_samples
+      const legacyRole = role === 'known' ? 'source' : role // Legacy uses 'source' for known
+      const { data: legacyAudio, error: legacyError } = await this.client
+        .from('audio_samples')
+        .select('uuid, duration_ms')
+        .eq('text_normalized', text.toLowerCase().trim())
+        .eq('role', legacyRole)
+        .maybeSingle()
+
+      if (!legacyError && legacyAudio && legacyAudio.uuid) {
+        console.log('[CourseDataProvider] Legacy audio found for', role, ':', text)
+        return {
+          id: legacyAudio.uuid,
+          url: this.resolveAudioUrl(legacyAudio.uuid),
+          duration_ms: legacyAudio.duration_ms,
+        }
+      }
+
+      console.warn('[CourseDataProvider] No audio found for', role, ':', text)
+      return null
+    } catch (err) {
+      console.error('[CourseDataProvider] Error in lookupAudioByText:', err)
+      return null
+    }
+  }
+
+  /**
+   * Batch lookup audio for multiple texts
+   * More efficient than individual lookups
+   */
+  async batchLookupAudio(
+    texts: Array<{ text: string; role: 'known' | 'target1' | 'target2' }>
+  ): Promise<Map<string, AudioRef>> {
+    const results = new Map<string, AudioRef>()
+    if (!this.client || texts.length === 0) return results
+
+    try {
+      // Get course voice configuration once
+      const { data: course, error: courseError } = await this.client
+        .from('courses')
+        .select('known_lang, target_lang, known_voice, target_voice_1, target_voice_2')
+        .eq('course_code', this.courseId)
+        .single()
+
+      if (courseError || !course) return results
+
+      // Group by role for efficient queries
+      const byRole = {
+        known: [] as string[],
+        target1: [] as string[],
+        target2: [] as string[],
+      }
+
+      for (const { text, role } of texts) {
+        byRole[role].push(text.toLowerCase().trim())
+      }
+
+      // Query v12 audio_registry for each role
+      for (const [role, textList] of Object.entries(byRole)) {
+        if (textList.length === 0) continue
+
+        const language = role === 'known' ? course.known_lang : course.target_lang
+        const voiceId = role === 'known' ? course.known_voice
+          : role === 'target1' ? course.target_voice_1
+          : course.target_voice_2
+        const cadence = role === 'known' ? 'natural' : 'slow'
+
+        const { data: audioData } = await this.client
+          .from('audio_registry')
+          .select('audio_id, content_normalized, duration_ms')
+          .in('content_normalized', textList)
+          .eq('language', language)
+          .eq('voice_id', voiceId)
+          .eq('cadence', cadence)
+
+        if (audioData) {
+          for (const audio of audioData) {
+            const key = `${audio.content_normalized}:${role}`
+            results.set(key, {
+              id: audio.audio_id,
+              url: this.resolveAudioUrl(audio.audio_id),
+              duration_ms: audio.duration_ms,
+            })
+          }
+        }
+      }
+
+      return results
+    } catch (err) {
+      console.error('[CourseDataProvider] Error in batchLookupAudio:', err)
+      return results
     }
   }
 

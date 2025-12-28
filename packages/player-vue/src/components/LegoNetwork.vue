@@ -678,6 +678,61 @@ const clearPathAnimationTimers = () => {
 }
 
 /**
+ * Strengthen edges along a path - increment count for each edge traversed
+ * This makes edges thicker over time as paths are used repeatedly
+ */
+const strengthenPathEdges = (legoPath) => {
+  if (!legoPath || legoPath.length < 2) return
+
+  let edgesStrengthened = 0
+
+  for (let i = 0; i < legoPath.length - 1; i++) {
+    const sourceId = legoPath[i]
+    const targetId = legoPath[i + 1]
+
+    // Find the edge in the links array (either direction)
+    const edge = links.value.find(l => {
+      const sId = l.source.id || l.source
+      const tId = l.target.id || l.target
+      return (sId === sourceId && tId === targetId) ||
+             (sId === targetId && tId === sourceId)
+    })
+
+    if (edge) {
+      edge.count = (edge.count || 1) + 1
+      edgesStrengthened++
+    } else {
+      // Create new edge if it doesn't exist (path used before formal connection)
+      links.value.push({
+        source: sourceId,
+        target: targetId,
+        count: 1,
+        isNew: true,
+      })
+      edgesStrengthened++
+    }
+  }
+
+  if (edgesStrengthened > 0) {
+    console.log('[LegoNetwork] Strengthened', edgesStrengthened, 'edges along path')
+    // Update edge visual thickness
+    updateEdgeThickness()
+  }
+}
+
+/**
+ * Update edge thickness based on current counts
+ */
+const updateEdgeThickness = () => {
+  if (!linksLayer) return
+
+  linksLayer.selectAll('.link')
+    .transition()
+    .duration(500)
+    .attr('stroke-width', d => Math.min(1 + d.count / 15, 4))
+}
+
+/**
  * Normalize text for matching (lowercase, trim, single spaces)
  */
 const normalizeText = (text) => {
@@ -1138,6 +1193,8 @@ const runPhase = async (phase, myCycleId) => {
         animatePathSequence(legoPath, estimatedDuration)
         // Update activeLegoIds to include all path nodes
         activeLegoIds.value = [...legoPath]
+        // Strengthen edges - each traversal makes the connection thicker
+        strengthenPathEdges(legoPath)
       }
 
       const voice2Url = await getAudioUrlAsync(item.targetText, 'target2', item)
@@ -2084,11 +2141,49 @@ const playNodeAudio = async (node) => {
 
   try {
     if (!audioController.value) {
-      audioController.value = new Audio()
+      audioController.value = new ScriptAudioController()
     }
 
-    console.log('[LegoNetwork] Playing audio for:', node.targetText)
-    await new Promise(resolve => setTimeout(resolve, 1500))
+    console.log('[LegoNetwork] Playing audio for:', node.id, node.targetText)
+
+    // Fetch audio UUIDs from lego_cycles view
+    if (supabase?.value && courseCode.value) {
+      const { data: legoData, error } = await supabase.value
+        .from('lego_cycles')
+        .select('known_audio_uuid, target1_audio_uuid, target2_audio_uuid')
+        .eq('course_code', courseCode.value)
+        .eq('lego_id', node.id)
+        .single()
+
+      if (error) {
+        console.warn('[LegoNetwork] Failed to fetch audio:', error.message)
+      } else if (legoData) {
+        console.log('[LegoNetwork] Audio UUIDs:', legoData)
+
+        // Play sequence: known -> pause -> target1 -> target2
+        const playSequence = []
+
+        if (legoData.known_audio_uuid) {
+          playSequence.push({ url: `${AUDIO_S3_BASE_URL}/${legoData.known_audio_uuid}.mp3`, role: 'known' })
+        }
+        if (legoData.target1_audio_uuid) {
+          playSequence.push({ url: `${AUDIO_S3_BASE_URL}/${legoData.target1_audio_uuid}.mp3`, role: 'target1' })
+        }
+        if (legoData.target2_audio_uuid) {
+          playSequence.push({ url: `${AUDIO_S3_BASE_URL}/${legoData.target2_audio_uuid}.mp3`, role: 'target2' })
+        }
+
+        for (const audio of playSequence) {
+          console.log('[LegoNetwork] Playing', audio.role)
+          await audioController.value.play(audio)
+          // Small gap between audio clips
+          await new Promise(resolve => setTimeout(resolve, 300))
+        }
+      }
+    } else {
+      console.warn('[LegoNetwork] No supabase or courseCode available')
+      await new Promise(resolve => setTimeout(resolve, 1500))
+    }
 
   } catch (err) {
     console.warn('[LegoNetwork] Audio playback failed:', err)

@@ -18,8 +18,8 @@
 # - TypeScript type generation
 
 registry SSiContent:
-  version: "1.6.0"
-  last_updated: "2025-12-21"
+  version: "1.7.0"
+  last_updated: "2025-12-28"
 
   # ============================================================================
   # ENUM DEFINITIONS
@@ -435,32 +435,33 @@ registry SSiContent:
         notes: "Phrase type is computed at runtime, not part of identifier"
 
   # ============================================================================
-  # AUDIO SAMPLES (Course-Agnostic, Reusable)
+  # AUDIO REGISTRY v12 (Normalized, Course-Agnostic)
+  # ============================================================================
+  #
+  # v12 Architecture:
+  # - Texts are stored once, normalized for deduplication
+  # - Audio files reference texts + voices, separated from text storage
+  # - Course-specific usage (role) tracked separately from audio identity
+  #
+  # Migration: audio_samples (legacy) → texts + audio_files + course_audio
   # ============================================================================
 
-  entity AudioSample:
-    description: "A single audio recording, reusable across courses"
-    primary_key: uuid
-    natural_key: [text_normalized, language, voice_id, role]
+  entity Text:
+    description: "A unique text unit, normalized for deduplication"
+    primary_key: id (UUID)
+    unique_constraint: [content_normalized, language]
+    table_name: "texts"
     fields:
-      uuid:
-        type: text
-        required: true
-        format: "UUID v5 (RFC 4122)"
-        generation: "Deterministic from natural key"
-        example: "B9D6E203-BA26-530F-9FC5-EBE50D6F5779"
+      id:
+        type: uuid
+        auto: true
+        description: "Database-assigned UUID"
 
-      text:
+      content:
         type: text
         required: true
         description: "Original text as authored"
         example: "Quiero"
-
-      text_normalized:
-        type: text
-        required: true
-        description: "Lowercase, trimmed for matching"
-        example: "quiero"
 
       language:
         type: text
@@ -468,19 +469,61 @@ registry SSiContent:
         description: "ISO 639-3 code"
         example: "spa"
 
+      content_normalized:
+        type: text
+        generated: true
+        formula: "LOWER(TRIM(content))"
+        description: "Auto-generated normalized version for deduplication"
+        example: "quiero"
+
+      created_at:
+        type: timestamp
+        auto: true
+
+    notes: |
+      Same normalized text in same language = same row.
+      This ensures "Quiero" and "quiero" and " quiero " all map to one text_id.
+      Text is the source of truth - audio files reference this.
+
+  entity AudioFile:
+    description: "An audio rendering - a specific voice speaking specific text"
+    primary_key: id (UUID)
+    unique_constraint: [text_id, voice_id, cadence]
+    table_name: "audio_files"
+    fields:
+      id:
+        type: uuid
+        auto: true
+        description: "Database-assigned UUID (NOT computed from parameters)"
+
+      text_id:
+        type: uuid
+        required: true
+        foreign_key: Text.id
+        description: "The text this audio speaks"
+
       voice_id:
         type: text
         required: true
+        foreign_key: Voice.voice_id
+        description: "Which voice speaks this text"
         example: "azure_es-ES-ElviraNeural"
 
-      role:
-        type: AudioRole
+      cadence:
+        type: enum [slow, natural]
         required: true
-        description: "source | target1 | target2 | presentation"
+        description: "Speaking speed (slow for learner practice, natural for prompts)"
+
+      s3_bucket:
+        type: text
+        required: false
+        description: "S3 bucket containing the audio file"
+        example: "popty-bach-lfs"
 
       s3_key:
         type: text
         required: false
+        description: "S3 key (NULL means entry exists but file not yet generated)"
         format: "mastered/{uuid}.mp3"
         example: "mastered/B9D6E203-BA26-530F-9FC5-EBE50D6F5779.mp3"
 
@@ -489,27 +532,92 @@ registry SSiContent:
         required: false
         description: "Audio duration in milliseconds"
 
-      status:
-        type: enum [pending, approved, rejected]
-        required: true
-        default: "pending"
-        description: "QA workflow status"
-
-      version:
+      file_size_bytes:
         type: integer
-        required: true
-        default: 1
+        required: false
+        description: "File size for cache management"
 
-      updated_at:
+      source:
+        type: enum [tts_azure, tts_elevenlabs, human_recording]
+        required: false
+        description: "How this audio was created"
+
+      created_at:
         type: timestamp
         auto: true
 
     notes: |
-      Audio samples are NOT linked to courses directly.
-      They are looked up by text + language + voice + role at runtime.
-      This enables reuse across courses:
-      - "I want" [eng, source] used by spa_for_eng, fra_for_eng, etc.
-      - "quiero" [spa, target1] used by spa_for_eng, spa_for_fra, etc.
+      Audio files are identified by text+voice+cadence, NOT by role.
+      The same audio file can serve as both 'known' in one course and 'target1' in another.
+      This enables maximum reuse:
+      - "I want" [eng, azure_en-US-JennyNeural, natural] → one audio file
+      - Used as 'known' in spa_for_eng, fra_for_eng, deu_for_eng, etc.
+
+  entity CourseAudio:
+    description: "How a course uses an audio file - role is context, not identity"
+    primary_key: id (UUID)
+    unique_constraint: [course_code, audio_id, role, context]
+    table_name: "course_audio"
+    fields:
+      id:
+        type: uuid
+        auto: true
+
+      course_code:
+        type: text
+        required: true
+        foreign_key: Course.course_code
+        description: "Which course uses this audio"
+
+      audio_id:
+        type: uuid
+        required: true
+        foreign_key: AudioFile.id
+        description: "The audio file being used"
+
+      role:
+        type: AudioRole
+        required: true
+        description: "How this course uses the audio"
+
+      context:
+        type: text
+        required: false
+        description: "Seed/LEGO reference (e.g., S0001L01)"
+
+      position:
+        type: integer
+        required: false
+        description: "Order within course (for manifest generation)"
+
+      created_at:
+        type: timestamp
+        auto: true
+
+    notes: |
+      Role is now CONTEXT-SPECIFIC, not part of audio identity.
+      The same audio file of "quiero" can be:
+      - target1 in spa_for_eng
+      - known in eng_for_spa
+      This is the key insight of v12: decouple identity from usage.
+
+  # LEGACY COMPATIBILITY: audio_samples table
+  entity AudioSample:
+    deprecated: true
+    superseded_by: [Text, AudioFile, CourseAudio]
+    description: "LEGACY: Flattened audio table (v11 and earlier)"
+    notes: |
+      The audio_samples table is DEPRECATED but may still exist in production.
+      DO NOT use in new code. Use the v12 tables instead:
+      - texts (normalized text storage)
+      - audio_files (audio renderings)
+      - course_audio (course-specific usage)
+
+      Migration path:
+      1. Create v12 tables alongside audio_samples
+      2. Migrate data: audio_samples → texts + audio_files
+      3. Update views to use v12 tables
+      4. Eventually drop audio_samples
 
   # ============================================================================
   # CANONICAL CONTENT (Welcomes & Encouragements)
@@ -1889,6 +1997,43 @@ registry SSiContent:
 # ============================================================================
 
 version_history:
+  v1.7.0:
+    date: "2025-12-28"
+    changes:
+      - "BREAKING: Replaced AudioSample entity with v12 normalized schema"
+      - "Added Text entity (normalized text storage)"
+      - "Added AudioFile entity (audio renderings, references texts + voices)"
+      - "Added CourseAudio entity (course-specific usage, role is context not identity)"
+      - "Deprecated AudioSample entity (legacy, superseded by v12 tables)"
+      - "Updated CLAUDE.md docs to reference v12 schema"
+    design_rationale: |
+      The legacy audio_samples table had several problems:
+      1. Text was stored inline (denormalized), causing duplication
+      2. Role was part of audio identity, preventing reuse across courses
+      3. UUID was hash-computed, which caused collisions and confusion
+
+      The v12 architecture separates concerns:
+      - texts: Normalized text storage (one row per unique text+language)
+      - audio_files: Audio renderings (one row per text+voice+cadence)
+      - course_audio: Course-specific usage (role is context, not identity)
+
+      Key insight: "I want" as known-language audio in spa_for_eng is the
+      SAME audio file as "I want" as target-language audio in eng_for_spa.
+      Role is how a course USES the audio, not what the audio IS.
+    migration_notes: |
+      1. Create v12 tables (texts, audio_files, course_audio) alongside legacy
+      2. Update cycle views to join via v12 tables
+      3. Update CourseDataProvider to use audio_registry view
+      4. Eventually deprecate audio_samples table
+    implementation_status:
+      APML_spec: "Updated - v12 entities defined"
+      Dashboard_schema: "Complete - 20251219_audio_registry_v12.sql"
+      Learning_app_migration: "Pending - needs cycle_views update"
+      CourseDataProvider: "Pending - needs v12 integration"
+    contributors:
+      - "Tom Cassidy"
+      - "Claude (AI Assistant)"
+
   v1.6.0:
     date: "2025-12-21"
     changes:
@@ -2052,7 +2197,7 @@ version_history:
       - "Claude (AI Assistant)"
 
 # ============================================================================
-# GENERATED: 2025-12-21
+# GENERATED: 2025-12-28
 # This file is the Single Source of Truth for SSi data structures.
 # Changes here should propagate to:
 # - Supabase schema
