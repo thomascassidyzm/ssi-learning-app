@@ -414,17 +414,43 @@ const getAudioUrlAsync = async (text, role, item = null) => {
     return null
   }
 
-  // Check cache first
+  // PRIORITY 1: Use audioRefs directly from item if available
+  if (item?.audioRefs) {
+    const refs = item.audioRefs
+    let audioRef = null
+
+    switch (role) {
+      case 'known':
+        audioRef = refs.known
+        break
+      case 'target1':
+        audioRef = refs.target?.voice1 || refs.target1
+        break
+      case 'target2':
+        audioRef = refs.target?.voice2 || refs.target2
+        break
+    }
+
+    if (audioRef?.url) {
+      console.log('[LegoNetwork] Using item audioRef for', role, ':', audioRef.url)
+      return audioRef.url
+    }
+  }
+
+  // PRIORITY 2: Check audioMap cache
   const audioEntry = audioMap.value.get(text)
   let uuid = audioEntry?.[role]
 
-  // Lazy lookup if not cached
+  // PRIORITY 3: Lazy lookup if not cached
   if (!uuid) {
     const isKnown = role === 'known'
     uuid = await lookupAudioLazy(text, role, isKnown)
   }
 
-  if (!uuid) return null
+  if (!uuid) {
+    console.warn('[LegoNetwork] No audio found for', role, ':', text)
+    return null
+  }
   return `${audioBaseUrl}/${uuid.toUpperCase()}.mp3`
 }
 
@@ -920,6 +946,17 @@ const startPlayback = async () => {
       introducedLegoIds.value = new Set(nodes.value.map(n => n.id))
 
       console.log('[LegoNetwork] Loaded', flatItems.length, 'items for playback')
+      // Debug: log first item to check structure
+      if (flatItems[0]) {
+        console.log('[LegoNetwork] First item structure:', {
+          type: flatItems[0].type,
+          legoId: flatItems[0].legoId,
+          knownText: flatItems[0].knownText,
+          targetText: flatItems[0].targetText,
+          hasAudioRefs: !!flatItems[0].audioRefs,
+          audioRefs: flatItems[0].audioRefs
+        })
+      }
 
       // Initialize audio controller
       if (!audioController.value) {
