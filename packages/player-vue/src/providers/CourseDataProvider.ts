@@ -214,7 +214,7 @@ export class CourseDataProvider {
    */
   private resolveAudioUrl(uuid: string): string {
     if (!uuid) return ''
-    return `${this.audioBaseUrl}/${uuid}.mp3`
+    return `${this.audioBaseUrl}/${uuid.toUpperCase()}.mp3`
   }
 
   /**
