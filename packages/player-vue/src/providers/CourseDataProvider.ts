@@ -803,19 +803,22 @@ async function loadEternalPhrases(
 
   if (!supabase) return eternalMap
 
+  // Helper to resolve audio URL
+  const resolveAudioUrl = (uuid: string | null): string => {
+    if (!uuid) return ''
+    return `${audioBaseUrl}/${uuid.toUpperCase()}.mp3`
+  }
+
   try {
-    // Query course_practice_phrases directly (practice_cycles view filters by audio existence)
-    // Use the source table to get ALL phrases, even those without audio yet
-    // Include position >= 1 (skip only components at position 0)
-    // The SORT ORDER determines debut vs eternal - shortest vs longest
+    // Query practice_cycles view which HAS audio columns
+    // position >= 5 = eternal phrases (longest)
     const { data, error } = await supabase
-      .from('course_practice_phrases')
+      .from('practice_cycles')
       .select('*')
       .eq('course_code', courseId)
-      .gte('position', 1) // Skip components (0), include debut (1) and practice (2+)
-      .order('seed_number', { ascending: true })
-      .order('lego_index', { ascending: true })
-      .order('word_count', { ascending: false }) // Longest (by word count) first
+      .gte('position', 5) // Eternal phrases are position 5+
+      .order('lego_id', { ascending: true })
+      .order('target_syllable_count', { ascending: false }) // Longest first
 
     if (error) {
       console.error('[loadEternalPhrases] Query error:', error)
@@ -824,35 +827,41 @@ async function loadEternalPhrases(
 
     if (!data) return eternalMap
 
-    console.log(`[loadEternalPhrases] Loaded ${data.length} practice phrases from course_practice_phrases`)
+    console.log(`[loadEternalPhrases] Loaded ${data.length} eternal phrases from practice_cycles`)
 
-    // Group by lego_id (constructed from seed_number + lego_index) and take top 5 longest for each
+    // Group by lego_id and take top 5 longest for each
     const grouped = new Map<string, any[]>()
     for (const row of data) {
-      // Construct lego_id from seed_number and lego_index
-      const legoId = `S${String(row.seed_number).padStart(4, '0')}L${String(row.lego_index).padStart(2, '0')}`
+      const legoId = row.lego_id
       if (!grouped.has(legoId)) {
         grouped.set(legoId, [])
       }
       const phrases = grouped.get(legoId)!
       if (phrases.length < 5) { // Keep only top 5 longest
-        phrases.push({ ...row, lego_id: legoId })
+        phrases.push(row)
       }
     }
 
-    // Transform to EternalPhrase format
-    // Note: Audio refs are empty since course_practice_phrases doesn't have audio columns
-    // Audio would be resolved separately via audio_samples table if needed for playback
+    // Transform to EternalPhrase format WITH audio refs from practice_cycles
     for (const [legoId, rows] of grouped) {
       const phrases: EternalPhrase[] = rows.map(row => ({
         knownText: row.known_text,
         targetText: row.target_text,
-        syllableCount: row.word_count || 0,
+        syllableCount: row.target_syllable_count || row.target_word_count || 0,
         audioRefs: {
-          known: { id: '', url: '' },
+          known: {
+            id: row.known_audio_uuid || '',
+            url: resolveAudioUrl(row.known_audio_uuid)
+          },
           target: {
-            voice1: { id: '', url: '' },
-            voice2: { id: '', url: '' }
+            voice1: {
+              id: row.target1_audio_uuid || '',
+              url: resolveAudioUrl(row.target1_audio_uuid)
+            },
+            voice2: {
+              id: row.target2_audio_uuid || '',
+              url: resolveAudioUrl(row.target2_audio_uuid)
+            }
           }
         }
       }))
@@ -903,20 +912,23 @@ async function loadDebutPhrases(
 
   if (!supabase) return debutMap
 
+  // Helper to resolve audio URL
+  const resolveAudioUrl = (uuid: string | null): string => {
+    if (!uuid) return ''
+    return `${audioBaseUrl}/${uuid.toUpperCase()}.mp3`
+  }
+
   try {
-    // Query course_practice_phrases directly (practice_cycles view filters by audio existence)
-    // Use the source table to get ALL phrases, even those without audio yet
-    // Include position >= 1 to get DEBUT phrases (position 1) and practice phrases (position >= 2)
-    // Position 0 = components (skip), Position 1 = debut combinations, Position >= 2 = practice
-    // Ordered by target_syllable_count ASC to get shortest first
+    // Query practice_cycles view which HAS audio columns
+    // Debut phrases are positions 2-4 (shortest phrases after the LEGO debut at position 1)
     const { data, error } = await supabase
-      .from('course_practice_phrases')
+      .from('practice_cycles')
       .select('*')
       .eq('course_code', courseId)
-      .gte('position', 1) // Include debut (1) and practice (2+), skip components (0)
-      .order('seed_number', { ascending: true })
-      .order('lego_index', { ascending: true })
-      .order('target_syllable_count', { ascending: true }) // Shortest first for debut
+      .gte('position', 2) // Position 2+ are practice phrases
+      .lte('position', 4) // Positions 2-4 are debut phrases (shortest)
+      .order('lego_id', { ascending: true })
+      .order('target_syllable_count', { ascending: true }) // Shortest first
 
     if (error) {
       console.error('[loadDebutPhrases] Query error:', error)
@@ -925,34 +937,41 @@ async function loadDebutPhrases(
 
     if (!data) return debutMap
 
-    console.log(`[loadDebutPhrases] Loaded ${data.length} practice phrases from course_practice_phrases`)
+    console.log(`[loadDebutPhrases] Loaded ${data.length} debut phrases from practice_cycles`)
 
-    // Group by lego_id (constructed from seed_number + lego_index) and take shortest 7 for each
+    // Group by lego_id and take shortest 7 for each
     const grouped = new Map<string, any[]>()
     for (const row of data) {
-      // Construct lego_id from seed_number and lego_index
-      const legoId = `S${String(row.seed_number).padStart(4, '0')}L${String(row.lego_index).padStart(2, '0')}`
+      const legoId = row.lego_id
       if (!grouped.has(legoId)) {
         grouped.set(legoId, [])
       }
       const phrases = grouped.get(legoId)!
       if (phrases.length < 7) { // Keep shortest 7
-        phrases.push({ ...row, lego_id: legoId })
+        phrases.push(row)
       }
     }
 
-    // Transform to EternalPhrase format (reuse the same interface)
-    // Note: Audio refs are empty since course_practice_phrases doesn't have audio columns
+    // Transform to EternalPhrase format WITH audio refs from practice_cycles
     for (const [legoId, rows] of grouped) {
       const phrases: EternalPhrase[] = rows.map(row => ({
         knownText: row.known_text,
         targetText: row.target_text,
-        syllableCount: row.target_syllable_count || row.word_count || 0,
+        syllableCount: row.target_syllable_count || row.target_word_count || 0,
         audioRefs: {
-          known: { id: '', url: '' },
+          known: {
+            id: row.known_audio_uuid || '',
+            url: resolveAudioUrl(row.known_audio_uuid)
+          },
           target: {
-            voice1: { id: '', url: '' },
-            voice2: { id: '', url: '' }
+            voice1: {
+              id: row.target1_audio_uuid || '',
+              url: resolveAudioUrl(row.target1_audio_uuid)
+            },
+            voice2: {
+              id: row.target2_audio_uuid || '',
+              url: resolveAudioUrl(row.target2_audio_uuid)
+            }
           }
         }
       }))
