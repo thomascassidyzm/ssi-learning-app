@@ -326,16 +326,19 @@ const beltPalettes = {
   },
 }
 
-// Calculate current belt based on round count
+// Calculate current belt based on node count (works for both demo and playback)
+// Belt thresholds based on LEGO count (approx 2-3 LEGOs per seed)
 const currentBelt = computed(() => {
-  const r = currentRound.value
-  if (r >= 280) return 'black'
-  if (r >= 150) return 'brown'
-  if (r >= 80) return 'purple'
-  if (r >= 40) return 'blue'
-  if (r >= 20) return 'green'
-  if (r >= 10) return 'orange'
-  if (r >= 5) return 'yellow'
+  // In playback mode, use the number of introduced LEGOs
+  const legoCount = isPlaybackMode.value ? nodes.value.length : currentRound.value
+  // Belt thresholds (based on LEGO count, roughly 2x seed thresholds)
+  if (legoCount >= 800) return 'black'   // ~400 seeds
+  if (legoCount >= 560) return 'brown'   // ~280 seeds
+  if (legoCount >= 300) return 'purple'  // ~150 seeds
+  if (legoCount >= 160) return 'blue'    // ~80 seeds
+  if (legoCount >= 80) return 'green'    // ~40 seeds
+  if (legoCount >= 40) return 'orange'   // ~20 seeds
+  if (legoCount >= 16) return 'yellow'   // ~8 seeds
   return 'white'
 })
 
@@ -1355,19 +1358,20 @@ const estimateSyllables = (text) => {
 
 /**
  * Calculate pause duration based on syllable count
- * Formula: 1000ms (boot-up) + syllables × 200ms
+ * Formula: 1500ms (boot-up/thinking) + syllables × 350ms (speaking time)
+ * Gives learner generous time to formulate and speak
  */
 const calculatePauseDuration = (item) => {
   // Try to get syllable count from item audio durations if available
   const audioDurations = item?.audioDurations
   if (audioDurations?.target1 && audioDurations?.target2) {
-    // Use total target audio duration × 0.75 as pause time
+    // Use total target audio duration × 1.2 as pause time (more generous)
     const targetDuration = (audioDurations.target1 + audioDurations.target2)
-    return 1000 + (targetDuration * 0.75)
+    return 1500 + (targetDuration * 1.2)
   }
-  // Estimate from text
+  // Estimate from text - more generous timing
   const syllables = estimateSyllables(item?.targetText)
-  return 1000 + (syllables * 200)
+  return 1500 + (syllables * 350)
 }
 
 /**
@@ -2287,9 +2291,9 @@ const updateVisualization = () => {
 
 // Calculate label opacity based on zoom level and node state
 // Semantic zoom behavior (Google Maps style):
-// - k < 0.8: No labels (zoomed out, dots only)
-// - 0.8 <= k < 1.5: Faint labels on hover
-// - k >= 1.5: Always visible labels
+// - k < 0.5: No labels (very zoomed out)
+// - 0.5 <= k < 1.0: Faint labels on hover
+// - k >= 1.0: Always visible labels (at default zoom and closer)
 // EXCEPTION: Active playback nodes ALWAYS show labels
 const getLabelOpacity = (node, k, isHovered, isSelected, isActivePlayback) => {
   // Active playback nodes always show label (highlight mode)
@@ -2298,17 +2302,17 @@ const getLabelOpacity = (node, k, isHovered, isSelected, isActivePlayback) => {
   // Selected node always shows label
   if (isSelected) return 1
 
-  // Zoomed out (k < 0.8): No labels
-  if (k < 0.8) return 0
+  // Very zoomed out (k < 0.5): No labels
+  if (k < 0.5) return 0
 
-  // Medium zoom (0.8 <= k < 1.5): Faint labels on hover only
-  if (k < 1.5) {
+  // Medium zoom (0.5 <= k < 1.0): Faint labels on hover only
+  if (k < 1.0) {
     return isHovered ? 0.7 : 0
   }
 
-  // Zoomed in (k >= 1.5): Always visible
+  // At default zoom and beyond (k >= 1.0): Always visible
   // Opacity increases with zoom level, maxing at 1.0
-  const opacity = Math.min(0.6 + (k - 1.5) * 0.4, 1.0)
+  const opacity = Math.min(0.5 + (k - 1.0) * 0.5, 1.0)
   return opacity
 }
 
