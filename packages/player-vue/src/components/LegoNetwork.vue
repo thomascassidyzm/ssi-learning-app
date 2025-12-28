@@ -179,6 +179,69 @@ const phaseLabels = {
   voice2: 'Voice 2',
 }
 
+// ============================================================================
+// VISUALIZATION CONFIG - All tunable parameters in one place
+// ============================================================================
+const VIZ_CONFIG = {
+  // Node sizing (base values, multiplied by heroNodeScale)
+  node: {
+    glowRadius: 18,      // Outer glow circle
+    coreRadius: 12,      // Main node circle
+    innerRadius: 4,      // Center dot
+    eternalRadius: 2,    // Eternal indicator dot
+    eternalOffset: -16,  // Y offset for eternal indicator
+    strokeWidth: 1.5,    // Normal stroke
+    strokeWidthEternal: 2.5, // Eternal node stroke
+  },
+
+  // Hero scaling thresholds (fewer nodes = bigger nodes)
+  heroScale: {
+    threshold1: 3,   // 1-3 nodes
+    scale1: 2.5,     // Hero size
+    threshold2: 8,   // 4-8 nodes
+    scale2: 1.8,     // Large
+    threshold3: 15,  // 9-15 nodes
+    scale3: 1.3,     // Medium
+    scaleDefault: 1, // 16+ nodes - normal
+  },
+
+  // Force simulation
+  forces: {
+    linkDistance: 120,     // Space between connected nodes
+    linkStrength: 0.3,     // How strongly links pull
+    chargeStrength: -400,  // Node repulsion (negative = repel)
+    chargeDistanceMax: 500,// Max repulsion range
+    collisionRadius: 35,   // Base collision radius
+    centeringStrength: 0.015, // Pull toward center
+  },
+
+  // Animation timing (ms)
+  timing: {
+    nodeEnter: 300,        // New node fade in
+    nodeExit: 200,         // Node removal
+    labelFade: 200,        // Label opacity changes
+    pathStepDelay: 150,    // Delay between path animation steps
+    zoomTransition: 300,   // Zoom in/out transitions
+    introDisplay: 1500,    // How long to show intro overlay
+    linkEnter: 300,        // New link fade in
+  },
+
+  // Semantic zoom thresholds
+  zoom: {
+    min: 0.3,              // Minimum zoom level
+    max: 4,                // Maximum zoom level
+    labelThreshold: 0.8,   // Show labels above this zoom
+    labelFadeRange: 0.3,   // Fade in over this range
+  },
+
+  // Atmosphere (empty/early state)
+  atmosphere: {
+    particleCount: 20,     // Number of ambient particles
+    fadeThreshold: 15,     // Nodes before atmosphere fades
+    earlyStateMax: 5,      // Show "X LEGOs learned" badge up to this
+  },
+}
+
 // Demo/Simulation state
 const isDemoRunning = ref(false)
 const currentRound = ref(0)
@@ -298,6 +361,38 @@ const tooltipPosition = computed(() => {
     top: `${screenY}px`
   }
 })
+
+// Hero scaling for early nodes - fewer nodes = bigger size
+const heroNodeScale = computed(() => {
+  const count = nodes.value.length
+  const hs = VIZ_CONFIG.heroScale
+  if (count === 0) return hs.scaleDefault
+  if (count <= hs.threshold1) return hs.scale1
+  if (count <= hs.threshold2) return hs.scale2
+  if (count <= hs.threshold3) return hs.scale3
+  return hs.scaleDefault
+})
+
+// Ambient particle positioning (deterministic based on index)
+const getParticleStyle = (index) => {
+  const seed = index * 137.508 // Golden angle for distribution
+  const x = (seed * 3.14159) % 100
+  const y = (seed * 2.71828) % 100
+  const delay = (index * 0.3) % 5
+  const duration = 3 + (index % 4)
+  const size = 2 + (index % 3)
+  const opacity = 0.2 + (index % 5) * 0.1
+
+  return {
+    left: `${x}%`,
+    top: `${y}%`,
+    width: `${size}px`,
+    height: `${size}px`,
+    animationDelay: `${delay}s`,
+    animationDuration: `${duration}s`,
+    opacity: opacity,
+  }
+}
 
 // Audio base URL
 const audioBaseUrl = 'https://ssi-audio-stage.s3.eu-west-1.amazonaws.com/mastered'
@@ -1061,6 +1156,147 @@ const stopPlayback = () => {
 }
 
 /**
+ * Skip to next item in playback
+ */
+const skipToNext = () => {
+  if (!isPlaybackMode.value) return
+  const nextIndex = playbackIndex.value + 1
+  if (nextIndex < playbackQueue.value.length) {
+    console.log('[LegoNetwork] Skipping to next item:', nextIndex)
+    playFromIndex(nextIndex)
+  } else {
+    console.log('[LegoNetwork] No more items, stopping playback')
+    stopPlayback()
+  }
+}
+
+/**
+ * Revisit/replay the current item
+ */
+const revisitCurrent = () => {
+  if (!isPlaybackMode.value || playbackIndex.value < 0) return
+  console.log('[LegoNetwork] Revisiting current item:', playbackIndex.value)
+  playFromIndex(playbackIndex.value)
+}
+
+// ============================================================================
+// WATCH IT GROW MODE - Accelerated playback showing network growth
+// ============================================================================
+const isWatchMode = ref(false)
+const watchSpeed = ref(2) // 1x, 2x, 4x, 8x
+let watchInterval = null
+
+const startWatchItGrow = async () => {
+  if (isWatchMode.value || isPlaybackMode.value) return
+
+  console.log('[LegoNetwork] Starting Watch It Grow mode')
+  isWatchMode.value = true
+
+  // Load course data if not already loaded
+  if (playbackQueue.value.length === 0) {
+    isPlaybackLoading.value = true
+    try {
+      const courseCode = props.course?.course_code
+      if (!courseCode || !courseDataProvider) {
+        console.error('[LegoNetwork] No course or provider')
+        return
+      }
+
+      // Load full course content
+      const totalSeeds = await courseDataProvider.getTotalSeeds(courseCode)
+      const items = await courseDataProvider.getSessionContent({
+        courseCode,
+        startPosition: 1,
+        endPosition: Math.min(totalSeeds, 100), // Limit for demo
+        includePractices: true
+      })
+
+      // Flatten to linear list
+      playbackQueue.value = flattenSessionItems(items)
+      console.log('[LegoNetwork] Watch mode loaded', playbackQueue.value.length, 'items')
+    } catch (err) {
+      console.error('[LegoNetwork] Failed to load for watch mode:', err)
+      isWatchMode.value = false
+      return
+    } finally {
+      isPlaybackLoading.value = false
+    }
+  }
+
+  // Reset the network
+  nodes.value = []
+  links.value = []
+  introducedLegoIds.value = new Set()
+  playbackIndex.value = -1
+
+  // Start the accelerated growth
+  runWatchStep()
+}
+
+const stopWatchItGrow = () => {
+  console.log('[LegoNetwork] Stopping Watch It Grow mode')
+  isWatchMode.value = false
+  if (watchInterval) {
+    clearTimeout(watchInterval)
+    watchInterval = null
+  }
+}
+
+const setWatchSpeed = (speed) => {
+  watchSpeed.value = speed
+}
+
+const runWatchStep = () => {
+  if (!isWatchMode.value) return
+
+  playbackIndex.value++
+
+  if (playbackIndex.value >= playbackQueue.value.length) {
+    console.log('[LegoNetwork] Watch mode complete!')
+    isWatchMode.value = false
+    return
+  }
+
+  const item = playbackQueue.value[playbackIndex.value]
+  const legoId = item.legoId
+
+  // Add LEGO to network if new
+  if (legoId && !introducedLegoIds.value.has(legoId)) {
+    introducedLegoIds.value.add(legoId)
+
+    // Add node
+    const newNode = {
+      id: legoId,
+      targetText: item.targetText,
+      knownText: item.knownText,
+      mastery: 0.3 + Math.random() * 0.3,
+      practices: 1,
+      birthBelt: props.beltLevel,
+      isEternal: false
+    }
+    nodes.value.push(newNode)
+
+    // Add edge to previous LEGO if exists
+    if (nodes.value.length > 1) {
+      const prevNode = nodes.value[nodes.value.length - 2]
+      links.value.push({
+        source: prevNode.id,
+        target: legoId,
+        count: 1
+      })
+    }
+
+    // Update visualization
+    updateVisualization()
+  }
+
+  // Schedule next step based on speed
+  const baseDelay = 400 // ms at 1x
+  const delay = baseDelay / watchSpeed.value
+  watchInterval = setTimeout(runWatchStep, delay)
+}
+
+/**
  * Play from a specific index
  */
 const playFromIndex = async (flatIndex) => {
@@ -1293,7 +1529,7 @@ const introduceNewLego = async (item) => {
   updateVisualization()
 
   // Show intro for a moment
-  await new Promise(resolve => setTimeout(resolve, 1500))
+  await new Promise(resolve => setTimeout(resolve, VIZ_CONFIG.timing.introDisplay))
   isIntroducingLego.value = false
 }
 
@@ -1693,7 +1929,7 @@ const initVisualization = () => {
 
   // Setup zoom behavior
   zoomBehavior = d3.zoom()
-    .scaleExtent([0.2, 4]) // Min 20%, max 400%
+    .scaleExtent([VIZ_CONFIG.zoom.min, VIZ_CONFIG.zoom.max])
     .on('zoom', (event) => {
       zoomGroup.attr('transform', event.transform)
       currentZoom.value = event.transform.k
@@ -1707,18 +1943,22 @@ const initVisualization = () => {
     .on('dblclick.zoom', null) // Disable double-click zoom (conflicts with node selection)
 
   // Create force simulation with SPREAD OUT parameters (neuron/synapse aesthetic)
+  // Collision radius scales with hero node size (bigger nodes when fewer)
+  const f = VIZ_CONFIG.forces
+  const collisionRadius = f.collisionRadius * heroNodeScale.value
+
   simulation = d3.forceSimulation(nodes.value)
     .force('link', d3.forceLink(links.value)
       .id(d => d.id)
-      .distance(120) // Increased from 60 - longer dendrite-like connections
-      .strength(0.3)) // Reduced strength for more organic feel
+      .distance(f.linkDistance)
+      .strength(f.linkStrength))
     .force('charge', d3.forceManyBody()
-      .strength(-400) // Much stronger repulsion (was -150)
-      .distanceMax(500)) // Increased range of repulsion
+      .strength(f.chargeStrength)
+      .distanceMax(f.chargeDistanceMax))
     .force('center', d3.forceCenter(width / 2, height / 2))
-    .force('collision', d3.forceCollide().radius(35)) // Increased from 20
-    .force('x', d3.forceX(width / 2).strength(0.015)) // Reduced centering force
-    .force('y', d3.forceY(height / 2).strength(0.015)) // Reduced centering force
+    .force('collision', d3.forceCollide().radius(collisionRadius))
+    .force('x', d3.forceX(width / 2).strength(f.centeringStrength))
+    .force('y', d3.forceY(height / 2).strength(f.centeringStrength))
 
   // Initial render
   updateVisualization()
@@ -1727,12 +1967,12 @@ const initVisualization = () => {
 // Zoom control functions
 const zoomIn = () => {
   if (!svg || !zoomBehavior) return
-  svg.transition().duration(300).call(zoomBehavior.scaleBy, 1.4)
+  svg.transition().duration(VIZ_CONFIG.timing.zoomTransition).call(zoomBehavior.scaleBy, 1.4)
 }
 
 const zoomOut = () => {
   if (!svg || !zoomBehavior) return
-  svg.transition().duration(300).call(zoomBehavior.scaleBy, 0.7)
+  svg.transition().duration(VIZ_CONFIG.timing.zoomTransition).call(zoomBehavior.scaleBy, 0.7)
 }
 
 const zoomReset = () => {
@@ -1777,7 +2017,7 @@ const updateVisualization = () => {
 
   node.exit()
     .transition()
-    .duration(200)
+    .duration(VIZ_CONFIG.timing.nodeExit)
     .attr('opacity', 0)
     .remove()
 
@@ -1791,13 +2031,20 @@ const updateVisualization = () => {
       .on('drag', dragged)
       .on('end', dragended))
 
+  // Hero scaling - make early nodes larger for visual impact
+  const scale = heroNodeScale.value
+  const n = VIZ_CONFIG.node
+  const glowRadius = n.glowRadius * scale
+  const coreRadius = n.coreRadius * scale
+  const innerRadius = n.innerRadius * scale
+
   // Node outer glow - uses BIRTH BELT color (when this LEGO was learned)
   nodeEnter.append('circle')
     .attr('class', 'node-glow')
-    .attr('r', 18)
+    .attr('r', glowRadius)
     .attr('fill', 'none')
     .attr('stroke', d => getPalette(d.birthBelt).glow)
-    .attr('stroke-width', 2)
+    .attr('stroke-width', 2 * scale)
     .attr('opacity', d => d.mastery * 0.7)
     .attr('filter', d => d.mastery > 0.5 ? 'url(#glow)' : null)
 
@@ -1812,16 +2059,16 @@ const updateVisualization = () => {
       return nodePalette.node.base
     })
     .attr('stroke', d => getPalette(d.birthBelt).glow)
-    .attr('stroke-width', d => d.isEternal ? 2.5 : 1.5)
+    .attr('stroke-width', d => (d.isEternal ? n.strokeWidthEternal : n.strokeWidth) * scale)
     .attr('stroke-opacity', d => 0.3 + d.mastery * 0.5)
     .transition()
-    .duration(300)
-    .attr('r', 12)
+    .duration(VIZ_CONFIG.timing.nodeEnter)
+    .attr('r', coreRadius)
 
   // Node inner dot - uses BIRTH BELT color
   nodeEnter.append('circle')
     .attr('class', 'node-inner')
-    .attr('r', 4)
+    .attr('r', innerRadius)
     .attr('fill', d => getPalette(d.birthBelt).glow)
     .attr('opacity', d => 0.3 + d.mastery * 0.6)
 
@@ -1936,6 +2183,8 @@ const updateVisualization = () => {
   // Update simulation
   simulation.nodes(nodes.value)
   simulation.force('link').links(links.value)
+  // Update collision radius for hero scaling (adapts as network grows)
+  simulation.force('collision').radius(VIZ_CONFIG.forces.collisionRadius * heroNodeScale.value)
   simulation.alpha(0.3).restart()
 
   // Tick function - allow nodes to spread beyond viewport (can zoom/pan to see)
@@ -2305,7 +2554,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="network-container" :style="{ background: currentPalette.background }">
+  <div class="lego-network network-container" :data-belt="beltLevel" :style="{ background: currentPalette.background }">
     <!-- Background layer -->
     <div class="bg-layer"></div>
 
@@ -2343,12 +2592,48 @@ defineExpose({
     <div v-else class="network-viewport" ref="containerRef" @click="closePanel">
       <svg class="network-svg" ref="svgRef"></svg>
 
-      <!-- Empty state -->
-      <div v-if="nodes.length === 0 && !isDemoRunning && !isPlaybackMode" class="empty-state">
-        <div class="empty-icon">🧠</div>
-        <p v-if="isRealData">Your brain map will grow as you learn</p>
-        <p v-else>Tap Learn to begin your journey</p>
+      <!-- Atmospheric Background - Moonlit landscape that fades as network grows -->
+      <div class="atmosphere-layer" :class="{ 'faded': nodes.length > VIZ_CONFIG.atmosphere.fadeThreshold }">
+        <!-- Mountain silhouette -->
+        <svg class="landscape-silhouette" viewBox="0 0 1200 200" preserveAspectRatio="xMidYMax slice">
+          <path d="M0,200 L0,140 Q100,100 200,120 T400,90 T600,110 T800,85 T1000,100 T1200,95 L1200,200 Z" fill="rgba(15,15,25,0.8)"/>
+          <path d="M0,200 L0,160 Q150,140 300,150 T600,130 T900,145 T1200,135 L1200,200 Z" fill="rgba(10,10,18,0.9)"/>
+        </svg>
+        <!-- Orbital hint rings -->
+        <div class="orbital-rings">
+          <div class="orbital-ring ring-1"></div>
+          <div class="orbital-ring ring-2"></div>
+          <div class="orbital-ring ring-3"></div>
+        </div>
+        <!-- Ambient particles -->
+        <div class="ambient-particles">
+          <span class="particle" v-for="i in VIZ_CONFIG.atmosphere.particleCount" :key="i" :style="getParticleStyle(i)"></span>
+        </div>
       </div>
+
+      <!-- Empty state message - enhanced -->
+      <Transition name="fade">
+        <div v-if="nodes.length === 0 && !isDemoRunning && !isPlaybackMode" class="empty-state">
+          <div class="empty-glow"></div>
+          <div class="empty-content">
+            <div class="empty-title">Your Language Network</div>
+            <p class="empty-subtitle" v-if="isRealData">Each LEGO you learn becomes a star in your constellation</p>
+            <p class="empty-subtitle" v-else>Tap <strong>Start Learning</strong> to begin your journey</p>
+            <div class="empty-hint">
+              <span class="hint-dot"></span>
+              <span>Your first words will appear here</span>
+            </div>
+          </div>
+        </div>
+      </Transition>
+
+      <!-- Early state encouragement (1-N nodes based on config) -->
+      <Transition name="fade">
+        <div v-if="nodes.length > 0 && nodes.length <= VIZ_CONFIG.atmosphere.earlyStateMax && !isPlaybackMode" class="early-state-badge">
+          <span class="badge-glow"></span>
+          <span class="badge-text">{{ nodes.length }} {{ nodes.length === 1 ? 'LEGO' : 'LEGOs' }} learned</span>
+        </div>
+      </Transition>
 
       <!-- Minimal Zoom Controls -->
       <div class="zoom-controls">
@@ -2389,14 +2674,73 @@ defineExpose({
           </Transition>
         </div>
 
-        <!-- Stop button -->
-        <button class="pill-stop" @click="stopPlayback" title="Stop">
-          <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12">
-            <rect x="6" y="6" width="12" height="12"/>
-          </svg>
-        </button>
+        <!-- Playback controls -->
+        <div class="pill-controls">
+          <!-- Revisit/Replay -->
+          <button class="pill-btn" @click="revisitCurrent" title="Replay">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+              <path d="M1 4v6h6M23 20v-6h-6"/>
+              <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
+            </svg>
+          </button>
+          <!-- Skip -->
+          <button class="pill-btn" @click="skipToNext" title="Skip">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+              <polygon points="5 4 15 12 5 20 5 4"/>
+              <line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="2"/>
+            </svg>
+          </button>
+          <!-- Stop -->
+          <button class="pill-btn pill-stop" @click="stopPlayback" title="Stop">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12">
+              <rect x="6" y="6" width="12" height="12"/>
+            </svg>
+          </button>
+        </div>
       </div>
     </Transition>
+
+    <!-- Watch It Grow Control Panel -->
+    <Transition name="pill-slide">
+      <div v-if="isWatchMode" class="watch-panel">
+        <div class="watch-header">
+          <span class="watch-title">Watch It Grow</span>
+          <span class="watch-count">{{ nodes.length }} LEGOs</span>
+        </div>
+
+        <!-- Speed controls -->
+        <div class="speed-controls">
+          <button
+            v-for="speed in [1, 2, 4, 8]"
+            :key="speed"
+            class="speed-btn"
+            :class="{ active: watchSpeed === speed }"
+            @click="setWatchSpeed(speed)"
+          >
+            {{ speed }}x
+          </button>
+        </div>
+
+        <!-- Progress -->
+        <div class="watch-progress">
+          <div class="watch-progress-fill" :style="{ width: `${(playbackIndex / Math.max(playbackQueue.length, 1)) * 100}%` }"></div>
+        </div>
+
+        <!-- Stop -->
+        <button class="watch-stop" @click="stopWatchItGrow">Stop</button>
+      </div>
+    </Transition>
+
+    <!-- Watch It Grow Button (when not playing) -->
+    <div v-if="!isPlaybackMode && !isWatchMode && !isPlaybackLoading && nodes.length === 0" class="watch-start-btn-container">
+      <button class="watch-start-btn" @click="startWatchItGrow">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+          <circle cx="12" cy="12" r="10"/>
+          <polygon points="10 8 16 12 10 16 10 8" fill="currentColor"/>
+        </svg>
+        Watch It Grow
+      </button>
+    </div>
 
     <!-- Progress bar - super minimal, at very bottom -->
     <div v-if="isPlaybackMode" class="progress-line">
@@ -3043,6 +3387,178 @@ defineExpose({
   background: rgba(239, 68, 68, 0.3);
 }
 
+/* Playback controls container */
+.pill-controls {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.pill-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.pill-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.pill-btn.pill-stop {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #f87171;
+}
+
+/* ============================================================================
+   WATCH IT GROW MODE
+   ============================================================================ */
+
+.watch-panel {
+  position: absolute;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 24px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: 16px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  min-width: 200px;
+}
+
+.watch-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  gap: 16px;
+}
+
+.watch-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #fbbf24;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.watch-count {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8125rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.speed-controls {
+  display: flex;
+  gap: 6px;
+}
+
+.speed-btn {
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.speed-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+}
+
+.speed-btn.active {
+  background: rgba(251, 191, 36, 0.2);
+  border-color: #fbbf24;
+  color: #fbbf24;
+}
+
+.watch-progress {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.watch-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #fbbf24, #f59e0b);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.watch-stop {
+  padding: 8px 20px;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  color: #f87171;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.watch-stop:hover {
+  background: rgba(239, 68, 68, 0.25);
+}
+
+/* Watch It Grow start button */
+.watch-start-btn-container {
+  position: absolute;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+}
+
+.watch-start-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 24px;
+  background: rgba(251, 191, 36, 0.15);
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  border-radius: 30px;
+  color: #fbbf24;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.watch-start-btn:hover {
+  background: rgba(251, 191, 36, 0.25);
+  border-color: #fbbf24;
+  box-shadow: 0 0 20px rgba(251, 191, 36, 0.3);
+}
+
+.watch-start-btn svg {
+  flex-shrink: 0;
+}
+
 /* Progress line - super thin at bottom */
 .progress-line {
   position: absolute;
@@ -3428,6 +3944,305 @@ defineExpose({
   .zoom-controls {
     right: 24px;
     bottom: 140px;
+  }
+}
+
+/* ============================================================================
+   ATMOSPHERIC EMPTY/EARLY STATE
+   Creates an inviting cosmic void when the network is sparse
+   ============================================================================ */
+
+/* Atmosphere layer - fades as network grows */
+.atmosphere-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  transition: opacity 1.5s ease-out;
+  overflow: hidden;
+}
+
+.atmosphere-layer.faded {
+  opacity: 0;
+}
+
+/* Mountain silhouette at bottom - creates grounding horizon */
+.landscape-silhouette {
+  position: absolute;
+  bottom: 60px;
+  left: 0;
+  right: 0;
+  width: 100%;
+  height: auto;
+  opacity: 0.4;
+  animation: landscape-fade-in 2s ease-out;
+}
+
+@keyframes landscape-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 0.4;
+    transform: translateY(0);
+  }
+}
+
+/* Orbital hint rings - suggest where nodes will appear */
+.orbital-rings {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.orbital-ring {
+  position: absolute;
+  border: 1px dashed rgba(255, 255, 255, 0.06);
+  border-radius: 50%;
+  animation: orbital-breathe 8s ease-in-out infinite;
+}
+
+.orbital-ring.ring-1 {
+  width: 150px;
+  height: 150px;
+  animation-delay: 0s;
+}
+
+.orbital-ring.ring-2 {
+  width: 280px;
+  height: 280px;
+  animation-delay: 2s;
+}
+
+.orbital-ring.ring-3 {
+  width: 420px;
+  height: 420px;
+  animation-delay: 4s;
+}
+
+@keyframes orbital-breathe {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.7;
+  }
+}
+
+/* Ambient particles - fireflies/stars drifting gently */
+.ambient-particles {
+  position: absolute;
+  inset: 0;
+}
+
+.particle {
+  position: absolute;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.3;
+  animation: particle-drift linear infinite;
+}
+
+/* Dynamic particle styling applied via JS getParticleStyle() */
+
+@keyframes particle-drift {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.2;
+  }
+  25% {
+    transform: translate(10px, -15px) scale(1.2);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translate(5px, -30px) scale(1);
+    opacity: 0.3;
+  }
+  75% {
+    transform: translate(-5px, -20px) scale(1.1);
+    opacity: 0.4;
+  }
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.2;
+  }
+}
+
+/* Enhanced empty state with atmospheric messaging */
+.empty-state {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  z-index: 5;
+}
+
+.empty-state .empty-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 300px;
+  height: 300px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(255,255,255,0.03) 0%, transparent 70%);
+  pointer-events: none;
+  animation: empty-glow-pulse 4s ease-in-out infinite;
+}
+
+@keyframes empty-glow-pulse {
+  0%, 100% { opacity: 0.5; transform: translate(-50%, -50%) scale(1); }
+  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+}
+
+.empty-state .empty-content {
+  position: relative;
+  z-index: 1;
+}
+
+.empty-state .empty-title {
+  font-size: 1.375rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+  margin-bottom: 0.625rem;
+  letter-spacing: 0.02em;
+}
+
+.empty-state .empty-subtitle {
+  font-size: 0.9375rem;
+  color: rgba(255, 255, 255, 0.45);
+  max-width: 280px;
+  line-height: 1.5;
+  margin: 0 auto 1rem;
+}
+
+.empty-state .empty-subtitle strong {
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+.empty-state .empty-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.empty-state .hint-dot {
+  width: 6px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  animation: hint-pulse 2s ease-in-out infinite;
+}
+
+@keyframes hint-pulse {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.2); }
+}
+
+/* Early state badge - shown when 1-5 nodes */
+.early-state-badge {
+  position: absolute;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  padding: 6px 14px;
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fbbf24;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.early-state-badge .badge-glow {
+  position: absolute;
+  inset: -2px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), transparent);
+  animation: badge-shimmer 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes badge-shimmer {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+.early-state-badge .badge-text {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes badge-glow {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(251, 191, 36, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(251, 191, 36, 0.2);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.3);
+  }
+}
+
+/* Color the particles based on belt level (inherited from container) */
+.lego-network[data-belt="white"] .particle { color: #ffffff; }
+.lego-network[data-belt="yellow"] .particle { color: #fbbf24; }
+.lego-network[data-belt="orange"] .particle { color: #fb923c; }
+.lego-network[data-belt="green"] .particle { color: #4ade80; }
+.lego-network[data-belt="blue"] .particle { color: #60a5fa; }
+.lego-network[data-belt="purple"] .particle { color: #a78bfa; }
+.lego-network[data-belt="brown"] .particle { color: #a8836a; }
+.lego-network[data-belt="black"] .particle { color: #d4a853; }
+
+/* Responsive adjustments for atmosphere */
+@media (max-width: 768px) {
+  .orbital-ring.ring-1 { width: 100px; height: 100px; }
+  .orbital-ring.ring-2 { width: 180px; height: 180px; }
+  .orbital-ring.ring-3 { width: 280px; height: 280px; }
+
+  .early-state-badge {
+    top: 60px;
+    font-size: 0.6875rem;
+    padding: 5px 12px;
+  }
+
+  .empty-state .empty-icon {
+    font-size: 2.5rem;
+  }
+
+  .empty-state .empty-title {
+    font-size: 1.125rem;
+  }
+
+  .empty-state .empty-subtitle {
+    font-size: 0.875rem;
+    max-width: 240px;
   }
 }
 </style>
