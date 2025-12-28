@@ -29,10 +29,13 @@ const clerkEnabled = isClerkConfigured(config)
 const auth = clerkEnabled ? useAuth() : null
 
 // Navigation state
-// Screens: 'home' | 'player' | 'journey' | 'profile' | 'settings' | 'explorer' | 'progress-demo'
+// Screens: 'home' | 'player' | 'journey' | 'profile' | 'settings' | 'explorer' | 'network' | 'progress-demo'
 const currentScreen = ref('home')
 const selectedCourse = ref(null)
 const isLearning = ref(false)
+
+// Component refs
+const legoNetworkRef = ref(null)
 
 // Class context (when launched from Schools)
 const classContext = ref(null)
@@ -61,6 +64,12 @@ const handleNavigation = (screen) => {
 }
 
 const handleStartLearning = () => {
+  // If on Brain View (network), trigger playback mode instead of navigating
+  if (currentScreen.value === 'network' && legoNetworkRef.value) {
+    legoNetworkRef.value.startPlayback()
+    isLearning.value = true
+    return
+  }
   startLearning(selectedCourse.value)
 }
 
@@ -341,13 +350,15 @@ onMounted(async () => {
       />
     </Transition>
 
-    <!-- Progress Map Visualization -->
+    <!-- Progress Map Visualization (Brain View) -->
     <Transition name="slide-right" mode="out-in">
       <LegoNetwork
         v-if="currentScreen === 'network'"
+        ref="legoNetworkRef"
         :course="activeCourse"
         beltLevel="white"
         @close="goHome"
+        @playbackEnded="isLearning = false"
       />
     </Transition>
 

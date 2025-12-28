@@ -77,7 +77,7 @@ class ScriptAudioController {
   }
 }
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'playbackEnded'])
 
 const props = defineProps({
   course: {
@@ -963,6 +963,9 @@ const stopPlayback = () => {
   // Reset path animation and node highlights
   resetPathAnimation()
   updateNodeHighlights([])
+
+  // Notify parent that playback ended
+  emit('playbackEnded')
 }
 
 /**
@@ -2159,6 +2162,13 @@ watch(courseCode, async (newCode, oldCode) => {
     await nextTick()
     initVisualization()
   }
+})
+
+// Expose methods for parent component
+defineExpose({
+  startPlayback,
+  stopPlayback,
+  isPlaybackMode,
 })
 </script>
 
