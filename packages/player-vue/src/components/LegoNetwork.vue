@@ -1644,6 +1644,9 @@ const updateNodeHighlights = (legoIds) => {
         return (activeSet.has(sId) && activeSet.has(tId)) ? 1 : 0.3
       })
   }
+
+  // Update label visibility for active nodes
+  updateLabelOpacities()
 }
 
 /**
@@ -2287,7 +2290,11 @@ const updateVisualization = () => {
 // - k < 0.8: No labels (zoomed out, dots only)
 // - 0.8 <= k < 1.5: Faint labels on hover
 // - k >= 1.5: Always visible labels
-const getLabelOpacity = (node, k, isHovered, isSelected) => {
+// EXCEPTION: Active playback nodes ALWAYS show labels
+const getLabelOpacity = (node, k, isHovered, isSelected, isActivePlayback) => {
+  // Active playback nodes always show label (highlight mode)
+  if (isActivePlayback) return 1
+
   // Selected node always shows label
   if (isSelected) return 1
 
@@ -2312,9 +2319,10 @@ const updateLabelOpacities = () => {
   const k = currentZoom.value
   const selectedId = selectedNode.value?.id
   const hoveredId = hoveredNode.value?.id
+  const activeIds = isPlaybackMode.value ? activeLegoIds.value : []
 
   labelsLayer.selectAll('.node-label')
-    .style('opacity', d => getLabelOpacity(d, k, d.id === hoveredId, d.id === selectedId))
+    .style('opacity', d => getLabelOpacity(d, k, d.id === hoveredId, d.id === selectedId, activeIds.includes(d.id)))
 }
 
 // Truncate text to prevent overlap (max 15 chars)
@@ -3586,21 +3594,23 @@ defineExpose({
 .breathing-glow {
   opacity: 0;
   transition: opacity 0.3s ease;
+  transform-origin: center center;
+  transform-box: fill-box;
 }
 
 .breathing-glow.breathing {
   opacity: 1;
-  animation: breathe 2s ease-in-out infinite;
+  animation: breathe 3s ease-in-out infinite;
 }
 
 @keyframes breathe {
   0%, 100% {
-    transform: scale(0.95);
-    stroke-opacity: 0.2;
+    stroke-width: 6;
+    stroke-opacity: 0.15;
   }
   50% {
-    transform: scale(1.05);
-    stroke-opacity: 0.4;
+    stroke-width: 12;
+    stroke-opacity: 0.35;
   }
 }
 
