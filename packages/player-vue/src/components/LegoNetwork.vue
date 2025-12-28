@@ -167,6 +167,12 @@ const pathAnimationIds = ref([]) // LEGO IDs in the current path animation (Voic
 const pathAnimationActive = ref(false) // True when path animation is running
 let pathAnimationTimers = [] // Timers for path animation sequence
 
+// Pause phase breathing animation
+const pauseProgress = ref(0) // 0-1 progress through pause
+const pauseDuration = ref(2000) // Current pause duration in ms
+let pauseStartTime = 0
+let pauseAnimationFrame = null
+
 // Audio S3 base URL
 const AUDIO_S3_BASE_URL = 'https://ssi-audio-stage.s3.eu-west-1.amazonaws.com/mastered'
 
@@ -1137,6 +1143,7 @@ const stopPlayback = () => {
   cycleId++
   clearAllTimers()
   clearPathAnimationTimers()
+  stopPauseAnimation()
   if (audioController.value) audioController.value.stop()
 
   isPlaybackMode.value = false
@@ -1330,6 +1337,69 @@ const playFromIndex = async (flatIndex) => {
 }
 
 /**
+ * Estimate syllable count from text (for pause duration calculation)
+ * Counts vowel groups as a rough approximation
+ */
+const estimateSyllables = (text) => {
+  if (!text) return 2
+  // Remove punctuation and split on spaces
+  const words = text.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/)
+  let total = 0
+  for (const word of words) {
+    // Count vowel groups (including Spanish/Chinese approximation)
+    const vowelGroups = word.match(/[aeiouyàáâãäåèéêëìíîïòóôõöùúûü]+/g)
+    total += vowelGroups ? vowelGroups.length : 1
+  }
+  return Math.max(2, total) // Minimum 2 syllables
+}
+
+/**
+ * Calculate pause duration based on syllable count
+ * Formula: 1000ms (boot-up) + syllables × 200ms
+ */
+const calculatePauseDuration = (item) => {
+  // Try to get syllable count from item audio durations if available
+  const audioDurations = item?.audioDurations
+  if (audioDurations?.target1 && audioDurations?.target2) {
+    // Use total target audio duration × 0.75 as pause time
+    const targetDuration = (audioDurations.target1 + audioDurations.target2)
+    return 1000 + (targetDuration * 0.75)
+  }
+  // Estimate from text
+  const syllables = estimateSyllables(item?.targetText)
+  return 1000 + (syllables * 200)
+}
+
+/**
+ * Start the pause animation (breathing ring)
+ */
+const startPauseAnimation = (duration) => {
+  pauseStartTime = performance.now()
+  pauseDuration.value = duration
+  pauseProgress.value = 0
+
+  const animate = () => {
+    const elapsed = performance.now() - pauseStartTime
+    pauseProgress.value = Math.min(elapsed / duration, 1)
+    if (pauseProgress.value < 1) {
+      pauseAnimationFrame = requestAnimationFrame(animate)
+    }
+  }
+  pauseAnimationFrame = requestAnimationFrame(animate)
+}
+
+/**
+ * Stop the pause animation
+ */
+const stopPauseAnimation = () => {
+  if (pauseAnimationFrame) {
+    cancelAnimationFrame(pauseAnimationFrame)
+    pauseAnimationFrame = null
+  }
+  pauseProgress.value = 0
+}
+
+/**
  * Run a playback phase
  */
 const runPhase = async (phase, myCycleId) => {
@@ -1391,12 +1461,19 @@ const runPhase = async (phase, myCycleId) => {
     }
 
     case 'pause': {
-      // Pause for learner to speak (2 seconds)
+      // Calculate pause duration based on syllables
+      const pauseMs = calculatePauseDuration(item)
+      console.log('[LegoNetwork] Pause duration:', pauseMs, 'ms for:', item?.targetText)
+
+      // Start breathing animation
+      startPauseAnimation(pauseMs)
+
       scheduleTimer(() => {
         if (myCycleId === cycleId) {
+          stopPauseAnimation()
           runPhase('voice1', myCycleId)
         }
-      }, 2000)
+      }, pauseMs)
       break
     }
 
@@ -2654,46 +2731,82 @@ defineExpose({
     </div>
 
     <!-- ====================================================================
-         FLOATING LEARNING PILL - Minimal overlay during playback
+         LEARNING PANE - Breathing ring UI with text and controls
          ==================================================================== -->
-    <Transition name="pill-slide">
-      <div v-if="isPlaybackMode" class="learning-pill">
-        <!-- Phase dots -->
-        <div class="phase-dots">
-          <span class="phase-dot" :class="{ active: currentPhase === 'prompt' }" title="Listen"></span>
-          <span class="phase-dot" :class="{ active: currentPhase === 'pause' }" title="Speak"></span>
-          <span class="phase-dot" :class="{ active: currentPhase === 'voice1' }" title="Check"></span>
-          <span class="phase-dot" :class="{ active: currentPhase === 'voice2' }" title="Confirm"></span>
+    <Transition name="pane-slide">
+      <div v-if="isPlaybackMode" class="learning-pane">
+        <!-- Breathing ring container (for pause phase) -->
+        <div class="breathing-container" :class="{ active: currentPhase === 'pause' }">
+          <!-- SVG breathing ring -->
+          <svg class="breathing-ring" viewBox="0 0 120 120">
+            <!-- Background track -->
+            <circle
+              cx="60" cy="60" r="54"
+              fill="none"
+              stroke="rgba(255,255,255,0.1)"
+              stroke-width="3"
+            />
+            <!-- Progress ring (fills during pause) -->
+            <circle
+              class="progress-ring"
+              cx="60" cy="60" r="54"
+              fill="none"
+              stroke="rgba(251,191,36,0.6)"
+              stroke-width="3"
+              stroke-linecap="round"
+              :stroke-dasharray="339.3"
+              :stroke-dashoffset="339.3 * (1 - pauseProgress)"
+              transform="rotate(-90 60 60)"
+            />
+            <!-- Breathing glow (pulses during pause) -->
+            <circle
+              class="breathing-glow"
+              cx="60" cy="60" r="48"
+              fill="none"
+              stroke="rgba(251,191,36,0.2)"
+              stroke-width="8"
+              :class="{ breathing: currentPhase === 'pause' }"
+            />
+          </svg>
+
+          <!-- Text content (centered in ring) -->
+          <div class="pane-text">
+            <!-- Known text - always visible -->
+            <div class="pane-known">{{ currentItem?.knownText || 'Ready...' }}</div>
+
+            <!-- Target text - only on voice2 -->
+            <Transition name="reveal">
+              <div v-if="currentPhase === 'voice2'" class="pane-target">
+                {{ currentItem?.targetText }}
+              </div>
+            </Transition>
+          </div>
         </div>
 
-        <!-- Phrase text - minimal -->
-        <div class="pill-content">
-          <span class="pill-known">{{ currentItem?.knownText || 'Ready...' }}</span>
-          <Transition name="reveal">
-            <span v-if="currentPhase === 'voice2'" class="pill-target">{{ currentItem?.targetText }}</span>
-          </Transition>
+        <!-- Phase indicator -->
+        <div class="phase-indicator">
+          <span class="phase-label" :class="currentPhase">
+            {{ phaseLabels[currentPhase] || currentPhase }}
+          </span>
         </div>
 
-        <!-- Playback controls -->
-        <div class="pill-controls">
-          <!-- Revisit/Replay -->
-          <button class="pill-btn" @click="revisitCurrent" title="Replay">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+        <!-- Controls row -->
+        <div class="pane-controls">
+          <button class="pane-btn" @click="revisitCurrent" title="Replay this phrase">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
               <path d="M1 4v6h6M23 20v-6h-6"/>
               <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
             </svg>
           </button>
-          <!-- Skip -->
-          <button class="pill-btn" @click="skipToNext" title="Skip">
-            <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
-              <polygon points="5 4 15 12 5 20 5 4"/>
-              <line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="2"/>
+          <button class="pane-btn pane-stop" @click="stopPlayback" title="Stop">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+              <rect x="6" y="6" width="12" height="12" rx="2"/>
             </svg>
           </button>
-          <!-- Stop -->
-          <button class="pill-btn pill-stop" @click="stopPlayback" title="Stop">
-            <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12">
-              <rect x="6" y="6" width="12" height="12"/>
+          <button class="pane-btn" @click="skipToNext" title="Skip to next">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+              <polygon points="5 4 15 12 5 20 5 4"/>
+              <line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="2"/>
             </svg>
           </button>
         </div>
@@ -3417,6 +3530,190 @@ defineExpose({
   background: rgba(239, 68, 68, 0.2);
   border-color: rgba(239, 68, 68, 0.4);
   color: #f87171;
+}
+
+/* ============================================================================
+   LEARNING PANE - Breathing ring UI
+   ============================================================================ */
+
+.learning-pane {
+  position: absolute;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px 32px;
+  background: rgba(0, 0, 0, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 24px;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  min-width: 280px;
+}
+
+/* Breathing container - holds ring and text */
+.breathing-container {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.breathing-container.active .breathing-ring {
+  opacity: 1;
+}
+
+.breathing-ring {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  opacity: 0.3;
+  transition: opacity 0.3s ease;
+}
+
+.progress-ring {
+  transition: stroke-dashoffset 0.05s linear;
+}
+
+/* Breathing glow animation */
+.breathing-glow {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.breathing-glow.breathing {
+  opacity: 1;
+  animation: breathe 2s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%, 100% {
+    transform: scale(0.95);
+    stroke-opacity: 0.2;
+  }
+  50% {
+    transform: scale(1.05);
+    stroke-opacity: 0.4;
+  }
+}
+
+/* Text content in the center of ring */
+.pane-text {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 160px;
+  text-align: center;
+}
+
+.pane-known {
+  font-size: 1.125rem;
+  color: rgba(255, 255, 255, 0.95);
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.pane-target {
+  font-size: 1.25rem;
+  color: #fbbf24;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+/* Phase indicator */
+.phase-indicator {
+  display: flex;
+  justify-content: center;
+}
+
+.phase-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  padding: 4px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.6);
+  transition: all 0.3s ease;
+}
+
+.phase-label.prompt {
+  background: rgba(96, 165, 250, 0.2);
+  color: #60a5fa;
+}
+
+.phase-label.pause {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fbbf24;
+}
+
+.phase-label.voice1 {
+  background: rgba(74, 222, 128, 0.2);
+  color: #4ade80;
+}
+
+.phase-label.voice2 {
+  background: rgba(167, 139, 250, 0.2);
+  color: #a78bfa;
+}
+
+/* Controls row */
+.pane-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.pane-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.pane-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  transform: scale(1.05);
+}
+
+.pane-btn.pane-stop {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #f87171;
+}
+
+.pane-btn.pane-stop:hover {
+  background: rgba(239, 68, 68, 0.3);
+}
+
+/* Pane slide transition */
+.pane-slide-enter-active,
+.pane-slide-leave-active {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pane-slide-enter-from,
+.pane-slide-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(20px) scale(0.95);
 }
 
 /* ============================================================================
