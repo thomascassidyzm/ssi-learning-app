@@ -1530,6 +1530,7 @@ const createDemoData = () => {
   // Generate 300 LEGOs by cycling through phrases with variations
   for (let i = 0; i < 300; i++) {
     const phrase = phrases[i % phrases.length]
+    if (!phrase) continue
     const seedNum = Math.floor(i / 4) + 1
     const legoIdx = (i % 4) + 1
 
@@ -1537,8 +1538,8 @@ const createDemoData = () => {
       id: `S${String(seedNum).padStart(4, '0')}L${String(legoIdx).padStart(2, '0')}`,
       seedId: `S${String(seedNum).padStart(4, '0')}`,
       legoIndex: legoIdx,
-      knownText: phrase.known,
-      targetText: phrase.target,
+      knownText: phrase.known || '',
+      targetText: phrase.target || '',
       totalPractices: 0,
       usedInPhrases: Math.floor(Math.random() * 10) + 1,
       mastery: 0,
@@ -2183,8 +2184,8 @@ watch(courseCode, async (newCode, oldCode) => {
       <div v-if="isIntroducingLego && introLego" class="intro-overlay">
         <div class="intro-content">
           <div class="intro-badge">NEW LEGO</div>
-          <div class="intro-target">{{ introLego.target }}</div>
-          <div class="intro-known">{{ introLego.known }}</div>
+          <div class="intro-target">{{ introLego?.target }}</div>
+          <div class="intro-known">{{ introLego?.known }}</div>
           <div class="intro-burst"></div>
         </div>
       </div>
