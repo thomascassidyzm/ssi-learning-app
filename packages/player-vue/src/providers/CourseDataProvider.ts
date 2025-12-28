@@ -1066,9 +1066,9 @@ export async function generateLearningScript(
       legoId: currentLego.lego.id,
       legoIndex: n,
       seedId: currentLego.seed.seed_id,
-      knownText: normalizeDisplay(currentLego.phrase.phrase.known),
-      targetText: normalizeDisplay(currentLego.phrase.phrase.target),
-      audioRefs: currentLego.phrase.audioRefs,
+      knownText: normalizeDisplay(currentLego.phrase?.phrase?.known || ''),
+      targetText: normalizeDisplay(currentLego.phrase?.phrase?.target || ''),
+      audioRefs: currentLego.phrase?.audioRefs,
       audioDurations: currentLego.audioDurations,
     }
 

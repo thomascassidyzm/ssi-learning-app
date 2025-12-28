@@ -2009,9 +2009,11 @@ onMounted(async () => {
 
     // Preload first few items (fire and forget - don't wait)
     for (const item of sessionItems.value.slice(0, 3)) {
-      audioController.value.preload(item.phrase.audioRefs.known)
-      audioController.value.preload(item.phrase.audioRefs.target.voice1)
-      audioController.value.preload(item.phrase.audioRefs.target.voice2)
+      if (item?.phrase?.audioRefs) {
+        audioController.value.preload(item.phrase.audioRefs.known)
+        audioController.value.preload(item.phrase.audioRefs.target?.voice1)
+        audioController.value.preload(item.phrase.audioRefs.target?.voice2)
+      }
     }
   }
 
