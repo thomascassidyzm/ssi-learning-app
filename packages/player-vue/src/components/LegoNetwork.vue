@@ -1252,6 +1252,25 @@ const stopWatchItGrow = () => {
   }
 }
 
+/**
+ * Replay Journey - full playback at learning pace
+ * Unlike Watch It Grow, this plays with audio and proper timing
+ */
+const replayJourney = async () => {
+  if (isPlaybackMode.value || isWatchMode.value) return
+
+  console.log('[LegoNetwork] Starting Replay Journey')
+
+  // Reset the network to replay from scratch
+  nodes.value = []
+  links.value = []
+  introducedLegoIds.value = new Set()
+  updateGraph()
+
+  // Start playback (will load content and begin playing)
+  await startPlayback()
+}
+
 const setWatchSpeed = (speed) => {
   watchSpeed.value = speed
 }
@@ -2856,14 +2875,24 @@ defineExpose({
       </div>
     </Transition>
 
-    <!-- Watch It Grow Button (when not playing) -->
-    <div v-if="!isPlaybackMode && !isWatchMode && !isPlaybackLoading && nodes.length === 0" class="watch-start-btn-container">
-      <button class="watch-start-btn" @click="startWatchItGrow">
+    <!-- Action Buttons (when not playing) -->
+    <div v-if="!isPlaybackMode && !isWatchMode && !isPlaybackLoading" class="action-buttons">
+      <!-- Watch It Grow - shown when empty -->
+      <button v-if="nodes.length === 0" class="action-btn watch-btn" @click="startWatchItGrow">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
           <circle cx="12" cy="12" r="10"/>
           <polygon points="10 8 16 12 10 16 10 8" fill="currentColor"/>
         </svg>
         Watch It Grow
+      </button>
+
+      <!-- Replay Journey - shown when there are nodes -->
+      <button v-if="nodes.length > 0" class="action-btn replay-btn" @click="replayJourney">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+          <path d="M1 4v6h6"/>
+          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+        </svg>
+        Replay Journey
       </button>
     </div>
 
@@ -3834,24 +3863,23 @@ defineExpose({
   background: rgba(239, 68, 68, 0.25);
 }
 
-/* Watch It Grow start button */
-.watch-start-btn-container {
+/* Action buttons container */
+.action-buttons {
   position: absolute;
   bottom: 100px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
+  display: flex;
+  gap: 12px;
 }
 
-.watch-start-btn {
+.action-btn {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 12px 24px;
-  background: rgba(251, 191, 36, 0.15);
-  border: 1px solid rgba(251, 191, 36, 0.4);
   border-radius: 30px;
-  color: #fbbf24;
   font-size: 0.9375rem;
   font-weight: 600;
   cursor: pointer;
@@ -3860,14 +3888,34 @@ defineExpose({
   -webkit-backdrop-filter: blur(10px);
 }
 
-.watch-start-btn:hover {
+.action-btn svg {
+  flex-shrink: 0;
+}
+
+/* Watch It Grow button (golden) */
+.action-btn.watch-btn {
+  background: rgba(251, 191, 36, 0.15);
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  color: #fbbf24;
+}
+
+.action-btn.watch-btn:hover {
   background: rgba(251, 191, 36, 0.25);
   border-color: #fbbf24;
   box-shadow: 0 0 20px rgba(251, 191, 36, 0.3);
 }
 
-.watch-start-btn svg {
-  flex-shrink: 0;
+/* Replay Journey button (purple) */
+.action-btn.replay-btn {
+  background: rgba(167, 139, 250, 0.15);
+  border: 1px solid rgba(167, 139, 250, 0.4);
+  color: #a78bfa;
+}
+
+.action-btn.replay-btn:hover {
+  background: rgba(167, 139, 250, 0.25);
+  border-color: #a78bfa;
+  box-shadow: 0 0 20px rgba(167, 139, 250, 0.3);
 }
 
 /* Progress line - super thin at bottom */
