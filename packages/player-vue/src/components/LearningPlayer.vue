@@ -2130,60 +2130,53 @@ onUnmounted(() => {
     :style="beltCssVars"
     v-show="!showSessionComplete"
   >
-    <!-- Moonlit Dojo Background Layers -->
-    <div class="bg-gradient"></div>
-    <div class="bg-belt-wash"></div>
+    <!-- Deep Space Background Layers -->
+    <div class="space-gradient"></div>
+    <div class="space-nebula"></div>
     <div class="bg-noise"></div>
 
-    <!-- Silhouette Landscape - Extended Height -->
-    <div class="landscape">
-      <svg class="landscape-svg" viewBox="0 0 1440 400" preserveAspectRatio="xMidYMax slice">
-        <!-- Very distant peaks (barely visible) -->
-        <path class="mountain mountain--distant" d="M0,400 L0,120 Q180,60 360,100 Q540,30 720,80 Q900,20 1080,70 Q1260,10 1440,60 L1440,400 Z"/>
-        <!-- Distant mountains -->
-        <path class="mountain mountain--far" d="M0,400 L0,180 Q120,140 240,160 Q360,100 480,140 Q600,80 720,120 Q840,60 960,110 Q1080,50 1200,90 Q1320,40 1440,80 L1440,400 Z"/>
-        <!-- Mid mountains -->
-        <path class="mountain mountain--mid" d="M0,400 L0,260 Q180,210 360,240 Q540,180 720,220 Q900,160 1080,200 Q1260,140 1440,180 L1440,400 Z"/>
-        <!-- Near hills (darkest) -->
-        <path class="mountain mountain--near" d="M0,400 L0,320 Q240,290 480,310 Q720,280 960,300 Q1200,270 1440,300 L1440,400 Z"/>
-        <!-- Torii gate silhouette - elegant traditional form -->
-        <g class="torii" transform="translate(1160, 245)">
-          <!-- Main pillars with slight taper -->
-          <path d="M8,20 L6,70 L12,70 L10,20 Z"/>
-          <path d="M52,20 L50,70 L56,70 L54,20 Z"/>
-          <!-- Kasagi (top beam) with curved ends -->
-          <path d="M-4,8 Q30,-4 66,8 L64,14 Q30,4 -2,14 Z"/>
-          <!-- Nuki (tie beam) -->
-          <rect x="2" y="20" width="58" height="4" rx="1"/>
-          <!-- Gakuzuka (tablet) -->
-          <rect x="24" y="12" width="14" height="8" rx="1"/>
-        </g>
-      </svg>
+    <!-- Static Star Field - Deep space backdrop -->
+    <div class="star-field">
+      <div class="star star-1"></div>
+      <div class="star star-2"></div>
+      <div class="star star-3"></div>
+      <div class="star star-4"></div>
+      <div class="star star-5"></div>
+      <div class="star star-6"></div>
+      <div class="star star-7"></div>
+      <div class="star star-8"></div>
+      <div class="star star-9"></div>
+      <div class="star star-10"></div>
+      <div class="star star-11"></div>
+      <div class="star star-12"></div>
+      <div class="star star-13"></div>
+      <div class="star star-14"></div>
+      <div class="star star-15"></div>
+      <div class="star star-16"></div>
+      <div class="star star-17"></div>
+      <div class="star star-18"></div>
+      <div class="star star-19"></div>
+      <div class="star star-20"></div>
+      <div class="star star-21"></div>
+      <div class="star star-22"></div>
+      <div class="star star-23"></div>
+      <div class="star star-24"></div>
     </div>
 
-    <!-- Fireflies - dancing through the dojo -->
-    <div class="fireflies">
-      <div class="firefly firefly-1"></div>
-      <div class="firefly firefly-2"></div>
-      <div class="firefly firefly-3"></div>
-      <div class="firefly firefly-4"></div>
-      <div class="firefly firefly-5"></div>
-      <div class="firefly firefly-6"></div>
-      <div class="firefly firefly-7"></div>
-      <div class="firefly firefly-8"></div>
-      <div class="firefly firefly-9"></div>
-      <div class="firefly firefly-10"></div>
-      <div class="firefly firefly-11"></div>
-      <div class="firefly firefly-12"></div>
+    <!-- Drifting Star Particles - Slow motion through space -->
+    <div class="drift-stars">
+      <div class="drift-star drift-1"></div>
+      <div class="drift-star drift-2"></div>
+      <div class="drift-star drift-3"></div>
+      <div class="drift-star drift-4"></div>
+      <div class="drift-star drift-5"></div>
+      <div class="drift-star drift-6"></div>
+      <div class="drift-star drift-7"></div>
+      <div class="drift-star drift-8"></div>
     </div>
 
-    <!-- Floating mist particles -->
-    <div class="mist-container">
-      <div class="mist-particle mist-1"></div>
-      <div class="mist-particle mist-2"></div>
-      <div class="mist-particle mist-3"></div>
-      <div class="mist-particle mist-4"></div>
-    </div>
+    <!-- Subtle Nebula Glow - Belt colored -->
+    <div class="nebula-glow"></div>
 
     <!-- Class Context Banner (when launched from Schools) -->
     <div v-if="props.classContext" class="class-banner">
@@ -2545,20 +2538,27 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-/* Backgrounds */
-.bg-gradient {
+/* ============ DEEP SPACE BACKGROUNDS ============ */
+.space-gradient {
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(ellipse 80% 50% at 50% -20%, var(--accent-soft) 0%, transparent 50%),
-    radial-gradient(ellipse 60% 40% at 80% 100%, var(--gold-soft) 0%, transparent 40%);
+    radial-gradient(ellipse 120% 80% at 20% 10%, rgba(30, 20, 50, 0.8) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 60% at 80% 90%, rgba(20, 30, 50, 0.6) 0%, transparent 40%),
+    radial-gradient(ellipse 80% 80% at 50% 50%, rgba(10, 10, 20, 1) 0%, #08080c 100%);
   pointer-events: none;
   z-index: 0;
 }
 
-/* Belt color wash - REMOVED for Schindler's List restraint */
-.bg-belt-wash {
-  display: none;
+/* Subtle milky way nebula effect */
+.space-nebula {
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 30% 30%, rgba(100, 80, 140, 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 30% at 70% 60%, rgba(80, 100, 140, 0.04) 0%, transparent 40%);
+  pointer-events: none;
+  z-index: 0;
 }
 
 .bg-noise {
@@ -2570,102 +2570,61 @@ onUnmounted(() => {
   z-index: 0;
 }
 
-/* ============ MOONLIT LANDSCAPE ============ */
-.landscape {
+/* ============ STATIC STAR FIELD ============ */
+.star-field {
   position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 50vh;
-  max-height: 400px;
+  inset: 0;
   pointer-events: none;
   z-index: 1;
-  opacity: var(--mountain-opacity, 1);
-  transition: opacity 0.5s ease;
 }
 
-.landscape-svg {
-  width: 100%;
-  height: 100%;
+.star {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: white;
+  border-radius: 50%;
+  animation: star-twinkle 4s ease-in-out infinite;
 }
 
-.mountain {
-  transition: fill 0.5s ease;
+/* Distribute stars across the canvas */
+.star-1 { left: 5%; top: 8%; animation-delay: 0s; opacity: 0.4; }
+.star-2 { left: 15%; top: 22%; animation-delay: -0.5s; opacity: 0.6; width: 3px; height: 3px; }
+.star-3 { left: 28%; top: 12%; animation-delay: -1s; opacity: 0.3; }
+.star-4 { left: 42%; top: 5%; animation-delay: -1.5s; opacity: 0.5; }
+.star-5 { left: 55%; top: 18%; animation-delay: -2s; opacity: 0.4; width: 3px; height: 3px; }
+.star-6 { left: 68%; top: 8%; animation-delay: -2.5s; opacity: 0.6; }
+.star-7 { left: 82%; top: 15%; animation-delay: -3s; opacity: 0.3; }
+.star-8 { left: 92%; top: 25%; animation-delay: -3.5s; opacity: 0.5; }
+.star-9 { left: 8%; top: 35%; animation-delay: -0.3s; opacity: 0.5; }
+.star-10 { left: 22%; top: 42%; animation-delay: -0.8s; opacity: 0.4; }
+.star-11 { left: 35%; top: 32%; animation-delay: -1.3s; opacity: 0.6; width: 3px; height: 3px; }
+.star-12 { left: 48%; top: 38%; animation-delay: -1.8s; opacity: 0.3; }
+.star-13 { left: 62%; top: 28%; animation-delay: -2.3s; opacity: 0.5; }
+.star-14 { left: 75%; top: 35%; animation-delay: -2.8s; opacity: 0.4; }
+.star-15 { left: 88%; top: 42%; animation-delay: -3.3s; opacity: 0.6; }
+.star-16 { left: 95%; top: 55%; animation-delay: -3.8s; opacity: 0.3; }
+.star-17 { left: 12%; top: 58%; animation-delay: -0.2s; opacity: 0.4; }
+.star-18 { left: 25%; top: 65%; animation-delay: -0.7s; opacity: 0.5; width: 3px; height: 3px; }
+.star-19 { left: 38%; top: 52%; animation-delay: -1.2s; opacity: 0.3; }
+.star-20 { left: 52%; top: 62%; animation-delay: -1.7s; opacity: 0.6; }
+.star-21 { left: 65%; top: 55%; animation-delay: -2.2s; opacity: 0.4; }
+.star-22 { left: 78%; top: 68%; animation-delay: -2.7s; opacity: 0.5; }
+.star-23 { left: 3%; top: 75%; animation-delay: -3.2s; opacity: 0.3; }
+.star-24 { left: 45%; top: 78%; animation-delay: -3.7s; opacity: 0.4; }
+
+@keyframes star-twinkle {
+  0%, 100% { opacity: var(--star-opacity, 0.4); }
+  50% { opacity: calc(var(--star-opacity, 0.4) * 1.8); }
 }
 
-.mountain--distant {
-  fill: rgba(255, 255, 255, 0.015);
+/* Belt-colored glow on some stars */
+.star-2, .star-5, .star-11, .star-18 {
+  box-shadow: 0 0 4px var(--belt-glow, rgba(255,255,255,0.3));
 }
 
-.mountain--far {
-  fill: rgba(255, 255, 255, 0.03);
-}
-
-.mountain--mid {
-  fill: rgba(255, 255, 255, 0.05);
-}
-
-.mountain--near {
-  fill: rgba(255, 255, 255, 0.08);
-}
-
-/* Belt-colored accent on mountain ridges - the "Schindler's flower" */
-.mountain--mid {
-  filter: drop-shadow(0 -1px 3px var(--belt-glow));
-}
-
-.mountain--near {
-  filter: drop-shadow(0 -2px 6px var(--belt-glow));
-}
-
-/* Black belt = pure zen, no color accents */
-.belt-black .mountain--mid,
-.belt-black .mountain--near {
-  filter: none;
-}
-
-.torii {
-  fill: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.06);
-}
-
-.ninja-figure {
-  fill: rgba(255, 255, 255, 0.1);
-  stroke: rgba(255, 255, 255, 0.1);
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-/* Light theme landscape */
-[data-theme="light"] .mountain--distant {
-  fill: rgba(0, 0, 0, 0.02);
-}
-
-[data-theme="light"] .mountain--far {
-  fill: rgba(0, 0, 0, 0.04);
-}
-
-[data-theme="light"] .mountain--mid {
-  fill: rgba(0, 0, 0, 0.07);
-}
-
-[data-theme="light"] .mountain--near {
-  fill: rgba(0, 0, 0, 0.12);
-}
-
-[data-theme="light"] .torii {
-  fill: rgba(0, 0, 0, 0.08);
-  color: rgba(0, 0, 0, 0.08);
-}
-
-[data-theme="light"] .ninja-figure {
-  fill: rgba(0, 0, 0, 0.15);
-  stroke: rgba(0, 0, 0, 0.15);
-}
-
-/* ============ FLOATING MIST ============ */
-.mist-container {
+/* ============ DRIFTING STAR PARTICLES ============ */
+.drift-stars {
   position: fixed;
   inset: 0;
   pointer-events: none;
@@ -2673,167 +2632,95 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-.mist-particle {
+.drift-star {
   position: absolute;
-  width: 300px;
-  height: 100px;
+  width: 2px;
+  height: 2px;
+  background: var(--belt-color, white);
   border-radius: 50%;
-  background: radial-gradient(ellipse, rgba(255,255,255,0.04) 0%, transparent 70%);
-  filter: blur(30px);
-  animation: mist-drift 30s ease-in-out infinite;
+  opacity: 0.6;
+  animation: drift-motion 25s linear infinite;
 }
 
-.mist-1 {
-  top: 60%;
-  left: -10%;
-  animation-delay: 0s;
-  animation-duration: 35s;
-}
+/* Distribute drifting stars */
+.drift-1 { left: 10%; top: 20%; animation-delay: 0s; animation-duration: 28s; }
+.drift-2 { left: 30%; top: 40%; animation-delay: -5s; animation-duration: 22s; opacity: 0.4; }
+.drift-3 { left: 50%; top: 15%; animation-delay: -10s; animation-duration: 30s; }
+.drift-4 { left: 70%; top: 55%; animation-delay: -15s; animation-duration: 26s; opacity: 0.5; }
+.drift-5 { left: 85%; top: 30%; animation-delay: -3s; animation-duration: 24s; }
+.drift-6 { left: 20%; top: 70%; animation-delay: -8s; animation-duration: 32s; opacity: 0.4; }
+.drift-7 { left: 60%; top: 75%; animation-delay: -12s; animation-duration: 27s; }
+.drift-8 { left: 90%; top: 60%; animation-delay: -18s; animation-duration: 29s; opacity: 0.5; }
 
-.mist-2 {
-  top: 70%;
-  left: 30%;
-  animation-delay: -8s;
-  animation-duration: 40s;
-  width: 400px;
-  opacity: 0.7;
-}
-
-.mist-3 {
-  top: 55%;
-  left: 60%;
-  animation-delay: -15s;
-  animation-duration: 32s;
-  width: 250px;
-}
-
-.mist-4 {
-  top: 75%;
-  left: 80%;
-  animation-delay: -22s;
-  animation-duration: 38s;
-  width: 350px;
-  opacity: 0.5;
-}
-
-@keyframes mist-drift {
-  0%, 100% {
-    transform: translateX(0) translateY(0) scale(1);
-    opacity: 0.4;
-  }
-  25% {
-    transform: translateX(50px) translateY(-20px) scale(1.1);
-    opacity: 0.6;
-  }
-  50% {
-    transform: translateX(100px) translateY(10px) scale(1);
-    opacity: 0.3;
-  }
-  75% {
-    transform: translateX(30px) translateY(-10px) scale(1.05);
-    opacity: 0.5;
-  }
-}
-
-[data-theme="light"] .mist-particle {
-  background: radial-gradient(ellipse, rgba(0,0,0,0.02) 0%, transparent 70%);
-}
-
-/* ===========================================
-   FIREFLIES - Dancing through the dojo
-   Harmonized with AwakeningLoader style
-   =========================================== */
-.fireflies {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 2;
-  overflow: hidden;
-}
-
-.firefly {
-  position: absolute;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  /* Belt-colored glow with soft spread */
-  background: var(--belt-color);
-  box-shadow:
-    0 0 6px 2px var(--belt-glow),
-    0 0 14px 4px color-mix(in srgb, var(--belt-glow) 35%, transparent);
-  animation: firefly-dance 12s ease-in-out infinite;
-  opacity: 0;
-  transition: background 0.5s ease, box-shadow 0.5s ease;
-}
-
-/* Black belt = subtle white fireflies, pure zen */
-.belt-black .firefly {
-  background: rgba(255, 255, 255, 0.4);
-  box-shadow:
-    0 0 6px 2px rgba(255, 255, 255, 0.3),
-    0 0 14px 4px rgba(255, 255, 255, 0.15);
-}
-
-/* Distribute fireflies across the scene with staggered timing */
-.firefly-1 { left: 8%; top: 65%; animation-delay: 0s; animation-duration: 11s; }
-.firefly-2 { left: 82%; top: 38%; animation-delay: -1.2s; animation-duration: 13s; }
-.firefly-3 { left: 38%; top: 72%; animation-delay: -2.5s; animation-duration: 10s; }
-.firefly-4 { left: 92%; top: 55%; animation-delay: -3.8s; animation-duration: 14s; }
-.firefly-5 { left: 18%; top: 42%; animation-delay: -5s; animation-duration: 12s; }
-.firefly-6 { left: 68%; top: 68%; animation-delay: -6.2s; animation-duration: 11s; }
-.firefly-7 { left: 28%; top: 48%; animation-delay: -7.5s; animation-duration: 13s; }
-.firefly-8 { left: 58%; top: 58%; animation-delay: -8.8s; animation-duration: 10s; }
-.firefly-9 { left: 48%; top: 35%; animation-delay: -10s; animation-duration: 12s; }
-.firefly-10 { left: 75%; top: 78%; animation-delay: -11.2s; animation-duration: 14s; }
-.firefly-11 { left: 5%; top: 52%; animation-delay: -12.5s; animation-duration: 11s; }
-.firefly-12 { left: 88%; top: 28%; animation-delay: -13.8s; animation-duration: 13s; }
-
-/* Firefly dance - organic curved paths like the awakening loader */
-@keyframes firefly-dance {
-  0%, 100% {
-    transform: translate(0, 0);
+@keyframes drift-motion {
+  0% {
+    transform: translate(0, 0) scale(1);
     opacity: 0;
   }
-  8% {
-    opacity: 0.6;
-  }
-  20% {
-    transform: translate(30px, -20px);
-    opacity: 1;
-  }
-  35% {
-    transform: translate(50px, -45px);
+  10% {
     opacity: 0.5;
   }
-  50% {
-    transform: translate(25px, -60px);
-    opacity: 0.9;
+  25% {
+    transform: translate(15px, -8px) scale(1.02);
+    opacity: 0.6;
   }
-  65% {
-    transform: translate(-15px, -40px);
+  50% {
+    transform: translate(30px, -15px) scale(1);
     opacity: 0.4;
   }
-  80% {
-    transform: translate(-25px, -20px);
-    opacity: 0.7;
+  75% {
+    transform: translate(20px, -25px) scale(0.95);
+    opacity: 0.5;
   }
-  92% {
+  90% {
     opacity: 0.3;
   }
+  100% {
+    transform: translate(10px, -40px) scale(0.9);
+    opacity: 0;
+  }
 }
 
-/* Light theme fireflies - still use belt colors but slightly more visible */
-[data-theme="light"] .firefly {
+/* ============ NEBULA GLOW - Belt colored ambient light ============ */
+.nebula-glow {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 80% 60% at 50% 70%,
+    var(--belt-glow, rgba(194, 58, 58, 0.08)) 0%,
+    transparent 50%
+  );
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.6;
+  transition: background 1s ease;
+}
+
+/* Light theme adjustments for space elements */
+[data-theme="light"] .space-gradient {
+  background:
+    radial-gradient(ellipse 120% 80% at 20% 10%, rgba(200, 190, 220, 0.4) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 60% at 80% 90%, rgba(180, 200, 220, 0.3) 0%, transparent 40%),
+    radial-gradient(ellipse 80% 80% at 50% 50%, rgba(250, 248, 252, 1) 0%, #f5f3f8 100%);
+}
+
+[data-theme="light"] .space-nebula {
+  background:
+    radial-gradient(ellipse 60% 40% at 30% 30%, rgba(160, 140, 200, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 30% at 70% 60%, rgba(140, 160, 200, 0.06) 0%, transparent 40%);
+}
+
+[data-theme="light"] .star {
+  background: rgba(100, 80, 120, 0.4);
+}
+
+[data-theme="light"] .drift-star {
   background: var(--belt-color);
-  box-shadow:
-    0 0 5px 2px var(--belt-glow),
-    0 0 10px 3px color-mix(in srgb, var(--belt-glow) 30%, transparent);
+  opacity: 0.4;
 }
 
-/* Light theme black belt - subtle grey fireflies */
-[data-theme="light"] .belt-black .firefly {
-  background: rgba(0, 0, 0, 0.25);
-  box-shadow: 0 0 4px rgba(0, 0, 0, 0.1);
+[data-theme="light"] .nebula-glow {
+  opacity: 0.3;
 }
 
 /* ============ CLASS BANNER (Schools context) ============ */
