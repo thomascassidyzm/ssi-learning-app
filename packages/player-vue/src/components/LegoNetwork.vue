@@ -2208,6 +2208,8 @@ onMounted(async () => {
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
   stopDemo()
+  stopPhrasePractice() // Clean up phrase practice timer
+  stopWatchItGrow() // Clean up replay mode
   if (simulation) simulation.stop()
   if (audioController.value) {
     audioController.value.pause()
