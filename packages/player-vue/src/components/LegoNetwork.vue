@@ -3420,7 +3420,7 @@ defineExpose({
 
 .watch-panel {
   position: absolute;
-  bottom: 100px;
+  bottom: 180px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 25;
@@ -3518,10 +3518,10 @@ defineExpose({
   background: rgba(239, 68, 68, 0.25);
 }
 
-/* Action buttons container */
+/* Action buttons container - above main transport button */
 .action-buttons {
   position: absolute;
-  bottom: 100px;
+  bottom: 180px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
