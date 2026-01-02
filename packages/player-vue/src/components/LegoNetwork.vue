@@ -106,7 +106,8 @@ const {
   error: networkError,
   networkData,
   loadNetworkData: loadRealNetworkData,
-  getLegoConnections
+  getLegoConnections,
+  getPhrasesForLego
 } = useLegoNetwork(supabase)
 
 // State
@@ -146,6 +147,12 @@ const isPanelOpen = ref(false)
 // Audio
 const audioController = ref(null)
 const isPlayingAudio = ref(false)
+
+// Phrase practice state
+const selectedNodePhrases = ref([]) // Phrases containing the selected LEGO
+const isPracticingPhrases = ref(false) // True when auto-playing through phrases
+const currentPhraseIndex = ref(0) // Current phrase being practiced
+const currentPracticingPhrase = ref(null) // The phrase currently being practiced
 
 // ============================================================================
 // REPLAY MODE STATE
@@ -997,6 +1004,91 @@ const resetPathAnimation = () => {
   }
 
   pathAnimationIds.value = []
+}
+
+// ============================================================================
+// PHRASE PRACTICE MODE
+// Play through phrases containing a LEGO with path animation
+// ============================================================================
+
+let phrasePracticeTimer = null
+
+/**
+ * Play a single phrase with path animation
+ */
+const playPhrase = async (phrase) => {
+  if (!phrase || !phrase.legoPath || phrase.legoPath.length === 0) return
+
+  currentPracticingPhrase.value = phrase
+
+  // Animate the path through the network
+  const animationDuration = Math.max(2000, phrase.legoPath.length * 500)
+  animatePathSequence(phrase.legoPath, animationDuration)
+
+  console.log('[LegoNetwork] Playing phrase:', phrase.targetText, 'path:', phrase.legoPath)
+
+  // TODO: Play phrase audio when we have audio lookup for phrases
+  // For now, just animate the path
+}
+
+/**
+ * Start practicing through all phrases for the selected LEGO
+ */
+const startPhrasePractice = async () => {
+  if (selectedNodePhrases.value.length === 0) return
+
+  isPracticingPhrases.value = true
+  currentPhraseIndex.value = 0
+
+  // Play first phrase
+  await playNextPhraseInPractice()
+}
+
+/**
+ * Play the next phrase in practice mode
+ */
+const playNextPhraseInPractice = async () => {
+  if (!isPracticingPhrases.value) return
+  if (currentPhraseIndex.value >= selectedNodePhrases.value.length) {
+    // Loop back to start
+    currentPhraseIndex.value = 0
+  }
+
+  const phrase = selectedNodePhrases.value[currentPhraseIndex.value]
+  await playPhrase(phrase)
+
+  // Schedule next phrase
+  const delay = Math.max(3000, phrase.legoPath.length * 600) // Give time for animation
+  phrasePracticeTimer = setTimeout(() => {
+    currentPhraseIndex.value++
+    playNextPhraseInPractice()
+  }, delay)
+}
+
+/**
+ * Stop phrase practice mode
+ */
+const stopPhrasePractice = () => {
+  isPracticingPhrases.value = false
+  currentPracticingPhrase.value = null
+
+  if (phrasePracticeTimer) {
+    clearTimeout(phrasePracticeTimer)
+    phrasePracticeTimer = null
+  }
+
+  // Don't reset path animation here - let closePanel do it
+}
+
+/**
+ * Play a specific phrase (when user clicks on it)
+ */
+const playSpecificPhrase = (phrase) => {
+  // Stop auto-practice if running
+  stopPhrasePractice()
+
+  // Play this phrase
+  playPhrase(phrase)
 }
 
 // ============================================================================
@@ -1883,6 +1975,12 @@ const handleNodeClick = (event, d) => {
   selectedNode.value = d
   isPanelOpen.value = true
 
+  // Load phrases for this LEGO
+  selectedNodePhrases.value = getPhrasesForLego(d.id, 20)
+  currentPhraseIndex.value = 0
+  isPracticingPhrases.value = false
+  currentPracticingPhrase.value = null
+
   // Highlight selected node
   nodesLayer.selectAll('.node')
     .classed('selected', n => n.id === d.id)
@@ -1913,6 +2011,13 @@ const handleNodeClick = (event, d) => {
 const closePanel = () => {
   isPanelOpen.value = false
   selectedNode.value = null
+
+  // Stop phrase practice
+  stopPhrasePractice()
+  selectedNodePhrases.value = []
+
+  // Reset path animation
+  resetPathAnimation()
 
   // Reset node styles - restore birth belt colors
   nodesLayer.selectAll('.node')
@@ -2324,6 +2429,49 @@ defineExpose({
                 <div class="bar-fill" :style="{ width: `${Math.min(item.count * 3, 100)}%` }"></div>
               </div>
               <span class="connection-count">{{ item.count }}×</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Phrases containing this LEGO -->
+        <div v-if="selectedNodePhrases.length > 0" class="panel-phrases">
+          <div class="phrases-header">
+            <span class="phrases-label">Used in {{ selectedNodePhrases.length }} phrases</span>
+            <button
+              class="practice-btn"
+              @click="isPracticingPhrases ? stopPhrasePractice() : startPhrasePractice()"
+              :class="{ practicing: isPracticingPhrases }"
+            >
+              <svg v-if="!isPracticingPhrases" viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                <polygon points="5 3 19 12 5 21 5 3"/>
+              </svg>
+              <svg v-else viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                <rect x="6" y="4" width="4" height="16" rx="1"/>
+                <rect x="14" y="4" width="4" height="16" rx="1"/>
+              </svg>
+              {{ isPracticingPhrases ? 'Stop' : 'Practice All' }}
+            </button>
+          </div>
+
+          <!-- Currently practicing phrase indicator -->
+          <div v-if="currentPracticingPhrase" class="current-phrase">
+            <span class="current-label">Now playing:</span>
+            <span class="current-text">{{ currentPracticingPhrase.targetText }}</span>
+          </div>
+
+          <div class="phrases-list">
+            <div
+              v-for="(phrase, index) in selectedNodePhrases"
+              :key="phrase.id"
+              class="phrase-item"
+              :class="{
+                active: currentPracticingPhrase?.id === phrase.id,
+                current: isPracticingPhrases && currentPhraseIndex === index
+              }"
+              @click="playSpecificPhrase(phrase)"
+            >
+              <span class="phrase-text">{{ phrase.targetText }}</span>
+              <span class="phrase-path-count">{{ phrase.legoPath.length }} LEGOs</span>
             </div>
           </div>
         </div>
@@ -2784,6 +2932,131 @@ defineExpose({
   color: rgba(255, 255, 255, 0.4);
   min-width: 32px;
   text-align: right;
+}
+
+/* Phrases Section */
+.panel-phrases {
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin-top: 0.5rem;
+}
+
+.phrases-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.phrases-label {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.practice-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: white;
+  background: rgba(139, 92, 246, 0.3);
+  border: 1px solid rgba(139, 92, 246, 0.5);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.practice-btn:hover {
+  background: rgba(139, 92, 246, 0.5);
+}
+
+.practice-btn.practicing {
+  background: rgba(239, 68, 68, 0.3);
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+.practice-btn.practicing:hover {
+  background: rgba(239, 68, 68, 0.5);
+}
+
+.current-phrase {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.625rem;
+  background: rgba(139, 92, 246, 0.15);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 6px;
+  margin-bottom: 0.75rem;
+}
+
+.current-label {
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(139, 92, 246, 0.8);
+}
+
+.current-text {
+  font-size: 0.9375rem;
+  color: white;
+  font-weight: 500;
+}
+
+.phrases-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.phrase-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.625rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.phrase-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.phrase-item.active {
+  background: rgba(139, 92, 246, 0.15);
+  border-color: rgba(139, 92, 246, 0.4);
+}
+
+.phrase-item.current {
+  background: rgba(212, 168, 83, 0.15);
+  border-color: rgba(212, 168, 83, 0.4);
+}
+
+.phrase-text {
+  font-size: 0.8125rem;
+  color: rgba(255, 255, 255, 0.9);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.phrase-path-count {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.625rem;
+  color: rgba(255, 255, 255, 0.4);
+  white-space: nowrap;
+  margin-left: 0.5rem;
 }
 
 /* ============================================================================

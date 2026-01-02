@@ -29,9 +29,17 @@ export interface LegoConnection {
   count: number
 }
 
+export interface PhraseWithPath {
+  id: string
+  targetText: string
+  legoPath: string[] // Ordered list of LEGO IDs that compose this phrase
+}
+
 export interface NetworkData {
   nodes: LegoNode[]
   connections: LegoConnection[]
+  phrases: PhraseWithPath[] // All phrases with their decomposed LEGO paths
+  phrasesByLego: Map<string, PhraseWithPath[]> // Index: lego_id → phrases containing it
   legoMap: Map<string, string> // normalized target text → lego_id
   stats: {
     totalLegos: number
@@ -149,9 +157,12 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
       console.log(`[useLegoNetwork] Loaded ${phrases?.length || 0} phrases`)
 
       // Build connection graph from phrase co-occurrence
+      // Also store phrases with their decomposed paths
       const connectionCounts = new Map<string, number>()
       const legoUsage = new Map<string, number>()
-      let phrasesWithPaths = 0
+      const phrasesWithPath: PhraseWithPath[] = []
+      const phrasesByLego = new Map<string, PhraseWithPath[]>()
+      let phrasesWithPathCount = 0
 
       for (const phrase of phrases || []) {
         const legoIds = decomposePhrase(phrase.target_text, legoMap)
@@ -161,9 +172,27 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
           legoUsage.set(legoId, (legoUsage.get(legoId) || 0) + 1)
         }
 
+        // Store phrase with its path (only if it has at least one LEGO)
+        if (legoIds.length >= 1) {
+          const phraseWithPath: PhraseWithPath = {
+            id: phrase.id,
+            targetText: phrase.target_text,
+            legoPath: legoIds,
+          }
+          phrasesWithPath.push(phraseWithPath)
+
+          // Index by each LEGO in the path
+          for (const legoId of legoIds) {
+            if (!phrasesByLego.has(legoId)) {
+              phrasesByLego.set(legoId, [])
+            }
+            phrasesByLego.get(legoId)!.push(phraseWithPath)
+          }
+        }
+
         // Build directional connections between consecutive LEGOs
         if (legoIds.length >= 2) {
-          phrasesWithPaths++
+          phrasesWithPathCount++
           for (let i = 0; i < legoIds.length - 1; i++) {
             const key = `${legoIds[i]}→${legoIds[i + 1]}`
             connectionCounts.set(key, (connectionCounts.get(key) || 0) + 1)
@@ -186,16 +215,19 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
         node.usedInPhrases = legoUsage.get(node.id) || 0
       }
 
-      console.log(`[useLegoNetwork] Built ${connections.length} unique connections from ${phrasesWithPaths} phrases`)
+      console.log(`[useLegoNetwork] Built ${connections.length} unique connections from ${phrasesWithPathCount} phrases`)
+      console.log(`[useLegoNetwork] Indexed ${phrasesWithPath.length} phrases across ${phrasesByLego.size} LEGOs`)
 
       const data: NetworkData = {
         nodes,
         connections,
+        phrases: phrasesWithPath,
+        phrasesByLego,
         legoMap,
         stats: {
           totalLegos: nodes.length,
           totalPhrases: phrases?.length || 0,
-          phrasesWithPaths,
+          phrasesWithPaths: phrasesWithPathCount,
           uniqueConnections: connections.length,
         }
       }
@@ -231,11 +263,31 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
     return { followsFrom, leadsTo }
   }
 
+  /**
+   * Get phrases containing a specific LEGO, sorted by path length (simpler first)
+   */
+  function getPhrasesForLego(legoId: string, limit: number = 20): PhraseWithPath[] {
+    if (!networkData.value) return []
+
+    const phrases = networkData.value.phrasesByLego.get(legoId) || []
+
+    // Sort by path length (simpler phrases first), then alphabetically
+    return [...phrases]
+      .sort((a, b) => {
+        if (a.legoPath.length !== b.legoPath.length) {
+          return a.legoPath.length - b.legoPath.length
+        }
+        return a.targetText.localeCompare(b.targetText)
+      })
+      .slice(0, limit)
+  }
+
   return {
     isLoading,
     error,
     networkData,
     loadNetworkData,
     getLegoConnections,
+    getPhrasesForLego,
   }
 }
