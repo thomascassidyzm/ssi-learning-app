@@ -148,44 +148,21 @@ const audioController = ref(null)
 const isPlayingAudio = ref(false)
 
 // ============================================================================
-// DEPRECATED: BRAIN VIEW PLAYBACK MODE (4-phase learning cycle)
-// This section is deprecated. Learning has moved to LearningPlayer.vue.
-// Use Watch It Grow (startWatchItGrow) for replay visualization instead.
-// These refs are kept temporarily for backwards compatibility.
+// REPLAY MODE STATE
+// Learning happens in LearningPlayer.vue. LegoNetwork is for replay visualization.
 // ============================================================================
-const isPlaybackMode = ref(false) // DEPRECATED - always false
 const isPlaybackLoading = ref(false)
-const playbackQueue = ref([]) // All flat items for the session (same structure as CourseExplorer)
+const playbackQueue = ref([]) // All flat items for the session
 const playbackIndex = ref(0) // Current position in queue
-const currentItem = ref(null) // Current learning item being played
-const currentPhase = ref('idle') // 'idle' | 'prompt' | 'pause' | 'voice1' | 'voice2'
-let cycleId = 0 // For cancellation
-let playbackTimers = [] // Timers to clear on stop
-const activeLegoIds = ref([]) // LEGOs highlighted during current phrase
 const introducedLegoIds = ref(new Set()) // LEGOs that have been introduced
-const isIntroducingLego = ref(false) // True when showing intro animation
-const introLego = ref(null) // The LEGO being introduced
-const pathAnimationIds = ref([]) // LEGO IDs in the current path animation (Voice 2)
+
+// Path animation state (for future phrase path highlighting)
+const pathAnimationIds = ref([]) // LEGO IDs in the current path animation
 const pathAnimationActive = ref(false) // True when path animation is running
 let pathAnimationTimers = [] // Timers for path animation sequence
 
-// Pause phase breathing animation
-const pauseProgress = ref(0) // 0-1 progress through pause
-const pauseDuration = ref(2000) // Current pause duration in ms
-let pauseStartTime = 0
-let pauseAnimationFrame = null
-
 // Audio S3 base URL
 const AUDIO_S3_BASE_URL = 'https://ssi-audio-stage.s3.eu-west-1.amazonaws.com/mastered'
-
-// Phase display names
-const phaseLabels = {
-  idle: 'Ready',
-  prompt: 'Listen...',
-  pause: 'Your turn!',
-  voice1: 'Voice 1',
-  voice2: 'Voice 2',
-}
 
 // ============================================================================
 // VISUALIZATION CONFIG - All tunable parameters in one place
@@ -330,11 +307,10 @@ const beltPalettes = {
   },
 }
 
-// Calculate current belt based on node count (works for both demo and playback)
+// Calculate current belt based on node count
 // Belt thresholds based on LEGO count (approx 2-3 LEGOs per seed)
 const currentBelt = computed(() => {
-  // In playback mode, use the number of introduced LEGOs
-  const legoCount = isPlaybackMode.value ? nodes.value.length : currentRound.value
+  const legoCount = nodes.value.length
   // Belt thresholds (based on LEGO count, roughly 2x seed thresholds)
   if (legoCount >= 800) return 'black'   // ~400 seeds
   if (legoCount >= 560) return 'brown'   // ~280 seeds
@@ -765,20 +741,8 @@ const addNextLego = () => {
 }
 
 // ============================================================================
-// BRAIN VIEW PLAYBACK CONTROLS (CourseExplorer-style phase playback)
+// PATH ANIMATION UTILITIES
 // ============================================================================
-
-// Timer helpers
-const scheduleTimer = (fn, delay) => {
-  const timer = setTimeout(fn, delay)
-  playbackTimers.push(timer)
-  return timer
-}
-
-const clearAllTimers = () => {
-  playbackTimers.forEach(t => clearTimeout(t))
-  playbackTimers = []
-}
 
 /**
  * Clear path animation timers
@@ -1035,166 +999,6 @@ const resetPathAnimation = () => {
   pathAnimationIds.value = []
 }
 
-/**
- * @deprecated Use startWatchItGrow instead.
- * This function is deprecated. Learning has moved to LearningPlayer.vue.
- */
-const startPlayback = async () => {
-  if (isPlaybackMode.value || !courseCode.value) return
-
-  console.log('[LegoNetwork] Starting playback mode for:', courseCode.value)
-  isPlaybackLoading.value = true
-  isPlaybackMode.value = true
-
-  // Set current course ID for audio lookups
-  currentCourseId.value = courseCode.value
-
-  try {
-    // Try to load from cache first (includes audioMap)
-    const cached = await getCachedScript(courseCode.value)
-
-    let rounds = []
-    let flatItems = []
-    const legoIds = new Set()
-
-    if (cached) {
-      console.log('[LegoNetwork] Using cached script with audioMap')
-      rounds = cached.rounds || []
-      // CRITICAL: Load the audioMap from cache - this has the audio UUIDs
-      audioMap.value = new Map(Object.entries(cached.audioMapObj || {}))
-
-      // Flatten cached rounds
-      for (const round of rounds) {
-        for (const item of round.items || []) {
-          flatItems.push({
-            ...item,
-            roundNumber: round.roundNumber,
-          })
-          if (item.type === 'intro' && item.legoId) {
-            legoIds.add(item.legoId)
-          }
-        }
-      }
-    } else if (courseDataProvider?.value) {
-      // Generate fresh script if no cache
-      console.log('[LegoNetwork] Generating fresh script')
-      // Provider now contains all config - single source of truth
-      const script = await generateLearningScript(
-        courseDataProvider.value,
-        30 // maxLegos - start with 30 for brain view
-      )
-
-      rounds = script.rounds || []
-
-      // Flatten into our format
-      for (const round of rounds) {
-        for (const item of round.items) {
-          flatItems.push({
-            ...item,
-            roundNumber: round.roundNumber,
-          })
-          if (item.type === 'intro' && item.legoId) {
-            legoIds.add(item.legoId)
-          }
-        }
-      }
-    }
-
-    if (flatItems.length > 0) {
-      // Load intro audio for all LEGOs
-      if (legoIds.size > 0) {
-        await loadIntroAudio(courseCode.value, legoIds)
-      }
-
-      playbackQueue.value = flatItems
-      playbackIndex.value = 0
-      introducedLegoIds.value = new Set(nodes.value.map(n => n.id))
-
-      console.log('[LegoNetwork] Loaded', flatItems.length, 'items for playback')
-      // Debug: log first item to check structure
-      if (flatItems[0]) {
-        console.log('[LegoNetwork] First item structure:', {
-          type: flatItems[0].type,
-          legoId: flatItems[0].legoId,
-          knownText: flatItems[0].knownText,
-          targetText: flatItems[0].targetText,
-          hasAudioRefs: !!flatItems[0].audioRefs,
-          audioRefs: flatItems[0].audioRefs
-        })
-      }
-
-      // Initialize audio controller
-      if (!audioController.value) {
-        audioController.value = new ScriptAudioController()
-      }
-
-      // Start first item
-      await playFromIndex(0)
-    } else {
-      console.warn('[LegoNetwork] No items loaded for playback')
-      error.value = 'No learning content available'
-      stopPlayback()
-    }
-  } catch (err) {
-    console.error('[LegoNetwork] Failed to start playback:', err)
-    error.value = 'Failed to load learning content'
-    stopPlayback()
-  } finally {
-    isPlaybackLoading.value = false
-  }
-}
-
-/**
- * Stop playback mode
- */
-const stopPlayback = () => {
-  console.log('[LegoNetwork] Stopping playback')
-  cycleId++
-  clearAllTimers()
-  clearPathAnimationTimers()
-  stopPauseAnimation()
-  if (audioController.value) audioController.value.stop()
-
-  isPlaybackMode.value = false
-  currentPhase.value = 'idle'
-  currentItem.value = null
-  activeLegoIds.value = []
-  isIntroducingLego.value = false
-  introLego.value = null
-  playbackIndex.value = -1
-
-  // Reset path animation and node highlights
-  resetPathAnimation()
-  updateNodeHighlights([])
-
-  // Notify parent that playback ended
-  emit('playbackEnded')
-}
-
-/**
- * Skip to next item in playback
- */
-const skipToNext = () => {
-  if (!isPlaybackMode.value) return
-  const nextIndex = playbackIndex.value + 1
-  if (nextIndex < playbackQueue.value.length) {
-    console.log('[LegoNetwork] Skipping to next item:', nextIndex)
-    playFromIndex(nextIndex)
-  } else {
-    console.log('[LegoNetwork] No more items, stopping playback')
-    stopPlayback()
-  }
-}
-
-/**
- * Revisit/replay the current item
- */
-const revisitCurrent = () => {
-  if (!isPlaybackMode.value || playbackIndex.value < 0) return
-  console.log('[LegoNetwork] Revisiting current item:', playbackIndex.value)
-  playFromIndex(playbackIndex.value)
-}
-
 // ============================================================================
 // REPLAY MODE (formerly "Watch It Grow")
 // Accelerated playback showing network growth at adjustable speed (1x-16x)
@@ -1204,7 +1008,7 @@ const watchSpeed = ref(2) // 1x, 2x, 4x, 8x, 16x
 let watchInterval = null
 
 const startWatchItGrow = async () => {
-  if (isWatchMode.value || isPlaybackMode.value) return
+  if (isWatchMode.value) return
 
   console.log('[LegoNetwork] Starting Replay mode')
   isWatchMode.value = true
@@ -1267,25 +1071,6 @@ const stopWatchItGrow = () => {
     clearTimeout(watchInterval)
     watchInterval = null
   }
-}
-
-/**
- * @deprecated Use startWatchItGrow instead.
- * Replay Journey was full playback at learning pace. Now deprecated.
- */
-const replayJourney = async () => {
-  if (isPlaybackMode.value || isWatchMode.value) return
-
-  console.log('[LegoNetwork] Starting Replay Journey')
-
-  // Reset the network to replay from scratch
-  nodes.value = []
-  links.value = []
-  introducedLegoIds.value = new Set()
-  updateGraph()
-
-  // Start playback (will load content and begin playing)
-  await startPlayback()
 }
 
 const setWatchSpeed = (speed) => {
@@ -1370,392 +1155,14 @@ const runWatchStep = () => {
   watchInterval = setTimeout(runWatchStep, delay)
 }
 
-/**
- * Play from a specific index
- */
-const playFromIndex = async (flatIndex) => {
-  const item = playbackQueue.value[flatIndex]
-  if (!item) return
-
-  clearAllTimers()
-  if (audioController.value) audioController.value.stop()
-
-  // Reset path animation from previous cycle
-  resetPathAnimation()
-
-  const myCycleId = ++cycleId
-  console.log('[LegoNetwork] Starting cycle', myCycleId, 'at index', flatIndex, 'item:', item.legoId, item.targetText)
-
-  playbackIndex.value = flatIndex
-  currentItem.value = item
-
-  // Check if this introduces a new LEGO
-  const legoId = item.legoId
-  if (legoId && !introducedLegoIds.value.has(legoId)) {
-    await introduceNewLego(item)
-  }
-
-  // Highlight active nodes
-  activeLegoIds.value = [legoId]
-  updateNodeHighlights([legoId])
-
-  // Start phase cycle
-  await runPhase('prompt', myCycleId)
-}
-
-/**
- * Estimate syllable count from text (for pause duration calculation)
- * Counts vowel groups as a rough approximation
- */
-const estimateSyllables = (text) => {
-  if (!text) return 2
-  // Remove punctuation and split on spaces
-  const words = text.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/)
-  let total = 0
-  for (const word of words) {
-    // Count vowel groups (including Spanish/Chinese approximation)
-    const vowelGroups = word.match(/[aeiouyàáâãäåèéêëìíîïòóôõöùúûü]+/g)
-    total += vowelGroups ? vowelGroups.length : 1
-  }
-  return Math.max(2, total) // Minimum 2 syllables
-}
-
-/**
- * Calculate pause duration based on syllable count
- * Formula: 1500ms (boot-up/thinking) + syllables × 350ms (speaking time)
- * Gives learner generous time to formulate and speak
- */
-const calculatePauseDuration = (item) => {
-  // Try to get syllable count from item audio durations if available
-  const audioDurations = item?.audioDurations
-  if (audioDurations?.target1 && audioDurations?.target2) {
-    // Use total target audio duration × 1.2 as pause time (more generous)
-    const targetDuration = (audioDurations.target1 + audioDurations.target2)
-    return 1500 + (targetDuration * 1.2)
-  }
-  // Estimate from text - more generous timing
-  const syllables = estimateSyllables(item?.targetText)
-  return 1500 + (syllables * 350)
-}
-
-/**
- * Start the pause animation (breathing ring)
- */
-const startPauseAnimation = (duration) => {
-  pauseStartTime = performance.now()
-  pauseDuration.value = duration
-  pauseProgress.value = 0
-
-  const animate = () => {
-    const elapsed = performance.now() - pauseStartTime
-    pauseProgress.value = Math.min(elapsed / duration, 1)
-    if (pauseProgress.value < 1) {
-      pauseAnimationFrame = requestAnimationFrame(animate)
-    }
-  }
-  pauseAnimationFrame = requestAnimationFrame(animate)
-}
-
-/**
- * Stop the pause animation
- */
-const stopPauseAnimation = () => {
-  if (pauseAnimationFrame) {
-    cancelAnimationFrame(pauseAnimationFrame)
-    pauseAnimationFrame = null
-  }
-  pauseProgress.value = 0
-}
-
-/**
- * Run a playback phase
- */
-const runPhase = async (phase, myCycleId) => {
-  if (myCycleId !== cycleId) return
-
-  const item = playbackQueue.value[playbackIndex.value]
-  if (!item) {
-    advanceToNextItem(myCycleId)
-    return
-  }
-
-  currentPhase.value = phase
-  console.log('[LegoNetwork] Cycle', myCycleId, 'phase:', phase)
-  updatePhaseHighlighting()
-
-  switch (phase) {
-    case 'prompt': {
-      // For intro items, play intro audio if available
-      const isIntro = item.type === 'intro'
-      let promptUrl = null
-
-      if (isIntro) {
-        // Try to play intro audio
-        promptUrl = await getAudioUrlAsync(null, 'intro', item)
-        if (myCycleId !== cycleId) return
-
-        if (promptUrl) {
-          try {
-            await audioController.value.play({ url: promptUrl })
-            if (myCycleId !== cycleId) return
-          } catch (err) {
-            console.warn('[LegoNetwork] Intro audio failed:', err)
-          }
-        }
-        // After intro, advance to next item
-        scheduleTimer(() => {
-          if (myCycleId === cycleId) advanceToNextItem(myCycleId)
-        }, 500)
-        return
-      }
-
-      // Get known audio URL using async lookup
-      promptUrl = await getAudioUrlAsync(item.knownText, 'known', item)
-      if (myCycleId !== cycleId) return
-
-      if (promptUrl) {
-        try {
-          await audioController.value.play({ url: promptUrl })
-          if (myCycleId !== cycleId) return
-          runPhase('pause', myCycleId)
-          return
-        } catch (err) {
-          console.warn('[LegoNetwork] Prompt audio failed:', err)
-          if (myCycleId !== cycleId) return
-        }
-      }
-      if (myCycleId === cycleId) runPhase('pause', myCycleId)
-      break
-    }
-
-    case 'pause': {
-      // Calculate pause duration based on syllables
-      const pauseMs = calculatePauseDuration(item)
-      console.log('[LegoNetwork] Pause duration:', pauseMs, 'ms for:', item?.targetText)
-
-      // Start breathing animation
-      startPauseAnimation(pauseMs)
-
-      scheduleTimer(() => {
-        if (myCycleId === cycleId) {
-          stopPauseAnimation()
-          runPhase('voice1', myCycleId)
-        }
-      }, pauseMs)
-      break
-    }
-
-    case 'voice1': {
-      const voice1Url = await getAudioUrlAsync(item.targetText, 'target1', item)
-      if (myCycleId !== cycleId) return
-
-      if (voice1Url) {
-        try {
-          await audioController.value.play({ url: voice1Url })
-          if (myCycleId !== cycleId) return
-          runPhase('voice2', myCycleId)
-          return
-        } catch (err) {
-          console.warn('[LegoNetwork] Voice1 audio failed:', err)
-          if (myCycleId !== cycleId) return
-        }
-      }
-      if (myCycleId === cycleId) runPhase('voice2', myCycleId)
-      break
-    }
-
-    case 'voice2': {
-      // Decompose target text into LEGO path and start path animation
-      const legoPath = decomposePhrase(item.targetText)
-      if (legoPath.length > 0) {
-        console.log('[LegoNetwork] Voice2 path:', item.targetText, '->', legoPath)
-        // Estimate audio duration (approximately 2 seconds for most phrases)
-        const estimatedDuration = 2000
-        animatePathSequence(legoPath, estimatedDuration)
-        // Update activeLegoIds to include all path nodes
-        activeLegoIds.value = [...legoPath]
-        // Strengthen edges - each traversal makes the connection thicker
-        strengthenPathEdges(legoPath)
-      }
-
-      const voice2Url = await getAudioUrlAsync(item.targetText, 'target2', item)
-      if (myCycleId !== cycleId) return
-
-      if (voice2Url) {
-        try {
-          await audioController.value.play({ url: voice2Url })
-          if (myCycleId !== cycleId) return
-          // Keep path highlighted - will be reset on next cycle
-          advanceToNextItem(myCycleId)
-          return
-        } catch (err) {
-          console.warn('[LegoNetwork] Voice2 audio failed:', err)
-          if (myCycleId !== cycleId) return
-        }
-      }
-      if (myCycleId === cycleId) advanceToNextItem(myCycleId)
-      break
-    }
-  }
-}
-
-/**
- * Advance to the next item
- */
-const advanceToNextItem = (myCycleId) => {
-  if (myCycleId !== cycleId) return
-
-  const nextIndex = playbackIndex.value + 1
-  if (nextIndex >= playbackQueue.value.length) {
-    console.log('[LegoNetwork] Playback complete')
-    stopPlayback()
-    return
-  }
-
-  scheduleTimer(() => {
-    if (myCycleId === cycleId) {
-      playFromIndex(nextIndex)
-    }
-  }, 500)
-}
-
-/**
- * Introduce a new LEGO with animation
- */
-const introduceNewLego = async (item) => {
-  const legoId = item.legoId
-  if (!legoId) return
-
-  console.log('[LegoNetwork] Introducing new LEGO:', legoId)
-
-  isIntroducingLego.value = true
-  introLego.value = {
-    id: legoId,
-    target: item.targetText,
-    known: item.knownText,
-  }
-
-  // Add the new node to the network
-  const newNode = {
-    id: legoId,
-    seedId: item.seedId || '',
-    legoIndex: parseInt(legoId.split('L')[1]) || 1,
-    knownText: item.knownText || '',
-    targetText: item.targetText || '',
-    totalPractices: 0,
-    usedInPhrases: 1,
-    mastery: 0.1,
-    isEternal: false,
-    birthBelt: currentBelt.value,
-    isNew: true,
-  }
-
-  nodes.value.push(newNode)
-  introducedLegoIds.value.add(legoId)
-
-  // Add connections from fullNetworkData if available
-  if (fullNetworkData.value) {
-    const existingNodeIds = new Set(nodes.value.slice(0, -1).map(n => n.id))
-    const realConnections = fullNetworkData.value.connections.filter(conn =>
-      (conn.source === legoId && existingNodeIds.has(conn.target)) ||
-      (conn.target === legoId && existingNodeIds.has(conn.source))
-    )
-
-    for (const conn of realConnections) {
-      links.value.push({
-        source: conn.source,
-        target: conn.target,
-        count: conn.count,
-      })
-    }
-  }
-
-  // Update visualization
-  updateVisualization()
-
-  // Show intro for a moment
-  await new Promise(resolve => setTimeout(resolve, VIZ_CONFIG.timing.introDisplay))
-  isIntroducingLego.value = false
-}
-
-/**
- * Update node highlighting based on active LEGOs
- */
-const updateNodeHighlights = (legoIds) => {
-  if (!nodesLayer) return
-
-  const activeSet = new Set(legoIds)
-
-  nodesLayer.selectAll('.node')
-    .classed('active', d => activeSet.has(d.id))
-    .classed('inactive', d => legoIds.length > 0 && !activeSet.has(d.id))
-
-  // Update glow intensity
-  nodesLayer.selectAll('.node.active .node-glow')
-    .attr('opacity', 1)
-    .attr('filter', 'url(#glow)')
-
-  nodesLayer.selectAll('.node.inactive .node-glow')
-    .attr('opacity', 0.2)
-
-  // Highlight connections between active nodes
-  if (linksLayer) {
-    linksLayer.selectAll('.link')
-      .classed('active', d => {
-        const sId = d.source.id || d.source
-        const tId = d.target.id || d.target
-        return activeSet.has(sId) && activeSet.has(tId)
-      })
-      .attr('stroke-opacity', d => {
-        const sId = d.source.id || d.source
-        const tId = d.target.id || d.target
-        return (activeSet.has(sId) && activeSet.has(tId)) ? 1 : 0.3
-      })
-  }
-
-  // Update label visibility for active nodes
-  updateLabelOpacities()
-}
-
-/**
- * Update visual style based on current phase
- */
-const updatePhaseHighlighting = () => {
-  if (!nodesLayer) return
-
-  const phase = currentPhase.value
-
-  // Phase-specific visual effects
-  nodesLayer.selectAll('.node.active .node-core')
-    .transition()
-    .duration(200)
-    .attr('r', phase === 'pause' ? 16 : phase === 'voice2' ? 14 : 12)
-
-  // Pulse effect during pause (learner speaking)
-  if (phase === 'pause') {
-    nodesLayer.selectAll('.node.active .node-glow')
-      .transition()
-      .duration(400)
-      .attr('r', 24)
-      .attr('opacity', 0.9)
-      .transition()
-      .duration(400)
-      .attr('r', 18)
-      .attr('opacity', 0.7)
-  }
-
-  // Bright flash on voice2 (answer revealed)
-  if (phase === 'voice2') {
-    nodesLayer.selectAll('.node.active .node-glow')
-      .transition()
-      .duration(100)
-      .attr('opacity', 1)
-      .attr('stroke-width', 4)
-      .transition()
-      .duration(500)
-      .attr('stroke-width', 2)
-  }
-}
+// ============================================================================
+// DEPRECATED CYCLE CODE REMOVED
+// The following functions were removed as they duplicated LearningPlayer.vue:
+// - playFromIndex, runPhase, advanceToNextItem (4-phase cycle)
+// - estimateSyllables, calculatePauseDuration, startPauseAnimation, stopPauseAnimation
+// - introduceNewLego, updateNodeHighlights, updatePhaseHighlighting
+// Learning happens in LearningPlayer.vue. LegoNetwork is for replay visualization only.
+// ============================================================================
 
 // ============================================================================
 // Data Loading
@@ -2387,10 +1794,9 @@ const updateLabelOpacities = () => {
   const k = currentZoom.value
   const selectedId = selectedNode.value?.id
   const hoveredId = hoveredNode.value?.id
-  const activeIds = isPlaybackMode.value ? activeLegoIds.value : []
 
   labelsLayer.selectAll('.node-label')
-    .style('opacity', d => getLabelOpacity(d, k, d.id === hoveredId, d.id === selectedId, activeIds.includes(d.id)))
+    .style('opacity', d => getLabelOpacity(d, k, d.id === hoveredId, d.id === selectedId, false))
 }
 
 // Truncate text to prevent overlap (max 15 chars)
@@ -2722,18 +2128,6 @@ defineExpose({
     <div v-if="!isWatchMode && nodes.length > 0" class="minimal-stats">
       <span class="stat-pill">{{ nodes.length }} LEGOs</span>
     </div>
-
-    <!-- NEW LEGO INTRODUCTION OVERLAY -->
-    <Transition name="intro-burst">
-      <div v-if="isIntroducingLego && introLego" class="intro-overlay">
-        <div class="intro-content">
-          <div class="intro-badge">NEW LEGO</div>
-          <div class="intro-target">{{ introLego?.target }}</div>
-          <div class="intro-known">{{ introLego?.known }}</div>
-          <div class="intro-burst"></div>
-        </div>
-      </div>
-    </Transition>
 
     <!-- Loading -->
     <div v-if="isLoading" class="loading">
