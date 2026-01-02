@@ -1091,23 +1091,30 @@ const handleCycleEvent = (event) => {
         setTimeout(async () => {
           if (isPlaying.value && orchestrator.value) {
             // INTRO items: play introduction audio directly, then advance
-            // NOTE: Some courses (e.g., Spanish) have target voices baked into intro audio,
-            // so we skip the DEBUT item that follows to avoid repeating the same audio.
             if (nextScriptItem.type === 'intro') {
               console.log('[LearningPlayer] Playing INTRO item for:', nextScriptItem.legoId)
-              const nextPlayable = await scriptItemToPlayableItem(nextScriptItem)
-              if (nextPlayable) {
-                currentPlayableItem.value = nextPlayable
+              const introPlayable = await scriptItemToPlayableItem(nextScriptItem)
+              if (introPlayable) {
+                currentPlayableItem.value = introPlayable
                 // Play intro audio and wait for completion
                 const introPlayed = await playIntroductionAudioDirectly(nextScriptItem.legoId)
                 if (introPlayed) {
                   console.log('[LearningPlayer] INTRO complete, advancing to next item')
                 }
-                // Advance to next item in round
+                // Advance to next item in round (the DEBUT that follows)
                 currentItemInRound.value++
-                // Trigger next item by emitting a fake completion
-                if (isPlaying.value) {
-                  handleCycleEvent({ type: 'item_completed' })
+                // Get and play the next item directly (don't call handleCycleEvent which would double-increment)
+                const followingItem = currentRound.value?.items[currentItemInRound.value]
+                if (followingItem && isPlaying.value) {
+                  const followingPlayable = await scriptItemToPlayableItem(followingItem)
+                  if (followingPlayable) {
+                    currentPlayableItem.value = followingPlayable
+                    if (!turboActive.value && followingPlayable.audioDurations) {
+                      const pauseMs = 1500 + Math.round(followingPlayable.audioDurations.target1 * 1000)
+                      orchestrator.value.updateConfig({ pause_duration_ms: pauseMs })
+                    }
+                    orchestrator.value.startItem(followingPlayable)
+                  }
                 }
               }
               return
@@ -1573,11 +1580,20 @@ const startPlayback = async () => {
         currentPlayableItem.value = playableItem
         // Play intro audio and wait for completion
         await playIntroductionAudioDirectly(scriptItem.legoId)
-        // Advance to next item in round
+        // Advance to next item in round (the DEBUT that follows)
         currentItemInRound.value++
-        // Continue with next item
-        if (isPlaying.value) {
-          handleCycleEvent({ type: 'item_completed' })
+        // Get and play the next item directly (don't call handleCycleEvent which would double-increment)
+        const nextItem = currentRound.value?.items[currentItemInRound.value]
+        if (nextItem && isPlaying.value) {
+          const nextPlayable = await scriptItemToPlayableItem(nextItem)
+          if (nextPlayable) {
+            currentPlayableItem.value = nextPlayable
+            if (!turboActive.value && nextPlayable.audioDurations) {
+              const pauseMs = 1500 + Math.round(nextPlayable.audioDurations.target1 * 1000)
+              orchestrator.value.updateConfig({ pause_duration_ms: pauseMs })
+            }
+            orchestrator.value.startItem(nextPlayable)
+          }
         }
       }
       return
