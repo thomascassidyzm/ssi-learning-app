@@ -9,30 +9,31 @@ import { ref, computed, type Ref } from 'vue'
 
 // Import locale files statically for now
 // In future, could lazy-load based on known language
-import en from '../locales/en.json'
-import es from '../locales/es.json'
-import cy from '../locales/cy.json'
+// File names use ISO 639-3 codes (3-char)
+import eng from '../locales/eng.json'
+import spa from '../locales/spa.json'
+import cym from '../locales/cym.json'
 
 // Map ISO 639-3 codes to locale files
-// Multiple codes can map to same locale (e.g., cym_n and cym_s both use cy)
-const LOCALE_MAP: Record<string, typeof en> = {
-  eng: en,
-  spa: es,
-  cym: cy,
-  cym_n: cy,
-  cym_s: cy,
+// Multiple codes can map to same locale (e.g., cym_n and cym_s both use cym)
+const LOCALE_MAP: Record<string, typeof eng> = {
+  eng: eng,
+  spa: spa,
+  cym: cym,
+  cym_n: cym,
+  cym_s: cym,
 }
 
 // Current locale state (shared across app)
 const currentLocale: Ref<string> = ref('eng')
-const currentMessages: Ref<typeof en> = ref(en)
+const currentMessages: Ref<typeof eng> = ref(eng)
 
 /**
  * Set the current locale based on the user's known language
  */
 export const setLocale = (langCode: string) => {
   currentLocale.value = langCode
-  currentMessages.value = LOCALE_MAP[langCode] || en
+  currentMessages.value = LOCALE_MAP[langCode] || eng
 }
 
 /**
@@ -47,7 +48,7 @@ export const t = (key: string, fallback?: string): string => {
       value = value[part]
     } else {
       // Try English fallback
-      value = en
+      value = eng
       for (const p of parts) {
         if (value && typeof value === 'object' && p in value) {
           value = value[p]
