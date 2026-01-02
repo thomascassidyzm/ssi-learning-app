@@ -1229,7 +1229,7 @@ const startWatchItGrow = async () => {
         supabase.value,
         currentCourseCode,
         AUDIO_S3_BASE_URL,
-        100, // maxLegos for Replay
+        9999, // Load ALL LEGOs for full visualization
       )
 
       // Flatten rounds into linear list
@@ -1314,14 +1314,25 @@ const runWatchStep = () => {
   if (legoId && !introducedLegoIds.value.has(legoId)) {
     introducedLegoIds.value.add(legoId)
 
-    // Add node
+    // Calculate belt based on current LEGO count (when this LEGO is introduced)
+    const legoCount = nodes.value.length
+    let birthBelt = 'white'
+    if (legoCount >= 800) birthBelt = 'black'
+    else if (legoCount >= 560) birthBelt = 'brown'
+    else if (legoCount >= 300) birthBelt = 'purple'
+    else if (legoCount >= 160) birthBelt = 'blue'
+    else if (legoCount >= 80) birthBelt = 'green'
+    else if (legoCount >= 40) birthBelt = 'orange'
+    else if (legoCount >= 16) birthBelt = 'yellow'
+
+    // Add node with belt-based coloring
     const newNode = {
       id: legoId,
       targetText: item.targetText,
       knownText: item.knownText,
       mastery: 0.3 + Math.random() * 0.3,
       practices: 1,
-      birthBelt: props.beltLevel,
+      birthBelt: birthBelt,
       isEternal: false
     }
     nodes.value.push(newNode)
