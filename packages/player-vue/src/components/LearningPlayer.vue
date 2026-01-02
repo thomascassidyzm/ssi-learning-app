@@ -139,8 +139,8 @@ const courseDataProvider = inject('courseDataProvider', { value: null })
 const supabase = inject('supabase', { value: null })
 const auth = inject('auth', null)
 
-// Get course code from prop, falling back to Chinese course (has full data)
-const courseCode = computed(() => props.course?.course_code || 'zho_for_eng')
+// Get course code from prop (required - App.vue ensures course exists before rendering)
+const courseCode = computed(() => props.course?.course_code || '')
 
 // Alias for ReportIssueButton
 const activeCourseCode = courseCode

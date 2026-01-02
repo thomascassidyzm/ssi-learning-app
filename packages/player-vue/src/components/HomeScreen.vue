@@ -46,18 +46,8 @@ const showCourseSelector = ref(false)
 const activeCourseData = computed(() => {
   const course = props.activeCourse
   if (!course) {
-    // Fallback mock data for development (Chinese course has full data)
-    return {
-      course_code: 'zho_for_eng',
-      title: 'Chinese',
-      subtitle: 'for English Speakers',
-      target_flag: '🇨🇳',
-      known_lang: 'eng',
-      progress: 0,
-      completedSeeds: 0,
-      totalSeeds: 668,
-      lastSession: 'Never',
-    }
+    // No course yet - will show loading state
+    return null
   }
 
   // Get language metadata for display
@@ -157,8 +147,16 @@ const openCourseSelector = () => {
         <p class="subtitle">Ready to continue your journey?</p>
       </section>
 
+      <!-- Loading State -->
+      <section class="hero-card hero-loading" v-if="!activeCourseData">
+        <div class="loading-content">
+          <div class="loading-spinner"></div>
+          <span>Loading course...</span>
+        </div>
+      </section>
+
       <!-- Active Course Hero -->
-      <section class="hero-card" v-if="activeCourseData">
+      <section class="hero-card" v-else>
         <div class="hero-bg">
           <div class="hero-pattern"></div>
         </div>
@@ -432,6 +430,34 @@ const openCourseSelector = () => {
 .hero-card:hover {
   border-color: var(--border-medium);
   transform: translateY(-1px);
+}
+
+.hero-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+}
+
+.loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  color: var(--text-muted);
+}
+
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border-subtle);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .hero-card:active {

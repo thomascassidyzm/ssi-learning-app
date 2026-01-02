@@ -302,7 +302,7 @@ onMounted(async () => {
     <!-- Learning Player -->
     <Transition name="slide-up" mode="out-in">
       <LearningPlayer
-        v-if="currentScreen === 'player'"
+        v-if="currentScreen === 'player' && activeCourse"
         :classContext="classContext"
         :course="activeCourse"
         @close="handleGoHome"
