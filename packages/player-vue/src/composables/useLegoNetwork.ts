@@ -146,13 +146,27 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
 
       console.log(`[useLegoNetwork] Loaded ${nodes.length} LEGOs`)
 
-      // Load all phrases for the course
-      const { data: phrases, error: phraseError } = await supabase.value
-        .from('course_practice_phrases')
-        .select('id, target_text')
-        .eq('course_code', courseCode)
+      // Load all phrases for the course (paginate to get beyond 1000 row limit)
+      let allPhrases: { id: string; target_text: string }[] = []
+      let offset = 0
+      const pageSize = 1000
 
-      if (phraseError) throw phraseError
+      while (true) {
+        const { data: phrasePage, error: phraseError } = await supabase.value
+          .from('course_practice_phrases')
+          .select('id, target_text')
+          .eq('course_code', courseCode)
+          .range(offset, offset + pageSize - 1)
+
+        if (phraseError) throw phraseError
+        if (!phrasePage || phrasePage.length === 0) break
+
+        allPhrases = allPhrases.concat(phrasePage)
+        if (phrasePage.length < pageSize) break
+        offset += pageSize
+      }
+
+      const phrases = allPhrases
 
       console.log(`[useLegoNetwork] Loaded ${phrases?.length || 0} phrases`)
 
