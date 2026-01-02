@@ -24,16 +24,37 @@ const LOCALE_MAP: Record<string, typeof eng> = {
   cym_s: cym,
 }
 
+// localStorage key for persisting locale preference
+const LOCALE_STORAGE_KEY = 'ssi-locale'
+
+// Load saved locale or default to English
+const getSavedLocale = (): string => {
+  try {
+    return localStorage.getItem(LOCALE_STORAGE_KEY) || 'eng'
+  } catch {
+    return 'eng'
+  }
+}
+
 // Current locale state (shared across app)
-const currentLocale: Ref<string> = ref('eng')
-const currentMessages: Ref<typeof eng> = ref(eng)
+const savedLocale = getSavedLocale()
+const currentLocale: Ref<string> = ref(savedLocale)
+const currentMessages: Ref<typeof eng> = ref(LOCALE_MAP[savedLocale] || eng)
 
 /**
  * Set the current locale based on the user's known language
+ * Persists to localStorage for next visit
  */
 export const setLocale = (langCode: string) => {
   currentLocale.value = langCode
   currentMessages.value = LOCALE_MAP[langCode] || eng
+
+  // Persist choice
+  try {
+    localStorage.setItem(LOCALE_STORAGE_KEY, langCode)
+  } catch {
+    // localStorage might be unavailable
+  }
 }
 
 /**
