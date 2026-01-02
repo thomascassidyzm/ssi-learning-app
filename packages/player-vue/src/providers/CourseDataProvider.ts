@@ -82,6 +82,28 @@ export class CourseDataProvider {
   }
 
   /**
+   * Get the Supabase client (for use by generateLearningScript)
+   * This ensures all database access uses the same client instance
+   */
+  getClient(): SupabaseClient | undefined {
+    return this.client
+  }
+
+  /**
+   * Get the audio base URL
+   */
+  getAudioBaseUrl(): string {
+    return this.audioBaseUrl
+  }
+
+  /**
+   * Get the course ID
+   */
+  getCourseId(): string {
+    return this.courseId
+  }
+
+  /**
    * Load learning items for a session
    * Tries database first, falls back to demo items if not available
    */
@@ -1178,12 +1200,19 @@ async function loadDebutPhrases(
  */
 export async function generateLearningScript(
   provider: CourseDataProvider,
-  supabase: any,
-  courseId: string,
-  audioBaseUrl: string,
   maxLegos: number = 50,
   offset: number = 0
 ): Promise<{ rounds: RoundData[]; allItems: ScriptItem[] }> {
+  // Use provider's client - single source of truth (eliminates parameter mismatch bugs)
+  const supabase = provider.getClient()
+  const courseId = provider.getCourseId()
+  const audioBaseUrl = provider.getAudioBaseUrl()
+
+  if (!supabase) {
+    console.warn('[generateLearningScript] No Supabase client available')
+    return { rounds: [], allItems: [] }
+  }
+
   // Load unique LEGOs with pagination
   const legos = await provider.loadAllUniqueLegos(maxLegos, offset)
 

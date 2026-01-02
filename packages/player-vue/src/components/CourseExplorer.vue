@@ -267,11 +267,9 @@ const loadScript = async (forceRefresh = false) => {
 
     // Generate FULL script - all LEGOs
     console.log('[CourseExplorer] Generating FULL script for:', courseId)
+    // Provider now contains all config - single source of truth
     const script = await generateLearningScript(
       courseDataProvider.value,
-      supabase.value,
-      courseId,
-      audioBaseUrl,
       totalLegos.value || 1000 // Load all LEGOs
     )
     console.log('[CourseExplorer] Full script generated:', script?.rounds?.length, 'rounds')

@@ -13,7 +13,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 // Cache configuration
 // Bump version when script generation logic or database schema changes
-const SCRIPT_KEY_PREFIX = 'ssi-script-v3-' // v3: practice_cycles view fix (target_syllable_count)
+const SCRIPT_KEY_PREFIX = 'ssi-script-v5-' // v5: fixed phrase loading - uses provider's internal client
 const AUDIO_CACHE_NAME = 'ssi-audio-v1'
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
 

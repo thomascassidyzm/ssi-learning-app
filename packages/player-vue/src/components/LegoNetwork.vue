@@ -1075,15 +1075,13 @@ const startPlayback = async () => {
           }
         }
       }
-    } else if (courseDataProvider?.value && supabase?.value) {
+    } else if (courseDataProvider?.value) {
       // Generate fresh script if no cache
       console.log('[LegoNetwork] Generating fresh script')
+      // Provider now contains all config - single source of truth
       const script = await generateLearningScript(
         courseDataProvider.value,
-        supabase.value,
-        courseCode.value,
-        AUDIO_S3_BASE_URL,
-        30, // maxLegos - start with 30 for brain view
+        30 // maxLegos - start with 30 for brain view
       )
 
       rounds = script.rounds || []
@@ -1216,20 +1214,18 @@ const startWatchItGrow = async () => {
     isPlaybackLoading.value = true
     try {
       const currentCourseCode = props.course?.course_code
-      if (!currentCourseCode || !courseDataProvider.value || !supabase?.value) {
-        console.error('[LegoNetwork] No course, provider, or supabase')
+      if (!currentCourseCode || !courseDataProvider.value) {
+        console.error('[LegoNetwork] No course or provider')
         isWatchMode.value = false
         return
       }
 
       // Generate learning script using the correct provider API
+      // Provider now contains all config - single source of truth
       console.log('[LegoNetwork] Generating script for Replay mode')
       const script = await generateLearningScript(
         courseDataProvider.value,
-        supabase.value,
-        currentCourseCode,
-        AUDIO_S3_BASE_URL,
-        9999, // Load ALL LEGOs for full visualization
+        9999 // Load ALL LEGOs for full visualization
       )
 
       // Flatten rounds into linear list

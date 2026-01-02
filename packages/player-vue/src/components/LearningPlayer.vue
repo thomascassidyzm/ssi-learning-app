@@ -246,6 +246,14 @@ const scriptItemToPlayableItem = async (scriptItem) => {
   // Check if script item already has audio refs populated (from generateLearningScript)
   const hasPreloadedAudio = scriptItem.audioRefs?.known?.url || scriptItem.audioRefs?.target?.voice1?.url
 
+  // Debug: log what we're receiving
+  console.log('[scriptItemToPlayableItem] Item type:', scriptItem.type, 'hasPreloadedAudio:', hasPreloadedAudio,
+    'audioRefs:', scriptItem.audioRefs ? {
+      known: scriptItem.audioRefs.known?.url ? 'YES' : 'NO',
+      target1: scriptItem.audioRefs.target?.voice1?.url ? 'YES' : 'NO',
+      target2: scriptItem.audioRefs.target?.voice2?.url ? 'YES' : 'NO'
+    } : 'NONE')
+
   let knownAudioUrl, target1AudioUrl, target2AudioUrl
 
   if (hasPreloadedAudio) {
@@ -253,6 +261,7 @@ const scriptItemToPlayableItem = async (scriptItem) => {
     knownAudioUrl = scriptItem.audioRefs?.known?.url
     target1AudioUrl = scriptItem.audioRefs?.target?.voice1?.url
     target2AudioUrl = scriptItem.audioRefs?.target?.voice2?.url
+    console.log('[scriptItemToPlayableItem] Using preloaded:', { knownAudioUrl, target1AudioUrl, target2AudioUrl })
   } else {
     // Fallback: Look up audio URLs from cache (lazy loaded)
     knownAudioUrl = await getAudioUrlFromCache(
@@ -1970,18 +1979,16 @@ onMounted(async () => {
 
         // Wait for all parallel tasks
         await Promise.all(parallelTasks)
-      } else if (courseDataProvider.value && supabase?.value) {
+      } else if (courseDataProvider.value) {
         // ============================================
         // GENERATE NEW SCRIPT (cache was empty)
         // ============================================
         console.log('[LearningPlayer] No cached script, generating new one...')
 
         try {
+          // Provider now contains all config - single source of truth
           const { rounds, allItems } = await generateLearningScript(
             courseDataProvider.value,
-            supabase.value,
-            courseCode.value,
-            AUDIO_S3_BASE_URL,
             50, // maxLegos
             0   // offset
           )
