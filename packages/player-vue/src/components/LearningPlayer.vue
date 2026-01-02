@@ -1314,6 +1314,10 @@ const playIntroductionIfNeeded = async (item) => {
         audio.removeEventListener('error', onError)
         isPlayingIntroduction.value = false
         introductionPhase.value = false
+        // Reset skipNextNotify so next audio triggers orchestrator callbacks
+        if (audioController.value) {
+          audioController.value.skipNextNotify = false
+        }
         console.log('[LearningPlayer] Introduction complete for LEGO:', legoId)
         resolve(true)
       }
@@ -1324,6 +1328,10 @@ const playIntroductionIfNeeded = async (item) => {
         audio.removeEventListener('error', onError)
         isPlayingIntroduction.value = false
         introductionPhase.value = false
+        // Reset skipNextNotify so next audio triggers orchestrator callbacks
+        if (audioController.value) {
+          audioController.value.skipNextNotify = false
+        }
         resolve(false)
       }
 
@@ -1398,6 +1406,10 @@ const playIntroductionAudioDirectly = async (legoId) => {
         isPlayingIntroduction.value = false
         introductionPhase.value = false
         introAudioElement = null
+        // Reset skipNextNotify so next audio triggers orchestrator callbacks
+        if (audioController.value) {
+          audioController.value.skipNextNotify = false
+        }
         console.log('[LearningPlayer] Introduction complete for:', legoId)
         resolve(true)
       }
@@ -1409,6 +1421,10 @@ const playIntroductionAudioDirectly = async (legoId) => {
         isPlayingIntroduction.value = false
         introductionPhase.value = false
         introAudioElement = null
+        // Reset skipNextNotify so next audio triggers orchestrator callbacks
+        if (audioController.value) {
+          audioController.value.skipNextNotify = false
+        }
         resolve(false)
       }
 
@@ -1507,6 +1523,10 @@ const playWelcomeIfNeeded = async () => {
         showWelcomeSkip.value = false
         welcomeAudioElement = null
         welcomeResolve = null
+        // Reset skipNextNotify so next audio triggers orchestrator callbacks
+        if (audioController.value) {
+          audioController.value.skipNextNotify = false
+        }
         // Mark as played
         if (courseDataProvider.value) {
           await courseDataProvider.value.markWelcomePlayed(learnerId.value)
@@ -1549,6 +1569,11 @@ const skipWelcome = async () => {
   isPlayingWelcome.value = false
   showWelcomeSkip.value = false
   welcomeAudioElement = null
+
+  // Reset skipNextNotify so next audio triggers orchestrator callbacks
+  if (audioController.value) {
+    audioController.value.skipNextNotify = false
+  }
 
   // Resolve the promise so startPlayback can continue
   if (welcomeResolve) {
