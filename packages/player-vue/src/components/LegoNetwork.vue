@@ -1678,8 +1678,20 @@ const initVisualization = () => {
   simulation = d3.forceSimulation(nodes.value)
     .force('link', d3.forceLink(links.value)
       .id(d => d.id)
-      .distance(f.linkDistance)
-      .strength(f.linkStrength))
+      .distance(d => {
+        // Hebbian: neurons that fire together wire together
+        // Stronger connections (higher count) = shorter distance = tighter clustering
+        const baseDistance = f.linkDistance
+        const minDistance = 40
+        const count = d.count || 1
+        // Logarithmic scaling to handle wide range of counts
+        return Math.max(minDistance, baseDistance / (1 + Math.log(count + 1) * 0.8))
+      })
+      .strength(d => {
+        // Stronger connections also pull harder
+        const count = d.count || 1
+        return Math.min(0.8, f.linkStrength + Math.log(count + 1) * 0.1)
+      }))
     .force('charge', d3.forceManyBody()
       .strength(f.chargeStrength)
       .distanceMax(f.chargeDistanceMax))
@@ -1731,11 +1743,19 @@ const updateVisualization = () => {
     .attr('class', 'link')
     .attr('fill', 'none')
     .attr('stroke', palette.link.base)
-    .attr('stroke-width', d => Math.min(1 + d.count / 15, 4))
+    // Stronger connections = thicker, more visible edges (Hebbian visual)
+    .attr('stroke-width', d => {
+      const count = d.count || 1
+      return Math.min(1.5 + Math.log(count + 1) * 1.2, 6)
+    })
     .attr('opacity', 0)
     .transition()
     .duration(300)
-    .attr('opacity', 0.6)
+    .attr('opacity', d => {
+      // Stronger connections also more opaque
+      const count = d.count || 1
+      return Math.min(0.4 + Math.log(count + 1) * 0.15, 0.85)
+    })
 
   link.attr('stroke', palette.link.base)
 
