@@ -1215,25 +1215,38 @@ const startWatchItGrow = async () => {
   if (playbackQueue.value.length === 0) {
     isPlaybackLoading.value = true
     try {
-      const courseCode = props.course?.course_code
-      if (!courseCode || !courseDataProvider.value) {
-        console.error('[LegoNetwork] No course or provider')
+      const currentCourseCode = props.course?.course_code
+      if (!currentCourseCode || !courseDataProvider.value || !supabase) {
+        console.error('[LegoNetwork] No course, provider, or supabase')
+        isWatchMode.value = false
         return
       }
 
-      // Load full course content
-      const totalSeeds = await courseDataProvider.value.getTotalSeeds()
-      const items = await courseDataProvider.value.getSessionContent({
-        startPosition: 1,
-        endPosition: Math.min(totalSeeds, 100), // Limit for demo
-        includePractices: true
-      })
+      // Generate learning script using the correct provider API
+      console.log('[LegoNetwork] Generating script for Replay mode')
+      const script = await generateLearningScript(
+        courseDataProvider.value,
+        supabase,
+        currentCourseCode,
+        AUDIO_S3_BASE_URL,
+        100, // maxLegos for Replay
+      )
 
-      // Flatten to linear list
-      playbackQueue.value = flattenSessionItems(items)
-      console.log('[LegoNetwork] Watch mode loaded', playbackQueue.value.length, 'items')
+      // Flatten rounds into linear list
+      const flatItems = []
+      for (const round of script.rounds) {
+        for (const item of round.items) {
+          flatItems.push({
+            ...item,
+            roundNumber: round.roundNumber,
+          })
+        }
+      }
+
+      playbackQueue.value = flatItems
+      console.log('[LegoNetwork] Replay mode loaded', playbackQueue.value.length, 'items')
     } catch (err) {
-      console.error('[LegoNetwork] Failed to load for watch mode:', err)
+      console.error('[LegoNetwork] Failed to load for Replay mode:', err)
       isWatchMode.value = false
       return
     } finally {

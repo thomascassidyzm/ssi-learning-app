@@ -25,3 +25,6 @@ export * from './persistence';
 
 // Audio analysis (VAD, Prosody)
 export * from './audio';
+
+// Pricing (Big 10 languages, access control)
+export * from './pricing';
