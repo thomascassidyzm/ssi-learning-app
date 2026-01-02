@@ -1216,7 +1216,7 @@ const startWatchItGrow = async () => {
     isPlaybackLoading.value = true
     try {
       const currentCourseCode = props.course?.course_code
-      if (!currentCourseCode || !courseDataProvider.value || !supabase) {
+      if (!currentCourseCode || !courseDataProvider.value || !supabase?.value) {
         console.error('[LegoNetwork] No course, provider, or supabase')
         isWatchMode.value = false
         return
@@ -1226,7 +1226,7 @@ const startWatchItGrow = async () => {
       console.log('[LegoNetwork] Generating script for Replay mode')
       const script = await generateLearningScript(
         courseDataProvider.value,
-        supabase,
+        supabase.value,
         currentCourseCode,
         AUDIO_S3_BASE_URL,
         100, // maxLegos for Replay
@@ -1326,14 +1326,31 @@ const runWatchStep = () => {
     }
     nodes.value.push(newNode)
 
-    // Add edge to previous LEGO if exists
-    if (nodes.value.length > 1) {
-      const prevNode = nodes.value[nodes.value.length - 2]
-      links.value.push({
-        source: prevNode.id,
-        target: legoId,
-        count: 1
-      })
+    // Add REAL connections from fullNetworkData (phrase co-occurrence)
+    if (fullNetworkData.value) {
+      const existingNodeIds = new Set(nodes.value.slice(0, -1).map(n => n.id))
+      const realConnections = fullNetworkData.value.connections.filter(conn =>
+        (conn.source === legoId && existingNodeIds.has(conn.target)) ||
+        (conn.target === legoId && existingNodeIds.has(conn.source))
+      )
+
+      for (const conn of realConnections) {
+        links.value.push({
+          source: conn.source,
+          target: conn.target,
+          count: conn.count,
+        })
+      }
+    } else {
+      // Fallback: connect to previous if no network data
+      if (nodes.value.length > 1) {
+        const prevNode = nodes.value[nodes.value.length - 2]
+        links.value.push({
+          source: prevNode.id,
+          target: legoId,
+          count: 1
+        })
+      }
     }
 
     // Update visualization
