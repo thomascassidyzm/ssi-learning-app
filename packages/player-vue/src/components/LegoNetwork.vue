@@ -134,6 +134,7 @@ let simulation = null
 let svg = null
 let zoomGroup = null
 let linksLayer = null
+let pulsesLayer = null  // For traveling pulse effects
 let nodesLayer = null
 let labelsLayer = null
 let zoomBehavior = null
@@ -955,9 +956,10 @@ const animatePathSequence = (legoPath, totalDuration = 2000) => {
             })
             .classed('path-inactive', false)
             .classed('path-active', true)
-            .each(function() {
+            .each(function(d) {
               const link = d3.select(this)
-              const totalLength = this.getTotalLength ? this.getTotalLength() : 100
+              const pathElement = this
+              const totalLength = pathElement.getTotalLength ? pathElement.getTotalLength() : 100
 
               // Animate stroke-dashoffset for "drawing" effect
               link
@@ -969,6 +971,44 @@ const animatePathSequence = (legoPath, totalDuration = 2000) => {
                 .attr('stroke-dashoffset', 0)
                 .attr('stroke-opacity', 0.9)
                 .attr('stroke-width', 3)
+
+              // Create traveling pulse - a glowing dot that moves along the edge
+              if (pulsesLayer && pathElement.getPointAtLength) {
+                const pulse = pulsesLayer.append('circle')
+                  .attr('class', 'traveling-pulse')
+                  .attr('r', 6)
+                  .attr('fill', '#fbbf24')
+                  .attr('filter', 'url(#glow)')
+                  .attr('opacity', 1)
+
+                // Determine direction - should travel from prevLegoId to legoId
+                const sId = d.source.id || d.source
+                const reversed = sId !== prevLegoId
+
+                // Animate along the path
+                pulse.transition()
+                  .duration(stepDelay * 0.8)
+                  .ease(d3.easeLinear)
+                  .attrTween('cx', function() {
+                    return function(t) {
+                      const pos = reversed ? 1 - t : t
+                      const point = pathElement.getPointAtLength(pos * totalLength)
+                      return point.x
+                    }
+                  })
+                  .attrTween('cy', function() {
+                    return function(t) {
+                      const pos = reversed ? 1 - t : t
+                      const point = pathElement.getPointAtLength(pos * totalLength)
+                      return point.y
+                    }
+                  })
+                  .transition()
+                  .duration(150)
+                  .attr('opacity', 0)
+                  .attr('r', 12)
+                  .remove()
+              }
             })
         }
       }
@@ -986,6 +1026,11 @@ const animatePathSequence = (legoPath, totalDuration = 2000) => {
 const resetPathAnimation = () => {
   clearPathAnimationTimers()
   pathAnimationActive.value = false
+
+  // Remove any traveling pulses
+  if (pulsesLayer) {
+    pulsesLayer.selectAll('.traveling-pulse').remove()
+  }
 
   // Remove stroke-dasharray (reset edge style)
   if (linksLayer) {
@@ -1604,8 +1649,9 @@ const initVisualization = () => {
   // Create zoom container group
   zoomGroup = svg.append('g').attr('class', 'zoom-container')
 
-  // Create layers inside zoom group
+  // Create layers inside zoom group (order matters for z-index)
   linksLayer = zoomGroup.append('g').attr('class', 'links-layer')
+  pulsesLayer = zoomGroup.append('g').attr('class', 'pulses-layer')  // Above links, below nodes
   nodesLayer = zoomGroup.append('g').attr('class', 'nodes-layer')
   labelsLayer = zoomGroup.append('g').attr('class', 'labels-layer')
 
