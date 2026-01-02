@@ -98,7 +98,7 @@ const props = defineProps({
 const supabase = inject('supabase', null)
 const auth = inject('auth', null)
 const progressStore = inject('progressStore', null)
-const courseDataProvider = inject('courseDataProvider', null)
+const courseDataProvider = inject('courseDataProvider', { value: null })
 
 // Use the LEGO network composable for real data
 const {
@@ -1216,15 +1216,14 @@ const startWatchItGrow = async () => {
     isPlaybackLoading.value = true
     try {
       const courseCode = props.course?.course_code
-      if (!courseCode || !courseDataProvider) {
+      if (!courseCode || !courseDataProvider.value) {
         console.error('[LegoNetwork] No course or provider')
         return
       }
 
       // Load full course content
-      const totalSeeds = await courseDataProvider.getTotalSeeds(courseCode)
-      const items = await courseDataProvider.getSessionContent({
-        courseCode,
+      const totalSeeds = await courseDataProvider.value.getTotalSeeds()
+      const items = await courseDataProvider.value.getSessionContent({
         startPosition: 1,
         endPosition: Math.min(totalSeeds, 100), // Limit for demo
         includePractices: true
