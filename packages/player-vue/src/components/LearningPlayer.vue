@@ -867,7 +867,9 @@ const toggleTheme = () => {
 class RealAudioController {
   constructor() {
     this.endedCallbacks = new Set()
-    this.audio = null  // Single reusable Audio element for mobile compatibility
+    // Create audio element immediately for mobile compatibility
+    // This ensures intro and cycle audio use the SAME element (mobile unlock)
+    this.audio = new Audio()
     this.currentCleanup = null
     this.preloadedUrls = new Set()
     this.skipNextNotify = false  // Set true to skip orchestrator callbacks (for intro/welcome)
@@ -885,10 +887,7 @@ class RealAudioController {
     }
 
     return new Promise((resolve) => {
-      // Reuse or create Audio element - reusing helps with mobile autoplay
-      if (!this.audio) {
-        this.audio = new Audio()
-      }
+      // Audio element is created in constructor for mobile compatibility
 
       const onEnded = () => {
         this.audio?.removeEventListener('ended', onEnded)
