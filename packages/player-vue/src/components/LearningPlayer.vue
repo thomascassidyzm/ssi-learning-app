@@ -683,8 +683,25 @@ const isAwakening = computed(() => loadingStage.value !== 'ready')
 const loadingMessages = ref([]) // Messages that have finished typing
 const currentLoadingMessage = ref('') // Message currently being typed
 
-// Single loading message - simple and quick
-const LOADING_MESSAGE = 'preparing your session'
+// Varied awakening messages - randomly selected each session
+const AWAKENING_MESSAGES = [
+  'tuning into your wavelength',
+  'warming up the neurons',
+  'finding where we left off',
+  'preparing your next step',
+  'gathering your words',
+  'dusting off the vocabulary',
+  'reconnecting the pathways',
+  'setting the stage',
+  'your brain called ahead',
+  'ready when you are',
+  'finding your rhythm',
+  'picking up the thread',
+]
+
+const getRandomAwakeningMessage = () => {
+  return AWAKENING_MESSAGES[Math.floor(Math.random() * AWAKENING_MESSAGES.length)]
+}
 
 // Transition to next loading stage
 const setLoadingStage = (stage) => {
@@ -693,7 +710,7 @@ const setLoadingStage = (stage) => {
 
   // Start typing on first stage only
   if (stage === 'awakening') {
-    typeLoadingMessage(LOADING_MESSAGE)
+    typeLoadingMessage(getRandomAwakeningMessage())
   }
 }
 
