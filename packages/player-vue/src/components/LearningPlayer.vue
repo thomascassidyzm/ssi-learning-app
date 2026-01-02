@@ -1193,6 +1193,17 @@ const handleRingTap = () => {
 
 const handlePause = () => {
   isPlaying.value = false
+
+  // Stop introduction audio if playing
+  if (isPlayingIntroduction.value) {
+    skipIntroduction()
+  }
+
+  // Stop welcome audio if playing
+  if (isPlayingWelcome.value) {
+    skipWelcome()
+  }
+
   if (orchestrator.value) {
     orchestrator.value.stop()
   }
