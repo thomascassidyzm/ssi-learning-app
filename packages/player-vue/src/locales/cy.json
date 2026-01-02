@@ -1,0 +1,50 @@
+{
+  "app": {
+    "name": "SaySomethingin"
+  },
+  "courseSelector": {
+    "title": "Dewis Eich Cwrs",
+    "iSpeak": "Dwi'n siarad",
+    "iWantToLearn": "Dwi eisiau dysgu",
+    "ready": "Yn barod",
+    "comingSoon": "Yn dod yn fuan",
+    "new": "NEWYDD"
+  },
+  "player": {
+    "listen": "Gwrando",
+    "speak": "Siarad",
+    "hearAnswer": "Clywed yr ateb",
+    "seeAndHear": "Gweld a chlywed",
+    "tapToStart": "Tapio i ddechrau",
+    "pause": "Oedi",
+    "resume": "Parhau"
+  },
+  "languages": {
+    "eng": "Saesneg",
+    "spa": "Sbaeneg",
+    "ita": "Eidaleg",
+    "fra": "Ffrangeg",
+    "deu": "Almaeneg",
+    "por": "Portiwgaleg",
+    "cym": "Cymraeg",
+    "cym_n": "Cymraeg (Gogledd)",
+    "cym_s": "Cymraeg (De)",
+    "jpn": "Japaneg",
+    "zho": "Tsieineeg",
+    "cmn": "Mandarin",
+    "kor": "Corëeg",
+    "ara": "Arabeg",
+    "nld": "Iseldireg",
+    "rus": "Rwsieg",
+    "pol": "Pwyleg",
+    "heb": "Hebraeg",
+    "gle": "Gwyddeleg",
+    "gla": "Gaeleg yr Alban",
+    "eus": "Basgeg",
+    "cat": "Catalaneg",
+    "swe": "Swedeg",
+    "nor": "Norwyeg",
+    "dan": "Daneg",
+    "fin": "Ffinneg"
+  }
+}

@@ -7,40 +7,12 @@
  * - "I want to learn" grid of target languages
  * - Shows progress for enrolled courses, "NEW" badge for unenrolled
  * - Queries Supabase for available courses (uses dashboard schema as SSoT)
+ * - Localized UI based on selected known language
  */
 import { ref, computed, watch, onMounted } from 'vue'
+import { useI18n, setLocale, getLanguageName } from '../composables/useI18n'
 
-// Language metadata mapping (3-letter codes to display info)
-const LANGUAGE_META = {
-  eng: { name: 'English', flag: '🇬🇧' },
-  spa: { name: 'Spanish', flag: '🇪🇸' },
-  ita: { name: 'Italian', flag: '🇮🇹' },
-  fra: { name: 'French', flag: '🇫🇷' },
-  deu: { name: 'German', flag: '🇩🇪' },
-  por: { name: 'Portuguese', flag: '🇵🇹' },
-  cym: { name: 'Welsh', flag: '🏴󠁧󠁢󠁷󠁬󠁳󠁿' },
-  cym_n: { name: 'Welsh (North)', flag: '🏴󠁧󠁢󠁷󠁬󠁳󠁿' },
-  cym_s: { name: 'Welsh (South)', flag: '🏴󠁧󠁢󠁷󠁬󠁳󠁿' },
-  jpn: { name: 'Japanese', flag: '🇯🇵' },
-  zho: { name: 'Chinese', flag: '🇨🇳' },
-  cmn: { name: 'Mandarin', flag: '🇨🇳' },
-  kor: { name: 'Korean', flag: '🇰🇷' },
-  ara: { name: 'Arabic', flag: '🇸🇦' },
-  nld: { name: 'Dutch', flag: '🇳🇱' },
-  rus: { name: 'Russian', flag: '🇷🇺' },
-  pol: { name: 'Polish', flag: '🇵🇱' },
-  heb: { name: 'Hebrew', flag: '🇮🇱' },
-  gle: { name: 'Irish', flag: '🇮🇪' },
-  gla: { name: 'Scottish Gaelic', flag: '🏴󠁧󠁢󠁳󠁣󠁴󠁿' },
-  eus: { name: 'Basque', flag: '🇪🇸' },
-  cat: { name: 'Catalan', flag: '🇪🇸' },
-  swe: { name: 'Swedish', flag: '🇸🇪' },
-  nor: { name: 'Norwegian', flag: '🇳🇴' },
-  dan: { name: 'Danish', flag: '🇩🇰' },
-  fin: { name: 'Finnish', flag: '🇫🇮' },
-}
-
-const getLangMeta = (code) => LANGUAGE_META[code] || { name: code.toUpperCase(), flag: '🌐' }
+const { t } = useI18n()
 
 const props = defineProps({
   isOpen: {
@@ -78,11 +50,9 @@ const knownLanguages = computed(() => {
   const langMap = new Map()
   for (const course of allCourses.value) {
     if (!langMap.has(course.known_lang)) {
-      const meta = getLangMeta(course.known_lang)
       langMap.set(course.known_lang, {
         code: course.known_lang,
-        name: meta.name,
-        flag: meta.flag
+        name: getLanguageName(course.known_lang)
       })
     }
   }
@@ -99,10 +69,15 @@ const availableCourses = computed(() => {
   return allCourses.value
     .filter(c => c.known_lang === selectedKnownLang.value)
     .sort((a, b) => {
-      const nameA = getLangMeta(a.target_lang).name
-      const nameB = getLangMeta(b.target_lang).name
+      const nameA = getLanguageName(a.target_lang)
+      const nameB = getLanguageName(b.target_lang)
       return nameA.localeCompare(nameB)
     })
+})
+
+// Update locale when known language changes
+watch(selectedKnownLang, (newLang) => {
+  setLocale(newLang)
 })
 
 // Check if a course is enrolled
@@ -215,7 +190,7 @@ onMounted(() => {
 
         <!-- Header -->
         <header class="sheet-header">
-          <h2 class="sheet-title">Choose Your Course</h2>
+          <h2 class="sheet-title">{{ t('courseSelector.title') }}</h2>
           <button class="close-btn" @click="emit('close')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 6L6 18M6 6l12 12"/>
@@ -239,7 +214,7 @@ onMounted(() => {
         <div v-else class="sheet-content">
           <!-- Known Language Selector -->
           <section class="section">
-            <h3 class="section-label">I speak</h3>
+            <h3 class="section-label">{{ t('courseSelector.iSpeak') }}</h3>
             <div class="language-pills-container">
               <div class="language-pills">
                 <button
@@ -249,7 +224,6 @@ onMounted(() => {
                   :class="{ active: selectedKnownLang === lang.code }"
                   @click="selectedKnownLang = lang.code"
                 >
-                  <span class="pill-flag">{{ lang.flag }}</span>
                   <span class="pill-name">{{ lang.name }}</span>
                 </button>
               </div>
@@ -258,7 +232,7 @@ onMounted(() => {
 
           <!-- Target Language Grid -->
           <section class="section">
-            <h3 class="section-label">I want to learn</h3>
+            <h3 class="section-label">{{ t('courseSelector.iWantToLearn') }}</h3>
             <div class="target-grid">
               <button
                 v-for="course in availableCourses"
@@ -278,10 +252,9 @@ onMounted(() => {
                 </div>
 
                 <!-- NEW badge for unenrolled -->
-                <div v-else-if="!isEnrolled(course.course_code)" class="new-badge">NEW</div>
+                <div v-else-if="!isEnrolled(course.course_code)" class="new-badge">{{ t('courseSelector.new') }}</div>
 
-                <span class="target-flag">{{ getLangMeta(course.target_lang).flag }}</span>
-                <span class="target-name">{{ getLangMeta(course.target_lang).name }}</span>
+                <span class="target-name">{{ getLanguageName(course.target_lang) }}</span>
 
                 <!-- Progress or status -->
                 <span class="target-status">
@@ -289,7 +262,7 @@ onMounted(() => {
                     {{ getProgress(course.course_code) }}%
                   </template>
                   <template v-else>
-                    {{ course.status === 'active' ? 'Ready' : 'Coming soon' }}
+                    {{ course.status === 'active' ? t('courseSelector.ready') : t('courseSelector.comingSoon') }}
                   </template>
                 </span>
               </button>
@@ -494,11 +467,6 @@ onMounted(() => {
   border-color: rgba(194, 58, 58, 0.4);
 }
 
-.pill-flag {
-  font-size: 1.125rem;
-  line-height: 1;
-}
-
 .pill-name {
   font-family: 'DM Sans', -apple-system, sans-serif;
   font-size: 0.875rem;
@@ -587,16 +555,13 @@ onMounted(() => {
   letter-spacing: 0.03em;
 }
 
-.target-flag {
-  font-size: 2rem;
-  line-height: 1;
-}
-
 .target-name {
   font-family: 'DM Sans', -apple-system, sans-serif;
-  font-size: 0.8125rem;
+  font-size: 1rem;
   font-weight: 600;
   color: var(--text-primary, #f5f5f5);
+  text-align: center;
+  line-height: 1.3;
 }
 
 .target-status {

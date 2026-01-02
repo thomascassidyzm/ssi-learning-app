@@ -1,0 +1,50 @@
+{
+  "app": {
+    "name": "SaySomethingin"
+  },
+  "courseSelector": {
+    "title": "Choose Your Course",
+    "iSpeak": "I speak",
+    "iWantToLearn": "I want to learn",
+    "ready": "Ready",
+    "comingSoon": "Coming soon",
+    "new": "NEW"
+  },
+  "player": {
+    "listen": "Listen",
+    "speak": "Speak",
+    "hearAnswer": "Hear the answer",
+    "seeAndHear": "See and hear",
+    "tapToStart": "Tap to start",
+    "pause": "Pause",
+    "resume": "Resume"
+  },
+  "languages": {
+    "eng": "English",
+    "spa": "Spanish",
+    "ita": "Italian",
+    "fra": "French",
+    "deu": "German",
+    "por": "Portuguese",
+    "cym": "Welsh",
+    "cym_n": "Welsh (North)",
+    "cym_s": "Welsh (South)",
+    "jpn": "Japanese",
+    "zho": "Chinese",
+    "cmn": "Mandarin",
+    "kor": "Korean",
+    "ara": "Arabic",
+    "nld": "Dutch",
+    "rus": "Russian",
+    "pol": "Polish",
+    "heb": "Hebrew",
+    "gle": "Irish",
+    "gla": "Scottish Gaelic",
+    "eus": "Basque",
+    "cat": "Catalan",
+    "swe": "Swedish",
+    "nor": "Norwegian",
+    "dan": "Danish",
+    "fin": "Finnish"
+  }
+}
