@@ -760,6 +760,12 @@ const sessionProgress = computed(() => {
 })
 const showTargetText = computed(() => currentPhase.value === Phase.VOICE_2)
 
+// Visible texts for QA reporting - always shows both for context
+const visibleTexts = computed(() => ({
+  known: currentItem.value?.phrase?.phrase?.known || '',
+  target: currentItem.value?.phrase?.phrase?.target || '',
+}))
+
 // Phase symbols/icons - CORRECT ORDER
 const phaseInfo = computed(() => {
   switch (currentPhase.value) {
