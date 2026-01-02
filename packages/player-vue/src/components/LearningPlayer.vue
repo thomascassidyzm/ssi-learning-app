@@ -1378,6 +1378,7 @@ const playIntroductionAudioDirectly = async (legoId) => {
  * Returns true if welcome was played (or skipped), false if no welcome needed.
  */
 let welcomeAudioElement = null // Store reference for skip functionality
+let welcomeResolve = null // Store resolve function so skip can complete the promise
 let introAudioElement = null // Store reference for intro skip functionality
 
 const playWelcomeIfNeeded = async () => {
@@ -1432,6 +1433,7 @@ const playWelcomeIfNeeded = async () => {
     // Play welcome using shared audio element (for mobile compatibility)
     // Set skipNextNotify to prevent orchestrator callbacks from firing when welcome ends
     return new Promise((resolve) => {
+      welcomeResolve = resolve // Store so skipWelcome can resolve
       audioController.value?.stop()
 
       // Tell audioController to skip notifying orchestrator when this audio ends
@@ -1448,6 +1450,7 @@ const playWelcomeIfNeeded = async () => {
         isPlayingWelcome.value = false
         showWelcomeSkip.value = false
         welcomeAudioElement = null
+        welcomeResolve = null
         // Mark as played
         if (courseDataProvider.value) {
           await courseDataProvider.value.markWelcomePlayed(learnerId.value)
@@ -1490,6 +1493,13 @@ const skipWelcome = async () => {
   isPlayingWelcome.value = false
   showWelcomeSkip.value = false
   welcomeAudioElement = null
+
+  // Resolve the promise so startPlayback can continue
+  if (welcomeResolve) {
+    welcomeResolve(true)
+    welcomeResolve = null
+  }
+
   // Mark as played (skipped counts as played)
   if (courseDataProvider.value) {
     await courseDataProvider.value.markWelcomePlayed(learnerId.value)
