@@ -1021,8 +1021,8 @@ const playPhrase = async (phrase) => {
 
   currentPracticingPhrase.value = phrase
 
-  // Animate the path through the network
-  const animationDuration = Math.max(2000, phrase.legoPath.length * 500)
+  // Animate the path through the network - quick pace to match audio
+  const animationDuration = 1200 + (phrase.legoPath.length * 300)
   animatePathSequence(phrase.legoPath, animationDuration)
 
   console.log('[LegoNetwork] Playing phrase:', phrase.targetText, 'path:', phrase.legoPath)
@@ -1091,8 +1091,9 @@ const playNextPhraseInPractice = async () => {
   const phrase = selectedNodePhrases.value[currentPhraseIndex.value]
   await playPhrase(phrase)
 
-  // Schedule next phrase
-  const delay = Math.max(3000, phrase.legoPath.length * 600) // Give time for animation
+  // Schedule next phrase - quick pace for listening practice
+  // ~1.5s base + 200ms per LEGO (typical phrase audio is 1-2s)
+  const delay = 1500 + (phrase.legoPath.length * 200)
   phrasePracticeTimer = setTimeout(() => {
     currentPhraseIndex.value++
     playNextPhraseInPractice()
