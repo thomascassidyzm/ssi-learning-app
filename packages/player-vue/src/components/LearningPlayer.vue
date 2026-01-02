@@ -237,35 +237,48 @@ const AUDIO_S3_BASE_URL = 'https://ssi-audio-stage.s3.eu-west-1.amazonaws.com/ma
 
 /**
  * Convert a ScriptItem to a playable item for the orchestrator.
- * Uses lazy audio lookup from the audioMap cache.
+ * Uses pre-populated audioRefs from script generation when available,
+ * falls back to lazy audio lookup from cache.
  */
 const scriptItemToPlayableItem = async (scriptItem) => {
   if (!scriptItem) return null
 
-  // Look up audio URLs from cache (lazy loaded)
-  const knownAudioUrl = await getAudioUrlFromCache(
-    supabase?.value,
-    scriptItem.knownText,
-    'known',
-    scriptItem.type === 'intro' ? scriptItem : null,
-    AUDIO_S3_BASE_URL
-  )
+  // Check if script item already has audio refs populated (from generateLearningScript)
+  const hasPreloadedAudio = scriptItem.audioRefs?.known?.url || scriptItem.audioRefs?.target?.voice1?.url
 
-  const target1AudioUrl = await getAudioUrlFromCache(
-    supabase?.value,
-    scriptItem.targetText,
-    'target1',
-    null,
-    AUDIO_S3_BASE_URL
-  )
+  let knownAudioUrl, target1AudioUrl, target2AudioUrl
 
-  const target2AudioUrl = await getAudioUrlFromCache(
-    supabase?.value,
-    scriptItem.targetText,
-    'target2',
-    null,
-    AUDIO_S3_BASE_URL
-  )
+  if (hasPreloadedAudio) {
+    // Use pre-populated audio URLs from script generation
+    knownAudioUrl = scriptItem.audioRefs?.known?.url
+    target1AudioUrl = scriptItem.audioRefs?.target?.voice1?.url
+    target2AudioUrl = scriptItem.audioRefs?.target?.voice2?.url
+  } else {
+    // Fallback: Look up audio URLs from cache (lazy loaded)
+    knownAudioUrl = await getAudioUrlFromCache(
+      supabase?.value,
+      scriptItem.knownText,
+      'known',
+      scriptItem.type === 'intro' ? scriptItem : null,
+      AUDIO_S3_BASE_URL
+    )
+
+    target1AudioUrl = await getAudioUrlFromCache(
+      supabase?.value,
+      scriptItem.targetText,
+      'target1',
+      null,
+      AUDIO_S3_BASE_URL
+    )
+
+    target2AudioUrl = await getAudioUrlFromCache(
+      supabase?.value,
+      scriptItem.targetText,
+      'target2',
+      null,
+      AUDIO_S3_BASE_URL
+    )
+  }
 
   // Build the playable item
   // LEGO is "new" when it's being introduced in its own round (legoIndex === roundNumber)
