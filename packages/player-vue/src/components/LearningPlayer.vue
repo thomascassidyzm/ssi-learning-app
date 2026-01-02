@@ -1912,6 +1912,10 @@ onMounted(async () => {
 
       if (cachedScript) {
         console.log('[LearningPlayer] Found cached script with', cachedScript.rounds.length, 'rounds')
+        // Debug: show items per round for first few rounds
+        cachedScript.rounds.slice(0, 3).forEach((r, i) => {
+          console.log(`[LearningPlayer] Cached Round ${i} has ${r.items?.length} items:`, r.items?.map(it => it.type).join(', '))
+        })
         cachedRounds.value = cachedScript.rounds
 
         // Capture course welcome if present
@@ -1984,6 +1988,10 @@ onMounted(async () => {
 
           if (rounds.length > 0) {
             console.log('[LearningPlayer] Generated script with', rounds.length, 'rounds')
+            // Debug: show items per round for first few rounds
+            rounds.slice(0, 3).forEach((r, i) => {
+              console.log(`[LearningPlayer] Round ${i} has ${r.items?.length} items:`, r.items?.map(it => it.type).join(', '))
+            })
             cachedRounds.value = rounds
 
             // Cache for next time
