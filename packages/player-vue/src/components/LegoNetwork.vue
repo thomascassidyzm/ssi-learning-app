@@ -119,6 +119,10 @@ const learnerProgress = ref([]) // LEGOs the learner has practiced
 // Full network data (for simulation)
 const fullNetworkData = ref(null)
 
+// Stage slider - controls how many LEGOs to show
+const legoSliderValue = ref(100)  // Default to showing 100 LEGOs
+const legoSliderMax = computed(() => fullNetworkData.value?.nodes?.length || 100)
+
 // Graph data
 const nodes = ref([])
 const links = ref([])
@@ -1615,6 +1619,69 @@ const createDemoData = () => {
 }
 
 // ============================================================================
+// Stage Slider - Show network at different learning stages
+// ============================================================================
+
+/**
+ * Update the network to show first N LEGOs based on slider value
+ * Creates a snapshot of what the network would look like at that stage
+ */
+const updateNetworkForSlider = (count) => {
+  if (!fullNetworkData.value || !fullNetworkData.value.nodes.length) {
+    console.log('[LegoNetwork] No full network data available for slider')
+    return
+  }
+
+  // Get first N nodes (sorted by seed order - already in order from DB)
+  const allNodes = fullNetworkData.value.nodes
+  const visibleCount = Math.min(count, allNodes.length)
+  const visibleNodeIds = new Set(allNodes.slice(0, visibleCount).map(n => n.id))
+
+  // Assign belt colors based on position in learning journey
+  const beltProgression = ['white', 'yellow', 'orange', 'green', 'blue', 'purple', 'brown', 'black']
+  const nodesPerBelt = Math.max(1, Math.ceil(visibleCount / beltProgression.length))
+
+  nodes.value = allNodes.slice(0, visibleCount).map((node, idx) => ({
+    id: node.id,
+    seedId: node.seedId,
+    legoIndex: node.legoIndex,
+    knownText: node.knownText,
+    targetText: node.targetText,
+    totalPractices: Math.floor(Math.random() * 20) + 1, // Simulated
+    usedInPhrases: node.usedInPhrases,
+    mastery: Math.random() * 0.8, // Simulated
+    isEternal: Math.random() > 0.7, // Simulated
+    birthBelt: beltProgression[Math.floor(idx / nodesPerBelt)] || 'black',
+    x: undefined,
+    y: undefined,
+  }))
+
+  // Filter connections to only include visible nodes
+  links.value = fullNetworkData.value.connections
+    .filter(conn => visibleNodeIds.has(conn.source) && visibleNodeIds.has(conn.target))
+    .map(conn => ({
+      source: conn.source,
+      target: conn.target,
+      count: conn.count,
+    }))
+
+  currentRound.value = visibleCount
+  totalPractices.value = nodes.value.reduce((sum, n) => sum + n.totalPractices, 0)
+
+  console.log(`[LegoNetwork] Slider: showing ${nodes.value.length} nodes, ${links.value.length} connections`)
+
+  // Reinitialize visualization with new data
+  nextTick(() => {
+    initVisualization()
+  })
+}
+
+// Watch slider changes
+watch(legoSliderValue, (newVal) => {
+  updateNetworkForSlider(newVal)
+})
+
+// ============================================================================
 // D3 Visualization
 // ============================================================================
 
@@ -2442,16 +2509,33 @@ defineExpose({
       </div>
     </Transition>
 
-    <!-- Action Buttons (when not replaying) -->
-    <div v-if="!isWatchMode && !isPlaybackLoading" class="action-buttons">
-      <!-- Replay - watch network grow -->
-      <button class="action-btn replay-btn" @click="startWatchItGrow">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-          <circle cx="12" cy="12" r="10"/>
-          <polygon points="10 8 16 12 10 16 10 8" fill="currentColor"/>
-        </svg>
-        Replay
-      </button>
+    <!-- Stage Slider - Explore network at different learning stages -->
+    <div v-if="fullNetworkData && !isPlaybackLoading" class="stage-slider-panel">
+      <div class="stage-header">
+        <span class="stage-label">Network Stage</span>
+        <span class="stage-count">{{ nodes.length }} / {{ legoSliderMax }} LEGOs</span>
+      </div>
+      <div class="stage-slider-row">
+        <input
+          type="range"
+          class="stage-slider"
+          :min="10"
+          :max="legoSliderMax"
+          :step="10"
+          v-model.number="legoSliderValue"
+        />
+      </div>
+      <div class="stage-presets">
+        <button
+          v-for="preset in [50, 100, 200, 400, legoSliderMax]"
+          :key="preset"
+          class="preset-btn"
+          :class="{ active: legoSliderValue === preset }"
+          @click="legoSliderValue = Math.min(preset, legoSliderMax)"
+        >
+          {{ preset >= legoSliderMax ? 'All' : preset }}
+        </button>
+      </div>
     </div>
 
     <!-- Detail Panel -->
@@ -3593,6 +3677,114 @@ defineExpose({
   z-index: 10;
   display: flex;
   gap: 12px;
+}
+
+/* Stage Slider Panel - Explore network at different stages */
+.stage-slider-panel {
+  position: absolute;
+  bottom: 180px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  background: rgba(0, 0, 0, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 16px;
+  backdrop-filter: blur(12px);
+  min-width: 280px;
+}
+
+.stage-header {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  font-size: 13px;
+}
+
+.stage-label {
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 500;
+}
+
+.stage-count {
+  color: #fbbf24;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.stage-slider-row {
+  width: 100%;
+  padding: 4px 0;
+}
+
+.stage-slider {
+  width: 100%;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+}
+
+.stage-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  background: #fbbf24;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.stage-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 15px rgba(251, 191, 36, 0.7);
+}
+
+.stage-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  background: #fbbf24;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
+}
+
+.stage-presets {
+  display: flex;
+  gap: 8px;
+}
+
+.preset-btn {
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.preset-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.preset-btn.active {
+  background: rgba(251, 191, 36, 0.2);
+  border-color: rgba(251, 191, 36, 0.4);
+  color: #fbbf24;
 }
 
 .action-btn {
