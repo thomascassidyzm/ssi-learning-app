@@ -1014,7 +1014,7 @@ const resetPathAnimation = () => {
 let phrasePracticeTimer = null
 
 /**
- * Play a single phrase with path animation
+ * Play a single phrase with path animation and audio
  */
 const playPhrase = async (phrase) => {
   if (!phrase || !phrase.legoPath || phrase.legoPath.length === 0) return
@@ -1027,8 +1027,41 @@ const playPhrase = async (phrase) => {
 
   console.log('[LegoNetwork] Playing phrase:', phrase.targetText, 'path:', phrase.legoPath)
 
-  // TODO: Play phrase audio when we have audio lookup for phrases
-  // For now, just animate the path
+  // Play phrase audio from practice_cycles
+  if (supabase?.value && courseCode.value) {
+    try {
+      // Initialize audio controller if needed
+      if (!audioController.value) {
+        audioController.value = new ScriptAudioController()
+      }
+
+      // Query practice_cycles to get audio UUIDs for this phrase
+      const { data: phraseData, error } = await supabase.value
+        .from('practice_cycles')
+        .select('target1_audio_uuid, target2_audio_uuid')
+        .eq('course_code', courseCode.value)
+        .eq('target_text', phrase.targetText)
+        .limit(1)
+        .single()
+
+      if (error) {
+        console.warn('[LegoNetwork] Phrase audio lookup failed:', error.message)
+        return
+      }
+
+      if (phraseData) {
+        // Play target1 audio (primary voice)
+        const audioUuid = phraseData.target1_audio_uuid || phraseData.target2_audio_uuid
+        if (audioUuid) {
+          const audioUrl = `${AUDIO_S3_BASE_URL}/${audioUuid}.mp3`
+          console.log('[LegoNetwork] Playing phrase audio:', audioUrl)
+          await audioController.value.play({ url: audioUrl, role: 'target1' })
+        }
+      }
+    } catch (err) {
+      console.warn('[LegoNetwork] Phrase audio playback error:', err)
+    }
+  }
 }
 
 /**
