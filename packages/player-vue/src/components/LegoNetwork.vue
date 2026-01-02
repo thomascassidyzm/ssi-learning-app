@@ -148,10 +148,12 @@ const audioController = ref(null)
 const isPlayingAudio = ref(false)
 
 // ============================================================================
-// BRAIN VIEW PLAYBACK MODE
-// Play the course with real-time visualization of learning
+// DEPRECATED: BRAIN VIEW PLAYBACK MODE (4-phase learning cycle)
+// This section is deprecated. Learning has moved to LearningPlayer.vue.
+// Use Watch It Grow (startWatchItGrow) for replay visualization instead.
+// These refs are kept temporarily for backwards compatibility.
 // ============================================================================
-const isPlaybackMode = ref(false)
+const isPlaybackMode = ref(false) // DEPRECATED - always false
 const isPlaybackLoading = ref(false)
 const playbackQueue = ref([]) // All flat items for the session (same structure as CourseExplorer)
 const playbackIndex = ref(0) // Current position in queue
@@ -248,15 +250,17 @@ const VIZ_CONFIG = {
   },
 }
 
-// Demo/Simulation state
-const isDemoRunning = ref(false)
+// Replay state (simplified from deprecated demo/learning modes)
+const lastAddedNode = ref(null)
+
+// DEPRECATED: Demo simulation state (kept for backwards compatibility, will be removed)
+const isDemoRunning = ref(false) // Always false - demo mode deprecated
 const currentRound = ref(0)
-const demoSpeed = ref(1) // 1x, 2x, 4x, 8x
+const demoSpeed = ref(1)
 const maxRounds = ref(300)
 let demoInterval = null
 const milestones = [50, 100, 150, 200, 250, 300]
 const reachedMilestones = ref([])
-const lastAddedNode = ref(null)
 
 // Belt color palettes - 8 main belts, no stripes
 const beltPalettes = {
@@ -559,9 +563,12 @@ const getAudioUrlAsync = async (text, role, item = null) => {
 }
 
 // ============================================================================
-// Demo Mode Controls
+// DEPRECATED: Demo Mode Controls
+// These functions are deprecated and will be removed in a future version.
+// Use Watch It Grow (startWatchItGrow) for replay functionality instead.
 // ============================================================================
 
+/** @deprecated Use startWatchItGrow instead */
 const startDemo = () => {
   if (isDemoRunning.value) return
 
@@ -1029,7 +1036,8 @@ const resetPathAnimation = () => {
 }
 
 /**
- * Start playback mode - load session and begin playing
+ * @deprecated Use startWatchItGrow instead.
+ * This function is deprecated. Learning has moved to LearningPlayer.vue.
  */
 const startPlayback = async () => {
   if (isPlaybackMode.value || !courseCode.value) return
@@ -1190,16 +1198,17 @@ const revisitCurrent = () => {
 }
 
 // ============================================================================
-// WATCH IT GROW MODE - Accelerated playback showing network growth
+// REPLAY MODE (formerly "Watch It Grow")
+// Accelerated playback showing network growth at adjustable speed (1x-16x)
 // ============================================================================
-const isWatchMode = ref(false)
-const watchSpeed = ref(2) // 1x, 2x, 4x, 8x
+const isWatchMode = ref(false) // TODO: rename to isReplayMode
+const watchSpeed = ref(2) // 1x, 2x, 4x, 8x, 16x
 let watchInterval = null
 
 const startWatchItGrow = async () => {
   if (isWatchMode.value || isPlaybackMode.value) return
 
-  console.log('[LegoNetwork] Starting Watch It Grow mode')
+  console.log('[LegoNetwork] Starting Replay mode')
   isWatchMode.value = true
 
   // Load course data if not already loaded
@@ -1253,8 +1262,8 @@ const stopWatchItGrow = () => {
 }
 
 /**
- * Replay Journey - full playback at learning pace
- * Unlike Watch It Grow, this plays with audio and proper timing
+ * @deprecated Use startWatchItGrow instead.
+ * Replay Journey was full playback at learning pace. Now deprecated.
  */
 const replayJourney = async () => {
   if (isPlaybackMode.value || isWatchMode.value) return
@@ -2655,9 +2664,9 @@ watch(courseCode, async (newCode, oldCode) => {
 
 // Expose methods for parent component
 defineExpose({
-  startPlayback,
-  stopPlayback,
-  isPlaybackMode,
+  startReplay: startWatchItGrow,
+  stopReplay: stopWatchItGrow,
+  isReplaying: isWatchMode,
 })
 </script>
 
@@ -2674,7 +2683,7 @@ defineExpose({
     </button>
 
     <!-- Minimal stats badge - top right (only during exploration, not playback) -->
-    <div v-if="!isPlaybackMode && nodes.length > 0" class="minimal-stats">
+    <div v-if="!isWatchMode && nodes.length > 0" class="minimal-stats">
       <span class="stat-pill">{{ nodes.length }} LEGOs</span>
     </div>
 
@@ -2721,7 +2730,7 @@ defineExpose({
 
       <!-- Empty state message - enhanced -->
       <Transition name="fade">
-        <div v-if="nodes.length === 0 && !isDemoRunning && !isPlaybackMode" class="empty-state">
+        <div v-if="nodes.length === 0 && !isWatchMode" class="empty-state">
           <div class="empty-glow"></div>
           <div class="empty-content">
             <div class="empty-title">Your Language Network</div>
@@ -2737,7 +2746,7 @@ defineExpose({
 
       <!-- Early state encouragement (1-N nodes based on config) -->
       <Transition name="fade">
-        <div v-if="nodes.length > 0 && nodes.length <= VIZ_CONFIG.atmosphere.earlyStateMax && !isPlaybackMode" class="early-state-badge">
+        <div v-if="nodes.length > 0 && nodes.length <= VIZ_CONFIG.atmosphere.earlyStateMax && !isWatchMode" class="early-state-badge">
           <span class="badge-glow"></span>
           <span class="badge-text">{{ nodes.length }} {{ nodes.length === 1 ? 'LEGO' : 'LEGOs' }} learned</span>
         </div>
@@ -2762,100 +2771,19 @@ defineExpose({
     </div>
 
     <!-- ====================================================================
-         LEARNING PANE - Breathing ring UI with text and controls
+         REPLAY PANEL - Watch network grow at adjustable speed
          ==================================================================== -->
-    <Transition name="pane-slide">
-      <div v-if="isPlaybackMode" class="learning-pane">
-        <!-- Breathing ring container (for pause phase) -->
-        <div class="breathing-container" :class="{ active: currentPhase === 'pause' }">
-          <!-- SVG breathing ring -->
-          <svg class="breathing-ring" viewBox="0 0 120 120">
-            <!-- Background track -->
-            <circle
-              cx="60" cy="60" r="54"
-              fill="none"
-              stroke="rgba(255,255,255,0.1)"
-              stroke-width="3"
-            />
-            <!-- Progress ring (fills during pause) -->
-            <circle
-              class="progress-ring"
-              cx="60" cy="60" r="54"
-              fill="none"
-              stroke="rgba(251,191,36,0.6)"
-              stroke-width="3"
-              stroke-linecap="round"
-              :stroke-dasharray="339.3"
-              :stroke-dashoffset="339.3 * (1 - pauseProgress)"
-              transform="rotate(-90 60 60)"
-            />
-            <!-- Breathing glow (pulses during pause) -->
-            <circle
-              class="breathing-glow"
-              cx="60" cy="60" r="48"
-              fill="none"
-              stroke="rgba(251,191,36,0.2)"
-              stroke-width="8"
-              :class="{ breathing: currentPhase === 'pause' }"
-            />
-          </svg>
-
-          <!-- Text content (centered in ring) -->
-          <div class="pane-text">
-            <!-- Known text - always visible -->
-            <div class="pane-known">{{ currentItem?.knownText || 'Ready...' }}</div>
-
-            <!-- Target text - only on voice2 -->
-            <Transition name="reveal">
-              <div v-if="currentPhase === 'voice2'" class="pane-target">
-                {{ currentItem?.targetText }}
-              </div>
-            </Transition>
-          </div>
-        </div>
-
-        <!-- Phase indicator -->
-        <div class="phase-indicator">
-          <span class="phase-label" :class="currentPhase">
-            {{ phaseLabels[currentPhase] || currentPhase }}
-          </span>
-        </div>
-
-        <!-- Controls row -->
-        <div class="pane-controls">
-          <button class="pane-btn" @click="revisitCurrent" title="Replay this phrase">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-              <path d="M1 4v6h6M23 20v-6h-6"/>
-              <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
-            </svg>
-          </button>
-          <button class="pane-btn pane-stop" @click="stopPlayback" title="Stop">
-            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-              <rect x="6" y="6" width="12" height="12" rx="2"/>
-            </svg>
-          </button>
-          <button class="pane-btn" @click="skipToNext" title="Skip to next">
-            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
-              <polygon points="5 4 15 12 5 20 5 4"/>
-              <line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="2"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-    </Transition>
-
-    <!-- Watch It Grow Control Panel -->
     <Transition name="pill-slide">
-      <div v-if="isWatchMode" class="watch-panel">
+      <div v-if="isWatchMode" class="watch-panel replay-panel">
         <div class="watch-header">
-          <span class="watch-title">Watch It Grow</span>
+          <span class="watch-title">Replay</span>
           <span class="watch-count">{{ nodes.length }} LEGOs</span>
         </div>
 
         <!-- Speed controls -->
         <div class="speed-controls">
           <button
-            v-for="speed in [1, 2, 4, 8]"
+            v-for="speed in [1, 2, 4, 8, 16]"
             :key="speed"
             class="speed-btn"
             :class="{ active: watchSpeed === speed }"
@@ -2875,30 +2803,16 @@ defineExpose({
       </div>
     </Transition>
 
-    <!-- Action Buttons (when not playing) -->
-    <div v-if="!isPlaybackMode && !isWatchMode && !isPlaybackLoading" class="action-buttons">
-      <!-- Watch It Grow - shown when empty -->
-      <button v-if="nodes.length === 0" class="action-btn watch-btn" @click="startWatchItGrow">
+    <!-- Action Buttons (when not replaying) -->
+    <div v-if="!isWatchMode && !isPlaybackLoading" class="action-buttons">
+      <!-- Replay - watch network grow -->
+      <button class="action-btn replay-btn" @click="startWatchItGrow">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
           <circle cx="12" cy="12" r="10"/>
           <polygon points="10 8 16 12 10 16 10 8" fill="currentColor"/>
         </svg>
-        Watch It Grow
+        Replay
       </button>
-
-      <!-- Replay Journey - shown when there are nodes -->
-      <button v-if="nodes.length > 0" class="action-btn replay-btn" @click="replayJourney">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-          <path d="M1 4v6h6"/>
-          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
-        </svg>
-        Replay Journey
-      </button>
-    </div>
-
-    <!-- Progress bar - super minimal, at very bottom -->
-    <div v-if="isPlaybackMode" class="progress-line">
-      <div class="progress-fill" :style="{ width: `${(playbackIndex / Math.max(playbackQueue.length, 1)) * 100}%` }"></div>
     </div>
 
     <!-- Detail Panel -->
@@ -3760,7 +3674,7 @@ defineExpose({
 }
 
 /* ============================================================================
-   WATCH IT GROW MODE
+   REPLAY MODE (formerly "Watch It Grow")
    ============================================================================ */
 
 .watch-panel {
