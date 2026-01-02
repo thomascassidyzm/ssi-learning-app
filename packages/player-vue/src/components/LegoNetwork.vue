@@ -1053,7 +1053,8 @@ const playPhrase = async (phrase) => {
         // Play target1 audio (primary voice)
         const audioUuid = phraseData.target1_audio_uuid || phraseData.target2_audio_uuid
         if (audioUuid) {
-          const audioUrl = `${AUDIO_S3_BASE_URL}/${audioUuid}.mp3`
+          // S3 expects uppercase UUIDs
+          const audioUrl = `${AUDIO_S3_BASE_URL}/${audioUuid.toUpperCase()}.mp3`
           console.log('[LegoNetwork] Playing phrase audio:', audioUrl)
           await audioController.value.play({ url: audioUrl, role: 'target1' })
         }
@@ -2107,16 +2108,17 @@ const playNodeAudio = async (node) => {
         console.log('[LegoNetwork] Audio UUIDs:', legoData)
 
         // Play sequence: known -> pause -> target1 -> target2
+        // S3 expects uppercase UUIDs
         const playSequence = []
 
         if (legoData.known_audio_uuid) {
-          playSequence.push({ url: `${AUDIO_S3_BASE_URL}/${legoData.known_audio_uuid}.mp3`, role: 'known' })
+          playSequence.push({ url: `${AUDIO_S3_BASE_URL}/${legoData.known_audio_uuid.toUpperCase()}.mp3`, role: 'known' })
         }
         if (legoData.target1_audio_uuid) {
-          playSequence.push({ url: `${AUDIO_S3_BASE_URL}/${legoData.target1_audio_uuid}.mp3`, role: 'target1' })
+          playSequence.push({ url: `${AUDIO_S3_BASE_URL}/${legoData.target1_audio_uuid.toUpperCase()}.mp3`, role: 'target1' })
         }
         if (legoData.target2_audio_uuid) {
-          playSequence.push({ url: `${AUDIO_S3_BASE_URL}/${legoData.target2_audio_uuid}.mp3`, role: 'target2' })
+          playSequence.push({ url: `${AUDIO_S3_BASE_URL}/${legoData.target2_audio_uuid.toUpperCase()}.mp3`, role: 'target2' })
         }
 
         for (const audio of playSequence) {
