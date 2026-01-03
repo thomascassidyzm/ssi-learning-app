@@ -1765,6 +1765,14 @@ const initVisualization = () => {
   const f = VIZ_CONFIG.forces
   const collisionRadius = f.collisionRadius * heroNodeScale.value
 
+  // DEBUG: Log count distribution to understand Hebbian data
+  const counts = links.value.map(l => l.count || 1)
+  const maxCount = Math.max(...counts)
+  const avgCount = counts.reduce((a, b) => a + b, 0) / counts.length
+  const countDist = {}
+  counts.forEach(c => { countDist[c] = (countDist[c] || 0) + 1 })
+  console.log('[LegoNetwork] Hebbian counts:', { max: maxCount, avg: avgCount.toFixed(1), distribution: countDist })
+
   simulation = d3.forceSimulation(nodes.value)
     .force('link', d3.forceLink(links.value)
       .id(d => d.id)
