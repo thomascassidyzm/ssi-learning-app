@@ -901,7 +901,7 @@ const animatePathSequence = (legoPath, totalDuration = 2000) => {
     .classed('path-active', false)
     .transition()
     .duration(200)
-    .attr('stroke-opacity', 0.1)
+    .attr('opacity', 0.08) // Dim all edges so active path stands out
 
   // Animate each node in sequence
   legoPath.forEach((legoId, index) => {
@@ -973,8 +973,8 @@ const animatePathSequence = (legoPath, totalDuration = 2000) => {
                 .duration(stepDelay * 0.8)
                 .ease(d3.easeLinear)
                 .attr('stroke-dashoffset', 0)
-                .attr('stroke-opacity', 0.9)
-                .attr('stroke-width', 3)
+                .attr('opacity', 0.9) // Brighten the active edge
+                .attr('stroke-width', 3.5)
 
               // Create traveling pulse - a glowing dot that moves along the edge
               if (pulsesLayer && pathElement.getPointAtLength) {
@@ -1036,20 +1036,43 @@ const resetPathAnimation = () => {
     pulsesLayer.selectAll('.traveling-pulse').remove()
   }
 
-  // Remove stroke-dasharray (reset edge style)
+  // Restore edge styles (reset stroke-dasharray and restore opacity)
   if (linksLayer) {
     linksLayer.selectAll('.link')
       .classed('path-inactive', false)
       .classed('path-active', false)
       .attr('stroke-dasharray', null)
       .attr('stroke-dashoffset', null)
+      .attr('stroke-opacity', null) // Clear inline stroke-opacity, let CSS/initial opacity apply
+      .transition()
+      .duration(200)
+      .attr('opacity', d => {
+        // Restore Hebbian-based opacity (sqrt scaling)
+        const count = d.count || 1
+        return Math.min(0.3 + Math.sqrt(count) * 0.12, 0.9)
+      })
+      .attr('stroke-width', d => {
+        // Restore Hebbian-based width (sqrt scaling)
+        const count = d.count || 1
+        return Math.min(1.5 + Math.sqrt(count) * 0.5, 5)
+      })
   }
 
-  // Reset node classes
+  // Reset node opacity
   if (nodesLayer) {
     nodesLayer.selectAll('.node')
       .classed('path-inactive', false)
       .classed('path-active', false)
+
+    nodesLayer.selectAll('.node .node-glow')
+      .transition()
+      .duration(200)
+      .attr('opacity', 0.4)
+
+    nodesLayer.selectAll('.node .node-core')
+      .transition()
+      .duration(200)
+      .attr('opacity', 1)
   }
 
   pathAnimationIds.value = []
@@ -1746,18 +1769,21 @@ const initVisualization = () => {
     .force('link', d3.forceLink(links.value)
       .id(d => d.id)
       .distance(d => {
-        // Hebbian: neurons that fire together wire together
-        // Stronger connections (higher count) = shorter distance = tighter clustering
+        // AGGRESSIVE Hebbian: neurons that fire together wire together
+        // Stronger connections (higher count) = MUCH shorter distance = VISIBLE clustering
         const baseDistance = f.linkDistance
-        const minDistance = 40
+        const minDistance = 25 // Tight minimum for strong connections
         const count = d.count || 1
-        // Logarithmic scaling to handle wide range of counts
-        return Math.max(minDistance, baseDistance / (1 + Math.log(count + 1) * 0.8))
+        // Power scaling for dramatic effect (sqrt gives faster falloff than log)
+        // count=1: baseDistance, count=4: ~50% baseDistance, count=10: ~30% baseDistance
+        const scaleFactor = 1 + Math.sqrt(count) * 0.5
+        return Math.max(minDistance, baseDistance / scaleFactor)
       })
       .strength(d => {
-        // Stronger connections also pull harder
+        // Stronger connections pull MUCH harder - creates visible clustering
         const count = d.count || 1
-        return Math.min(0.8, f.linkStrength + Math.log(count + 1) * 0.1)
+        // Scale from 0.3 to 1.0 based on connection strength
+        return Math.min(1.0, 0.3 + Math.sqrt(count) * 0.15)
       }))
     .force('charge', d3.forceManyBody()
       .strength(f.chargeStrength)
@@ -1810,18 +1836,20 @@ const updateVisualization = () => {
     .attr('class', 'link')
     .attr('fill', 'none')
     .attr('stroke', palette.link.base)
-    // Stronger connections = thicker, more visible edges (Hebbian visual)
+    // AGGRESSIVE: Stronger connections = MUCH thicker, more visible edges (Hebbian visual)
     .attr('stroke-width', d => {
       const count = d.count || 1
-      return Math.min(1.5 + Math.log(count + 1) * 1.2, 6)
+      // sqrt scaling: count=1: 1.5, count=4: 2.5, count=9: 3.0, count=25: 4.0
+      return Math.min(1.5 + Math.sqrt(count) * 0.5, 5)
     })
     .attr('opacity', 0)
     .transition()
     .duration(300)
     .attr('opacity', d => {
-      // Stronger connections also more opaque
+      // AGGRESSIVE: Stronger connections much more opaque
       const count = d.count || 1
-      return Math.min(0.4 + Math.log(count + 1) * 0.15, 0.85)
+      // sqrt scaling for dramatic visibility difference
+      return Math.min(0.3 + Math.sqrt(count) * 0.12, 0.9)
     })
 
   link.attr('stroke', palette.link.base)
