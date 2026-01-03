@@ -1773,33 +1773,50 @@ const initVisualization = () => {
   counts.forEach(c => { countDist[c] = (countDist[c] || 0) + 1 })
   console.log('[LegoNetwork] Hebbian counts:', { max: maxCount, avg: avgCount.toFixed(1), distribution: countDist })
 
+  // Build node connection strength map for Hebbian charge reduction
+  const nodeMaxConnection = new Map()
+  links.value.forEach(link => {
+    const sourceId = link.source.id || link.source
+    const targetId = link.target.id || link.target
+    const count = link.count || 1
+    nodeMaxConnection.set(sourceId, Math.max(nodeMaxConnection.get(sourceId) || 0, count))
+    nodeMaxConnection.set(targetId, Math.max(nodeMaxConnection.get(targetId) || 0, count))
+  })
+
   simulation = d3.forceSimulation(nodes.value)
     .force('link', d3.forceLink(links.value)
       .id(d => d.id)
       .distance(d => {
         // AGGRESSIVE Hebbian: neurons that fire together wire together
-        // Stronger connections (higher count) = MUCH shorter distance = VISIBLE clustering
+        // Stronger connections = MUCH shorter distance = VISIBLE clustering
         const baseDistance = f.linkDistance
-        const minDistance = 25 // Tight minimum for strong connections
+        const minDistance = 15 // Very tight for strong connections
         const count = d.count || 1
-        // Power scaling for dramatic effect (sqrt gives faster falloff than log)
-        // count=1: baseDistance, count=4: ~50% baseDistance, count=10: ~30% baseDistance
-        const scaleFactor = 1 + Math.sqrt(count) * 0.5
+        // Exponential-ish scaling for dramatic effect
+        // count=1: baseDistance, count=10: ~25% baseDistance, count=50: ~15% baseDistance
+        const scaleFactor = 1 + Math.pow(count, 0.6)
         return Math.max(minDistance, baseDistance / scaleFactor)
       })
       .strength(d => {
         // Stronger connections pull MUCH harder - creates visible clustering
         const count = d.count || 1
-        // Scale from 0.3 to 1.0 based on connection strength
-        return Math.min(1.0, 0.3 + Math.sqrt(count) * 0.15)
+        // Scale from 0.5 to 2.0 based on connection strength (higher max!)
+        return Math.min(2.0, 0.5 + Math.pow(count, 0.4) * 0.3)
       }))
     .force('charge', d3.forceManyBody()
-      .strength(f.chargeStrength)
+      .strength(d => {
+        // Hebbian: nodes with strong connections repel LESS (they want to stay close to partners)
+        const maxConn = nodeMaxConnection.get(d.id) || 1
+        // Base repulsion reduced for highly-connected nodes
+        // count=1: full repulsion, count=50: ~40% repulsion
+        const reductionFactor = 1 / (1 + Math.log(maxConn + 1) * 0.3)
+        return f.chargeStrength * reductionFactor
+      })
       .distanceMax(f.chargeDistanceMax))
     .force('center', d3.forceCenter(width / 2, height / 2))
-    .force('collision', d3.forceCollide().radius(collisionRadius))
-    .force('x', d3.forceX(width / 2).strength(f.centeringStrength))
-    .force('y', d3.forceY(height / 2).strength(f.centeringStrength))
+    .force('collision', d3.forceCollide().radius(collisionRadius * 0.8)) // Tighter collision
+    .force('x', d3.forceX(width / 2).strength(f.centeringStrength * 0.5)) // Weaker centering
+    .force('y', d3.forceY(height / 2).strength(f.centeringStrength * 0.5))
 
   // Initial render
   updateVisualization()
