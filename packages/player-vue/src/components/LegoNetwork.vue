@@ -1429,14 +1429,26 @@ const loadNetworkData = async () => {
         if (practicedNodes.length > 0) {
           isRealData.value = true
 
-          // Assign belt colors based on when learner practiced each LEGO
-          // Sort by first_practiced_at if available, otherwise by order in progress
-          const progressMap = new Map(learnerProgress.value.map(p => [p.lego_id, p]))
-          const beltProgression = ['white', 'yellow', 'orange', 'green', 'blue', 'purple', 'brown', 'black']
-          const nodesPerBelt = Math.max(1, Math.ceil(practicedNodes.length / beltProgression.length))
+          // Build map of node id → original position in course
+          const nodePositionMap = new Map(realData.nodes.map((n, idx) => [n.id, idx]))
 
-          nodes.value = practicedNodes.map((node, idx) => {
+          // Assign belt colors based on ORIGINAL position in course (not practice order)
+          const getBeltForPosition = (pos: number): string => {
+            if (pos >= 800) return 'black'
+            if (pos >= 560) return 'brown'
+            if (pos >= 300) return 'purple'
+            if (pos >= 160) return 'blue'
+            if (pos >= 80) return 'green'
+            if (pos >= 40) return 'orange'
+            if (pos >= 16) return 'yellow'
+            return 'white'
+          }
+
+          const progressMap = new Map(learnerProgress.value.map(p => [p.lego_id, p]))
+
+          nodes.value = practicedNodes.map((node) => {
             const progress = progressMap.get(node.id)
+            const originalPosition = nodePositionMap.get(node.id) || 0
             return {
               id: node.id,
               seedId: node.seedId,
@@ -1447,7 +1459,7 @@ const loadNetworkData = async () => {
               usedInPhrases: node.usedInPhrases,
               mastery: progress?.mastery_score || 0,
               isEternal: progress?.is_eternal || false,
-              birthBelt: beltProgression[Math.floor(idx / nodesPerBelt)] || 'black',
+              birthBelt: getBeltForPosition(originalPosition),
               x: undefined,
               y: undefined,
             }
@@ -1663,9 +1675,18 @@ const updateNetworkForSlider = (count) => {
   const visibleCount = Math.min(count, allNodes.length)
   const visibleNodeIds = new Set(allNodes.slice(0, visibleCount).map(n => n.id))
 
-  // Assign belt colors based on position in learning journey
-  const beltProgression = ['white', 'yellow', 'orange', 'green', 'blue', 'purple', 'brown', 'black']
-  const nodesPerBelt = Math.max(1, Math.ceil(visibleCount / beltProgression.length))
+  // Assign belt colors based on ACTUAL belt thresholds (not evenly distributed)
+  // Belt thresholds match the real SSi progression
+  const getBeltForPosition = (pos: number): string => {
+    if (pos >= 800) return 'black'
+    if (pos >= 560) return 'brown'
+    if (pos >= 300) return 'purple'
+    if (pos >= 160) return 'blue'
+    if (pos >= 80) return 'green'
+    if (pos >= 40) return 'orange'
+    if (pos >= 16) return 'yellow'
+    return 'white'
+  }
 
   nodes.value = allNodes.slice(0, visibleCount).map((node, idx) => ({
     id: node.id,
@@ -1677,7 +1698,7 @@ const updateNetworkForSlider = (count) => {
     usedInPhrases: node.usedInPhrases,
     mastery: Math.random() * 0.8, // Simulated
     isEternal: Math.random() > 0.7, // Simulated
-    birthBelt: beltProgression[Math.floor(idx / nodesPerBelt)] || 'black',
+    birthBelt: getBeltForPosition(idx),
     x: undefined,
     y: undefined,
   }))
