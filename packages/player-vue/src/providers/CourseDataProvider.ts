@@ -986,17 +986,20 @@ interface EternalPhrase {
 }
 
 /**
- * Load eternal phrases for all LEGOs in one query
- * Returns a map of legoId -> array of eternal phrases (up to 5 longest by word_count)
+ * Load ALL practice phrases for all LEGOs, ordered by syllable count.
+ * Returns both debut (shortest 7) and eternal (longest 5) maps.
+ *
+ * This computes the split dynamically rather than relying on pre-computed positions.
  */
-async function loadEternalPhrases(
+async function loadAllPracticePhrasesGrouped(
   supabase: any,
   courseId: string,
   audioBaseUrl: string
-): Promise<Map<string, EternalPhrase[]>> {
+): Promise<{ debutMap: Map<string, EternalPhrase[]>; eternalMap: Map<string, EternalPhrase[]> }> {
+  const debutMap = new Map<string, EternalPhrase[]>()
   const eternalMap = new Map<string, EternalPhrase[]>()
 
-  if (!supabase) return eternalMap
+  if (!supabase) return { debutMap, eternalMap }
 
   // Helper to resolve audio URL
   const resolveAudioUrl = (uuid: string | null): string => {
@@ -1005,41 +1008,59 @@ async function loadEternalPhrases(
   }
 
   try {
-    // Query practice_cycles view which HAS audio columns
-    // position >= 5 = eternal phrases (longest)
-    const { data, error } = await supabase
-      .from('practice_cycles')
-      .select('*')
-      .eq('course_code', courseId)
-      .gte('position', 5) // Eternal phrases are position 5+
-      .order('lego_id', { ascending: true })
-      .order('target_syllable_count', { ascending: false }) // Longest first
+    // Load ALL practice phrases for all LEGOs (position > 1)
+    // Order by syllable count so we can split into debut (shortest) and eternal (longest)
+    // Position structure:
+    //   0 = Components (for M-type LEGOs, e.g., "estoy", "intentando")
+    //   1 = LEGO debut (the LEGO itself, e.g., "estoy intentando")
+    //   2+ = Practice phrases (e.g., "estoy intentando hablar español")
 
-    if (error) {
-      console.error('[loadEternalPhrases] Query error:', error)
-      return eternalMap
+    // Paginate to handle Supabase's 1000 row limit
+    let allData: any[] = []
+    let offset = 0
+    const pageSize = 1000
+
+    while (true) {
+      const { data: page, error } = await supabase
+        .from('practice_cycles')
+        .select('*')
+        .eq('course_code', courseId)
+        .gt('position', 1) // Position 0 = components, Position 1 = LEGO debut, Position 2+ = practice phrases
+        .order('lego_id', { ascending: true })
+        .order('target_syllable_count', { ascending: true }) // Shortest first
+        .range(offset, offset + pageSize - 1)
+
+      if (error) {
+        console.error('[loadAllPracticePhrasesGrouped] Query error:', error)
+        return { debutMap, eternalMap }
+      }
+
+      if (!page || page.length === 0) break
+
+      allData = allData.concat(page)
+      if (page.length < pageSize) break
+      offset += pageSize
     }
 
-    if (!data) return eternalMap
+    const data = allData
+    if (data.length === 0) return { debutMap, eternalMap }
 
-    console.log(`[loadEternalPhrases] Loaded ${data.length} eternal phrases from practice_cycles`)
+    console.log(`[loadAllPracticePhrasesGrouped] Loaded ${data.length} practice phrases from practice_cycles`)
 
-    // Group by lego_id and take top 5 longest for each
+    // Group by lego_id
     const grouped = new Map<string, any[]>()
     for (const row of data) {
       const legoId = row.lego_id
       if (!grouped.has(legoId)) {
         grouped.set(legoId, [])
       }
-      const phrases = grouped.get(legoId)!
-      if (phrases.length < 5) { // Keep only top 5 longest
-        phrases.push(row)
-      }
+      grouped.get(legoId)!.push(row)
     }
 
-    // Transform to EternalPhrase format WITH audio refs from practice_cycles
+    // Transform and split into debut (first 7) and eternal (last 5)
     for (const [legoId, rows] of grouped) {
-      const phrases: EternalPhrase[] = rows.map(row => ({
+      // Rows are already sorted by syllable count ascending
+      const allPhrases: EternalPhrase[] = rows.map(row => ({
         knownText: row.known_text,
         targetText: row.target_text,
         syllableCount: row.target_syllable_count || row.target_word_count || 0,
@@ -1060,15 +1081,36 @@ async function loadEternalPhrases(
           }
         }
       }))
-      eternalMap.set(legoId, phrases)
+
+      // Debut = shortest 7 (from start)
+      const debutPhrases = allPhrases.slice(0, 7)
+      if (debutPhrases.length > 0) {
+        debutMap.set(legoId, debutPhrases)
+      }
+
+      // Eternal = longest 5 (from end)
+      const eternalPhrases = allPhrases.slice(-5).reverse() // Reverse so longest is first
+      if (eternalPhrases.length > 0) {
+        eternalMap.set(legoId, eternalPhrases)
+      }
     }
 
-    console.log(`[loadEternalPhrases] Grouped into ${eternalMap.size} LEGOs with eternal phrases`)
-    return eternalMap
+    console.log(`[loadAllPracticePhrasesGrouped] Grouped into ${debutMap.size} LEGOs with debut phrases, ${eternalMap.size} with eternal phrases`)
+    return { debutMap, eternalMap }
   } catch (err) {
-    console.error('[loadEternalPhrases] Error:', err)
-    return eternalMap
+    console.error('[loadAllPracticePhrasesGrouped] Error:', err)
+    return { debutMap, eternalMap }
   }
+}
+
+// Legacy wrapper for eternal phrases (for backwards compatibility)
+async function loadEternalPhrases(
+  supabase: any,
+  courseId: string,
+  audioBaseUrl: string
+): Promise<Map<string, EternalPhrase[]>> {
+  const { eternalMap } = await loadAllPracticePhrasesGrouped(supabase, courseId, audioBaseUrl)
+  return eternalMap
 }
 
 /**
@@ -1095,90 +1137,14 @@ function pickRandomPhrase(
   return pool[idx]
 }
 
-/**
- * Load debut phrases for all LEGOs (shortest by syllable count, up to 7 each)
- */
+// Legacy wrapper for debut phrases (for backwards compatibility)
 async function loadDebutPhrases(
   supabase: any,
   courseId: string,
   audioBaseUrl: string
 ): Promise<Map<string, EternalPhrase[]>> {
-  const debutMap = new Map<string, EternalPhrase[]>()
-
-  if (!supabase) return debutMap
-
-  // Helper to resolve audio URL
-  const resolveAudioUrl = (uuid: string | null): string => {
-    if (!uuid) return ''
-    return `${audioBaseUrl}/${uuid.toUpperCase()}.mp3`
-  }
-
-  try {
-    // Query practice_cycles view which HAS audio columns
-    // Debut phrases are positions 2-4 (shortest phrases after the LEGO debut at position 1)
-    const { data, error } = await supabase
-      .from('practice_cycles')
-      .select('*')
-      .eq('course_code', courseId)
-      .gte('position', 2) // Position 2+ are practice phrases
-      .lte('position', 4) // Positions 2-4 are debut phrases (shortest)
-      .order('lego_id', { ascending: true })
-      .order('target_syllable_count', { ascending: true }) // Shortest first
-
-    if (error) {
-      console.error('[loadDebutPhrases] Query error:', error)
-      return debutMap
-    }
-
-    if (!data) return debutMap
-
-    console.log(`[loadDebutPhrases] Loaded ${data.length} debut phrases from practice_cycles`)
-
-    // Group by lego_id and take shortest 7 for each
-    const grouped = new Map<string, any[]>()
-    for (const row of data) {
-      const legoId = row.lego_id
-      if (!grouped.has(legoId)) {
-        grouped.set(legoId, [])
-      }
-      const phrases = grouped.get(legoId)!
-      if (phrases.length < 7) { // Keep shortest 7
-        phrases.push(row)
-      }
-    }
-
-    // Transform to EternalPhrase format WITH audio refs from practice_cycles
-    for (const [legoId, rows] of grouped) {
-      const phrases: EternalPhrase[] = rows.map(row => ({
-        knownText: row.known_text,
-        targetText: row.target_text,
-        syllableCount: row.target_syllable_count || row.target_word_count || 0,
-        audioRefs: {
-          known: {
-            id: row.known_audio_uuid || '',
-            url: resolveAudioUrl(row.known_audio_uuid)
-          },
-          target: {
-            voice1: {
-              id: row.target1_audio_uuid || '',
-              url: resolveAudioUrl(row.target1_audio_uuid)
-            },
-            voice2: {
-              id: row.target2_audio_uuid || '',
-              url: resolveAudioUrl(row.target2_audio_uuid)
-            }
-          }
-        }
-      }))
-      debutMap.set(legoId, phrases)
-    }
-
-    console.log(`[loadDebutPhrases] Grouped into ${debutMap.size} LEGOs with debut phrases`)
-    return debutMap
-  } catch (err) {
-    console.error('[loadDebutPhrases] Error:', err)
-    return debutMap
-  }
+  const { debutMap } = await loadAllPracticePhrasesGrouped(supabase, courseId, audioBaseUrl)
+  return debutMap
 }
 
 /**
@@ -1220,11 +1186,13 @@ export async function generateLearningScript(
     return { rounds: [], allItems: [] }
   }
 
-  // Load debut phrases (shortest by syllable count) and eternal phrases (longest)
-  const [debutPhrases, eternalPhrases] = await Promise.all([
-    loadDebutPhrases(supabase, courseId, audioBaseUrl),
-    loadEternalPhrases(supabase, courseId, audioBaseUrl)
-  ])
+  // Load ALL practice phrases and split into debut (shortest 7) and eternal (longest 5)
+  // Single query for efficiency
+  const { debutMap: debutPhrases, eternalMap: eternalPhrases } = await loadAllPracticePhrasesGrouped(
+    supabase,
+    courseId,
+    audioBaseUrl
+  )
 
   const rounds: RoundData[] = []
   const allItems: ScriptItem[] = []
