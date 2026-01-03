@@ -881,7 +881,7 @@ const animatePathSequence = (legoPath, totalDuration = 2000) => {
   const animatedNodes = new Set()
   const animatedEdges = new Set()
 
-  // First, dim all nodes and edges
+  // Slightly dim non-path elements (but keep network visible!)
   nodesLayer.selectAll('.node')
     .classed('path-inactive', true)
     .classed('path-active', false)
@@ -889,19 +889,19 @@ const animatePathSequence = (legoPath, totalDuration = 2000) => {
   nodesLayer.selectAll('.node .node-glow')
     .transition()
     .duration(200)
-    .attr('opacity', 0.15)
+    .attr('opacity', 0.25) // Dimmed but still visible
 
   nodesLayer.selectAll('.node .node-core')
     .transition()
     .duration(200)
-    .attr('opacity', 0.3)
+    .attr('opacity', 0.5) // Dimmed but still visible
 
   linksLayer.selectAll('.link')
     .classed('path-inactive', true)
     .classed('path-active', false)
     .transition()
     .duration(200)
-    .attr('opacity', 0.08) // Dim all edges so active path stands out
+    .attr('opacity', 0.15) // Keep connections visible, just subdued
 
   // Animate each node in sequence
   legoPath.forEach((legoId, index) => {
@@ -973,8 +973,9 @@ const animatePathSequence = (legoPath, totalDuration = 2000) => {
                 .duration(stepDelay * 0.8)
                 .ease(d3.easeLinear)
                 .attr('stroke-dashoffset', 0)
-                .attr('opacity', 0.9) // Brighten the active edge
-                .attr('stroke-width', 3.5)
+                .attr('opacity', 1) // Full brightness for active path
+                .attr('stroke-width', 4)
+                .attr('stroke', '#60a5fa') // Blue highlight for active path
 
               // Create traveling pulse - a glowing dot that moves along the edge
               if (pulsesLayer && pathElement.getPointAtLength) {
@@ -1038,12 +1039,14 @@ const resetPathAnimation = () => {
 
   // Restore edge styles (reset stroke-dasharray and restore opacity)
   if (linksLayer) {
+    const palette = currentPalette.value
     linksLayer.selectAll('.link')
       .classed('path-inactive', false)
       .classed('path-active', false)
       .attr('stroke-dasharray', null)
       .attr('stroke-dashoffset', null)
-      .attr('stroke-opacity', null) // Clear inline stroke-opacity, let CSS/initial opacity apply
+      .attr('stroke-opacity', null) // Clear inline stroke-opacity
+      .attr('stroke', palette.link.base) // Restore default color
       .transition()
       .duration(200)
       .attr('opacity', d => {
