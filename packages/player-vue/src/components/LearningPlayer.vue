@@ -650,27 +650,44 @@ const playCommentaryAudio = async (commentary) => {
   })
 }
 
+/**
+ * Update belt progress based on current position in course
+ * Belts are POSITION-based, not completion-based
+ * This allows learners to skip ahead and calibrate quickly
+ *
+ * @param roundIndex - Current round position (0-based)
+ * @param showCelebration - Whether to show belt promotion celebration
+ */
+const updateBeltForPosition = (roundIndex, showCelebration = true) => {
+  if (!beltProgress.value) return
+
+  const previousBelt = beltProgress.value.currentBelt.value
+  const previousSeeds = beltProgress.value.completedSeeds.value
+
+  // Set seeds to match current position (1 seed ≈ 1 round/LEGO)
+  const newSeeds = roundIndex + 1
+  beltProgress.value.setSeeds(newSeeds)
+
+  // Check for belt promotion (only celebrate if moving forward)
+  if (showCelebration && newSeeds > previousSeeds) {
+    const newBelt = beltProgress.value.currentBelt.value
+    if (newBelt.index > previousBelt.index) {
+      beltJustEarned.value = newBelt
+      console.log('[LearningPlayer] 🥋 Belt promotion!', previousBelt.name, '→', newBelt.name)
+      triggerRewardAnimation(100, 5)
+      setTimeout(() => {
+        beltJustEarned.value = null
+      }, 5000)
+    }
+  }
+}
+
 // Handle round boundary - called when a round completes
 const handleRoundBoundary = async (completedRoundIndex, completedLegoId) => {
   roundsThisSession.value++
 
-  // Add seeds via belt progress composable (persists to localStorage)
-  // Returns previous belt if a promotion just happened
-  if (beltProgress.value) {
-    const previousBelt = beltProgress.value.addSeeds(1)
-
-    // Check for belt promotion
-    if (previousBelt) {
-      beltJustEarned.value = currentBelt.value
-      console.log('[LearningPlayer] 🥋 Belt promotion!', previousBelt.name, '→', currentBelt.value.name)
-      // Play celebration sound and show animation
-      triggerRewardAnimation(100, 5) // Max bonus for belt promotion
-      // Belt promotion animation will show via beltJustEarned reactive state
-      setTimeout(() => {
-        beltJustEarned.value = null
-      }, 5000) // Slightly longer for celebration
-    }
-  }
+  // Update belt progress to match current position
+  updateBeltForPosition(completedRoundIndex)
 
   // ============================================
   // META-COMMENTARY: Instructions & Encouragements
@@ -1786,6 +1803,9 @@ const handleSkip = async () => {
     currentItemInRound.value = 0
     roundsThisSession.value++
 
+    // Update belt to match new position (with celebration if earned)
+    updateBeltForPosition(nextIndex)
+
     console.log('[LearningPlayer] Skip → Round', nextIndex, 'LEGO:', cachedRounds.value[nextIndex]?.legoId)
 
     // Start the new round if playing
@@ -1829,6 +1849,9 @@ const handleRevisit = async () => {
     currentRoundIndex.value = targetIndex
     currentItemInRound.value = 0
 
+    // Update belt to match new position (no celebration when going back)
+    updateBeltForPosition(targetIndex, false)
+
     console.log('[LearningPlayer] Revisit → Round', targetIndex, 'LEGO:', cachedRounds.value[targetIndex]?.legoId)
 
     // Start the round if playing
@@ -1854,6 +1877,7 @@ const handleRevisit = async () => {
 /**
  * Jump to a specific round by index (0-based)
  * For QA/Script View: allows jumping to any point in the course
+ * Belt progress updates to match position (allows quick calibration)
  */
 const jumpToRound = async (roundIndex) => {
   if (!useRoundBasedPlayback.value || !cachedRounds.value.length) {
@@ -1871,8 +1895,13 @@ const jumpToRound = async (roundIndex) => {
   if (isPlayingWelcome.value) skipWelcome()
   audioController.value?.stop()
 
+  const previousIndex = currentRoundIndex.value
   currentRoundIndex.value = roundIndex
   currentItemInRound.value = 0
+
+  // Update belt to match new position
+  // Show celebration only when moving forward
+  updateBeltForPosition(roundIndex, roundIndex > previousIndex)
 
   console.log('[LearningPlayer] Jump → Round', roundIndex, 'LEGO:', cachedRounds.value[roundIndex]?.legoId)
 
