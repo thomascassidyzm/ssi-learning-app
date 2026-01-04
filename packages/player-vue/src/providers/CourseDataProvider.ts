@@ -245,11 +245,25 @@ export class CourseDataProvider {
    * Resolve S3 key to full URL
    * v13.1: s3_key contains the full path (e.g., "uuid.mp3" or "mastered/ABC123.mp3")
    * The key already includes the file extension - don't append .mp3
+   *
+   * IMPORTANT: Handles case where audioBaseUrl may contain "/mastered" suffix
+   * but s3_key also starts with "mastered/" - prevents double path issue
    */
   private resolveAudioUrl(s3Key: string): string {
     if (!s3Key) return ''
-    // s3_key already contains path/extension, just prepend base URL
-    return `${this.audioBaseUrl}/${s3Key}`
+
+    // Strip any path suffix from base URL (e.g., "/mastered") since s3_key is the full path
+    let baseUrl = this.audioBaseUrl
+    // Remove trailing slash if present
+    if (baseUrl.endsWith('/')) {
+      baseUrl = baseUrl.slice(0, -1)
+    }
+    // Remove /mastered suffix if present (s3_key already includes it)
+    if (baseUrl.endsWith('/mastered')) {
+      baseUrl = baseUrl.slice(0, -9) // Remove "/mastered" (9 chars)
+    }
+
+    return `${baseUrl}/${s3Key}`
   }
 
   /**
@@ -1070,9 +1084,14 @@ async function loadAllPracticePhrasesGrouped(
   if (!supabase) return { debutMap, eternalMap }
 
   // Helper to resolve audio URL (v13.1: s3_key contains full path including extension)
+  // Handles case where audioBaseUrl may contain "/mastered" suffix
   const resolveAudioUrl = (s3Key: string | null): string => {
     if (!s3Key) return ''
-    return `${audioBaseUrl}/${s3Key}`
+    // Strip /mastered suffix from base URL if present (s3_key already includes it)
+    let baseUrl = audioBaseUrl
+    if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1)
+    if (baseUrl.endsWith('/mastered')) baseUrl = baseUrl.slice(0, -9)
+    return `${baseUrl}/${s3Key}`
   }
 
   try {
