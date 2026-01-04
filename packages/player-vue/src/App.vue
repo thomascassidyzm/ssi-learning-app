@@ -122,7 +122,12 @@ const handleCourseSelect = async (course) => {
 
 // Fetch enrolled courses from Supabase
 const fetchEnrolledCourses = async () => {
-  if (!supabaseClient.value) return
+  if (!supabaseClient.value) {
+    console.log('[App] fetchEnrolledCourses: No Supabase client')
+    return
+  }
+
+  console.log('[App] fetchEnrolledCourses: Fetching from courses table...')
 
   try {
     // For now, we don't have a learner_id, so just get all courses
@@ -131,6 +136,8 @@ const fetchEnrolledCourses = async () => {
       .from('courses')
       .select('*')
       .order('display_name')
+
+    console.log('[App] fetchEnrolledCourses result:', { data: data?.length || 0, error })
 
     if (error) {
       console.error('[App] Failed to fetch courses:', error)
