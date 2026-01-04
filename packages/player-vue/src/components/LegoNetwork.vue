@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 /**
  * LegoNetwork.vue - D3 Force-Directed Graph Visualization
  *

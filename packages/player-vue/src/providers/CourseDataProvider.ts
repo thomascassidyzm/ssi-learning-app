@@ -3,15 +3,24 @@
  *
  * Provides abstraction for loading learning items with backwards compatibility.
  *
- * Audio Architecture (v12):
- * - texts: Normalized text storage (one row per unique text+language)
- * - audio_files: Audio renderings (one row per text+voice+cadence)
- * - course_audio: Course-specific usage (role is context, not identity)
+ * Audio Architecture (v13.1 - January 2026):
+ * - course_audio: Flat, course-owned audio (one row per course+text+language+role)
+ * - shared_audio: Template table - copied to course_audio at import time
+ * - S3 storage: s3_key contains full path (e.g., "uuid.mp3" or "mastered/ABC123.mp3")
+ * - Learning app ONLY queries course_audio - shared_audio is an authoring concern
  *
- * The cycle views (lego_cycles, practice_cycles, seed_cycles) prefer v12
- * audio_registry over legacy audio_samples for backwards compatibility.
+ * The cycle views (lego_cycles, practice_cycles, seed_cycles) join with
+ * course_audio directly. No more texts/audio_files indirection.
  *
- * @see apml/core/ssi-variable-registry.apml for full schema specification
+ * Roles: known, target1, target2, presentation, encouragement, instruction
+ *
+ * Key v13.1 changes:
+ * - courses.code (not course_code), voice_config JSONB (not separate voice columns)
+ * - Order phrases by target1_duration_ms (not word_count) for cognitive load
+ * - Use s3_key from database for URLs (not id with .mp3 appended)
+ * - audio_samples table is DEPRECATED - do not use
+ *
+ * @see apml/core/audio-registry-v13.apml for full schema specification
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -149,16 +158,17 @@ export class CourseDataProvider {
   /**
    * Transform database records to LearningItem format
    * Maps lego_cycles view fields to LearningItem structure
+   * v13.1: Uses s3_key fields for URLs (known_s3_key, target1_s3_key, target2_s3_key)
    */
   private transformToLearningItems(records: any[]): LearningItem[] {
     return records.map((record) => {
       const legoId = record.lego_id
       const seedId = `S${String(record.seed_number).padStart(4, '0')}`
 
-      // Resolve audio URLs from UUIDs (field names from lego_cycles view)
-      const knownAudioUrl = this.resolveAudioUrl(record.known_audio_uuid)
-      const target1AudioUrl = this.resolveAudioUrl(record.target1_audio_uuid)
-      const target2AudioUrl = this.resolveAudioUrl(record.target2_audio_uuid)
+      // v13.1: Resolve audio URLs from s3_keys (not UUIDs)
+      const knownAudioUrl = this.resolveAudioUrl(record.known_s3_key)
+      const target1AudioUrl = this.resolveAudioUrl(record.target1_s3_key)
+      const target2AudioUrl = this.resolveAudioUrl(record.target2_s3_key)
 
       return {
         lego: {
@@ -232,15 +242,18 @@ export class CourseDataProvider {
   }
 
   /**
-   * Resolve audio UUID to full S3 URL
+   * Resolve S3 key to full URL
+   * v13.1: s3_key contains the full path (e.g., "uuid.mp3" or "mastered/ABC123.mp3")
+   * The key already includes the file extension - don't append .mp3
    */
-  private resolveAudioUrl(uuid: string): string {
-    if (!uuid) return ''
-    return `${this.audioBaseUrl}/${uuid.toUpperCase()}.mp3`
+  private resolveAudioUrl(s3Key: string): string {
+    if (!s3Key) return ''
+    // s3_key already contains path/extension, just prepend base URL
+    return `${this.audioBaseUrl}/${s3Key}`
   }
 
   /**
-   * Get course metadata
+   * Get course metadata (v13: uses 'code' not 'course_code')
    */
   async getCourseMetadata() {
     if (!this.client) return null
@@ -249,7 +262,7 @@ export class CourseDataProvider {
       const { data, error } = await this.client
         .from('courses')
         .select('*')
-        .eq('course_code', this.courseId)
+        .eq('code', this.courseId)
         .single()
 
       if (error) {
@@ -266,28 +279,28 @@ export class CourseDataProvider {
 
   /**
    * Get welcome audio for the course (plays once on first load)
+   * v13.1: Welcome audio is in course_audio with role='presentation'
    */
   async getWelcomeAudio(): Promise<AudioRef | null> {
     if (!this.client) return null
 
     try {
-      // Use 'welcome' field (new v12 schema) with fallback to old fields
+      // v13.1: Look up welcome audio in course_audio (role='presentation', text matches welcome pattern)
       const { data, error } = await this.client
-        .from('courses')
-        .select('welcome, welcome_audio_uuid, welcome_audio_duration_ms')
+        .from('course_audio')
+        .select('id, s3_key, duration_ms')
         .eq('course_code', this.courseId)
-        .single()
+        .eq('role', 'presentation')
+        .ilike('text', '%welcome%')
+        .limit(1)
+        .maybeSingle()
 
-      if (error) return null
-
-      // Prefer new 'welcome' field, fall back to old 'welcome_audio_uuid'
-      const welcomeId = data?.welcome || data?.welcome_audio_uuid
-      if (!welcomeId) return null
+      if (error || !data || !data.s3_key) return null
 
       return {
-        id: welcomeId,
-        url: this.resolveAudioUrl(welcomeId),
-        duration_ms: data.welcome_audio_duration_ms || null,
+        id: data.id,
+        url: this.resolveAudioUrl(data.s3_key),  // v13.1: use s3_key for URL
+        duration_ms: data.duration_ms || null,
       }
     } catch (err) {
       console.error('[CourseDataProvider] Error loading welcome audio:', err)
@@ -350,6 +363,7 @@ export class CourseDataProvider {
   /**
    * Load a ClassifiedBasket for a LEGO
    * Contains all phrases for the LEGO organized by type
+   * v13: Orders by target1_duration_ms (audio duration = cognitive load)
    */
   async getLegoBasket(legoId: string, lego?: LegoPair): Promise<ClassifiedBasket | null> {
     if (!this.client) {
@@ -359,13 +373,13 @@ export class CourseDataProvider {
 
     try {
       // Query practice_cycles view for all phrases containing this LEGO
+      // v13: Sort by target1_duration_ms for cognitive load (shortest audio = easiest)
       const { data, error } = await this.client
         .from('practice_cycles')
         .select('*')
         .eq('lego_id', legoId)
         .eq('course_code', this.courseId)
-        .order('position', { ascending: true })
-        .order('target_syllable_count', { ascending: true })
+        .order('target1_duration_ms', { ascending: true, nullsFirst: false })
 
       if (error) {
         console.error('[CourseDataProvider] Failed to load basket:', error)
@@ -387,6 +401,7 @@ export class CourseDataProvider {
 
   /**
    * Load baskets for multiple LEGOs at once (more efficient)
+   * v13: Orders by target1_duration_ms (audio duration = cognitive load)
    */
   async getLegoBasketsForSeed(seedId: string): Promise<Map<string, ClassifiedBasket>> {
     const baskets = new Map<string, ClassifiedBasket>()
@@ -402,14 +417,14 @@ export class CourseDataProvider {
       }
 
       // Query practice_cycles for all LEGOs in this seed
+      // v13: Sort by target1_duration_ms for cognitive load (shortest audio = easiest)
       const { data, error } = await this.client
         .from('practice_cycles')
         .select('*')
         .eq('seed_number', seedNumber)
         .eq('course_code', this.courseId)
         .order('lego_id', { ascending: true })
-        .order('position', { ascending: true })
-        .order('target_syllable_count', { ascending: true })
+        .order('target1_duration_ms', { ascending: true, nullsFirst: false })
 
       if (error) {
         console.error('[CourseDataProvider] Failed to load seed baskets:', error)
@@ -446,23 +461,30 @@ export class CourseDataProvider {
 
   /**
    * Get introduction audio for a LEGO ("The Spanish for X is...")
+   * v13.1: Queries lego_introductions (may have s3_key) or falls back to UUID
    */
   async getIntroductionAudio(legoId: string): Promise<AudioRef | null> {
     if (!this.client) return null
 
     try {
+      // Try to select s3_key if available, fallback to audio_uuid
       const { data, error } = await this.client
         .from('lego_introductions')
-        .select('audio_uuid, duration_ms')
+        .select('audio_uuid, s3_key, duration_ms')
         .eq('lego_id', legoId)
         .eq('course_code', this.courseId)
         .single()
 
       if (error || !data) return null
 
+      // v13.1: Prefer s3_key, fallback to UUID + .mp3 for legacy data
+      const url = data.s3_key
+        ? this.resolveAudioUrl(data.s3_key)
+        : `${this.audioBaseUrl}/${data.audio_uuid}.mp3`
+
       return {
         id: data.audio_uuid,
-        url: this.resolveAudioUrl(data.audio_uuid),
+        url,
         duration_ms: data.duration_ms,
       }
     } catch (err) {
@@ -472,8 +494,82 @@ export class CourseDataProvider {
   }
 
   /**
-   * Look up audio by text content using v12 audio_registry
+   * Get all instruction audio for the course (played in sequence)
+   * v13.1: Instructions are meta-cognitive content about the learning journey
+   * These are copied from shared_audio at import time
+   *
+   * @returns Array of AudioRef in sequence order
+   */
+  async getInstructions(): Promise<Array<AudioRef & { text: string; position: number }>> {
+    if (!this.client) return []
+
+    try {
+      // Query course_audio for all instructions, ordered by id (preserves import order)
+      const { data, error } = await this.client
+        .from('course_audio')
+        .select('id, s3_key, duration_ms, text')
+        .eq('course_code', this.courseId)
+        .eq('role', 'instruction')
+        .order('id', { ascending: true })
+
+      if (error || !data) {
+        console.warn('[CourseDataProvider] No instructions found:', error?.message)
+        return []
+      }
+
+      return data.map((row, index) => ({
+        id: row.id,
+        url: this.resolveAudioUrl(row.s3_key),
+        duration_ms: row.duration_ms,
+        text: row.text,
+        position: index, // 0-based position in sequence
+      }))
+    } catch (err) {
+      console.error('[CourseDataProvider] Error loading instructions:', err)
+      return []
+    }
+  }
+
+  /**
+   * Get all encouragement audio for the course (random pool)
+   * v13.1: Encouragements are motivational messages, randomly selected
+   * These are copied from shared_audio at import time
+   *
+   * @returns Array of AudioRef (unordered pool)
+   */
+  async getEncouragements(): Promise<Array<AudioRef & { text: string }>> {
+    if (!this.client) return []
+
+    try {
+      const { data, error } = await this.client
+        .from('course_audio')
+        .select('id, s3_key, duration_ms, text')
+        .eq('course_code', this.courseId)
+        .eq('role', 'encouragement')
+
+      if (error || !data) {
+        console.warn('[CourseDataProvider] No encouragements found:', error?.message)
+        return []
+      }
+
+      return data.map(row => ({
+        id: row.id,
+        url: this.resolveAudioUrl(row.s3_key),
+        duration_ms: row.duration_ms,
+        text: row.text,
+      }))
+    } catch (err) {
+      console.error('[CourseDataProvider] Error loading encouragements:', err)
+      return []
+    }
+  }
+
+  /**
+   * Look up audio by text content using v13 course_audio table
    * This is the canonical way to find audio for a phrase.
+   *
+   * v13: Direct lookup in course_audio (flat, course-owned)
+   * No more audio_registry or audio_samples fallback
    *
    * @param text - The text content to look up
    * @param role - 'known' | 'target1' | 'target2' - determines voice selection
@@ -486,11 +582,11 @@ export class CourseDataProvider {
     if (!this.client) return null
 
     try {
-      // Get course voice configuration
+      // Get course language configuration (v13: 'code' not 'course_code')
       const { data: course, error: courseError } = await this.client
         .from('courses')
-        .select('known_lang, target_lang, known_voice, target_voice_1, target_voice_2')
-        .eq('course_code', this.courseId)
+        .select('known_lang, target_lang')
+        .eq('code', this.courseId)
         .single()
 
       if (courseError || !course) {
@@ -498,63 +594,24 @@ export class CourseDataProvider {
         return null
       }
 
-      // Determine language, voice, and cadence based on role
-      let language: string
-      let voiceId: string
-      let cadence: string
+      // Determine language based on role
+      const language = role === 'known' ? course.known_lang : course.target_lang
 
-      switch (role) {
-        case 'known':
-          language = course.known_lang
-          voiceId = course.known_voice
-          cadence = 'natural'
-          break
-        case 'target1':
-          language = course.target_lang
-          voiceId = course.target_voice_1
-          cadence = 'slow'
-          break
-        case 'target2':
-          language = course.target_lang
-          voiceId = course.target_voice_2
-          cadence = 'slow'
-          break
-      }
-
-      // Try v12 audio_registry first
-      const { data: v12Audio, error: v12Error } = await this.client
-        .from('audio_registry')
-        .select('audio_id, s3_key, duration_ms')
-        .eq('content_normalized', text.toLowerCase().trim())
-        .eq('language', language)
-        .eq('voice_id', voiceId)
-        .eq('cadence', cadence)
-        .maybeSingle()
-
-      if (!v12Error && v12Audio && v12Audio.audio_id) {
-        console.log('[CourseDataProvider] v12 audio found for', role, ':', text)
-        return {
-          id: v12Audio.audio_id,
-          url: this.resolveAudioUrl(v12Audio.audio_id),
-          duration_ms: v12Audio.duration_ms,
-        }
-      }
-
-      // Fall back to legacy audio_samples
-      const legacyRole = role === 'known' ? 'source' : role // Legacy uses 'source' for known
-      const { data: legacyAudio, error: legacyError } = await this.client
-        .from('audio_samples')
-        .select('uuid, duration_ms')
+      // v13: Direct lookup in course_audio (flat, course-owned)
+      const { data: audio, error: audioError } = await this.client
+        .from('course_audio')
+        .select('id, s3_key, duration_ms')
+        .eq('course_code', this.courseId)
         .eq('text_normalized', text.toLowerCase().trim())
-        .eq('role', legacyRole)
+        .eq('language', language)
+        .eq('role', role)
         .maybeSingle()
 
-      if (!legacyError && legacyAudio && legacyAudio.uuid) {
-        console.log('[CourseDataProvider] Legacy audio found for', role, ':', text)
+      if (!audioError && audio && audio.s3_key) {
         return {
-          id: legacyAudio.uuid,
-          url: this.resolveAudioUrl(legacyAudio.uuid),
-          duration_ms: legacyAudio.duration_ms,
+          id: audio.id,
+          url: this.resolveAudioUrl(audio.s3_key),  // v13.1: use s3_key for URL
+          duration_ms: audio.duration_ms,
         }
       }
 
@@ -569,6 +626,7 @@ export class CourseDataProvider {
   /**
    * Batch lookup audio for multiple texts
    * More efficient than individual lookups
+   * v13: Uses course_audio directly (flat, course-owned)
    */
   async batchLookupAudio(
     texts: Array<{ text: string; role: 'known' | 'target1' | 'target2' }>
@@ -577,11 +635,11 @@ export class CourseDataProvider {
     if (!this.client || texts.length === 0) return results
 
     try {
-      // Get course voice configuration once
+      // Get course language configuration once (v13: 'code' not 'course_code')
       const { data: course, error: courseError } = await this.client
         .from('courses')
-        .select('known_lang, target_lang, known_voice, target_voice_1, target_voice_2')
-        .eq('course_code', this.courseId)
+        .select('known_lang, target_lang')
+        .eq('code', this.courseId)
         .single()
 
       if (courseError || !course) return results
@@ -597,30 +655,26 @@ export class CourseDataProvider {
         byRole[role].push(text.toLowerCase().trim())
       }
 
-      // Query v12 audio_registry for each role
+      // v13: Query course_audio for each role
       for (const [role, textList] of Object.entries(byRole)) {
         if (textList.length === 0) continue
 
         const language = role === 'known' ? course.known_lang : course.target_lang
-        const voiceId = role === 'known' ? course.known_voice
-          : role === 'target1' ? course.target_voice_1
-          : course.target_voice_2
-        const cadence = role === 'known' ? 'natural' : 'slow'
 
         const { data: audioData } = await this.client
-          .from('audio_registry')
-          .select('audio_id, content_normalized, duration_ms')
-          .in('content_normalized', textList)
+          .from('course_audio')
+          .select('id, s3_key, text_normalized, duration_ms')  // v13.1: include s3_key
+          .eq('course_code', this.courseId)
+          .in('text_normalized', textList)
           .eq('language', language)
-          .eq('voice_id', voiceId)
-          .eq('cadence', cadence)
+          .eq('role', role)
 
         if (audioData) {
           for (const audio of audioData) {
-            const key = `${audio.content_normalized}:${role}`
+            const key = `${audio.text_normalized}:${role}`
             results.set(key, {
-              id: audio.audio_id,
-              url: this.resolveAudioUrl(audio.audio_id),
+              id: audio.id,
+              url: this.resolveAudioUrl(audio.s3_key),  // v13.1: use s3_key for URL
               duration_ms: audio.duration_ms,
             })
           }
@@ -636,6 +690,14 @@ export class CourseDataProvider {
 
   /**
    * Transform database records to ClassifiedBasket
+   * Records should be pre-sorted by target1_duration_ms ascending (v13)
+   *
+   * Classification:
+   * - Components: position 0 (M-type LEGO parts, NEW courses only)
+   * - Debut phrases: shortest 7 practice phrases by duration (position >= 1)
+   * - Eternal phrases: longest 5 practice phrases by duration
+   *
+   * v13.1: Uses s3_key fields for URLs (known_s3_key, target1_s3_key, target2_s3_key)
    */
   private transformToBasket(
     legoId: string,
@@ -643,14 +705,13 @@ export class CourseDataProvider {
     lego?: LegoPair
   ): ClassifiedBasket {
     const components: PracticePhrase[] = []
-    let debut: PracticePhrase | null = null
-    const debutPhrases: PracticePhrase[] = []
-    const eternalPhrases: PracticePhrase[] = []
+    const practicePhrases: PracticePhrase[] = []
 
+    // Build phrase objects and separate components from practice phrases
     for (const record of records) {
       const phrase: PracticePhrase = {
         id: record.phrase_id || `${legoId}_P${record.position}`,
-        phraseType: this.mapPhraseType(record.position, record.phrase_type),
+        phraseType: record.position === 0 ? 'component' : 'practice',
         phrase: {
           known: record.known_text,
           target: record.target_text,
@@ -658,18 +719,18 @@ export class CourseDataProvider {
         audioRefs: {
           known: {
             id: record.known_audio_uuid,
-            url: this.resolveAudioUrl(record.known_audio_uuid),
+            url: this.resolveAudioUrl(record.known_s3_key),  // v13.1: use s3_key
             duration_ms: record.known_duration_ms,
           },
           target: {
             voice1: {
               id: record.target1_audio_uuid,
-              url: this.resolveAudioUrl(record.target1_audio_uuid),
+              url: this.resolveAudioUrl(record.target1_s3_key),  // v13.1: use s3_key
               duration_ms: record.target1_duration_ms,
             },
             voice2: {
               id: record.target2_audio_uuid,
-              url: this.resolveAudioUrl(record.target2_audio_uuid),
+              url: this.resolveAudioUrl(record.target2_s3_key),  // v13.1: use s3_key
               duration_ms: record.target2_duration_ms,
             },
           },
@@ -678,24 +739,21 @@ export class CourseDataProvider {
         containsLegos: [legoId],
       }
 
-      // Classify by position (from APML spec)
-      // position 0 = component, position 1 = lego debut, position 2+ = phrases
-      const position = record.position || 0
-      if (position === 0) {
+      if (record.position === 0) {
         components.push(phrase)
-      } else if (position === 1) {
-        debut = phrase
-      } else if (position <= 4) {
-        // Positions 2-4 are debut phrases (shortest)
-        debutPhrases.push(phrase)
       } else {
-        // Position 5+ are eternal phrases
-        eternalPhrases.push(phrase)
+        // Position >= 1 are practice phrases (already sorted by syllable count)
+        practicePhrases.push(phrase)
       }
     }
 
-    // If no explicit debut, create from lego
-    if (!debut && lego) {
+    // Split practice phrases: shortest 7 = debut, longest 5 = eternal
+    const debutPhrases = practicePhrases.slice(0, 7)
+    const eternalPhrases = practicePhrases.slice(-5).reverse() // Longest first
+
+    // Create debut from lego if provided
+    let debut: PracticePhrase | null = null
+    if (lego) {
       debut = {
         id: `${legoId}_debut`,
         phraseType: 'debut',
@@ -772,13 +830,14 @@ export class CourseDataProvider {
       console.log('[CourseDataProvider] Loaded', uniqueRecords.length, 'unique LEGOs for', this.courseId)
 
       // Transform to LearningItem format (with pagination)
+      // v13.1: Use s3_key fields for URLs
       return uniqueRecords.slice(offset, offset + limit).map((record) => {
         const legoId = record.lego_id
         const seedId = `S${String(record.seed_number).padStart(4, '0')}`
 
-        const knownAudioUrl = this.resolveAudioUrl(record.known_audio_uuid)
-        const target1AudioUrl = this.resolveAudioUrl(record.target1_audio_uuid)
-        const target2AudioUrl = this.resolveAudioUrl(record.target2_audio_uuid)
+        const knownAudioUrl = this.resolveAudioUrl(record.known_s3_key)
+        const target1AudioUrl = this.resolveAudioUrl(record.target1_s3_key)
+        const target2AudioUrl = this.resolveAudioUrl(record.target2_s3_key)
 
         return {
           lego: {
@@ -986,10 +1045,19 @@ interface EternalPhrase {
 }
 
 /**
- * Load ALL practice phrases for all LEGOs, ordered by syllable count.
+ * Load ALL practice phrases for all LEGOs, ordered by audio duration.
  * Returns both debut (shortest 7) and eternal (longest 5) maps.
  *
- * This computes the split dynamically rather than relying on pre-computed positions.
+ * Works for both OLD and NEW course formats:
+ * - OLD courses: position 1+ are all practice phrases
+ * - NEW courses: position 0=components, position 1=debut, position 2+=practice
+ *
+ * We include ALL phrases (position >= 1) and sort by target1_duration_ms to ensure:
+ * - Debut phrases = 7 shortest (easier combinations first)
+ * - Eternal phrases = 5 longest (more complex for spaced rep)
+ *
+ * v13: Uses target1_duration_ms (audio duration = cognitive load)
+ * This works across ALL languages including non-Roman scripts.
  */
 async function loadAllPracticePhrasesGrouped(
   supabase: any,
@@ -1001,15 +1069,15 @@ async function loadAllPracticePhrasesGrouped(
 
   if (!supabase) return { debutMap, eternalMap }
 
-  // Helper to resolve audio URL
-  const resolveAudioUrl = (uuid: string | null): string => {
-    if (!uuid) return ''
-    return `${audioBaseUrl}/${uuid.toUpperCase()}.mp3`
+  // Helper to resolve audio URL (v13.1: s3_key contains full path including extension)
+  const resolveAudioUrl = (s3Key: string | null): string => {
+    if (!s3Key) return ''
+    return `${audioBaseUrl}/${s3Key}`
   }
 
   try {
     // Load ALL practice phrases for all LEGOs (position > 1)
-    // Order by syllable count so we can split into debut (shortest) and eternal (longest)
+    // Order by duration so we can split into debut (shortest) and eternal (longest)
     // Position structure:
     //   0 = Components (for M-type LEGOs, e.g., "estoy", "intentando")
     //   1 = LEGO debut (the LEGO itself, e.g., "estoy intentando")
@@ -1021,13 +1089,15 @@ async function loadAllPracticePhrasesGrouped(
     const pageSize = 1000
 
     while (true) {
+      // Include ALL practice phrases (position >= 1) for both OLD and NEW courses
+      // v13: Sort by target1_duration_ms (audio duration = cognitive load)
       const { data: page, error } = await supabase
         .from('practice_cycles')
         .select('*')
         .eq('course_code', courseId)
-        .gt('position', 1) // Position 0 = components, Position 1 = LEGO debut, Position 2+ = practice phrases
+        .gte('position', 1) // Include position 1 (OLD courses have practice phrases there)
         .order('lego_id', { ascending: true })
-        .order('target_syllable_count', { ascending: true }) // Shortest first
+        .order('target1_duration_ms', { ascending: true, nullsFirst: false })
         .range(offset, offset + pageSize - 1)
 
       if (error) {
@@ -1059,37 +1129,38 @@ async function loadAllPracticePhrasesGrouped(
 
     // Transform and split into debut (first 7) and eternal (last 5)
     for (const [legoId, rows] of grouped) {
-      // Rows are already sorted by syllable count ascending
+      // Rows are already sorted by target1_duration_ms ascending (v13)
+      // v13.1: Use s3_key fields for URLs
       const allPhrases: EternalPhrase[] = rows.map(row => ({
         knownText: row.known_text,
         targetText: row.target_text,
-        syllableCount: row.target_syllable_count || row.target_word_count || 0,
+        syllableCount: row.target1_duration_ms || 0, // v13: Use duration as cognitive load proxy
         audioRefs: {
           known: {
             id: row.known_audio_uuid || '',
-            url: resolveAudioUrl(row.known_audio_uuid)
+            url: resolveAudioUrl(row.known_s3_key)
           },
           target: {
             voice1: {
               id: row.target1_audio_uuid || '',
-              url: resolveAudioUrl(row.target1_audio_uuid)
+              url: resolveAudioUrl(row.target1_s3_key)
             },
             voice2: {
               id: row.target2_audio_uuid || '',
-              url: resolveAudioUrl(row.target2_audio_uuid)
+              url: resolveAudioUrl(row.target2_s3_key)
             }
           }
         }
       }))
 
-      // Debut = shortest 7 (from start)
+      // Debut = shortest 7 (already sorted by duration ascending)
       const debutPhrases = allPhrases.slice(0, 7)
       if (debutPhrases.length > 0) {
         debutMap.set(legoId, debutPhrases)
       }
 
-      // Eternal = longest 5 (from end)
-      const eternalPhrases = allPhrases.slice(-5).reverse() // Reverse so longest is first
+      // Eternal = longest 5 (take from end, reverse so longest is first)
+      const eternalPhrases = allPhrases.slice(-5).reverse()
       if (eternalPhrases.length > 0) {
         eternalMap.set(legoId, eternalPhrases)
       }

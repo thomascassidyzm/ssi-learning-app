@@ -14,6 +14,7 @@ import ReportIssueButton from './ReportIssueButton.vue'
 // AwakeningLoader removed - loading state now shown inline in player
 import { useLearningSession } from '../composables/useLearningSession'
 import { useScriptCache, setCachedScript } from '../composables/useScriptCache'
+import { useMetaCommentary } from '../composables/useMetaCommentary'
 import { generateLearningScript } from '../providers/CourseDataProvider'
 
 const emit = defineEmits(['close'])
@@ -380,6 +381,22 @@ const learningSession = useLearningSession({
 const sessionItems = computed(() => learningSession.items.value.length > 0 ? learningSession.items.value : demoItems)
 
 // ============================================
+// META-COMMENTARY: Welcome, Instructions, Encouragements
+// Plays between rounds based on timing and adaptation
+// ============================================
+
+// Initialize meta-commentary composable (only if we have a data provider)
+const metaCommentary = courseDataProvider.value
+  ? useMetaCommentary({
+      courseDataProvider: courseDataProvider.value,
+      learnerId: learnerId.value || 'guest',
+    })
+  : null
+
+// Track if we're currently playing commentary audio
+const playingCommentaryAudio = ref(false)
+
+// ============================================
 // INK SPIRIT REWARDS
 // Target language congratulations that drift upward
 // Hidden formula - show results, not mechanics
@@ -607,6 +624,55 @@ const previousBeltIndex = ref(0)
 const showBreakSuggestion = ref(false)
 const beltJustEarned = ref(null)
 
+/**
+ * Play commentary audio (welcome, instruction, or encouragement)
+ * Returns a promise that resolves when audio finishes
+ */
+const playCommentaryAudio = async (commentary) => {
+  if (!commentary?.url || !audioController.value) {
+    console.warn('[LearningPlayer] Cannot play commentary - missing audio or controller')
+    return false
+  }
+
+  playingCommentaryAudio.value = true
+  console.log('[LearningPlayer] Playing', commentary.type, ':', commentary.text?.substring(0, 50))
+
+  return new Promise((resolve) => {
+    const audio = audioController.value
+
+    // Create a one-time ended handler
+    const onEnded = () => {
+      audio.offEnded(onEnded)
+      playingCommentaryAudio.value = false
+      resolve(true)
+    }
+
+    audio.onEnded(onEnded)
+
+    // Play the commentary audio
+    audio.play({
+      id: commentary.id,
+      url: commentary.url,
+      duration_ms: commentary.duration_ms,
+    }).catch((err) => {
+      console.error('[LearningPlayer] Commentary audio error:', err)
+      audio.offEnded(onEnded)
+      playingCommentaryAudio.value = false
+      resolve(false)
+    })
+
+    // Safety timeout (max 60 seconds for any commentary)
+    setTimeout(() => {
+      if (playingCommentaryAudio.value) {
+        audio.offEnded(onEnded)
+        audio.stop()
+        playingCommentaryAudio.value = false
+        resolve(false)
+      }
+    }, 60000)
+  })
+}
+
 // Handle round boundary - called when a round completes
 const handleRoundBoundary = async (completedRoundIndex, completedLegoId) => {
   roundsThisSession.value++
@@ -632,11 +698,48 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId) => {
     }, 4000)
   }
 
-  // Show encouragement every 3-5 rounds (random to feel natural)
-  const encouragementInterval = 3 + Math.floor(Math.random() * 3) // 3, 4, or 5
-  if (roundsThisSession.value % encouragementInterval === 0 && !beltJustEarned.value) {
-    // Trigger encouragement animation
-    triggerRewardAnimation(25, Math.min(roundsThisSession.value / 3, 4))
+  // ============================================
+  // META-COMMENTARY: Instructions & Encouragements
+  // Check if it's time for audio commentary between rounds
+  // Timing is CYCLE-based (consistent ~11s), but plays at round boundaries
+  // ============================================
+  if (metaCommentary && !beltJustEarned.value) {
+    // Get cycle count from the completed round
+    const cyclesInRound = currentRound.value?.items?.length || 0
+
+    // Build performance metrics from current session data
+    const performance = {
+      averageResponseTime: 1500, // TODO: Wire up from actual timing data
+      correctStreak: roundsThisSession.value, // Approximate for now
+      strugglingItems: 0, // TODO: Wire up from adaptation engine
+    }
+
+    // Check if commentary should play this round (based on cycle accumulation)
+    const commentary = metaCommentary.onRoundComplete(
+      completedRoundIndex + 1, // 1-based round number
+      cyclesInRound,           // Number of cycles in this round
+      performance
+    )
+
+    if (commentary) {
+      console.log('[LearningPlayer] 📢 Playing', commentary.type, 'commentary')
+
+      // Play the commentary audio (pauses learning while playing)
+      await playCommentaryAudio(commentary)
+
+      // Mark commentary as complete
+      metaCommentary.finishCommentaryPlayback()
+    }
+  }
+
+  // Fallback: Show visual encouragement if no audio commentary played
+  // (only if we don't have meta-commentary or it didn't return anything)
+  if (!metaCommentary || !playingCommentaryAudio.value) {
+    const encouragementInterval = 3 + Math.floor(Math.random() * 3) // 3, 4, or 5
+    if (roundsThisSession.value % encouragementInterval === 0 && !beltJustEarned.value) {
+      // Trigger visual encouragement animation
+      triggerRewardAnimation(25, Math.min(roundsThisSession.value / 3, 4))
+    }
   }
 
   // Suggest break every 10 rounds (roughly 15-20 minutes of learning)
@@ -1681,24 +1784,132 @@ const startPlayback = async () => {
   }
 }
 
-const handleSkip = () => {
-  // Skip intro audio if playing
-  if (isPlayingIntroduction.value) {
-    skipIntroduction()
-    return
-  }
-  // Otherwise skip current orchestrator phase
-  if (orchestrator.value) {
-    orchestrator.value.skipPhase()
+/**
+ * SKIP - Jump to start of NEXT round
+ */
+const handleSkip = async () => {
+  // Skip any playing intro/welcome first
+  if (isPlayingIntroduction.value) skipIntroduction()
+  if (isPlayingWelcome.value) skipWelcome()
+
+  // Round-based navigation
+  if (useRoundBasedPlayback.value && cachedRounds.value.length) {
+    audioController.value?.stop()
+
+    const nextIndex = currentRoundIndex.value + 1
+    if (nextIndex >= cachedRounds.value.length) {
+      console.log('[LearningPlayer] Skip: Already at last round')
+      showPausedSummary()
+      return
+    }
+
+    currentRoundIndex.value = nextIndex
+    currentItemInRound.value = 0
+    roundsThisSession.value++
+
+    console.log('[LearningPlayer] Skip → Round', nextIndex, 'LEGO:', cachedRounds.value[nextIndex]?.legoId)
+
+    // Start the new round if playing
+    if (isPlaying.value) {
+      const firstItem = cachedRounds.value[nextIndex]?.items?.[0]
+      if (firstItem) {
+        const playable = await scriptItemToPlayableItem(firstItem)
+        if (playable && orchestrator.value) {
+          currentPlayableItem.value = playable
+          orchestrator.value.startItem(playable)
+        }
+      }
+    }
+  } else {
+    // Fallback: skip current phase in demo mode
+    if (orchestrator.value) {
+      orchestrator.value.skipPhase()
+    }
   }
 }
 
-const handleRevisit = () => {
-  // Restart current item from beginning
-  ringProgressRaw.value = 0
-  if (orchestrator.value && currentItem.value) {
-    orchestrator.value.startItem(currentItem.value)
+/**
+ * REVISIT - Go back to start of current round, or previous round if already at start
+ */
+const handleRevisit = async () => {
+  // Skip any playing intro/welcome first
+  if (isPlayingIntroduction.value) skipIntroduction()
+  if (isPlayingWelcome.value) skipWelcome()
+
+  // Round-based navigation
+  if (useRoundBasedPlayback.value && cachedRounds.value.length) {
+    audioController.value?.stop()
+
+    // If we're past the first item, go to start of current round
+    // If already at start, go to previous round
+    let targetIndex = currentRoundIndex.value
+    if (currentItemInRound.value === 0 && currentRoundIndex.value > 0) {
+      targetIndex = currentRoundIndex.value - 1
+    }
+
+    currentRoundIndex.value = targetIndex
+    currentItemInRound.value = 0
+
+    console.log('[LearningPlayer] Revisit → Round', targetIndex, 'LEGO:', cachedRounds.value[targetIndex]?.legoId)
+
+    // Start the round if playing
+    if (isPlaying.value) {
+      const firstItem = cachedRounds.value[targetIndex]?.items?.[0]
+      if (firstItem) {
+        const playable = await scriptItemToPlayableItem(firstItem)
+        if (playable && orchestrator.value) {
+          currentPlayableItem.value = playable
+          orchestrator.value.startItem(playable)
+        }
+      }
+    }
+  } else {
+    // Fallback: restart current item in demo mode
+    ringProgressRaw.value = 0
+    if (orchestrator.value && currentItem.value) {
+      orchestrator.value.startItem(currentItem.value)
+    }
   }
+}
+
+/**
+ * Jump to a specific round by index (0-based)
+ * For QA/Script View: allows jumping to any point in the course
+ */
+const jumpToRound = async (roundIndex) => {
+  if (!useRoundBasedPlayback.value || !cachedRounds.value.length) {
+    console.log('[LearningPlayer] Jump not available - not in round mode')
+    return false
+  }
+
+  if (roundIndex < 0 || roundIndex >= cachedRounds.value.length) {
+    console.log('[LearningPlayer] Invalid round index:', roundIndex)
+    return false
+  }
+
+  // Stop any playing audio
+  if (isPlayingIntroduction.value) skipIntroduction()
+  if (isPlayingWelcome.value) skipWelcome()
+  audioController.value?.stop()
+
+  currentRoundIndex.value = roundIndex
+  currentItemInRound.value = 0
+
+  console.log('[LearningPlayer] Jump → Round', roundIndex, 'LEGO:', cachedRounds.value[roundIndex]?.legoId)
+
+  // Start the round if playing
+  if (isPlaying.value) {
+    const firstItem = cachedRounds.value[roundIndex]?.items?.[0]
+    if (firstItem) {
+      const playable = await scriptItemToPlayableItem(firstItem)
+      if (playable && orchestrator.value) {
+        currentPlayableItem.value = playable
+        orchestrator.value.startItem(playable)
+      }
+    }
+  }
+
+  return true
 }
 
 // Mode toggles
@@ -2095,6 +2306,20 @@ onMounted(async () => {
   // Show player immediately, orchestrator inits in background
   // ============================================
   setLoadingStage('ready')
+
+  // ============================================
+  // META-COMMENTARY INITIALIZATION
+  // Initialize the service for instructions and encouragements
+  // ============================================
+  if (metaCommentary) {
+    try {
+      await metaCommentary.initialize()
+      console.log('[LearningPlayer] Meta-commentary initialized:', metaCommentary.instructionProgress.value)
+    } catch (err) {
+      console.warn('[LearningPlayer] Meta-commentary init failed:', err)
+      // Continue without meta-commentary
+    }
+  }
 
   // ============================================
   // ORCHESTRATOR INITIALIZATION (async, non-blocking)
