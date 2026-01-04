@@ -114,7 +114,7 @@ export class CourseDataProvider {
 
   /**
    * Load learning items for a session
-   * Tries database first, falls back to demo items if not available
+   * Queries course_legos and joins with course_audio by text lookup
    */
   async loadSessionItems(startSeed: number = 1, count: number = 30): Promise<LearningItem[]> {
     // If no Supabase client, return empty array (caller will use demo fallback)
@@ -124,10 +124,9 @@ export class CourseDataProvider {
     }
 
     try {
-      // Query lego_cycles view for the session range
-      // This view contains LEGOs with their audio UUIDs
-      const { data, error } = await this.client
-        .from('lego_cycles')
+      // Step 1: Query course_legos for the session range
+      const { data: legos, error: legosError } = await this.client
+        .from('course_legos')
         .select('*')
         .eq('course_code', this.courseId)
         .gte('seed_number', startSeed)
@@ -135,24 +134,169 @@ export class CourseDataProvider {
         .order('seed_number', { ascending: true })
         .order('lego_index', { ascending: true })
 
-      if (error) {
-        console.error('[CourseDataProvider] Query error:', error)
+      if (legosError) {
+        console.error('[CourseDataProvider] Query error:', legosError)
         return []
       }
 
-      if (!data || data.length === 0) {
-        console.warn('[CourseDataProvider] No data found for course:', this.courseId)
+      if (!legos || legos.length === 0) {
+        console.warn('[CourseDataProvider] No LEGOs found for course:', this.courseId)
         return []
       }
 
-      console.log('[CourseDataProvider] Loaded', data.length, 'items for', this.courseId)
+      console.log('[CourseDataProvider] Loaded', legos.length, 'LEGOs for', this.courseId)
 
-      // Transform database records to LearningItem format
-      return this.transformToLearningItems(data)
+      // Step 2: Get unique texts for audio lookup
+      const knownTexts = [...new Set(legos.map(l => l.known_text?.toLowerCase().trim()).filter(Boolean))]
+      const targetTexts = [...new Set(legos.map(l => l.target_text?.toLowerCase().trim()).filter(Boolean))]
+
+      // Step 3: Batch lookup audio for all texts
+      const audioMap = new Map<string, { id: string; s3_key: string; duration_ms: number }>()
+
+      // Lookup known audio
+      if (knownTexts.length > 0) {
+        const { data: knownAudio } = await this.client
+          .from('course_audio')
+          .select('id, text_normalized, s3_key, duration_ms, role')
+          .eq('course_code', this.courseId)
+          .eq('role', 'known')
+          .in('text_normalized', knownTexts)
+
+        for (const a of knownAudio || []) {
+          audioMap.set(`known:${a.text_normalized}`, a)
+        }
+      }
+
+      // Lookup target1 audio
+      if (targetTexts.length > 0) {
+        const { data: target1Audio } = await this.client
+          .from('course_audio')
+          .select('id, text_normalized, s3_key, duration_ms, role')
+          .eq('course_code', this.courseId)
+          .eq('role', 'target1')
+          .in('text_normalized', targetTexts)
+
+        for (const a of target1Audio || []) {
+          audioMap.set(`target1:${a.text_normalized}`, a)
+        }
+      }
+
+      // Lookup target2 audio
+      if (targetTexts.length > 0) {
+        const { data: target2Audio } = await this.client
+          .from('course_audio')
+          .select('id, text_normalized, s3_key, duration_ms, role')
+          .eq('course_code', this.courseId)
+          .eq('role', 'target2')
+          .in('text_normalized', targetTexts)
+
+        for (const a of target2Audio || []) {
+          audioMap.set(`target2:${a.text_normalized}`, a)
+        }
+      }
+
+      console.log('[CourseDataProvider] Loaded', audioMap.size, 'audio mappings')
+
+      // Step 4: Transform to LearningItem format with audio
+      return this.transformLegosWithAudio(legos, audioMap)
     } catch (err) {
       console.error('[CourseDataProvider] Failed to load items:', err)
       return []
     }
+  }
+
+  /**
+   * Transform course_legos records with audio lookup to LearningItem format
+   */
+  private transformLegosWithAudio(
+    legos: any[],
+    audioMap: Map<string, { id: string; s3_key: string; duration_ms: number }>
+  ): LearningItem[] {
+    return legos.map((record) => {
+      const legoId = record.lego_id
+      const seedId = `S${String(record.seed_number).padStart(4, '0')}`
+
+      // Lookup audio by normalized text
+      const knownNorm = record.known_text?.toLowerCase().trim() || ''
+      const targetNorm = record.target_text?.toLowerCase().trim() || ''
+
+      const knownAudio = audioMap.get(`known:${knownNorm}`)
+      const target1Audio = audioMap.get(`target1:${targetNorm}`)
+      const target2Audio = audioMap.get(`target2:${targetNorm}`)
+
+      const knownAudioUrl = knownAudio?.s3_key ? this.resolveAudioUrl(knownAudio.s3_key) : ''
+      const target1AudioUrl = target1Audio?.s3_key ? this.resolveAudioUrl(target1Audio.s3_key) : ''
+      const target2AudioUrl = target2Audio?.s3_key ? this.resolveAudioUrl(target2Audio.s3_key) : ''
+
+      return {
+        lego: {
+          id: legoId,
+          type: record.type || 'A',
+          new: record.is_new,
+          lego: {
+            known: record.known_text,
+            target: record.target_text,
+          },
+          audioRefs: {
+            known: {
+              id: knownAudio?.id || '',
+              url: knownAudioUrl
+            },
+            target: {
+              voice1: {
+                id: target1Audio?.id || '',
+                url: target1AudioUrl
+              },
+              voice2: {
+                id: target2Audio?.id || '',
+                url: target2AudioUrl
+              },
+            },
+          },
+        },
+        phrase: {
+          id: `${legoId}_P1`,
+          phraseType: record.is_new ? 'debut' : 'practice',
+          phrase: {
+            known: record.known_text,
+            target: record.target_text,
+          },
+          audioRefs: {
+            known: {
+              id: knownAudio?.id || '',
+              url: knownAudioUrl
+            },
+            target: {
+              voice1: {
+                id: target1Audio?.id || '',
+                url: target1AudioUrl
+              },
+              voice2: {
+                id: target2Audio?.id || '',
+                url: target2AudioUrl
+              },
+            },
+          },
+          wordCount: record.target_text ? record.target_text.split(/\s+/).length : 1,
+          containsLegos: [legoId],
+        },
+        seed: {
+          seed_id: seedId,
+          seed_pair: {
+            known: record.known_text,
+            target: record.target_text,
+          },
+          legos: [legoId],
+        },
+        thread_id: (record.seed_number % 3) + 1,
+        mode: record.is_new ? 'introduction' : 'practice',
+        audioDurations: {
+          source: knownAudio?.duration_ms ? knownAudio.duration_ms / 1000 : 2.0,
+          target1: target1Audio?.duration_ms ? target1Audio.duration_ms / 1000 : 2.5,
+          target2: target2Audio?.duration_ms ? target2Audio.duration_ms / 1000 : 2.5,
+        },
+      }
+    })
   }
 
   /**
@@ -791,6 +935,7 @@ export class CourseDataProvider {
   /**
    * Load all unique LEGOs for a course (without spaced repetition cycles)
    * Used by Course Explorer for QA script view
+   * Queries course_legos and joins with course_audio by text lookup
    */
   async loadAllUniqueLegos(limit: number = 1000, offset: number = 0): Promise<LearningItem[]> {
     if (!this.client) {
@@ -799,9 +944,9 @@ export class CourseDataProvider {
     }
 
     try {
-      // Query lego_cycles view (which has audio UUIDs) then dedupe by lego_id
-      const { data, error } = await this.client
-        .from('lego_cycles')
+      // Step 1: Query course_legos for all LEGOs
+      const { data: allLegos, error } = await this.client
+        .from('course_legos')
         .select('*')
         .eq('course_code', this.courseId)
         .order('seed_number', { ascending: true })
@@ -812,14 +957,14 @@ export class CourseDataProvider {
         return []
       }
 
-      if (!data || data.length === 0) {
+      if (!allLegos || allLegos.length === 0) {
         console.warn('[CourseDataProvider] No LEGOs found for course:', this.courseId)
         return []
       }
 
       // Deduplicate by lego_id - keep only first occurrence of each LEGO
       const seenLegos = new Set<string>()
-      const uniqueRecords = data.filter(record => {
+      const uniqueLegos = allLegos.filter(record => {
         if (seenLegos.has(record.lego_id)) {
           return false
         }
@@ -827,17 +972,78 @@ export class CourseDataProvider {
         return true
       })
 
-      console.log('[CourseDataProvider] Loaded', uniqueRecords.length, 'unique LEGOs for', this.courseId)
+      // Apply pagination
+      const paginatedLegos = uniqueLegos.slice(offset, offset + limit)
 
-      // Transform to LearningItem format (with pagination)
-      // v13.1: Use s3_key fields for URLs
-      return uniqueRecords.slice(offset, offset + limit).map((record) => {
+      console.log('[CourseDataProvider] Loaded', paginatedLegos.length, 'unique LEGOs for', this.courseId, '(of', uniqueLegos.length, 'total)')
+
+      // Step 2: Get unique texts for audio lookup
+      const knownTexts = [...new Set(paginatedLegos.map(l => l.known_text?.toLowerCase().trim()).filter(Boolean))]
+      const targetTexts = [...new Set(paginatedLegos.map(l => l.target_text?.toLowerCase().trim()).filter(Boolean))]
+
+      // Step 3: Batch lookup audio for all texts
+      const audioMap = new Map<string, { id: string; s3_key: string; duration_ms: number }>()
+
+      // Lookup known audio
+      if (knownTexts.length > 0) {
+        const { data: knownAudio } = await this.client
+          .from('course_audio')
+          .select('id, text_normalized, s3_key, duration_ms, role')
+          .eq('course_code', this.courseId)
+          .eq('role', 'known')
+          .in('text_normalized', knownTexts)
+
+        for (const a of knownAudio || []) {
+          audioMap.set(`known:${a.text_normalized}`, a)
+        }
+      }
+
+      // Lookup target1 audio
+      if (targetTexts.length > 0) {
+        const { data: target1Audio } = await this.client
+          .from('course_audio')
+          .select('id, text_normalized, s3_key, duration_ms, role')
+          .eq('course_code', this.courseId)
+          .eq('role', 'target1')
+          .in('text_normalized', targetTexts)
+
+        for (const a of target1Audio || []) {
+          audioMap.set(`target1:${a.text_normalized}`, a)
+        }
+      }
+
+      // Lookup target2 audio
+      if (targetTexts.length > 0) {
+        const { data: target2Audio } = await this.client
+          .from('course_audio')
+          .select('id, text_normalized, s3_key, duration_ms, role')
+          .eq('course_code', this.courseId)
+          .eq('role', 'target2')
+          .in('text_normalized', targetTexts)
+
+        for (const a of target2Audio || []) {
+          audioMap.set(`target2:${a.text_normalized}`, a)
+        }
+      }
+
+      console.log('[CourseDataProvider] Loaded', audioMap.size, 'audio mappings for unique LEGOs')
+
+      // Step 4: Transform to LearningItem format with audio
+      return paginatedLegos.map((record) => {
         const legoId = record.lego_id
         const seedId = `S${String(record.seed_number).padStart(4, '0')}`
 
-        const knownAudioUrl = this.resolveAudioUrl(record.known_s3_key)
-        const target1AudioUrl = this.resolveAudioUrl(record.target1_s3_key)
-        const target2AudioUrl = this.resolveAudioUrl(record.target2_s3_key)
+        // Lookup audio by normalized text
+        const knownNorm = record.known_text?.toLowerCase().trim() || ''
+        const targetNorm = record.target_text?.toLowerCase().trim() || ''
+
+        const knownAudio = audioMap.get(`known:${knownNorm}`)
+        const target1Audio = audioMap.get(`target1:${targetNorm}`)
+        const target2Audio = audioMap.get(`target2:${targetNorm}`)
+
+        const knownAudioUrl = knownAudio?.s3_key ? this.resolveAudioUrl(knownAudio.s3_key) : ''
+        const target1AudioUrl = target1Audio?.s3_key ? this.resolveAudioUrl(target1Audio.s3_key) : ''
+        const target2AudioUrl = target2Audio?.s3_key ? this.resolveAudioUrl(target2Audio.s3_key) : ''
 
         return {
           lego: {
@@ -850,16 +1056,16 @@ export class CourseDataProvider {
             },
             audioRefs: {
               known: {
-                id: record.known_audio_uuid,
+                id: knownAudio?.id || '',
                 url: knownAudioUrl
               },
               target: {
                 voice1: {
-                  id: record.target1_audio_uuid,
+                  id: target1Audio?.id || '',
                   url: target1AudioUrl
                 },
                 voice2: {
-                  id: record.target2_audio_uuid,
+                  id: target2Audio?.id || '',
                   url: target2AudioUrl
                 },
               },
@@ -874,16 +1080,16 @@ export class CourseDataProvider {
             },
             audioRefs: {
               known: {
-                id: record.known_audio_uuid,
+                id: knownAudio?.id || '',
                 url: knownAudioUrl
               },
               target: {
                 voice1: {
-                  id: record.target1_audio_uuid,
+                  id: target1Audio?.id || '',
                   url: target1AudioUrl
                 },
                 voice2: {
-                  id: record.target2_audio_uuid,
+                  id: target2Audio?.id || '',
                   url: target2AudioUrl
                 },
               },
@@ -902,9 +1108,9 @@ export class CourseDataProvider {
           thread_id: (record.seed_number % 3) + 1,
           mode: 'introduction',
           audioDurations: {
-            source: record.known_duration_ms ? record.known_duration_ms / 1000 : 2.0,
-            target1: record.target1_duration_ms ? record.target1_duration_ms / 1000 : 2.5,
-            target2: record.target2_duration_ms ? record.target2_duration_ms / 1000 : 2.5,
+            source: knownAudio?.duration_ms ? knownAudio.duration_ms / 1000 : 2.0,
+            target1: target1Audio?.duration_ms ? target1Audio.duration_ms / 1000 : 2.5,
+            target2: target2Audio?.duration_ms ? target2Audio.duration_ms / 1000 : 2.5,
           },
         }
       })
