@@ -474,14 +474,38 @@ export class CourseDataProvider {
   }
 
   /**
-   * Get introduction audio for a LEGO ("The Spanish for X is...")
-   * v13.1: Queries lego_introductions (may have s3_key) or falls back to UUID
+   * Get presentation/introduction audio for a LEGO ("The Spanish for X is...")
+   *
+   * v14: Queries course_audio with role='presentation' and context=legoId
+   * Returns origin field to determine playback mode:
+   * - origin='human': Single pre-recorded file (Welsh) - play once
+   * - origin='tts'/'ai': TTS clip - needs to be sequenced with target audio
+   *
+   * Falls back to legacy lego_introductions table if course_audio has no data
    */
-  async getIntroductionAudio(legoId: string): Promise<AudioRef | null> {
+  async getIntroductionAudio(legoId: string): Promise<(AudioRef & { origin?: string }) | null> {
     if (!this.client) return null
 
     try {
-      // Try to select s3_key if available, fallback to audio_uuid
+      // v14: Try course_audio with role='presentation' first
+      const { data: presentationData, error: presentationError } = await this.client
+        .from('course_audio')
+        .select('id, s3_key, duration_ms, origin')
+        .eq('course_code', this.courseId)
+        .eq('role', 'presentation')
+        .eq('context', legoId)
+        .maybeSingle()
+
+      if (!presentationError && presentationData && presentationData.s3_key) {
+        return {
+          id: presentationData.id,
+          url: this.resolveAudioUrl(presentationData.s3_key),
+          duration_ms: presentationData.duration_ms,
+          origin: presentationData.origin || 'tts', // Default to TTS if not specified
+        }
+      }
+
+      // Fallback: Try legacy lego_introductions table
       const { data, error } = await this.client
         .from('lego_introductions')
         .select('audio_uuid, s3_key, duration_ms')
@@ -491,15 +515,16 @@ export class CourseDataProvider {
 
       if (error || !data) return null
 
-      // v13.1: Prefer s3_key, fallback to UUID + .mp3 for legacy data
+      // Legacy data is always human-recorded (single file)
       const url = data.s3_key
         ? this.resolveAudioUrl(data.s3_key)
-        : `${this.audioBaseUrl}/${data.audio_uuid}.mp3`
+        : `${this.audioBaseUrl}/mastered/${data.audio_uuid}.mp3`
 
       return {
         id: data.audio_uuid,
         url,
         duration_ms: data.duration_ms,
+        origin: 'human', // Legacy = human recorded
       }
     } catch (err) {
       console.error('[CourseDataProvider] Error loading intro audio:', err)

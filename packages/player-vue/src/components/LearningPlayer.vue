@@ -234,8 +234,17 @@ const currentRound = computed(() =>
   useRoundBasedPlayback.value ? cachedRounds.value[currentRoundIndex.value] : null
 )
 
-// Audio base URL for S3
-const AUDIO_S3_BASE_URL = 'https://ssi-audio-stage.s3.eu-west-1.amazonaws.com/mastered'
+// Audio base URL for S3 (no /mastered suffix - s3_key already contains full path)
+const AUDIO_S3_BASE_URL = 'https://ssi-audio-stage.s3.eu-west-1.amazonaws.com'
+
+/**
+ * Fix audio URLs that have double mastered path (legacy cached data issue)
+ * e.g., ".../mastered/mastered/UUID.mp3" -> ".../mastered/UUID.mp3"
+ */
+const normalizeAudioUrl = (url) => {
+  if (!url) return url
+  return url.replace('/mastered/mastered/', '/mastered/')
+}
 
 /**
  * Convert a ScriptItem to a playable item for the orchestrator.
@@ -260,9 +269,10 @@ const scriptItemToPlayableItem = async (scriptItem) => {
 
   if (hasPreloadedAudio) {
     // Use pre-populated audio URLs from script generation
-    knownAudioUrl = scriptItem.audioRefs?.known?.url
-    target1AudioUrl = scriptItem.audioRefs?.target?.voice1?.url
-    target2AudioUrl = scriptItem.audioRefs?.target?.voice2?.url
+    // Normalize to fix any cached URLs with double mastered path
+    knownAudioUrl = normalizeAudioUrl(scriptItem.audioRefs?.known?.url)
+    target1AudioUrl = normalizeAudioUrl(scriptItem.audioRefs?.target?.voice1?.url)
+    target2AudioUrl = normalizeAudioUrl(scriptItem.audioRefs?.target?.voice2?.url)
     console.log('[scriptItemToPlayableItem] Using preloaded:', { knownAudioUrl, target1AudioUrl, target2AudioUrl })
   } else {
     // Fallback: Look up audio URLs from cache (lazy loaded)
@@ -1446,9 +1456,13 @@ const playIntroductionIfNeeded = async (item) => {
 }
 
 /**
- * Play introduction audio directly for a LEGO (for script-based playback).
+ * Play introduction/presentation audio directly for a LEGO (for script-based playback).
  * Unlike playIntroductionIfNeeded, this doesn't check if the LEGO is "new" -
  * it just plays the intro audio for the given legoId.
+ *
+ * v14: Handles two presentation modes based on origin:
+ * - origin='human' (Welsh): Single pre-recorded file - play once
+ * - origin='tts'/'ai': TTS sequence - presentation → pause → target1 → pause → target2
  */
 const playIntroductionAudioDirectly = async (legoId) => {
   console.log('[LearningPlayer] playIntroductionAudioDirectly for:', legoId)
@@ -1479,61 +1493,95 @@ const playIntroductionAudioDirectly = async (legoId) => {
     introductionPhase.value = true
     playedIntroductions.value.add(legoId)
 
-    console.log('[LearningPlayer] Playing introduction audio:', introAudio.url)
+    // Helper to play a single audio and wait for it to end
+    const playAudioAndWait = (url) => {
+      return new Promise((resolve) => {
+        const audio = audioController.value?.audio || new Audio()
+        introAudioElement = audio
 
-    // Play intro using shared audio element (for mobile compatibility)
-    // Set skipNextNotify to prevent orchestrator callbacks from firing when intro ends
-    return new Promise((resolve) => {
-      audioController.value?.stop()
-
-      // Tell audioController to skip notifying orchestrator when this audio ends
-      if (audioController.value) {
-        audioController.value.skipNextNotify = true
-      }
-
-      const audio = audioController.value?.audio || new Audio()
-      introAudioElement = audio // Store for skip functionality
-
-      const onEnded = () => {
-        audio.removeEventListener('ended', onEnded)
-        audio.removeEventListener('error', onError)
-        isPlayingIntroduction.value = false
-        introductionPhase.value = false
-        introAudioElement = null
-        // Reset skipNextNotify so next audio triggers orchestrator callbacks
-        if (audioController.value) {
-          audioController.value.skipNextNotify = false
+        const cleanup = () => {
+          audio.removeEventListener('ended', onEnded)
+          audio.removeEventListener('error', onError)
         }
-        console.log('[LearningPlayer] Introduction complete for:', legoId)
-        resolve(true)
-      }
 
-      const onError = (e) => {
-        console.error('[LearningPlayer] Introduction audio error:', e)
-        audio.removeEventListener('ended', onEnded)
-        audio.removeEventListener('error', onError)
-        isPlayingIntroduction.value = false
-        introductionPhase.value = false
-        introAudioElement = null
-        // Reset skipNextNotify so next audio triggers orchestrator callbacks
-        if (audioController.value) {
-          audioController.value.skipNextNotify = false
+        const onEnded = () => {
+          cleanup()
+          resolve(true)
         }
-        resolve(false)
-      }
 
-      audio.addEventListener('ended', onEnded)
-      audio.addEventListener('error', onError)
-      audio.src = introAudio.url
-      audio.load()
+        const onError = (e) => {
+          console.error('[LearningPlayer] Audio error:', e)
+          cleanup()
+          resolve(false)
+        }
 
-      audio.play().catch((e) => {
-        console.error('[LearningPlayer] Failed to play introduction:', e)
-        onError(e)
+        audio.addEventListener('ended', onEnded)
+        audio.addEventListener('error', onError)
+        audio.src = url
+        audio.load()
+        audio.play().catch(onError)
       })
-    })
+    }
+
+    // Helper to pause for a duration
+    const pause = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+
+    // Check origin to determine playback mode
+    const isHumanRecorded = introAudio.origin === 'human'
+
+    if (audioController.value) {
+      audioController.value.stop()
+      audioController.value.skipNextNotify = true
+    }
+
+    if (isHumanRecorded) {
+      // Welsh/human: Single pre-recorded file
+      console.log('[LearningPlayer] Playing human-recorded presentation:', introAudio.url)
+      await playAudioAndWait(introAudio.url)
+    } else {
+      // TTS: Sequence - presentation → pause → target1 → pause → target2
+      console.log('[LearningPlayer] Playing TTS presentation sequence for:', legoId)
+
+      // Get target audio from current playable item
+      const target1Url = currentPlayableItem.value?.lego?.audioRefs?.target?.voice1?.url
+      const target2Url = currentPlayableItem.value?.lego?.audioRefs?.target?.voice2?.url
+
+      // Play presentation clip ("The Spanish for X is...")
+      await playAudioAndWait(introAudio.url)
+
+      // Play target voice 1 with pause
+      if (target1Url) {
+        await pause(1000)
+        console.log('[LearningPlayer] Playing target1 in sequence:', target1Url)
+        await playAudioAndWait(normalizeAudioUrl(target1Url))
+      }
+
+      // Play target voice 2 with pause
+      if (target2Url) {
+        await pause(1000)
+        console.log('[LearningPlayer] Playing target2 in sequence:', target2Url)
+        await playAudioAndWait(normalizeAudioUrl(target2Url))
+      }
+    }
+
+    // Cleanup
+    isPlayingIntroduction.value = false
+    introductionPhase.value = false
+    introAudioElement = null
+    if (audioController.value) {
+      audioController.value.skipNextNotify = false
+    }
+    console.log('[LearningPlayer] Introduction complete for:', legoId)
+    return true
+
   } catch (err) {
     console.error('[LearningPlayer] Error playing introduction:', err)
+    isPlayingIntroduction.value = false
+    introductionPhase.value = false
+    introAudioElement = null
+    if (audioController.value) {
+      audioController.value.skipNextNotify = false
+    }
     return false
   }
 }
