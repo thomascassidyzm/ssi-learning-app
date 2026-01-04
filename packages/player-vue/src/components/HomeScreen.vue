@@ -22,6 +22,16 @@ const LANGUAGE_META = {
 
 const getLangMeta = (code) => LANGUAGE_META[code] || { name: code?.toUpperCase() || '?', flag: '🌐' }
 
+// Extract target language name from display_name or fall back to locale lookup
+// e.g., "Welsh (North) for English Speakers" → "Welsh (North)"
+const getTargetDisplayName = (course) => {
+  if (course.display_name) {
+    const match = course.display_name.match(/^(.+?)\s+for\s+/i)
+    if (match) return match[1]
+  }
+  return getLangMeta(course.target_lang).name
+}
+
 const props = defineProps({
   supabase: {
     type: Object,
@@ -57,7 +67,8 @@ const activeCourseData = computed(() => {
   return {
     ...course,
     // Display fields derived from database fields
-    title: course.title || targetMeta.name,
+    // Use display_name first (e.g., "Welsh (North)"), then target_lang lookup
+    title: course.title || getTargetDisplayName(course),
     subtitle: course.subtitle || `for ${knownMeta.name} Speakers`,
     target_flag: course.target_flag || targetMeta.flag,
     // Progress fields (from learner data or defaults)
