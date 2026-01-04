@@ -37,9 +37,6 @@ const isLearning = ref(false)
 // Component refs
 const legoNetworkRef = ref(null)
 
-// Shared position state - syncs between LearningPlayer and CourseExplorer
-const sharedRoundIndex = ref(0)
-
 // Class context (when launched from Schools)
 const classContext = ref(null)
 
@@ -228,12 +225,6 @@ const handleGoHome = () => {
   }
 }
 
-// Handle position changes from LearningPlayer (for syncing with CourseExplorer)
-const handlePositionChange = (roundIndex) => {
-  sharedRoundIndex.value = roundIndex
-  console.log('[App] Position updated:', roundIndex)
-}
-
 // Provide stores to child components (provide at setup level for reactivity)
 provide('progressStore', progressStore)
 provide('sessionStore', sessionStore)
@@ -314,9 +305,7 @@ onMounted(async () => {
         v-if="currentScreen === 'player' && activeCourse"
         :classContext="classContext"
         :course="activeCourse"
-        :initialRoundIndex="sharedRoundIndex"
         @close="handleGoHome"
-        @positionChange="handlePositionChange"
       />
     </Transition>
 
@@ -357,9 +346,7 @@ onMounted(async () => {
       <CourseExplorer
         v-if="currentScreen === 'explorer'"
         :course="activeCourse"
-        :initialRoundIndex="sharedRoundIndex"
         @close="goHome"
-        @positionChange="handlePositionChange"
       />
     </Transition>
 

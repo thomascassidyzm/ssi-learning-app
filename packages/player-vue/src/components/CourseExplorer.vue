@@ -87,16 +87,12 @@ class ScriptAudioController {
   }
 }
 
-const emit = defineEmits(['close', 'positionChange'])
+const emit = defineEmits(['close'])
 
 const props = defineProps({
   course: {
     type: Object,
     default: null
-  },
-  initialRoundIndex: {
-    type: Number,
-    default: 0
   }
 })
 
@@ -132,10 +128,9 @@ const audioController = ref(null)
 let cycleId = 0
 let pendingTimers = []
 
-// Jump navigation state - initialized from prop (1-based for UI, but prop is 0-based)
-const selectedRound = ref((props.initialRoundIndex || 0) + 1)
+// Jump navigation state
+const selectedRound = ref(1)
 const selectedSeed = ref('')
-const hasScrolledToInitial = ref(false)
 
 // Computed
 const courseName = computed(() => props.course?.display_name || props.course?.title || 'Course')
@@ -386,7 +381,7 @@ const refreshContent = () => {
 // ============================================================================
 
 // Jump to specific round
-const jumpToRound = (roundNum, emitChange = true) => {
+const jumpToRound = (roundNum) => {
   const targetIndex = allItems.value.findIndex(
     item => item.isRoundHeader && item.roundNumber === roundNum
   )
@@ -396,11 +391,6 @@ const jumpToRound = (roundNum, emitChange = true) => {
     // Update seed dropdown to match
     const round = rounds.value.find(r => r.roundNumber === roundNum)
     if (round) selectedSeed.value = round.seedId
-
-    // Emit position change for syncing with LearningPlayer (convert to 0-based)
-    if (emitChange) {
-      emit('positionChange', roundNum - 1)
-    }
   }
 }
 
@@ -414,11 +404,7 @@ const jumpToSeed = (seedId) => {
     selectedSeed.value = seedId
     // Update round dropdown to match
     const round = rounds.value.find(r => r.seedId === seedId)
-    if (round) {
-      selectedRound.value = round.roundNumber
-      // Emit position change for syncing with LearningPlayer (convert to 0-based)
-      emit('positionChange', round.roundNumber - 1)
-    }
+    if (round) selectedRound.value = round.roundNumber
   }
 }
 
@@ -802,19 +788,6 @@ onMounted(() => {
 onUnmounted(() => {
   clearAllTimers()
   if (audioController.value) audioController.value.stop()
-})
-
-// Watch for script load to scroll to initial position (from LearningPlayer sync)
-watch(scriptLoaded, (loaded) => {
-  if (loaded && !hasScrolledToInitial.value && props.initialRoundIndex > 0) {
-    nextTick(() => {
-      // Convert 0-based index to 1-based round number
-      const targetRound = props.initialRoundIndex + 1
-      console.log('[CourseExplorer] Scrolling to initial position: round', targetRound)
-      jumpToRound(targetRound, false) // Don't emit - we're syncing FROM the player
-      hasScrolledToInitial.value = true
-    })
-  }
 })
 </script>
 

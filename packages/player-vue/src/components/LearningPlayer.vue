@@ -18,7 +18,7 @@ import { useMetaCommentary } from '../composables/useMetaCommentary'
 import { useSharedBeltProgress } from '../composables/useBeltProgress'
 import { generateLearningScript } from '../providers/CourseDataProvider'
 
-const emit = defineEmits(['close', 'positionChange'])
+const emit = defineEmits(['close'])
 
 const props = defineProps({
   classContext: {
@@ -28,10 +28,6 @@ const props = defineProps({
   course: {
     type: Object,
     default: null
-  },
-  initialRoundIndex: {
-    type: Number,
-    default: 0
   }
 })
 
@@ -224,7 +220,7 @@ const {
 
 // Script-based learning state
 const cachedRounds = ref([])
-const currentRoundIndex = ref(props.initialRoundIndex || 0)
+const currentRoundIndex = ref(0)
 const currentItemInRound = ref(0)
 
 // Course welcome from cached script (plays once on first visit)
@@ -655,26 +651,8 @@ const playCommentaryAudio = async (commentary) => {
 }
 
 /**
- * Count unique seeds up to (and including) the given round index
- * A SEED contains multiple LEGOs, each LEGO has its own ROUND
- * Belt progress = unique seeds encountered, not rounds completed
- */
-const countUniqueSeedsUpTo = (roundIndex) => {
-  if (!cachedRounds.value.length) return 0
-
-  const seenSeeds = new Set()
-  for (let i = 0; i <= roundIndex && i < cachedRounds.value.length; i++) {
-    const round = cachedRounds.value[i]
-    if (round.seedId) {
-      seenSeeds.add(round.seedId)
-    }
-  }
-  return seenSeeds.size
-}
-
-/**
  * Update belt progress based on current position in course
- * Belts are POSITION-based (unique seeds encountered), not completion-based
+ * Belts are POSITION-based, not completion-based
  * This allows learners to skip ahead and calibrate quickly
  *
  * @param roundIndex - Current round position (0-based)
@@ -686,11 +664,9 @@ const updateBeltForPosition = (roundIndex, showCelebration = true) => {
   const previousBelt = beltProgress.value.currentBelt.value
   const previousSeeds = beltProgress.value.completedSeeds.value
 
-  // Count unique seeds up to this position (SEED != ROUND)
-  const newSeeds = countUniqueSeedsUpTo(roundIndex)
+  // Set seeds to match current position (1 seed ≈ 1 round/LEGO)
+  const newSeeds = roundIndex + 1
   beltProgress.value.setSeeds(newSeeds)
-
-  console.log('[LearningPlayer] Belt position: round', roundIndex, '→', newSeeds, 'unique seeds')
 
   // Check for belt promotion (only celebrate if moving forward)
   if (showCelebration && newSeeds > previousSeeds) {
@@ -1830,9 +1806,6 @@ const handleSkip = async () => {
     // Update belt to match new position (with celebration if earned)
     updateBeltForPosition(nextIndex)
 
-    // Emit position change for syncing with CourseExplorer
-    emit('positionChange', nextIndex)
-
     console.log('[LearningPlayer] Skip → Round', nextIndex, 'LEGO:', cachedRounds.value[nextIndex]?.legoId)
 
     // Start the new round if playing
@@ -1878,9 +1851,6 @@ const handleRevisit = async () => {
 
     // Update belt to match new position (no celebration when going back)
     updateBeltForPosition(targetIndex, false)
-
-    // Emit position change for syncing with CourseExplorer
-    emit('positionChange', targetIndex)
 
     console.log('[LearningPlayer] Revisit → Round', targetIndex, 'LEGO:', cachedRounds.value[targetIndex]?.legoId)
 
@@ -1932,9 +1902,6 @@ const jumpToRound = async (roundIndex) => {
   // Update belt to match new position
   // Show celebration only when moving forward
   updateBeltForPosition(roundIndex, roundIndex > previousIndex)
-
-  // Emit position change for syncing with CourseExplorer
-  emit('positionChange', roundIndex)
 
   console.log('[LearningPlayer] Jump → Round', roundIndex, 'LEGO:', cachedRounds.value[roundIndex]?.legoId)
 
