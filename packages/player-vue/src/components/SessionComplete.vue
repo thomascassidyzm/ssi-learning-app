@@ -18,6 +18,12 @@ const props = defineProps({
   beltProgress: { type: Number, default: 0 },
   completedSeeds: { type: Number, default: 0 },
   nextBelt: { type: Object, default: null },
+
+  // Time estimate (from useBeltProgress composable)
+  timeToNextBelt: { type: String, default: '' },
+
+  // Belt journey (all 8 belts with progress)
+  beltJourney: { type: Array, default: () => [] },
 })
 
 const emit = defineEmits(['resume'])
@@ -104,10 +110,29 @@ const handleDismiss = () => {
         <div class="progress-track">
           <div class="progress-fill" :style="{ width: `${beltProgress}%` }"></div>
         </div>
-        <span class="progress-label">{{ seedsToNextBelt }} to {{ nextBelt.name }}</span>
+        <span class="progress-label">{{ seedsToNextBelt }} seeds to {{ nextBelt.name }}</span>
+        <span class="time-estimate" v-if="timeToNextBelt">{{ timeToNextBelt }}</span>
       </div>
       <div class="progress-section" v-else>
         <span class="progress-label progress-label--mastery">Mastery achieved</span>
+      </div>
+
+      <!-- Belt journey visualization -->
+      <div class="belt-journey" v-if="beltJourney.length > 0">
+        <div
+          v-for="belt in beltJourney"
+          :key="belt.name"
+          class="journey-dot"
+          :class="{
+            'journey-dot--complete': belt.isComplete,
+            'journey-dot--current': belt.isCurrent,
+            'journey-dot--next': belt.isNext
+          }"
+          :style="{ '--dot-color': belt.color }"
+          :title="`${belt.name} belt (${belt.seedsRequired} seeds)`"
+        >
+          <span class="journey-dot-inner"></span>
+        </div>
       </div>
 
       <!-- Quick stats (if they practiced anything) -->
@@ -264,6 +289,70 @@ const handleDismiss = () => {
 
 .progress-label--mastery {
   color: var(--gold);
+}
+
+.time-estimate {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Belt Journey Visualization */
+.belt-journey {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+}
+
+.journey-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  cursor: help;
+}
+
+.journey-dot--complete {
+  background: var(--dot-color);
+  border-color: var(--dot-color);
+  box-shadow: 0 0 4px var(--dot-color);
+}
+
+.journey-dot--current {
+  width: 16px;
+  height: 16px;
+  background: var(--dot-color);
+  border-color: var(--dot-color);
+  box-shadow: 0 0 8px var(--dot-color), 0 0 16px var(--dot-color);
+  animation: pulse-current 2s ease-in-out infinite;
+}
+
+.journey-dot--next {
+  border-color: var(--dot-color);
+  opacity: 0.6;
+}
+
+.journey-dot-inner {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.8);
+  opacity: 0;
+}
+
+.journey-dot--current .journey-dot-inner {
+  opacity: 1;
+}
+
+@keyframes pulse-current {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
 }
 
 /* Quick Stats */

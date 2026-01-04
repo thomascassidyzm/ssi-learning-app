@@ -15,6 +15,7 @@ import ReportIssueButton from './ReportIssueButton.vue'
 import { useLearningSession } from '../composables/useLearningSession'
 import { useScriptCache, setCachedScript } from '../composables/useScriptCache'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
+import { useSharedBeltProgress } from '../composables/useBeltProgress'
 import { generateLearningScript } from '../providers/CourseDataProvider'
 
 const emit = defineEmits(['close'])
@@ -558,60 +559,37 @@ const sessionPoints = ref(0)
 
 // ============================================
 // BELT PROGRESSION SYSTEM
-// Parametrized martial arts progression
+// Uses useBeltProgress composable with localStorage persistence
+// Starts at white belt (0 seeds), progresses through 8 belts
 // ============================================
 
-const BELT_CONFIG = {
-  totalSeeds: 668,
+// Belt progress composable - initialized after courseCode is available
+// Uses localStorage for persistence, will swap to Supabase later
+const beltProgress = shallowRef(null)
 
-  // Belt thresholds - seeds required to ACHIEVE each belt
-  // Early belts come quickly for motivation
-  belts: [
-    { name: 'white',   seedsRequired: 0,   color: '#f5f5f5', colorDark: '#e0e0e0', glow: 'rgba(245, 245, 245, 0.3)' },
-    { name: 'yellow',  seedsRequired: 8,   color: '#fcd34d', colorDark: '#f59e0b', glow: 'rgba(252, 211, 77, 0.4)' },
-    { name: 'orange',  seedsRequired: 20,  color: '#fb923c', colorDark: '#ea580c', glow: 'rgba(251, 146, 60, 0.4)' },
-    { name: 'green',   seedsRequired: 40,  color: '#4ade80', colorDark: '#16a34a', glow: 'rgba(74, 222, 128, 0.4)' },
-    { name: 'blue',    seedsRequired: 80,  color: '#60a5fa', colorDark: '#2563eb', glow: 'rgba(96, 165, 250, 0.4)' },
-    { name: 'purple',  seedsRequired: 150, color: '#a78bfa', colorDark: '#7c3aed', glow: 'rgba(167, 139, 250, 0.4)' },
-    { name: 'brown',   seedsRequired: 280, color: '#a8856c', colorDark: '#78350f', glow: 'rgba(168, 133, 108, 0.4)' },
-    { name: 'black',   seedsRequired: 400, color: '#1f1f1f', colorDark: '#0a0a0a', glow: 'rgba(255, 255, 255, 0.15)' },
-  ]
-}
-
-// Simulated completed seeds (in real app, this comes from user state)
-const completedSeeds = ref(42) // Demo: Green belt territory
-
-// Belt computations
-const currentBelt = computed(() => {
-  const belts = BELT_CONFIG.belts
-  for (let i = belts.length - 1; i >= 0; i--) {
-    if (completedSeeds.value >= belts[i].seedsRequired) {
-      return { ...belts[i], index: i }
-    }
-  }
-  return { ...belts[0], index: 0 }
-})
-
-const nextBelt = computed(() => {
-  const nextIndex = currentBelt.value.index + 1
-  if (nextIndex >= BELT_CONFIG.belts.length) return null
-  return BELT_CONFIG.belts[nextIndex]
-})
-
-const beltProgress = computed(() => {
-  if (!nextBelt.value) return 100 // Already at black belt
-  const current = currentBelt.value.seedsRequired
-  const next = nextBelt.value.seedsRequired
-  const progress = (completedSeeds.value - current) / (next - current)
-  return Math.min(Math.max(progress * 100, 0), 100)
-})
+// Computed properties that delegate to the composable (with fallbacks for initial load)
+const completedSeeds = computed(() => beltProgress.value?.completedSeeds.value ?? 0)
+const currentBelt = computed(() => beltProgress.value?.currentBelt.value ?? { name: 'white', seedsRequired: 0, color: '#f5f5f5', colorDark: '#e0e0e0', glow: 'rgba(245, 245, 245, 0.3)', index: 0 })
+const nextBelt = computed(() => beltProgress.value?.nextBelt.value ?? null)
+const beltProgressPercent = computed(() => beltProgress.value?.beltProgress.value ?? 0)
+const seedsToNextBelt = computed(() => beltProgress.value?.seedsToNextBelt.value ?? 8)
+const timeToNextBelt = computed(() => beltProgress.value?.timeToNextBelt.value ?? 'Keep learning to see estimate')
+const beltJourney = computed(() => beltProgress.value?.beltJourney.value ?? [])
 
 // CSS custom properties for belt theming
-const beltCssVars = computed(() => ({
-  '--belt-color': currentBelt.value.color,
-  '--belt-color-dark': currentBelt.value.colorDark,
-  '--belt-glow': currentBelt.value.glow,
-}))
+const beltCssVars = computed(() => beltProgress.value?.beltCssVars.value ?? {
+  '--belt-color': '#f5f5f5',
+  '--belt-color-dark': '#e0e0e0',
+  '--belt-glow': 'rgba(245, 245, 245, 0.3)',
+})
+
+// Initialize belt progress when course code is available
+const initializeBeltProgress = () => {
+  if (courseCode.value && !beltProgress.value) {
+    beltProgress.value = useSharedBeltProgress(courseCode.value)
+    console.log('[LearningPlayer] Belt progress initialized for', courseCode.value, '- seeds:', beltProgress.value.completedSeeds.value)
+  }
+}
 
 // ============================================
 // ROUND BOUNDARY INTERRUPTIONS
@@ -620,7 +598,6 @@ const beltCssVars = computed(() => ({
 
 // Track rounds completed in this session (for break suggestions)
 const roundsThisSession = ref(0)
-const previousBeltIndex = ref(0)
 const showBreakSuggestion = ref(false)
 const beltJustEarned = ref(null)
 
@@ -677,25 +654,22 @@ const playCommentaryAudio = async (commentary) => {
 const handleRoundBoundary = async (completedRoundIndex, completedLegoId) => {
   roundsThisSession.value++
 
-  // Track previous belt for promotion detection
-  const oldBeltIndex = currentBelt.value.index
-  previousBeltIndex.value = oldBeltIndex
+  // Add seeds via belt progress composable (persists to localStorage)
+  // Returns previous belt if a promotion just happened
+  if (beltProgress.value) {
+    const previousBelt = beltProgress.value.addSeeds(1)
 
-  // Update completed seeds based on round (each round = ~1 seed progress)
-  // In production this would come from actual progress tracking
-  completedSeeds.value = Math.min(completedSeeds.value + 1, BELT_CONFIG.totalSeeds)
-
-  // Check for belt promotion
-  const newBeltIndex = currentBelt.value.index
-  if (newBeltIndex > oldBeltIndex) {
-    beltJustEarned.value = currentBelt.value
-    console.log('[LearningPlayer] 🥋 Belt promotion!', currentBelt.value.name)
-    // Play celebration sound and show animation
-    triggerRewardAnimation(100, 5) // Max bonus for belt promotion
-    // Belt promotion animation will show via beltJustEarned reactive state
-    setTimeout(() => {
-      beltJustEarned.value = null
-    }, 4000)
+    // Check for belt promotion
+    if (previousBelt) {
+      beltJustEarned.value = currentBelt.value
+      console.log('[LearningPlayer] 🥋 Belt promotion!', previousBelt.name, '→', currentBelt.value.name)
+      // Play celebration sound and show animation
+      triggerRewardAnimation(100, 5) // Max bonus for belt promotion
+      // Belt promotion animation will show via beltJustEarned reactive state
+      setTimeout(() => {
+        beltJustEarned.value = null
+      }, 5000) // Slightly longer for celebration
+    }
   }
 
   // ============================================
@@ -1705,6 +1679,11 @@ const skipIntroduction = () => {
 const startPlayback = async () => {
   isPlaying.value = true
 
+  // Start belt progress session for time tracking
+  if (beltProgress.value) {
+    beltProgress.value.startSession()
+  }
+
   // Check if welcome audio needs to play first (only on first ever play)
   await playWelcomeIfNeeded()
 
@@ -2089,6 +2068,11 @@ const showPausedSummary = () => {
   isPlaying.value = false
   showSessionComplete.value = true
 
+  // End belt progress session (saves session history for time estimates)
+  if (beltProgress.value) {
+    beltProgress.value.endSession()
+  }
+
   // Increment session count for guests (triggers signup prompt)
   if (auth && itemsPracticed.value > 0) {
     auth.incrementSessionCount()
@@ -2099,6 +2083,12 @@ const handleResumeLearning = async () => {
   // Hide summary and continue the infinite stream
   showSessionComplete.value = false
   isPlaying.value = true
+
+  // Start new belt progress session for time tracking
+  if (beltProgress.value) {
+    beltProgress.value.startSession()
+  }
+
   if (orchestrator.value && currentItem.value) {
     // Check for introduction before starting
     await playIntroductionIfNeeded(currentItem.value)
@@ -2114,6 +2104,12 @@ const handleExit = () => {
     orchestrator.value.stop()
   }
   isPlaying.value = false
+
+  // End belt progress session (saves session history)
+  if (beltProgress.value) {
+    beltProgress.value.endSession()
+  }
+
   emit('close')
 }
 
@@ -2141,6 +2137,9 @@ onMounted(async () => {
   document.documentElement.setAttribute('data-theme', savedTheme)
   audioController.value = new RealAudioController()
   currentCourseCode.value = courseCode.value
+
+  // Initialize belt progress (loads from localStorage)
+  initializeBeltProgress()
 
   // Track data loading state
   let dataReady = false
@@ -2406,9 +2405,11 @@ onUnmounted(() => {
       :items-practiced="itemsPracticed"
       :time-spent-seconds="sessionSeconds"
       :current-belt="currentBelt"
-      :belt-progress="beltProgress"
+      :belt-progress="beltProgressPercent"
       :completed-seeds="completedSeeds"
       :next-belt="nextBelt"
+      :time-to-next-belt="timeToNextBelt"
+      :belt-journey="beltJourney"
       @resume="handleResumeLearning"
     />
   </Transition>
@@ -2754,15 +2755,34 @@ onUnmounted(() => {
 
     <!-- Belt Promotion Celebration -->
     <Transition name="belt-celebration">
-      <div v-if="beltJustEarned" class="belt-celebration-overlay">
-        <div class="belt-celebration-card">
+      <div v-if="beltJustEarned" class="belt-celebration-overlay" @click="beltJustEarned = null">
+        <div class="belt-celebration-card" @click.stop>
+          <!-- Decorative particles -->
+          <div class="belt-particles">
+            <span v-for="i in 12" :key="i" class="belt-particle" :style="{ '--particle-delay': `${i * 0.1}s`, '--particle-angle': `${i * 30}deg` }"></span>
+          </div>
           <div class="belt-celebration-glow" :style="{ '--belt-glow-color': beltJustEarned.color }"></div>
-          <div class="belt-icon-large" :style="{ background: beltJustEarned.color }">🥋</div>
+
+          <!-- Belt SVG instead of emoji -->
+          <div class="belt-icon-large" :style="{ '--belt-color': beltJustEarned.color }">
+            <svg viewBox="0 0 64 40" class="belt-svg-celebration">
+              <rect x="0" y="14" width="64" height="12" rx="2" :fill="beltJustEarned.color"/>
+              <circle cx="32" cy="20" r="10" :fill="beltJustEarned.colorDark"/>
+              <circle cx="32" cy="20" r="6" fill="rgba(255,255,255,0.2)"/>
+              <path d="M22 20 L10 34" :stroke="beltJustEarned.color" stroke-width="4" stroke-linecap="round" fill="none"/>
+              <path d="M42 20 L54 34" :stroke="beltJustEarned.color" stroke-width="4" stroke-linecap="round" fill="none"/>
+            </svg>
+          </div>
+
           <h2 class="belt-title">New Belt Earned!</h2>
           <p class="belt-name" :style="{ color: beltJustEarned.color }">
             {{ beltJustEarned.name.charAt(0).toUpperCase() + beltJustEarned.name.slice(1) }} Belt
           </p>
           <p class="belt-seeds">{{ completedSeeds }} seeds mastered</p>
+
+          <button class="belt-continue-btn" @click="beltJustEarned = null">
+            Continue
+          </button>
         </div>
       </div>
     </Transition>
@@ -4382,17 +4402,52 @@ onUnmounted(() => {
   50% { opacity: 0.5; transform: scale(1.1); }
 }
 
-.belt-icon-large {
-  width: 100px;
-  height: 100px;
+/* Belt particles starburst */
+.belt-particles {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 200px;
+  height: 200px;
+  margin: -100px 0 0 -100px;
+  pointer-events: none;
+}
+
+.belt-particle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  background: var(--belt-glow-color, #4ade80);
   border-radius: 50%;
+  transform: rotate(var(--particle-angle)) translateY(0);
+  animation: belt-particle-burst 1s ease-out var(--particle-delay) forwards;
+  opacity: 0;
+}
+
+@keyframes belt-particle-burst {
+  0% { transform: rotate(var(--particle-angle)) translateY(0); opacity: 1; }
+  100% { transform: rotate(var(--particle-angle)) translateY(120px); opacity: 0; }
+}
+
+.belt-icon-large {
+  width: 120px;
+  height: 80px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 3rem;
   margin: 0 auto 1.5rem;
-  box-shadow: 0 0 40px rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 40px rgba(255, 255, 255, 0.2), 0 0 60px var(--belt-color, rgba(255,255,255,0.3));
   animation: belt-bounce 0.6s ease-out;
+}
+
+.belt-svg-celebration {
+  width: 80px;
+  height: 50px;
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
 }
 
 @keyframes belt-bounce {
@@ -4429,6 +4484,25 @@ onUnmounted(() => {
   font-size: 1rem;
   margin: 0;
   animation: belt-title-in 0.5s ease-out 0.6s both;
+}
+
+.belt-continue-btn {
+  margin-top: 2rem;
+  padding: 0.75rem 2rem;
+  background: transparent;
+  border: 2px solid var(--text-muted, rgba(245, 245, 245, 0.4));
+  color: var(--text-primary, #f5f5f5);
+  border-radius: 100px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  animation: belt-title-in 0.5s ease-out 0.8s both;
+}
+
+.belt-continue-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--text-primary, #f5f5f5);
 }
 
 /* Belt celebration transition */
