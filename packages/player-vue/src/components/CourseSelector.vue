@@ -133,7 +133,11 @@ const fetchCourses = async () => {
       .order('display_name')
 
     if (fetchError) throw fetchError
-    allCourses.value = data || []
+    // Normalize: courses table uses 'code', but rest of app expects 'course_code'
+    allCourses.value = (data || []).map(c => ({
+      ...c,
+      course_code: c.code, // Map 'code' to 'course_code' for app consistency
+    }))
     console.log('[CourseSelector] Loaded courses from Supabase:', data?.length || 0)
   } catch (e) {
     console.error('Failed to fetch courses:', e)

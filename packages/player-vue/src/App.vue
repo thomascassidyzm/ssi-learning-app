@@ -146,7 +146,12 @@ const fetchEnrolledCourses = async () => {
 
     // Set active course from: 1) localStorage, 2) first available
     if (data && data.length > 0) {
-      enrolledCourses.value = data
+      // Normalize: courses table uses 'code', but rest of app expects 'course_code'
+      const normalizedCourses = data.map(c => ({
+        ...c,
+        course_code: c.code, // Map 'code' to 'course_code' for app consistency
+      }))
+      enrolledCourses.value = normalizedCourses
 
       // Check for saved course preference
       let savedCourseCode = null
@@ -159,7 +164,7 @@ const fetchEnrolledCourses = async () => {
       // Find saved course or fall back to first available
       let defaultCourse = null
       if (savedCourseCode) {
-        defaultCourse = data.find(c => c.course_code === savedCourseCode)
+        defaultCourse = normalizedCourses.find(c => c.course_code === savedCourseCode)
         if (defaultCourse) {
           console.log('[App] Restored saved course:', savedCourseCode)
         } else {
@@ -167,7 +172,7 @@ const fetchEnrolledCourses = async () => {
         }
       }
       if (!defaultCourse) {
-        defaultCourse = data[0]
+        defaultCourse = normalizedCourses[0]
       }
 
       if (defaultCourse && !activeCourse.value) {
