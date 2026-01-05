@@ -129,6 +129,145 @@ const audioController = ref(null)
 let cycleId = 0
 let pendingTimers = []
 
+// ============================================
+// POSITION PERSISTENCE - Shared with LearningPlayer
+// Uses same storage key format for cross-component sync
+// ============================================
+const POSITION_STORAGE_KEY_PREFIX = 'ssi_learning_position_'
+let positionInitialized = false
+
+/**
+ * Convert flat index to (roundIndex, itemInRound)
+ */
+const flatIndexToRoundPosition = (flatIndex) => {
+  if (flatIndex < 0 || rounds.value.length === 0) {
+    return { roundIndex: 0, itemInRound: 0 }
+  }
+
+  let remaining = flatIndex
+  for (let r = 0; r < rounds.value.length; r++) {
+    const round = rounds.value[r]
+    const roundItemCount = round.items?.length || 0
+    // +1 for round header in allItems
+    const totalInRound = roundItemCount + 1
+
+    if (remaining < totalInRound) {
+      // We're in this round
+      // itemInRound 0 = header, 1+ = actual items
+      const itemInRound = Math.max(0, remaining - 1) // -1 to skip header
+      return { roundIndex: r, itemInRound }
+    }
+    remaining -= totalInRound
+  }
+
+  // Past end - return last position
+  const lastRound = rounds.value.length - 1
+  return {
+    roundIndex: lastRound,
+    itemInRound: (rounds.value[lastRound]?.items?.length || 1) - 1
+  }
+}
+
+/**
+ * Convert (roundIndex, itemInRound) to flat index
+ */
+const roundPositionToFlatIndex = (roundIndex, itemInRound) => {
+  if (rounds.value.length === 0) return 0
+
+  let flatIndex = 0
+  for (let r = 0; r < roundIndex && r < rounds.value.length; r++) {
+    const round = rounds.value[r]
+    // +1 for round header
+    flatIndex += (round.items?.length || 0) + 1
+  }
+
+  // Add header (+1) and item position
+  flatIndex += 1 + itemInRound
+
+  return Math.min(flatIndex, allItems.value.length - 1)
+}
+
+/**
+ * Save current position to localStorage (shared format)
+ */
+const savePositionToLocalStorage = () => {
+  if (!courseCode.value || !positionInitialized) return
+  if (currentFlatIndex.value < 0) return
+
+  try {
+    const { roundIndex, itemInRound } = flatIndexToRoundPosition(currentFlatIndex.value)
+    const position = {
+      roundIndex,
+      itemInRound,
+      lastUpdated: Date.now(),
+      courseCode: courseCode.value,
+    }
+    localStorage.setItem(`${POSITION_STORAGE_KEY_PREFIX}${courseCode.value}`, JSON.stringify(position))
+    console.log('[CourseExplorer] Position saved:', roundIndex, '/', itemInRound, '(flat:', currentFlatIndex.value, ')')
+  } catch (err) {
+    console.warn('[CourseExplorer] Failed to save position:', err)
+  }
+}
+
+/**
+ * Load position from localStorage and convert to flat index
+ */
+const loadPositionFromLocalStorage = () => {
+  if (!courseCode.value) return -1
+
+  try {
+    const stored = localStorage.getItem(`${POSITION_STORAGE_KEY_PREFIX}${courseCode.value}`)
+    if (!stored) return -1
+
+    const position = JSON.parse(stored)
+
+    // Validate course code
+    if (position.courseCode && position.courseCode !== courseCode.value) {
+      return -1
+    }
+
+    // Check if stale (>7 days)
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000
+    if (position.lastUpdated && Date.now() - position.lastUpdated > sevenDaysMs) {
+      console.log('[CourseExplorer] Saved position is stale, starting fresh')
+      return -1
+    }
+
+    if (typeof position.roundIndex === 'number') {
+      const flatIndex = roundPositionToFlatIndex(position.roundIndex, position.itemInRound || 0)
+      console.log('[CourseExplorer] Loaded position from localStorage: round', position.roundIndex, 'item', position.itemInRound, '-> flat', flatIndex)
+      return flatIndex
+    }
+
+    return -1
+  } catch (err) {
+    console.warn('[CourseExplorer] Failed to load position:', err)
+    return -1
+  }
+}
+
+// Watch for position changes and save
+watch(currentFlatIndex, (newVal) => {
+  if (positionInitialized && newVal >= 0) {
+    savePositionToLocalStorage()
+  }
+})
+
+/**
+ * Restore position from localStorage after script is loaded
+ * Call this after flattenItems() and scriptLoaded.value = true
+ */
+const restorePositionFromLocalStorage = () => {
+  const savedFlatIndex = loadPositionFromLocalStorage()
+  if (savedFlatIndex >= 0 && savedFlatIndex < allItems.value.length) {
+    // Don't auto-start playback, just scroll to position
+    const { roundIndex } = flatIndexToRoundPosition(savedFlatIndex)
+    selectedRound.value = roundIndex + 1 // 1-based for UI
+    console.log('[CourseExplorer] Restored to round', roundIndex + 1)
+  }
+  positionInitialized = true
+}
+
 // Jump navigation state
 const selectedRound = ref(1)
 const selectedSeed = ref('')
@@ -223,6 +362,7 @@ const loadScript = async (forceRefresh = false) => {
     rounds.value = createDemoRounds()
     flattenItems()
     scriptLoaded.value = true
+    restorePositionFromLocalStorage()
     return
   }
 
@@ -241,6 +381,7 @@ const loadScript = async (forceRefresh = false) => {
         flattenItems()
         scriptLoaded.value = true
         isLoadingScript.value = false
+        restorePositionFromLocalStorage()
 
         // Load intro audio in background
         const legoIds = new Set()
@@ -288,6 +429,7 @@ const loadScript = async (forceRefresh = false) => {
     await loadIntroAudio(courseId, legoIds)
 
     scriptLoaded.value = true
+    restorePositionFromLocalStorage()
 
     // Cache the full script
     try {
