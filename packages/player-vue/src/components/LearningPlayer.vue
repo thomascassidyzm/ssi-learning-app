@@ -2614,31 +2614,19 @@ onUnmounted(() => {
         <span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span>
       </div>
 
-      <!-- Belt Indicator - Zen Style -->
-      <div class="belt-indicator">
-        <div class="belt-knot">
-          <svg viewBox="0 0 32 16" class="belt-svg">
-            <!-- Belt fabric -->
-            <rect x="0" y="5" width="32" height="6" rx="1" class="belt-fabric"/>
-            <!-- Knot center -->
-            <circle cx="16" cy="8" r="4" class="belt-knot-center"/>
-            <!-- Belt tails -->
-            <path d="M12 8 L8 14 L6 14" class="belt-tail" />
-            <path d="M20 8 L24 14 L26 14" class="belt-tail" />
-          </svg>
+      <!-- Belt Progress Bar - Visual fill toward next belt -->
+      <div class="belt-progress-bar" :title="`${completedSeeds} seeds completed - ${beltProgressPercent}% to ${nextBelt?.name || 'mastery'}`">
+        <div class="belt-bar-track">
+          <div
+            class="belt-bar-fill"
+            :style="{ width: `${beltProgressPercent}%` }"
+          ></div>
         </div>
-        <div class="belt-progress-ring">
-          <svg viewBox="0 0 36 36">
-            <circle cx="18" cy="18" r="15" class="belt-progress-track" />
-            <circle
-              cx="18" cy="18" r="15"
-              class="belt-progress-fill"
-              :stroke-dasharray="94.25"
-              :stroke-dashoffset="94.25 - (beltProgress / 100) * 94.25"
-              transform="rotate(-90 18 18)"
-            />
+        <div class="belt-bar-knot">
+          <svg viewBox="0 0 20 20" class="belt-knot-svg">
+            <circle cx="10" cy="10" r="8" class="knot-outer"/>
+            <circle cx="10" cy="10" r="4" class="knot-inner"/>
           </svg>
-          <span class="belt-seed-count">{{ completedSeeds }}</span>
         </div>
       </div>
 
@@ -3323,88 +3311,61 @@ onUnmounted(() => {
   gap: 0.75rem;
 }
 
-/* ============ BELT INDICATOR ============ */
-.belt-indicator {
+/* ============ BELT PROGRESS BAR ============ */
+.belt-progress-bar {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.375rem 0.75rem;
+  gap: 0;
+  width: 140px;
+  cursor: default;
+}
+
+.belt-bar-track {
+  flex: 1;
+  height: 8px;
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
-  border-radius: 100px;
-  transition: all 0.3s ease;
+  border-radius: 4px 0 0 4px;
+  overflow: hidden;
+  position: relative;
 }
 
-.belt-knot {
-  width: 32px;
-  height: 16px;
+.belt-bar-fill {
+  height: 100%;
+  background: var(--belt-color);
+  border-radius: 3px 0 0 3px;
+  transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1), background 0.5s ease;
+  box-shadow: 0 0 8px var(--belt-glow);
+  min-width: 2px; /* Always show a sliver */
 }
 
-.belt-svg {
+.belt-bar-knot {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  margin-left: -2px;
+  z-index: 1;
+}
+
+.belt-knot-svg {
   width: 100%;
   height: 100%;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.3));
 }
 
-.belt-fabric {
+.knot-outer {
   fill: var(--belt-color);
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
   transition: fill 0.5s ease;
 }
 
-.belt-knot-center {
+.knot-inner {
   fill: var(--belt-color-dark);
   transition: fill 0.5s ease;
 }
 
-.belt-tail {
-  stroke: var(--belt-color);
-  stroke-width: 2;
-  stroke-linecap: round;
-  fill: none;
-  transition: stroke 0.5s ease;
-}
-
-/* Special styling for black belt - gold accents */
-.belt-black .belt-knot-center {
+/* Special styling for black belt - gold knot center */
+.belt-black .knot-inner {
   fill: #d4a853;
-}
-
-.belt-progress-ring {
-  position: relative;
-  width: 36px;
-  height: 36px;
-}
-
-.belt-progress-ring svg {
-  width: 100%;
-  height: 100%;
-}
-
-.belt-progress-track {
-  fill: none;
-  stroke: var(--border-medium);
-  stroke-width: 3;
-}
-
-.belt-progress-fill {
-  fill: none;
-  stroke: var(--belt-color);
-  stroke-width: 3;
-  stroke-linecap: round;
-  transition: stroke-dashoffset 0.5s cubic-bezier(0.16, 1, 0.3, 1), stroke 0.5s ease;
-  filter: drop-shadow(0 0 4px var(--belt-glow));
-}
-
-.belt-seed-count {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: 'Space Mono', monospace;
-  font-size: 0.625rem;
-  font-weight: 700;
-  color: var(--text-secondary);
 }
 
 /* ============ MAIN - FIXED LAYOUT ============ */
@@ -4235,11 +4196,11 @@ onUnmounted(() => {
     font-size: 1rem;
   }
 
-  .belt-indicator {
+  .belt-progress-bar {
     order: 3;
     width: 100%;
+    max-width: 200px;
     justify-content: center;
-    padding: 0.25rem 0.5rem;
     margin-top: 0.25rem;
   }
 
