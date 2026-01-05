@@ -984,9 +984,10 @@ export class CourseDataProvider {
 }
 
 /**
- * Fibonacci sequence for spaced repetition
+ * Fibonacci-based skip numbers for spaced repetition
+ * Review LEGO at position (N - skip) for each skip value
  */
-const FIBONACCI = [1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
+const FIBONACCI = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
 
 /**
  * ScriptItem - one item in the learning script
@@ -1031,8 +1032,7 @@ export interface RoundData {
  * Calculate which previous LEGOs to review during ROUND N
  * Based on formula: N - fibonacci[i] >= 1
  *
- * IMPORTANT: Each LEGO only appears once per round (deduplicated).
- * The Fibonacci sequence has [1, 1, ...] but we don't review the same LEGO twice.
+ * Each LEGO only appears once per round (deduplicated in case of edge cases).
  */
 function calculateSpacedRepReviews(roundNumber: number): Array<{ legoIndex: number; fibPosition: number }> {
   const reviews: Array<{ legoIndex: number; fibPosition: number }> = []
