@@ -1605,10 +1605,9 @@ const playIntroductionAudioDirectly = async (legoId) => {
     return false
   }
 
-  // Mark as playing intro
+  // Mark as playing intro (don't mark as "played" until successful completion)
   isPlayingIntroduction.value = true
   introductionPhase.value = true
-  playedIntroductions.value.add(legoId)
 
   // Helper to play a single audio and wait for it to end
   const playAudioAndWait = (url) => {
@@ -1669,6 +1668,9 @@ const playIntroductionAudioDirectly = async (legoId) => {
       console.log('[LearningPlayer] Playing target2:', target2Url)
       await playAudioAndWait(normalizeAudioUrl(target2Url))
     }
+
+    // Success - mark as played so it won't repeat this session
+    playedIntroductions.value.add(legoId)
 
     // Cleanup
     isPlayingIntroduction.value = false

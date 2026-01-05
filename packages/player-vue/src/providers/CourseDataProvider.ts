@@ -243,27 +243,39 @@ export class CourseDataProvider {
 
   /**
    * Resolve S3 key to full URL
-   * v13.1: s3_key contains the full path (e.g., "uuid.mp3" or "mastered/ABC123.mp3")
-   * The key already includes the file extension - don't append .mp3
+   * Handles multiple s3_key formats:
+   * - Full path: "mastered/UUID.mp3" → use as-is
+   * - UUID only: "UUID.mp3" → prepend "mastered/"
+   * - UUID without extension: "UUID" → prepend "mastered/" and append ".mp3"
    *
    * IMPORTANT: Handles case where audioBaseUrl may contain "/mastered" suffix
-   * but s3_key also starts with "mastered/" - prevents double path issue
    */
   private resolveAudioUrl(s3Key: string): string {
     if (!s3Key) return ''
 
-    // Strip any path suffix from base URL (e.g., "/mastered") since s3_key is the full path
+    // Strip any path suffix from base URL (e.g., "/mastered")
     let baseUrl = this.audioBaseUrl
-    // Remove trailing slash if present
     if (baseUrl.endsWith('/')) {
       baseUrl = baseUrl.slice(0, -1)
     }
-    // Remove /mastered suffix if present (s3_key already includes it)
     if (baseUrl.endsWith('/mastered')) {
-      baseUrl = baseUrl.slice(0, -9) // Remove "/mastered" (9 chars)
+      baseUrl = baseUrl.slice(0, -9)
     }
 
-    return `${baseUrl}/${s3Key}`
+    // Normalize s3_key: ensure it has mastered/ prefix and .mp3 extension
+    let normalizedKey = s3Key
+
+    // If no path separator, assume it needs mastered/ prefix
+    if (!normalizedKey.includes('/')) {
+      normalizedKey = `mastered/${normalizedKey}`
+    }
+
+    // If no .mp3 extension, add it
+    if (!normalizedKey.endsWith('.mp3')) {
+      normalizedKey = `${normalizedKey}.mp3`
+    }
+
+    return `${baseUrl}/${normalizedKey}`
   }
 
   /**
@@ -1120,15 +1132,19 @@ async function loadAllPracticePhrasesGrouped(
 
   if (!supabase) return { debutMap, eternalMap }
 
-  // Helper to resolve audio URL (v13.1: s3_key contains full path including extension)
-  // Handles case where audioBaseUrl may contain "/mastered" suffix
+  // Helper to resolve audio URL - handles multiple s3_key formats
   const resolveAudioUrl = (s3Key: string | null): string => {
     if (!s3Key) return ''
-    // Strip /mastered suffix from base URL if present (s3_key already includes it)
     let baseUrl = audioBaseUrl
     if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1)
     if (baseUrl.endsWith('/mastered')) baseUrl = baseUrl.slice(0, -9)
-    return `${baseUrl}/${s3Key}`
+
+    // Normalize: add mastered/ prefix if missing, add .mp3 if missing
+    let key = s3Key
+    if (!key.includes('/')) key = `mastered/${key}`
+    if (!key.endsWith('.mp3')) key = `${key}.mp3`
+
+    return `${baseUrl}/${key}`
   }
 
   try {

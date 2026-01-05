@@ -298,8 +298,8 @@ export const lookupAudioLazy = async (
   }
 }
 
-// Load intro audio UUIDs for LEGOs
-// Tries v12 schema (course_audio with role='presentation') first, falls back to legacy lego_introductions
+// Load intro audio for LEGOs from lego_introductions table
+// v13 schema: presentation_audio_id points to course_audio.id
 export const loadIntroAudio = async (
   supabase: SupabaseClient,
   courseCode: string,
@@ -309,29 +309,10 @@ export const loadIntroAudio = async (
   if (legoIds.size === 0) return
 
   try {
-    // Try v12 schema first: course_audio with role='presentation'
-    // context field contains the lego_id (e.g., 'S0001L01')
-    const { data: v12Data, error: v12Error } = await supabase
-      .from('course_audio')
-      .select('context, audio_id')
-      .eq('course_code', courseCode)
-      .eq('role', 'presentation')
-      .in('context', [...legoIds])
-
-    if (!v12Error && v12Data && v12Data.length > 0) {
-      for (const intro of v12Data) {
-        if (intro.context && intro.audio_id) {
-          audioMap.set(`intro:${intro.context}`, { intro: intro.audio_id })
-        }
-      }
-      console.log('[ScriptCache] Loaded', v12Data.length, 'intro audio entries (v12 schema)')
-      return
-    }
-
-    // Fall back to legacy lego_introductions table
+    // Query lego_introductions for presentation audio IDs
     const { data: introData, error } = await supabase
       .from('lego_introductions')
-      .select('lego_id, audio_uuid')
+      .select('lego_id, presentation_audio_id, audio_uuid')
       .eq('course_code', courseCode)
       .in('lego_id', [...legoIds])
 
@@ -340,11 +321,50 @@ export const loadIntroAudio = async (
       return
     }
 
-    for (const intro of (introData || [])) {
-      audioMap.set(`intro:${intro.lego_id}`, { intro: intro.audio_uuid })
+    if (!introData || introData.length === 0) {
+      console.log('[ScriptCache] No intro audio found for LEGOs')
+      return
     }
 
-    console.log('[ScriptCache] Loaded', introData?.length || 0, 'intro audio entries (legacy)')
+    // Get all presentation audio IDs to lookup s3_keys
+    const audioIds = introData
+      .map(i => i.presentation_audio_id || i.audio_uuid)
+      .filter(Boolean)
+
+    if (audioIds.length === 0) {
+      console.log('[ScriptCache] No presentation audio IDs found')
+      return
+    }
+
+    // Lookup s3_keys from course_audio
+    const { data: audioData, error: audioError } = await supabase
+      .from('course_audio')
+      .select('id, s3_key')
+      .in('id', audioIds)
+
+    if (audioError) {
+      console.warn('[ScriptCache] Could not lookup audio s3_keys:', audioError)
+      return
+    }
+
+    // Build lookup map: audio_id → s3_key
+    const s3KeyMap = new Map<string, string>()
+    for (const audio of (audioData || [])) {
+      if (audio.id && audio.s3_key) {
+        s3KeyMap.set(audio.id, audio.s3_key)
+      }
+    }
+
+    // Store in audioMap with s3_key (not UUID)
+    for (const intro of introData) {
+      const audioId = intro.presentation_audio_id || intro.audio_uuid
+      const s3Key = s3KeyMap.get(audioId)
+      if (s3Key) {
+        audioMap.set(`intro:${intro.lego_id}`, { intro: s3Key })
+      }
+    }
+
+    console.log('[ScriptCache] Loaded', introData.length, 'intro audio entries')
   } catch (err) {
     console.warn('[ScriptCache] Intro audio load failed:', err)
   }
