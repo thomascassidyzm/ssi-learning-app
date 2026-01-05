@@ -223,6 +223,81 @@ const cachedRounds = ref([])
 const currentRoundIndex = ref(0)
 const currentItemInRound = ref(0)
 
+// ============================================
+// LOCAL STORAGE PERSISTENCE - Works for all users (guests + logged-in)
+// Primary source of truth for position, works offline, persists across sessions
+// ============================================
+const POSITION_STORAGE_KEY_PREFIX = 'ssi_learning_position_'
+
+const getPositionStorageKey = () => `${POSITION_STORAGE_KEY_PREFIX}${courseCode.value}`
+
+/**
+ * Save current learning position to localStorage
+ * Called whenever position changes (round or item)
+ */
+const savePositionToLocalStorage = () => {
+  if (!courseCode.value) return
+
+  try {
+    const position = {
+      roundIndex: currentRoundIndex.value,
+      itemInRound: currentItemInRound.value,
+      lastUpdated: Date.now(),
+      courseCode: courseCode.value,
+    }
+    localStorage.setItem(getPositionStorageKey(), JSON.stringify(position))
+    console.log('[LearningPlayer] Position saved:', position.roundIndex, '/', position.itemInRound)
+  } catch (err) {
+    console.warn('[LearningPlayer] Failed to save position to localStorage:', err)
+  }
+}
+
+/**
+ * Load learning position from localStorage
+ * Returns null if no saved position or position is too old (>7 days)
+ */
+const loadPositionFromLocalStorage = () => {
+  if (!courseCode.value) return null
+
+  try {
+    const stored = localStorage.getItem(getPositionStorageKey())
+    if (!stored) return null
+
+    const position = JSON.parse(stored)
+
+    // Validate the position is for the current course
+    if (position.courseCode && position.courseCode !== courseCode.value) {
+      return null
+    }
+
+    // Check if position is stale (older than 7 days)
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000
+    if (position.lastUpdated && Date.now() - position.lastUpdated > sevenDaysMs) {
+      console.log('[LearningPlayer] Saved position is stale (>7 days), starting fresh')
+      return null
+    }
+
+    console.log('[LearningPlayer] Loaded position from localStorage:', position.roundIndex, '/', position.itemInRound)
+    return position
+  } catch (err) {
+    console.warn('[LearningPlayer] Failed to load position from localStorage:', err)
+    return null
+  }
+}
+
+/**
+ * Clear saved position (used when resetting progress)
+ */
+const clearPositionFromLocalStorage = () => {
+  if (!courseCode.value) return
+  try {
+    localStorage.removeItem(getPositionStorageKey())
+    console.log('[LearningPlayer] Position cleared from localStorage')
+  } catch (err) {
+    console.warn('[LearningPlayer] Failed to clear position:', err)
+  }
+}
+
 // Course welcome from cached script (plays once on first visit)
 const cachedCourseWelcome = ref(null)
 
@@ -233,6 +308,17 @@ const useRoundBasedPlayback = computed(() => cachedRounds.value.length > 0)
 const currentRound = computed(() =>
   useRoundBasedPlayback.value ? cachedRounds.value[currentRoundIndex.value] : null
 )
+
+// Flag to track if initial position has been loaded (prevents saving during initialization)
+const positionInitialized = ref(false)
+
+// Watch for position changes and persist to localStorage
+// Only saves after initial load is complete (positionInitialized is true)
+watch([currentRoundIndex, currentItemInRound], () => {
+  if (positionInitialized.value && useRoundBasedPlayback.value) {
+    savePositionToLocalStorage()
+  }
+})
 
 // Audio base URL for S3 (no /mastered suffix - s3_key already contains full path)
 const AUDIO_S3_BASE_URL = 'https://ssi-audio-stage.s3.eu-west-1.amazonaws.com'
@@ -2258,20 +2344,51 @@ onMounted(async () => {
         // Now run remaining tasks in parallel
         const parallelTasks = []
 
-        // Task: Load saved progress
+        // Task: Load saved progress (localStorage first, then database for logged-in users)
         parallelTasks.push(
-          loadSavedProgress().then(savedProgress => {
-            if (savedProgress?.lastCompletedRoundIndex !== null) {
-              const resumeIndex = savedProgress.lastCompletedRoundIndex + 1
-              if (resumeIndex < cachedScript.rounds.length) {
-                currentRoundIndex.value = resumeIndex
-                console.log('[LearningPlayer] Resuming from round', resumeIndex)
+          (async () => {
+            let resumed = false
+
+            // 1. Try localStorage first (works for all users, fast, offline-ready)
+            const localPosition = loadPositionFromLocalStorage()
+            if (localPosition && typeof localPosition.roundIndex === 'number') {
+              const resumeRound = localPosition.roundIndex
+              const resumeItem = localPosition.itemInRound || 0
+
+              if (resumeRound < cachedScript.rounds.length) {
+                currentRoundIndex.value = resumeRound
+                currentItemInRound.value = resumeItem
+                console.log('[LearningPlayer] Resuming from localStorage: round', resumeRound, 'item', resumeItem)
+                resumed = true
               } else {
-                console.log('[LearningPlayer] All rounds completed, starting fresh')
-                currentRoundIndex.value = 0
+                console.log('[LearningPlayer] localStorage position beyond available rounds, starting fresh')
               }
             }
-          }).catch(() => {})
+
+            // 2. For logged-in users, also check database (might have synced from another device)
+            if (!resumed) {
+              try {
+                const savedProgress = await loadSavedProgress()
+                if (savedProgress?.lastCompletedRoundIndex !== null) {
+                  const resumeIndex = savedProgress.lastCompletedRoundIndex + 1
+                  if (resumeIndex < cachedScript.rounds.length) {
+                    currentRoundIndex.value = resumeIndex
+                    currentItemInRound.value = 0 // Database only stores round, not item
+                    console.log('[LearningPlayer] Resuming from database: round', resumeIndex)
+                    resumed = true
+                  } else {
+                    console.log('[LearningPlayer] All rounds completed, starting fresh')
+                    currentRoundIndex.value = 0
+                  }
+                }
+              } catch (err) {
+                // Database load failed, that's OK - we already tried localStorage
+              }
+            }
+
+            // Mark position as initialized (enables saving on future changes)
+            positionInitialized.value = true
+          })()
         )
 
         // Task: Preload intro audio for first 5 LEGOs
@@ -2315,6 +2432,19 @@ onMounted(async () => {
             })
             cachedRounds.value = rounds
 
+            // Try to restore position from localStorage (even for fresh script generation)
+            const localPosition = loadPositionFromLocalStorage()
+            if (localPosition && typeof localPosition.roundIndex === 'number') {
+              if (localPosition.roundIndex < rounds.length) {
+                currentRoundIndex.value = localPosition.roundIndex
+                currentItemInRound.value = localPosition.itemInRound || 0
+                console.log('[LearningPlayer] Resuming from localStorage (new script): round', localPosition.roundIndex)
+              }
+            }
+
+            // Mark position as initialized
+            positionInitialized.value = true
+
             // Cache for next time
             const audioMapObj = Object.fromEntries(audioMap.value)
             const totalCycles = allItems.length
@@ -2342,10 +2472,15 @@ onMounted(async () => {
         } catch (genErr) {
           console.warn('[LearningPlayer] Script generation failed:', genErr)
           // Will fall back to session-based progression
+          positionInitialized.value = true
         }
+      } else {
+        // No script available, still mark as initialized
+        positionInitialized.value = true
       }
     } catch (err) {
       console.warn('[LearningPlayer] Data load error:', err)
+      positionInitialized.value = true
     }
 
     dataReady = true
