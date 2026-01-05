@@ -246,6 +246,13 @@ export const getAudioCacheStats = async (): Promise<{ count: number; estimatedMB
 // LAZY AUDIO LOOKUP (Supabase)
 // ============================================================================
 
+/**
+ * Lazy audio lookup using v13 schema (course_audio table)
+ * Returns s3_key which can be used to construct the full URL
+ *
+ * v13 schema: course_audio has text_normalized, role, s3_key
+ * The s3_key contains the full path (e.g., "mastered/UUID.mp3")
+ */
 export const lookupAudioLazy = async (
   supabase: SupabaseClient,
   courseCode: string,
@@ -259,44 +266,32 @@ export const lookupAudioLazy = async (
     return cached[role]
   }
 
-  // Query Supabase: texts → audio_files → course_audio
+  // v13: Query course_audio directly by text_normalized and role
   try {
-    const { data: textsData } = await supabase
-      .from('texts')
-      .select('id')
-      .eq('content', text)
-      .limit(1)
-
-    if (!textsData || textsData.length === 0) return null
-
-    const textId = textsData[0].id
-
-    const { data: audioData } = await supabase
-      .from('audio_files')
-      .select('id')
-      .eq('text_id', textId)
-
-    if (!audioData || audioData.length === 0) return null
-
-    const audioIds = audioData.map((a: any) => a.id)
-
-    const { data: courseAudio } = await supabase
+    const { data: audio, error } = await supabase
       .from('course_audio')
-      .select('audio_id, role')
+      .select('id, s3_key')
       .eq('course_code', courseCode)
-      .in('audio_id', audioIds)
+      .eq('text_normalized', text.toLowerCase().trim())
+      .eq('role', role)
+      .maybeSingle()
 
-    for (const ca of (courseAudio || [])) {
-      if (ca.role === role) {
-        if (!audioMap.has(text)) {
-          audioMap.set(text, {})
-        }
-        audioMap.get(text)[role] = ca.audio_id
-        return ca.audio_id
-      }
+    if (error) {
+      console.warn('[ScriptCache] Audio lookup query error:', error.message)
+      return null
     }
 
-    return null
+    if (!audio || !audio.s3_key) {
+      // No audio found for this text/role combination
+      return null
+    }
+
+    // Cache for future use - store s3_key directly
+    if (!audioMap.has(text)) {
+      audioMap.set(text, {})
+    }
+    audioMap.get(text)[role] = audio.s3_key
+    return audio.s3_key
   } catch (err) {
     console.warn('[ScriptCache] Lazy audio lookup failed:', err)
     return null
@@ -363,34 +358,54 @@ export function useScriptCache() {
   const audioMap: Ref<Map<string, any>> = ref(new Map())
   const currentCourseCode: Ref<string> = ref('')
 
+  /**
+   * Get audio URL for a text/role combination
+   * Handles both legacy UUIDs and v13 s3_keys
+   *
+   * v13: s3_key already contains full path (e.g., "mastered/UUID.mp3")
+   * Legacy: UUID needs to be converted to URL with .mp3 extension
+   */
   const getAudioUrl = async (
     supabase: SupabaseClient | null,
     text: string,
     role: string,
     item?: ScriptItem | null,
-    audioBaseUrl: string = 'https://ssi-audio-stage.s3.eu-west-1.amazonaws.com/mastered'
+    audioBaseUrl: string = 'https://ssi-audio-stage.s3.eu-west-1.amazonaws.com'
   ): Promise<string | null> => {
     // For INTRO items, look up by lego_id
     if (role === 'intro' && item?.legoId) {
       const introEntry = audioMap.value.get(`intro:${item.legoId}`)
       if (introEntry?.intro) {
-        return `${audioBaseUrl}/${introEntry.intro.toUpperCase()}.mp3`
+        // Check if it's already a full s3_key (contains path/extension)
+        const key = introEntry.intro
+        if (key.includes('/') || key.endsWith('.mp3')) {
+          return `${audioBaseUrl}/${key}`
+        }
+        // Legacy: UUID only - append path and extension
+        return `${audioBaseUrl}/mastered/${key.toUpperCase()}.mp3`
       }
       return null
     }
 
     // Check in-memory cache
     const audioEntry = audioMap.value.get(text)
-    let uuid = audioEntry?.[role]
+    let audioKey = audioEntry?.[role]
 
     // Lazy load from Supabase if not cached
-    if (!uuid && supabase && currentCourseCode.value) {
-      uuid = await lookupAudioLazy(supabase, currentCourseCode.value, text, role, audioMap.value)
+    if (!audioKey && supabase && currentCourseCode.value) {
+      audioKey = await lookupAudioLazy(supabase, currentCourseCode.value, text, role, audioMap.value)
     }
 
-    if (!uuid) return null
+    if (!audioKey) return null
 
-    return `${audioBaseUrl}/${uuid.toUpperCase()}.mp3`
+    // Check if it's a full s3_key (v13) or legacy UUID
+    if (audioKey.includes('/') || audioKey.endsWith('.mp3')) {
+      // v13: s3_key already contains full path
+      return `${audioBaseUrl}/${audioKey}`
+    }
+
+    // Legacy: UUID only - append path and extension
+    return `${audioBaseUrl}/mastered/${audioKey.toUpperCase()}.mp3`
   }
 
   return {

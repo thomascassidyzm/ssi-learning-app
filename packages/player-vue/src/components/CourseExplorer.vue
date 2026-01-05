@@ -118,7 +118,8 @@ const isLoadingScript = ref(false)
 
 // Audio map for resolving text -> audio UUIDs
 const audioMap = ref(new Map())
-const audioBaseUrl = 'https://ssi-audio-stage.s3.eu-west-1.amazonaws.com/mastered'
+// v13: Base URL without /mastered - s3_key contains full path
+const audioBaseUrl = 'https://ssi-audio-stage.s3.eu-west-1.amazonaws.com'
 
 // Playback state
 const isPlaying = ref(false)
@@ -460,89 +461,109 @@ const loadIntroAudio = async (courseId, legoIds) => {
   }
 }
 
-// Lazy audio lookup
+/**
+ * Lazy audio lookup using v13 schema (course_audio table)
+ * Returns s3_key which can be used to construct the full URL
+ */
 const lookupAudioLazy = async (text, role, isKnown = false) => {
   if (!supabase?.value || !currentCourseId.value) return null
 
   const cached = audioMap.value.get(text)
   if (cached?.[role]) return cached[role]
 
+  // v13: Query course_audio directly by text_normalized and role
   try {
-    const { data: textsData } = await supabase.value
-      .from('texts')
-      .select('id')
-      .eq('content', text)
-      .limit(1)
-
-    if (!textsData?.length) return null
-
-    const textId = textsData[0].id
-    const { data: audioData } = await supabase.value
-      .from('audio_files')
-      .select('id')
-      .eq('text_id', textId)
-
-    if (!audioData?.length) return null
-
-    const audioIds = audioData.map(a => a.id)
-    const targetRole = isKnown ? 'known' : role
-
-    const { data: courseAudio } = await supabase.value
+    const { data: audio, error } = await supabase.value
       .from('course_audio')
-      .select('audio_id, role')
+      .select('id, s3_key')
       .eq('course_code', currentCourseId.value)
-      .in('audio_id', audioIds)
+      .eq('text_normalized', text.toLowerCase().trim())
+      .eq('role', role)
+      .maybeSingle()
 
-    for (const ca of (courseAudio || [])) {
-      const matchRole = isKnown ? 'known' : role
-      if (ca.role === matchRole) {
-        if (!audioMap.value.has(text)) audioMap.value.set(text, {})
-        audioMap.value.get(text)[role] = ca.audio_id
-        return ca.audio_id
-      }
+    if (error) {
+      console.warn('[CourseExplorer] Audio lookup query error:', error.message)
+      return null
     }
-    return null
+
+    if (!audio || !audio.s3_key) {
+      return null
+    }
+
+    // Cache for future use - store s3_key directly
+    if (!audioMap.value.has(text)) audioMap.value.set(text, {})
+    audioMap.value.get(text)[role] = audio.s3_key
+    return audio.s3_key
   } catch (err) {
     console.warn('[CourseExplorer] Lazy audio lookup failed:', err)
     return null
   }
 }
 
+/**
+ * Get audio URL (async with lazy lookup)
+ * Handles both legacy UUIDs and v13 s3_keys
+ */
 const getAudioUrlAsync = async (text, role, item = null) => {
   if (role === 'intro' && item?.legoId) {
     const introEntry = audioMap.value.get(`intro:${item.legoId}`)
     if (introEntry?.intro) {
-      return `${audioBaseUrl}/${introEntry.intro.toUpperCase()}.mp3`
+      const key = introEntry.intro
+      // Check if it's already a full s3_key (contains path/extension)
+      if (key.includes('/') || key.endsWith('.mp3')) {
+        return `${audioBaseUrl}/${key}`
+      }
+      // Legacy: UUID only
+      return `${audioBaseUrl}/mastered/${key.toUpperCase()}.mp3`
     }
     return null
   }
 
   const audioEntry = audioMap.value.get(text)
-  let uuid = audioEntry?.[role]
+  let audioKey = audioEntry?.[role]
 
-  if (!uuid) {
+  if (!audioKey) {
     const isKnown = role === 'known'
-    uuid = await lookupAudioLazy(text, role, isKnown)
+    audioKey = await lookupAudioLazy(text, role, isKnown)
   }
 
-  if (!uuid) return null
-  return `${audioBaseUrl}/${uuid.toUpperCase()}.mp3`
+  if (!audioKey) return null
+
+  // Check if it's a full s3_key (v13) or legacy UUID
+  if (audioKey.includes('/') || audioKey.endsWith('.mp3')) {
+    return `${audioBaseUrl}/${audioKey}`
+  }
+  // Legacy: UUID only
+  return `${audioBaseUrl}/mastered/${audioKey.toUpperCase()}.mp3`
 }
 
+/**
+ * Get audio URL (sync - from cache only)
+ * Handles both legacy UUIDs and v13 s3_keys
+ */
 const getAudioUrl = (text, role, item = null) => {
   if (role === 'intro' && item?.legoId) {
     const introEntry = audioMap.value.get(`intro:${item.legoId}`)
     if (introEntry?.intro) {
-      return `${audioBaseUrl}/${introEntry.intro.toUpperCase()}.mp3`
+      const key = introEntry.intro
+      if (key.includes('/') || key.endsWith('.mp3')) {
+        return `${audioBaseUrl}/${key}`
+      }
+      return `${audioBaseUrl}/mastered/${key.toUpperCase()}.mp3`
     }
     return null
   }
 
   const audioEntry = audioMap.value.get(text)
   if (!audioEntry) return null
-  const uuid = audioEntry[role]
-  if (!uuid) return null
-  return `${audioBaseUrl}/${uuid.toUpperCase()}.mp3`
+  const audioKey = audioEntry[role]
+  if (!audioKey) return null
+
+  // Check if it's a full s3_key (v13) or legacy UUID
+  if (audioKey.includes('/') || audioKey.endsWith('.mp3')) {
+    return `${audioBaseUrl}/${audioKey}`
+  }
+  return `${audioBaseUrl}/mastered/${audioKey.toUpperCase()}.mp3`
 }
 
 const hasAudio = (item) => {
