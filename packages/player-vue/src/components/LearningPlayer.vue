@@ -1561,27 +1561,38 @@ const playIntroductionAudioDirectly = async (legoId) => {
     return false
   }
 
-  // Get audio from currentPlayableItem - no database query needed!
-  // The intro item's audioRefs already contain: known (presentation), target1, target2
+  // Get audio from currentPlayableItem for target voices
   const playable = currentPlayableItem.value
   if (!playable) {
     console.log('[LearningPlayer] No currentPlayableItem for intro')
     return false
   }
 
-  // Get audio URLs from the playable item
-  const knownUrl = playable.lego?.audioRefs?.known?.url
+  // Get target audio URLs from the playable item
   const target1Url = playable.lego?.audioRefs?.target?.voice1?.url
   const target2Url = playable.lego?.audioRefs?.target?.voice2?.url
 
-  console.log('[LearningPlayer] Intro audio from playable item:', {
-    known: knownUrl ? 'YES' : 'NO',
+  // Get PRESENTATION audio from preloaded audioMap
+  // This is the narration: "The Spanish for 'X', as in 'Y', is:"
+  // NOT the same as known.url which is just the prompt phrase
+  const introItem = { legoId }
+  const presentationUrl = await getAudioUrlFromCache(
+    supabase.value,
+    '', // text not used for intro
+    'intro',
+    introItem // Just need legoId for intro lookup
+  )
+
+  console.log('[LearningPlayer] Intro audio:', {
+    presentation: presentationUrl ? 'YES' : 'NO',
     target1: target1Url ? 'YES' : 'NO',
     target2: target2Url ? 'YES' : 'NO'
   })
 
-  if (!knownUrl) {
-    console.log('[LearningPlayer] No known audio URL for intro')
+  // If no presentation audio, skip intro entirely
+  // (The presentation audio must be preloaded via loadIntroAudio or exist in course_audio)
+  if (!presentationUrl) {
+    console.log('[LearningPlayer] No presentation audio for intro - skipping')
     return false
   }
 
@@ -1629,12 +1640,12 @@ const playIntroductionAudioDirectly = async (legoId) => {
   }
 
   try {
-    // Play intro sequence: known (presentation) → pause → target1 → pause → target2
+    // Play intro sequence: presentation → pause → target1 → pause → target2
     console.log('[LearningPlayer] Playing intro sequence for:', legoId)
 
-    // 1. Play known/presentation audio
-    console.log('[LearningPlayer] Playing known:', knownUrl)
-    await playAudioAndWait(normalizeAudioUrl(knownUrl))
+    // 1. Play presentation audio ("The Spanish for 'X', as in 'Y', is:")
+    console.log('[LearningPlayer] Playing presentation:', presentationUrl)
+    await playAudioAndWait(normalizeAudioUrl(presentationUrl))
 
     // 2. Play target voice 1 with pause
     if (target1Url) {
