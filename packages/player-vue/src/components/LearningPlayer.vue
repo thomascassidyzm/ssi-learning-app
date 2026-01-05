@@ -1855,6 +1855,12 @@ const startPlayback = async () => {
     }
 
     console.log('[LearningPlayer] Starting round-based playback, round:', currentRoundIndex.value, 'LEGO:', currentRound.value?.legoId)
+    console.log('[LearningPlayer] Current scriptItem:', {
+      type: scriptItem.type,
+      legoId: scriptItem.legoId,
+      knownText: scriptItem.knownText,
+      targetText: scriptItem.targetText
+    })
 
     // INTRO items: play intro audio directly, then advance to next item
     if (scriptItem.type === 'intro') {
