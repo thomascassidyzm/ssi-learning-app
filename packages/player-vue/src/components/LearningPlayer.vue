@@ -1561,17 +1561,30 @@ const playIntroductionAudioDirectly = async (legoId) => {
     return false
   }
 
-  // Get intro audio from cache or database
-  if (!courseDataProvider.value) {
-    console.log('[LearningPlayer] No courseDataProvider')
-    return false
-  }
-
   try {
-    const introAudio = await courseDataProvider.value.getIntroductionAudio(legoId)
-    console.log('[LearningPlayer] Intro audio for', legoId, ':', introAudio)
+    // FIRST: Check preloaded audioMap (loaded at script generation time)
+    // This avoids database query latency during playback
+    const introItem = { legoId }
+    const cachedIntroUrl = await getAudioUrlFromCache(
+      supabase.value,
+      '', // text not used for intro
+      'intro',
+      introItem // Just need legoId for intro lookup
+    )
 
-    if (!introAudio || !introAudio.url) {
+    let introAudio = null
+
+    if (cachedIntroUrl) {
+      console.log('[LearningPlayer] Using preloaded intro audio for', legoId, ':', cachedIntroUrl)
+      introAudio = { url: cachedIntroUrl, origin: 'preloaded' }
+    } else if (courseDataProvider.value) {
+      // FALLBACK: Query database if not preloaded
+      console.log('[LearningPlayer] Intro not preloaded, querying database for:', legoId)
+      introAudio = await courseDataProvider.value.getIntroductionAudio(legoId)
+      console.log('[LearningPlayer] Database intro audio for', legoId, ':', introAudio)
+    }
+
+    if (!introAudio?.url) {
       console.log('[LearningPlayer] No intro audio found for:', legoId)
       return false
     }
