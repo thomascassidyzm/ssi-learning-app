@@ -1561,111 +1561,93 @@ const playIntroductionAudioDirectly = async (legoId) => {
     return false
   }
 
+  // Get audio from currentPlayableItem - no database query needed!
+  // The intro item's audioRefs already contain: known (presentation), target1, target2
+  const playable = currentPlayableItem.value
+  if (!playable) {
+    console.log('[LearningPlayer] No currentPlayableItem for intro')
+    return false
+  }
+
+  // Get audio URLs from the playable item
+  const knownUrl = playable.lego?.audioRefs?.known?.url
+  const target1Url = playable.lego?.audioRefs?.target?.voice1?.url
+  const target2Url = playable.lego?.audioRefs?.target?.voice2?.url
+
+  console.log('[LearningPlayer] Intro audio from playable item:', {
+    known: knownUrl ? 'YES' : 'NO',
+    target1: target1Url ? 'YES' : 'NO',
+    target2: target2Url ? 'YES' : 'NO'
+  })
+
+  if (!knownUrl) {
+    console.log('[LearningPlayer] No known audio URL for intro')
+    return false
+  }
+
+  // Mark as playing intro
+  isPlayingIntroduction.value = true
+  introductionPhase.value = true
+  playedIntroductions.value.add(legoId)
+
+  // Helper to play a single audio and wait for it to end
+  const playAudioAndWait = (url) => {
+    return new Promise((resolve) => {
+      const audio = audioController.value?.audio || new Audio()
+      introAudioElement = audio
+
+      const cleanup = () => {
+        audio.removeEventListener('ended', onEnded)
+        audio.removeEventListener('error', onError)
+      }
+
+      const onEnded = () => {
+        cleanup()
+        resolve(true)
+      }
+
+      const onError = (e) => {
+        console.error('[LearningPlayer] Audio error:', e)
+        cleanup()
+        resolve(false)
+      }
+
+      audio.addEventListener('ended', onEnded)
+      audio.addEventListener('error', onError)
+      audio.src = url
+      audio.load()
+      audio.play().catch(onError)
+    })
+  }
+
+  // Helper to pause for a duration
+  const pause = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+
+  if (audioController.value) {
+    audioController.value.stop()
+    audioController.value.skipNextNotify = true
+  }
+
   try {
-    // FIRST: Check preloaded audioMap (loaded at script generation time)
-    // This avoids database query latency during playback
-    const introItem = { legoId }
-    const cachedIntroUrl = await getAudioUrlFromCache(
-      supabase.value,
-      '', // text not used for intro
-      'intro',
-      introItem // Just need legoId for intro lookup
-    )
+    // Play intro sequence: known (presentation) → pause → target1 → pause → target2
+    console.log('[LearningPlayer] Playing intro sequence for:', legoId)
 
-    let introAudio = null
+    // 1. Play known/presentation audio
+    console.log('[LearningPlayer] Playing known:', knownUrl)
+    await playAudioAndWait(normalizeAudioUrl(knownUrl))
 
-    if (cachedIntroUrl) {
-      console.log('[LearningPlayer] Using preloaded intro audio for', legoId, ':', cachedIntroUrl)
-      introAudio = { url: cachedIntroUrl, origin: 'preloaded' }
-    } else if (courseDataProvider.value) {
-      // FALLBACK: Query database if not preloaded
-      console.log('[LearningPlayer] Intro not preloaded, querying database for:', legoId)
-      introAudio = await courseDataProvider.value.getIntroductionAudio(legoId)
-      console.log('[LearningPlayer] Database intro audio for', legoId, ':', introAudio)
+    // 2. Play target voice 1 with pause
+    if (target1Url) {
+      await pause(1000)
+      console.log('[LearningPlayer] Playing target1:', target1Url)
+      await playAudioAndWait(normalizeAudioUrl(target1Url))
     }
 
-    if (!introAudio?.url) {
-      console.log('[LearningPlayer] No intro audio found for:', legoId)
-      return false
-    }
-
-    // Mark as playing intro
-    isPlayingIntroduction.value = true
-    introductionPhase.value = true
-    playedIntroductions.value.add(legoId)
-
-    // Helper to play a single audio and wait for it to end
-    const playAudioAndWait = (url) => {
-      return new Promise((resolve) => {
-        const audio = audioController.value?.audio || new Audio()
-        introAudioElement = audio
-
-        const cleanup = () => {
-          audio.removeEventListener('ended', onEnded)
-          audio.removeEventListener('error', onError)
-        }
-
-        const onEnded = () => {
-          cleanup()
-          resolve(true)
-        }
-
-        const onError = (e) => {
-          console.error('[LearningPlayer] Audio error:', e)
-          cleanup()
-          resolve(false)
-        }
-
-        audio.addEventListener('ended', onEnded)
-        audio.addEventListener('error', onError)
-        audio.src = url
-        audio.load()
-        audio.play().catch(onError)
-      })
-    }
-
-    // Helper to pause for a duration
-    const pause = (ms) => new Promise(resolve => setTimeout(resolve, ms))
-
-    // Check origin to determine playback mode
-    const isHumanRecorded = introAudio.origin === 'human'
-
-    if (audioController.value) {
-      audioController.value.stop()
-      audioController.value.skipNextNotify = true
-    }
-
-    if (isHumanRecorded) {
-      // Welsh/human: Single pre-recorded file (contains full intro + target audio)
-      console.log('[LearningPlayer] Playing human-recorded presentation:', introAudio.url)
-      await playAudioAndWait(introAudio.url)
-    } else {
-      // TTS: Sequence - presentation → pause → target1 → pause → target2
-      console.log('[LearningPlayer] Playing TTS presentation sequence for:', legoId)
-
-      // Get target audio URLs from lego_introductions (v14.1)
-      // Falls back to currentPlayableItem if not in intro data
-      const target1Url = introAudio.target1Url
-        || currentPlayableItem.value?.lego?.audioRefs?.target?.voice1?.url
-      const target2Url = introAudio.target2Url
-        || currentPlayableItem.value?.lego?.audioRefs?.target?.voice2?.url
-
-      // Play presentation clip ("The Spanish for X is...")
-      await playAudioAndWait(introAudio.url)
-
-      // Play target voice 1 with pause
-      if (target1Url) {
-        await pause(1000)
-        console.log('[LearningPlayer] Playing target1 in sequence:', target1Url)
-        await playAudioAndWait(normalizeAudioUrl(target1Url))
-      }
-
-      // Play target voice 2 with pause
-      if (target2Url) {
-        await pause(1000)
-        console.log('[LearningPlayer] Playing target2 in sequence:', target2Url)
-        await playAudioAndWait(normalizeAudioUrl(target2Url))
-      }
+    // 3. Play target voice 2 with pause
+    if (target2Url) {
+      await pause(1000)
+      console.log('[LearningPlayer] Playing target2:', target2Url)
+      await playAudioAndWait(normalizeAudioUrl(target2Url))
     }
 
     // Cleanup
