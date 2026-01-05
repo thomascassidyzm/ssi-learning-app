@@ -234,6 +234,7 @@ const getPositionStorageKey = () => `${POSITION_STORAGE_KEY_PREFIX}${courseCode.
 /**
  * Save current learning position to localStorage
  * Called whenever position changes (round or item)
+ * Includes 'view' field to enable same-view vs cross-view resume logic
  */
 const savePositionToLocalStorage = () => {
   if (!courseCode.value) return
@@ -244,6 +245,7 @@ const savePositionToLocalStorage = () => {
       itemInRound: currentItemInRound.value,
       lastUpdated: Date.now(),
       courseCode: courseCode.value,
+      view: 'player', // Track which view saved this position
     }
     localStorage.setItem(getPositionStorageKey(), JSON.stringify(position))
     console.log('[LearningPlayer] Position saved:', position.roundIndex, '/', position.itemInRound)
@@ -2353,12 +2355,20 @@ onMounted(async () => {
             const localPosition = loadPositionFromLocalStorage()
             if (localPosition && typeof localPosition.roundIndex === 'number') {
               const resumeRound = localPosition.roundIndex
-              const resumeItem = localPosition.itemInRound || 0
+
+              // Same-view resume: restore exact item position
+              // Cross-view resume: restart at beginning of round
+              const sameView = localPosition.view === 'player'
+              const resumeItem = sameView ? (localPosition.itemInRound || 0) : 0
 
               if (resumeRound < cachedScript.rounds.length) {
                 currentRoundIndex.value = resumeRound
                 currentItemInRound.value = resumeItem
-                console.log('[LearningPlayer] Resuming from localStorage: round', resumeRound, 'item', resumeItem)
+                if (sameView) {
+                  console.log('[LearningPlayer] Same-view resume: round', resumeRound, 'item', resumeItem)
+                } else {
+                  console.log('[LearningPlayer] Cross-view resume: round', resumeRound, '(from explorer, starting at item 0)')
+                }
                 resumed = true
               } else {
                 console.log('[LearningPlayer] localStorage position beyond available rounds, starting fresh')
@@ -2436,9 +2446,12 @@ onMounted(async () => {
             const localPosition = loadPositionFromLocalStorage()
             if (localPosition && typeof localPosition.roundIndex === 'number') {
               if (localPosition.roundIndex < rounds.length) {
+                // Same-view resume: restore exact item position
+                // Cross-view resume: restart at beginning of round
+                const sameView = localPosition.view === 'player'
                 currentRoundIndex.value = localPosition.roundIndex
-                currentItemInRound.value = localPosition.itemInRound || 0
-                console.log('[LearningPlayer] Resuming from localStorage (new script): round', localPosition.roundIndex)
+                currentItemInRound.value = sameView ? (localPosition.itemInRound || 0) : 0
+                console.log('[LearningPlayer] Resuming from localStorage (new script): round', localPosition.roundIndex, sameView ? `item ${currentItemInRound.value}` : '(cross-view, item 0)')
               }
             }
 

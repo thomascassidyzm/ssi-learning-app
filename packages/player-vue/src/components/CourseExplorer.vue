@@ -189,6 +189,7 @@ const roundPositionToFlatIndex = (roundIndex, itemInRound) => {
 
 /**
  * Save current position to localStorage (shared format)
+ * Includes 'view' field to enable same-view vs cross-view resume logic
  */
 const savePositionToLocalStorage = () => {
   if (!courseCode.value || !positionInitialized) return
@@ -201,6 +202,7 @@ const savePositionToLocalStorage = () => {
       itemInRound,
       lastUpdated: Date.now(),
       courseCode: courseCode.value,
+      view: 'explorer', // Track which view saved this position
     }
     localStorage.setItem(`${POSITION_STORAGE_KEY_PREFIX}${courseCode.value}`, JSON.stringify(position))
     console.log('[CourseExplorer] Position saved:', roundIndex, '/', itemInRound, '(flat:', currentFlatIndex.value, ')')
@@ -256,15 +258,59 @@ watch(currentFlatIndex, (newVal) => {
 /**
  * Restore position from localStorage after script is loaded
  * Call this after flattenItems() and scriptLoaded.value = true
+ *
+ * Same-view resume: restore exact flat index (for playback continuity)
+ * Cross-view resume: restart at beginning of round
  */
 const restorePositionFromLocalStorage = () => {
-  const savedFlatIndex = loadPositionFromLocalStorage()
-  if (savedFlatIndex >= 0 && savedFlatIndex < allItems.value.length) {
-    // Don't auto-start playback, just scroll to position
-    const { roundIndex } = flatIndexToRoundPosition(savedFlatIndex)
-    selectedRound.value = roundIndex + 1 // 1-based for UI
-    console.log('[CourseExplorer] Restored to round', roundIndex + 1)
+  if (!courseCode.value) {
+    positionInitialized = true
+    return
   }
+
+  try {
+    const stored = localStorage.getItem(`${POSITION_STORAGE_KEY_PREFIX}${courseCode.value}`)
+    if (!stored) {
+      positionInitialized = true
+      return
+    }
+
+    const position = JSON.parse(stored)
+
+    // Validate course code
+    if (position.courseCode && position.courseCode !== courseCode.value) {
+      positionInitialized = true
+      return
+    }
+
+    // Check if stale (>7 days)
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000
+    if (position.lastUpdated && Date.now() - position.lastUpdated > sevenDaysMs) {
+      console.log('[CourseExplorer] Saved position is stale, starting fresh')
+      positionInitialized = true
+      return
+    }
+
+    if (typeof position.roundIndex === 'number') {
+      // Same-view resume: restore exact position
+      // Cross-view resume: restart at beginning of round
+      const sameView = position.view === 'explorer'
+      const itemInRound = sameView ? (position.itemInRound || 0) : 0
+      const flatIndex = roundPositionToFlatIndex(position.roundIndex, itemInRound)
+
+      if (flatIndex >= 0 && flatIndex < allItems.value.length) {
+        selectedRound.value = position.roundIndex + 1 // 1-based for UI
+        if (sameView) {
+          console.log('[CourseExplorer] Same-view restore: round', position.roundIndex + 1, 'item', itemInRound, '(flat:', flatIndex, ')')
+        } else {
+          console.log('[CourseExplorer] Cross-view restore: round', position.roundIndex + 1, '(from player, starting at item 0)')
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[CourseExplorer] Failed to restore position:', err)
+  }
+
   positionInitialized = true
 }
 
