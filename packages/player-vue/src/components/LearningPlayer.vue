@@ -2615,7 +2615,7 @@ onUnmounted(() => {
       </div>
 
       <!-- Belt Progress Bar - Visual fill toward next belt -->
-      <div class="belt-progress-bar" :title="nextBelt ? `${beltProgressPercent}% to ${nextBelt.name} belt` : 'Black belt achieved!'">
+      <div class="belt-progress-bar" :title="!nextBelt ? 'Black belt achieved!' : timeToNextBelt.includes('Keep') ? `Working toward ${nextBelt.name} belt` : `${timeToNextBelt} to ${nextBelt.name} belt`">
         <div class="belt-bar-track">
           <div
             class="belt-bar-fill"
