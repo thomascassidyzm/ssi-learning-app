@@ -300,6 +300,10 @@ const restorePositionFromLocalStorage = () => {
 
       if (flatIndex >= 0 && flatIndex < allItems.value.length) {
         selectedRound.value = position.roundIndex + 1 // 1-based for UI
+        // Scroll to the round position after a short delay to let virtual list render
+        setTimeout(() => {
+          scrollTo(flatIndex)
+        }, 100)
         if (sameView) {
           console.log('[CourseExplorer] Same-view restore: round', position.roundIndex + 1, 'item', itemInRound, '(flat:', flatIndex, ')')
         } else {

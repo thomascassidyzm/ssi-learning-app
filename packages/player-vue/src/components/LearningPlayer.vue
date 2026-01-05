@@ -1947,35 +1947,41 @@ const handleSkip = async () => {
 
     console.log('[LearningPlayer] Skip → Round', nextIndex, 'LEGO:', cachedRounds.value[nextIndex]?.legoId)
 
+    // Always get the first item to update display
+    const firstItem = cachedRounds.value[nextIndex]?.items?.[0]
+    console.log('[LearningPlayer] Skip → firstItem:', firstItem?.type, firstItem?.knownText, '→', firstItem?.targetText)
+
+    // Update display (even when paused)
+    if (firstItem) {
+      const playable = await scriptItemToPlayableItem(firstItem)
+      if (playable) {
+        currentPlayableItem.value = playable
+      }
+    }
+
     // Start the new round if playing
-    if (isPlaying.value) {
-      const firstItem = cachedRounds.value[nextIndex]?.items?.[0]
-      if (firstItem) {
-        // INTRO items: play introduction audio directly, then advance to next item
-        if (firstItem.type === 'intro') {
-          console.log('[LearningPlayer] Skip → Playing INTRO for:', firstItem.legoId)
-          const playable = await scriptItemToPlayableItem(firstItem)
-          if (playable) {
-            currentPlayableItem.value = playable
-            await playIntroductionAudioDirectly(firstItem.legoId)
-            // Advance to next item (the DEBUT)
-            currentItemInRound.value++
-            const nextItem = cachedRounds.value[nextIndex]?.items?.[currentItemInRound.value]
-            if (nextItem && isPlaying.value) {
-              const nextPlayable = await scriptItemToPlayableItem(nextItem)
-              if (nextPlayable && orchestrator.value) {
-                currentPlayableItem.value = nextPlayable
-                orchestrator.value.startItem(nextPlayable)
-              }
-            }
+    if (isPlaying.value && firstItem) {
+      // INTRO items: play introduction audio directly, then advance to next item
+      if (firstItem.type === 'intro') {
+        console.log('[LearningPlayer] Skip → Playing INTRO for:', firstItem.legoId)
+        const introPlayed = await playIntroductionAudioDirectly(firstItem.legoId)
+        console.log('[LearningPlayer] Skip → intro played:', introPlayed)
+        // Advance to next item (the DEBUT)
+        currentItemInRound.value++
+        const nextItem = cachedRounds.value[nextIndex]?.items?.[currentItemInRound.value]
+        console.log('[LearningPlayer] Skip → advancing to item:', currentItemInRound.value, nextItem?.type)
+        if (nextItem && isPlaying.value) {
+          const nextPlayable = await scriptItemToPlayableItem(nextItem)
+          if (nextPlayable && orchestrator.value) {
+            currentPlayableItem.value = nextPlayable
+            orchestrator.value.startItem(nextPlayable)
           }
-        } else {
-          // Non-intro item: start directly
-          const playable = await scriptItemToPlayableItem(firstItem)
-          if (playable && orchestrator.value) {
-            currentPlayableItem.value = playable
-            orchestrator.value.startItem(playable)
-          }
+        }
+      } else {
+        console.log('[LearningPlayer] Skip → firstItem NOT intro, starting directly')
+        // Non-intro item: start directly via orchestrator
+        if (orchestrator.value) {
+          orchestrator.value.startItem(currentPlayableItem.value)
         }
       }
     }
@@ -2014,35 +2020,41 @@ const handleRevisit = async () => {
 
     console.log('[LearningPlayer] Revisit → Round', targetIndex, 'LEGO:', cachedRounds.value[targetIndex]?.legoId)
 
+    // Always get the first item to update display
+    const firstItem = cachedRounds.value[targetIndex]?.items?.[0]
+    console.log('[LearningPlayer] Revisit → firstItem:', firstItem?.type, firstItem?.knownText, '→', firstItem?.targetText)
+
+    // Update display (even when paused)
+    if (firstItem) {
+      const playable = await scriptItemToPlayableItem(firstItem)
+      if (playable) {
+        currentPlayableItem.value = playable
+      }
+    }
+
     // Start the round if playing
-    if (isPlaying.value) {
-      const firstItem = cachedRounds.value[targetIndex]?.items?.[0]
-      if (firstItem) {
-        // INTRO items: play introduction audio directly, then advance to next item
-        if (firstItem.type === 'intro') {
-          console.log('[LearningPlayer] Revisit → Playing INTRO for:', firstItem.legoId)
-          const playable = await scriptItemToPlayableItem(firstItem)
-          if (playable) {
-            currentPlayableItem.value = playable
-            await playIntroductionAudioDirectly(firstItem.legoId)
-            // Advance to next item (the DEBUT)
-            currentItemInRound.value++
-            const nextItem = cachedRounds.value[targetIndex]?.items?.[currentItemInRound.value]
-            if (nextItem && isPlaying.value) {
-              const nextPlayable = await scriptItemToPlayableItem(nextItem)
-              if (nextPlayable && orchestrator.value) {
-                currentPlayableItem.value = nextPlayable
-                orchestrator.value.startItem(nextPlayable)
-              }
-            }
+    if (isPlaying.value && firstItem) {
+      // INTRO items: play introduction audio directly, then advance to next item
+      if (firstItem.type === 'intro') {
+        console.log('[LearningPlayer] Revisit → Playing INTRO for:', firstItem.legoId)
+        const introPlayed = await playIntroductionAudioDirectly(firstItem.legoId)
+        console.log('[LearningPlayer] Revisit → intro played:', introPlayed)
+        // Advance to next item (the DEBUT)
+        currentItemInRound.value++
+        const nextItem = cachedRounds.value[targetIndex]?.items?.[currentItemInRound.value]
+        console.log('[LearningPlayer] Revisit → advancing to item:', currentItemInRound.value, nextItem?.type)
+        if (nextItem && isPlaying.value) {
+          const nextPlayable = await scriptItemToPlayableItem(nextItem)
+          if (nextPlayable && orchestrator.value) {
+            currentPlayableItem.value = nextPlayable
+            orchestrator.value.startItem(nextPlayable)
           }
-        } else {
-          // Non-intro item: start directly
-          const playable = await scriptItemToPlayableItem(firstItem)
-          if (playable && orchestrator.value) {
-            currentPlayableItem.value = playable
-            orchestrator.value.startItem(playable)
-          }
+        }
+      } else {
+        console.log('[LearningPlayer] Revisit → firstItem NOT intro, starting directly')
+        // Non-intro item: start directly via orchestrator
+        if (orchestrator.value) {
+          orchestrator.value.startItem(currentPlayableItem.value)
         }
       }
     }
@@ -2085,35 +2097,41 @@ const jumpToRound = async (roundIndex) => {
 
   console.log('[LearningPlayer] Jump → Round', roundIndex, 'LEGO:', cachedRounds.value[roundIndex]?.legoId)
 
+  // Always get the first item to update display
+  const firstItem = cachedRounds.value[roundIndex]?.items?.[0]
+  console.log('[LearningPlayer] Jump → firstItem:', firstItem?.type, firstItem?.knownText, '→', firstItem?.targetText)
+
+  // Update display (even when paused)
+  if (firstItem) {
+    const playable = await scriptItemToPlayableItem(firstItem)
+    if (playable) {
+      currentPlayableItem.value = playable
+    }
+  }
+
   // Start the round if playing
-  if (isPlaying.value) {
-    const firstItem = cachedRounds.value[roundIndex]?.items?.[0]
-    if (firstItem) {
-      // INTRO items: play introduction audio directly, then advance to next item
-      if (firstItem.type === 'intro') {
-        console.log('[LearningPlayer] Jump → Playing INTRO for:', firstItem.legoId)
-        const playable = await scriptItemToPlayableItem(firstItem)
-        if (playable) {
-          currentPlayableItem.value = playable
-          await playIntroductionAudioDirectly(firstItem.legoId)
-          // Advance to next item (the DEBUT)
-          currentItemInRound.value++
-          const nextItem = cachedRounds.value[roundIndex]?.items?.[currentItemInRound.value]
-          if (nextItem && isPlaying.value) {
-            const nextPlayable = await scriptItemToPlayableItem(nextItem)
-            if (nextPlayable && orchestrator.value) {
-              currentPlayableItem.value = nextPlayable
-              orchestrator.value.startItem(nextPlayable)
-            }
-          }
+  if (isPlaying.value && firstItem) {
+    // INTRO items: play introduction audio directly, then advance to next item
+    if (firstItem.type === 'intro') {
+      console.log('[LearningPlayer] Jump → Playing INTRO for:', firstItem.legoId)
+      const introPlayed = await playIntroductionAudioDirectly(firstItem.legoId)
+      console.log('[LearningPlayer] Jump → intro played:', introPlayed)
+      // Advance to next item (the DEBUT)
+      currentItemInRound.value++
+      const nextItem = cachedRounds.value[roundIndex]?.items?.[currentItemInRound.value]
+      console.log('[LearningPlayer] Jump → advancing to item:', currentItemInRound.value, nextItem?.type)
+      if (nextItem && isPlaying.value) {
+        const nextPlayable = await scriptItemToPlayableItem(nextItem)
+        if (nextPlayable && orchestrator.value) {
+          currentPlayableItem.value = nextPlayable
+          orchestrator.value.startItem(nextPlayable)
         }
-      } else {
-        // Non-intro item: start directly
-        const playable = await scriptItemToPlayableItem(firstItem)
-        if (playable && orchestrator.value) {
-          currentPlayableItem.value = playable
-          orchestrator.value.startItem(playable)
-        }
+      }
+    } else {
+      console.log('[LearningPlayer] Jump → firstItem NOT intro, starting directly')
+      // Non-intro item: start directly via orchestrator
+      if (orchestrator.value) {
+        orchestrator.value.startItem(currentPlayableItem.value)
       }
     }
   }
