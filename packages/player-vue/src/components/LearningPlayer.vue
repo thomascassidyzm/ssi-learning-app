@@ -2011,10 +2011,10 @@ const handleRevisit = async () => {
   if (useRoundBasedPlayback.value && cachedRounds.value.length) {
     audioController.value?.stop()
 
-    // If we're past the first item, go to start of current round
-    // If already at start, go to previous round
+    // If we're past the first few items, go to start of current round
+    // If already at start (item 0 or 1, since intro auto-advances to 1), go to previous round
     let targetIndex = currentRoundIndex.value
-    if (currentItemInRound.value === 0 && currentRoundIndex.value > 0) {
+    if (currentItemInRound.value <= 1 && currentRoundIndex.value > 0) {
       targetIndex = currentRoundIndex.value - 1
     }
 

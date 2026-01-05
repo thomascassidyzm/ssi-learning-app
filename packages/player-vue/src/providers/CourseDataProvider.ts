@@ -494,15 +494,10 @@ export class CourseDataProvider {
     if (!this.client) return null
 
     try {
-      // Query lego_introductions with joined course_audio data
+      // Query lego_introductions - get the raw columns (no FK joins)
       const { data, error } = await this.client
         .from('lego_introductions')
-        .select(`
-          lego_id,
-          presentation_audio:presentation_audio_id(id, s3_key, duration_ms, origin),
-          target1_audio:target1_audio_id(id, s3_key, duration_ms),
-          target2_audio:target2_audio_id(id, s3_key, duration_ms)
-        `)
+        .select('lego_id, audio_uuid, presentation_audio_id, target1_audio_id, target2_audio_id')
         .eq('lego_id', legoId)
         .eq('course_code', this.courseId)
         .maybeSingle()
@@ -512,13 +507,39 @@ export class CourseDataProvider {
         return null
       }
 
-      if (!data || !data.presentation_audio) {
+      if (!data) {
         return null
       }
 
-      const presentation = data.presentation_audio as any
-      const target1 = data.target1_audio as any
-      const target2 = data.target2_audio as any
+      // Legacy fallback: use audio_uuid if no presentation_audio_id
+      const presentationId = data.presentation_audio_id || data.audio_uuid
+      if (!presentationId) {
+        console.warn('[CourseDataProvider] No presentation audio ID for:', legoId)
+        return null
+      }
+
+      // Look up audio files separately from course_audio
+      const audioIds = [presentationId, data.target1_audio_id, data.target2_audio_id].filter(Boolean)
+      const { data: audioData, error: audioError } = await this.client
+        .from('course_audio')
+        .select('id, s3_key, duration_ms, origin')
+        .in('id', audioIds)
+
+      if (audioError || !audioData) {
+        console.warn('[CourseDataProvider] Audio lookup error:', audioError?.message)
+        return null
+      }
+
+      // Build lookup map
+      const audioMap = new Map(audioData.map(a => [a.id, a]))
+      const presentation = audioMap.get(presentationId)
+      const target1 = data.target1_audio_id ? audioMap.get(data.target1_audio_id) : null
+      const target2 = data.target2_audio_id ? audioMap.get(data.target2_audio_id) : null
+
+      if (!presentation?.s3_key) {
+        console.warn('[CourseDataProvider] No presentation audio s3_key for:', legoId)
+        return null
+      }
 
       return {
         id: presentation.id,
