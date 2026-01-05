@@ -476,28 +476,30 @@ export class CourseDataProvider {
   /**
    * Get introduction audio for a LEGO ("The Spanish for X is...")
    *
-   * v14.1: Queries lego_introductions table which maps:
-   *   lego_id → presentation_audio_id, target1_audio_id, target2_audio_id
+   * v14.2: Simplified schema - only queries presentation_audio_id
+   * Target audio (target1, target2) comes from the LEGO's existing phrase data
    *
-   * Returns all audio URLs needed for introduction playback:
+   * The intro sequence is: presentation → target1 → target2
+   * But only presentation is unique to the intro - targets are reused from the LEGO
+   *
+   * Returns:
    * - origin='human' (Welsh): Single pre-recorded file - play presentationUrl only
-   * - origin='tts': Sequence - presentationUrl → target1Url → target2Url
+   * - origin='tts': Sequence - presentationUrl → [targets from LEGO phrase data]
    */
   async getIntroductionAudio(legoId: string): Promise<{
     id: string
     url: string  // Presentation audio URL
     duration_ms?: number
     origin?: string
-    target1Url?: string  // For TTS sequence
-    target2Url?: string  // For TTS sequence
   } | null> {
     if (!this.client) return null
 
     try {
-      // Query lego_introductions - get the raw columns (no FK joins)
+      // Query lego_introductions for presentation audio only
+      // Target audio comes from the LEGO's phrase data (already loaded)
       const { data, error } = await this.client
         .from('lego_introductions')
-        .select('lego_id, audio_uuid, presentation_audio_id, target1_audio_id, target2_audio_id')
+        .select('lego_id, audio_uuid, presentation_audio_id')
         .eq('lego_id', legoId)
         .eq('course_code', this.courseId)
         .maybeSingle()
@@ -518,36 +520,23 @@ export class CourseDataProvider {
         return null
       }
 
-      // Look up audio files separately from course_audio
-      const audioIds = [presentationId, data.target1_audio_id, data.target2_audio_id].filter(Boolean)
+      // Look up presentation audio from course_audio
       const { data: audioData, error: audioError } = await this.client
         .from('course_audio')
         .select('id, s3_key, duration_ms, origin')
-        .in('id', audioIds)
+        .eq('id', presentationId)
+        .maybeSingle()
 
-      if (audioError || !audioData) {
-        console.warn('[CourseDataProvider] Audio lookup error:', audioError?.message)
-        return null
-      }
-
-      // Build lookup map
-      const audioMap = new Map(audioData.map(a => [a.id, a]))
-      const presentation = audioMap.get(presentationId)
-      const target1 = data.target1_audio_id ? audioMap.get(data.target1_audio_id) : null
-      const target2 = data.target2_audio_id ? audioMap.get(data.target2_audio_id) : null
-
-      if (!presentation?.s3_key) {
-        console.warn('[CourseDataProvider] No presentation audio s3_key for:', legoId)
+      if (audioError || !audioData?.s3_key) {
+        console.warn('[CourseDataProvider] Presentation audio lookup error:', audioError?.message)
         return null
       }
 
       return {
-        id: presentation.id,
-        url: this.resolveAudioUrl(presentation.s3_key),
-        duration_ms: presentation.duration_ms,
-        origin: presentation.origin || 'tts',
-        target1Url: target1?.s3_key ? this.resolveAudioUrl(target1.s3_key) : undefined,
-        target2Url: target2?.s3_key ? this.resolveAudioUrl(target2.s3_key) : undefined,
+        id: audioData.id,
+        url: this.resolveAudioUrl(audioData.s3_key),
+        duration_ms: audioData.duration_ms,
+        origin: audioData.origin || 'tts',
       }
     } catch (err) {
       console.error('[CourseDataProvider] Error loading intro audio:', err)

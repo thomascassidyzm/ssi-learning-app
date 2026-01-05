@@ -1575,6 +1575,7 @@ const playIntroductionAudioDirectly = async (legoId) => {
   // Get PRESENTATION audio - try preloaded cache first, then query lego_introductions
   // This is the narration: "The Spanish for 'X', as in 'Y', is:"
   // NOT the same as known.url which is just the prompt phrase
+  // Target audio (target1, target2) comes from the LEGO's phrase data - no need to query separately
   const introItem = { legoId }
   let presentationUrl = await getAudioUrlFromCache(
     supabase.value,
@@ -1583,31 +1584,19 @@ const playIntroductionAudioDirectly = async (legoId) => {
     introItem // Just need legoId for intro lookup
   )
 
-  // Use target URLs from playable item by default
-  let introTarget1Url = target1Url
-  let introTarget2Url = target2Url
-
-  // If not preloaded, query lego_introductions (has presentation_audio_id, target1_audio_id, target2_audio_id)
+  // If not preloaded, query lego_introductions for presentation audio only
   if (!presentationUrl && courseDataProvider.value) {
     console.log('[LearningPlayer] Presentation not preloaded, querying lego_introductions for:', legoId)
     const introAudio = await courseDataProvider.value.getIntroductionAudio(legoId)
     if (introAudio?.url) {
       presentationUrl = introAudio.url
-      // Use target URLs from intro data if available (may differ from phrase targets)
-      introTarget1Url = introAudio.target1Url || target1Url
-      introTarget2Url = introAudio.target2Url || target2Url
-      console.log('[LearningPlayer] Got intro audio from database:', {
-        presentation: presentationUrl ? 'YES' : 'NO',
-        target1: introTarget1Url ? 'YES' : 'NO',
-        target2: introTarget2Url ? 'YES' : 'NO'
-      })
     }
   }
 
-  console.log('[LearningPlayer] Intro audio final:', {
+  console.log('[LearningPlayer] Intro audio:', {
     presentation: presentationUrl ? 'YES' : 'NO',
-    target1: introTarget1Url ? 'YES' : 'NO',
-    target2: introTarget2Url ? 'YES' : 'NO'
+    target1: target1Url ? 'YES' : 'NO',
+    target2: target2Url ? 'YES' : 'NO'
   })
 
   // If no presentation audio, skip intro entirely
@@ -1667,18 +1656,18 @@ const playIntroductionAudioDirectly = async (legoId) => {
     console.log('[LearningPlayer] Playing presentation:', presentationUrl)
     await playAudioAndWait(normalizeAudioUrl(presentationUrl))
 
-    // 2. Play target voice 1 with pause
-    if (introTarget1Url) {
+    // 2. Play target voice 1 with pause (from LEGO phrase data)
+    if (target1Url) {
       await pause(1000)
-      console.log('[LearningPlayer] Playing target1:', introTarget1Url)
-      await playAudioAndWait(normalizeAudioUrl(introTarget1Url))
+      console.log('[LearningPlayer] Playing target1:', target1Url)
+      await playAudioAndWait(normalizeAudioUrl(target1Url))
     }
 
-    // 3. Play target voice 2 with pause
-    if (introTarget2Url) {
+    // 3. Play target voice 2 with pause (from LEGO phrase data)
+    if (target2Url) {
       await pause(1000)
-      console.log('[LearningPlayer] Playing target2:', introTarget2Url)
-      await playAudioAndWait(normalizeAudioUrl(introTarget2Url))
+      console.log('[LearningPlayer] Playing target2:', target2Url)
+      await playAudioAndWait(normalizeAudioUrl(target2Url))
     }
 
     // Cleanup
