@@ -243,17 +243,13 @@ export class CourseDataProvider {
 
   /**
    * Resolve S3 key to full URL
-   * Handles multiple s3_key formats:
-   * - Full path: "mastered/UUID.mp3" → use as-is
-   * - UUID only: "UUID.mp3" → prepend "mastered/"
-   * - UUID without extension: "UUID" → prepend "mastered/" and append ".mp3"
-   *
-   * IMPORTANT: Handles case where audioBaseUrl may contain "/mastered" suffix
+   * v13: s3_key IS the actual S3 object key. Use it as-is.
+   * No normalization - the database stores the actual path.
    */
   private resolveAudioUrl(s3Key: string): string {
     if (!s3Key) return ''
 
-    // Strip any path suffix from base URL (e.g., "/mastered")
+    // Strip any trailing slash or /mastered suffix from base URL
     let baseUrl = this.audioBaseUrl
     if (baseUrl.endsWith('/')) {
       baseUrl = baseUrl.slice(0, -1)
@@ -262,20 +258,8 @@ export class CourseDataProvider {
       baseUrl = baseUrl.slice(0, -9)
     }
 
-    // Normalize s3_key: ensure it has mastered/ prefix and .mp3 extension
-    let normalizedKey = s3Key
-
-    // If no path separator, assume it needs mastered/ prefix
-    if (!normalizedKey.includes('/')) {
-      normalizedKey = `mastered/${normalizedKey}`
-    }
-
-    // If no .mp3 extension, add it
-    if (!normalizedKey.endsWith('.mp3')) {
-      normalizedKey = `${normalizedKey}.mp3`
-    }
-
-    return `${baseUrl}/${normalizedKey}`
+    // s3_key is the actual S3 object key - use as-is
+    return `${baseUrl}/${s3Key}`
   }
 
   /**
@@ -1132,19 +1116,13 @@ async function loadAllPracticePhrasesGrouped(
 
   if (!supabase) return { debutMap, eternalMap }
 
-  // Helper to resolve audio URL - handles multiple s3_key formats
+  // Helper to resolve audio URL - s3_key is the actual S3 object key
   const resolveAudioUrl = (s3Key: string | null): string => {
     if (!s3Key) return ''
     let baseUrl = audioBaseUrl
     if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1)
     if (baseUrl.endsWith('/mastered')) baseUrl = baseUrl.slice(0, -9)
-
-    // Normalize: add mastered/ prefix if missing, add .mp3 if missing
-    let key = s3Key
-    if (!key.includes('/')) key = `mastered/${key}`
-    if (!key.endsWith('.mp3')) key = `${key}.mp3`
-
-    return `${baseUrl}/${key}`
+    return `${baseUrl}/${s3Key}`
   }
 
   try {

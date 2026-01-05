@@ -380,10 +380,7 @@ export function useScriptCache() {
 
   /**
    * Get audio URL for a text/role combination
-   * Handles both legacy UUIDs and v13 s3_keys
-   *
-   * v13: s3_key already contains full path (e.g., "mastered/UUID.mp3")
-   * Legacy: UUID needs to be converted to URL with .mp3 extension
+   * v13: s3_key IS the actual S3 object key. Use as-is.
    */
   const getAudioUrl = async (
     supabase: SupabaseClient | null,
@@ -396,13 +393,8 @@ export function useScriptCache() {
     if (role === 'intro' && item?.legoId) {
       const introEntry = audioMap.value.get(`intro:${item.legoId}`)
       if (introEntry?.intro) {
-        // Check if it's already a full s3_key (contains path/extension)
-        const key = introEntry.intro
-        if (key.includes('/') || key.endsWith('.mp3')) {
-          return `${audioBaseUrl}/${key}`
-        }
-        // Legacy: UUID only - append path and extension
-        return `${audioBaseUrl}/mastered/${key.toUpperCase()}.mp3`
+        // s3_key is the actual S3 object key - use as-is
+        return `${audioBaseUrl}/${introEntry.intro}`
       }
       return null
     }
@@ -418,14 +410,8 @@ export function useScriptCache() {
 
     if (!audioKey) return null
 
-    // Check if it's a full s3_key (v13) or legacy UUID
-    if (audioKey.includes('/') || audioKey.endsWith('.mp3')) {
-      // v13: s3_key already contains full path
-      return `${audioBaseUrl}/${audioKey}`
-    }
-
-    // Legacy: UUID only - append path and extension
-    return `${audioBaseUrl}/mastered/${audioKey.toUpperCase()}.mp3`
+    // s3_key is the actual S3 object key - use as-is
+    return `${audioBaseUrl}/${audioKey}`
   }
 
   return {
