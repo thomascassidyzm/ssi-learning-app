@@ -1940,10 +1940,10 @@ const handleSkip = async () => {
 
     currentRoundIndex.value = nextIndex
     currentItemInRound.value = 0
-    roundsThisSession.value++
+    // Don't increment roundsThisSession when skipping - only natural completion counts
 
-    // Update belt to match new position (with celebration if earned)
-    updateBeltForPosition(nextIndex)
+    // Update belt to match new position (NO celebration when skipping - only natural completion)
+    updateBeltForPosition(nextIndex, false)
 
     console.log('[LearningPlayer] Skip → Round', nextIndex, 'LEGO:', cachedRounds.value[nextIndex]?.legoId)
 
@@ -2038,9 +2038,8 @@ const jumpToRound = async (roundIndex) => {
   currentRoundIndex.value = roundIndex
   currentItemInRound.value = 0
 
-  // Update belt to match new position
-  // Show celebration only when moving forward
-  updateBeltForPosition(roundIndex, roundIndex > previousIndex)
+  // Update belt to match new position (NO celebration when jumping - only natural completion)
+  updateBeltForPosition(roundIndex, false)
 
   console.log('[LearningPlayer] Jump → Round', roundIndex, 'LEGO:', cachedRounds.value[roundIndex]?.legoId)
 
