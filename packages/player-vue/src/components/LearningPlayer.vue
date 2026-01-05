@@ -1535,16 +1535,19 @@ const playIntroductionAudioDirectly = async (legoId) => {
     }
 
     if (isHumanRecorded) {
-      // Welsh/human: Single pre-recorded file
+      // Welsh/human: Single pre-recorded file (contains full intro + target audio)
       console.log('[LearningPlayer] Playing human-recorded presentation:', introAudio.url)
       await playAudioAndWait(introAudio.url)
     } else {
       // TTS: Sequence - presentation → pause → target1 → pause → target2
       console.log('[LearningPlayer] Playing TTS presentation sequence for:', legoId)
 
-      // Get target audio from current playable item
-      const target1Url = currentPlayableItem.value?.lego?.audioRefs?.target?.voice1?.url
-      const target2Url = currentPlayableItem.value?.lego?.audioRefs?.target?.voice2?.url
+      // Get target audio URLs from lego_introductions (v14.1)
+      // Falls back to currentPlayableItem if not in intro data
+      const target1Url = introAudio.target1Url
+        || currentPlayableItem.value?.lego?.audioRefs?.target?.voice1?.url
+      const target2Url = introAudio.target2Url
+        || currentPlayableItem.value?.lego?.audioRefs?.target?.voice2?.url
 
       // Play presentation clip ("The Spanish for X is...")
       await playAudioAndWait(introAudio.url)
