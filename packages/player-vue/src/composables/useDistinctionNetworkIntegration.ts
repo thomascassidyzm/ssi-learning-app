@@ -86,6 +86,8 @@ export function useDistinctionNetworkIntegration(
     centerView: (animate?: boolean) => void
     render: () => void
     currentZoom: Ref<number>
+    animatePulseAlongEdge: (edgeId: string, duration?: number) => void
+    animatePathPulses: (edgeIds: string[], stepDelay?: number) => void
   } | null>(null)
 
   // Center position (should be set by parent based on layout)
@@ -204,6 +206,16 @@ export function useDistinctionNetworkIntegration(
   async function completePhraseWithAnimation(legoIds: string[]): Promise<void> {
     // Animate first (visual feedback)
     await animatePathForVoice2(legoIds)
+
+    // Trigger pulse animation along edges
+    if (viewRef.value && legoIds.length >= 2) {
+      // Get edge IDs from the path
+      const edgeIds: string[] = []
+      for (let i = 0; i < legoIds.length - 1; i++) {
+        edgeIds.push(`${legoIds[i]}->${legoIds[i + 1]}`)
+      }
+      viewRef.value.animatePathPulses(edgeIds, config.pathAnimationStepMs)
+    }
 
     // Then strengthen (Hebbian)
     practicePhrase(legoIds)

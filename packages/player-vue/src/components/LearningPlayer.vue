@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, shallowRef, inject, nextTick } from 'vue'
 import * as d3 from 'd3'
 import {
@@ -954,9 +954,10 @@ const introductionPhase = ref(false) // True during introduction phase (shows di
 
 // ============================================
 // DISTINCTION NETWORK VISUALIZATION
-// Config-driven network using composables
+// Split-stage layout: Network Theater + Control Pane
 // ============================================
 const ringContainerRef = ref(null)
+const networkTheaterRef = ref<HTMLElement | null>(null)
 
 // Initialize distinction network composable
 const distinctionNetwork = useDistinctionNetworkIntegration({
@@ -964,8 +965,22 @@ const distinctionNetwork = useDistinctionNetworkIntegration({
     // Config overrides if needed
   },
   pathAnimationStepMs: 180,
-  autoCenterOnHeroChange: true,
+  autoCenterOnHeroChange: false, // No hero centering - organic growth
 })
+
+// Handle tap on network theater (play/pause)
+const handleTheaterTap = (event: MouseEvent) => {
+  // Don't trigger if tapping on a node (let node-tap handle it)
+  const target = event.target as HTMLElement
+  if (target.closest('.node')) return
+
+  // Toggle play/pause
+  if (isPlaying.value) {
+    handlePause()
+  } else {
+    handleResume()
+  }
+}
 
 // Destructure for convenience
 const {
@@ -2548,24 +2563,24 @@ const handleExit = () => {
 
 // Initialize the network visualization
 const initializeNetwork = () => {
-  // Calculate center from ring position
-  if (ringContainerRef.value) {
-    const ringRect = ringContainerRef.value.getBoundingClientRect()
+  // Calculate center from the network theater (top section)
+  if (networkTheaterRef.value) {
+    const theaterRect = networkTheaterRef.value.getBoundingClientRect()
     setNetworkCenter(
-      ringRect.left + ringRect.width / 2,
-      ringRect.top + ringRect.height / 2
+      theaterRect.left + theaterRect.width / 2,
+      theaterRect.top + theaterRect.height / 2
     )
-    console.log('[Network] Center set from ring position')
+    console.log('[Network] Center set from theater position:', theaterRect.width / 2, theaterRect.height / 2)
   } else {
-    // Fallback to estimated center
+    // Fallback to estimated center (upper portion of screen)
     const container = document.querySelector('.player')
     if (container) {
       setNetworkCenter(
         container.clientWidth / 2,
-        container.clientHeight * 0.45
+        container.clientHeight * 0.35 // Upper portion where theater is
       )
     }
-    console.log('[Network] Using estimated center')
+    console.log('[Network] Using estimated theater center')
   }
 
   // Initialize simulation
@@ -2574,22 +2589,22 @@ const initializeNetwork = () => {
   // Set initial belt color
   setNetworkBelt(currentBelt.value?.name || 'white')
 
-  console.log('[LearningPlayer] Distinction network initialized')
+  console.log('[LearningPlayer] Distinction network initialized (organic growth mode)')
 }
 
-// Add a new LEGO node to the network - becomes the new hero (center)
+// Add a new LEGO node to the network - no longer hero-centered, just adds to network
 const addNetworkNode = (legoId, targetText, knownText, beltColor = 'white') => {
-  // Update center from ring position first
-  if (ringContainerRef.value) {
-    const ringRect = ringContainerRef.value.getBoundingClientRect()
+  // Update center from theater position first
+  if (networkTheaterRef.value) {
+    const theaterRect = networkTheaterRef.value.getBoundingClientRect()
     setNetworkCenter(
-      ringRect.left + ringRect.width / 2,
-      ringRect.top + ringRect.height / 2
+      theaterRect.left + theaterRect.width / 2,
+      theaterRect.top + theaterRect.height / 2
     )
   }
 
-  // Use the composable to add the node
-  const added = introduceLegoNode(legoId, targetText, knownText, true)
+  // Use the composable to add the node (makeHero=false for organic growth)
+  const added = introduceLegoNode(legoId, targetText, knownText, false)
 
   if (added) {
     console.log(`[LearningPlayer] Added network node: ${legoId} (${targetText}) as hero`)
@@ -2601,22 +2616,24 @@ const addNetworkNode = (legoId, targetText, knownText, beltColor = 'white') => {
 const populateNetworkUpToRound = (targetRoundIndex) => {
   if (!cachedRounds.value.length) return
 
-  // Update center from ring position
-  if (ringContainerRef.value) {
-    const ringRect = ringContainerRef.value.getBoundingClientRect()
+  // Update center from theater position
+  if (networkTheaterRef.value) {
+    const theaterRect = networkTheaterRef.value.getBoundingClientRect()
     setNetworkCenter(
-      ringRect.left + ringRect.width / 2,
-      ringRect.top + ringRect.height / 2
+      theaterRect.left + theaterRect.width / 2,
+      theaterRect.top + theaterRect.height / 2
     )
   }
 
-  // Use composable to populate
+  // Use composable to populate (no hero - organic growth)
   populateNetworkFromRounds(cachedRounds.value, targetRoundIndex)
 }
 
-// Set a specific LEGO as the current hero (for practice phrases)
-const setNetworkHero = (legoId) => {
+// Highlight a specific LEGO node (glow effect, not centering)
+const highlightNetworkNode = (legoId) => {
   if (!legoId) return
+  // Instead of setHero, just highlight the node visually
+  // The node will glow but won't be forced to center
   network.setHero(legoId, networkCenter.value)
 }
 
@@ -3283,162 +3300,104 @@ onUnmounted(() => {
       </div>
     </header>
 
-    <!-- Main Content - Fixed Layout -->
-    <main class="main">
-      <!-- 4-Phase Indicator: Speaker → Mic → Ear → Eye -->
-      <div class="phase-dots">
+    <!-- SPLIT-STAGE LAYOUT: Network Theater (top) + Control Pane (bottom) -->
+
+    <!-- NETWORK THEATER - The brain visualization fills this space -->
+    <section ref="networkTheaterRef" class="network-theater" @click="handleTheaterTap">
+      <!-- Ink Spirit Rewards - Float upward like incense -->
+      <TransitionGroup name="ink-spirit" tag="div" class="ink-spirit-container">
+        <div
+          v-for="reward in floatingRewards"
+          :key="reward.id"
+          class="ink-spirit-reward"
+          :class="`bonus-${reward.bonusLevel}`"
+          :style="{ '--x-offset': `${reward.xOffset}px` }"
+        >
+          <span class="ink-word">{{ reward.word }}</span>
+          <span class="ink-points">+{{ reward.points }}</span>
+        </div>
+      </TransitionGroup>
+    </section>
+
+    <!-- CONTROL PANE - Text display and minimal controls -->
+    <section class="control-pane" :class="{ 'is-paused': !isPlaying }">
+      <!-- Phase indicator border (left edge color) -->
+      <div class="phase-border" :class="currentPhase"></div>
+
+      <!-- Text display area -->
+      <div class="pane-text" @click="handleRingTap">
+        <!-- Known Language Text -->
+        <div class="pane-text-known">
+          <transition name="text-fade" mode="out-in">
+            <p v-if="isAwakening" class="known-text loading-text" key="loading">
+              {{ currentLoadingMessage }}<span class="loading-cursor">▌</span>
+            </p>
+            <p v-else class="known-text" :key="currentPhrase.known">
+              {{ currentPhrase.known }}
+            </p>
+          </transition>
+        </div>
+
+        <!-- Target Language Text -->
+        <div class="pane-text-target">
+          <transition name="text-reveal" mode="out-in">
+            <p v-if="showTargetText" class="target-text" :key="currentPhrase.target">
+              {{ currentPhrase.target }}
+            </p>
+            <p v-else class="target-placeholder" key="placeholder">&nbsp;</p>
+          </transition>
+        </div>
+      </div>
+
+      <!-- Floating Pill Control -->
+      <div class="floating-pill" :class="currentPhase" @click="handleRingTap">
+        <span class="pill-phase-label">{{ phaseInfo.instruction }}</span>
+        <div class="pill-play-icon">
+          <svg v-if="!isPlaying" viewBox="0 0 24 24" fill="currentColor">
+            <polygon points="6 3 20 12 6 21 6 3"/>
+          </svg>
+          <svg v-else-if="currentPhase === 'speak'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          </svg>
+          <div v-else class="pill-pulse"></div>
+        </div>
+        <!-- Progress indicator -->
+        <svg class="pill-progress" viewBox="0 0 36 36">
+          <circle
+            class="pill-progress-track"
+            cx="18" cy="18" r="16"
+            fill="none"
+            stroke-width="2"
+          />
+          <circle
+            class="pill-progress-value"
+            cx="18" cy="18" r="16"
+            fill="none"
+            stroke-width="2"
+            :stroke-dasharray="100.53"
+            :stroke-dashoffset="100.53 - (ringProgress / 100) * 100.53"
+            transform="rotate(-90 18 18)"
+          />
+        </svg>
+      </div>
+
+      <!-- 4-Phase dots (minimal) -->
+      <div class="pane-phase-dots">
         <div
           v-for="(phase, idx) in ['prompt', 'speak', 'voice_1', 'voice_2']"
           :key="phase"
-          class="phase-dot"
+          class="pane-dot"
           :class="{
             active: currentPhase === phase,
             complete: Object.values(Phase).indexOf(currentPhase) > idx
           }"
-        >
-          <!-- Phase 1: Speaker (playing audio) -->
-          <svg v-if="idx === 0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
-            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
-            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
-          </svg>
-          <!-- Phase 2: Mic (learner speaking) -->
-          <svg v-else-if="idx === 1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-            <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
-          </svg>
-          <!-- Phase 3: Ear (listening to answer) -->
-          <svg v-else-if="idx === 2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M6 8.5a6.5 6.5 0 1 1 13 0c0 6-6 6-6 10.5"/>
-            <circle cx="12" cy="22" r="1" fill="currentColor"/>
-          </svg>
-          <!-- Phase 4: Eye (see and hear) -->
-          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-            <circle cx="12" cy="12" r="3"/>
-          </svg>
-        </div>
+        ></div>
       </div>
+    </section>
 
-      <!-- Known Language Text - Fixed Height -->
-      <div class="text-zone text-zone--known">
-        <transition name="text-fade" mode="out-in">
-          <!-- Loading message when awakening -->
-          <p v-if="isAwakening" class="known-text loading-text" key="loading">
-            {{ currentLoadingMessage }}<span class="loading-cursor">▌</span>
-          </p>
-          <!-- Normal known text -->
-          <p v-else class="known-text" :key="currentPhrase.known">
-            {{ currentPhrase.known }}
-          </p>
-        </transition>
-      </div>
-
-      <!-- Central Ring - Tap to Stop/Play -->
-      <div
-        ref="ringContainerRef"
-        class="ring-container"
-        @click="handleRingTap"
-        :class="{
-          'is-speak': currentPhase === Phase.SPEAK,
-          'is-paused': !isPlaying
-        }"
-      >
-        <!-- Ambient glow -->
-        <div class="ring-ambient"></div>
-
-        <!-- SVG Ring -->
-        <svg class="ring-svg" viewBox="0 0 200 200">
-          <!-- Background track -->
-          <circle
-            class="ring-track"
-            cx="100" cy="100" r="90"
-            fill="none"
-            stroke-width="4"
-          />
-          <!-- Progress arc - smooth continuous -->
-          <circle
-            class="ring-progress"
-            cx="100" cy="100" r="90"
-            fill="none"
-            stroke-width="4"
-            :stroke-dasharray="565.48"
-            :stroke-dashoffset="565.48 - (ringProgress / 100) * 565.48"
-            transform="rotate(-90 100 100)"
-          />
-          <!-- Inner decorative ring -->
-          <circle
-            class="ring-inner"
-            cx="100" cy="100" r="78"
-            fill="none"
-            stroke-width="1"
-          />
-        </svg>
-
-        <!-- Center content -->
-        <div class="ring-center" :class="{ 'is-loading': isAwakening }">
-          <!-- Play button - fades in when ready -->
-          <div v-if="!isPlaying" class="play-indicator" :class="{ 'fade-in': !isAwakening }">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <polygon points="6 3 20 12 6 21 6 3"/>
-            </svg>
-          </div>
-          <!-- Phase icon when playing -->
-          <div v-else class="phase-icon" :class="currentPhase">
-            <!-- Speaker (Phase 1: Hear prompt) -->
-            <svg v-if="phaseInfo.icon === 'speaker'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
-              <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
-              <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
-            </svg>
-            <!-- Mic (Phase 2: Learner speaks) -->
-            <svg v-else-if="phaseInfo.icon === 'mic'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-              <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
-            </svg>
-            <!-- Ear (Phase 3: Listen to answer) -->
-            <svg v-else-if="phaseInfo.icon === 'ear'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M6 8.5a6.5 6.5 0 1 1 13 0c0 6-6 6-6 10.5"/>
-              <circle cx="12" cy="22" r="1" fill="currentColor"/>
-            </svg>
-            <!-- Eye (Phase 4: See and hear) -->
-            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-              <circle cx="12" cy="12" r="3"/>
-            </svg>
-          </div>
-        </div>
-
-        <!-- Phase label below -->
-        <div class="ring-label">{{ phaseInfo.instruction }}</div>
-
-        <!-- Ink Spirit Rewards - Float upward like incense -->
-        <TransitionGroup name="ink-spirit" tag="div" class="ink-spirit-container">
-          <div
-            v-for="reward in floatingRewards"
-            :key="reward.id"
-            class="ink-spirit-reward"
-            :class="`bonus-${reward.bonusLevel}`"
-            :style="{ '--x-offset': `${reward.xOffset}px` }"
-          >
-            <span class="ink-word">{{ reward.word }}</span>
-            <span class="ink-points">+{{ reward.points }}</span>
-          </div>
-        </TransitionGroup>
-      </div>
-
-      <!-- Target Language Text - Fixed Height (Always Reserved) -->
-      <div class="text-zone text-zone--target">
-        <transition name="text-reveal" mode="out-in">
-          <p v-if="showTargetText" class="target-text" :key="currentPhrase.target">
-            {{ currentPhrase.target }}
-          </p>
-          <p v-else class="target-placeholder" key="placeholder">&nbsp;</p>
-        </transition>
-      </div>
-    </main>
+    <!-- Hidden ring container for position reference (used by network centering) -->
+    <div ref="ringContainerRef" class="ring-reference" style="display: none;"></div>
 
     <!-- Break Suggestion Overlay -->
     <Transition name="break-fade">
@@ -4133,7 +4092,257 @@ onUnmounted(() => {
   fill: #d4a853;
 }
 
-/* ============ MAIN - FIXED LAYOUT ============ */
+/* ============ SPLIT-STAGE LAYOUT ============ */
+/* Network Theater (top) + Control Pane (bottom) */
+
+.network-theater {
+  position: absolute;
+  top: 60px; /* Below header */
+  left: 0;
+  right: 0;
+  bottom: 30%; /* Leave room for control pane */
+  z-index: 5;
+  pointer-events: all;
+  cursor: pointer;
+}
+
+.control-pane {
+  position: absolute;
+  bottom: 80px; /* Above control bar */
+  left: 0;
+  right: 0;
+  height: 25%;
+  min-height: 180px;
+  max-height: 280px;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem 1.5rem;
+  gap: 0.75rem;
+}
+
+/* Phase indicator border on left edge */
+.phase-border {
+  position: absolute;
+  left: 0;
+  top: 10%;
+  bottom: 10%;
+  width: 4px;
+  border-radius: 0 4px 4px 0;
+  background: var(--border-medium);
+  transition: all 0.3s ease;
+}
+
+.phase-border.prompt {
+  background: var(--accent);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+.phase-border.speak {
+  background: #ff6b6b;
+  box-shadow: 0 0 16px rgba(255, 107, 107, 0.6);
+  animation: phase-pulse 1.5s ease-in-out infinite;
+}
+
+.phase-border.voice_1 {
+  background: #a855f7;
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.5);
+}
+
+.phase-border.voice_2 {
+  background: #3b82f6;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.5);
+}
+
+@keyframes phase-pulse {
+  0%, 100% { opacity: 1; transform: scaleY(1); }
+  50% { opacity: 0.7; transform: scaleY(1.05); }
+}
+
+/* Text display area */
+.pane-text {
+  text-align: center;
+  width: 100%;
+  max-width: 600px;
+  cursor: pointer;
+  padding: 0.5rem 1rem;
+  border-radius: 12px;
+  transition: background 0.2s ease;
+}
+
+.pane-text:active {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.pane-text-known {
+  margin-bottom: 0.5rem;
+}
+
+.pane-text-known .known-text {
+  font-size: 1.5rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.pane-text-target {
+  min-height: 2rem;
+}
+
+.pane-text-target .target-text {
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: var(--belt-glow, var(--accent));
+  line-height: 1.4;
+  margin: 0;
+}
+
+.pane-text-target .target-placeholder {
+  opacity: 0;
+}
+
+/* Floating Pill Control */
+.floating-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem 0.5rem 1.25rem;
+  background: rgba(30, 30, 40, 0.9);
+  border: 1px solid var(--border-medium);
+  border-radius: 50px;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.floating-pill:hover {
+  background: rgba(40, 40, 55, 0.95);
+  border-color: var(--border-light);
+}
+
+.floating-pill:active {
+  transform: scale(0.98);
+}
+
+.pill-phase-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  min-width: 80px;
+  text-align: center;
+}
+
+.floating-pill.prompt .pill-phase-label { color: var(--accent); }
+.floating-pill.speak .pill-phase-label { color: #ff6b6b; }
+.floating-pill.voice_1 .pill-phase-label { color: #a855f7; }
+.floating-pill.voice_2 .pill-phase-label { color: #3b82f6; }
+
+.pill-play-icon {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pill-play-icon svg {
+  width: 16px;
+  height: 16px;
+  color: var(--text-primary);
+}
+
+.pill-pulse {
+  width: 8px;
+  height: 8px;
+  background: var(--belt-glow, var(--accent));
+  border-radius: 50%;
+  animation: pill-dot-pulse 1s ease-in-out infinite;
+}
+
+@keyframes pill-dot-pulse {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.3); }
+}
+
+.pill-progress {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 36px;
+  height: 36px;
+  transform: rotate(-90deg);
+}
+
+.pill-progress-track {
+  stroke: var(--border-medium);
+}
+
+.pill-progress-value {
+  stroke: var(--belt-glow, var(--accent));
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.3s ease;
+}
+
+/* Minimal phase dots */
+.pane-phase-dots {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.pane-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-medium);
+  transition: all 0.3s ease;
+}
+
+.pane-dot.active {
+  background: var(--belt-glow, var(--accent));
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
+.pane-dot.complete {
+  background: var(--success);
+}
+
+/* Hidden ring reference (for backwards compatibility) */
+.ring-reference {
+  position: absolute;
+  width: 200px;
+  height: 200px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* Update brain-network-container for theater mode */
+.brain-network-container {
+  position: absolute;
+  top: 60px;
+  left: 0;
+  right: 0;
+  bottom: 30%;
+  z-index: 2;
+}
+
+/* Ink spirit rewards position adjustment */
+.network-theater .ink-spirit-container {
+  position: absolute;
+  bottom: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+}
+
+/* ============ MAIN - FIXED LAYOUT (legacy, may be removed) ============ */
 .main {
   flex: 1;
   display: flex;

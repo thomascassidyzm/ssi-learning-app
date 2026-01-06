@@ -278,6 +278,7 @@ let svg: d3.Selection<SVGSVGElement, unknown, null, undefined> | null = null
 let zoomGroup: d3.Selection<SVGGElement, unknown, null, undefined> | null = null
 let defsEl: d3.Selection<SVGDefsElement, unknown, null, undefined> | null = null
 let edgesLayer: d3.Selection<SVGGElement, unknown, null, undefined> | null = null
+let pulsesLayer: d3.Selection<SVGGElement, unknown, null, undefined> | null = null
 let nodesLayer: d3.Selection<SVGGElement, unknown, null, undefined> | null = null
 let labelsLayer: d3.Selection<SVGGElement, unknown, null, undefined> | null = null
 
@@ -335,6 +336,7 @@ function initializeSvg(): void {
 
   // Create layers (order = z-index)
   edgesLayer = zoomGroup.append('g').attr('class', 'edges-layer')
+  pulsesLayer = zoomGroup.append('g').attr('class', 'pulses-layer')
   nodesLayer = zoomGroup.append('g').attr('class', 'nodes-layer')
   labelsLayer = zoomGroup.append('g').attr('class', 'labels-layer')
 }
@@ -434,7 +436,7 @@ function updateDefs(): void {
   activeGlowMerge.append('feMergeNode').attr('in', 'blur')
   activeGlowMerge.append('feMergeNode').attr('in', 'SourceGraphic')
 
-  // Edge glow filter
+  // Edge glow filter (subtle)
   const edgeGlowFilter = defsEl.append('filter')
     .attr('id', 'edge-glow')
     .attr('x', '-50%')
@@ -449,6 +451,34 @@ function updateDefs(): void {
   const edgeGlowMerge = edgeGlowFilter.append('feMerge')
   edgeGlowMerge.append('feMergeNode').attr('in', 'blur')
   edgeGlowMerge.append('feMergeNode').attr('in', 'SourceGraphic')
+
+  // Active edge glow filter (intense, pulsing feel)
+  const activeEdgeGlowFilter = defsEl.append('filter')
+    .attr('id', 'edge-glow-active')
+    .attr('x', '-100%')
+    .attr('y', '-100%')
+    .attr('width', '300%')
+    .attr('height', '300%')
+
+  activeEdgeGlowFilter.append('feGaussianBlur')
+    .attr('stdDeviation', '6')
+    .attr('result', 'blur')
+
+  activeEdgeGlowFilter.append('feFlood')
+    .attr('flood-color', pal.edge.active)
+    .attr('flood-opacity', '0.8')
+    .attr('result', 'flood')
+
+  activeEdgeGlowFilter.append('feComposite')
+    .attr('in', 'flood')
+    .attr('in2', 'blur')
+    .attr('operator', 'in')
+    .attr('result', 'coloredBlur')
+
+  const activeEdgeGlowMerge = activeEdgeGlowFilter.append('feMerge')
+  activeEdgeGlowMerge.append('feMergeNode').attr('in', 'coloredBlur')
+  activeEdgeGlowMerge.append('feMergeNode').attr('in', 'coloredBlur')
+  activeEdgeGlowMerge.append('feMergeNode').attr('in', 'SourceGraphic')
 
   // Arrow marker for directional edges
   if (config.edge.directionIndicator === 'arrow' || config.edge.directionIndicator === 'both') {
@@ -513,8 +543,8 @@ function renderEdges(): void {
   const config = mergedConfig.value.edge
   const pal = palette.value
 
-  // Data join
-  const edgeSelection = edgesLayer.selectAll<SVGLineElement, DirectionalEdge>('.edge')
+  // Data join - using path for curved edges
+  const edgeSelection = edgesLayer.selectAll<SVGPathElement, DirectionalEdge>('.edge')
     .data(props.edges, d => d.id)
 
   // Exit
@@ -526,11 +556,13 @@ function renderEdges(): void {
 
   // Enter
   const edgeEnter = edgeSelection.enter()
-    .append('line')
+    .append('path')
     .attr('class', 'edge')
     .attr('opacity', 0)
     .attr('stroke', pal.edge.stroke)
     .attr('stroke-width', config.minWidth)
+    .attr('fill', 'none')
+    .attr('stroke-linecap', 'round')
 
   // Add arrow marker if configured
   if (config.directionIndicator === 'arrow' || config.directionIndicator === 'both') {
@@ -546,7 +578,7 @@ function renderEdges(): void {
     .attr('opacity', d => isEdgeInPath(d.id) ? config.activeOpacity : config.opacity)
     .attr('stroke', d => isEdgeInPath(d.id) ? pal.edge.active : pal.edge.stroke)
     .attr('stroke-width', d => calculateEdgeWidth(d.strength))
-    .attr('filter', d => isEdgeActive(d.id) ? 'url(#edge-glow)' : null)
+    .attr('filter', d => isEdgeActive(d.id) ? 'url(#edge-glow-active)' : (isEdgeInPath(d.id) ? 'url(#edge-glow)' : null))
 
   // Update marker for active edges
   if (config.directionIndicator === 'arrow' || config.directionIndicator === 'both') {
@@ -700,33 +732,48 @@ function updatePositions(): void {
 
   const center = props.center
 
-  // Update edge positions
+  // Update edge positions with curved paths
   // Note: D3 force simulation replaces source/target strings with node objects
-  edgesLayer.selectAll<SVGLineElement, DirectionalEdge>('.edge')
-    .attr('x1', d => {
-      // Handle both string ID and node object (D3 modifies these)
+  edgesLayer.selectAll<SVGPathElement, DirectionalEdge>('.edge')
+    .attr('d', d => {
+      // Get source position
       const sourceId = typeof d.source === 'string' ? d.source : (d.source as any)?.id
       const sourceNode = typeof d.source === 'object' ? d.source as any : props.nodes.find(n => n.id === sourceId)
-      if (sourceId === props.heroNodeId) return center.x
-      return sourceNode?.x ?? 0
-    })
-    .attr('y1', d => {
-      const sourceId = typeof d.source === 'string' ? d.source : (d.source as any)?.id
-      const sourceNode = typeof d.source === 'object' ? d.source as any : props.nodes.find(n => n.id === sourceId)
-      if (sourceId === props.heroNodeId) return center.y
-      return sourceNode?.y ?? 0
-    })
-    .attr('x2', d => {
+      const x1 = sourceId === props.heroNodeId ? center.x : (sourceNode?.x ?? 0)
+      const y1 = sourceId === props.heroNodeId ? center.y : (sourceNode?.y ?? 0)
+
+      // Get target position
       const targetId = typeof d.target === 'string' ? d.target : (d.target as any)?.id
       const targetNode = typeof d.target === 'object' ? d.target as any : props.nodes.find(n => n.id === targetId)
-      if (targetId === props.heroNodeId) return center.x
-      return targetNode?.x ?? 0
-    })
-    .attr('y2', d => {
-      const targetId = typeof d.target === 'string' ? d.target : (d.target as any)?.id
-      const targetNode = typeof d.target === 'object' ? d.target as any : props.nodes.find(n => n.id === targetId)
-      if (targetId === props.heroNodeId) return center.y
-      return targetNode?.y ?? 0
+      const x2 = targetId === props.heroNodeId ? center.x : (targetNode?.x ?? 0)
+      const y2 = targetId === props.heroNodeId ? center.y : (targetNode?.y ?? 0)
+
+      // Generate quadratic Bezier curve with control point offset perpendicular to the line
+      // This creates a gentle curve that makes edges visually distinct
+      const midX = (x1 + x2) / 2
+      const midY = (y1 + y2) / 2
+
+      // Calculate perpendicular offset for control point
+      const dx = x2 - x1
+      const dy = y2 - y1
+      const len = Math.sqrt(dx * dx + dy * dy)
+
+      // Curve amount proportional to distance, but capped
+      const curveAmount = Math.min(30, len * 0.15)
+
+      // Perpendicular direction (rotate 90 degrees)
+      const perpX = len > 0 ? -dy / len : 0
+      const perpY = len > 0 ? dx / len : 0
+
+      // Use edge ID hash to determine curve direction (consistent per edge)
+      const hash = d.id.split('').reduce((a, c) => a + c.charCodeAt(0), 0)
+      const direction = hash % 2 === 0 ? 1 : -1
+
+      // Control point
+      const cpX = midX + perpX * curveAmount * direction
+      const cpY = midY + perpY * curveAmount * direction
+
+      return `M ${x1} ${y1} Q ${cpX} ${cpY} ${x2} ${y2}`
     })
 
   // Update node positions
@@ -739,6 +786,165 @@ function updatePositions(): void {
     .attr('y', d => d.y ?? 0)
 
   emit('tick')
+}
+
+// ============================================================================
+// PULSE ANIMATION
+// ============================================================================
+
+/**
+ * Animate a pulse traveling along an edge from source to target
+ * Creates a glowing dot that moves along the curved path
+ */
+function animatePulseAlongEdge(edgeId: string, duration: number = 600): void {
+  if (!pulsesLayer || !edgesLayer) return
+
+  const pal = palette.value
+
+  // Find the edge path
+  const edgePath = edgesLayer.select<SVGPathElement>(`.edge[data-id="${edgeId}"]`)
+  if (edgePath.empty()) {
+    // Try to find by matching the edge data
+    const edge = props.edges.find(e => e.id === edgeId)
+    if (!edge) return
+
+    // Get edge positions to create path manually
+    const center = props.center
+    const sourceId = typeof edge.source === 'string' ? edge.source : (edge.source as any)?.id
+    const sourceNode = typeof edge.source === 'object' ? edge.source as any : props.nodes.find(n => n.id === sourceId)
+    const x1 = sourceId === props.heroNodeId ? center.x : (sourceNode?.x ?? 0)
+    const y1 = sourceId === props.heroNodeId ? center.y : (sourceNode?.y ?? 0)
+
+    const targetId = typeof edge.target === 'string' ? edge.target : (edge.target as any)?.id
+    const targetNode = typeof edge.target === 'object' ? edge.target as any : props.nodes.find(n => n.id === targetId)
+    const x2 = targetId === props.heroNodeId ? center.x : (targetNode?.x ?? 0)
+    const y2 = targetId === props.heroNodeId ? center.y : (targetNode?.y ?? 0)
+
+    // Calculate curve
+    const midX = (x1 + x2) / 2
+    const midY = (y1 + y2) / 2
+    const dx = x2 - x1
+    const dy = y2 - y1
+    const len = Math.sqrt(dx * dx + dy * dy)
+    const curveAmount = Math.min(30, len * 0.15)
+    const perpX = len > 0 ? -dy / len : 0
+    const perpY = len > 0 ? dx / len : 0
+    const hash = edgeId.split('').reduce((a, c) => a + c.charCodeAt(0), 0)
+    const direction = hash % 2 === 0 ? 1 : -1
+    const cpX = midX + perpX * curveAmount * direction
+    const cpY = midY + perpY * curveAmount * direction
+
+    // Create temporary path for pulse
+    const tempPath = pulsesLayer.append('path')
+      .attr('d', `M ${x1} ${y1} Q ${cpX} ${cpY} ${x2} ${y2}`)
+      .attr('fill', 'none')
+      .attr('stroke', 'none')
+      .attr('class', 'pulse-path')
+
+    // Create pulse dot
+    const pulseGroup = pulsesLayer.append('g').attr('class', 'pulse-group')
+
+    // Outer glow
+    pulseGroup.append('circle')
+      .attr('r', 12)
+      .attr('fill', pal.edge.active)
+      .attr('opacity', 0.3)
+      .attr('filter', 'url(#edge-glow-active)')
+
+    // Inner bright core
+    pulseGroup.append('circle')
+      .attr('r', 5)
+      .attr('fill', '#ffffff')
+      .attr('opacity', 0.9)
+
+    // Get path for animation
+    const pathNode = tempPath.node()
+    if (pathNode) {
+      const pathLength = pathNode.getTotalLength()
+
+      // Animate along path
+      pulseGroup
+        .attr('transform', () => {
+          const point = pathNode.getPointAtLength(0)
+          return `translate(${point.x}, ${point.y})`
+        })
+        .transition()
+        .duration(duration)
+        .ease(d3.easeQuadInOut)
+        .attrTween('transform', function() {
+          return function(t: number) {
+            const point = pathNode.getPointAtLength(t * pathLength)
+            return `translate(${point.x}, ${point.y})`
+          }
+        })
+        .on('end', function() {
+          // Expand and fade out at destination
+          d3.select(this)
+            .transition()
+            .duration(200)
+            .attr('opacity', 0)
+            .remove()
+          tempPath.remove()
+        })
+    }
+    return
+  }
+
+  // Use existing edge path
+  const pathNode = edgePath.node()
+  if (!pathNode) return
+
+  const pathLength = pathNode.getTotalLength()
+
+  // Create pulse dot group
+  const pulseGroup = pulsesLayer.append('g').attr('class', 'pulse-group')
+
+  // Outer glow
+  pulseGroup.append('circle')
+    .attr('r', 12)
+    .attr('fill', pal.edge.active)
+    .attr('opacity', 0.3)
+    .attr('filter', 'url(#edge-glow-active)')
+
+  // Inner bright core
+  pulseGroup.append('circle')
+    .attr('r', 5)
+    .attr('fill', '#ffffff')
+    .attr('opacity', 0.9)
+
+  // Animate along path
+  pulseGroup
+    .attr('transform', () => {
+      const point = pathNode.getPointAtLength(0)
+      return `translate(${point.x}, ${point.y})`
+    })
+    .transition()
+    .duration(duration)
+    .ease(d3.easeQuadInOut)
+    .attrTween('transform', function() {
+      return function(t: number) {
+        const point = pathNode.getPointAtLength(t * pathLength)
+        return `translate(${point.x}, ${point.y})`
+      }
+    })
+    .on('end', function() {
+      d3.select(this)
+        .transition()
+        .duration(200)
+        .attr('opacity', 0)
+        .remove()
+    })
+}
+
+/**
+ * Fire pulses along all edges in a path sequence
+ */
+function animatePathPulses(edgeIds: string[], stepDelay: number = 180): void {
+  edgeIds.forEach((edgeId, index) => {
+    setTimeout(() => {
+      animatePulseAlongEdge(edgeId, 500)
+    }, index * stepDelay)
+  })
 }
 
 // ============================================================================
@@ -811,6 +1017,8 @@ defineExpose({
   centerView,
   render,
   currentZoom,
+  animatePulseAlongEdge,
+  animatePathPulses,
 })
 </script>
 
