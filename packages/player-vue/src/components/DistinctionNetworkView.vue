@@ -701,25 +701,31 @@ function updatePositions(): void {
   const center = props.center
 
   // Update edge positions
+  // Note: D3 force simulation replaces source/target strings with node objects
   edgesLayer.selectAll<SVGLineElement, DirectionalEdge>('.edge')
     .attr('x1', d => {
-      const sourceNode = props.nodes.find(n => n.id === d.source)
-      if (d.source === props.heroNodeId) return center.x
+      // Handle both string ID and node object (D3 modifies these)
+      const sourceId = typeof d.source === 'string' ? d.source : (d.source as any)?.id
+      const sourceNode = typeof d.source === 'object' ? d.source as any : props.nodes.find(n => n.id === sourceId)
+      if (sourceId === props.heroNodeId) return center.x
       return sourceNode?.x ?? 0
     })
     .attr('y1', d => {
-      const sourceNode = props.nodes.find(n => n.id === d.source)
-      if (d.source === props.heroNodeId) return center.y
+      const sourceId = typeof d.source === 'string' ? d.source : (d.source as any)?.id
+      const sourceNode = typeof d.source === 'object' ? d.source as any : props.nodes.find(n => n.id === sourceId)
+      if (sourceId === props.heroNodeId) return center.y
       return sourceNode?.y ?? 0
     })
     .attr('x2', d => {
-      const targetNode = props.nodes.find(n => n.id === d.target)
-      if (d.target === props.heroNodeId) return center.x
+      const targetId = typeof d.target === 'string' ? d.target : (d.target as any)?.id
+      const targetNode = typeof d.target === 'object' ? d.target as any : props.nodes.find(n => n.id === targetId)
+      if (targetId === props.heroNodeId) return center.x
       return targetNode?.x ?? 0
     })
     .attr('y2', d => {
-      const targetNode = props.nodes.find(n => n.id === d.target)
-      if (d.target === props.heroNodeId) return center.y
+      const targetId = typeof d.target === 'string' ? d.target : (d.target as any)?.id
+      const targetNode = typeof d.target === 'object' ? d.target as any : props.nodes.find(n => n.id === targetId)
+      if (targetId === props.heroNodeId) return center.y
       return targetNode?.y ?? 0
     })
 
