@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 
 const emit = defineEmits(['close'])
 
@@ -9,6 +9,13 @@ const STORAGE_KEY = 'ssi-roadmap-items'
 // Collapsible sections state
 const expandedSections = ref(new Set(['schools', 'ux', 'audio']))
 
+// Which item is expanded for editing (by id)
+const expandedItemId = ref(null)
+
+// Which area is showing the add form
+const addingToArea = ref(null)
+const newItem = ref({ title: '', description: '', tokenEstimate: 1, notes: '' })
+
 const toggleSection = (area) => {
   if (expandedSections.value.has(area)) {
     expandedSections.value.delete(area)
@@ -17,22 +24,27 @@ const toggleSection = (area) => {
   }
 }
 
-// Area metadata with belt-inspired colors
-const areaConfig = {
-  schools: { label: 'Schools Dashboard', icon: '🏫', color: '#60a5fa' },   // blue
-  audio: { label: 'Audio & Performance', icon: '🔊', color: '#a78bfa' },   // purple
-  ux: { label: 'UX & Onboarding', icon: '✨', color: '#fcd34d' },          // yellow
-  business: { label: 'Business Model', icon: '💰', color: '#4ade80' },     // green
-  infrastructure: { label: 'Infrastructure', icon: '⚙️', color: '#fb923c' }, // orange
-  content: { label: 'Content & Courses', icon: '📚', color: '#a8856c' },  // brown
+const toggleItemExpand = (itemId) => {
+  if (expandedItemId.value === itemId) {
+    expandedItemId.value = null
+  } else {
+    expandedItemId.value = itemId
+    // Close add form when editing an item
+    addingToArea.value = null
+  }
 }
 
-// Editing state
-const editingItem = ref(null)
-const addingToArea = ref(null)
-const newItem = ref({ title: '', description: '', tokenEstimate: 1, notes: '' })
+// Area metadata with belt-inspired colors
+const areaConfig = {
+  schools: { label: 'Schools Dashboard', icon: '🏫', color: '#60a5fa' },
+  audio: { label: 'Audio & Performance', icon: '🔊', color: '#a78bfa' },
+  ux: { label: 'UX & Onboarding', icon: '✨', color: '#fcd34d' },
+  business: { label: 'Business Model', icon: '💰', color: '#4ade80' },
+  infrastructure: { label: 'Infrastructure', icon: '⚙️', color: '#fb923c' },
+  content: { label: 'Content & Courses', icon: '📚', color: '#a8856c' },
+}
 
-// Roadmap items - this will be the live data for the meeting
+// Roadmap items
 const roadmapItems = ref([
   // Schools
   {
@@ -272,41 +284,26 @@ const statusConfig = {
 }
 
 // Cycle status on click
-const cycleStatus = (item) => {
+const cycleStatus = (item, e) => {
+  e.stopPropagation()
   const order = ['planned', 'in-progress', 'done']
   const current = order.indexOf(item.status)
   item.status = order[(current + 1) % order.length]
   saveToLocalStorage()
 }
 
-// Edit item
-const startEditing = (item) => {
-  editingItem.value = { ...item }
-}
-
-const saveEdit = () => {
-  if (!editingItem.value) return
-  const idx = roadmapItems.value.findIndex(i => i.id === editingItem.value.id)
-  if (idx !== -1) {
-    roadmapItems.value[idx] = { ...editingItem.value }
-    saveToLocalStorage()
-  }
-  editingItem.value = null
-}
-
-const cancelEdit = () => {
-  editingItem.value = null
-}
-
-const deleteItem = (itemId) => {
+// Delete item
+const deleteItem = (itemId, e) => {
+  e.stopPropagation()
   roadmapItems.value = roadmapItems.value.filter(i => i.id !== itemId)
-  editingItem.value = null
+  expandedItemId.value = null
   saveToLocalStorage()
 }
 
 // Add new item
 const startAdding = (area) => {
   addingToArea.value = area
+  expandedItemId.value = null
   newItem.value = { title: '', description: '', tokenEstimate: 1, notes: '' }
 }
 
@@ -350,6 +347,12 @@ const loadFromLocalStorage = () => {
   } catch (e) {
     console.warn('[ProjectDashboard] Failed to load:', e)
   }
+}
+
+// Auto-save on any item change
+const updateItem = (item, field, value) => {
+  item[field] = value
+  saveToLocalStorage()
 }
 
 // Load on mount
@@ -439,53 +442,181 @@ onMounted(() => {
               v-for="item in itemsByArea[area]"
               :key="item.id"
               class="roadmap-item"
-              :class="item.status"
+              :class="[item.status, { expanded: expandedItemId === item.id }]"
             >
-              <button
-                class="status-dot"
-                :style="{
-                  backgroundColor: statusConfig[item.status].bg,
-                  borderColor: statusConfig[item.status].color
-                }"
-                @click.stop="cycleStatus(item)"
-                :title="'Click to change status'"
-              >
-                <span
-                  class="dot-inner"
-                  :style="{ backgroundColor: statusConfig[item.status].color }"
-                ></span>
-              </button>
-
-              <div class="item-content" @click="startEditing(item)">
-                <h3 class="item-title">{{ item.title }}</h3>
-                <p class="item-desc">{{ item.description }}</p>
-
-                <div class="item-meta">
+              <!-- Item header (always visible) -->
+              <div class="item-header" @click="toggleItemExpand(item.id)">
+                <button
+                  class="status-dot"
+                  :style="{
+                    backgroundColor: statusConfig[item.status].bg,
+                    borderColor: statusConfig[item.status].color
+                  }"
+                  @click="cycleStatus(item, $event)"
+                  title="Click to change status"
+                >
                   <span
-                    class="status-badge"
-                    :style="{
-                      backgroundColor: statusConfig[item.status].bg,
-                      color: statusConfig[item.status].color
-                    }"
-                  >
-                    {{ statusConfig[item.status].label }}
-                  </span>
+                    class="dot-inner"
+                    :style="{ backgroundColor: statusConfig[item.status].color }"
+                  ></span>
+                </button>
 
-                  <span v-if="item.tokenEstimate" class="token-estimate">
-                    ~{{ item.tokenEstimate }}k tokens
-                  </span>
-
-                  <span v-if="item.dependencies?.length" class="dependencies">
-                    → {{ item.dependencies.join(', ') }}
-                  </span>
+                <div class="item-summary">
+                  <h3 class="item-title">{{ item.title }}</h3>
+                  <div class="item-meta">
+                    <span
+                      class="status-badge"
+                      :style="{
+                        backgroundColor: statusConfig[item.status].bg,
+                        color: statusConfig[item.status].color
+                      }"
+                    >
+                      {{ statusConfig[item.status].label }}
+                    </span>
+                    <span v-if="item.tokenEstimate" class="token-estimate">
+                      ~{{ item.tokenEstimate }}k
+                    </span>
+                  </div>
                 </div>
 
-                <p v-if="item.notes" class="item-notes">{{ item.notes }}</p>
+                <svg
+                  class="item-chevron"
+                  :class="{ expanded: expandedItemId === item.id }"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M6 9l6 6 6-6"/>
+                </svg>
               </div>
+
+              <!-- Expanded edit form -->
+              <Transition name="expand">
+                <div v-if="expandedItemId === item.id" class="item-edit">
+                  <div class="edit-field">
+                    <label>Title</label>
+                    <input
+                      type="text"
+                      :value="item.title"
+                      @input="updateItem(item, 'title', $event.target.value)"
+                    />
+                  </div>
+
+                  <div class="edit-field">
+                    <label>Description</label>
+                    <textarea
+                      rows="2"
+                      :value="item.description"
+                      @input="updateItem(item, 'description', $event.target.value)"
+                    ></textarea>
+                  </div>
+
+                  <div class="edit-row">
+                    <div class="edit-field">
+                      <label>Tokens (k)</label>
+                      <input
+                        type="number"
+                        min="1"
+                        :value="item.tokenEstimate"
+                        @input="updateItem(item, 'tokenEstimate', parseInt($event.target.value) || 1)"
+                      />
+                    </div>
+                    <div class="edit-field">
+                      <label>Status</label>
+                      <select
+                        :value="item.status"
+                        @change="updateItem(item, 'status', $event.target.value)"
+                      >
+                        <option value="planned">Planned</option>
+                        <option value="in-progress">In Progress</option>
+                        <option value="done">Done</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div class="edit-field">
+                    <label>Notes</label>
+                    <input
+                      type="text"
+                      placeholder="Optional notes..."
+                      :value="item.notes || ''"
+                      @input="updateItem(item, 'notes', $event.target.value || undefined)"
+                    />
+                  </div>
+
+                  <div class="edit-actions">
+                    <button class="btn-delete" @click="deleteItem(item.id, $event)">
+                      Delete Item
+                    </button>
+                    <button class="btn-done" @click="expandedItemId = null">
+                      Done
+                    </button>
+                  </div>
+                </div>
+              </Transition>
             </div>
 
+            <!-- Add new item form (inline) -->
+            <Transition name="expand">
+              <div v-if="addingToArea === area" class="add-form">
+                <div class="edit-field">
+                  <label>Title</label>
+                  <input
+                    v-model="newItem.title"
+                    type="text"
+                    placeholder="New item title..."
+                  />
+                </div>
+
+                <div class="edit-field">
+                  <label>Description</label>
+                  <textarea
+                    v-model="newItem.description"
+                    rows="2"
+                    placeholder="What needs to be done..."
+                  ></textarea>
+                </div>
+
+                <div class="edit-row">
+                  <div class="edit-field">
+                    <label>Tokens (k)</label>
+                    <input
+                      v-model.number="newItem.tokenEstimate"
+                      type="number"
+                      min="1"
+                    />
+                  </div>
+                </div>
+
+                <div class="edit-field">
+                  <label>Notes</label>
+                  <input
+                    v-model="newItem.notes"
+                    type="text"
+                    placeholder="Optional notes..."
+                  />
+                </div>
+
+                <div class="edit-actions">
+                  <button class="btn-cancel" @click="cancelAdd">Cancel</button>
+                  <button
+                    class="btn-save"
+                    @click="saveNewItem"
+                    :disabled="!newItem.title.trim()"
+                  >
+                    Add Item
+                  </button>
+                </div>
+              </div>
+            </Transition>
+
             <!-- Add item button -->
-            <button class="add-item-btn" @click="startAdding(area)">
+            <button
+              v-if="addingToArea !== area"
+              class="add-item-btn"
+              @click="startAdding(area)"
+            >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M12 5v14M5 12h14"/>
               </svg>
@@ -498,84 +629,8 @@ onMounted(() => {
 
     <!-- Footer -->
     <footer class="footer">
-      <p>Click items to edit • Status dots to cycle • Token estimates in thousands</p>
+      <p>Click items to expand & edit inline • Auto-saves</p>
     </footer>
-
-    <!-- Edit Modal -->
-    <Transition name="fade">
-      <div v-if="editingItem" class="modal-overlay" @click.self="cancelEdit">
-        <div class="modal">
-          <h2>Edit Item</h2>
-          <div class="form-group">
-            <label>Title</label>
-            <input v-model="editingItem.title" type="text" placeholder="Item title" />
-          </div>
-          <div class="form-group">
-            <label>Description</label>
-            <textarea v-model="editingItem.description" placeholder="Description" rows="2"></textarea>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Tokens (k)</label>
-              <input v-model.number="editingItem.tokenEstimate" type="number" min="1" />
-            </div>
-            <div class="form-group">
-              <label>Status</label>
-              <select v-model="editingItem.status">
-                <option value="planned">Planned</option>
-                <option value="in-progress">In Progress</option>
-                <option value="done">Done</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>Notes (optional)</label>
-            <input v-model="editingItem.notes" type="text" placeholder="Additional notes" />
-          </div>
-          <div class="modal-actions">
-            <button class="btn-delete" @click="deleteItem(editingItem.id)">Delete</button>
-            <div class="modal-actions-right">
-              <button class="btn-cancel" @click="cancelEdit">Cancel</button>
-              <button class="btn-save" @click="saveEdit">Save</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Transition>
-
-    <!-- Add Modal -->
-    <Transition name="fade">
-      <div v-if="addingToArea" class="modal-overlay" @click.self="cancelAdd">
-        <div class="modal">
-          <h2>Add Item to {{ areaConfig[addingToArea]?.label }}</h2>
-          <div class="form-group">
-            <label>Title</label>
-            <input v-model="newItem.title" type="text" placeholder="Item title" />
-          </div>
-          <div class="form-group">
-            <label>Description</label>
-            <textarea v-model="newItem.description" placeholder="Description" rows="2"></textarea>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Tokens (k)</label>
-              <input v-model.number="newItem.tokenEstimate" type="number" min="1" />
-            </div>
-          </div>
-          <div class="form-group">
-            <label>Notes (optional)</label>
-            <input v-model="newItem.notes" type="text" placeholder="Additional notes" />
-          </div>
-          <div class="modal-actions">
-            <div></div>
-            <div class="modal-actions-right">
-              <button class="btn-cancel" @click="cancelAdd">Cancel</button>
-              <button class="btn-save" @click="saveNewItem" :disabled="!newItem.title.trim()">Add</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Transition>
   </div>
 </template>
 
@@ -817,14 +872,13 @@ onMounted(() => {
   padding: 0.5rem 0 0 0;
 }
 
+/* Roadmap item */
 .roadmap-item {
-  display: flex;
-  gap: 1rem;
-  padding: 1rem;
   margin-bottom: 0.5rem;
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.04);
   border-radius: 10px;
+  overflow: hidden;
   transition: all 0.2s ease;
 }
 
@@ -832,8 +886,22 @@ onMounted(() => {
   background: rgba(255, 255, 255, 0.04);
 }
 
+.roadmap-item.expanded {
+  border-color: rgba(96, 165, 250, 0.3);
+  background: rgba(96, 165, 250, 0.05);
+}
+
 .roadmap-item.done {
   opacity: 0.7;
+}
+
+/* Item header */
+.item-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  cursor: pointer;
 }
 
 .status-dot {
@@ -847,7 +915,6 @@ onMounted(() => {
   cursor: pointer;
   transition: all 0.2s ease;
   flex-shrink: 0;
-  margin-top: 2px;
 }
 
 .status-dot:hover {
@@ -860,21 +927,19 @@ onMounted(() => {
   border-radius: 50%;
 }
 
-.item-content {
+.item-summary {
   flex: 1;
   min-width: 0;
-  cursor: pointer;
-}
-
-.item-content:hover .item-title {
-  color: #60a5fa;
 }
 
 .item-title {
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 600;
   color: #f1f5f9;
   margin: 0 0 0.25rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .roadmap-item.done .item-title {
@@ -882,24 +947,16 @@ onMounted(() => {
   color: #94a3b8;
 }
 
-.item-desc {
-  font-size: 0.8rem;
-  color: #94a3b8;
-  margin: 0 0 0.5rem;
-  line-height: 1.4;
-}
-
 .item-meta {
   display: flex;
-  flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
 }
 
 .status-badge {
-  font-size: 0.65rem;
+  font-size: 0.6rem;
   font-weight: 600;
-  padding: 0.2rem 0.5rem;
+  padding: 0.15rem 0.4rem;
   border-radius: 4px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -911,20 +968,167 @@ onMounted(() => {
   font-weight: 500;
 }
 
-.dependencies {
-  font-size: 0.7rem;
+.item-chevron {
+  width: 16px;
+  height: 16px;
   color: #64748b;
-  font-style: italic;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
 }
 
-.item-notes {
-  font-size: 0.75rem;
-  color: #fcd34d;
-  margin: 0.5rem 0 0;
-  padding: 0.5rem;
-  background: rgba(252, 211, 77, 0.08);
+.item-chevron.expanded {
+  transform: rotate(180deg);
+}
+
+/* Item edit section */
+.item-edit,
+.add-form {
+  padding: 0 1rem 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.add-form {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  padding: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.edit-field {
+  margin-bottom: 0.75rem;
+}
+
+.edit-field label {
+  display: block;
+  font-size: 0.7rem;
+  color: #64748b;
+  margin-bottom: 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.edit-field input,
+.edit-field textarea,
+.edit-field select {
+  width: 100%;
+  padding: 0.5rem 0.625rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 6px;
-  border-left: 2px solid rgba(252, 211, 77, 0.4);
+  color: #f1f5f9;
+  font-size: 0.85rem;
+  font-family: inherit;
+}
+
+.edit-field input:focus,
+.edit-field textarea:focus,
+.edit-field select:focus {
+  outline: none;
+  border-color: #60a5fa;
+}
+
+.edit-field textarea {
+  resize: vertical;
+  min-height: 50px;
+}
+
+.edit-row {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.edit-row .edit-field {
+  flex: 1;
+}
+
+.edit-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.btn-delete {
+  padding: 0.4rem 0.75rem;
+  background: transparent;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  color: #ef4444;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-delete:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.btn-done,
+.btn-save {
+  padding: 0.4rem 0.75rem;
+  background: #60a5fa;
+  border: none;
+  border-radius: 6px;
+  color: #0a0a0f;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-done:hover,
+.btn-save:hover {
+  background: #3b82f6;
+}
+
+.btn-save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-cancel {
+  padding: 0.4rem 0.75rem;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: #94a3b8;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-cancel:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Add item button */
+.add-item-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem;
+  background: transparent;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: #64748b;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.add-item-btn:hover {
+  border-color: #60a5fa;
+  color: #60a5fa;
+  background: rgba(96, 165, 250, 0.05);
+}
+
+.add-item-btn svg {
+  width: 14px;
+  height: 14px;
 }
 
 /* Collapse animation */
@@ -946,187 +1150,25 @@ onMounted(() => {
   max-height: 2000px;
 }
 
-/* Add item button */
-.add-item-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.75rem;
-  margin-top: 0.5rem;
-  background: transparent;
-  border: 1px dashed rgba(255, 255, 255, 0.15);
-  border-radius: 8px;
-  color: #64748b;
-  font-size: 0.8rem;
-  cursor: pointer;
+/* Expand animation */
+.expand-enter-active,
+.expand-leave-active {
   transition: all 0.2s ease;
+  overflow: hidden;
 }
 
-.add-item-btn:hover {
-  border-color: #60a5fa;
-  color: #60a5fa;
-  background: rgba(96, 165, 250, 0.05);
-}
-
-.add-item-btn svg {
-  width: 16px;
-  height: 16px;
-}
-
-/* Modal */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 200;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-}
-
-.modal {
-  background: #1a1a24;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  padding: 1.5rem;
-  width: 100%;
-  max-width: 400px;
-  max-height: 90vh;
-  overflow-y: auto;
-}
-
-.modal h2 {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #f1f5f9;
-  margin: 0 0 1.25rem;
-}
-
-.form-group {
-  margin-bottom: 1rem;
-}
-
-.form-group label {
-  display: block;
-  font-size: 0.75rem;
-  color: #94a3b8;
-  margin-bottom: 0.375rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.form-group input,
-.form-group textarea,
-.form-group select {
-  width: 100%;
-  padding: 0.625rem 0.75rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  color: #f1f5f9;
-  font-size: 0.875rem;
-  font-family: inherit;
-}
-
-.form-group input:focus,
-.form-group textarea:focus,
-.form-group select:focus {
-  outline: none;
-  border-color: #60a5fa;
-}
-
-.form-group textarea {
-  resize: vertical;
-  min-height: 60px;
-}
-
-.form-group select {
-  cursor: pointer;
-}
-
-.form-row {
-  display: flex;
-  gap: 1rem;
-}
-
-.form-row .form-group {
-  flex: 1;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 1.5rem;
-  padding-top: 1rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.modal-actions-right {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.btn-cancel,
-.btn-save,
-.btn-delete {
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  font-size: 0.8rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-cancel {
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #94a3b8;
-}
-
-.btn-cancel:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: #e2e8f0;
-}
-
-.btn-save {
-  background: #60a5fa;
-  border: none;
-  color: #0a0a0f;
-}
-
-.btn-save:hover {
-  background: #3b82f6;
-}
-
-.btn-save:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-delete {
-  background: transparent;
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  color: #ef4444;
-}
-
-.btn-delete:hover {
-  background: rgba(239, 68, 68, 0.1);
-}
-
-/* Fade transition */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.2s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
+.expand-enter-from,
+.expand-leave-to {
   opacity: 0;
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.expand-enter-to,
+.expand-leave-from {
+  opacity: 1;
+  max-height: 500px;
 }
 
 /* Footer */
@@ -1156,9 +1198,9 @@ onMounted(() => {
     min-width: calc(50% - 0.25rem);
   }
 
-  .item-meta {
+  .edit-row {
     flex-direction: column;
-    align-items: flex-start;
+    gap: 0;
   }
 }
 </style>
