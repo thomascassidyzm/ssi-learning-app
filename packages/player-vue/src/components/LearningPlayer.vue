@@ -4782,9 +4782,10 @@ onUnmounted(() => {
     var(--bg-card) 50%,
     rgba(10, 10, 15, 0.95) 100%
   );
-  border: 2px solid var(--belt-color, var(--accent));
+  /* Center always uses SSi red accent - belt colors on outer rings only */
+  border: 2px solid var(--accent);
   box-shadow:
-    0 0 20px var(--belt-glow, rgba(194, 58, 58, 0.3)),
+    0 0 20px rgba(194, 58, 58, 0.3),
     inset 0 0 30px rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
@@ -4794,13 +4795,14 @@ onUnmounted(() => {
 
 /* Hero node when paused - ready to start */
 .ring-container.is-paused .ring-center {
+  /* Center always stays SSi red accent - belt colors only on outer rings */
   background: radial-gradient(circle at 30% 30%,
-    var(--belt-color, var(--accent)) 0%,
-    color-mix(in srgb, var(--belt-color, var(--accent)) 70%, black) 100%
+    var(--accent) 0%,
+    color-mix(in srgb, var(--accent) 70%, black) 100%
   );
-  border-color: var(--belt-color, var(--accent));
+  border-color: var(--accent);
   box-shadow:
-    0 0 40px var(--belt-glow, rgba(194, 58, 58, 0.5)),
+    0 0 40px rgba(194, 58, 58, 0.5),
     inset 0 0 20px rgba(255, 255, 255, 0.1);
 }
 
