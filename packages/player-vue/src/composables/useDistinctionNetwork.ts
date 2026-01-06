@@ -491,18 +491,25 @@ export function useDistinctionNetwork() {
       const targetText = introItem?.targetText || round.targetText || round.legoId
       const knownText = introItem?.knownText || round.knownText || ''
 
-      // Position: hero at center, others in orbital ring
+      // Position: hero at center, others scattered with organic randomness
       let position: { x: number, y: number }
       if (i === maxIndex) {
         // This will be the hero
         position = centerPosition
       } else {
-        // Spread around in orbital ring
-        const satelliteIndex = i
-        const angle = (satelliteIndex / (nodeCount - 1)) * Math.PI * 2 - Math.PI / 2
+        // Random position in a cloud around center with some clustering zones
+        // Use golden angle for base distribution, then add significant jitter
+        const goldenAngle = Math.PI * (3 - Math.sqrt(5)) // ~137.5 degrees
+        const baseAngle = i * goldenAngle + Math.random() * 0.8 - 0.4
+        const baseRadius = orbitalRadius * (0.5 + Math.random() * 0.8) // 50-130% of orbital
+
+        // Add noise to prevent perfect patterns
+        const jitterX = (Math.random() - 0.5) * 60
+        const jitterY = (Math.random() - 0.5) * 60
+
         position = {
-          x: centerPosition.x + Math.cos(angle) * orbitalRadius,
-          y: centerPosition.y + Math.sin(angle) * orbitalRadius
+          x: centerPosition.x + Math.cos(baseAngle) * baseRadius + jitterX,
+          y: centerPosition.y + Math.sin(baseAngle) * baseRadius + jitterY
         }
       }
 

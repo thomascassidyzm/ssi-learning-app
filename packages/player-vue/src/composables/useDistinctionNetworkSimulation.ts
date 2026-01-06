@@ -58,19 +58,19 @@ export interface SimulationConfig {
 
 const DEFAULT_CONFIG: SimulationConfig = {
   link: {
-    strengthMultiplier: 0.3,
+    strengthMultiplier: 0.7,     // Increased: connected nodes cluster together
   },
   charge: {
-    strength: -150,
-    distanceMax: 400,
+    strength: -80,               // Reduced: less repulsion allows clustering
+    distanceMax: 350,
   },
   radial: {
-    radius: 180,
-    strength: 0.4,
+    radius: 200,
+    strength: 0.05,              // Very weak: organic scatter, not perfect orbit
   },
   collision: {
-    radius: 35,
-    strength: 0.8,
+    radius: 30,
+    strength: 0.6,               // Softer collision allows some overlap
   },
   center: {
     x: 0,
@@ -78,9 +78,9 @@ const DEFAULT_CONFIG: SimulationConfig = {
   },
   alpha: {
     initial: 1,
-    decay: 0.02,
+    decay: 0.015,                // Slower decay: more time to find organic positions
     min: 0.001,
-    restart: 0.3,
+    restart: 0.4,
   }
 }
 

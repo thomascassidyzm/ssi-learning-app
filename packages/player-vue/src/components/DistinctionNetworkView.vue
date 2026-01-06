@@ -98,14 +98,14 @@ const DEFAULT_CONFIG: DistinctionNetworkConfig = {
     labelOffset: 24,
   },
   edge: {
-    minWidth: 1.5,
-    maxWidth: 6,
-    widthExponent: 0.4,
-    arrowSize: 8,
-    directionIndicator: 'arrow',
-    opacity: 0.5,
-    activeOpacity: 0.9,
-    glowWidth: 8,
+    minWidth: 2,
+    maxWidth: 8,
+    widthExponent: 0.5,
+    arrowSize: 6,
+    directionIndicator: 'gradient',  // Gradient flows from source to target
+    opacity: 0.7,                     // More visible base opacity
+    activeOpacity: 1.0,
+    glowWidth: 10,
   },
   clustering: {
     maxDistance: 250,
@@ -139,49 +139,49 @@ const DEFAULT_CONFIG: DistinctionNetworkConfig = {
 const BELT_PALETTES = {
   white: {
     node: { fill: '#ffffff20', stroke: '#ffffff60', glow: '#ffffff' },
-    edge: { stroke: '#ffffff50', active: '#ffffff90' },
+    edge: { stroke: '#ffffff80', active: '#ffffffcc' },  // Brighter edges
     label: '#ffffffcc',
-    hero: '#c23a3a', // Keep hero accent red
+    hero: '#c23a3a',
   },
   yellow: {
     node: { fill: '#fbbf2420', stroke: '#fbbf2470', glow: '#fbbf24' },
-    edge: { stroke: '#fbbf2450', active: '#fbbf2490' },
+    edge: { stroke: '#fbbf2480', active: '#fbbf24cc' },
     label: '#fbbf24cc',
     hero: '#c23a3a',
   },
   orange: {
     node: { fill: '#f9731620', stroke: '#f9731670', glow: '#f97316' },
-    edge: { stroke: '#f9731650', active: '#f9731690' },
+    edge: { stroke: '#f9731680', active: '#f97316cc' },
     label: '#f97316cc',
     hero: '#c23a3a',
   },
   green: {
     node: { fill: '#22c55e20', stroke: '#22c55e70', glow: '#22c55e' },
-    edge: { stroke: '#22c55e50', active: '#22c55e90' },
+    edge: { stroke: '#22c55e80', active: '#22c55ecc' },
     label: '#22c55ecc',
     hero: '#c23a3a',
   },
   blue: {
     node: { fill: '#3b82f620', stroke: '#3b82f670', glow: '#3b82f6' },
-    edge: { stroke: '#3b82f650', active: '#3b82f690' },
+    edge: { stroke: '#3b82f680', active: '#3b82f6cc' },
     label: '#3b82f6cc',
     hero: '#c23a3a',
   },
   purple: {
     node: { fill: '#8b5cf620', stroke: '#8b5cf670', glow: '#8b5cf6' },
-    edge: { stroke: '#8b5cf650', active: '#8b5cf690' },
+    edge: { stroke: '#8b5cf680', active: '#8b5cf6cc' },
     label: '#8b5cf6cc',
     hero: '#c23a3a',
   },
   brown: {
     node: { fill: '#a8784820', stroke: '#a8784870', glow: '#a87848' },
-    edge: { stroke: '#a8784850', active: '#a8784890' },
+    edge: { stroke: '#a8784880', active: '#a87848cc' },
     label: '#a87848cc',
     hero: '#c23a3a',
   },
   black: {
     node: { fill: '#d4a85320', stroke: '#d4a85370', glow: '#d4a853' },
-    edge: { stroke: '#d4a85350', active: '#d4a85390' },
+    edge: { stroke: '#d4a85380', active: '#d4a853cc' },
     label: '#d4a853cc',
     hero: '#c23a3a',
   },
