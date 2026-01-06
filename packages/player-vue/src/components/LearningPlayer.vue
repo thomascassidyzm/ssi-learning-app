@@ -2079,6 +2079,9 @@ const handleSkip = async () => {
     // Update belt to match new position (NO celebration when skipping - only natural completion)
     updateBeltForPosition(nextIndex, false)
 
+    // Populate network with all LEGOs up to this point (backfill skipped nodes)
+    populateNetworkUpToRound(nextIndex)
+
     console.log('[LearningPlayer] Skip → Round', nextIndex, 'LEGO:', cachedRounds.value[nextIndex]?.legoId)
 
     // Always get the first item to update display
@@ -2265,6 +2268,9 @@ const jumpToRound = async (roundIndex) => {
 
   // Update belt to match new position (NO celebration when jumping - only natural completion)
   updateBeltForPosition(roundIndex, false)
+
+  // Populate network with all LEGOs up to this point (backfill skipped nodes)
+  populateNetworkUpToRound(roundIndex)
 
   console.log('[LearningPlayer] Jump → Round', roundIndex, 'LEGO:', cachedRounds.value[roundIndex]?.legoId)
 
@@ -2742,6 +2748,79 @@ const addNetworkNode = (legoId, targetText, knownText, beltColor = 'white') => {
   }, 1500)
 
   console.log(`[LearningPlayer] Added network node: ${legoId} (${targetText}) as hero`)
+}
+
+// Populate network with all LEGOs up to a given round index
+// Called when skipping/jumping to ensure network reflects all "learned" LEGOs
+const populateNetworkUpToRound = (targetRoundIndex) => {
+  if (!cachedRounds.value.length) return
+
+  const maxRound = Math.min(targetRoundIndex, cachedRounds.value.length - 1)
+  console.log(`[Network] Populating network with LEGOs from rounds 0-${maxRound}`)
+
+  for (let i = 0; i <= maxRound; i++) {
+    const round = cachedRounds.value[i]
+    if (!round?.legoId) continue
+
+    // Skip if already in network
+    if (networkNodes.value.find(n => n.id === round.legoId)) continue
+
+    // Get LEGO text from the intro or debut item
+    const introItem = round.items?.find(item => item.type === 'intro' || item.type === 'debut')
+    const targetText = introItem?.targetText || round.legoId
+    const knownText = introItem?.knownText || ''
+
+    // Add node (but don't animate - this is backfill)
+    const container = networkContainerRef.value
+    if (!container) continue
+
+    // Recalculate center if needed
+    if (ringContainerRef.value && i === 0) {
+      const ringRect = ringContainerRef.value.getBoundingClientRect()
+      networkCenter.value = {
+        x: ringRect.left + ringRect.width / 2,
+        y: ringRect.top + ringRect.height / 2
+      }
+    }
+
+    const center = networkCenter.value
+    const beltColor = currentBelt.value?.name || 'white'
+
+    // Create node at orbital position (not center)
+    const angle = (i / (maxRound + 1)) * Math.PI * 2 - Math.PI / 2
+    const orbitalRadius = 180
+    const newNode = {
+      id: round.legoId,
+      targetText,
+      knownText,
+      belt: beltColor,
+      x: center.x + Math.cos(angle) * orbitalRadius,
+      y: center.y + Math.sin(angle) * orbitalRadius,
+      fx: null, // Not pinned - let simulation position
+      fy: null,
+      isNew: false,
+    }
+
+    networkNodes.value.push(newNode)
+    introducedLegoIds.value.add(round.legoId)
+  }
+
+  // Set current round's LEGO as hero
+  const currentRound = cachedRounds.value[targetRoundIndex]
+  if (currentRound?.legoId) {
+    heroNodeId.value = currentRound.legoId
+    const heroNode = networkNodes.value.find(n => n.id === currentRound.legoId)
+    if (heroNode) {
+      const center = networkCenter.value
+      heroNode.fx = center.x
+      heroNode.fy = center.y
+      heroNode.x = center.x
+      heroNode.y = center.y
+    }
+  }
+
+  updateNetworkVisualization()
+  console.log(`[Network] Populated ${networkNodes.value.length} nodes`)
 }
 
 // Set a specific LEGO as the current hero (for practice phrases)
@@ -3466,6 +3545,13 @@ onMounted(async () => {
   // Show player immediately, orchestrator inits in background
   // ============================================
   setLoadingStage('ready')
+
+  // Populate network with all LEGOs up to restored position (if resuming)
+  if (currentRoundIndex.value > 0) {
+    nextTick(() => {
+      populateNetworkUpToRound(currentRoundIndex.value)
+    })
+  }
 
   // ============================================
   // META-COMMENTARY INITIALIZATION
