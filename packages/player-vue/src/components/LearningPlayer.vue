@@ -2758,6 +2758,28 @@ const populateNetworkUpToRound = (targetRoundIndex) => {
   const maxRound = Math.min(targetRoundIndex, cachedRounds.value.length - 1)
   console.log(`[Network] Populating network with LEGOs from rounds 0-${maxRound}`)
 
+  // First, get the center from the actual ring position
+  if (ringContainerRef.value) {
+    const ringRect = ringContainerRef.value.getBoundingClientRect()
+    networkCenter.value = {
+      x: ringRect.left + ringRect.width / 2,
+      y: ringRect.top + ringRect.height / 2
+    }
+  }
+  const center = networkCenter.value
+  console.log(`[Network] Center at:`, center)
+
+  // Calculate orbital radius based on number of nodes
+  // More nodes = larger radius to fit them
+  const nodeCount = maxRound + 1
+  const baseRadius = 150
+  const radiusPerNode = 8
+  const orbitalRadius = Math.min(baseRadius + nodeCount * radiusPerNode, 300)
+
+  // Collect nodes to add (excluding hero)
+  const nodesToAdd = []
+  let heroLegoId = null
+
   for (let i = 0; i <= maxRound; i++) {
     const round = cachedRounds.value[i]
     if (!round?.legoId) continue
@@ -2769,58 +2791,54 @@ const populateNetworkUpToRound = (targetRoundIndex) => {
     const introItem = round.items?.find(item => item.type === 'intro' || item.type === 'debut')
     const targetText = introItem?.targetText || round.legoId
     const knownText = introItem?.knownText || ''
-
-    // Add node (but don't animate - this is backfill)
-    const container = networkContainerRef.value
-    if (!container) continue
-
-    // Recalculate center if needed
-    if (ringContainerRef.value && i === 0) {
-      const ringRect = ringContainerRef.value.getBoundingClientRect()
-      networkCenter.value = {
-        x: ringRect.left + ringRect.width / 2,
-        y: ringRect.top + ringRect.height / 2
-      }
-    }
-
-    const center = networkCenter.value
     const beltColor = currentBelt.value?.name || 'white'
 
-    // Create node at orbital position (not center)
-    const angle = (i / (maxRound + 1)) * Math.PI * 2 - Math.PI / 2
-    const orbitalRadius = 180
-    const newNode = {
-      id: round.legoId,
-      targetText,
-      knownText,
-      belt: beltColor,
-      x: center.x + Math.cos(angle) * orbitalRadius,
-      y: center.y + Math.sin(angle) * orbitalRadius,
-      fx: null, // Not pinned - let simulation position
-      fy: null,
-      isNew: false,
+    // Last one becomes hero
+    if (i === maxRound) {
+      heroLegoId = round.legoId
+      nodesToAdd.push({
+        id: round.legoId,
+        targetText,
+        knownText,
+        belt: beltColor,
+        x: center.x,
+        y: center.y,
+        fx: center.x, // Pin hero to center
+        fy: center.y,
+        isNew: false,
+      })
+    } else {
+      // Satellites positioned in orbital ring
+      const satelliteCount = nodeCount - 1
+      const satelliteIndex = nodesToAdd.length
+      const angle = (satelliteIndex / satelliteCount) * Math.PI * 2 - Math.PI / 2
+
+      nodesToAdd.push({
+        id: round.legoId,
+        targetText,
+        knownText,
+        belt: beltColor,
+        x: center.x + Math.cos(angle) * orbitalRadius,
+        y: center.y + Math.sin(angle) * orbitalRadius,
+        fx: null,
+        fy: null,
+        isNew: false,
+      })
     }
 
-    networkNodes.value.push(newNode)
     introducedLegoIds.value.add(round.legoId)
   }
 
-  // Set current round's LEGO as hero
-  const currentRound = cachedRounds.value[targetRoundIndex]
-  if (currentRound?.legoId) {
-    heroNodeId.value = currentRound.legoId
-    const heroNode = networkNodes.value.find(n => n.id === currentRound.legoId)
-    if (heroNode) {
-      const center = networkCenter.value
-      heroNode.fx = center.x
-      heroNode.fy = center.y
-      heroNode.x = center.x
-      heroNode.y = center.y
-    }
+  // Add all nodes at once
+  networkNodes.value.push(...nodesToAdd)
+
+  // Set hero
+  if (heroLegoId) {
+    heroNodeId.value = heroLegoId
   }
 
   updateNetworkVisualization()
-  console.log(`[Network] Populated ${networkNodes.value.length} nodes`)
+  console.log(`[Network] Populated ${networkNodes.value.length} nodes, hero: ${heroLegoId}`)
 }
 
 // Set a specific LEGO as the current hero (for practice phrases)
