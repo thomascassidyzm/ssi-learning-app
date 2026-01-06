@@ -833,7 +833,19 @@ const runPhase = async (phase, myCycleId) => {
     }
 
     case 'pause': {
-      // All items (including intro) continue to voice1 after pause
+      // OLD Welsh courses (cym_n, cym_s) have target1+target2 baked into presentation audio
+      // So for intro items on those courses, skip voice1/voice2 and advance directly
+      const isOldCourse = courseCode.value.startsWith('cym_')
+      if (item.type === 'intro' && isOldCourse) {
+        scheduleTimer(() => {
+          if (myCycleId === cycleId) {
+            advanceToNextItem(myCycleId)
+          }
+        }, 1000)
+        break
+      }
+
+      // All other items continue to voice1 after pause
       scheduleTimer(() => {
         if (myCycleId === cycleId) {
           runPhase('voice1', myCycleId)
