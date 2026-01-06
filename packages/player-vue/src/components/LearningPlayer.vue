@@ -18,6 +18,8 @@ import { useScriptCache, setCachedScript } from '../composables/useScriptCache'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
 import { useSharedBeltProgress } from '../composables/useBeltProgress'
 import { generateLearningScript } from '../providers/CourseDataProvider'
+import { useDistinctionNetworkIntegration } from '../composables/useDistinctionNetworkIntegration'
+import DistinctionNetworkView from './DistinctionNetworkView.vue'
 
 const emit = defineEmits(['close'])
 
@@ -951,35 +953,51 @@ const isPlayingIntroduction = ref(false) // True when introduction audio is play
 const introductionPhase = ref(false) // True during introduction phase (shows different UI)
 
 // ============================================
-// BRAIN NETWORK VISUALIZATION STATE
-// D3 force-directed graph showing growing LEGO network
+// DISTINCTION NETWORK VISUALIZATION
+// Config-driven network using composables
 // ============================================
-const networkContainerRef = ref(null)
 const ringContainerRef = ref(null)
-let networkSvg = null
-let networkSimulation = null
-let networkZoomGroup = null
-let networkLinksLayer = null
-let networkNodesLayer = null
-let networkLabelsLayer = null
 
-// Network data
-const networkNodes = ref([]) // Array of LEGO nodes
-const networkLinks = ref([]) // Array of connections between nodes
-const introducedLegoIds = ref(new Set()) // LEGOs that have been introduced
+// Initialize distinction network composable
+const distinctionNetwork = useDistinctionNetworkIntegration({
+  view: {
+    // Config overrides if needed
+  },
+  pathAnimationStepMs: 180,
+  autoCenterOnHeroChange: true,
+})
 
-// Network visualization state
-const heroNodeId = ref(null) // The current LEGO being introduced/practiced (center of network)
-const activeNodeId = ref(null) // Currently highlighted node (during intro)
-const pathAnimationNodes = ref([]) // Nodes in current path animation (during Voice 2)
-const resonatingNodes = ref([]) // M-LEGOs with partial word overlap (subtle "resonance" effect)
-const isPathAnimating = ref(false)
-let pathAnimationTimers = []
+// Destructure for convenience
+const {
+  viewRef: networkViewRef,
+  viewProps: networkViewProps,
+  network,
+  simulation,
+  center: networkCenter,
+  isAnimatingPath: isPathAnimating,
+  introduceLegoNode,
+  completePhraseWithAnimation,
+  clearPathAnimation,
+  setCenter: setNetworkCenter,
+  setBelt: setNetworkBelt,
+  populateFromRounds: populateNetworkFromRounds,
+  stats: networkStats,
+} = distinctionNetwork
 
-// Network center point (where the ring/hero is)
-const networkCenter = ref({ x: 0, y: 0 })
+// Backwards compatibility aliases
+const networkNodes = network.nodes
+const networkLinks = network.edges
+const heroNodeId = network.heroNodeId
+const introducedLegoIds = computed(() => {
+  const ids = new Set()
+  network.nodes.value.forEach(n => ids.add(n.id))
+  return ids
+})
 
-// Hero node scaling - fewer nodes = bigger nodes
+// Additional state for resonance effect (M-LEGOs with partial word overlap)
+const resonatingNodes = ref([])
+
+// Hero node scaling - fewer nodes = bigger nodes (for ring visual)
 const heroNodeScale = computed(() => {
   const count = networkNodes.value.length
   if (count <= 3) return 2.5
@@ -987,21 +1005,6 @@ const heroNodeScale = computed(() => {
   if (count <= 15) return 1.3
   return 1
 })
-
-// Belt color palette for network
-const getNetworkPalette = (belt = 'white') => {
-  const palettes = {
-    white: { glow: '#ffffff', node: '#ffffff30', link: '#ffffff20' },
-    yellow: { glow: '#fbbf24', node: '#fbbf2430', link: '#fbbf2420' },
-    orange: { glow: '#f97316', node: '#f9731630', link: '#f9731620' },
-    green: { glow: '#22c55e', node: '#22c55e30', link: '#22c55e20' },
-    blue: { glow: '#3b82f6', node: '#3b82f630', link: '#3b82f620' },
-    purple: { glow: '#a855f7', node: '#a855f730', link: '#a855f720' },
-    brown: { glow: '#a8856c', node: '#a8856c30', link: '#a8856c20' },
-    black: { glow: '#fbbf24', node: '#fbbf2430', link: '#fbbf2420' },
-  }
-  return palettes[belt] || palettes.white
-}
 
 // Welcome audio state (plays once on first course load)
 const welcomeChecked = ref(false) // True after we've checked welcome status
@@ -2539,215 +2542,58 @@ const handleExit = () => {
 }
 
 // ============================================
-// BRAIN NETWORK VISUALIZATION FUNCTIONS
+// DISTINCTION NETWORK FUNCTIONS
+// Wrapper functions that delegate to the composable
 // ============================================
 
-// Initialize the D3 network visualization - orbital layout around hero
+// Initialize the network visualization
 const initializeNetwork = () => {
-  if (!networkContainerRef.value) return
-
-  const container = networkContainerRef.value
-  const width = container.clientWidth
-  const height = container.clientHeight
-
-  // Find the actual ring center position on screen
-  // The ring is the hero node visual, so we orbit around it
+  // Calculate center from ring position
   if (ringContainerRef.value) {
     const ringRect = ringContainerRef.value.getBoundingClientRect()
-    networkCenter.value = {
-      x: ringRect.left + ringRect.width / 2,
-      y: ringRect.top + ringRect.height / 2
-    }
-    console.log('[Network] Ring center found at:', networkCenter.value)
+    setNetworkCenter(
+      ringRect.left + ringRect.width / 2,
+      ringRect.top + ringRect.height / 2
+    )
+    console.log('[Network] Center set from ring position')
   } else {
     // Fallback to estimated center
-    networkCenter.value = { x: width / 2, y: height * 0.45 }
-    console.log('[Network] Using estimated center:', networkCenter.value)
+    const container = document.querySelector('.player')
+    if (container) {
+      setNetworkCenter(
+        container.clientWidth / 2,
+        container.clientHeight * 0.45
+      )
+    }
+    console.log('[Network] Using estimated center')
   }
 
-  // Clear any existing SVG
-  d3.select(container).selectAll('svg').remove()
+  // Initialize simulation
+  distinctionNetwork.initialize()
 
-  // Create SVG
-  networkSvg = d3.select(container)
-    .append('svg')
-    .attr('width', '100%')
-    .attr('height', '100%')
-    .attr('viewBox', `0 0 ${width} ${height}`)
+  // Set initial belt color
+  setNetworkBelt(currentBelt.value?.name || 'white')
 
-  // Add defs for filters and gradients
-  const defs = networkSvg.append('defs')
-
-  // Glow filter
-  const glowFilter = defs.append('filter')
-    .attr('id', 'network-glow')
-    .attr('x', '-100%')
-    .attr('y', '-100%')
-    .attr('width', '300%')
-    .attr('height', '300%')
-
-  glowFilter.append('feGaussianBlur')
-    .attr('stdDeviation', '6')
-    .attr('result', 'coloredBlur')
-
-  const feMerge = glowFilter.append('feMerge')
-  feMerge.append('feMergeNode').attr('in', 'coloredBlur')
-  feMerge.append('feMergeNode').attr('in', 'SourceGraphic')
-
-  // Stronger glow for active nodes
-  const activeGlowFilter = defs.append('filter')
-    .attr('id', 'network-glow-active')
-    .attr('x', '-100%')
-    .attr('y', '-100%')
-    .attr('width', '300%')
-    .attr('height', '300%')
-
-  activeGlowFilter.append('feGaussianBlur')
-    .attr('stdDeviation', '12')
-    .attr('result', 'coloredBlur')
-
-  const activeMerge = activeGlowFilter.append('feMerge')
-  activeMerge.append('feMergeNode').attr('in', 'coloredBlur')
-  activeMerge.append('feMergeNode').attr('in', 'SourceGraphic')
-
-  // Create layers (order matters for z-index)
-  // Edges first (background), then nodes
-  networkLinksLayer = networkSvg.append('g').attr('class', 'links-layer')
-  networkNodesLayer = networkSvg.append('g').attr('class', 'nodes-layer')
-  networkLabelsLayer = networkSvg.append('g').attr('class', 'labels-layer')
-
-  // Calculate orbital radius based on ring size (larger than ring + some padding)
-  const orbitalRadius = ringContainerRef.value
-    ? Math.max(ringContainerRef.value.offsetWidth, ringContainerRef.value.offsetHeight) / 2 + 80
-    : 180
-
-  // Initialize force simulation with strong orbital behavior
-  networkSimulation = d3.forceSimulation()
-    .force('link', d3.forceLink().id(d => d.id).distance(100).strength(0.1))
-    .force('charge', d3.forceManyBody().strength(-80).distanceMax(200))
-    // Strong radial force pushes non-hero nodes into clean orbital ring
-    .force('radial', d3.forceRadial(orbitalRadius, networkCenter.value.x, networkCenter.value.y)
-      .strength(d => d.id === heroNodeId.value ? 0 : 0.8))
-    .force('collision', d3.forceCollide().radius(35))
-    .alphaDecay(0.03)
-    .on('tick', onNetworkTick)
-
-  console.log('[Network] Orbital radius:', orbitalRadius)
-
-  console.log('[LearningPlayer] Network initialized with orbital layout')
-}
-
-// Tick function for force simulation - handles hero node specially
-const onNetworkTick = () => {
-  if (!networkLinksLayer || !networkNodesLayer || !networkLabelsLayer) return
-
-  const center = networkCenter.value
-
-  // Pin hero node to center
-  networkNodes.value.forEach(node => {
-    if (node.id === heroNodeId.value) {
-      node.fx = center.x
-      node.fy = center.y
-      node.x = center.x
-      node.y = center.y
-    }
-  })
-
-  // Update edge positions - edges from hero connect to center
-  networkLinksLayer.selectAll('.network-link')
-    .attr('x1', d => {
-      const sourceId = d.source.id || d.source
-      return sourceId === heroNodeId.value ? center.x : d.source.x
-    })
-    .attr('y1', d => {
-      const sourceId = d.source.id || d.source
-      return sourceId === heroNodeId.value ? center.y : d.source.y
-    })
-    .attr('x2', d => {
-      const targetId = d.target.id || d.target
-      return targetId === heroNodeId.value ? center.x : d.target.x
-    })
-    .attr('y2', d => {
-      const targetId = d.target.id || d.target
-      return targetId === heroNodeId.value ? center.y : d.target.y
-    })
-
-  // Update satellite node positions (hero is not rendered - ring is its visual)
-  networkNodesLayer.selectAll('.network-node')
-    .attr('transform', d => `translate(${d.x},${d.y})`)
-    .style('display', d => d.id === heroNodeId.value ? 'none' : 'block')
-
-  networkLabelsLayer.selectAll('.network-label')
-    .attr('transform', d => `translate(${d.x},${d.y})`)
-    .style('display', d => d.id === heroNodeId.value ? 'none' : 'block')
+  console.log('[LearningPlayer] Distinction network initialized')
 }
 
 // Add a new LEGO node to the network - becomes the new hero (center)
 const addNetworkNode = (legoId, targetText, knownText, beltColor = 'white') => {
-  // Check if already exists
-  if (networkNodes.value.find(n => n.id === legoId)) return
-
-  const container = networkContainerRef.value
-  if (!container) return
-
-  // Recalculate center from ring's current position (layout may have changed)
+  // Update center from ring position first
   if (ringContainerRef.value) {
     const ringRect = ringContainerRef.value.getBoundingClientRect()
-    networkCenter.value = {
-      x: ringRect.left + ringRect.width / 2,
-      y: ringRect.top + ringRect.height / 2
-    }
+    setNetworkCenter(
+      ringRect.left + ringRect.width / 2,
+      ringRect.top + ringRect.height / 2
+    )
   }
 
-  const center = networkCenter.value
+  // Use the composable to add the node
+  const added = introduceLegoNode(legoId, targetText, knownText, true)
 
-  // Previous hero moves to orbit, new node becomes hero
-  const previousHero = heroNodeId.value
-
-  // Unpin previous hero so it can float to orbit
-  if (previousHero) {
-    const prevNode = networkNodes.value.find(n => n.id === previousHero)
-    if (prevNode) {
-      prevNode.fx = null
-      prevNode.fy = null
-    }
+  if (added) {
+    console.log(`[LearningPlayer] Added network node: ${legoId} (${targetText}) as hero`)
   }
-
-  // New node starts at center (will be pinned as hero)
-  const newNode = {
-    id: legoId,
-    targetText,
-    knownText,
-    belt: beltColor,
-    x: center.x,
-    y: center.y,
-    fx: center.x, // Pin to center
-    fy: center.y,
-    isNew: true, // Flag for intro animation
-  }
-
-  networkNodes.value.push(newNode)
-  introducedLegoIds.value.add(legoId)
-
-  // Set as new hero
-  heroNodeId.value = legoId
-  activeNodeId.value = legoId
-
-  // NOTE: We no longer auto-create edges here.
-  // Edges are created through phrase practice ("fire together, wire together")
-  // This makes the network reflect actual learning connections, not just introduction order.
-
-  // Update the visualization
-  updateNetworkVisualization()
-
-  // Clear the "new" flag after animation
-  setTimeout(() => {
-    newNode.isNew = false
-    activeNodeId.value = null
-    updateNetworkVisualization()
-  }, 1500)
-
-  console.log(`[LearningPlayer] Added network node: ${legoId} (${targetText}) as hero`)
 }
 
 // Populate network with all LEGOs up to a given round index
@@ -2755,455 +2601,53 @@ const addNetworkNode = (legoId, targetText, knownText, beltColor = 'white') => {
 const populateNetworkUpToRound = (targetRoundIndex) => {
   if (!cachedRounds.value.length) return
 
-  const maxRound = Math.min(targetRoundIndex, cachedRounds.value.length - 1)
-  console.log(`[Network] Populating network with LEGOs from rounds 0-${maxRound}`)
-
-  // First, get the center from the actual ring position
+  // Update center from ring position
   if (ringContainerRef.value) {
     const ringRect = ringContainerRef.value.getBoundingClientRect()
-    networkCenter.value = {
-      x: ringRect.left + ringRect.width / 2,
-      y: ringRect.top + ringRect.height / 2
-    }
-  }
-  const center = networkCenter.value
-  console.log(`[Network] Center at:`, center)
-
-  // Calculate orbital radius based on number of nodes
-  // More nodes = larger radius to fit them
-  const nodeCount = maxRound + 1
-  const baseRadius = 150
-  const radiusPerNode = 8
-  const orbitalRadius = Math.min(baseRadius + nodeCount * radiusPerNode, 300)
-
-  // Collect nodes to add (excluding hero)
-  const nodesToAdd = []
-  let heroLegoId = null
-
-  for (let i = 0; i <= maxRound; i++) {
-    const round = cachedRounds.value[i]
-    if (!round?.legoId) continue
-
-    // Skip if already in network
-    if (networkNodes.value.find(n => n.id === round.legoId)) continue
-
-    // Get LEGO text from the intro or debut item
-    const introItem = round.items?.find(item => item.type === 'intro' || item.type === 'debut')
-    const targetText = introItem?.targetText || round.legoId
-    const knownText = introItem?.knownText || ''
-    const beltColor = currentBelt.value?.name || 'white'
-
-    // Last one becomes hero
-    if (i === maxRound) {
-      heroLegoId = round.legoId
-      nodesToAdd.push({
-        id: round.legoId,
-        targetText,
-        knownText,
-        belt: beltColor,
-        x: center.x,
-        y: center.y,
-        fx: center.x, // Pin hero to center
-        fy: center.y,
-        isNew: false,
-      })
-    } else {
-      // Satellites positioned in orbital ring
-      const satelliteCount = nodeCount - 1
-      const satelliteIndex = nodesToAdd.length
-      const angle = (satelliteIndex / satelliteCount) * Math.PI * 2 - Math.PI / 2
-
-      nodesToAdd.push({
-        id: round.legoId,
-        targetText,
-        knownText,
-        belt: beltColor,
-        x: center.x + Math.cos(angle) * orbitalRadius,
-        y: center.y + Math.sin(angle) * orbitalRadius,
-        fx: null,
-        fy: null,
-        isNew: false,
-      })
-    }
-
-    introducedLegoIds.value.add(round.legoId)
+    setNetworkCenter(
+      ringRect.left + ringRect.width / 2,
+      ringRect.top + ringRect.height / 2
+    )
   }
 
-  // Add all nodes at once
-  networkNodes.value.push(...nodesToAdd)
-
-  // Set hero
-  if (heroLegoId) {
-    heroNodeId.value = heroLegoId
-  }
-
-  updateNetworkVisualization()
-  console.log(`[Network] Populated ${networkNodes.value.length} nodes, hero: ${heroLegoId}`)
+  // Use composable to populate
+  populateNetworkFromRounds(cachedRounds.value, targetRoundIndex)
 }
 
 // Set a specific LEGO as the current hero (for practice phrases)
 const setNetworkHero = (legoId) => {
   if (!legoId) return
-
-  const node = networkNodes.value.find(n => n.id === legoId)
-  if (!node) return
-
-  const center = networkCenter.value
-  const previousHero = heroNodeId.value
-
-  // Unpin previous hero
-  if (previousHero && previousHero !== legoId) {
-    const prevNode = networkNodes.value.find(n => n.id === previousHero)
-    if (prevNode) {
-      prevNode.fx = null
-      prevNode.fy = null
-    }
-  }
-
-  // Pin new hero to center
-  node.fx = center.x
-  node.fy = center.y
-  heroNodeId.value = legoId
-
-  // Restart simulation to reorganize
-  if (networkSimulation) {
-    // Update radial force to use current center
-    const radialForce = networkSimulation.force('radial')
-    if (radialForce) {
-      radialForce.x(center.x).y(center.y)
-    }
-    networkSimulation.alpha(0.5).restart()
-  }
-
-  updateNetworkVisualization()
+  network.setHero(legoId, networkCenter.value)
 }
 
-// Add or strengthen a connection between two LEGOs
-// "Fire together, wire together" - edges strengthen with each co-activation
-const addNetworkLink = (sourceId, targetId) => {
-  if (sourceId === targetId) return // No self-links
-
-  // Check if both nodes exist
-  const sourceExists = networkNodes.value.find(n => n.id === sourceId)
-  const targetExists = networkNodes.value.find(n => n.id === targetId)
-  if (!sourceExists || !targetExists) return
-
-  // Check if link already exists (bidirectional - A-B same as B-A)
-  const existingLink = networkLinks.value.find(l => {
-    const sId = l.source.id || l.source
-    const tId = l.target.id || l.target
-    return (sId === sourceId && tId === targetId) || (sId === targetId && tId === sourceId)
-  })
-
-  if (existingLink) {
-    // Strengthen existing connection
-    existingLink.strength = (existingLink.strength || 1) + 1
-    console.log(`[Network] Strengthened edge ${sourceId} ↔ ${targetId} (strength: ${existingLink.strength})`)
-  } else {
-    // Create new connection with initial strength
-    networkLinks.value.push({
-      source: sourceId,
-      target: targetId,
-      strength: 1
-    })
-    console.log(`[Network] Created edge ${sourceId} ↔ ${targetId}`)
-  }
-
-  updateNetworkVisualization()
-}
-
-// Create edges between all LEGOs in a phrase path
+// Create edges between all LEGOs in a phrase path (DIRECTIONAL)
 // This is called when a practice phrase is completed
+// "Fire together, wire together" - edges are directional because language is temporal
 const strengthenPhrasePath = (legoIds) => {
   if (!legoIds || legoIds.length < 2) return
-
-  // Connect each consecutive pair in the path
-  for (let i = 0; i < legoIds.length - 1; i++) {
-    addNetworkLink(legoIds[i], legoIds[i + 1])
-  }
-
-  // Also connect non-consecutive pairs for phrases with 3+ LEGOs
-  // This creates a more connected network
-  if (legoIds.length >= 3) {
-    for (let i = 0; i < legoIds.length - 2; i++) {
-      addNetworkLink(legoIds[i], legoIds[i + 2])
-    }
-  }
+  // Use composable - fires directional edges A→B, B→C, etc.
+  network.firePath(legoIds)
 }
 
-// Update the D3 visualization
-const updateNetworkVisualization = () => {
-  if (!networkSvg || !networkSimulation) return
-
-  const palette = getNetworkPalette(currentBelt.value?.name || 'white')
-  const scale = heroNodeScale.value
-  const heroId = heroNodeId.value
-
-  // Update links
-  const linkSelection = networkLinksLayer.selectAll('.network-link')
-    .data(networkLinks.value, d => `${d.source.id || d.source}-${d.target.id || d.target}`)
-
-  linkSelection.exit().remove()
-
-  const linkEnter = linkSelection.enter()
-    .append('line')
-    .attr('class', 'network-link')
-    .attr('stroke', palette.glow)
-    .attr('stroke-width', 1.5)
-    .attr('opacity', 0)
-
-  linkEnter.transition()
-    .duration(800)
-    .attr('opacity', 0.4)
-
-  // Update all links - strength affects thickness, hero/path affects brightness
-  const allLinks = linkSelection.merge(linkEnter)
-
-  // Find max strength for normalization
-  const maxStrength = Math.max(1, ...networkLinks.value.map(l => l.strength || 1))
-
-  allLinks
-    .attr('stroke', d => {
-      const sourceId = d.source.id || d.source
-      const targetId = d.target.id || d.target
-      // Highlight if in path animation (brightest)
-      if (pathAnimationNodes.value.includes(sourceId) && pathAnimationNodes.value.includes(targetId)) {
-        return palette.glow
-      }
-      // Highlight if connected to hero
-      if (sourceId === heroId || targetId === heroId) {
-        return palette.glow
-      }
-      // Use glow color for stronger connections, link color for weak
-      const strength = d.strength || 1
-      return strength >= 3 ? palette.glow : palette.link
-    })
-    .attr('stroke-width', d => {
-      const sourceId = d.source.id || d.source
-      const targetId = d.target.id || d.target
-      const strength = d.strength || 1
-
-      // Base width from strength (1-4 range)
-      const strengthWidth = 1 + Math.min(3, (strength / maxStrength) * 3)
-
-      // Path animation gets extra thickness
-      if (pathAnimationNodes.value.includes(sourceId) && pathAnimationNodes.value.includes(targetId)) {
-        return strengthWidth + 1.5
-      }
-      // Hero connections get slight boost
-      if (sourceId === heroId || targetId === heroId) {
-        return strengthWidth + 0.5
-      }
-      return strengthWidth
-    })
-    .attr('opacity', d => {
-      const sourceId = d.source.id || d.source
-      const targetId = d.target.id || d.target
-      const strength = d.strength || 1
-
-      // Base opacity from strength (0.2-0.6 range)
-      const strengthOpacity = 0.2 + Math.min(0.4, (strength / maxStrength) * 0.4)
-
-      // Path animation is brightest
-      if (pathAnimationNodes.value.includes(sourceId) && pathAnimationNodes.value.includes(targetId)) {
-        return 0.95
-      }
-      // Hero connections are bright
-      if (sourceId === heroId || targetId === heroId) {
-        return 0.8
-      }
-      return strengthOpacity
-    })
-    .attr('filter', d => {
-      const sourceId = d.source.id || d.source
-      const targetId = d.target.id || d.target
-      const strength = d.strength || 1
-
-      // Glow for active paths
-      if (pathAnimationNodes.value.includes(sourceId) && pathAnimationNodes.value.includes(targetId)) {
-        return 'url(#network-glow-active)'
-      }
-      // Glow for hero connections
-      if (sourceId === heroId || targetId === heroId) {
-        return 'url(#network-glow)'
-      }
-      // Strong edges get subtle glow
-      if (strength >= 3) {
-        return 'url(#network-glow)'
-      }
-      return 'none'
-    })
-
-  // Update nodes
-  const nodeSelection = networkNodesLayer.selectAll('.network-node')
-    .data(networkNodes.value, d => d.id)
-
-  nodeSelection.exit()
-    .transition()
-    .duration(300)
-    .attr('opacity', 0)
-    .remove()
-
-  const nodeEnter = nodeSelection.enter()
-    .append('g')
-    .attr('class', 'network-node')
-    .attr('transform', d => `translate(${d.x},${d.y})`)
-
-  // Outer glow
-  nodeEnter.append('circle')
-    .attr('class', 'node-glow')
-    .attr('r', 0)
-    .attr('fill', 'none')
-    .attr('stroke', d => getNetworkPalette(d.belt).glow)
-    .attr('stroke-width', 2)
-    .attr('filter', 'url(#network-glow)')
-    .transition()
-    .duration(800)
-    .attr('r', 20 * scale)
-
-  // Core circle
-  nodeEnter.append('circle')
-    .attr('class', 'node-core')
-    .attr('r', 0)
-    .attr('fill', d => getNetworkPalette(d.belt).node)
-    .attr('stroke', d => getNetworkPalette(d.belt).glow)
-    .attr('stroke-width', 1.5)
-    .transition()
-    .duration(600)
-    .attr('r', 12 * scale)
-
-  // Inner dot
-  nodeEnter.append('circle')
-    .attr('class', 'node-inner')
-    .attr('r', 0)
-    .attr('fill', d => getNetworkPalette(d.belt).glow)
-    .attr('opacity', 0.8)
-    .transition()
-    .delay(200)
-    .duration(400)
-    .attr('r', 4 * scale)
-
-  // Update existing nodes
-  const allNodes = nodeSelection.merge(nodeEnter)
-
-  // Highlight active node (during intro)
-  allNodes.select('.node-glow')
-    .attr('stroke-width', d => d.id === activeNodeId.value ? 4 : 2)
-    .attr('opacity', d => d.id === activeNodeId.value ? 1 : 0.6)
-
-  // Highlight path animation nodes
-  allNodes.classed('path-active', d => pathAnimationNodes.value.includes(d.id))
-
-  // Resonance effect for M-LEGOs with partial word overlap
-  // Subtle 30% opacity ring pulse for nodes that "resonate" with the phrase
-  allNodes.classed('resonating', d => resonatingNodes.value.includes(d.id))
-
-  // Update labels
-  const labelSelection = networkLabelsLayer.selectAll('.network-label')
-    .data(networkNodes.value, d => d.id)
-
-  labelSelection.exit().remove()
-
-  const labelEnter = labelSelection.enter()
-    .append('g')
-    .attr('class', 'network-label')
-    .attr('transform', d => `translate(${d.x},${d.y})`)
-    .style('opacity', 0)
-    .style('pointer-events', 'none')
-
-  // Label background
-  labelEnter.append('rect')
-    .attr('class', 'label-bg')
-    .attr('rx', 4)
-    .attr('ry', 4)
-    .attr('fill', 'rgba(10, 10, 15, 0.9)')
-
-  // Label text
-  labelEnter.append('text')
-    .attr('class', 'label-text')
-    .attr('y', -25 * scale)
-    .attr('text-anchor', 'middle')
-    .attr('fill', d => getNetworkPalette(d.belt).glow)
-    .attr('font-family', "'DM Sans', sans-serif")
-    .attr('font-size', '12px')
-    .attr('font-weight', '500')
-    .text(d => d.targetText)
-
-  // Size background to fit text
-  labelEnter.each(function(d) {
-    const g = d3.select(this)
-    const textEl = g.select('.label-text').node()
-    if (textEl) {
-      const bbox = textEl.getBBox()
-      g.select('.label-bg')
-        .attr('x', bbox.x - 6)
-        .attr('y', bbox.y - 3)
-        .attr('width', bbox.width + 12)
-        .attr('height', bbox.height + 6)
-    }
-  })
-
-  // Show labels only for active/path nodes
-  const allLabels = labelSelection.merge(labelEnter)
-  allLabels.style('opacity', d =>
-    d.id === activeNodeId.value || pathAnimationNodes.value.includes(d.id) ? 1 : 0
-  )
-
-  // Update simulation with current center
-  const center = networkCenter.value
-  const radialForce = networkSimulation.force('radial')
-  if (radialForce) {
-    radialForce.x(center.x).y(center.y)
-  }
-  networkSimulation.nodes(networkNodes.value)
-  networkSimulation.force('link').links(networkLinks.value)
-  networkSimulation.alpha(0.3).restart()
-}
-
-// Animate path through network during Voice 2
-const animateNetworkPath = (legoIds) => {
+// Animate path through network during Voice 2 phase
+// Uses the composable for path highlighting
+const animateNetworkPath = async (legoIds) => {
   if (!legoIds || legoIds.length === 0) return
 
-  // Clear previous animation
-  clearPathAnimationTimers()
-  pathAnimationNodes.value = []
-  isPathAnimating.value = true
+  // Use composable animation
+  await distinctionNetwork.animatePathForVoice2(legoIds)
 
-  // Animate each node in sequence
-  const delay = 200 // ms between each node
-  legoIds.forEach((legoId, index) => {
-    const timer = setTimeout(() => {
-      pathAnimationNodes.value = [...pathAnimationNodes.value, legoId]
-
-      // Add links between consecutive nodes
-      if (index > 0) {
-        addNetworkLink(legoIds[index - 1], legoId)
-      }
-
-      updateNetworkVisualization()
-    }, index * delay)
-
-    pathAnimationTimers.push(timer)
-  })
-
-  // Clear animation after sequence completes
-  const endTimer = setTimeout(() => {
-    isPathAnimating.value = false
-    // Keep nodes highlighted briefly, then fade
-    setTimeout(() => {
-      pathAnimationNodes.value = []
-      resonatingNodes.value = [] // Clear resonance effect too
-      updateNetworkVisualization()
-    }, 800)
-  }, legoIds.length * delay + 500)
-
-  pathAnimationTimers.push(endTimer)
+  // Clear resonance after animation
+  setTimeout(() => {
+    resonatingNodes.value = []
+  }, 800)
 }
 
-// Clear path animation timers
-const clearPathAnimationTimers = () => {
-  pathAnimationTimers.forEach(t => clearTimeout(t))
-  pathAnimationTimers = []
+// Handle tap on a network node
+const handleNetworkNodeTap = (node) => {
+  console.log('[Network] Node tapped:', node.id, node.targetText)
+  // For now, just log - could navigate to that LEGO's context or show details
+  // Future: could center on that node, show related phrases, etc.
 }
 
 // Extract LEGO IDs from a practice phrase (for path animation and edge creation)
@@ -3739,7 +3183,12 @@ onUnmounted(() => {
     <div class="bg-noise"></div>
 
     <!-- Brain Network Visualization Layer -->
-    <div ref="networkContainerRef" class="brain-network-container"></div>
+    <DistinctionNetworkView
+      ref="networkViewRef"
+      v-bind="networkViewProps"
+      class="brain-network-container"
+      @node-tap="handleNetworkNodeTap"
+    />
 
     <!-- Static Star Field - Deep space backdrop -->
     <div class="star-field">
