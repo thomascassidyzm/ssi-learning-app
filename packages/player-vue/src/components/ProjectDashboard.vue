@@ -1,7 +1,10 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 
 const emit = defineEmits(['close'])
+
+// localStorage key
+const STORAGE_KEY = 'ssi-roadmap-items'
 
 // Collapsible sections state
 const expandedSections = ref(new Set(['schools', 'ux', 'audio']))
@@ -23,6 +26,11 @@ const areaConfig = {
   infrastructure: { label: 'Infrastructure', icon: '⚙️', color: '#fb923c' }, // orange
   content: { label: 'Content & Courses', icon: '📚', color: '#a8856c' },  // brown
 }
+
+// Editing state
+const editingItem = ref(null)
+const addingToArea = ref(null)
+const newItem = ref({ title: '', description: '', tokenEstimate: 1, notes: '' })
 
 // Roadmap items - this will be the live data for the meeting
 const roadmapItems = ref([
@@ -268,7 +276,86 @@ const cycleStatus = (item) => {
   const order = ['planned', 'in-progress', 'done']
   const current = order.indexOf(item.status)
   item.status = order[(current + 1) % order.length]
+  saveToLocalStorage()
 }
+
+// Edit item
+const startEditing = (item) => {
+  editingItem.value = { ...item }
+}
+
+const saveEdit = () => {
+  if (!editingItem.value) return
+  const idx = roadmapItems.value.findIndex(i => i.id === editingItem.value.id)
+  if (idx !== -1) {
+    roadmapItems.value[idx] = { ...editingItem.value }
+    saveToLocalStorage()
+  }
+  editingItem.value = null
+}
+
+const cancelEdit = () => {
+  editingItem.value = null
+}
+
+const deleteItem = (itemId) => {
+  roadmapItems.value = roadmapItems.value.filter(i => i.id !== itemId)
+  editingItem.value = null
+  saveToLocalStorage()
+}
+
+// Add new item
+const startAdding = (area) => {
+  addingToArea.value = area
+  newItem.value = { title: '', description: '', tokenEstimate: 1, notes: '' }
+}
+
+const saveNewItem = () => {
+  if (!addingToArea.value || !newItem.value.title.trim()) return
+  const id = `${addingToArea.value}-${Date.now()}`
+  roadmapItems.value.push({
+    id,
+    title: newItem.value.title.trim(),
+    description: newItem.value.description.trim(),
+    area: addingToArea.value,
+    status: 'planned',
+    tokenEstimate: newItem.value.tokenEstimate || 1,
+    notes: newItem.value.notes.trim() || undefined,
+  })
+  saveToLocalStorage()
+  addingToArea.value = null
+  newItem.value = { title: '', description: '', tokenEstimate: 1, notes: '' }
+}
+
+const cancelAdd = () => {
+  addingToArea.value = null
+  newItem.value = { title: '', description: '', tokenEstimate: 1, notes: '' }
+}
+
+// localStorage persistence
+const saveToLocalStorage = () => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(roadmapItems.value))
+  } catch (e) {
+    console.warn('[ProjectDashboard] Failed to save:', e)
+  }
+}
+
+const loadFromLocalStorage = () => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (stored) {
+      roadmapItems.value = JSON.parse(stored)
+    }
+  } catch (e) {
+    console.warn('[ProjectDashboard] Failed to load:', e)
+  }
+}
+
+// Load on mount
+onMounted(() => {
+  loadFromLocalStorage()
+})
 </script>
 
 <template>
@@ -360,7 +447,7 @@ const cycleStatus = (item) => {
                   backgroundColor: statusConfig[item.status].bg,
                   borderColor: statusConfig[item.status].color
                 }"
-                @click="cycleStatus(item)"
+                @click.stop="cycleStatus(item)"
                 :title="'Click to change status'"
               >
                 <span
@@ -369,7 +456,7 @@ const cycleStatus = (item) => {
                 ></span>
               </button>
 
-              <div class="item-content">
+              <div class="item-content" @click="startEditing(item)">
                 <h3 class="item-title">{{ item.title }}</h3>
                 <p class="item-desc">{{ item.description }}</p>
 
@@ -396,6 +483,14 @@ const cycleStatus = (item) => {
                 <p v-if="item.notes" class="item-notes">{{ item.notes }}</p>
               </div>
             </div>
+
+            <!-- Add item button -->
+            <button class="add-item-btn" @click="startAdding(area)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 5v14M5 12h14"/>
+              </svg>
+              Add Item
+            </button>
           </div>
         </Transition>
       </div>
@@ -403,8 +498,84 @@ const cycleStatus = (item) => {
 
     <!-- Footer -->
     <footer class="footer">
-      <p>Click status dots to update • Token estimates in thousands</p>
+      <p>Click items to edit • Status dots to cycle • Token estimates in thousands</p>
     </footer>
+
+    <!-- Edit Modal -->
+    <Transition name="fade">
+      <div v-if="editingItem" class="modal-overlay" @click.self="cancelEdit">
+        <div class="modal">
+          <h2>Edit Item</h2>
+          <div class="form-group">
+            <label>Title</label>
+            <input v-model="editingItem.title" type="text" placeholder="Item title" />
+          </div>
+          <div class="form-group">
+            <label>Description</label>
+            <textarea v-model="editingItem.description" placeholder="Description" rows="2"></textarea>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Tokens (k)</label>
+              <input v-model.number="editingItem.tokenEstimate" type="number" min="1" />
+            </div>
+            <div class="form-group">
+              <label>Status</label>
+              <select v-model="editingItem.status">
+                <option value="planned">Planned</option>
+                <option value="in-progress">In Progress</option>
+                <option value="done">Done</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Notes (optional)</label>
+            <input v-model="editingItem.notes" type="text" placeholder="Additional notes" />
+          </div>
+          <div class="modal-actions">
+            <button class="btn-delete" @click="deleteItem(editingItem.id)">Delete</button>
+            <div class="modal-actions-right">
+              <button class="btn-cancel" @click="cancelEdit">Cancel</button>
+              <button class="btn-save" @click="saveEdit">Save</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Add Modal -->
+    <Transition name="fade">
+      <div v-if="addingToArea" class="modal-overlay" @click.self="cancelAdd">
+        <div class="modal">
+          <h2>Add Item to {{ areaConfig[addingToArea]?.label }}</h2>
+          <div class="form-group">
+            <label>Title</label>
+            <input v-model="newItem.title" type="text" placeholder="Item title" />
+          </div>
+          <div class="form-group">
+            <label>Description</label>
+            <textarea v-model="newItem.description" placeholder="Description" rows="2"></textarea>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Tokens (k)</label>
+              <input v-model.number="newItem.tokenEstimate" type="number" min="1" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Notes (optional)</label>
+            <input v-model="newItem.notes" type="text" placeholder="Additional notes" />
+          </div>
+          <div class="modal-actions">
+            <div></div>
+            <div class="modal-actions-right">
+              <button class="btn-cancel" @click="cancelAdd">Cancel</button>
+              <button class="btn-save" @click="saveNewItem" :disabled="!newItem.title.trim()">Add</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -692,6 +863,11 @@ const cycleStatus = (item) => {
 .item-content {
   flex: 1;
   min-width: 0;
+  cursor: pointer;
+}
+
+.item-content:hover .item-title {
+  color: #60a5fa;
 }
 
 .item-title {
@@ -768,6 +944,189 @@ const cycleStatus = (item) => {
 .collapse-leave-from {
   opacity: 1;
   max-height: 2000px;
+}
+
+/* Add item button */
+.add-item-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  margin-top: 0.5rem;
+  background: transparent;
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: #64748b;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.add-item-btn:hover {
+  border-color: #60a5fa;
+  color: #60a5fa;
+  background: rgba(96, 165, 250, 0.05);
+}
+
+.add-item-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.modal {
+  background: #1a1a24;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 400px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #f1f5f9;
+  margin: 0 0 1.25rem;
+}
+
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.form-group label {
+  display: block;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin-bottom: 0.375rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.form-group input,
+.form-group textarea,
+.form-group select {
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #f1f5f9;
+  font-size: 0.875rem;
+  font-family: inherit;
+}
+
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #60a5fa;
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.form-group select {
+  cursor: pointer;
+}
+
+.form-row {
+  display: flex;
+  gap: 1rem;
+}
+
+.form-row .form-group {
+  flex: 1;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.modal-actions-right {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-cancel,
+.btn-save,
+.btn-delete {
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-cancel {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+}
+
+.btn-cancel:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #e2e8f0;
+}
+
+.btn-save {
+  background: #60a5fa;
+  border: none;
+  color: #0a0a0f;
+}
+
+.btn-save:hover {
+  background: #3b82f6;
+}
+
+.btn-save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-delete {
+  background: transparent;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
+.btn-delete:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* Fade transition */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 
 /* Footer */
