@@ -1310,6 +1310,14 @@ const handleCycleEvent = (event) => {
         endTimingCycle(modelDuration)
       }
 
+      // "Fire together, wire together" - strengthen edges between LEGOs in this phrase
+      if (completedItem) {
+        const phraseLegoIds = extractLegoIdsFromPhrase(completedItem)
+        if (phraseLegoIds.length >= 2) {
+          strengthenPhrasePath(phraseLegoIds)
+        }
+      }
+
       // Trigger floating reward animation (Ink Spirit)
       const { points, bonusLevel } = calculateCyclePoints()
       sessionPoints.value += points
@@ -2682,11 +2690,9 @@ const addNetworkNode = (legoId, targetText, knownText, beltColor = 'white') => {
   heroNodeId.value = legoId
   activeNodeId.value = legoId
 
-  // If there was a previous hero, create an edge to it
-  // (the first connection in the network)
-  if (previousHero && networkNodes.value.find(n => n.id === previousHero)) {
-    addNetworkLink(legoId, previousHero)
-  }
+  // NOTE: We no longer auto-create edges here.
+  // Edges are created through phrase practice ("fire together, wire together")
+  // This makes the network reflect actual learning connections, not just introduction order.
 
   // Update the visualization
   updateNetworkVisualization()
@@ -2733,22 +2739,57 @@ const setNetworkHero = (legoId) => {
   updateNetworkVisualization()
 }
 
-// Add a connection between two LEGOs
+// Add or strengthen a connection between two LEGOs
+// "Fire together, wire together" - edges strengthen with each co-activation
 const addNetworkLink = (sourceId, targetId) => {
+  if (sourceId === targetId) return // No self-links
+
   // Check if both nodes exist
   const sourceExists = networkNodes.value.find(n => n.id === sourceId)
   const targetExists = networkNodes.value.find(n => n.id === targetId)
   if (!sourceExists || !targetExists) return
 
-  // Check if link already exists
-  const linkExists = networkLinks.value.find(l =>
-    (l.source === sourceId || l.source.id === sourceId) &&
-    (l.target === targetId || l.target.id === targetId)
-  )
-  if (linkExists) return
+  // Check if link already exists (bidirectional - A-B same as B-A)
+  const existingLink = networkLinks.value.find(l => {
+    const sId = l.source.id || l.source
+    const tId = l.target.id || l.target
+    return (sId === sourceId && tId === targetId) || (sId === targetId && tId === sourceId)
+  })
 
-  networkLinks.value.push({ source: sourceId, target: targetId })
+  if (existingLink) {
+    // Strengthen existing connection
+    existingLink.strength = (existingLink.strength || 1) + 1
+    console.log(`[Network] Strengthened edge ${sourceId} ↔ ${targetId} (strength: ${existingLink.strength})`)
+  } else {
+    // Create new connection with initial strength
+    networkLinks.value.push({
+      source: sourceId,
+      target: targetId,
+      strength: 1
+    })
+    console.log(`[Network] Created edge ${sourceId} ↔ ${targetId}`)
+  }
+
   updateNetworkVisualization()
+}
+
+// Create edges between all LEGOs in a phrase path
+// This is called when a practice phrase is completed
+const strengthenPhrasePath = (legoIds) => {
+  if (!legoIds || legoIds.length < 2) return
+
+  // Connect each consecutive pair in the path
+  for (let i = 0; i < legoIds.length - 1; i++) {
+    addNetworkLink(legoIds[i], legoIds[i + 1])
+  }
+
+  // Also connect non-consecutive pairs for phrases with 3+ LEGOs
+  // This creates a more connected network
+  if (legoIds.length >= 3) {
+    for (let i = 0; i < legoIds.length - 2; i++) {
+      addNetworkLink(legoIds[i], legoIds[i + 2])
+    }
+  }
 }
 
 // Update the D3 visualization
@@ -2776,49 +2817,79 @@ const updateNetworkVisualization = () => {
     .duration(800)
     .attr('opacity', 0.4)
 
-  // Update all links - highlight those connected to hero or in active path
+  // Update all links - strength affects thickness, hero/path affects brightness
   const allLinks = linkSelection.merge(linkEnter)
+
+  // Find max strength for normalization
+  const maxStrength = Math.max(1, ...networkLinks.value.map(l => l.strength || 1))
 
   allLinks
     .attr('stroke', d => {
       const sourceId = d.source.id || d.source
       const targetId = d.target.id || d.target
+      // Highlight if in path animation (brightest)
+      if (pathAnimationNodes.value.includes(sourceId) && pathAnimationNodes.value.includes(targetId)) {
+        return palette.glow
+      }
       // Highlight if connected to hero
       if (sourceId === heroId || targetId === heroId) {
         return palette.glow
       }
-      // Highlight if in path animation
-      if (pathAnimationNodes.value.includes(sourceId) && pathAnimationNodes.value.includes(targetId)) {
-        return palette.glow
-      }
-      return palette.link
+      // Use glow color for stronger connections, link color for weak
+      const strength = d.strength || 1
+      return strength >= 3 ? palette.glow : palette.link
     })
     .attr('stroke-width', d => {
       const sourceId = d.source.id || d.source
       const targetId = d.target.id || d.target
-      // Thicker for hero connections
-      if (sourceId === heroId || targetId === heroId) return 2.5
-      // Thicker for path animation
-      if (pathAnimationNodes.value.includes(sourceId) && pathAnimationNodes.value.includes(targetId)) return 2
-      return 1.5
+      const strength = d.strength || 1
+
+      // Base width from strength (1-4 range)
+      const strengthWidth = 1 + Math.min(3, (strength / maxStrength) * 3)
+
+      // Path animation gets extra thickness
+      if (pathAnimationNodes.value.includes(sourceId) && pathAnimationNodes.value.includes(targetId)) {
+        return strengthWidth + 1.5
+      }
+      // Hero connections get slight boost
+      if (sourceId === heroId || targetId === heroId) {
+        return strengthWidth + 0.5
+      }
+      return strengthWidth
     })
     .attr('opacity', d => {
       const sourceId = d.source.id || d.source
       const targetId = d.target.id || d.target
-      // Bright for hero connections
-      if (sourceId === heroId || targetId === heroId) return 0.8
-      // Bright for path animation
-      if (pathAnimationNodes.value.includes(sourceId) && pathAnimationNodes.value.includes(targetId)) return 0.9
-      return 0.3
+      const strength = d.strength || 1
+
+      // Base opacity from strength (0.2-0.6 range)
+      const strengthOpacity = 0.2 + Math.min(0.4, (strength / maxStrength) * 0.4)
+
+      // Path animation is brightest
+      if (pathAnimationNodes.value.includes(sourceId) && pathAnimationNodes.value.includes(targetId)) {
+        return 0.95
+      }
+      // Hero connections are bright
+      if (sourceId === heroId || targetId === heroId) {
+        return 0.8
+      }
+      return strengthOpacity
     })
     .attr('filter', d => {
       const sourceId = d.source.id || d.source
       const targetId = d.target.id || d.target
+      const strength = d.strength || 1
+
       // Glow for active paths
       if (pathAnimationNodes.value.includes(sourceId) && pathAnimationNodes.value.includes(targetId)) {
         return 'url(#network-glow-active)'
       }
+      // Glow for hero connections
       if (sourceId === heroId || targetId === heroId) {
+        return 'url(#network-glow)'
+      }
+      // Strong edges get subtle glow
+      if (strength >= 3) {
         return 'url(#network-glow)'
       }
       return 'none'
@@ -2986,25 +3057,42 @@ const clearPathAnimationTimers = () => {
   pathAnimationTimers = []
 }
 
-// Extract LEGO IDs from a practice phrase (for path animation)
+// Extract LEGO IDs from a practice phrase (for path animation and edge creation)
 const extractLegoIdsFromPhrase = (item) => {
-  // Try to get containsLegos from the phrase
-  if (item?.phrase?.containsLegos) {
-    return item.phrase.containsLegos
+  const legoIds = new Set()
+
+  // 1. Try to get containsLegos from the phrase
+  if (item?.phrase?.containsLegos && Array.isArray(item.phrase.containsLegos)) {
+    item.phrase.containsLegos.forEach(id => legoIds.add(id))
   }
 
-  // Fallback: try to match words against known LEGOs
-  // This is a simplified version - real implementation would use proper decomposition
-  const targetText = item?.phrase?.phrase?.target || item?.knownText || ''
-  const legoIds = []
+  // 2. Include the LEGO being practiced if present
+  if (item?.lego?.id) {
+    legoIds.add(item.lego.id)
+  }
+  if (item?.legoId) {
+    legoIds.add(item.legoId)
+  }
 
-  networkNodes.value.forEach(node => {
-    if (targetText.toLowerCase().includes(node.targetText?.toLowerCase())) {
-      legoIds.push(node.id)
+  // 3. Fallback: try to match target text against known LEGOs
+  // Uses substring matching - e.g., "quiero hablar español" matches nodes for each word
+  if (legoIds.size === 0) {
+    const targetText = item?.phrase?.phrase?.target || item?.targetText || ''
+    if (targetText) {
+      networkNodes.value.forEach(node => {
+        if (node.targetText && targetText.toLowerCase().includes(node.targetText.toLowerCase())) {
+          legoIds.add(node.id)
+        }
+      })
     }
-  })
+  }
 
-  return legoIds
+  // Return as array, filtering to only nodes that exist in the network
+  const existingIds = [...legoIds].filter(id =>
+    networkNodes.value.find(n => n.id === id)
+  )
+
+  return existingIds
 }
 
 // ============================================
