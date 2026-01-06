@@ -6,6 +6,49 @@ import { createCourseDataProvider } from './providers/CourseDataProvider'
 import { loadConfig, isSupabaseConfigured, isClerkConfigured } from './config/env'
 import { useAuth } from './composables/useAuth'
 
+// Build version injected by Vite at build time
+// @ts-ignore - __BUILD_NUMBER__ is defined by Vite
+const BUILD_VERSION = typeof __BUILD_NUMBER__ !== 'undefined' ? __BUILD_NUMBER__ : 'dev'
+
+/**
+ * Cache invalidation on deploy
+ * Clears stale script caches when a new build is deployed
+ */
+const invalidateStaleCaches = () => {
+  const CACHE_VERSION_KEY = 'ssi-build-version'
+  const SCRIPT_CACHE_PREFIX = 'ssi-script-'
+
+  const storedVersion = localStorage.getItem(CACHE_VERSION_KEY)
+
+  if (storedVersion !== BUILD_VERSION) {
+    console.log(`[App] Build changed: ${storedVersion} → ${BUILD_VERSION}, clearing caches`)
+
+    // Clear all script caches
+    const keysToRemove = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key?.startsWith(SCRIPT_CACHE_PREFIX)) {
+        keysToRemove.push(key)
+      }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key))
+
+    // Also clear position caches (structure may have changed)
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key?.startsWith('ssi_learning_position_')) {
+        localStorage.removeItem(key)
+      }
+    }
+
+    // Store new version
+    localStorage.setItem(CACHE_VERSION_KEY, BUILD_VERSION)
+    console.log(`[App] Cleared ${keysToRemove.length} cached scripts`)
+  } else {
+    console.log(`[App] Build ${BUILD_VERSION} - caches valid`)
+  }
+}
+
 // Clerk components (conditionally imported)
 import { SignedIn, SignedOut, UserButton, SignInButton } from '@clerk/vue'
 
@@ -245,6 +288,9 @@ provide('auth', auth)
 provide('supabase', supabaseClient)
 
 onMounted(async () => {
+  // Clear stale caches on new deploy
+  invalidateStaleCaches()
+
   // Check if launched from Schools with class context
   const hasClassContext = checkClassContext()
   if (hasClassContext) {
