@@ -425,9 +425,9 @@ const cycleStatus = (item) => {
   inset: 0;
   z-index: 0;
   background:
-    radial-gradient(ellipse at 20% 0%, rgba(96, 165, 250, 0.08) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 100%, rgba(167, 139, 250, 0.06) 0%, transparent 50%),
-    linear-gradient(180deg, #0a0a0f 0%, #0f0f18 100%);
+    radial-gradient(ellipse at 20% 0%, rgba(96, 165, 250, 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 100%, rgba(167, 139, 250, 0.03) 0%, transparent 50%),
+    #0a0a0f;
   pointer-events: none;
 }
 
@@ -436,9 +436,9 @@ const cycleStatus = (item) => {
   inset: 0;
   z-index: 0;
   background-image:
-    linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
-  background-size: 40px 40px;
+    linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+  background-size: 50px 50px;
   pointer-events: none;
 }
 
@@ -446,7 +446,7 @@ const cycleStatus = (item) => {
   position: fixed;
   inset: 0;
   z-index: 0;
-  opacity: 0.3;
+  opacity: 0.08;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
   pointer-events: none;
 }
