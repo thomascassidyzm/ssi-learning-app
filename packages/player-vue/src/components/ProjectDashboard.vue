@@ -29,8 +29,16 @@ const dragOverItem = ref(null)
 
 // 3 Wins - Agile Results
 const wins = ref({
-  year: ['', '', ''],
-  quarter: ['', '', ''],
+  year: [
+    'SSi Learning App live with paying subscribers',
+    'Schools dashboard operational with pilot schools',
+    'Community course creation pipeline proven'
+  ],
+  quarter: [
+    'saysomethingin.app fully operational (new SSi Learning App)',
+    'popty.app fully operational with new versions of Big 10 published',
+    'Community-created course system (Popty + Learning App) fully operational'
+  ],
   month: ['', '', '']
 })
 
@@ -550,11 +558,34 @@ const saveWins = () => {
   }
 }
 
+// Default wins (used if localStorage is empty)
+const defaultWins = {
+  year: [
+    'SSi Learning App live with paying subscribers',
+    'Schools dashboard operational with pilot schools',
+    'Community course creation pipeline proven'
+  ],
+  quarter: [
+    'saysomethingin.app fully operational (new SSi Learning App)',
+    'popty.app fully operational with new versions of Big 10 published',
+    'Community-created course system (Popty + Learning App) fully operational'
+  ],
+  month: ['', '', '']
+}
+
 const loadWins = () => {
   try {
     const stored = localStorage.getItem(WINS_STORAGE_KEY)
     if (stored) {
-      wins.value = JSON.parse(stored)
+      const parsed = JSON.parse(stored)
+      // Use defaults if stored quarter wins are all empty
+      const hasQuarterWins = parsed.quarter?.some(w => w && w.trim())
+      if (!hasQuarterWins) {
+        wins.value = { ...defaultWins }
+        saveWins()
+      } else {
+        wins.value = parsed
+      }
     }
   } catch (e) {
     console.warn('[ProjectDashboard] Failed to load wins:', e)
