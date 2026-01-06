@@ -3,18 +3,36 @@ import { ref, computed, onMounted, nextTick } from 'vue'
 
 const emit = defineEmits(['close'])
 
-// localStorage key
+// localStorage keys
 const STORAGE_KEY = 'ssi-roadmap-items'
+const WINS_STORAGE_KEY = 'ssi-agile-wins'
+
+// Current date info
+const now = new Date()
+const currentYear = now.getFullYear()
+const currentQuarter = Math.ceil((now.getMonth() + 1) / 3)
+const currentMonth = now.toLocaleString('default', { month: 'long' })
 
 // Collapsible sections state
-const expandedSections = ref(new Set(['schools', 'ux', 'audio']))
+const expandedSections = ref(new Set(['wins', 'schools', 'data']))
 
 // Which item is expanded for editing (by id)
 const expandedItemId = ref(null)
 
 // Which area is showing the add form
 const addingToArea = ref(null)
-const newItem = ref({ title: '', description: '', tokenEstimate: 1, notes: '' })
+const newItem = ref({ title: '', description: '', tokenEstimate: 1, notes: '', quarter: null })
+
+// Drag state
+const draggedItem = ref(null)
+const dragOverItem = ref(null)
+
+// 3 Wins - Agile Results
+const wins = ref({
+  year: ['', '', ''],
+  quarter: ['', '', ''],
+  month: ['', '', '']
+})
 
 const toggleSection = (area) => {
   if (expandedSections.value.has(area)) {
@@ -29,7 +47,6 @@ const toggleItemExpand = (itemId) => {
     expandedItemId.value = null
   } else {
     expandedItemId.value = itemId
-    // Close add form when editing an item
     addingToArea.value = null
   }
 }
@@ -37,12 +54,22 @@ const toggleItemExpand = (itemId) => {
 // Area metadata with belt-inspired colors
 const areaConfig = {
   schools: { label: 'Schools Dashboard', icon: '🏫', color: '#60a5fa' },
+  data: { label: 'Data & Insights', icon: '📊', color: '#f472b6' },
   audio: { label: 'Audio & Performance', icon: '🔊', color: '#a78bfa' },
   ux: { label: 'UX & Onboarding', icon: '✨', color: '#fcd34d' },
   business: { label: 'Business Model', icon: '💰', color: '#4ade80' },
   infrastructure: { label: 'Infrastructure', icon: '⚙️', color: '#fb923c' },
   content: { label: 'Content & Courses', icon: '📚', color: '#a8856c' },
 }
+
+// Quarter options
+const quarters = [
+  { value: null, label: 'Unscheduled' },
+  { value: 'Q1', label: 'Q1 (Jan-Mar)' },
+  { value: 'Q2', label: 'Q2 (Apr-Jun)' },
+  { value: 'Q3', label: 'Q3 (Jul-Sep)' },
+  { value: 'Q4', label: 'Q4 (Oct-Dec)' },
+]
 
 // Roadmap items
 const roadmapItems = ref([
@@ -54,6 +81,7 @@ const roadmapItems = ref([
     area: 'schools',
     status: 'planned',
     tokenEstimate: 2,
+    quarter: 'Q1',
     notes: 'Migration file created, needs deployment'
   },
   {
@@ -63,6 +91,7 @@ const roadmapItems = ref([
     area: 'schools',
     status: 'planned',
     tokenEstimate: 3,
+    quarter: 'Q1',
     dependencies: ['schools-schema']
   },
   {
@@ -72,6 +101,7 @@ const roadmapItems = ref([
     area: 'schools',
     status: 'planned',
     tokenEstimate: 1,
+    quarter: 'Q1',
     dependencies: ['schools-code-flow']
   },
   {
@@ -81,6 +111,7 @@ const roadmapItems = ref([
     area: 'schools',
     status: 'planned',
     tokenEstimate: 8,
+    quarter: 'Q1',
     notes: 'Parallelizable - can do all 6 pages simultaneously'
   },
   {
@@ -90,7 +121,94 @@ const roadmapItems = ref([
     area: 'schools',
     status: 'planned',
     tokenEstimate: 3,
+    quarter: 'Q1',
     dependencies: ['schools-schema']
+  },
+
+  // Data & Insights (NEW)
+  {
+    id: 'data-anonymous-tracking',
+    title: 'Anonymous User Behaviour',
+    description: 'Track session starts, completion rates, drop-off points for non-authenticated users',
+    area: 'data',
+    status: 'planned',
+    tokenEstimate: 3,
+    quarter: 'Q1',
+    notes: 'GDPR compliant - no PII for anonymous'
+  },
+  {
+    id: 'data-learning-analytics',
+    title: 'Learning Performance Metrics',
+    description: 'Track response times, error patterns, belt progression velocity per user',
+    area: 'data',
+    status: 'planned',
+    tokenEstimate: 4,
+    quarter: 'Q1',
+  },
+  {
+    id: 'data-cohort-analysis',
+    title: 'Cohort & Retention Analysis',
+    description: 'Day 1/7/30 retention, cohort comparison, churn prediction signals',
+    area: 'data',
+    status: 'planned',
+    tokenEstimate: 5,
+    quarter: 'Q2',
+  },
+  {
+    id: 'data-segment-free-users',
+    title: 'Free User Segmentation',
+    description: 'Identify power users, casual browsers, potential converts based on behaviour',
+    area: 'data',
+    status: 'planned',
+    tokenEstimate: 3,
+    quarter: 'Q2',
+  },
+  {
+    id: 'data-conversion-funnel',
+    title: 'Conversion Funnel Tracking',
+    description: 'Anonymous → Signed up → Active → Paid journey with drop-off analysis',
+    area: 'data',
+    status: 'planned',
+    tokenEstimate: 4,
+    quarter: 'Q2',
+  },
+  {
+    id: 'data-in-app-messaging',
+    title: 'In-App Communication System',
+    description: 'Contextual tips, milestone celebrations, re-engagement nudges',
+    area: 'data',
+    status: 'planned',
+    tokenEstimate: 5,
+    quarter: 'Q2',
+    notes: 'Non-intrusive, learner-first approach'
+  },
+  {
+    id: 'data-ab-testing',
+    title: 'A/B Testing Framework',
+    description: 'Test onboarding flows, UI variations, pricing strategies',
+    area: 'data',
+    status: 'planned',
+    tokenEstimate: 6,
+    quarter: 'Q3',
+  },
+  {
+    id: 'data-dashboard-internal',
+    title: 'Internal Analytics Dashboard',
+    description: 'Real-time view of active learners, course popularity, system health',
+    area: 'data',
+    status: 'planned',
+    tokenEstimate: 8,
+    quarter: 'Q3',
+  },
+  {
+    id: 'data-learner-insights',
+    title: 'Learner Insights for Teachers',
+    description: 'Class-level analytics for schools - struggling students, progress trends',
+    area: 'data',
+    status: 'planned',
+    tokenEstimate: 5,
+    quarter: 'Q3',
+    dependencies: ['schools-data-layer']
   },
 
   // Audio & Performance
@@ -101,6 +219,7 @@ const roadmapItems = ref([
     area: 'audio',
     status: 'planned',
     tokenEstimate: 1,
+    quarter: 'Q1',
   },
   {
     id: 'audio-preload-first',
@@ -109,6 +228,7 @@ const roadmapItems = ref([
     area: 'audio',
     status: 'planned',
     tokenEstimate: 2,
+    quarter: 'Q1',
   },
   {
     id: 'audio-bundle-common',
@@ -117,6 +237,7 @@ const roadmapItems = ref([
     area: 'audio',
     status: 'planned',
     tokenEstimate: 3,
+    quarter: 'Q2',
     notes: '90% of welcome is identical across courses'
   },
   {
@@ -126,6 +247,7 @@ const roadmapItems = ref([
     area: 'audio',
     status: 'planned',
     tokenEstimate: 8,
+    quarter: 'Q4',
     notes: 'Future - plan now, implement later'
   },
 
@@ -137,6 +259,7 @@ const roadmapItems = ref([
     area: 'ux',
     status: 'planned',
     tokenEstimate: 1,
+    quarter: 'Q1',
   },
   {
     id: 'ux-big-play-button',
@@ -145,6 +268,7 @@ const roadmapItems = ref([
     area: 'ux',
     status: 'planned',
     tokenEstimate: 2,
+    quarter: 'Q1',
   },
   {
     id: 'ux-hover-disclosure',
@@ -153,6 +277,7 @@ const roadmapItems = ref([
     area: 'ux',
     status: 'planned',
     tokenEstimate: 3,
+    quarter: 'Q2',
   },
   {
     id: 'ux-belt-explainer',
@@ -161,6 +286,7 @@ const roadmapItems = ref([
     area: 'ux',
     status: 'planned',
     tokenEstimate: 2,
+    quarter: 'Q2',
   },
   {
     id: 'ux-optional-welcome',
@@ -169,6 +295,7 @@ const roadmapItems = ref([
     area: 'ux',
     status: 'planned',
     tokenEstimate: 1,
+    quarter: 'Q1',
   },
 
   // Business Model
@@ -179,6 +306,7 @@ const roadmapItems = ref([
     area: 'business',
     status: 'planned',
     tokenEstimate: 3,
+    quarter: 'Q2',
   },
   {
     id: 'biz-signin-prompt',
@@ -187,6 +315,7 @@ const roadmapItems = ref([
     area: 'business',
     status: 'planned',
     tokenEstimate: 2,
+    quarter: 'Q2',
   },
   {
     id: 'biz-community-courses',
@@ -195,6 +324,7 @@ const roadmapItems = ref([
     area: 'business',
     status: 'planned',
     tokenEstimate: 1,
+    quarter: 'Q3',
   },
   {
     id: 'biz-virality-hooks',
@@ -203,6 +333,7 @@ const roadmapItems = ref([
     area: 'business',
     status: 'planned',
     tokenEstimate: 5,
+    quarter: 'Q3',
     notes: 'Discussion item - what drives organic growth?'
   },
 
@@ -214,6 +345,7 @@ const roadmapItems = ref([
     area: 'infrastructure',
     status: 'done',
     tokenEstimate: 1,
+    quarter: 'Q1',
   },
   {
     id: 'infra-project-dashboard',
@@ -222,6 +354,7 @@ const roadmapItems = ref([
     area: 'infrastructure',
     status: 'in-progress',
     tokenEstimate: 3,
+    quarter: 'Q1',
   },
   {
     id: 'infra-apml-browser',
@@ -230,6 +363,7 @@ const roadmapItems = ref([
     area: 'infrastructure',
     status: 'planned',
     tokenEstimate: 4,
+    quarter: 'Q4',
   },
 
   // Content
@@ -240,6 +374,7 @@ const roadmapItems = ref([
     area: 'content',
     status: 'done',
     tokenEstimate: 2,
+    quarter: 'Q1',
   },
   {
     id: 'content-spanish-cache',
@@ -248,6 +383,7 @@ const roadmapItems = ref([
     area: 'content',
     status: 'planned',
     tokenEstimate: 2,
+    quarter: 'Q1',
     notes: 'May need IndexedDB for large courses'
   },
 ])
@@ -269,6 +405,19 @@ const overallStats = computed(() => {
   const totalTokens = items.reduce((sum, i) => sum + (i.tokenEstimate || 0), 0)
   const doneTokens = items.filter(i => i.status === 'done').reduce((sum, i) => sum + (i.tokenEstimate || 0), 0)
   return { done, inProgress, planned, total: items.length, totalTokens, doneTokens }
+})
+
+const quarterStats = computed(() => {
+  const stats = {}
+  for (const q of ['Q1', 'Q2', 'Q3', 'Q4']) {
+    const items = roadmapItems.value.filter(i => i.quarter === q)
+    stats[q] = {
+      total: items.length,
+      done: items.filter(i => i.status === 'done').length,
+      tokens: items.reduce((sum, i) => sum + (i.tokenEstimate || 0), 0)
+    }
+  }
+  return stats
 })
 
 const progressPercent = computed(() => {
@@ -304,7 +453,7 @@ const deleteItem = (itemId, e) => {
 const startAdding = (area) => {
   addingToArea.value = area
   expandedItemId.value = null
-  newItem.value = { title: '', description: '', tokenEstimate: 1, notes: '' }
+  newItem.value = { title: '', description: '', tokenEstimate: 1, notes: '', quarter: `Q${currentQuarter}` }
 }
 
 const saveNewItem = () => {
@@ -317,16 +466,59 @@ const saveNewItem = () => {
     area: addingToArea.value,
     status: 'planned',
     tokenEstimate: newItem.value.tokenEstimate || 1,
+    quarter: newItem.value.quarter || null,
     notes: newItem.value.notes.trim() || undefined,
   })
   saveToLocalStorage()
   addingToArea.value = null
-  newItem.value = { title: '', description: '', tokenEstimate: 1, notes: '' }
+  newItem.value = { title: '', description: '', tokenEstimate: 1, notes: '', quarter: null }
 }
 
 const cancelAdd = () => {
   addingToArea.value = null
-  newItem.value = { title: '', description: '', tokenEstimate: 1, notes: '' }
+  newItem.value = { title: '', description: '', tokenEstimate: 1, notes: '', quarter: null }
+}
+
+// Drag and drop handlers
+const onDragStart = (e, item, area) => {
+  draggedItem.value = { item, area }
+  e.dataTransfer.effectAllowed = 'move'
+  e.target.classList.add('dragging')
+}
+
+const onDragEnd = (e) => {
+  e.target.classList.remove('dragging')
+  draggedItem.value = null
+  dragOverItem.value = null
+}
+
+const onDragOver = (e, item, area) => {
+  e.preventDefault()
+  if (!draggedItem.value || draggedItem.value.area !== area) return
+  if (draggedItem.value.item.id === item.id) return
+  dragOverItem.value = item.id
+}
+
+const onDragLeave = () => {
+  dragOverItem.value = null
+}
+
+const onDrop = (e, targetItem, area) => {
+  e.preventDefault()
+  if (!draggedItem.value || draggedItem.value.area !== area) return
+
+  const items = roadmapItems.value
+  const draggedIdx = items.findIndex(i => i.id === draggedItem.value.item.id)
+  const targetIdx = items.findIndex(i => i.id === targetItem.id)
+
+  if (draggedIdx !== -1 && targetIdx !== -1) {
+    const [removed] = items.splice(draggedIdx, 1)
+    items.splice(targetIdx, 0, removed)
+    saveToLocalStorage()
+  }
+
+  draggedItem.value = null
+  dragOverItem.value = null
 }
 
 // localStorage persistence
@@ -334,7 +526,7 @@ const saveToLocalStorage = () => {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(roadmapItems.value))
   } catch (e) {
-    console.warn('[ProjectDashboard] Failed to save:', e)
+    console.warn('[ProjectDashboard] Failed to save items:', e)
   }
 }
 
@@ -345,8 +537,33 @@ const loadFromLocalStorage = () => {
       roadmapItems.value = JSON.parse(stored)
     }
   } catch (e) {
-    console.warn('[ProjectDashboard] Failed to load:', e)
+    console.warn('[ProjectDashboard] Failed to load items:', e)
   }
+}
+
+// Wins persistence
+const saveWins = () => {
+  try {
+    localStorage.setItem(WINS_STORAGE_KEY, JSON.stringify(wins.value))
+  } catch (e) {
+    console.warn('[ProjectDashboard] Failed to save wins:', e)
+  }
+}
+
+const loadWins = () => {
+  try {
+    const stored = localStorage.getItem(WINS_STORAGE_KEY)
+    if (stored) {
+      wins.value = JSON.parse(stored)
+    }
+  } catch (e) {
+    console.warn('[ProjectDashboard] Failed to load wins:', e)
+  }
+}
+
+const updateWin = (level, index, value) => {
+  wins.value[level][index] = value
+  saveWins()
 }
 
 // Auto-save on any item change
@@ -358,6 +575,7 @@ const updateItem = (item, field, value) => {
 // Load on mount
 onMounted(() => {
   loadFromLocalStorage()
+  loadWins()
 })
 </script>
 
@@ -377,7 +595,7 @@ onMounted(() => {
       </button>
       <div class="header-content">
         <h1>Project Dashboard</h1>
-        <span class="subtitle">SSi Learning App Roadmap</span>
+        <span class="subtitle">SSi Learning App {{ currentYear }}</span>
       </div>
     </header>
 
@@ -401,6 +619,20 @@ onMounted(() => {
       </div>
     </div>
 
+    <!-- Quarter overview -->
+    <div class="quarter-bar">
+      <div
+        v-for="q in ['Q1', 'Q2', 'Q3', 'Q4']"
+        :key="q"
+        class="quarter-stat"
+        :class="{ current: q === `Q${currentQuarter}` }"
+      >
+        <span class="q-label">{{ q }}</span>
+        <span class="q-progress">{{ quarterStats[q].done }}/{{ quarterStats[q].total }}</span>
+        <span class="q-tokens">{{ quarterStats[q].tokens }}k</span>
+      </div>
+    </div>
+
     <!-- Progress bar -->
     <div class="progress-section">
       <div class="progress-bar">
@@ -409,8 +641,94 @@ onMounted(() => {
       <span class="progress-label">{{ progressPercent }}% Complete</span>
     </div>
 
-    <!-- Roadmap sections -->
+    <!-- Main content -->
     <div class="roadmap">
+      <!-- 3 Wins Section -->
+      <div class="area-section wins-section">
+        <button
+          class="area-header wins-header"
+          @click="toggleSection('wins')"
+        >
+          <span class="area-icon">🎯</span>
+          <span class="area-label">3 Wins - Agile Results</span>
+          <svg
+            class="chevron"
+            :class="{ expanded: expandedSections.has('wins') }"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M6 9l6 6 6-6"/>
+          </svg>
+        </button>
+
+        <Transition name="collapse">
+          <div v-if="expandedSections.has('wins')" class="wins-content">
+            <!-- Year Wins -->
+            <div class="wins-level">
+              <h3 class="wins-title">
+                <span class="wins-icon">📅</span>
+                This Year ({{ currentYear }})
+              </h3>
+              <div class="wins-list">
+                <div v-for="(win, idx) in wins.year" :key="'year-'+idx" class="win-item">
+                  <span class="win-number">{{ idx + 1 }}</span>
+                  <input
+                    type="text"
+                    :value="win"
+                    @input="updateWin('year', idx, $event.target.value)"
+                    placeholder="Enter yearly win..."
+                    class="win-input"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Quarter Wins -->
+            <div class="wins-level">
+              <h3 class="wins-title">
+                <span class="wins-icon">🎯</span>
+                This Quarter (Q{{ currentQuarter }})
+              </h3>
+              <div class="wins-list">
+                <div v-for="(win, idx) in wins.quarter" :key="'quarter-'+idx" class="win-item">
+                  <span class="win-number">{{ idx + 1 }}</span>
+                  <input
+                    type="text"
+                    :value="win"
+                    @input="updateWin('quarter', idx, $event.target.value)"
+                    placeholder="Enter quarterly win..."
+                    class="win-input"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Month Wins -->
+            <div class="wins-level">
+              <h3 class="wins-title">
+                <span class="wins-icon">🌙</span>
+                This Month ({{ currentMonth }})
+              </h3>
+              <div class="wins-list">
+                <div v-for="(win, idx) in wins.month" :key="'month-'+idx" class="win-item">
+                  <span class="win-number">{{ idx + 1 }}</span>
+                  <input
+                    type="text"
+                    :value="win"
+                    @input="updateWin('month', idx, $event.target.value)"
+                    placeholder="Enter monthly win..."
+                    class="win-input"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </Transition>
+      </div>
+
+      <!-- Roadmap sections -->
       <div
         v-for="(config, area) in areaConfig"
         :key="area"
@@ -442,10 +760,31 @@ onMounted(() => {
               v-for="item in itemsByArea[area]"
               :key="item.id"
               class="roadmap-item"
-              :class="[item.status, { expanded: expandedItemId === item.id }]"
+              :class="[
+                item.status,
+                { expanded: expandedItemId === item.id },
+                { 'drag-over': dragOverItem === item.id }
+              ]"
+              draggable="true"
+              @dragstart="onDragStart($event, item, area)"
+              @dragend="onDragEnd"
+              @dragover="onDragOver($event, item, area)"
+              @dragleave="onDragLeave"
+              @drop="onDrop($event, item, area)"
             >
               <!-- Item header (always visible) -->
               <div class="item-header" @click="toggleItemExpand(item.id)">
+                <div class="drag-handle" title="Drag to reorder">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <circle cx="9" cy="6" r="1.5"/>
+                    <circle cx="15" cy="6" r="1.5"/>
+                    <circle cx="9" cy="12" r="1.5"/>
+                    <circle cx="15" cy="12" r="1.5"/>
+                    <circle cx="9" cy="18" r="1.5"/>
+                    <circle cx="15" cy="18" r="1.5"/>
+                  </svg>
+                </div>
+
                 <button
                   class="status-dot"
                   :style="{
@@ -473,6 +812,7 @@ onMounted(() => {
                     >
                       {{ statusConfig[item.status].label }}
                     </span>
+                    <span v-if="item.quarter" class="quarter-badge">{{ item.quarter }}</span>
                     <span v-if="item.tokenEstimate" class="token-estimate">
                       ~{{ item.tokenEstimate }}k
                     </span>
@@ -521,6 +861,17 @@ onMounted(() => {
                         :value="item.tokenEstimate"
                         @input="updateItem(item, 'tokenEstimate', parseInt($event.target.value) || 1)"
                       />
+                    </div>
+                    <div class="edit-field">
+                      <label>Quarter</label>
+                      <select
+                        :value="item.quarter"
+                        @change="updateItem(item, 'quarter', $event.target.value || null)"
+                      >
+                        <option v-for="q in quarters" :key="q.value" :value="q.value">
+                          {{ q.label }}
+                        </option>
+                      </select>
                     </div>
                     <div class="edit-field">
                       <label>Status</label>
@@ -587,6 +938,14 @@ onMounted(() => {
                       min="1"
                     />
                   </div>
+                  <div class="edit-field">
+                    <label>Quarter</label>
+                    <select v-model="newItem.quarter">
+                      <option v-for="q in quarters" :key="q.value" :value="q.value">
+                        {{ q.label }}
+                      </option>
+                    </select>
+                  </div>
                 </div>
 
                 <div class="edit-field">
@@ -629,7 +988,7 @@ onMounted(() => {
 
     <!-- Footer -->
     <footer class="footer">
-      <p>Click items to expand & edit inline • Auto-saves</p>
+      <p>Drag to reorder • Click to expand & edit • Auto-saves</p>
     </footer>
   </div>
 </template>
@@ -736,8 +1095,7 @@ onMounted(() => {
   z-index: 1;
   display: flex;
   gap: 0.5rem;
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  padding: 1rem 1.5rem 0.5rem;
 }
 
 .stat {
@@ -745,13 +1103,13 @@ onMounted(() => {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 12px;
-  padding: 0.75rem;
+  padding: 0.625rem;
   text-align: center;
 }
 
 .stat-value {
   display: block;
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: 700;
   color: #f1f5f9;
   letter-spacing: -0.02em;
@@ -759,11 +1117,11 @@ onMounted(() => {
 
 .stat-label {
   display: block;
-  font-size: 0.65rem;
+  font-size: 0.6rem;
   color: #64748b;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  margin-top: 0.25rem;
+  margin-top: 0.125rem;
 }
 
 .stat.tokens {
@@ -775,11 +1133,56 @@ onMounted(() => {
   color: #a78bfa;
 }
 
+/* Quarter bar */
+.quarter-bar {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 0.375rem;
+  padding: 0.5rem 1.5rem;
+}
+
+.quarter-stat {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  font-size: 0.7rem;
+}
+
+.quarter-stat.current {
+  background: rgba(96, 165, 250, 0.1);
+  border-color: rgba(96, 165, 250, 0.3);
+}
+
+.q-label {
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.quarter-stat.current .q-label {
+  color: #60a5fa;
+}
+
+.q-progress {
+  color: #64748b;
+}
+
+.q-tokens {
+  color: #a78bfa;
+  font-size: 0.65rem;
+}
+
 /* Progress section */
 .progress-section {
   position: relative;
   z-index: 1;
-  padding: 0 1.5rem 1rem;
+  padding: 0.5rem 1.5rem 1rem;
   display: flex;
   align-items: center;
   gap: 1rem;
@@ -810,11 +1213,102 @@ onMounted(() => {
 .roadmap {
   position: relative;
   z-index: 1;
-  padding: 0.5rem 1rem 6rem;
+  padding: 0 1rem 6rem;
 }
 
 .area-section {
   margin-bottom: 0.5rem;
+}
+
+/* 3 Wins section */
+.wins-section {
+  margin-bottom: 1rem;
+}
+
+.wins-header {
+  background: rgba(251, 191, 36, 0.08) !important;
+  border-color: rgba(251, 191, 36, 0.2) !important;
+}
+
+.wins-header .area-label {
+  color: #fbbf24 !important;
+}
+
+.wins-content {
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 0 0 12px 12px;
+  margin-top: -1px;
+}
+
+.wins-level {
+  margin-bottom: 1rem;
+}
+
+.wins-level:last-child {
+  margin-bottom: 0;
+}
+
+.wins-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #94a3b8;
+  margin: 0 0 0.5rem;
+}
+
+.wins-icon {
+  font-size: 1rem;
+}
+
+.wins-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.win-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.win-number {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+  border-radius: 50%;
+  font-size: 0.7rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.win-input {
+  flex: 1;
+  padding: 0.5rem 0.625rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  color: #f1f5f9;
+  font-size: 0.85rem;
+  font-family: inherit;
+}
+
+.win-input:focus {
+  outline: none;
+  border-color: #fbbf24;
+  background: rgba(251, 191, 36, 0.05);
+}
+
+.win-input::placeholder {
+  color: #475569;
 }
 
 .area-header {
@@ -895,18 +1389,52 @@ onMounted(() => {
   opacity: 0.7;
 }
 
+.roadmap-item.dragging {
+  opacity: 0.5;
+  transform: scale(0.98);
+}
+
+.roadmap-item.drag-over {
+  border-color: #60a5fa;
+  background: rgba(96, 165, 250, 0.1);
+}
+
 /* Item header */
 .item-header {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.875rem 1rem;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
   cursor: pointer;
 }
 
+.drag-handle {
+  width: 16px;
+  height: 16px;
+  color: #475569;
+  cursor: grab;
+  flex-shrink: 0;
+  opacity: 0.5;
+  transition: opacity 0.2s ease;
+}
+
+.drag-handle:hover {
+  opacity: 1;
+  color: #64748b;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.drag-handle svg {
+  width: 100%;
+  height: 100%;
+}
+
 .status-dot {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   border: 2px solid;
   display: flex;
@@ -922,8 +1450,8 @@ onMounted(() => {
 }
 
 .dot-inner {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
 }
 
@@ -933,10 +1461,10 @@ onMounted(() => {
 }
 
 .item-title {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-weight: 600;
   color: #f1f5f9;
-  margin: 0 0 0.25rem;
+  margin: 0 0 0.2rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -949,28 +1477,38 @@ onMounted(() => {
 
 .item-meta {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.375rem;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .status-badge {
-  font-size: 0.6rem;
+  font-size: 0.55rem;
   font-weight: 600;
-  padding: 0.15rem 0.4rem;
+  padding: 0.125rem 0.35rem;
   border-radius: 4px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
 
+.quarter-badge {
+  font-size: 0.55rem;
+  font-weight: 600;
+  padding: 0.125rem 0.35rem;
+  border-radius: 4px;
+  background: rgba(96, 165, 250, 0.15);
+  color: #60a5fa;
+}
+
 .token-estimate {
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   color: #a78bfa;
   font-weight: 500;
 }
 
 .item-chevron {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   color: #64748b;
   transition: transform 0.2s ease;
   flex-shrink: 0;
@@ -996,14 +1534,14 @@ onMounted(() => {
 }
 
 .edit-field {
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.625rem;
 }
 
 .edit-field label {
   display: block;
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   color: #64748b;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.2rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -1012,12 +1550,12 @@ onMounted(() => {
 .edit-field textarea,
 .edit-field select {
   width: 100%;
-  padding: 0.5rem 0.625rem;
+  padding: 0.45rem 0.5rem;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 6px;
   color: #f1f5f9;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-family: inherit;
 }
 
@@ -1030,12 +1568,12 @@ onMounted(() => {
 
 .edit-field textarea {
   resize: vertical;
-  min-height: 50px;
+  min-height: 45px;
 }
 
 .edit-row {
   display: flex;
-  gap: 0.75rem;
+  gap: 0.5rem;
 }
 
 .edit-row .edit-field {
@@ -1045,18 +1583,18 @@ onMounted(() => {
 .edit-actions {
   display: flex;
   justify-content: space-between;
-  margin-top: 0.75rem;
-  padding-top: 0.75rem;
+  margin-top: 0.625rem;
+  padding-top: 0.625rem;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .btn-delete {
-  padding: 0.4rem 0.75rem;
+  padding: 0.35rem 0.625rem;
   background: transparent;
   border: 1px solid rgba(239, 68, 68, 0.3);
   border-radius: 6px;
   color: #ef4444;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -1067,12 +1605,12 @@ onMounted(() => {
 
 .btn-done,
 .btn-save {
-  padding: 0.4rem 0.75rem;
+  padding: 0.35rem 0.625rem;
   background: #60a5fa;
   border: none;
   border-radius: 6px;
   color: #0a0a0f;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -1089,12 +1627,12 @@ onMounted(() => {
 }
 
 .btn-cancel {
-  padding: 0.4rem 0.75rem;
+  padding: 0.35rem 0.625rem;
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 6px;
   color: #94a3b8;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -1110,12 +1648,12 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  padding: 0.625rem;
+  padding: 0.5rem;
   background: transparent;
   border: 1px dashed rgba(255, 255, 255, 0.12);
   border-radius: 8px;
   color: #64748b;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -1127,8 +1665,8 @@ onMounted(() => {
 }
 
 .add-item-btn svg {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
 }
 
 /* Collapse animation */
@@ -1198,9 +1736,21 @@ onMounted(() => {
     min-width: calc(50% - 0.25rem);
   }
 
+  .quarter-bar {
+    flex-wrap: wrap;
+  }
+
+  .quarter-stat {
+    min-width: calc(50% - 0.1875rem);
+  }
+
   .edit-row {
     flex-direction: column;
     gap: 0;
+  }
+
+  .wins-list {
+    gap: 0.5rem;
   }
 }
 </style>
