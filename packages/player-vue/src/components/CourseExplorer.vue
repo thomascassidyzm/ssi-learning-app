@@ -833,14 +833,10 @@ const runPhase = async (phase, myCycleId) => {
     }
 
     case 'pause': {
-      const isIntroItem = item.type === 'intro'
+      // All items (including intro) continue to voice1 after pause
       scheduleTimer(() => {
         if (myCycleId === cycleId) {
-          if (isIntroItem) {
-            advanceToNextItem(myCycleId)
-          } else {
-            runPhase('voice1', myCycleId)
-          }
+          runPhase('voice1', myCycleId)
         }
       }, 1000)
       break
@@ -853,7 +849,14 @@ const runPhase = async (phase, myCycleId) => {
         try {
           await audioController.value.play({ url: voice1Url })
           if (myCycleId !== cycleId) return
-          runPhase('voice2', myCycleId)
+          // For intro items, add 1000ms pause between voice1 and voice2
+          if (item.type === 'intro') {
+            scheduleTimer(() => {
+              if (myCycleId === cycleId) runPhase('voice2', myCycleId)
+            }, 1000)
+          } else {
+            runPhase('voice2', myCycleId)
+          }
           return
         } catch (err) {
           if (myCycleId !== cycleId) return

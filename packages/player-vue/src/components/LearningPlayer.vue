@@ -1,5 +1,6 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, shallowRef, inject } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, shallowRef, inject, nextTick } from 'vue'
+import * as d3 from 'd3'
 import {
   CycleOrchestrator,
   AudioController,
@@ -949,6 +950,53 @@ const playedIntroductions = ref(new Set()) // LEGOs that have had their intro pl
 const isPlayingIntroduction = ref(false) // True when introduction audio is playing
 const introductionPhase = ref(false) // True during introduction phase (shows different UI)
 
+// ============================================
+// BRAIN NETWORK VISUALIZATION STATE
+// D3 force-directed graph showing growing LEGO network
+// ============================================
+const networkContainerRef = ref(null)
+let networkSvg = null
+let networkSimulation = null
+let networkZoomGroup = null
+let networkLinksLayer = null
+let networkNodesLayer = null
+let networkLabelsLayer = null
+
+// Network data
+const networkNodes = ref([]) // Array of LEGO nodes
+const networkLinks = ref([]) // Array of connections between nodes
+const introducedLegoIds = ref(new Set()) // LEGOs that have been introduced
+
+// Network visualization state
+const activeNodeId = ref(null) // Currently highlighted node (during intro)
+const pathAnimationNodes = ref([]) // Nodes in current path animation (during Voice 2)
+const isPathAnimating = ref(false)
+let pathAnimationTimers = []
+
+// Hero node scaling - fewer nodes = bigger nodes
+const heroNodeScale = computed(() => {
+  const count = networkNodes.value.length
+  if (count <= 3) return 2.5
+  if (count <= 8) return 1.8
+  if (count <= 15) return 1.3
+  return 1
+})
+
+// Belt color palette for network
+const getNetworkPalette = (belt = 'white') => {
+  const palettes = {
+    white: { glow: '#ffffff', node: '#ffffff30', link: '#ffffff20' },
+    yellow: { glow: '#fbbf24', node: '#fbbf2430', link: '#fbbf2420' },
+    orange: { glow: '#f97316', node: '#f9731630', link: '#f9731620' },
+    green: { glow: '#22c55e', node: '#22c55e30', link: '#22c55e20' },
+    blue: { glow: '#3b82f6', node: '#3b82f630', link: '#3b82f620' },
+    purple: { glow: '#a855f7', node: '#a855f730', link: '#a855f720' },
+    brown: { glow: '#a8856c', node: '#a8856c30', link: '#a8856c20' },
+    black: { glow: '#fbbf24', node: '#fbbf2430', link: '#fbbf2420' },
+  }
+  return palettes[belt] || palettes.white
+}
+
 // Welcome audio state (plays once on first course load)
 const welcomeChecked = ref(false) // True after we've checked welcome status
 const isPlayingWelcome = ref(false) // True when welcome audio is playing
@@ -1212,6 +1260,16 @@ const handleCycleEvent = (event) => {
             break
           case CyclePhase.VOICE_2:
             markPhaseTransition('VOICE_2')
+            // Trigger network path animation during Voice 2
+            const currentItemForPath = useRoundBasedPlayback.value
+              ? currentPlayableItem.value
+              : sessionItems.value[currentItemIndex.value]
+            if (currentItemForPath) {
+              const legoIds = extractLegoIdsFromPhrase(currentItemForPath)
+              if (legoIds.length > 0) {
+                animateNetworkPath(legoIds)
+              }
+            }
             break
           case CyclePhase.PROMPT:
             // New PROMPT = new cycle, start timing
@@ -1675,6 +1733,11 @@ const playIntroductionAudioDirectly = async (scriptItem) => {
 
     // Success - mark as played so it won't repeat this session
     playedIntroductions.value.add(legoId)
+
+    // Add LEGO node to the brain network visualization
+    const targetText = playable.lego?.lego?.target || scriptItem?.targetText || ''
+    const knownText = playable.lego?.lego?.known || scriptItem?.knownText || ''
+    addNetworkNode(legoId, targetText, knownText, currentBelt.value?.name || 'white')
 
     // Cleanup
     isPlayingIntroduction.value = false
@@ -2395,6 +2458,358 @@ const handleExit = () => {
 }
 
 // ============================================
+// BRAIN NETWORK VISUALIZATION FUNCTIONS
+// ============================================
+
+// Initialize the D3 network visualization
+const initializeNetwork = () => {
+  if (!networkContainerRef.value) return
+
+  const container = networkContainerRef.value
+  const width = container.clientWidth
+  const height = container.clientHeight
+
+  // Clear any existing SVG
+  d3.select(container).selectAll('svg').remove()
+
+  // Create SVG
+  networkSvg = d3.select(container)
+    .append('svg')
+    .attr('width', '100%')
+    .attr('height', '100%')
+    .attr('viewBox', `0 0 ${width} ${height}`)
+
+  // Add defs for filters
+  const defs = networkSvg.append('defs')
+
+  // Glow filter
+  const glowFilter = defs.append('filter')
+    .attr('id', 'network-glow')
+    .attr('x', '-50%')
+    .attr('y', '-50%')
+    .attr('width', '200%')
+    .attr('height', '200%')
+
+  glowFilter.append('feGaussianBlur')
+    .attr('stdDeviation', '4')
+    .attr('result', 'coloredBlur')
+
+  const feMerge = glowFilter.append('feMerge')
+  feMerge.append('feMergeNode').attr('in', 'coloredBlur')
+  feMerge.append('feMergeNode').attr('in', 'SourceGraphic')
+
+  // Create zoom group
+  networkZoomGroup = networkSvg.append('g').attr('class', 'zoom-group')
+
+  // Create layers (order matters for z-index)
+  networkLinksLayer = networkZoomGroup.append('g').attr('class', 'links-layer')
+  networkNodesLayer = networkZoomGroup.append('g').attr('class', 'nodes-layer')
+  networkLabelsLayer = networkZoomGroup.append('g').attr('class', 'labels-layer')
+
+  // Initialize force simulation
+  networkSimulation = d3.forceSimulation()
+    .force('link', d3.forceLink().id(d => d.id).distance(100).strength(0.3))
+    .force('charge', d3.forceManyBody().strength(-300).distanceMax(400))
+    .force('center', d3.forceCenter(width / 2, height / 2))
+    .force('collision', d3.forceCollide().radius(30))
+    .on('tick', onNetworkTick)
+
+  // Add zoom behavior
+  const zoom = d3.zoom()
+    .scaleExtent([0.3, 3])
+    .on('zoom', (event) => {
+      networkZoomGroup.attr('transform', event.transform)
+    })
+
+  networkSvg.call(zoom)
+
+  // Center the view
+  networkSvg.call(zoom.transform, d3.zoomIdentity.translate(width / 2, height / 2).scale(0.8).translate(-width / 2, -height / 2))
+
+  console.log('[LearningPlayer] Network initialized')
+}
+
+// Tick function for force simulation
+const onNetworkTick = () => {
+  if (!networkLinksLayer || !networkNodesLayer || !networkLabelsLayer) return
+
+  networkLinksLayer.selectAll('.network-link')
+    .attr('x1', d => d.source.x)
+    .attr('y1', d => d.source.y)
+    .attr('x2', d => d.target.x)
+    .attr('y2', d => d.target.y)
+
+  networkNodesLayer.selectAll('.network-node')
+    .attr('transform', d => `translate(${d.x},${d.y})`)
+
+  networkLabelsLayer.selectAll('.network-label')
+    .attr('transform', d => `translate(${d.x},${d.y})`)
+}
+
+// Add a new LEGO node to the network
+const addNetworkNode = (legoId, targetText, knownText, beltColor = 'white') => {
+  // Check if already exists
+  if (networkNodes.value.find(n => n.id === legoId)) return
+
+  const container = networkContainerRef.value
+  if (!container) return
+
+  const width = container.clientWidth
+  const height = container.clientHeight
+
+  // Position new nodes near center with slight randomization
+  const newNode = {
+    id: legoId,
+    targetText,
+    knownText,
+    belt: beltColor,
+    x: width / 2 + (Math.random() - 0.5) * 100,
+    y: height / 2 + (Math.random() - 0.5) * 100,
+    isNew: true, // Flag for intro animation
+  }
+
+  networkNodes.value.push(newNode)
+  introducedLegoIds.value.add(legoId)
+
+  // Update the visualization
+  updateNetworkVisualization()
+
+  // Set as active for intro highlight
+  activeNodeId.value = legoId
+
+  // Clear the "new" flag after animation
+  setTimeout(() => {
+    newNode.isNew = false
+    activeNodeId.value = null
+    updateNetworkVisualization()
+  }, 1500)
+}
+
+// Add a connection between two LEGOs
+const addNetworkLink = (sourceId, targetId) => {
+  // Check if both nodes exist
+  const sourceExists = networkNodes.value.find(n => n.id === sourceId)
+  const targetExists = networkNodes.value.find(n => n.id === targetId)
+  if (!sourceExists || !targetExists) return
+
+  // Check if link already exists
+  const linkExists = networkLinks.value.find(l =>
+    (l.source === sourceId || l.source.id === sourceId) &&
+    (l.target === targetId || l.target.id === targetId)
+  )
+  if (linkExists) return
+
+  networkLinks.value.push({ source: sourceId, target: targetId })
+  updateNetworkVisualization()
+}
+
+// Update the D3 visualization
+const updateNetworkVisualization = () => {
+  if (!networkSvg || !networkSimulation) return
+
+  const palette = getNetworkPalette(currentBelt.value?.name || 'white')
+  const scale = heroNodeScale.value
+
+  // Update links
+  const linkSelection = networkLinksLayer.selectAll('.network-link')
+    .data(networkLinks.value, d => `${d.source.id || d.source}-${d.target.id || d.target}`)
+
+  linkSelection.exit().remove()
+
+  linkSelection.enter()
+    .append('line')
+    .attr('class', 'network-link')
+    .attr('stroke', palette.link)
+    .attr('stroke-width', 1)
+    .attr('opacity', 0)
+    .transition()
+    .duration(500)
+    .attr('opacity', 0.6)
+
+  // Update nodes
+  const nodeSelection = networkNodesLayer.selectAll('.network-node')
+    .data(networkNodes.value, d => d.id)
+
+  nodeSelection.exit()
+    .transition()
+    .duration(300)
+    .attr('opacity', 0)
+    .remove()
+
+  const nodeEnter = nodeSelection.enter()
+    .append('g')
+    .attr('class', 'network-node')
+    .attr('transform', d => `translate(${d.x},${d.y})`)
+
+  // Outer glow
+  nodeEnter.append('circle')
+    .attr('class', 'node-glow')
+    .attr('r', 0)
+    .attr('fill', 'none')
+    .attr('stroke', d => getNetworkPalette(d.belt).glow)
+    .attr('stroke-width', 2)
+    .attr('filter', 'url(#network-glow)')
+    .transition()
+    .duration(800)
+    .attr('r', 20 * scale)
+
+  // Core circle
+  nodeEnter.append('circle')
+    .attr('class', 'node-core')
+    .attr('r', 0)
+    .attr('fill', d => getNetworkPalette(d.belt).node)
+    .attr('stroke', d => getNetworkPalette(d.belt).glow)
+    .attr('stroke-width', 1.5)
+    .transition()
+    .duration(600)
+    .attr('r', 12 * scale)
+
+  // Inner dot
+  nodeEnter.append('circle')
+    .attr('class', 'node-inner')
+    .attr('r', 0)
+    .attr('fill', d => getNetworkPalette(d.belt).glow)
+    .attr('opacity', 0.8)
+    .transition()
+    .delay(200)
+    .duration(400)
+    .attr('r', 4 * scale)
+
+  // Update existing nodes
+  const allNodes = nodeSelection.merge(nodeEnter)
+
+  // Highlight active node (during intro)
+  allNodes.select('.node-glow')
+    .attr('stroke-width', d => d.id === activeNodeId.value ? 4 : 2)
+    .attr('opacity', d => d.id === activeNodeId.value ? 1 : 0.6)
+
+  // Highlight path animation nodes
+  allNodes.classed('path-active', d => pathAnimationNodes.value.includes(d.id))
+
+  // Update labels
+  const labelSelection = networkLabelsLayer.selectAll('.network-label')
+    .data(networkNodes.value, d => d.id)
+
+  labelSelection.exit().remove()
+
+  const labelEnter = labelSelection.enter()
+    .append('g')
+    .attr('class', 'network-label')
+    .attr('transform', d => `translate(${d.x},${d.y})`)
+    .style('opacity', 0)
+    .style('pointer-events', 'none')
+
+  // Label background
+  labelEnter.append('rect')
+    .attr('class', 'label-bg')
+    .attr('rx', 4)
+    .attr('ry', 4)
+    .attr('fill', 'rgba(10, 10, 15, 0.9)')
+
+  // Label text
+  labelEnter.append('text')
+    .attr('class', 'label-text')
+    .attr('y', -25 * scale)
+    .attr('text-anchor', 'middle')
+    .attr('fill', d => getNetworkPalette(d.belt).glow)
+    .attr('font-family', "'DM Sans', sans-serif")
+    .attr('font-size', '12px')
+    .attr('font-weight', '500')
+    .text(d => d.targetText)
+
+  // Size background to fit text
+  labelEnter.each(function(d) {
+    const g = d3.select(this)
+    const textEl = g.select('.label-text').node()
+    if (textEl) {
+      const bbox = textEl.getBBox()
+      g.select('.label-bg')
+        .attr('x', bbox.x - 6)
+        .attr('y', bbox.y - 3)
+        .attr('width', bbox.width + 12)
+        .attr('height', bbox.height + 6)
+    }
+  })
+
+  // Show labels only for active/path nodes
+  const allLabels = labelSelection.merge(labelEnter)
+  allLabels.style('opacity', d =>
+    d.id === activeNodeId.value || pathAnimationNodes.value.includes(d.id) ? 1 : 0
+  )
+
+  // Update simulation
+  networkSimulation.nodes(networkNodes.value)
+  networkSimulation.force('link').links(networkLinks.value)
+  networkSimulation.alpha(0.3).restart()
+}
+
+// Animate path through network during Voice 2
+const animateNetworkPath = (legoIds) => {
+  if (!legoIds || legoIds.length === 0) return
+
+  // Clear previous animation
+  clearPathAnimationTimers()
+  pathAnimationNodes.value = []
+  isPathAnimating.value = true
+
+  // Animate each node in sequence
+  const delay = 200 // ms between each node
+  legoIds.forEach((legoId, index) => {
+    const timer = setTimeout(() => {
+      pathAnimationNodes.value = [...pathAnimationNodes.value, legoId]
+
+      // Add links between consecutive nodes
+      if (index > 0) {
+        addNetworkLink(legoIds[index - 1], legoId)
+      }
+
+      updateNetworkVisualization()
+    }, index * delay)
+
+    pathAnimationTimers.push(timer)
+  })
+
+  // Clear animation after sequence completes
+  const endTimer = setTimeout(() => {
+    isPathAnimating.value = false
+    // Keep nodes highlighted briefly, then fade
+    setTimeout(() => {
+      pathAnimationNodes.value = []
+      updateNetworkVisualization()
+    }, 800)
+  }, legoIds.length * delay + 500)
+
+  pathAnimationTimers.push(endTimer)
+}
+
+// Clear path animation timers
+const clearPathAnimationTimers = () => {
+  pathAnimationTimers.forEach(t => clearTimeout(t))
+  pathAnimationTimers = []
+}
+
+// Extract LEGO IDs from a practice phrase (for path animation)
+const extractLegoIdsFromPhrase = (item) => {
+  // Try to get containsLegos from the phrase
+  if (item?.phrase?.containsLegos) {
+    return item.phrase.containsLegos
+  }
+
+  // Fallback: try to match words against known LEGOs
+  // This is a simplified version - real implementation would use proper decomposition
+  const targetText = item?.phrase?.phrase?.target || item?.knownText || ''
+  const legoIds = []
+
+  networkNodes.value.forEach(node => {
+    if (targetText.toLowerCase().includes(node.targetText?.toLowerCase())) {
+      legoIds.push(node.id)
+    }
+  })
+
+  return legoIds
+}
+
+// ============================================
 // LIFECYCLE
 // ============================================
 
@@ -2421,6 +2836,11 @@ onMounted(async () => {
 
   // Initialize belt progress (loads from localStorage)
   initializeBeltProgress()
+
+  // Initialize brain network visualization (after DOM is ready)
+  nextTick(() => {
+    initializeNetwork()
+  })
 
   // Track data loading state
   let dataReady = false
@@ -2844,6 +3264,9 @@ onUnmounted(() => {
     <div class="space-gradient"></div>
     <div class="space-nebula"></div>
     <div class="bg-noise"></div>
+
+    <!-- Brain Network Visualization Layer -->
+    <div ref="networkContainerRef" class="brain-network-container"></div>
 
     <!-- Static Star Field - Deep space backdrop -->
     <div class="star-field">
@@ -3411,6 +3834,115 @@ onUnmounted(() => {
   z-index: 1;
   opacity: 0.6;
   transition: background 1s ease;
+}
+
+/* ============ BRAIN NETWORK VISUALIZATION ============ */
+.brain-network-container {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.brain-network-container svg {
+  width: 100%;
+  height: 100%;
+  pointer-events: all;
+}
+
+/* Network links (edges) */
+.brain-network-container :deep(.network-link) {
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-width: 1;
+  fill: none;
+  transition: stroke 0.5s ease, stroke-width 0.3s ease, opacity 0.5s ease;
+}
+
+.brain-network-container :deep(.network-link.active) {
+  stroke: var(--belt-color, #c23a3a);
+  stroke-width: 2;
+  opacity: 1;
+  filter: drop-shadow(0 0 4px var(--belt-color, #c23a3a));
+}
+
+/* Network nodes */
+.brain-network-container :deep(.network-node) {
+  transition: r 0.5s ease, opacity 0.5s ease;
+}
+
+.brain-network-container :deep(.network-node.hero) {
+  animation: network-node-pulse 2s ease-in-out infinite;
+}
+
+.brain-network-container :deep(.network-node.active) {
+  filter: drop-shadow(0 0 12px var(--belt-color, #c23a3a));
+}
+
+/* Node labels */
+.brain-network-container :deep(.network-label) {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  fill: rgba(255, 255, 255, 0.8);
+  text-anchor: middle;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.brain-network-container :deep(.network-label.visible) {
+  opacity: 1;
+}
+
+.brain-network-container :deep(.network-label.active) {
+  fill: white;
+  font-weight: 600;
+  opacity: 1;
+  filter: drop-shadow(0 0 4px var(--belt-color, #c23a3a));
+}
+
+/* Animations */
+@keyframes network-node-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 8px var(--belt-color, #c23a3a));
+    transform: scale(1);
+  }
+  50% {
+    filter: drop-shadow(0 0 20px var(--belt-color, #c23a3a));
+    transform: scale(1.1);
+  }
+}
+
+@keyframes network-node-intro {
+  0% {
+    r: 0;
+    opacity: 0;
+    filter: drop-shadow(0 0 0px var(--belt-color, #c23a3a));
+  }
+  50% {
+    r: 20;
+    opacity: 1;
+    filter: drop-shadow(0 0 30px var(--belt-color, #c23a3a));
+  }
+  100% {
+    r: 8;
+    opacity: 0.8;
+    filter: drop-shadow(0 0 8px var(--belt-color, #c23a3a));
+  }
+}
+
+@keyframes network-path-fire {
+  0% {
+    stroke-dashoffset: 100;
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0.8;
+  }
 }
 
 /* Light theme adjustments for space elements */
