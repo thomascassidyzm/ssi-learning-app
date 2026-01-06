@@ -47,7 +47,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['startLearning', 'viewJourney', 'selectCourse', 'openExplorer'])
+const emit = defineEmits(['startLearning', 'viewJourney', 'selectCourse', 'openExplorer', 'openProject'])
 
 // Course selector state
 const showCourseSelector = ref(false)
@@ -267,6 +267,17 @@ const openCourseSelector = () => {
           <svg class="browse-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M9 18l6-6-6-6"/>
           </svg>
+        </button>
+      </section>
+
+      <!-- Dev Tools Link (visible during development) -->
+      <section class="dev-section">
+        <button class="dev-link" @click="$emit('openProject')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 20h9"/>
+            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+          </svg>
+          <span>Project Dashboard</span>
         </button>
       </section>
     </main>
@@ -808,6 +819,40 @@ const openCourseSelector = () => {
   height: 20px;
   color: var(--text-muted);
   flex-shrink: 0;
+}
+
+/* Dev Section */
+.dev-section {
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.dev-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: 1px dashed var(--border-subtle);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-family: 'Space Mono', monospace;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  opacity: 0.6;
+}
+
+.dev-link:hover {
+  opacity: 1;
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-glow);
+}
+
+.dev-link svg {
+  width: 14px;
+  height: 14px;
 }
 
 /* Safe Area */

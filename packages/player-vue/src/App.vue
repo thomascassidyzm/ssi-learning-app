@@ -293,6 +293,13 @@ onMounted(async () => {
   // Clear stale caches on new deploy
   invalidateStaleCaches()
 
+  // Check URL params for direct navigation (e.g., ?screen=project)
+  const urlParams = new URLSearchParams(window.location.search)
+  const screenParam = urlParams.get('screen')
+  if (screenParam && ['project', 'explorer', 'network', 'settings'].includes(screenParam)) {
+    currentScreen.value = screenParam
+  }
+
   // Check if launched from Schools with class context
   const hasClassContext = checkClassContext()
   if (hasClassContext) {
@@ -356,6 +363,7 @@ onMounted(async () => {
         @openSettings="openSettings"
         @selectCourse="handleCourseSelect"
         @openExplorer="openExplorer"
+        @openProject="openProject"
       />
     </Transition>
 
