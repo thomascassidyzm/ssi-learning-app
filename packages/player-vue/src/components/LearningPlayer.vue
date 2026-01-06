@@ -2021,16 +2021,34 @@ const startPlayback = async () => {
 
 /**
  * SKIP - Jump to start of NEXT round
+ * IMPORTANT: Must fully halt all audio before advancing
  */
 const handleSkip = async () => {
-  // Skip any playing intro/welcome first
-  if (isPlayingIntroduction.value) skipIntroduction()
-  if (isPlayingWelcome.value) skipWelcome()
+  console.log('[LearningPlayer] Skip requested - halting all audio')
+
+  // 1. HALT EVERYTHING - stop orchestrator first (prevents new events)
+  if (orchestrator.value) {
+    orchestrator.value.stop()
+  }
+
+  // 2. Stop audio controller (stops current playback)
+  if (audioController.value) {
+    audioController.value.stop()
+  }
+
+  // 3. Skip any playing intro/welcome
+  if (isPlayingIntroduction.value) {
+    skipIntroduction()
+  }
+  if (isPlayingWelcome.value) {
+    skipWelcome()
+  }
+
+  // 4. Small delay to let audio fully stop and clear buffers
+  await new Promise(resolve => setTimeout(resolve, 50))
 
   // Round-based navigation
   if (useRoundBasedPlayback.value && cachedRounds.value.length) {
-    audioController.value?.stop()
-
     const nextIndex = currentRoundIndex.value + 1
     if (nextIndex >= cachedRounds.value.length) {
       console.log('[LearningPlayer] Skip: Already at last round')
@@ -2095,16 +2113,34 @@ const handleSkip = async () => {
 
 /**
  * REVISIT - Go back to start of current round, or previous round if already at start
+ * IMPORTANT: Must fully halt all audio before navigating
  */
 const handleRevisit = async () => {
-  // Skip any playing intro/welcome first
-  if (isPlayingIntroduction.value) skipIntroduction()
-  if (isPlayingWelcome.value) skipWelcome()
+  console.log('[LearningPlayer] Revisit requested - halting all audio')
+
+  // 1. HALT EVERYTHING - stop orchestrator first (prevents new events)
+  if (orchestrator.value) {
+    orchestrator.value.stop()
+  }
+
+  // 2. Stop audio controller (stops current playback)
+  if (audioController.value) {
+    audioController.value.stop()
+  }
+
+  // 3. Skip any playing intro/welcome
+  if (isPlayingIntroduction.value) {
+    skipIntroduction()
+  }
+  if (isPlayingWelcome.value) {
+    skipWelcome()
+  }
+
+  // 4. Small delay to let audio fully stop and clear buffers
+  await new Promise(resolve => setTimeout(resolve, 50))
 
   // Round-based navigation
   if (useRoundBasedPlayback.value && cachedRounds.value.length) {
-    audioController.value?.stop()
-
     // If we're past the first few items, go to start of current round
     // If already at start (item 0 or 1, since intro auto-advances to 1), go to previous round
     let targetIndex = currentRoundIndex.value
@@ -2171,6 +2207,7 @@ const handleRevisit = async () => {
  * Jump to a specific round by index (0-based)
  * For QA/Script View: allows jumping to any point in the course
  * Belt progress updates to match position (allows quick calibration)
+ * IMPORTANT: Must fully halt all audio before jumping
  */
 const jumpToRound = async (roundIndex) => {
   if (!useRoundBasedPlayback.value || !cachedRounds.value.length) {
@@ -2183,10 +2220,28 @@ const jumpToRound = async (roundIndex) => {
     return false
   }
 
-  // Stop any playing audio
-  if (isPlayingIntroduction.value) skipIntroduction()
-  if (isPlayingWelcome.value) skipWelcome()
-  audioController.value?.stop()
+  console.log('[LearningPlayer] Jump requested - halting all audio')
+
+  // 1. HALT EVERYTHING - stop orchestrator first (prevents new events)
+  if (orchestrator.value) {
+    orchestrator.value.stop()
+  }
+
+  // 2. Stop audio controller
+  if (audioController.value) {
+    audioController.value.stop()
+  }
+
+  // 3. Skip any playing intro/welcome
+  if (isPlayingIntroduction.value) {
+    skipIntroduction()
+  }
+  if (isPlayingWelcome.value) {
+    skipWelcome()
+  }
+
+  // 4. Small delay to let audio fully stop
+  await new Promise(resolve => setTimeout(resolve, 50))
 
   const previousIndex = currentRoundIndex.value
   currentRoundIndex.value = roundIndex
