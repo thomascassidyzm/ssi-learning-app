@@ -13,7 +13,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 // Cache configuration
 // Bump version when script generation logic or database schema changes
-const SCRIPT_KEY_PREFIX = 'ssi-script-v5-' // v5: fixed phrase loading - uses provider's internal client
+const SCRIPT_KEY_PREFIX = 'ssi-script-v6-' // v6: batched queries for intro audio (fix 400 errors on large courses)
 const AUDIO_CACHE_NAME = 'ssi-audio-v1'
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
 
@@ -300,6 +300,7 @@ export const lookupAudioLazy = async (
 
 // Load intro audio for LEGOs from lego_introductions table
 // Handles both v13 (presentation_audio_id → course_audio) and legacy (audio_uuid)
+// Uses batched queries to avoid Supabase URL length limits (400 error)
 export const loadIntroAudio = async (
   supabase: SupabaseClient,
   courseCode: string,
@@ -308,19 +309,30 @@ export const loadIntroAudio = async (
 ): Promise<void> => {
   if (legoIds.size === 0) return
 
-  try {
-    // Query lego_introductions
-    const { data: introData, error } = await supabase
-      .from('lego_introductions')
-      .select('lego_id, presentation_audio_id, audio_uuid')
-      .eq('course_code', courseCode)
-      .in('lego_id', [...legoIds])
+  const BATCH_SIZE = 100
+  const legoIdArray = [...legoIds]
 
-    if (error) {
-      console.warn('[ScriptCache] Could not load intro audio:', error)
-      return
+  try {
+    // Batch query lego_introductions to avoid URL length limits
+    let allIntroData: any[] = []
+    for (let i = 0; i < legoIdArray.length; i += BATCH_SIZE) {
+      const batchIds = legoIdArray.slice(i, i + BATCH_SIZE)
+      const { data: batchData, error } = await supabase
+        .from('lego_introductions')
+        .select('lego_id, presentation_audio_id, audio_uuid')
+        .eq('course_code', courseCode)
+        .in('lego_id', batchIds)
+
+      if (error) {
+        console.warn('[ScriptCache] Could not load intro audio batch:', error)
+        continue
+      }
+      if (batchData) {
+        allIntroData = allIntroData.concat(batchData)
+      }
     }
 
+    const introData = allIntroData
     if (!introData || introData.length === 0) {
       console.log('[ScriptCache] No intro audio found for LEGOs')
       return
@@ -330,18 +342,23 @@ export const loadIntroAudio = async (
     const v13Entries = introData.filter(i => i.presentation_audio_id)
     const legacyEntries = introData.filter(i => !i.presentation_audio_id && i.audio_uuid)
 
-    // Handle v13 entries: lookup s3_key from course_audio
+    // Handle v13 entries: lookup s3_key from course_audio (also batched)
     if (v13Entries.length > 0) {
       const audioIds = v13Entries.map(i => i.presentation_audio_id)
-      const { data: audioData } = await supabase
-        .from('course_audio')
-        .select('id, s3_key')
-        .in('id', audioIds)
-
       const s3KeyMap = new Map<string, string>()
-      for (const audio of (audioData || [])) {
-        if (audio.id && audio.s3_key) {
-          s3KeyMap.set(audio.id, audio.s3_key)
+
+      // Batch the course_audio queries
+      for (let i = 0; i < audioIds.length; i += BATCH_SIZE) {
+        const batchAudioIds = audioIds.slice(i, i + BATCH_SIZE)
+        const { data: audioData } = await supabase
+          .from('course_audio')
+          .select('id, s3_key')
+          .in('id', batchAudioIds)
+
+        for (const audio of (audioData || [])) {
+          if (audio.id && audio.s3_key) {
+            s3KeyMap.set(audio.id, audio.s3_key)
+          }
         }
       }
 

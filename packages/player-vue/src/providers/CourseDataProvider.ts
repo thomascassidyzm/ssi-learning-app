@@ -1323,32 +1323,52 @@ export async function generateLearningScript(
 
   // Load ALL intro/presentation audio for all LEGOs
   // This goes into the script so no separate queries during playback
+  // Batch queries to avoid URL length limits (Supabase returns 400 for very long URLs)
   const introAudioMap = new Map<string, { id: string; url: string }>()
   try {
     const legoIds = legos.map(l => l.lego.id)
-    const { data: introData } = await supabase
-      .from('lego_introductions')
-      .select('lego_id, audio_uuid, presentation_audio_id')
-      .eq('course_code', courseId)
-      .in('lego_id', legoIds)
 
+    // Batch lego_introductions queries in chunks of 100
+    const INTRO_BATCH_SIZE = 100
+    let allIntroData: any[] = []
+    for (let i = 0; i < legoIds.length; i += INTRO_BATCH_SIZE) {
+      const batchLegoIds = legoIds.slice(i, i + INTRO_BATCH_SIZE)
+      const { data: batchIntroData } = await supabase
+        .from('lego_introductions')
+        .select('lego_id, audio_uuid, presentation_audio_id')
+        .eq('course_code', courseId)
+        .in('lego_id', batchLegoIds)
+
+      if (batchIntroData) {
+        allIntroData = allIntroData.concat(batchIntroData)
+      }
+    }
+
+    const introData = allIntroData
     if (introData && introData.length > 0) {
       // Separate v13 (presentation_audio_id) from legacy (audio_uuid)
       const v13Entries = introData.filter((i: any) => i.presentation_audio_id)
       const legacyEntries = introData.filter((i: any) => !i.presentation_audio_id && i.audio_uuid)
 
       // v13: lookup s3_keys from course_audio
+      // Batch queries to avoid URL length limits (Supabase returns 400 for very long URLs)
       if (v13Entries.length > 0) {
         const audioIds = v13Entries.map((i: any) => i.presentation_audio_id)
-        const { data: audioData } = await supabase
-          .from('course_audio')
-          .select('id, s3_key')
-          .in('id', audioIds)
-
         const s3KeyMap = new Map<string, string>()
-        for (const audio of (audioData || [])) {
-          if (audio.id && audio.s3_key) {
-            s3KeyMap.set(audio.id, audio.s3_key)
+
+        // Batch in chunks of 100 to avoid URL length limits
+        const BATCH_SIZE = 100
+        for (let i = 0; i < audioIds.length; i += BATCH_SIZE) {
+          const batchIds = audioIds.slice(i, i + BATCH_SIZE)
+          const { data: audioData } = await supabase
+            .from('course_audio')
+            .select('id, s3_key')
+            .in('id', batchIds)
+
+          for (const audio of (audioData || [])) {
+            if (audio.id && audio.s3_key) {
+              s3KeyMap.set(audio.id, audio.s3_key)
+            }
           }
         }
 
