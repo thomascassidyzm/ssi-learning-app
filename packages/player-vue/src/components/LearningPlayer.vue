@@ -968,10 +968,14 @@ const networkLinks = ref([]) // Array of connections between nodes
 const introducedLegoIds = ref(new Set()) // LEGOs that have been introduced
 
 // Network visualization state
+const heroNodeId = ref(null) // The current LEGO being introduced/practiced (center of network)
 const activeNodeId = ref(null) // Currently highlighted node (during intro)
 const pathAnimationNodes = ref([]) // Nodes in current path animation (during Voice 2)
 const isPathAnimating = ref(false)
 let pathAnimationTimers = []
+
+// Network center point (where the ring/hero is)
+const networkCenter = ref({ x: 0, y: 0 })
 
 // Hero node scaling - fewer nodes = bigger nodes
 const heroNodeScale = computed(() => {
@@ -2461,13 +2465,16 @@ const handleExit = () => {
 // BRAIN NETWORK VISUALIZATION FUNCTIONS
 // ============================================
 
-// Initialize the D3 network visualization
+// Initialize the D3 network visualization - orbital layout around hero
 const initializeNetwork = () => {
   if (!networkContainerRef.value) return
 
   const container = networkContainerRef.value
   const width = container.clientWidth
   const height = container.clientHeight
+
+  // Center is slightly above screen center (where the ring typically is)
+  networkCenter.value = { x: width / 2, y: height * 0.45 }
 
   // Clear any existing SVG
   d3.select(container).selectAll('svg').remove()
@@ -2479,74 +2486,106 @@ const initializeNetwork = () => {
     .attr('height', '100%')
     .attr('viewBox', `0 0 ${width} ${height}`)
 
-  // Add defs for filters
+  // Add defs for filters and gradients
   const defs = networkSvg.append('defs')
 
   // Glow filter
   const glowFilter = defs.append('filter')
     .attr('id', 'network-glow')
-    .attr('x', '-50%')
-    .attr('y', '-50%')
-    .attr('width', '200%')
-    .attr('height', '200%')
+    .attr('x', '-100%')
+    .attr('y', '-100%')
+    .attr('width', '300%')
+    .attr('height', '300%')
 
   glowFilter.append('feGaussianBlur')
-    .attr('stdDeviation', '4')
+    .attr('stdDeviation', '6')
     .attr('result', 'coloredBlur')
 
   const feMerge = glowFilter.append('feMerge')
   feMerge.append('feMergeNode').attr('in', 'coloredBlur')
   feMerge.append('feMergeNode').attr('in', 'SourceGraphic')
 
-  // Create zoom group
-  networkZoomGroup = networkSvg.append('g').attr('class', 'zoom-group')
+  // Stronger glow for active nodes
+  const activeGlowFilter = defs.append('filter')
+    .attr('id', 'network-glow-active')
+    .attr('x', '-100%')
+    .attr('y', '-100%')
+    .attr('width', '300%')
+    .attr('height', '300%')
+
+  activeGlowFilter.append('feGaussianBlur')
+    .attr('stdDeviation', '12')
+    .attr('result', 'coloredBlur')
+
+  const activeMerge = activeGlowFilter.append('feMerge')
+  activeMerge.append('feMergeNode').attr('in', 'coloredBlur')
+  activeMerge.append('feMergeNode').attr('in', 'SourceGraphic')
 
   // Create layers (order matters for z-index)
-  networkLinksLayer = networkZoomGroup.append('g').attr('class', 'links-layer')
-  networkNodesLayer = networkZoomGroup.append('g').attr('class', 'nodes-layer')
-  networkLabelsLayer = networkZoomGroup.append('g').attr('class', 'labels-layer')
+  // Edges first (background), then nodes
+  networkLinksLayer = networkSvg.append('g').attr('class', 'links-layer')
+  networkNodesLayer = networkSvg.append('g').attr('class', 'nodes-layer')
+  networkLabelsLayer = networkSvg.append('g').attr('class', 'labels-layer')
 
-  // Initialize force simulation
+  // Initialize force simulation with orbital behavior
   networkSimulation = d3.forceSimulation()
-    .force('link', d3.forceLink().id(d => d.id).distance(100).strength(0.3))
-    .force('charge', d3.forceManyBody().strength(-300).distanceMax(400))
-    .force('center', d3.forceCenter(width / 2, height / 2))
-    .force('collision', d3.forceCollide().radius(30))
+    .force('link', d3.forceLink().id(d => d.id).distance(150).strength(0.2))
+    .force('charge', d3.forceManyBody().strength(-150).distanceMax(300))
+    // Radial force pushes non-hero nodes into orbital rings
+    .force('radial', d3.forceRadial(180, networkCenter.value.x, networkCenter.value.y).strength(d => d.id === heroNodeId.value ? 0 : 0.3))
+    .force('collision', d3.forceCollide().radius(25))
+    .alphaDecay(0.02)
     .on('tick', onNetworkTick)
 
-  // Add zoom behavior
-  const zoom = d3.zoom()
-    .scaleExtent([0.3, 3])
-    .on('zoom', (event) => {
-      networkZoomGroup.attr('transform', event.transform)
-    })
-
-  networkSvg.call(zoom)
-
-  // Center the view
-  networkSvg.call(zoom.transform, d3.zoomIdentity.translate(width / 2, height / 2).scale(0.8).translate(-width / 2, -height / 2))
-
-  console.log('[LearningPlayer] Network initialized')
+  console.log('[LearningPlayer] Network initialized with orbital layout')
 }
 
-// Tick function for force simulation
+// Tick function for force simulation - handles hero node specially
 const onNetworkTick = () => {
   if (!networkLinksLayer || !networkNodesLayer || !networkLabelsLayer) return
 
-  networkLinksLayer.selectAll('.network-link')
-    .attr('x1', d => d.source.x)
-    .attr('y1', d => d.source.y)
-    .attr('x2', d => d.target.x)
-    .attr('y2', d => d.target.y)
+  const center = networkCenter.value
 
+  // Pin hero node to center
+  networkNodes.value.forEach(node => {
+    if (node.id === heroNodeId.value) {
+      node.fx = center.x
+      node.fy = center.y
+      node.x = center.x
+      node.y = center.y
+    }
+  })
+
+  // Update edge positions - edges from hero connect to center
+  networkLinksLayer.selectAll('.network-link')
+    .attr('x1', d => {
+      const sourceId = d.source.id || d.source
+      return sourceId === heroNodeId.value ? center.x : d.source.x
+    })
+    .attr('y1', d => {
+      const sourceId = d.source.id || d.source
+      return sourceId === heroNodeId.value ? center.y : d.source.y
+    })
+    .attr('x2', d => {
+      const targetId = d.target.id || d.target
+      return targetId === heroNodeId.value ? center.x : d.target.x
+    })
+    .attr('y2', d => {
+      const targetId = d.target.id || d.target
+      return targetId === heroNodeId.value ? center.y : d.target.y
+    })
+
+  // Update satellite node positions (hero is not rendered - ring is its visual)
   networkNodesLayer.selectAll('.network-node')
     .attr('transform', d => `translate(${d.x},${d.y})`)
+    .style('display', d => d.id === heroNodeId.value ? 'none' : 'block')
 
   networkLabelsLayer.selectAll('.network-label')
     .attr('transform', d => `translate(${d.x},${d.y})`)
+    .style('display', d => d.id === heroNodeId.value ? 'none' : 'block')
 }
 
-// Add a new LEGO node to the network
+// Add a new LEGO node to the network - becomes the new hero (center)
 const addNetworkNode = (legoId, targetText, knownText, beltColor = 'white') => {
   // Check if already exists
   if (networkNodes.value.find(n => n.id === legoId)) return
@@ -2554,28 +2593,48 @@ const addNetworkNode = (legoId, targetText, knownText, beltColor = 'white') => {
   const container = networkContainerRef.value
   if (!container) return
 
-  const width = container.clientWidth
-  const height = container.clientHeight
+  const center = networkCenter.value
 
-  // Position new nodes near center with slight randomization
+  // Previous hero moves to orbit, new node becomes hero
+  const previousHero = heroNodeId.value
+
+  // Unpin previous hero so it can float to orbit
+  if (previousHero) {
+    const prevNode = networkNodes.value.find(n => n.id === previousHero)
+    if (prevNode) {
+      prevNode.fx = null
+      prevNode.fy = null
+    }
+  }
+
+  // New node starts at center (will be pinned as hero)
   const newNode = {
     id: legoId,
     targetText,
     knownText,
     belt: beltColor,
-    x: width / 2 + (Math.random() - 0.5) * 100,
-    y: height / 2 + (Math.random() - 0.5) * 100,
+    x: center.x,
+    y: center.y,
+    fx: center.x, // Pin to center
+    fy: center.y,
     isNew: true, // Flag for intro animation
   }
 
   networkNodes.value.push(newNode)
   introducedLegoIds.value.add(legoId)
 
+  // Set as new hero
+  heroNodeId.value = legoId
+  activeNodeId.value = legoId
+
+  // If there was a previous hero, create an edge to it
+  // (the first connection in the network)
+  if (previousHero && networkNodes.value.find(n => n.id === previousHero)) {
+    addNetworkLink(legoId, previousHero)
+  }
+
   // Update the visualization
   updateNetworkVisualization()
-
-  // Set as active for intro highlight
-  activeNodeId.value = legoId
 
   // Clear the "new" flag after animation
   setTimeout(() => {
@@ -2583,6 +2642,40 @@ const addNetworkNode = (legoId, targetText, knownText, beltColor = 'white') => {
     activeNodeId.value = null
     updateNetworkVisualization()
   }, 1500)
+
+  console.log(`[LearningPlayer] Added network node: ${legoId} (${targetText}) as hero`)
+}
+
+// Set a specific LEGO as the current hero (for practice phrases)
+const setNetworkHero = (legoId) => {
+  if (!legoId) return
+
+  const node = networkNodes.value.find(n => n.id === legoId)
+  if (!node) return
+
+  const center = networkCenter.value
+  const previousHero = heroNodeId.value
+
+  // Unpin previous hero
+  if (previousHero && previousHero !== legoId) {
+    const prevNode = networkNodes.value.find(n => n.id === previousHero)
+    if (prevNode) {
+      prevNode.fx = null
+      prevNode.fy = null
+    }
+  }
+
+  // Pin new hero to center
+  node.fx = center.x
+  node.fy = center.y
+  heroNodeId.value = legoId
+
+  // Restart simulation to reorganize
+  if (networkSimulation) {
+    networkSimulation.alpha(0.5).restart()
+  }
+
+  updateNetworkVisualization()
 }
 
 // Add a connection between two LEGOs
@@ -2609,6 +2702,7 @@ const updateNetworkVisualization = () => {
 
   const palette = getNetworkPalette(currentBelt.value?.name || 'white')
   const scale = heroNodeScale.value
+  const heroId = heroNodeId.value
 
   // Update links
   const linkSelection = networkLinksLayer.selectAll('.network-link')
@@ -2616,15 +2710,64 @@ const updateNetworkVisualization = () => {
 
   linkSelection.exit().remove()
 
-  linkSelection.enter()
+  const linkEnter = linkSelection.enter()
     .append('line')
     .attr('class', 'network-link')
-    .attr('stroke', palette.link)
-    .attr('stroke-width', 1)
+    .attr('stroke', palette.glow)
+    .attr('stroke-width', 1.5)
     .attr('opacity', 0)
-    .transition()
-    .duration(500)
-    .attr('opacity', 0.6)
+
+  linkEnter.transition()
+    .duration(800)
+    .attr('opacity', 0.4)
+
+  // Update all links - highlight those connected to hero or in active path
+  const allLinks = linkSelection.merge(linkEnter)
+
+  allLinks
+    .attr('stroke', d => {
+      const sourceId = d.source.id || d.source
+      const targetId = d.target.id || d.target
+      // Highlight if connected to hero
+      if (sourceId === heroId || targetId === heroId) {
+        return palette.glow
+      }
+      // Highlight if in path animation
+      if (pathAnimationNodes.value.includes(sourceId) && pathAnimationNodes.value.includes(targetId)) {
+        return palette.glow
+      }
+      return palette.link
+    })
+    .attr('stroke-width', d => {
+      const sourceId = d.source.id || d.source
+      const targetId = d.target.id || d.target
+      // Thicker for hero connections
+      if (sourceId === heroId || targetId === heroId) return 2.5
+      // Thicker for path animation
+      if (pathAnimationNodes.value.includes(sourceId) && pathAnimationNodes.value.includes(targetId)) return 2
+      return 1.5
+    })
+    .attr('opacity', d => {
+      const sourceId = d.source.id || d.source
+      const targetId = d.target.id || d.target
+      // Bright for hero connections
+      if (sourceId === heroId || targetId === heroId) return 0.8
+      // Bright for path animation
+      if (pathAnimationNodes.value.includes(sourceId) && pathAnimationNodes.value.includes(targetId)) return 0.9
+      return 0.3
+    })
+    .attr('filter', d => {
+      const sourceId = d.source.id || d.source
+      const targetId = d.target.id || d.target
+      // Glow for active paths
+      if (pathAnimationNodes.value.includes(sourceId) && pathAnimationNodes.value.includes(targetId)) {
+        return 'url(#network-glow-active)'
+      }
+      if (sourceId === heroId || targetId === heroId) {
+        return 'url(#network-glow)'
+      }
+      return 'none'
+    })
 
   // Update nodes
   const nodeSelection = networkNodesLayer.selectAll('.network-node')
@@ -4288,13 +4431,14 @@ onUnmounted(() => {
   opacity: 0;
 }
 
-/* ============ RING - THE HERO ============ */
+/* ============ HERO NODE - Brain Network Center ============ */
 .ring-container {
   position: relative;
   width: 200px;
   height: 200px;
   cursor: pointer;
   transition: transform 0.2s ease;
+  z-index: 10; /* Above network edges */
 }
 
 .ring-container:hover {
@@ -4305,33 +4449,55 @@ onUnmounted(() => {
   transform: scale(0.98);
 }
 
+/* Multi-layer glow for node effect */
 .ring-ambient {
   position: absolute;
   inset: -40px;
   border-radius: 50%;
-  background: radial-gradient(circle, var(--accent-soft) 0%, transparent 70%);
-  opacity: 0;
+  background: radial-gradient(circle, var(--belt-glow, var(--accent-soft)) 0%, transparent 70%);
+  opacity: 0.4;
   transition: opacity 0.5s ease;
 }
 
-/* Moonlight glow - always subtly present */
+/* Outer constellation glow - belt colored */
 .ring-container::before {
   content: '';
   position: absolute;
-  inset: -60px;
+  inset: -80px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 60%);
-  animation: moonlight-pulse 8s ease-in-out infinite;
+  background: radial-gradient(circle,
+    var(--belt-glow, rgba(194, 58, 58, 0.15)) 0%,
+    transparent 50%
+  );
+  animation: node-breathe 4s ease-in-out infinite;
   pointer-events: none;
 }
 
-@keyframes moonlight-pulse {
-  0%, 100% { opacity: 0.4; transform: scale(1); }
-  50% { opacity: 0.7; transform: scale(1.05); }
+/* Inner pulse ring */
+.ring-container::after {
+  content: '';
+  position: absolute;
+  inset: -20px;
+  border-radius: 50%;
+  border: 1px solid var(--belt-color, var(--accent));
+  opacity: 0.3;
+  animation: node-pulse-ring 3s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes node-breathe {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.1); }
+}
+
+@keyframes node-pulse-ring {
+  0% { transform: scale(0.9); opacity: 0.5; }
+  50% { transform: scale(1.2); opacity: 0; }
+  100% { transform: scale(0.9); opacity: 0; }
 }
 
 [data-theme="light"] .ring-container::before {
-  background: radial-gradient(circle, rgba(212, 168, 83, 0.1) 0%, transparent 60%);
+  background: radial-gradient(circle, var(--belt-glow, rgba(212, 168, 83, 0.15)) 0%, transparent 50%);
 }
 
 .ring-container.is-speak .ring-ambient {
@@ -4347,24 +4513,24 @@ onUnmounted(() => {
 .ring-svg {
   width: 100%;
   height: 100%;
-  filter: drop-shadow(0 4px 20px rgba(0,0,0,0.15));
+  filter: drop-shadow(0 0 12px var(--belt-glow, rgba(194, 58, 58, 0.4)));
 }
 
 .ring-track {
-  stroke: var(--border-medium);
-  opacity: 0.4;
+  stroke: var(--belt-color, var(--accent));
+  opacity: 0.2;
 }
 
 .ring-progress {
-  stroke: var(--accent);
+  stroke: var(--belt-color, var(--accent));
   stroke-linecap: round;
-  transition: stroke-dashoffset 0.05s linear; /* Super smooth */
-  filter: drop-shadow(0 0 8px var(--accent-glow));
+  transition: stroke-dashoffset 0.05s linear;
+  filter: drop-shadow(0 0 8px var(--belt-glow, var(--accent-glow)));
 }
 
 .ring-inner {
-  stroke: var(--border-subtle);
-  opacity: 0.3;
+  stroke: var(--belt-color, var(--accent));
+  opacity: 0.15;
 }
 
 .ring-center {
@@ -4375,17 +4541,31 @@ onUnmounted(() => {
   width: 120px;
   height: 120px;
   border-radius: 50%;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
+  background: radial-gradient(circle at 30% 30%,
+    var(--bg-elevated) 0%,
+    var(--bg-card) 50%,
+    rgba(10, 10, 15, 0.95) 100%
+  );
+  border: 2px solid var(--belt-color, var(--accent));
+  box-shadow:
+    0 0 20px var(--belt-glow, rgba(194, 58, 58, 0.3)),
+    inset 0 0 30px rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.3s ease;
 }
 
+/* Hero node when paused - ready to start */
 .ring-container.is-paused .ring-center {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: radial-gradient(circle at 30% 30%,
+    var(--belt-color, var(--accent)) 0%,
+    color-mix(in srgb, var(--belt-color, var(--accent)) 70%, black) 100%
+  );
+  border-color: var(--belt-color, var(--accent));
+  box-shadow:
+    0 0 40px var(--belt-glow, rgba(194, 58, 58, 0.5)),
+    inset 0 0 20px rgba(255, 255, 255, 0.1);
 }
 
 .play-indicator {
