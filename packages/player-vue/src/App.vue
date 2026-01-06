@@ -109,9 +109,9 @@ const handleNavigation = (screen) => {
 }
 
 const handleStartLearning = () => {
-  // If on Brain View (network), trigger playback mode instead of navigating
+  // If on Brain View (network), trigger replay mode instead of navigating
   if (currentScreen.value === 'network' && legoNetworkRef.value) {
-    legoNetworkRef.value.startPlayback()
+    legoNetworkRef.value.startReplay()
     isLearning.value = true
     return
   }
