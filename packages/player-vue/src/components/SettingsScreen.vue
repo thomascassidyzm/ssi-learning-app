@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, inject } from 'vue'
 
-const emit = defineEmits(['close', 'openProgressDemo', 'openExplorer', 'openNetwork'])
+const emit = defineEmits(['close', 'openProgressDemo', 'openExplorer', 'openNetwork', 'openProject'])
 
 const props = defineProps({
   course: {
@@ -383,6 +383,18 @@ const confirmReset = async () => {
             <div class="setting-info">
               <span class="setting-label">Progress Variations</span>
               <span class="setting-desc">Explore UX mockups for first 30 mins</span>
+            </div>
+            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row clickable" @click="$emit('openProject')">
+            <div class="setting-info">
+              <span class="setting-label">Project Dashboard</span>
+              <span class="setting-desc">Admin overview and project status</span>
             </div>
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6"/>
