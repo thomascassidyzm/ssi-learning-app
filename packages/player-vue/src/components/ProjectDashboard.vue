@@ -423,6 +423,7 @@ const cycleStatus = (item) => {
 .bg-gradient {
   position: fixed;
   inset: 0;
+  z-index: 0;
   background:
     radial-gradient(ellipse at 20% 0%, rgba(96, 165, 250, 0.08) 0%, transparent 50%),
     radial-gradient(ellipse at 80% 100%, rgba(167, 139, 250, 0.06) 0%, transparent 50%),
@@ -433,6 +434,7 @@ const cycleStatus = (item) => {
 .bg-grid {
   position: fixed;
   inset: 0;
+  z-index: 0;
   background-image:
     linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
@@ -443,6 +445,7 @@ const cycleStatus = (item) => {
 .bg-noise {
   position: fixed;
   inset: 0;
+  z-index: 0;
   opacity: 0.3;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
   pointer-events: none;
@@ -503,6 +506,8 @@ const cycleStatus = (item) => {
 
 /* Stats bar */
 .stats-bar {
+  position: relative;
+  z-index: 1;
   display: flex;
   gap: 0.5rem;
   padding: 1rem 1.5rem;
@@ -546,6 +551,8 @@ const cycleStatus = (item) => {
 
 /* Progress section */
 .progress-section {
+  position: relative;
+  z-index: 1;
   padding: 0 1.5rem 1rem;
   display: flex;
   align-items: center;
@@ -575,6 +582,8 @@ const cycleStatus = (item) => {
 
 /* Roadmap sections */
 .roadmap {
+  position: relative;
+  z-index: 1;
   padding: 0.5rem 1rem 6rem;
 }
 
