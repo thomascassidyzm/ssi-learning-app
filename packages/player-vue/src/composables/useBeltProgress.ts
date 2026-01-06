@@ -49,7 +49,7 @@ const APP_VERSION_KEY = 'ssi_app_version'
 
 // Increment this when you want to reset all user progress on deployment
 // This ensures belt status resets when cache is invalidated
-const CURRENT_APP_VERSION = '2025-01-06-v1'
+const CURRENT_APP_VERSION = '2025-01-06-v2'
 
 // ============================================================================
 // TYPES
