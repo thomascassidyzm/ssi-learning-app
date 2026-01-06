@@ -491,8 +491,7 @@ export class CourseDataProvider {
     if (!this.client) return null
 
     try {
-      // Query lego_introductions for presentation audio only
-      // Target audio comes from the LEGO's phrase data (already loaded)
+      // Query lego_introductions for presentation audio
       const { data, error } = await this.client
         .from('lego_introductions')
         .select('lego_id, audio_uuid, presentation_audio_id')
@@ -509,31 +508,36 @@ export class CourseDataProvider {
         return null
       }
 
-      // Legacy fallback: use audio_uuid if no presentation_audio_id
-      const presentationId = data.presentation_audio_id || data.audio_uuid
-      if (!presentationId) {
-        console.warn('[CourseDataProvider] No presentation audio ID for:', legoId)
-        return null
+      // v13: Use presentation_audio_id to lookup s3_key from course_audio
+      if (data.presentation_audio_id) {
+        const { data: audioData, error: audioError } = await this.client
+          .from('course_audio')
+          .select('id, s3_key, duration_ms, origin')
+          .eq('id', data.presentation_audio_id)
+          .maybeSingle()
+
+        if (!audioError && audioData?.s3_key) {
+          return {
+            id: audioData.id,
+            url: this.resolveAudioUrl(audioData.s3_key),
+            duration_ms: audioData.duration_ms,
+            origin: audioData.origin || 'tts',
+          }
+        }
       }
 
-      // Look up presentation audio from course_audio
-      const { data: audioData, error: audioError } = await this.client
-        .from('course_audio')
-        .select('id, s3_key, duration_ms, origin')
-        .eq('id', presentationId)
-        .maybeSingle()
-
-      if (audioError || !audioData?.s3_key) {
-        console.warn('[CourseDataProvider] Presentation audio lookup error:', audioError?.message)
-        return null
+      // Legacy: Use audio_uuid directly (raw UUID → mastered/{UUID}.mp3)
+      if (data.audio_uuid) {
+        const legacyUrl = `${this.audioBaseUrl.replace(/\/$/, '')}/mastered/${data.audio_uuid.toUpperCase()}.mp3`
+        return {
+          id: data.audio_uuid,
+          url: legacyUrl,
+          origin: 'human', // Legacy Welsh recordings are human
+        }
       }
 
-      return {
-        id: audioData.id,
-        url: this.resolveAudioUrl(audioData.s3_key),
-        duration_ms: audioData.duration_ms,
-        origin: audioData.origin || 'tts',
-      }
+      console.warn('[CourseDataProvider] No presentation audio for:', legoId)
+      return null
     } catch (err) {
       console.error('[CourseDataProvider] Error loading intro audio:', err)
       return null
@@ -1020,6 +1024,8 @@ export interface ScriptItem {
   }
   reviewOf?: number // For spaced_rep: which LEGO is being reviewed (1-based index)
   fibonacciPosition?: number // For spaced_rep: which Fibonacci position triggered this
+  // For INTRO items: presentation audio ("The Welsh for X is...")
+  presentationAudio?: { id: string; url: string }
 }
 
 /**
@@ -1315,6 +1321,66 @@ export async function generateLearningScript(
     audioBaseUrl
   )
 
+  // Load ALL intro/presentation audio for all LEGOs
+  // This goes into the script so no separate queries during playback
+  const introAudioMap = new Map<string, { id: string; url: string }>()
+  try {
+    const legoIds = legos.map(l => l.lego.id)
+    const { data: introData } = await supabase
+      .from('lego_introductions')
+      .select('lego_id, audio_uuid, presentation_audio_id')
+      .eq('course_code', courseId)
+      .in('lego_id', legoIds)
+
+    if (introData && introData.length > 0) {
+      // Separate v13 (presentation_audio_id) from legacy (audio_uuid)
+      const v13Entries = introData.filter((i: any) => i.presentation_audio_id)
+      const legacyEntries = introData.filter((i: any) => !i.presentation_audio_id && i.audio_uuid)
+
+      // v13: lookup s3_keys from course_audio
+      if (v13Entries.length > 0) {
+        const audioIds = v13Entries.map((i: any) => i.presentation_audio_id)
+        const { data: audioData } = await supabase
+          .from('course_audio')
+          .select('id, s3_key')
+          .in('id', audioIds)
+
+        const s3KeyMap = new Map<string, string>()
+        for (const audio of (audioData || [])) {
+          if (audio.id && audio.s3_key) {
+            s3KeyMap.set(audio.id, audio.s3_key)
+          }
+        }
+
+        for (const intro of v13Entries) {
+          const s3Key = s3KeyMap.get(intro.presentation_audio_id)
+          if (s3Key) {
+            let baseUrl = audioBaseUrl
+            if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1)
+            introAudioMap.set(intro.lego_id, {
+              id: intro.presentation_audio_id,
+              url: `${baseUrl}/${s3Key}`
+            })
+          }
+        }
+      }
+
+      // Legacy: use audio_uuid directly → mastered/{UUID}.mp3
+      for (const intro of legacyEntries) {
+        let baseUrl = audioBaseUrl
+        if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1)
+        introAudioMap.set(intro.lego_id, {
+          id: intro.audio_uuid,
+          url: `${baseUrl}/mastered/${intro.audio_uuid.toUpperCase()}.mp3`
+        })
+      }
+
+      console.log('[generateLearningScript] Loaded', introAudioMap.size, 'intro audio entries')
+    }
+  } catch (err) {
+    console.warn('[generateLearningScript] Failed to load intro audio:', err)
+  }
+
   const rounds: RoundData[] = []
   const allItems: ScriptItem[] = []
 
@@ -1383,9 +1449,12 @@ export async function generateLearningScript(
     }
 
     // Phase 1: Introduction Audio (not a phrase, doesn't count)
+    // Include presentation audio directly in the script item
+    const introAudio = introAudioMap.get(currentLego.lego.id)
     roundItems.push({
       ...baseItem,
       type: 'intro',
+      presentationAudio: introAudio, // Already resolved URL
     })
 
     // Phase 2: Components (for M-type LEGOs - skipped for now)

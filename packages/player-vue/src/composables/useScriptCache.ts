@@ -299,7 +299,7 @@ export const lookupAudioLazy = async (
 }
 
 // Load intro audio for LEGOs from lego_introductions table
-// v13 schema: presentation_audio_id points to course_audio.id
+// Handles both v13 (presentation_audio_id → course_audio) and legacy (audio_uuid)
 export const loadIntroAudio = async (
   supabase: SupabaseClient,
   courseCode: string,
@@ -309,7 +309,7 @@ export const loadIntroAudio = async (
   if (legoIds.size === 0) return
 
   try {
-    // Query lego_introductions for presentation audio IDs
+    // Query lego_introductions
     const { data: introData, error } = await supabase
       .from('lego_introductions')
       .select('lego_id, presentation_audio_id, audio_uuid')
@@ -326,45 +326,42 @@ export const loadIntroAudio = async (
       return
     }
 
-    // Get all presentation audio IDs to lookup s3_keys
-    const audioIds = introData
-      .map(i => i.presentation_audio_id || i.audio_uuid)
-      .filter(Boolean)
+    // Separate v13 (has presentation_audio_id) from legacy (only audio_uuid)
+    const v13Entries = introData.filter(i => i.presentation_audio_id)
+    const legacyEntries = introData.filter(i => !i.presentation_audio_id && i.audio_uuid)
 
-    if (audioIds.length === 0) {
-      console.log('[ScriptCache] No presentation audio IDs found')
-      return
-    }
+    // Handle v13 entries: lookup s3_key from course_audio
+    if (v13Entries.length > 0) {
+      const audioIds = v13Entries.map(i => i.presentation_audio_id)
+      const { data: audioData } = await supabase
+        .from('course_audio')
+        .select('id, s3_key')
+        .in('id', audioIds)
 
-    // Lookup s3_keys from course_audio
-    const { data: audioData, error: audioError } = await supabase
-      .from('course_audio')
-      .select('id, s3_key')
-      .in('id', audioIds)
-
-    if (audioError) {
-      console.warn('[ScriptCache] Could not lookup audio s3_keys:', audioError)
-      return
-    }
-
-    // Build lookup map: audio_id → s3_key
-    const s3KeyMap = new Map<string, string>()
-    for (const audio of (audioData || [])) {
-      if (audio.id && audio.s3_key) {
-        s3KeyMap.set(audio.id, audio.s3_key)
+      const s3KeyMap = new Map<string, string>()
+      for (const audio of (audioData || [])) {
+        if (audio.id && audio.s3_key) {
+          s3KeyMap.set(audio.id, audio.s3_key)
+        }
       }
-    }
 
-    // Store in audioMap with s3_key (not UUID)
-    for (const intro of introData) {
-      const audioId = intro.presentation_audio_id || intro.audio_uuid
-      const s3Key = s3KeyMap.get(audioId)
-      if (s3Key) {
-        audioMap.set(`intro:${intro.lego_id}`, { intro: s3Key })
+      for (const intro of v13Entries) {
+        const s3Key = s3KeyMap.get(intro.presentation_audio_id)
+        if (s3Key) {
+          audioMap.set(`intro:${intro.lego_id}`, { intro: s3Key })
+        }
       }
+      console.log('[ScriptCache] Loaded', v13Entries.length, 'intro audio entries (v13)')
     }
 
-    console.log('[ScriptCache] Loaded', introData.length, 'intro audio entries')
+    // Handle legacy entries: use audio_uuid directly (URL: mastered/{UUID}.mp3)
+    for (const intro of legacyEntries) {
+      audioMap.set(`intro:${intro.lego_id}`, { intro: intro.audio_uuid })
+    }
+    if (legacyEntries.length > 0) {
+      console.log('[ScriptCache] Loaded', legacyEntries.length, 'intro audio entries (legacy)')
+    }
+
   } catch (err) {
     console.warn('[ScriptCache] Intro audio load failed:', err)
   }
@@ -379,8 +376,20 @@ export function useScriptCache() {
   const currentCourseCode: Ref<string> = ref('')
 
   /**
+   * Build full URL from audio key (handles both v13 s3_key and legacy UUID)
+   */
+  const buildAudioUrl = (audioKey: string, audioBaseUrl: string): string => {
+    // v13: s3_key includes path (e.g., "mastered/UUID.mp3") - use as-is
+    if (audioKey.includes('/') || audioKey.endsWith('.mp3')) {
+      return `${audioBaseUrl}/${audioKey}`
+    }
+    // Legacy: raw UUID - build path as mastered/{UUID}.mp3
+    return `${audioBaseUrl}/mastered/${audioKey.toUpperCase()}.mp3`
+  }
+
+  /**
    * Get audio URL for a text/role combination
-   * v13: s3_key IS the actual S3 object key. Use as-is.
+   * Handles both v13 s3_keys and legacy UUIDs
    */
   const getAudioUrl = async (
     supabase: SupabaseClient | null,
@@ -393,8 +402,7 @@ export function useScriptCache() {
     if (role === 'intro' && item?.legoId) {
       const introEntry = audioMap.value.get(`intro:${item.legoId}`)
       if (introEntry?.intro) {
-        // s3_key is the actual S3 object key - use as-is
-        return `${audioBaseUrl}/${introEntry.intro}`
+        return buildAudioUrl(introEntry.intro, audioBaseUrl)
       }
       return null
     }
@@ -410,8 +418,7 @@ export function useScriptCache() {
 
     if (!audioKey) return null
 
-    // s3_key is the actual S3 object key - use as-is
-    return `${audioBaseUrl}/${audioKey}`
+    return buildAudioUrl(audioKey, audioBaseUrl)
   }
 
   return {

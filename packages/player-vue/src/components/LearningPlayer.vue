@@ -1310,7 +1310,7 @@ const handleCycleEvent = (event) => {
               if (introPlayable) {
                 currentPlayableItem.value = introPlayable
                 // Play intro audio and wait for completion
-                const introPlayed = await playIntroductionAudioDirectly(nextScriptItem.legoId)
+                const introPlayed = await playIntroductionAudioDirectly(nextScriptItem)
                 if (introPlayed) {
                   console.log('[LearningPlayer] INTRO complete, advancing to next item')
                 }
@@ -1552,7 +1552,8 @@ const playIntroductionIfNeeded = async (item) => {
  * - origin='human' (Welsh): Single pre-recorded file - play once
  * - origin='tts'/'ai': TTS sequence - presentation → pause → target1 → pause → target2
  */
-const playIntroductionAudioDirectly = async (legoId) => {
+const playIntroductionAudioDirectly = async (scriptItem) => {
+  const legoId = scriptItem?.legoId
   console.log('[LearningPlayer] playIntroductionAudioDirectly for:', legoId)
 
   // Skip if already played this session
@@ -1572,21 +1573,23 @@ const playIntroductionAudioDirectly = async (legoId) => {
   const target1Url = playable.lego?.audioRefs?.target?.voice1?.url
   const target2Url = playable.lego?.audioRefs?.target?.voice2?.url
 
-  // Get PRESENTATION audio - try preloaded cache first, then query lego_introductions
-  // This is the narration: "The Spanish for 'X', as in 'Y', is:"
-  // NOT the same as known.url which is just the prompt phrase
-  // Target audio (target1, target2) comes from the LEGO's phrase data - no need to query separately
-  const introItem = { legoId }
-  let presentationUrl = await getAudioUrlFromCache(
-    supabase.value,
-    '', // text not used for intro
-    'intro',
-    introItem // Just need legoId for intro lookup
-  )
+  // Get PRESENTATION audio - v13: use presentationAudio from script item (already resolved)
+  // This is the narration: "The Welsh for 'X' is..."
+  let presentationUrl = scriptItem?.presentationAudio?.url
 
-  // If not preloaded, query lego_introductions for presentation audio only
+  // Fallback: try audioMap cache (for backwards compatibility with cached scripts)
+  if (!presentationUrl) {
+    presentationUrl = await getAudioUrlFromCache(
+      supabase.value,
+      '', // text not used for intro
+      'intro',
+      { legoId }
+    )
+  }
+
+  // Last resort: query database directly
   if (!presentationUrl && courseDataProvider.value) {
-    console.log('[LearningPlayer] Presentation not preloaded, querying lego_introductions for:', legoId)
+    console.log('[LearningPlayer] Presentation not in script, querying database for:', legoId)
     const introAudio = await courseDataProvider.value.getIntroductionAudio(legoId)
     if (introAudio?.url) {
       presentationUrl = introAudio.url
@@ -1596,7 +1599,8 @@ const playIntroductionAudioDirectly = async (legoId) => {
   console.log('[LearningPlayer] Intro audio:', {
     presentation: presentationUrl ? 'YES' : 'NO',
     target1: target1Url ? 'YES' : 'NO',
-    target2: target2Url ? 'YES' : 'NO'
+    target2: target2Url ? 'YES' : 'NO',
+    fromScript: !!scriptItem?.presentationAudio?.url
   })
 
   // If no presentation audio, skip intro entirely
@@ -1709,6 +1713,12 @@ const playWelcomeIfNeeded = async () => {
   welcomeChecked.value = true
 
   try {
+    // If resuming beyond round 1, they've obviously already heard/skipped the welcome
+    if (currentRoundIndex.value > 0) {
+      console.log('[LearningPlayer] Resuming at round', currentRoundIndex.value + 1, '- skipping welcome')
+      return false
+    }
+
     // Check if learner has already heard the welcome (requires courseDataProvider)
     if (courseDataProvider.value) {
       const alreadyPlayed = await courseDataProvider.value.hasPlayedWelcome(learnerId.value)
@@ -1886,7 +1896,7 @@ const startPlayback = async () => {
       if (playableItem) {
         currentPlayableItem.value = playableItem
         // Play intro audio and wait for completion
-        await playIntroductionAudioDirectly(scriptItem.legoId)
+        await playIntroductionAudioDirectly(scriptItem)
         // Advance to next item in round (the DEBUT that follows)
         currentItemInRound.value++
         // Get and play the next item directly (don't call handleCycleEvent which would double-increment)
@@ -1987,7 +1997,7 @@ const handleSkip = async () => {
       // INTRO items: play introduction audio directly, then advance to next item
       if (firstItem.type === 'intro') {
         console.log('[LearningPlayer] Skip → Playing INTRO for:', firstItem.legoId)
-        const introPlayed = await playIntroductionAudioDirectly(firstItem.legoId)
+        const introPlayed = await playIntroductionAudioDirectly(firstItem)
         console.log('[LearningPlayer] Skip → intro played:', introPlayed)
         // Advance to next item (the DEBUT)
         currentItemInRound.value++
@@ -2060,7 +2070,7 @@ const handleRevisit = async () => {
       // INTRO items: play introduction audio directly, then advance to next item
       if (firstItem.type === 'intro') {
         console.log('[LearningPlayer] Revisit → Playing INTRO for:', firstItem.legoId)
-        const introPlayed = await playIntroductionAudioDirectly(firstItem.legoId)
+        const introPlayed = await playIntroductionAudioDirectly(firstItem)
         console.log('[LearningPlayer] Revisit → intro played:', introPlayed)
         // Advance to next item (the DEBUT)
         currentItemInRound.value++
@@ -2137,7 +2147,7 @@ const jumpToRound = async (roundIndex) => {
     // INTRO items: play introduction audio directly, then advance to next item
     if (firstItem.type === 'intro') {
       console.log('[LearningPlayer] Jump → Playing INTRO for:', firstItem.legoId)
-      const introPlayed = await playIntroductionAudioDirectly(firstItem.legoId)
+      const introPlayed = await playIntroductionAudioDirectly(firstItem)
       console.log('[LearningPlayer] Jump → intro played:', introPlayed)
       // Advance to next item (the DEBUT)
       currentItemInRound.value++
@@ -2535,10 +2545,10 @@ onMounted(async () => {
           })()
         )
 
-        // Task: Preload intro audio for first 5 LEGOs
+        // Task: Preload intro audio for ALL LEGOs
         if (supabase?.value) {
           const legoIds = new Set(
-            cachedRounds.value.slice(0, 5).map(r => r.legoId).filter(Boolean)
+            cachedRounds.value.map(r => r.legoId).filter(Boolean)
           )
           if (legoIds.size > 0) {
             parallelTasks.push(
@@ -2608,9 +2618,9 @@ onMounted(async () => {
 
             console.log('[LearningPlayer] Cached script for future use')
 
-            // Preload intro audio for first 5 LEGOs
+            // Preload intro audio for ALL LEGOs
             const legoIds = new Set(
-              rounds.slice(0, 5).map(r => r.legoId).filter(Boolean)
+              rounds.map(r => r.legoId).filter(Boolean)
             )
             if (legoIds.size > 0) {
               await loadIntroAudio(supabase.value, courseCode.value, legoIds, audioMap.value)

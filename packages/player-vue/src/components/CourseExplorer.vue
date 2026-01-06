@@ -6,6 +6,7 @@ import { generateLearningScript } from '../providers/CourseDataProvider'
 import {
   getCachedScript,
   setCachedScript,
+  loadIntroAudio,
 } from '../composables/useScriptCache'
 
 // ============================================================================
@@ -442,8 +443,8 @@ const loadScript = async (forceRefresh = false) => {
             }
           }
         }
-        if (legoIds.size > 0) {
-          loadIntroAudio(courseId, legoIds)
+        if (legoIds.size > 0 && supabase?.value) {
+          loadIntroAudio(supabase.value, courseId, legoIds, audioMap.value)
         }
         return
       }
@@ -476,7 +477,9 @@ const loadScript = async (forceRefresh = false) => {
         legoIds.add(item.legoId)
       }
     }
-    await loadIntroAudio(courseId, legoIds)
+    if (supabase?.value) {
+      await loadIntroAudio(supabase.value, courseId, legoIds, audioMap.value)
+    }
 
     scriptLoaded.value = true
     restorePositionFromLocalStorage()
@@ -612,46 +615,8 @@ const jumpToProgress = (event) => {
 }
 
 // ============================================================================
-// Audio Loading
+// Audio Loading - uses shared loadIntroAudio from useScriptCache
 // ============================================================================
-
-const loadIntroAudio = async (courseId, legoIds) => {
-  if (!supabase?.value || legoIds.size === 0) return
-
-  console.log('[CourseExplorer] Loading intro audio for', legoIds.size, 'LEGOs')
-
-  // Try v12 schema first
-  const { data: v12Data, error: v12Error } = await supabase.value
-    .from('course_audio')
-    .select('context, audio_id')
-    .eq('course_code', courseId)
-    .eq('role', 'presentation')
-    .in('context', [...legoIds])
-
-  if (!v12Error && v12Data && v12Data.length > 0) {
-    for (const intro of v12Data) {
-      if (intro.context && intro.audio_id) {
-        audioMap.value.set(`intro:${intro.context}`, { intro: intro.audio_id })
-      }
-    }
-    console.log('[CourseExplorer] Found', v12Data.length, 'intro audio entries (v12)')
-    return
-  }
-
-  // Fall back to legacy
-  const { data: introData, error: introError } = await supabase.value
-    .from('lego_introductions')
-    .select('lego_id, audio_uuid, course_code')
-    .eq('course_code', courseId)
-    .in('lego_id', [...legoIds])
-
-  if (!introError) {
-    for (const intro of (introData || [])) {
-      audioMap.value.set(`intro:${intro.lego_id}`, { intro: intro.audio_uuid })
-    }
-    console.log('[CourseExplorer] Found', introData?.length || 0, 'intro audio entries (legacy)')
-  }
-}
 
 /**
  * Lazy audio lookup using v13 schema (course_audio table)
