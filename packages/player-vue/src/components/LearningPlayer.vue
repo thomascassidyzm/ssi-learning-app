@@ -955,6 +955,7 @@ const introductionPhase = ref(false) // True during introduction phase (shows di
 // D3 force-directed graph showing growing LEGO network
 // ============================================
 const networkContainerRef = ref(null)
+const ringContainerRef = ref(null)
 let networkSvg = null
 let networkSimulation = null
 let networkZoomGroup = null
@@ -971,6 +972,7 @@ const introducedLegoIds = ref(new Set()) // LEGOs that have been introduced
 const heroNodeId = ref(null) // The current LEGO being introduced/practiced (center of network)
 const activeNodeId = ref(null) // Currently highlighted node (during intro)
 const pathAnimationNodes = ref([]) // Nodes in current path animation (during Voice 2)
+const resonatingNodes = ref([]) // M-LEGOs with partial word overlap (subtle "resonance" effect)
 const isPathAnimating = ref(false)
 let pathAnimationTimers = []
 
@@ -1272,6 +1274,12 @@ const handleCycleEvent = (event) => {
               const legoIds = extractLegoIdsFromPhrase(currentItemForPath)
               if (legoIds.length > 0) {
                 animateNetworkPath(legoIds)
+              }
+              // Find M-LEGOs with partial word overlap (resonance effect)
+              const resonating = findResonatingNodes(currentItemForPath, legoIds)
+              resonatingNodes.value = resonating
+              if (resonating.length > 0) {
+                console.log(`[Network] Resonating M-LEGOs (partial match):`, resonating)
               }
             }
             break
@@ -2536,8 +2544,20 @@ const initializeNetwork = () => {
   const width = container.clientWidth
   const height = container.clientHeight
 
-  // Center is slightly above screen center (where the ring typically is)
-  networkCenter.value = { x: width / 2, y: height * 0.45 }
+  // Find the actual ring center position on screen
+  // The ring is the hero node visual, so we orbit around it
+  if (ringContainerRef.value) {
+    const ringRect = ringContainerRef.value.getBoundingClientRect()
+    networkCenter.value = {
+      x: ringRect.left + ringRect.width / 2,
+      y: ringRect.top + ringRect.height / 2
+    }
+    console.log('[Network] Ring center found at:', networkCenter.value)
+  } else {
+    // Fallback to estimated center
+    networkCenter.value = { x: width / 2, y: height * 0.45 }
+    console.log('[Network] Using estimated center:', networkCenter.value)
+  }
 
   // Clear any existing SVG
   d3.select(container).selectAll('svg').remove()
@@ -2590,15 +2610,23 @@ const initializeNetwork = () => {
   networkNodesLayer = networkSvg.append('g').attr('class', 'nodes-layer')
   networkLabelsLayer = networkSvg.append('g').attr('class', 'labels-layer')
 
-  // Initialize force simulation with orbital behavior
+  // Calculate orbital radius based on ring size (larger than ring + some padding)
+  const orbitalRadius = ringContainerRef.value
+    ? Math.max(ringContainerRef.value.offsetWidth, ringContainerRef.value.offsetHeight) / 2 + 80
+    : 180
+
+  // Initialize force simulation with strong orbital behavior
   networkSimulation = d3.forceSimulation()
-    .force('link', d3.forceLink().id(d => d.id).distance(150).strength(0.2))
-    .force('charge', d3.forceManyBody().strength(-150).distanceMax(300))
-    // Radial force pushes non-hero nodes into orbital rings
-    .force('radial', d3.forceRadial(180, networkCenter.value.x, networkCenter.value.y).strength(d => d.id === heroNodeId.value ? 0 : 0.3))
-    .force('collision', d3.forceCollide().radius(25))
-    .alphaDecay(0.02)
+    .force('link', d3.forceLink().id(d => d.id).distance(100).strength(0.1))
+    .force('charge', d3.forceManyBody().strength(-80).distanceMax(200))
+    // Strong radial force pushes non-hero nodes into clean orbital ring
+    .force('radial', d3.forceRadial(orbitalRadius, networkCenter.value.x, networkCenter.value.y)
+      .strength(d => d.id === heroNodeId.value ? 0 : 0.8))
+    .force('collision', d3.forceCollide().radius(35))
+    .alphaDecay(0.03)
     .on('tick', onNetworkTick)
+
+  console.log('[Network] Orbital radius:', orbitalRadius)
 
   console.log('[LearningPlayer] Network initialized with orbital layout')
 }
@@ -2733,6 +2761,11 @@ const setNetworkHero = (legoId) => {
 
   // Restart simulation to reorganize
   if (networkSimulation) {
+    // Update radial force to use current center
+    const radialForce = networkSimulation.force('radial')
+    if (radialForce) {
+      radialForce.x(center.x).y(center.y)
+    }
     networkSimulation.alpha(0.5).restart()
   }
 
@@ -2955,6 +2988,10 @@ const updateNetworkVisualization = () => {
   // Highlight path animation nodes
   allNodes.classed('path-active', d => pathAnimationNodes.value.includes(d.id))
 
+  // Resonance effect for M-LEGOs with partial word overlap
+  // Subtle 30% opacity ring pulse for nodes that "resonate" with the phrase
+  allNodes.classed('resonating', d => resonatingNodes.value.includes(d.id))
+
   // Update labels
   const labelSelection = networkLabelsLayer.selectAll('.network-label')
     .data(networkNodes.value, d => d.id)
@@ -3006,7 +3043,12 @@ const updateNetworkVisualization = () => {
     d.id === activeNodeId.value || pathAnimationNodes.value.includes(d.id) ? 1 : 0
   )
 
-  // Update simulation
+  // Update simulation with current center
+  const center = networkCenter.value
+  const radialForce = networkSimulation.force('radial')
+  if (radialForce) {
+    radialForce.x(center.x).y(center.y)
+  }
   networkSimulation.nodes(networkNodes.value)
   networkSimulation.force('link').links(networkLinks.value)
   networkSimulation.alpha(0.3).restart()
@@ -3044,6 +3086,7 @@ const animateNetworkPath = (legoIds) => {
     // Keep nodes highlighted briefly, then fade
     setTimeout(() => {
       pathAnimationNodes.value = []
+      resonatingNodes.value = [] // Clear resonance effect too
       updateNetworkVisualization()
     }, 800)
   }, legoIds.length * delay + 500)
@@ -3093,6 +3136,37 @@ const extractLegoIdsFromPhrase = (item) => {
   )
 
   return existingIds
+}
+
+// Find M-LEGOs that have partial word overlap with the phrase (resonance effect)
+// These are LEGOs where some (but not all) words appear in the phrase
+const findResonatingNodes = (item, exactMatches) => {
+  const targetText = item?.phrase?.phrase?.target || item?.targetText || ''
+  if (!targetText) return []
+
+  const targetWords = targetText.toLowerCase().split(/\s+/).filter(w => w.length > 2)
+  const resonating = []
+
+  networkNodes.value.forEach(node => {
+    // Skip if already an exact match
+    if (exactMatches.includes(node.id)) return
+
+    // Check if this is an M-LEGO (multi-word)
+    const nodeWords = (node.targetText || '').toLowerCase().split(/\s+/).filter(w => w.length > 2)
+    if (nodeWords.length < 2) return // Only check M-LEGOs
+
+    // Check for partial word overlap
+    const matchingWords = nodeWords.filter(nw =>
+      targetWords.some(tw => tw.includes(nw) || nw.includes(tw))
+    )
+
+    // Resonance if some (but not all) words match
+    if (matchingWords.length > 0 && matchingWords.length < nodeWords.length) {
+      resonating.push(node.id)
+    }
+  })
+
+  return resonating
 }
 
 // ============================================
@@ -3701,6 +3775,7 @@ onUnmounted(() => {
 
       <!-- Central Ring - Tap to Stop/Play -->
       <div
+        ref="ringContainerRef"
         class="ring-container"
         @click="handleRingTap"
         :class="{
@@ -4163,6 +4238,24 @@ onUnmounted(() => {
 
 .brain-network-container :deep(.network-node.active) {
   filter: drop-shadow(0 0 12px var(--belt-color, #c23a3a));
+}
+
+/* Resonance effect for M-LEGOs with partial word overlap */
+/* Subtle 30% opacity ring pulse - "echo" of related concepts */
+.brain-network-container :deep(.network-node.resonating) .node-glow {
+  animation: resonance-pulse 1.2s ease-in-out infinite;
+  stroke-opacity: 0.3;
+}
+
+@keyframes resonance-pulse {
+  0%, 100% {
+    stroke-width: 2;
+    stroke-opacity: 0.3;
+  }
+  50% {
+    stroke-width: 4;
+    stroke-opacity: 0.5;
+  }
 }
 
 /* Node labels */
