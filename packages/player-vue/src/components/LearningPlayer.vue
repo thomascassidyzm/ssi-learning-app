@@ -2684,6 +2684,15 @@ const addNetworkNode = (legoId, targetText, knownText, beltColor = 'white') => {
   const container = networkContainerRef.value
   if (!container) return
 
+  // Recalculate center from ring's current position (layout may have changed)
+  if (ringContainerRef.value) {
+    const ringRect = ringContainerRef.value.getBoundingClientRect()
+    networkCenter.value = {
+      x: ringRect.left + ringRect.width / 2,
+      y: ringRect.top + ringRect.height / 2
+    }
+  }
+
   const center = networkCenter.value
 
   // Previous hero moves to orbit, new node becomes hero
