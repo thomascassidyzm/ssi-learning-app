@@ -916,6 +916,18 @@ const isPlaying = ref(false) // Start paused until engine ready
 
 // Layout mode: 'default' | 'subtitle' | 'floating' | 'minimal'
 const layoutMode = ref('subtitle')  // Try subtitle mode by default
+const layoutModes = ['default', 'subtitle', 'floating', 'minimal'] as const
+const layoutModeLabels: Record<string, string> = {
+  default: 'Card',
+  subtitle: 'Strip',
+  floating: 'Float',
+  minimal: 'Text'
+}
+function cycleLayoutMode() {
+  const currentIndex = layoutModes.indexOf(layoutMode.value as typeof layoutModes[number])
+  const nextIndex = (currentIndex + 1) % layoutModes.length
+  layoutMode.value = layoutModes[nextIndex]
+}
 const itemsPracticed = ref(0)
 const showSessionComplete = ref(false)
 
@@ -3571,6 +3583,16 @@ onUnmounted(() => {
       </div>
     </section>
 
+    <!-- Layout Mode Toggle - Small button to cycle through layouts -->
+    <button
+      class="layout-toggle-btn"
+      @click.stop="cycleLayoutMode"
+      :title="`Switch layout (${layoutModeLabels[layoutMode]})`"
+    >
+      <span class="layout-icon">◧</span>
+      <span class="layout-label">{{ layoutModeLabels[layoutMode] }}</span>
+    </button>
+
     <!-- Zoom controls removed - use pinch/scroll to zoom, drag to pan -->
 
     <!-- Hidden ring container for position reference (used by network centering) -->
@@ -4286,6 +4308,56 @@ onUnmounted(() => {
   bottom: 0; /* FULLSCREEN - extends to bottom */
   z-index: 5;
   pointer-events: none; /* Let events pass through to network below */
+}
+
+/* Layout Mode Toggle Button */
+.layout-toggle-btn {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: rgba(20, 20, 30, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.layout-toggle-btn:hover {
+  background: rgba(30, 30, 45, 0.85);
+  color: rgba(255, 255, 255, 0.9);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.layout-toggle-btn:active {
+  transform: scale(0.95);
+}
+
+.layout-toggle-btn .layout-icon {
+  font-size: 14px;
+  opacity: 0.7;
+}
+
+.layout-toggle-btn .layout-label {
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Adjust toggle position based on layout mode to avoid overlap */
+.player:has(.control-pane.layout-subtitle) .layout-toggle-btn,
+.player:has(.control-pane.layout-floating) .layout-toggle-btn,
+.player:has(.control-pane.layout-minimal) .layout-toggle-btn {
+  bottom: 80px;
 }
 
 .control-pane {
