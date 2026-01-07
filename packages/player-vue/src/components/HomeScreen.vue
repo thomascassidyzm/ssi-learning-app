@@ -211,41 +211,12 @@ const openCourseSelector = () => {
             </button>
             <button class="btn btn-ghost" @click.stop="handleViewJourney">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/>
-                <path d="M13 13l6 6"/>
+                <path d="M18 20V10"/>
+                <path d="M12 20V4"/>
+                <path d="M6 20v-6"/>
               </svg>
-              <span>View Journey</span>
+              <span>Stats</span>
             </button>
-          </div>
-        </div>
-      </section>
-
-      <!-- Quick Stats -->
-      <section class="stats-row">
-        <div class="stat-card">
-          <div class="stat-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-              <path d="M2 17l10 5 10-5"/>
-              <path d="M2 12l10 5 10-5"/>
-            </svg>
-          </div>
-          <div class="stat-content">
-            <span class="stat-value">{{ activeCourseData?.completedSeeds || 0 }}</span>
-            <span class="stat-label">Seeds Mastered</span>
-          </div>
-        </div>
-
-        <div class="stat-card">
-          <div class="stat-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <polyline points="12 6 12 12 16 14"/>
-            </svg>
-          </div>
-          <div class="stat-content">
-            <span class="stat-value">1.2h</span>
-            <span class="stat-label">This Week</span>
           </div>
         </div>
       </section>
@@ -600,62 +571,6 @@ const openCourseSelector = () => {
   transform: scale(0.98);
 }
 
-/* Stats Row */
-.stats-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.625rem;
-  margin-bottom: 1.75rem;
-}
-
-.stat-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 14px;
-  padding: 0.875rem 0.75rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.375rem;
-  text-align: center;
-}
-
-.stat-icon {
-  width: 26px;
-  height: 26px;
-  color: var(--text-muted);
-}
-
-.stat-icon.flame {
-  color: #ff9500;
-}
-
-.stat-icon svg {
-  width: 100%;
-  height: 100%;
-}
-
-.stat-content {
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-}
-
-.stat-value {
-  font-family: 'Space Mono', monospace;
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  letter-spacing: -0.01em;
-}
-
-.stat-label {
-  font-size: 0.5625rem;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
 /* Courses Section */
 .courses-section {
   margin-bottom: 2rem;
@@ -894,18 +809,6 @@ const openCourseSelector = () => {
   .btn-primary {
     flex: none;
   }
-
-  .stats-row {
-    gap: 0.5rem;
-  }
-
-  .stat-card {
-    padding: 0.75rem;
-  }
-
-  .stat-value {
-    font-size: 1.125rem;
-  }
 }
 
 @media (min-width: 768px) {
@@ -916,14 +819,6 @@ const openCourseSelector = () => {
 
   .greeting {
     font-size: 2rem;
-  }
-
-  .stats-row {
-    gap: 1rem;
-  }
-
-  .stat-card {
-    padding: 1.25rem;
   }
 }
 </style>
