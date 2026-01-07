@@ -1521,40 +1521,23 @@ const handleRingTap = () => {
 // Zoom controls for network view
 const handleZoomIn = () => {
   if (networkViewRef.value?.currentZoom) {
-    const currentZoom = networkViewRef.value.currentZoom.value || 1
-    const newZoom = Math.min(currentZoom * 1.3, 4)
-    zoomNetworkTo(newZoom)
+    const current = networkViewRef.value.currentZoom.value || 1
+    const newZoom = Math.min(current * 1.3, 4)
+    networkViewRef.value?.zoomTo(newZoom)
   }
 }
 
 const handleZoomOut = () => {
   if (networkViewRef.value?.currentZoom) {
-    const currentZoom = networkViewRef.value.currentZoom.value || 1
-    const newZoom = Math.max(currentZoom / 1.3, 0.3)
-    zoomNetworkTo(newZoom)
+    const current = networkViewRef.value.currentZoom.value || 1
+    const newZoom = Math.max(current / 1.3, 0.3)
+    networkViewRef.value?.zoomTo(newZoom)
   }
 }
 
 const handleZoomReset = () => {
-  zoomNetworkTo(1)
+  networkViewRef.value?.zoomTo(1)
   networkViewRef.value?.centerView(true)
-}
-
-const zoomNetworkTo = (targetZoom) => {
-  // Access the D3 zoom behavior through the network view
-  if (networkViewRef.value) {
-    const svg = networkViewRef.value.$el?.querySelector('svg')
-    if (svg && window.d3) {
-      const d3Svg = window.d3.select(svg)
-      const zoom = window.d3.zoomTransform(svg)
-      d3Svg.transition()
-        .duration(300)
-        .call(
-          window.d3.zoom().transform,
-          window.d3.zoomIdentity.translate(zoom.x, zoom.y).scale(targetZoom)
-        )
-    }
-  }
 }
 
 const handlePause = () => {
@@ -3228,6 +3211,7 @@ onUnmounted(() => {
       ref="networkViewRef"
       v-bind="networkViewProps"
       :resonating-node-ids="resonatingNodes"
+      :show-path-labels="showTargetText"
       class="brain-network-container"
       @node-tap="handleNetworkNodeTap"
     />

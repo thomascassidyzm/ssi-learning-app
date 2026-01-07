@@ -219,6 +219,12 @@ const props = defineProps({
     type: Array as PropType<string[]>,
     default: () => [],
   },
+  // Whether to show labels for nodes in the active path
+  // Set to true during voice_2 phase to reveal target text
+  showPathLabels: {
+    type: Boolean,
+    default: false,
+  },
 
   // Positioning
   center: {
@@ -269,6 +275,11 @@ const mergedConfig = computed<DistinctionNetworkConfig>(() => {
 const palette = computed(() => {
   return BELT_PALETTES[props.beltLevel as keyof typeof BELT_PALETTES] || BELT_PALETTES.white
 })
+
+// Helper to get palette for a specific node's introduction belt
+function getNodePalette(node: DistinctionNode) {
+  return BELT_PALETTES[node.belt as keyof typeof BELT_PALETTES] || BELT_PALETTES.white
+}
 
 // ============================================================================
 // REFS
@@ -392,6 +403,26 @@ function centerView(animate: boolean = false): void {
       .call(zoomBehavior.transform, transform)
   } else {
     svg.call(zoomBehavior.transform, transform)
+  }
+}
+
+/**
+ * Zoom to a specific level, maintaining current pan position
+ */
+function zoomTo(targetZoom: number, animate: boolean = true): void {
+  if (!svg || !zoomBehavior) return
+
+  const currentTransform = d3.zoomTransform(svg.node()!)
+  const newTransform = d3.zoomIdentity
+    .translate(currentTransform.x, currentTransform.y)
+    .scale(targetZoom)
+
+  if (animate) {
+    svg.transition()
+      .duration(300)
+      .call(zoomBehavior.transform, newTransform)
+  } else {
+    svg.call(zoomBehavior.transform, newTransform)
   }
 }
 
@@ -683,7 +714,7 @@ function renderNodes(): void {
     .attr('r', d => isHeroNode(d.id) ? config.baseRadius * 2.2 : config.baseRadius * 1.5)
     .attr('stroke', pal.hero)
 
-  // Update styling based on state
+  // Update styling based on state - use per-node belt colors
   nodeMerge.select('.node-glow')
     .transition()
     .duration(200)
@@ -700,7 +731,12 @@ function renderNodes(): void {
       return config.glowRadius
     })
     .attr('filter', d => (isNodeActive(d.id) || isHeroNode(d.id) || isNodeResonating(d.id)) ? 'url(#node-glow-active)' : 'url(#node-glow)')
-    .attr('fill', d => isHeroNode(d.id) ? pal.hero : pal.node.glow)
+    .attr('fill', d => {
+      if (isHeroNode(d.id)) return pal.hero
+      // Use the node's introduction belt color
+      const nodePal = getNodePalette(d)
+      return nodePal.node.glow
+    })
 
   nodeMerge.select('.node-core')
     .transition()
@@ -716,7 +752,9 @@ function renderNodes(): void {
       if (isHeroNode(d.id)) return pal.hero
       if (isNodeInPath(d.id)) return pal.edge.active
       if (isNodeResonating(d.id)) return pal.edge.active // Resonating nodes get highlighted stroke
-      return pal.node.stroke
+      // Use the node's introduction belt color
+      const nodePal = getNodePalette(d)
+      return nodePal.node.stroke
     })
     .attr('stroke-width', d => {
       if (isHeroNode(d.id)) return config.strokeWidth * 2
@@ -724,7 +762,12 @@ function renderNodes(): void {
       if (isNodeResonating(d.id)) return config.strokeWidth * 1.2
       return config.strokeWidth
     })
-    .attr('fill', d => isHeroNode(d.id) ? `${pal.hero}40` : pal.node.fill)
+    .attr('fill', d => {
+      if (isHeroNode(d.id)) return `${pal.hero}40`
+      // Use the node's introduction belt color
+      const nodePal = getNodePalette(d)
+      return nodePal.node.fill
+    })
 }
 
 function renderLabels(): void {
@@ -772,10 +815,11 @@ function renderLabels(): void {
     .attr('opacity', d => {
       // Hero node always shows label prominently
       if (isHeroNode(d.id)) return 1
-      // Always show labels for nodes in active path
-      if (isNodeInPath(d.id)) return 1
+      // Show labels for nodes in active path ONLY during voice_2 (showPathLabels)
+      if (isNodeInPath(d.id)) return props.showPathLabels ? 1 : 0
       // Selected node always shows label
       if (props.selectedNodeId === d.id) return 1
+      // Otherwise use zoom-based opacity
       return labelOpacity
     })
     .attr('font-weight', d => (isHeroNode(d.id) || isNodeInPath(d.id)) ? '600' : '400')
@@ -783,7 +827,9 @@ function renderLabels(): void {
     .attr('fill', d => {
       if (isHeroNode(d.id)) return pal.hero
       if (isNodeInPath(d.id)) return pal.edge.active
-      return pal.label
+      // Use the node's introduction belt color
+      const nodePal = getNodePalette(d)
+      return nodePal.label
     })
     .attr('dy', d => isHeroNode(d.id)
       ? config.baseRadius * 1.4 + config.labelOffset + 4  // More offset for larger hero node
@@ -1075,6 +1121,11 @@ watch(() => props.resonatingNodeIds, () => {
   renderNodes()
 }, { deep: true })
 
+// Update labels when showPathLabels changes (voice_2 reveal)
+watch(() => props.showPathLabels, () => {
+  renderLabels()
+})
+
 // Update palette when belt changes
 watch(() => props.beltLevel, () => {
   updateDefs()
@@ -1098,6 +1149,7 @@ watch(currentZoom, () => {
 defineExpose({
   updatePositions,
   centerView,
+  zoomTo,
   render,
   currentZoom,
   animatePulseAlongEdge,
