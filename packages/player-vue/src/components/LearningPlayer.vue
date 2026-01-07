@@ -2933,10 +2933,11 @@ onMounted(async () => {
 
         try {
           // Provider now contains all config - single source of truth
+          // Generate full course (1000 LEGOs covers most courses)
           const { rounds, allItems } = await generateLearningScript(
             courseDataProvider.value,
-            50, // maxLegos
-            0   // offset
+            1000, // maxLegos - full course
+            0     // offset
           )
 
           if (rounds.length > 0) {
