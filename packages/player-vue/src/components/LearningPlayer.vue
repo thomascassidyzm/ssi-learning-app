@@ -1518,6 +1518,45 @@ const handleRingTap = () => {
   }
 }
 
+// Zoom controls for network view
+const handleZoomIn = () => {
+  if (networkViewRef.value?.currentZoom) {
+    const currentZoom = networkViewRef.value.currentZoom.value || 1
+    const newZoom = Math.min(currentZoom * 1.3, 4)
+    zoomNetworkTo(newZoom)
+  }
+}
+
+const handleZoomOut = () => {
+  if (networkViewRef.value?.currentZoom) {
+    const currentZoom = networkViewRef.value.currentZoom.value || 1
+    const newZoom = Math.max(currentZoom / 1.3, 0.3)
+    zoomNetworkTo(newZoom)
+  }
+}
+
+const handleZoomReset = () => {
+  zoomNetworkTo(1)
+  networkViewRef.value?.centerView(true)
+}
+
+const zoomNetworkTo = (targetZoom) => {
+  // Access the D3 zoom behavior through the network view
+  if (networkViewRef.value) {
+    const svg = networkViewRef.value.$el?.querySelector('svg')
+    if (svg && window.d3) {
+      const d3Svg = window.d3.select(svg)
+      const zoom = window.d3.zoomTransform(svg)
+      d3Svg.transition()
+        .duration(300)
+        .call(
+          window.d3.zoom().transform,
+          window.d3.zoomIdentity.translate(zoom.x, zoom.y).scale(targetZoom)
+        )
+    }
+  }
+}
+
 const handlePause = () => {
   isPlaying.value = false
 
@@ -3305,13 +3344,10 @@ onUnmounted(() => {
       </TransitionGroup>
     </section>
 
-    <!-- CONTROL PANE - Text display and minimal controls -->
-    <section class="control-pane" :class="{ 'is-paused': !isPlaying }">
-      <!-- Phase indicator border (left edge color) -->
-      <div class="phase-border" :class="currentPhase"></div>
-
+    <!-- CONTROL PANE - Minimal text display, tap to play/pause -->
+    <section class="control-pane" :class="[currentPhase, { 'is-paused': !isPlaying }]" @click="handleRingTap">
       <!-- Text display area -->
-      <div class="pane-text" @click="handleRingTap">
+      <div class="pane-text">
         <!-- Known Language Text -->
         <div class="pane-text-known">
           <transition name="text-fade" mode="out-in">
@@ -3335,123 +3371,37 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Visual Phase Indicator - 4 quadrant arcs with center icon -->
-      <div class="phase-wheel" :class="[currentPhase, { paused: !isPlaying }]" @click="handleRingTap">
-        <svg class="phase-wheel-svg" viewBox="0 0 100 100">
-          <!-- 4 phase arcs (quadrants) -->
-          <defs>
-            <filter id="phase-glow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="2" result="blur"/>
-              <feMerge>
-                <feMergeNode in="blur"/>
-                <feMergeNode in="SourceGraphic"/>
-              </feMerge>
-            </filter>
-          </defs>
-
-          <!-- Phase 1: PROMPT (top-right) - Ear/Listen -->
-          <path
-            class="phase-arc phase-prompt"
-            :class="{ active: currentPhase === 'prompt' }"
-            d="M 50 10 A 40 40 0 0 1 90 50"
-            fill="none"
-            stroke-width="6"
-            stroke-linecap="round"
-          />
-
-          <!-- Phase 2: SPEAK (bottom-right) - Mouth/Speak -->
-          <path
-            class="phase-arc phase-speak"
-            :class="{ active: currentPhase === 'speak' }"
-            d="M 90 50 A 40 40 0 0 1 50 90"
-            fill="none"
-            stroke-width="6"
-            stroke-linecap="round"
-          />
-
-          <!-- Phase 3: VOICE_1 (bottom-left) - Ear/Listen again -->
-          <path
-            class="phase-arc phase-voice1"
-            :class="{ active: currentPhase === 'voice_1' }"
-            d="M 50 90 A 40 40 0 0 1 10 50"
-            fill="none"
-            stroke-width="6"
-            stroke-linecap="round"
-          />
-
-          <!-- Phase 4: VOICE_2 (top-left) - Eye/See -->
-          <path
-            class="phase-arc phase-voice2"
-            :class="{ active: currentPhase === 'voice_2' }"
-            d="M 10 50 A 40 40 0 0 1 50 10"
-            fill="none"
-            stroke-width="6"
-            stroke-linecap="round"
-          />
-
-          <!-- Progress arc for SPEAK phase countdown -->
-          <circle
-            v-if="currentPhase === 'speak'"
-            class="speak-progress"
-            cx="50" cy="50" r="40"
-            fill="none"
-            stroke-width="3"
-            :stroke-dasharray="251.33"
-            :stroke-dashoffset="251.33 - (ringProgress / 100) * 251.33"
-            transform="rotate(-90 50 50)"
-          />
+      <!-- Play button when paused -->
+      <div v-if="!isPlaying" class="pane-play-hint">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <polygon points="6 3 20 12 6 21 6 3"/>
         </svg>
-
-        <!-- Center icon - changes per phase -->
-        <div class="phase-center-icon">
-          <!-- Paused: Play button -->
-          <svg v-if="!isPlaying" class="icon-play" viewBox="0 0 24 24" fill="currentColor">
-            <polygon points="6 3 20 12 6 21 6 3"/>
-          </svg>
-
-          <!-- PROMPT: Ear (listen to known) -->
-          <svg v-else-if="currentPhase === 'prompt'" class="icon-ear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M6 10c0-4.418 3.582-8 8-8s8 3.582 8 8"/>
-            <path d="M6 10v4a6 6 0 0 0 6 6h0"/>
-            <path d="M18 10v2a4 4 0 0 1-4 4"/>
-            <circle cx="12" cy="20" r="2"/>
-          </svg>
-
-          <!-- SPEAK: Microphone (your turn) -->
-          <svg v-else-if="currentPhase === 'speak'" class="icon-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <rect x="9" y="2" width="6" height="11" rx="3"/>
-            <path d="M5 10v2a7 7 0 0 0 14 0v-2"/>
-            <line x1="12" y1="19" x2="12" y2="22"/>
-          </svg>
-
-          <!-- VOICE_1: Sound waves (listen to answer) -->
-          <svg v-else-if="currentPhase === 'voice_1'" class="icon-listen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"/>
-            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
-            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
-          </svg>
-
-          <!-- VOICE_2: Eye (see + hear) -->
-          <svg v-else-if="currentPhase === 'voice_2'" class="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-            <circle cx="12" cy="12" r="3" fill="currentColor"/>
-          </svg>
-        </div>
-      </div>
-
-      <!-- 4-Phase dots (minimal) -->
-      <div class="pane-phase-dots">
-        <div
-          v-for="(phase, idx) in ['prompt', 'speak', 'voice_1', 'voice_2']"
-          :key="phase"
-          class="pane-dot"
-          :class="{
-            active: currentPhase === phase,
-            complete: Object.values(Phase).indexOf(currentPhase) > idx
-          }"
-        ></div>
       </div>
     </section>
+
+    <!-- Zoom Controls (desktop only) -->
+    <div class="zoom-controls">
+      <button class="zoom-btn" @click="handleZoomIn" title="Zoom in">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/>
+          <path d="M21 21l-4.35-4.35"/>
+          <path d="M11 8v6M8 11h6"/>
+        </svg>
+      </button>
+      <button class="zoom-btn" @click="handleZoomOut" title="Zoom out">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/>
+          <path d="M21 21l-4.35-4.35"/>
+          <path d="M8 11h6"/>
+        </svg>
+      </button>
+      <button class="zoom-btn" @click="handleZoomReset" title="Reset view">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+          <path d="M3 3v5h5"/>
+        </svg>
+      </button>
+    </div>
 
     <!-- Hidden ring container for position reference (used by network centering) -->
     <div ref="ringContainerRef" class="ring-reference" style="display: none;"></div>
@@ -4165,66 +4115,135 @@ onUnmounted(() => {
 
 .control-pane {
   position: absolute;
-  bottom: 24px; /* Closer to bottom */
+  bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 15;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  padding: 0.75rem 1.25rem;
-  gap: 0.5rem;
-  /* True glassmorphism - much more transparent */
-  background: rgba(10, 10, 15, 0.45);
+  padding: 0.75rem 1.5rem;
+  gap: 1rem;
+  /* Minimal glassmorphism */
+  background: rgba(10, 10, 15, 0.5);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow:
-    0 4px 30px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  max-width: 85%;
-  width: auto;
-  min-width: 260px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  max-width: 90%;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-/* Phase indicator border on left edge */
-.phase-border {
+.control-pane:hover {
+  background: rgba(10, 10, 15, 0.6);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.control-pane:active {
+  transform: translateX(-50%) scale(0.98);
+}
+
+/* Phase color accent on border */
+.control-pane.prompt {
+  border-color: var(--accent);
+  box-shadow: 0 0 20px rgba(194, 58, 58, 0.2);
+}
+
+.control-pane.speak {
+  border-color: #ff6b6b;
+  box-shadow: 0 0 20px rgba(255, 107, 107, 0.25);
+}
+
+.control-pane.voice_1 {
+  border-color: #a855f7;
+  box-shadow: 0 0 20px rgba(168, 85, 247, 0.2);
+}
+
+.control-pane.voice_2 {
+  border-color: #3b82f6;
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
+}
+
+/* Play hint when paused */
+.pane-play-hint {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+.pane-play-hint svg {
+  width: 20px;
+  height: 20px;
+}
+
+.control-pane.is-paused {
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.control-pane.is-paused:hover .pane-play-hint {
+  opacity: 1;
+  color: var(--text-primary);
+}
+
+/* Zoom controls */
+.zoom-controls {
   position: absolute;
-  left: 0;
-  top: 10%;
-  bottom: 10%;
-  width: 4px;
-  border-radius: 0 4px 4px 0;
-  background: var(--border-medium);
-  transition: all 0.3s ease;
+  bottom: 100px;
+  right: 20px;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
 }
 
-.phase-border.prompt {
-  background: var(--accent);
-  box-shadow: 0 0 12px var(--accent-glow);
+.zoom-controls:hover {
+  opacity: 1;
 }
 
-.phase-border.speak {
-  background: #ff6b6b;
-  box-shadow: 0 0 16px rgba(255, 107, 107, 0.6);
-  animation: phase-pulse 1.5s ease-in-out infinite;
+.zoom-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(10, 10, 15, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
 }
 
-.phase-border.voice_1 {
-  background: #a855f7;
-  box-shadow: 0 0 12px rgba(168, 85, 247, 0.5);
+.zoom-btn:hover {
+  background: rgba(30, 30, 40, 0.8);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
-.phase-border.voice_2 {
-  background: #3b82f6;
-  box-shadow: 0 0 12px rgba(59, 130, 246, 0.5);
+.zoom-btn:active {
+  transform: scale(0.95);
 }
 
-@keyframes phase-pulse {
-  0%, 100% { opacity: 1; transform: scaleY(1); }
-  50% { opacity: 0.7; transform: scaleY(1.05); }
+.zoom-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Hide zoom controls on mobile (use pinch instead) */
+@media (max-width: 768px) {
+  .zoom-controls {
+    display: none;
+  }
 }
 
 /* Text display area */
@@ -4270,151 +4289,6 @@ onUnmounted(() => {
   opacity: 0;
 }
 
-/* Phase Wheel - Visual 4-Phase Indicator */
-.phase-wheel {
-  position: relative;
-  width: 80px;
-  height: 80px;
-  cursor: pointer;
-  transition: transform 0.2s ease;
-}
-
-.phase-wheel:hover {
-  transform: scale(1.05);
-}
-
-.phase-wheel:active {
-  transform: scale(0.98);
-}
-
-.phase-wheel.paused {
-  opacity: 0.7;
-}
-
-.phase-wheel-svg {
-  width: 100%;
-  height: 100%;
-}
-
-/* Phase arcs - dim by default */
-.phase-arc {
-  stroke: rgba(255, 255, 255, 0.15);
-  transition: all 0.3s ease;
-}
-
-/* Active phase arc glows */
-.phase-arc.active {
-  filter: url(#phase-glow);
-}
-
-.phase-arc.phase-prompt.active {
-  stroke: var(--accent);
-  filter: drop-shadow(0 0 8px var(--accent-glow));
-}
-
-.phase-arc.phase-speak.active {
-  stroke: #ff6b6b;
-  filter: drop-shadow(0 0 10px rgba(255, 107, 107, 0.7));
-  animation: arc-pulse 1s ease-in-out infinite;
-}
-
-.phase-arc.phase-voice1.active {
-  stroke: #a855f7;
-  filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.6));
-}
-
-.phase-arc.phase-voice2.active {
-  stroke: #3b82f6;
-  filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.6));
-}
-
-@keyframes arc-pulse {
-  0%, 100% { stroke-width: 6; opacity: 1; }
-  50% { stroke-width: 8; opacity: 0.8; }
-}
-
-/* Speak phase progress ring */
-.speak-progress {
-  stroke: rgba(255, 107, 107, 0.4);
-  stroke-linecap: round;
-  transition: stroke-dashoffset 0.1s linear;
-}
-
-/* Center icon container */
-.phase-center-icon {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.phase-center-icon svg {
-  width: 24px;
-  height: 24px;
-  transition: all 0.3s ease;
-}
-
-/* Icon colors per phase */
-.phase-wheel.paused .phase-center-icon svg {
-  color: var(--text-primary);
-}
-
-.phase-wheel.prompt .phase-center-icon svg {
-  color: var(--accent);
-}
-
-.phase-wheel.speak .phase-center-icon svg {
-  color: #ff6b6b;
-  animation: icon-pulse 1s ease-in-out infinite;
-}
-
-.phase-wheel.voice_1 .phase-center-icon svg {
-  color: #a855f7;
-}
-
-.phase-wheel.voice_2 .phase-center-icon svg {
-  color: #3b82f6;
-}
-
-@keyframes icon-pulse {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.1); opacity: 0.8; }
-}
-
-/* Play icon special styling */
-.icon-play {
-  color: var(--text-primary) !important;
-}
-
-/* Minimal phase dots */
-.pane-phase-dots {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 0.25rem;
-}
-
-.pane-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--border-medium);
-  transition: all 0.3s ease;
-}
-
-.pane-dot.active {
-  background: var(--belt-glow, var(--accent));
-  box-shadow: 0 0 8px var(--accent-glow);
-}
-
-.pane-dot.complete {
-  background: var(--success);
-}
-
 /* Hidden ring reference (for backwards compatibility) */
 .ring-reference {
   position: absolute;
@@ -4457,50 +4331,6 @@ onUnmounted(() => {
   gap: 1.5rem;
 }
 
-/* 4-Phase Dots */
-.phase-dots {
-  display: flex;
-  gap: 1rem;
-  margin-bottom: 0.5rem;
-}
-
-.phase-dot {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: var(--bg-card);
-  border: 2px solid var(--border-medium);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.3s ease;
-}
-
-.phase-dot svg {
-  width: 16px;
-  height: 16px;
-  color: var(--text-muted);
-  transition: all 0.3s ease;
-}
-
-.phase-dot.active {
-  background: var(--accent);
-  border-color: var(--accent);
-  box-shadow: 0 0 20px var(--accent-glow);
-}
-
-.phase-dot.active svg {
-  color: white;
-}
-
-.phase-dot.complete {
-  background: var(--success);
-  border-color: var(--success);
-}
-
-.phase-dot.complete svg {
-  color: white;
-}
 
 /* Text Zones - FIXED HEIGHT */
 .text-zone {
@@ -5302,20 +5132,6 @@ onUnmounted(() => {
   .target-text {
     font-size: 1.875rem;
   }
-
-  .phase-dots {
-    gap: 1.5rem;
-  }
-
-  .phase-dot {
-    width: 44px;
-    height: 44px;
-  }
-
-  .phase-dot svg {
-    width: 20px;
-    height: 20px;
-  }
 }
 
 @media (max-width: 480px) {
@@ -5378,20 +5194,6 @@ onUnmounted(() => {
 
   .text-zone {
     min-height: 60px;
-  }
-
-  .phase-dots {
-    gap: 0.75rem;
-  }
-
-  .phase-dot {
-    width: 32px;
-    height: 32px;
-  }
-
-  .phase-dot svg {
-    width: 14px;
-    height: 14px;
   }
 
   .control-bar {

@@ -95,7 +95,7 @@ const navigate = (screen, data = null) => {
 
 const goHome = () => navigate('home')
 const startLearning = (course) => navigate('player', course)
-const viewJourney = (course) => navigate('journey', course)
+const viewJourney = (course) => navigate('network', course)
 const openProfile = () => navigate('profile')
 const openSettings = () => navigate('settings')
 const openExplorer = () => navigate('explorer')
