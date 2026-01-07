@@ -1288,15 +1288,15 @@ const handleCycleEvent = (event) => {
             break
           case CyclePhase.VOICE_1:
             markPhaseTransition('VOICE_1')
-            // Start highlighting the path during Voice 1 (subtle glow, no text yet)
+            // Animate the path during Voice 1 (nodes + edges light up in sequence)
             const itemForVoice1 = useRoundBasedPlayback.value
               ? currentPlayableItem.value
               : sessionItems.value[currentItemIndex.value]
             if (itemForVoice1) {
               const legoIds = extractLegoIdsFromPhrase(itemForVoice1)
               if (legoIds.length > 0) {
-                // Set the path for highlighting (but don't animate yet)
-                network.setHighlightPath(legoIds)
+                // Animate the path with edge pulses
+                animateNetworkPath(legoIds)
               }
             }
             break
