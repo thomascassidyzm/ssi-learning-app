@@ -482,6 +482,10 @@ export function useDistinctionNetwork() {
    * Populate network from an array of rounds (for resume/backfill)
    * Adds all nodes up to a given round index
    * Each node gets its belt color based on when it was introduced
+   *
+   * Edges are created based on actual phrase co-occurrence:
+   * "fire together, wire together" - LEGOs that appear in the same
+   * practice phrase get connected, showing real language pathways.
    */
   function populateFromRounds(
     rounds: Array<{
@@ -502,6 +506,10 @@ export function useDistinctionNetwork() {
     const nodeCount = maxIndex + 1
     const orbitalRadius = Math.min(200 + nodeCount * 12, 500)
 
+    // First pass: add all nodes and collect their target text for co-occurrence matching
+    // Map of legoId → targetText (normalized for matching)
+    const legoTexts = new Map<string, string>()
+
     for (let i = 0; i <= maxIndex; i++) {
       const round = rounds[i]
       if (!round?.legoId) continue
@@ -515,6 +523,9 @@ export function useDistinctionNetwork() {
       )
       const targetText = introItem?.targetText || round.targetText || round.legoId
       const knownText = introItem?.knownText || round.knownText || ''
+
+      // Store normalized text for co-occurrence matching
+      legoTexts.set(round.legoId, targetText.toLowerCase())
 
       // Calculate belt based on introduction position (birth belt)
       const nodeBelt = getBeltForPosition(i)
@@ -550,19 +561,61 @@ export function useDistinctionNetwork() {
       setHero(heroRound.legoId, centerPosition)
     }
 
-    // Create edges between consecutive LEGOs (learning sequence)
-    // This shows the temporal order of learning
-    // NOTE: These are placeholder edges - real edges should come from
-    // actual phrase co-occurrence (pre-computed in database)
-    for (let i = 0; i < maxIndex; i++) {
-      const sourceId = rounds[i]?.legoId
-      const targetId = rounds[i + 1]?.legoId
-      if (sourceId && targetId && sourceId !== targetId) {
-        fireEdge(sourceId, targetId)
+    // Second pass: create edges based on actual phrase co-occurrence
+    // "fire together, wire together" - LEGOs that appear in the same phrase
+    // get directional edges showing the language pathway
+
+    // Track which LEGO pairs we've already connected to avoid duplicates
+    const connectedPairs = new Set<string>()
+
+    for (let roundIdx = 0; roundIdx <= maxIndex; roundIdx++) {
+      const round = rounds[roundIdx]
+      if (!round?.items) continue
+
+      // Look at each practice item in this round
+      for (const item of round.items) {
+        // Skip intro/debut items - they only have one LEGO
+        if (item.type === 'intro' || item.type === 'debut') continue
+
+        const phraseText = item.targetText?.toLowerCase()
+        if (!phraseText) continue
+
+        // Find which LEGOs' text appears in this phrase and where
+        // Only check LEGOs introduced up to this round (can't practice what you haven't learned)
+        const matchingLegos: Array<{ legoId: string, position: number }> = []
+
+        for (let j = 0; j <= roundIdx; j++) {
+          const legoId = rounds[j]?.legoId
+          const legoText = legoTexts.get(legoId)
+          if (legoId && legoText) {
+            const position = phraseText.indexOf(legoText)
+            if (position >= 0) {
+              matchingLegos.push({ legoId, position })
+            }
+          }
+        }
+
+        // Sort by position in phrase (left to right = temporal order in speech)
+        matchingLegos.sort((a, b) => a.position - b.position)
+
+        // Create edges between all co-occurring LEGOs (in phrase order)
+        // If phrase contains [A, B, C], create A→B, B→C
+        if (matchingLegos.length >= 2) {
+          for (let k = 0; k < matchingLegos.length - 1; k++) {
+            const sourceId = matchingLegos[k].legoId
+            const targetId = matchingLegos[k + 1].legoId
+            const pairKey = `${sourceId}→${targetId}`
+
+            if (!connectedPairs.has(pairKey) && sourceId !== targetId) {
+              fireEdge(sourceId, targetId)
+              connectedPairs.add(pairKey)
+            }
+          }
+        }
       }
     }
 
-    console.log(`[DistinctionNetwork] Populated ${nodes.value.length} nodes, ${edges.value.length} edges`)
+    console.log(`[DistinctionNetwork] Populated ${nodes.value.length} nodes, ${edges.value.length} edges (phrase co-occurrence)`)
   }
 
   /**

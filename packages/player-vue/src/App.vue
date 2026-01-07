@@ -84,6 +84,14 @@ const legoNetworkRef = ref(null)
 // Class context (when launched from Schools)
 const classContext = ref(null)
 
+// Preview mode: skip to a specific LEGO index via URL param ?preview=50
+const previewLegoIndex = computed(() => {
+  if (typeof window === 'undefined') return 0
+  const params = new URLSearchParams(window.location.search)
+  const preview = params.get('preview')
+  return preview ? parseInt(preview, 10) || 0 : 0
+})
+
 // Navigation functions
 const navigate = (screen, data = null) => {
   if (data) {
@@ -373,6 +381,7 @@ onMounted(async () => {
         v-if="currentScreen === 'player' && activeCourse"
         :classContext="classContext"
         :course="activeCourse"
+        :previewLegoIndex="previewLegoIndex"
         @close="handleGoHome"
       />
     </Transition>
