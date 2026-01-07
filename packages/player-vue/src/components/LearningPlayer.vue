@@ -3041,11 +3041,28 @@ onMounted(async () => {
 
   // Populate network with all LEGOs up to target position
   // Priority: previewLegoIndex prop > restored position > nothing
-  nextTick(() => {
+  nextTick(async () => {
     if (props.previewLegoIndex > 0) {
-      // Preview mode: show network up to specified LEGO index
-      console.log(`[LearningPlayer] Preview mode: populating network up to LEGO ${props.previewLegoIndex}`)
-      populateNetworkUpToRound(props.previewLegoIndex)
+      // Preview mode: show network up to specified LEGO index AND set playback position
+      const targetIndex = Math.min(props.previewLegoIndex, cachedRounds.value.length - 1)
+      console.log(`[LearningPlayer] Preview mode: populating network up to LEGO ${targetIndex}`)
+      populateNetworkUpToRound(targetIndex)
+
+      // Set playback position so hitting play continues from here
+      currentRoundIndex.value = targetIndex
+      currentItemInRound.value = 0
+
+      // Update belt to match preview position
+      updateBeltForPosition(targetIndex, false)
+
+      // Update display to show the preview LEGO's text
+      const previewItem = cachedRounds.value[targetIndex]?.items?.[0]
+      if (previewItem) {
+        const playable = await scriptItemToPlayableItem(previewItem)
+        if (playable) {
+          currentPlayableItem.value = playable
+        }
+      }
     } else if (currentRoundIndex.value > 0) {
       // Resuming: show network up to restored position
       populateNetworkUpToRound(currentRoundIndex.value)
@@ -3727,14 +3744,19 @@ onUnmounted(() => {
   position: fixed;
   inset: 0;
   z-index: 3;
-  pointer-events: none;
+  pointer-events: auto; /* Allow pan/zoom interactions */
   overflow: hidden;
 }
 
 .brain-network-container svg {
   width: 100%;
   height: 100%;
-  pointer-events: all;
+  pointer-events: auto;
+  cursor: grab;
+}
+
+.brain-network-container svg:active {
+  cursor: grabbing;
 }
 
 /* Network links (edges) */
@@ -3915,6 +3937,7 @@ onUnmounted(() => {
   justify-content: space-between;
   padding: 1rem 1.5rem;
   gap: 0.75rem;
+  pointer-events: auto; /* Header buttons clickable */
 }
 
 .header.has-banner {
@@ -4106,8 +4129,7 @@ onUnmounted(() => {
   right: 0;
   bottom: 0; /* FULLSCREEN - extends to bottom */
   z-index: 5;
-  pointer-events: all;
-  cursor: pointer;
+  pointer-events: none; /* Let events pass through to network below */
 }
 
 .control-pane {
@@ -4130,6 +4152,7 @@ onUnmounted(() => {
   border: 1px solid rgba(255, 255, 255, 0.06);
   max-width: 90%;
   cursor: pointer;
+  pointer-events: auto; /* Clickable despite parent being pointer-events: none */
   transition: all 0.2s ease;
 }
 
@@ -4198,6 +4221,7 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 0.5rem;
   opacity: 0.6;
+  pointer-events: auto; /* Clickable for zoom buttons */
   transition: opacity 0.2s ease;
 }
 
@@ -4896,6 +4920,7 @@ onUnmounted(() => {
   left: 50%;
   transform: translateX(-50%);
   z-index: 15;
+  pointer-events: auto; /* Clickable buttons */
   /* Glassmorphism */
   background: rgba(10, 10, 15, 0.35);
   backdrop-filter: blur(16px);
@@ -5008,6 +5033,7 @@ onUnmounted(() => {
   padding: 0 1.5rem 1.5rem;
   position: relative;
   z-index: 10;
+  pointer-events: auto; /* Progress bar clickable */
 }
 
 .progress-bar {

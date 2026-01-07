@@ -76,6 +76,29 @@ const CLUSTERING = {
                                 // 0.5 = square root (gradual), 1 = linear (aggressive)
 }
 
+// Belt thresholds - at which LEGO index each belt begins
+// This determines what color a node has based on when it was introduced
+const BELT_THRESHOLDS = [
+  { belt: 'black', threshold: 800 },
+  { belt: 'brown', threshold: 560 },
+  { belt: 'purple', threshold: 300 },
+  { belt: 'blue', threshold: 160 },
+  { belt: 'green', threshold: 80 },
+  { belt: 'orange', threshold: 40 },
+  { belt: 'yellow', threshold: 16 },
+  { belt: 'white', threshold: 0 },
+]
+
+/**
+ * Get belt color for a LEGO based on its introduction position
+ */
+function getBeltForPosition(position: number): string {
+  for (const { belt, threshold } of BELT_THRESHOLDS) {
+    if (position >= threshold) return belt
+  }
+  return 'white'
+}
+
 // ============================================================================
 // COMPOSABLE
 // ============================================================================
@@ -458,6 +481,7 @@ export function useDistinctionNetwork() {
   /**
    * Populate network from an array of rounds (for resume/backfill)
    * Adds all nodes up to a given round index
+   * Each node gets its belt color based on when it was introduced
    */
   function populateFromRounds(
     rounds: Array<{
@@ -468,7 +492,7 @@ export function useDistinctionNetwork() {
     }>,
     upToIndex: number,
     centerPosition: { x: number, y: number },
-    currentBelt: string = 'white'
+    _currentBelt: string = 'white' // deprecated, belt is now calculated per-node
   ): void {
     const maxIndex = Math.min(upToIndex, rounds.length - 1)
     console.log(`[DistinctionNetwork] Populating from rounds 0-${maxIndex}`)
@@ -492,6 +516,9 @@ export function useDistinctionNetwork() {
       const targetText = introItem?.targetText || round.targetText || round.legoId
       const knownText = introItem?.knownText || round.knownText || ''
 
+      // Calculate belt based on introduction position (birth belt)
+      const nodeBelt = getBeltForPosition(i)
+
       // Position: hero at center, others scattered with organic randomness
       let position: { x: number, y: number }
       if (i === maxIndex) {
@@ -514,7 +541,7 @@ export function useDistinctionNetwork() {
         }
       }
 
-      addNode(round.legoId, targetText, knownText, currentBelt, position)
+      addNode(round.legoId, targetText, knownText, nodeBelt, position)
     }
 
     // Set the last one as hero
