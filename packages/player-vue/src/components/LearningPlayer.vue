@@ -815,8 +815,8 @@ const updateBeltForPosition = (roundIndex, showCelebration = true) => {
 const handleRoundBoundary = async (completedRoundIndex, completedLegoId) => {
   roundsThisSession.value++
 
-  // Update belt progress to match current position
-  updateBeltForPosition(completedRoundIndex)
+  // Update belt progress to match current position (NO celebration during play - manual only)
+  updateBeltForPosition(completedRoundIndex, false)
 
   // ============================================
   // META-COMMENTARY: Instructions & Encouragements
@@ -1039,6 +1039,26 @@ const introducedLegoIds = computed(() => {
 
 // Additional state for resonance effect (M-LEGOs with partial word overlap)
 const resonatingNodes = ref([])
+
+// Hovered node state (for tooltip showing practice phrases)
+const hoveredNode = ref(null)
+const hoveredNodePhrases = computed(() => {
+  if (!hoveredNode.value) return []
+  // Find the round that introduced this LEGO
+  const legoId = hoveredNode.value.id
+  const roundIndex = cachedRounds.value.findIndex(r => r.legoId === legoId)
+  if (roundIndex < 0) return []
+  const round = cachedRounds.value[roundIndex]
+  if (!round?.items) return []
+  // Return all practice phrases from that round (exclude intro/debut)
+  return round.items
+    .filter(item => item.type !== 'intro' && item.type !== 'debut')
+    .map(item => ({
+      target: item.targetText || '',
+      known: item.knownText || ''
+    }))
+    .slice(0, 5) // Limit to 5 phrases
+})
 
 // Hero node scaling - fewer nodes = bigger nodes (for ring visual)
 const heroNodeScale = computed(() => {
@@ -2757,6 +2777,10 @@ const handleNetworkNodeTap = (node) => {
   // Future: could center on that node, show related phrases, etc.
 }
 
+const handleNetworkNodeHover = (node) => {
+  hoveredNode.value = node
+}
+
 // Extract LEGO IDs from a practice phrase (for path animation and edge creation)
 const extractLegoIdsFromPhrase = (item) => {
   const legoIds = new Set()
@@ -3339,7 +3363,24 @@ onUnmounted(() => {
       :show-path-labels="showTargetText"
       class="brain-network-container"
       @node-tap="handleNetworkNodeTap"
+      @node-hover="handleNetworkNodeHover"
     />
+
+    <!-- Node Hover Tooltip -->
+    <Transition name="tooltip-fade">
+      <div v-if="hoveredNode" class="node-hover-tooltip">
+        <div class="tooltip-header">
+          <span class="tooltip-target">{{ hoveredNode.targetText }}</span>
+          <span class="tooltip-known">{{ hoveredNode.knownText }}</span>
+        </div>
+        <div v-if="hoveredNodePhrases.length > 0" class="tooltip-phrases">
+          <div v-for="(phrase, i) in hoveredNodePhrases" :key="i" class="tooltip-phrase">
+            <span class="phrase-target">{{ phrase.target }}</span>
+            <span class="phrase-known">{{ phrase.known }}</span>
+          </div>
+        </div>
+      </div>
+    </Transition>
 
     <!-- Static Star Field - Deep space backdrop -->
     <div class="star-field">
@@ -3488,29 +3529,7 @@ onUnmounted(() => {
       </div>
     </section>
 
-    <!-- Zoom Controls (desktop only) -->
-    <div class="zoom-controls">
-      <button class="zoom-btn" @click="handleZoomIn" title="Zoom in">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8"/>
-          <path d="M21 21l-4.35-4.35"/>
-          <path d="M11 8v6M8 11h6"/>
-        </svg>
-      </button>
-      <button class="zoom-btn" @click="handleZoomOut" title="Zoom out">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8"/>
-          <path d="M21 21l-4.35-4.35"/>
-          <path d="M8 11h6"/>
-        </svg>
-      </button>
-      <button class="zoom-btn" @click="handleZoomReset" title="Reset view">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-          <path d="M3 3v5h5"/>
-        </svg>
-      </button>
-    </div>
+    <!-- Zoom controls removed - use pinch/scroll to zoom, drag to pan -->
 
     <!-- Hidden ring container for position reference (used by network centering) -->
     <div ref="ringContainerRef" class="ring-reference" style="display: none;"></div>
@@ -4306,58 +4325,79 @@ onUnmounted(() => {
   color: var(--text-primary);
 }
 
-/* Zoom controls */
-.zoom-controls {
+/* Node hover tooltip */
+.node-hover-tooltip {
   position: absolute;
-  bottom: 100px;
-  right: 20px;
-  z-index: 15;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  opacity: 0.6;
-  pointer-events: auto; /* Clickable for zoom buttons */
-  transition: opacity 0.2s ease;
-}
-
-.zoom-controls:hover {
-  opacity: 1;
-}
-
-.zoom-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(10, 10, 15, 0.6);
+  top: 80px;
+  left: 20px;
+  z-index: 20;
+  max-width: 280px;
+  padding: 12px 16px;
+  background: rgba(10, 10, 20, 0.9);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  color: var(--text-muted);
-  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  pointer-events: none;
+}
+
+.tooltip-header {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.zoom-btn:hover {
-  background: rgba(30, 30, 40, 0.8);
-  color: var(--text-primary);
-  border-color: rgba(255, 255, 255, 0.2);
+.tooltip-target {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--belt-color, #fff);
 }
 
-.zoom-btn:active {
-  transform: scale(0.95);
+.tooltip-known {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
-.zoom-btn svg {
-  width: 18px;
-  height: 18px;
+.tooltip-phrases {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-/* Hide zoom controls on mobile (use pinch instead) */
+.tooltip-phrase {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.phrase-target {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.phrase-known {
+  font-size: 10px;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+/* Tooltip fade transition */
+.tooltip-fade-enter-active,
+.tooltip-fade-leave-active {
+  transition: opacity 0.15s ease;
+}
+
+.tooltip-fade-enter-from,
+.tooltip-fade-leave-to {
+  opacity: 0;
+}
+
+/* Hide tooltip on mobile (use tap instead) */
 @media (max-width: 768px) {
-  .zoom-controls {
+  .node-hover-tooltip {
     display: none;
   }
 }

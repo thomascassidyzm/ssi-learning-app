@@ -89,23 +89,23 @@ export interface DistinctionNetworkConfig {
 
 const DEFAULT_CONFIG: DistinctionNetworkConfig = {
   node: {
-    baseRadius: 5,            // Small uniform dots - connections are the focus
+    baseRadius: 7,            // Slightly larger dots for better ratio with thin edges
     heroScale: 1.0,           // No scaling - all nodes same size
     activeScale: 1.0,         // No scaling on active
     glowRadius: 0,            // No glow - clean dots only
     glowOpacity: 0,
     strokeWidth: 1,
-    labelOffset: 12,
+    labelOffset: 14,
   },
   edge: {
-    minWidth: 0.5,                    // Very thin for new/weak edges
-    maxWidth: 5,                      // Cap max width lower
-    widthExponent: 0.25,              // Very gradual growth with strength
-    arrowSize: 6,
+    minWidth: 0.3,                    // Hairline for new edges
+    maxWidth: 2,                      // Much thinner max
+    widthExponent: 0.15,              // Extremely gradual growth
+    arrowSize: 4,
     directionIndicator: 'gradient',  // Gradient flows from source to target
-    opacity: 0.3,                     // More transparent - builds up with strength
-    activeOpacity: 1.0,
-    glowWidth: 10,
+    opacity: 0.08,                    // Very faint - builds up slowly
+    activeOpacity: 0.6,
+    glowWidth: 6,
   },
   clustering: {
     maxDistance: 400,
@@ -128,7 +128,7 @@ const DEFAULT_CONFIG: DistinctionNetworkConfig = {
     zoomEnabled: true,
     tapToSelect: true,
     doubleTapToZoom: true,
-    labelZoomThreshold: 0.8,
+    labelZoomThreshold: 1.8,      // Labels only at high magnification
   },
 }
 
@@ -254,6 +254,7 @@ const props = defineProps({
 const emit = defineEmits<{
   (e: 'node-tap', nodeId: string): void
   (e: 'node-double-tap', nodeId: string): void
+  (e: 'node-hover', node: DistinctionNode | null): void
   (e: 'zoom-change', zoom: number): void
   (e: 'tick'): void
 }>()
@@ -659,6 +660,12 @@ function renderNodes(): void {
       event.stopPropagation()
       emit('node-double-tap', d.id)
     })
+    .on('mouseenter', (event, d) => {
+      emit('node-hover', d)
+    })
+    .on('mouseleave', () => {
+      emit('node-hover', null)
+    })
 
   // Just a simple circle - the connections are what matter
   nodeEnter.append('circle')
@@ -970,14 +977,14 @@ function calculateEdgeWidth(strength: number): number {
 
 function calculateEdgeOpacity(strength: number): number {
   const config = mergedConfig.value.edge
-  // Opacity also grows with strength - very faint for new edges
-  // At strength=1: 0.15 (barely visible)
-  // At strength=5: 0.26
-  // At strength=20: 0.38
-  // At strength=100: 0.55
-  // Never reaches full opacity except when active
-  const normalized = Math.pow(strength, 0.3)
-  return Math.min(0.6, config.opacity + normalized * 0.05)
+  // Opacity grows very slowly with strength - edges are subtle hints
+  // At strength=1: 0.08 (barely visible)
+  // At strength=10: 0.12
+  // At strength=50: 0.16
+  // At strength=200: 0.20
+  // Never exceeds 0.25 except when active
+  const normalized = Math.pow(strength, 0.2)
+  return Math.min(0.25, config.opacity + normalized * 0.015)
 }
 
 function isNodeInPath(nodeId: string): boolean {

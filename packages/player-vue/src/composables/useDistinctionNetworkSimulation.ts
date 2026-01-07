@@ -58,19 +58,19 @@ export interface SimulationConfig {
 
 const DEFAULT_CONFIG: SimulationConfig = {
   link: {
-    strengthMultiplier: 0.3,     // Weaker links: allow more spread
+    strengthMultiplier: 0.7,     // Stronger links: connected nodes cluster together
   },
   charge: {
-    strength: -600,              // Much stronger repulsion for organic spread
-    distanceMax: 800,            // Larger range
+    strength: -400,              // Moderate repulsion - let links pull nodes together
+    distanceMax: 600,            // Moderate range
   },
   radial: {
-    radius: 450,                 // Larger orbit
-    strength: 0.003,             // Very weak - just prevents flying away
+    radius: 400,                 // Moderate orbit
+    strength: 0.002,             // Very weak - just prevents flying away
   },
   collision: {
-    radius: 12,                  // Small collision radius for small dots
-    strength: 0.8,
+    radius: 15,                  // Collision radius matching node size
+    strength: 0.9,
   },
   center: {
     x: 0,
@@ -120,24 +120,24 @@ export function useDistinctionNetworkSimulation(
     }
 
     simulation = d3.forceSimulation<DistinctionNode, DirectionalEdge>(nodes.value)
-      // Link force: distance based on edge strength (stronger = closer, but much larger base)
+      // Link force: distance based on edge strength (stronger = closer clustering)
       .force('link', d3.forceLink<DistinctionNode, DirectionalEdge>(links.value)
         .id(d => d.id)
         .distance(d => {
           // Use pre-calculated distance, or derive from strength
           if (d.distance) return d.distance
           const strength = d.strength || 1
-          // Stronger edges = shorter distance, but much larger base distances
-          // strength=1: 400 / 1.3 = 308
-          // strength=5: 400 / 1.67 = 240
-          // strength=20: 400 / 2.35 = 170
-          // strength=100: 400 / 4.2 = 95
-          return Math.max(80, 400 / (1 + Math.pow(strength, 0.3)))
+          // Stronger edges = shorter distance - nodes that fire together cluster
+          // strength=1: 200 / 1.2 = 167
+          // strength=5: 200 / 1.45 = 138
+          // strength=20: 200 / 1.82 = 110
+          // strength=100: 200 / 2.5 = 80
+          return Math.max(50, 200 / (1 + Math.pow(strength, 0.25)))
         })
         .strength(d => {
-          // Weaker link strength for more organic spread
+          // Stronger links pull harder - fire together, cluster together
           const strength = d.strength || 1
-          return Math.min(0.5, config.link.strengthMultiplier + Math.log(strength + 1) * 0.05)
+          return Math.min(0.8, config.link.strengthMultiplier + Math.log(strength + 1) * 0.08)
         })
       )
       // Charge force: node repulsion
