@@ -3312,7 +3312,7 @@ onUnmounted(() => {
     <!-- SPLIT-STAGE LAYOUT: Network Theater (top) + Control Pane (bottom) -->
 
     <!-- NETWORK THEATER - The brain visualization fills this space -->
-    <section ref="networkTheaterRef" class="network-theater" @click="handleTheaterTap">
+    <section ref="networkTheaterRef" class="network-theater">
       <!-- Ink Spirit Rewards - Float upward like incense -->
       <TransitionGroup name="ink-spirit" tag="div" class="ink-spirit-container">
         <div
@@ -3443,8 +3443,8 @@ onUnmounted(() => {
       </div>
     </Transition>
 
-    <!-- Control Bar -->
-    <div class="control-bar">
+    <!-- Control Bar - TEMPORARILY HIDDEN for network interaction testing -->
+    <div v-if="false" class="control-bar">
       <button
         class="mode-btn"
         :class="{ 'coming-soon': listeningModeComingSoon }"
