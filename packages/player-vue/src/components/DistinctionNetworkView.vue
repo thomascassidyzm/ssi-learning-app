@@ -535,6 +535,8 @@ function render(): void {
   renderEdges()
   renderNodes()
   renderLabels()
+  // Must call updatePositions to set initial path d attributes
+  updatePositions()
 }
 
 function renderEdges(): void {

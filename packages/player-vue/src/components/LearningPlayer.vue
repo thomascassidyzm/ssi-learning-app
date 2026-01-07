@@ -3349,37 +3349,108 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Floating Pill Control -->
-      <div class="floating-pill" :class="currentPhase" @click="handleRingTap">
-        <span class="pill-phase-label">{{ phaseInfo.instruction }}</span>
-        <div class="pill-play-icon">
-          <svg v-if="!isPlaying" viewBox="0 0 24 24" fill="currentColor">
-            <polygon points="6 3 20 12 6 21 6 3"/>
-          </svg>
-          <svg v-else-if="currentPhase === 'speak'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-          </svg>
-          <div v-else class="pill-pulse"></div>
-        </div>
-        <!-- Progress indicator -->
-        <svg class="pill-progress" viewBox="0 0 36 36">
-          <circle
-            class="pill-progress-track"
-            cx="18" cy="18" r="16"
+      <!-- Visual Phase Indicator - 4 quadrant arcs with center icon -->
+      <div class="phase-wheel" :class="[currentPhase, { paused: !isPlaying }]" @click="handleRingTap">
+        <svg class="phase-wheel-svg" viewBox="0 0 100 100">
+          <!-- 4 phase arcs (quadrants) -->
+          <defs>
+            <filter id="phase-glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="2" result="blur"/>
+              <feMerge>
+                <feMergeNode in="blur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+          </defs>
+
+          <!-- Phase 1: PROMPT (top-right) - Ear/Listen -->
+          <path
+            class="phase-arc phase-prompt"
+            :class="{ active: currentPhase === 'prompt' }"
+            d="M 50 10 A 40 40 0 0 1 90 50"
             fill="none"
-            stroke-width="2"
+            stroke-width="6"
+            stroke-linecap="round"
           />
-          <circle
-            class="pill-progress-value"
-            cx="18" cy="18" r="16"
+
+          <!-- Phase 2: SPEAK (bottom-right) - Mouth/Speak -->
+          <path
+            class="phase-arc phase-speak"
+            :class="{ active: currentPhase === 'speak' }"
+            d="M 90 50 A 40 40 0 0 1 50 90"
             fill="none"
-            stroke-width="2"
-            :stroke-dasharray="100.53"
-            :stroke-dashoffset="100.53 - (ringProgress / 100) * 100.53"
-            transform="rotate(-90 18 18)"
+            stroke-width="6"
+            stroke-linecap="round"
+          />
+
+          <!-- Phase 3: VOICE_1 (bottom-left) - Ear/Listen again -->
+          <path
+            class="phase-arc phase-voice1"
+            :class="{ active: currentPhase === 'voice_1' }"
+            d="M 50 90 A 40 40 0 0 1 10 50"
+            fill="none"
+            stroke-width="6"
+            stroke-linecap="round"
+          />
+
+          <!-- Phase 4: VOICE_2 (top-left) - Eye/See -->
+          <path
+            class="phase-arc phase-voice2"
+            :class="{ active: currentPhase === 'voice_2' }"
+            d="M 10 50 A 40 40 0 0 1 50 10"
+            fill="none"
+            stroke-width="6"
+            stroke-linecap="round"
+          />
+
+          <!-- Progress arc for SPEAK phase countdown -->
+          <circle
+            v-if="currentPhase === 'speak'"
+            class="speak-progress"
+            cx="50" cy="50" r="40"
+            fill="none"
+            stroke-width="3"
+            :stroke-dasharray="251.33"
+            :stroke-dashoffset="251.33 - (ringProgress / 100) * 251.33"
+            transform="rotate(-90 50 50)"
           />
         </svg>
+
+        <!-- Center icon - changes per phase -->
+        <div class="phase-center-icon">
+          <!-- Paused: Play button -->
+          <svg v-if="!isPlaying" class="icon-play" viewBox="0 0 24 24" fill="currentColor">
+            <polygon points="6 3 20 12 6 21 6 3"/>
+          </svg>
+
+          <!-- PROMPT: Ear (listen to known) -->
+          <svg v-else-if="currentPhase === 'prompt'" class="icon-ear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M6 10c0-4.418 3.582-8 8-8s8 3.582 8 8"/>
+            <path d="M6 10v4a6 6 0 0 0 6 6h0"/>
+            <path d="M18 10v2a4 4 0 0 1-4 4"/>
+            <circle cx="12" cy="20" r="2"/>
+          </svg>
+
+          <!-- SPEAK: Microphone (your turn) -->
+          <svg v-else-if="currentPhase === 'speak'" class="icon-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="9" y="2" width="6" height="11" rx="3"/>
+            <path d="M5 10v2a7 7 0 0 0 14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="22"/>
+          </svg>
+
+          <!-- VOICE_1: Sound waves (listen to answer) -->
+          <svg v-else-if="currentPhase === 'voice_1'" class="icon-listen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"/>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+          </svg>
+
+          <!-- VOICE_2: Eye (see + hear) -->
+          <svg v-else-if="currentPhase === 'voice_2'" class="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3" fill="currentColor"/>
+          </svg>
+        </div>
       </div>
 
       <!-- 4-Phase dots (minimal) -->
@@ -4204,89 +4275,125 @@ onUnmounted(() => {
   opacity: 0;
 }
 
-/* Floating Pill Control */
-.floating-pill {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.5rem 1rem 0.5rem 1.25rem;
-  background: rgba(30, 30, 40, 0.9);
-  border: 1px solid var(--border-medium);
-  border-radius: 50px;
-  cursor: pointer;
+/* Phase Wheel - Visual 4-Phase Indicator */
+.phase-wheel {
   position: relative;
-  transition: all 0.3s ease;
-  backdrop-filter: blur(10px);
+  width: 80px;
+  height: 80px;
+  cursor: pointer;
+  transition: transform 0.2s ease;
 }
 
-.floating-pill:hover {
-  background: rgba(40, 40, 55, 0.95);
-  border-color: var(--border-light);
+.phase-wheel:hover {
+  transform: scale(1.05);
 }
 
-.floating-pill:active {
+.phase-wheel:active {
   transform: scale(0.98);
 }
 
-.pill-phase-label {
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-secondary);
-  min-width: 80px;
-  text-align: center;
+.phase-wheel.paused {
+  opacity: 0.7;
 }
 
-.floating-pill.prompt .pill-phase-label { color: var(--accent); }
-.floating-pill.speak .pill-phase-label { color: #ff6b6b; }
-.floating-pill.voice_1 .pill-phase-label { color: #a855f7; }
-.floating-pill.voice_2 .pill-phase-label { color: #3b82f6; }
+.phase-wheel-svg {
+  width: 100%;
+  height: 100%;
+}
 
-.pill-play-icon {
-  width: 24px;
-  height: 24px;
+/* Phase arcs - dim by default */
+.phase-arc {
+  stroke: rgba(255, 255, 255, 0.15);
+  transition: all 0.3s ease;
+}
+
+/* Active phase arc glows */
+.phase-arc.active {
+  filter: url(#phase-glow);
+}
+
+.phase-arc.phase-prompt.active {
+  stroke: var(--accent);
+  filter: drop-shadow(0 0 8px var(--accent-glow));
+}
+
+.phase-arc.phase-speak.active {
+  stroke: #ff6b6b;
+  filter: drop-shadow(0 0 10px rgba(255, 107, 107, 0.7));
+  animation: arc-pulse 1s ease-in-out infinite;
+}
+
+.phase-arc.phase-voice1.active {
+  stroke: #a855f7;
+  filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.6));
+}
+
+.phase-arc.phase-voice2.active {
+  stroke: #3b82f6;
+  filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.6));
+}
+
+@keyframes arc-pulse {
+  0%, 100% { stroke-width: 6; opacity: 1; }
+  50% { stroke-width: 8; opacity: 0.8; }
+}
+
+/* Speak phase progress ring */
+.speak-progress {
+  stroke: rgba(255, 107, 107, 0.4);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.1s linear;
+}
+
+/* Center icon container */
+.phase-center-icon {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.pill-play-icon svg {
-  width: 16px;
-  height: 16px;
+.phase-center-icon svg {
+  width: 24px;
+  height: 24px;
+  transition: all 0.3s ease;
+}
+
+/* Icon colors per phase */
+.phase-wheel.paused .phase-center-icon svg {
   color: var(--text-primary);
 }
 
-.pill-pulse {
-  width: 8px;
-  height: 8px;
-  background: var(--belt-glow, var(--accent));
-  border-radius: 50%;
-  animation: pill-dot-pulse 1s ease-in-out infinite;
+.phase-wheel.prompt .phase-center-icon svg {
+  color: var(--accent);
 }
 
-@keyframes pill-dot-pulse {
-  0%, 100% { opacity: 0.5; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.3); }
+.phase-wheel.speak .phase-center-icon svg {
+  color: #ff6b6b;
+  animation: icon-pulse 1s ease-in-out infinite;
 }
 
-.pill-progress {
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  width: 36px;
-  height: 36px;
-  transform: rotate(-90deg);
+.phase-wheel.voice_1 .phase-center-icon svg {
+  color: #a855f7;
 }
 
-.pill-progress-track {
-  stroke: var(--border-medium);
+.phase-wheel.voice_2 .phase-center-icon svg {
+  color: #3b82f6;
 }
 
-.pill-progress-value {
-  stroke: var(--belt-glow, var(--accent));
-  stroke-linecap: round;
-  transition: stroke-dashoffset 0.3s ease;
+@keyframes icon-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.8; }
+}
+
+/* Play icon special styling */
+.icon-play {
+  color: var(--text-primary) !important;
 }
 
 /* Minimal phase dots */
