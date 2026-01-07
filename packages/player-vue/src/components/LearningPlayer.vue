@@ -1319,31 +1319,34 @@ const handleCycleEvent = (event) => {
 
   switch (event.type) {
     case 'phase_changed':
-      // Mark phase transitions for timing analyzer (if adaptation enabled)
-      if (isAdaptationActive.value) {
-        // Map CyclePhase to timing phases
-        switch (event.phase) {
-          case CyclePhase.PAUSE:
+      // Handle phase-specific logic
+      switch (event.phase) {
+        case CyclePhase.PAUSE:
+          // Mark phase for timing analyzer (if adaptation enabled)
+          if (isAdaptationActive.value) {
             markPhaseTransition('PROMPT_END')
             markPhaseTransition('PAUSE')
-            break
-          case CyclePhase.VOICE_1:
-            markPhaseTransition('VOICE_1')
-            // Animate the path during Voice 1 (nodes + edges light up in sequence)
+          }
+          break
+        case CyclePhase.VOICE_1:
+          if (isAdaptationActive.value) markPhaseTransition('VOICE_1')
+          // Animate the path during Voice 1 (nodes + edges light up)
+          {
             const itemForVoice1 = useRoundBasedPlayback.value
               ? currentPlayableItem.value
               : sessionItems.value[currentItemIndex.value]
             if (itemForVoice1) {
               const legoIds = extractLegoIdsFromPhrase(itemForVoice1)
               if (legoIds.length > 0) {
-                // Animate the path with edge pulses
                 animateNetworkPath(legoIds)
               }
             }
-            break
-          case CyclePhase.VOICE_2:
-            markPhaseTransition('VOICE_2')
-            // Trigger network path animation during Voice 2
+          }
+          break
+        case CyclePhase.VOICE_2:
+          if (isAdaptationActive.value) markPhaseTransition('VOICE_2')
+          // Trigger network path animation during Voice 2 (with labels)
+          {
             const currentItemForPath = useRoundBasedPlayback.value
               ? currentPlayableItem.value
               : sessionItems.value[currentItemIndex.value]
@@ -1359,18 +1362,19 @@ const handleCycleEvent = (event) => {
                 console.log(`[Network] Resonating M-LEGOs (partial match):`, resonating)
               }
             }
-            break
-          case CyclePhase.PROMPT:
-            // New PROMPT = new cycle, start timing
+          }
+          break
+        case CyclePhase.PROMPT:
+          // New PROMPT = new cycle, start timing (if adaptation enabled)
+          if (isAdaptationActive.value) {
             if (timingAnalyzer.value?.isAnalyzing()) {
-              // End previous cycle if still active (shouldn't happen normally)
               const item = currentItem.value
               const modelDuration = item?.audioDurations?.target1 ? item.audioDurations.target1 * 1000 : 2000
               endTimingCycle(modelDuration)
             }
             startTimingCycle()
-            break
-        }
+          }
+          break
       }
       currentPhase.value = corePhaseToUiPhase(event.phase)
       break
@@ -2781,6 +2785,35 @@ const handleNetworkNodeHover = (node) => {
   hoveredNode.value = node
 }
 
+// Play a phrase from the hover tooltip
+const playHoverPhrase = async (phrase) => {
+  if (!phrase?.target) return
+
+  // Find the round with this LEGO
+  const legoId = hoveredNode.value?.id
+  if (!legoId) return
+
+  const roundIndex = cachedRounds.value.findIndex(r => r.legoId === legoId)
+  if (roundIndex < 0) return
+
+  const round = cachedRounds.value[roundIndex]
+  if (!round?.items) return
+
+  // Find the item that matches this phrase
+  const item = round.items.find(i => i.targetText === phrase.target)
+  if (!item) return
+
+  // Get audio URL and play
+  const audioUrl = item.targetAudioUrl || item.target1AudioUrl
+  if (audioUrl) {
+    console.log('[Hover] Playing phrase:', phrase.target)
+    // Use the audio controller to play
+    if (audioController.value) {
+      await audioController.value.play({ url: audioUrl })
+    }
+  }
+}
+
 // Extract LEGO IDs from a practice phrase (for path animation and edge creation)
 const extractLegoIdsFromPhrase = (item) => {
   const legoIds = new Set()
@@ -3374,9 +3407,15 @@ onUnmounted(() => {
           <span class="tooltip-known">{{ hoveredNode.knownText }}</span>
         </div>
         <div v-if="hoveredNodePhrases.length > 0" class="tooltip-phrases">
-          <div v-for="(phrase, i) in hoveredNodePhrases" :key="i" class="tooltip-phrase">
+          <div
+            v-for="(phrase, i) in hoveredNodePhrases"
+            :key="i"
+            class="tooltip-phrase"
+            @click.stop="playHoverPhrase(phrase)"
+          >
             <span class="phrase-target">{{ phrase.target }}</span>
             <span class="phrase-known">{{ phrase.known }}</span>
+            <span class="phrase-play">▶</span>
           </div>
         </div>
       </div>
@@ -4371,6 +4410,17 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  padding: 6px 8px;
+  margin: 0 -8px;
+  border-radius: 6px;
+  cursor: pointer;
+  pointer-events: auto;
+  position: relative;
+  transition: background 0.15s ease;
+}
+
+.tooltip-phrase:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .phrase-target {
@@ -4382,6 +4432,21 @@ onUnmounted(() => {
   font-size: 10px;
   color: var(--text-muted);
   opacity: 0.7;
+}
+
+.phrase-play {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+  color: var(--belt-color, #fff);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.tooltip-phrase:hover .phrase-play {
+  opacity: 0.8;
 }
 
 /* Tooltip fade transition */
