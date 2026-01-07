@@ -70,10 +70,10 @@ export interface NetworkStats {
 
 // Clustering physics: how connection strength affects spatial distance
 const CLUSTERING = {
-  maxDistance: 250,             // Maximum link distance (weak/new connections)
-  minDistance: 40,              // Minimum link distance (strong connections)
-  strengthExponent: 0.5,        // How quickly distance decreases with strength
-                                // 0.5 = square root (gradual), 1 = linear (aggressive)
+  maxDistance: 400,             // Maximum link distance (weak/new connections)
+  minDistance: 80,              // Minimum link distance (strong connections)
+  strengthExponent: 0.3,        // How quickly distance decreases with strength
+                                // 0.3 = very gradual, 0.5 = square root, 1 = linear
 }
 
 // Belt thresholds - at which LEGO index each belt begins
@@ -502,9 +502,9 @@ export function useDistinctionNetwork() {
     console.log(`[DistinctionNetwork] Populating from rounds 0-${maxIndex}`)
 
     // Calculate orbital positions for non-hero nodes
-    // Use larger radius to fill more screen space
+    // Use larger radius to fill more screen space - increased for better spread
     const nodeCount = maxIndex + 1
-    const orbitalRadius = Math.min(200 + nodeCount * 12, 500)
+    const orbitalRadius = Math.min(250 + nodeCount * 15, 800)
 
     // First pass: add all nodes and collect their target text for co-occurrence matching
     // Map of legoId → targetText (normalized for matching)

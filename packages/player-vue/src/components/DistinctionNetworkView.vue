@@ -89,30 +89,30 @@ export interface DistinctionNetworkConfig {
 
 const DEFAULT_CONFIG: DistinctionNetworkConfig = {
   node: {
-    baseRadius: 14,
-    heroScale: 1.0,           // Hero is shown by the ring, not scaled up here
-    activeScale: 1.3,
-    glowRadius: 24,
-    glowOpacity: 0.4,
-    strokeWidth: 2,
-    labelOffset: 24,
+    baseRadius: 5,            // Small uniform dots - connections are the focus
+    heroScale: 1.0,           // No scaling - all nodes same size
+    activeScale: 1.0,         // No scaling on active
+    glowRadius: 0,            // No glow - clean dots only
+    glowOpacity: 0,
+    strokeWidth: 1,
+    labelOffset: 12,
   },
   edge: {
-    minWidth: 2,
-    maxWidth: 8,
-    widthExponent: 0.5,
+    minWidth: 0.5,                    // Very thin for new/weak edges
+    maxWidth: 5,                      // Cap max width lower
+    widthExponent: 0.25,              // Very gradual growth with strength
     arrowSize: 6,
     directionIndicator: 'gradient',  // Gradient flows from source to target
-    opacity: 0.7,                     // More visible base opacity
+    opacity: 0.3,                     // More transparent - builds up with strength
     activeOpacity: 1.0,
     glowWidth: 10,
   },
   clustering: {
-    maxDistance: 250,
-    minDistance: 40,
-    strengthExponent: 0.5,
-    orbitalRadius: 180,
-    orbitalStrength: 0.4,
+    maxDistance: 400,
+    minDistance: 80,
+    strengthExponent: 0.3,
+    orbitalRadius: 300,
+    orbitalStrength: 0.3,
   },
   animation: {
     pathStepDuration: 200,
@@ -612,7 +612,7 @@ function renderEdges(): void {
   edgeMerge
     .transition()
     .duration(mergedConfig.value.animation.nodeEnterDuration)
-    .attr('opacity', d => isEdgeInPath(d.id) ? config.activeOpacity : config.opacity)
+    .attr('opacity', d => isEdgeInPath(d.id) ? config.activeOpacity : calculateEdgeOpacity(d.strength))
     .attr('stroke', d => isEdgeInPath(d.id) ? pal.edge.active : pal.edge.stroke)
     .attr('stroke-width', d => calculateEdgeWidth(d.strength))
     .attr('filter', d => isEdgeActive(d.id) ? 'url(#edge-glow-active)' : (isEdgeInPath(d.id) ? 'url(#edge-glow)' : null))
@@ -643,7 +643,7 @@ function renderNodes(): void {
     .attr('opacity', 0)
     .remove()
 
-  // Enter
+  // Enter - simple dots, no bells and whistles
   const nodeEnter = nodeSelection.enter()
     .append('g')
     .attr('class', 'node')
@@ -660,37 +660,12 @@ function renderNodes(): void {
       emit('node-double-tap', d.id)
     })
 
-  // Hero ring (only for hero node)
-  nodeEnter.append('circle')
-    .attr('class', 'node-hero-ring')
-    .attr('r', config.baseRadius * 2.2)
-    .attr('fill', 'none')
-    .attr('stroke', pal.hero)
-    .attr('stroke-width', 2)
-    .attr('opacity', 0)
-    .attr('stroke-dasharray', '4 2')
-
-  // Glow circle
-  nodeEnter.append('circle')
-    .attr('class', 'node-glow')
-    .attr('r', config.glowRadius)
-    .attr('fill', pal.node.glow)
-    .attr('opacity', config.glowOpacity)
-    .attr('filter', 'url(#node-glow)')
-
-  // Main circle
+  // Just a simple circle - the connections are what matter
   nodeEnter.append('circle')
     .attr('class', 'node-core')
     .attr('r', config.baseRadius)
-    .attr('fill', pal.node.fill)
-    .attr('stroke', pal.node.stroke)
-    .attr('stroke-width', config.strokeWidth)
-
-  // Inner dot
-  nodeEnter.append('circle')
-    .attr('class', 'node-inner')
-    .attr('r', 3)
-    .attr('fill', pal.node.stroke)
+    .attr('fill', pal.node.stroke)  // Solid fill, use stroke color for visibility
+    .attr('stroke', 'none')
 
   // Enter + Update merge
   const nodeMerge = nodeEnter.merge(nodeSelection)
@@ -700,70 +675,14 @@ function renderNodes(): void {
     .duration(mergedConfig.value.animation.nodeEnterDuration)
     .attr('opacity', 1)
 
-  // Helper to check if node is hero
-  const isHeroNode = (nodeId: string) => nodeId === props.heroNodeId
-
-  // Update hero ring visibility
-  nodeMerge.select('.node-hero-ring')
-    .transition()
-    .duration(300)
-    .attr('opacity', d => isHeroNode(d.id) ? 0.8 : 0)
-    .attr('r', d => isHeroNode(d.id) ? config.baseRadius * 2.2 : config.baseRadius * 1.5)
-    .attr('stroke', pal.hero)
-
-  // Update styling based on state - use per-node belt colors
-  nodeMerge.select('.node-glow')
-    .transition()
-    .duration(200)
-    .attr('opacity', d => {
-      if (isHeroNode(d.id)) return config.glowOpacity * 2
-      if (isNodeInPath(d.id)) return config.glowOpacity * 1.5
-      if (isNodeResonating(d.id)) return config.glowOpacity * 1.3 // Resonating nodes glow subtly
-      return config.glowOpacity
-    })
-    .attr('r', d => {
-      if (isHeroNode(d.id)) return config.glowRadius * 1.8
-      if (isNodeActive(d.id)) return config.glowRadius * 1.5
-      if (isNodeResonating(d.id)) return config.glowRadius * 1.3 // Resonating nodes expand slightly
-      return config.glowRadius
-    })
-    .attr('filter', d => (isNodeActive(d.id) || isHeroNode(d.id) || isNodeResonating(d.id)) ? 'url(#node-glow-active)' : 'url(#node-glow)')
-    .attr('fill', d => {
-      if (isHeroNode(d.id)) return pal.hero
-      // Use the node's introduction belt color
-      const nodePal = getNodePalette(d)
-      return nodePal.node.glow
-    })
-
+  // Simple uniform styling - just use belt color, no state changes
+  // The edges tell the story, not the nodes
   nodeMerge.select('.node-core')
-    .transition()
-    .duration(200)
-    .attr('r', d => {
-      if (isHeroNode(d.id)) return config.baseRadius * 1.4
-      if (isNodeActive(d.id)) return config.baseRadius * config.activeScale
-      if (isNodeInPath(d.id)) return config.baseRadius * 1.1
-      if (isNodeResonating(d.id)) return config.baseRadius * 1.05 // Subtle size increase
-      return config.baseRadius
-    })
-    .attr('stroke', d => {
-      if (isHeroNode(d.id)) return pal.hero
-      if (isNodeInPath(d.id)) return pal.edge.active
-      if (isNodeResonating(d.id)) return pal.edge.active // Resonating nodes get highlighted stroke
+    .attr('r', config.baseRadius)
+    .attr('fill', d => {
       // Use the node's introduction belt color
       const nodePal = getNodePalette(d)
       return nodePal.node.stroke
-    })
-    .attr('stroke-width', d => {
-      if (isHeroNode(d.id)) return config.strokeWidth * 2
-      if (isNodeInPath(d.id)) return config.strokeWidth * 1.5
-      if (isNodeResonating(d.id)) return config.strokeWidth * 1.2
-      return config.strokeWidth
-    })
-    .attr('fill', d => {
-      if (isHeroNode(d.id)) return `${pal.hero}40`
-      // Use the node's introduction belt color
-      const nodePal = getNodePalette(d)
-      return nodePal.node.fill
     })
 }
 
@@ -772,14 +691,10 @@ function renderLabels(): void {
 
   const config = mergedConfig.value.node
   const interactionConfig = mergedConfig.value.interaction
-  const pal = palette.value
-
-  // Include all nodes (hero gets special label styling)
-  const visibleNodes = props.nodes
 
   // Data join
   const labelSelection = labelsLayer.selectAll<SVGTextElement, DistinctionNode>('.label')
-    .data(visibleNodes, d => d.id)
+    .data(props.nodes, d => d.id)
 
   // Exit
   labelSelection.exit().remove()
@@ -790,48 +705,28 @@ function renderLabels(): void {
     .attr('class', 'label')
     .attr('text-anchor', 'middle')
     .attr('dy', config.baseRadius + config.labelOffset)
-    .attr('fill', pal.label)
-    .attr('font-size', '11px')
+    .attr('font-size', '9px')
     .attr('font-family', 'system-ui, sans-serif')
+    .attr('font-weight', '400')
     .attr('pointer-events', 'none')
     .text(d => d.targetText)
 
   // Enter + Update
   const labelMerge = labelEnter.merge(labelSelection)
 
-  // Semantic zoom: show labels only above threshold
+  // Simple zoom-based visibility - labels fade in as you zoom
   const showLabels = currentZoom.value >= interactionConfig.labelZoomThreshold
   const labelOpacity = showLabels
-    ? Math.min(1, (currentZoom.value - interactionConfig.labelZoomThreshold) / 0.3)
+    ? Math.min(0.7, (currentZoom.value - interactionConfig.labelZoomThreshold) / 0.5)
     : 0
 
-  // Helper to check if node is hero
-  const isHeroNode = (nodeId: string) => nodeId === props.heroNodeId
-
   labelMerge
-    .attr('opacity', d => {
-      // Hero node always shows label prominently
-      if (isHeroNode(d.id)) return 1
-      // Show labels for nodes in active path ONLY during voice_2 (showPathLabels)
-      if (isNodeInPath(d.id)) return props.showPathLabels ? 1 : 0
-      // Selected node always shows label
-      if (props.selectedNodeId === d.id) return 1
-      // Otherwise use zoom-based opacity
-      return labelOpacity
-    })
-    .attr('font-weight', d => (isHeroNode(d.id) || isNodeInPath(d.id)) ? '600' : '400')
-    .attr('font-size', d => isHeroNode(d.id) ? '13px' : '11px')
+    .attr('opacity', labelOpacity)
     .attr('fill', d => {
-      if (isHeroNode(d.id)) return pal.hero
-      if (isNodeInPath(d.id)) return pal.edge.active
-      // Use the node's introduction belt color
       const nodePal = getNodePalette(d)
       return nodePal.label
     })
-    .attr('dy', d => isHeroNode(d.id)
-      ? config.baseRadius * 1.4 + config.labelOffset + 4  // More offset for larger hero node
-      : config.baseRadius + config.labelOffset
-    )
+    .attr('dy', config.baseRadius + config.labelOffset)
 }
 
 // ============================================================================
@@ -1064,9 +959,25 @@ function animatePathPulses(edgeIds: string[], stepDelay: number = 180): void {
 
 function calculateEdgeWidth(strength: number): number {
   const config = mergedConfig.value.edge
-  // Width grows with strength, using power curve for gradual growth
+  // Width grows very gradually with strength
+  // At strength=1: 0.5 + 1*0.3 = 0.8 (thin)
+  // At strength=10: 0.5 + 1.78*0.3 = 1.0
+  // At strength=50: 0.5 + 2.66*0.3 = 1.3
+  // Takes hundreds of firings to reach max width
   const normalized = Math.pow(strength, config.widthExponent)
-  return Math.min(config.maxWidth, config.minWidth + normalized * 2)
+  return Math.min(config.maxWidth, config.minWidth + normalized * 0.3)
+}
+
+function calculateEdgeOpacity(strength: number): number {
+  const config = mergedConfig.value.edge
+  // Opacity also grows with strength - very faint for new edges
+  // At strength=1: 0.15 (barely visible)
+  // At strength=5: 0.26
+  // At strength=20: 0.38
+  // At strength=100: 0.55
+  // Never reaches full opacity except when active
+  const normalized = Math.pow(strength, 0.3)
+  return Math.min(0.6, config.opacity + normalized * 0.05)
 }
 
 function isNodeInPath(nodeId: string): boolean {

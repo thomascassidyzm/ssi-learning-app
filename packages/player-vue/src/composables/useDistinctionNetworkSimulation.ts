@@ -58,18 +58,18 @@ export interface SimulationConfig {
 
 const DEFAULT_CONFIG: SimulationConfig = {
   link: {
-    strengthMultiplier: 0.6,     // Stronger: connected nodes cluster tighter
+    strengthMultiplier: 0.3,     // Weaker links: allow more spread
   },
   charge: {
-    strength: -350,              // Much stronger repulsion for organic spread
-    distanceMax: 600,            // Larger range
+    strength: -600,              // Much stronger repulsion for organic spread
+    distanceMax: 800,            // Larger range
   },
   radial: {
-    radius: 350,                 // Kept for reference but effectively disabled
-    strength: 0.005,             // Almost zero - just prevents flying away
+    radius: 450,                 // Larger orbit
+    strength: 0.003,             // Very weak - just prevents flying away
   },
   collision: {
-    radius: 25,                  // Smaller: allow tighter packing
+    radius: 12,                  // Small collision radius for small dots
     strength: 0.8,
   },
   center: {
@@ -78,9 +78,9 @@ const DEFAULT_CONFIG: SimulationConfig = {
   },
   alpha: {
     initial: 1,
-    decay: 0.008,                // Even slower: more time to find organic positions
+    decay: 0.006,                // Slower: more time to find organic positions
     min: 0.001,
-    restart: 0.6,
+    restart: 0.5,
   }
 }
 
@@ -120,20 +120,24 @@ export function useDistinctionNetworkSimulation(
     }
 
     simulation = d3.forceSimulation<DistinctionNode, DirectionalEdge>(nodes.value)
-      // Link force: distance based on edge strength (stronger = closer)
+      // Link force: distance based on edge strength (stronger = closer, but much larger base)
       .force('link', d3.forceLink<DistinctionNode, DirectionalEdge>(links.value)
         .id(d => d.id)
         .distance(d => {
           // Use pre-calculated distance, or derive from strength
           if (d.distance) return d.distance
           const strength = d.strength || 1
-          // Stronger edges = shorter distance (tighter clustering)
-          return Math.max(30, 180 / (1 + Math.sqrt(strength)))
+          // Stronger edges = shorter distance, but much larger base distances
+          // strength=1: 400 / 1.3 = 308
+          // strength=5: 400 / 1.67 = 240
+          // strength=20: 400 / 2.35 = 170
+          // strength=100: 400 / 4.2 = 95
+          return Math.max(80, 400 / (1 + Math.pow(strength, 0.3)))
         })
         .strength(d => {
-          // Stronger edges pull harder
+          // Weaker link strength for more organic spread
           const strength = d.strength || 1
-          return Math.min(0.9, config.link.strengthMultiplier + Math.log(strength + 1) * 0.1)
+          return Math.min(0.5, config.link.strengthMultiplier + Math.log(strength + 1) * 0.05)
         })
       )
       // Charge force: node repulsion
