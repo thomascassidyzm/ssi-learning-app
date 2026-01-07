@@ -913,6 +913,9 @@ const theme = ref('dark')
 const currentPhase = ref(Phase.PROMPT)
 const currentItemIndex = ref(0)
 const isPlaying = ref(false) // Start paused until engine ready
+
+// Layout mode: 'default' | 'subtitle' | 'floating' | 'minimal'
+const layoutMode = ref('subtitle')  // Try subtitle mode by default
 const itemsPracticed = ref(0)
 const showSessionComplete = ref(false)
 
@@ -3534,7 +3537,7 @@ onUnmounted(() => {
     </section>
 
     <!-- CONTROL PANE - Minimal text display, tap to play/pause -->
-    <section class="control-pane" :class="[currentPhase, { 'is-paused': !isPlaying }]" @click="handleRingTap">
+    <section class="control-pane" :class="[currentPhase, `layout-${layoutMode}`, { 'is-paused': !isPlaying }]" @click="handleRingTap">
       <!-- Text display area -->
       <div class="pane-text">
         <!-- Known Language Text -->
@@ -4362,6 +4365,86 @@ onUnmounted(() => {
 .control-pane.is-paused:hover .pane-play-hint {
   opacity: 1;
   color: var(--text-primary);
+}
+
+/* ============================================
+   LAYOUT VARIATIONS
+   ============================================ */
+
+/* SUBTITLE MODE - Thin strip at very bottom, full width */
+.control-pane.layout-subtitle {
+  bottom: 0;
+  left: 0;
+  right: 0;
+  transform: none;
+  border-radius: 0;
+  max-width: none;
+  padding: 12px 20px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.4) 70%, transparent 100%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.control-pane.layout-subtitle .pane-text {
+  max-width: 800px;
+}
+
+.control-pane.layout-subtitle .pane-text-known .known-text {
+  font-size: 1.3rem;
+}
+
+.control-pane.layout-subtitle .pane-text-target .target-text {
+  font-size: 1.1rem;
+}
+
+.control-pane.layout-subtitle:active {
+  transform: none;
+}
+
+/* FLOATING MODE - Compact floating card, lower opacity */
+.control-pane.layout-floating {
+  bottom: 40px;
+  padding: 10px 20px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 12px;
+}
+
+.control-pane.layout-floating .pane-text {
+  max-width: 500px;
+}
+
+.control-pane.layout-floating .pane-text-known .known-text {
+  font-size: 1.2rem;
+}
+
+.control-pane.layout-floating .pane-text-target .target-text {
+  font-size: 1rem;
+}
+
+/* MINIMAL MODE - Just text, barely visible container */
+.control-pane.layout-minimal {
+  bottom: 30px;
+  padding: 8px 16px;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: none;
+}
+
+.control-pane.layout-minimal .pane-text-known .known-text {
+  font-size: 1.4rem;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+
+.control-pane.layout-minimal .pane-text-target .target-text {
+  font-size: 1.1rem;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+
+.control-pane.layout-minimal .pane-play-hint {
+  display: none;
 }
 
 /* Node hover tooltip */
