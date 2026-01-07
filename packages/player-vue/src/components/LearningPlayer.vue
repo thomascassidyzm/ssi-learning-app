@@ -3456,8 +3456,8 @@ onUnmounted(() => {
       </div>
     </Transition>
 
-    <!-- Control Bar - TEMPORARILY HIDDEN for network interaction testing -->
-    <div v-if="false" class="control-bar">
+    <!-- Control Bar - Always visible -->
+    <div class="control-bar">
       <button
         class="mode-btn"
         :class="{ 'coming-soon': listeningModeComingSoon }"
@@ -4896,20 +4896,13 @@ onUnmounted(() => {
   left: 50%;
   transform: translateX(-50%);
   z-index: 15;
-  /* Glassmorphism - fade in when paused */
+  /* Glassmorphism */
   background: rgba(10, 10, 15, 0.35);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-radius: 100px;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  /* Hidden when playing, show when paused */
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.3s ease, transform 0.3s ease;
-}
-
-/* Show control bar when paused */
-.player.is-paused .control-bar {
+  /* Always visible */
   opacity: 1;
   pointer-events: auto;
 }
