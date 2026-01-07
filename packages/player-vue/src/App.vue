@@ -368,13 +368,11 @@ onMounted(async () => {
     </Transition>
 
     <!-- Learning Player -->
-    <!-- previewLegoIndex: set to N to preview network with first N LEGOs (0 = normal mode) -->
     <Transition name="slide-up" mode="out-in">
       <LearningPlayer
         v-if="currentScreen === 'player' && activeCourse"
         :classContext="classContext"
         :course="activeCourse"
-        :preview-lego-index="50"
         @close="handleGoHome"
       />
     </Transition>

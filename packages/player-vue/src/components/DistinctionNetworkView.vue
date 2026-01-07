@@ -580,9 +580,6 @@ function renderEdges(): void {
   const config = mergedConfig.value.edge
   const pal = palette.value
 
-  // DEBUG: Log edge count
-  console.log(`[DistinctionNetworkView] renderEdges called with ${props.edges.length} edges`)
-
   // Data join - using path for curved edges
   const edgeSelection = edgesLayer.selectAll<SVGPathElement, DirectionalEdge>('.edge')
     .data(props.edges, d => d.id)
@@ -845,12 +842,6 @@ function updatePositions(): void {
   if (!edgesLayer || !nodesLayer || !labelsLayer) return
 
   const center = props.center
-
-  // DEBUG: Count edge elements in DOM
-  const edgeCount = edgesLayer.selectAll('.edge').size()
-  if (edgeCount > 0) {
-    console.log(`[DistinctionNetworkView] updatePositions: ${edgeCount} edge elements in DOM`)
-  }
 
   // Update edge positions with curved paths
   // Note: D3 force simulation replaces source/target strings with node objects
