@@ -4163,15 +4163,15 @@ onUnmounted(() => {
   fill: #d4a853;
 }
 
-/* ============ SPLIT-STAGE LAYOUT ============ */
-/* Network Theater (top) + Control Pane (bottom) */
+/* ============ FULLSCREEN NETWORK LAYOUT ============ */
+/* Network fills the whole screen, controls float on top */
 
 .network-theater {
   position: absolute;
   top: 60px; /* Below header */
   left: 0;
   right: 0;
-  bottom: 30%; /* Leave room for control pane */
+  bottom: 0; /* FULLSCREEN - extends to bottom */
   z-index: 5;
   pointer-events: all;
   cursor: pointer;
@@ -4179,12 +4179,9 @@ onUnmounted(() => {
 
 .control-pane {
   position: absolute;
-  bottom: 80px; /* Above control bar */
-  left: 0;
-  right: 0;
-  height: 25%;
-  min-height: 180px;
-  max-height: 280px;
+  bottom: 100px; /* Float above bottom */
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 15;
   display: flex;
   flex-direction: column;
@@ -4192,6 +4189,14 @@ onUnmounted(() => {
   justify-content: center;
   padding: 1rem 1.5rem;
   gap: 0.75rem;
+  /* Floating glass card style */
+  background: rgba(15, 15, 20, 0.85);
+  backdrop-filter: blur(12px);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  max-width: 90%;
+  width: auto;
+  min-width: 280px;
 }
 
 /* Phase indicator border on left edge */
@@ -4430,13 +4435,13 @@ onUnmounted(() => {
   transform: translate(-50%, -50%);
 }
 
-/* Update brain-network-container for theater mode */
+/* Update brain-network-container for fullscreen mode */
 .brain-network-container {
   position: absolute;
   top: 60px;
   left: 0;
   right: 0;
-  bottom: 30%;
+  bottom: 0; /* FULLSCREEN - extends to bottom */
   z-index: 2;
 }
 

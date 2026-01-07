@@ -522,7 +522,27 @@ export function useDistinctionNetwork() {
       setHero(heroRound.legoId, centerPosition)
     }
 
-    console.log(`[DistinctionNetwork] Populated ${nodes.value.length} nodes`)
+    // Create edges between consecutive LEGOs (learning sequence)
+    // This shows the temporal order of learning
+    for (let i = 0; i < maxIndex; i++) {
+      const sourceId = rounds[i]?.legoId
+      const targetId = rounds[i + 1]?.legoId
+      if (sourceId && targetId && sourceId !== targetId) {
+        fireEdge(sourceId, targetId)
+      }
+    }
+
+    // Also create some cross-connections based on proximity in sequence
+    // (every 3rd LEGO connects to create web-like structure)
+    for (let i = 0; i < maxIndex - 2; i++) {
+      const sourceId = rounds[i]?.legoId
+      const targetId = rounds[i + 2]?.legoId
+      if (sourceId && targetId && sourceId !== targetId && Math.random() > 0.5) {
+        fireEdge(sourceId, targetId)
+      }
+    }
+
+    console.log(`[DistinctionNetwork] Populated ${nodes.value.length} nodes, ${edges.value.length} edges`)
   }
 
   /**
