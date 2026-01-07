@@ -514,9 +514,6 @@ export function useDistinctionNetwork() {
       const round = rounds[i]
       if (!round?.legoId) continue
 
-      // Skip if already exists
-      if (nodeMap.value.has(round.legoId)) continue
-
       // Get text from intro/debut item if available
       const introItem = round.items?.find(item =>
         item.type === 'intro' || item.type === 'debut'
@@ -524,8 +521,12 @@ export function useDistinctionNetwork() {
       const targetText = introItem?.targetText || round.targetText || round.legoId
       const knownText = introItem?.knownText || round.knownText || ''
 
-      // Store normalized text for co-occurrence matching
+      // Store normalized text for co-occurrence matching (even for existing nodes)
+      // This is needed for edge detection later
       legoTexts.set(round.legoId, targetText.toLowerCase())
+
+      // Skip adding node if already exists
+      if (nodeMap.value.has(round.legoId)) continue
 
       // Calculate belt based on introduction position (birth belt)
       const nodeBelt = getBeltForPosition(i)
