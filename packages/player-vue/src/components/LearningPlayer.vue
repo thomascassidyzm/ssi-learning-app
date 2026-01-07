@@ -234,6 +234,14 @@ const currentRoundIndex = ref(0)
 const currentItemInRound = ref(0)
 
 // ============================================
+// PROGRESSIVE LOADING - Start small, expand as learner progresses
+// ============================================
+const INITIAL_ROUNDS = 20           // Fast initial load
+const EXPANSION_THRESHOLD = 5       // Expand when within 5 rounds of end
+const MAX_EXPANSION_BATCH = 200     // Cap each expansion batch
+const isExpandingScript = ref(false)
+
+// ============================================
 // LOCAL STORAGE PERSISTENCE - Works for all users (guests + logged-in)
 // Primary source of truth for position, works offline, persists across sessions
 // ============================================
@@ -329,6 +337,19 @@ const positionInitialized = ref(false)
 watch([currentRoundIndex, currentItemInRound], () => {
   if (positionInitialized.value && useRoundBasedPlayback.value) {
     savePositionToLocalStorage()
+  }
+})
+
+// Watch for approaching end of cached rounds - trigger expansion
+// This enables infinite progressive loading without hard limits
+watch(currentRoundIndex, async (index) => {
+  if (!positionInitialized.value) return
+  if (!cachedRounds.value.length) return
+
+  const remaining = cachedRounds.value.length - index
+  if (remaining <= EXPANSION_THRESHOLD && !isExpandingScript.value) {
+    console.log(`[LearningPlayer] Approaching end (${remaining} rounds left), expanding...`)
+    await expandScript()
   }
 })
 
@@ -2643,6 +2664,61 @@ const populateNetworkUpToRound = (targetRoundIndex) => {
   populateNetworkFromRounds(cachedRounds.value, targetRoundIndex)
 }
 
+// ============================================
+// PROGRESSIVE SCRIPT EXPANSION
+// Fetches more rounds as learner approaches end of cached content
+// ============================================
+const expandScript = async () => {
+  if (isExpandingScript.value) return
+  if (!courseDataProvider.value) return
+
+  isExpandingScript.value = true
+  const currentCount = cachedRounds.value.length
+
+  try {
+    // Double each time, capped at MAX_EXPANSION_BATCH
+    // 20 → 40 → 80 → 160 → 200 → 200...
+    const fetchCount = Math.min(currentCount, MAX_EXPANSION_BATCH)
+
+    console.log(`[LearningPlayer] Expanding script: fetching ${fetchCount} more rounds (offset: ${currentCount})`)
+
+    const { rounds: newRounds } = await generateLearningScript(
+      courseDataProvider.value,
+      fetchCount,
+      currentCount  // offset = how many we already have
+    )
+
+    if (newRounds.length > 0) {
+      // Append new rounds
+      cachedRounds.value = [...cachedRounds.value, ...newRounds]
+
+      // Preload intro audio for new LEGOs
+      const newLegoIds = new Set(newRounds.map(r => r.legoId).filter(Boolean))
+      if (newLegoIds.size > 0 && supabase.value) {
+        loadIntroAudio(supabase.value, courseCode.value, newLegoIds, audioMap.value)
+      }
+
+      // Update cache with expanded script
+      await setCachedScript(courseCode.value, {
+        rounds: cachedRounds.value,
+        totalSeeds: cachedRounds.value.length,
+        totalLegos: cachedRounds.value.length,
+        totalCycles: cachedRounds.value.reduce((sum, r) => sum + (r.items?.length || 0), 0),
+        audioMapObj: {},
+      })
+
+      console.log(`[LearningPlayer] Expanded to ${cachedRounds.value.length} rounds`)
+    } else {
+      console.log('[LearningPlayer] No more rounds available - reached end of course')
+    }
+  } catch (err) {
+    console.warn('[LearningPlayer] Script expansion failed:', err)
+    // Graceful fail - user can still use cached rounds
+  } finally {
+    isExpandingScript.value = false
+  }
+}
+
 // Highlight a specific LEGO node (glow effect, not centering)
 const highlightNetworkNode = (legoId) => {
   if (!legoId) return
@@ -2933,11 +3009,11 @@ onMounted(async () => {
 
         try {
           // Provider now contains all config - single source of truth
-          // Generate full course (1000 LEGOs covers most courses)
+          // Start with small batch for fast initial load, expand progressively
           const { rounds, allItems } = await generateLearningScript(
             courseDataProvider.value,
-            1000, // maxLegos - full course
-            0     // offset
+            INITIAL_ROUNDS, // Start small, expand as learner progresses
+            0               // offset
           )
 
           if (rounds.length > 0) {
@@ -3044,8 +3120,26 @@ onMounted(async () => {
   // Priority: previewLegoIndex prop > restored position > nothing
   nextTick(async () => {
     if (props.previewLegoIndex > 0) {
-      // Preview mode: show network up to specified LEGO index AND set playback position
-      const targetIndex = Math.min(props.previewLegoIndex, cachedRounds.value.length - 1)
+      // Preview mode: expand script if needed, then show network up to specified LEGO index
+      let targetIndex = props.previewLegoIndex
+
+      // Expand script if preview index exceeds cached rounds
+      if (targetIndex >= cachedRounds.value.length && courseDataProvider.value) {
+        console.log(`[LearningPlayer] Preview ${targetIndex} exceeds cached ${cachedRounds.value.length}, expanding...`)
+        const neededRounds = targetIndex + 10 // A bit extra
+        const { rounds: moreRounds } = await generateLearningScript(
+          courseDataProvider.value,
+          neededRounds - cachedRounds.value.length,
+          cachedRounds.value.length
+        )
+        if (moreRounds.length > 0) {
+          cachedRounds.value = [...cachedRounds.value, ...moreRounds]
+          console.log(`[LearningPlayer] Expanded to ${cachedRounds.value.length} rounds for preview`)
+        }
+      }
+
+      // Cap to actual available rounds
+      targetIndex = Math.min(targetIndex, cachedRounds.value.length - 1)
       console.log(`[LearningPlayer] Preview mode: populating network up to LEGO ${targetIndex}`)
       populateNetworkUpToRound(targetIndex)
 
