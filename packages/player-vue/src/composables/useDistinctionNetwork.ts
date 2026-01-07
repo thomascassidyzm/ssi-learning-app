@@ -568,6 +568,8 @@ export function useDistinctionNetwork() {
 
     // Track which LEGO pairs we've already connected to avoid duplicates
     const connectedPairs = new Set<string>()
+    let itemsChecked = 0
+    let itemsWithMatches = 0
 
     for (let roundIdx = 0; roundIdx <= maxIndex; roundIdx++) {
       const round = rounds[roundIdx]
@@ -580,6 +582,8 @@ export function useDistinctionNetwork() {
 
         const phraseText = item.targetText?.toLowerCase()
         if (!phraseText) continue
+
+        itemsChecked++
 
         // Find which LEGOs' text appears in this phrase and where
         // Only check LEGOs introduced up to this round (can't practice what you haven't learned)
@@ -602,6 +606,7 @@ export function useDistinctionNetwork() {
         // Create edges between all co-occurring LEGOs (in phrase order)
         // If phrase contains [A, B, C], create A→B, B→C
         if (matchingLegos.length >= 2) {
+          itemsWithMatches++
           for (let k = 0; k < matchingLegos.length - 1; k++) {
             const sourceId = matchingLegos[k].legoId
             const targetId = matchingLegos[k + 1].legoId
@@ -615,6 +620,8 @@ export function useDistinctionNetwork() {
         }
       }
     }
+
+    console.log(`[DistinctionNetwork] Edge detection: checked ${itemsChecked} items, found ${itemsWithMatches} with 2+ LEGOs`)
 
     console.log(`[DistinctionNetwork] Populated ${nodes.value.length} nodes, ${edges.value.length} edges (phrase co-occurrence)`)
   }
