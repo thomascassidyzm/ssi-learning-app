@@ -215,6 +215,10 @@ const props = defineProps({
     type: String as PropType<string | null>,
     default: null,
   },
+  resonatingNodeIds: {
+    type: Array as PropType<string[]>,
+    default: () => [],
+  },
 
   // Positioning
   center: {
@@ -597,8 +601,8 @@ function renderNodes(): void {
   const config = mergedConfig.value.node
   const pal = palette.value
 
-  // Filter out hero node (rendered by parent as ring)
-  const visibleNodes = props.nodes.filter(n => n.id !== props.heroNodeId)
+  // Include ALL nodes - hero node gets special styling
+  const visibleNodes = props.nodes
 
   // Data join
   const nodeSelection = nodesLayer.selectAll<SVGGElement, DistinctionNode>('.node')
@@ -627,6 +631,16 @@ function renderNodes(): void {
       event.stopPropagation()
       emit('node-double-tap', d.id)
     })
+
+  // Hero ring (only for hero node)
+  nodeEnter.append('circle')
+    .attr('class', 'node-hero-ring')
+    .attr('r', config.baseRadius * 2.2)
+    .attr('fill', 'none')
+    .attr('stroke', pal.hero)
+    .attr('stroke-width', 2)
+    .attr('opacity', 0)
+    .attr('stroke-dasharray', '4 2')
 
   // Glow circle
   nodeEnter.append('circle')
@@ -658,24 +672,59 @@ function renderNodes(): void {
     .duration(mergedConfig.value.animation.nodeEnterDuration)
     .attr('opacity', 1)
 
+  // Helper to check if node is hero
+  const isHeroNode = (nodeId: string) => nodeId === props.heroNodeId
+
+  // Update hero ring visibility
+  nodeMerge.select('.node-hero-ring')
+    .transition()
+    .duration(300)
+    .attr('opacity', d => isHeroNode(d.id) ? 0.8 : 0)
+    .attr('r', d => isHeroNode(d.id) ? config.baseRadius * 2.2 : config.baseRadius * 1.5)
+    .attr('stroke', pal.hero)
+
   // Update styling based on state
   nodeMerge.select('.node-glow')
     .transition()
     .duration(200)
-    .attr('opacity', d => isNodeInPath(d.id) ? config.glowOpacity * 1.5 : config.glowOpacity)
-    .attr('r', d => isNodeActive(d.id) ? config.glowRadius * 1.5 : config.glowRadius)
-    .attr('filter', d => isNodeActive(d.id) ? 'url(#node-glow-active)' : 'url(#node-glow)')
+    .attr('opacity', d => {
+      if (isHeroNode(d.id)) return config.glowOpacity * 2
+      if (isNodeInPath(d.id)) return config.glowOpacity * 1.5
+      if (isNodeResonating(d.id)) return config.glowOpacity * 1.3 // Resonating nodes glow subtly
+      return config.glowOpacity
+    })
+    .attr('r', d => {
+      if (isHeroNode(d.id)) return config.glowRadius * 1.8
+      if (isNodeActive(d.id)) return config.glowRadius * 1.5
+      if (isNodeResonating(d.id)) return config.glowRadius * 1.3 // Resonating nodes expand slightly
+      return config.glowRadius
+    })
+    .attr('filter', d => (isNodeActive(d.id) || isHeroNode(d.id) || isNodeResonating(d.id)) ? 'url(#node-glow-active)' : 'url(#node-glow)')
+    .attr('fill', d => isHeroNode(d.id) ? pal.hero : pal.node.glow)
 
   nodeMerge.select('.node-core')
     .transition()
     .duration(200)
     .attr('r', d => {
+      if (isHeroNode(d.id)) return config.baseRadius * 1.4
       if (isNodeActive(d.id)) return config.baseRadius * config.activeScale
       if (isNodeInPath(d.id)) return config.baseRadius * 1.1
+      if (isNodeResonating(d.id)) return config.baseRadius * 1.05 // Subtle size increase
       return config.baseRadius
     })
-    .attr('stroke', d => isNodeInPath(d.id) ? pal.edge.active : pal.node.stroke)
-    .attr('stroke-width', d => isNodeInPath(d.id) ? config.strokeWidth * 1.5 : config.strokeWidth)
+    .attr('stroke', d => {
+      if (isHeroNode(d.id)) return pal.hero
+      if (isNodeInPath(d.id)) return pal.edge.active
+      if (isNodeResonating(d.id)) return pal.edge.active // Resonating nodes get highlighted stroke
+      return pal.node.stroke
+    })
+    .attr('stroke-width', d => {
+      if (isHeroNode(d.id)) return config.strokeWidth * 2
+      if (isNodeInPath(d.id)) return config.strokeWidth * 1.5
+      if (isNodeResonating(d.id)) return config.strokeWidth * 1.2
+      return config.strokeWidth
+    })
+    .attr('fill', d => isHeroNode(d.id) ? `${pal.hero}40` : pal.node.fill)
 }
 
 function renderLabels(): void {
@@ -685,8 +734,8 @@ function renderLabels(): void {
   const interactionConfig = mergedConfig.value.interaction
   const pal = palette.value
 
-  // Filter out hero node
-  const visibleNodes = props.nodes.filter(n => n.id !== props.heroNodeId)
+  // Include all nodes (hero gets special label styling)
+  const visibleNodes = props.nodes
 
   // Data join
   const labelSelection = labelsLayer.selectAll<SVGTextElement, DistinctionNode>('.label')
@@ -716,16 +765,30 @@ function renderLabels(): void {
     ? Math.min(1, (currentZoom.value - interactionConfig.labelZoomThreshold) / 0.3)
     : 0
 
+  // Helper to check if node is hero
+  const isHeroNode = (nodeId: string) => nodeId === props.heroNodeId
+
   labelMerge
     .attr('opacity', d => {
+      // Hero node always shows label prominently
+      if (isHeroNode(d.id)) return 1
       // Always show labels for nodes in active path
       if (isNodeInPath(d.id)) return 1
       // Selected node always shows label
       if (props.selectedNodeId === d.id) return 1
       return labelOpacity
     })
-    .attr('font-weight', d => isNodeInPath(d.id) ? '600' : '400')
-    .attr('fill', d => isNodeInPath(d.id) ? pal.edge.active : pal.label)
+    .attr('font-weight', d => (isHeroNode(d.id) || isNodeInPath(d.id)) ? '600' : '400')
+    .attr('font-size', d => isHeroNode(d.id) ? '13px' : '11px')
+    .attr('fill', d => {
+      if (isHeroNode(d.id)) return pal.hero
+      if (isNodeInPath(d.id)) return pal.edge.active
+      return pal.label
+    })
+    .attr('dy', d => isHeroNode(d.id)
+      ? config.baseRadius * 1.4 + config.labelOffset + 4  // More offset for larger hero node
+      : config.baseRadius + config.labelOffset
+    )
 }
 
 // ============================================================================
@@ -987,6 +1050,10 @@ function isEdgeActive(edgeId: string): boolean {
   return props.currentPath.edgeIds[props.currentPath.activeIndex] === edgeId
 }
 
+function isNodeResonating(nodeId: string): boolean {
+  return props.resonatingNodeIds.includes(nodeId)
+}
+
 // ============================================================================
 // WATCHERS
 // ============================================================================
@@ -1001,6 +1068,11 @@ watch(() => props.currentPath, () => {
   renderEdges()
   renderNodes()
   renderLabels()
+}, { deep: true })
+
+// Update styling when resonating nodes change
+watch(() => props.resonatingNodeIds, () => {
+  renderNodes()
 }, { deep: true })
 
 // Update palette when belt changes

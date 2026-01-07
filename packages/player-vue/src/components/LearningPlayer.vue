@@ -1281,6 +1281,17 @@ const handleCycleEvent = (event) => {
             break
           case CyclePhase.VOICE_1:
             markPhaseTransition('VOICE_1')
+            // Start highlighting the path during Voice 1 (subtle glow, no text yet)
+            const itemForVoice1 = useRoundBasedPlayback.value
+              ? currentPlayableItem.value
+              : sessionItems.value[currentItemIndex.value]
+            if (itemForVoice1) {
+              const legoIds = extractLegoIdsFromPhrase(itemForVoice1)
+              if (legoIds.length > 0) {
+                // Set the path for highlighting (but don't animate yet)
+                network.setHighlightPath(legoIds)
+              }
+            }
             break
           case CyclePhase.VOICE_2:
             markPhaseTransition('VOICE_2')
@@ -3177,6 +3188,7 @@ onUnmounted(() => {
     <DistinctionNetworkView
       ref="networkViewRef"
       v-bind="networkViewProps"
+      :resonating-node-ids="resonatingNodes"
       class="brain-network-container"
       @node-tap="handleNetworkNodeTap"
     />
@@ -4153,7 +4165,7 @@ onUnmounted(() => {
 
 .control-pane {
   position: absolute;
-  bottom: 100px; /* Float above bottom */
+  bottom: 24px; /* Closer to bottom */
   left: 50%;
   transform: translateX(-50%);
   z-index: 15;
@@ -4161,16 +4173,20 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 1rem 1.5rem;
-  gap: 0.75rem;
-  /* Floating glass card style */
-  background: rgba(15, 15, 20, 0.85);
-  backdrop-filter: blur(12px);
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  max-width: 90%;
+  padding: 0.75rem 1.25rem;
+  gap: 0.5rem;
+  /* True glassmorphism - much more transparent */
+  background: rgba(10, 10, 15, 0.45);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 4px 30px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  max-width: 85%;
   width: auto;
-  min-width: 280px;
+  min-width: 260px;
 }
 
 /* Phase indicator border on left edge */
@@ -5046,18 +5062,37 @@ onUnmounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 2rem;
-  padding: 1rem 1.5rem 1.5rem;
-  position: relative;
-  z-index: 10;
+  gap: 1.25rem;
+  padding: 0.75rem 1rem;
+  position: absolute;
+  top: 80px; /* Below header */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 15;
+  /* Glassmorphism - fade in when paused */
+  background: rgba(10, 10, 15, 0.35);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 100px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  /* Hidden when playing, show when paused */
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+/* Show control bar when paused */
+.player.is-paused .control-bar {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .mode-btn {
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  border: 1px solid var(--border-medium);
-  background: var(--bg-card);
+  border: none;
+  background: rgba(255, 255, 255, 0.08);
   color: var(--text-muted);
   cursor: pointer;
   display: flex;
@@ -5094,20 +5129,20 @@ onUnmounted(() => {
 
 .transport-controls {
   display: flex;
-  gap: 0.5rem;
-  padding: 0.5rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
+  gap: 0.25rem;
+  padding: 0.25rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: none;
   border-radius: 100px;
 }
 
 .transport-btn {
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   border: none;
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -5116,30 +5151,29 @@ onUnmounted(() => {
 }
 
 .transport-btn svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
 }
 
 .transport-btn:hover {
-  background: var(--bg-elevated);
+  background: rgba(255, 255, 255, 0.1);
   color: var(--text-primary);
-  transform: scale(1.1);
 }
 
 /* Main Play/Stop Button - Prominent */
 .transport-btn--main {
-  width: 56px;
-  height: 56px;
+  width: 44px;
+  height: 44px;
   background: var(--accent);
   color: white;
   border-radius: 50%;
-  box-shadow: 0 4px 16px var(--accent-glow);
+  box-shadow: 0 2px 12px var(--accent-glow);
   transition: all 0.2s ease;
 }
 
 .transport-btn--main svg {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
 }
 
 .transport-btn--main:hover {
@@ -5361,28 +5395,39 @@ onUnmounted(() => {
   }
 
   .control-bar {
-    gap: 1rem;
-    padding: 0.75rem 1rem 1rem;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    top: 70px;
   }
 
   .mode-btn {
-    width: 42px;
-    height: 42px;
+    width: 36px;
+    height: 36px;
+  }
+
+  .mode-btn svg {
+    width: 16px;
+    height: 16px;
   }
 
   .transport-btn {
-    width: 38px;
-    height: 38px;
+    width: 32px;
+    height: 32px;
+  }
+
+  .transport-btn svg {
+    width: 14px;
+    height: 14px;
   }
 
   .transport-btn--main {
-    width: 48px;
-    height: 48px;
+    width: 40px;
+    height: 40px;
   }
 
   .transport-btn--main svg {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
   }
 }
 
