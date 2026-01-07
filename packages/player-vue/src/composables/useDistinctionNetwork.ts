@@ -474,8 +474,9 @@ export function useDistinctionNetwork() {
     console.log(`[DistinctionNetwork] Populating from rounds 0-${maxIndex}`)
 
     // Calculate orbital positions for non-hero nodes
+    // Use larger radius to fill more screen space
     const nodeCount = maxIndex + 1
-    const orbitalRadius = Math.min(150 + nodeCount * 8, 300)
+    const orbitalRadius = Math.min(200 + nodeCount * 12, 500)
 
     for (let i = 0; i <= maxIndex; i++) {
       const round = rounds[i]

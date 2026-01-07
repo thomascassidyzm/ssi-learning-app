@@ -2563,25 +2563,17 @@ const handleExit = () => {
 
 // Initialize the network visualization
 const initializeNetwork = () => {
-  // Calculate center from the network theater (top section)
-  if (networkTheaterRef.value) {
-    const theaterRect = networkTheaterRef.value.getBoundingClientRect()
-    setNetworkCenter(
-      theaterRect.left + theaterRect.width / 2,
-      theaterRect.top + theaterRect.height / 2
-    )
-    console.log('[Network] Center set from theater position:', theaterRect.width / 2, theaterRect.height / 2)
-  } else {
-    // Fallback to estimated center (upper portion of screen)
-    const container = document.querySelector('.player')
-    if (container) {
-      setNetworkCenter(
-        container.clientWidth / 2,
-        container.clientHeight * 0.35 // Upper portion where theater is
-      )
-    }
-    console.log('[Network] Using estimated theater center')
-  }
+  // Calculate center - use viewport center for fullscreen network
+  const viewportWidth = window.innerWidth
+  const viewportHeight = window.innerHeight
+
+  // Center in the available space (below header, above bottom controls)
+  // Network should fill most of the screen
+  const centerX = viewportWidth / 2
+  const centerY = viewportHeight * 0.45 // Slightly above center to account for bottom controls
+
+  setNetworkCenter(centerX, centerY)
+  console.log('[Network] Center set to viewport center:', centerX, centerY)
 
   // Initialize simulation
   distinctionNetwork.initialize()
@@ -2594,20 +2586,11 @@ const initializeNetwork = () => {
 
 // Add a new LEGO node to the network - no longer hero-centered, just adds to network
 const addNetworkNode = (legoId, targetText, knownText, beltColor = 'white') => {
-  // Update center from theater position first
-  if (networkTheaterRef.value) {
-    const theaterRect = networkTheaterRef.value.getBoundingClientRect()
-    setNetworkCenter(
-      theaterRect.left + theaterRect.width / 2,
-      theaterRect.top + theaterRect.height / 2
-    )
-  }
-
   // Use the composable to add the node (makeHero=false for organic growth)
   const added = introduceLegoNode(legoId, targetText, knownText, false)
 
   if (added) {
-    console.log(`[LearningPlayer] Added network node: ${legoId} (${targetText}) as hero`)
+    console.log(`[LearningPlayer] Added network node: ${legoId} (${targetText})`)
   }
 }
 
@@ -2615,15 +2598,6 @@ const addNetworkNode = (legoId, targetText, knownText, beltColor = 'white') => {
 // Called when skipping/jumping to ensure network reflects all "learned" LEGOs
 const populateNetworkUpToRound = (targetRoundIndex) => {
   if (!cachedRounds.value.length) return
-
-  // Update center from theater position
-  if (networkTheaterRef.value) {
-    const theaterRect = networkTheaterRef.value.getBoundingClientRect()
-    setNetworkCenter(
-      theaterRect.left + theaterRect.width / 2,
-      theaterRect.top + theaterRect.height / 2
-    )
-  }
 
   // Use composable to populate (no hero - organic growth)
   populateNetworkFromRounds(cachedRounds.value, targetRoundIndex)
