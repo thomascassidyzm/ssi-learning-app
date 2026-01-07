@@ -1075,6 +1075,12 @@ const hoveredNodePhrases = computed(() => {
     .slice(0, 5) // Limit to 5 phrases
 })
 
+// State for node tap playback (plays all phrases for tapped node)
+const isPlayingNodePhrases = ref(false)
+const playingNodeId = ref<string | null>(null)
+const currentPlayingPhraseIndex = ref(0)
+const nodePhraseItems = ref<any[]>([])
+
 // Hero node scaling - fewer nodes = bigger nodes (for ring visual)
 const heroNodeScale = computed(() => {
   const count = networkNodes.value.length
@@ -2789,11 +2795,117 @@ const animateNetworkPath = async (legoIds) => {
   }, 800)
 }
 
-// Handle tap on a network node
-const handleNetworkNodeTap = (node) => {
+// Handle tap on a network node - play all practice phrases for this LEGO
+const handleNetworkNodeTap = async (node) => {
   console.log('[Network] Node tapped:', node.id, node.targetText)
-  // For now, just log - could navigate to that LEGO's context or show details
-  // Future: could center on that node, show related phrases, etc.
+
+  // If already playing phrases for a node, stop it
+  if (isPlayingNodePhrases.value) {
+    stopNodePhrasePlayback()
+    // If same node, just stop
+    if (playingNodeId.value === node.id) return
+  }
+
+  // Pause main playback if running
+  const wasPlaying = isPlaying.value
+  if (wasPlaying) {
+    isPlaying.value = false
+  }
+
+  // Get all practice items for this LEGO
+  const roundIndex = cachedRounds.value.findIndex(r => r.legoId === node.id)
+  if (roundIndex < 0) {
+    console.log('[Network] No round found for LEGO:', node.id)
+    return
+  }
+
+  const round = cachedRounds.value[roundIndex]
+  if (!round?.items) return
+
+  // Get practice phrases (skip intro/debut)
+  const practiceItems = round.items.filter(item =>
+    item.type !== 'intro' && item.type !== 'debut'
+  )
+
+  if (practiceItems.length === 0) {
+    console.log('[Network] No practice phrases for LEGO:', node.id)
+    return
+  }
+
+  // Start playback
+  console.log(`[Network] Playing ${practiceItems.length} phrases for ${node.targetText}`)
+  isPlayingNodePhrases.value = true
+  playingNodeId.value = node.id
+  nodePhraseItems.value = practiceItems
+  currentPlayingPhraseIndex.value = 0
+
+  // Highlight the node
+  resonatingNodes.value = [node.id]
+
+  // Play through all phrases
+  await playNodePhrasesSequentially()
+}
+
+// Play through node phrases one by one
+const playNodePhrasesSequentially = async () => {
+  if (!isPlayingNodePhrases.value || !audioController.value) {
+    stopNodePhrasePlayback()
+    return
+  }
+
+  while (currentPlayingPhraseIndex.value < nodePhraseItems.value.length) {
+    if (!isPlayingNodePhrases.value) break
+
+    const item = nodePhraseItems.value[currentPlayingPhraseIndex.value]
+
+    // Play known audio first (prompt)
+    const knownUrl = item.knownAudioUrl
+    if (knownUrl) {
+      try {
+        await audioController.value.play({ url: knownUrl })
+        // Brief pause after known
+        await new Promise(resolve => setTimeout(resolve, 300))
+      } catch (e) {
+        console.warn('[Network] Failed to play known audio:', e)
+      }
+    }
+
+    if (!isPlayingNodePhrases.value) break
+
+    // Play target audio (voice 1)
+    const targetUrl = item.targetAudioUrl || item.target1AudioUrl
+    if (targetUrl) {
+      try {
+        await audioController.value.play({ url: targetUrl })
+      } catch (e) {
+        console.warn('[Network] Failed to play target audio:', e)
+      }
+    }
+
+    // Brief pause between phrases
+    if (currentPlayingPhraseIndex.value < nodePhraseItems.value.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 500))
+    }
+
+    currentPlayingPhraseIndex.value++
+  }
+
+  // Done playing all phrases
+  stopNodePhrasePlayback()
+}
+
+// Stop node phrase playback
+const stopNodePhrasePlayback = () => {
+  isPlayingNodePhrases.value = false
+  playingNodeId.value = null
+  nodePhraseItems.value = []
+  currentPlayingPhraseIndex.value = 0
+  // Clear highlighting after a delay
+  setTimeout(() => {
+    if (!isPlayingNodePhrases.value) {
+      resonatingNodes.value = []
+    }
+  }, 300)
 }
 
 const handleNetworkNodeHover = (node) => {

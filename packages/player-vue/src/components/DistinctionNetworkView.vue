@@ -252,7 +252,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits<{
-  (e: 'node-tap', nodeId: string): void
+  (e: 'node-tap', node: DistinctionNode): void  // Full node for phrase playback
   (e: 'node-double-tap', nodeId: string): void
   (e: 'node-hover', node: DistinctionNode | null): void
   (e: 'zoom-change', zoom: number): void
@@ -472,6 +472,34 @@ function updateDefs(): void {
   activeGlowMerge.append('feMergeNode').attr('in', 'blur')
   activeGlowMerge.append('feMergeNode').attr('in', 'SourceGraphic')
 
+  // Resonating glow filter (for highlighted nodes during playback)
+  const resonatingGlowFilter = defsEl.append('filter')
+    .attr('id', 'resonating-glow')
+    .attr('x', '-200%')
+    .attr('y', '-200%')
+    .attr('width', '500%')
+    .attr('height', '500%')
+
+  resonatingGlowFilter.append('feGaussianBlur')
+    .attr('stdDeviation', '6')
+    .attr('result', 'blur')
+
+  resonatingGlowFilter.append('feFlood')
+    .attr('flood-color', pal.node.stroke)
+    .attr('flood-opacity', '0.6')
+    .attr('result', 'flood')
+
+  resonatingGlowFilter.append('feComposite')
+    .attr('in', 'flood')
+    .attr('in2', 'blur')
+    .attr('operator', 'in')
+    .attr('result', 'coloredBlur')
+
+  const resonatingMerge = resonatingGlowFilter.append('feMerge')
+  resonatingMerge.append('feMergeNode').attr('in', 'coloredBlur')
+  resonatingMerge.append('feMergeNode').attr('in', 'coloredBlur')
+  resonatingMerge.append('feMergeNode').attr('in', 'SourceGraphic')
+
   // Edge glow filter (subtle)
   const edgeGlowFilter = defsEl.append('filter')
     .attr('id', 'edge-glow')
@@ -653,7 +681,7 @@ function renderNodes(): void {
     .on('click', (event, d) => {
       if (mergedConfig.value.interaction.tapToSelect) {
         event.stopPropagation()
-        emit('node-tap', d.id)
+        emit('node-tap', d)  // Pass full node object for phrase playback
       }
     })
     .on('dblclick', (event, d) => {
@@ -682,14 +710,25 @@ function renderNodes(): void {
     .duration(mergedConfig.value.animation.nodeEnterDuration)
     .attr('opacity', 1)
 
-  // Simple uniform styling - just use belt color, no state changes
-  // The edges tell the story, not the nodes
+  // Style nodes - resonating nodes get a glow effect
   nodeMerge.select('.node-core')
-    .attr('r', config.baseRadius)
+    .attr('r', d => {
+      // Resonating nodes are slightly larger
+      const isResonating = isNodeResonating(d.id)
+      return isResonating ? config.baseRadius * 1.5 : config.baseRadius
+    })
     .attr('fill', d => {
       // Use the node's introduction belt color
       const nodePal = getNodePalette(d)
       return nodePal.node.stroke
+    })
+    .attr('filter', d => {
+      // Add glow filter to resonating nodes
+      return isNodeResonating(d.id) ? 'url(#resonating-glow)' : 'none'
+    })
+    .attr('opacity', d => {
+      // Resonating nodes are fully opaque
+      return isNodeResonating(d.id) ? 1 : 0.8
     })
 }
 
