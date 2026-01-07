@@ -58,19 +58,19 @@ export interface SimulationConfig {
 
 const DEFAULT_CONFIG: SimulationConfig = {
   link: {
-    strengthMultiplier: 0.4,     // Moderate: connected nodes cluster but not too tight
+    strengthMultiplier: 0.6,     // Stronger: connected nodes cluster tighter
   },
   charge: {
-    strength: -200,              // Stronger repulsion: spread nodes out more
-    distanceMax: 500,
+    strength: -350,              // Much stronger repulsion for organic spread
+    distanceMax: 600,            // Larger range
   },
   radial: {
-    radius: 350,                 // Larger orbital radius: fill more screen space
-    strength: 0.03,              // Very weak: organic scatter, not perfect orbit
+    radius: 350,                 // Kept for reference but effectively disabled
+    strength: 0.005,             // Almost zero - just prevents flying away
   },
   collision: {
-    radius: 40,                  // Slightly larger collision radius
-    strength: 0.7,
+    radius: 25,                  // Smaller: allow tighter packing
+    strength: 0.8,
   },
   center: {
     x: 0,
@@ -78,9 +78,9 @@ const DEFAULT_CONFIG: SimulationConfig = {
   },
   alpha: {
     initial: 1,
-    decay: 0.01,                 // Slower decay: more time to find organic positions
+    decay: 0.008,                // Even slower: more time to find organic positions
     min: 0.001,
-    restart: 0.5,
+    restart: 0.6,
   }
 }
 
@@ -120,18 +120,40 @@ export function useDistinctionNetworkSimulation(
     }
 
     simulation = d3.forceSimulation<DistinctionNode, DirectionalEdge>(nodes.value)
-      // Link force: distance is pre-calculated based on strength
+      // Link force: distance based on edge strength (stronger = closer)
       .force('link', d3.forceLink<DistinctionNode, DirectionalEdge>(links.value)
         .id(d => d.id)
-        .distance(d => d.distance || 150)
-        .strength(config.link.strengthMultiplier)
+        .distance(d => {
+          // Use pre-calculated distance, or derive from strength
+          if (d.distance) return d.distance
+          const strength = d.strength || 1
+          // Stronger edges = shorter distance (tighter clustering)
+          return Math.max(30, 180 / (1 + Math.sqrt(strength)))
+        })
+        .strength(d => {
+          // Stronger edges pull harder
+          const strength = d.strength || 1
+          return Math.min(0.9, config.link.strengthMultiplier + Math.log(strength + 1) * 0.1)
+        })
       )
       // Charge force: node repulsion
       .force('charge', d3.forceManyBody<DistinctionNode>()
-        .strength(config.charge.strength)
+        .strength(d => {
+          // Hero repels more strongly to create central clearing
+          if (d.id === heroNodeId.value) return config.charge.strength * 1.5
+          return config.charge.strength
+        })
         .distanceMax(config.charge.distanceMax)
       )
-      // Radial force: non-hero nodes tend toward orbital ring
+      // X centering: gentle pull toward center
+      .force('x', d3.forceX<DistinctionNode>(config.center.x)
+        .strength(d => d.id === heroNodeId.value ? 0 : 0.02)
+      )
+      // Y centering: gentle pull toward center
+      .force('y', d3.forceY<DistinctionNode>(config.center.y)
+        .strength(d => d.id === heroNodeId.value ? 0 : 0.02)
+      )
+      // Radial force: very weak, just prevents extreme scatter
       .force('radial', d3.forceRadial<DistinctionNode>(
         config.radial.radius,
         config.center.x,
@@ -145,6 +167,7 @@ export function useDistinctionNetworkSimulation(
       // Alpha settings
       .alphaDecay(config.alpha.decay)
       .alphaMin(config.alpha.min)
+      .velocityDecay(0.4) // More friction for smoother settling
       // Tick handler
       .on('tick', handleTick)
       .on('end', () => {
@@ -188,6 +211,12 @@ export function useDistinctionNetworkSimulation(
     config.center.y = y
 
     if (simulation) {
+      // Update X/Y centering forces
+      const xForce = simulation.force('x') as d3.ForceX<DistinctionNode> | undefined
+      const yForce = simulation.force('y') as d3.ForceY<DistinctionNode> | undefined
+      if (xForce) xForce.x(x)
+      if (yForce) yForce.y(y)
+
       // Update radial force center
       const radialForce = simulation.force('radial') as d3.ForceRadial<DistinctionNode> | undefined
       if (radialForce) {
