@@ -31,6 +31,13 @@ const props = defineProps({
   course: {
     type: Object,
     default: null
+  },
+  // Network preview mode: auto-populate network up to this LEGO index
+  // Set to 0 for normal playback, or higher number to preview network shape
+  // e.g., 50 will show first 50 LEGOs without playing audio
+  previewLegoIndex: {
+    type: Number,
+    default: 0  // 0 = normal mode, >0 = preview mode
   }
 })
 
@@ -3032,12 +3039,18 @@ onMounted(async () => {
   // ============================================
   setLoadingStage('ready')
 
-  // Populate network with all LEGOs up to restored position (if resuming)
-  if (currentRoundIndex.value > 0) {
-    nextTick(() => {
+  // Populate network with all LEGOs up to target position
+  // Priority: previewLegoIndex prop > restored position > nothing
+  nextTick(() => {
+    if (props.previewLegoIndex > 0) {
+      // Preview mode: show network up to specified LEGO index
+      console.log(`[LearningPlayer] Preview mode: populating network up to LEGO ${props.previewLegoIndex}`)
+      populateNetworkUpToRound(props.previewLegoIndex)
+    } else if (currentRoundIndex.value > 0) {
+      // Resuming: show network up to restored position
       populateNetworkUpToRound(currentRoundIndex.value)
-    })
-  }
+    }
+  })
 
   // ============================================
   // META-COMMENTARY INITIALIZATION
