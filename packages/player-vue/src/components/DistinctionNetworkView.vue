@@ -782,8 +782,8 @@ function renderNodes(): void {
     })
     .attr('opacity', d => {
       if (isInPath(d)) return 1  // Full match: bright
-      if (isResonating(d)) return 0.35  // Resonance: subtle 35% echo
-      return 0.5
+      if (isResonating(d)) return 0.3  // Resonance: subtle echo
+      return 0.25  // Dormant: very faint, recedes into background
     })
     .attr('filter', d => {
       if (isInPath(d)) return 'url(#glow)'  // Full match: bright glow
@@ -806,8 +806,8 @@ function renderNodes(): void {
     .attr('stroke-width', d => isInPath(d) ? config.strokeWidthActive : config.strokeWidth)
     .attr('stroke-opacity', d => {
       if (isInPath(d)) return 1
-      if (isResonating(d)) return 0.5
-      return 0.6
+      if (isResonating(d)) return 0.4
+      return 0.3  // Dormant: fainter stroke
     })
 
   // Update inner dot
@@ -817,8 +817,8 @@ function renderNodes(): void {
     .attr('fill', d => getNodePalette(d).glow)
     .attr('opacity', d => {
       if (isInPath(d)) return 1
-      if (isResonating(d)) return 0.4
-      return 0.6
+      if (isResonating(d)) return 0.35
+      return 0.3  // Dormant: very subtle
     })
 }
 
@@ -855,11 +855,12 @@ function renderLabels(): void {
 
   labelMerge
     .attr('opacity', d => {
-      // Full match: always show labels at full opacity
-      if (isNodeInPath(d.id)) return 1
-      // Resonance: subtle label visibility (not as prominent)
-      if (isNodeResonating(d.id)) return 0.5
-      // Otherwise zoom-based
+      // Only show path/resonance labels during VOICE_2 (when showPathLabels is true)
+      if (props.showPathLabels) {
+        if (isNodeInPath(d.id)) return 1  // Full match: bright
+        if (isNodeResonating(d.id)) return 0.5  // Resonance: subtle
+      }
+      // Otherwise zoom-based (manual exploration)
       if (!showLabels) return 0
       return Math.min(0.8, (currentZoom.value - interactionConfig.labelZoomThreshold) / 0.5)
     })

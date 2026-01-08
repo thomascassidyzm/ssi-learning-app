@@ -3553,7 +3553,29 @@ onUnmounted(() => {
 
     <!-- Hero-Centric Text Labels - Floating above/below the hero node -->
     <div class="hero-text-pane" :class="[currentPhase, { 'is-intro': isIntroPhase }]">
+      <!-- Timing ring around the glass pane -->
+      <svg class="hero-timing-ring" viewBox="0 0 200 160">
+        <rect
+          class="timing-ring-track"
+          x="4" y="4"
+          width="192" height="152"
+          rx="20" ry="20"
+        />
+        <rect
+          class="timing-ring-progress"
+          :class="currentPhase"
+          x="4" y="4"
+          width="192" height="152"
+          rx="20" ry="20"
+        />
+      </svg>
+
       <div class="hero-glass">
+        <!-- Phase indicator dot -->
+        <div class="phase-indicator" :class="currentPhase">
+          <span class="phase-dot"></span>
+        </div>
+
         <!-- Known text floats above -->
         <div class="hero-text-known">
           <transition name="text-fade" mode="out-in">
@@ -4065,33 +4087,27 @@ onUnmounted(() => {
 }
 
 /* ============ NEBULA GLOW - Belt colored ambient light ============ */
-/* Creates a radial glow emanating from the network center (hero node) */
+/* Creates a SUBTLE radial glow emanating from the network center */
 .nebula-glow {
   position: fixed;
   inset: 0;
   background:
-    /* Primary glow - centered where the hero node is */
+    /* Very subtle central glow */
     radial-gradient(
-      ellipse 60% 50% at 50% 45%,
-      var(--belt-glow, rgba(194, 58, 58, 0.12)) 0%,
-      var(--belt-glow, rgba(194, 58, 58, 0.05)) 30%,
-      transparent 60%
-    ),
-    /* Secondary ambient - larger, more diffuse */
-    radial-gradient(
-      ellipse 100% 80% at 50% 50%,
-      var(--belt-glow, rgba(194, 58, 58, 0.04)) 0%,
-      transparent 50%
+      ellipse 50% 40% at 50% 45%,
+      var(--belt-glow, rgba(194, 58, 58, 0.06)) 0%,
+      var(--belt-glow, rgba(194, 58, 58, 0.02)) 40%,
+      transparent 70%
     );
   pointer-events: none;
   z-index: 1;
-  opacity: 0.8;
+  opacity: 0.5;
   transition: background 1s ease, opacity 0.5s ease;
 }
 
-/* Brighter glow during intro/debut phases */
+/* Slightly brighter during intro/debut (but still subtle) */
 .player:has(.hero-text-pane.is-intro) .nebula-glow {
-  opacity: 1;
+  opacity: 0.7;
 }
 
 /* ============ BRAIN NETWORK VISUALIZATION ============ */
@@ -4938,6 +4954,101 @@ onUnmounted(() => {
 .hero-target-placeholder {
   height: 1.6rem;
   margin: 0;
+}
+
+/* Timing ring around the glass pane */
+.hero-timing-ring {
+  position: absolute;
+  inset: -8px;
+  width: calc(100% + 16px);
+  height: calc(100% + 16px);
+  pointer-events: none;
+}
+
+.timing-ring-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.06);
+  stroke-width: 2;
+}
+
+.timing-ring-progress {
+  fill: none;
+  stroke: var(--belt-color, #c23a3a);
+  stroke-width: 2;
+  stroke-dasharray: 688; /* Perimeter of rounded rect */
+  stroke-dashoffset: 688; /* Start hidden */
+  stroke-linecap: round;
+  opacity: 0.6;
+  transition: stroke-dashoffset 0.3s ease;
+}
+
+/* Phase-based progress animation */
+.timing-ring-progress.prompt {
+  stroke-dashoffset: 516; /* 25% visible */
+  animation: timing-pulse 2s ease-in-out;
+}
+
+.timing-ring-progress.speak {
+  stroke-dashoffset: 344; /* 50% visible */
+  animation: timing-fill 4s linear forwards;
+}
+
+.timing-ring-progress.voice_1 {
+  stroke-dashoffset: 172; /* 75% visible */
+}
+
+.timing-ring-progress.voice_2 {
+  stroke-dashoffset: 0; /* 100% visible */
+  stroke: var(--belt-color, #c23a3a);
+  opacity: 0.8;
+}
+
+@keyframes timing-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes timing-fill {
+  from { stroke-dashoffset: 516; }
+  to { stroke-dashoffset: 172; }
+}
+
+/* Phase indicator dot */
+.phase-indicator {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.phase-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transition: all 0.3s ease;
+}
+
+.phase-indicator.prompt .phase-dot {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.phase-indicator.speak .phase-dot {
+  background: var(--belt-color, #c23a3a);
+  animation: speak-pulse 1s ease-in-out infinite;
+}
+
+.phase-indicator.voice_1 .phase-dot,
+.phase-indicator.voice_2 .phase-dot {
+  background: var(--belt-color, #c23a3a);
+  box-shadow: 0 0 8px var(--belt-glow, rgba(194, 58, 58, 0.5));
+}
+
+@keyframes speak-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.3); opacity: 1; }
 }
 
 /* Intro phase: larger, more prominent text */
