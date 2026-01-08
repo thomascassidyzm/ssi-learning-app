@@ -1351,7 +1351,8 @@ const handleCycleEvent = (event) => {
           break
         case CyclePhase.VOICE_1:
           if (isAdaptationActive.value) markPhaseTransition('VOICE_1')
-          // Animate the path during Voice 1 (nodes + edges light up)
+          // Voice 1: Nodes light up in sequence (NO edges, NO labels)
+          // Learner is listening - visual follows the audio timing
           {
             const itemForVoice1 = useRoundBasedPlayback.value
               ? currentPlayableItem.value
@@ -1359,14 +1360,17 @@ const handleCycleEvent = (event) => {
             if (itemForVoice1) {
               const legoIds = extractLegoIdsFromPhrase(itemForVoice1)
               if (legoIds.length > 0) {
-                animateNetworkPath(legoIds)
+                // Get audio duration for timing sync
+                const audioDurationMs = (itemForVoice1.audioDurations?.target1 || 2) * 1000
+                distinctionNetwork.animateNodesForVoice1(legoIds, audioDurationMs)
               }
             }
           }
           break
         case CyclePhase.VOICE_2:
           if (isAdaptationActive.value) markPhaseTransition('VOICE_2')
-          // Trigger network path animation during Voice 2 (with labels)
+          // Voice 2: Full experience - nodes + edges + labels
+          // Text is now visible, show the full pathway with traveling pulses
           {
             const currentItemForPath = useRoundBasedPlayback.value
               ? currentPlayableItem.value
@@ -1374,7 +1378,9 @@ const handleCycleEvent = (event) => {
             if (currentItemForPath) {
               const legoIds = extractLegoIdsFromPhrase(currentItemForPath)
               if (legoIds.length > 0) {
-                animateNetworkPath(legoIds)
+                // Get audio duration for timing sync
+                const audioDurationMs = (currentItemForPath.audioDurations?.target2 || 2) * 1000
+                distinctionNetwork.animatePathForVoice2(legoIds, audioDurationMs)
               }
               // Find M-LEGOs with partial word overlap (resonance effect)
               const resonating = findResonatingNodes(currentItemForPath, legoIds)
@@ -1407,6 +1413,10 @@ const handleCycleEvent = (event) => {
 
     case 'item_completed':
       itemsPracticed.value++
+
+      // Clear path highlights - cycle is complete, ready for next item
+      distinctionNetwork.clearPathAnimation()
+      resonatingNodes.value = []
 
       // End timing cycle and capture results
       const completedItem = useRoundBasedPlayback.value
@@ -2781,19 +2791,6 @@ const strengthenPhrasePath = (legoIds) => {
   network.firePath(legoIds)
 }
 
-// Animate path through network during Voice 2 phase
-// Uses the composable for path highlighting
-const animateNetworkPath = async (legoIds) => {
-  if (!legoIds || legoIds.length === 0) return
-
-  // Use composable animation
-  await distinctionNetwork.animatePathForVoice2(legoIds)
-
-  // Clear resonance after animation
-  setTimeout(() => {
-    resonatingNodes.value = []
-  }, 800)
-}
 
 // Handle tap on a network node - play all practice phrases for this LEGO
 const handleNetworkNodeTap = async (node) => {
@@ -2858,8 +2855,9 @@ const playNodePhrasesSequentially = async () => {
     // Extract LEGOs in this phrase and highlight the path
     const phraseLegoIds = extractLegoIdsFromPhrase(item)
     if (phraseLegoIds.length > 0) {
-      // Animate the path through the network
-      animateNetworkPath(phraseLegoIds)
+      // Animate the full path (like Voice 2) for tap exploration
+      const audioDurationMs = (item.audioDurations?.target1 || 2) * 1000
+      distinctionNetwork.animatePathForVoice2(phraseLegoIds, audioDurationMs)
       resonatingNodes.value = phraseLegoIds
     }
 

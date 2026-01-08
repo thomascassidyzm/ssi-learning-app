@@ -15,14 +15,22 @@
  *     viewRef,
  *     introduceLegoNode,
  *     practicePhrase,
+ *     animateNodesForVoice1,
  *     animatePathForVoice2,
+ *     clearPathAnimation,
  *   } = useDistinctionNetworkIntegration()
  *
  *   // When a new LEGO is introduced (round start):
  *   introduceLegoNode(legoId, targetText, knownText)
  *
- *   // When a phrase is practiced (Voice 2 phase):
- *   await animatePathForVoice2(legoIds)
+ *   // During Voice 1: nodes light up in sequence (no edges, no labels)
+ *   await animateNodesForVoice1(legoIds, audioDurationMs)
+ *
+ *   // During Voice 2: full experience with edges + labels
+ *   await animatePathForVoice2(legoIds, audioDurationMs)
+ *
+ *   // On item_completed: clear all path highlights
+ *   clearPathAnimation()
  */
 
 import { ref, computed, watch, nextTick, type Ref, type ComponentPublicInstance } from 'vue'
@@ -153,35 +161,29 @@ export function useDistinctionNetworkIntegration(
   }
 
   /**
-   * Animate the path during Voice 2 phase
-   * Highlights each node/edge in sequence
+   * Animate nodes only during Voice 1 phase
+   * Lights up nodes in sequence - NO edges, NO labels (learner is listening)
    *
    * @param legoIds - Ordered list of LEGO IDs to animate
+   * @param audioDurationMs - Duration of audio to sync animation with
    * @returns Promise that resolves when animation completes
    */
-  async function animatePathForVoice2(legoIds: string[]): Promise<void> {
+  async function animateNodesForVoice1(legoIds: string[], audioDurationMs: number = 2000): Promise<void> {
     if (!legoIds || legoIds.length === 0) return
 
     // Cancel any existing animation
     clearPathAnimation()
 
-    // Set the path
+    // Set the path (nodes will light up, but no edge animation yet)
     network.setHighlightPath(legoIds)
     isAnimatingPath.value = true
 
-    // Trigger pulse animation along edges (traveling dots)
-    if (viewRef.value && legoIds.length >= 2) {
-      const edgeIds: string[] = []
-      for (let i = 0; i < legoIds.length - 1; i++) {
-        edgeIds.push(`${legoIds[i]}->${legoIds[i + 1]}`)
-      }
-      viewRef.value.animatePathPulses(edgeIds, config.pathAnimationStepMs)
-    }
+    // Calculate step duration to match audio
+    // Spread node activations across the audio duration
+    const stepDuration = Math.max(150, audioDurationMs / legoIds.length)
 
-    // Animate through each step (node highlighting)
+    // Animate through each node in sequence
     return new Promise((resolve) => {
-      const stepDuration = config.pathAnimationStepMs
-
       for (let i = 0; i < legoIds.length; i++) {
         const timer = window.setTimeout(() => {
           network.setPathActiveIndex(i)
@@ -189,11 +191,57 @@ export function useDistinctionNetworkIntegration(
         pathAnimationTimers.push(timer)
       }
 
-      // Clear after last step
+      // Keep last node lit until Voice 2 takes over (don't clear)
       const finalTimer = window.setTimeout(() => {
         isAnimatingPath.value = false
         resolve()
-      }, legoIds.length * stepDuration + stepDuration)
+      }, legoIds.length * stepDuration)
+      pathAnimationTimers.push(finalTimer)
+    })
+  }
+
+  /**
+   * Animate the path during Voice 2 phase
+   * Full experience: nodes + edges + labels
+   *
+   * @param legoIds - Ordered list of LEGO IDs to animate
+   * @param audioDurationMs - Duration of audio to sync animation with
+   * @returns Promise that resolves when animation completes
+   */
+  async function animatePathForVoice2(legoIds: string[], audioDurationMs: number = 2000): Promise<void> {
+    if (!legoIds || legoIds.length === 0) return
+
+    // Don't clear - continue from Voice 1 state
+    // Just ensure path is set
+    network.setHighlightPath(legoIds)
+    isAnimatingPath.value = true
+
+    // Calculate step duration to match audio
+    const stepDuration = Math.max(150, audioDurationMs / legoIds.length)
+
+    // Trigger pulse animation along edges (traveling dots)
+    if (viewRef.value && legoIds.length >= 2) {
+      const edgeIds: string[] = []
+      for (let i = 0; i < legoIds.length - 1; i++) {
+        edgeIds.push(`${legoIds[i]}->${legoIds[i + 1]}`)
+      }
+      viewRef.value.animatePathPulses(edgeIds, stepDuration)
+    }
+
+    // Animate through each step (node highlighting synced with audio)
+    return new Promise((resolve) => {
+      for (let i = 0; i < legoIds.length; i++) {
+        const timer = window.setTimeout(() => {
+          network.setPathActiveIndex(i)
+        }, i * stepDuration)
+        pathAnimationTimers.push(timer)
+      }
+
+      // Keep highlighted until cleared by item_completed
+      const finalTimer = window.setTimeout(() => {
+        isAnimatingPath.value = false
+        resolve()
+      }, legoIds.length * stepDuration)
       pathAnimationTimers.push(finalTimer)
     })
   }
@@ -330,6 +378,7 @@ export function useDistinctionNetworkIntegration(
     // Learning event handlers
     introduceLegoNode,
     practicePhrase,
+    animateNodesForVoice1,
     animatePathForVoice2,
     completePhraseWithAnimation,
     clearPathAnimation,
