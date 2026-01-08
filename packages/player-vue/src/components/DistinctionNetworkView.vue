@@ -138,52 +138,52 @@ const DEFAULT_CONFIG: DistinctionNetworkConfig = {
 
 const BELT_PALETTES = {
   white: {
-    node: { fill: '#ffffff20', stroke: '#ffffff60', glow: '#ffffff' },
-    edge: { stroke: '#ffffff80', active: '#ffffffcc' },  // Brighter edges
+    node: { base: '#2a2a35', mid: '#4a4a55', bright: '#ffffff' },
+    glow: '#9ca3af',  // Gray glow for white belt
+    edge: { stroke: '#ffffff30', active: '#60a5fa' },
     label: '#ffffffcc',
-    hero: '#c23a3a',
   },
   yellow: {
-    node: { fill: '#fbbf2420', stroke: '#fbbf2470', glow: '#fbbf24' },
-    edge: { stroke: '#fbbf2480', active: '#fbbf24cc' },
+    node: { base: '#2a2518', mid: '#4a4528', bright: '#fbbf24' },
+    glow: '#fbbf24',
+    edge: { stroke: '#fbbf2430', active: '#60a5fa' },
     label: '#fbbf24cc',
-    hero: '#c23a3a',
   },
   orange: {
-    node: { fill: '#f9731620', stroke: '#f9731670', glow: '#f97316' },
-    edge: { stroke: '#f9731680', active: '#f97316cc' },
+    node: { base: '#2a1a10', mid: '#4a3020', bright: '#f97316' },
+    glow: '#f97316',
+    edge: { stroke: '#f9731630', active: '#60a5fa' },
     label: '#f97316cc',
-    hero: '#c23a3a',
   },
   green: {
-    node: { fill: '#22c55e20', stroke: '#22c55e70', glow: '#22c55e' },
-    edge: { stroke: '#22c55e80', active: '#22c55ecc' },
+    node: { base: '#102a1a', mid: '#204a30', bright: '#22c55e' },
+    glow: '#22c55e',
+    edge: { stroke: '#22c55e30', active: '#60a5fa' },
     label: '#22c55ecc',
-    hero: '#c23a3a',
   },
   blue: {
-    node: { fill: '#3b82f620', stroke: '#3b82f670', glow: '#3b82f6' },
-    edge: { stroke: '#3b82f680', active: '#3b82f6cc' },
+    node: { base: '#101a2a', mid: '#203050', bright: '#3b82f6' },
+    glow: '#3b82f6',
+    edge: { stroke: '#3b82f630', active: '#60a5fa' },
     label: '#3b82f6cc',
-    hero: '#c23a3a',
   },
   purple: {
-    node: { fill: '#8b5cf620', stroke: '#8b5cf670', glow: '#8b5cf6' },
-    edge: { stroke: '#8b5cf680', active: '#8b5cf6cc' },
+    node: { base: '#1a102a', mid: '#302050', bright: '#8b5cf6' },
+    glow: '#8b5cf6',
+    edge: { stroke: '#8b5cf630', active: '#60a5fa' },
     label: '#8b5cf6cc',
-    hero: '#c23a3a',
   },
   brown: {
-    node: { fill: '#a8784820', stroke: '#a8784870', glow: '#a87848' },
-    edge: { stroke: '#a8784880', active: '#a87848cc' },
+    node: { base: '#2a1a10', mid: '#4a3520', bright: '#a87848' },
+    glow: '#a87848',
+    edge: { stroke: '#a8784830', active: '#60a5fa' },
     label: '#a87848cc',
-    hero: '#c23a3a',
   },
   black: {
-    node: { fill: '#d4a85320', stroke: '#d4a85370', glow: '#d4a853' },
-    edge: { stroke: '#d4a85380', active: '#d4a853cc' },
+    node: { base: '#2a2518', mid: '#4a4030', bright: '#d4a853' },
+    glow: '#d4a853',
+    edge: { stroke: '#d4a85330', active: '#60a5fa' },
     label: '#d4a853cc',
-    hero: '#c23a3a',
   },
 }
 
@@ -485,7 +485,7 @@ function updateDefs(): void {
     .attr('result', 'blur')
 
   resonatingGlowFilter.append('feFlood')
-    .attr('flood-color', pal.node.stroke)
+    .attr('flood-color', pal.glow)
     .attr('flood-opacity', '0.6')
     .attr('result', 'flood')
 
