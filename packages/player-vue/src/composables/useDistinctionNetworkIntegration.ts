@@ -169,7 +169,16 @@ export function useDistinctionNetworkIntegration(
     network.setHighlightPath(legoIds)
     isAnimatingPath.value = true
 
-    // Animate through each step
+    // Trigger pulse animation along edges (traveling dots)
+    if (viewRef.value && legoIds.length >= 2) {
+      const edgeIds: string[] = []
+      for (let i = 0; i < legoIds.length - 1; i++) {
+        edgeIds.push(`${legoIds[i]}->${legoIds[i + 1]}`)
+      }
+      viewRef.value.animatePathPulses(edgeIds, config.pathAnimationStepMs)
+    }
+
+    // Animate through each step (node highlighting)
     return new Promise((resolve) => {
       const stepDuration = config.pathAnimationStepMs
 
