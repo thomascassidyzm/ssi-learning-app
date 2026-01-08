@@ -1132,6 +1132,14 @@ const sessionProgress = computed(() => {
 })
 const showTargetText = computed(() => currentPhase.value === Phase.VOICE_2)
 
+// Is current item an intro/debut? (network should fade, hero text more prominent)
+const isIntroPhase = computed(() => {
+  const item = useRoundBasedPlayback.value
+    ? currentPlayableItem.value
+    : sessionItems.value[currentItemIndex.value]
+  return item?.type === 'intro' || item?.type === 'debut'
+})
+
 // Visible texts for QA reporting - always shows both for context
 const visibleTexts = computed(() => ({
   known: currentItem.value?.phrase?.phrase?.known || '',
@@ -3531,9 +3539,37 @@ onUnmounted(() => {
       :resonating-node-ids="resonatingNodes"
       :show-path-labels="showTargetText"
       class="brain-network-container"
+      :class="{ 'network-faded': isIntroPhase }"
       @node-tap="handleNetworkNodeTap"
       @node-hover="handleNetworkNodeHover"
     />
+
+    <!-- Hero-Centric Text Labels - Floating above/below the hero node -->
+    <div class="hero-text-pane" :class="[currentPhase, { 'is-intro': isIntroPhase }]">
+      <div class="hero-glass">
+        <!-- Known text floats above -->
+        <div class="hero-text-known">
+          <transition name="text-fade" mode="out-in">
+            <p v-if="isAwakening" class="hero-known loading-text" key="loading">
+              {{ currentLoadingMessage }}<span class="loading-cursor">▌</span>
+            </p>
+            <p v-else class="hero-known" :key="currentPhrase.known">
+              {{ currentPhrase.known }}
+            </p>
+          </transition>
+        </div>
+
+        <!-- Target text floats below (only visible in Voice 2) -->
+        <div class="hero-text-target">
+          <transition name="text-reveal" mode="out-in">
+            <p v-if="showTargetText" class="hero-target" :key="currentPhrase.target">
+              {{ currentPhrase.target }}
+            </p>
+            <p v-else class="hero-target-placeholder" key="placeholder">&nbsp;</p>
+          </transition>
+        </div>
+      </div>
+    </div>
 
     <!-- Node Hover Tooltip -->
     <Transition name="tooltip-fade">
@@ -4480,12 +4516,13 @@ onUnmounted(() => {
 }
 
 .control-pane {
+  /* Hidden - replaced by hero-centric text pane */
+  display: none !important;
   position: absolute;
   bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 15;
-  display: flex;
   flex-direction: row;
   align-items: center;
   justify-content: center;
@@ -4802,6 +4839,116 @@ onUnmounted(() => {
   right: 0;
   bottom: 0; /* FULLSCREEN - extends to bottom */
   z-index: 2;
+  transition: opacity 0.5s ease;
+}
+
+/* Network fades during intro/debut phases - hero text takes focus */
+.brain-network-container.network-faded {
+  opacity: 0.3;
+}
+
+/* ============ HERO-CENTRIC TEXT PANE ============ */
+/* Text labels floating above/below the hero node with glass effect */
+.hero-text-pane {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 60px; /* Space for hero node between texts */
+  max-width: 90vw;
+}
+
+.hero-glass {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 80px; /* Vertical space for hero node */
+  padding: 20px 32px;
+  border-radius: 20px;
+  /* Ultra-subtle glass effect */
+  background: rgba(10, 10, 20, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow:
+    0 4px 30px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Make glass more prominent during intro/debut */
+.hero-text-pane.is-intro .hero-glass {
+  background: rgba(10, 10, 20, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 8px 40px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.hero-text-known,
+.hero-text-target {
+  text-align: center;
+}
+
+.hero-known {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 1.4rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.hero-target {
+  font-family: 'Noto Serif', 'DM Sans', serif;
+  font-size: 1.6rem;
+  font-weight: 500;
+  color: var(--belt-color, #c23a3a);
+  margin: 0;
+  line-height: 1.4;
+  text-shadow: 0 0 20px var(--belt-glow, rgba(194, 58, 58, 0.4));
+}
+
+.hero-target-placeholder {
+  height: 1.6rem;
+  margin: 0;
+}
+
+/* Intro phase: larger, more prominent text */
+.hero-text-pane.is-intro .hero-known {
+  font-size: 1.6rem;
+}
+
+.hero-text-pane.is-intro .hero-target {
+  font-size: 1.8rem;
+}
+
+/* Mobile: slightly smaller text */
+@media (max-width: 480px) {
+  .hero-glass {
+    padding: 16px 24px;
+    gap: 60px;
+  }
+
+  .hero-known {
+    font-size: 1.2rem;
+  }
+
+  .hero-target {
+    font-size: 1.4rem;
+  }
+
+  .hero-text-pane.is-intro .hero-known {
+    font-size: 1.4rem;
+  }
+
+  .hero-text-pane.is-intro .hero-target {
+    font-size: 1.6rem;
+  }
 }
 
 /* Ink spirit rewards position adjustment */
