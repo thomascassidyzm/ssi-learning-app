@@ -758,38 +758,68 @@ function renderNodes(): void {
   // Enter + Update merge
   const nodeMerge = nodeEnter.merge(nodeSelection)
 
-  // Update all nodes based on state
-  const isActive = (d: DistinctionNode) => isNodeResonating(d.id) || isNodeInPath(d.id)
+  // Distinct visual states:
+  // - isInPath: Full match - LEGO is an exact constituent of the phrase (bright, fully lit)
+  // - isResonating: Partial match - M-LEGO shares some words (subtle echo effect)
+  // - Neither: Default dormant state
+  const isInPath = (d: DistinctionNode) => isNodeInPath(d.id)
+  const isResonating = (d: DistinctionNode) => isNodeResonating(d.id) && !isNodeInPath(d.id)
 
   // Update glow ring
   nodeMerge.select('.node-glow')
     .transition()
     .duration(150)
-    .attr('r', d => isActive(d) ? config.glowRadius * 1.3 : config.glowRadius)
+    .attr('r', d => {
+      if (isInPath(d)) return config.glowRadius * 1.3  // Full match: larger
+      if (isResonating(d)) return config.glowRadius * 1.1  // Resonance: slight pulse
+      return config.glowRadius
+    })
     .attr('stroke', d => getNodePalette(d).glow)
-    .attr('stroke-width', d => isActive(d) ? 3 : 2)
-    .attr('opacity', d => isActive(d) ? 1 : 0.5)
-    .attr('filter', d => isActive(d) ? 'url(#glow)' : 'none')
+    .attr('stroke-width', d => {
+      if (isInPath(d)) return 3
+      if (isResonating(d)) return 2.5
+      return 2
+    })
+    .attr('opacity', d => {
+      if (isInPath(d)) return 1  // Full match: bright
+      if (isResonating(d)) return 0.35  // Resonance: subtle 35% echo
+      return 0.5
+    })
+    .attr('filter', d => {
+      if (isInPath(d)) return 'url(#glow)'  // Full match: bright glow
+      if (isResonating(d)) return 'url(#resonating-glow)'  // Resonance: subtle glow
+      return 'none'
+    })
 
   // Update core
   nodeMerge.select('.node-core')
     .transition()
     .duration(150)
-    .attr('r', d => isActive(d) ? config.coreRadius * 1.15 : config.coreRadius)
+    .attr('r', d => isInPath(d) ? config.coreRadius * 1.15 : config.coreRadius)
     .attr('fill', d => {
       const nodePal = getNodePalette(d)
-      return isActive(d) ? nodePal.node.bright : nodePal.node.base
+      if (isInPath(d)) return nodePal.node.bright  // Full match: bright
+      if (isResonating(d)) return nodePal.node.mid  // Resonance: mid-tone
+      return nodePal.node.base
     })
     .attr('stroke', d => getNodePalette(d).glow)
-    .attr('stroke-width', d => isActive(d) ? config.strokeWidthActive : config.strokeWidth)
-    .attr('stroke-opacity', d => isActive(d) ? 1 : 0.6)
+    .attr('stroke-width', d => isInPath(d) ? config.strokeWidthActive : config.strokeWidth)
+    .attr('stroke-opacity', d => {
+      if (isInPath(d)) return 1
+      if (isResonating(d)) return 0.5
+      return 0.6
+    })
 
   // Update inner dot
   nodeMerge.select('.node-inner')
     .transition()
     .duration(150)
     .attr('fill', d => getNodePalette(d).glow)
-    .attr('opacity', d => isActive(d) ? 1 : 0.6)
+    .attr('opacity', d => {
+      if (isInPath(d)) return 1
+      if (isResonating(d)) return 0.4
+      return 0.6
+    })
 }
 
 function renderLabels(): void {
@@ -825,8 +855,10 @@ function renderLabels(): void {
 
   labelMerge
     .attr('opacity', d => {
-      // Always show labels for active path nodes
-      if (isNodeInPath(d.id) || isNodeResonating(d.id)) return 1
+      // Full match: always show labels at full opacity
+      if (isNodeInPath(d.id)) return 1
+      // Resonance: subtle label visibility (not as prominent)
+      if (isNodeResonating(d.id)) return 0.5
       // Otherwise zoom-based
       if (!showLabels) return 0
       return Math.min(0.8, (currentZoom.value - interactionConfig.labelZoomThreshold) / 0.5)
