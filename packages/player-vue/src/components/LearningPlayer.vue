@@ -2933,41 +2933,61 @@ const playHoverPhrase = async (phrase) => {
 }
 
 // Extract LEGO IDs from a practice phrase (for path animation and edge creation)
+// Uses greedy decomposition to find all LEGOs that compose the phrase
 const extractLegoIdsFromPhrase = (item) => {
-  const legoIds = new Set()
-
-  // 1. Try to get containsLegos from the phrase
-  if (item?.phrase?.containsLegos && Array.isArray(item.phrase.containsLegos)) {
-    item.phrase.containsLegos.forEach(id => legoIds.add(id))
+  const targetText = item?.phrase?.phrase?.target || item?.targetText || ''
+  if (!targetText) {
+    // Fallback to just the current LEGO if no text
+    const legoId = item?.lego?.id || item?.legoId
+    return legoId ? [legoId] : []
   }
 
-  // 2. Include the LEGO being practiced if present
-  if (item?.lego?.id) {
-    legoIds.add(item.lego.id)
-  }
-  if (item?.legoId) {
-    legoIds.add(item.legoId)
-  }
+  // Build a map of normalized LEGO text -> ID from current network nodes
+  const legoMap = new Map()
+  networkNodes.value.forEach(node => {
+    if (node.targetText) {
+      legoMap.set(node.targetText.toLowerCase().trim(), node.id)
+    }
+  })
 
-  // 3. Fallback: try to match target text against known LEGOs
-  // Uses substring matching - e.g., "quiero hablar español" matches nodes for each word
-  if (legoIds.size === 0) {
-    const targetText = item?.phrase?.phrase?.target || item?.targetText || ''
-    if (targetText) {
-      networkNodes.value.forEach(node => {
-        if (node.targetText && targetText.toLowerCase().includes(node.targetText.toLowerCase())) {
-          legoIds.add(node.id)
-        }
-      })
+  // Greedy decomposition - find longest matching LEGO at each position
+  const normalized = targetText.toLowerCase().trim()
+  const words = normalized.split(/\s+/)
+  const result: string[] = []
+  let i = 0
+
+  while (i < words.length) {
+    let longestMatch: string | null = null
+    let longestLength = 0
+
+    // Try longest phrases first
+    for (let len = Math.min(words.length - i, 5); len > 0; len--) {
+      const candidate = words.slice(i, i + len).join(' ')
+      const legoId = legoMap.get(candidate)
+      if (legoId) {
+        longestMatch = legoId
+        longestLength = len
+        break
+      }
+    }
+
+    if (longestMatch) {
+      result.push(longestMatch)
+      i += longestLength
+    } else {
+      i++ // Skip unmatched word
     }
   }
 
-  // Return as array, filtering to only nodes that exist in the network
-  const existingIds = [...legoIds].filter(id =>
-    networkNodes.value.find(n => n.id === id)
-  )
+  // If decomposition found nothing, fall back to the current LEGO
+  if (result.length === 0) {
+    const legoId = item?.lego?.id || item?.legoId
+    if (legoId && networkNodes.value.find(n => n.id === legoId)) {
+      result.push(legoId)
+    }
+  }
 
-  return existingIds
+  return result
 }
 
 // Find M-LEGOs that have partial word overlap with the phrase (resonance effect)
