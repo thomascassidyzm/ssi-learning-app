@@ -5535,19 +5535,22 @@ onUnmounted(() => {
   justify-content: center;
   align-items: center;
   gap: 1.25rem;
-  padding: 0.75rem 1rem;
+  padding: 0.75rem 1.5rem;
   position: absolute;
-  top: 80px; /* Below header */
+  bottom: 30px; /* MOVED TO BOTTOM - thumb zone on mobile */
   left: 50%;
   transform: translateX(-50%);
   z-index: 15;
   pointer-events: auto; /* Clickable buttons */
-  /* Glassmorphism */
-  background: rgba(10, 10, 15, 0.35);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  /* Glassmorphism - slightly more prominent at bottom */
+  background: rgba(10, 10, 15, 0.5);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border-radius: 100px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.3);
+  /* Safe area padding for notched phones */
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
   /* Always visible */
   opacity: 1;
   pointer-events: auto;
@@ -5651,6 +5654,8 @@ onUnmounted(() => {
 
 /* ============ FOOTER ============ */
 .footer {
+  /* Hidden - transport controls now at bottom, progress in header */
+  display: none;
   padding: 0 1.5rem 1.5rem;
   position: relative;
   z-index: 10;
@@ -5836,7 +5841,8 @@ onUnmounted(() => {
   .control-bar {
     gap: 0.75rem;
     padding: 0.5rem 0.75rem;
-    top: 70px;
+    bottom: 20px; /* Slightly higher on small screens */
+    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
   }
 
   .mode-btn {
