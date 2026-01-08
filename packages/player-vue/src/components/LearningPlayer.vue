@@ -2839,14 +2839,11 @@ const handleNetworkNodeTap = async (node) => {
   nodePhraseItems.value = practiceItems
   currentPlayingPhraseIndex.value = 0
 
-  // Highlight the node
-  resonatingNodes.value = [node.id]
-
-  // Play through all phrases
+  // Play through all phrases (each phrase highlights its own path)
   await playNodePhrasesSequentially()
 }
 
-// Play through node phrases one by one
+// Play through node phrases one by one - just target audio, with path highlighting
 const playNodePhrasesSequentially = async () => {
   if (!isPlayingNodePhrases.value || !audioController.value) {
     stopNodePhrasePlayback()
@@ -2858,21 +2855,17 @@ const playNodePhrasesSequentially = async () => {
 
     const item = nodePhraseItems.value[currentPlayingPhraseIndex.value]
 
-    // Play known audio first (prompt)
-    const knownUrl = item.knownAudioUrl
-    if (knownUrl) {
-      try {
-        await audioController.value.play({ url: knownUrl })
-        // Brief pause after known
-        await new Promise(resolve => setTimeout(resolve, 300))
-      } catch (e) {
-        console.warn('[Network] Failed to play known audio:', e)
-      }
+    // Extract LEGOs in this phrase and highlight the path
+    const phraseLegoIds = extractLegoIdsFromPhrase(item)
+    if (phraseLegoIds.length > 0) {
+      // Animate the path through the network
+      animateNetworkPath(phraseLegoIds)
+      resonatingNodes.value = phraseLegoIds
     }
 
     if (!isPlayingNodePhrases.value) break
 
-    // Play target audio (voice 1)
+    // Play just target audio (fast exploration)
     const targetUrl = item.targetAudioUrl || item.target1AudioUrl
     if (targetUrl) {
       try {
@@ -2882,10 +2875,8 @@ const playNodePhrasesSequentially = async () => {
       }
     }
 
-    // Brief pause between phrases
-    if (currentPlayingPhraseIndex.value < nodePhraseItems.value.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 500))
-    }
+    // Brief pause between phrases to see the path
+    await new Promise(resolve => setTimeout(resolve, 400))
 
     currentPlayingPhraseIndex.value++
   }
