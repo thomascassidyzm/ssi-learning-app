@@ -2691,13 +2691,20 @@ const initializeNetwork = () => {
   const viewportWidth = window.innerWidth
   const viewportHeight = window.innerHeight
 
-  // Center in the available space (below header, above bottom controls)
-  // Network should fill most of the screen
+  // Center in the available space:
+  // - Header at top: ~60px
+  // - Transport bar at bottom: ~80px
+  // So available space is roughly 60px to (height - 80px)
+  // Center should be in the middle of that: (60 + (height - 80)) / 2 = (height - 20) / 2
+  const headerHeight = 60
+  const bottomControlsHeight = 100 // Transport bar + safe area
+  const availableTop = headerHeight
+  const availableBottom = viewportHeight - bottomControlsHeight
   const centerX = viewportWidth / 2
-  const centerY = viewportHeight * 0.45 // Slightly above center to account for bottom controls
+  const centerY = (availableTop + availableBottom) / 2
 
   setNetworkCenter(centerX, centerY)
-  console.log('[Network] Center set to viewport center:', centerX, centerY)
+  console.log('[Network] Center set to:', centerX, centerY, `(available: ${availableTop}-${availableBottom})`)
 
   // Initialize simulation
   distinctionNetwork.initialize()
@@ -4058,18 +4065,33 @@ onUnmounted(() => {
 }
 
 /* ============ NEBULA GLOW - Belt colored ambient light ============ */
+/* Creates a radial glow emanating from the network center (hero node) */
 .nebula-glow {
   position: fixed;
   inset: 0;
-  background: radial-gradient(
-    ellipse 80% 60% at 50% 70%,
-    var(--belt-glow, rgba(194, 58, 58, 0.08)) 0%,
-    transparent 50%
-  );
+  background:
+    /* Primary glow - centered where the hero node is */
+    radial-gradient(
+      ellipse 60% 50% at 50% 45%,
+      var(--belt-glow, rgba(194, 58, 58, 0.12)) 0%,
+      var(--belt-glow, rgba(194, 58, 58, 0.05)) 30%,
+      transparent 60%
+    ),
+    /* Secondary ambient - larger, more diffuse */
+    radial-gradient(
+      ellipse 100% 80% at 50% 50%,
+      var(--belt-glow, rgba(194, 58, 58, 0.04)) 0%,
+      transparent 50%
+    );
   pointer-events: none;
   z-index: 1;
-  opacity: 0.6;
-  transition: background 1s ease;
+  opacity: 0.8;
+  transition: background 1s ease, opacity 0.5s ease;
+}
+
+/* Brighter glow during intro/debut phases */
+.player:has(.hero-text-pane.is-intro) .nebula-glow {
+  opacity: 1;
 }
 
 /* ============ BRAIN NETWORK VISUALIZATION ============ */
