@@ -10,7 +10,7 @@ import {
   createSpeechTimingAnalyzer,
 } from '@ssi/core'
 import SessionComplete from './SessionComplete.vue'
-import OnboardingTooltips from './OnboardingTooltips.vue'
+// OnboardingTooltips removed - deprecated
 import ReportIssueButton from './ReportIssueButton.vue'
 // AwakeningLoader removed - loading state now shown inline in player
 import { useLearningSession } from '../composables/useLearningSession'
@@ -3831,8 +3831,6 @@ onUnmounted(() => {
       </div>
     </footer>
 
-    <!-- First-time onboarding tooltips -->
-    <OnboardingTooltips />
   </div>
 </template>
 
