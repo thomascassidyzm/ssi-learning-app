@@ -120,24 +120,25 @@ export function useDistinctionNetworkSimulation(
     }
 
     simulation = d3.forceSimulation<DistinctionNode, DirectionalEdge>(nodes.value)
-      // Link force: distance based on edge strength (stronger = closer clustering)
+      // Link force: AGGRESSIVE Hebbian clustering (from LegoNetwork)
+      // Neurons that fire together wire together - visible clustering
       .force('link', d3.forceLink<DistinctionNode, DirectionalEdge>(links.value)
         .id(d => d.id)
         .distance(d => {
           // Use pre-calculated distance, or derive from strength
           if (d.distance) return d.distance
-          const strength = d.strength || 1
-          // Stronger edges = shorter distance - nodes that fire together cluster
-          // strength=1: 200 / 1.2 = 167
-          // strength=5: 200 / 1.45 = 138
-          // strength=20: 200 / 1.82 = 110
-          // strength=100: 200 / 2.5 = 80
-          return Math.max(50, 200 / (1 + Math.pow(strength, 0.25)))
+          const count = d.strength || 1
+          const baseDistance = 120
+          const minDistance = 15
+          // Exponential-ish scaling: count=1: 120, count=10: ~40, count=50: ~20
+          const scaleFactor = 1 + Math.pow(count, 0.6)
+          return Math.max(minDistance, baseDistance / scaleFactor)
         })
         .strength(d => {
-          // Stronger links pull harder - fire together, cluster together
-          const strength = d.strength || 1
-          return Math.min(0.8, config.link.strengthMultiplier + Math.log(strength + 1) * 0.08)
+          // Stronger connections pull MUCH harder - creates visible clustering
+          const count = d.strength || 1
+          // Scale from 0.5 to 2.0 based on connection strength
+          return Math.min(2.0, 0.5 + Math.pow(count, 0.4) * 0.3)
         })
       )
       // Charge force: node repulsion

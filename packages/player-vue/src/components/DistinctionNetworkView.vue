@@ -29,12 +29,12 @@ import type { DistinctionNode, DirectionalEdge, PathHighlight } from '../composa
 // ============================================================================
 
 export interface NodeConfig {
-  baseRadius: number          // Base node radius
-  heroScale: number           // Scale multiplier for hero node
-  activeScale: number         // Scale when node is in active path
-  glowRadius: number          // Outer glow radius
-  glowOpacity: number         // Glow opacity (0-1)
+  // 3-layer concentric design (like LegoNetwork)
+  glowRadius: number          // Outer glow ring radius
+  coreRadius: number          // Main node circle radius
+  innerRadius: number         // Center dot radius
   strokeWidth: number         // Border stroke width
+  strokeWidthActive: number   // Stroke when in active path
   labelOffset: number         // Distance of label below node
 }
 
@@ -89,30 +89,30 @@ export interface DistinctionNetworkConfig {
 
 const DEFAULT_CONFIG: DistinctionNetworkConfig = {
   node: {
-    baseRadius: 7,            // Slightly larger dots for better ratio with thin edges
-    heroScale: 1.0,           // No scaling - all nodes same size
-    activeScale: 1.0,         // No scaling on active
-    glowRadius: 0,            // No glow - clean dots only
-    glowOpacity: 0,
-    strokeWidth: 1,
-    labelOffset: 14,
+    // 3-layer concentric design (matching LegoNetwork)
+    glowRadius: 18,           // Outer glow ring
+    coreRadius: 12,           // Main node circle
+    innerRadius: 4,           // Center dot
+    strokeWidth: 1.5,         // Normal stroke
+    strokeWidthActive: 2.5,   // Active path stroke
+    labelOffset: 24,          // Below the glow ring
   },
   edge: {
-    minWidth: 0.3,                    // Hairline for new edges
-    maxWidth: 2,                      // Much thinner max
-    widthExponent: 0.15,              // Extremely gradual growth
+    minWidth: 0.8,                    // Visible baseline
+    maxWidth: 4,                      // Thicker for strong connections
+    widthExponent: 0.5,               // sqrt scaling like LegoNetwork
     arrowSize: 4,
     directionIndicator: 'gradient',  // Gradient flows from source to target
-    opacity: 0.08,                    // Very faint - builds up slowly
-    activeOpacity: 0.6,
+    opacity: 0.15,                    // Subtle but visible mesh
+    activeOpacity: 1.0,               // Full brightness for active path
     glowWidth: 6,
   },
   clustering: {
-    maxDistance: 400,
-    minDistance: 80,
-    strengthExponent: 0.3,
+    maxDistance: 120,         // Base distance (LegoNetwork style)
+    minDistance: 15,          // Very tight for strong connections
+    strengthExponent: 0.6,    // Aggressive Hebbian: count^0.6 scaling
     orbitalRadius: 300,
-    orbitalStrength: 0.3,
+    orbitalStrength: 0.015,   // Weak centering (let Hebbian dominate)
   },
   animation: {
     pathStepDuration: 200,
@@ -638,13 +638,40 @@ function renderEdges(): void {
   // Enter + Update
   const edgeMerge = edgeEnter.merge(edgeSelection)
 
-  edgeMerge
-    .transition()
-    .duration(mergedConfig.value.animation.nodeEnterDuration)
-    .attr('opacity', d => isEdgeInPath(d.id) ? config.activeOpacity : calculateEdgeOpacity(d.strength))
-    .attr('stroke', d => isEdgeInPath(d.id) ? pal.edge.active : pal.edge.stroke)
-    .attr('stroke-width', d => calculateEdgeWidth(d.strength))
-    .attr('filter', d => isEdgeActive(d.id) ? 'url(#edge-glow-active)' : (isEdgeInPath(d.id) ? 'url(#edge-glow)' : null))
+  // Apply stroke-dasharray animation for "drawing" effect on active path edges
+  edgeMerge.each(function(d) {
+    const pathElement = this as SVGPathElement
+    const isInPath = isEdgeInPath(d.id)
+    const isActiveEdge = isEdgeActive(d.id)
+
+    // For active path edges, apply drawing animation
+    if (isInPath || isActiveEdge) {
+      const totalLength = pathElement.getTotalLength ? pathElement.getTotalLength() : 100
+
+      d3.select(pathElement)
+        .attr('stroke-dasharray', totalLength)
+        .attr('stroke-dashoffset', isActiveEdge ? 0 : totalLength) // Start hidden if becoming active
+        .transition()
+        .duration(isActiveEdge ? 400 : 200)
+        .ease(d3.easeLinear)
+        .attr('stroke-dashoffset', 0)
+        .attr('opacity', config.activeOpacity)
+        .attr('stroke', pal.edge.active)
+        .attr('stroke-width', isActiveEdge ? 4 : 3)
+        .attr('filter', isActiveEdge ? 'url(#edge-glow-active)' : 'url(#edge-glow)')
+    } else {
+      // Reset non-path edges to normal styling
+      d3.select(pathElement)
+        .attr('stroke-dasharray', null)
+        .attr('stroke-dashoffset', null)
+        .transition()
+        .duration(mergedConfig.value.animation.nodeEnterDuration)
+        .attr('opacity', calculateEdgeOpacity(d.strength))
+        .attr('stroke', pal.edge.stroke)
+        .attr('stroke-width', calculateEdgeWidth(d.strength))
+        .attr('filter', null)
+    }
+  })
 
   // Update marker for active edges
   if (config.directionIndicator === 'arrow' || config.directionIndicator === 'both') {
@@ -658,7 +685,7 @@ function renderNodes(): void {
   const config = mergedConfig.value.node
   const pal = palette.value
 
-  // Include ALL nodes - hero node gets special styling
+  // Include ALL nodes
   const visibleNodes = props.nodes
 
   // Data join
@@ -672,7 +699,7 @@ function renderNodes(): void {
     .attr('opacity', 0)
     .remove()
 
-  // Enter - simple dots, no bells and whistles
+  // Enter - 3-layer concentric design (glow → core → inner)
   const nodeEnter = nodeSelection.enter()
     .append('g')
     .attr('class', 'node')
@@ -681,7 +708,7 @@ function renderNodes(): void {
     .on('click', (event, d) => {
       if (mergedConfig.value.interaction.tapToSelect) {
         event.stopPropagation()
-        emit('node-tap', d)  // Pass full node object for phrase playback
+        emit('node-tap', d)
       }
     })
     .on('dblclick', (event, d) => {
@@ -695,41 +722,74 @@ function renderNodes(): void {
       emit('node-hover', null)
     })
 
-  // Just a simple circle - the connections are what matter
+  // Layer 1: Outer glow ring (stroke only, no fill)
+  nodeEnter.append('circle')
+    .attr('class', 'node-glow')
+    .attr('r', config.glowRadius)
+    .attr('fill', 'none')
+    .attr('stroke', d => getNodePalette(d).glow)
+    .attr('stroke-width', 2)
+    .attr('opacity', 0.5)
+
+  // Layer 2: Core circle (filled with stroke)
   nodeEnter.append('circle')
     .attr('class', 'node-core')
-    .attr('r', config.baseRadius)
-    .attr('fill', pal.node.stroke)  // Solid fill, use stroke color for visibility
-    .attr('stroke', 'none')
+    .attr('r', 0) // Animate in
+    .attr('fill', d => getNodePalette(d).node.base)
+    .attr('stroke', d => getNodePalette(d).glow)
+    .attr('stroke-width', config.strokeWidth)
+    .attr('stroke-opacity', 0.6)
+    .transition()
+    .duration(mergedConfig.value.animation.nodeEnterDuration)
+    .attr('r', config.coreRadius)
+
+  // Layer 3: Inner dot (center highlight)
+  nodeEnter.append('circle')
+    .attr('class', 'node-inner')
+    .attr('r', config.innerRadius)
+    .attr('fill', d => getNodePalette(d).glow)
+    .attr('opacity', 0.6)
+
+  // Fade in new nodes
+  nodeEnter.transition()
+    .duration(mergedConfig.value.animation.nodeEnterDuration)
+    .attr('opacity', 1)
 
   // Enter + Update merge
   const nodeMerge = nodeEnter.merge(nodeSelection)
 
-  nodeMerge
-    .transition()
-    .duration(mergedConfig.value.animation.nodeEnterDuration)
-    .attr('opacity', 1)
+  // Update all nodes based on state
+  const isActive = (d: DistinctionNode) => isNodeResonating(d.id) || isNodeInPath(d.id)
 
-  // Style nodes - resonating nodes get a glow effect
+  // Update glow ring
+  nodeMerge.select('.node-glow')
+    .transition()
+    .duration(150)
+    .attr('r', d => isActive(d) ? config.glowRadius * 1.3 : config.glowRadius)
+    .attr('stroke', d => getNodePalette(d).glow)
+    .attr('stroke-width', d => isActive(d) ? 3 : 2)
+    .attr('opacity', d => isActive(d) ? 1 : 0.5)
+    .attr('filter', d => isActive(d) ? 'url(#glow)' : 'none')
+
+  // Update core
   nodeMerge.select('.node-core')
-    .attr('r', d => {
-      // Resonating nodes are slightly larger
-      const isResonating = isNodeResonating(d.id)
-      return isResonating ? config.baseRadius * 1.5 : config.baseRadius
-    })
+    .transition()
+    .duration(150)
+    .attr('r', d => isActive(d) ? config.coreRadius * 1.15 : config.coreRadius)
     .attr('fill', d => {
-      // Use the node's introduction belt color
       const nodePal = getNodePalette(d)
-      return nodePal.node.stroke
+      return isActive(d) ? nodePal.node.bright : nodePal.node.base
     })
-    .attr('filter', d => {
-      // Add glow filter to resonating nodes
-      return isNodeResonating(d.id) ? 'url(#resonating-glow)' : 'none'
-    })
-    .attr('opacity', d => {
-      // Resonating nodes are fully opaque
-      return isNodeResonating(d.id) ? 1 : 0.8
-    })
+    .attr('stroke', d => getNodePalette(d).glow)
+    .attr('stroke-width', d => isActive(d) ? config.strokeWidthActive : config.strokeWidth)
+    .attr('stroke-opacity', d => isActive(d) ? 1 : 0.6)
+
+  // Update inner dot
+  nodeMerge.select('.node-inner')
+    .transition()
+    .duration(150)
+    .attr('fill', d => getNodePalette(d).glow)
+    .attr('opacity', d => isActive(d) ? 1 : 0.6)
 }
 
 function renderLabels(): void {
@@ -750,29 +810,32 @@ function renderLabels(): void {
     .append('text')
     .attr('class', 'label')
     .attr('text-anchor', 'middle')
-    .attr('dy', config.baseRadius + config.labelOffset)
-    .attr('font-size', '9px')
+    .attr('dy', config.labelOffset)
+    .attr('font-size', '10px')
     .attr('font-family', 'system-ui, sans-serif')
-    .attr('font-weight', '400')
+    .attr('font-weight', '500')
     .attr('pointer-events', 'none')
     .text(d => d.targetText)
 
   // Enter + Update
   const labelMerge = labelEnter.merge(labelSelection)
 
-  // Simple zoom-based visibility - labels fade in as you zoom
+  // Labels visible: high zoom OR active path nodes
   const showLabels = currentZoom.value >= interactionConfig.labelZoomThreshold
-  const labelOpacity = showLabels
-    ? Math.min(0.7, (currentZoom.value - interactionConfig.labelZoomThreshold) / 0.5)
-    : 0
 
   labelMerge
-    .attr('opacity', labelOpacity)
+    .attr('opacity', d => {
+      // Always show labels for active path nodes
+      if (isNodeInPath(d.id) || isNodeResonating(d.id)) return 1
+      // Otherwise zoom-based
+      if (!showLabels) return 0
+      return Math.min(0.8, (currentZoom.value - interactionConfig.labelZoomThreshold) / 0.5)
+    })
     .attr('fill', d => {
       const nodePal = getNodePalette(d)
       return nodePal.label
     })
-    .attr('dy', config.baseRadius + config.labelOffset)
+    .attr('dy', config.labelOffset)
 }
 
 // ============================================================================
