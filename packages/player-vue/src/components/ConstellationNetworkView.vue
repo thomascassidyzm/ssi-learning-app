@@ -307,7 +307,11 @@ function getPalette(belt: string) {
 }
 
 function isNodeInPath(nodeId: string): boolean {
-  return props.currentPath?.nodeIds.includes(nodeId) ?? false
+  if (!props.currentPath) return false
+  const idx = props.currentPath.nodeIds.indexOf(nodeId)
+  if (idx === -1) return false
+  // Only highlight nodes up to (and including) the active index
+  return idx <= props.currentPath.activeIndex
 }
 
 function isNodeResonating(nodeId: string): boolean {
@@ -315,7 +319,11 @@ function isNodeResonating(nodeId: string): boolean {
 }
 
 function isEdgeInPath(edgeId: string): boolean {
-  return props.currentPath?.edgeIds.includes(edgeId) ?? false
+  if (!props.currentPath) return false
+  const idx = props.currentPath.edgeIds.indexOf(edgeId)
+  if (idx === -1) return false
+  // Only highlight edges up to (activeIndex - 1) since edge[i] connects node[i] to node[i+1]
+  return idx < props.currentPath.activeIndex
 }
 
 function getNodeOpacity(node: ConstellationNode): number {

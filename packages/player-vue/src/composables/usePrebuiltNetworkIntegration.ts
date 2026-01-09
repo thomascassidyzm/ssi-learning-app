@@ -304,14 +304,22 @@ export function usePrebuiltNetworkIntegration(
   // VIEW PROPS
   // ============================================================================
 
-  const viewProps = computed(() => ({
-    nodes: prebuiltNetwork.visibleNodes.value,
-    edges: prebuiltNetwork.visibleEdges.value,
-    heroNodeId: prebuiltNetwork.heroNodeId.value,
-    currentPath: prebuiltNetwork.currentPath.value,
-    panTransform: prebuiltNetwork.networkTransform.value,
-    beltLevel: currentBelt.value,
-  }))
+  const viewProps = computed(() => {
+    const edges = prebuiltNetwork.visibleEdges.value
+    const nodes = prebuiltNetwork.visibleNodes.value
+    // Debug: log edge count periodically
+    if (edges.length > 0 || nodes.length > 3) {
+      console.log(`[PrebuiltNetworkIntegration] viewProps: ${nodes.length} nodes, ${edges.length} edges`)
+    }
+    return {
+      nodes,
+      edges,
+      heroNodeId: prebuiltNetwork.heroNodeId.value,
+      currentPath: prebuiltNetwork.currentPath.value,
+      panTransform: prebuiltNetwork.networkTransform.value,
+      beltLevel: currentBelt.value,
+    }
+  })
 
   // ============================================================================
   // EXPORT (matching existing API)

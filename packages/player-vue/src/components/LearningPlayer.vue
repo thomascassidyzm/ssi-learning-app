@@ -2817,6 +2817,11 @@ const addNetworkNode = (legoId, targetText, knownText, beltColor = 'white') => {
 const populateNetworkUpToRound = (targetRoundIndex) => {
   if (!cachedRounds.value.length) return
 
+  console.log(`[LearningPlayer] populateNetworkUpToRound: ${targetRoundIndex}, connections: ${networkConnections.value.length}`)
+  if (networkConnections.value.length > 0) {
+    console.log('[LearningPlayer] Sample connections:', networkConnections.value.slice(0, 3))
+  }
+
   // Use composable to populate with database connections (like brain view)
   populateNetworkFromRounds(
     cachedRounds.value,
