@@ -3618,23 +3618,6 @@ onUnmounted(() => {
 
     <!-- Hero-Centric Text Labels - Floating above/below the hero node -->
     <div class="hero-text-pane" :class="[currentPhase, { 'is-intro': isIntroPhase }]">
-      <!-- Timing ring around the glass pane -->
-      <svg class="hero-timing-ring" viewBox="0 0 200 160">
-        <rect
-          class="timing-ring-track"
-          x="4" y="4"
-          width="192" height="152"
-          rx="20" ry="20"
-        />
-        <rect
-          class="timing-ring-progress"
-          :class="currentPhase"
-          x="4" y="4"
-          width="192" height="152"
-          rx="20" ry="20"
-        />
-      </svg>
-
       <div class="hero-glass">
         <!-- Horizontal Phase Strip: speaker → mic → speaker → eyes -->
         <div class="phase-strip">
@@ -5049,8 +5032,14 @@ onUnmounted(() => {
   margin: 0;
 }
 
-/* Timing ring around the glass pane */
+/* Voice 2 phase: hide known text, focus on target */
+.hero-text-pane.voice_2 .hero-text-known {
+  display: none;
+}
+
+/* Timing ring - REMOVED (keeping CSS for cleanup later) */
 .hero-timing-ring {
+  display: none; /* Removed - distracting */
   position: absolute;
   inset: -8px;
   width: calc(100% + 16px);
@@ -5118,9 +5107,9 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.06);
   opacity: 0.35;
   transition: all 0.3s ease;
@@ -5134,8 +5123,8 @@ onUnmounted(() => {
 
 /* SVG icon styling */
 .phase-icon-svg {
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   color: rgba(255, 255, 255, 0.6);
   transition: all 0.3s ease;
 }
@@ -5146,7 +5135,7 @@ onUnmounted(() => {
 
 /* Emoji icon styling */
 .phase-icon-emoji {
-  font-size: 18px;
+  font-size: 22px;
   line-height: 1;
   opacity: 0.6;
   transition: all 0.3s ease;

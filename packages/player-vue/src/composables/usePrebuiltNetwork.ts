@@ -381,12 +381,20 @@ export function usePrebuiltNetwork() {
   )
 
   // Only edges between revealed nodes are visible
-  const visibleEdges = computed(() =>
-    edges.value.filter(e =>
+  const visibleEdges = computed(() => {
+    const visible = edges.value.filter(e =>
       revealedNodeIds.value.has(e.source) &&
       revealedNodeIds.value.has(e.target)
     )
-  )
+    if (edges.value.length > 0 && visible.length === 0) {
+      console.log('[PrebuiltNetwork] WARNING: No visible edges!', {
+        totalEdges: edges.value.length,
+        revealedNodes: Array.from(revealedNodeIds.value).slice(0, 5),
+        sampleEdge: edges.value[0]
+      })
+    }
+    return visible
+  })
 
   // Hero node
   const heroNode = computed(() =>
