@@ -154,7 +154,10 @@ export function preCalculatePositions(
     }
 
     console.log(`[PrebuiltNetwork] Using ${edges.length} edges from database (filtered from ${externalConnections.length} total)`)
-  } else {
+  }
+
+  // If no edges from database, try fallback inference
+  if (edges.length === 0) {
     // FALLBACK: Infer edges from round items (less complete)
     for (let roundIdx = 0; roundIdx < rounds.length; roundIdx++) {
       const round = rounds[roundIdx]
@@ -203,28 +206,53 @@ export function preCalculatePositions(
         }
       }
     }
+
+    console.log(`[PrebuiltNetwork] Fallback inference: ${edges.length} edges from ${phrasesChecked} phrases`)
+  }
+
+  // FINAL FALLBACK: If STILL no edges, create edges between consecutive rounds
+  // This ensures some network structure even if phrase decomposition fails
+  if (edges.length === 0 && nodes.length > 1) {
+    console.log('[PrebuiltNetwork] Creating consecutive-round edges as final fallback')
+    for (let i = 0; i < rounds.length - 1; i++) {
+      const sourceId = rounds[i]?.legoId
+      const targetId = rounds[i + 1]?.legoId
+      if (sourceId && targetId && nodeMap.has(sourceId) && nodeMap.has(targetId)) {
+        const edgeId = `${sourceId}->${targetId}`
+        if (!edgeMap.has(edgeId)) {
+          const edge: ConstellationEdge = { id: edgeId, source: sourceId, target: targetId, strength: 1 }
+          edges.push(edge)
+          edgeMap.set(edgeId, edge)
+        }
+      }
+    }
+    console.log(`[PrebuiltNetwork] Created ${edges.length} consecutive-round edges`)
   }
 
   // Run D3 force simulation to completion
+  // Spread nodes out more so edges have room to display
   if (nodes.length > 0) {
     const simulation = d3.forceSimulation(nodes as any)
       .force('link', d3.forceLink(edges as any)
         .id((d: any) => d.id)
         .distance((d: any) => {
           const strength = (d as ConstellationEdge).strength || 1
-          const baseDistance = 120
-          const minDistance = 40
-          const scaleFactor = 1 + Math.pow(strength, 0.6)
+          // Larger base distance for more spacing
+          const baseDistance = 180
+          const minDistance = 80
+          const scaleFactor = 1 + Math.pow(strength, 0.4)
           return Math.max(minDistance, baseDistance / scaleFactor)
         })
         .strength((d: any) => {
           const strength = (d as ConstellationEdge).strength || 1
-          return Math.min(1.5, 0.3 + Math.pow(strength, 0.3) * 0.2)
+          return Math.min(1.0, 0.2 + Math.pow(strength, 0.3) * 0.15)
         })
       )
-      .force('charge', d3.forceManyBody().strength(-300).distanceMax(500))
+      // Stronger repulsion to spread nodes apart
+      .force('charge', d3.forceManyBody().strength(-500).distanceMax(600))
       .force('center', d3.forceCenter(center.x, center.y))
-      .force('collide', d3.forceCollide().radius(25).strength(0.8))
+      // Larger collision radius prevents overlap
+      .force('collide', d3.forceCollide().radius(45).strength(0.9))
       .stop()
 
     // Run to completion (300 ticks is usually enough)

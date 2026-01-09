@@ -334,15 +334,15 @@ function getNodeOpacity(node: ConstellationNode): number {
 }
 
 function getEdgeOpacity(edge: ConstellationEdge): number {
-  if (isEdgeInPath(edge.id)) return 0.9
-  // Base opacity - more visible, increases with strength
-  return Math.min(0.4, 0.15 + Math.pow(edge.strength, 0.3) * 0.05)
+  if (isEdgeInPath(edge.id)) return 1
+  // Base opacity - visible even at low strength
+  return Math.min(0.6, 0.25 + Math.pow(edge.strength, 0.3) * 0.1)
 }
 
 function getEdgeWidth(edge: ConstellationEdge): number {
-  if (isEdgeInPath(edge.id)) return 3.5
-  // Base width - more prominent, increases with practice
-  return Math.min(3, 1.2 + Math.pow(edge.strength, 0.4) * 0.4)
+  if (isEdgeInPath(edge.id)) return 4
+  // Base width - visible even at low strength
+  return Math.min(3.5, 1.5 + Math.pow(edge.strength, 0.4) * 0.5)
 }
 
 // Calculate curved path between two nodes
