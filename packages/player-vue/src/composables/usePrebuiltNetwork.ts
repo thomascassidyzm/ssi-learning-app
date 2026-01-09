@@ -205,12 +205,45 @@ export function preCalculatePositions(
     })
   }
 
-  console.log(`[PrebuiltNetwork] Pre-calculated ${nodes.length} nodes, ${edges.length} edges`, {
+  // More detailed diagnostics
+  const diagnostics = {
+    totalRounds: rounds.length,
     roundsWithItems,
     phrasesChecked,
     legoTextsCount: legoTexts.size,
-    sampleLegoText: legoTexts.size > 0 ? Array.from(legoTexts.entries())[0] : null
-  })
+    nodesCreated: nodes.length,
+    edgesCreated: edges.length,
+    sampleLegoTexts: legoTexts.size > 0 ? Array.from(legoTexts.entries()).slice(0, 5) : [],
+    sampleEdges: edges.slice(0, 5).map(e => `${e.source} → ${e.target} (strength: ${e.strength})`),
+  }
+  console.log(`[PrebuiltNetwork] Pre-calculated ${nodes.length} nodes, ${edges.length} edges`)
+  console.table(diagnostics)
+
+  // Diagnose why no edges if that's the case
+  if (edges.length === 0 && phrasesChecked > 0) {
+    console.warn('[PrebuiltNetwork] No edges despite checking phrases. Possible causes:')
+    console.warn('  - Phrases only contain single LEGOs (no co-occurrence)')
+    console.warn('  - LEGO text not found in phrases (case/format mismatch)')
+
+    // Sample a phrase and show what LEGOs match
+    for (const round of rounds.slice(0, 3)) {
+      for (const item of (round.items || [])) {
+        if (item.type === 'intro' || item.type === 'debut') continue
+        const phraseText = item.targetText?.toLowerCase()
+        if (!phraseText) continue
+
+        const matchingLegos: string[] = []
+        legoTexts.forEach((text, id) => {
+          if (phraseText.includes(text)) {
+            matchingLegos.push(`${id}: "${text}"`)
+          }
+        })
+
+        console.log(`[PrebuiltNetwork] Phrase "${phraseText.slice(0, 50)}..." matches:`, matchingLegos)
+        if (matchingLegos.length > 0) break
+      }
+    }
+  }
 
   return { nodes, edges }
 }
@@ -395,12 +428,20 @@ export function usePrebuiltNetwork() {
       revealedNodeIds.value.has(e.source) &&
       revealedNodeIds.value.has(e.target)
     )
-    if (edges.value.length > 0 && visible.length === 0) {
+    if (edges.value.length > 0 && visible.length === 0 && revealedNodeIds.value.size > 1) {
       console.log('[PrebuiltNetwork] WARNING: No visible edges!', {
         totalEdges: edges.value.length,
-        revealedNodes: Array.from(revealedNodeIds.value).slice(0, 5),
-        sampleEdge: edges.value[0]
+        revealedNodes: Array.from(revealedNodeIds.value).slice(0, 10),
+        sampleEdges: edges.value.slice(0, 5).map(e => ({
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          sourceRevealed: revealedNodeIds.value.has(e.source),
+          targetRevealed: revealedNodeIds.value.has(e.target),
+        }))
       })
+    } else if (visible.length > 0) {
+      console.log(`[PrebuiltNetwork] ${visible.length} edges visible of ${edges.value.length} total`)
     }
     return visible
   })
