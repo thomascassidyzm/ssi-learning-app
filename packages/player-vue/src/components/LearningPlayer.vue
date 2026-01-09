@@ -1137,12 +1137,13 @@ const sessionProgress = computed(() => {
 })
 const showTargetText = computed(() => currentPhase.value === Phase.VOICE_2)
 
-// Is current item an intro/debut? (network should fade, hero text more prominent)
+// Is current item an intro? (network should fade, show typewriter message)
+// NOTE: Only 'intro' items show typewriter. 'debut' items (lego_itself) show normal phrase display.
 const isIntroPhase = computed(() => {
   const item = useRoundBasedPlayback.value
     ? currentPlayableItem.value
     : sessionItems.value[currentItemIndex.value]
-  return item?.type === 'intro' || item?.type === 'debut'
+  return item?.type === 'intro'
 })
 
 // Intro typewriter messages - gentle "listen up" prompts during introductions
