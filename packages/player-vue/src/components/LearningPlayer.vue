@@ -5215,25 +5215,25 @@ onUnmounted(() => {
   display: none;
 }
 
-/* Mobile: wider pane to match transport controls */
+/* Mobile: wider pane, LARGER text for readability */
 @media (max-width: 480px) {
   .hero-text-pane {
     max-width: 95vw;
   }
 
   .hero-glass {
-    padding: 8px 16px 12px;
-    gap: 6px;
-    min-width: 320px;
-    max-width: 360px;
+    padding: 12px 20px 16px;
+    gap: 10px;
+    min-width: 85vw;
+    max-width: 92vw;
   }
 
   .hero-known {
-    font-size: 1rem;
+    font-size: 1.4rem;
   }
 
   .hero-target {
-    font-size: 1.15rem;
+    font-size: 1.6rem;
   }
 
   /* Phase strip mobile */
@@ -5243,17 +5243,17 @@ onUnmounted(() => {
   }
 
   .phase-section {
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
   }
 
   .phase-icon-svg {
-    width: 16px;
-    height: 16px;
+    width: 18px;
+    height: 18px;
   }
 
   .phase-icon-emoji {
-    font-size: 16px;
+    font-size: 18px;
   }
 }
 

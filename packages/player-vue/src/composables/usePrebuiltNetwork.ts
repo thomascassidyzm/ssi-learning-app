@@ -120,16 +120,20 @@ export function preCalculatePositions(
   // Build edges from phrase co-occurrence
   const edges: ConstellationEdge[] = []
   const edgeMap = new Map<string, ConstellationEdge>()
+  let roundsWithItems = 0
+  let phrasesChecked = 0
 
   for (let roundIdx = 0; roundIdx < rounds.length; roundIdx++) {
     const round = rounds[roundIdx]
     if (!round?.items) continue
+    roundsWithItems++
 
     for (const item of round.items) {
       if (item.type === 'intro' || item.type === 'debut') continue
 
       const phraseText = item.targetText?.toLowerCase()
       if (!phraseText) continue
+      phrasesChecked++
 
       // Find co-occurring LEGOs
       const matchingLegos: Array<{ legoId: string, position: number }> = []
@@ -201,7 +205,12 @@ export function preCalculatePositions(
     })
   }
 
-  console.log(`[PrebuiltNetwork] Pre-calculated ${nodes.length} nodes, ${edges.length} edges`)
+  console.log(`[PrebuiltNetwork] Pre-calculated ${nodes.length} nodes, ${edges.length} edges`, {
+    roundsWithItems,
+    phrasesChecked,
+    legoTextsCount: legoTexts.size,
+    sampleLegoText: legoTexts.size > 0 ? Array.from(legoTexts.entries())[0] : null
+  })
 
   return { nodes, edges }
 }
