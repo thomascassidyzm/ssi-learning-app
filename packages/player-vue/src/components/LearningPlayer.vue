@@ -18,8 +18,9 @@ import { useScriptCache, setCachedScript } from '../composables/useScriptCache'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
 import { useSharedBeltProgress } from '../composables/useBeltProgress'
 import { generateLearningScript } from '../providers/CourseDataProvider'
-import { useDistinctionNetworkIntegration } from '../composables/useDistinctionNetworkIntegration'
-import DistinctionNetworkView from './DistinctionNetworkView.vue'
+// Prebuilt network: positions pre-calculated, pans to hero via CSS
+import { usePrebuiltNetworkIntegration } from '../composables/usePrebuiltNetworkIntegration'
+import ConstellationNetworkView from './ConstellationNetworkView.vue'
 
 const emit = defineEmits(['close'])
 
@@ -1002,13 +1003,11 @@ const introductionPhase = ref(false) // True during introduction phase (shows di
 const ringContainerRef = ref(null)
 const networkTheaterRef = ref<HTMLElement | null>(null)
 
-// Initialize distinction network composable
-const distinctionNetwork = useDistinctionNetworkIntegration({
-  view: {
-    // Config overrides if needed
-  },
+// Initialize prebuilt network composable (positions calculated once, pans to hero)
+const distinctionNetwork = usePrebuiltNetworkIntegration({
   pathAnimationStepMs: 180,
-  autoCenterOnHeroChange: false, // No hero centering - organic growth
+  autoCenterOnHeroChange: true, // Pan to hero on change
+  canvasSize: { width: 800, height: 800 },
 })
 
 // Handle tap on network theater (play/pause)
@@ -1214,6 +1213,7 @@ class RealAudioController {
     this.currentCleanup = null
     this.preloadedUrls = new Set()
     this.skipNextNotify = false  // Set true to skip orchestrator callbacks (for intro/welcome)
+    this.suppressAllCallbacks = false  // Set true during skip to prevent any audio callbacks
   }
 
   async play(audioRef) {
@@ -1287,6 +1287,11 @@ class RealAudioController {
   }
 
   _notifyEnded() {
+    // Skip all notifications during skip operation
+    if (this.suppressAllCallbacks) {
+      console.log('[AudioController] Callbacks suppressed during skip')
+      return
+    }
     // Skip notification if intro/welcome is playing (they handle their own ended events)
     if (this.skipNextNotify) {
       this.skipNextNotify = false
@@ -1297,6 +1302,16 @@ class RealAudioController {
     for (const cb of callbacks) {
       try { cb() } catch (e) { console.error(e) }
     }
+  }
+
+  // Call during skip to suppress all audio callbacks
+  suppressCallbacks() {
+    this.suppressAllCallbacks = true
+  }
+
+  // Call after skip operation completes to re-enable callbacks
+  enableCallbacks() {
+    this.suppressAllCallbacks = false
   }
 
   stop() {
@@ -2184,12 +2199,17 @@ const startPlayback = async () => {
 const handleSkip = async () => {
   console.log('[LearningPlayer] Skip requested - halting all audio')
 
-  // 1. HALT EVERYTHING - stop orchestrator first (prevents new events)
+  // 0. IMMEDIATELY suppress all audio callbacks to prevent race conditions
+  if (audioController.value?.suppressCallbacks) {
+    audioController.value.suppressCallbacks()
+  }
+
+  // 1. HALT EVERYTHING - stop orchestrator first (prevents new audio from starting)
   if (orchestrator.value) {
     orchestrator.value.stop()
   }
 
-  // 2. Stop audio controller (stops current playback)
+  // 2. Stop audio controller (stops current playback and clears any pending listeners)
   if (audioController.value) {
     audioController.value.stop()
   }
@@ -2202,14 +2222,28 @@ const handleSkip = async () => {
     skipWelcome()
   }
 
-  // 4. Small delay to let audio fully stop and clear buffers
-  await new Promise(resolve => setTimeout(resolve, 50))
+  // 4. Clear any path animations
+  clearPathAnimation()
+
+  // 5. Delay to ensure everything is settled
+  await new Promise(resolve => setTimeout(resolve, 100))
+
+  // 6. Re-enable callbacks AFTER skip navigation is complete
+  // (this happens at end of function)
 
   // Round-based navigation
   if (useRoundBasedPlayback.value && cachedRounds.value.length) {
-    const nextIndex = currentRoundIndex.value + 1
+    let nextIndex = currentRoundIndex.value + 1
+
+    // Check if we're at/near the end and need expansion
+    if (nextIndex >= cachedRounds.value.length - EXPANSION_THRESHOLD) {
+      console.log('[LearningPlayer] Skip: Near end, triggering expansion...')
+      await expandScript()
+    }
+
+    // Re-check after expansion
     if (nextIndex >= cachedRounds.value.length) {
-      console.log('[LearningPlayer] Skip: Already at last round')
+      console.log('[LearningPlayer] Skip: Reached end of course (no more content)')
       showPausedSummary()
       return
     }
@@ -2270,6 +2304,11 @@ const handleSkip = async () => {
       orchestrator.value.skipPhase()
     }
   }
+
+  // Re-enable callbacks now that skip is complete
+  if (audioController.value?.enableCallbacks) {
+    audioController.value.enableCallbacks()
+  }
 }
 
 /**
@@ -2278,6 +2317,11 @@ const handleSkip = async () => {
  */
 const handleRevisit = async () => {
   console.log('[LearningPlayer] Revisit requested - halting all audio')
+
+  // 0. IMMEDIATELY suppress all audio callbacks to prevent race conditions
+  if (audioController.value?.suppressCallbacks) {
+    audioController.value.suppressCallbacks()
+  }
 
   // 1. HALT EVERYTHING - stop orchestrator first (prevents new events)
   if (orchestrator.value) {
@@ -2297,8 +2341,11 @@ const handleRevisit = async () => {
     skipWelcome()
   }
 
-  // 4. Small delay to let audio fully stop and clear buffers
-  await new Promise(resolve => setTimeout(resolve, 50))
+  // 4. Clear path animations
+  clearPathAnimation()
+
+  // 5. Delay to ensure everything is settled
+  await new Promise(resolve => setTimeout(resolve, 100))
 
   // Round-based navigation
   if (useRoundBasedPlayback.value && cachedRounds.value.length) {
@@ -2362,6 +2409,11 @@ const handleRevisit = async () => {
       orchestrator.value.startItem(currentItem.value)
     }
   }
+
+  // Re-enable callbacks now that revisit is complete
+  if (audioController.value?.enableCallbacks) {
+    audioController.value.enableCallbacks()
+  }
 }
 
 /**
@@ -2383,6 +2435,11 @@ const jumpToRound = async (roundIndex) => {
 
   console.log('[LearningPlayer] Jump requested - halting all audio')
 
+  // 0. IMMEDIATELY suppress all audio callbacks to prevent race conditions
+  if (audioController.value?.suppressCallbacks) {
+    audioController.value.suppressCallbacks()
+  }
+
   // 1. HALT EVERYTHING - stop orchestrator first (prevents new events)
   if (orchestrator.value) {
     orchestrator.value.stop()
@@ -2401,8 +2458,11 @@ const jumpToRound = async (roundIndex) => {
     skipWelcome()
   }
 
-  // 4. Small delay to let audio fully stop
-  await new Promise(resolve => setTimeout(resolve, 50))
+  // 4. Clear path animations
+  clearPathAnimation()
+
+  // 5. Delay to ensure everything is settled
+  await new Promise(resolve => setTimeout(resolve, 100))
 
   const previousIndex = currentRoundIndex.value
   currentRoundIndex.value = roundIndex
@@ -2453,6 +2513,11 @@ const jumpToRound = async (roundIndex) => {
         orchestrator.value.startItem(currentPlayableItem.value)
       }
     }
+  }
+
+  // Re-enable callbacks now that jump is complete
+  if (audioController.value?.enableCallbacks) {
+    audioController.value.enableCallbacks()
   }
 
   return true
@@ -3539,8 +3604,8 @@ onUnmounted(() => {
     <div class="space-nebula"></div>
     <div class="bg-noise"></div>
 
-    <!-- Brain Network Visualization Layer -->
-    <DistinctionNetworkView
+    <!-- Brain Network Visualization Layer - Prebuilt Constellation -->
+    <ConstellationNetworkView
       ref="networkViewRef"
       v-bind="networkViewProps"
       :resonating-node-ids="resonatingNodes"
@@ -4087,27 +4152,27 @@ onUnmounted(() => {
 }
 
 /* ============ NEBULA GLOW - Belt colored ambient light ============ */
-/* Creates a SUBTLE radial glow emanating from the network center */
+/* Removed central radial gradient (looks oval on mobile) */
+/* Belt color now expressed via edge accents on UI elements */
 .nebula-glow {
   position: fixed;
   inset: 0;
-  background:
-    /* Very subtle central glow */
-    radial-gradient(
-      ellipse 50% 40% at 50% 45%,
-      var(--belt-glow, rgba(194, 58, 58, 0.06)) 0%,
-      var(--belt-glow, rgba(194, 58, 58, 0.02)) 40%,
-      transparent 70%
-    );
   pointer-events: none;
   z-index: 1;
-  opacity: 0.5;
+  /* Very subtle edge glow at bottom - where transport controls are */
+  background:
+    linear-gradient(
+      to top,
+      var(--belt-glow, rgba(194, 58, 58, 0.04)) 0%,
+      transparent 15%
+    );
+  opacity: 0.6;
   transition: background 1s ease, opacity 0.5s ease;
 }
 
-/* Slightly brighter during intro/debut (but still subtle) */
+/* Slightly brighter during intro/debut */
 .player:has(.hero-text-pane.is-intro) .nebula-glow {
-  opacity: 0.7;
+  opacity: 0.8;
 }
 
 /* ============ BRAIN NETWORK VISUALIZATION ============ */
@@ -4889,42 +4954,48 @@ onUnmounted(() => {
 /* Text labels floating above/below the hero node with glass effect */
 .hero-text-pane {
   position: absolute;
-  top: 50%;
+  /* Position in top 1/4 of screen - leaves network visible below */
+  top: 18%;
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, 0);
   z-index: 10;
   pointer-events: none;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 60px; /* Space for hero node between texts */
+  gap: 16px; /* Tighter gap since no hero node between */
   max-width: 90vw;
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+/* Hide pane completely during intro - pure LISTEN mode */
+.hero-text-pane.is-intro {
+  opacity: 0;
+  transform: translate(-50%, -10px);
+  pointer-events: none;
 }
 
 .hero-glass {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 80px; /* Vertical space for hero node */
-  padding: 20px 32px;
-  border-radius: 20px;
-  /* Ultra-subtle glass effect */
-  background: rgba(10, 10, 20, 0.4);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  gap: 12px; /* Tight vertical gap between known and target text */
+  padding: 16px 28px;
+  border-radius: 16px;
+  /* Ultra-subtle glass effect with belt-colored accent */
+  background: rgba(10, 10, 20, 0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow:
     0 4px 30px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 0 0 1px var(--belt-glow, rgba(194, 58, 58, 0.1)); /* Subtle belt-colored outer ring */
 }
 
-/* Make glass more prominent during intro/debut */
+/* Glass pane is hidden during intro - this rule kept for any edge cases */
 .hero-text-pane.is-intro .hero-glass {
-  background: rgba(10, 10, 20, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow:
-    0 8px 40px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  /* Pane hidden via parent opacity, but keep these for transitions */
 }
 
 .hero-text-known,
@@ -5736,6 +5807,10 @@ onUnmounted(() => {
   background: rgba(255, 255, 255, 0.06);
   border: none;
   border-radius: 100px;
+  /* Subtle belt-colored glow underneath */
+  box-shadow:
+    0 2px 12px rgba(0, 0, 0, 0.3),
+    0 0 0 1px var(--belt-glow, rgba(194, 58, 58, 0.06));
 }
 
 .transport-btn {

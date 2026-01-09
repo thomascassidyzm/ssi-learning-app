@@ -1,0 +1,348 @@
+/**
+ * usePrebuiltNetworkIntegration - Drop-in replacement for useDistinctionNetworkIntegration
+ *
+ * Uses pre-calculated positions instead of runtime D3 force simulation.
+ * Provides the same API for easy swapping in LearningPlayer.
+ *
+ * Key differences:
+ * - Positions calculated ONCE when script loads (not during learning)
+ * - Network pans via CSS transform to center on hero
+ * - No simulation.tick() - simpler and more predictable
+ * - Spatial relationships are FIXED (preserves memory)
+ */
+
+import { ref, computed, watch, type Ref, type ComponentPublicInstance } from 'vue'
+import { usePrebuiltNetwork, preCalculatePositions, type ConstellationNode, type ConstellationEdge, type PathHighlight } from './usePrebuiltNetwork'
+
+// ============================================================================
+// TYPES
+// ============================================================================
+
+export interface PrebuiltIntegrationConfig {
+  pathAnimationStepMs: number
+  autoCenterOnHeroChange: boolean
+  canvasSize: { width: number; height: number }
+}
+
+const DEFAULT_CONFIG: PrebuiltIntegrationConfig = {
+  pathAnimationStepMs: 200,
+  autoCenterOnHeroChange: true,
+  canvasSize: { width: 800, height: 800 },
+}
+
+// ============================================================================
+// COMPOSABLE
+// ============================================================================
+
+export function usePrebuiltNetworkIntegration(
+  options: Partial<PrebuiltIntegrationConfig> = {}
+) {
+  const config = { ...DEFAULT_CONFIG, ...options }
+
+  // Core pre-built network
+  const prebuiltNetwork = usePrebuiltNetwork()
+
+  // ============================================================================
+  // STATE
+  // ============================================================================
+
+  // Reference to the view component
+  const viewRef = ref<ComponentPublicInstance | null>(null)
+
+  // Center position
+  const center = ref({ x: config.canvasSize.width / 2, y: config.canvasSize.height / 2 })
+
+  // Current belt level
+  const currentBelt = ref('white')
+
+  // Path animation state
+  const isAnimatingPath = ref(false)
+  let pathAnimationTimers: number[] = []
+
+  // Track if network has been initialized with rounds
+  const isInitialized = ref(false)
+  let cachedRoundsForNetwork: any[] = []
+
+  // ============================================================================
+  // LEARNING EVENT HANDLERS (matching existing API)
+  // ============================================================================
+
+  /**
+   * Introduce a new LEGO node to the network
+   * In pre-built mode: reveals the pre-calculated position
+   */
+  function introduceLegoNode(
+    legoId: string,
+    targetText: string,
+    knownText: string,
+    makeHero: boolean = true
+  ): boolean {
+    // If not initialized yet, can't reveal
+    if (!isInitialized.value) {
+      console.warn(`[PrebuiltNetworkIntegration] Network not initialized, queueing reveal for ${legoId}`)
+      return false
+    }
+
+    prebuiltNetwork.revealNode(legoId, makeHero)
+    return true
+  }
+
+  /**
+   * Record a phrase practice
+   */
+  function practicePhrase(legoIds: string[]): void {
+    if (!legoIds || legoIds.length < 2) return
+    prebuiltNetwork.firePath(legoIds)
+  }
+
+  /**
+   * Animate nodes during Voice 1 (no edges, no labels)
+   */
+  async function animateNodesForVoice1(legoIds: string[], audioDurationMs: number = 2000): Promise<void> {
+    if (!legoIds || legoIds.length === 0) return
+
+    clearPathAnimation()
+    prebuiltNetwork.setHighlightPath(legoIds)
+    isAnimatingPath.value = true
+
+    const stepDuration = Math.max(150, audioDurationMs / legoIds.length)
+
+    return new Promise((resolve) => {
+      for (let i = 0; i < legoIds.length; i++) {
+        const timer = window.setTimeout(() => {
+          prebuiltNetwork.setPathActiveIndex(i)
+        }, i * stepDuration)
+        pathAnimationTimers.push(timer)
+      }
+
+      const finalTimer = window.setTimeout(() => {
+        isAnimatingPath.value = false
+        resolve()
+      }, legoIds.length * stepDuration)
+      pathAnimationTimers.push(finalTimer)
+    })
+  }
+
+  /**
+   * Animate path during Voice 2 (edges + labels)
+   */
+  async function animatePathForVoice2(legoIds: string[], audioDurationMs: number = 2000): Promise<void> {
+    if (!legoIds || legoIds.length === 0) return
+
+    prebuiltNetwork.setHighlightPath(legoIds)
+    isAnimatingPath.value = true
+
+    const stepDuration = Math.max(150, audioDurationMs / legoIds.length)
+
+    return new Promise((resolve) => {
+      for (let i = 0; i < legoIds.length; i++) {
+        const timer = window.setTimeout(() => {
+          prebuiltNetwork.setPathActiveIndex(i)
+        }, i * stepDuration)
+        pathAnimationTimers.push(timer)
+      }
+
+      const finalTimer = window.setTimeout(() => {
+        isAnimatingPath.value = false
+        resolve()
+      }, legoIds.length * stepDuration)
+      pathAnimationTimers.push(finalTimer)
+    })
+  }
+
+  /**
+   * Clear path animation
+   */
+  function clearPathAnimation(): void {
+    pathAnimationTimers.forEach(t => clearTimeout(t))
+    pathAnimationTimers = []
+    prebuiltNetwork.clearHighlightPath()
+    isAnimatingPath.value = false
+  }
+
+  /**
+   * Complete phrase with animation
+   */
+  async function completePhraseWithAnimation(legoIds: string[]): Promise<void> {
+    await animatePathForVoice2(legoIds)
+    practicePhrase(legoIds)
+    await new Promise(r => setTimeout(r, 300))
+    clearPathAnimation()
+  }
+
+  // ============================================================================
+  // SETUP METHODS
+  // ============================================================================
+
+  /**
+   * Initialize the network (called after view mounted)
+   * For pre-built network, this is a no-op - actual init happens in populateFromRounds
+   */
+  function initialize(): void {
+    console.log('[PrebuiltNetworkIntegration] Initialize called - waiting for populateFromRounds')
+  }
+
+  /**
+   * Set the center position
+   */
+  function setCenter(x: number, y: number): void {
+    center.value = { x, y }
+    prebuiltNetwork.setCenter(x, y)
+  }
+
+  /**
+   * Update belt level
+   */
+  function setBelt(belt: string): void {
+    currentBelt.value = belt
+  }
+
+  /**
+   * Populate network from rounds
+   * THIS is where pre-calculation happens
+   */
+  function populateFromRounds(
+    rounds: Array<{
+      legoId: string
+      targetText?: string
+      knownText?: string
+      items?: Array<{ type: string; targetText?: string; knownText?: string }>
+    }>,
+    upToIndex: number
+  ): void {
+    // Store rounds for potential re-initialization
+    cachedRoundsForNetwork = rounds
+
+    // Pre-calculate ALL positions (even beyond upToIndex)
+    // This way positions are stable as we reveal more nodes
+    prebuiltNetwork.loadFromRounds(rounds, config.canvasSize)
+
+    // Reveal nodes up to the current round
+    prebuiltNetwork.revealUpToRound(upToIndex, rounds)
+
+    isInitialized.value = true
+
+    console.log(`[PrebuiltNetworkIntegration] Pre-calculated ${rounds.length} positions, revealed ${upToIndex + 1} nodes`)
+  }
+
+  /**
+   * Reset everything
+   */
+  function reset(): void {
+    clearPathAnimation()
+    prebuiltNetwork.reset()
+  }
+
+  // ============================================================================
+  // NETWORK DATA MODEL (for backwards compatibility)
+  // Wraps prebuiltNetwork with existing API surface
+  // ============================================================================
+
+  /**
+   * Set hero node and pan to it
+   */
+  function setHero(nodeId: string, _position?: { x: number, y: number }): boolean {
+    // Reveal the node if not already revealed
+    if (!prebuiltNetwork.revealedNodeIds.value.has(nodeId)) {
+      prebuiltNetwork.revealNode(nodeId, true)
+    } else {
+      // Just set hero and pan
+      prebuiltNetwork.heroNodeId.value = nodeId
+      prebuiltNetwork.updatePanOffset()
+    }
+    return true
+  }
+
+  const network = {
+    nodes: prebuiltNetwork.visibleNodes,
+    edges: prebuiltNetwork.visibleEdges,
+    heroNodeId: prebuiltNetwork.heroNodeId,
+    currentPath: prebuiltNetwork.currentPath,
+    d3Nodes: prebuiltNetwork.visibleNodes,
+    d3Links: prebuiltNetwork.visibleEdges,
+    stats: computed(() => ({
+      totalNodes: prebuiltNetwork.visibleNodes.value.length,
+      totalEdges: prebuiltNetwork.visibleEdges.value.length,
+      totalPractices: prebuiltNetwork.visibleEdges.value.reduce((sum, e) => sum + e.strength, 0),
+      avgEdgeStrength: prebuiltNetwork.visibleEdges.value.length > 0
+        ? prebuiltNetwork.visibleEdges.value.reduce((sum, e) => sum + e.strength, 0) / prebuiltNetwork.visibleEdges.value.length
+        : 0,
+      maxEdgeStrength: prebuiltNetwork.visibleEdges.value.length > 0
+        ? Math.max(...prebuiltNetwork.visibleEdges.value.map(e => e.strength))
+        : 0,
+      density: 0,
+    })),
+    // Hero management
+    setHero,
+    // Path methods
+    setHighlightPath: prebuiltNetwork.setHighlightPath,
+    setPathActiveIndex: prebuiltNetwork.setPathActiveIndex,
+    clearHighlightPath: prebuiltNetwork.clearHighlightPath,
+  }
+
+  // Fake simulation for compatibility (no-op in pre-built mode)
+  const simulation = {
+    isRunning: ref(false),
+    tickCount: ref(0),
+    initialize: () => {},
+    restart: () => {},
+    nudge: () => {},
+    stop: () => {},
+    onTick: () => () => {},
+    setCenter: () => {},
+  }
+
+  // ============================================================================
+  // VIEW PROPS
+  // ============================================================================
+
+  const viewProps = computed(() => ({
+    nodes: prebuiltNetwork.visibleNodes.value,
+    edges: prebuiltNetwork.visibleEdges.value,
+    heroNodeId: prebuiltNetwork.heroNodeId.value,
+    currentPath: prebuiltNetwork.currentPath.value,
+    panTransform: prebuiltNetwork.networkTransform.value,
+    beltLevel: currentBelt.value,
+  }))
+
+  // ============================================================================
+  // EXPORT (matching existing API)
+  // ============================================================================
+
+  return {
+    // Core composables (wrapped for compatibility)
+    network,
+    simulation,
+
+    // View integration
+    viewRef,
+    viewProps,
+
+    // State
+    center,
+    currentBelt,
+    isAnimatingPath,
+
+    // Learning event handlers
+    introduceLegoNode,
+    practicePhrase,
+    animateNodesForVoice1,
+    animatePathForVoice2,
+    completePhraseWithAnimation,
+    clearPathAnimation,
+
+    // Setup methods
+    initialize,
+    setCenter,
+    setBelt,
+    populateFromRounds,
+    reset,
+
+    // Statistics
+    stats: network.stats,
+
+    // Pre-built specific
+    prebuiltNetwork,
+    isInitialized,
+  }
+}
