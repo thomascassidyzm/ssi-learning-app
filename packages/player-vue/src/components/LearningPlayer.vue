@@ -3636,26 +3636,22 @@ onUnmounted(() => {
       </svg>
 
       <div class="hero-glass">
-        <!-- Horizontal Phase Strip - 4 sections showing cycle progress -->
+        <!-- Horizontal Phase Strip - 4 icon sections: ear → mouth → ear → eye -->
         <div class="phase-strip">
           <div class="phase-section" :class="{ active: currentPhase === 'prompt' }">
             <span class="phase-icon">👂</span>
-            <span class="phase-label">Listen</span>
           </div>
           <div class="phase-section speak-section" :class="{ active: currentPhase === 'speak' }">
-            <span class="phase-icon">🗣️</span>
-            <span class="phase-label">Speak</span>
+            <span class="phase-icon">👄</span>
             <div class="speak-timer" v-if="currentPhase === 'speak'">
               <div class="speak-timer-fill" :style="{ width: ringProgress + '%' }"></div>
             </div>
           </div>
           <div class="phase-section" :class="{ active: currentPhase === 'voice_1' }">
-            <span class="phase-icon">👁️</span>
-            <span class="phase-label">Check</span>
+            <span class="phase-icon">👂</span>
           </div>
           <div class="phase-section" :class="{ active: currentPhase === 'voice_2' }">
-            <span class="phase-icon">✓</span>
-            <span class="phase-label">Confirm</span>
+            <span class="phase-icon">👁️</span>
           </div>
         </div>
 
@@ -5114,38 +5110,31 @@ onUnmounted(() => {
 .phase-section {
   flex: 1;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 6px 4px;
-  border-radius: 8px;
+  justify-content: center;
+  padding: 8px 6px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.04);
-  opacity: 0.35;
+  opacity: 0.3;
   transition: all 0.3s ease;
   position: relative;
 }
 
 .phase-section.active {
   opacity: 1;
-  background: rgba(255, 255, 255, 0.12);
-  box-shadow: 0 0 12px var(--belt-glow, rgba(194, 58, 58, 0.3));
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 0 12px var(--belt-glow, rgba(194, 58, 58, 0.4));
 }
 
 .phase-icon {
-  font-size: 14px;
+  font-size: 18px;
   line-height: 1;
+  filter: grayscale(0.3);
 }
 
-.phase-label {
-  font-size: 9px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.phase-section.active .phase-label {
-  color: var(--belt-color, #c23a3a);
+.phase-section.active .phase-icon {
+  filter: grayscale(0);
+  transform: scale(1.1);
 }
 
 /* Speak phase timer bar */
@@ -5195,45 +5184,46 @@ onUnmounted(() => {
   font-size: 1.8rem;
 }
 
-/* Mobile: slightly smaller text */
+/* Mobile: wider pane, shorter height, larger icons */
 @media (max-width: 480px) {
+  .hero-text-pane {
+    max-width: 95vw;
+  }
+
   .hero-glass {
-    padding: 16px 24px;
-    gap: 60px;
+    padding: 10px 20px 14px;
+    gap: 8px;
+    min-width: 85vw;
   }
 
   .hero-known {
-    font-size: 1.2rem;
+    font-size: 1.1rem;
   }
 
   .hero-target {
-    font-size: 1.4rem;
+    font-size: 1.25rem;
   }
 
   .hero-text-pane.is-intro .hero-known {
-    font-size: 1.4rem;
+    font-size: 1.3rem;
   }
 
   .hero-text-pane.is-intro .hero-target {
-    font-size: 1.6rem;
+    font-size: 1.5rem;
   }
 
-  /* Phase strip mobile adjustments */
+  /* Phase strip mobile - icons only, compact */
   .phase-strip {
-    gap: 2px;
-    margin-bottom: 8px;
+    gap: 3px;
+    margin-bottom: 6px;
   }
 
   .phase-section {
-    padding: 4px 2px;
+    padding: 6px 8px;
   }
 
   .phase-icon {
-    font-size: 12px;
-  }
-
-  .phase-label {
-    font-size: 7px;
+    font-size: 16px;
   }
 }
 
