@@ -76,13 +76,26 @@ interface RoundData {
   items?: Array<{ type: string; targetText?: string; knownText?: string }>
 }
 
+// External connections from database (same format as useLegoNetwork)
+export interface ExternalConnection {
+  source: string
+  target: string
+  count: number
+}
+
 /**
  * Pre-calculate all node positions by running D3 force simulation to completion
  * This is called ONCE when the script loads, not during learning
+ *
+ * @param rounds - The learning script rounds
+ * @param canvasSize - Canvas dimensions for layout
+ * @param externalConnections - Pre-loaded connections from database (optional)
+ *                              If provided, uses these instead of inferring from round items
  */
 export function preCalculatePositions(
   rounds: RoundData[],
-  canvasSize: { width: number; height: number } = { width: 800, height: 800 }
+  canvasSize: { width: number; height: number } = { width: 800, height: 800 },
+  externalConnections?: ExternalConnection[]
 ): { nodes: ConstellationNode[], edges: ConstellationEdge[] } {
   const center = { x: canvasSize.width / 2, y: canvasSize.height / 2 }
 
@@ -117,55 +130,76 @@ export function preCalculatePositions(
     nodeMap.set(round.legoId, node)
   }
 
-  // Build edges from phrase co-occurrence
+  // Build edges - either from external connections (database) or infer from items
   const edges: ConstellationEdge[] = []
   const edgeMap = new Map<string, ConstellationEdge>()
   let roundsWithItems = 0
   let phrasesChecked = 0
 
-  for (let roundIdx = 0; roundIdx < rounds.length; roundIdx++) {
-    const round = rounds[roundIdx]
-    if (!round?.items) continue
-    roundsWithItems++
+  if (externalConnections && externalConnections.length > 0) {
+    // USE DATABASE CONNECTIONS (same as brain view)
+    // Filter to only include edges where both nodes exist
+    for (const conn of externalConnections) {
+      if (!nodeMap.has(conn.source) || !nodeMap.has(conn.target)) continue
 
-    for (const item of round.items) {
-      if (item.type === 'intro' || item.type === 'debut') continue
+      const edgeId = `${conn.source}->${conn.target}`
+      const edge: ConstellationEdge = {
+        id: edgeId,
+        source: conn.source,
+        target: conn.target,
+        strength: conn.count,
+      }
+      edges.push(edge)
+      edgeMap.set(edgeId, edge)
+    }
 
-      const phraseText = item.targetText?.toLowerCase()
-      if (!phraseText) continue
-      phrasesChecked++
+    console.log(`[PrebuiltNetwork] Using ${edges.length} edges from database (filtered from ${externalConnections.length} total)`)
+  } else {
+    // FALLBACK: Infer edges from round items (less complete)
+    for (let roundIdx = 0; roundIdx < rounds.length; roundIdx++) {
+      const round = rounds[roundIdx]
+      if (!round?.items) continue
+      roundsWithItems++
 
-      // Find co-occurring LEGOs
-      const matchingLegos: Array<{ legoId: string, position: number }> = []
+      for (const item of round.items) {
+        if (item.type === 'intro' || item.type === 'debut') continue
 
-      for (let j = 0; j <= roundIdx; j++) {
-        const legoId = rounds[j]?.legoId
-        const legoText = legoTexts.get(legoId)
-        if (legoId && legoText) {
-          const position = phraseText.indexOf(legoText)
-          if (position >= 0) {
-            matchingLegos.push({ legoId, position })
+        const phraseText = item.targetText?.toLowerCase()
+        if (!phraseText) continue
+        phrasesChecked++
+
+        // Find co-occurring LEGOs
+        const matchingLegos: Array<{ legoId: string, position: number }> = []
+
+        for (let j = 0; j <= roundIdx; j++) {
+          const legoId = rounds[j]?.legoId
+          const legoText = legoTexts.get(legoId)
+          if (legoId && legoText) {
+            const position = phraseText.indexOf(legoText)
+            if (position >= 0) {
+              matchingLegos.push({ legoId, position })
+            }
           }
         }
-      }
 
-      matchingLegos.sort((a, b) => a.position - b.position)
+        matchingLegos.sort((a, b) => a.position - b.position)
 
-      // Create/strengthen edges
-      for (let k = 0; k < matchingLegos.length - 1; k++) {
-        const sourceId = matchingLegos[k].legoId
-        const targetId = matchingLegos[k + 1].legoId
-        const edgeId = `${sourceId}->${targetId}`
+        // Create/strengthen edges
+        for (let k = 0; k < matchingLegos.length - 1; k++) {
+          const sourceId = matchingLegos[k].legoId
+          const targetId = matchingLegos[k + 1].legoId
+          const edgeId = `${sourceId}->${targetId}`
 
-        if (sourceId === targetId) continue
+          if (sourceId === targetId) continue
 
-        let edge = edgeMap.get(edgeId)
-        if (edge) {
-          edge.strength++
-        } else {
-          edge = { id: edgeId, source: sourceId, target: targetId, strength: 1 }
-          edges.push(edge)
-          edgeMap.set(edgeId, edge)
+          let edge = edgeMap.get(edgeId)
+          if (edge) {
+            edge.strength++
+          } else {
+            edge = { id: edgeId, source: sourceId, target: targetId, strength: 1 }
+            edges.push(edge)
+            edgeMap.set(edgeId, edge)
+          }
         }
       }
     }
@@ -206,43 +240,24 @@ export function preCalculatePositions(
   }
 
   // More detailed diagnostics
+  const edgeSource = externalConnections ? 'database' : 'items'
   const diagnostics = {
     totalRounds: rounds.length,
+    edgeSource,
+    externalConnectionsProvided: externalConnections?.length || 0,
     roundsWithItems,
     phrasesChecked,
     legoTextsCount: legoTexts.size,
     nodesCreated: nodes.length,
     edgesCreated: edges.length,
-    sampleLegoTexts: legoTexts.size > 0 ? Array.from(legoTexts.entries()).slice(0, 5) : [],
     sampleEdges: edges.slice(0, 5).map(e => `${e.source} → ${e.target} (strength: ${e.strength})`),
   }
-  console.log(`[PrebuiltNetwork] Pre-calculated ${nodes.length} nodes, ${edges.length} edges`)
+  console.log(`[PrebuiltNetwork] Pre-calculated ${nodes.length} nodes, ${edges.length} edges (source: ${edgeSource})`)
   console.table(diagnostics)
 
   // Diagnose why no edges if that's the case
-  if (edges.length === 0 && phrasesChecked > 0) {
-    console.warn('[PrebuiltNetwork] No edges despite checking phrases. Possible causes:')
-    console.warn('  - Phrases only contain single LEGOs (no co-occurrence)')
-    console.warn('  - LEGO text not found in phrases (case/format mismatch)')
-
-    // Sample a phrase and show what LEGOs match
-    for (const round of rounds.slice(0, 3)) {
-      for (const item of (round.items || [])) {
-        if (item.type === 'intro' || item.type === 'debut') continue
-        const phraseText = item.targetText?.toLowerCase()
-        if (!phraseText) continue
-
-        const matchingLegos: string[] = []
-        legoTexts.forEach((text, id) => {
-          if (phraseText.includes(text)) {
-            matchingLegos.push(`${id}: "${text}"`)
-          }
-        })
-
-        console.log(`[PrebuiltNetwork] Phrase "${phraseText.slice(0, 50)}..." matches:`, matchingLegos)
-        if (matchingLegos.length > 0) break
-      }
-    }
+  if (edges.length === 0 && !externalConnections) {
+    console.warn('[PrebuiltNetwork] No edges from items. Consider loading connections from database.')
   }
 
   return { nodes, edges }
@@ -272,9 +287,16 @@ export function usePrebuiltNetwork() {
 
   /**
    * Load pre-calculated network from rounds
+   * @param rounds - Learning script rounds
+   * @param canvasSize - Canvas dimensions
+   * @param externalConnections - Pre-loaded connections from database (optional)
    */
-  function loadFromRounds(rounds: RoundData[], canvasSize?: { width: number; height: number }): void {
-    const result = preCalculatePositions(rounds, canvasSize)
+  function loadFromRounds(
+    rounds: RoundData[],
+    canvasSize?: { width: number; height: number },
+    externalConnections?: ExternalConnection[]
+  ): void {
+    const result = preCalculatePositions(rounds, canvasSize, externalConnections)
     nodes.value = result.nodes
     edges.value = result.edges
     revealedNodeIds.value = new Set()

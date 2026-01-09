@@ -12,7 +12,7 @@
  */
 
 import { ref, computed, watch, type Ref, type ComponentPublicInstance } from 'vue'
-import { usePrebuiltNetwork, preCalculatePositions, type ConstellationNode, type ConstellationEdge, type PathHighlight } from './usePrebuiltNetwork'
+import { usePrebuiltNetwork, preCalculatePositions, type ConstellationNode, type ConstellationEdge, type PathHighlight, type ExternalConnection } from './usePrebuiltNetwork'
 
 // ============================================================================
 // TYPES
@@ -200,6 +200,10 @@ export function usePrebuiltNetworkIntegration(
   /**
    * Populate network from rounds
    * THIS is where pre-calculation happens
+   *
+   * @param rounds - Learning script rounds
+   * @param upToIndex - Reveal nodes up to this index
+   * @param externalConnections - Pre-loaded connections from database (like brain view)
    */
   function populateFromRounds(
     rounds: Array<{
@@ -208,21 +212,23 @@ export function usePrebuiltNetworkIntegration(
       knownText?: string
       items?: Array<{ type: string; targetText?: string; knownText?: string }>
     }>,
-    upToIndex: number
+    upToIndex: number,
+    externalConnections?: ExternalConnection[]
   ): void {
     // Store rounds for potential re-initialization
     cachedRoundsForNetwork = rounds
 
     // Pre-calculate ALL positions (even beyond upToIndex)
     // This way positions are stable as we reveal more nodes
-    prebuiltNetwork.loadFromRounds(rounds, config.canvasSize)
+    // Pass external connections if provided (from database)
+    prebuiltNetwork.loadFromRounds(rounds, config.canvasSize, externalConnections)
 
     // Reveal nodes up to the current round
     prebuiltNetwork.revealUpToRound(upToIndex, rounds)
 
     isInitialized.value = true
 
-    console.log(`[PrebuiltNetworkIntegration] Pre-calculated ${rounds.length} positions, revealed ${upToIndex + 1} nodes`)
+    console.log(`[PrebuiltNetworkIntegration] Pre-calculated ${rounds.length} positions, revealed ${upToIndex + 1} nodes, connections: ${externalConnections ? 'database' : 'items'}`)
   }
 
   /**

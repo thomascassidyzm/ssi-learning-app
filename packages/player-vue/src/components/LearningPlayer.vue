@@ -20,6 +20,7 @@ import { useSharedBeltProgress } from '../composables/useBeltProgress'
 import { generateLearningScript } from '../providers/CourseDataProvider'
 // Prebuilt network: positions pre-calculated, pans to hero via CSS
 import { usePrebuiltNetworkIntegration } from '../composables/usePrebuiltNetworkIntegration'
+import { useLegoNetwork } from '../composables/useLegoNetwork'
 import ConstellationNetworkView from './ConstellationNetworkView.vue'
 
 const emit = defineEmits(['close'])
@@ -151,6 +152,10 @@ const sessionStore = inject('sessionStore', { value: null })
 const courseDataProvider = inject('courseDataProvider', { value: null })
 const supabase = inject('supabase', { value: null })
 const auth = inject('auth', null)
+
+// Network data from database (for edge connections - like brain view)
+const { loadNetworkData: loadLegoNetworkData } = useLegoNetwork(supabase)
+const networkConnections = ref<Array<{ source: string; target: string; count: number }>>([])
 
 // Get course code from prop (required - App.vue ensures course exists before rendering)
 const courseCode = computed(() => props.course?.course_code || '')
@@ -2795,8 +2800,12 @@ const addNetworkNode = (legoId, targetText, knownText, beltColor = 'white') => {
 const populateNetworkUpToRound = (targetRoundIndex) => {
   if (!cachedRounds.value.length) return
 
-  // Use composable to populate (no hero - organic growth)
-  populateNetworkFromRounds(cachedRounds.value, targetRoundIndex)
+  // Use composable to populate with database connections (like brain view)
+  populateNetworkFromRounds(
+    cachedRounds.value,
+    targetRoundIndex,
+    networkConnections.value.length > 0 ? networkConnections.value : undefined
+  )
 }
 
 // ============================================
@@ -3173,6 +3182,24 @@ onMounted(async () => {
         // Now run remaining tasks in parallel
         const parallelTasks = []
 
+        // Task: Load network connections from database (like brain view)
+        // This gives us dense edges for the network visualization
+        parallelTasks.push(
+          (async () => {
+            try {
+              console.log('[LearningPlayer] Loading network connections from database...')
+              const networkData = await loadLegoNetworkData(courseCode.value)
+              if (networkData?.connections) {
+                networkConnections.value = networkData.connections
+                console.log(`[LearningPlayer] Loaded ${networkData.connections.length} network connections`)
+              }
+            } catch (err) {
+              console.warn('[LearningPlayer] Failed to load network connections:', err)
+              // Not fatal - network will use fallback edge inference
+            }
+          })()
+        )
+
         // Task: Load saved progress (localStorage first, then database for logged-in users)
         parallelTasks.push(
           (async () => {
@@ -3283,6 +3310,16 @@ onMounted(async () => {
         // GENERATE NEW SCRIPT (cache was empty)
         // ============================================
         console.log('[LearningPlayer] No cached script, generating new one...')
+
+        // Load network connections in parallel with script generation
+        loadLegoNetworkData(courseCode.value).then(networkData => {
+          if (networkData?.connections) {
+            networkConnections.value = networkData.connections
+            console.log(`[LearningPlayer] Loaded ${networkData.connections.length} network connections (fresh generation)`)
+          }
+        }).catch(err => {
+          console.warn('[LearningPlayer] Failed to load network connections:', err)
+        })
 
         try {
           // Provider now contains all config - single source of truth
