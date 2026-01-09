@@ -6,11 +6,12 @@
  * - Positions are PRE-CALCULATED (no runtime physics)
  * - Network PANS via CSS transform to center on hero
  * - Spatial relationships are FIXED (preserves memory)
+ * - Manual pinch-zoom and drag-pan supported
  *
  * "quiero is always up-left of hablar" - like a real star map
  */
 
-import { ref, computed, watch, onMounted, type PropType } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, type PropType } from 'vue'
 import type { ConstellationNode, ConstellationEdge, PathHighlight } from '../composables/usePrebuiltNetwork'
 
 // ============================================================================
@@ -72,6 +73,230 @@ const emit = defineEmits<{
   (e: 'node-tap', node: ConstellationNode): void
   (e: 'node-hover', node: ConstellationNode | null): void
 }>()
+
+// ============================================================================
+// ZOOM & PAN STATE
+// ============================================================================
+
+const svgRef = ref<SVGSVGElement | null>(null)
+
+// User-controlled zoom and pan (independent of hero centering)
+const userScale = ref(1)
+const userPan = ref({ x: 0, y: 0 })
+
+// Zoom constraints
+const MIN_SCALE = 0.3
+const MAX_SCALE = 3
+
+// Pan state for drag
+const isDragging = ref(false)
+const dragStart = ref({ x: 0, y: 0 })
+const dragPanStart = ref({ x: 0, y: 0 })
+
+// Touch state for pinch-zoom
+const initialPinchDistance = ref(0)
+const initialPinchScale = ref(1)
+
+// Wheel zoom state (for disabling transition during wheel)
+const isWheelZooming = ref(false)
+let wheelZoomTimeout: number | null = null
+
+// Is user actively interacting? (disables transition for responsiveness)
+const isInteracting = computed(() => isDragging.value || isWheelZooming.value)
+
+// Combined transform (user zoom/pan + hero centering)
+const combinedTransform = computed(() => {
+  // Parse the hero pan offset from panTransform prop
+  const heroMatch = props.panTransform.match(/translate\((-?\d+\.?\d*)px,\s*(-?\d+\.?\d*)px\)/)
+  const heroX = heroMatch ? parseFloat(heroMatch[1]) : 0
+  const heroY = heroMatch ? parseFloat(heroMatch[2]) : 0
+
+  // Combine: first apply hero centering, then user pan, then scale
+  const totalX = heroX + userPan.value.x
+  const totalY = heroY + userPan.value.y
+
+  return `translate(${totalX}px, ${totalY}px) scale(${userScale.value})`
+})
+
+// ============================================================================
+// MOUSE WHEEL ZOOM
+// ============================================================================
+
+function handleWheel(e: WheelEvent) {
+  e.preventDefault()
+
+  // Mark as zooming to disable transition
+  isWheelZooming.value = true
+  if (wheelZoomTimeout) clearTimeout(wheelZoomTimeout)
+  wheelZoomTimeout = window.setTimeout(() => {
+    isWheelZooming.value = false
+  }, 150)
+
+  const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1
+  const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, userScale.value * zoomFactor))
+
+  // Zoom toward cursor position
+  if (svgRef.value) {
+    const rect = svgRef.value.getBoundingClientRect()
+    const cursorX = e.clientX - rect.left - rect.width / 2
+    const cursorY = e.clientY - rect.top - rect.height / 2
+
+    const scaleDiff = newScale - userScale.value
+    userPan.value = {
+      x: userPan.value.x - cursorX * scaleDiff / userScale.value,
+      y: userPan.value.y - cursorY * scaleDiff / userScale.value
+    }
+  }
+
+  userScale.value = newScale
+}
+
+// ============================================================================
+// MOUSE DRAG PAN
+// ============================================================================
+
+function handleMouseDown(e: MouseEvent) {
+  // Only pan on left click, and not on nodes
+  if (e.button !== 0) return
+  if ((e.target as Element).closest('.node')) return
+
+  isDragging.value = true
+  dragStart.value = { x: e.clientX, y: e.clientY }
+  dragPanStart.value = { ...userPan.value }
+}
+
+function handleMouseMove(e: MouseEvent) {
+  if (!isDragging.value) return
+
+  const dx = e.clientX - dragStart.value.x
+  const dy = e.clientY - dragStart.value.y
+
+  userPan.value = {
+    x: dragPanStart.value.x + dx / userScale.value,
+    y: dragPanStart.value.y + dy / userScale.value
+  }
+}
+
+function handleMouseUp() {
+  isDragging.value = false
+}
+
+// ============================================================================
+// TOUCH GESTURES (PINCH-ZOOM & DRAG-PAN)
+// ============================================================================
+
+function getTouchDistance(e: TouchEvent): number {
+  if (e.touches.length < 2) return 0
+  const dx = e.touches[0].clientX - e.touches[1].clientX
+  const dy = e.touches[0].clientY - e.touches[1].clientY
+  return Math.sqrt(dx * dx + dy * dy)
+}
+
+function getTouchCenter(e: TouchEvent): { x: number; y: number } {
+  if (e.touches.length < 2) {
+    return { x: e.touches[0].clientX, y: e.touches[0].clientY }
+  }
+  return {
+    x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+    y: (e.touches[0].clientY + e.touches[1].clientY) / 2
+  }
+}
+
+function handleTouchStart(e: TouchEvent) {
+  // Don't prevent default - allow native scrolling to work when needed
+  if ((e.target as Element).closest('.node')) return
+
+  if (e.touches.length === 2) {
+    // Pinch start
+    initialPinchDistance.value = getTouchDistance(e)
+    initialPinchScale.value = userScale.value
+    e.preventDefault() // Prevent zoom for pinch only
+  } else if (e.touches.length === 1) {
+    // Single touch drag
+    isDragging.value = true
+    dragStart.value = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+    dragPanStart.value = { ...userPan.value }
+  }
+}
+
+function handleTouchMove(e: TouchEvent) {
+  if (e.touches.length === 2 && initialPinchDistance.value > 0) {
+    e.preventDefault()
+
+    // Pinch zoom
+    const currentDistance = getTouchDistance(e)
+    const scale = currentDistance / initialPinchDistance.value
+    const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, initialPinchScale.value * scale))
+
+    // Zoom toward pinch center
+    if (svgRef.value) {
+      const rect = svgRef.value.getBoundingClientRect()
+      const center = getTouchCenter(e)
+      const cursorX = center.x - rect.left - rect.width / 2
+      const cursorY = center.y - rect.top - rect.height / 2
+
+      const scaleDiff = newScale - userScale.value
+      userPan.value = {
+        x: userPan.value.x - cursorX * scaleDiff / userScale.value,
+        y: userPan.value.y - cursorY * scaleDiff / userScale.value
+      }
+    }
+
+    userScale.value = newScale
+  } else if (e.touches.length === 1 && isDragging.value) {
+    // Single touch pan
+    const dx = e.touches[0].clientX - dragStart.value.x
+    const dy = e.touches[0].clientY - dragStart.value.y
+
+    userPan.value = {
+      x: dragPanStart.value.x + dx / userScale.value,
+      y: dragPanStart.value.y + dy / userScale.value
+    }
+  }
+}
+
+function handleTouchEnd(e: TouchEvent) {
+  if (e.touches.length === 0) {
+    isDragging.value = false
+    initialPinchDistance.value = 0
+  } else if (e.touches.length === 1) {
+    // Switching from pinch to single touch
+    initialPinchDistance.value = 0
+    isDragging.value = true
+    dragStart.value = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+    dragPanStart.value = { ...userPan.value }
+  }
+}
+
+// ============================================================================
+// RESET ZOOM/PAN
+// ============================================================================
+
+function resetZoomPan() {
+  userScale.value = 1
+  userPan.value = { x: 0, y: 0 }
+}
+
+// Watch for hero changes - optionally reset user pan
+watch(() => props.heroNodeId, () => {
+  // Don't reset zoom, but could smooth the transition
+  // For now, just let the combined transform handle it
+})
+
+// ============================================================================
+// LIFECYCLE
+// ============================================================================
+
+onMounted(() => {
+  // Add global mouse handlers for drag
+  window.addEventListener('mousemove', handleMouseMove)
+  window.addEventListener('mouseup', handleMouseUp)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('mousemove', handleMouseMove)
+  window.removeEventListener('mouseup', handleMouseUp)
+})
 
 // ============================================================================
 // HELPERS
@@ -168,9 +393,16 @@ const labelOpacity = computed(() => (node: ConstellationNode): number => {
   <div class="constellation-network">
     <!-- Network container with CSS transform for panning -->
     <svg
+      ref="svgRef"
       class="network-svg"
+      :class="{ 'is-interacting': isInteracting, 'is-dragging': isDragging }"
       viewBox="0 0 800 800"
       preserveAspectRatio="xMidYMid meet"
+      @wheel="handleWheel"
+      @mousedown="handleMouseDown"
+      @touchstart="handleTouchStart"
+      @touchmove="handleTouchMove"
+      @touchend="handleTouchEnd"
     >
       <!-- Defs for filters -->
       <defs>
@@ -193,8 +425,8 @@ const labelOpacity = computed(() => (node: ConstellationNode): number => {
         </filter>
       </defs>
 
-      <!-- Pan group - transforms to center on hero -->
-      <g class="pan-group" :style="{ transform: panTransform }">
+      <!-- Pan group - transforms to center on hero + user zoom/pan -->
+      <g class="pan-group" :style="{ transform: combinedTransform }">
         <!-- Edges layer -->
         <g class="edges-layer">
           <path
@@ -287,10 +519,22 @@ const labelOpacity = computed(() => (node: ConstellationNode): number => {
   width: 100%;
   height: 100%;
   display: block;
+  cursor: grab;
+  touch-action: none; /* Prevent browser handling of touch gestures */
+}
+
+.network-svg.is-dragging {
+  cursor: grabbing;
 }
 
 .pan-group {
   transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: center center;
+}
+
+/* Disable transition during active interaction for responsiveness */
+.network-svg.is-interacting .pan-group {
+  transition: none;
 }
 
 .node {
