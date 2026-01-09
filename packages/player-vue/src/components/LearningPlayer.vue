@@ -1141,7 +1141,9 @@ const isIntroPhase = computed(() => {
   const item = useRoundBasedPlayback.value
     ? currentPlayableItem.value
     : sessionItems.value[currentItemIndex.value]
-  return item?.type === 'intro' || item?.type === 'debut'
+  // Playable items store type in phrase.phraseType or mode, not at top level
+  const itemType = item?.type || item?.phrase?.phraseType || item?.mode
+  return itemType === 'intro' || itemType === 'debut'
 })
 
 // Intro typewriter messages - gentle "listen up" prompts during introductions
