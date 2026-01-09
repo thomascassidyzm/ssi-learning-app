@@ -3028,6 +3028,9 @@ const extractLegoIdsFromPhrase = (item) => {
     }
   })
 
+  // Debug: Show what we're searching for and what nodes are available
+  console.log(`[extractLegoIdsFromPhrase] Phrase: "${targetText.slice(0, 40)}...", ${legoMap.size} LEGOs available`)
+
   // Greedy decomposition - find longest matching LEGO at each position
   const normalized = targetText.toLowerCase().trim()
   const words = normalized.split(/\s+/)
@@ -3065,6 +3068,7 @@ const extractLegoIdsFromPhrase = (item) => {
     }
   }
 
+  console.log(`[extractLegoIdsFromPhrase] Result: [${result.join(', ')}]`)
   return result
 }
 
