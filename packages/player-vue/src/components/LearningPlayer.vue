@@ -1144,6 +1144,22 @@ const isIntroPhase = computed(() => {
   return item?.type === 'intro' || item?.type === 'debut'
 })
 
+// Intro typewriter messages - encouraging text during introductions
+const INTRO_MESSAGES = [
+  'new phrase coming up',
+  'learning something new',
+  'next up...',
+  'incoming...',
+  'watch this',
+  'here we go',
+]
+// Rotate through messages based on round index
+const introMessage = computed(() => {
+  if (!isIntroPhase.value) return ''
+  const idx = currentRoundIndex.value % INTRO_MESSAGES.length
+  return INTRO_MESSAGES[idx]
+})
+
 // Visible texts for QA reporting - always shows both for context
 const visibleTexts = computed(() => ({
   known: currentItem.value?.phrase?.phrase?.known || '',
@@ -3148,6 +3164,8 @@ onMounted(async () => {
   // Track data loading state
   let dataReady = false
   let cachedScript = null
+  // Promise that resolves when network connections are loaded (from either path)
+  let networkConnectionsReady: Promise<void> = Promise.resolve()
 
   // ============================================
   // PARALLEL TASK 1: Load all data
@@ -3184,21 +3202,21 @@ onMounted(async () => {
 
         // Task: Load network connections from database (like brain view)
         // This gives us dense edges for the network visualization
-        parallelTasks.push(
-          (async () => {
-            try {
-              console.log('[LearningPlayer] Loading network connections from database...')
-              const networkData = await loadLegoNetworkData(courseCode.value)
-              if (networkData?.connections) {
-                networkConnections.value = networkData.connections
-                console.log(`[LearningPlayer] Loaded ${networkData.connections.length} network connections`)
-              }
-            } catch (err) {
-              console.warn('[LearningPlayer] Failed to load network connections:', err)
-              // Not fatal - network will use fallback edge inference
+        const connectionsTask = (async () => {
+          try {
+            console.log('[LearningPlayer] Loading network connections from database...')
+            const networkData = await loadLegoNetworkData(courseCode.value)
+            if (networkData?.connections) {
+              networkConnections.value = networkData.connections
+              console.log(`[LearningPlayer] Loaded ${networkData.connections.length} network connections`)
             }
-          })()
-        )
+          } catch (err) {
+            console.warn('[LearningPlayer] Failed to load network connections:', err)
+            // Not fatal - network will use fallback edge inference
+          }
+        })()
+        parallelTasks.push(connectionsTask)
+        networkConnectionsReady = connectionsTask
 
         // Task: Load saved progress (localStorage first, then database for logged-in users)
         parallelTasks.push(
@@ -3312,7 +3330,8 @@ onMounted(async () => {
         console.log('[LearningPlayer] No cached script, generating new one...')
 
         // Load network connections in parallel with script generation
-        loadLegoNetworkData(courseCode.value).then(networkData => {
+        // Store the promise so we can await it later (before populating network)
+        networkConnectionsReady = loadLegoNetworkData(courseCode.value).then(networkData => {
           if (networkData?.connections) {
             networkConnections.value = networkData.connections
             console.log(`[LearningPlayer] Loaded ${networkData.connections.length} network connections (fresh generation)`)
@@ -3433,6 +3452,9 @@ onMounted(async () => {
   // Populate network with all LEGOs up to target position
   // Priority: previewLegoIndex prop > restored position > nothing
   nextTick(async () => {
+    // Wait for network connections to load before populating (fixes edge timing issue)
+    await networkConnectionsReady
+
     if (props.previewLegoIndex > 0) {
       // Preview mode: expand script if needed, then show network up to specified LEGO index
       let targetIndex = props.previewLegoIndex
@@ -3660,52 +3682,66 @@ onUnmounted(() => {
     <!-- Hero-Centric Text Labels - Floating above/below the hero node -->
     <div class="hero-text-pane" :class="[currentPhase, { 'is-intro': isIntroPhase }]">
       <div class="hero-glass">
-        <!-- Horizontal Phase Strip: speaker → mic → speaker → eyes -->
-        <div class="phase-strip">
-          <div class="phase-section speaker-section" :class="{ active: currentPhase === 'prompt' }">
-            <svg class="phase-icon-svg" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
-            </svg>
-          </div>
-          <div class="phase-section mic-section" :class="{ active: currentPhase === 'speak' }">
-            <svg class="phase-icon-svg" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>
-            </svg>
-            <div class="speak-timer" v-if="currentPhase === 'speak'">
-              <div class="speak-timer-fill" :style="{ width: ringProgress + '%' }"></div>
+        <!-- INTRO MODE: Typewriter-style encouraging message -->
+        <template v-if="isIntroPhase && !isAwakening">
+          <div class="intro-display">
+            <div class="intro-typewriter">
+              <span class="intro-prefix">›</span>
+              <span class="intro-message">{{ introMessage }}</span>
+              <span class="intro-cursor">▌</span>
             </div>
           </div>
-          <div class="phase-section speaker-section" :class="{ active: currentPhase === 'voice_1' }">
-            <svg class="phase-icon-svg" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
-            </svg>
-          </div>
-          <div class="phase-section eyes-section" :class="{ active: currentPhase === 'voice_2' }">
-            <span class="phase-icon-emoji">👀</span>
-          </div>
-        </div>
+        </template>
 
-        <!-- Known text floats above -->
-        <div class="hero-text-known">
-          <transition name="text-fade" mode="out-in">
-            <p v-if="isAwakening" class="hero-known loading-text" key="loading">
-              {{ currentLoadingMessage }}<span class="loading-cursor">▌</span>
-            </p>
-            <p v-else class="hero-known" :key="currentPhrase.known">
-              {{ currentPhrase.known }}
-            </p>
-          </transition>
-        </div>
+        <!-- NORMAL MODE: Phase strip + text -->
+        <template v-else>
+          <!-- Horizontal Phase Strip: speaker → mic → speaker → eyes -->
+          <div class="phase-strip">
+            <div class="phase-section speaker-section" :class="{ active: currentPhase === 'prompt' }">
+              <svg class="phase-icon-svg" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+              </svg>
+            </div>
+            <div class="phase-section mic-section" :class="{ active: currentPhase === 'speak' }">
+              <svg class="phase-icon-svg" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>
+              </svg>
+              <div class="speak-timer" v-if="currentPhase === 'speak'">
+                <div class="speak-timer-fill" :style="{ width: ringProgress + '%' }"></div>
+              </div>
+            </div>
+            <div class="phase-section speaker-section" :class="{ active: currentPhase === 'voice_1' }">
+              <svg class="phase-icon-svg" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+              </svg>
+            </div>
+            <div class="phase-section eyes-section" :class="{ active: currentPhase === 'voice_2' }">
+              <span class="phase-icon-emoji">👀</span>
+            </div>
+          </div>
 
-        <!-- Target text floats below (only visible in Voice 2) -->
-        <div class="hero-text-target">
-          <transition name="text-reveal" mode="out-in">
-            <p v-if="showTargetText" class="hero-target" :key="currentPhrase.target">
-              {{ currentPhrase.target }}
-            </p>
-            <p v-else class="hero-target-placeholder" key="placeholder">&nbsp;</p>
-          </transition>
-        </div>
+          <!-- Known text floats above -->
+          <div class="hero-text-known">
+            <transition name="text-fade" mode="out-in">
+              <p v-if="isAwakening" class="hero-known loading-text" key="loading">
+                {{ currentLoadingMessage }}<span class="loading-cursor">▌</span>
+              </p>
+              <p v-else class="hero-known" :key="currentPhrase.known">
+                {{ currentPhrase.known }}
+              </p>
+            </transition>
+          </div>
+
+          <!-- Target text floats below (only visible in Voice 2) -->
+          <div class="hero-text-target">
+            <transition name="text-reveal" mode="out-in">
+              <p v-if="showTargetText" class="hero-target" :key="currentPhrase.target">
+                {{ currentPhrase.target }}
+              </p>
+              <p v-else class="hero-target-placeholder" key="placeholder">&nbsp;</p>
+            </transition>
+          </div>
+        </template>
       </div>
     </div>
 
@@ -5042,6 +5078,51 @@ onUnmounted(() => {
 /* Glass pane is hidden during intro - this rule kept for any edge cases */
 .hero-text-pane.is-intro .hero-glass {
   /* Pane hidden via parent opacity, but keep these for transitions */
+}
+
+/* ===========================================
+   INTRO TYPEWRITER DISPLAY
+   Encouraging terminal-style message during introductions
+   =========================================== */
+.intro-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem 2rem;
+  min-height: 80px;
+}
+
+.intro-typewriter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+  font-size: 1rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: var(--belt-color, rgba(255, 255, 255, 0.85));
+}
+
+.intro-prefix {
+  color: var(--belt-color, #fcd34d);
+  opacity: 0.7;
+  font-weight: 500;
+}
+
+.intro-message {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.intro-cursor {
+  color: var(--belt-color, #fcd34d);
+  animation: cursor-blink 1s ease-in-out infinite;
+  font-weight: 300;
+  margin-left: -2px;
+}
+
+@keyframes cursor-blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
 }
 
 .hero-text-known,
