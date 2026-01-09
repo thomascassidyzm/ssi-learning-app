@@ -474,6 +474,7 @@ const scriptItemToPlayableItem = async (scriptItem) => {
       legos: [scriptItem.legoId],
     },
     thread_id: 1,
+    type: scriptItem.type,  // Top-level type for easy access
     mode: scriptItem.type,
     // Durations from cache or defaults
     audioDurations: scriptItem.audioDurations || {
@@ -1141,9 +1142,7 @@ const isIntroPhase = computed(() => {
   const item = useRoundBasedPlayback.value
     ? currentPlayableItem.value
     : sessionItems.value[currentItemIndex.value]
-  // Playable items store type in phrase.phraseType or mode, not at top level
-  const itemType = item?.type || item?.phrase?.phraseType || item?.mode
-  return itemType === 'intro' || itemType === 'debut'
+  return item?.type === 'intro' || item?.type === 'debut'
 })
 
 // Intro typewriter messages - gentle "listen up" prompts during introductions
