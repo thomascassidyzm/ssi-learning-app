@@ -3209,12 +3209,19 @@ onMounted(async () => {
         // Task: Load network connections from database (like brain view)
         // This gives us dense edges for the network visualization
         const connectionsTask = (async () => {
+          console.log('[LearningPlayer] Starting network connections load, supabase:', !!supabase?.value)
           try {
+            if (!supabase?.value) {
+              console.warn('[LearningPlayer] No supabase client - skipping network connections')
+              return
+            }
             console.log('[LearningPlayer] Loading network connections from database...')
             const networkData = await loadLegoNetworkData(courseCode.value)
             if (networkData?.connections) {
               networkConnections.value = networkData.connections
               console.log(`[LearningPlayer] Loaded ${networkData.connections.length} network connections`)
+            } else {
+              console.warn('[LearningPlayer] No connections returned from loadLegoNetworkData')
             }
           } catch (err) {
             console.warn('[LearningPlayer] Failed to load network connections:', err)
@@ -3337,14 +3344,24 @@ onMounted(async () => {
 
         // Load network connections in parallel with script generation
         // Store the promise so we can await it later (before populating network)
-        networkConnectionsReady = loadLegoNetworkData(courseCode.value).then(networkData => {
-          if (networkData?.connections) {
-            networkConnections.value = networkData.connections
-            console.log(`[LearningPlayer] Loaded ${networkData.connections.length} network connections (fresh generation)`)
+        console.log('[LearningPlayer] Fresh gen: starting network connections load, supabase:', !!supabase?.value)
+        networkConnectionsReady = (async () => {
+          if (!supabase?.value) {
+            console.warn('[LearningPlayer] Fresh gen: No supabase client - skipping network connections')
+            return
           }
-        }).catch(err => {
-          console.warn('[LearningPlayer] Failed to load network connections:', err)
-        })
+          try {
+            const networkData = await loadLegoNetworkData(courseCode.value)
+            if (networkData?.connections) {
+              networkConnections.value = networkData.connections
+              console.log(`[LearningPlayer] Loaded ${networkData.connections.length} network connections (fresh generation)`)
+            } else {
+              console.warn('[LearningPlayer] Fresh gen: No connections returned')
+            }
+          } catch (err) {
+            console.warn('[LearningPlayer] Failed to load network connections:', err)
+          }
+        })()
 
         try {
           // Provider now contains all config - single source of truth
@@ -5054,11 +5071,10 @@ onUnmounted(() => {
   transition: opacity 0.4s ease, transform 0.4s ease;
 }
 
-/* Hide pane completely during intro - pure LISTEN mode */
+/* Intro mode: show the typewriter message pane */
 .hero-text-pane.is-intro {
-  opacity: 0;
-  transform: translate(-50%, -10px);
-  pointer-events: none;
+  /* Keep pane visible for intro display */
+  opacity: 1;
 }
 
 .hero-glass {
