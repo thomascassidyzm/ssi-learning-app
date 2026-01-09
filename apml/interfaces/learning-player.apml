@@ -1,6 +1,6 @@
 # APML Interface: Learning Player Specification
-# SSI Learning App v1.0.0
-# Version: 1.0.0 (2025-12-03)
+# SSI Learning App v2.0.0
+# Version: 2.0.0 (2026-01-09)
 # Status: Production-ready
 
 ## ============================================================================
@@ -9,27 +9,30 @@
 
 SPECIFICATION:
   name: "Learning Player Interface"
-  purpose: "Main player UI for the 4-phase learning cycle"
+  purpose: "Main player UI for the 4-phase learning cycle with constellation network"
   source: "packages/player-vue/src/components/LearningPlayer.vue"
-  design_system: "Moonlit Dojo"
-  version: "1.0.0"
+  design_system: "Deep Space Constellation"
+  version: "2.0.0"
+  previous_version: "1.0.0 (Moonlit Dojo)"
 
 DESIGN_PHILOSOPHY:
-  name: "Moonlit Dojo"
-  inspiration: |
-    A dark sanctuary where concentration flourishes.
-    The learner is in a virtual dojo at night, practicing their language kata.
+  name: "Deep Space Constellation"
+  evolution: "Evolved from Moonlit Dojo to Deep Space Constellation in January 2026"
 
   visual_principles:
-    - "Dark, restful background that reduces eye strain"
-    - "Belt color as single accent (Schindler's List restraint)"
-    - "Japanese landscape silhouettes for depth"
-    - "Subtle firefly particles for life"
-    - "Generous whitespace for focus"
+    - "Deep space gradient background with nebula effects"
+    - "Constellation network as primary visual element"
+    - "Hero-centric glass pane for text display"
+    - "Belt color accent (preserved from Moonlit Dojo)"
+    - "Star field for ambient depth"
+    - "Phase strip with semantic icons (speaker/mic/eyes)"
 
-  color_philosophy: |
-    Belt color is the ONLY accent. Everything else is grayscale.
-    This creates visual hierarchy without distraction.
+  interaction_principles:
+    - "Network pans to center on current LEGO (hero node)"
+    - "Spatial relationships preserved - 'quiero always up-left of hablar'"
+    - "Pinch-zoom and drag-pan for exploration"
+    - "Node tap to hear individual LEGOs"
+    - "Transport controls in thumb zone (bottom)"
 
 ## ============================================================================
 ## BELT PROGRESSION SYSTEM
@@ -38,135 +41,172 @@ DESIGN_PHILOSOPHY:
 BELT_SYSTEM:
   description: |
     8 martial arts belts track learner progress through the course.
-    Each belt requires completing a certain number of SEEDs.
+    Each belt requires completing a certain number of LEGOs.
 
   belts:
     white:
       name: "White"
-      seeds_required: 0
+      legos_required: 0
       color: "#f5f5f5"
-      color_dark: "#e0e0e0"
       glow: "rgba(245, 245, 245, 0.2)"
 
     yellow:
       name: "Yellow"
-      seeds_required: 8
-      color: "#ffd700"
-      color_dark: "#ccac00"
-      glow: "rgba(255, 215, 0, 0.2)"
+      legos_required: 16
+      color: "#fbbf24"
+      glow: "rgba(251, 191, 36, 0.2)"
 
     orange:
       name: "Orange"
-      seeds_required: 20
-      color: "#ff8c00"
-      color_dark: "#cc7000"
-      glow: "rgba(255, 140, 0, 0.2)"
+      legos_required: 40
+      color: "#f97316"
+      glow: "rgba(249, 115, 22, 0.2)"
 
     green:
       name: "Green"
-      seeds_required: 40
-      color: "#228b22"
-      color_dark: "#1a6f1a"
-      glow: "rgba(34, 139, 34, 0.2)"
+      legos_required: 80
+      color: "#22c55e"
+      glow: "rgba(34, 197, 94, 0.2)"
 
     blue:
       name: "Blue"
-      seeds_required: 80
-      color: "#4169e1"
-      color_dark: "#3454b4"
-      glow: "rgba(65, 105, 225, 0.2)"
+      legos_required: 160
+      color: "#3b82f6"
+      glow: "rgba(59, 130, 246, 0.2)"
 
     purple:
       name: "Purple"
-      seeds_required: 150
-      color: "#9932cc"
-      color_dark: "#7a28a3"
-      glow: "rgba(153, 50, 204, 0.2)"
+      legos_required: 300
+      color: "#8b5cf6"
+      glow: "rgba(139, 92, 246, 0.2)"
 
     brown:
       name: "Brown"
-      seeds_required: 280
-      color: "#8b4513"
-      color_dark: "#6f370f"
-      glow: "rgba(139, 69, 19, 0.2)"
+      legos_required: 560
+      color: "#a87848"
+      glow: "rgba(168, 120, 72, 0.2)"
 
     black:
       name: "Black"
-      seeds_required: 400
-      color: "#1a1a1a"
-      color_dark: "#000000"
-      glow: "rgba(26, 26, 26, 0.2)"
-
-  progression_logic: |
-    function getBeltForSeeds(completedSeeds) {
-      const belts = [...ordered_by_seeds_required_desc]
-      return belts.find(b => completedSeeds >= b.seeds_required) || white
-    }
-
-    function getBeltProgress(completedSeeds) {
-      const current = getCurrentBelt()
-      const next = getNextBelt()
-      if (!next) return 100 // At black belt
-      const range = next.seeds_required - current.seeds_required
-      const progress = completedSeeds - current.seeds_required
-      return (progress / range) * 100
-    }
+      legos_required: 800
+      color: "#d4a853"
+      glow: "rgba(212, 168, 83, 0.2)"
 
 ## ============================================================================
-## VISUAL LAYOUT
+## VISUAL LAYOUT (January 2026)
 ## ============================================================================
 
 LAYOUT:
   structure: |
     ┌─────────────────────────────────────────────────────────────────────┐
-    │ Header: Belt indicator + Session stats                              │
-    ├─────────────────────────────────────────────────────────────────────┤
+    │                    Deep Space Background                            │
+    │                    (gradient + nebula + noise)                      │
     │                                                                     │
+    │    ┌───────────────────────────────────────────────────────────┐   │
+    │    │                                                           │   │
+    │    │              CONSTELLATION NETWORK VIEW                   │   │
+    │    │                                                           │   │
+    │    │         ○ ────── ● ────── ○                              │   │
+    │    │        /          \                                       │   │
+    │    │       ○            ○ ←── Hero Node (centered)            │   │
+    │    │                     \                                     │   │
+    │    │                      ○                                    │   │
+    │    │                                                           │   │
+    │    └───────────────────────────────────────────────────────────┘   │
     │                                                                     │
-    │                     ┌───────────────────┐                           │
-    │                     │                   │                           │
-    │  Background:        │   Central Card    │      Fireflies            │
-    │  Mountain           │   (Phase content) │      (belt color)         │
-    │  silhouettes        │                   │                           │
-    │                     └───────────────────┘                           │
+    │    ┌───────────────────────────────────────────────────────────┐   │
+    │    │            HERO TEXT PANE (Glass Effect)                  │   │
+    │    │                                                           │   │
+    │    │  ┌──────────────────────────────────────────────────────┐│   │
+    │    │  │  🔊  │  🎤  │  🔊  │  👀  │   ← Phase Strip          ││   │
+    │    │  │ prompt│speak │voice1│voice2│     (icons)              ││   │
+    │    │  └──────────────────────────────────────────────────────┘│   │
+    │    │                                                           │   │
+    │    │  "I want to speak Italian with you"    ← Known text      │   │
+    │    │                                                           │   │
+    │    │  "Voglio parlare italiano con te"      ← Target (voice_2)│   │
+    │    │                                                           │   │
+    │    └───────────────────────────────────────────────────────────┘   │
     │                                                                     │
-    │                     ┌───────────────────┐                           │
-    │                     │   Ring Progress   │                           │
-    │                     │   (during PAUSE)  │                           │
-    │                     └───────────────────┘                           │
+    │              ⏮  ▶️  ⏭                ← Transport Controls       │
     │                                                                     │
-    ├─────────────────────────────────────────────────────────────────────┤
-    │ Footer: Phase dots + Controls                                       │
+    │    ──────────────────────────────────────────────────────────────  │
+    │    Star Field (static distant stars)                                │
     └─────────────────────────────────────────────────────────────────────┘
 
-  regions:
-    header:
-      height: "60px"
-      contents:
-        - "Belt badge (SVG knot icon)"
-        - "Belt name"
-        - "Session counter (items practiced)"
-        - "Streak indicator (optional)"
+  layers:
+    z_0: "Space gradient background"
+    z_1: "Space nebula overlay"
+    z_2: "Background noise texture"
+    z_3: "Static star field"
+    z_4: "Constellation network view"
+    z_5: "Hero text pane (glass)"
+    z_6: "Node hover tooltip"
+    z_7: "Transport controls"
+    z_8: "Overlays (session complete, consent prompts)"
 
-    main:
-      flex: 1
-      contents:
-        - "Mountain silhouette background"
-        - "Firefly particles (belt colored)"
-        - "Central content card"
+## ============================================================================
+## HERO TEXT PANE
+## ============================================================================
 
-    central_card:
-      width: "min(90vw, 400px)"
-      contents:
-        - "Known text (always visible)"
-        - "Target text (VOICE_2 only)"
-        - "Ring progress animation (PAUSE phase)"
+HERO_TEXT_PANE:
+  description: "Floating glass panel showing current phrase and phase"
 
-    footer:
-      height: "80px"
-      contents:
-        - "Phase indicator dots (4 dots)"
-        - "Control buttons (play/pause, skip)"
+  visual:
+    background: "Frosted glass effect (backdrop-blur)"
+    border: "Subtle belt-colored glow"
+    position: "Lower third of screen, over network"
+
+  modes:
+    intro_mode:
+      display: "Typewriter-style encouraging message"
+      elements:
+        prefix: "› (chevron)"
+        message: "Typewriter text animation"
+        cursor: "▌ (blinking block cursor)"
+      triggers: "Item type is 'intro'"
+
+    normal_mode:
+      display: "Phase strip + known/target text"
+      elements:
+        phase_strip: "Horizontal 4-section strip with icons"
+        known_text: "Known language text (always visible)"
+        target_text: "Target language text (voice_2 only)"
+
+## ============================================================================
+## PHASE STRIP
+## ============================================================================
+
+PHASE_STRIP:
+  description: "Horizontal strip showing 4 phases with semantic icons"
+  location: "Top of hero text pane"
+
+  sections:
+    prompt:
+      icon: "Speaker SVG (🔊)"
+      label: "Listen to prompt"
+      active_style: "Belt-colored glow"
+
+    speak:
+      icon: "Microphone SVG (🎤)"
+      label: "Your turn to speak"
+      active_style: "Belt-colored glow + timer bar"
+      timer: "Linear progress bar showing pause countdown"
+
+    voice_1:
+      icon: "Speaker SVG (🔊)"
+      label: "Native speaker #1"
+      active_style: "Belt-colored glow"
+
+    voice_2:
+      icon: "Eyes emoji (👀)"
+      label: "See the answer"
+      active_style: "Belt-colored glow"
+
+  timer_bar:
+    location: "Inside mic section when speak phase active"
+    style: "Linear fill bar (replaced ring progress)"
+    animation: "Width grows from 0% to 100% over pause duration"
 
 ## ============================================================================
 ## PHASE-SPECIFIC UI STATES
@@ -174,263 +214,147 @@ LAYOUT:
 
 PHASE_UI_STATES:
   PROMPT:
-    card_display:
-      known_text:
-        visible: true
-        style: "prominent, large font"
-      target_text:
-        visible: false
+    phase_strip: "Prompt section highlighted (speaker icon)"
+    known_text: "Visible, prominent"
+    target_text: "Hidden"
+    network: "Hero node centered, subtle glow"
 
-    phase_dots:
-      dot_1: "active (belt color)"
-      dot_2: "inactive"
-      dot_3: "inactive"
-      dot_4: "inactive"
-
-    ring_progress:
-      visible: false
-
-    animation: "Subtle pulse on known text"
-
-  PAUSE:
-    card_display:
-      known_text:
-        visible: true
-        style: "slightly dimmed"
-      target_text:
-        visible: false
-        placeholder: "... (learner speaking)"
-
-    phase_dots:
-      dot_1: "completed"
-      dot_2: "active (belt color, pulsing)"
-      dot_3: "inactive"
-      dot_4: "inactive"
-
-    ring_progress:
-      visible: true
-      animation: "Counterclockwise countdown"
-      color: "belt color"
-      glow: true
-
-    animation: "Ring shrinks as pause progresses"
+  PAUSE (speak):
+    phase_strip: "Speak section highlighted (mic icon) + timer bar"
+    known_text: "Visible, slightly dimmed"
+    target_text: "Hidden"
+    network: "Path nodes begin to highlight"
 
   VOICE_1:
-    card_display:
-      known_text:
-        visible: true
-        style: "slightly dimmed"
-      target_text:
-        visible: false
-
-    phase_dots:
-      dot_1: "completed"
-      dot_2: "completed"
-      dot_3: "active (belt color)"
-      dot_4: "inactive"
-
-    ring_progress:
-      visible: false
-
-    animation: "Audio waveform visual (optional)"
+    phase_strip: "Voice_1 section highlighted (speaker icon)"
+    known_text: "Visible"
+    target_text: "Hidden"
+    network: "Path nodes highlighted with pulse"
 
   VOICE_2:
-    card_display:
-      known_text:
-        visible: true
-        style: "standard"
-      target_text:
-        visible: true
-        style: "revealed with animation"
-        animation: "Fade in + slight slide up"
-
-    phase_dots:
-      dot_1: "completed"
-      dot_2: "completed"
-      dot_3: "completed"
-      dot_4: "active (belt color)"
-
-    ring_progress:
-      visible: false
-
-    animation: "Target text reveal animation"
+    phase_strip: "Voice_2 section highlighted (eyes icon)"
+    known_text: "Visible"
+    target_text: "Revealed with animation"
+    network: "Full path animation (nodes + edges + labels)"
 
 ## ============================================================================
-## RING PROGRESS ANIMATION
+## CONSTELLATION NETWORK INTEGRATION
 ## ============================================================================
 
-RING_PROGRESS:
-  description: "Circular countdown during PAUSE phase"
+NETWORK_INTEGRATION:
+  component: "ConstellationNetworkView"
+  spec: "apml/interfaces/constellation-network.apml"
 
-  visual:
-    shape: "Circle (SVG)"
-    radius: 60
-    stroke_width: 4
-    fill: "transparent"
-    stroke: "belt color"
-    glow: "0 0 20px {belt_glow}"
+  behavior:
+    on_item_change: "Pan to center hero node"
+    on_voice_phases: "Highlight path through network"
+    on_node_tap: "Play target audio for that LEGO"
+    on_intro_phase: "Network faded (network-faded class)"
+
+  props_provided:
+    nodes: "From usePrebuiltNetworkIntegration"
+    edges: "From usePrebuiltNetworkIntegration"
+    heroNodeId: "Current LEGO ID"
+    currentPath: "Path from phrase decomposition"
+    panTransform: "Computed to center hero"
+    showPathLabels: "true when voice_2"
+    resonatingNodeIds: "Related nodes during voice phases"
+
+## ============================================================================
+## TRANSPORT CONTROLS
+## ============================================================================
+
+TRANSPORT_CONTROLS:
+  location: "Bottom of screen (thumb zone)"
+  visibility: "Always visible"
+
+  buttons:
+    previous:
+      icon: "Skip back (⏮)"
+      action: "Go to previous item"
+      size: "44px touch target"
+
+    play_pause:
+      icon: "Play (▶) or Pause (⏸)"
+      action: "Toggle session playback"
+      size: "56px (larger, primary action)"
+      color: "Accent red (#c23a3a)"
+
+    next:
+      icon: "Skip forward (⏭)"
+      action: "Skip to next item"
+      size: "44px touch target"
+
+## ============================================================================
+## INTRO MODE
+## ============================================================================
+
+INTRO_MODE:
+  description: "Gentle listen prompts between learning rounds"
+
+  display:
+    style: "Typewriter animation"
+    prefix: "› chevron"
+    cursor: "▌ blinking"
+    font: "JetBrains Mono"
+
+  messages:
+    examples:
+      - "Just listen for now..."
+      - "Let the sounds wash over you..."
+      - "No need to repeat yet..."
+      - "Getting you ready..."
+
+  network_behavior:
+    class: "network-faded"
+    opacity: "Reduced to keep focus on message"
+
+## ============================================================================
+## INK SPIRIT REWARDS
+## ============================================================================
+
+INK_SPIRIT_REWARDS:
+  description: "Target language congratulations that drift upward"
+  philosophy: "Hidden formula - show results, not mechanics"
+
+  languages:
+    chinese: ["好", "不错", "很好", "对", "棒", "厉害", "太棒了", "加油"]
+    italian: ["bene", "bravo", "perfetto", "ottimo", "così", "esatto", "fantastico"]
+    spanish: ["bien", "muy bien", "genial", "perfecto", "excelente", "así", "eso"]
+    welsh: ["da", "da iawn", "gwych", "ardderchog", "bendigedig"]
 
   animation:
-    type: "stroke-dashoffset countdown"
-    direction: "counterclockwise"
-    duration: "PAUSE duration (dynamic)"
-    easing: "linear"
-
-  implementation: |
-    // SVG ring with animated stroke-dashoffset
-    <circle
-      r="60"
-      cx="64"
-      cy="64"
-      :stroke-dasharray="circumference"
-      :stroke-dashoffset="circumference * (1 - progress)"
-      style="transition: stroke-dashoffset 100ms linear"
-    />
+    type: "Float upward and fade"
+    trigger: "Hidden formula based on performance"
 
 ## ============================================================================
-## PHASE DOTS
+## COMPOSABLES
 ## ============================================================================
 
-PHASE_DOTS:
-  description: "4 dots showing current position in the cycle"
+COMPOSABLES:
+  useLearningSession:
+    purpose: "Manage learning session state and progression"
+    source: "packages/player-vue/src/composables/useLearningSession.ts"
 
-  layout:
-    direction: "horizontal"
-    gap: "12px"
-    position: "footer, centered"
+  usePrebuiltNetworkIntegration:
+    purpose: "Integrate constellation network with learning session"
+    source: "packages/player-vue/src/composables/usePrebuiltNetworkIntegration.ts"
 
-  states:
-    inactive:
-      fill: "transparent"
-      border: "1px solid var(--text-muted)"
-      opacity: 0.5
+  useScriptCache:
+    purpose: "Cache generated learning scripts"
+    source: "packages/player-vue/src/composables/useScriptCache.ts"
 
-    active:
-      fill: "belt color"
-      border: "none"
-      animation: "pulse (subtle)"
-      glow: "0 0 8px {belt_glow}"
+  useMetaCommentary:
+    purpose: "Manage intro messages and encouragements"
+    source: "packages/player-vue/src/composables/useMetaCommentary.ts"
 
-    completed:
-      fill: "belt color"
-      opacity: 0.6
-      border: "none"
+  useBeltProgress:
+    purpose: "Track belt progression and provide shared state"
+    source: "packages/player-vue/src/composables/useBeltProgress.ts"
 
-  implementation: |
-    <div class="phase-dots">
-      <div
-        v-for="(phase, i) in ['PROMPT', 'PAUSE', 'VOICE_1', 'VOICE_2']"
-        :class="{
-          'dot--active': currentPhase === phase,
-          'dot--completed': phaseIndex > i
-        }"
-      />
-    </div>
-
-## ============================================================================
-## FIREFLY PARTICLES
-## ============================================================================
-
-FIREFLIES:
-  description: "Ambient particles that add life to the dojo"
-
-  visual:
-    count: 15
-    size_range: [2, 6]
-    color: "belt color"
-    opacity_range: [0.3, 0.7]
-    blur: "1px"
-
-  animation:
-    type: "CSS keyframes"
-    movement: "gentle float (up/down/side)"
-    duration_range: [8, 15]  # seconds
-    randomized: true
-
-  theme_adaptation:
-    dark_theme:
-      color: "belt color"
-    light_theme:
-      color: "belt color (darker variant)"
-
-  performance:
-    use_transform: true
-    will_change: "transform, opacity"
-    avoid_paint: true
-
-## ============================================================================
-## CONTROLS
-## ============================================================================
-
-CONTROLS:
-  play_pause:
-    position: "center bottom"
-    size: "56px circle"
-    icon: "Play (▶) or Pause (❚❚)"
-    action: "Toggle session playback"
-    color: "accent red (#c23a3a)"
-
-  skip:
-    position: "right of play/pause"
-    size: "40px"
-    icon: "Skip forward (>>|)"
-    action: "Skip to next item"
-    visibility: "Optional (can be hidden)"
-
-  revisit:
-    position: "left of play/pause"
-    size: "40px"
-    icon: "Replay (↺)"
-    action: "Repeat current item"
-    visibility: "Optional"
-
-## ============================================================================
-## VARIABLE REGISTRY
-## ============================================================================
-
-VARIABLE_REGISTRY:
-  reactive_state:
-    currentPhase:
-      type: "ref<CyclePhase>"
-      purpose: "Current phase of the 4-phase cycle"
-      values: ["IDLE", "PROMPT", "PAUSE", "VOICE_1", "VOICE_2"]
-
-    currentItem:
-      type: "ref<LearningItem | null>"
-      purpose: "The currently active learning item"
-
-    isPlaying:
-      type: "ref<boolean>"
-      purpose: "Whether session is actively running"
-
-    ringProgress:
-      type: "ref<number>"
-      purpose: "Progress through PAUSE phase (0-100)"
-
-    sessionStats:
-      type: "ref<SessionStats>"
-      purpose: "Items practiced, time spent, etc."
-
-    currentBelt:
-      type: "ref<Belt>"
-      purpose: "Learner's current belt level"
-
-    beltProgress:
-      type: "ref<number>"
-      purpose: "Progress toward next belt (0-100)"
-
-  computed:
-    showTargetText:
-      derives_from: "currentPhase"
-      formula: "currentPhase === 'VOICE_2'"
-
-    phaseIndex:
-      derives_from: "currentPhase"
-      formula: "['PROMPT', 'PAUSE', 'VOICE_1', 'VOICE_2'].indexOf(currentPhase)"
-
-    beltCssVars:
-      derives_from: "currentBelt"
-      formula: "{ '--belt-color': belt.color, '--belt-glow': belt.glow, ... }"
+  useLegoNetwork:
+    purpose: "D3 force simulation for LEGO network (legacy)"
+    source: "packages/player-vue/src/composables/useLegoNetwork.ts"
 
 ## ============================================================================
 ## CSS CUSTOM PROPERTIES
@@ -438,17 +362,19 @@ VARIABLE_REGISTRY:
 
 CSS_CUSTOM_PROPERTIES:
   theme:
-    --bg-primary: "#0a0a0f"
-    --bg-elevated: "#12121a"
+    --bg-primary: "Deep space gradient"
     --text-primary: "#ffffff"
     --text-secondary: "#a0a0a0"
-    --text-muted: "#606060"
     --accent: "#c23a3a"
 
   belt_colors:
     --belt-color: "dynamic (from currentBelt)"
-    --belt-color-dark: "dynamic"
     --belt-glow: "dynamic"
+
+  glass_effects:
+    --glass-bg: "rgba(15, 15, 25, 0.8)"
+    --glass-blur: "16px"
+    --glass-border: "rgba(255, 255, 255, 0.1)"
 
 ## ============================================================================
 ## RESPONSIVE DESIGN
@@ -462,38 +388,62 @@ RESPONSIVE:
 
   adaptations:
     mobile:
-      - "Card width: 95vw"
-      - "Smaller font sizes"
-      - "Reduced header height"
-      - "Touch-friendly button sizes (min 44px)"
+      - "Larger text in hero pane"
+      - "Touch-friendly node tap targets"
+      - "Transport controls full width"
+      - "Network zoomed out slightly for context"
 
     tablet:
-      - "Card width: 80vw max 450px"
-      - "Standard font sizes"
+      - "Standard text sizes"
+      - "More network visible"
 
     desktop:
-      - "Card width: max 500px"
-      - "Larger ring progress"
+      - "Mouse wheel zoom support"
+      - "Node hover tooltips"
 
 ## ============================================================================
 ## ACCESSIBILITY
 ## ============================================================================
 
 ACCESSIBILITY:
-  color_contrast:
-    requirement: "WCAG AA (4.5:1 for text)"
-    implementation: "Ensure belt colors have sufficient contrast"
-
   keyboard_navigation:
     space: "Play/pause"
-    enter: "Skip to next"
+    arrow_right: "Skip to next"
+    arrow_left: "Go to previous"
     escape: "Exit session"
 
   screen_readers:
     aria_live: "Announce phase changes"
-    aria_label: "Descriptive labels on controls"
+    aria_label: "Descriptive labels on controls and network"
 
 ## ============================================================================
-## GENERATED: 2025-12-03
-## APML v1.0.0
+## VERSION HISTORY
+## ============================================================================
+
+VERSION_HISTORY:
+  v2.0.0:
+    date: "2026-01-09"
+    title: "Deep Space Constellation"
+    changes:
+      - "Replaced central card with ConstellationNetworkView"
+      - "Replaced ring progress with phase strip (icons)"
+      - "Added hero-centric glass pane"
+      - "Added intro mode with typewriter display"
+      - "Added transport controls in thumb zone"
+      - "Replaced fireflies with star field"
+      - "Added node tap playback"
+      - "Added path animation during voice phases"
+
+  v1.0.0:
+    date: "2025-12-03"
+    title: "Moonlit Dojo"
+    features:
+      - "Central card with ring progress"
+      - "Phase dots"
+      - "Firefly particles"
+      - "Mountain silhouette background"
+
+## ============================================================================
+## GENERATED: 2026-01-09
+## APML v2.0.0
 ## ============================================================================

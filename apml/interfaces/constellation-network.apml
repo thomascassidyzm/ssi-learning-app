@@ -1,0 +1,298 @@
+# APML Interface: Constellation Network Visualization
+# SSI Learning App v2.0.0
+# Version: 1.0.0 (2026-01-09)
+# Status: Production-ready
+
+## ============================================================================
+## OVERVIEW
+## ============================================================================
+
+SPECIFICATION:
+  name: "Constellation Network View"
+  purpose: "Pre-built network visualization with hero-centric panning"
+  source: "packages/player-vue/src/components/ConstellationNetworkView.vue"
+  composables:
+    - "packages/player-vue/src/composables/usePrebuiltNetwork.ts"
+    - "packages/player-vue/src/composables/usePrebuiltNetworkIntegration.ts"
+  version: "1.0.0"
+
+DESIGN_PHILOSOPHY:
+  name: "Star Map Memory"
+  principles:
+    - "quiero is always up-left of hablar - spatial memory preserved"
+    - "Positions pre-calculated once, not runtime physics"
+    - "Network pans to center on hero node via CSS transform"
+    - "Like panning a real star map - relationships are fixed"
+    - "LEGOs are stars in a constellation, edges show co-occurrence"
+
+  benefits:
+    - "Spatial memory works - nodes don't move around"
+    - "Simpler than runtime D3 force simulation"
+    - "Better performance (no per-frame physics)"
+    - "Predictable (same layout every time)"
+    - "Mobile-friendly (CSS transforms are GPU-accelerated)"
+
+## ============================================================================
+## DATA TYPES
+## ============================================================================
+
+TYPES:
+  ConstellationNode:
+    id: "string - unique node identifier (LEGO ID)"
+    targetText: "string - target language text"
+    knownText: "string - known language text"
+    belt: "string - belt color for this node's position"
+    x: "number - pre-calculated fixed X position"
+    y: "number - pre-calculated fixed Y position"
+
+  ConstellationEdge:
+    id: "string - unique edge identifier"
+    source: "string - source node ID"
+    target: "string - target node ID"
+    strength: "number - connection strength (co-occurrence count)"
+
+  PathHighlight:
+    nodeIds: "string[] - nodes in the current path"
+    edgeIds: "string[] - edges in the current path"
+    activeIndex: "number - currently active node in path"
+
+## ============================================================================
+## BELT PALETTES
+## ============================================================================
+
+BELT_PALETTES:
+  description: "Each belt has a color palette for nodes"
+
+  structure:
+    glow: "Outer glow color"
+    core: "Node core background"
+    inner: "Inner highlight"
+    label: "Text label color"
+
+  palettes:
+    white: { glow: "#9ca3af", core: "#2a2a35", inner: "#ffffff", label: "#ffffffcc" }
+    yellow: { glow: "#fbbf24", core: "#2a2518", inner: "#fbbf24", label: "#fbbf24cc" }
+    orange: { glow: "#f97316", core: "#2a1a10", inner: "#f97316", label: "#f97316cc" }
+    green: { glow: "#22c55e", core: "#102a1a", inner: "#22c55e", label: "#22c55ecc" }
+    blue: { glow: "#3b82f6", core: "#101a2a", inner: "#3b82f6", label: "#3b82f6cc" }
+    purple: { glow: "#8b5cf6", core: "#1a102a", inner: "#8b5cf6", label: "#8b5cf6cc" }
+    brown: { glow: "#a87848", core: "#2a1a10", inner: "#a87848", label: "#a87848cc" }
+    black: { glow: "#d4a853", core: "#2a2518", inner: "#d4a853", label: "#d4a853cc" }
+
+## ============================================================================
+## PRE-CALCULATION ALGORITHM
+## ============================================================================
+
+PRE_CALCULATION:
+  trigger: "Called ONCE when learning script loads"
+  source: "usePrebuiltNetwork.preCalculatePositions()"
+
+  algorithm:
+    step_1: "Extract unique nodes from all script rounds"
+    step_2: "Build edges from co-occurrence or database connections"
+    step_3: "Run D3 force simulation to completion (not animated)"
+    step_4: "Store fixed (x, y) positions on each node"
+    step_5: "Return { nodes, edges } for rendering"
+
+  force_simulation:
+    collide_radius: 45
+    repulsion_strength: -500
+    link_distances:
+      same_phrase: 80
+      co_occurrence: 100
+      fallback: 180
+    iterations: 300
+
+  edge_sources:
+    priority_1: "Database connections (if provided)"
+    priority_2: "Phrase inference from round items"
+    fallback: "Consecutive-round edges if nothing else found"
+
+## ============================================================================
+## HERO-CENTRIC PANNING
+## ============================================================================
+
+HERO_PANNING:
+  description: "When current item changes, network pans to center hero node"
+
+  mechanism:
+    trigger: "Current playable item changes"
+    calculation: "panTransform = translate({centerX - heroNode.x}px, {centerY - heroNode.y}px)"
+    animation: "CSS transition: transform 0.5s ease-out"
+    user_override: "Manual pan/zoom preserved independently of hero centering"
+
+  combined_transform: |
+    // Hero centering + user pan/zoom combined
+    const totalX = heroX + userPan.x
+    const totalY = heroY + userPan.y
+    return `translate(${totalX}px, ${totalY}px) scale(${userScale})`
+
+## ============================================================================
+## USER INTERACTIONS
+## ============================================================================
+
+INTERACTIONS:
+  pinch_zoom:
+    gesture: "Two-finger pinch"
+    min_scale: 0.3
+    max_scale: 3.0
+    behavior: "Zoom toward pinch center"
+
+  drag_pan:
+    gesture: "Single finger drag"
+    behavior: "Pan network within viewport"
+
+  wheel_zoom:
+    gesture: "Mouse wheel scroll"
+    behavior: "Zoom toward cursor position"
+    transition_disabled: true  # Responsive feel during wheel
+
+  node_tap:
+    gesture: "Tap on node"
+    action: "Play target audio for that LEGO"
+    emit: "node-tap event with node data"
+
+  node_hover:
+    gesture: "Mouse hover over node"
+    action: "Show tooltip with phrases"
+    emit: "node-hover event"
+
+## ============================================================================
+## PATH ANIMATION
+## ============================================================================
+
+PATH_ANIMATION:
+  description: "During voice phases, highlight the path from hero through connected nodes"
+
+  phases:
+    voice_1:
+      nodes: "Highlight with pulse animation"
+      edges: "Not highlighted"
+    voice_2:
+      nodes: "Full highlight + labels visible"
+      edges: "Animated traveling pulse along edge"
+
+  visual_effects:
+    hero_glow: "Radial gradient glow in belt color"
+    path_pulse: "CSS animation on path nodes"
+    edge_pulse: "Traveling dot animation along edge path"
+    resonating_nodes: "Subtle pulse on related nodes"
+
+## ============================================================================
+## RENDERING
+## ============================================================================
+
+RENDERING:
+  technology: "SVG with CSS transforms"
+
+  layers:
+    1_edges: "Edges rendered first (behind)"
+    2_nodes: "Nodes rendered on top"
+    3_labels: "Labels rendered above nodes"
+    4_hero_glow: "Hero glow effect on top"
+
+  node_structure: |
+    <g class="node">
+      <!-- Glow layer (belt-colored) -->
+      <circle r="16" filter="blur(8px)" :fill="beltPalette.glow" opacity="0.3" />
+      <!-- Core circle -->
+      <circle r="12" :fill="beltPalette.core" />
+      <!-- Inner highlight -->
+      <circle r="4" :fill="beltPalette.inner" />
+      <!-- Label (shown on hover or path) -->
+      <text :fill="beltPalette.label">{{ node.targetText }}</text>
+    </g>
+
+  edge_structure: |
+    <line
+      :x1="source.x" :y1="source.y"
+      :x2="target.x" :y2="target.y"
+      :stroke-opacity="edgeOpacity"
+      :stroke-width="edgeWidth"
+    />
+
+## ============================================================================
+## PROPS
+## ============================================================================
+
+COMPONENT_PROPS:
+  nodes:
+    type: "ConstellationNode[]"
+    required: true
+    description: "Pre-calculated nodes with fixed positions"
+
+  edges:
+    type: "ConstellationEdge[]"
+    required: true
+    description: "Edges connecting nodes"
+
+  heroNodeId:
+    type: "string | null"
+    default: null
+    description: "Current hero node to center on"
+
+  currentPath:
+    type: "PathHighlight | null"
+    default: null
+    description: "Path to highlight during voice phases"
+
+  panTransform:
+    type: "string"
+    default: "translate(0px, 0px)"
+    description: "CSS transform to center on hero"
+
+  showPathLabels:
+    type: "boolean"
+    default: false
+    description: "Show labels on path nodes (voice_2 only)"
+
+  resonatingNodeIds:
+    type: "string[]"
+    default: []
+    description: "Nodes that should pulse/resonate"
+
+## ============================================================================
+## EVENTS
+## ============================================================================
+
+COMPONENT_EVENTS:
+  node-tap:
+    payload: "ConstellationNode"
+    description: "User tapped on a node"
+
+  node-hover:
+    payload: "ConstellationNode | null"
+    description: "User hovering over node (or null on leave)"
+
+## ============================================================================
+## INTEGRATION WITH LEARNING PLAYER
+## ============================================================================
+
+INTEGRATION:
+  composable: "usePrebuiltNetworkIntegration"
+
+  responsibilities:
+    - "Pre-calculate positions when script loads"
+    - "Update heroNodeId when current item changes"
+    - "Compute path highlight based on current phrase"
+    - "Handle node tap to play audio"
+    - "Provide resonating nodes during voice phases"
+
+  data_flow: |
+    Script loads
+      → preCalculatePositions(rounds, canvasSize, connections)
+      → { nodes, edges } stored in ref
+
+    Item changes
+      → heroNodeId updated
+      → panTransform computed
+      → currentPath computed from phrase words
+
+    Phase changes
+      → voice_1: path nodes highlight
+      → voice_2: path nodes + edges + labels
+
+## ============================================================================
+## GENERATED: 2026-01-09
+## APML v1.0.0
+## ============================================================================

@@ -603,6 +603,22 @@ pnpm --filter @ssi/web dev
 4. **Preload ahead** - Next 2-3 items minimum
 5. **Cache after play** - Store in IndexedDB for offline
 
+### APML Documentation Rules (MANDATORY)
+**Every commit that changes functionality MUST include corresponding APML updates.**
+
+1. **Before committing**: Check if your changes affect any documented specs in `apml/`
+2. **Update APML files** if you:
+   - Add new components or views
+   - Change data flow or state management
+   - Modify the learning cycle or phases
+   - Add new composables or utilities
+   - Change UI architecture or interactions
+3. **APML location**: `apml/` directory - find the relevant spec file
+4. **Keep specs current**: Document what EXISTS NOW, not historical changes
+5. **Update timestamps**: Change the "Last updated" date in modified APML files
+
+**This is non-negotiable. Out-of-date documentation causes chaos.**
+
 ---
 
 ## Key Files Reference
@@ -613,8 +629,16 @@ pnpm --filter @ssi/web dev
 | `packages/core/src/engine/types.ts` | Cycle phases, events, interfaces |
 | `packages/core/src/data/types.ts` | LEGO, Seed, Phrase types |
 | `packages/player-vue/src/components/LearningPlayer.vue` | Main player UI |
+| `packages/player-vue/src/components/ConstellationNetworkView.vue` | Pre-built network visualization |
 | `packages/player-vue/src/components/SessionComplete.vue` | Session summary |
+| `packages/player-vue/src/composables/usePrebuiltNetwork.ts` | Network position pre-calculation |
+| `packages/player-vue/src/composables/usePrebuiltNetworkIntegration.ts` | Network-session integration |
+| `packages/player-vue/src/composables/useScriptCache.ts` | Script caching |
+| `packages/player-vue/src/composables/useMetaCommentary.ts` | Intro messages |
+| `packages/player-vue/src/composables/useBeltProgress.ts` | Belt progression tracking |
 | `apml/ssi-learning-app-master.apml` | Full APML specification |
+| `apml/interfaces/constellation-network.apml` | Network visualization spec |
+| `apml/interfaces/learning-player.apml` | Player UI spec |
 | `new_vision/LEARNING_APP_DATA_FLOW.md` (in Dashboard) | Database-first architecture |
 | `new_vision/LEGO_SESSION_SPECIFICATION.md` (in Dashboard) | Session structure spec |
 
@@ -635,5 +659,5 @@ pnpm --filter @ssi/web dev
 
 ---
 
-*Last updated: 2025-12-13*
-*Status: TRANSITION - Manifest-first → Database-first*
+*Last updated: 2026-01-09*
+*Status: Deep Space Constellation UI with database-first architecture*
