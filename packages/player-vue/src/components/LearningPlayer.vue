@@ -3671,12 +3671,6 @@ onUnmounted(() => {
   <Transition name="fade">
     <div v-if="isPlayingWelcome" class="welcome-overlay">
       <div class="welcome-content">
-        <div class="welcome-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M12 2v20M2 12h20M12 2a10 10 0 0 1 10 10M12 2a10 10 0 0 0-10 10"/>
-          </svg>
-        </div>
-        <p class="welcome-text">{{ welcomeText }}</p>
         <button class="welcome-skip" @click="skipWelcome">
           Skip intro
         </button>
