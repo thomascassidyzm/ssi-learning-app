@@ -4068,7 +4068,7 @@ onUnmounted(() => {
    Refined minimalism, premium feel
    ============================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Noto+Serif+SC:wght@600&family=Noto+Serif:wght@500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500&family=Space+Mono:wght@400;700&family=Noto+Serif+SC:wght@600&family=Noto+Serif:wght@500&display=swap');
 
 .player {
   --accent: #c23a3a;
@@ -5131,21 +5131,23 @@ onUnmounted(() => {
 }
 
 .hero-known {
-  font-family: 'DM Sans', sans-serif;
-  font-size: 1.4rem;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.9);
+  font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+  font-size: 1.25rem;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.85);
   margin: 0;
-  line-height: 1.4;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
 }
 
 .hero-target {
-  font-family: 'Noto Serif', 'DM Sans', serif;
-  font-size: 1.6rem;
+  font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+  font-size: 1.35rem;
   font-weight: 500;
   color: var(--belt-color, #c23a3a);
   margin: 0;
-  line-height: 1.4;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
   text-shadow: 0 0 20px var(--belt-glow, rgba(194, 58, 58, 0.4));
 }
 
