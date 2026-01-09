@@ -278,6 +278,8 @@ export function usePrebuiltNetworkIntegration(
     setHighlightPath: prebuiltNetwork.setHighlightPath,
     setPathActiveIndex: prebuiltNetwork.setPathActiveIndex,
     clearHighlightPath: prebuiltNetwork.clearHighlightPath,
+    // Hebbian learning
+    firePath: prebuiltNetwork.firePath,
   }
 
   // Fake simulation for compatibility (no-op in pre-built mode)

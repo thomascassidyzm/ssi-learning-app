@@ -3636,22 +3636,28 @@ onUnmounted(() => {
       </svg>
 
       <div class="hero-glass">
-        <!-- Horizontal Phase Strip - 4 icon sections: ear → mouth → ear → eye -->
+        <!-- Horizontal Phase Strip: speaker → mic → speaker → eyes -->
         <div class="phase-strip">
-          <div class="phase-section" :class="{ active: currentPhase === 'prompt' }">
-            <span class="phase-icon">👂</span>
+          <div class="phase-section speaker-section" :class="{ active: currentPhase === 'prompt' }">
+            <svg class="phase-icon-svg" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+            </svg>
           </div>
-          <div class="phase-section speak-section" :class="{ active: currentPhase === 'speak' }">
-            <span class="phase-icon">👄</span>
+          <div class="phase-section mic-section" :class="{ active: currentPhase === 'speak' }">
+            <svg class="phase-icon-svg" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>
+            </svg>
             <div class="speak-timer" v-if="currentPhase === 'speak'">
               <div class="speak-timer-fill" :style="{ width: ringProgress + '%' }"></div>
             </div>
           </div>
-          <div class="phase-section" :class="{ active: currentPhase === 'voice_1' }">
-            <span class="phase-icon">👂</span>
+          <div class="phase-section speaker-section" :class="{ active: currentPhase === 'voice_1' }">
+            <svg class="phase-icon-svg" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+            </svg>
           </div>
-          <div class="phase-section" :class="{ active: currentPhase === 'voice_2' }">
-            <span class="phase-icon">👁️</span>
+          <div class="phase-section eyes-section" :class="{ active: currentPhase === 'voice_2' }">
+            <span class="phase-icon-emoji">👀</span>
           </div>
         </div>
 
@@ -4993,18 +4999,20 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px; /* Tight vertical gap between known and target text */
-  padding: 16px 28px;
-  border-radius: 16px;
-  /* Ultra-subtle glass effect with belt-colored accent */
-  background: rgba(10, 10, 20, 0.5);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  gap: 8px;
+  padding: 12px 24px 16px;
+  /* Match transport control styling - pill shape with mounted feel */
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: none;
   box-shadow:
-    0 4px 30px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 0 0 1px var(--belt-glow, rgba(194, 58, 58, 0.1)); /* Subtle belt-colored outer ring */
+    0 2px 16px rgba(0, 0, 0, 0.3),
+    0 0 0 1px var(--belt-glow, rgba(194, 58, 58, 0.08));
+  /* Match transport control width */
+  min-width: 320px;
+  max-width: 400px;
 }
 
 /* Glass pane is hidden during intro - this rule kept for any edge cases */
@@ -5098,24 +5106,23 @@ onUnmounted(() => {
   to { stroke-dashoffset: 172; }
 }
 
-/* Horizontal Phase Strip - 4 sections showing cycle progress */
+/* Horizontal Phase Strip - speaker → mic → speaker → eyes */
 .phase-strip {
   display: flex;
-  justify-content: space-between;
-  gap: 4px;
-  margin-bottom: 12px;
-  padding: 0 4px;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 10px;
 }
 
 .phase-section {
-  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 8px 6px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.04);
-  opacity: 0.3;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  opacity: 0.35;
   transition: all 0.3s ease;
   position: relative;
 }
@@ -5123,24 +5130,70 @@ onUnmounted(() => {
 .phase-section.active {
   opacity: 1;
   background: rgba(255, 255, 255, 0.15);
-  box-shadow: 0 0 12px var(--belt-glow, rgba(194, 58, 58, 0.4));
 }
 
-.phase-icon {
+/* SVG icon styling */
+.phase-icon-svg {
+  width: 18px;
+  height: 18px;
+  color: rgba(255, 255, 255, 0.6);
+  transition: all 0.3s ease;
+}
+
+.phase-section.active .phase-icon-svg {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+/* Emoji icon styling */
+.phase-icon-emoji {
   font-size: 18px;
   line-height: 1;
-  filter: grayscale(0.3);
+  opacity: 0.6;
+  transition: all 0.3s ease;
 }
 
-.phase-section.active .phase-icon {
-  filter: grayscale(0);
-  transform: scale(1.1);
+.phase-section.active .phase-icon-emoji {
+  opacity: 1;
+  transform: scale(1.15);
 }
 
-/* Speak phase timer bar */
-.speak-section {
+/* Speaker sections - pulse when active */
+.phase-section.speaker-section.active {
+  animation: speaker-pulse 0.8s ease-in-out infinite;
+}
+
+.phase-section.speaker-section.active .phase-icon-svg {
+  color: var(--belt-color, #c23a3a);
+}
+
+@keyframes speaker-pulse {
+  0%, 100% {
+    box-shadow: 0 0 8px var(--belt-glow, rgba(194, 58, 58, 0.3));
+  }
+  50% {
+    box-shadow: 0 0 16px var(--belt-glow, rgba(194, 58, 58, 0.6));
+  }
+}
+
+/* Mic section - red recording indicator when active */
+.phase-section.mic-section {
   position: relative;
   overflow: hidden;
+}
+
+.phase-section.mic-section.active {
+  background: rgba(220, 38, 38, 0.25);
+  box-shadow: 0 0 12px rgba(220, 38, 38, 0.4);
+}
+
+.phase-section.mic-section.active .phase-icon-svg {
+  color: #ef4444;
+  animation: mic-pulse 1s ease-in-out infinite;
+}
+
+@keyframes mic-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 
 .speak-timer {
@@ -5156,73 +5209,61 @@ onUnmounted(() => {
 
 .speak-timer-fill {
   height: 100%;
-  background: var(--belt-color, #c23a3a);
-  box-shadow: 0 0 6px var(--belt-glow, rgba(194, 58, 58, 0.6));
+  background: #ef4444;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
   transition: width 0.1s linear;
 }
 
-/* Pulse animation for active speak phase */
-.phase-section.speak-section.active {
-  animation: speak-section-pulse 1.5s ease-in-out infinite;
+/* Eyes section - appears clearly on final phase */
+.phase-section.eyes-section.active {
+  background: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 12px var(--belt-glow, rgba(194, 58, 58, 0.5));
 }
 
-@keyframes speak-section-pulse {
-  0%, 100% {
-    background: rgba(255, 255, 255, 0.12);
-  }
-  50% {
-    background: rgba(255, 255, 255, 0.18);
-  }
+/* Intro phase: NO TEXT AT ALL - pure listen mode */
+.hero-text-pane.is-intro .hero-text-known,
+.hero-text-pane.is-intro .hero-text-target {
+  display: none;
 }
 
-/* Intro phase: larger, more prominent text */
-.hero-text-pane.is-intro .hero-known {
-  font-size: 1.6rem;
-}
-
-.hero-text-pane.is-intro .hero-target {
-  font-size: 1.8rem;
-}
-
-/* Mobile: wider pane, shorter height, larger icons */
+/* Mobile: wider pane to match transport controls */
 @media (max-width: 480px) {
   .hero-text-pane {
     max-width: 95vw;
   }
 
   .hero-glass {
-    padding: 10px 20px 14px;
-    gap: 8px;
-    min-width: 85vw;
+    padding: 8px 16px 12px;
+    gap: 6px;
+    min-width: 320px;
+    max-width: 360px;
   }
 
   .hero-known {
-    font-size: 1.1rem;
+    font-size: 1rem;
   }
 
   .hero-target {
-    font-size: 1.25rem;
+    font-size: 1.15rem;
   }
 
-  .hero-text-pane.is-intro .hero-known {
-    font-size: 1.3rem;
-  }
-
-  .hero-text-pane.is-intro .hero-target {
-    font-size: 1.5rem;
-  }
-
-  /* Phase strip mobile - icons only, compact */
+  /* Phase strip mobile */
   .phase-strip {
-    gap: 3px;
-    margin-bottom: 6px;
+    gap: 4px;
+    margin-bottom: 8px;
   }
 
   .phase-section {
-    padding: 6px 8px;
+    width: 32px;
+    height: 32px;
   }
 
-  .phase-icon {
+  .phase-icon-svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .phase-icon-emoji {
     font-size: 16px;
   }
 }
