@@ -3636,9 +3636,27 @@ onUnmounted(() => {
       </svg>
 
       <div class="hero-glass">
-        <!-- Phase indicator dot -->
-        <div class="phase-indicator" :class="currentPhase">
-          <span class="phase-dot"></span>
+        <!-- Horizontal Phase Strip - 4 sections showing cycle progress -->
+        <div class="phase-strip">
+          <div class="phase-section" :class="{ active: currentPhase === 'prompt' }">
+            <span class="phase-icon">👂</span>
+            <span class="phase-label">Listen</span>
+          </div>
+          <div class="phase-section speak-section" :class="{ active: currentPhase === 'speak' }">
+            <span class="phase-icon">🗣️</span>
+            <span class="phase-label">Speak</span>
+            <div class="speak-timer" v-if="currentPhase === 'speak'">
+              <div class="speak-timer-fill" :style="{ width: ringProgress + '%' }"></div>
+            </div>
+          </div>
+          <div class="phase-section" :class="{ active: currentPhase === 'voice_1' }">
+            <span class="phase-icon">👁️</span>
+            <span class="phase-label">Check</span>
+          </div>
+          <div class="phase-section" :class="{ active: currentPhase === 'voice_2' }">
+            <span class="phase-icon">✓</span>
+            <span class="phase-label">Confirm</span>
+          </div>
         </div>
 
         <!-- Known text floats above -->
@@ -5084,42 +5102,88 @@ onUnmounted(() => {
   to { stroke-dashoffset: 172; }
 }
 
-/* Phase indicator dot */
-.phase-indicator {
-  position: absolute;
-  top: 8px;
-  right: 8px;
+/* Horizontal Phase Strip - 4 sections showing cycle progress */
+.phase-strip {
   display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 0 4px;
+}
+
+.phase-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 6px;
-}
-
-.phase-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.3);
+  gap: 2px;
+  padding: 6px 4px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  opacity: 0.35;
   transition: all 0.3s ease;
+  position: relative;
 }
 
-.phase-indicator.prompt .phase-dot {
-  background: rgba(255, 255, 255, 0.6);
+.phase-section.active {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 0 12px var(--belt-glow, rgba(194, 58, 58, 0.3));
 }
 
-.phase-indicator.speak .phase-dot {
+.phase-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.phase-label {
+  font-size: 9px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.phase-section.active .phase-label {
+  color: var(--belt-color, #c23a3a);
+}
+
+/* Speak phase timer bar */
+.speak-section {
+  position: relative;
+  overflow: hidden;
+}
+
+.speak-timer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 0 0 8px 8px;
+  overflow: hidden;
+}
+
+.speak-timer-fill {
+  height: 100%;
   background: var(--belt-color, #c23a3a);
-  animation: speak-pulse 1s ease-in-out infinite;
+  box-shadow: 0 0 6px var(--belt-glow, rgba(194, 58, 58, 0.6));
+  transition: width 0.1s linear;
 }
 
-.phase-indicator.voice_1 .phase-dot,
-.phase-indicator.voice_2 .phase-dot {
-  background: var(--belt-color, #c23a3a);
-  box-shadow: 0 0 8px var(--belt-glow, rgba(194, 58, 58, 0.5));
+/* Pulse animation for active speak phase */
+.phase-section.speak-section.active {
+  animation: speak-section-pulse 1.5s ease-in-out infinite;
 }
 
-@keyframes speak-pulse {
-  0%, 100% { transform: scale(1); opacity: 0.8; }
-  50% { transform: scale(1.3); opacity: 1; }
+@keyframes speak-section-pulse {
+  0%, 100% {
+    background: rgba(255, 255, 255, 0.12);
+  }
+  50% {
+    background: rgba(255, 255, 255, 0.18);
+  }
 }
 
 /* Intro phase: larger, more prominent text */
@@ -5152,6 +5216,24 @@ onUnmounted(() => {
 
   .hero-text-pane.is-intro .hero-target {
     font-size: 1.6rem;
+  }
+
+  /* Phase strip mobile adjustments */
+  .phase-strip {
+    gap: 2px;
+    margin-bottom: 8px;
+  }
+
+  .phase-section {
+    padding: 4px 2px;
+  }
+
+  .phase-icon {
+    font-size: 12px;
+  }
+
+  .phase-label {
+    font-size: 7px;
   }
 }
 
