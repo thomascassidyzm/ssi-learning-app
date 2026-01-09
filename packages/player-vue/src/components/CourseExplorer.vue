@@ -489,19 +489,29 @@ const loadScript = async (forceRefresh = false) => {
       const audioMapObj = Object.fromEntries(audioMap.value)
       const serializableRounds = JSON.parse(JSON.stringify(script.rounds))
 
-      let welcomeUuid = props.course?.welcome || null
-      if (!welcomeUuid && supabase?.value && courseId) {
+      // Fetch welcome audio from course_audio (role='welcome')
+      let courseWelcome = null
+      if (supabase?.value && courseId) {
         try {
-          const { data: courseData } = await supabase.value
-            .from('courses')
-            .select('welcome')
+          const { data: welcomeData } = await supabase.value
+            .from('course_audio')
+            .select('id, s3_key, duration_ms, text')
             .eq('course_code', courseId)
-            .single()
-          welcomeUuid = courseData?.welcome || null
-        } catch (e) {}
+            .eq('role', 'welcome')
+            .limit(1)
+            .maybeSingle()
+          if (welcomeData?.s3_key) {
+            courseWelcome = {
+              id: welcomeData.id,
+              s3_key: welcomeData.s3_key,
+              duration: welcomeData.duration_ms,
+              text: welcomeData.text
+            }
+          }
+        } catch (e) {
+          console.warn('[CourseExplorer] Failed to fetch welcome:', e)
+        }
       }
-
-      const courseWelcome = welcomeUuid ? { id: welcomeUuid } : null
 
       await setCachedScript(courseId, {
         rounds: serializableRounds,

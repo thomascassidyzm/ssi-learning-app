@@ -1099,6 +1099,7 @@ const heroNodeScale = computed(() => {
 const welcomeChecked = ref(false) // True after we've checked welcome status
 const isPlayingWelcome = ref(false) // True when welcome audio is playing
 const showWelcomeSkip = ref(false) // Show skip button during welcome
+const welcomeText = ref('') // Text to display during welcome audio
 
 // Smooth ring progress (0-100) - continuous animation
 const ringProgressRaw = ref(0)
@@ -1995,17 +1996,20 @@ const playWelcomeIfNeeded = async () => {
     let welcomeAudio = null
 
     // Try cached course welcome first (from database via cache)
-    if (cachedCourseWelcome.value && cachedCourseWelcome.value.id) {
+    if (cachedCourseWelcome.value && (cachedCourseWelcome.value.s3_key || cachedCourseWelcome.value.id)) {
+      // Use s3_key if available (new format), fall back to id (legacy)
+      const s3Key = cachedCourseWelcome.value.s3_key
       const welcomeId = cachedCourseWelcome.value.id
-      const audioUrl = `${AUDIO_S3_BASE_URL}/${welcomeId.toUpperCase()}.mp3`
+      const audioUrl = s3Key
+        ? `${AUDIO_S3_BASE_URL}/${s3Key}`
+        : `${AUDIO_S3_BASE_URL}/${welcomeId.toUpperCase()}.mp3`
       welcomeAudio = {
         id: welcomeId,
         url: audioUrl,
-        duration_ms: cachedCourseWelcome.value.duration
-          ? cachedCourseWelcome.value.duration * 1000
-          : null,
+        duration_ms: cachedCourseWelcome.value.duration || null,
+        text: cachedCourseWelcome.value.text || null,
       }
-      console.log('[LearningPlayer] Using cached course welcome:', welcomeId)
+      console.log('[LearningPlayer] Using cached course welcome:', welcomeId || s3Key)
     }
     // Fall back to database lookup
     else if (courseDataProvider.value) {
@@ -2024,6 +2028,7 @@ const playWelcomeIfNeeded = async () => {
     console.log('[LearningPlayer] Playing welcome audio:', welcomeAudio.id)
     isPlayingWelcome.value = true
     showWelcomeSkip.value = true
+    welcomeText.value = welcomeAudio.text || 'Welcome to your course'
 
     // Play welcome using shared audio element (for mobile compatibility)
     // Set skipNextNotify to prevent orchestrator callbacks from firing when welcome ends
@@ -3671,7 +3676,7 @@ onUnmounted(() => {
             <path d="M12 2v20M2 12h20M12 2a10 10 0 0 1 10 10M12 2a10 10 0 0 0-10 10"/>
           </svg>
         </div>
-        <p class="welcome-text">Welcome to your course</p>
+        <p class="welcome-text">{{ welcomeText }}</p>
         <button class="welcome-skip" @click="skipWelcome">
           Skip intro
         </button>

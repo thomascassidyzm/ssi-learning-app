@@ -289,19 +289,18 @@ export class CourseDataProvider {
 
   /**
    * Get welcome audio for the course (plays once on first load)
-   * v13.1: Welcome audio is in course_audio with role='presentation'
+   * Welcome audio is in course_audio with role='welcome'
    */
-  async getWelcomeAudio(): Promise<AudioRef | null> {
+  async getWelcomeAudio(): Promise<AudioRef & { text?: string } | null> {
     if (!this.client) return null
 
     try {
-      // v13.1: Look up welcome audio in course_audio (role='presentation', text matches welcome pattern)
+      // Query course_audio for welcome audio (role='welcome')
       const { data, error } = await this.client
         .from('course_audio')
-        .select('id, s3_key, duration_ms')
+        .select('id, s3_key, duration_ms, text')
         .eq('course_code', this.courseId)
-        .eq('role', 'presentation')
-        .ilike('text', '%welcome%')
+        .eq('role', 'welcome')
         .limit(1)
         .maybeSingle()
 
@@ -309,8 +308,9 @@ export class CourseDataProvider {
 
       return {
         id: data.id,
-        url: this.resolveAudioUrl(data.s3_key),  // v13.1: use s3_key for URL
+        url: this.resolveAudioUrl(data.s3_key),
         duration_ms: data.duration_ms || null,
+        text: data.text || null,
       }
     } catch (err) {
       console.error('[CourseDataProvider] Error loading welcome audio:', err)
