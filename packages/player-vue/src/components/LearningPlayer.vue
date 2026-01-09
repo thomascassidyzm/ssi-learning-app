@@ -1144,14 +1144,14 @@ const isIntroPhase = computed(() => {
   return item?.type === 'intro' || item?.type === 'debut'
 })
 
-// Intro typewriter messages - encouraging text during introductions
+// Intro typewriter messages - gentle "listen up" prompts during introductions
 const INTRO_MESSAGES = [
-  'new phrase coming up',
-  'learning something new',
-  'next up...',
-  'incoming...',
-  'watch this',
-  'here we go',
+  '...listen for new item...',
+  'right, here we go...',
+  '...something new...',
+  'listen carefully...',
+  '...pay attention...',
+  'here it comes...',
 ]
 // Rotate through messages based on round index
 const introMessage = computed(() => {
