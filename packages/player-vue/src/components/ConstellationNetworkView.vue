@@ -218,6 +218,7 @@ const labelOpacity = computed(() => (node: ConstellationNode): number => {
             v-for="node in nodes"
             :key="node.id"
             class="node"
+            :class="{ 'node-in-path': isNodeInPath(node.id) }"
             :transform="`translate(${node.x}, ${node.y})`"
             :opacity="getNodeOpacity(node)"
             @click="handleNodeTap(node)"
@@ -314,16 +315,37 @@ const labelOpacity = computed(() => (node: ConstellationNode): number => {
 }
 
 .edge-active {
-  animation: edge-pulse 1s ease-in-out infinite alternate;
+  animation: edge-pulse 0.6s ease-in-out infinite alternate;
+  stroke: #60a5fa !important;
 }
 
 @keyframes edge-pulse {
   from {
-    opacity: 0.6;
+    opacity: 0.5;
+    stroke-width: 3px;
   }
   to {
     opacity: 1;
+    stroke-width: 4.5px;
   }
+}
+
+/* Nodes in path should also pulse */
+.node-in-path {
+  animation: node-path-pulse 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes node-path-pulse {
+  from {
+    filter: drop-shadow(0 0 8px rgba(96, 165, 250, 0.4));
+  }
+  to {
+    filter: drop-shadow(0 0 16px rgba(96, 165, 250, 0.8));
+  }
+}
+
+.node-glow {
+  transition: r 0.2s ease, stroke-width 0.2s ease, opacity 0.2s ease;
 }
 
 .node-label {
