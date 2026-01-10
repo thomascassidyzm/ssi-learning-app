@@ -1101,6 +1101,9 @@ const isPlayingWelcome = ref(false) // True when welcome audio is playing
 const showWelcomeSkip = ref(false) // Show skip button during welcome
 const welcomeText = ref('') // Text to display during welcome audio
 
+// Initial state - before user has ever tapped play
+const hasEverStarted = ref(false) // True after first play tap (even if welcome plays first)
+
 // Smooth ring progress (0-100) - continuous animation
 const ringProgressRaw = ref(0)
 let ringAnimationFrame = null
@@ -1124,10 +1127,19 @@ const currentItem = computed(() => {
   }
   return sessionItems.value[currentItemIndex.value]
 })
-const currentPhrase = computed(() => ({
-  known: currentItem.value?.phrase?.phrase?.known || '',
-  target: currentItem.value?.phrase?.phrase?.target || '',
-}))
+const currentPhrase = computed(() => {
+  // Before first play tap, show a welcome message instead of the first phrase
+  if (!hasEverStarted.value) {
+    return {
+      known: 'Ready to start!',
+      target: '',
+    }
+  }
+  return {
+    known: currentItem.value?.phrase?.phrase?.known || '',
+    target: currentItem.value?.phrase?.phrase?.target || '',
+  }
+})
 const sessionProgress = computed(() => {
   if (useRoundBasedPlayback.value && cachedRounds.value.length > 0) {
     // Total items across all rounds
@@ -2128,6 +2140,7 @@ const skipIntroduction = () => {
 }
 
 const startPlayback = async () => {
+  hasEverStarted.value = true
   isPlaying.value = true
 
   // Start belt progress session for time tracking
@@ -3930,10 +3943,11 @@ onUnmounted(() => {
       </div>
 
       <!-- Play button when paused -->
-      <div v-if="!isPlaying" class="pane-play-hint">
+      <div v-if="!isPlaying" class="pane-play-hint" :class="{ 'initial-start': !hasEverStarted }">
         <svg viewBox="0 0 24 24" fill="currentColor">
           <polygon points="6 3 20 12 6 21 6 3"/>
         </svg>
+        <span v-if="!hasEverStarted" class="start-label">Tap to start</span>
       </div>
     </section>
 
@@ -4799,6 +4813,29 @@ onUnmounted(() => {
 .control-pane.is-paused:hover .pane-play-hint {
   opacity: 1;
   color: var(--text-primary);
+}
+
+/* Initial start state - more prominent */
+.pane-play-hint.initial-start {
+  flex-direction: column;
+  gap: 0.5rem;
+  width: auto;
+  height: auto;
+  opacity: 1;
+  color: var(--accent);
+}
+
+.pane-play-hint.initial-start svg {
+  width: 32px;
+  height: 32px;
+}
+
+.pane-play-hint .start-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
 }
 
 /* ============================================
