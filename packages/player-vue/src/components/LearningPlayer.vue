@@ -1148,7 +1148,22 @@ const sessionProgress = computed(() => {
   }
   return (itemsPracticed.value + 1) / sessionItems.value.length
 })
-const showTargetText = computed(() => currentPhase.value === Phase.VOICE_2)
+// Track item transitions to prevent text glitch (new prompt + old target showing together)
+const isTransitioningItem = ref(false)
+let transitionTimeout: ReturnType<typeof setTimeout> | null = null
+
+// Watch for item changes and briefly hide target text during transition
+watch(currentPlayableItem, () => {
+  isTransitioningItem.value = true
+  if (transitionTimeout) clearTimeout(transitionTimeout)
+  transitionTimeout = setTimeout(() => {
+    isTransitioningItem.value = false
+  }, 100) // Brief delay to let old target fade out
+})
+
+const showTargetText = computed(() =>
+  currentPhase.value === Phase.VOICE_2 && !isTransitioningItem.value
+)
 
 // Is current item an intro? (network should fade, show typewriter message)
 // NOTE: Only 'intro' items show typewriter. 'debut' items (lego_itself) show normal phrase display.
@@ -3539,6 +3554,9 @@ onMounted(async () => {
     } else if (currentRoundIndex.value > 0) {
       // Resuming: show network up to restored position
       populateNetworkUpToRound(currentRoundIndex.value)
+    } else if (cachedRounds.value.length > 0) {
+      // Fresh start: show first LEGO as the starting point
+      populateNetworkUpToRound(0)
     }
   })
 
