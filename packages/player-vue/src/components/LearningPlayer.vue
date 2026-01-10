@@ -1128,10 +1128,17 @@ const currentItem = computed(() => {
   return sessionItems.value[currentItemIndex.value]
 })
 const currentPhrase = computed(() => {
+  // While welcome is playing, show listening message
+  if (isPlayingWelcome.value) {
+    return {
+      known: 'Listen to your guide...',
+      target: '',
+    }
+  }
   // Before first play tap, show a welcome message instead of the first phrase
   if (!hasEverStarted.value) {
     return {
-      known: 'Ready to start!',
+      known: 'ready when you are',
       target: '',
     }
   }
@@ -3625,8 +3632,17 @@ onMounted(async () => {
     if (isPlaying.value) sessionSeconds.value++
   }, 1000)
 
-  // Don't auto-start - wait for user to click play
+  // Don't auto-start learning - wait for user to click play
   isPlaying.value = false
+
+  // BUT auto-play the welcome audio if this is a fresh start
+  // (The user gesture from "Continue Learning" button should carry through)
+  if (currentRoundIndex.value === 0 && !welcomeChecked.value) {
+    // Small delay to ensure audio controller is ready
+    setTimeout(async () => {
+      await playWelcomeIfNeeded()
+    }, 100)
+  }
 
   console.log('[LearningPlayer] Total awakening time:', Date.now() - startTime, 'ms')
 })
@@ -3964,7 +3980,7 @@ onUnmounted(() => {
       </div>
 
       <!-- Play button when paused -->
-      <div v-if="!isPlaying" class="pane-play-hint" :class="{ 'initial-start': !hasEverStarted }">
+      <div v-if="!isPlaying && !isPlayingWelcome" class="pane-play-hint" :class="{ 'initial-start': !hasEverStarted }">
         <svg viewBox="0 0 24 24" fill="currentColor">
           <polygon points="6 3 20 12 6 21 6 3"/>
         </svg>
