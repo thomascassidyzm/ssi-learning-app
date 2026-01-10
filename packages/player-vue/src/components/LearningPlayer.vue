@@ -3949,13 +3949,16 @@ onUnmounted(() => {
           </transition>
         </div>
 
-        <!-- Target Language Text -->
-        <div class="pane-text-target">
+        <!-- Visual separator -->
+        <div class="pane-text-divider"></div>
+
+        <!-- Target Language Text - always visible area with highlight strip -->
+        <div class="pane-text-target" :class="{ 'has-text': showTargetText }">
           <transition name="text-reveal" mode="out-in">
             <p v-if="showTargetText" class="target-text" :key="currentPhrase.target">
               {{ currentPhrase.target }}
             </p>
-            <p v-else class="target-placeholder" key="placeholder">&nbsp;</p>
+            <p v-else class="target-placeholder" key="placeholder">···</p>
           </transition>
         </div>
       </div>
@@ -5055,7 +5058,7 @@ onUnmounted(() => {
 }
 
 .pane-text-known {
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.25rem;
 }
 
 .pane-text-known .known-text {
@@ -5066,20 +5069,43 @@ onUnmounted(() => {
   margin: 0;
 }
 
+/* Visual divider between known and target */
+.pane-text-divider {
+  width: 60px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--text-muted), transparent);
+  margin: 0.5rem auto;
+  opacity: 0.3;
+}
+
 .pane-text-target {
-  min-height: 2rem;
+  min-height: 2.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Highlight strip when target text is showing */
+.pane-text-target.has-text {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(251, 191, 36, 0.05));
+  box-shadow: 0 0 20px rgba(251, 191, 36, 0.2), inset 0 0 30px rgba(251, 191, 36, 0.05);
 }
 
 .pane-text-target .target-text {
-  font-size: 1.25rem;
-  font-weight: 500;
-  color: var(--belt-glow, var(--accent));
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: #fbbf24; /* Amber/gold - always visible regardless of belt */
   line-height: 1.4;
   margin: 0;
+  text-shadow: 0 0 20px rgba(251, 191, 36, 0.5);
 }
 
 .pane-text-target .target-placeholder {
-  opacity: 0;
+  font-size: 1rem;
+  color: var(--text-muted);
+  opacity: 0.3;
+  letter-spacing: 0.3em;
 }
 
 /* Hidden ring reference (for backwards compatibility) */
