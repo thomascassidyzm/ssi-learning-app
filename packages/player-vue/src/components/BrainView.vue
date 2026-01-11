@@ -596,7 +596,7 @@ onUnmounted(() => {
 
 .close-btn {
   position: absolute;
-  top: 16px;
+  top: calc(16px + env(safe-area-inset-top, 0px));
   left: 16px;
   z-index: 20;
   width: 40px;
@@ -625,7 +625,7 @@ onUnmounted(() => {
 
 .lego-count-badge {
   position: absolute;
-  top: 16px;
+  top: calc(16px + env(safe-area-inset-top, 0px));
   right: 16px;
   z-index: 20;
   padding: 8px 16px;
