@@ -347,22 +347,30 @@ function isEdgeInPath(edgeId: string): boolean {
 }
 
 function getNodeOpacity(node: ConstellationNode): number {
-  if (isNodeInPath(node.id)) return 1
-  if (isNodeResonating(node.id)) return 0.4
+  // Hero node (current LEGO being learned) is brightest
   if (node.id === props.heroNodeId) return 1
-  return 0.25
+  // Nodes actively in the current phrase path
+  if (isNodeInPath(node.id)) return 1
+  // Resonating nodes - fainter glimmer (contain words from phrase)
+  if (isNodeResonating(node.id)) return 0.35
+  // Default: revealed nodes should still be clearly visible
+  return 0.55
 }
 
 function getEdgeOpacity(edge: ConstellationEdge): number {
-  if (isEdgeInPath(edge.id)) return 1
-  // Base opacity - visible even at low strength
-  return Math.min(0.6, 0.25 + Math.pow(edge.strength, 0.3) * 0.1)
+  // Active path edges are bright
+  if (isEdgeInPath(edge.id)) return 0.85
+  // Background edges: subtle, Hebbian strength increases opacity slightly
+  // Range: ~0.08 to ~0.25 (much more subtle than before)
+  return Math.min(0.25, 0.08 + Math.sqrt(edge.strength) * 0.015)
 }
 
 function getEdgeWidth(edge: ConstellationEdge): number {
-  if (isEdgeInPath(edge.id)) return 4
-  // Base width - visible even at low strength
-  return Math.min(3.5, 1.5 + Math.pow(edge.strength, 0.4) * 0.5)
+  // Active path edges are prominent
+  if (isEdgeInPath(edge.id)) return 3
+  // Background edges: thin, Hebbian strength increases width slightly
+  // Range: ~0.5 to ~1.5 (much thinner than before)
+  return Math.min(1.5, 0.5 + Math.sqrt(edge.strength) * 0.08)
 }
 
 // Helper to extract ID from edge source/target (D3 forceLink mutates these to object refs)
@@ -617,7 +625,11 @@ const labelOpacity = computed(() => (node: ConstellationNode): number => {
             v-for="node in nodes"
             :key="node.id"
             class="node"
-            :class="{ 'node-in-path': isNodeInPath(node.id) }"
+            :class="{
+              'node-in-path': isNodeInPath(node.id),
+              'node-hero': node.id === heroNodeId,
+              'node-resonating': isNodeResonating(node.id)
+            }"
             :transform="`translate(${node.x}, ${node.y})`"
             :opacity="getNodeOpacity(node)"
             @click="handleNodeTap(node)"
@@ -627,30 +639,30 @@ const labelOpacity = computed(() => (node: ConstellationNode): number => {
             <!-- Outer glow ring -->
             <circle
               class="node-glow"
-              :r="isNodeInPath(node.id) ? 22 : 18"
+              :r="isNodeInPath(node.id) || node.id === heroNodeId ? 22 : 18"
               fill="none"
               :stroke="getPalette(node.belt).glow"
-              :stroke-width="isNodeInPath(node.id) ? 3 : 2"
-              :opacity="isNodeInPath(node.id) ? 0.8 : 0.4"
-              :filter="isNodeInPath(node.id) ? 'url(#constellation-glow)' : 'none'"
+              :stroke-width="isNodeInPath(node.id) || node.id === heroNodeId ? 3 : 2"
+              :opacity="isNodeInPath(node.id) || node.id === heroNodeId ? 0.8 : 0.6"
+              :filter="isNodeInPath(node.id) || node.id === heroNodeId ? 'url(#constellation-glow)' : 'none'"
             />
 
             <!-- Core circle -->
             <circle
               class="node-core"
-              :r="isNodeInPath(node.id) ? 14 : 12"
+              :r="isNodeInPath(node.id) || node.id === heroNodeId ? 14 : 12"
               :fill="getPalette(node.belt).core"
               :stroke="getPalette(node.belt).glow"
-              :stroke-width="isNodeInPath(node.id) ? 2 : 1.5"
-              :stroke-opacity="isNodeInPath(node.id) ? 1 : 0.5"
+              :stroke-width="isNodeInPath(node.id) || node.id === heroNodeId ? 2 : 1.5"
+              :stroke-opacity="isNodeInPath(node.id) || node.id === heroNodeId ? 1 : 0.7"
             />
 
             <!-- Inner dot -->
             <circle
               class="node-inner"
-              r="4"
+              :r="node.id === heroNodeId ? 5 : 4"
               :fill="getPalette(node.belt).inner"
-              :opacity="isNodeInPath(node.id) ? 1 : 0.5"
+              :opacity="isNodeInPath(node.id) || node.id === heroNodeId ? 1 : 0.7"
             />
           </g>
         </g>
@@ -761,6 +773,34 @@ const labelOpacity = computed(() => (node: ConstellationNode): number => {
   }
   to {
     filter: drop-shadow(0 0 16px rgba(96, 165, 250, 0.8));
+  }
+}
+
+/* Hero node (current LEGO being learned) - prominent glow */
+.node-hero:not(.node-in-path) {
+  animation: node-hero-pulse 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes node-hero-pulse {
+  from {
+    filter: drop-shadow(0 0 10px rgba(251, 191, 36, 0.5));
+  }
+  to {
+    filter: drop-shadow(0 0 20px rgba(251, 191, 36, 0.8));
+  }
+}
+
+/* Resonating nodes - subtle glimmer when they contain words from phrase */
+.node-resonating:not(.node-in-path):not(.node-hero) {
+  animation: node-resonate 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes node-resonate {
+  from {
+    filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.1));
+  }
+  to {
+    filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.3));
   }
 }
 
