@@ -1107,7 +1107,14 @@ const animatePathSequence = (legoPath, totalDuration = 2000, phraseText = '') =>
     pathAnimationTimers.push(endTimer)
   })
 
-  console.log('[LegoNetwork] Path animation started:', legoPath.length, 'nodes over', totalDuration, 'ms, resonant:', resonantSet.size)
+  console.log('[LegoNetwork] Path animation started:', {
+    nodes: legoPath.length,
+    duration: totalDuration,
+    resonant: resonantSet.size,
+    path: legoPath,
+    durations: stepDurations.map(d => Math.round(d)),
+    nodesInNetwork: legoPath.map(id => nodes.value.some(n => n.id === id)),
+  })
 }
 
 /**
