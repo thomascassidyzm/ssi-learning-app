@@ -655,20 +655,4 @@ onMounted(() => {
   }
 }
 
-/* Light theme support */
-[data-theme="light"] .course-selector-sheet {
-  background: var(--bg-secondary);
-}
-
-[data-theme="light"] .language-pill.active {
-  background: rgba(194, 58, 58, 0.1);
-}
-
-[data-theme="light"] .target-card.enrolled {
-  background: rgba(74, 222, 128, 0.06);
-}
-
-[data-theme="light"] .target-card.active {
-  background: rgba(194, 58, 58, 0.08);
-}
 </style>

@@ -530,41 +530,7 @@ onMounted(async () => {
   --nav-height-safe: calc(80px + env(safe-area-inset-bottom, 0px));
 }
 
-[data-theme="light"] {
-  /* Backgrounds - Light mode (warm off-white, not harsh) */
-  --bg-primary: #f5f5f3;
-  --bg-secondary: #fafaf8;
-  --bg-card: rgba(0, 0, 0, 0.025);
-  --bg-elevated: rgba(0, 0, 0, 0.04);
-  --bg-overlay: rgba(0, 0, 0, 0.4);
-
-  /* Text - Light mode */
-  --text-primary: #1a1a2e;
-  --text-secondary: rgba(26, 26, 46, 0.7);
-  --text-muted: rgba(26, 26, 46, 0.4);
-  --text-inverse: #ffffff;
-
-  /* Borders - Light mode */
-  --border-subtle: rgba(0, 0, 0, 0.06);
-  --border-medium: rgba(0, 0, 0, 0.1);
-
-  /* Accent adjustments for light mode (slightly darker for contrast) */
-  --accent: #b83232;
-  --accent-light: #c23a3a;
-  --accent-dark: #a52929;
-  --accent-glow: rgba(194, 58, 58, 0.2);
-  --gold: #c49943;
-  --gold-glow: rgba(196, 153, 67, 0.25);
-
-  /* Gradients - Light mode */
-  --gradient-accent: linear-gradient(145deg, #c23a3a 0%, #a52929 100%);
-  --glow-accent: 0 4px 16px rgba(194, 58, 58, 0.2);
-  --glow-soft: rgba(100, 100, 150, 0.08);
-
-  /* Network visualization - Light mode */
-  --network-bg: radial-gradient(ellipse at 50% 50%, rgba(100,100,120,0.06) 0%, transparent 50%);
-  --node-grey: 180;
-}
+/* Light theme removed - app is dark mode only */
 
 * {
   margin: 0;

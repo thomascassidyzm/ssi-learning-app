@@ -408,43 +408,6 @@ const isVisible = computed(() => !props.isLearning)
   opacity: 0;
 }
 
-/* Light theme */
-[data-theme="light"] .nav-backdrop {
-  background: linear-gradient(
-    to top,
-    rgba(248, 249, 250, 0.98) 0%,
-    rgba(248, 249, 250, 0.95) 50%,
-    rgba(248, 249, 250, 0.88) 100%
-  );
-  border-top-color: rgba(0, 0, 0, 0.04);
-}
-
-[data-theme="light"] .nav-backdrop::before {
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(0, 0, 0, 0.06) 20%,
-    rgba(0, 0, 0, 0.06) 80%,
-    transparent
-  );
-}
-
-[data-theme="light"] .nav-icon {
-  color: rgba(26, 26, 46, 0.35);
-}
-
-[data-theme="light"] .nav-label {
-  color: rgba(26, 26, 46, 0.35);
-}
-
-[data-theme="light"] .nav-item.active .nav-label {
-  color: rgba(26, 26, 46, 0.9);
-}
-
-[data-theme="light"] .play-label {
-  color: rgba(26, 26, 46, 0.5);
-}
-
 /* Responsive adjustments */
 @media (max-width: 360px) {
   .nav-content {
