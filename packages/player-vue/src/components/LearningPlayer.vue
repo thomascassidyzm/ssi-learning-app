@@ -6058,7 +6058,8 @@ onUnmounted(() => {
   gap: 1.25rem;
   padding: 0.75rem 1.5rem;
   position: absolute;
-  bottom: 30px; /* MOVED TO BOTTOM - thumb zone on mobile */
+  /* Position above iOS home indicator safe area */
+  bottom: calc(30px + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%);
   z-index: 15;
@@ -6070,8 +6071,6 @@ onUnmounted(() => {
   border-radius: 100px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.3);
-  /* Safe area padding for notched phones */
-  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
   /* Always visible */
   opacity: 1;
   pointer-events: auto;
@@ -6366,8 +6365,8 @@ onUnmounted(() => {
   .control-bar {
     gap: 0.75rem;
     padding: 0.5rem 0.75rem;
-    bottom: 20px; /* Slightly higher on small screens */
-    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+    /* Position above iOS home indicator safe area */
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
   }
 
   .mode-btn {
