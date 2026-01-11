@@ -11,8 +11,20 @@
  * "quiero is always up-left of hablar" - like a real star map
  */
 
-import { ref, computed, watch, onMounted, onUnmounted, type PropType } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick, type PropType } from 'vue'
 import type { ConstellationNode, ConstellationEdge, PathHighlight } from '../composables/usePrebuiltNetwork'
+
+// ============================================================================
+// TRAVELING PULSE TYPE
+// ============================================================================
+
+interface TravelingPulse {
+  id: string
+  edgeId: string
+  pathD: string
+  duration: number
+  startTime: number
+}
 
 // ============================================================================
 // BELT PALETTES
@@ -103,6 +115,14 @@ let wheelZoomTimeout: number | null = null
 
 // Is user actively interacting? (disables transition for responsiveness)
 const isInteracting = computed(() => isDragging.value || isWheelZooming.value)
+
+// ============================================================================
+// TRAVELING PULSES STATE
+// ============================================================================
+
+const travelingPulses = ref<TravelingPulse[]>([])
+let pulseIdCounter = 0
+const PULSE_DURATION = 400 // ms for pulse to travel along edge
 
 // Combined transform (user zoom/pan + hero centering)
 const combinedTransform = computed(() => {
@@ -345,10 +365,17 @@ function getEdgeWidth(edge: ConstellationEdge): number {
   return Math.min(3.5, 1.5 + Math.pow(edge.strength, 0.4) * 0.5)
 }
 
+// Helper to extract ID from edge source/target (D3 forceLink mutates these to object refs)
+function getEdgeNodeId(ref: string | { id: string }): string {
+  return typeof ref === 'string' ? ref : ref.id
+}
+
 // Calculate curved path between two nodes
 function getEdgePath(edge: ConstellationEdge): string {
-  const source = props.nodes.find(n => n.id === edge.source)
-  const target = props.nodes.find(n => n.id === edge.target)
+  const sourceId = getEdgeNodeId(edge.source as string | { id: string })
+  const targetId = getEdgeNodeId(edge.target as string | { id: string })
+  const source = props.nodes.find(n => n.id === sourceId)
+  const target = props.nodes.find(n => n.id === targetId)
   if (!source || !target) return ''
 
   const x1 = source.x
@@ -386,6 +413,82 @@ function handleNodeTap(node: ConstellationNode): void {
 function handleNodeHover(node: ConstellationNode | null): void {
   emit('node-hover', node)
 }
+
+// ============================================================================
+// TRAVELING PULSE LOGIC
+// ============================================================================
+
+/**
+ * Spawn a traveling pulse along an edge
+ */
+function spawnPulse(edgeIndex: number): void {
+  if (!props.currentPath) return
+
+  const nodeIds = props.currentPath.nodeIds
+  if (edgeIndex < 0 || edgeIndex >= nodeIds.length - 1) return
+
+  const sourceId = nodeIds[edgeIndex]
+  const targetId = nodeIds[edgeIndex + 1]
+
+  // Find the edge (could be in either direction)
+  const edgeId = `${sourceId}->${targetId}`
+  const reverseEdgeId = `${targetId}->${sourceId}`
+  const edge = props.edges.find(e => e.id === edgeId || e.id === reverseEdgeId)
+
+  if (!edge) return
+
+  // Get the path for this edge
+  const pathD = getEdgePath(edge)
+  if (!pathD) return
+
+  // Create pulse
+  const pulse: TravelingPulse = {
+    id: `pulse-${pulseIdCounter++}`,
+    edgeId: edge.id,
+    pathD,
+    duration: PULSE_DURATION,
+    startTime: Date.now(),
+  }
+
+  travelingPulses.value.push(pulse)
+
+  // Remove pulse after animation completes
+  setTimeout(() => {
+    travelingPulses.value = travelingPulses.value.filter(p => p.id !== pulse.id)
+  }, PULSE_DURATION + 100)
+}
+
+/**
+ * Clear all traveling pulses
+ */
+function clearPulses(): void {
+  travelingPulses.value = []
+}
+
+// Watch for path activeIndex changes to spawn pulses
+watch(
+  () => props.currentPath?.activeIndex,
+  (newIndex, oldIndex) => {
+    if (newIndex === undefined || newIndex === null) return
+    if (oldIndex === undefined || oldIndex === null) return
+
+    // When activeIndex increases, spawn a pulse on the newly activated edge
+    // Edge[i] connects node[i] to node[i+1], so when activeIndex goes to N,
+    // we're activating node N, and the edge from node N-1 to node N should pulse
+    if (newIndex > oldIndex && newIndex > 0) {
+      spawnPulse(newIndex - 1)
+    }
+  }
+)
+
+// Clear pulses when path changes completely
+watch(
+  () => props.currentPath?.nodeIds,
+  () => {
+    clearPulses()
+  },
+  { deep: true }
+)
 
 // Computed for label visibility
 const labelOpacity = computed(() => (node: ConstellationNode): number => {
@@ -431,6 +534,16 @@ const labelOpacity = computed(() => (node: ConstellationNode): number => {
             <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>
+
+        <!-- Traveling pulse glow -->
+        <filter id="pulse-glow" x="-100%" y="-100%" width="300%" height="300%">
+          <feGaussianBlur stdDeviation="4" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
       </defs>
 
       <!-- Pan group - transforms to center on hero + user zoom/pan -->
@@ -449,6 +562,52 @@ const labelOpacity = computed(() => (node: ConstellationNode): number => {
             stroke-linecap="round"
             class="edge"
             :class="{ 'edge-active': isEdgeInPath(edge.id) }"
+          />
+        </g>
+
+        <!-- Traveling pulses layer -->
+        <g class="pulses-layer">
+          <circle
+            v-for="pulse in travelingPulses"
+            :key="pulse.id"
+            class="traveling-pulse"
+            r="8"
+            fill="#fbbf24"
+            filter="url(#pulse-glow)"
+          >
+            <!-- Animate the pulse along the edge path -->
+            <animateMotion
+              :dur="`${pulse.duration}ms`"
+              fill="freeze"
+              calcMode="linear"
+            >
+              <mpath :href="`#pulse-path-${pulse.id}`" />
+            </animateMotion>
+            <!-- Fade out at the end -->
+            <animate
+              attributeName="opacity"
+              :dur="`${pulse.duration}ms`"
+              values="1;1;0"
+              keyTimes="0;0.7;1"
+              fill="freeze"
+            />
+            <!-- Grow slightly at the end -->
+            <animate
+              attributeName="r"
+              :dur="`${pulse.duration}ms`"
+              values="6;8;12"
+              keyTimes="0;0.7;1"
+              fill="freeze"
+            />
+          </circle>
+          <!-- Hidden paths for animateMotion to reference -->
+          <path
+            v-for="pulse in travelingPulses"
+            :key="`path-${pulse.id}`"
+            :id="`pulse-path-${pulse.id}`"
+            :d="pulse.pathD"
+            fill="none"
+            stroke="none"
           />
         </g>
 
@@ -580,6 +739,15 @@ const labelOpacity = computed(() => (node: ConstellationNode): number => {
     opacity: 1;
     stroke-width: 4.5px;
   }
+}
+
+/* Traveling pulse styling */
+.traveling-pulse {
+  pointer-events: none;
+}
+
+.pulses-layer {
+  pointer-events: none;
 }
 
 /* Nodes in path should also pulse */

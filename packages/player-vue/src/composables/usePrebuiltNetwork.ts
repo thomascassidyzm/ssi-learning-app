@@ -268,6 +268,8 @@ export function preCalculatePositions(
   }
 
   // More detailed diagnostics
+  // Note: D3 forceLink mutates edges, replacing string IDs with node object references
+  const getNodeId = (ref: any): string => typeof ref === 'string' ? ref : ref?.id || '?'
   const edgeSource = externalConnections ? 'database' : 'items'
   const diagnostics = {
     totalRounds: rounds.length,
@@ -278,7 +280,7 @@ export function preCalculatePositions(
     legoTextsCount: legoTexts.size,
     nodesCreated: nodes.length,
     edgesCreated: edges.length,
-    sampleEdges: edges.slice(0, 5).map(e => `${e.source} → ${e.target} (strength: ${e.strength})`),
+    sampleEdges: edges.slice(0, 5).map(e => `${getNodeId(e.source)} → ${getNodeId(e.target)} (strength: ${e.strength})`),
   }
   console.log(`[PrebuiltNetwork] Pre-calculated ${nodes.length} nodes, ${edges.length} edges (source: ${edgeSource})`)
   console.table(diagnostics)
@@ -472,22 +474,29 @@ export function usePrebuiltNetwork() {
     nodes.value.filter(n => revealedNodeIds.value.has(n.id))
   )
 
+  // Helper to extract ID from edge source/target
+  // D3's forceLink mutates edges in place, replacing string IDs with node object references
+  const getEdgeNodeId = (sourceOrTarget: string | { id: string }): string => {
+    return typeof sourceOrTarget === 'string' ? sourceOrTarget : sourceOrTarget.id
+  }
+
   // Only edges between revealed nodes are visible
   const visibleEdges = computed(() => {
-    const visible = edges.value.filter(e =>
-      revealedNodeIds.value.has(e.source) &&
-      revealedNodeIds.value.has(e.target)
-    )
+    const visible = edges.value.filter(e => {
+      const sourceId = getEdgeNodeId(e.source as string | { id: string })
+      const targetId = getEdgeNodeId(e.target as string | { id: string })
+      return revealedNodeIds.value.has(sourceId) && revealedNodeIds.value.has(targetId)
+    })
     if (edges.value.length > 0 && visible.length === 0 && revealedNodeIds.value.size > 1) {
       console.log('[PrebuiltNetwork] WARNING: No visible edges!', {
         totalEdges: edges.value.length,
         revealedNodes: Array.from(revealedNodeIds.value).slice(0, 10),
         sampleEdges: edges.value.slice(0, 5).map(e => ({
           id: e.id,
-          source: e.source,
-          target: e.target,
-          sourceRevealed: revealedNodeIds.value.has(e.source),
-          targetRevealed: revealedNodeIds.value.has(e.target),
+          source: getEdgeNodeId(e.source as string | { id: string }),
+          target: getEdgeNodeId(e.target as string | { id: string }),
+          sourceRevealed: revealedNodeIds.value.has(getEdgeNodeId(e.source as string | { id: string })),
+          targetRevealed: revealedNodeIds.value.has(getEdgeNodeId(e.target as string | { id: string })),
         }))
       })
     } else if (visible.length > 0) {
