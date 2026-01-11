@@ -59,7 +59,7 @@ import JourneyMap from './components/JourneyMap.vue'
 import ProfileScreen from './components/ProfileScreen.vue'
 import SettingsScreen from './components/SettingsScreen.vue'
 import CourseExplorer from './components/CourseExplorer.vue'
-import LegoNetwork from './components/LegoNetwork.vue'
+import BrainView from './components/BrainView.vue'
 import BottomNav from './components/BottomNav.vue'
 import BuildBadge from './components/BuildBadge.vue'
 
@@ -423,13 +423,12 @@ onMounted(async () => {
 
     <!-- Progress Map Visualization (Brain View) -->
     <Transition name="slide-right" mode="out-in">
-      <LegoNetwork
+      <BrainView
         v-if="currentScreen === 'network'"
         ref="legoNetworkRef"
         :course="activeCourse"
-        beltLevel="white"
+        belt-level="yellow"
         @close="goHome"
-        @playbackEnded="isLearning = false"
       />
     </Transition>
 
