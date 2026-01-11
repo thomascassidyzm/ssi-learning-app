@@ -87,7 +87,8 @@ const courseDataProvider = inject<{ value: any }>('courseDataProvider', { value:
 // CONSTANTS
 // ============================================================================
 
-const AUDIO_S3_BASE_URL = 'https://ssi-audio-stage.s3.eu-west-1.amazonaws.com/mastered'
+// S3 base URL (s3_key contains the full path like "mastered/UUID.mp3")
+const AUDIO_S3_BASE_URL = 'https://ssi-audio-stage.s3.eu-west-1.amazonaws.com'
 
 // ============================================================================
 // STATE
@@ -223,10 +224,11 @@ async function playPhrase(phrase: PhraseWithPath) {
       audioController.value = new TargetAudioController()
     }
 
-    // Query practice_cycles to get audio UUID for this phrase
+    // Query practice_cycles to get audio s3_key for this phrase
+    // Use target2 (Voice 2) as that's the "reveal" voice in the learning cycle
     const { data: phraseData, error: err } = await supabase.value
       .from('practice_cycles')
-      .select('target1_audio_uuid, target2_audio_uuid')
+      .select('target1_s3_key, target2_s3_key')
       .eq('course_code', courseCode.value)
       .eq('target_text', phrase.targetText)
       .limit(1)
@@ -238,10 +240,11 @@ async function playPhrase(phrase: PhraseWithPath) {
     }
 
     if (phraseData) {
-      const audioUuid = phraseData.target1_audio_uuid || phraseData.target2_audio_uuid
-      if (audioUuid) {
-        const audioUrl = `${AUDIO_S3_BASE_URL}/${audioUuid.toUpperCase()}.mp3`
-        console.log('[BrainView] Playing phrase:', phrase.targetText)
+      // Prefer target2 (reveal voice), fallback to target1
+      const s3Key = phraseData.target2_s3_key || phraseData.target1_s3_key
+      if (s3Key) {
+        const audioUrl = `${AUDIO_S3_BASE_URL}/${s3Key}`
+        console.log('[BrainView] Playing phrase:', phrase.targetText, audioUrl)
         await audioController.value.play(audioUrl)
       }
     }
