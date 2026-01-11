@@ -3916,42 +3916,26 @@ onUnmounted(() => {
         <span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span>
       </div>
 
-      <!-- Belt Progress Ring - Mini circular progress -->
-      <div class="belt-progress-ring-mini" :title="!nextBelt ? 'Black belt achieved!' : timeToNextBelt.includes('Keep') ? `Working toward ${nextBelt.name} belt` : `${timeToNextBelt} to ${nextBelt.name} belt`">
-        <svg viewBox="0 0 36 36" class="belt-ring-svg">
-          <!-- Background ring -->
-          <circle cx="18" cy="18" r="15" fill="none" stroke="var(--bg-card)" stroke-width="3"/>
-          <!-- Progress ring -->
-          <circle
-            cx="18" cy="18" r="15"
-            fill="none"
-            stroke="var(--belt-color)"
-            stroke-width="3"
-            stroke-linecap="round"
-            :stroke-dasharray="94.2"
-            :stroke-dashoffset="94.2 - (94.2 * beltProgressPercent / 100)"
-            transform="rotate(-90 18 18)"
-            class="belt-ring-fill"
-          />
-        </svg>
-        <!-- Belt knot in center -->
-        <div class="belt-knot-mini">
-          <svg viewBox="0 0 20 12" class="belt-knot-mini-svg">
-            <rect x="0" y="3" width="20" height="6" rx="1" fill="var(--belt-color)"/>
-            <circle cx="10" cy="6" r="4" fill="var(--belt-color-dark)"/>
-            <circle cx="10" cy="6" r="2" fill="var(--belt-color)"/>
-          </svg>
-        </div>
-      </div>
-
       <div class="header-right">
+        <!-- Belt Progress Bar - Clickable to show summary -->
+        <button
+          class="belt-progress-btn"
+          @click="showPausedSummary"
+          :title="!nextBelt ? 'Black belt achieved!' : `${Math.round(beltProgressPercent)}% to ${nextBelt.name} belt`"
+        >
+          <div class="belt-bar-track">
+            <div class="belt-bar-fill" :style="{ width: `${beltProgressPercent}%` }"></div>
+          </div>
+          <div class="belt-bar-label">{{ Math.round(beltProgressPercent) }}%</div>
+        </button>
+
+        <!-- Session Timer - Also clickable -->
         <button class="session-timer" @click="showPausedSummary" title="Pause &amp; Summary">
           <span class="timer-value">{{ formattedSessionTime }}</span>
           <svg class="timer-end-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="6" y="6" width="12" height="12" rx="1"/>
           </svg>
         </button>
-
       </div>
     </header>
 
@@ -4640,37 +4624,47 @@ onUnmounted(() => {
   gap: 0.75rem;
 }
 
-/* ============ BELT PROGRESS RING (MINI) ============ */
-.belt-progress-ring-mini {
-  position: relative;
-  width: 36px;
-  height: 36px;
-  cursor: default;
+/* ============ BELT PROGRESS BAR ============ */
+.belt-progress-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.belt-ring-svg {
-  width: 100%;
+.belt-progress-btn:hover {
+  background: var(--bg-elevated);
+  border-color: var(--belt-color);
+}
+
+.belt-bar-track {
+  width: 60px;
+  height: 6px;
+  background: var(--bg-elevated);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.belt-bar-fill {
   height: 100%;
-  filter: drop-shadow(0 0 4px var(--belt-glow));
+  background: var(--belt-color);
+  border-radius: 3px;
+  transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1), background 0.5s ease;
+  box-shadow: 0 0 6px var(--belt-glow);
+  min-width: 2px;
 }
 
-.belt-ring-fill {
-  transition: stroke-dashoffset 0.5s cubic-bezier(0.16, 1, 0.3, 1), stroke 0.5s ease;
-}
-
-.belt-knot-mini {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 20px;
-  height: 12px;
-}
-
-.belt-knot-mini-svg {
-  width: 100%;
-  height: 100%;
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
+.belt-bar-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--belt-color);
+  min-width: 32px;
+  text-align: right;
 }
 
 /* ============ FULLSCREEN NETWORK LAYOUT ============ */
@@ -6299,17 +6293,34 @@ onUnmounted(() => {
     font-size: 1rem;
   }
 
-  .belt-progress-ring-mini {
-    order: 3;
+  .header-right {
+    gap: 0.375rem;
   }
 
-  .header-right {
-    gap: 0.5rem;
+  .belt-progress-btn {
+    padding: 0.25rem 0.5rem;
+    gap: 0.375rem;
+  }
+
+  .belt-bar-track {
+    width: 40px;
+    height: 5px;
+  }
+
+  .belt-bar-label {
+    font-size: 0.6875rem;
+    min-width: 28px;
   }
 
   .session-timer {
-    padding: 0.375rem 0.75rem;
-    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.6875rem;
+    gap: 0.375rem;
+  }
+
+  .timer-end-icon {
+    width: 14px;
+    height: 14px;
   }
 
   .main {
