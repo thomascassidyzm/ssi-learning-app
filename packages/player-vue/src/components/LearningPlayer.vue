@@ -916,7 +916,6 @@ const corePhaseToUiPhase = (corePhase) => {
 }
 
 // State
-const theme = ref('dark')
 const currentPhase = ref(Phase.PROMPT)
 const currentItemIndex = ref(0)
 const isPlaying = ref(false) // Start paused until engine ready
@@ -1250,12 +1249,7 @@ const startRingAnimation = (duration) => {
   ringAnimationFrame = requestAnimationFrame(animateRing)
 }
 
-// Theme toggle
-const toggleTheme = () => {
-  theme.value = theme.value === 'dark' ? 'light' : 'dark'
-  document.documentElement.setAttribute('data-theme', theme.value)
-  localStorage.setItem('ssi-theme', theme.value)
-}
+// Theme is always dark - constellation network designed for dark mode only
 
 // ============================================
 // REAL AUDIO CONTROLLER
@@ -3194,9 +3188,8 @@ onMounted(async () => {
 
   // Initialize sync stuff immediately (no await needed)
   loadAdaptationConsent()
-  const savedTheme = localStorage.getItem('ssi-theme') || 'dark'
-  theme.value = savedTheme
-  document.documentElement.setAttribute('data-theme', savedTheme)
+  // Force dark mode - constellation network is designed for dark only
+  document.documentElement.setAttribute('data-theme', 'dark')
   audioController.value = new RealAudioController()
   currentCourseCode.value = courseCode.value
 
@@ -3922,11 +3915,6 @@ onUnmounted(() => {
           </svg>
         </button>
 
-        <button class="theme-toggle" @click="toggleTheme">
-          <div class="toggle-track">
-            <div class="toggle-thumb" :class="{ light: theme === 'light' }"></div>
-          </div>
-        </button>
       </div>
     </header>
 
@@ -3988,17 +3976,7 @@ onUnmounted(() => {
       </div>
     </section>
 
-    <!-- Layout Mode Toggle - Small button to cycle through layouts -->
-    <button
-      class="layout-toggle-btn"
-      @click.stop="cycleLayoutMode"
-      :title="`Switch layout (${layoutModeLabels[layoutMode]})`"
-    >
-      <span class="layout-icon">◧</span>
-      <span class="layout-label">{{ layoutModeLabels[layoutMode] }}</span>
-    </button>
-
-    <!-- Zoom controls removed - use pinch/scroll to zoom, drag to pan -->
+    <!-- Layout toggle removed - dark mode constellation is the only mode -->
 
     <!-- Hidden ring container for position reference (used by network centering) -->
     <div ref="ringContainerRef" class="ring-reference" style="display: none;"></div>
@@ -4459,33 +4437,6 @@ onUnmounted(() => {
     stroke-dashoffset: 0;
     opacity: 0.8;
   }
-}
-
-/* Light theme adjustments for space elements */
-[data-theme="light"] .space-gradient {
-  background:
-    radial-gradient(ellipse 120% 80% at 20% 10%, rgba(200, 190, 220, 0.4) 0%, transparent 50%),
-    radial-gradient(ellipse 100% 60% at 80% 90%, rgba(180, 200, 220, 0.3) 0%, transparent 40%),
-    radial-gradient(ellipse 80% 80% at 50% 50%, rgba(250, 248, 252, 1) 0%, #f5f3f8 100%);
-}
-
-[data-theme="light"] .space-nebula {
-  background:
-    radial-gradient(ellipse 60% 40% at 30% 30%, rgba(160, 140, 200, 0.08) 0%, transparent 50%),
-    radial-gradient(ellipse 50% 30% at 70% 60%, rgba(140, 160, 200, 0.06) 0%, transparent 40%);
-}
-
-[data-theme="light"] .star {
-  background: rgba(100, 80, 120, 0.4);
-}
-
-[data-theme="light"] .drift-star {
-  background: var(--belt-color);
-  opacity: 0.4;
-}
-
-[data-theme="light"] .nebula-glow {
-  opacity: 0.3;
 }
 
 /* ============ CLASS BANNER (Schools context) ============ */
@@ -5624,10 +5575,6 @@ onUnmounted(() => {
   0% { transform: scale(0.9); opacity: 0.5; }
   50% { transform: scale(1.2); opacity: 0; }
   100% { transform: scale(0.9); opacity: 0; }
-}
-
-[data-theme="light"] .ring-container::before {
-  background: radial-gradient(circle, var(--belt-glow, rgba(212, 168, 83, 0.15)) 0%, transparent 50%);
 }
 
 .ring-container.is-speak .ring-ambient {
