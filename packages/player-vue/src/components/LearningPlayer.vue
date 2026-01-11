@@ -1155,17 +1155,8 @@ const sessionProgress = computed(() => {
   return (itemsPracticed.value + 1) / sessionItems.value.length
 })
 // Track item transitions to prevent text glitch (new prompt + old target showing together)
+// This flag is set TRUE when TRANSITION phase starts, and cleared when next PROMPT begins
 const isTransitioningItem = ref(false)
-let transitionTimeout: ReturnType<typeof setTimeout> | null = null
-
-// Watch for item changes and briefly hide target text during transition
-watch(currentPlayableItem, () => {
-  isTransitioningItem.value = true
-  if (transitionTimeout) clearTimeout(transitionTimeout)
-  transitionTimeout = setTimeout(() => {
-    isTransitioningItem.value = false
-  }, 100) // Brief delay to let old target fade out
-})
 
 const showTargetText = computed(() =>
   currentPhase.value === Phase.VOICE_2 && !isTransitioningItem.value
@@ -1417,6 +1408,15 @@ const handleCycleEvent = (event) => {
     case 'phase_changed':
       // Handle phase-specific logic
       switch (event.phase) {
+        case CyclePhase.PROMPT:
+          // Clear transition flag - new cycle has started, safe to show text again
+          isTransitioningItem.value = false
+          break
+        case CyclePhase.TRANSITION:
+          // Hide target text immediately when TRANSITION starts
+          // This ensures text fades BEFORE the next item's data arrives
+          isTransitioningItem.value = true
+          break
         case CyclePhase.PAUSE:
           // Mark phase for timing analyzer (if adaptation enabled)
           if (isAdaptationActive.value) {
