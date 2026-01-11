@@ -24,33 +24,6 @@ const resetSuccess = ref(false)
 const courseName = computed(() => props.course?.display_name || props.course?.course_code || 'this course')
 const courseCode = computed(() => props.course?.course_code)
 
-// Settings state
-const settings = ref({
-  autoplayEnabled: true,
-  soundEffects: true,
-  hapticFeedback: true,
-  pauseDuration: 'adaptive', // 'adaptive', 'short', 'normal', 'long'
-  notificationsEnabled: true,
-  dailyReminder: '09:00',
-})
-
-// Pause duration options
-const pauseOptions = [
-  { value: 'short', label: 'Short', desc: '2x speed' },
-  { value: 'normal', label: 'Normal', desc: '3x speed' },
-  { value: 'adaptive', label: 'Adaptive', desc: 'Based on your pace' },
-  { value: 'long', label: 'Long', desc: '4x speed' },
-]
-
-// Toggle functions
-const toggleSetting = (key) => {
-  settings.value[key] = !settings.value[key]
-}
-
-const setPauseDuration = (duration) => {
-  settings.value.pauseDuration = duration
-}
-
 // App info
 const appVersion = '1.0.0'
 const buildNumber = '2024.12.16'
@@ -174,117 +147,10 @@ const confirmReset = async () => {
 
     <!-- Main Content -->
     <main class="main">
-      <!-- Learning Section -->
-      <section class="section">
-        <h3 class="section-title">Learning</h3>
-        <div class="card">
-          <div class="setting-row clickable" @click="toggleSetting('autoplayEnabled')">
-            <div class="setting-info">
-              <span class="setting-label">Auto-play</span>
-              <span class="setting-desc">Automatically continue to next phrase</span>
-            </div>
-            <div class="toggle" :class="{ active: settings.autoplayEnabled }">
-              <div class="toggle-thumb"></div>
-            </div>
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="setting-row">
-            <div class="setting-info">
-              <span class="setting-label">Pause Duration</span>
-              <span class="setting-desc">Time to speak before the answer</span>
-            </div>
-          </div>
-          <div class="pause-options">
-            <button
-              v-for="opt in pauseOptions"
-              :key="opt.value"
-              class="pause-option"
-              :class="{ active: settings.pauseDuration === opt.value }"
-              @click="setPauseDuration(opt.value)"
-            >
-              <span class="pause-label">{{ opt.label }}</span>
-              <span class="pause-desc">{{ opt.desc }}</span>
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <!-- Audio Section -->
-      <section class="section">
-        <h3 class="section-title">Audio & Feedback</h3>
-        <div class="card">
-          <div class="setting-row clickable" @click="toggleSetting('soundEffects')">
-            <div class="setting-info">
-              <span class="setting-label">Sound Effects</span>
-              <span class="setting-desc">UI sounds and celebrations</span>
-            </div>
-            <div class="toggle" :class="{ active: settings.soundEffects }">
-              <div class="toggle-thumb"></div>
-            </div>
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="setting-row clickable" @click="toggleSetting('hapticFeedback')">
-            <div class="setting-info">
-              <span class="setting-label">Haptic Feedback</span>
-              <span class="setting-desc">Vibration on interactions</span>
-            </div>
-            <div class="toggle" :class="{ active: settings.hapticFeedback }">
-              <div class="toggle-thumb"></div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Notifications Section -->
-      <section class="section">
-        <h3 class="section-title">Notifications</h3>
-        <div class="card">
-          <div class="setting-row clickable" @click="toggleSetting('notificationsEnabled')">
-            <div class="setting-info">
-              <span class="setting-label">Push Notifications</span>
-              <span class="setting-desc">Daily reminders</span>
-            </div>
-            <div class="toggle" :class="{ active: settings.notificationsEnabled }">
-              <div class="toggle-thumb"></div>
-            </div>
-          </div>
-
-          <template v-if="settings.notificationsEnabled">
-            <div class="divider"></div>
-
-            <div class="setting-row">
-              <div class="setting-info">
-                <span class="setting-label">Daily Reminder</span>
-                <span class="setting-desc">{{ settings.dailyReminder }}</span>
-              </div>
-              <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 18l6-6-6-6"/>
-              </svg>
-            </div>
-          </template>
-        </div>
-      </section>
-
       <!-- Account Section -->
       <section class="section">
         <h3 class="section-title">Account</h3>
         <div class="card">
-          <div class="setting-row clickable">
-            <div class="setting-info">
-              <span class="setting-label">Download Progress</span>
-              <span class="setting-desc">Export your learning data</span>
-            </div>
-            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 18l6-6-6-6"/>
-            </svg>
-          </div>
-
-          <div class="divider"></div>
-
           <div class="setting-row clickable danger" @click="handleResetClick">
             <div class="setting-info">
               <span class="setting-label">Reset Progress</span>
@@ -306,39 +172,6 @@ const confirmReset = async () => {
               <span class="setting-label">Version</span>
             </div>
             <span class="setting-value">{{ appVersion }} ({{ buildNumber }})</span>
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="setting-row clickable">
-            <div class="setting-info">
-              <span class="setting-label">Terms of Service</span>
-            </div>
-            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 18l6-6-6-6"/>
-            </svg>
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="setting-row clickable">
-            <div class="setting-info">
-              <span class="setting-label">Privacy Policy</span>
-            </div>
-            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 18l6-6-6-6"/>
-            </svg>
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="setting-row clickable">
-            <div class="setting-info">
-              <span class="setting-label">Send Feedback</span>
-            </div>
-            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 18l6-6-6-6"/>
-            </svg>
           </div>
         </div>
       </section>
@@ -502,82 +335,6 @@ const confirmReset = async () => {
   flex-shrink: 0;
 }
 
-/* Toggle */
-.toggle {
-  width: 48px;
-  height: 28px;
-  background: var(--bg-elevated);
-  border-radius: 100px;
-  position: relative;
-  cursor: pointer;
-  transition: background 0.3s ease;
-  flex-shrink: 0;
-}
-
-.toggle.active {
-  background: var(--accent);
-}
-
-.toggle-thumb {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 22px;
-  height: 22px;
-  background: white;
-  border-radius: 50%;
-  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.toggle.active .toggle-thumb {
-  transform: translateX(20px);
-}
-
-/* Pause Options */
-.pause-options {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0.5rem;
-  padding: 0 1rem 1rem;
-}
-
-.pause-option {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.875rem;
-  background: var(--bg-elevated);
-  border: 2px solid transparent;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.pause-option:hover {
-  background: var(--bg-card);
-}
-
-.pause-option.active {
-  border-color: var(--gold);
-  background: var(--gold-glow);
-}
-
-.pause-label {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-.pause-option.active .pause-label {
-  color: var(--gold);
-}
-
-.pause-desc {
-  font-size: 0.6875rem;
-  color: var(--text-muted);
-}
-
 /* Brand Footer */
 .brand-footer {
   text-align: center;
@@ -726,25 +483,12 @@ const confirmReset = async () => {
   .setting-row {
     padding: 0.875rem 1rem;
   }
-
-  .pause-options {
-    gap: 0.375rem;
-    padding: 0 0.75rem 0.75rem;
-  }
-
-  .pause-option {
-    padding: 0.75rem;
-  }
 }
 
 @media (min-width: 768px) {
   .main {
     max-width: 600px;
     margin: 0 auto;
-  }
-
-  .pause-options {
-    grid-template-columns: repeat(4, 1fr);
   }
 }
 </style>
