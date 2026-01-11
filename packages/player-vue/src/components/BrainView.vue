@@ -263,7 +263,7 @@ async function playPhrase(phrase: PhraseWithPath) {
     // Use target2 (Voice 2) as that's the "reveal" voice in the learning cycle
     const { data: phraseData, error: err } = await supabase.value
       .from('practice_cycles')
-      .select('target1_s3_key, target2_s3_key, target2_duration')
+      .select('target1_s3_key, target2_s3_key')
       .eq('course_code', courseCode.value)
       .eq('target_text', phrase.targetText)
       .limit(1)
@@ -281,11 +281,11 @@ async function playPhrase(phrase: PhraseWithPath) {
         const audioUrl = `${AUDIO_S3_BASE_URL}/${s3Key}`
         console.log('[BrainView] Playing phrase:', phrase.targetText, audioUrl)
 
-        // Get duration from database or estimate (2s default)
-        const audioDuration = phraseData.target2_duration || 2000
+        // Estimate duration based on phrase length (~100ms per character, min 1.5s, max 4s)
+        const estimatedDuration = Math.min(4000, Math.max(1500, phrase.targetText.length * 100))
 
         // Start fire path animation
-        animateFirePath(phrase.legoPath, audioDuration)
+        animateFirePath(phrase.legoPath, estimatedDuration)
 
         // Play the audio
         await audioController.value.play(audioUrl)
