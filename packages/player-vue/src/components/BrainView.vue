@@ -101,7 +101,7 @@ const error = ref<string | null>(null)
 const prebuiltNetwork = usePrebuiltNetwork()
 
 // Network data from database (for connections AND phrases)
-const { loadNetworkData, networkData, getEternalPhrasesForLego } = useLegoNetwork(supabase as any)
+const { loadNetworkData, networkData, getEternalPhrasesForLego, getLegoConnections } = useLegoNetwork(supabase as any)
 
 // All rounds loaded from script
 const allRounds = ref<any[]>([])
@@ -124,6 +124,9 @@ const isPlayingAudio = ref(false)
 const isPracticingPhrases = ref(false)
 const currentPhraseIndex = ref(0)
 const currentPracticingPhrase = ref<PhraseWithPath | null>(null)
+
+// Connection data for selected node
+const selectedNodeConnections = ref<{ followsFrom: { legoId: string; count: number }[]; leadsTo: { legoId: string; count: number }[] }>({ followsFrom: [], leadsTo: [] })
 
 // Audio
 const audioController = ref<TargetAudioController | null>(null)
@@ -155,6 +158,30 @@ const visibleCount = computed(() => Math.min(sliderValue.value, allRounds.value.
 
 // Course code
 const courseCode = computed(() => props.course?.course_code || '')
+
+// Global stats from network data
+const globalStats = computed(() => {
+  if (!networkData.value) return { phrases: 0, concepts: 0, connections: 0 }
+  return {
+    phrases: networkData.value.stats.totalPhrases,
+    concepts: networkData.value.stats.totalLegos,
+    connections: networkData.value.stats.uniqueConnections
+  }
+})
+
+// Helper to look up LEGO text by ID
+function getLegoText(legoId: string): string {
+  if (!networkData.value) return legoId
+  const node = networkData.value.nodes.find(n => n.id === legoId)
+  return node?.targetText || legoId
+}
+
+// Selected node's phrase count (how many phrases use this LEGO)
+const selectedNodePhraseCount = computed(() => {
+  if (!selectedNode.value || !networkData.value) return 0
+  const phrases = networkData.value.phrasesByLego.get(selectedNode.value.id)
+  return phrases?.length || 0
+})
 
 // ============================================================================
 // METHODS
@@ -195,7 +222,10 @@ function handleNodeTap(node: ConstellationNode) {
   isPracticingPhrases.value = false
   currentPracticingPhrase.value = null
 
-  console.log('[BrainView] Selected node:', node.id, 'phrases:', selectedNodePhrases.value.length)
+  // Load connection data (what precedes/follows this LEGO)
+  selectedNodeConnections.value = getLegoConnections(node.id)
+
+  console.log('[BrainView] Selected node:', node.id, 'phrases:', selectedNodePhrases.value.length, 'connections:', selectedNodeConnections.value)
 }
 
 /**
@@ -454,9 +484,17 @@ onUnmounted(() => {
       </svg>
     </button>
 
-    <!-- LEGO count badge -->
-    <div class="lego-count-badge" :style="{ borderColor: accentColor }">
-      {{ visibleCount }} LEGOs
+    <!-- Stats badge -->
+    <div class="stats-badge" :style="{ borderColor: accentColor }">
+      <span class="stat-item">
+        <span class="stat-value">{{ visibleCount }}</span>
+        <span class="stat-label">concepts</span>
+      </span>
+      <span class="stat-divider">·</span>
+      <span class="stat-item">
+        <span class="stat-value">{{ globalStats.phrases.toLocaleString() }}</span>
+        <span class="stat-label">phrases</span>
+      </span>
     </div>
 
     <!-- Loading state -->
@@ -538,6 +576,42 @@ onUnmounted(() => {
             <span class="phrase-target">{{ selectedNode.targetText }}</span>
           </div>
           <span class="phrase-known">{{ selectedNode.knownText }}</span>
+          <span class="phrase-usage">Used in {{ selectedNodePhraseCount }} phrases</span>
+        </div>
+
+        <!-- Connections: What typically precedes/follows this LEGO -->
+        <div v-if="selectedNodeConnections.followsFrom.length > 0 || selectedNodeConnections.leadsTo.length > 0" class="panel-connections">
+          <!-- Leads to (what follows) -->
+          <div v-if="selectedNodeConnections.leadsTo.length > 0" class="connection-group">
+            <span class="connection-label">Often followed by</span>
+            <div class="connection-list">
+              <span
+                v-for="conn in selectedNodeConnections.leadsTo.slice(0, 5)"
+                :key="conn.legoId"
+                class="connection-chip"
+                :title="`${conn.count} times`"
+              >
+                {{ getLegoText(conn.legoId) }}
+                <span class="connection-count">{{ conn.count }}</span>
+              </span>
+            </div>
+          </div>
+
+          <!-- Follows from (what precedes) -->
+          <div v-if="selectedNodeConnections.followsFrom.length > 0" class="connection-group">
+            <span class="connection-label">Often preceded by</span>
+            <div class="connection-list">
+              <span
+                v-for="conn in selectedNodeConnections.followsFrom.slice(0, 5)"
+                :key="conn.legoId"
+                class="connection-chip"
+                :title="`${conn.count} times`"
+              >
+                {{ getLegoText(conn.legoId) }}
+                <span class="connection-count">{{ conn.count }}</span>
+              </span>
+            </div>
+          </div>
         </div>
 
         <!-- Phrases containing this LEGO -->
@@ -623,18 +697,40 @@ onUnmounted(() => {
   height: 20px;
 }
 
-.lego-count-badge {
+.stats-badge {
   position: absolute;
   top: calc(16px + env(safe-area-inset-top, 0px));
   right: 16px;
   z-index: 20;
   padding: 8px 16px;
-  background: #0a0a0f;
+  background: rgba(10, 10, 15, 0.9);
+  backdrop-filter: blur(10px);
   border: 1px solid;
   border-radius: 20px;
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 0.875rem;
-  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stats-badge .stat-item {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.stats-badge .stat-value {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.stats-badge .stat-label {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.stats-badge .stat-divider {
+  color: rgba(255, 255, 255, 0.3);
 }
 
 .loading-state,
@@ -843,6 +939,70 @@ onUnmounted(() => {
 .phrase-known {
   color: rgba(255, 255, 255, 0.5);
   font-size: 0.875rem;
+}
+
+.phrase-usage {
+  display: block;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.75rem;
+}
+
+/* Connection data */
+.panel-connections {
+  margin-top: 16px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.connection-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.connection-label {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.connection-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.connection-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  font-size: 0.8125rem;
+  color: rgba(255, 255, 255, 0.85);
+  cursor: default;
+  transition: background 0.2s ease;
+}
+
+.connection-chip:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.connection-count {
+  font-size: 0.6875rem;
+  color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.1);
+  padding: 1px 5px;
+  border-radius: 6px;
 }
 
 .panel-phrases {
