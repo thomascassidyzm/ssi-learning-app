@@ -1162,6 +1162,15 @@ const showTargetText = computed(() =>
   currentPhase.value === Phase.VOICE_2 && !isTransitioningItem.value
 )
 
+// Stable target text - only updates when text is NOT showing (prevents flash on phrase change)
+const displayedTargetText = ref('')
+watch([showTargetText, () => currentPhrase.value.target], ([showing, newTarget]) => {
+  // Only update displayed text when it's hidden OR when first showing
+  if (!showing || !displayedTargetText.value) {
+    displayedTargetText.value = newTarget
+  }
+}, { immediate: true })
+
 // Is current item an intro? (network should fade, show typewriter message)
 // NOTE: Only 'intro' items show typewriter. 'debut' items (lego_itself) show normal phrase display.
 const isIntroPhase = computed(() => {
@@ -3814,8 +3823,8 @@ onUnmounted(() => {
           <!-- Target text floats below (only visible in Voice 2) -->
           <div class="hero-text-target">
             <transition name="text-reveal" mode="out-in">
-              <p v-if="showTargetText" class="hero-target" :key="currentPhrase.target">
-                {{ currentPhrase.target }}
+              <p v-if="showTargetText" class="hero-target" :key="displayedTargetText">
+                {{ displayedTargetText }}
               </p>
               <p v-else class="hero-target-placeholder" key="placeholder">&nbsp;</p>
             </transition>
@@ -3975,8 +3984,8 @@ onUnmounted(() => {
         <!-- Target Language Text - always visible area with highlight strip -->
         <div class="pane-text-target" :class="{ 'has-text': showTargetText }">
           <transition name="text-reveal" mode="out-in">
-            <p v-if="showTargetText" class="target-text" :key="currentPhrase.target">
-              {{ currentPhrase.target }}
+            <p v-if="showTargetText" class="target-text" :key="displayedTargetText">
+              {{ displayedTargetText }}
             </p>
             <p v-else class="target-placeholder" key="placeholder">···</p>
           </transition>
