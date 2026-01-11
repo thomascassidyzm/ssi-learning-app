@@ -129,6 +129,9 @@ const currentPracticingPhrase = ref<PhraseWithPath | null>(null)
 const audioController = ref<TargetAudioController | null>(null)
 let phrasePracticeTimer: ReturnType<typeof setTimeout> | null = null
 
+// Path animation timers
+let pathAnimationTimers: ReturnType<typeof setTimeout>[] = []
+
 // ============================================================================
 // COMPUTED
 // ============================================================================
@@ -202,12 +205,44 @@ function closePanel() {
   isPanelOpen.value = false
   selectedNode.value = null
   stopPhrasePractice()
+  clearPathAnimation()
   selectedNodePhrases.value = []
   prebuiltNetwork.clearHighlightPath()
 }
 
 /**
- * Play target audio for a phrase
+ * Clear path animation timers
+ */
+function clearPathAnimation() {
+  pathAnimationTimers.forEach(t => clearTimeout(t))
+  pathAnimationTimers = []
+}
+
+/**
+ * Animate the fire path - stepping through nodes synchronized with audio
+ */
+function animateFirePath(legoIds: string[], audioDurationMs: number) {
+  clearPathAnimation()
+
+  if (!legoIds || legoIds.length === 0) return
+
+  // Set up the path (starts with activeIndex -1)
+  prebuiltNetwork.setHighlightPath(legoIds)
+
+  // Calculate step duration - spread nodes across audio
+  const stepDuration = Math.max(150, audioDurationMs / legoIds.length)
+
+  // Animate through each node
+  for (let i = 0; i < legoIds.length; i++) {
+    const timer = setTimeout(() => {
+      prebuiltNetwork.setPathActiveIndex(i)
+    }, i * stepDuration)
+    pathAnimationTimers.push(timer)
+  }
+}
+
+/**
+ * Play target audio for a phrase with fire path animation
  */
 async function playPhrase(phrase: PhraseWithPath) {
   if (!phrase || !supabase?.value || !courseCode.value) return
@@ -215,8 +250,8 @@ async function playPhrase(phrase: PhraseWithPath) {
   currentPracticingPhrase.value = phrase
   isPlayingAudio.value = true
 
-  // Highlight the path in the network
-  prebuiltNetwork.setHighlightPath(phrase.legoPath)
+  // Clear any existing animation
+  clearPathAnimation()
 
   try {
     // Initialize audio controller if needed
@@ -228,7 +263,7 @@ async function playPhrase(phrase: PhraseWithPath) {
     // Use target2 (Voice 2) as that's the "reveal" voice in the learning cycle
     const { data: phraseData, error: err } = await supabase.value
       .from('practice_cycles')
-      .select('target1_s3_key, target2_s3_key')
+      .select('target1_s3_key, target2_s3_key, target2_duration')
       .eq('course_code', courseCode.value)
       .eq('target_text', phrase.targetText)
       .limit(1)
@@ -245,6 +280,14 @@ async function playPhrase(phrase: PhraseWithPath) {
       if (s3Key) {
         const audioUrl = `${AUDIO_S3_BASE_URL}/${s3Key}`
         console.log('[BrainView] Playing phrase:', phrase.targetText, audioUrl)
+
+        // Get duration from database or estimate (2s default)
+        const audioDuration = phraseData.target2_duration || 2000
+
+        // Start fire path animation
+        animateFirePath(phrase.legoPath, audioDuration)
+
+        // Play the audio
         await audioController.value.play(audioUrl)
       }
     }
@@ -300,6 +343,9 @@ function stopPhrasePractice() {
     clearTimeout(phrasePracticeTimer)
     phrasePracticeTimer = null
   }
+
+  // Clear path animation
+  clearPathAnimation()
 
   if (audioController.value) {
     audioController.value.stop()
@@ -395,6 +441,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   stopPhrasePractice()
+  clearPathAnimation()
 })
 </script>
 
