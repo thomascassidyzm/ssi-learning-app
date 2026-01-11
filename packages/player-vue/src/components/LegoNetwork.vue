@@ -830,10 +830,18 @@ const updateEdgeThickness = () => {
 }
 
 /**
- * Normalize text for matching (lowercase, trim, single spaces)
+ * Normalize text for matching
+ * Strips accents, removes punctuation, normalizes whitespace
  */
 const normalizeText = (text) => {
-  return text?.toLowerCase().trim().replace(/\s+/g, ' ') || ''
+  if (!text) return ''
+  return text
+    .toLowerCase()
+    .normalize('NFD')                    // Decompose accented characters
+    .replace(/[\u0300-\u036f]/g, '')     // Remove accent marks
+    .replace(/[¿¡.,;:!?'"«»""'']/g, '')  // Remove punctuation
+    .trim()
+    .replace(/\s+/g, ' ')                // Normalize whitespace
 }
 
 /**
@@ -884,14 +892,14 @@ const findResonantLegos = (phraseText, pathLegoIds) => {
 
   const pathSet = new Set(pathLegoIds)
   const phraseWords = new Set(
-    phraseText.toLowerCase().trim().split(/\s+/).filter(w => w.length > 2)
+    normalizeText(phraseText).split(/\s+/).filter(w => w.length > 2)
   )
   const resonant = new Set()
 
   for (const node of nodes.value) {
     if (pathSet.has(node.id)) continue // Skip nodes in path
 
-    const nodeWords = (node.targetText || '').toLowerCase().trim().split(/\s+/)
+    const nodeWords = normalizeText(node.targetText || '').split(/\s+/)
     const hasOverlap = nodeWords.some(word => phraseWords.has(word))
     if (hasOverlap) {
       resonant.add(node.id)

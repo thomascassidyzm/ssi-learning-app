@@ -76,6 +76,19 @@ const CLUSTERING = {
                                 // 0.3 = very gradual, 0.5 = square root, 1 = linear
 }
 
+// Normalize text for matching
+// Strips accents, removes punctuation, normalizes whitespace
+function normalizeText(text: string): string {
+  if (!text) return ''
+  return text
+    .toLowerCase()
+    .normalize('NFD')                    // Decompose accented characters
+    .replace(/[\u0300-\u036f]/g, '')     // Remove accent marks
+    .replace(/[¿¡.,;:!?'"«»""'']/g, '')  // Remove punctuation
+    .trim()
+    .replace(/\s+/g, ' ')                // Normalize whitespace
+}
+
 // Belt thresholds - at which LEGO index each belt begins
 // This determines what color a node has based on when it was introduced
 const BELT_THRESHOLDS = [
@@ -523,7 +536,7 @@ export function useDistinctionNetwork() {
 
       // Store normalized text for co-occurrence matching (even for existing nodes)
       // This is needed for edge detection later
-      legoTexts.set(round.legoId, targetText.toLowerCase())
+      legoTexts.set(round.legoId, normalizeText(targetText))
 
       // Skip adding node if already exists
       if (nodeMap.value.has(round.legoId)) continue
@@ -580,7 +593,7 @@ export function useDistinctionNetwork() {
         // Skip intro/debut items - they only have one LEGO
         if (item.type === 'intro' || item.type === 'debut') continue
 
-        const phraseText = item.targetText?.toLowerCase()
+        const phraseText = normalizeText(item.targetText || '')
         if (!phraseText) continue
 
         itemsChecked++

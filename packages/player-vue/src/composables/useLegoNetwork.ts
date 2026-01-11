@@ -51,8 +51,16 @@ export interface NetworkData {
 }
 
 // Normalize text for matching
+// Strips accents, removes punctuation, normalizes whitespace
 function normalize(text: string): string {
-  return text?.toLowerCase().trim().replace(/\s+/g, ' ') || ''
+  if (!text) return ''
+  return text
+    .toLowerCase()
+    .normalize('NFD')                    // Decompose accented characters
+    .replace(/[\u0300-\u036f]/g, '')     // Remove accent marks
+    .replace(/[¿¡.,;:!?'"«»""'']/g, '')  // Remove punctuation
+    .trim()
+    .replace(/\s+/g, ' ')                // Normalize whitespace
 }
 
 // Greedy decomposition - find longest matching LEGO at each position
