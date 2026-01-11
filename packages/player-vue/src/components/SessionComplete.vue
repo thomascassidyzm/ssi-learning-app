@@ -42,6 +42,11 @@ const seedsToNextBelt = computed(() => {
   return props.nextBelt.seedsRequired - props.completedSeeds
 })
 
+// Progress percentage within current belt tier
+const progressPercent = computed(() => {
+  return Math.round(props.beltProgress)
+})
+
 // Encouragement based on progress
 const encouragement = computed(() => {
   if (props.itemsPracticed === 0) return 'Ready when you are'
@@ -89,32 +94,51 @@ const handleDismiss = () => {
 
     <!-- Simple summary -->
     <div class="summary-content">
-      <!-- Belt badge - prominent -->
-      <div class="belt-display">
-        <div class="belt-knot-large">
-          <svg viewBox="0 0 64 32" class="belt-svg">
-            <rect x="0" y="10" width="64" height="12" rx="2" class="belt-fabric"/>
-            <circle cx="32" cy="16" r="8" class="belt-knot-center"/>
-            <path d="M24 16 L16 28 L12 28" class="belt-tail"/>
-            <path d="M40 16 L48 28 L52 28" class="belt-tail"/>
+      <!-- Circular progress with belt knot center -->
+      <div class="belt-progress-ring">
+        <svg viewBox="0 0 120 120" class="progress-ring-svg">
+          <!-- Background ring -->
+          <circle
+            cx="60" cy="60" r="52"
+            fill="none"
+            stroke="rgba(255,255,255,0.1)"
+            stroke-width="8"
+          />
+          <!-- Progress ring -->
+          <circle
+            cx="60" cy="60" r="52"
+            fill="none"
+            :stroke="currentBelt.color"
+            stroke-width="8"
+            stroke-linecap="round"
+            :stroke-dasharray="327"
+            :stroke-dashoffset="327 - (327 * beltProgress / 100)"
+            transform="rotate(-90 60 60)"
+            class="progress-ring-fill"
+          />
+        </svg>
+        <!-- Belt knot in center -->
+        <div class="belt-knot-center-icon">
+          <svg viewBox="0 0 48 28" class="belt-knot-svg">
+            <rect x="0" y="8" width="48" height="12" rx="2" :fill="currentBelt.color"/>
+            <circle cx="24" cy="14" r="7" :fill="currentBelt.colorDark"/>
+            <circle cx="24" cy="14" r="4" :fill="currentBelt.color"/>
+            <path d="M18 14 L12 24 L8 24" :stroke="currentBelt.color" stroke-width="3" fill="none" stroke-linecap="round"/>
+            <path d="M30 14 L36 24 L40 24" :stroke="currentBelt.color" stroke-width="3" fill="none" stroke-linecap="round"/>
           </svg>
-        </div>
-        <div class="belt-info">
-          <span class="belt-name">{{ currentBelt.name }} belt</span>
-          <span class="seed-count">{{ completedSeeds }} seeds</span>
         </div>
       </div>
 
-      <!-- Progress to next belt -->
-      <div class="progress-section" v-if="nextBelt">
-        <div class="progress-track">
-          <div class="progress-fill" :style="{ width: `${beltProgress}%` }"></div>
-        </div>
-        <span class="progress-label">{{ seedsToNextBelt }} seeds to {{ nextBelt.name }}</span>
-        <span class="time-estimate" v-if="timeToNextBelt">{{ timeToNextBelt }}</span>
+      <!-- Belt name and progress -->
+      <div class="belt-info">
+        <span class="belt-name">{{ currentBelt.name }} Belt</span>
+        <span class="belt-progress-text" v-if="nextBelt">{{ progressPercent }}% to {{ nextBelt.name }}</span>
+        <span class="belt-progress-text belt-progress-text--mastery" v-else>Mastery achieved</span>
       </div>
-      <div class="progress-section" v-else>
-        <span class="progress-label progress-label--mastery">Mastery achieved</span>
+
+      <!-- Time estimate - prominent -->
+      <div class="time-to-next" v-if="nextBelt && timeToNextBelt">
+        <span class="time-estimate-label">{{ timeToNextBelt }}</span>
       </div>
 
       <!-- Belt journey visualization -->
@@ -203,40 +227,39 @@ const handleDismiss = () => {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Belt Display */
-.belt-display {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
+/* Circular Progress Ring */
+.belt-progress-ring {
+  position: relative;
+  width: 120px;
+  height: 120px;
 }
 
-.belt-knot-large {
-  width: 80px;
-  height: 40px;
-}
-
-.belt-svg {
+.progress-ring-svg {
   width: 100%;
   height: 100%;
+  filter: drop-shadow(0 0 12px var(--belt-glow));
 }
 
-.belt-fabric {
-  fill: var(--belt-color);
+.progress-ring-fill {
+  transition: stroke-dashoffset 0.8s ease;
+}
+
+.belt-knot-center-icon {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 56px;
+  height: 32px;
+}
+
+.belt-knot-svg {
+  width: 100%;
+  height: 100%;
   filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
 }
 
-.belt-knot-center {
-  fill: var(--belt-color-dark);
-}
-
-.belt-tail {
-  stroke: var(--belt-color);
-  stroke-width: 3;
-  stroke-linecap: round;
-  fill: none;
-}
-
+/* Belt Info */
 .belt-info {
   display: flex;
   flex-direction: column;
@@ -245,55 +268,32 @@ const handleDismiss = () => {
 }
 
 .belt-name {
-  font-size: 1.25rem;
+  font-size: 1.5rem;
   font-weight: 600;
   color: var(--text-primary);
-  text-transform: capitalize;
 }
 
-.seed-count {
-  font-size: 0.875rem;
+.belt-progress-text {
+  font-size: 1rem;
   color: var(--belt-color);
-  font-family: 'Space Mono', monospace;
+  font-weight: 500;
 }
 
-/* Progress */
-.progress-section {
-  width: 200px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.progress-track {
-  width: 100%;
-  height: 6px;
-  background: var(--bg-elevated);
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--belt-color) 0%, var(--belt-color-dark) 100%);
-  border-radius: 3px;
-  transition: width 0.8s ease;
-  box-shadow: 0 0 8px var(--belt-glow);
-}
-
-.progress-label {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-}
-
-.progress-label--mastery {
+.belt-progress-text--mastery {
   color: var(--gold);
 }
 
-.time-estimate {
-  font-size: 0.6875rem;
-  color: var(--text-muted);
+/* Time Estimate */
+.time-to-next {
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.time-estimate-label {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
   font-style: italic;
 }
 
