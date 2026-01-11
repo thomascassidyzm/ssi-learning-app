@@ -1257,6 +1257,7 @@ class RealAudioController {
     this.preloadedUrls = new Set()
     this.skipNextNotify = false  // Set true to skip orchestrator callbacks (for intro/welcome)
     this.suppressAllCallbacks = false  // Set true during skip to prevent any audio callbacks
+    this.playGeneration = 0  // Incremented on stop() to invalidate pending callbacks
   }
 
   async play(audioRef) {
@@ -1270,6 +1271,9 @@ class RealAudioController {
       return Promise.resolve()
     }
 
+    // Capture generation at start of this play - if it changes, this play was cancelled
+    const playGen = this.playGeneration || 0
+
     return new Promise((resolve) => {
       // Audio element is created in constructor for mobile compatibility
 
@@ -1277,7 +1281,10 @@ class RealAudioController {
         this.audio?.removeEventListener('ended', onEnded)
         this.audio?.removeEventListener('error', onError)
         this.currentCleanup = null
-        this._notifyEnded()
+        // Only notify if this play wasn't cancelled by a subsequent stop()
+        if (this.playGeneration === playGen) {
+          this._notifyEnded()
+        }
         resolve()
       }
 
@@ -1286,8 +1293,10 @@ class RealAudioController {
         this.audio?.removeEventListener('ended', onEnded)
         this.audio?.removeEventListener('error', onError)
         this.currentCleanup = null
-        // On error, still notify so cycle can continue
-        this._notifyEnded()
+        // Only notify if this play wasn't cancelled
+        if (this.playGeneration === playGen) {
+          this._notifyEnded()
+        }
         resolve()
       }
 
@@ -1358,6 +1367,9 @@ class RealAudioController {
   }
 
   stop() {
+    // Increment generation to invalidate any pending play callbacks
+    this.playGeneration = (this.playGeneration || 0) + 1
+
     if (this.currentCleanup) {
       this.currentCleanup()
       this.currentCleanup = null
@@ -1365,6 +1377,10 @@ class RealAudioController {
     if (this.audio) {
       this.audio.pause()
       this.audio.currentTime = 0
+      // Clear src to prevent any cached audio from playing
+      // Use empty data URI to avoid network requests while clearing
+      this.audio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA='
+      this.audio.load()
       // Don't null the audio element - reuse it for mobile compatibility
     }
   }
