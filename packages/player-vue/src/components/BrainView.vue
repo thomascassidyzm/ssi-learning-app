@@ -590,7 +590,7 @@ onUnmounted(() => {
   position: fixed;
   inset: 0;
   background: linear-gradient(180deg, #0a0a0f 0%, #0f0f18 50%, #12121a 100%);
-  z-index: 100;
+  z-index: 200;
   overflow: hidden;
 }
 
