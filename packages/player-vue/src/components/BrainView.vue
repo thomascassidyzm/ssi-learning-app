@@ -101,7 +101,7 @@ const error = ref<string | null>(null)
 const prebuiltNetwork = usePrebuiltNetwork()
 
 // Network data from database (for connections AND phrases)
-const { loadNetworkData, networkData, getPhrasesForLego } = useLegoNetwork(supabase as any)
+const { loadNetworkData, networkData, getEternalPhrasesForLego } = useLegoNetwork(supabase as any)
 
 // All rounds loaded from script
 const allRounds = ref<any[]>([])
@@ -189,8 +189,8 @@ function handleNodeTap(node: ConstellationNode) {
   selectedNode.value = node
   isPanelOpen.value = true
 
-  // Load phrases for this LEGO (limit to 5 eternal-style phrases)
-  selectedNodePhrases.value = getPhrasesForLego(node.id, 5)
+  // Load eternal phrases for this LEGO (5 longest by duration)
+  selectedNodePhrases.value = getEternalPhrasesForLego(node.id)
   currentPhraseIndex.value = 0
   isPracticingPhrases.value = false
   currentPracticingPhrase.value = null

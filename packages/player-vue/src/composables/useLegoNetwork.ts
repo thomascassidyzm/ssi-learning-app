@@ -34,6 +34,7 @@ export interface PhraseWithPath {
   id: string
   targetText: string
   legoPath: string[] // Ordered list of LEGO IDs that compose this phrase
+  durationMs?: number // Audio duration for sorting eternal/debut phrases
 }
 
 export interface NetworkData {
@@ -156,15 +157,15 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
 
       console.log(`[useLegoNetwork] Loaded ${nodes.length} LEGOs`)
 
-      // Load all phrases for the course (paginate to get beyond 1000 row limit)
-      let allPhrases: { id: string; target_text: string }[] = []
+      // Load all phrases from practice_cycles (has duration data for eternal/debut sorting)
+      let allPhrases: { id: string; target_text: string; target1_duration_ms: number | null }[] = []
       let offset = 0
       const pageSize = 1000
 
       while (true) {
         const { data: phrasePage, error: phraseError } = await supabase.value
-          .from('course_practice_phrases')
-          .select('id, target_text')
+          .from('practice_cycles')
+          .select('id, target_text, target1_duration_ms')
           .eq('course_code', courseCode)
           .range(offset, offset + pageSize - 1)
 
@@ -202,6 +203,7 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
             id: phrase.id,
             targetText: phrase.target_text,
             legoPath: legoIds,
+            durationMs: phrase.target1_duration_ms || undefined,
           }
           phrasesWithPath.push(phraseWithPath)
 
@@ -306,6 +308,29 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
       .slice(0, limit)
   }
 
+  /**
+   * Get eternal phrases for a LEGO - the 5 longest by audio duration
+   * These are used for spaced repetition practice
+   */
+  function getEternalPhrasesForLego(legoId: string): PhraseWithPath[] {
+    if (!networkData.value) return []
+
+    const phrases = networkData.value.phrasesByLego.get(legoId) || []
+
+    // Sort by duration descending (longest first), then by path length as tiebreaker
+    return [...phrases]
+      .sort((a, b) => {
+        const durA = a.durationMs || 0
+        const durB = b.durationMs || 0
+        if (durA !== durB) {
+          return durB - durA // Longest first
+        }
+        // Tiebreaker: more LEGOs = longer phrase
+        return b.legoPath.length - a.legoPath.length
+      })
+      .slice(0, 5) // Eternal = 5 longest
+  }
+
   return {
     isLoading,
     error,
@@ -313,5 +338,6 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
     loadNetworkData,
     getLegoConnections,
     getPhrasesForLego,
+    getEternalPhrasesForLego,
   }
 }
