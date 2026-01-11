@@ -3916,18 +3916,30 @@ onUnmounted(() => {
         <span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span>
       </div>
 
-      <!-- Belt Progress Bar - Visual fill toward next belt -->
-      <div class="belt-progress-bar" :title="!nextBelt ? 'Black belt achieved!' : timeToNextBelt.includes('Keep') ? `Working toward ${nextBelt.name} belt` : `${timeToNextBelt} to ${nextBelt.name} belt`">
-        <div class="belt-bar-track">
-          <div
-            class="belt-bar-fill"
-            :style="{ width: `${beltProgressPercent}%` }"
-          ></div>
-        </div>
-        <div class="belt-bar-knot">
-          <svg viewBox="0 0 20 20" class="belt-knot-svg">
-            <circle cx="10" cy="10" r="8" class="knot-outer"/>
-            <circle cx="10" cy="10" r="4" class="knot-inner"/>
+      <!-- Belt Progress Ring - Mini circular progress -->
+      <div class="belt-progress-ring-mini" :title="!nextBelt ? 'Black belt achieved!' : timeToNextBelt.includes('Keep') ? `Working toward ${nextBelt.name} belt` : `${timeToNextBelt} to ${nextBelt.name} belt`">
+        <svg viewBox="0 0 36 36" class="belt-ring-svg">
+          <!-- Background ring -->
+          <circle cx="18" cy="18" r="15" fill="none" stroke="var(--bg-card)" stroke-width="3"/>
+          <!-- Progress ring -->
+          <circle
+            cx="18" cy="18" r="15"
+            fill="none"
+            stroke="var(--belt-color)"
+            stroke-width="3"
+            stroke-linecap="round"
+            :stroke-dasharray="94.2"
+            :stroke-dashoffset="94.2 - (94.2 * beltProgressPercent / 100)"
+            transform="rotate(-90 18 18)"
+            class="belt-ring-fill"
+          />
+        </svg>
+        <!-- Belt knot in center -->
+        <div class="belt-knot-mini">
+          <svg viewBox="0 0 20 12" class="belt-knot-mini-svg">
+            <rect x="0" y="3" width="20" height="6" rx="1" fill="var(--belt-color)"/>
+            <circle cx="10" cy="6" r="4" fill="var(--belt-color-dark)"/>
+            <circle cx="10" cy="6" r="2" fill="var(--belt-color)"/>
           </svg>
         </div>
       </div>
@@ -4050,7 +4062,7 @@ onUnmounted(() => {
           <p class="belt-name" :style="{ color: beltJustEarned.color }">
             {{ beltJustEarned.name.charAt(0).toUpperCase() + beltJustEarned.name.slice(1) }} Belt
           </p>
-          <p class="belt-seeds">{{ completedSeeds }} seeds mastered</p>
+          <p class="belt-subtitle">Keep learning to reach the next level!</p>
 
           <button class="belt-continue-btn" @click="beltJustEarned = null">
             Continue
@@ -4628,61 +4640,37 @@ onUnmounted(() => {
   gap: 0.75rem;
 }
 
-/* ============ BELT PROGRESS BAR ============ */
-.belt-progress-bar {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  width: 140px;
+/* ============ BELT PROGRESS RING (MINI) ============ */
+.belt-progress-ring-mini {
+  position: relative;
+  width: 36px;
+  height: 36px;
   cursor: default;
 }
 
-.belt-bar-track {
-  flex: 1;
-  height: 8px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 4px 0 0 4px;
-  overflow: hidden;
-  position: relative;
-}
-
-.belt-bar-fill {
-  height: 100%;
-  background: var(--belt-color);
-  border-radius: 3px 0 0 3px;
-  transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1), background 0.5s ease;
-  box-shadow: 0 0 8px var(--belt-glow);
-  min-width: 2px; /* Always show a sliver */
-}
-
-.belt-bar-knot {
-  width: 24px;
-  height: 24px;
-  flex-shrink: 0;
-  margin-left: -2px;
-  z-index: 1;
-}
-
-.belt-knot-svg {
+.belt-ring-svg {
   width: 100%;
   height: 100%;
-  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.3));
+  filter: drop-shadow(0 0 4px var(--belt-glow));
 }
 
-.knot-outer {
-  fill: var(--belt-color);
-  transition: fill 0.5s ease;
+.belt-ring-fill {
+  transition: stroke-dashoffset 0.5s cubic-bezier(0.16, 1, 0.3, 1), stroke 0.5s ease;
 }
 
-.knot-inner {
-  fill: var(--belt-color-dark);
-  transition: fill 0.5s ease;
+.belt-knot-mini {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 12px;
 }
 
-/* Special styling for black belt - gold knot center */
-.belt-black .knot-inner {
-  fill: #d4a853;
+.belt-knot-mini-svg {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
 }
 
 /* ============ FULLSCREEN NETWORK LAYOUT ============ */
@@ -6311,12 +6299,8 @@ onUnmounted(() => {
     font-size: 1rem;
   }
 
-  .belt-progress-bar {
+  .belt-progress-ring-mini {
     order: 3;
-    width: 100%;
-    max-width: 200px;
-    justify-content: center;
-    margin-top: 0.25rem;
   }
 
   .header-right {
@@ -6633,7 +6617,7 @@ onUnmounted(() => {
   animation: belt-title-in 0.5s ease-out 0.4s both;
 }
 
-.belt-seeds {
+.belt-subtitle {
   color: var(--text-secondary, rgba(245, 245, 245, 0.7));
   font-size: 1rem;
   margin: 0;
