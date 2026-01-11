@@ -623,40 +623,7 @@ export function useDistinctionNetwork() {
 
     console.log(`[DistinctionNetwork] Edge detection: checked ${itemsChecked} items, found ${itemsWithMatches} with 2+ LEGOs`)
 
-    // Third pass: ensure every node has at least one connection (no isolated nodes)
-    // If a LEGO appears only in single-LEGO phrases, it would have no connections
-    // Connect it to the previous node in sequence
-    const connectedNodes = new Set<string>()
-    for (const edge of edges.value) {
-      connectedNodes.add(edge.source)
-      connectedNodes.add(edge.target)
-    }
-
-    let syntheticConnections = 0
-    for (let i = 0; i <= maxIndex; i++) {
-      const round = rounds[i]
-      if (!round?.legoId) continue
-
-      if (!connectedNodes.has(round.legoId) && i > 0) {
-        // This node has no connections - connect to previous node
-        // Find the previous node that exists
-        for (let j = i - 1; j >= 0; j--) {
-          const prevRound = rounds[j]
-          if (prevRound?.legoId && nodeMap.value.has(prevRound.legoId)) {
-            fireEdge(prevRound.legoId, round.legoId)
-            connectedNodes.add(round.legoId)
-            syntheticConnections++
-            break
-          }
-        }
-      }
-    }
-
-    if (syntheticConnections > 0) {
-      console.log(`[DistinctionNetwork] Added ${syntheticConnections} synthetic connections for isolated nodes`)
-    }
-
-    console.log(`[DistinctionNetwork] Populated ${nodes.value.length} nodes, ${edges.value.length} edges (phrase co-occurrence${syntheticConnections ? ` + ${syntheticConnections} synthetic` : ''})`)
+    console.log(`[DistinctionNetwork] Populated ${nodes.value.length} nodes, ${edges.value.length} edges (phrase co-occurrence)`)
   }
 
   /**

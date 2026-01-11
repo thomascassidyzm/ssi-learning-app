@@ -744,26 +744,6 @@ const addNextLego = () => {
     }
   }
 
-  // ENSURE: New node must have at least one connection (no isolated nodes)
-  const hasConnection = links.value.some(l => {
-    const sId = l.source?.id || l.source
-    const tId = l.target?.id || l.target
-    return sId === newNode.id || tId === newNode.id
-  })
-
-  if (!hasConnection && existingNodeIds.size > 0) {
-    // Connect to the most recently added node (previous in sequence)
-    const prevNode = nodes.value[nodes.value.length - 2]
-    if (prevNode) {
-      links.value.push({
-        source: prevNode.id,
-        target: newNode.id,
-        count: 1, // Weak synthetic connection
-      })
-      console.log('[LegoNetwork] Added synthetic connection:', prevNode.id, '→', newNode.id)
-    }
-  }
-
   // Increase mastery of existing nodes (simulated spaced repetition)
   nodes.value.forEach(n => {
     if (n.id !== newNode.id) {
@@ -1587,34 +1567,10 @@ const loadNetworkData = async () => {
               count: conn.count,
             }))
 
-          // Ensure every node has at least one connection (no isolated nodes)
-          // If a node has no connections, connect it to the previous node in order
-          const connectedNodes = new Set()
-          for (const link of links.value) {
-            connectedNodes.add(link.source)
-            connectedNodes.add(link.target)
-          }
-
-          let syntheticConnections = 0
-          for (let i = 0; i < nodes.value.length; i++) {
-            const node = nodes.value[i]
-            if (!connectedNodes.has(node.id) && i > 0) {
-              // This node has no connections - connect to previous node
-              const prevNode = nodes.value[i - 1]
-              links.value.push({
-                source: prevNode.id,
-                target: node.id,
-                count: 1, // Weak connection
-              })
-              connectedNodes.add(node.id)
-              syntheticConnections++
-            }
-          }
-
           totalPractices.value = nodes.value.reduce((sum, n) => sum + n.totalPractices, 0)
           currentRound.value = nodes.value.length
 
-          console.log('[LegoNetwork] Learner network ready:', nodes.value.length, 'nodes,', links.value.length, 'connections', syntheticConnections ? `(${syntheticConnections} synthetic)` : '')
+          console.log('[LegoNetwork] Learner network ready:', nodes.value.length, 'nodes,', links.value.length, 'connections')
         } else {
           // No LEGOs practiced yet - show empty state with simulation available
           console.log('[LegoNetwork] No LEGOs practiced yet, showing empty state')
