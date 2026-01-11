@@ -14,6 +14,7 @@ export interface LegoNode {
   legoIndex: number
   knownText: string
   targetText: string
+  durationMs: number // Audio duration - proxy for syllable count
   totalPractices: number
   usedInPhrases: number
   mastery: number
@@ -106,10 +107,10 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
     try {
       console.log(`[useLegoNetwork] Loading data for ${courseCode}`)
 
-      // Load all LEGOs for the course
+      // Load all LEGOs for the course (using lego_cycles view to get duration)
       const { data: legos, error: legoError } = await supabase.value
-        .from('course_legos')
-        .select('lego_id, seed_number, lego_index, known_text, target_text')
+        .from('lego_cycles')
+        .select('lego_id, seed_number, lego_index, known_text, target_text, target1_duration_ms')
         .eq('course_code', courseCode)
         .order('seed_number')
         .order('lego_index')
@@ -137,6 +138,7 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
           legoIndex: lego.lego_index,
           knownText: lego.known_text,
           targetText: lego.target_text,
+          durationMs: lego.target1_duration_ms || 500, // Default 500ms if missing
           totalPractices: 0,
           usedInPhrases: 0,
           mastery: 0,

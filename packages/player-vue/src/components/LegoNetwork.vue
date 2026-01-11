@@ -237,6 +237,16 @@ const VIZ_CONFIG = {
     fadeThreshold: 15,     // Nodes before atmosphere fades
     earlyStateMax: 5,      // Show "X LEGOs learned" badge up to this
   },
+
+  // Path animation brightness levels (opacity values 0-1)
+  pathBrightness: {
+    background: 0.2,       // LEGOs not in current phrase
+    resonance: 0.4,        // LEGOs with word overlap but not in path
+    inPath: 0.6,           // LEGOs in phrase path but not currently sounding
+    sounding: 1.0,         // Currently sounding LEGO
+    pulseScale: 1.3,       // Scale multiplier when sounding (1.0 = no scale)
+    fadeOutDuration: 200,  // ms to fade from sounding to inPath
+  },
 }
 
 // Replay state (simplified from deprecated demo/learning modes)
@@ -866,81 +876,131 @@ const decomposePhrase = (phraseText) => {
 }
 
 /**
+ * Find LEGOs that have word overlap with the phrase but aren't in the path
+ * These get "resonance" brightness
+ */
+const findResonantLegos = (phraseText, pathLegoIds) => {
+  if (!phraseText || !nodes.value.length) return new Set()
+
+  const pathSet = new Set(pathLegoIds)
+  const phraseWords = new Set(
+    phraseText.toLowerCase().trim().split(/\s+/).filter(w => w.length > 2)
+  )
+  const resonant = new Set()
+
+  for (const node of nodes.value) {
+    if (pathSet.has(node.id)) continue // Skip nodes in path
+
+    const nodeWords = (node.targetText || '').toLowerCase().trim().split(/\s+/)
+    const hasOverlap = nodeWords.some(word => phraseWords.has(word))
+    if (hasOverlap) {
+      resonant.add(node.id)
+    }
+  }
+
+  return resonant
+}
+
+/**
  * Animate path sequence during Voice 2 phase
  * Lights up nodes in traversal order with edge animation between consecutive nodes
+ * Timing is proportional to each lego's audio duration (proxy for syllable count)
+ * Uses multi-level brightness: background < resonance < inPath < sounding
  */
-const animatePathSequence = (legoPath, totalDuration = 2000) => {
+const animatePathSequence = (legoPath, totalDuration = 2000, phraseText = '') => {
   if (!legoPath || legoPath.length === 0 || !nodesLayer || !linksLayer) return
 
   clearPathAnimationTimers()
   pathAnimationActive.value = true
   pathAnimationIds.value = [...legoPath]
 
-  // Calculate timing - distribute animation over the audio duration
+  const brightness = VIZ_CONFIG.pathBrightness
+  const pathSet = new Set(legoPath)
+  const resonantSet = findResonantLegos(phraseText, legoPath)
+
+  // Get audio durations for each lego in the path (duration correlates with syllable count)
+  const legoDurations = legoPath.map(legoId => {
+    const node = nodes.value.find(n => n.id === legoId)
+    if (node?.durationMs) return node.durationMs
+    const fullNode = fullNetworkData.value?.nodes?.find(n => n.id === legoId)
+    return fullNode?.durationMs || 500
+  })
+  const totalLegoDuration = legoDurations.reduce((sum, d) => sum + d, 0) || legoPath.length * 500
+
+  // Calculate duration for each step proportional to its audio duration
+  const stepDurations = legoDurations.map(duration =>
+    (duration / totalLegoDuration) * totalDuration
+  )
+
+  // Calculate cumulative start times for each step
+  const stepStartTimes = []
+  let cumulative = 0
+  for (const duration of stepDurations) {
+    stepStartTimes.push(cumulative)
+    cumulative += duration
+  }
+
   const stepDelay = totalDuration / Math.max(legoPath.length, 1)
-  const animatedNodes = new Set()
   const animatedEdges = new Set()
 
-  // Slightly dim non-path elements (but keep network visible!)
-  nodesLayer.selectAll('.node')
-    .classed('path-inactive', true)
-    .classed('path-active', false)
+  // Set initial brightness levels for all nodes
+  nodesLayer.selectAll('.node').each(function(d) {
+    const nodeEl = d3.select(this)
+    let targetOpacity = brightness.background
 
-  nodesLayer.selectAll('.node .node-glow')
-    .transition()
-    .duration(200)
-    .attr('opacity', 0.25) // Dimmed but still visible
+    if (pathSet.has(d.id)) {
+      targetOpacity = brightness.inPath
+      nodeEl.classed('path-active', true).classed('path-inactive', false)
+    } else if (resonantSet.has(d.id)) {
+      targetOpacity = brightness.resonance
+      nodeEl.classed('path-resonant', true).classed('path-inactive', false)
+    } else {
+      nodeEl.classed('path-inactive', true).classed('path-active', false)
+    }
 
-  nodesLayer.selectAll('.node .node-core')
-    .transition()
-    .duration(200)
-    .attr('opacity', 0.5) // Dimmed but still visible
+    nodeEl.select('.node-glow')
+      .transition()
+      .duration(200)
+      .attr('opacity', targetOpacity * 0.8)
 
+    nodeEl.select('.node-core')
+      .transition()
+      .duration(200)
+      .attr('opacity', targetOpacity)
+  })
+
+  // Dim links initially
   linksLayer.selectAll('.link')
     .classed('path-inactive', true)
     .classed('path-active', false)
     .transition()
     .duration(200)
-    .attr('opacity', 0.15) // Keep connections visible, just subdued
+    .attr('opacity', brightness.background * 0.5)
 
-  // Animate each node in sequence
+  // Animate each node in sequence - pulse when sounding, then fade to inPath
   legoPath.forEach((legoId, index) => {
-    const timer = setTimeout(() => {
+    const stepDuration = stepDurations[index] || stepDelay
+
+    // Timer for when this node starts sounding
+    const startTimer = setTimeout(() => {
       if (!pathAnimationActive.value) return
 
-      // Light up this node
-      animatedNodes.add(legoId)
+      const nodeSelection = nodesLayer.selectAll('.node').filter(d => d.id === legoId)
+      nodeSelection.raise()
 
-      nodesLayer.selectAll('.node')
-        .filter(d => d.id === legoId)
-        .classed('path-inactive', false)
-        .classed('path-active', true)
-        .raise() // Bring to front
-
-      // Animate node glow
-      nodesLayer.selectAll('.node')
-        .filter(d => d.id === legoId)
-        .select('.node-glow')
+      // Pulse UP to sounding brightness
+      nodeSelection.select('.node-glow')
         .transition()
-        .duration(150)
-        .attr('opacity', 1)
-        .attr('r', 24)
+        .duration(100)
+        .attr('opacity', brightness.sounding)
+        .attr('r', 18 * brightness.pulseScale)
         .attr('filter', 'url(#glow)')
-        .transition()
-        .duration(300)
-        .attr('r', 20)
 
-      // Animate node core
-      nodesLayer.selectAll('.node')
-        .filter(d => d.id === legoId)
-        .select('.node-core')
+      nodeSelection.select('.node-core')
         .transition()
-        .duration(150)
-        .attr('opacity', 1)
-        .attr('r', 14)
-        .transition()
-        .duration(300)
-        .attr('r', 12)
+        .duration(100)
+        .attr('opacity', brightness.sounding)
+        .attr('r', 12 * brightness.pulseScale)
 
       // Animate edge from previous node
       if (index > 0) {
@@ -965,34 +1025,37 @@ const animatePathSequence = (legoPath, totalDuration = 2000) => {
               const pathElement = this
               const totalLength = pathElement.getTotalLength ? pathElement.getTotalLength() : 100
 
+              // Get duration for this step (syllable-proportional)
+              const currentStepDuration = stepDurations[index] || stepDelay
+
               // Animate stroke-dashoffset for "drawing" effect
               link
                 .attr('stroke-dasharray', totalLength)
                 .attr('stroke-dashoffset', totalLength)
                 .transition()
-                .duration(stepDelay * 0.8)
+                .duration(currentStepDuration * 0.8)
                 .ease(d3.easeLinear)
                 .attr('stroke-dashoffset', 0)
                 .attr('opacity', 1) // Full brightness for active path
                 .attr('stroke-width', 4)
                 .attr('stroke', '#60a5fa') // Blue highlight for active path
 
-              // Create traveling pulse - a glowing dot that moves along the edge
+              // Create traveling pulse - a subtle glowing dot that moves along the edge
               if (pulsesLayer && pathElement.getPointAtLength) {
                 const pulse = pulsesLayer.append('circle')
                   .attr('class', 'traveling-pulse')
-                  .attr('r', 6)
+                  .attr('r', 4)
                   .attr('fill', '#fbbf24')
-                  .attr('filter', 'url(#glow)')
-                  .attr('opacity', 1)
+                  .attr('filter', 'url(#glow-subtle)')
+                  .attr('opacity', 0.85)
 
                 // Determine direction - should travel from prevLegoId to legoId
                 const sId = d.source.id || d.source
                 const reversed = sId !== prevLegoId
 
-                // Animate along the path
+                // Animate along the path with syllable-proportional timing
                 pulse.transition()
-                  .duration(stepDelay * 0.8)
+                  .duration(currentStepDuration * 0.8)
                   .ease(d3.easeLinear)
                   .attrTween('cx', function() {
                     return function(t) {
@@ -1009,20 +1072,42 @@ const animatePathSequence = (legoPath, totalDuration = 2000) => {
                     }
                   })
                   .transition()
-                  .duration(150)
+                  .duration(100)
                   .attr('opacity', 0)
-                  .attr('r', 12)
+                  .attr('r', 6)
                   .remove()
               }
             })
         }
       }
-    }, index * stepDelay)
+    }, stepStartTimes[index])
 
-    pathAnimationTimers.push(timer)
+    pathAnimationTimers.push(startTimer)
+
+    // Timer for when this node stops sounding - fade back to inPath brightness
+    const endTimer = setTimeout(() => {
+      if (!pathAnimationActive.value) return
+
+      const nodeSelection = nodesLayer.selectAll('.node').filter(d => d.id === legoId)
+
+      // Fade DOWN to inPath brightness
+      nodeSelection.select('.node-glow')
+        .transition()
+        .duration(brightness.fadeOutDuration)
+        .attr('opacity', brightness.inPath * 0.8)
+        .attr('r', 18) // Back to normal size
+
+      nodeSelection.select('.node-core')
+        .transition()
+        .duration(brightness.fadeOutDuration)
+        .attr('opacity', brightness.inPath)
+        .attr('r', 12) // Back to normal size
+    }, stepStartTimes[index] + stepDuration)
+
+    pathAnimationTimers.push(endTimer)
   })
 
-  console.log('[LegoNetwork] Path animation started:', legoPath.length, 'nodes over', totalDuration, 'ms')
+  console.log('[LegoNetwork] Path animation started:', legoPath.length, 'nodes over', totalDuration, 'ms, resonant:', resonantSet.size)
 }
 
 /**
@@ -1098,7 +1183,7 @@ const playPhrase = async (phrase) => {
 
   // Animate the path through the network - quick pace to match audio
   const animationDuration = 1200 + (phrase.legoPath.length * 300)
-  animatePathSequence(phrase.legoPath, animationDuration)
+  animatePathSequence(phrase.legoPath, animationDuration, phrase.targetText)
 
   console.log('[LegoNetwork] Playing phrase:', phrase.targetText, 'path:', phrase.legoPath)
 
@@ -1455,6 +1540,7 @@ const loadNetworkData = async () => {
               legoIndex: node.legoIndex,
               knownText: node.knownText,
               targetText: node.targetText,
+              durationMs: node.durationMs || 500,
               totalPractices: progress?.practice_count || 0,
               usedInPhrases: node.usedInPhrases,
               mastery: progress?.mastery_score || 0,
@@ -1498,6 +1584,7 @@ const loadNetworkData = async () => {
             legoIndex: node.legoIndex,
             knownText: node.knownText,
             targetText: node.targetText,
+            durationMs: node.durationMs || 500,
             totalPractices: 0,
             usedInPhrases: node.usedInPhrases,
             mastery: 0,
@@ -1530,12 +1617,12 @@ const loadNetworkData = async () => {
     isLoading.value = true
     error.value = null
 
-    // Load all LEGOs for the course (for simulation)
+    // Load all LEGOs for the course (for simulation) - use lego_cycles to get duration
     const { data: legos, error: legoError } = await supabase.value
-      .from('course_legos')
-      .select('lego_id, seed_id, lego_index, known_text, target_text')
+      .from('lego_cycles')
+      .select('lego_id, seed_number, lego_index, known_text, target_text, target1_duration_ms')
       .eq('course_code', courseCode.value)
-      .order('seed_id')
+      .order('seed_number')
       .order('lego_index')
       .limit(300) // Load enough for 300 rounds
 
@@ -1544,10 +1631,11 @@ const loadNetworkData = async () => {
     // Store all LEGOs for simulation
     allAvailableLegos.value = (legos || []).map((lego, idx) => ({
       id: lego.lego_id,
-      seedId: lego.seed_id,
+      seedId: `S${String(lego.seed_number).padStart(4, '0')}`,
       legoIndex: lego.lego_index,
       knownText: lego.known_text,
       targetText: lego.target_text,
+      durationMs: lego.target1_duration_ms || 500,
       totalPractices: 0,
       usedInPhrases: Math.floor(Math.random() * 15) + 1,
       mastery: 0,
@@ -1759,6 +1847,20 @@ const initVisualization = () => {
   const feMerge = filter.append('feMerge')
   feMerge.append('feMergeNode').attr('in', 'blur')
   feMerge.append('feMergeNode').attr('in', 'SourceGraphic')
+
+  // Add subtle glow filter for traveling pulse (smaller, more refined)
+  const filterSubtle = defs.append('filter')
+    .attr('id', 'glow-subtle')
+    .attr('x', '-50%')
+    .attr('y', '-50%')
+    .attr('width', '200%')
+    .attr('height', '200%')
+  filterSubtle.append('feGaussianBlur')
+    .attr('stdDeviation', '1.5')
+    .attr('result', 'blur')
+  const feMergeSubtle = filterSubtle.append('feMerge')
+  feMergeSubtle.append('feMergeNode').attr('in', 'blur')
+  feMergeSubtle.append('feMergeNode').attr('in', 'SourceGraphic')
 
   // Create zoom container group
   zoomGroup = svg.append('g').attr('class', 'zoom-container')
