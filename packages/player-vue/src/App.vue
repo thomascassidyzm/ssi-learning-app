@@ -56,7 +56,6 @@ import { SignedIn, SignedOut, UserButton, SignInButton } from '@clerk/vue'
 import HomeScreen from './components/HomeScreen.vue'
 import LearningPlayer from './components/LearningPlayer.vue'
 import JourneyMap from './components/JourneyMap.vue'
-import ProfileScreen from './components/ProfileScreen.vue'
 import SettingsScreen from './components/SettingsScreen.vue'
 import CourseExplorer from './components/CourseExplorer.vue'
 import BrainView from './components/BrainView.vue'
@@ -71,7 +70,7 @@ const clerkEnabled = isClerkConfigured(config)
 const auth = clerkEnabled ? useAuth() : null
 
 // Navigation state
-// Screens: 'home' | 'player' | 'journey' | 'profile' | 'settings' | 'explorer' | 'network'
+// Screens: 'home' | 'player' | 'journey' | 'settings' | 'explorer' | 'network'
 const currentScreen = ref('home')
 const selectedCourse = ref(null)
 const isLearning = ref(false)
@@ -102,7 +101,6 @@ const navigate = (screen, data = null) => {
 const goHome = () => navigate('home')
 const startLearning = (course) => navigate('player', course)
 const viewJourney = (course) => navigate('network', course)
-const openProfile = () => navigate('profile')
 const openSettings = () => navigate('settings')
 const openExplorer = () => navigate('explorer')
 const openNetwork = () => navigate('network')
@@ -390,14 +388,6 @@ onMounted(async () => {
         :learningVelocity="learnerStats.learningVelocity"
         @close="goHome"
         @startLearning="handleStartLearning"
-      />
-    </Transition>
-
-    <!-- Profile Screen -->
-    <Transition name="slide-right" mode="out-in">
-      <ProfileScreen
-        v-if="currentScreen === 'profile'"
-        @close="goHome"
       />
     </Transition>
 

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, inject } from 'vue'
 
 const props = defineProps({
   currentScreen: {
@@ -14,13 +14,30 @@ const props = defineProps({
 
 const emit = defineEmits(['navigate', 'startLearning'])
 
-// Navigation items
-const navItems = [
+// Auth state
+const auth = inject('auth', null)
+
+// Check if user is signed in
+const isSignedIn = computed(() => auth?.user?.value != null)
+const isGuest = computed(() => auth?.isGuest?.value === true)
+
+// Get user display info
+const userInitial = computed(() => {
+  const user = auth?.user?.value
+  if (!user) return null
+  return (user.firstName?.[0] || user.username?.[0] || 'U').toUpperCase()
+})
+
+const userImageUrl = computed(() => auth?.user?.value?.imageUrl || null)
+
+// Navigation items (left side only - account handled separately)
+const leftNavItems = [
   { id: 'home', label: 'Home', icon: 'home' },
   { id: 'network', label: 'Progress', icon: 'network' },
-  { id: 'profile', label: 'Profile', icon: 'user' },
-  { id: 'settings', label: 'Settings', icon: 'settings' },
 ]
+
+// Settings nav item
+const settingsItem = { id: 'settings', label: 'Settings', icon: 'settings' }
 
 // Tap feedback state
 const tappedItem = ref(null)
@@ -52,6 +69,24 @@ const handlePlayTap = () => {
   emit('startLearning')
 }
 
+// Handle account button tap
+const handleAccountTap = () => {
+  tappedItem.value = 'account'
+  setTimeout(() => { tappedItem.value = null }, 150)
+
+  if (navigator.vibrate) {
+    navigator.vibrate(10)
+  }
+
+  if (isGuest.value && auth?.openSignIn) {
+    // Guest - open sign in modal
+    auth.openSignIn()
+  } else {
+    // Signed in - go to settings (account section)
+    emit('navigate', 'settings')
+  }
+}
+
 // Hide nav when learning
 const isVisible = computed(() => !props.isLearning)
 </script>
@@ -67,7 +102,7 @@ const isVisible = computed(() => !props.isLearning)
         <!-- Left nav items -->
         <div class="nav-group nav-group--left">
           <button
-            v-for="item in navItems.slice(0, 2)"
+            v-for="item in leftNavItems"
             :key="item.id"
             class="nav-item"
             :class="{
@@ -118,29 +153,53 @@ const isVisible = computed(() => !props.isLearning)
 
         <!-- Right nav items -->
         <div class="nav-group nav-group--right">
+          <!-- Account button (dynamic based on auth state) -->
           <button
-            v-for="item in navItems.slice(2, 4)"
-            :key="item.id"
+            class="nav-item"
+            :class="{ tapped: tappedItem === 'account' }"
+            @click="handleAccountTap"
+          >
+            <div class="nav-icon account-icon">
+              <!-- Guest: Sign In icon -->
+              <template v-if="isGuest">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+                  <polyline points="10 17 15 12 10 7"/>
+                  <line x1="15" y1="12" x2="3" y2="12"/>
+                </svg>
+              </template>
+              <!-- Signed in: Avatar or initial -->
+              <template v-else-if="isSignedIn">
+                <img v-if="userImageUrl" :src="userImageUrl" alt="" class="account-avatar" />
+                <span v-else class="account-initial">{{ userInitial }}</span>
+              </template>
+              <!-- Loading/default: User icon -->
+              <template v-else>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                  <circle cx="12" cy="7" r="4"/>
+                </svg>
+              </template>
+            </div>
+            <span class="nav-label">{{ isGuest ? 'Sign In' : 'Account' }}</span>
+          </button>
+
+          <!-- Settings -->
+          <button
             class="nav-item"
             :class="{
-              active: currentScreen === item.id,
-              tapped: tappedItem === item.id
+              active: currentScreen === 'settings',
+              tapped: tappedItem === 'settings'
             }"
-            @click="handleNavTap(item.id)"
+            @click="handleNavTap('settings')"
           >
             <div class="nav-icon">
-              <!-- User/Profile icon -->
-              <svg v-if="item.icon === 'user'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                <circle cx="12" cy="7" r="4"/>
-              </svg>
-              <!-- Settings icon -->
-              <svg v-else-if="item.icon === 'settings'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="3"/>
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
               </svg>
             </div>
-            <span class="nav-label">{{ item.label }}</span>
+            <span class="nav-label">Settings</span>
 
             <!-- Active indicator dot -->
             <div class="active-indicator"></div>
@@ -254,6 +313,34 @@ const isVisible = computed(() => !props.isLearning)
   width: 100%;
   height: 100%;
   stroke-width: 1.8;
+}
+
+/* Account icon styles */
+.account-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.account-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+}
+
+.account-initial {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #c23a3a 0%, #9a2e2e 100%);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .nav-label {
