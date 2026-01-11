@@ -3,16 +3,61 @@
  * BrainView.vue - Pre-computed Network Visualization for Progress Screen
  *
  * Shows the learner's growing neural network using pre-computed positions.
- * Slider controls how many LEGOs are visible (50/100/200/400/All).
+ * - Slider controls how many LEGOs are visible (50/100/200/400/All)
+ * - Click any node to see its phrases and play target audio
+ * - Always centered on network core (no hero panning)
  *
  * Future: Will animate a fast-forward replay of how the brain grew.
  */
 
-import { ref, computed, inject, onMounted, watch } from 'vue'
+import { ref, computed, inject, onMounted, onUnmounted, watch } from 'vue'
 import ConstellationNetworkView from './ConstellationNetworkView.vue'
-import { usePrebuiltNetwork, type ExternalConnection } from '../composables/usePrebuiltNetwork'
-import { useLegoNetwork } from '../composables/useLegoNetwork'
+import { usePrebuiltNetwork, type ExternalConnection, type ConstellationNode } from '../composables/usePrebuiltNetwork'
+import { useLegoNetwork, type PhraseWithPath } from '../composables/useLegoNetwork'
 import { generateLearningScript } from '../providers/CourseDataProvider'
+
+// ============================================================================
+// AUDIO CONTROLLER (target language only)
+// ============================================================================
+
+class TargetAudioController {
+  private audio: HTMLAudioElement | null = null
+
+  async play(url: string): Promise<void> {
+    if (!this.audio) {
+      this.audio = new Audio()
+    }
+
+    this.audio.src = url
+    this.audio.load()
+
+    return new Promise((resolve, reject) => {
+      const onEnded = () => {
+        this.audio?.removeEventListener('ended', onEnded)
+        this.audio?.removeEventListener('error', onError)
+        resolve()
+      }
+
+      const onError = (e: Event) => {
+        this.audio?.removeEventListener('ended', onEnded)
+        this.audio?.removeEventListener('error', onError)
+        reject(e)
+      }
+
+      this.audio!.addEventListener('ended', onEnded)
+      this.audio!.addEventListener('error', onError)
+
+      this.audio!.play().catch(onError)
+    })
+  }
+
+  stop(): void {
+    if (this.audio) {
+      this.audio.pause()
+      this.audio.currentTime = 0
+    }
+  }
+}
 
 // ============================================================================
 // PROPS & EMITS
@@ -35,8 +80,14 @@ const emit = defineEmits(['close'])
 // INJECTIONS
 // ============================================================================
 
-const supabase = inject('supabase', { value: null })
-const courseDataProvider = inject('courseDataProvider', { value: null })
+const supabase = inject<{ value: any }>('supabase', { value: null })
+const courseDataProvider = inject<{ value: any }>('courseDataProvider', { value: null })
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+const AUDIO_S3_BASE_URL = 'https://ssi-audio-stage.s3.eu-west-1.amazonaws.com/mastered'
 
 // ============================================================================
 // STATE
@@ -48,8 +99,8 @@ const error = ref<string | null>(null)
 // Pre-built network composable
 const prebuiltNetwork = usePrebuiltNetwork()
 
-// Network data from database (for connections)
-const { loadNetworkData } = useLegoNetwork(supabase as any)
+// Network data from database (for connections AND phrases)
+const { loadNetworkData, networkData, getPhrasesForLego } = useLegoNetwork(supabase as any)
 
 // All rounds loaded from script
 const allRounds = ref<any[]>([])
@@ -61,6 +112,21 @@ const sliderMax = computed(() => allRounds.value.length || 100)
 // Container ref for sizing
 const containerRef = ref<HTMLElement | null>(null)
 const canvasSize = ref({ width: 800, height: 800 })
+
+// Node selection state
+const selectedNode = ref<ConstellationNode | null>(null)
+const isPanelOpen = ref(false)
+
+// Phrase playback state
+const selectedNodePhrases = ref<PhraseWithPath[]>([])
+const isPlayingAudio = ref(false)
+const isPracticingPhrases = ref(false)
+const currentPhraseIndex = ref(0)
+const currentPracticingPhrase = ref<PhraseWithPath | null>(null)
+
+// Audio
+const audioController = ref<TargetAudioController | null>(null)
+let phrasePracticeTimer: ReturnType<typeof setTimeout> | null = null
 
 // ============================================================================
 // COMPUTED
@@ -83,12 +149,16 @@ const accentColor = computed(() => beltColors[props.beltLevel] || beltColors.whi
 // Nodes to show based on slider
 const visibleCount = computed(() => Math.min(sliderValue.value, allRounds.value.length))
 
+// Course code
+const courseCode = computed(() => props.course?.course_code || '')
+
 // ============================================================================
 // METHODS
 // ============================================================================
 
 /**
  * Update network visibility when slider changes
+ * NOTE: No hero panning - stays centered on network core
  */
 function updateVisibility(count: number) {
   if (!allRounds.value.length) return
@@ -102,11 +172,145 @@ function updateVisibility(count: number) {
     }
   }
 
-  // Set hero to last revealed node
-  if (count > 0 && allRounds.value[count - 1]?.legoId) {
-    prebuiltNetwork.heroNodeId.value = allRounds.value[count - 1].legoId
-    prebuiltNetwork.updatePanOffset()
+  // NO hero panning - keep centered on network core
+  // Clear hero to keep view centered
+  prebuiltNetwork.heroNodeId.value = null
+  prebuiltNetwork.panOffset.value = { x: 0, y: 0 }
+}
+
+/**
+ * Handle node tap from ConstellationNetworkView
+ */
+function handleNodeTap(node: ConstellationNode) {
+  selectedNode.value = node
+  isPanelOpen.value = true
+
+  // Load phrases for this LEGO (limit to 5 eternal-style phrases)
+  selectedNodePhrases.value = getPhrasesForLego(node.id, 5)
+  currentPhraseIndex.value = 0
+  isPracticingPhrases.value = false
+  currentPracticingPhrase.value = null
+
+  console.log('[BrainView] Selected node:', node.id, 'phrases:', selectedNodePhrases.value.length)
+}
+
+/**
+ * Close the detail panel
+ */
+function closePanel() {
+  isPanelOpen.value = false
+  selectedNode.value = null
+  stopPhrasePractice()
+  selectedNodePhrases.value = []
+  prebuiltNetwork.clearHighlightPath()
+}
+
+/**
+ * Play target audio for a phrase
+ */
+async function playPhrase(phrase: PhraseWithPath) {
+  if (!phrase || !supabase?.value || !courseCode.value) return
+
+  currentPracticingPhrase.value = phrase
+  isPlayingAudio.value = true
+
+  // Highlight the path in the network
+  prebuiltNetwork.setHighlightPath(phrase.legoPath)
+
+  try {
+    // Initialize audio controller if needed
+    if (!audioController.value) {
+      audioController.value = new TargetAudioController()
+    }
+
+    // Query practice_cycles to get audio UUID for this phrase
+    const { data: phraseData, error: err } = await supabase.value
+      .from('practice_cycles')
+      .select('target1_audio_uuid, target2_audio_uuid')
+      .eq('course_code', courseCode.value)
+      .eq('target_text', phrase.targetText)
+      .limit(1)
+      .single()
+
+    if (err) {
+      console.warn('[BrainView] Phrase audio lookup failed:', err.message)
+      return
+    }
+
+    if (phraseData) {
+      const audioUuid = phraseData.target1_audio_uuid || phraseData.target2_audio_uuid
+      if (audioUuid) {
+        const audioUrl = `${AUDIO_S3_BASE_URL}/${audioUuid.toUpperCase()}.mp3`
+        console.log('[BrainView] Playing phrase:', phrase.targetText)
+        await audioController.value.play(audioUrl)
+      }
+    }
+  } catch (err) {
+    console.warn('[BrainView] Phrase audio playback error:', err)
+  } finally {
+    isPlayingAudio.value = false
   }
+}
+
+/**
+ * Start auto-playing through phrases
+ */
+async function startPhrasePractice() {
+  if (selectedNodePhrases.value.length === 0) return
+
+  isPracticingPhrases.value = true
+  currentPhraseIndex.value = 0
+  await playNextPhraseInPractice()
+}
+
+/**
+ * Play the next phrase in practice sequence
+ */
+async function playNextPhraseInPractice() {
+  if (!isPracticingPhrases.value) return
+
+  if (currentPhraseIndex.value >= selectedNodePhrases.value.length) {
+    // Loop back to start
+    currentPhraseIndex.value = 0
+  }
+
+  const phrase = selectedNodePhrases.value[currentPhraseIndex.value]
+  await playPhrase(phrase)
+
+  // Schedule next phrase
+  const delay = 2000 + (phrase.legoPath.length * 300)
+  phrasePracticeTimer = setTimeout(() => {
+    currentPhraseIndex.value++
+    playNextPhraseInPractice()
+  }, delay)
+}
+
+/**
+ * Stop phrase practice
+ */
+function stopPhrasePractice() {
+  isPracticingPhrases.value = false
+  currentPracticingPhrase.value = null
+  isPlayingAudio.value = false
+
+  if (phrasePracticeTimer) {
+    clearTimeout(phrasePracticeTimer)
+    phrasePracticeTimer = null
+  }
+
+  if (audioController.value) {
+    audioController.value.stop()
+  }
+
+  prebuiltNetwork.clearHighlightPath()
+}
+
+/**
+ * Play a specific phrase when clicked
+ */
+function playSpecificPhrase(phrase: PhraseWithPath) {
+  stopPhrasePractice()
+  playPhrase(phrase)
 }
 
 /**
@@ -125,11 +329,11 @@ async function loadData() {
   try {
     console.log('[BrainView] Loading data for', props.course.course_code)
 
-    // Load connections from database (for accurate edge data)
-    const networkData = await loadNetworkData(props.course.course_code)
-    const connections: ExternalConnection[] = networkData?.connections || []
+    // Load connections AND phrases from database
+    const netData = await loadNetworkData(props.course.course_code)
+    const connections: ExternalConnection[] = netData?.connections || []
 
-    console.log(`[BrainView] Loaded ${connections.length} connections from database`)
+    console.log(`[BrainView] Loaded ${connections.length} connections, ${netData?.phrases?.length || 0} phrases`)
 
     // Load learning script (all rounds up to reasonable max)
     const MAX_ROUNDS = 1000
@@ -154,10 +358,10 @@ async function loadData() {
     // Pre-calculate all positions
     prebuiltNetwork.loadFromRounds(rounds, canvasSize.value, connections)
 
-    // Set center for panning
+    // Set center for panning (centered on network, not hero)
     prebuiltNetwork.setCenter(canvasSize.value.width / 2, canvasSize.value.height / 2)
 
-    // Initial visibility
+    // Initial visibility (no hero panning)
     updateVisibility(sliderValue.value)
 
     console.log(`[BrainView] Network ready: ${prebuiltNetwork.nodes.value.length} nodes pre-calculated`)
@@ -184,6 +388,10 @@ watch(sliderValue, (newVal) => {
 
 onMounted(() => {
   loadData()
+})
+
+onUnmounted(() => {
+  stopPhrasePractice()
 })
 </script>
 
@@ -218,14 +426,15 @@ onMounted(() => {
       v-else
       :nodes="prebuiltNetwork.visibleNodes.value"
       :edges="prebuiltNetwork.visibleEdges.value"
-      :hero-node-id="prebuiltNetwork.heroNodeId.value"
+      :hero-node-id="null"
       :current-path="prebuiltNetwork.currentPath.value"
-      :pan-transform="prebuiltNetwork.networkTransform.value"
-      :show-path-labels="false"
+      :pan-transform="'translate(0px, 0px)'"
+      :show-path-labels="true"
+      @node-tap="handleNodeTap"
     />
 
     <!-- Stage slider panel -->
-    <div v-if="!isLoading && !error && allRounds.length > 0" class="stage-slider-panel">
+    <div v-if="!isLoading && !error && allRounds.length > 0 && !isPanelOpen" class="stage-slider-panel">
       <div class="stage-header">
         <span class="stage-label">Network Stage</span>
         <span class="stage-count" :style="{ color: accentColor }">
@@ -265,6 +474,62 @@ onMounted(() => {
         >
           All
         </button>
+      </div>
+    </div>
+
+    <!-- Detail Panel (slides in from right) -->
+    <div class="detail-panel" :class="{ open: isPanelOpen }">
+      <button class="panel-close" @click="closePanel">×</button>
+
+      <div v-if="selectedNode" class="panel-content">
+        <!-- Header -->
+        <div class="panel-header">
+          <div class="panel-phrase">
+            <span class="phrase-target">{{ selectedNode.targetText }}</span>
+          </div>
+          <span class="phrase-known">{{ selectedNode.knownText }}</span>
+        </div>
+
+        <!-- Phrases containing this LEGO -->
+        <div v-if="selectedNodePhrases.length > 0" class="panel-phrases">
+          <div class="phrases-header">
+            <span class="phrases-label">Practice phrases</span>
+            <button
+              class="practice-btn"
+              @click="isPracticingPhrases ? stopPhrasePractice() : startPhrasePractice()"
+              :style="{ borderColor: accentColor, color: isPracticingPhrases ? accentColor : 'inherit' }"
+            >
+              <svg v-if="!isPracticingPhrases" viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                <polygon points="5 3 19 12 5 21 5 3"/>
+              </svg>
+              <svg v-else viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                <rect x="6" y="4" width="4" height="16"/>
+                <rect x="14" y="4" width="4" height="16"/>
+              </svg>
+              {{ isPracticingPhrases ? 'Stop' : 'Play All' }}
+            </button>
+          </div>
+
+          <div class="phrases-list">
+            <div
+              v-for="(phrase, index) in selectedNodePhrases"
+              :key="phrase.id"
+              class="phrase-item"
+              :class="{
+                active: currentPracticingPhrase?.id === phrase.id,
+                playing: currentPracticingPhrase?.id === phrase.id && isPlayingAudio
+              }"
+              @click="playSpecificPhrase(phrase)"
+            >
+              <span class="phrase-text">{{ phrase.targetText }}</span>
+              <span class="phrase-legos">{{ phrase.legoPath.length }} LEGOs</span>
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="no-phrases">
+          <p>No phrases found for this LEGO</p>
+        </div>
       </div>
     </div>
   </div>
@@ -458,6 +723,169 @@ onMounted(() => {
   font-weight: 600;
 }
 
+/* Detail Panel */
+.detail-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 320px;
+  max-width: 90vw;
+  background: rgba(10, 10, 15, 0.95);
+  backdrop-filter: blur(20px);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  transform: translateX(100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 30;
+  overflow-y: auto;
+  padding: 20px;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+}
+
+.detail-panel.open {
+  transform: translateX(0);
+}
+
+.panel-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 1.25rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.panel-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.panel-content {
+  margin-top: 40px;
+}
+
+.panel-header {
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.panel-phrase {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.phrase-target {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: white;
+}
+
+.phrase-known {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.875rem;
+}
+
+.panel-phrases {
+  margin-top: 16px;
+}
+
+.phrases-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.phrases-label {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.practice-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.practice-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.practice-btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+.phrases-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.phrase-item {
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.phrase-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.phrase-item.active {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.phrase-item.playing {
+  border-color: #fbbf24;
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.2);
+}
+
+.phrase-text {
+  display: block;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.9rem;
+  margin-bottom: 4px;
+}
+
+.phrase-legos {
+  display: block;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.7rem;
+}
+
+.no-phrases {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.4);
+  padding: 24px;
+}
+
 /* Mobile adjustments */
 @media (max-width: 480px) {
   .stage-slider-panel {
@@ -470,6 +898,11 @@ onMounted(() => {
   .preset-btn {
     padding: 4px 10px;
     font-size: 0.7rem;
+  }
+
+  .detail-panel {
+    width: 100%;
+    max-width: 100%;
   }
 }
 </style>
