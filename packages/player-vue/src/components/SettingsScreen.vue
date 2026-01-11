@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, inject } from 'vue'
 
-const emit = defineEmits(['close', 'openProgressDemo', 'openExplorer', 'openNetwork', 'openProject'])
+const emit = defineEmits(['close', 'openExplorer', 'openNetwork'])
 
 const props = defineProps({
   course: {
@@ -26,7 +26,6 @@ const courseCode = computed(() => props.course?.course_code)
 
 // Settings state
 const settings = ref({
-  theme: 'dark',
   autoplayEnabled: true,
   soundEffects: true,
   hapticFeedback: true,
@@ -34,13 +33,6 @@ const settings = ref({
   notificationsEnabled: true,
   dailyReminder: '09:00',
 })
-
-// Theme options
-const themeOptions = [
-  { value: 'dark', label: 'Dark', icon: 'moon' },
-  { value: 'light', label: 'Light', icon: 'sun' },
-  { value: 'auto', label: 'System', icon: 'auto' },
-]
 
 // Pause duration options
 const pauseOptions = [
@@ -53,12 +45,6 @@ const pauseOptions = [
 // Toggle functions
 const toggleSetting = (key) => {
   settings.value[key] = !settings.value[key]
-}
-
-const setTheme = (theme) => {
-  settings.value.theme = theme
-  document.documentElement.setAttribute('data-theme', theme === 'auto' ? 'dark' : theme)
-  localStorage.setItem('ssi-theme', theme)
 }
 
 const setPauseDuration = (duration) => {
@@ -188,46 +174,6 @@ const confirmReset = async () => {
 
     <!-- Main Content -->
     <main class="main">
-      <!-- Appearance Section -->
-      <section class="section">
-        <h3 class="section-title">Appearance</h3>
-        <div class="card">
-          <div class="setting-row">
-            <div class="setting-info">
-              <span class="setting-label">Theme</span>
-              <span class="setting-desc">Choose your preferred appearance</span>
-            </div>
-          </div>
-          <div class="theme-options">
-            <button
-              v-for="opt in themeOptions"
-              :key="opt.value"
-              class="theme-option"
-              :class="{ active: settings.theme === opt.value }"
-              @click="setTheme(opt.value)"
-            >
-              <div class="theme-icon">
-                <svg v-if="opt.icon === 'moon'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-                </svg>
-                <svg v-else-if="opt.icon === 'sun'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="5"/>
-                  <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
-                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-                  <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
-                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-                </svg>
-                <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-                  <line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
-                </svg>
-              </div>
-              <span class="theme-label">{{ opt.label }}</span>
-            </button>
-          </div>
-        </div>
-      </section>
-
       <!-- Learning Section -->
       <section class="section">
         <h3 class="section-title">Learning</h3>
@@ -343,58 +289,6 @@ const confirmReset = async () => {
             <div class="setting-info">
               <span class="setting-label">Reset Progress</span>
               <span class="setting-desc">Start fresh (cannot be undone)</span>
-            </div>
-            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 18l6-6-6-6"/>
-            </svg>
-          </div>
-        </div>
-      </section>
-
-      <!-- Developer Tools Section -->
-      <section class="section">
-        <h3 class="section-title">Developer Tools</h3>
-        <div class="card">
-          <div class="setting-row clickable" @click="$emit('openExplorer')">
-            <div class="setting-info">
-              <span class="setting-label">Course Explorer</span>
-              <span class="setting-desc">View course script with click-to-play</span>
-            </div>
-            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 18l6-6-6-6"/>
-            </svg>
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="setting-row clickable" @click="$emit('openNetwork')">
-            <div class="setting-info">
-              <span class="setting-label">Progress Map</span>
-              <span class="setting-desc">Watch your learning grow as a network</span>
-            </div>
-            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 18l6-6-6-6"/>
-            </svg>
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="setting-row clickable" @click="$emit('openProgressDemo')">
-            <div class="setting-info">
-              <span class="setting-label">Progress Variations</span>
-              <span class="setting-desc">Explore UX mockups for first 30 mins</span>
-            </div>
-            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 18l6-6-6-6"/>
-            </svg>
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="setting-row clickable" @click="$emit('openProject')">
-            <div class="setting-info">
-              <span class="setting-label">Project Dashboard</span>
-              <span class="setting-desc">Admin overview and project status</span>
             </div>
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6"/>
@@ -639,61 +533,6 @@ const confirmReset = async () => {
   transform: translateX(20px);
 }
 
-/* Theme Options */
-.theme-options {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.5rem;
-  padding: 0 1rem 1rem;
-}
-
-.theme-option {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 1rem 0.5rem;
-  background: var(--bg-elevated);
-  border: 2px solid transparent;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.theme-option:hover {
-  background: var(--bg-card);
-}
-
-.theme-option.active {
-  border-color: var(--accent);
-  background: var(--accent-glow);
-}
-
-.theme-icon {
-  width: 28px;
-  height: 28px;
-  color: var(--text-secondary);
-}
-
-.theme-option.active .theme-icon {
-  color: var(--accent);
-}
-
-.theme-icon svg {
-  width: 100%;
-  height: 100%;
-}
-
-.theme-label {
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-}
-
-.theme-option.active .theme-label {
-  color: var(--text-primary);
-}
-
 /* Pause Options */
 .pause-options {
   display: grid;
@@ -886,15 +725,6 @@ const confirmReset = async () => {
 
   .setting-row {
     padding: 0.875rem 1rem;
-  }
-
-  .theme-options {
-    gap: 0.375rem;
-    padding: 0 0.75rem 0.75rem;
-  }
-
-  .theme-option {
-    padding: 0.75rem 0.25rem;
   }
 
   .pause-options {
