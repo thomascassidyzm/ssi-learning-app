@@ -1609,11 +1609,18 @@ const handleCycleEvent = (event) => {
           return
         }
 
-        // Start next item after short delay
+        // Start next item after delay (ensure text transitions complete)
+        // CSS transition is 300ms, so wait 350ms to be safe
         setTimeout(async () => {
-          if (isPlaying.value && orchestrator.value) {
-            // INTRO items: play introduction audio directly, then advance
-            if (nextScriptItem.type === 'intro') {
+          if (!isPlaying.value || !orchestrator.value) return
+
+          // Ensure previous audio is fully stopped
+          if (audioController.value) {
+            audioController.value.stop()
+          }
+
+          // INTRO items: play introduction audio directly, then advance
+          if (nextScriptItem.type === 'intro') {
               console.log('[LearningPlayer] Playing INTRO item for:', nextScriptItem.legoId)
               const introPlayable = await scriptItemToPlayableItem(nextScriptItem)
               if (introPlayable) {
@@ -1653,8 +1660,7 @@ const handleCycleEvent = (event) => {
               currentPlayableItem.value = nextPlayable
               orchestrator.value.startItem(nextPlayable)
             }
-          }
-        }, 300)
+        }, 350)
       } else {
         // ============================================
         // FALLBACK: SESSION-BASED PROGRESSION (demo mode)
@@ -1688,8 +1694,13 @@ const handleCycleEvent = (event) => {
         }
 
         // Start next item (with introduction if needed)
+        // CSS transition is 300ms, wait 350ms to ensure text fades complete
         setTimeout(async () => {
           if (isPlaying.value && orchestrator.value) {
+            // Ensure previous audio is fully stopped
+            if (audioController.value) {
+              audioController.value.stop()
+            }
             // Check if next LEGO needs an introduction first
             await playIntroductionIfNeeded(nextItem)
             // Then start the practice cycles
@@ -1697,7 +1708,7 @@ const handleCycleEvent = (event) => {
               orchestrator.value.startItem(nextItem)
             }
           }
-        }, 300)
+        }, 350)
       }
       break
 
@@ -2331,8 +2342,9 @@ const handleSkip = async () => {
   // 4. Clear any path animations
   clearPathAnimation()
 
-  // 5. Delay to ensure everything is settled
-  await new Promise(resolve => setTimeout(resolve, 100))
+  // 5. Delay to ensure everything is settled (audio stops + text transitions complete)
+  // CSS text transition is 300ms, so 150ms is a reasonable buffer after stopping audio
+  await new Promise(resolve => setTimeout(resolve, 150))
 
   // 6. Re-enable callbacks AFTER skip navigation is complete
   // (this happens at end of function)
@@ -2462,8 +2474,8 @@ const handleRevisit = async () => {
   // 4. Clear path animations
   clearPathAnimation()
 
-  // 5. Delay to ensure everything is settled
-  await new Promise(resolve => setTimeout(resolve, 100))
+  // 5. Delay to ensure everything is settled (audio stops + text transitions complete)
+  await new Promise(resolve => setTimeout(resolve, 150))
 
   // Round-based navigation
   if (useRoundBasedPlayback.value && cachedRounds.value.length) {
