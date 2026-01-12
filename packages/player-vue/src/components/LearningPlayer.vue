@@ -1531,17 +1531,22 @@ const handleCycleEvent = (event) => {
               const legoIds = extractLegoIdsFromPhrase(currentItemForPath)
               if (legoIds.length > 0) {
                 // Get audio duration for timing sync
-                const audioDurationMs = (currentItemForPath.audioDurations?.target2 || 2) * 1000
+                const target2Duration = currentItemForPath.audioDurations?.target2
+                const audioDurationMs = (target2Duration || 2) * 1000
                 distinctionNetwork.animatePathForVoice2(legoIds, audioDurationMs)
 
                 // Start fading target text 500ms BEFORE audio ends
-                // This ensures text is gone by the time next item loads
-                const fadeEarlyMs = Math.max(100, audioDurationMs - 500)
-                setTimeout(() => {
-                  if (currentPhase.value === Phase.VOICE_2) {
-                    isTransitioningItem.value = true
-                  }
-                }, fadeEarlyMs)
+                // ONLY if we have reliable duration data - don't fade early with fallback value
+                // This prevents text disappearing before audio finishes when duration is unknown
+                if (target2Duration && target2Duration > 0.5) {
+                  const fadeEarlyMs = Math.max(100, audioDurationMs - 500)
+                  setTimeout(() => {
+                    if (currentPhase.value === Phase.VOICE_2) {
+                      isTransitioningItem.value = true
+                    }
+                  }, fadeEarlyMs)
+                }
+                // If no reliable duration, text stays visible until orchestrator advances phase
               }
               // Find M-LEGOs with partial word overlap (resonance effect)
               const resonating = findResonatingNodes(currentItemForPath, legoIds)
