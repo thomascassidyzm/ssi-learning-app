@@ -1,0 +1,649 @@
+# SSi Schools Integration Specification
+# Adaptive Pedagogy Markup Language (APML)
+
+metadata:
+  title: "SSi Schools Integration"
+  version: "1.0.0"
+  date: "2026-01-12"
+  author: "Tom Cassidy"
+  status: "draft"
+
+# =============================================================================
+# PRINCIPLES
+# =============================================================================
+
+principle AccountPortability:
+  statement: "Students own their learning journey forever"
+
+  implications:
+    - "Student account belongs to student, not school"
+    - "School connection via tags (soft), not foreign keys (hard)"
+    - "Progress preserved if student changes schools"
+    - "Student can learn independently outside school context"
+
+  implementation:
+    connection_type: "user_tags with CLASS:uuid"
+    transfer: "Remove old tag (soft delete), add new tag"
+    progress: "Stays with user_id, never deleted"
+
+principle SoftConnections:
+  statement: "Relationships are tags, not rigid foreign keys"
+
+  why: |
+    Schools change. Students move. Teachers leave.
+    Hard foreign keys create cascade nightmares.
+    Tags are flexible, auditable, and reversible.
+
+  pattern:
+    student_to_class: "user_tags.tag_value = 'CLASS:{uuid}'"
+    teacher_to_school: "user_tags.tag_value = 'SCHOOL:{uuid}'"
+    removal: "Set removed_date, never hard delete"
+
+principle ClassPlayFirst:
+  statement: "Primary school use is whole-class smartboard sessions"
+
+  scenario: |
+    Teacher projects app on smartboard.
+    Entire class participates verbally together.
+    No individual devices during class time.
+    This is SSi's proven classroom pedagogy.
+
+  implications:
+    - "Teacher dashboard needs 'Play as Class' mode"
+    - "No per-student tracking during class play"
+    - "Class has collective position in course"
+    - "Individual accounts are separate from class sessions"
+
+principle IndividualAutonomy:
+  statement: "Students control their own learning position"
+
+  mechanism: |
+    Students can use belt skipping to adjust their position.
+    No forced sync between class position and individual position.
+    If student is ahead of class, they stay ahead.
+    If student is behind, they can catch up at their own pace.
+
+  no_sync_needed: true
+  no_assignments: true
+
+principle OfflineFirst:
+  statement: "Schools have unreliable wifi - design for it"
+
+  implementation:
+    platform: "Chrome PWA"
+    caching: "IndexedDB for course data and audio"
+    sync: "Background sync when online"
+    fallback: "Full functionality offline after initial load"
+
+# =============================================================================
+# USER ROLES
+# =============================================================================
+
+data UserRoles:
+  description: "Educational roles within the school hierarchy"
+
+  column: "user_profiles.educational_role"
+
+  values:
+    null:
+      name: "Individual Learner"
+      description: "Not in school system, learning independently"
+      access: ["player"]
+
+    student:
+      name: "Student"
+      description: "Learner associated with a class"
+      access: ["player"]
+      context: "Sees class name, can be in class roster"
+
+    teacher:
+      name: "Teacher"
+      description: "Manages classes, runs class sessions"
+      access: ["player", "teacher_dashboard"]
+      capabilities:
+        - "Create classes"
+        - "Generate class join codes"
+        - "Run class play sessions"
+        - "View class roster"
+        - "View class progress stats"
+
+    school_admin:
+      name: "School Administrator"
+      description: "Manages school, teachers, school-wide analytics"
+      access: ["player", "teacher_dashboard", "school_admin_dashboard"]
+      capabilities:
+        - "All teacher capabilities"
+        - "Add/remove teachers"
+        - "View all classes"
+        - "View school-wide analytics"
+        - "Generate teacher join code"
+
+# =============================================================================
+# DATABASE SCHEMA
+# =============================================================================
+
+data SchoolSchema:
+  table: "schools"
+
+  columns:
+    id:
+      type: "uuid"
+      primary_key: true
+      default: "gen_random_uuid()"
+
+    admin_id:
+      type: "uuid"
+      references: "user_profiles.id"
+      description: "School admin who created this school"
+
+    school_name:
+      type: "text"
+      required: true
+      description: "Display name for the school"
+
+    teacher_join_code:
+      type: "text"
+      unique: true
+      description: "6-char code for teachers to join (e.g., 'CYM-247')"
+
+    join_code_created_at:
+      type: "timestamptz"
+      default: "now()"
+
+    created_at:
+      type: "timestamptz"
+      default: "now()"
+
+    updated_at:
+      type: "timestamptz"
+      default: "now()"
+
+  indexes:
+    - "idx_schools_join_code ON schools(teacher_join_code)"
+    - "idx_schools_admin ON schools(admin_id)"
+
+  notes: |
+    No branding columns for now - just school_name.
+    teacher_join_code is how teachers self-register.
+    Auto-generated on school creation.
+
+data ClassSchema:
+  table: "classes"
+
+  columns:
+    id:
+      type: "uuid"
+      primary_key: true
+      default: "gen_random_uuid()"
+
+    school_id:
+      type: "uuid"
+      references: "schools.id"
+      required: true
+
+    teacher_id:
+      type: "uuid"
+      references: "user_profiles.id"
+      required: true
+
+    class_name:
+      type: "text"
+      required: true
+      description: "e.g., 'Year 7 Welsh', 'Staff Spanish'"
+
+    course_code:
+      type: "text"
+      required: true
+      description: "e.g., 'cym_for_eng', 'spa_for_eng'"
+
+    student_join_code:
+      type: "text"
+      unique: true
+      description: "6-char code for students to join"
+
+    # Class collective position (for class play mode)
+    current_seed:
+      type: "integer"
+      default: 1
+      description: "Where the class is in the course"
+
+    created_at:
+      type: "timestamptz"
+      default: "now()"
+
+    is_active:
+      type: "boolean"
+      default: true
+
+  indexes:
+    - "idx_classes_school ON classes(school_id)"
+    - "idx_classes_teacher ON classes(teacher_id)"
+    - "idx_classes_join_code ON classes(student_join_code)"
+
+data UserTagsSchema:
+  table: "user_tags"
+  description: "Soft connections between users and organizational units"
+
+  columns:
+    id:
+      type: "uuid"
+      primary_key: true
+
+    user_id:
+      type: "uuid"
+      references: "user_profiles.id"
+      required: true
+
+    tag_type:
+      type: "text"
+      required: true
+      values: ["school", "class"]
+
+    tag_value:
+      type: "text"
+      required: true
+      examples:
+        - "SCHOOL:550e8400-e29b-41d4-a716-446655440000"
+        - "CLASS:550e8400-e29b-41d4-a716-446655440001"
+
+    added_by:
+      type: "uuid"
+      references: "user_profiles.id"
+      description: "Who added this tag (for audit trail)"
+
+    added_date:
+      type: "timestamptz"
+      default: "now()"
+
+    removed_date:
+      type: "timestamptz"
+      nullable: true
+      description: "Soft delete - when tag was removed"
+
+  queries:
+    active_tags: "WHERE removed_date IS NULL"
+    student_class: "WHERE tag_type = 'class' AND removed_date IS NULL"
+    teacher_school: "WHERE tag_type = 'school' AND removed_date IS NULL"
+
+# =============================================================================
+# USER FLOWS
+# =============================================================================
+
+flow SchoolAdminOnboarding:
+  trigger: "User selects 'School Admin' during signup"
+
+  steps:
+    1_signup:
+      action: "User enters email, chooses 'School Admin' role"
+      creates:
+        - "user_profiles with educational_role = 'school_admin'"
+
+    2_school_creation:
+      action: "System auto-creates school record"
+      creates:
+        - "schools record with admin_id = user.id"
+        - "Auto-generated teacher_join_code"
+      extracts:
+        school_name: "From email domain or prompted input"
+
+    3_dashboard:
+      action: "Redirect to school admin dashboard"
+      shows:
+        - "Welcome message"
+        - "Teacher join code prominently displayed"
+        - "Empty teachers list"
+        - "Prompt to share join code"
+
+flow TeacherJoin:
+  trigger: "User selects 'Teacher' during signup"
+
+  steps:
+    1_signup:
+      action: "User enters email, chooses 'Teacher' role"
+      fields:
+        - "email (required)"
+        - "school_join_code (required, 6 chars)"
+
+    2_validation:
+      action: "System validates join code"
+      checks:
+        - "Code exists in schools.teacher_join_code"
+      on_invalid: "Show error: 'Invalid school code'"
+
+    3_account_creation:
+      action: "Create teacher account"
+      creates:
+        - "user_profiles with educational_role = 'teacher'"
+        - "user_tags with tag_type = 'school', tag_value = 'SCHOOL:{school_id}'"
+
+    4_dashboard:
+      action: "Redirect to teacher dashboard"
+      shows:
+        - "School name"
+        - "Empty classes list"
+        - "Create class button"
+
+flow StudentJoin:
+  trigger: "User enters class join code"
+
+  entry_points:
+    - "During signup (new account)"
+    - "From player settings (existing account)"
+    - "Direct link: /join-class/{code}"
+
+  steps:
+    1_enter_code:
+      action: "User enters 6-char class code"
+      validation: "Code exists in classes.student_join_code"
+
+    2_confirm:
+      action: "Show class info for confirmation"
+      displays:
+        - "Class name"
+        - "School name"
+        - "Course (language pair)"
+      prompt: "Join this class?"
+
+    3_join:
+      action: "Add class tag to user"
+      creates:
+        - "user_tags with tag_type = 'class', tag_value = 'CLASS:{class_id}'"
+      updates:
+        - "user_profiles.educational_role = 'student' (if null)"
+
+    4_continue:
+      action: "Return to player"
+      context: "Player now shows class name in header/settings"
+
+flow CreateClass:
+  trigger: "Teacher clicks 'Create Class'"
+
+  steps:
+    1_form:
+      fields:
+        - "class_name (required): e.g., 'Year 7 Welsh'"
+        - "course_code (required): dropdown of available courses"
+
+    2_create:
+      action: "System creates class"
+      creates:
+        - "classes record"
+        - "Auto-generated student_join_code"
+
+    3_display:
+      action: "Show class with join code"
+      shows:
+        - "Class name"
+        - "Student join code (prominently)"
+        - "Copy/share options"
+
+flow ClassPlay:
+  trigger: "Teacher clicks 'Play' on a class"
+  description: "Whole-class smartboard session"
+
+  steps:
+    1_launch:
+      action: "Open player in class mode"
+      context:
+        - "Playing as the class (not as teacher's personal account)"
+        - "Uses class.current_seed as position"
+
+    2_session:
+      action: "Run normal SSi session"
+      display: "Optimized for smartboard/projector"
+      interaction: "Teacher controls, class participates verbally"
+
+    3_complete:
+      action: "Session ends"
+      updates:
+        - "class.current_seed advances based on session progress"
+      no_individual_tracking: true
+
+# =============================================================================
+# INTERFACES
+# =============================================================================
+
+interface TeacherDashboard:
+  location: "apps/schools-dashboard"
+  platform: "Chrome PWA"
+
+  layout:
+    header:
+      - "School name"
+      - "Teacher name"
+      - "Navigation tabs"
+
+    main_views:
+      classes:
+        description: "List of teacher's classes"
+        shows_per_class:
+          - "Class name"
+          - "Course (language)"
+          - "Student count"
+          - "Current position (seed)"
+          - "Play button"
+          - "View roster button"
+        actions:
+          - "Create new class"
+          - "Play as class"
+          - "View/share join code"
+
+      class_detail:
+        description: "Single class view"
+        shows:
+          - "Class name and join code"
+          - "Student roster (name, join date)"
+          - "Class position in course"
+        actions:
+          - "Play as class"
+          - "Remove student (soft delete tag)"
+
+  class_play_mode:
+    description: "When 'Play' clicked, open player"
+    url: "/play?mode=class&class_id={uuid}"
+    behavior:
+      - "Uses class.current_seed as position"
+      - "Progress saved to class, not teacher"
+      - "Optimized UI for projection"
+
+interface SchoolAdminDashboard:
+  location: "apps/schools-dashboard"
+  platform: "Chrome PWA"
+
+  layout:
+    header:
+      - "School name"
+      - "Admin name"
+      - "Navigation tabs"
+
+    main_views:
+      dashboard:
+        description: "School overview"
+        shows:
+          - "Teacher count"
+          - "Class count"
+          - "Total student count"
+          - "Teacher join code (prominent)"
+          - "Recent activity feed"
+
+      teachers:
+        description: "Teacher management"
+        shows:
+          - "Teacher list with class counts"
+          - "Join date"
+        actions:
+          - "Remove teacher (soft delete tag)"
+          - "Regenerate join code"
+
+      classes:
+        description: "All classes in school"
+        shows:
+          - "Class name"
+          - "Teacher"
+          - "Course"
+          - "Student count"
+          - "Current position"
+
+      analytics:
+        description: "School-wide statistics"
+        shows:
+          - "Total learning time"
+          - "Active students this week"
+          - "Classes by course"
+          - "Progress distribution"
+
+interface PlayerWithClassContext:
+  location: "packages/player-vue"
+
+  changes_when_student:
+    header:
+      shows: "Class name (optional, in settings)"
+    settings:
+      shows:
+        - "Class membership"
+        - "Leave class option"
+    behavior:
+      - "No change to learning mechanics"
+      - "Progress tracked to individual, not class"
+
+  changes_when_class_play:
+    url_param: "?mode=class&class_id={uuid}"
+    behavior:
+      - "Position from class.current_seed"
+      - "Progress saved to class record"
+      - "UI optimized for projection (larger text?)"
+      - "No individual identity shown"
+
+# =============================================================================
+# TECHNICAL IMPLEMENTATION
+# =============================================================================
+
+implementation PWA:
+  platform: "Chrome PWA (primary target: Chromebooks)"
+
+  manifest:
+    name: "SSi Schools"
+    short_name: "SSi"
+    display: "standalone"
+    orientation: "landscape"
+    theme_color: "#c23a3a"
+    background_color: "#121212"
+
+  service_worker:
+    strategy: "Cache-first for static assets"
+    audio: "Cache-as-you-go, same as player-vue"
+    api: "Network-first with offline fallback"
+
+  offline:
+    cached:
+      - "Dashboard UI"
+      - "Class roster (last sync)"
+      - "Course audio (as played)"
+    requires_online:
+      - "Initial login"
+      - "Join code validation"
+      - "Real-time roster updates"
+
+implementation SupabaseRealtime:
+  description: "Optional real-time features"
+
+  subscriptions:
+    class_roster:
+      table: "user_tags"
+      filter: "tag_value = 'CLASS:{class_id}'"
+      use: "Live update when student joins"
+
+    # Future: live classroom view
+    # student_activity:
+    #   table: "learning_sessions"
+    #   use: "See who's learning now"
+
+implementation JoinCodeGeneration:
+  format: "XXX-NNN (3 letters, dash, 3 numbers)"
+  examples: ["CYM-247", "SSI-001", "WEL-892"]
+
+  algorithm: |
+    function generateJoinCode() {
+      const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ'  // No I, O (confusable)
+      const numbers = '0123456789'
+      const code =
+        letters[random(24)] +
+        letters[random(24)] +
+        letters[random(24)] +
+        '-' +
+        numbers[random(10)] +
+        numbers[random(10)] +
+        numbers[random(10)]
+      return code
+    }
+
+  collision_handling: "Retry on unique constraint violation"
+  regeneration: "Admin/teacher can regenerate anytime"
+
+# =============================================================================
+# MIGRATION PATH
+# =============================================================================
+
+migration FromZenjin:
+  description: "Patterns borrowed from Zenjin, adapted for SSi"
+
+  adopted:
+    - "user_tags for soft connections"
+    - "educational_role column (not user_type)"
+    - "Join code system (no SMTP needed)"
+    - "School auto-creation on admin signup"
+    - "Account portability principle"
+
+  not_adopted:
+    - "Teacher verification (not needed for pilot)"
+    - "Subscription tiers (future)"
+    - "Parent accounts (future)"
+    - "School branding (explicitly excluded)"
+    - "Assignments (explicitly excluded)"
+
+migration DatabaseChanges:
+  description: "SQL migrations needed"
+
+  new_tables:
+    - "schools"
+    - "classes"
+    - "user_tags"
+
+  modified_tables:
+    user_profiles:
+      add_column: "educational_role TEXT"
+      values: "NULL, 'student', 'teacher', 'school_admin'"
+
+  order:
+    1: "Add educational_role to user_profiles"
+    2: "Create schools table"
+    3: "Create classes table"
+    4: "Create user_tags table"
+    5: "Add indexes"
+
+# =============================================================================
+# FUTURE CONSIDERATIONS
+# =============================================================================
+
+future NotInV1:
+  explicitly_excluded:
+    - "School branding (logos, colors)"
+    - "Assignments"
+    - "Individual student tracking during class play"
+    - "Sync between class and individual position"
+    - "Parent accounts"
+    - "District admin level"
+    - "Subscription/payment"
+
+  maybe_v2:
+    - "Live classroom view (see all students learning)"
+    - "Class leaderboards (opt-in)"
+    - "Export/reporting for compliance"
+    - "Multiple classes per student"
+    - "Teacher can also be student in another class"
+
+  maybe_v3:
+    - "School branding"
+    - "District admin"
+    - "API for LMS integration"
+    - "SSO (SAML, Google Workspace)"
