@@ -1505,6 +1505,15 @@ const handleCycleEvent = (event) => {
                 // Get audio duration for timing sync
                 const audioDurationMs = (currentItemForPath.audioDurations?.target2 || 2) * 1000
                 distinctionNetwork.animatePathForVoice2(legoIds, audioDurationMs)
+
+                // Start fading target text 500ms BEFORE audio ends
+                // This ensures text is gone by the time next item loads
+                const fadeEarlyMs = Math.max(100, audioDurationMs - 500)
+                setTimeout(() => {
+                  if (currentPhase.value === Phase.VOICE_2) {
+                    isTransitioningItem.value = true
+                  }
+                }, fadeEarlyMs)
               }
               // Find M-LEGOs with partial word overlap (resonance effect)
               const resonating = findResonatingNodes(currentItemForPath, legoIds)
@@ -3684,7 +3693,7 @@ onMounted(async () => {
     const demoConfig = {
       ...DEFAULT_CONFIG.cycle,
       pause_duration_ms: defaultPauseDuration,
-      transition_gap_ms: 500, // Allow 500ms for target text to fade before next item loads
+      transition_gap_ms: 100, // Short gap - text fade already started 500ms before audio ended
     }
     orchestrator.value = new CycleOrchestrator(
       audioController.value,
