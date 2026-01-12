@@ -1186,21 +1186,24 @@ const isTransitioningItem = ref(false)
 // ============================================
 // DURATION ESTIMATION
 // Build running average from observed data to estimate missing durations
+// Uses CHARACTER count (not words) - works across all languages including
+// character-based scripts like Chinese/Japanese where each char ≈ 1 syllable
 // ============================================
-const durationObservations = ref<Array<{ wordCount: number; durationMs: number }>>([])
-const avgMsPerWord = computed(() => {
-  if (durationObservations.value.length === 0) return 400 // Default ~400ms per word
+const durationObservations = ref<Array<{ charCount: number; durationMs: number }>>([])
+const avgMsPerChar = computed(() => {
+  if (durationObservations.value.length === 0) return 120 // Default ~120ms/char (~3 chars/syllable at 400ms/syllable)
   const totalMs = durationObservations.value.reduce((sum, o) => sum + o.durationMs, 0)
-  const totalWords = durationObservations.value.reduce((sum, o) => sum + o.wordCount, 0)
-  return totalWords > 0 ? totalMs / totalWords : 400
+  const totalChars = durationObservations.value.reduce((sum, o) => sum + o.charCount, 0)
+  return totalChars > 0 ? totalMs / totalChars : 120
 })
 
 /**
  * Record an observed duration to improve future estimates
  */
-const recordDurationObservation = (wordCount: number, durationMs: number) => {
-  if (wordCount > 0 && durationMs > 100) {
-    durationObservations.value.push({ wordCount, durationMs })
+const recordDurationObservation = (targetText: string, durationMs: number) => {
+  const charCount = targetText?.length || 0
+  if (charCount > 0 && durationMs > 100) {
+    durationObservations.value.push({ charCount, durationMs })
     // Keep last 50 observations for rolling average
     if (durationObservations.value.length > 50) {
       durationObservations.value.shift()
@@ -1209,23 +1212,25 @@ const recordDurationObservation = (wordCount: number, durationMs: number) => {
 }
 
 /**
- * Get duration for an item - uses actual duration if available, estimates from word count otherwise
+ * Get duration for an item - uses actual duration if available, estimates from character count otherwise
+ * Character count is language-agnostic and approximates syllable count across all scripts
  */
 const getEstimatedDuration = (item: any, audioType: 'target1' | 'target2'): number | null => {
   const actualDuration = item?.audioDurations?.[audioType]
+  const targetText = item?.phrase?.target || item?.targetText || ''
+
   if (actualDuration && actualDuration > 0) {
     // Record for future estimates
-    const wordCount = item?.phrase?.wordCount || item?.wordCount || 0
-    if (wordCount > 0) {
-      recordDurationObservation(wordCount, actualDuration * 1000)
+    if (targetText) {
+      recordDurationObservation(targetText, actualDuration * 1000)
     }
     return actualDuration * 1000 // Convert to ms
   }
 
-  // Estimate from word count
-  const wordCount = item?.phrase?.wordCount || item?.wordCount || 0
-  if (wordCount > 0) {
-    return wordCount * avgMsPerWord.value
+  // Estimate from character count (language-agnostic proxy for syllables)
+  const charCount = targetText.length
+  if (charCount > 0) {
+    return charCount * avgMsPerChar.value
   }
 
   return null // No data to estimate from
