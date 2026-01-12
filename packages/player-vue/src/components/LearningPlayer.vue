@@ -3684,7 +3684,7 @@ onMounted(async () => {
     const demoConfig = {
       ...DEFAULT_CONFIG.cycle,
       pause_duration_ms: defaultPauseDuration,
-      transition_gap_ms: 300,
+      transition_gap_ms: 500, // Allow 500ms for target text to fade before next item loads
     }
     orchestrator.value = new CycleOrchestrator(
       audioController.value,
