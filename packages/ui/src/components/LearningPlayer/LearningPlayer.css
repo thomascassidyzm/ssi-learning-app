@@ -228,10 +228,138 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   RESPONSIVE
+   RESPONSIVE - Full breakpoint coverage
+   xs:  < 480px    (phones portrait)
+   sm:  480-768px  (phones landscape, small tablets)
+   md:  768-1024px (tablets)
+   lg:  1024-1280px (laptops)
+   xl:  1280-1536px (desktops)
+   2xl: > 1536px   (ultrawides)
    ═══════════════════════════════════════════════════════════════ */
 
-@media (max-width: 768px) {
+/* Extra small phones (320px) */
+@media (max-width: 360px) {
+  .ssi-player {
+    padding: var(--ssi-space-2);
+  }
+
+  .ssi-player__ring-container {
+    width: 120px;
+    height: 120px;
+  }
+
+  .ssi-player__main {
+    gap: var(--ssi-space-6);
+  }
+
+  .ssi-player__stats {
+    bottom: var(--ssi-space-16);
+    gap: var(--ssi-space-3);
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 0 var(--ssi-space-2);
+  }
+
+  .ssi-player__stat-value {
+    font-size: var(--ssi-text-lg);
+  }
+
+  .ssi-player__stat-label {
+    font-size: 0.625rem;
+  }
+
+  .ssi-player__stat-divider {
+    height: 24px;
+  }
+
+  .ssi-player__controls {
+    bottom: var(--ssi-space-4);
+    gap: var(--ssi-space-2);
+  }
+
+  .ssi-player__control {
+    padding: var(--ssi-space-2) var(--ssi-space-3);
+    font-size: var(--ssi-text-xs);
+    /* Ensure minimum touch target */
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .ssi-player__phase-label {
+    font-size: var(--ssi-text-sm);
+  }
+
+  .ssi-player__orb--1 {
+    width: 250px;
+    height: 250px;
+  }
+
+  .ssi-player__orb--2 {
+    width: 200px;
+    height: 200px;
+  }
+
+  .ssi-player__orb--3 {
+    width: 180px;
+    height: 180px;
+  }
+
+  .ssi-player__threads {
+    top: var(--ssi-space-4);
+  }
+}
+
+/* Small phones (361-479px) */
+@media (min-width: 361px) and (max-width: 479px) {
+  .ssi-player {
+    padding: var(--ssi-space-3);
+  }
+
+  .ssi-player__ring-container {
+    width: 140px;
+    height: 140px;
+  }
+
+  .ssi-player__main {
+    gap: var(--ssi-space-8);
+  }
+
+  .ssi-player__stats {
+    bottom: var(--ssi-space-16);
+    gap: var(--ssi-space-4);
+  }
+
+  .ssi-player__stat-value {
+    font-size: var(--ssi-text-lg);
+  }
+
+  .ssi-player__controls {
+    bottom: var(--ssi-space-5);
+  }
+
+  .ssi-player__control {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .ssi-player__orb--1 {
+    width: 320px;
+    height: 320px;
+  }
+
+  .ssi-player__orb--2 {
+    width: 280px;
+    height: 280px;
+  }
+
+  .ssi-player__orb--3 {
+    width: 240px;
+    height: 240px;
+  }
+}
+
+/* Phone landscape / small tablets (480-767px) */
+@media (min-width: 480px) and (max-width: 767px) {
   .ssi-player {
     padding: var(--ssi-space-4);
   }
@@ -241,12 +369,21 @@
     height: 160px;
   }
 
+  .ssi-player__main {
+    gap: var(--ssi-space-10);
+  }
+
   .ssi-player__stats {
     bottom: var(--ssi-space-20);
+    gap: var(--ssi-space-5);
   }
 
   .ssi-player__stat-value {
     font-size: var(--ssi-text-xl);
+  }
+
+  .ssi-player__control {
+    min-height: 44px;
   }
 
   .ssi-player__orb--1 {
@@ -262,5 +399,194 @@
   .ssi-player__orb--3 {
     width: 300px;
     height: 300px;
+  }
+}
+
+/* Tablets (768-1023px) */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .ssi-player {
+    padding: var(--ssi-space-6);
+  }
+
+  .ssi-player__ring-container {
+    width: 180px;
+    height: 180px;
+  }
+
+  .ssi-player__main {
+    gap: var(--ssi-space-12);
+    max-width: 700px;
+  }
+
+  .ssi-player__stats {
+    bottom: var(--ssi-space-20);
+    gap: var(--ssi-space-6);
+  }
+
+  .ssi-player__orb--1 {
+    width: 500px;
+    height: 500px;
+  }
+
+  .ssi-player__orb--2 {
+    width: 420px;
+    height: 420px;
+  }
+
+  .ssi-player__orb--3 {
+    width: 360px;
+    height: 360px;
+  }
+}
+
+/* Laptops (1024-1279px) - Default styles mostly apply */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .ssi-player__main {
+    max-width: 800px;
+  }
+
+  .ssi-player__ring-container {
+    width: 200px;
+    height: 200px;
+  }
+}
+
+/* Desktops (1280-1535px) */
+@media (min-width: 1280px) and (max-width: 1535px) {
+  .ssi-player__main {
+    max-width: 900px;
+  }
+
+  .ssi-player__ring-container {
+    width: 220px;
+    height: 220px;
+  }
+
+  .ssi-player__stats {
+    gap: var(--ssi-space-8);
+  }
+
+  .ssi-player__stat-value {
+    font-size: var(--ssi-text-3xl);
+  }
+}
+
+/* Large desktops and ultrawides (1536px+) */
+@media (min-width: 1536px) {
+  .ssi-player {
+    padding: var(--ssi-space-12);
+  }
+
+  .ssi-player__main {
+    max-width: 1000px;
+    gap: var(--ssi-space-16);
+  }
+
+  .ssi-player__ring-container {
+    width: 260px;
+    height: 260px;
+  }
+
+  .ssi-player__phase-label {
+    font-size: var(--ssi-text-xl);
+  }
+
+  .ssi-player__stats {
+    bottom: var(--ssi-space-32);
+    gap: var(--ssi-space-10);
+  }
+
+  .ssi-player__stat-value {
+    font-size: var(--ssi-text-3xl);
+  }
+
+  .ssi-player__stat-label {
+    font-size: var(--ssi-text-sm);
+  }
+
+  .ssi-player__stat-divider {
+    height: 56px;
+  }
+
+  .ssi-player__controls {
+    bottom: var(--ssi-space-12);
+    gap: var(--ssi-space-6);
+  }
+
+  .ssi-player__control {
+    padding: var(--ssi-space-4) var(--ssi-space-6);
+    font-size: var(--ssi-text-base);
+  }
+
+  .ssi-player__control svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .ssi-player__orb--1 {
+    width: 800px;
+    height: 800px;
+  }
+
+  .ssi-player__orb--2 {
+    width: 650px;
+    height: 650px;
+  }
+
+  .ssi-player__orb--3 {
+    width: 550px;
+    height: 550px;
+  }
+}
+
+/* Landscape orientation adjustments */
+@media (orientation: landscape) and (max-height: 500px) {
+  .ssi-player {
+    padding: var(--ssi-space-2) var(--ssi-space-4);
+    flex-direction: row;
+    gap: var(--ssi-space-6);
+  }
+
+  .ssi-player__main {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--ssi-space-8);
+    max-width: none;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .ssi-player__ring-container {
+    width: 100px;
+    height: 100px;
+    flex-shrink: 0;
+  }
+
+  .ssi-player__stats {
+    position: static;
+    transform: none;
+    flex-direction: column;
+    gap: var(--ssi-space-2);
+    align-items: flex-start;
+  }
+
+  .ssi-player__stat {
+    flex-direction: row;
+    gap: var(--ssi-space-2);
+  }
+
+  .ssi-player__stat-divider {
+    display: none;
+  }
+
+  .ssi-player__controls {
+    position: static;
+    transform: none;
+  }
+
+  .ssi-player__threads {
+    position: static;
+    transform: none;
+    order: -1;
   }
 }

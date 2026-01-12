@@ -24,7 +24,9 @@ When capturing methodology insights:
 The methodology docs inform the APML specifications in `/apml/`:
 - `learning/spaced-repetition.apml` - Fibonacci decay system
 - `learning/triple-helix.apml` - Thread interleaving
-- `learning/listening-layers.apml` - (to be created)
+- `learning/listening-layers.apml` - Layer 1/Layer 2 listening system
+- `learning/adaptation-engine.apml` - Real-time difficulty adjustment
+- `learning/phrase-selection.apml` - Phrase selection algorithm
 
 ---
 

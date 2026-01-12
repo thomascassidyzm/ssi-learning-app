@@ -58,8 +58,69 @@
   opacity: 0.5;
 }
 
-/* Responsive adjustments */
-@media (max-width: 768px) {
+/* ═══════════════════════════════════════════════════════════════
+   RESPONSIVE - Full breakpoint coverage with touch targets
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Extra small phones (320px) - ensure touch targets are adequate */
+@media (max-width: 360px) {
+  .thread-indicator {
+    gap: var(--ssi-space-1);
+  }
+
+  .thread-indicator__helix {
+    gap: 2px;
+  }
+
+  .thread-indicator__dot {
+    width: 6px;
+    height: 6px;
+  }
+
+  .thread-indicator__strand--active .thread-indicator__dot {
+    width: 8px;
+    height: 8px;
+  }
+
+  .thread-indicator__connector {
+    width: 12px;
+    height: 1px;
+    margin: 0 2px;
+  }
+
+  .thread-indicator__label {
+    font-size: 0.5625rem;
+    top: calc(100% + var(--ssi-space-1));
+  }
+
+  .thread-indicator__twist {
+    width: 60px;
+  }
+}
+
+/* Small phones (361-479px) */
+@media (min-width: 361px) and (max-width: 479px) {
+  .thread-indicator__dot {
+    width: 8px;
+    height: 8px;
+  }
+
+  .thread-indicator__strand--active .thread-indicator__dot {
+    width: 10px;
+    height: 10px;
+  }
+
+  .thread-indicator__connector {
+    width: 14px;
+  }
+
+  .thread-indicator__twist {
+    width: 70px;
+  }
+}
+
+/* Phone landscape / small tablets (480-767px) */
+@media (min-width: 480px) and (max-width: 767px) {
   .thread-indicator__dot {
     width: 8px;
     height: 8px;
@@ -76,5 +137,89 @@
 
   .thread-indicator__twist {
     width: 80px;
+  }
+}
+
+/* Tablets (768-1023px) - default styles mostly apply */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .thread-indicator__dot {
+    width: 10px;
+    height: 10px;
+  }
+
+  .thread-indicator__strand--active .thread-indicator__dot {
+    width: 12px;
+    height: 12px;
+  }
+
+  .thread-indicator__connector {
+    width: 20px;
+  }
+}
+
+/* Large desktops (1536px+) - enhanced visualization */
+@media (min-width: 1536px) {
+  .thread-indicator {
+    gap: var(--ssi-space-3);
+  }
+
+  .thread-indicator__helix {
+    gap: var(--ssi-space-2);
+  }
+
+  .thread-indicator__dot {
+    width: 14px;
+    height: 14px;
+  }
+
+  .thread-indicator__strand--active .thread-indicator__dot {
+    width: 18px;
+    height: 18px;
+  }
+
+  .thread-indicator__connector {
+    width: 28px;
+    height: 3px;
+    margin: 0 var(--ssi-space-2);
+  }
+
+  .thread-indicator__label {
+    font-size: var(--ssi-text-sm);
+    top: calc(100% + var(--ssi-space-3));
+  }
+
+  .thread-indicator__twist {
+    width: 140px;
+    margin-top: var(--ssi-space-2);
+  }
+}
+
+/* Landscape orientation */
+@media (orientation: landscape) and (max-height: 500px) {
+  .thread-indicator {
+    flex-direction: row;
+    gap: var(--ssi-space-2);
+  }
+
+  .thread-indicator__helix {
+    flex-direction: row;
+  }
+
+  .thread-indicator__twist {
+    display: none;
+  }
+
+  .thread-indicator__dot {
+    width: 8px;
+    height: 8px;
+  }
+
+  .thread-indicator__strand--active .thread-indicator__dot {
+    width: 10px;
+    height: 10px;
+  }
+
+  .thread-indicator__connector {
+    width: 12px;
   }
 }

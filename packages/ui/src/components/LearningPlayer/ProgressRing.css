@@ -37,3 +37,70 @@
   pointer-events: none;
   z-index: 1;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   RESPONSIVE - Ring scales with container
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Progress ring is size-agnostic by default - sized by parent container.
+   These styles ensure the SVG and glows scale proportionally. */
+
+.progress-ring {
+  width: 100%;
+  height: 100%;
+}
+
+.progress-ring__svg {
+  width: 100%;
+  height: 100%;
+}
+
+.progress-ring__glow {
+  /* Glow scales with ring */
+  filter: blur(15px);
+  opacity: 0.6;
+}
+
+/* Extra small phones - reduced glow intensity */
+@media (max-width: 360px) {
+  .progress-ring__glow {
+    inset: -15%;
+    filter: blur(10px);
+    opacity: 0.5;
+  }
+}
+
+/* Small phones */
+@media (min-width: 361px) and (max-width: 479px) {
+  .progress-ring__glow {
+    inset: -18%;
+    filter: blur(12px);
+    opacity: 0.55;
+  }
+}
+
+/* Large desktops - enhanced glow */
+@media (min-width: 1536px) {
+  .progress-ring__glow {
+    inset: -25%;
+    filter: blur(25px);
+    opacity: 0.7;
+  }
+
+  .progress-ring__track {
+    stroke-width: 6;
+  }
+
+  .progress-ring__progress {
+    stroke-width: 6;
+  }
+}
+
+/* Landscape orientation - keep ring readable */
+@media (orientation: landscape) and (max-height: 500px) {
+  .progress-ring__glow {
+    inset: -10%;
+    filter: blur(8px);
+    opacity: 0.4;
+  }
+}

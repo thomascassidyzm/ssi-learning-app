@@ -495,8 +495,79 @@ const isVisible = computed(() => !props.isLearning)
   opacity: 0;
 }
 
-/* Responsive adjustments */
+/* ═══════════════════════════════════════════════════════════════
+   RESPONSIVE - Full breakpoint coverage with proper touch targets
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Extra small phones (320px) - compact but usable */
 @media (max-width: 360px) {
+  .nav-content {
+    padding: 0 6px;
+    height: 64px;
+  }
+
+  .nav-group {
+    max-width: 100px;
+  }
+
+  .nav-item {
+    padding: 0 6px 10px;
+    /* Ensure minimum touch target of 44px */
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .nav-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .nav-label {
+    font-size: 9px;
+  }
+
+  .account-avatar,
+  .account-initial {
+    width: 18px;
+    height: 18px;
+  }
+
+  .account-initial {
+    font-size: 9px;
+  }
+
+  .play-button-container {
+    margin: 0 8px;
+    top: -14px;
+  }
+
+  .play-button {
+    width: 48px;
+    height: 48px;
+  }
+
+  .play-button-inner svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .play-label {
+    font-size: 9px;
+    margin-top: 5px;
+  }
+
+  .play-button-glow {
+    inset: -4px;
+  }
+
+  .active-indicator {
+    width: 3px;
+    height: 3px;
+  }
+}
+
+/* Small phones (361-479px) */
+@media (min-width: 361px) and (max-width: 479px) {
   .nav-content {
     padding: 0 8px;
     height: 68px;
@@ -509,6 +580,7 @@ const isVisible = computed(() => !props.isLearning)
   .nav-item {
     padding: 0 8px 12px;
     min-width: 48px;
+    min-height: 44px;
   }
 
   .nav-icon {
@@ -536,19 +608,56 @@ const isVisible = computed(() => !props.isLearning)
   }
 }
 
-@media (min-width: 768px) {
+/* Phone landscape / small tablets (480-767px) */
+@media (min-width: 480px) and (max-width: 767px) {
   .nav-content {
-    max-width: 480px;
+    max-width: 440px;
+    height: 74px;
+  }
+
+  .nav-group {
+    max-width: 140px;
+  }
+
+  .nav-item {
+    min-width: 52px;
+    min-height: 44px;
+  }
+
+  .nav-icon {
+    width: 22px;
+    height: 22px;
+  }
+
+  .nav-label {
+    font-size: 10px;
+  }
+
+  .play-button {
+    width: 60px;
+    height: 60px;
+  }
+
+  .play-button-inner svg {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+/* Tablets (768-1023px) */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .nav-content {
+    max-width: 520px;
     height: 80px;
   }
 
   .nav-group {
-    max-width: 160px;
+    max-width: 180px;
   }
 
   .nav-item {
-    padding: 0 16px 16px;
-    min-width: 64px;
+    padding: 0 16px 14px;
+    min-width: 60px;
   }
 
   .nav-icon {
@@ -560,19 +669,265 @@ const isVisible = computed(() => !props.isLearning)
     font-size: 11px;
   }
 
+  .account-avatar,
+  .account-initial {
+    width: 24px;
+    height: 24px;
+  }
+
+  .account-initial {
+    font-size: 12px;
+  }
+
   .play-button-container {
-    margin: 0 20px;
+    margin: 0 24px;
     top: -24px;
   }
 
   .play-button {
-    width: 66px;
-    height: 66px;
+    width: 68px;
+    height: 68px;
   }
 
   .play-button-inner svg {
     width: 28px;
     height: 28px;
+  }
+
+  .play-label {
+    font-size: 11px;
+  }
+}
+
+/* Laptops (1024-1279px) */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .nav-content {
+    max-width: 560px;
+    height: 84px;
+  }
+
+  .nav-group {
+    max-width: 200px;
+  }
+
+  .nav-item {
+    padding: 0 18px 16px;
+    min-width: 64px;
+  }
+
+  .nav-icon {
+    width: 26px;
+    height: 26px;
+  }
+
+  .nav-label {
+    font-size: 11px;
+  }
+
+  .play-button-container {
+    margin: 0 28px;
+    top: -26px;
+  }
+
+  .play-button {
+    width: 72px;
+    height: 72px;
+  }
+
+  .play-button-inner svg {
+    width: 30px;
+    height: 30px;
+  }
+}
+
+/* Desktops (1280-1535px) */
+@media (min-width: 1280px) and (max-width: 1535px) {
+  .nav-content {
+    max-width: 600px;
+    height: 88px;
+  }
+
+  .nav-group {
+    max-width: 220px;
+  }
+
+  .nav-item {
+    padding: 0 20px 16px;
+    gap: 6px;
+  }
+
+  .nav-icon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .nav-label {
+    font-size: 12px;
+  }
+
+  .account-avatar,
+  .account-initial {
+    width: 28px;
+    height: 28px;
+  }
+
+  .account-initial {
+    font-size: 13px;
+  }
+
+  .play-button-container {
+    margin: 0 32px;
+    top: -28px;
+  }
+
+  .play-button {
+    width: 76px;
+    height: 76px;
+  }
+
+  .play-button-inner svg {
+    width: 32px;
+    height: 32px;
+  }
+
+  .play-label {
+    font-size: 12px;
+    margin-top: 10px;
+  }
+
+  .active-indicator {
+    width: 5px;
+    height: 5px;
+  }
+}
+
+/* Large desktops and ultrawides (1536px+) */
+@media (min-width: 1536px) {
+  .nav-content {
+    max-width: 680px;
+    height: 96px;
+  }
+
+  .nav-group {
+    max-width: 260px;
+  }
+
+  .nav-item {
+    padding: 0 24px 18px;
+    gap: 7px;
+  }
+
+  .nav-icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .nav-label {
+    font-size: 13px;
+  }
+
+  .account-avatar,
+  .account-initial {
+    width: 32px;
+    height: 32px;
+  }
+
+  .account-initial {
+    font-size: 14px;
+  }
+
+  .play-button-container {
+    margin: 0 40px;
+    top: -32px;
+  }
+
+  .play-button {
+    width: 84px;
+    height: 84px;
+    box-shadow:
+      0 6px 24px rgba(194, 58, 58, 0.5),
+      0 12px 36px rgba(194, 58, 58, 0.3),
+      inset 0 1px 1px rgba(255, 255, 255, 0.25),
+      inset 0 -1px 1px rgba(0, 0, 0, 0.15);
+  }
+
+  .play-button-glow {
+    inset: -10px;
+  }
+
+  .play-button-inner svg {
+    width: 36px;
+    height: 36px;
+  }
+
+  .play-label {
+    font-size: 13px;
+    margin-top: 12px;
+  }
+
+  .active-indicator {
+    width: 6px;
+    height: 6px;
+  }
+
+  .safe-area-spacer {
+    min-height: 8px;
+  }
+}
+
+/* Landscape orientation - compact bottom nav */
+@media (orientation: landscape) and (max-height: 500px) {
+  .bottom-nav {
+    /* Slide to side on landscape phones */
+  }
+
+  .nav-content {
+    height: 56px;
+    max-width: 360px;
+    padding: 0 8px;
+  }
+
+  .nav-group {
+    max-width: 100px;
+  }
+
+  .nav-item {
+    padding: 0 6px 8px;
+    gap: 3px;
+    min-height: 44px;
+  }
+
+  .nav-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .nav-label {
+    font-size: 8px;
+  }
+
+  .play-button-container {
+    margin: 0 10px;
+    top: -12px;
+  }
+
+  .play-button {
+    width: 44px;
+    height: 44px;
+  }
+
+  .play-button-inner svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .play-label {
+    font-size: 8px;
+    margin-top: 4px;
+  }
+
+  .safe-area-spacer {
+    min-height: 2px;
   }
 }
 </style>

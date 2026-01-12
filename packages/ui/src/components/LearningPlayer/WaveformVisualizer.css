@@ -57,8 +57,70 @@
   z-index: -1;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
+/* ═══════════════════════════════════════════════════════════════
+   RESPONSIVE - Full breakpoint coverage
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Extra small phones (320px) */
+@media (max-width: 360px) {
+  .waveform {
+    max-width: 260px;
+    gap: 0;
+  }
+
+  .waveform__container {
+    height: 35px;
+    gap: 1.5px;
+  }
+
+  .waveform__bar {
+    width: 2px;
+  }
+
+  .waveform__reflection {
+    height: 18px;
+    gap: 1.5px;
+  }
+
+  .waveform__glow {
+    width: 120px;
+    height: 60px;
+    display: none; /* Hide on very small screens for performance */
+  }
+}
+
+/* Small phones (361-479px) */
+@media (min-width: 361px) and (max-width: 479px) {
+  .waveform {
+    max-width: 320px;
+  }
+
+  .waveform__container {
+    height: 45px;
+    gap: 2px;
+  }
+
+  .waveform__bar {
+    width: 3px;
+  }
+
+  .waveform__reflection {
+    height: 22px;
+    gap: 2px;
+  }
+
+  .waveform__glow {
+    width: 140px;
+    height: 70px;
+  }
+}
+
+/* Phone landscape / small tablets (480-767px) */
+@media (min-width: 480px) and (max-width: 767px) {
+  .waveform {
+    max-width: 360px;
+  }
+
   .waveform__container {
     height: 50px;
     gap: 2px;
@@ -76,5 +138,126 @@
   .waveform__glow {
     width: 150px;
     height: 80px;
+  }
+}
+
+/* Tablets (768-1023px) */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .waveform {
+    max-width: 380px;
+  }
+
+  .waveform__container {
+    height: 55px;
+    gap: 2.5px;
+  }
+
+  .waveform__bar {
+    width: 3.5px;
+  }
+
+  .waveform__reflection {
+    height: 28px;
+    gap: 2.5px;
+  }
+
+  .waveform__glow {
+    width: 180px;
+    height: 90px;
+  }
+}
+
+/* Laptops (1024-1279px) - default styles mostly apply */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .waveform__container {
+    height: 60px;
+    gap: 3px;
+  }
+
+  .waveform__bar {
+    width: 4px;
+  }
+
+  .waveform__reflection {
+    height: 30px;
+    gap: 3px;
+  }
+}
+
+/* Desktops (1280-1535px) */
+@media (min-width: 1280px) and (max-width: 1535px) {
+  .waveform {
+    max-width: 450px;
+  }
+
+  .waveform__container {
+    height: 70px;
+    gap: 3px;
+  }
+
+  .waveform__bar {
+    width: 4px;
+  }
+
+  .waveform__reflection {
+    height: 35px;
+    gap: 3px;
+  }
+
+  .waveform__glow {
+    width: 220px;
+    height: 110px;
+  }
+}
+
+/* Large desktops and ultrawides (1536px+) */
+@media (min-width: 1536px) {
+  .waveform {
+    max-width: 550px;
+  }
+
+  .waveform__container {
+    height: 90px;
+    gap: 4px;
+  }
+
+  .waveform__bar {
+    width: 5px;
+  }
+
+  .waveform__reflection {
+    height: 45px;
+    gap: 4px;
+  }
+
+  .waveform__glow {
+    width: 300px;
+    height: 150px;
+    filter: blur(30px);
+  }
+}
+
+/* Landscape orientation */
+@media (orientation: landscape) and (max-height: 500px) {
+  .waveform {
+    max-width: 200px;
+    gap: 0;
+  }
+
+  .waveform__container {
+    height: 30px;
+    gap: 1.5px;
+  }
+
+  .waveform__bar {
+    width: 2px;
+  }
+
+  .waveform__reflection {
+    display: none;
+  }
+
+  .waveform__glow {
+    display: none;
   }
 }
