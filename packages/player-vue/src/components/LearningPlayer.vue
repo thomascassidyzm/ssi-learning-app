@@ -1319,9 +1319,13 @@ class RealAudioController {
         resolve()
       }
 
-      // Remove any stale listeners first
-      this.audio.removeEventListener('ended', this._lastEndedHandler)
-      this.audio.removeEventListener('error', this._lastErrorHandler)
+      // Remove any stale listeners first (if they exist)
+      if (this._lastEndedHandler) {
+        this.audio.removeEventListener('ended', this._lastEndedHandler)
+      }
+      if (this._lastErrorHandler) {
+        this.audio.removeEventListener('error', this._lastErrorHandler)
+      }
 
       // Track handlers for cleanup
       this._lastEndedHandler = onEnded
@@ -1393,13 +1397,18 @@ class RealAudioController {
       this.currentCleanup()
       this.currentCleanup = null
     }
+
+    // Also clear tracked handlers
+    this._lastEndedHandler = null
+    this._lastErrorHandler = null
+
     if (this.audio) {
       this.audio.pause()
       this.audio.currentTime = 0
-      // Clear src to prevent any cached audio from playing
-      // Use empty data URI to avoid network requests while clearing
-      this.audio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA='
-      this.audio.load()
+      // Clear src completely - empty string prevents cached audio playback
+      // Don't use silent data URI as it can cause race conditions
+      this.audio.removeAttribute('src')
+      // Don't call load() - just clearing src is enough
       // Don't null the audio element - reuse it for mobile compatibility
     }
   }
