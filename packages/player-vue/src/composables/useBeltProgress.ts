@@ -326,6 +326,75 @@ export function useBeltProgress(courseCode: string) {
   }
 
   // ============================================================================
+  // BELT NAVIGATION
+  // ============================================================================
+
+  /**
+   * Get the seed number where a specific belt starts
+   */
+  const getBeltStartSeed = (beltIndex: number): number => {
+    if (beltIndex < 0 || beltIndex >= BELTS.length) return 0
+    return BELTS[beltIndex].seedsRequired
+  }
+
+  /**
+   * Get the previous belt's start position (for "go back")
+   * Returns null if already at white belt
+   */
+  const previousBelt = computed((): Belt | null => {
+    const prevIndex = currentBelt.value.index - 1
+    if (prevIndex < 0) return null
+    return { ...BELTS[prevIndex], index: prevIndex }
+  })
+
+  /**
+   * Skip to the start of the next belt
+   * Returns the new seed position, or null if already at black belt
+   */
+  const skipToNextBelt = (): number | null => {
+    if (!nextBelt.value) return null
+    const newSeeds = nextBelt.value.seedsRequired
+    completedSeeds.value = newSeeds
+    saveProgress()
+    console.log(`[BeltProgress] Skipped to ${nextBelt.value.name} belt (seed ${newSeeds})`)
+    return newSeeds
+  }
+
+  /**
+   * Go back to the start of the current belt (or previous if at start)
+   * Returns the new seed position
+   */
+  const goBackToBeltStart = (): number => {
+    const currentStart = currentBelt.value.seedsRequired
+    // If we're more than a few seeds into the current belt, go to its start
+    // Otherwise, go to the previous belt's start
+    if (completedSeeds.value > currentStart + 2 || !previousBelt.value) {
+      completedSeeds.value = currentStart
+      saveProgress()
+      console.log(`[BeltProgress] Went back to start of ${currentBelt.value.name} belt (seed ${currentStart})`)
+      return currentStart
+    } else {
+      const prevStart = previousBelt.value.seedsRequired
+      completedSeeds.value = prevStart
+      saveProgress()
+      console.log(`[BeltProgress] Went back to ${previousBelt.value.name} belt (seed ${prevStart})`)
+      return prevStart
+    }
+  }
+
+  /**
+   * Jump to a specific belt by index
+   * Returns the new seed position
+   */
+  const jumpToBelt = (beltIndex: number): number => {
+    const targetSeeds = getBeltStartSeed(beltIndex)
+    completedSeeds.value = Math.min(targetSeeds, TOTAL_SEEDS)
+    saveProgress()
+    console.log(`[BeltProgress] Jumped to ${BELTS[beltIndex]?.name || 'unknown'} belt (seed ${targetSeeds})`)
+    return targetSeeds
+  }
+
+  // ============================================================================
   // BELT JOURNEY DATA
   // ============================================================================
 
@@ -422,6 +491,7 @@ export function useBeltProgress(courseCode: string) {
     // Belt info
     currentBelt,
     nextBelt,
+    previousBelt,
     beltProgress,
     seedsToNextBelt,
     courseProgress,
@@ -443,6 +513,12 @@ export function useBeltProgress(courseCode: string) {
     setSeeds,
     resetProgress,
     initialize,
+
+    // Belt navigation
+    getBeltStartSeed,
+    skipToNextBelt,
+    goBackToBeltStart,
+    jumpToBelt,
 
     // Constants
     TOTAL_SEEDS,

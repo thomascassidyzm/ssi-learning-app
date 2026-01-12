@@ -717,6 +717,7 @@ const beltProgress = shallowRef(null)
 const completedSeeds = computed(() => beltProgress.value?.completedSeeds.value ?? 0)
 const currentBelt = computed(() => beltProgress.value?.currentBelt.value ?? { name: 'white', seedsRequired: 0, color: '#f5f5f5', colorDark: '#e0e0e0', glow: 'rgba(245, 245, 245, 0.3)', index: 0 })
 const nextBelt = computed(() => beltProgress.value?.nextBelt.value ?? null)
+const previousBelt = computed(() => beltProgress.value?.previousBelt.value ?? null)
 const beltProgressPercent = computed(() => beltProgress.value?.beltProgress.value ?? 0)
 const seedsToNextBelt = computed(() => beltProgress.value?.seedsToNextBelt.value ?? 8)
 const timeToNextBelt = computed(() => beltProgress.value?.timeToNextBelt.value ?? 'Keep learning to see estimate')
@@ -2684,6 +2685,66 @@ const jumpToRound = async (roundIndex) => {
   return true
 }
 
+/**
+ * Jump to start of next belt
+ * Expands script if needed, then navigates to the belt boundary
+ */
+const handleSkipToNextBelt = async () => {
+  if (!beltProgress.value || !nextBelt.value) {
+    console.log('[LearningPlayer] Cannot skip - no next belt')
+    return
+  }
+
+  const targetSeed = nextBelt.value.seedsRequired
+  console.log(`[LearningPlayer] Skipping to ${nextBelt.value.name} belt (seed ${targetSeed})`)
+
+  // Expand script if we need more rounds
+  if (targetSeed >= cachedRounds.value.length && courseDataProvider.value) {
+    console.log(`[LearningPlayer] Expanding script to reach seed ${targetSeed}...`)
+    const neededRounds = targetSeed + 10
+    const { rounds: moreRounds } = await generateLearningScript(
+      courseDataProvider.value,
+      neededRounds - cachedRounds.value.length,
+      cachedRounds.value.length
+    )
+    if (moreRounds.length > 0) {
+      cachedRounds.value = [...cachedRounds.value, ...moreRounds]
+      console.log(`[LearningPlayer] Expanded to ${cachedRounds.value.length} rounds`)
+    }
+  }
+
+  // Clamp to available rounds
+  const targetRound = Math.min(targetSeed, cachedRounds.value.length - 1)
+
+  // Jump to the target round
+  await jumpToRound(targetRound)
+
+  // Update belt progress to match
+  if (beltProgress.value) {
+    beltProgress.value.setSeeds(targetRound)
+  }
+}
+
+/**
+ * Jump back to start of current or previous belt
+ * If close to current belt start, goes to previous belt
+ */
+const handleGoBackBelt = async () => {
+  if (!beltProgress.value) {
+    console.log('[LearningPlayer] Cannot go back - no belt progress')
+    return
+  }
+
+  const targetSeed = beltProgress.value.goBackToBeltStart()
+  console.log(`[LearningPlayer] Going back to seed ${targetSeed}`)
+
+  // Clamp to available rounds
+  const targetRound = Math.min(targetSeed, cachedRounds.value.length - 1)
+
+  // Jump to the target round
+  await jumpToRound(targetRound)
+}
+
 // Mode toggles
 const turboActive = ref(false)
 const listeningModeComingSoon = ref(false) // Future: passive listening mode
@@ -4009,17 +4070,45 @@ onUnmounted(() => {
       </div>
 
       <div class="header-right">
-        <!-- Belt Progress Bar - Clickable to show summary -->
-        <button
-          class="belt-progress-btn"
-          @click="showPausedSummary"
-          :title="!nextBelt ? 'Black belt achieved!' : `${Math.round(beltProgressPercent)}% to ${nextBelt.name} belt`"
-        >
-          <div class="belt-bar-track">
-            <div class="belt-bar-fill" :style="{ width: `${beltProgressPercent}%` }"></div>
-          </div>
-          <div class="belt-bar-label">{{ Math.round(beltProgressPercent) }}%</div>
-        </button>
+        <!-- Belt Navigation Group -->
+        <div class="belt-nav-header">
+          <!-- Back to previous belt -->
+          <button
+            class="belt-nav-header-btn"
+            @click.stop="handleGoBackBelt"
+            :disabled="!previousBelt && currentBelt.seedsRequired === completedSeeds"
+            :title="previousBelt ? `Back to ${previousBelt.name} belt` : `Start of ${currentBelt.name} belt`"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+          </button>
+
+          <!-- Belt Progress Bar - Clickable to show summary -->
+          <button
+            class="belt-progress-btn"
+            @click="showPausedSummary"
+            :title="!nextBelt ? 'Black belt achieved!' : `${Math.round(beltProgressPercent)}% to ${nextBelt.name} belt`"
+          >
+            <div class="belt-bar-track">
+              <div class="belt-bar-fill" :style="{ width: `${beltProgressPercent}%` }"></div>
+            </div>
+            <div class="belt-bar-label">{{ Math.round(beltProgressPercent) }}%</div>
+          </button>
+
+          <!-- Skip to next belt -->
+          <button
+            class="belt-nav-header-btn belt-nav-header-btn--forward"
+            @click.stop="handleSkipToNextBelt"
+            :disabled="!nextBelt"
+            :title="nextBelt ? `Skip to ${nextBelt.name} belt` : 'Black belt achieved!'"
+            :style="nextBelt ? { '--next-belt-color': nextBelt.color } : {}"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </button>
+        </div>
 
         <!-- Session Timer - Also clickable -->
         <button class="session-timer" @click="showPausedSummary" title="Pause &amp; Summary">
@@ -4157,6 +4246,19 @@ onUnmounted(() => {
         <span v-if="listeningModeComingSoon" class="coming-soon-label">Coming Soon</span>
       </button>
 
+      <!-- Belt Navigation: Back -->
+      <button
+        class="belt-nav-btn"
+        @click="handleGoBackBelt"
+        :disabled="!previousBelt && currentBelt.seedsRequired === completedSeeds"
+        :title="previousBelt ? `Back to ${previousBelt.name} belt` : `Start of ${currentBelt.name} belt`"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="11 17 6 12 11 7"/>
+          <polyline points="18 17 13 12 18 7"/>
+        </svg>
+      </button>
+
       <div class="transport-controls">
         <button class="transport-btn" @click="handleRevisit" title="Revisit">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -4186,6 +4288,20 @@ onUnmounted(() => {
           </svg>
         </button>
       </div>
+
+      <!-- Belt Navigation: Forward - colored with next belt -->
+      <button
+        class="belt-nav-btn belt-nav-btn--forward"
+        @click="handleSkipToNextBelt"
+        :disabled="!nextBelt"
+        :title="nextBelt ? `Skip to ${nextBelt.name} belt` : 'Black belt achieved!'"
+        :style="nextBelt ? { '--next-belt-color': nextBelt.color, '--next-belt-glow': nextBelt.glow } : {}"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="13 17 18 12 13 7"/>
+          <polyline points="6 17 11 12 6 7"/>
+        </svg>
+      </button>
 
       <button
         class="mode-btn mode-btn--turbo"
@@ -4709,6 +4825,52 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+}
+
+/* ============ BELT NAVIGATION HEADER ============ */
+.belt-nav-header {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.belt-nav-header-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  padding: 0;
+}
+
+.belt-nav-header-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.belt-nav-header-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--belt-color, var(--text-primary));
+}
+
+.belt-nav-header-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* Forward button shows next belt color */
+.belt-nav-header-btn--forward {
+  color: var(--next-belt-color, var(--text-muted));
+}
+
+.belt-nav-header-btn--forward:hover:not(:disabled) {
+  color: var(--next-belt-color, var(--text-primary));
 }
 
 /* ============ BELT PROGRESS BAR ============ */
@@ -6182,6 +6344,48 @@ onUnmounted(() => {
   box-shadow: 0 0 16px rgba(212, 168, 83, 0.4);
 }
 
+/* Belt Navigation Buttons - Double chevrons for belt jumps */
+.belt-nav-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.belt-nav-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.belt-nav-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--belt-color, var(--text-primary));
+  border-color: var(--belt-color, var(--text-muted));
+}
+
+.belt-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* Forward button shows next belt color */
+.belt-nav-btn--forward {
+  color: var(--next-belt-color, var(--text-muted));
+}
+
+.belt-nav-btn--forward:hover:not(:disabled) {
+  color: var(--next-belt-color, var(--text-primary));
+  border-color: var(--next-belt-color, var(--text-muted));
+  box-shadow: 0 0 12px var(--next-belt-glow, transparent);
+}
+
 .transport-controls {
   display: flex;
   gap: 0.25rem;
@@ -6404,6 +6608,20 @@ onUnmounted(() => {
     gap: 0.375rem;
   }
 
+  .belt-nav-header {
+    gap: 0.125rem;
+  }
+
+  .belt-nav-header-btn {
+    width: 20px;
+    height: 20px;
+  }
+
+  .belt-nav-header-btn svg {
+    width: 12px;
+    height: 12px;
+  }
+
   .belt-progress-btn {
     padding: 0.25rem 0.5rem;
     gap: 0.375rem;
@@ -6497,6 +6715,16 @@ onUnmounted(() => {
   }
 
   .transport-btn--main svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .belt-nav-btn {
+    width: 32px;
+    height: 32px;
+  }
+
+  .belt-nav-btn svg {
     width: 16px;
     height: 16px;
   }
