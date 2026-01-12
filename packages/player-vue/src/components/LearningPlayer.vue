@@ -21,6 +21,7 @@ import { generateLearningScript } from '../providers/CourseDataProvider'
 // Prebuilt network: positions pre-calculated, pans to hero via CSS
 import { usePrebuiltNetworkIntegration } from '../composables/usePrebuiltNetworkIntegration'
 import { useLegoNetwork } from '../composables/useLegoNetwork'
+import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
 import ConstellationNetworkView from './ConstellationNetworkView.vue'
 
 const emit = defineEmits(['close'])
@@ -152,6 +153,15 @@ const sessionStore = inject('sessionStore', { value: null })
 const courseDataProvider = inject('courseDataProvider', { value: null })
 const supabase = inject('supabase', { value: null })
 const auth = inject('auth', null)
+
+// Algorithm config - admin-tweakable parameters (Turbo Boost, pause timing, etc.)
+const {
+  loadConfigs: loadAlgorithmConfigs,
+  normalConfig,
+  turboConfig,
+  calculatePause,
+  isLoaded: algorithmConfigLoaded
+} = useAlgorithmConfig(supabase)
 
 // Network data from database (for edge connections - like brain view)
 const { loadNetworkData: loadLegoNetworkData } = useLegoNetwork(supabase)
@@ -1612,8 +1622,8 @@ const handleCycleEvent = (event) => {
                   const followingPlayable = await scriptItemToPlayableItem(followingItem)
                   if (followingPlayable) {
                     currentPlayableItem.value = followingPlayable
-                    if (!turboActive.value && followingPlayable.audioDurations) {
-                      const pauseMs = 1500 + Math.round(followingPlayable.audioDurations.target1 * 1000)
+                    if (followingPlayable.audioDurations) {
+                      const pauseMs = getPauseDuration(Math.round(followingPlayable.audioDurations.target1 * 1000))
                       orchestrator.value.updateConfig({ pause_duration_ms: pauseMs })
                     }
                     orchestrator.value.startItem(followingPlayable)
@@ -1626,8 +1636,8 @@ const handleCycleEvent = (event) => {
             const nextPlayable = await scriptItemToPlayableItem(nextScriptItem)
             if (nextPlayable) {
               // Update pause duration: 1.5s boot up + target1 duration
-              if (!turboActive.value && nextPlayable.audioDurations) {
-                const pauseMs = 1500 + Math.round(nextPlayable.audioDurations.target1 * 1000)
+              if (nextPlayable.audioDurations) {
+                const pauseMs = getPauseDuration(Math.round(nextPlayable.audioDurations.target1 * 1000))
                 orchestrator.value.updateConfig({ pause_duration_ms: pauseMs })
               }
               // Store for currentItem computed
@@ -1663,8 +1673,8 @@ const handleCycleEvent = (event) => {
 
         // Update pause duration: 1.5s boot up + target1 duration
         // Unless turbo mode is active
-        if (!turboActive.value && nextItem?.audioDurations) {
-          const pauseMs = 1500 + Math.round(nextItem.audioDurations.target1 * 1000)
+        if (nextItem?.audioDurations) {
+          const pauseMs = getPauseDuration(Math.round(nextItem.audioDurations.target1 * 1000))
           orchestrator.value?.updateConfig({ pause_duration_ms: pauseMs })
         }
 
@@ -2227,8 +2237,8 @@ const startPlayback = async () => {
           const nextPlayable = await scriptItemToPlayableItem(nextItem)
           if (nextPlayable) {
             currentPlayableItem.value = nextPlayable
-            if (!turboActive.value && nextPlayable.audioDurations) {
-              const pauseMs = 1500 + Math.round(nextPlayable.audioDurations.target1 * 1000)
+            if (nextPlayable.audioDurations) {
+              const pauseMs = getPauseDuration(Math.round(nextPlayable.audioDurations.target1 * 1000))
               orchestrator.value.updateConfig({ pause_duration_ms: pauseMs })
             }
             orchestrator.value.startItem(nextPlayable)
@@ -2249,8 +2259,8 @@ const startPlayback = async () => {
     currentPlayableItem.value = playableItem
 
     // Set pause duration: 1.5s boot up + target1 duration
-    if (!turboActive.value && playableItem.audioDurations) {
-      const pauseMs = 1500 + Math.round(playableItem.audioDurations.target1 * 1000)
+    if (playableItem.audioDurations) {
+      const pauseMs = getPauseDuration(Math.round(playableItem.audioDurations.target1 * 1000))
       orchestrator.value.updateConfig({ pause_duration_ms: pauseMs })
     }
 
@@ -2266,8 +2276,8 @@ const startPlayback = async () => {
     await playIntroductionIfNeeded(currentItem.value)
 
     // Set pause duration: 1.5s boot up + target1 duration
-    if (!turboActive.value && currentItem.value.audioDurations) {
-      const pauseMs = 1500 + Math.round(currentItem.value.audioDurations.target1 * 1000)
+    if (currentItem.value.audioDurations) {
+      const pauseMs = getPauseDuration(Math.round(currentItem.value.audioDurations.target1 * 1000))
       orchestrator.value.updateConfig({ pause_duration_ms: pauseMs })
     }
     orchestrator.value.startItem(currentItem.value)
@@ -2609,6 +2619,12 @@ const jumpToRound = async (roundIndex) => {
 const turboActive = ref(false)
 const listeningModeComingSoon = ref(false) // Future: passive listening mode
 
+// Helper: Calculate pause duration using current mode config
+const getPauseDuration = (targetDurationMs: number): number => {
+  const config = turboActive.value ? turboConfig.value : normalConfig.value
+  return calculatePause(config, targetDurationMs)
+}
+
 // ============================================
 // ADAPTATION CONSENT & TIMING
 // Learner consents once, then timing runs silently
@@ -2754,19 +2770,23 @@ const handleListeningMode = () => {
 
 const toggleTurbo = () => {
   turboActive.value = !turboActive.value
-  // Update orchestrator config for faster timings
+
+  // Update orchestrator config based on algorithm settings
   if (orchestrator.value) {
-    if (turboActive.value) {
-      // Turbo mode: fixed 2s pause
-      orchestrator.value.updateConfig({ pause_duration_ms: 2000 })
-    } else {
-      // Normal mode: 1.5s boot up + target1 duration
-      const item = currentItem.value
-      const pauseMs = item?.audioDurations
-        ? 1500 + Math.round(item.audioDurations.target1 * 1000)
-        : 5000 // Fallback
-      orchestrator.value.updateConfig({ pause_duration_ms: pauseMs })
-    }
+    const config = turboActive.value ? turboConfig.value : normalConfig.value
+    const item = currentItem.value
+    const targetDurationMs = item?.audioDurations
+      ? Math.round(item.audioDurations.target1 * 1000)
+      : 2000 // Fallback
+
+    // Calculate pause using config parameters
+    const pauseMs = calculatePause(config, targetDurationMs)
+    orchestrator.value.updateConfig({ pause_duration_ms: pauseMs })
+
+    // TODO: Apply playback_speed to audio controller when supported
+    // audioController.value?.setPlaybackRate(config.playback_speed)
+
+    console.log(`[Turbo] ${turboActive.value ? 'ON' : 'OFF'} - pause: ${pauseMs}ms, config:`, config)
   }
 }
 
@@ -3237,6 +3257,11 @@ onMounted(async () => {
   // ============================================
   const loadAllData = async () => {
     try {
+      // Load algorithm configs (Turbo Boost settings, etc.) - non-blocking
+      loadAlgorithmConfigs().catch(err => {
+        console.warn('[LearningPlayer] Failed to load algorithm configs, using defaults:', err)
+      })
+
       // Load cache first (needed for other operations)
       cachedScript = await getCachedScript(courseCode.value)
 
