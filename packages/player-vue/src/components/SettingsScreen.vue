@@ -1,7 +1,7 @@
 <script setup>
-import { ref, computed, inject } from 'vue'
+import { ref, computed, inject, onMounted } from 'vue'
 
-const emit = defineEmits(['close', 'openExplorer', 'openNetwork'])
+const emit = defineEmits(['close', 'openExplorer', 'openNetwork', 'settingChanged'])
 
 const props = defineProps({
   course: {
@@ -27,6 +27,20 @@ const courseCode = computed(() => props.course?.course_code)
 // App info
 const appVersion = '1.0.0'
 const buildNumber = '2024.12.16'
+
+// Display settings
+const showFirePath = ref(true)
+
+onMounted(() => {
+  // Load saved display settings
+  showFirePath.value = localStorage.getItem('ssi-show-fire-path') !== 'false'
+})
+
+const toggleFirePath = () => {
+  showFirePath.value = !showFirePath.value
+  localStorage.setItem('ssi-show-fire-path', showFirePath.value ? 'true' : 'false')
+  emit('settingChanged', { key: 'showFirePath', value: showFirePath.value })
+}
 
 // Reset progress functions
 const handleResetClick = () => {
@@ -147,6 +161,24 @@ const confirmReset = async () => {
 
     <!-- Main Content -->
     <main class="main">
+      <!-- Display Section -->
+      <section class="section">
+        <h3 class="section-title">Display</h3>
+        <div class="card">
+          <div class="setting-row clickable" @click="toggleFirePath">
+            <div class="setting-info">
+              <span class="setting-label">Path Animation</span>
+              <span class="setting-desc">Show traveling pulse along phrase path</span>
+            </div>
+            <div class="toggle-switch" :class="{ 'is-on': showFirePath }">
+              <div class="toggle-track">
+                <div class="toggle-thumb"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- Account Section -->
       <section class="section">
         <h3 class="section-title">Account</h3>
@@ -333,6 +365,44 @@ const confirmReset = async () => {
   height: 20px;
   color: var(--text-muted);
   flex-shrink: 0;
+}
+
+/* Toggle Switch */
+.toggle-switch {
+  width: 48px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.toggle-track {
+  width: 100%;
+  height: 100%;
+  background: var(--bg-elevated);
+  border-radius: 14px;
+  border: 1px solid var(--border-subtle);
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.toggle-switch.is-on .toggle-track {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-switch.is-on .toggle-thumb {
+  transform: translateX(20px);
 }
 
 /* Brand Footer */

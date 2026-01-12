@@ -132,6 +132,71 @@ export function preCalculatePositions(
     nodeMap.set(round.legoId, node)
   }
 
+  // ============================================================================
+  // INFERRED COMPONENT NODES
+  // For M-type LEGOs (multi-word), create component nodes for individual words
+  // This enriches the network by creating bridges between related phrases
+  // ============================================================================
+
+  const componentNodes = new Map<string, ConstellationNode>()  // word -> node
+  const componentEdges: ConstellationEdge[] = []
+
+  for (const node of nodes) {
+    const words = node.targetText.trim().split(/\s+/)
+
+    // Only process M-type LEGOs (more than one word)
+    if (words.length <= 1) continue
+
+    for (const word of words) {
+      const wordLower = word.toLowerCase()
+      // Skip very short words (articles, particles) - they add noise
+      if (wordLower.length < 2) continue
+
+      const componentId = `_c_${wordLower}`  // Prefix to distinguish from real LEGOs
+
+      let componentNode = componentNodes.get(wordLower)
+
+      if (!componentNode) {
+        // Create new component node
+        componentNode = {
+          id: componentId,
+          targetText: word,
+          knownText: '',  // Components don't have known text
+          belt: node.belt,  // Inherit belt from first parent
+          x: node.x + (Math.random() - 0.5) * 100,  // Near parent
+          y: node.y + (Math.random() - 0.5) * 100,
+          isComponent: true,
+          parentLegoIds: [node.id],
+        }
+        componentNodes.set(wordLower, componentNode)
+      } else {
+        // Add this LEGO as another parent
+        componentNode.parentLegoIds = componentNode.parentLegoIds || []
+        if (!componentNode.parentLegoIds.includes(node.id)) {
+          componentNode.parentLegoIds.push(node.id)
+        }
+      }
+
+      // Create edge from component to parent M-type
+      const edgeId = `${componentId}->${node.id}`
+      componentEdges.push({
+        id: edgeId,
+        source: componentId,
+        target: node.id,
+        strength: 1,
+      })
+    }
+  }
+
+  // Add component nodes to the main nodes array
+  const componentArray = Array.from(componentNodes.values())
+  nodes.push(...componentArray)
+  for (const cn of componentArray) {
+    nodeMap.set(cn.id, cn)
+  }
+
+  console.log(`[PrebuiltNetwork] Created ${componentArray.length} inferred component nodes from M-type LEGOs`)
+
   // Build edges - either from external connections (database) or infer from items
   const edges: ConstellationEdge[] = []
   const edgeMap = new Map<string, ConstellationEdge>()
@@ -281,6 +346,19 @@ export function preCalculatePositions(
     }
   }
 
+  // Add component edges (from inferred components to their parent M-types)
+  // These create bridges between phrases that share vocabulary
+  for (const ce of componentEdges) {
+    if (!edgeMap.has(ce.id)) {
+      edges.push(ce)
+      edgeMap.set(ce.id, ce)
+    }
+  }
+
+  if (componentEdges.length > 0) {
+    console.log(`[PrebuiltNetwork] Added ${componentEdges.length} component→M-type edges`)
+  }
+
   // Run D3 force simulation to completion
   // Spread nodes out more so edges have room to display
   if (nodes.length > 0) {
@@ -288,23 +366,34 @@ export function preCalculatePositions(
       .force('link', d3.forceLink(edges as any)
         .id((d: any) => d.id)
         .distance((d: any) => {
-          const strength = (d as ConstellationEdge).strength || 1
-          // Larger base distance for more spacing
-          const baseDistance = 180
-          const minDistance = 80
+          const edge = d as ConstellationEdge
+          const strength = edge.strength || 1
+          // Component edges should be shorter to keep components close to parents
+          const isComponentEdge = edge.source.toString().startsWith('_c_') ||
+                                   (typeof edge.source === 'object' && (edge.source as any).id?.startsWith('_c_'))
+          const baseDistance = isComponentEdge ? 80 : 180
+          const minDistance = isComponentEdge ? 40 : 80
           const scaleFactor = 1 + Math.pow(strength, 0.4)
           return Math.max(minDistance, baseDistance / scaleFactor)
         })
         .strength((d: any) => {
-          const strength = (d as ConstellationEdge).strength || 1
-          return Math.min(1.0, 0.2 + Math.pow(strength, 0.3) * 0.15)
+          const edge = d as ConstellationEdge
+          const strength = edge.strength || 1
+          // Stronger pull for component edges to keep them close
+          const isComponentEdge = edge.source.toString().startsWith('_c_') ||
+                                   (typeof edge.source === 'object' && (edge.source as any).id?.startsWith('_c_'))
+          return isComponentEdge ? 0.8 : Math.min(1.0, 0.2 + Math.pow(strength, 0.3) * 0.15)
         })
       )
-      // Stronger repulsion to spread nodes apart
-      .force('charge', d3.forceManyBody().strength(-500).distanceMax(600))
+      // Stronger repulsion to spread nodes apart (less for components)
+      .force('charge', d3.forceManyBody()
+        .strength((d: any) => (d as ConstellationNode).isComponent ? -200 : -500)
+        .distanceMax(600))
       .force('center', d3.forceCenter(center.x, center.y))
-      // Larger collision radius prevents overlap
-      .force('collide', d3.forceCollide().radius(45).strength(0.9))
+      // Smaller collision radius for component nodes
+      .force('collide', d3.forceCollide()
+        .radius((d: any) => (d as ConstellationNode).isComponent ? 25 : 45)
+        .strength(0.9))
       .stop()
 
     // Run to completion (300 ticks is usually enough)
@@ -533,8 +622,19 @@ export function usePrebuiltNetwork() {
   // ============================================================================
 
   // Only revealed nodes are visible
+  // Component nodes are auto-revealed when any of their parent LEGOs are revealed
   const visibleNodes = computed(() =>
-    nodes.value.filter(n => revealedNodeIds.value.has(n.id))
+    nodes.value.filter(n => {
+      // Regular nodes: check if explicitly revealed
+      if (!n.isComponent) {
+        return revealedNodeIds.value.has(n.id)
+      }
+      // Component nodes: revealed if ANY parent is revealed
+      if (n.parentLegoIds && n.parentLegoIds.length > 0) {
+        return n.parentLegoIds.some(parentId => revealedNodeIds.value.has(parentId))
+      }
+      return false
+    })
   )
 
   // Helper to extract ID from edge source/target
@@ -543,12 +643,24 @@ export function usePrebuiltNetwork() {
     return typeof sourceOrTarget === 'string' ? sourceOrTarget : sourceOrTarget.id
   }
 
+  // Helper to check if a node (by ID) should be visible
+  const isNodeVisible = (nodeId: string): boolean => {
+    // Regular nodes
+    if (revealedNodeIds.value.has(nodeId)) return true
+    // Component nodes - check if any parent is revealed
+    const node = nodes.value.find(n => n.id === nodeId)
+    if (node?.isComponent && node.parentLegoIds) {
+      return node.parentLegoIds.some(parentId => revealedNodeIds.value.has(parentId))
+    }
+    return false
+  }
+
   // Only edges between revealed nodes are visible
   const visibleEdges = computed(() => {
     const visible = edges.value.filter(e => {
       const sourceId = getEdgeNodeId(e.source as string | { id: string })
       const targetId = getEdgeNodeId(e.target as string | { id: string })
-      return revealedNodeIds.value.has(sourceId) && revealedNodeIds.value.has(targetId)
+      return isNodeVisible(sourceId) && isNodeVisible(targetId)
     })
     if (edges.value.length > 0 && visible.length === 0 && revealedNodeIds.value.size > 1) {
       console.log('[PrebuiltNetwork] WARNING: No visible edges!', {

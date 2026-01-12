@@ -55,6 +55,9 @@ export function usePrebuiltNetworkIntegration(
   // Current belt level
   const currentBelt = ref('white')
 
+  // Fire path animation toggle (saved to localStorage)
+  const showFirePath = ref(localStorage.getItem('ssi-show-fire-path') !== 'false')
+
   // Path animation state
   const isAnimatingPath = ref(false)
   let pathAnimationTimers: number[] = []
@@ -198,6 +201,14 @@ export function usePrebuiltNetworkIntegration(
   }
 
   /**
+   * Toggle fire path animation
+   */
+  function setShowFirePath(show: boolean): void {
+    showFirePath.value = show
+    localStorage.setItem('ssi-show-fire-path', show ? 'true' : 'false')
+  }
+
+  /**
    * Populate network from rounds
    * THIS is where pre-calculation happens
    *
@@ -318,6 +329,7 @@ export function usePrebuiltNetworkIntegration(
       currentPath: prebuiltNetwork.currentPath.value,
       panTransform: prebuiltNetwork.networkTransform.value,
       beltLevel: currentBelt.value,
+      showFirePath: showFirePath.value,
     }
   })
 
@@ -351,8 +363,12 @@ export function usePrebuiltNetworkIntegration(
     initialize,
     setCenter,
     setBelt,
+    setShowFirePath,
     populateFromRounds,
     reset,
+
+    // Display settings
+    showFirePath,
 
     // Statistics
     stats: network.stats,

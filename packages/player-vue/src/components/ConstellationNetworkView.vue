@@ -79,6 +79,10 @@ const props = defineProps({
     type: Array as PropType<string[]>,
     default: () => [],
   },
+  showFirePath: {
+    type: Boolean,
+    default: true,  // Fire path animation enabled by default
+  },
 })
 
 const emit = defineEmits<{
@@ -353,8 +357,35 @@ function getNodeOpacity(node: ConstellationNode): number {
   if (isNodeInPath(node.id)) return 1
   // Resonating nodes - fainter glimmer (contain words from phrase)
   if (isNodeResonating(node.id)) return 0.35
+  // Component nodes are subtler
+  if (node.isComponent) return 0.4
   // Default: revealed nodes should still be clearly visible
   return 0.55
+}
+
+/**
+ * Get node size multiplier - component nodes are smaller
+ */
+function getNodeSize(node: ConstellationNode, isActive: boolean): {
+  glow: number
+  core: number
+  inner: number
+} {
+  // Component nodes are 60% the size of regular nodes
+  const scale = node.isComponent ? 0.6 : 1
+
+  if (isActive) {
+    return {
+      glow: 22 * scale,
+      core: 14 * scale,
+      inner: 5 * scale,
+    }
+  }
+  return {
+    glow: 18 * scale,
+    core: 12 * scale,
+    inner: 4 * scale,
+  }
 }
 
 function getEdgeOpacity(edge: ConstellationEdge): number {
@@ -430,6 +461,8 @@ function handleNodeHover(node: ConstellationNode | null): void {
  * Spawn a traveling pulse along an edge
  */
 function spawnPulse(edgeIndex: number): void {
+  // Skip if fire path animation is disabled
+  if (!props.showFirePath) return
   if (!props.currentPath) return
 
   const nodeIds = props.currentPath.nodeIds
@@ -628,7 +661,8 @@ const labelOpacity = computed(() => (node: ConstellationNode): number => {
             :class="{
               'node-in-path': isNodeInPath(node.id),
               'node-hero': node.id === heroNodeId,
-              'node-resonating': isNodeResonating(node.id)
+              'node-resonating': isNodeResonating(node.id),
+              'node-component': node.isComponent
             }"
             :transform="`translate(${node.x}, ${node.y})`"
             :opacity="getNodeOpacity(node)"
@@ -639,18 +673,18 @@ const labelOpacity = computed(() => (node: ConstellationNode): number => {
             <!-- Outer glow ring -->
             <circle
               class="node-glow"
-              :r="isNodeInPath(node.id) || node.id === heroNodeId ? 22 : 18"
+              :r="getNodeSize(node, isNodeInPath(node.id) || node.id === heroNodeId).glow"
               fill="none"
               :stroke="getPalette(node.belt).glow"
               :stroke-width="isNodeInPath(node.id) || node.id === heroNodeId ? 3 : 2"
-              :opacity="isNodeInPath(node.id) || node.id === heroNodeId ? 0.8 : 0.6"
+              :opacity="isNodeInPath(node.id) || node.id === heroNodeId ? 0.8 : (node.isComponent ? 0.4 : 0.6)"
               :filter="isNodeInPath(node.id) || node.id === heroNodeId ? 'url(#constellation-glow)' : 'none'"
             />
 
             <!-- Core circle -->
             <circle
               class="node-core"
-              :r="isNodeInPath(node.id) || node.id === heroNodeId ? 14 : 12"
+              :r="getNodeSize(node, isNodeInPath(node.id) || node.id === heroNodeId).core"
               :fill="getPalette(node.belt).core"
               :stroke="getPalette(node.belt).glow"
               :stroke-width="isNodeInPath(node.id) || node.id === heroNodeId ? 2 : 1.5"
@@ -660,7 +694,7 @@ const labelOpacity = computed(() => (node: ConstellationNode): number => {
             <!-- Inner dot -->
             <circle
               class="node-inner"
-              :r="node.id === heroNodeId ? 5 : 4"
+              :r="getNodeSize(node, node.id === heroNodeId).inner"
               :fill="getPalette(node.belt).inner"
               :opacity="isNodeInPath(node.id) || node.id === heroNodeId ? 1 : 0.7"
             />
@@ -673,11 +707,13 @@ const labelOpacity = computed(() => (node: ConstellationNode): number => {
             v-for="node in nodes"
             :key="`label-${node.id}`"
             :x="node.x"
-            :y="node.y + 28"
+            :y="node.y + (node.isComponent ? 18 : 28)"
             text-anchor="middle"
             class="node-label"
+            :class="{ 'node-label-component': node.isComponent }"
             :fill="getPalette(node.belt).label"
             :opacity="labelOpacity(node)"
+            :font-size="node.isComponent ? '9px' : '11px'"
           >
             {{ node.targetText }}
           </text>
