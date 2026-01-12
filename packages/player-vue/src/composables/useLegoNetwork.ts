@@ -181,6 +181,21 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
 
       console.log(`[useLegoNetwork] Loaded ${phrases?.length || 0} phrases`)
 
+      // DEBUG: Check if any phrases contain "practicar"
+      const practicarPhrases = (phrases || []).filter(p =>
+        p.target_text.toLowerCase().includes('practicar')
+      )
+      console.log(`[useLegoNetwork] DEBUG: Found ${practicarPhrases.length} phrases containing "practicar":`,
+        practicarPhrases.slice(0, 5).map(p => p.target_text))
+
+      // DEBUG: Decompose those phrases to see if S0005L02 is found
+      if (practicarPhrases.length > 0) {
+        for (const p of practicarPhrases.slice(0, 3)) {
+          const legoIds = decomposePhrase(p.target_text, legoMap)
+          console.log(`[useLegoNetwork] DEBUG: "${p.target_text}" -> [${legoIds.join(', ')}]`)
+        }
+      }
+
       // Build connection graph from phrase co-occurrence
       // Also store phrases with their decomposed paths
       const connectionCounts = new Map<string, number>()
@@ -285,6 +300,11 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
 
       console.log(`[useLegoNetwork] Built ${connections.length} unique connections from ${phrasesWithPathCount} phrases`)
       console.log(`[useLegoNetwork] Indexed ${phrasesWithPath.length} phrases across ${phrasesByLego.size} LEGOs`)
+
+      // DEBUG: Check if S0005L02 has any phrases indexed
+      const s0005l02Phrases = phrasesByLego.get('S0005L02')
+      console.log(`[useLegoNetwork] DEBUG: S0005L02 has ${s0005l02Phrases?.length || 0} phrases indexed:`,
+        s0005l02Phrases?.slice(0, 3).map(p => p.targetText))
 
       const data: NetworkData = {
         nodes,
