@@ -6502,6 +6502,13 @@ onUnmounted(() => {
   }
 }
 
+/* PWA standalone mode - extra bottom padding for iOS home indicator */
+@media (display-mode: standalone) {
+  .control-bar {
+    bottom: calc(40px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
 /* ============ SESSION COMPLETE TRANSITION ============ */
 .session-complete-enter-active {
   animation: session-complete-in 0.4s cubic-bezier(0.16, 1, 0.3, 1);
