@@ -3932,7 +3932,7 @@ onUnmounted(() => {
     <div v-if="isPlayingWelcome" class="welcome-overlay">
       <div class="welcome-content">
         <button class="welcome-skip" @click="skipWelcome">
-          Skip intro
+          Skip Welcome
         </button>
       </div>
     </div>
