@@ -1,5 +1,5 @@
 <script setup>
-import { ref, provide, onMounted, computed } from 'vue'
+import { ref, provide, onMounted } from 'vue'
 import { createClient } from '@supabase/supabase-js'
 import { createProgressStore, createSessionStore } from '@ssi/core'
 import { createCourseDataProvider } from './providers/CourseDataProvider'
@@ -57,83 +57,12 @@ const invalidateStaleCaches = () => {
   }
 }
 
-// Clerk components (conditionally imported)
-import { SignedIn, SignedOut, UserButton, SignInButton } from '@clerk/vue'
-
-// Screen components
-import HomeScreen from './components/HomeScreen.vue'
-import LearningPlayer from './components/LearningPlayer.vue'
-import JourneyMap from './components/JourneyMap.vue'
-import SettingsScreen from './components/SettingsScreen.vue'
-import CourseExplorer from './components/CourseExplorer.vue'
-import BrainView from './components/BrainView.vue'
-import BottomNav from './components/BottomNav.vue'
-import BuildBadge from './components/BuildBadge.vue'
-
 // Load configuration
 const config = loadConfig()
 const clerkEnabled = isClerkConfigured(config)
 
 // Auth state (only if Clerk is configured)
 const auth = clerkEnabled ? useAuth() : null
-
-// Navigation state
-// Screens: 'home' | 'player' | 'journey' | 'settings' | 'explorer' | 'network'
-const currentScreen = ref('home')
-const selectedCourse = ref(null)
-const isLearning = ref(false)
-
-// Component refs
-const legoNetworkRef = ref(null)
-
-// Class context (when launched from Schools)
-const classContext = ref(null)
-
-// Preview mode: skip to a specific LEGO index via URL param ?preview=50
-const previewLegoIndex = computed(() => {
-  if (typeof window === 'undefined') return 0
-  const params = new URLSearchParams(window.location.search)
-  const preview = params.get('preview')
-  return preview ? parseInt(preview, 10) || 0 : 0
-})
-
-// Navigation functions
-const navigate = (screen, data = null) => {
-  if (data) {
-    selectedCourse.value = data
-  }
-  currentScreen.value = screen
-  isLearning.value = screen === 'player'
-}
-
-const goHome = () => navigate('home')
-const startLearning = (course) => navigate('player', course)
-const viewJourney = (course) => navigate('network', course)
-const openSettings = () => navigate('settings')
-const openExplorer = () => navigate('explorer')
-const openNetwork = () => navigate('network')
-
-// Handle nav events
-const handleNavigation = (screen) => {
-  navigate(screen)
-}
-
-const handleStartLearning = () => {
-  // If on Brain View (network), trigger replay mode instead of navigating
-  if (currentScreen.value === 'network' && legoNetworkRef.value) {
-    legoNetworkRef.value.startReplay()
-    isLearning.value = true
-    return
-  }
-  startLearning(selectedCourse.value)
-}
-
-// Learner data (would come from database in production)
-const learnerStats = ref({
-  completedSeeds: 42,
-  totalSeeds: 668,
-  learningVelocity: 1.2,
-})
 
 // Initialize stores (null if database not configured)
 const progressStore = ref(null)
@@ -170,9 +99,6 @@ const handleCourseSelect = async (course) => {
       courseId: courseCode,
     })
   }
-
-  // Update selected course for learning
-  selectedCourse.value = course
 }
 
 // Fetch enrolled courses from Supabase
@@ -251,72 +177,21 @@ const fetchEnrolledCourses = async () => {
   }
 }
 
-// Check for class context from Schools
-const checkClassContext = () => {
-  const params = new URLSearchParams(window.location.search)
-  const classId = params.get('class')
-
-  if (classId) {
-    // Read class details from localStorage (set by Schools)
-    const stored = localStorage.getItem('ssi-active-class')
-    if (stored) {
-      try {
-        classContext.value = JSON.parse(stored)
-        console.log('[App] Class context loaded:', classContext.value)
-      } catch (e) {
-        console.error('[App] Failed to parse class context:', e)
-      }
-    }
-    return true
-  }
-  return false
-}
-
-// Clear class context (when exiting player back to home)
-const clearClassContext = () => {
-  classContext.value = null
-  localStorage.removeItem('ssi-active-class')
-  // Remove query param from URL without reload
-  const url = new URL(window.location.href)
-  url.searchParams.delete('class')
-  window.history.replaceState({}, '', url)
-}
-
-// Handle going home from player
-const handleGoHome = () => {
-  if (classContext.value) {
-    // If came from Schools, go back to Schools
-    window.location.href = '/schools/classes.html'
-  } else {
-    goHome()
-  }
-}
-
-// Provide stores to child components (provide at setup level for reactivity)
+// Provide stores and state to child components
 provide('progressStore', progressStore)
 provide('sessionStore', sessionStore)
 provide('courseDataProvider', courseDataProvider)
 provide('auth', auth)
 provide('supabase', supabaseClient)
+provide('config', config)
+provide('clerkEnabled', clerkEnabled)
+provide('activeCourse', activeCourse)
+provide('enrolledCourses', enrolledCourses)
+provide('handleCourseSelect', handleCourseSelect)
 
 onMounted(async () => {
   // Clear stale caches on new deploy
   invalidateStaleCaches()
-
-  // Check URL params for direct navigation (e.g., ?screen=project)
-  const urlParams = new URLSearchParams(window.location.search)
-  const screenParam = urlParams.get('screen')
-  if (screenParam && ['project', 'explorer', 'network', 'settings'].includes(screenParam)) {
-    currentScreen.value = screenParam
-  }
-
-  // Check if launched from Schools with class context
-  const hasClassContext = checkClassContext()
-  if (hasClassContext) {
-    // Auto-start player when coming from Schools
-    currentScreen.value = 'player'
-    isLearning.value = true
-  }
 
   // Only initialize Supabase if configured and feature flag is enabled
   if (config.features.useDatabase && isSupabaseConfigured(config)) {
@@ -359,106 +234,8 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="app-container" :class="{ 'has-nav': !isLearning }">
-    <!-- Home Screen -->
-    <Transition name="fade" mode="out-in">
-      <HomeScreen
-        v-if="currentScreen === 'home'"
-        :supabase="supabaseClient"
-        :activeCourse="activeCourse"
-        :enrolledCourses="enrolledCourses"
-        @startLearning="startLearning"
-        @viewJourney="viewJourney"
-        @openProfile="openProfile"
-        @openSettings="openSettings"
-        @selectCourse="handleCourseSelect"
-        @openExplorer="openExplorer"
-      />
-    </Transition>
-
-    <!-- Learning Player -->
-    <Transition name="slide-up" mode="out-in">
-      <LearningPlayer
-        v-if="currentScreen === 'player' && activeCourse"
-        :classContext="classContext"
-        :course="activeCourse"
-        :previewLegoIndex="previewLegoIndex"
-        @close="handleGoHome"
-      />
-    </Transition>
-
-    <!-- Journey Map -->
-    <Transition name="slide-up" mode="out-in">
-      <JourneyMap
-        v-if="currentScreen === 'journey'"
-        :completedSeeds="learnerStats.completedSeeds"
-        :totalSeeds="learnerStats.totalSeeds"
-        :learningVelocity="learnerStats.learningVelocity"
-        @close="goHome"
-        @startLearning="handleStartLearning"
-      />
-    </Transition>
-
-    <!-- Settings Screen -->
-    <Transition name="slide-right" mode="out-in">
-      <SettingsScreen
-        v-if="currentScreen === 'settings'"
-        :course="activeCourse"
-        @close="goHome"
-        @openExplorer="openExplorer"
-        @openNetwork="openNetwork"
-      />
-    </Transition>
-
-    <!-- Course Explorer (QA Script Preview) -->
-    <Transition name="slide-right" mode="out-in">
-      <CourseExplorer
-        v-if="currentScreen === 'explorer'"
-        :course="activeCourse"
-        @close="goHome"
-      />
-    </Transition>
-
-    <!-- Progress Map Visualization (Brain View) -->
-    <Transition name="slide-right" mode="out-in">
-      <BrainView
-        v-if="currentScreen === 'network'"
-        ref="legoNetworkRef"
-        :course="activeCourse"
-        belt-level="yellow"
-        @close="goHome"
-      />
-    </Transition>
-
-    <!-- Bottom Navigation -->
-    <BottomNav
-      :currentScreen="currentScreen"
-      :isLearning="isLearning"
-      @navigate="handleNavigation"
-      @startLearning="handleStartLearning"
-    />
-
-    <!-- Build Badge (dev/staging visibility) -->
-    <BuildBadge v-if="!isLearning" />
-
-    <!-- Clerk Auth Button -->
-    <div v-if="clerkEnabled && !isLearning" class="user-button-container">
-      <SignedIn>
-        <UserButton
-          :appearance="{
-            elements: {
-              avatarBox: 'w-10 h-10',
-              userButtonTrigger: 'focus:shadow-none'
-            }
-          }"
-        />
-      </SignedIn>
-      <SignedOut>
-        <SignInButton mode="modal" class="sign-in-btn">
-          Sign in
-        </SignInButton>
-      </SignedOut>
-    </div>
+  <div class="app-root">
+    <router-view />
   </div>
 </template>
 
@@ -502,6 +279,9 @@ onMounted(async () => {
   /* Safe area for bottom nav */
   --nav-height: 80px;
   --nav-height-safe: calc(80px + env(safe-area-inset-bottom, 0px));
+
+  /* Mountain opacity for schools */
+  --mountain-opacity: 0.5;
 }
 
 /* Light theme removed - app is dark mode only */
@@ -549,88 +329,9 @@ html {
 </style>
 
 <style scoped>
-.app-container {
+.app-root {
   min-height: 100vh;
   min-height: 100dvh;
   background: var(--bg-primary);
-}
-
-/* Add bottom padding when nav is visible */
-.app-container.has-nav {
-  padding-bottom: var(--nav-height-safe);
-}
-
-/* Fade transition */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
-/* Slide up transition */
-.slide-up-enter-active {
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.slide-up-leave-active {
-  transition: all 0.3s ease-in;
-}
-
-.slide-up-enter-from {
-  opacity: 0;
-  transform: translateY(20px);
-}
-
-.slide-up-leave-to {
-  opacity: 0;
-  transform: translateY(-10px);
-}
-
-/* Slide right transition */
-.slide-right-enter-active {
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.slide-right-leave-active {
-  transition: all 0.3s ease-in;
-}
-
-.slide-right-enter-from {
-  opacity: 0;
-  transform: translateX(20px);
-}
-
-.slide-right-leave-to {
-  opacity: 0;
-  transform: translateX(-10px);
-}
-
-/* Clerk User Button positioning */
-.user-button-container {
-  position: fixed;
-  top: 1rem;
-  right: 1rem;
-  z-index: 100;
-}
-
-.sign-in-btn {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  color: var(--text-secondary);
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.sign-in-btn:hover {
-  background: var(--bg-elevated);
-  color: var(--text-primary);
 }
 </style>

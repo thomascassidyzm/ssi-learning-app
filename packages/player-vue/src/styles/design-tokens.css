@@ -1,0 +1,286 @@
+/**
+ * SSi Schools Dashboard Design Tokens
+ * Extracted from mockups - January 2026
+ *
+ * This file defines all CSS custom properties for the design system.
+ * Organized by category: colors, typography, spacing, shadows, animations.
+ */
+
+:root {
+  /* ================================================================
+   * SSi BRAND COLORS
+   * Core brand identity - consistent across light and dark themes
+   * ================================================================ */
+  --ssi-red: #c23a3a;
+  --ssi-red-dark: #9a2e2e;
+  --ssi-red-light: #e54545;
+  --ssi-gold: #d4a853;
+  --ssi-gold-dark: #b8923d;
+  --ssi-gold-light: #e5c078;
+
+  /* ================================================================
+   * STATUS COLORS
+   * Semantic colors for feedback - same in both themes
+   * ================================================================ */
+  --success: #4ade80;
+  --success-muted: rgba(74, 222, 128, 0.15);
+  --warning: #fbbf24;
+  --warning-muted: rgba(251, 191, 36, 0.15);
+  --error: #ef4444;
+  --error-muted: rgba(239, 68, 68, 0.15);
+  --info: #60a5fa;
+  --info-muted: rgba(96, 165, 250, 0.15);
+
+  /* ================================================================
+   * BELT COLORS
+   * Martial arts belt progression system colors
+   * ================================================================ */
+  --belt-white: #f5f5f5;
+  --belt-white-dark: #e0e0e0;
+  --belt-yellow: #fbbf24;
+  --belt-yellow-dark: #d97706;
+  --belt-orange: #f97316;
+  --belt-orange-dark: #ea580c;
+  --belt-green: #22c55e;
+  --belt-green-dark: #16a34a;
+  --belt-blue: #3b82f6;
+  --belt-blue-dark: #2563eb;
+  --belt-brown: #92400e;
+  --belt-brown-dark: #78350f;
+  --belt-black: #1f2937;
+  --belt-black-dark: #111827;
+
+  /* ================================================================
+   * TYPOGRAPHY
+   * Font families and base sizing
+   * ================================================================ */
+  --font-body: 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Noto Sans JP', 'Source Sans 3', sans-serif;
+  --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+
+  /* Font weights */
+  --font-light: 300;
+  --font-normal: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+  --font-black: 900;
+
+  /* Font sizes (modular scale 1.25) */
+  --text-xs: 0.75rem;    /* 12px */
+  --text-sm: 0.875rem;   /* 14px */
+  --text-base: 1rem;     /* 16px */
+  --text-lg: 1.125rem;   /* 18px */
+  --text-xl: 1.25rem;    /* 20px */
+  --text-2xl: 1.5rem;    /* 24px */
+  --text-3xl: 1.75rem;   /* 28px */
+  --text-4xl: 2.25rem;   /* 36px */
+  --text-5xl: 3rem;      /* 48px */
+
+  /* Line heights */
+  --leading-tight: 1.25;
+  --leading-snug: 1.375;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+
+  /* Letter spacing */
+  --tracking-tight: -0.025em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.025em;
+  --tracking-wider: 0.05em;
+  --tracking-widest: 0.1em;
+
+  /* ================================================================
+   * SPACING
+   * Consistent spacing scale (base: 4px)
+   * ================================================================ */
+  --space-0: 0;
+  --space-1: 0.25rem;   /* 4px */
+  --space-2: 0.5rem;    /* 8px */
+  --space-3: 0.75rem;   /* 12px */
+  --space-4: 1rem;      /* 16px */
+  --space-5: 1.25rem;   /* 20px */
+  --space-6: 1.5rem;    /* 24px */
+  --space-8: 2rem;      /* 32px */
+  --space-10: 2.5rem;   /* 40px */
+  --space-12: 3rem;     /* 48px */
+  --space-16: 4rem;     /* 64px */
+  --space-20: 5rem;     /* 80px */
+  --space-24: 6rem;     /* 96px */
+
+  /* ================================================================
+   * BORDER RADIUS
+   * Consistent rounding scale
+   * ================================================================ */
+  --radius-sm: 0.25rem;  /* 4px */
+  --radius-md: 0.5rem;   /* 8px */
+  --radius-lg: 0.75rem;  /* 12px */
+  --radius-xl: 1rem;     /* 16px */
+  --radius-2xl: 1.25rem; /* 20px */
+  --radius-full: 9999px;
+
+  /* ================================================================
+   * TRANSITIONS
+   * Consistent animation timing
+   * ================================================================ */
+  --transition-fast: 150ms ease;
+  --transition-base: 200ms ease;
+  --transition-slow: 300ms ease;
+  --transition-slower: 500ms ease;
+
+  /* Easing functions */
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+  /* ================================================================
+   * Z-INDEX SCALE
+   * Layering system
+   * ================================================================ */
+  --z-below: -1;
+  --z-base: 0;
+  --z-raised: 10;
+  --z-dropdown: 50;
+  --z-sticky: 80;
+  --z-nav: 100;
+  --z-modal-backdrop: 150;
+  --z-modal: 200;
+  --z-toast: 300;
+  --z-tooltip: 400;
+
+  /* ================================================================
+   * LAYOUT
+   * Container widths and nav height
+   * ================================================================ */
+  --nav-height: 64px;
+  --container-max: 1400px;
+  --sidebar-width: 280px;
+}
+
+/* ================================================================
+ * DARK THEME (default)
+ * Rich, deep surfaces with subtle layering
+ * ================================================================ */
+[data-theme="dark"] {
+  /* Background hierarchy */
+  --bg-primary: #121212;
+  --bg-secondary: #1a1a1a;
+  --bg-card: #242424;
+  --bg-card-hover: #2d2d2d;
+  --bg-elevated: #333333;
+  --bg-input: #1a1a1a;
+
+  /* Text hierarchy */
+  --text-primary: #ffffff;
+  --text-secondary: #b0b0b0;
+  --text-muted: #707070;
+  --text-inverse: #121212;
+
+  /* Borders */
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-medium: rgba(255, 255, 255, 0.15);
+  --border-strong: rgba(255, 255, 255, 0.25);
+  --border-focus: var(--ssi-red);
+
+  /* Shadows (darker for dark theme) */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 12px 60px rgba(0, 0, 0, 0.6);
+  --shadow-glow: 0 0 30px rgba(194, 58, 58, 0.3);
+  --shadow-glow-gold: 0 0 30px rgba(212, 168, 83, 0.3);
+
+  /* Special surfaces */
+  --nav-bg: rgba(18, 18, 18, 0.95);
+  --nav-bg-blur: rgba(18, 18, 18, 0.85);
+  --modal-backdrop: rgba(0, 0, 0, 0.7);
+  --logo-bubble-bg: var(--bg-primary);
+
+  /* Decorative */
+  --mountain-opacity: 1;
+  --overlay-gradient: linear-gradient(180deg, rgba(18, 18, 18, 0) 0%, rgba(18, 18, 18, 0.8) 100%);
+}
+
+/* ================================================================
+ * LIGHT THEME
+ * Clean, airy surfaces with subtle depth
+ * ================================================================ */
+[data-theme="light"] {
+  /* Background hierarchy */
+  --bg-primary: #f5f5f7;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f9f9f9;
+  --bg-elevated: #f0f0f2;
+  --bg-input: #ffffff;
+
+  /* Text hierarchy */
+  --text-primary: #1a1a1a;
+  --text-secondary: #666666;
+  --text-muted: #999999;
+  --text-inverse: #ffffff;
+
+  /* Borders */
+  --border-subtle: rgba(0, 0, 0, 0.06);
+  --border-medium: rgba(0, 0, 0, 0.12);
+  --border-strong: rgba(0, 0, 0, 0.2);
+  --border-focus: var(--ssi-red);
+
+  /* Shadows (softer for light theme) */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.12);
+  --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.16);
+  --shadow-xl: 0 12px 60px rgba(0, 0, 0, 0.2);
+  --shadow-glow: 0 0 30px rgba(194, 58, 58, 0.2);
+  --shadow-glow-gold: 0 0 30px rgba(212, 168, 83, 0.2);
+
+  /* Special surfaces */
+  --nav-bg: rgba(255, 255, 255, 0.95);
+  --nav-bg-blur: rgba(255, 255, 255, 0.85);
+  --modal-backdrop: rgba(0, 0, 0, 0.5);
+  --logo-bubble-bg: var(--bg-primary);
+
+  /* Decorative */
+  --mountain-opacity: 0.5;
+  --overlay-gradient: linear-gradient(180deg, rgba(245, 245, 247, 0) 0%, rgba(245, 245, 247, 0.8) 100%);
+}
+
+/* ================================================================
+ * BELT COLOR UTILITIES
+ * Background gradients for belt badges
+ * ================================================================ */
+.belt-white {
+  background: linear-gradient(135deg, var(--belt-white), var(--belt-white-dark));
+  color: #333333;
+}
+
+.belt-yellow {
+  background: linear-gradient(135deg, var(--belt-yellow), var(--belt-yellow-dark));
+  color: #333333;
+}
+
+.belt-orange {
+  background: linear-gradient(135deg, var(--belt-orange), var(--belt-orange-dark));
+  color: white;
+}
+
+.belt-green {
+  background: linear-gradient(135deg, var(--belt-green), var(--belt-green-dark));
+  color: white;
+}
+
+.belt-blue {
+  background: linear-gradient(135deg, var(--belt-blue), var(--belt-blue-dark));
+  color: white;
+}
+
+.belt-brown {
+  background: linear-gradient(135deg, var(--belt-brown), var(--belt-brown-dark));
+  color: white;
+}
+
+.belt-black {
+  background: linear-gradient(135deg, var(--belt-black), var(--belt-black-dark));
+  color: white;
+}
