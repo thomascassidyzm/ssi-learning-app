@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import TopNav from '@/components/shared/TopNav.vue'
+import DevRoleSwitcher from '@/components/DevRoleSwitcher.vue'
 </script>
 
 <template>
   <div class="app-container">
     <TopNav />
+
+    <!-- Dev Role Switcher (bottom right corner) -->
+    <DevRoleSwitcher />
     <main class="main-content">
       <router-view v-slot="{ Component }">
         <transition name="fade" mode="out-in">
