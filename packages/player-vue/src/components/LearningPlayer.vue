@@ -1429,6 +1429,11 @@ class RealAudioController {
     return this.preloadedUrls.has(audioRef?.url)
   }
 
+  // Clear the preload cache (call on skip to prevent stale audio)
+  clearPreloadCache() {
+    this.preloadedUrls.clear()
+  }
+
   isPlaying() {
     return this.audio && !this.audio.paused
   }
@@ -2329,6 +2334,8 @@ const handleSkip = async () => {
   // 2. Stop audio controller (stops current playback and clears any pending listeners)
   if (audioController.value) {
     audioController.value.stop()
+    // Clear preload cache to prevent stale audio from previous round
+    audioController.value.clearPreloadCache()
   }
 
   // 3. Skip any playing intro/welcome
@@ -2461,6 +2468,8 @@ const handleRevisit = async () => {
   // 2. Stop audio controller (stops current playback)
   if (audioController.value) {
     audioController.value.stop()
+    // Clear preload cache to prevent stale audio
+    audioController.value.clearPreloadCache()
   }
 
   // 3. Skip any playing intro/welcome

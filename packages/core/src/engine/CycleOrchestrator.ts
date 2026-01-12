@@ -27,6 +27,7 @@ export class CycleOrchestrator implements ICycleOrchestrator {
   private audioController: IAudioController;
   private listeners: Set<CycleEventListener> = new Set();
   private pauseTimer: ReturnType<typeof setTimeout> | null = null;
+  private transitionTimer: ReturnType<typeof setTimeout> | null = null;
   private audioEndedHandler: (() => void) | null = null;
 
   constructor(audioController: IAudioController, config: CycleConfig) {
@@ -254,7 +255,9 @@ export class CycleOrchestrator implements ICycleOrchestrator {
 
   private handleTransitionPhase(): void {
     // Brief transition gap before completing
-    setTimeout(() => {
+    // Track the timer so it can be cleared on stop()
+    this.transitionTimer = setTimeout(() => {
+      this.transitionTimer = null;
       this.completeItem();
     }, this.config.transition_gap_ms);
   }
@@ -338,8 +341,16 @@ export class CycleOrchestrator implements ICycleOrchestrator {
     }
   }
 
+  private clearTransitionTimer(): void {
+    if (this.transitionTimer) {
+      clearTimeout(this.transitionTimer);
+      this.transitionTimer = null;
+    }
+  }
+
   private cleanup(): void {
     this.clearPauseTimer();
+    this.clearTransitionTimer();
     this.audioController.stop();
 
     if (this.audioEndedHandler) {
