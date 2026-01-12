@@ -1164,13 +1164,26 @@ const sessionProgress = computed(() => {
   }
   return (itemsPracticed.value + 1) / sessionItems.value.length
 })
-// Track item transitions to prevent text glitch (new prompt + old target showing together)
-// This flag is set TRUE when TRANSITION phase starts, and cleared when next PROMPT begins
+// Track item transitions to prevent text glitch
+// This flag is set TRUE 500ms before VOICE_2 ends, cleared when next PROMPT begins
 const isTransitioningItem = ref(false)
 
+// During transition, fade ALL text (known + target together)
+const showAllText = computed(() => !isTransitioningItem.value)
+
+// Target text only visible during VOICE_2 (and not transitioning)
 const showTargetText = computed(() =>
   currentPhase.value === Phase.VOICE_2 && !isTransitioningItem.value
 )
+
+// Stable known text - only updates when not transitioning (prevents flash on item change)
+const displayedKnownText = ref('')
+watch([() => isTransitioningItem.value, () => currentPhrase.value.known], ([transitioning, newKnown]) => {
+  // Only update when NOT transitioning
+  if (!transitioning) {
+    displayedKnownText.value = newKnown
+  }
+}, { immediate: true })
 
 // Stable target text - only updates when text is NOT showing (prevents flash on phrase change)
 const displayedTargetText = ref('')
@@ -3889,26 +3902,27 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- Known text floats above -->
-          <div class="hero-text-known">
-            <transition name="text-fade" mode="out-in">
-              <p v-if="isAwakening" class="hero-known loading-text" key="loading">
+          <!-- Text container - fades all text together during transition -->
+          <div class="hero-text-container" :class="{ 'is-transitioning': isTransitioningItem }">
+            <!-- Known text - always visible, stable position -->
+            <div class="hero-text-known">
+              <p v-if="isAwakening" class="hero-known loading-text">
                 {{ currentLoadingMessage }}<span class="loading-cursor">▌</span>
               </p>
-              <p v-else class="hero-known" :key="currentPhrase.known">
-                {{ currentPhrase.known }}
+              <p v-else class="hero-known">
+                {{ displayedKnownText }}
               </p>
-            </transition>
-          </div>
+            </div>
 
-          <!-- Target text floats below (only visible in Voice 2) -->
-          <div class="hero-text-target">
-            <transition name="text-reveal" mode="out-in">
-              <p v-if="showTargetText" class="hero-target" :key="displayedTargetText">
-                {{ displayedTargetText }}
-              </p>
+            <!-- Target text - appears below known text during Voice 2 -->
+            <div class="hero-text-target">
+              <transition name="text-reveal">
+                <p v-if="showTargetText" class="hero-target" :key="displayedTargetText">
+                  {{ displayedTargetText }}
+                </p>
               <p v-else class="hero-target-placeholder" key="placeholder">&nbsp;</p>
             </transition>
+          </div>
           </div>
         </template>
       </div>
@@ -4041,26 +4055,24 @@ onUnmounted(() => {
 
     <!-- CONTROL PANE - Minimal text display, tap to play/pause -->
     <section class="control-pane" :class="[currentPhase, `layout-${layoutMode}`, { 'is-paused': !isPlaying }]" @click="handleRingTap">
-      <!-- Text display area -->
-      <div class="pane-text">
-        <!-- Known Language Text -->
+      <!-- Text display area - fades together during transition -->
+      <div class="pane-text" :class="{ 'is-transitioning': isTransitioningItem }">
+        <!-- Known Language Text - always visible, stable position -->
         <div class="pane-text-known">
-          <transition name="text-fade" mode="out-in">
-            <p v-if="isAwakening" class="known-text loading-text" key="loading">
-              {{ currentLoadingMessage }}<span class="loading-cursor">▌</span>
-            </p>
-            <p v-else class="known-text" :key="currentPhrase.known">
-              {{ currentPhrase.known }}
-            </p>
-          </transition>
+          <p v-if="isAwakening" class="known-text loading-text">
+            {{ currentLoadingMessage }}<span class="loading-cursor">▌</span>
+          </p>
+          <p v-else class="known-text">
+            {{ displayedKnownText }}
+          </p>
         </div>
 
         <!-- Visual separator -->
         <div class="pane-text-divider"></div>
 
-        <!-- Target Language Text - always visible area with highlight strip -->
+        <!-- Target Language Text - appears below known text during Voice 2 -->
         <div class="pane-text-target" :class="{ 'has-text': showTargetText }">
-          <transition name="text-reveal" mode="out-in">
+          <transition name="text-reveal">
             <p v-if="showTargetText" class="target-text" :key="displayedTargetText">
               {{ displayedTargetText }}
             </p>
@@ -6316,6 +6328,17 @@ onUnmounted(() => {
 }
 
 .text-reveal-leave-to {
+  opacity: 0;
+}
+
+/* Text container fade - both known and target fade together during transition */
+.hero-text-container,
+.pane-text {
+  transition: opacity 0.3s ease;
+}
+
+.hero-text-container.is-transitioning,
+.pane-text.is-transitioning {
   opacity: 0;
 }
 
