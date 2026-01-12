@@ -248,6 +248,7 @@ const {
 const cachedRounds = ref([])
 const currentRoundIndex = ref(0)
 const currentItemInRound = ref(0)
+const scriptBaseOffset = ref(0) // Tracks where the script started (completedSeeds at load time)
 
 // ============================================
 // PROGRESSIVE LOADING - Start small, expand as learner progresses
@@ -269,6 +270,7 @@ const getPositionStorageKey = () => `${POSITION_STORAGE_KEY_PREFIX}${courseCode.
  * Save current learning position to localStorage
  * Called whenever position changes (round or item)
  * Includes 'view' field to enable same-view vs cross-view resume logic
+ * Includes 'scriptOffset' to detect when belt progress changed (invalidates position)
  */
 const savePositionToLocalStorage = () => {
   if (!courseCode.value) return
@@ -280,9 +282,10 @@ const savePositionToLocalStorage = () => {
       lastUpdated: Date.now(),
       courseCode: courseCode.value,
       view: 'player', // Track which view saved this position
+      scriptOffset: beltProgress.value?.completedSeeds.value ?? 0, // Track offset for validation
     }
     localStorage.setItem(getPositionStorageKey(), JSON.stringify(position))
-    console.log('[LearningPlayer] Position saved:', position.roundIndex, '/', position.itemInRound)
+    console.log('[LearningPlayer] Position saved:', position.roundIndex, '/', position.itemInRound, 'at offset', position.scriptOffset)
   } catch (err) {
     console.warn('[LearningPlayer] Failed to save position to localStorage:', err)
   }
@@ -290,7 +293,8 @@ const savePositionToLocalStorage = () => {
 
 /**
  * Load learning position from localStorage
- * Returns null if no saved position or position is too old (>7 days)
+ * Returns null if no saved position, position is too old (>7 days), or offset changed
+ * The offset check ensures position is valid when belt progress changes between sessions
  */
 const loadPositionFromLocalStorage = () => {
   if (!courseCode.value) return null
@@ -313,7 +317,16 @@ const loadPositionFromLocalStorage = () => {
       return null
     }
 
-    console.log('[LearningPlayer] Loaded position from localStorage:', position.roundIndex, '/', position.itemInRound)
+    // Check if offset changed (belt progress changed since position was saved)
+    // If so, the stored roundIndex is no longer valid for the new script batch
+    const currentOffset = beltProgress.value?.completedSeeds.value ?? 0
+    const storedOffset = position.scriptOffset ?? 0
+    if (storedOffset !== currentOffset) {
+      console.log('[LearningPlayer] Belt progress changed (offset', storedOffset, '→', currentOffset, '), position invalidated')
+      return null
+    }
+
+    console.log('[LearningPlayer] Loaded position from localStorage:', position.roundIndex, '/', position.itemInRound, 'at offset', storedOffset)
     return position
   } catch (err) {
     console.warn('[LearningPlayer] Failed to load position from localStorage:', err)
@@ -802,7 +815,7 @@ const playCommentaryAudio = async (commentary) => {
  * Belts are POSITION-based, not completion-based
  * This allows learners to skip ahead and calibrate quickly
  *
- * @param roundIndex - Current round position (0-based)
+ * @param roundIndex - Current round position (0-based, relative to loaded batch)
  * @param showCelebration - Whether to show belt promotion celebration
  */
 const updateBeltForPosition = (roundIndex, showCelebration = true) => {
@@ -812,7 +825,8 @@ const updateBeltForPosition = (roundIndex, showCelebration = true) => {
   const previousSeeds = beltProgress.value.completedSeeds.value
 
   // Set seeds to match current position (1 seed ≈ 1 round/LEGO)
-  const newSeeds = roundIndex + 1
+  // Convert relative round index to absolute seed number using base offset
+  const newSeeds = scriptBaseOffset.value + roundIndex + 1
   beltProgress.value.setSeeds(newSeeds)
 
   // Check for belt promotion (only celebrate if moving forward)
@@ -2698,30 +2712,33 @@ const handleSkipToNextBelt = async () => {
   const targetSeed = nextBelt.value.seedsRequired
   console.log(`[LearningPlayer] Skipping to ${nextBelt.value.name} belt (seed ${targetSeed})`)
 
-  // Expand script if we need more rounds
-  if (targetSeed >= cachedRounds.value.length && courseDataProvider.value) {
-    console.log(`[LearningPlayer] Expanding script to reach seed ${targetSeed}...`)
-    const neededRounds = targetSeed + 10
+  // Calculate absolute position of currently loaded rounds
+  const absoluteEnd = scriptBaseOffset.value + cachedRounds.value.length
+
+  // Expand script if we need more rounds to reach target
+  if (targetSeed >= absoluteEnd && courseDataProvider.value) {
+    console.log(`[LearningPlayer] Expanding script to reach seed ${targetSeed} (currently at ${absoluteEnd})...`)
+    const neededRounds = targetSeed - absoluteEnd + 10 // How many more we need
     const { rounds: moreRounds } = await generateLearningScript(
       courseDataProvider.value,
-      neededRounds - cachedRounds.value.length,
-      cachedRounds.value.length
+      neededRounds,
+      absoluteEnd  // Expansion offset = base + loaded count
     )
     if (moreRounds.length > 0) {
       cachedRounds.value = [...cachedRounds.value, ...moreRounds]
-      console.log(`[LearningPlayer] Expanded to ${cachedRounds.value.length} rounds`)
+      console.log(`[LearningPlayer] Expanded to ${cachedRounds.value.length} rounds (base offset: ${scriptBaseOffset.value})`)
     }
   }
 
-  // Clamp to available rounds
-  const targetRound = Math.min(targetSeed, cachedRounds.value.length - 1)
+  // Convert absolute target to relative round index
+  const targetRound = Math.min(targetSeed - scriptBaseOffset.value, cachedRounds.value.length - 1)
 
   // Jump to the target round
   await jumpToRound(targetRound)
 
-  // Update belt progress to match
+  // Update belt progress to match (uses absolute seed number)
   if (beltProgress.value) {
-    beltProgress.value.setSeeds(targetRound)
+    beltProgress.value.setSeeds(targetSeed)
   }
 }
 
@@ -2738,8 +2755,9 @@ const handleGoBackBelt = async () => {
   const targetSeed = beltProgress.value.goBackToBeltStart()
   console.log(`[LearningPlayer] Going back to seed ${targetSeed}`)
 
-  // Clamp to available rounds
-  const targetRound = Math.min(targetSeed, cachedRounds.value.length - 1)
+  // Convert absolute seed to relative round index
+  // If targetSeed is before our loaded batch, clamp to round 0
+  const targetRound = Math.max(0, Math.min(targetSeed - scriptBaseOffset.value, cachedRounds.value.length - 1))
 
   // Jump to the target round
   await jumpToRound(targetRound)
@@ -3050,18 +3068,19 @@ const expandScript = async () => {
 
   isExpandingScript.value = true
   const currentCount = cachedRounds.value.length
+  const absoluteOffset = scriptBaseOffset.value + currentCount // Expansion offset = base + loaded count
 
   try {
     // Double each time, capped at MAX_EXPANSION_BATCH
     // 20 → 40 → 80 → 160 → 200 → 200...
     const fetchCount = Math.min(currentCount, MAX_EXPANSION_BATCH)
 
-    console.log(`[LearningPlayer] Expanding script: fetching ${fetchCount} more rounds (offset: ${currentCount})`)
+    console.log(`[LearningPlayer] Expanding script: fetching ${fetchCount} more rounds (offset: ${absoluteOffset}, base: ${scriptBaseOffset.value})`)
 
     const { rounds: newRounds } = await generateLearningScript(
       courseDataProvider.value,
       fetchCount,
-      currentCount  // offset = how many we already have
+      absoluteOffset  // Expansion offset = base + loaded count
     )
 
     if (newRounds.length > 0) {
@@ -3074,13 +3093,14 @@ const expandScript = async () => {
         loadIntroAudio(supabase.value, courseCode.value, newLegoIds, audioMap.value)
       }
 
-      // Update cache with expanded script
+      // Update cache with expanded script (include offset for validation on reload)
       await setCachedScript(courseCode.value, {
         rounds: cachedRounds.value,
         totalSeeds: cachedRounds.value.length,
         totalLegos: cachedRounds.value.length,
         totalCycles: cachedRounds.value.reduce((sum, r) => sum + (r.items?.length || 0), 0),
         audioMapObj: {},
+        scriptOffset: scriptBaseOffset.value,
       })
 
       console.log(`[LearningPlayer] Expanded to ${cachedRounds.value.length} rounds`)
@@ -3395,8 +3415,17 @@ onMounted(async () => {
       // Load cache first (needed for other operations)
       cachedScript = await getCachedScript(courseCode.value)
 
+      // Validate cached script offset matches current belt progress
+      // If offset changed (completedSeeds changed since script was cached), invalidate
+      const currentOffset = beltProgress.value?.completedSeeds.value ?? 0
+      if (cachedScript && (cachedScript.scriptOffset ?? 0) !== currentOffset) {
+        console.log('[LearningPlayer] Belt progress changed (cached offset:', cachedScript.scriptOffset, '→ current:', currentOffset, '), invalidating cache')
+        cachedScript = null
+      }
+
       if (cachedScript) {
-        console.log('[LearningPlayer] Found cached script with', cachedScript.rounds.length, 'rounds')
+        console.log('[LearningPlayer] Found cached script with', cachedScript.rounds.length, 'rounds at offset', cachedScript.scriptOffset ?? 0)
+        scriptBaseOffset.value = cachedScript.scriptOffset ?? 0 // Restore base offset from cache
         // Debug: show items per round for first few rounds
         cachedScript.rounds.slice(0, 3).forEach((r, i) => {
           console.log(`[LearningPlayer] Cached Round ${i} has ${r.items?.length} items:`, r.items?.map(it => it.type).join(', '))
@@ -3580,10 +3609,14 @@ onMounted(async () => {
         try {
           // Provider now contains all config - single source of truth
           // Start with small batch for fast initial load, expand progressively
+          // Use completedSeeds as offset so returning learners resume from their progress
+          const startOffset = beltProgress.value?.completedSeeds.value ?? 0
+          scriptBaseOffset.value = startOffset // Track for expansion calculations
+          console.log('[LearningPlayer] Generating script with offset:', startOffset, '(completedSeeds)')
           const { rounds, allItems } = await generateLearningScript(
             courseDataProvider.value,
             INITIAL_ROUNDS, // Start small, expand as learner progresses
-            0               // offset
+            startOffset     // Resume from belt progress
           )
 
           if (rounds.length > 0) {
@@ -3595,6 +3628,8 @@ onMounted(async () => {
             cachedRounds.value = rounds
 
             // Try to restore position from localStorage (even for fresh script generation)
+            // Note: loadPositionFromLocalStorage validates the offset matches, so position is only
+            // returned if it's valid for the current script batch
             const localPosition = loadPositionFromLocalStorage()
             if (localPosition && typeof localPosition.roundIndex === 'number') {
               if (localPosition.roundIndex < rounds.length) {
@@ -3603,9 +3638,12 @@ onMounted(async () => {
                 const sameView = localPosition.view === 'player'
                 currentRoundIndex.value = localPosition.roundIndex
                 currentItemInRound.value = sameView ? (localPosition.itemInRound || 0) : 0
-                console.log('[LearningPlayer] Resuming from localStorage (new script): round', localPosition.roundIndex, sameView ? `item ${currentItemInRound.value}` : '(cross-view, item 0)')
+                console.log('[LearningPlayer] Resuming from localStorage: round', localPosition.roundIndex, sameView ? `item ${currentItemInRound.value}` : '(cross-view, item 0)')
               }
             }
+            // No belt progress fallback needed - the script is generated with startOffset=completedSeeds,
+            // so rounds[0] already represents the correct starting position for returning learners.
+            // If localStorage position is invalid (offset changed), we start at round 0 which is correct.
 
             // Mark position as initialized
             positionInitialized.value = true
@@ -3622,6 +3660,7 @@ onMounted(async () => {
               totalCycles,
               estimatedMinutes,
               audioMapObj,
+              scriptOffset: startOffset,
             })
 
             console.log('[LearningPlayer] Cached script for future use')
@@ -3695,19 +3734,20 @@ onMounted(async () => {
     if (props.previewLegoIndex > 0) {
       // Preview mode: expand script if needed, then show network up to specified LEGO index
       let targetIndex = props.previewLegoIndex
+      const absoluteEnd = scriptBaseOffset.value + cachedRounds.value.length
 
       // Expand script if preview index exceeds cached rounds
-      if (targetIndex >= cachedRounds.value.length && courseDataProvider.value) {
-        console.log(`[LearningPlayer] Preview ${targetIndex} exceeds cached ${cachedRounds.value.length}, expanding...`)
-        const neededRounds = targetIndex + 10 // A bit extra
+      if (targetIndex >= absoluteEnd && courseDataProvider.value) {
+        console.log(`[LearningPlayer] Preview ${targetIndex} exceeds cached ${absoluteEnd}, expanding...`)
+        const neededRounds = targetIndex - absoluteEnd + 10 // How many more we need
         const { rounds: moreRounds } = await generateLearningScript(
           courseDataProvider.value,
-          neededRounds - cachedRounds.value.length,
-          cachedRounds.value.length
+          neededRounds,
+          absoluteEnd  // Expansion offset = base + loaded count
         )
         if (moreRounds.length > 0) {
           cachedRounds.value = [...cachedRounds.value, ...moreRounds]
-          console.log(`[LearningPlayer] Expanded to ${cachedRounds.value.length} rounds for preview`)
+          console.log(`[LearningPlayer] Expanded to ${cachedRounds.value.length} rounds for preview (base offset: ${scriptBaseOffset.value})`)
         }
       }
 
