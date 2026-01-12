@@ -1183,6 +1183,54 @@ const sessionProgress = computed(() => {
 // This flag is set TRUE 500ms before VOICE_2 ends, cleared when next PROMPT begins
 const isTransitioningItem = ref(false)
 
+// ============================================
+// DURATION ESTIMATION
+// Build running average from observed data to estimate missing durations
+// ============================================
+const durationObservations = ref<Array<{ wordCount: number; durationMs: number }>>([])
+const avgMsPerWord = computed(() => {
+  if (durationObservations.value.length === 0) return 400 // Default ~400ms per word
+  const totalMs = durationObservations.value.reduce((sum, o) => sum + o.durationMs, 0)
+  const totalWords = durationObservations.value.reduce((sum, o) => sum + o.wordCount, 0)
+  return totalWords > 0 ? totalMs / totalWords : 400
+})
+
+/**
+ * Record an observed duration to improve future estimates
+ */
+const recordDurationObservation = (wordCount: number, durationMs: number) => {
+  if (wordCount > 0 && durationMs > 100) {
+    durationObservations.value.push({ wordCount, durationMs })
+    // Keep last 50 observations for rolling average
+    if (durationObservations.value.length > 50) {
+      durationObservations.value.shift()
+    }
+  }
+}
+
+/**
+ * Get duration for an item - uses actual duration if available, estimates from word count otherwise
+ */
+const getEstimatedDuration = (item: any, audioType: 'target1' | 'target2'): number | null => {
+  const actualDuration = item?.audioDurations?.[audioType]
+  if (actualDuration && actualDuration > 0) {
+    // Record for future estimates
+    const wordCount = item?.phrase?.wordCount || item?.wordCount || 0
+    if (wordCount > 0) {
+      recordDurationObservation(wordCount, actualDuration * 1000)
+    }
+    return actualDuration * 1000 // Convert to ms
+  }
+
+  // Estimate from word count
+  const wordCount = item?.phrase?.wordCount || item?.wordCount || 0
+  if (wordCount > 0) {
+    return wordCount * avgMsPerWord.value
+  }
+
+  return null // No data to estimate from
+}
+
 // During transition, fade ALL text (known + target together)
 const showAllText = computed(() => !isTransitioningItem.value)
 
@@ -1512,9 +1560,9 @@ const handleCycleEvent = (event) => {
             if (itemForVoice1) {
               const legoIds = extractLegoIdsFromPhrase(itemForVoice1)
               if (legoIds.length > 0) {
-                // Get audio duration for timing sync
-                const audioDurationMs = (itemForVoice1.audioDurations?.target1 || 2) * 1000
-                distinctionNetwork.animateNodesForVoice1(legoIds, audioDurationMs)
+                // Get audio duration for timing sync - uses actual or estimates from word count
+                const audioDurationMs = getEstimatedDuration(itemForVoice1, 'target1')
+                distinctionNetwork.animateNodesForVoice1(legoIds, audioDurationMs || 2000)
               }
             }
           }
@@ -1530,15 +1578,13 @@ const handleCycleEvent = (event) => {
             if (currentItemForPath) {
               const legoIds = extractLegoIdsFromPhrase(currentItemForPath)
               if (legoIds.length > 0) {
-                // Get audio duration for timing sync
-                const target2Duration = currentItemForPath.audioDurations?.target2
-                const audioDurationMs = (target2Duration || 2) * 1000
-                distinctionNetwork.animatePathForVoice2(legoIds, audioDurationMs)
+                // Get audio duration for timing sync - uses actual or estimates from word count
+                const audioDurationMs = getEstimatedDuration(currentItemForPath, 'target2')
+                distinctionNetwork.animatePathForVoice2(legoIds, audioDurationMs || 2000)
 
                 // Start fading target text 500ms BEFORE audio ends
-                // ONLY if we have reliable duration data - don't fade early with fallback value
-                // This prevents text disappearing before audio finishes when duration is unknown
-                if (target2Duration && target2Duration > 0.5) {
+                // Only if we have duration data (actual or estimated from word count)
+                if (audioDurationMs && audioDurationMs > 500) {
                   const fadeEarlyMs = Math.max(100, audioDurationMs - 500)
                   setTimeout(() => {
                     if (currentPhase.value === Phase.VOICE_2) {
@@ -1546,7 +1592,7 @@ const handleCycleEvent = (event) => {
                     }
                   }, fadeEarlyMs)
                 }
-                // If no reliable duration, text stays visible until orchestrator advances phase
+                // If no duration data at all, text stays visible until orchestrator advances phase
               }
               // Find M-LEGOs with partial word overlap (resonance effect)
               const resonating = findResonatingNodes(currentItemForPath, legoIds)
