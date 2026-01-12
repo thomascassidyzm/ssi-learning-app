@@ -69,7 +69,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, inject } from 'vue'
 
 const props = defineProps({
   courseCode: {
@@ -94,6 +94,10 @@ const props = defineProps({
     default: false
   }
 })
+
+// Inject Supabase client and auth
+const supabase = inject('supabase', null)
+const auth = inject('auth', null)
 
 const isOpen = ref(false)
 const selectedType = ref(null)
@@ -149,26 +153,27 @@ async function submitFeedback() {
                     sessionContext.known_audio_uuid ||
                     null
 
-    // Determine API URL (production API for the dashboard)
-    // In production, this would be configured via environment
-    const apiBaseUrl = import.meta.env.VITE_PRODUCTION_API_URL ||
-                       'https://popty-production.vercel.app'
+    // Get user ID - prefer authenticated learner, fall back to anonymous
+    const userId = auth?.learnerId?.value || getUserId()
 
-    const response = await fetch(`${apiBaseUrl}/api/production/${props.courseCode}/feedback`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        audioId,
-        feedbackType: selectedType.value,
-        userId: getUserId(),
-        comment: comment.value || null,
-        sessionContext
-      })
-    })
+    // Write directly to Supabase content_feedback table
+    if (supabase?.value) {
+      const { error } = await supabase.value
+        .from('content_feedback')
+        .insert({
+          audio_id: audioId,
+          course_code: props.courseCode,
+          feedback_type: selectedType.value,
+          user_id: userId,
+          comment: comment.value || null,
+          session_context: sessionContext
+        })
 
-    if (response.ok) {
+      if (error) {
+        console.error('[ReportIssue] Supabase insert error:', error)
+        throw new Error('Failed to submit')
+      }
+
       submitStatus.value = 'success'
       submitMessage.value = 'Thanks for your feedback!'
       // Auto-close after success
@@ -176,7 +181,17 @@ async function submitFeedback() {
         isOpen.value = false
       }, 1500)
     } else {
-      throw new Error('Failed to submit')
+      // Fallback: log locally if Supabase not available
+      console.warn('[ReportIssue] Supabase not available, feedback not saved:', {
+        audioId,
+        courseCode: props.courseCode,
+        feedbackType: selectedType.value,
+        userId,
+        comment: comment.value,
+        sessionContext
+      })
+      submitStatus.value = 'error'
+      submitMessage.value = 'Not signed in. Feedback not saved.'
     }
   } catch (error) {
     console.error('Failed to submit feedback:', error)
