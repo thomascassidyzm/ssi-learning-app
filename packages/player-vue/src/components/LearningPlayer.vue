@@ -5326,10 +5326,7 @@ onUnmounted(() => {
   margin: 0;
 }
 
-/* Voice 2 phase: hide known text, focus on target */
-.hero-text-pane.voice_2 .hero-text-known {
-  display: none;
-}
+/* Voice 2 phase: known text stays visible, target appears below */
 
 /* Timing ring - REMOVED (keeping CSS for cleanup later) */
 .hero-timing-ring {
