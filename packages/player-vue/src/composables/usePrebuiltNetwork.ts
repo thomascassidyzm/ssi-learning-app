@@ -28,6 +28,8 @@ export interface ConstellationNode {
   belt: string
   x: number  // Pre-calculated, fixed position
   y: number  // Pre-calculated, fixed position
+  isComponent?: boolean  // True for inferred component nodes (smaller, derived from M-type splits)
+  parentLegoIds?: string[]  // For components: which M-types contain this word
 }
 
 export interface ConstellationEdge {

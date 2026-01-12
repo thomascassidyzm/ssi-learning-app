@@ -2177,6 +2177,13 @@ const playWelcomeIfNeeded = async () => {
       return false
     }
 
+    // If learner has any progress (seeds > 0), they've already done a session
+    // This covers guests who can't persist welcome_played to database
+    if (completedSeeds.value > 0) {
+      console.log('[LearningPlayer] Learner has progress (', completedSeeds.value, 'seeds) - skipping welcome')
+      return false
+    }
+
     // Check if learner has already heard the welcome (requires courseDataProvider)
     if (courseDataProvider.value) {
       const alreadyPlayed = await courseDataProvider.value.hasPlayedWelcome(learnerId.value)
