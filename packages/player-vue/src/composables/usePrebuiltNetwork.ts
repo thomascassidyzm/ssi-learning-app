@@ -230,7 +230,7 @@ export function preCalculatePositions(
   }
 
   // RESCUE ISOLATED NODES: Connect any nodes with NO edges to their neighbors
-  // This prevents nodes from floating away from the cluster
+  // This is a backup - useLegoNetwork should already do this, but handles edge cases
   const connectedNodes = new Set<string>()
   for (const edge of edges) {
     const sourceId = typeof edge.source === 'string' ? edge.source : (edge.source as any)?.id
@@ -241,10 +241,9 @@ export function preCalculatePositions(
 
   const isolatedNodes = nodes.filter(n => !connectedNodes.has(n.id))
   if (isolatedNodes.length > 0) {
-    console.log(`[PrebuiltNetwork] Found ${isolatedNodes.length} isolated nodes, connecting to neighbors:`, isolatedNodes.map(n => n.id))
+    let edgesAdded = 0
 
     for (const isolatedNode of isolatedNodes) {
-      // Find the round index for this node
       const roundIdx = rounds.findIndex(r => r.legoId === isolatedNode.id)
       if (roundIdx < 0) continue
 
@@ -254,10 +253,9 @@ export function preCalculatePositions(
         if (prevLegoId && nodeMap.has(prevLegoId)) {
           const edgeId = `${prevLegoId}->${isolatedNode.id}`
           if (!edgeMap.has(edgeId)) {
-            const edge: ConstellationEdge = { id: edgeId, source: prevLegoId, target: isolatedNode.id, strength: 1 }
-            edges.push(edge)
-            edgeMap.set(edgeId, edge)
-            console.log(`[PrebuiltNetwork] Connected isolated ${isolatedNode.id} to previous: ${prevLegoId}`)
+            edges.push({ id: edgeId, source: prevLegoId, target: isolatedNode.id, strength: 1 })
+            edgeMap.set(edgeId, edges[edges.length - 1])
+            edgesAdded++
           }
         }
       }
@@ -268,13 +266,16 @@ export function preCalculatePositions(
         if (nextLegoId && nodeMap.has(nextLegoId)) {
           const edgeId = `${isolatedNode.id}->${nextLegoId}`
           if (!edgeMap.has(edgeId)) {
-            const edge: ConstellationEdge = { id: edgeId, source: isolatedNode.id, target: nextLegoId, strength: 1 }
-            edges.push(edge)
-            edgeMap.set(edgeId, edge)
-            console.log(`[PrebuiltNetwork] Connected isolated ${isolatedNode.id} to next: ${nextLegoId}`)
+            edges.push({ id: edgeId, source: isolatedNode.id, target: nextLegoId, strength: 1 })
+            edgeMap.set(edgeId, edges[edges.length - 1])
+            edgesAdded++
           }
         }
       }
+    }
+
+    if (edgesAdded > 0) {
+      console.log(`[PrebuiltNetwork] Found ${isolatedNodes.length} isolated nodes, connecting to neighbors (+${edgesAdded} edges)`)
     }
   }
 
