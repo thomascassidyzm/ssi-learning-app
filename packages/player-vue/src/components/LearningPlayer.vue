@@ -2821,6 +2821,7 @@ const handleSkipToNextBelt = async () => {
 /**
  * Jump back to start of current or previous belt
  * If close to current belt start, goes to previous belt
+ * If target is before loaded script, reloads from that position
  */
 const handleGoBackBelt = async () => {
   if (!beltProgress.value) {
@@ -2829,13 +2830,46 @@ const handleGoBackBelt = async () => {
   }
 
   const targetSeed = beltProgress.value.goBackToBeltStart()
-  console.log(`[LearningPlayer] Going back to seed ${targetSeed}`)
+  console.log(`[LearningPlayer] Going back to seed ${targetSeed}, current base offset: ${scriptBaseOffset.value}`)
 
-  // Convert absolute seed to relative round index
-  // If targetSeed is before our loaded batch, clamp to round 0
+  // Check if target is before our currently loaded script
+  if (targetSeed < scriptBaseOffset.value) {
+    console.log(`[LearningPlayer] Target seed ${targetSeed} is before loaded range (${scriptBaseOffset.value}), reloading script...`)
+
+    // Need to reload script from the target position
+    if (courseDataProvider.value) {
+      // Stop current playback
+      if (orchestrator.value) orchestrator.value.stop()
+      if (audioController.value) audioController.value.stop()
+      clearPathAnimation()
+
+      // Update base offset and reload
+      scriptBaseOffset.value = targetSeed
+
+      const { rounds, allItems } = await generateLearningScript(
+        courseDataProvider.value,
+        ROUNDS_TO_FETCH,
+        targetSeed
+      )
+
+      if (rounds.length > 0) {
+        cachedRounds.value = rounds
+        allPlayableItems.value = allItems
+
+        // Populate network for reloaded rounds
+        populateNetworkFromRounds(rounds, 0, networkConnections.value)
+
+        // Jump to first round (which is now at targetSeed)
+        await jumpToRound(0)
+        console.log(`[LearningPlayer] Reloaded script from seed ${targetSeed}, now at round 0`)
+        return
+      }
+    }
+  }
+
+  // Target is within loaded range - simple jump
   const targetRound = Math.max(0, Math.min(targetSeed - scriptBaseOffset.value, cachedRounds.value.length - 1))
-
-  // Jump to the target round
+  console.log(`[LearningPlayer] Jumping to round ${targetRound} (seed ${targetSeed})`)
   await jumpToRound(targetRound)
 }
 

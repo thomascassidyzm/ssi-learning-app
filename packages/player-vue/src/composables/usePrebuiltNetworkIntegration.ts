@@ -58,6 +58,21 @@ export function usePrebuiltNetworkIntegration(
   // Fire path animation toggle (saved to localStorage)
   const showFirePath = ref(localStorage.getItem('ssi-show-fire-path') !== 'false')
 
+  // Listen for storage changes (cross-tab and same-tab via custom event)
+  if (typeof window !== 'undefined') {
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'ssi-show-fire-path') {
+        showFirePath.value = e.newValue !== 'false'
+      }
+    })
+    // Custom event for same-tab updates
+    window.addEventListener('ssi-setting-changed', ((e: CustomEvent) => {
+      if (e.detail?.key === 'showFirePath') {
+        showFirePath.value = e.detail.value
+      }
+    }) as EventListener)
+  }
+
   // Path animation state
   const isAnimatingPath = ref(false)
   let pathAnimationTimers: number[] = []

@@ -39,6 +39,10 @@ onMounted(() => {
 const toggleFirePath = () => {
   showFirePath.value = !showFirePath.value
   localStorage.setItem('ssi-show-fire-path', showFirePath.value ? 'true' : 'false')
+  // Dispatch custom event for same-tab reactivity
+  window.dispatchEvent(new CustomEvent('ssi-setting-changed', {
+    detail: { key: 'showFirePath', value: showFirePath.value }
+  }))
   emit('settingChanged', { key: 'showFirePath', value: showFirePath.value })
 }
 

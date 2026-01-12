@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!-- Background -->
+  <rect width="32" height="32" rx="6" fill="#121212"/>
+
+  <!-- SSi Logo - Speech bubble outline -->
+  <rect x="6" y="8" width="20" height="14" rx="3" stroke="#c23a3a" stroke-width="2" fill="none"/>
+
+  <!-- Speech bubble tail -->
+  <path d="M22 22 L26 26 L22 24" stroke="#c23a3a" stroke-width="2" fill="#121212"/>
+
+  <!-- SSi text representation -->
+  <text x="16" y="18" font-family="system-ui, sans-serif" font-size="8" font-weight="700" fill="#c23a3a" text-anchor="middle">
+    SSi
+  </text>
+</svg>
