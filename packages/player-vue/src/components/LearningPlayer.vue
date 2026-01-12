@@ -6468,7 +6468,7 @@ onUnmounted(() => {
     gap: 0.75rem;
     padding: 0.5rem 0.75rem;
     /* Position above iOS home indicator safe area */
-    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(30px + env(safe-area-inset-bottom, 0px));
   }
 
   .mode-btn {
