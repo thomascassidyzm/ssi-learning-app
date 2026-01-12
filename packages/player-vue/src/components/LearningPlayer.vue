@@ -731,6 +731,19 @@ const completedSeeds = computed(() => beltProgress.value?.completedSeeds.value ?
 const currentBelt = computed(() => beltProgress.value?.currentBelt.value ?? { name: 'white', seedsRequired: 0, color: '#f5f5f5', colorDark: '#e0e0e0', glow: 'rgba(245, 245, 245, 0.3)', index: 0 })
 const nextBelt = computed(() => beltProgress.value?.nextBelt.value ?? null)
 const previousBelt = computed(() => beltProgress.value?.previousBelt.value ?? null)
+
+// Calculate which belt the "back" button will go TO
+// Mirrors goBackToBeltStart logic: if >2 seeds into current belt, stays on current; otherwise goes to previous
+const backTargetBelt = computed(() => {
+  const currentStart = currentBelt.value.seedsRequired
+  // If we're more than 2 seeds into current belt, target is current belt start
+  if (completedSeeds.value > currentStart + 2 || !previousBelt.value) {
+    return currentBelt.value
+  }
+  // Otherwise, target is previous belt
+  return previousBelt.value
+})
+
 const beltProgressPercent = computed(() => beltProgress.value?.beltProgress.value ?? 0)
 const seedsToNextBelt = computed(() => beltProgress.value?.seedsToNextBelt.value ?? 8)
 const timeToNextBelt = computed(() => beltProgress.value?.timeToNextBelt.value ?? 'Keep learning to see estimate')
@@ -4174,12 +4187,13 @@ onUnmounted(() => {
       <div class="header-right">
         <!-- Belt Navigation Group -->
         <div class="belt-nav-header">
-          <!-- Back to previous belt -->
+          <!-- Back to previous/current belt start -->
           <button
-            class="belt-nav-header-btn"
+            class="belt-nav-header-btn belt-nav-header-btn--back"
             @click.stop="handleGoBackBelt"
             :disabled="!previousBelt && currentBelt.seedsRequired === completedSeeds"
-            :title="previousBelt ? `Back to ${previousBelt.name} belt` : `Start of ${currentBelt.name} belt`"
+            :title="`Back to ${backTargetBelt.name} belt`"
+            :style="{ '--back-belt-color': backTargetBelt.color }"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <polyline points="15 18 9 12 15 6"/>
@@ -4350,10 +4364,11 @@ onUnmounted(() => {
 
       <!-- Belt Navigation: Back -->
       <button
-        class="belt-nav-btn"
+        class="belt-nav-btn belt-nav-btn--back"
         @click="handleGoBackBelt"
         :disabled="!previousBelt && currentBelt.seedsRequired === completedSeeds"
-        :title="previousBelt ? `Back to ${previousBelt.name} belt` : `Start of ${currentBelt.name} belt`"
+        :title="`Back to ${backTargetBelt.name} belt`"
+        :style="{ '--back-belt-color': backTargetBelt.color }"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="11 17 6 12 11 7"/>
@@ -4975,6 +4990,15 @@ onUnmounted(() => {
 
 .belt-nav-header-btn--forward:hover:not(:disabled) {
   color: var(--next-belt-color, var(--text-primary));
+}
+
+/* Back button shows target belt color */
+.belt-nav-header-btn--back {
+  color: var(--back-belt-color, var(--text-muted));
+}
+
+.belt-nav-header-btn--back:hover:not(:disabled) {
+  color: var(--back-belt-color, var(--text-primary));
 }
 
 /* ============ BELT PROGRESS BAR ============ */
@@ -6808,6 +6832,16 @@ onUnmounted(() => {
   color: var(--next-belt-color, var(--text-primary));
   border-color: var(--next-belt-color, var(--text-muted));
   box-shadow: 0 0 12px var(--next-belt-glow, transparent);
+}
+
+/* Back button shows target belt color */
+.belt-nav-btn--back {
+  color: var(--back-belt-color, var(--text-muted));
+}
+
+.belt-nav-btn--back:hover:not(:disabled) {
+  color: var(--back-belt-color, var(--text-primary));
+  border-color: var(--back-belt-color, var(--text-muted));
 }
 
 .transport-controls {
