@@ -2190,8 +2190,13 @@ const skipWelcome = async () => {
 
 const skipIntroduction = () => {
   if (introAudioElement) {
+    // Remove all event listeners to prevent stale callbacks
+    introAudioElement.onended = null
+    introAudioElement.onerror = null
     introAudioElement.pause()
     introAudioElement.currentTime = 0
+    // Clear src to fully reset
+    introAudioElement.removeAttribute('src')
   }
   isPlayingIntroduction.value = false
   introductionPhase.value = false
@@ -2380,6 +2385,13 @@ const handleSkip = async () => {
         console.log('[LearningPlayer] Skip → Playing INTRO for:', firstItem.legoId)
         const introPlayed = await playIntroductionAudioDirectly(firstItem)
         console.log('[LearningPlayer] Skip → intro played:', introPlayed)
+
+        // CRITICAL: Fully reset audio state before starting next item
+        // This ensures no stale audio from intro contaminates the new playback
+        if (audioController.value) {
+          audioController.value.stop()
+        }
+
         // Advance to next item (the DEBUT)
         currentItemInRound.value++
         const nextItem = cachedRounds.value[nextIndex]?.items?.[currentItemInRound.value]
@@ -2388,6 +2400,11 @@ const handleSkip = async () => {
           const nextPlayable = await scriptItemToPlayableItem(nextItem)
           if (nextPlayable && orchestrator.value) {
             currentPlayableItem.value = nextPlayable
+            // Set pause duration for new item
+            if (nextPlayable.audioDurations) {
+              const pauseMs = getPauseDuration(Math.round(nextPlayable.audioDurations.target1 * 1000))
+              orchestrator.value.updateConfig({ pause_duration_ms: pauseMs })
+            }
             orchestrator.value.startItem(nextPlayable)
           }
         }
