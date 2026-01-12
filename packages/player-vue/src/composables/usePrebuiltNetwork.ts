@@ -229,6 +229,55 @@ export function preCalculatePositions(
     console.log(`[PrebuiltNetwork] Created ${edges.length} consecutive-round edges`)
   }
 
+  // RESCUE ISOLATED NODES: Connect any nodes with NO edges to their neighbors
+  // This prevents nodes from floating away from the cluster
+  const connectedNodes = new Set<string>()
+  for (const edge of edges) {
+    const sourceId = typeof edge.source === 'string' ? edge.source : (edge.source as any)?.id
+    const targetId = typeof edge.target === 'string' ? edge.target : (edge.target as any)?.id
+    if (sourceId) connectedNodes.add(sourceId)
+    if (targetId) connectedNodes.add(targetId)
+  }
+
+  const isolatedNodes = nodes.filter(n => !connectedNodes.has(n.id))
+  if (isolatedNodes.length > 0) {
+    console.log(`[PrebuiltNetwork] Found ${isolatedNodes.length} isolated nodes, connecting to neighbors:`, isolatedNodes.map(n => n.id))
+
+    for (const isolatedNode of isolatedNodes) {
+      // Find the round index for this node
+      const roundIdx = rounds.findIndex(r => r.legoId === isolatedNode.id)
+      if (roundIdx < 0) continue
+
+      // Connect to previous round if exists
+      if (roundIdx > 0) {
+        const prevLegoId = rounds[roundIdx - 1]?.legoId
+        if (prevLegoId && nodeMap.has(prevLegoId)) {
+          const edgeId = `${prevLegoId}->${isolatedNode.id}`
+          if (!edgeMap.has(edgeId)) {
+            const edge: ConstellationEdge = { id: edgeId, source: prevLegoId, target: isolatedNode.id, strength: 1 }
+            edges.push(edge)
+            edgeMap.set(edgeId, edge)
+            console.log(`[PrebuiltNetwork] Connected isolated ${isolatedNode.id} to previous: ${prevLegoId}`)
+          }
+        }
+      }
+
+      // Connect to next round if exists
+      if (roundIdx < rounds.length - 1) {
+        const nextLegoId = rounds[roundIdx + 1]?.legoId
+        if (nextLegoId && nodeMap.has(nextLegoId)) {
+          const edgeId = `${isolatedNode.id}->${nextLegoId}`
+          if (!edgeMap.has(edgeId)) {
+            const edge: ConstellationEdge = { id: edgeId, source: isolatedNode.id, target: nextLegoId, strength: 1 }
+            edges.push(edge)
+            edgeMap.set(edgeId, edge)
+            console.log(`[PrebuiltNetwork] Connected isolated ${isolatedNode.id} to next: ${nextLegoId}`)
+          }
+        }
+      }
+    }
+  }
+
   // Run D3 force simulation to completion
   // Spread nodes out more so edges have room to display
   if (nodes.length > 0) {

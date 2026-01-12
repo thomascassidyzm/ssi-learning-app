@@ -65,11 +65,17 @@ function normalize(text: string): string {
 }
 
 // Greedy decomposition - find longest matching LEGO at each position
-function decomposePhrase(phraseText: string, legoMap: Map<string, string>): string[] {
+function decomposePhrase(phraseText: string, legoMap: Map<string, string>, debug = false): string[] {
   const normalized = normalize(phraseText)
   const words = normalized.split(' ')
   const result: string[] = []
   let i = 0
+
+  if (debug) {
+    console.log(`[decomposePhrase] Input: "${phraseText}"`)
+    console.log(`[decomposePhrase] Normalized: "${normalized}"`)
+    console.log(`[decomposePhrase] Words:`, words)
+  }
 
   while (i < words.length) {
     let longestMatch: string | null = null
@@ -78,6 +84,9 @@ function decomposePhrase(phraseText: string, legoMap: Map<string, string>): stri
     for (let len = words.length - i; len > 0; len--) {
       const candidate = words.slice(i, i + len).join(' ')
       const legoId = legoMap.get(candidate)
+      if (debug && len <= 4) {
+        console.log(`[decomposePhrase] Try "${candidate}" (${len} words) -> ${legoId || 'NO MATCH'}`)
+      }
       if (legoId) {
         longestMatch = legoId
         longestLength = len
@@ -89,8 +98,15 @@ function decomposePhrase(phraseText: string, legoMap: Map<string, string>): stri
       result.push(longestMatch)
       i += longestLength
     } else {
+      if (debug) {
+        console.log(`[decomposePhrase] Skipping unmatched word: "${words[i]}"`)
+      }
       i++ // Skip unmatched word
     }
+  }
+
+  if (debug) {
+    console.log(`[decomposePhrase] Result:`, result)
   }
 
   return result
@@ -157,6 +173,17 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
 
       console.log(`[useLegoNetwork] Loaded ${nodes.length} LEGOs`)
 
+      // DEBUG: Check if "voy a practicar" is in the legoMap
+      const practicarNorm = normalize('voy a practicar')
+      const practicarId = legoMap.get(practicarNorm)
+      console.log(`[useLegoNetwork] DEBUG: "voy a practicar" normalized to "${practicarNorm}" -> legoId: ${practicarId || 'NOT FOUND'}`)
+
+      // Also check what LEGOs start with "voy"
+      const voyLegos = Array.from(legoMap.entries())
+        .filter(([text]) => text.startsWith('voy'))
+        .slice(0, 10)
+      console.log(`[useLegoNetwork] DEBUG: LEGOs starting with "voy":`, voyLegos)
+
       // Load all phrases from practice_cycles (has duration data for eternal/debut sorting)
       let allPhrases: { id: string; target_text: string; target1_duration_ms: number | null }[] = []
       let offset = 0
@@ -188,6 +215,13 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
       const phrasesWithPath: PhraseWithPath[] = []
       const phrasesByLego = new Map<string, PhraseWithPath[]>()
       let phrasesWithPathCount = 0
+
+      // DEBUG: Find and decompose a phrase containing "practicar"
+      const practicarPhrase = (phrases || []).find(p => p.target_text.toLowerCase().includes('practicar'))
+      if (practicarPhrase) {
+        console.log(`[useLegoNetwork] DEBUG: Found phrase with "practicar": "${practicarPhrase.target_text}"`)
+        decomposePhrase(practicarPhrase.target_text, legoMap, true) // Debug mode
+      }
 
       for (const phrase of phrases || []) {
         const legoIds = decomposePhrase(phrase.target_text, legoMap)
@@ -235,6 +269,48 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
 
       // Sort by count (most frequent first)
       connections.sort((a, b) => b.count - a.count)
+
+      // Find which nodes have connections
+      const connectedNodeIds = new Set<string>()
+      for (const conn of connections) {
+        connectedNodeIds.add(conn.source)
+        connectedNodeIds.add(conn.target)
+      }
+
+      // Find isolated nodes (no connections at all)
+      const isolatedNodes = nodes.filter(n => !connectedNodeIds.has(n.id))
+      if (isolatedNodes.length > 0) {
+        console.log(`[useLegoNetwork] Found ${isolatedNodes.length} isolated LEGOs (no phrase connections):`,
+          isolatedNodes.slice(0, 10).map(n => `${n.id}: "${n.targetText}"`))
+
+        // Connect isolated nodes to their neighboring rounds
+        // This ensures they stay in the network cluster
+        for (const isolated of isolatedNodes) {
+          // Find index in nodes array (sorted by seed_number, lego_index)
+          const idx = nodes.findIndex(n => n.id === isolated.id)
+          if (idx < 0) continue
+
+          // Connect to previous node if exists
+          if (idx > 0) {
+            const prevNode = nodes[idx - 1]
+            const key = `${prevNode.id}→${isolated.id}`
+            if (!connectionCounts.has(key)) {
+              connections.push({ source: prevNode.id, target: isolated.id, count: 1 })
+              console.log(`[useLegoNetwork] Connected isolated ${isolated.id} to previous: ${prevNode.id}`)
+            }
+          }
+
+          // Connect to next node if exists
+          if (idx < nodes.length - 1) {
+            const nextNode = nodes[idx + 1]
+            const key = `${isolated.id}→${nextNode.id}`
+            if (!connectionCounts.has(key)) {
+              connections.push({ source: isolated.id, target: nextNode.id, count: 1 })
+              console.log(`[useLegoNetwork] Connected isolated ${isolated.id} to next: ${nextNode.id}`)
+            }
+          }
+        }
+      }
 
       // Update node usage stats
       for (const node of nodes) {
