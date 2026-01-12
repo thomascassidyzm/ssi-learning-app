@@ -3062,12 +3062,18 @@ const initializeNetwork = () => {
   const viewportWidth = window.innerWidth
   const viewportHeight = window.innerHeight
 
+  // Get safe area inset for notch/status bar
+  // Read from CSS custom property which stores env(safe-area-inset-top)
+  const playerEl = document.querySelector('.player')
+  const safeAreaTop = playerEl
+    ? parseInt(getComputedStyle(playerEl).getPropertyValue('--safe-area-top') || '0', 10)
+    : 0
+
   // Center in the available space:
-  // - Header at top: ~60px
+  // - Header at top: ~60px + safe area
   // - Transport bar at bottom: ~80px
-  // So available space is roughly 60px to (height - 80px)
-  // Center should be in the middle of that: (60 + (height - 80)) / 2 = (height - 20) / 2
-  const headerHeight = 60
+  // So available space is roughly (60 + safeArea) to (height - 80px)
+  const headerHeight = 60 + safeAreaTop
   const bottomControlsHeight = 100 // Transport bar + safe area
   const availableTop = headerHeight
   const availableBottom = viewportHeight - bottomControlsHeight
@@ -4449,6 +4455,7 @@ onUnmounted(() => {
   --gold: #d4a853;
   --gold-soft: rgba(212, 168, 83, 0.15);
   --success: #22c55e;
+  --safe-area-top: env(safe-area-inset-top, 0px);
 
   position: relative;
   display: flex;
@@ -4796,9 +4803,10 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1rem 1.5rem;
+  padding: calc(1rem + var(--safe-area-top, 0px)) 1.5rem 1rem 1.5rem;
   gap: 0.75rem;
   pointer-events: auto; /* Header buttons clickable */
+  min-height: 60px; /* Prevent header from getting too small */
 }
 
 .header.has-banner {
@@ -5017,7 +5025,7 @@ onUnmounted(() => {
 
 .network-theater {
   position: absolute;
-  top: 60px; /* Below header */
+  top: calc(60px + var(--safe-area-top, 0px)); /* Below header, accounting for notch */
   left: 0;
   right: 0;
   bottom: 0; /* FULLSCREEN - extends to bottom */
@@ -6691,7 +6699,7 @@ onUnmounted(() => {
 
 @media (max-width: 480px) {
   .header {
-    padding: 0.75rem 1rem;
+    padding: calc(0.75rem + var(--safe-area-top, 0px)) 1rem 0.75rem 1rem;
     flex-wrap: wrap;
     gap: 0.5rem;
   }
