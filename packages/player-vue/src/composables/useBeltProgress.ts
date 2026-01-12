@@ -45,11 +45,9 @@ export const TOTAL_SEEDS = 668 // Total seeds in a typical course
 
 const PROGRESS_KEY_PREFIX = 'ssi_belt_progress_'
 const SESSION_HISTORY_KEY_PREFIX = 'ssi_session_history_'
-const APP_VERSION_KEY = 'ssi_app_version'
 
-// Increment this when you want to reset all user progress on deployment
-// This ensures belt status resets when cache is invalidated
-const CURRENT_APP_VERSION = '2025-01-09-v1'
+// Note: Cache invalidation (position, scripts) is handled by App.vue using BUILD_VERSION
+// Belt PROGRESS (completedSeeds) persists across builds - it's real user progress
 
 // ============================================================================
 // TYPES
@@ -442,37 +440,8 @@ export function useBeltProgress(courseCode: string) {
   // INITIALIZATION
   // ============================================================================
 
-  /**
-   * Check if app version changed (new deployment) and reset progress if so
-   */
-  const checkVersionAndReset = () => {
-    try {
-      const storedVersion = localStorage.getItem(APP_VERSION_KEY)
-      if (storedVersion !== CURRENT_APP_VERSION) {
-        console.log(`[BeltProgress] New deployment detected (${storedVersion} → ${CURRENT_APP_VERSION}), resetting progress`)
-        // Clear all belt progress for all courses
-        const keysToRemove: string[] = []
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i)
-          if (key && (key.startsWith(PROGRESS_KEY_PREFIX) || key.startsWith(SESSION_HISTORY_KEY_PREFIX))) {
-            keysToRemove.push(key)
-          }
-        }
-        keysToRemove.forEach(key => localStorage.removeItem(key))
-        // Update stored version
-        localStorage.setItem(APP_VERSION_KEY, CURRENT_APP_VERSION)
-        return true // Progress was reset
-      }
-      return false
-    } catch (err) {
-      console.warn('[BeltProgress] Failed to check version:', err)
-      return false
-    }
-  }
-
   const initialize = () => {
     if (isLoaded.value) return
-    checkVersionAndReset()
     loadProgress()
     loadSessionHistory()
     isLoaded.value = true

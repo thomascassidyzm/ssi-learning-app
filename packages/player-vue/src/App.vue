@@ -16,34 +16,42 @@ const BUILD_VERSION = typeof __BUILD_NUMBER__ !== 'undefined' ? __BUILD_NUMBER__
  */
 const invalidateStaleCaches = () => {
   const CACHE_VERSION_KEY = 'ssi-build-version'
-  const SCRIPT_CACHE_PREFIX = 'ssi-script-'
 
   const storedVersion = localStorage.getItem(CACHE_VERSION_KEY)
 
   if (storedVersion !== BUILD_VERSION) {
     console.log(`[App] Build changed: ${storedVersion} → ${BUILD_VERSION}, clearing caches`)
 
-    // Clear all script caches
+    // Collect all keys to remove first (can't modify during iteration)
     const keysToRemove = []
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i)
-      if (key?.startsWith(SCRIPT_CACHE_PREFIX)) {
+      if (!key) continue
+
+      // Clear script caches
+      if (key.startsWith('ssi-script-')) {
+        keysToRemove.push(key)
+      }
+      // Clear position caches (LearningPlayer)
+      if (key.startsWith('ssi_learning_position_')) {
+        keysToRemove.push(key)
+      }
+      // Clear position caches (CourseExplorer)
+      if (key.startsWith('ssi_explorer_position_')) {
+        keysToRemove.push(key)
+      }
+      // Clear stale belt version key (we use BUILD_VERSION now)
+      if (key === 'ssi_app_version') {
         keysToRemove.push(key)
       }
     }
-    keysToRemove.forEach(key => localStorage.removeItem(key))
 
-    // Also clear position caches (structure may have changed)
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      if (key?.startsWith('ssi_learning_position_')) {
-        localStorage.removeItem(key)
-      }
-    }
+    // Now remove them
+    keysToRemove.forEach(key => localStorage.removeItem(key))
 
     // Store new version
     localStorage.setItem(CACHE_VERSION_KEY, BUILD_VERSION)
-    console.log(`[App] Cleared ${keysToRemove.length} cached scripts`)
+    console.log(`[App] Cleared ${keysToRemove.length} cached items (scripts, positions)`)
   } else {
     console.log(`[App] Build ${BUILD_VERSION} - caches valid`)
   }
