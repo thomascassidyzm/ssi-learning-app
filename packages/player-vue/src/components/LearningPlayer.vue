@@ -3914,15 +3914,12 @@ onUnmounted(() => {
               </p>
             </div>
 
-            <!-- Target text - appears below known text during Voice 2 -->
-            <div class="hero-text-target">
-              <transition name="text-reveal">
-                <p v-if="showTargetText" class="hero-target" :key="displayedTargetText">
-                  {{ displayedTargetText }}
-                </p>
-              <p v-else class="hero-target-placeholder" key="placeholder">&nbsp;</p>
-            </transition>
-          </div>
+            <!-- Target text - always present for stable sizing, opacity controlled -->
+            <div class="hero-text-target" :class="{ 'is-visible': showTargetText }">
+              <p class="hero-target">
+                {{ displayedTargetText }}
+              </p>
+            </div>
           </div>
         </template>
       </div>
@@ -4070,14 +4067,11 @@ onUnmounted(() => {
         <!-- Visual separator -->
         <div class="pane-text-divider"></div>
 
-        <!-- Target Language Text - appears below known text during Voice 2 -->
-        <div class="pane-text-target" :class="{ 'has-text': showTargetText }">
-          <transition name="text-reveal">
-            <p v-if="showTargetText" class="target-text" :key="displayedTargetText">
-              {{ displayedTargetText }}
-            </p>
-            <p v-else class="target-placeholder" key="placeholder">···</p>
-          </transition>
+        <!-- Target Language Text - always present for stable sizing, opacity controlled -->
+        <div class="pane-text-target" :class="{ 'is-visible': showTargetText }">
+          <p class="target-text">
+            {{ displayedTargetText }}
+          </p>
         </div>
       </div>
 
@@ -6337,6 +6331,18 @@ onUnmounted(() => {
 .hero-text-container.is-transitioning,
 .pane-text.is-transitioning {
   opacity: 0;
+}
+
+/* Target text - always rendered for stable sizing, opacity controlled */
+.hero-text-target,
+.pane-text-target {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.hero-text-target.is-visible,
+.pane-text-target.is-visible {
+  opacity: 1;
 }
 
 /* ============ PAUSED STATE ============ */
