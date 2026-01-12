@@ -22,6 +22,9 @@ export interface LegoNode {
   birthBelt?: string
   x?: number
   y?: number
+  isComponent?: boolean // True if this is a component extracted from an M-type LEGO
+  parentLegoIds?: string[] // For components: which M-LEGOs contain this component
+  legoType?: 'A' | 'M' // Atomic or Molecular
 }
 
 export interface LegoConnection {
@@ -45,6 +48,7 @@ export interface NetworkData {
   legoMap: Map<string, string> // normalized target text → lego_id
   stats: {
     totalLegos: number
+    totalComponents: number
     totalPhrases: number
     phrasesWithPaths: number
     uniqueConnections: number
@@ -156,6 +160,83 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
       }
 
       console.log(`[useLegoNetwork] Loaded ${nodes.length} LEGOs`)
+
+      // Load M-type LEGOs to extract components
+      const { data: mTypeLegos, error: mTypeError } = await supabase.value
+        .from('course_legos')
+        .select('lego_id, type, components, known_text, target_text')
+        .eq('course_code', courseCode)
+        .eq('type', 'M')
+        .not('components', 'is', null)
+
+      if (mTypeError) {
+        console.warn('[useLegoNetwork] Error loading M-type LEGOs:', mTypeError)
+      }
+
+      // Extract unique components from M-type LEGOs
+      const componentMap = new Map<string, {
+        known: string
+        target: string
+        parentLegoIds: string[]
+      }>()
+
+      if (mTypeLegos && mTypeLegos.length > 0) {
+        for (const mLego of mTypeLegos) {
+          if (!mLego.components || !Array.isArray(mLego.components)) continue
+
+          for (const comp of mLego.components) {
+            // Handle both component formats
+            const known = comp.known || comp.known_text || ''
+            const target = comp.target || comp.target_text || ''
+            if (!target) continue
+
+            const targetNorm = normalize(target)
+
+            // Skip if this component matches an existing LEGO (it's already a node)
+            if (legoMap.has(targetNorm)) continue
+
+            // Add or update component
+            const existing = componentMap.get(targetNorm)
+            if (existing) {
+              if (!existing.parentLegoIds.includes(mLego.lego_id)) {
+                existing.parentLegoIds.push(mLego.lego_id)
+              }
+            } else {
+              componentMap.set(targetNorm, {
+                known,
+                target,
+                parentLegoIds: [mLego.lego_id]
+              })
+            }
+          }
+        }
+
+        // Create component nodes
+        let componentIndex = 0
+        for (const [targetNorm, comp] of componentMap) {
+          const componentId = `COMP_${componentIndex++}`
+
+          // Add to legoMap for phrase decomposition
+          legoMap.set(targetNorm, componentId)
+
+          nodes.push({
+            id: componentId,
+            seedId: 'COMP', // Special seed ID for components
+            legoIndex: componentIndex,
+            knownText: comp.known,
+            targetText: comp.target,
+            durationMs: 400, // Estimate - components are typically short
+            totalPractices: 0,
+            usedInPhrases: 0,
+            mastery: 0,
+            isEternal: false,
+            isComponent: true,
+            parentLegoIds: comp.parentLegoIds,
+          })
+        }
+
+        console.log(`[useLegoNetwork] Extracted ${componentMap.size} unique components from ${mTypeLegos.length} M-type LEGOs`)
+      }
 
       // Load all phrases from practice_cycles (has duration data for eternal/debut sorting)
       let allPhrases: { id: string; target_text: string; target1_duration_ms: number | null }[] = []
@@ -278,6 +359,31 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
         console.log(`[useLegoNetwork] Connected ${isolatedNodes.length} isolated LEGOs to neighbors (+${connectionsAdded} edges)`)
       }
 
+      // Add edges between components and their parent M-LEGOs
+      let componentEdgesAdded = 0
+      for (const node of nodes) {
+        if (node.isComponent && node.parentLegoIds) {
+          for (const parentId of node.parentLegoIds) {
+            // Create bidirectional edges between component and parent
+            const key1 = `${node.id}→${parentId}`
+            const key2 = `${parentId}→${node.id}`
+            if (!connectionCounts.has(key1)) {
+              connections.push({ source: node.id, target: parentId, count: 1 })
+              connectedNodeIds.add(node.id)
+              connectedNodeIds.add(parentId)
+              componentEdgesAdded++
+            }
+            if (!connectionCounts.has(key2)) {
+              connections.push({ source: parentId, target: node.id, count: 1 })
+              componentEdgesAdded++
+            }
+          }
+        }
+      }
+      if (componentEdgesAdded > 0) {
+        console.log(`[useLegoNetwork] Added ${componentEdgesAdded} component-parent edges`)
+      }
+
       // Update node usage stats
       for (const node of nodes) {
         node.usedInPhrases = legoUsage.get(node.id) || 0
@@ -286,6 +392,9 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
       console.log(`[useLegoNetwork] Built ${connections.length} unique connections from ${phrasesWithPathCount} phrases`)
       console.log(`[useLegoNetwork] Indexed ${phrasesWithPath.length} phrases across ${phrasesByLego.size} LEGOs`)
 
+      const componentCount = nodes.filter(n => n.isComponent).length
+      const legoCount = nodes.length - componentCount
+
       const data: NetworkData = {
         nodes,
         connections,
@@ -293,7 +402,8 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
         phrasesByLego,
         legoMap,
         stats: {
-          totalLegos: nodes.length,
+          totalLegos: legoCount,
+          totalComponents: componentCount,
           totalPhrases: phrases?.length || 0,
           phrasesWithPaths: phrasesWithPathCount,
           uniqueConnections: connections.length,
