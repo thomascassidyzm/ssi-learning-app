@@ -414,14 +414,25 @@ export function usePrebuiltNetwork() {
 
   /**
    * Strengthen edge (Hebbian learning - fire together, wire together)
+   * Creates edge if it doesn't exist - consecutive LEGOs in phrase = edge
    */
   function fireEdge(sourceId: string, targetId: string): void {
+    // Only create edges between revealed nodes
+    if (!revealedNodeIds.value.has(sourceId) || !revealedNodeIds.value.has(targetId)) {
+      return
+    }
+
     const edgeId = `${sourceId}->${targetId}`
-    const edge = edges.value.find(e => e.id === edgeId)
+    let edge = edges.value.find(e => e.id === edgeId)
+
     if (edge) {
       edge.strength++
+    } else {
+      // Create edge dynamically - "fire together, wire together"
+      edge = { id: edgeId, source: sourceId, target: targetId, strength: 1 }
+      edges.value.push(edge)
+      console.log(`[PrebuiltNetwork] Created new edge: ${edgeId}`)
     }
-    // Note: We don't add new edges at runtime - network structure is fixed
   }
 
   /**
