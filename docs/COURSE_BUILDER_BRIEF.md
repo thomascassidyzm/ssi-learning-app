@@ -2,7 +2,7 @@
 
 ## Your Task
 
-Build a language course for [TARGET_LANGUAGE] for English speakers.
+Build a language course for [TARGET_LANGUAGE] for [KNOWN_LANGUAGE] speakers.
 
 Create ~260 LEGOs and ~5,000 phrases by working through the 260 seed sentences, using your language knowledge to chunk appropriately.
 
@@ -13,7 +13,7 @@ Create ~260 LEGOs and ~5,000 phrases by working through the 260 seed sentences, 
 ### What is a LEGO?
 
 A minimum viable unit of robust meaning that:
-- Passes ZUT (Zero Uncertainty Test) - learner hears English, knows EXACTLY what to say
+- Passes ZUT (Zero Uncertainty Test) - learner hears KNOWN language prompt, has zero uncertainty of TARGET language required
 - Works naturally in BOTH languages
 - Can connect to other LEGOs
 
@@ -107,7 +107,7 @@ Seeds are a GUIDE. Each language pair can:
 | lego_index | 1-N within seed |
 | type | 'A' or 'M' |
 | is_new | true (first occurrence) or false (reuse) |
-| known_text | English |
+| known_text | Known language |
 | target_text | Target language |
 | components | JSON array for M-types, null for A-types |
 | status | 'draft' |
@@ -120,7 +120,7 @@ Seeds are a GUIDE. Each language pair can:
 | seed_number | 1-260 |
 | lego_index | 1-N within seed |
 | position | 1-N within basket |
-| known_text | English |
+| known_text | Known language |
 | target_text | Target language |
 | lego_count | Number of LEGOs in phrase |
 | status | 'draft' |
@@ -165,9 +165,9 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 ## Quality Bar
 
-1. Natural English
+1. Natural known language
 2. Natural target language
-3. ZUT passes - zero ambiguity
+3. ZUT passes - learner hears known, zero uncertainty of target required
 4. Phrases only use introduced LEGOs
 5. Word order correct for target language
 
