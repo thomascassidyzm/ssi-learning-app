@@ -249,6 +249,7 @@ const cachedRounds = ref([])
 const currentRoundIndex = ref(0)
 const currentItemInRound = ref(0)
 const scriptBaseOffset = ref(0) // Tracks where the script started (completedSeeds at load time)
+const playbackGeneration = ref(0) // Increments on every jump - invalidates stale callbacks
 
 // ============================================
 // PROGRESSIVE LOADING - Start small, expand as learner progresses
@@ -1710,9 +1711,17 @@ const handleCycleEvent = (event) => {
           return
         }
 
+        // Capture current generation - if it changes (user jumped), this callback becomes stale
+        const generationAtStart = playbackGeneration.value
+
         // Start next item after delay (ensure text transitions complete)
         // CSS transition is 300ms, so wait 350ms to be safe
         setTimeout(async () => {
+          // CRITICAL: Check if we've jumped since this callback was queued
+          if (playbackGeneration.value !== generationAtStart) {
+            console.log('[LearningPlayer] Stale callback detected (generation mismatch), skipping')
+            return
+          }
           if (!isPlaying.value || !orchestrator.value) return
 
           // Ensure previous audio is fully stopped
@@ -1794,9 +1803,17 @@ const handleCycleEvent = (event) => {
           orchestrator.value?.updateConfig({ pause_duration_ms: pauseMs })
         }
 
+        // Capture generation for stale callback detection
+        const genAtStart = playbackGeneration.value
+
         // Start next item (with introduction if needed)
         // CSS transition is 300ms, wait 350ms to ensure text fades complete
         setTimeout(async () => {
+          // Check if we've jumped since this callback was queued
+          if (playbackGeneration.value !== genAtStart) {
+            console.log('[LearningPlayer] Stale session callback (generation mismatch), skipping')
+            return
+          }
           if (isPlaying.value && orchestrator.value) {
             // Ensure previous audio is fully stopped
             if (audioController.value) {
@@ -2677,7 +2694,10 @@ const jumpToRound = async (roundIndex) => {
 
   console.log('[LearningPlayer] Jump requested - halting all audio')
 
-  // 0. IMMEDIATELY suppress all audio callbacks to prevent race conditions
+  // 0. Increment generation to invalidate any pending callbacks from previous position
+  playbackGeneration.value++
+
+  // 1. IMMEDIATELY suppress all audio callbacks to prevent race conditions
   if (audioController.value?.suppressCallbacks) {
     audioController.value.suppressCallbacks()
   }
