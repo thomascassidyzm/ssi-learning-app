@@ -100,6 +100,14 @@ onUnmounted(() => {
   justify-content: center;
   z-index: 200;
   padding: 1rem;
+  /* iOS safe areas */
+  padding-top: max(1rem, env(safe-area-inset-top));
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+  /* Allow scrolling on mobile when modal is tall */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Floating orbs - celestial atmosphere */
@@ -149,6 +157,10 @@ onUnmounted(() => {
   position: relative;
   width: 100%;
   max-width: 420px;
+  max-height: calc(100vh - 2rem);
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background: linear-gradient(
     145deg,
     rgba(30, 30, 35, 0.95) 0%,
@@ -162,6 +174,21 @@ onUnmounted(() => {
     0 25px 80px rgba(0, 0, 0, 0.5),
     0 0 60px rgba(194, 58, 58, 0.15);
   animation: modal-enter 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Mobile adjustments */
+@media (max-width: 480px) {
+  .auth-modal {
+    padding: 1.5rem;
+    border-radius: 20px;
+    margin: 0.5rem;
+  }
+}
+
+@media (max-height: 700px) {
+  .auth-modal {
+    padding: 1.25rem;
+  }
 }
 
 @keyframes modal-enter {
