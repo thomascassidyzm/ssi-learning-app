@@ -230,6 +230,7 @@ export function usePrebuiltNetworkIntegration(
    * @param rounds - Learning script rounds
    * @param upToIndex - Reveal nodes up to this index
    * @param externalConnections - Pre-loaded connections from database (like brain view)
+   * @param startOffset - The seed position where these rounds start (for correct belt colors)
    */
   function populateFromRounds(
     rounds: Array<{
@@ -239,7 +240,8 @@ export function usePrebuiltNetworkIntegration(
       items?: Array<{ type: string; targetText?: string; knownText?: string }>
     }>,
     upToIndex: number,
-    externalConnections?: ExternalConnection[]
+    externalConnections?: ExternalConnection[],
+    startOffset: number = 0
   ): void {
     // Store rounds for potential re-initialization
     cachedRoundsForNetwork = rounds
@@ -247,14 +249,15 @@ export function usePrebuiltNetworkIntegration(
     // Pre-calculate ALL positions (even beyond upToIndex)
     // This way positions are stable as we reveal more nodes
     // Pass external connections if provided (from database)
-    prebuiltNetwork.loadFromRounds(rounds, config.canvasSize, externalConnections)
+    // Pass startOffset so belt colors are correct when loading mid-course
+    prebuiltNetwork.loadFromRounds(rounds, config.canvasSize, externalConnections, startOffset)
 
     // Reveal nodes up to the current round
     prebuiltNetwork.revealUpToRound(upToIndex, rounds)
 
     isInitialized.value = true
 
-    console.log(`[PrebuiltNetworkIntegration] Pre-calculated ${rounds.length} positions, revealed ${upToIndex + 1} nodes, connections: ${externalConnections ? 'database' : 'items'}`)
+    console.log(`[PrebuiltNetworkIntegration] Pre-calculated ${rounds.length} positions (offset: ${startOffset}), revealed ${upToIndex + 1} nodes, connections: ${externalConnections ? 'database' : 'items'}`)
   }
 
   /**

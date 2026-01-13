@@ -93,11 +93,13 @@ export interface ExternalConnection {
  * @param canvasSize - Canvas dimensions for layout
  * @param externalConnections - Pre-loaded connections from database (optional)
  *                              If provided, uses these instead of inferring from round items
+ * @param startOffset - The seed position where these rounds start (for correct belt colors)
  */
 export function preCalculatePositions(
   rounds: RoundData[],
   canvasSize: { width: number; height: number } = { width: 800, height: 800 },
-  externalConnections?: ExternalConnection[]
+  externalConnections?: ExternalConnection[],
+  startOffset: number = 0
 ): { nodes: ConstellationNode[], edges: ConstellationEdge[] } {
   const center = { x: canvasSize.width / 2, y: canvasSize.height / 2 }
 
@@ -122,7 +124,7 @@ export function preCalculatePositions(
       id: round.legoId,
       targetText,
       knownText,
-      belt: getBeltForPosition(i),
+      belt: getBeltForPosition(startOffset + i),
       // Initial position will be set by D3
       x: center.x + (Math.random() - 0.5) * 200,
       y: center.y + (Math.random() - 0.5) * 200,
@@ -461,13 +463,15 @@ export function usePrebuiltNetwork() {
    * @param rounds - Learning script rounds
    * @param canvasSize - Canvas dimensions
    * @param externalConnections - Pre-loaded connections from database (optional)
+   * @param startOffset - The seed position where these rounds start (for correct belt colors)
    */
   function loadFromRounds(
     rounds: RoundData[],
     canvasSize?: { width: number; height: number },
-    externalConnections?: ExternalConnection[]
+    externalConnections?: ExternalConnection[],
+    startOffset: number = 0
   ): void {
-    const result = preCalculatePositions(rounds, canvasSize, externalConnections)
+    const result = preCalculatePositions(rounds, canvasSize, externalConnections, startOffset)
     nodes.value = result.nodes
     edges.value = result.edges
     revealedNodeIds.value = new Set()

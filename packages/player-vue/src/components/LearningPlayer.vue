@@ -717,6 +717,20 @@ const triggerRewardAnimation = (points, bonusLevel) => {
 // Session points total
 const sessionPoints = ref(0)
 
+// Turbo cycle tracking for session multiplier
+const totalCycles = ref(0)
+const turboCycles = ref(0)
+
+// Session multiplier based on turbo usage (hidden formula)
+const sessionMultiplier = computed(() => {
+  if (totalCycles.value < 5) return 1.0 // Need minimum cycles before multiplier kicks in
+  const turboPercent = turboCycles.value / totalCycles.value
+  // Tiered multiplier - reward consistent turbo usage
+  if (turboPercent >= 0.75) return 1.5 // 75%+ turbo = 1.5x
+  if (turboPercent >= 0.50) return 1.25 // 50%+ turbo = 1.25x
+  return 1.0
+})
+
 // ============================================
 // BELT PROGRESSION SYSTEM
 // Uses useBeltProgress composable with localStorage persistence
@@ -1659,10 +1673,18 @@ const handleCycleEvent = (event) => {
         }
       }
 
+      // Track turbo usage for session multiplier
+      totalCycles.value++
+      if (turboActive.value) {
+        turboCycles.value++
+      }
+
       // Trigger floating reward animation (Ink Spirit)
       const { points, bonusLevel } = calculateCyclePoints()
-      sessionPoints.value += points
-      triggerRewardAnimation(points, bonusLevel)
+      // Apply session multiplier (hidden from user - they just see higher points)
+      const multipliedPoints = Math.round(points * sessionMultiplier.value)
+      sessionPoints.value += multipliedPoints
+      triggerRewardAnimation(multipliedPoints, bonusLevel)
 
       // Record progress if database is available
       if (completedItem) {
@@ -2870,8 +2892,8 @@ const handleGoBackBelt = async () => {
         cachedRounds.value = rounds
         allPlayableItems.value = allItems
 
-        // Populate network for reloaded rounds
-        populateNetworkFromRounds(rounds, 0, networkConnections.value)
+        // Populate network for reloaded rounds (pass targetSeed as offset for correct belt colors)
+        populateNetworkFromRounds(rounds, 0, networkConnections.value, targetSeed)
 
         // Jump to first round (which is now at targetSeed)
         await jumpToRound(0)
@@ -3186,10 +3208,12 @@ const populateNetworkUpToRound = (targetRoundIndex) => {
   }
 
   // Use composable to populate with database connections (like brain view)
+  // Pass scriptBaseOffset so belt colors are correct for mid-course positions
   populateNetworkFromRounds(
     cachedRounds.value,
     targetRoundIndex,
-    networkConnections.value.length > 0 ? networkConnections.value : undefined
+    networkConnections.value.length > 0 ? networkConnections.value : undefined,
+    scriptBaseOffset.value
   )
 }
 
@@ -4302,7 +4326,17 @@ onUnmounted(() => {
 
     <!-- NETWORK THEATER - The brain visualization fills this space -->
     <section ref="networkTheaterRef" class="network-theater">
-      <!-- Ink Spirit Rewards - Float upward like incense -->
+      <!-- Session Points Counter - subtle top-right display -->
+      <div v-if="sessionPoints > 0" class="session-points-display" :class="{ 'has-multiplier': sessionMultiplier > 1 }">
+        <span v-if="sessionMultiplier > 1" class="session-multiplier-indicator" title="Turbo bonus active">×</span>
+        <span class="session-points-value">{{ sessionPoints }}</span>
+        <span class="session-points-label">pts</span>
+      </div>
+    </section>
+
+    <!-- CONTROL PANE - Minimal text display, tap to play/pause -->
+    <section class="control-pane" :class="[currentPhase, `layout-${layoutMode}`, { 'is-paused': !isPlaying }]" @click="handleRingTap">
+      <!-- Ink Spirit Rewards - Float upward from the text area -->
       <TransitionGroup name="ink-spirit" tag="div" class="ink-spirit-container">
         <div
           v-for="reward in floatingRewards"
@@ -4315,10 +4349,7 @@ onUnmounted(() => {
           <span class="ink-points">+{{ reward.points }}</span>
         </div>
       </TransitionGroup>
-    </section>
 
-    <!-- CONTROL PANE - Minimal text display, tap to play/pause -->
-    <section class="control-pane" :class="[currentPhase, `layout-${layoutMode}`, { 'is-paused': !isPlaying }]" @click="handleRingTap">
       <!-- Text display area - fades together during transition -->
       <div class="pane-text" :class="{ 'is-transitioning': isTransitioningItem }">
         <!-- Known Language Text - always visible, stable position -->
@@ -6237,13 +6268,66 @@ onUnmounted(() => {
   }
 }
 
-/* Ink spirit rewards position adjustment */
-.network-theater .ink-spirit-container {
+/* Session points display */
+.session-points-display {
   position: absolute;
-  bottom: 20%;
+  top: 12px;
+  right: 16px;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 20;
+}
+
+.session-points-value {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--belt-color, var(--gold));
+  text-shadow: 0 0 10px var(--belt-glow, rgba(212, 168, 83, 0.4));
+}
+
+.session-points-label {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Session multiplier indicator - subtle glow when bonus active */
+.session-points-display.has-multiplier {
+  border-color: rgba(212, 168, 83, 0.4);
+  box-shadow: 0 0 12px rgba(212, 168, 83, 0.2);
+}
+
+.session-multiplier-indicator {
+  font-size: 0.75rem;
+  color: var(--gold);
+  opacity: 0.8;
+  animation: multiplier-pulse 2s ease-in-out infinite;
+}
+
+@keyframes multiplier-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+/* Ink spirit rewards - now in control pane */
+.control-pane .ink-spirit-container {
+  position: absolute;
+  top: 0;
   left: 50%;
   transform: translateX(-50%);
   z-index: 20;
+  pointer-events: none;
 }
 
 /* ============ MAIN - FIXED LAYOUT (legacy, may be removed) ============ */
@@ -6692,9 +6776,6 @@ onUnmounted(() => {
 
 .ink-spirit-container {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
   pointer-events: none;
   z-index: 20;
 }
