@@ -81,6 +81,11 @@ export function usePrebuiltNetworkIntegration(
   const isInitialized = ref(false)
   let cachedRoundsForNetwork: any[] = []
 
+  // Track if FULL network has been loaded (all course rounds, not just playback chunk)
+  // Once true, we never recalculate - just reveal/hide nodes
+  const isFullNetworkLoaded = ref(false)
+  let fullNetworkRounds: any[] = []
+
   // ============================================================================
   // LEARNING EVENT HANDLERS (matching existing API)
   // ============================================================================
@@ -224,8 +229,58 @@ export function usePrebuiltNetworkIntegration(
   }
 
   /**
+   * Initialize the FULL network once at startup
+   * This loads ALL course rounds and calculates positions ONCE.
+   * After this, we never recalculate - just reveal/hide nodes.
+   *
+   * @param allRounds - ALL rounds for the entire course
+   * @param externalConnections - Connections from database
+   */
+  function initializeFullNetwork(
+    allRounds: Array<{
+      legoId: string
+      targetText?: string
+      knownText?: string
+      items?: Array<{ type: string; targetText?: string; knownText?: string }>
+    }>,
+    externalConnections?: ExternalConnection[]
+  ): void {
+    if (isFullNetworkLoaded.value) {
+      console.log('[PrebuiltNetworkIntegration] Full network already loaded, skipping')
+      return
+    }
+
+    fullNetworkRounds = allRounds
+
+    // Calculate ALL positions once - startOffset is always 0 for full network
+    prebuiltNetwork.loadFromRounds(allRounds, config.canvasSize, externalConnections, 0)
+
+    isFullNetworkLoaded.value = true
+    isInitialized.value = true
+
+    console.log(`[PrebuiltNetworkIntegration] FULL network initialized: ${allRounds.length} nodes, ${externalConnections?.length || 0} connections`)
+  }
+
+  /**
+   * Reveal nodes up to a given round index (0-based)
+   * Only works if full network is loaded - just shows/hides, never recalculates
+   *
+   * @param upToRoundIndex - Reveal all nodes from round 0 to this index
+   */
+  function revealNodesUpToIndex(upToRoundIndex: number): void {
+    if (!isFullNetworkLoaded.value) {
+      console.warn('[PrebuiltNetworkIntegration] Cannot reveal - full network not loaded')
+      return
+    }
+
+    prebuiltNetwork.revealUpToRound(upToRoundIndex, fullNetworkRounds)
+    console.log(`[PrebuiltNetworkIntegration] Revealed nodes up to round ${upToRoundIndex}`)
+  }
+
+  /**
    * Populate network from rounds
-   * THIS is where pre-calculation happens
+   * If full network is loaded, just reveals nodes (no recalculation).
+   * Otherwise, falls back to calculating from provided rounds.
    *
    * @param rounds - Learning script rounds
    * @param upToIndex - Reveal nodes up to this index
@@ -243,7 +298,15 @@ export function usePrebuiltNetworkIntegration(
     externalConnections?: ExternalConnection[],
     startOffset: number = 0
   ): void {
-    // Store rounds for potential re-initialization
+    // If full network is loaded, just reveal - don't recalculate!
+    if (isFullNetworkLoaded.value) {
+      // Convert playback script index to absolute round index
+      const absoluteIndex = startOffset + upToIndex
+      revealNodesUpToIndex(absoluteIndex)
+      return
+    }
+
+    // Fallback: calculate from provided rounds (legacy behavior)
     cachedRoundsForNetwork = rounds
 
     // Pre-calculate ALL positions (even beyond upToIndex)
@@ -384,6 +447,11 @@ export function usePrebuiltNetworkIntegration(
     setShowFirePath,
     populateFromRounds,
     reset,
+
+    // Full network (load once, never recalculate)
+    initializeFullNetwork,
+    revealNodesUpToIndex,
+    isFullNetworkLoaded,
 
     // Display settings
     showFirePath,

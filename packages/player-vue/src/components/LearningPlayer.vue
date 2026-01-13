@@ -1096,6 +1096,9 @@ const {
   setCenter: setNetworkCenter,
   setBelt: setNetworkBelt,
   populateFromRounds: populateNetworkFromRounds,
+  initializeFullNetwork,
+  revealNodesUpToIndex,
+  isFullNetworkLoaded,
   stats: networkStats,
 } = distinctionNetwork
 
@@ -3633,6 +3636,38 @@ onMounted(async () => {
         parallelTasks.push(connectionsTask)
         networkConnectionsReady = connectionsTask
 
+        // Task: Load FULL network (all course rounds) in background
+        // This runs in parallel - network will be ready by the time user starts learning
+        // Once loaded, network positions never recalculate - just reveal/hide nodes
+        const fullNetworkTask = (async () => {
+          try {
+            // Wait for connections first (needed for edge data)
+            await connectionsTask
+
+            if (!courseDataProvider.value) {
+              console.warn('[LearningPlayer] No courseDataProvider - skipping full network load')
+              return
+            }
+
+            console.log('[LearningPlayer] Loading FULL network (all course rounds)...')
+            const MAX_ROUNDS = 1000 // Full course
+            const { rounds: allRounds } = await generateLearningScript(
+              courseDataProvider.value,
+              MAX_ROUNDS,
+              0 // Always start from beginning for full network
+            )
+
+            if (allRounds.length > 0) {
+              initializeFullNetwork(allRounds, networkConnections.value)
+              console.log(`[LearningPlayer] Full network ready: ${allRounds.length} nodes`)
+            }
+          } catch (err) {
+            console.warn('[LearningPlayer] Failed to load full network:', err)
+            // Not fatal - will fall back to legacy chunk-based calculation
+          }
+        })()
+        parallelTasks.push(fullNetworkTask)
+
         // Task: Load saved progress (localStorage first, then database for logged-in users)
         parallelTasks.push(
           (async () => {
@@ -3762,6 +3797,30 @@ onMounted(async () => {
             }
           } catch (err) {
             console.warn('[LearningPlayer] Failed to load network connections:', err)
+          }
+        })()
+
+        // Load FULL network in background (all course rounds)
+        // This runs in parallel - positions calculated once, never recalculated
+        ;(async () => {
+          try {
+            await networkConnectionsReady
+            if (!courseDataProvider.value) return
+
+            console.log('[LearningPlayer] Fresh gen: Loading FULL network...')
+            const MAX_ROUNDS = 1000
+            const { rounds: allRounds } = await generateLearningScript(
+              courseDataProvider.value,
+              MAX_ROUNDS,
+              0
+            )
+
+            if (allRounds.length > 0) {
+              initializeFullNetwork(allRounds, networkConnections.value)
+              console.log(`[LearningPlayer] Fresh gen: Full network ready: ${allRounds.length} nodes`)
+            }
+          } catch (err) {
+            console.warn('[LearningPlayer] Fresh gen: Failed to load full network:', err)
           }
         })()
 
