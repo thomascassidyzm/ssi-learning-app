@@ -253,9 +253,9 @@ onMounted(() => {
     <!-- Build Badge (dev/staging visibility) -->
     <BuildBadge v-if="!isLearning" />
 
-    <!-- Clerk Auth Button -->
-    <div v-if="clerkEnabled && !isLearning" class="user-button-container">
-      <SignedIn>
+    <!-- Clerk User Button (only shown when signed in - sign-in is in bottom nav) -->
+    <SignedIn v-if="clerkEnabled && !isLearning">
+      <div class="user-button-container">
         <UserButton
           :appearance="{
             elements: {
@@ -264,13 +264,8 @@ onMounted(() => {
             }
           }"
         />
-      </SignedIn>
-      <SignedOut>
-        <button class="sign-in-btn" @click="openSignIn">
-          Sign in
-        </button>
-      </SignedOut>
-    </div>
+      </div>
+    </SignedIn>
 
     <!-- Custom Auth Modals (shared state with BottomNav) -->
     <SignInModal
@@ -355,22 +350,5 @@ onMounted(() => {
   top: 1rem;
   right: 1rem;
   z-index: 100;
-}
-
-.sign-in-btn {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  color: var(--text-secondary);
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.sign-in-btn:hover {
-  background: var(--bg-elevated);
-  color: var(--text-primary);
 }
 </style>
