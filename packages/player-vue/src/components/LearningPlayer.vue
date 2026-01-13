@@ -2809,7 +2809,7 @@ const jumpToRound = async (roundIndex) => {
 
 /**
  * Jump to start of next belt
- * Expands script if needed, then navigates to the belt boundary
+ * Reloads script from the target position (fresh network, correct belt colors)
  */
 const handleSkipToNextBelt = async () => {
   if (!beltProgress.value || !nextBelt.value) {
@@ -2817,33 +2817,40 @@ const handleSkipToNextBelt = async () => {
     return
   }
 
+  if (!courseDataProvider.value) {
+    console.log('[LearningPlayer] Cannot skip - no course data provider')
+    return
+  }
+
   isSkippingBelt.value = true
   const targetSeed = nextBelt.value.seedsRequired
   console.log(`[LearningPlayer] Skipping to ${nextBelt.value.name} belt (seed ${targetSeed})`)
 
-  // Calculate absolute position of currently loaded rounds
-  const absoluteEnd = scriptBaseOffset.value + cachedRounds.value.length
+  // Stop current playback
+  if (orchestrator.value) orchestrator.value.stop()
+  if (audioController.value) audioController.value.stop()
+  clearPathAnimation()
 
-  // Expand script if we need more rounds to reach target
-  if (targetSeed >= absoluteEnd && courseDataProvider.value) {
-    console.log(`[LearningPlayer] Expanding script to reach seed ${targetSeed} (currently at ${absoluteEnd})...`)
-    const neededRounds = targetSeed - absoluteEnd + 10 // How many more we need
-    const { rounds: moreRounds } = await generateLearningScript(
-      courseDataProvider.value,
-      neededRounds,
-      absoluteEnd  // Expansion offset = base + loaded count
-    )
-    if (moreRounds.length > 0) {
-      cachedRounds.value = [...cachedRounds.value, ...moreRounds]
-      console.log(`[LearningPlayer] Expanded to ${cachedRounds.value.length} rounds (base offset: ${scriptBaseOffset.value})`)
-    }
+  // Reload script from target position (fresh start at new belt)
+  scriptBaseOffset.value = targetSeed
+
+  const { rounds, allItems } = await generateLearningScript(
+    courseDataProvider.value,
+    ROUNDS_TO_FETCH,
+    targetSeed
+  )
+
+  if (rounds.length > 0) {
+    cachedRounds.value = rounds
+    allPlayableItems.value = allItems
+
+    // Populate network for reloaded rounds (pass targetSeed as offset for correct belt colors)
+    populateNetworkFromRounds(rounds, 0, networkConnections.value, targetSeed)
+
+    // Jump to first round (which is now at targetSeed)
+    await jumpToRound(0)
+    console.log(`[LearningPlayer] Reloaded script from seed ${targetSeed}, now at round 0`)
   }
-
-  // Convert absolute target to relative round index
-  const targetRound = Math.min(targetSeed - scriptBaseOffset.value, cachedRounds.value.length - 1)
-
-  // Jump to the target round
-  await jumpToRound(targetRound)
 
   // Update belt progress to match (uses absolute seed number)
   if (beltProgress.value) {
