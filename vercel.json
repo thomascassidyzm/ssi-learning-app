@@ -2,5 +2,8 @@
   "buildCommand": "pnpm --filter @ssi/core build && pnpm --filter player-vue build",
   "outputDirectory": "packages/player-vue/dist",
   "installCommand": "npm install -g pnpm && pnpm install",
-  "framework": "vite"
+  "framework": "vite",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }
