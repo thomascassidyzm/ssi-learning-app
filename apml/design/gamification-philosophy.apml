@@ -1,0 +1,304 @@
+# SSi Gamification Philosophy
+# Adaptive Pedagogy Markup Language (APML)
+
+metadata:
+  title: "Gamification Done Right"
+  version: "1.0.0"
+  date: "2026-01-13"
+  author: "SSi Team"
+  status: "core-philosophy"
+  source: "packages/player-vue/public/design/gamification-done-right.html"
+
+# =============================================================================
+# CORE PHILOSOPHY
+# =============================================================================
+
+principle CorePhilosophy:
+  statement: "We don't motivate people to learn. We help them notice they're becoming someone they didn't think they could be."
+
+  foundation:
+    show: "Results of good behavior"
+    hide: "Mechanics of what triggers rewards"
+
+  psychological_basis:
+    self_determination_theory:
+      autonomy: "I choose to do this"
+      competence: "I can see I'm getting better"
+      relatedness: "I'm part of something meaningful"
+
+    self_efficacy:
+      source: "Bandura"
+      mechanism: "Built through mastery experiences (I did it), not external validation"
+
+    overjustification_effect: |
+      Research shows adding external rewards to intrinsically enjoyable
+      activities DESTROYS the intrinsic motivation. Once you pay someone
+      to do something they loved, they stop loving it.
+
+# =============================================================================
+# TOXIC PATTERNS TO AVOID
+# =============================================================================
+
+antipattern ToxicGamification:
+  description: "Patterns borrowed from games that harm learning"
+
+  avoid:
+    streaks:
+      why_toxic: "Creates guilt, shame, and dependency on external validation"
+      never_say:
+        - "You broke your streak"
+        - "You missed X days"
+        - "Sad emojis or guilt language"
+
+    visible_point_formulas:
+      why_toxic: "Shifts focus from learning to accumulation; easily gamed"
+      note: "Kids especially will game any system they understand"
+
+    full_leaderboards:
+      why_toxic: "Comparison anxiety; competition over growth"
+
+    explicit_achievements:
+      why_toxic: "Can be gamed; shifts focus to gaming the system"
+
+    progress_bars_framing:
+      why_toxic: "'Not there yet' framing instead of 'look how far'"
+
+# =============================================================================
+# POINTS SYSTEM (HIDDEN FORMULA)
+# =============================================================================
+
+system PointsPerCycle:
+  description: "Every practice cycle awards points - formula hidden"
+
+  internal_calculation:
+    base_points: "+1 (audio detected)"
+    latency_bonus: "+0 to +3 (hidden tiers)"
+    duration_match: "+0 to +2 (prosody proxy)"
+    consistency_modifier: "x1.0 to x3.0 (rolling window)"
+    skip_revisit_bonus: "+1 to +5"
+
+  what_user_sees: "Just the total (+7). Never the breakdown."
+
+  latency_rewards:
+    much_faster_than_baseline: "+3 (flow state!)"
+    faster_than_usual: "+2"
+    at_baseline: "+1"
+    slower: "+0 (no penalty, just no bonus)"
+
+  skip_revisit_bonuses:
+    skip_confident: "+3 confidence bonus (if LEGO consolidated)"
+    revisit_honest: "+2 self-awareness bonus"
+    rationale: "Both behaviors show agency and metacognition. Reward both."
+
+# =============================================================================
+# CONSISTENCY REWARDS (HIDDEN TRIGGERS)
+# =============================================================================
+
+system ConsistencyMultiplier:
+  description: "Rolling window multiplier - user never sees exact triggers"
+
+  ten_day_window:
+    7_to_10_days: "x1.5"
+    5_to_6_days: "x1.3"
+    3_to_4_days: "x1.1"
+    1_to_2_days: "x1.0"
+
+  thirty_day_window:
+    25_to_30_days: "x2.0 (stacks with 10-day!)"
+    20_to_24_days: "x1.5"
+    15_to_19_days: "x1.2"
+
+  max_multiplier: "x3.0 for highly consistent learners"
+  visibility: "Never reveal exact triggers"
+
+system HiddenBonuses:
+  patterns:
+    seven_of_ten_days:
+      internal: "+100 points"
+      user_sees: "Consistency bonus activated"
+
+    twentyfive_of_thirty_days:
+      internal: "x2 session points"
+      user_sees: "Something special happened"
+
+    return_after_3_days:
+      internal: "+50 points"
+      user_sees: "Welcome back! Consolidation bonus"
+
+    return_after_7_days:
+      internal: "+100 points"
+      user_sees: "Deep consolidation complete!"
+
+# =============================================================================
+# EVOLUTION SYSTEM
+# =============================================================================
+
+system EvolutionScore:
+  formula: "f(consistency, latency_improvement, prosody_match, session_frequency)"
+
+  what_user_sees:
+    - "Single Evolution Score number"
+    - "Current level with name/image"
+    - "Progress bar to next level"
+    - "Occasional: 'Something contributed to your evolution'"
+
+  levels:
+    1: { name: "First Words", icon: "seed", description: "The journey begins" }
+    5: { name: "Confident Speaker", icon: "speech", description: "Words flowing naturally" }
+    10: { name: "Conversation Starter", icon: "handshake", description: "Ready to engage" }
+    15: { name: "Native Rhythm", icon: "wave", description: "Speaking feels like home" }
+    20: { name: "Language Guardian", icon: "shield", description: "Keeper of the tongue" }
+
+# =============================================================================
+# LEADERBOARD (TOP 5 + PERCENTILE)
+# =============================================================================
+
+system Leaderboard:
+  design:
+    show_top_5_only: true
+    anonymous_usernames: true
+    never_show_exact_rank_below_5th: true
+    show_percentile: "Top X% of [language] learners this week"
+    points_from_hidden_formula: true
+
+  rationale: "Social proof without destructive competition"
+
+# =============================================================================
+# COLLECTIVE PURPOSE
+# =============================================================================
+
+system ContributionCounter:
+  description: "For endangered languages - shift from 'my achievement' to 'our contribution'"
+
+  display:
+    global:
+      - "Phrases spoken today: 47,293"
+      - "Minutes learned today: 1,247"
+      - "Active speakers now: 312"
+    personal:
+      - "You contributed: 15 mins (47 phrases)"
+    message: "Every phrase keeps Welsh alive"
+
+  purpose: "Relatedness through collective impact"
+
+# =============================================================================
+# RETURN CELEBRATION (NOT GUILT)
+# =============================================================================
+
+system ReturnMessages:
+  philosophy: "Celebrate returns, never guilt absences"
+
+  messages:
+    1_day: "Ready when you are."
+    3_days: "Your brain has been consolidating. Let's see what stuck!"
+    7_plus_days: "Deep consolidation complete. You might surprise yourself."
+    30_plus_days: "Welcome back. Your brain remembers more than you think."
+
+  never:
+    - "You broke your streak"
+    - "You missed X days"
+    - "Sad emojis"
+    - "Guilt language"
+
+# =============================================================================
+# POMODORO NUDGES (NOT FASCISM)
+# =============================================================================
+
+system SessionNudges:
+  philosophy: "Nudge, never block. Some learners do 10-hour days. Polyglots exist."
+
+  nudges:
+    25_mins: "Your brain has been working hard. Good moment to pause."
+    35_mins: "Research shows learning in chunks works better."
+    45_mins: "You've been amazing today. Time for your brain to rest?"
+    60_plus_mins: "Offer listening mode. NEVER BLOCK."
+
+# =============================================================================
+# EVIDENCE OF TRANSFORMATION
+# =============================================================================
+
+system TransformationEvidence:
+  description: "Show growth, not just accumulation"
+
+  thirty_minute_mirror:
+    - "New phrases you produced today: 6"
+    - "Your response time improved 8% this session"
+
+  timeline_not_streak:
+    description: "Journey milestones, not daily checkboxes"
+    examples:
+      - { date: "March 1", event: "First session: 'dw i'" }
+      - { date: "March 5", event: "10 LEGOs confident" }
+      - { date: "March 12", event: "Response time under 2s" }
+      - { date: "April 2", event: "Natural prosody emerging" }
+
+  transformation_audio:
+    trigger: "After 30 days"
+    action: "Offer to play session 1 recording"
+    purpose: "Let them hear how far they've come"
+
+# =============================================================================
+# SEED BANK & LISTENING
+# =============================================================================
+
+system SeedBank:
+  lifecycle: "Introduction -> Active Spaced Rep -> Consolidation -> Seed Bank"
+  mastery_threshold: "Spaced rep interval exceeds ~60 days"
+
+  listening_exercises:
+    full_seed_playback:
+      trigger: "All LEGOs in seed reach Seed Bank"
+      content: "Entire seed as connected audio"
+
+    eternal_phrases:
+      trigger: "Seed Bank LEGOs"
+      content: "Target language only, comprehension"
+
+    accelerated_listening:
+      trigger: "After ~150 seeds"
+      content: "Batch playback, bulk acquisition"
+
+  session_structure_evolution:
+    seeds_1_to_50: { production: "90%", listening: "10%" }
+    seeds_50_to_150: { production: "70%", listening: "30%" }
+    seeds_150_plus: { production: "50%", listening: "50%" }
+
+  rationale: "After ~150 seeds, brain needs bulk input for acquisition"
+
+# =============================================================================
+# SUMMARY: THE MAGIC
+# =============================================================================
+
+summary:
+  visible_not_gameable:
+    - "Evolution Score (yes/no)"
+    - "Points per cycle (total only/no)"
+    - "Top 5 Leaderboard (yes/no)"
+    - "Percentile (yes/no)"
+    - "Consistency bonuses (trigger only/no)"
+    - "Contribution counter (yes/no)"
+    - "Timeline (yes/no)"
+
+  the_magic: |
+    They know good practice leads to good things.
+    They can't reverse-engineer the exact formula.
+    So they just... practice well.
+
+  quote: "The best gamification is the kind you can't see."
+
+# =============================================================================
+# IMPLEMENTATION NOTES
+# =============================================================================
+
+implementation:
+  principle: "Everything is a parameter"
+  note: |
+    All thresholds, multipliers, and triggers are configurable.
+    This allows experimentation before committing to final values.
+
+  open_questions:
+    - "Listening exercise scoring: Points for listening? Or 'free' practice?"
+    - "Seed Bank visualization: Garden? Library? Map?"
+    - "Cross-seed content: After 150+ seeds, generate stories using multiple seeds?"
+    - "Social features: Share recordings? Community challenges?"
+    - "School/classroom mode: Different mechanics for managed environments?"

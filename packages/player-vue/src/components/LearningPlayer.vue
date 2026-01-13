@@ -2785,6 +2785,7 @@ const handleSkipToNextBelt = async () => {
     return
   }
 
+  isSkippingBelt.value = true
   const targetSeed = nextBelt.value.seedsRequired
   console.log(`[LearningPlayer] Skipping to ${nextBelt.value.name} belt (seed ${targetSeed})`)
 
@@ -2816,6 +2817,8 @@ const handleSkipToNextBelt = async () => {
   if (beltProgress.value) {
     beltProgress.value.setSeeds(targetSeed)
   }
+
+  isSkippingBelt.value = false
 }
 
 /**
@@ -2829,6 +2832,7 @@ const handleGoBackBelt = async () => {
     return
   }
 
+  isSkippingBelt.value = true
   const targetSeed = beltProgress.value.goBackToBeltStart()
   console.log(`[LearningPlayer] Going back to seed ${targetSeed}, current base offset: ${scriptBaseOffset.value}`)
 
@@ -2862,6 +2866,7 @@ const handleGoBackBelt = async () => {
         // Jump to first round (which is now at targetSeed)
         await jumpToRound(0)
         console.log(`[LearningPlayer] Reloaded script from seed ${targetSeed}, now at round 0`)
+        isSkippingBelt.value = false
         return
       }
     }
@@ -2871,11 +2876,15 @@ const handleGoBackBelt = async () => {
   const targetRound = Math.max(0, Math.min(targetSeed - scriptBaseOffset.value, cachedRounds.value.length - 1))
   console.log(`[LearningPlayer] Jumping to round ${targetRound} (seed ${targetSeed})`)
   await jumpToRound(targetRound)
+  isSkippingBelt.value = false
 }
 
 // Mode toggles
 const turboActive = ref(false)
 const listeningModeComingSoon = ref(false) // Future: passive listening mode
+
+// Belt skip feedback state
+const isSkippingBelt = ref(false)
 
 // Helper: Calculate pause duration using current mode config
 const getPauseDuration = (targetDurationMs: number): number => {
@@ -4231,6 +4240,7 @@ onUnmounted(() => {
           <!-- Back to previous/current belt start -->
           <button
             class="belt-nav-header-btn belt-nav-header-btn--back"
+            :class="{ 'is-skipping': isSkippingBelt }"
             @click.stop="handleGoBackBelt"
             :disabled="!previousBelt && currentBelt.seedsRequired === completedSeeds"
             :title="`Back to ${backTargetBelt.name} belt`"
@@ -4256,6 +4266,7 @@ onUnmounted(() => {
           <!-- Skip to next belt -->
           <button
             class="belt-nav-header-btn belt-nav-header-btn--forward"
+            :class="{ 'is-skipping': isSkippingBelt }"
             @click.stop="handleSkipToNextBelt"
             :disabled="!nextBelt"
             :title="nextBelt ? `Skip to ${nextBelt.name} belt` : 'Black belt achieved!'"
@@ -4406,6 +4417,7 @@ onUnmounted(() => {
       <!-- Belt Navigation: Back -->
       <button
         class="belt-nav-btn belt-nav-btn--back"
+        :class="{ 'is-skipping': isSkippingBelt }"
         @click="handleGoBackBelt"
         :disabled="!previousBelt && currentBelt.seedsRequired === completedSeeds"
         :title="`Back to ${backTargetBelt.name} belt`"
@@ -4450,6 +4462,7 @@ onUnmounted(() => {
       <!-- Belt Navigation: Forward - colored with next belt -->
       <button
         class="belt-nav-btn belt-nav-btn--forward"
+        :class="{ 'is-skipping': isSkippingBelt }"
         @click="handleSkipToNextBelt"
         :disabled="!nextBelt"
         :title="nextBelt ? `Skip to ${nextBelt.name} belt` : 'Black belt achieved!'"
@@ -5040,6 +5053,27 @@ onUnmounted(() => {
 
 .belt-nav-header-btn--back:hover:not(:disabled) {
   color: var(--back-belt-color, var(--text-primary));
+}
+
+/* Belt skip processing animation */
+@keyframes belt-skip-flash {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.belt-nav-header-btn.is-skipping {
+  animation: belt-skip-flash 0.6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.belt-nav-header-btn--forward.is-skipping {
+  color: var(--next-belt-color, var(--accent));
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.belt-nav-header-btn--back.is-skipping {
+  color: var(--back-belt-color, var(--accent));
+  background: rgba(255, 255, 255, 0.1);
 }
 
 /* ============ BELT PROGRESS BAR ============ */
@@ -6883,6 +6917,25 @@ onUnmounted(() => {
 .belt-nav-btn--back:hover:not(:disabled) {
   color: var(--back-belt-color, var(--text-primary));
   border-color: var(--back-belt-color, var(--text-muted));
+}
+
+/* Belt skip processing animation for bottom nav */
+.belt-nav-btn.is-skipping {
+  animation: belt-skip-flash 0.6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.belt-nav-btn--forward.is-skipping {
+  color: var(--next-belt-color, var(--accent));
+  background: rgba(255, 255, 255, 0.15);
+  border-color: var(--next-belt-color, var(--accent));
+  box-shadow: 0 0 12px var(--next-belt-glow, transparent);
+}
+
+.belt-nav-btn--back.is-skipping {
+  color: var(--back-belt-color, var(--accent));
+  background: rgba(255, 255, 255, 0.15);
+  border-color: var(--back-belt-color, var(--accent));
 }
 
 .transport-controls {
