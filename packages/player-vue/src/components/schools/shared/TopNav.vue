@@ -11,11 +11,11 @@ interface NavTab {
 const route = useRoute()
 
 const tabs: NavTab[] = [
-  { name: 'dashboard', path: '/', label: 'Dashboard' },
-  { name: 'teachers', path: '/teachers', label: 'Teachers' },
-  { name: 'students', path: '/students', label: 'Students' },
-  { name: 'classes', path: '/classes', label: 'Classes' },
-  { name: 'analytics', path: '/analytics', label: 'Analytics' },
+  { name: 'dashboard', path: '/schools', label: 'Dashboard' },
+  { name: 'teachers', path: '/schools/teachers', label: 'Teachers' },
+  { name: 'students', path: '/schools/students', label: 'Students' },
+  { name: 'classes', path: '/schools/classes', label: 'Classes' },
+  { name: 'analytics', path: '/schools/analytics', label: 'Analytics' },
 ]
 
 // School info (would come from auth/store in real app)
@@ -35,8 +35,8 @@ const toggleTheme = () => {
 
 // Check if tab is active
 const isActive = (path: string) => {
-  if (path === '/') {
-    return route.path === '/'
+  if (path === '/schools') {
+    return route.path === '/schools'
   }
   return route.path.startsWith(path)
 }
@@ -51,7 +51,7 @@ const toggleUserMenu = () => {
 <template>
   <nav class="top-nav">
     <!-- Logo -->
-    <router-link to="/" class="logo">
+    <router-link to="/schools" class="logo">
       <span class="logo-text">
         <span class="say">Say</span><span class="something">Something</span><span class="in">in</span>
       </span>
@@ -126,7 +126,7 @@ const toggleUserMenu = () => {
               <span class="user-dropdown-role">School Administrator</span>
             </div>
             <div class="user-dropdown-divider"></div>
-            <router-link to="/settings" class="user-dropdown-item" @click="isUserMenuOpen = false">
+            <router-link to="/schools/settings" class="user-dropdown-item" @click="isUserMenuOpen = false">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="3"/>
                 <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
