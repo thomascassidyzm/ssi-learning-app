@@ -2830,39 +2830,41 @@ const handleSkipToNextBelt = async () => {
   }
 
   isSkippingBelt.value = true
-  const targetSeed = nextBelt.value.seedsRequired
-  console.log(`[LearningPlayer] Skipping to ${nextBelt.value.name} belt (seed ${targetSeed})`)
+  try {
+    const targetSeed = nextBelt.value.seedsRequired
+    console.log(`[LearningPlayer] Skipping to ${nextBelt.value.name} belt (seed ${targetSeed})`)
 
-  // Calculate absolute position of currently loaded rounds
-  const absoluteEnd = scriptBaseOffset.value + cachedRounds.value.length
+    // Calculate absolute position of currently loaded rounds
+    const absoluteEnd = scriptBaseOffset.value + cachedRounds.value.length
 
-  // Expand script if we need more rounds to reach target
-  if (targetSeed >= absoluteEnd && courseDataProvider.value) {
-    console.log(`[LearningPlayer] Expanding script to reach seed ${targetSeed} (currently at ${absoluteEnd})...`)
-    const neededRounds = targetSeed - absoluteEnd + 10 // How many more we need
-    const { rounds: moreRounds } = await generateLearningScript(
-      courseDataProvider.value,
-      neededRounds,
-      absoluteEnd  // Expansion offset = base + loaded count
-    )
-    if (moreRounds.length > 0) {
-      cachedRounds.value = [...cachedRounds.value, ...moreRounds]
-      console.log(`[LearningPlayer] Expanded to ${cachedRounds.value.length} rounds (base offset: ${scriptBaseOffset.value})`)
+    // Expand script if we need more rounds to reach target
+    if (targetSeed >= absoluteEnd && courseDataProvider.value) {
+      console.log(`[LearningPlayer] Expanding script to reach seed ${targetSeed} (currently at ${absoluteEnd})...`)
+      const neededRounds = targetSeed - absoluteEnd + 10 // How many more we need
+      const { rounds: moreRounds } = await generateLearningScript(
+        courseDataProvider.value,
+        neededRounds,
+        absoluteEnd  // Expansion offset = base + loaded count
+      )
+      if (moreRounds.length > 0) {
+        cachedRounds.value = [...cachedRounds.value, ...moreRounds]
+        console.log(`[LearningPlayer] Expanded to ${cachedRounds.value.length} rounds (base offset: ${scriptBaseOffset.value})`)
+      }
     }
+
+    // Convert absolute target to relative round index
+    const targetRound = Math.min(targetSeed - scriptBaseOffset.value, cachedRounds.value.length - 1)
+
+    // Jump to the target round
+    await jumpToRound(targetRound)
+
+    // Update belt progress to match (uses absolute seed number)
+    if (beltProgress.value) {
+      beltProgress.value.setSeeds(targetSeed)
+    }
+  } finally {
+    isSkippingBelt.value = false
   }
-
-  // Convert absolute target to relative round index
-  const targetRound = Math.min(targetSeed - scriptBaseOffset.value, cachedRounds.value.length - 1)
-
-  // Jump to the target round
-  await jumpToRound(targetRound)
-
-  // Update belt progress to match (uses absolute seed number)
-  if (beltProgress.value) {
-    beltProgress.value.setSeeds(targetSeed)
-  }
-
-  isSkippingBelt.value = false
 }
 
 /**
@@ -2877,50 +2879,52 @@ const handleGoBackBelt = async () => {
   }
 
   isSkippingBelt.value = true
-  const targetSeed = beltProgress.value.goBackToBeltStart()
-  console.log(`[LearningPlayer] Going back to seed ${targetSeed}, current base offset: ${scriptBaseOffset.value}`)
+  try {
+    const targetSeed = beltProgress.value.goBackToBeltStart()
+    console.log(`[LearningPlayer] Going back to seed ${targetSeed}, current base offset: ${scriptBaseOffset.value}`)
 
-  // Check if target is before our currently loaded script
-  if (targetSeed < scriptBaseOffset.value) {
-    console.log(`[LearningPlayer] Target seed ${targetSeed} is before loaded range (${scriptBaseOffset.value}), reloading script...`)
+    // Check if target is before our currently loaded script
+    if (targetSeed < scriptBaseOffset.value) {
+      console.log(`[LearningPlayer] Target seed ${targetSeed} is before loaded range (${scriptBaseOffset.value}), reloading script...`)
 
-    // Need to reload script from the target position
-    if (courseDataProvider.value) {
-      // Stop current playback
-      if (orchestrator.value) orchestrator.value.stop()
-      if (audioController.value) audioController.value.stop()
-      clearPathAnimation()
+      // Need to reload script from the target position
+      if (courseDataProvider.value) {
+        // Stop current playback
+        if (orchestrator.value) orchestrator.value.stop()
+        if (audioController.value) audioController.value.stop()
+        clearPathAnimation()
 
-      // Update base offset and reload
-      scriptBaseOffset.value = targetSeed
+        // Update base offset and reload
+        scriptBaseOffset.value = targetSeed
 
-      const { rounds, allItems } = await generateLearningScript(
-        courseDataProvider.value,
-        ROUNDS_TO_FETCH,
-        targetSeed
-      )
+        const { rounds, allItems } = await generateLearningScript(
+          courseDataProvider.value,
+          ROUNDS_TO_FETCH,
+          targetSeed
+        )
 
-      if (rounds.length > 0) {
-        cachedRounds.value = rounds
-        allPlayableItems.value = allItems
+        if (rounds.length > 0) {
+          cachedRounds.value = rounds
+          allPlayableItems.value = allItems
 
-        // Populate network for reloaded rounds (pass targetSeed as offset for correct belt colors)
-        populateNetworkFromRounds(rounds, 0, networkConnections.value, targetSeed)
+          // Populate network for reloaded rounds (pass targetSeed as offset for correct belt colors)
+          populateNetworkFromRounds(rounds, 0, networkConnections.value, targetSeed)
 
-        // Jump to first round (which is now at targetSeed)
-        await jumpToRound(0)
-        console.log(`[LearningPlayer] Reloaded script from seed ${targetSeed}, now at round 0`)
-        isSkippingBelt.value = false
-        return
+          // Jump to first round (which is now at targetSeed)
+          await jumpToRound(0)
+          console.log(`[LearningPlayer] Reloaded script from seed ${targetSeed}, now at round 0`)
+          return
+        }
       }
     }
-  }
 
-  // Target is within loaded range - simple jump
-  const targetRound = Math.max(0, Math.min(targetSeed - scriptBaseOffset.value, cachedRounds.value.length - 1))
-  console.log(`[LearningPlayer] Jumping to round ${targetRound} (seed ${targetSeed})`)
-  await jumpToRound(targetRound)
-  isSkippingBelt.value = false
+    // Target is within loaded range - simple jump
+    const targetRound = Math.max(0, Math.min(targetSeed - scriptBaseOffset.value, cachedRounds.value.length - 1))
+    console.log(`[LearningPlayer] Jumping to round ${targetRound} (seed ${targetSeed})`)
+    await jumpToRound(targetRound)
+  } finally {
+    isSkippingBelt.value = false
+  }
 }
 
 // Mode toggles
