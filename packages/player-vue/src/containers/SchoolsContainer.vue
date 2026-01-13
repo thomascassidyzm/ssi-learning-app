@@ -1,26 +1,25 @@
 <script setup lang="ts">
-import { ref } from 'vue'
 import TopNav from '@/components/schools/shared/TopNav.vue'
 import DevRoleSwitcher from '@/components/schools/DevRoleSwitcher.vue'
 import { SignInModal, SignUpModal } from '@/components/auth'
+import { useAuthModal } from '@/composables/useAuthModal'
 
-// Auth modal state
-const isSignInOpen = ref(false)
-const isSignUpOpen = ref(false)
-
-const openSignIn = () => {
-  isSignInOpen.value = true
-  isSignUpOpen.value = false
-}
-
-const openSignUp = () => {
-  isSignUpOpen.value = true
-  isSignInOpen.value = false
-}
+// Global auth modal (shared singleton - same state as PlayerContainer)
+const {
+  isSignInOpen,
+  isSignUpOpen,
+  openSignIn,
+  openSignUp,
+  closeSignIn,
+  closeSignUp,
+  switchToSignIn,
+  switchToSignUp,
+} = useAuthModal()
 
 const handleAuthSuccess = () => {
   console.log('Auth successful!')
-  // Refresh user state, redirect, etc.
+  closeSignIn()
+  closeSignUp()
 }
 </script>
 
@@ -70,17 +69,17 @@ const handleAuthSuccess = () => {
       </router-view>
     </main>
 
-    <!-- Auth Modals -->
+    <!-- Auth Modals (shared state across app) -->
     <SignInModal
       :is-open="isSignInOpen"
-      @close="isSignInOpen = false"
-      @switch-to-sign-up="openSignUp"
+      @close="closeSignIn"
+      @switch-to-sign-up="switchToSignUp"
       @success="handleAuthSuccess"
     />
     <SignUpModal
       :is-open="isSignUpOpen"
-      @close="isSignUpOpen = false"
-      @switch-to-sign-in="openSignIn"
+      @close="closeSignUp"
+      @switch-to-sign-in="switchToSignIn"
       @success="handleAuthSuccess"
     />
   </div>

@@ -11,8 +11,14 @@ import BrainView from '@/components/BrainView.vue'
 import BottomNav from '@/components/BottomNav.vue'
 import BuildBadge from '@/components/BuildBadge.vue'
 
+// Custom auth modals
+import { SignInModal, SignUpModal } from '@/components/auth'
+
+// Global auth modal state (shared singleton)
+import { useAuthModal } from '@/composables/useAuthModal'
+
 // Clerk components (conditionally imported)
-import { SignedIn, SignedOut, UserButton, SignInButton } from '@clerk/vue'
+import { SignedIn, SignedOut, UserButton } from '@clerk/vue'
 
 // Inject from App
 const supabaseClient = inject('supabase')
@@ -22,6 +28,18 @@ const courseDataProvider = inject('courseDataProvider')
 const auth = inject('auth')
 const config = inject('config')
 const clerkEnabled = inject('clerkEnabled')
+
+// Global auth modal (shared with BottomNav and other components)
+const {
+  isSignInOpen,
+  isSignUpOpen,
+  openSignIn,
+  openSignUp,
+  closeSignIn,
+  closeSignUp,
+  switchToSignIn,
+  switchToSignUp,
+} = useAuthModal()
 
 // Navigation state
 // Screens: 'home' | 'player' | 'journey' | 'settings' | 'explorer' | 'network'
@@ -85,6 +103,13 @@ const learnerStats = ref({
   totalSeeds: 668,
   learningVelocity: 1.2,
 })
+
+// Handle auth success (close modals, refresh state if needed)
+const handleAuthSuccess = () => {
+  console.log('[PlayerContainer] Auth successful!')
+  closeSignIn()
+  closeSignUp()
+}
 
 // Check for class context from Schools
 const checkClassContext = () => {
@@ -241,11 +266,25 @@ onMounted(() => {
         />
       </SignedIn>
       <SignedOut>
-        <SignInButton mode="modal" class="sign-in-btn">
+        <button class="sign-in-btn" @click="openSignIn">
           Sign in
-        </SignInButton>
+        </button>
       </SignedOut>
     </div>
+
+    <!-- Custom Auth Modals (shared state with BottomNav) -->
+    <SignInModal
+      :is-open="isSignInOpen"
+      @close="closeSignIn"
+      @switch-to-sign-up="switchToSignUp"
+      @success="handleAuthSuccess"
+    />
+    <SignUpModal
+      :is-open="isSignUpOpen"
+      @close="closeSignUp"
+      @switch-to-sign-in="switchToSignIn"
+      @success="handleAuthSuccess"
+    />
   </div>
 </template>
 

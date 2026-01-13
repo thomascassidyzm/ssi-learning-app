@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, inject } from 'vue'
+import { useAuthModal } from '@/composables/useAuthModal'
 
 const props = defineProps({
   currentScreen: {
@@ -14,8 +15,11 @@ const props = defineProps({
 
 const emit = defineEmits(['navigate', 'startLearning'])
 
-// Auth state
+// Auth state from injected auth provider
 const auth = inject('auth', null)
+
+// Global auth modal (shared singleton)
+const { openSignIn } = useAuthModal()
 
 // Check if user is signed in
 const isSignedIn = computed(() => auth?.user?.value != null)
@@ -78,9 +82,9 @@ const handleAccountTap = () => {
     navigator.vibrate(10)
   }
 
-  if (isGuest.value && auth?.openSignIn) {
-    // Guest - open sign in modal
-    auth.openSignIn()
+  if (isGuest.value) {
+    // Guest - open sign in modal (uses global auth modal)
+    openSignIn()
   } else {
     // Signed in - go to settings (account section)
     emit('navigate', 'settings')
