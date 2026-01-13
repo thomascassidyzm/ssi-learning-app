@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
+import { useUser, useClerk } from '@clerk/vue'
 
 interface NavTab {
   name: string
@@ -8,7 +9,14 @@ interface NavTab {
   label: string
 }
 
+const emit = defineEmits<{
+  signIn: []
+  signUp: []
+}>()
+
 const route = useRoute()
+const { isLoaded, isSignedIn, user } = useUser()
+const clerk = useClerk()
 
 const tabs: NavTab[] = [
   { name: 'dashboard', path: '/schools', label: 'Dashboard' },
@@ -18,10 +26,32 @@ const tabs: NavTab[] = [
   { name: 'analytics', path: '/schools/analytics', label: 'Analytics' },
 ]
 
-// School info (would come from auth/store in real app)
-const schoolName = ref('Ysgol Cymraeg')
-const schoolInitials = ref('YC')
-const userName = ref('Admin')
+// Computed user info from Clerk
+const userName = computed(() => {
+  if (!isSignedIn.value || !user.value) return 'Guest'
+  return user.value.firstName || user.value.username || 'User'
+})
+
+const userEmail = computed(() => {
+  if (!isSignedIn.value || !user.value) return ''
+  return user.value.primaryEmailAddress?.emailAddress || ''
+})
+
+const userInitials = computed(() => {
+  if (!isSignedIn.value || !user.value) return '?'
+  const name = user.value.firstName || user.value.username || 'U'
+  return name.charAt(0).toUpperCase()
+})
+
+// School info (would come from user metadata in real app)
+const schoolName = computed(() => {
+  // TODO: Get from user.publicMetadata.schoolName
+  return 'Ysgol Cymraeg'
+})
+
+const schoolInitials = computed(() => {
+  return schoolName.value.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase()
+})
 
 // Theme toggle
 const isDark = ref(document.documentElement.getAttribute('data-theme') !== 'light')
@@ -45,6 +75,12 @@ const isActive = (path: string) => {
 const isUserMenuOpen = ref(false)
 const toggleUserMenu = () => {
   isUserMenuOpen.value = !isUserMenuOpen.value
+}
+
+// Sign out
+const handleSignOut = async () => {
+  isUserMenuOpen.value = false
+  await clerk.value?.signOut()
 }
 </script>
 
@@ -73,13 +109,7 @@ const toggleUserMenu = () => {
 
     <!-- Right Section -->
     <div class="nav-right">
-      <!-- School Badge -->
-      <div class="school-badge">
-        <div class="school-avatar">{{ schoolInitials }}</div>
-        <span class="school-name">{{ schoolName }}</span>
-      </div>
-
-      <!-- Theme Toggle -->
+      <!-- Theme Toggle (always visible) -->
       <button
         class="theme-toggle"
         @click="toggleTheme"
@@ -104,46 +134,67 @@ const toggleUserMenu = () => {
         </svg>
       </button>
 
-      <!-- User Menu -->
-      <div class="user-menu-container">
-        <button
-          class="user-menu"
-          @click="toggleUserMenu"
-          aria-label="User menu"
-          :aria-expanded="isUserMenuOpen"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="8" r="4"/>
-            <path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
-          </svg>
+      <!-- Auth Buttons (when not signed in) -->
+      <template v-if="isLoaded && !isSignedIn">
+        <button class="auth-btn auth-btn--secondary" @click="emit('signIn')">
+          Sign In
         </button>
+        <button class="auth-btn auth-btn--primary" @click="emit('signUp')">
+          Get Started
+        </button>
+      </template>
 
-        <!-- Dropdown (placeholder for future) -->
-        <Transition name="dropdown">
-          <div v-if="isUserMenuOpen" class="user-dropdown">
-            <div class="user-dropdown-header">
-              <span class="user-dropdown-name">{{ userName }}</span>
-              <span class="user-dropdown-role">School Administrator</span>
+      <!-- Authenticated User Section -->
+      <template v-else-if="isLoaded && isSignedIn">
+        <!-- School Badge -->
+        <div class="school-badge">
+          <div class="school-avatar">{{ schoolInitials }}</div>
+          <span class="school-name">{{ schoolName }}</span>
+        </div>
+
+        <!-- User Menu -->
+        <div class="user-menu-container">
+          <button
+            class="user-menu"
+            @click="toggleUserMenu"
+            aria-label="User menu"
+            :aria-expanded="isUserMenuOpen"
+          >
+            <span class="user-avatar">{{ userInitials }}</span>
+          </button>
+
+          <!-- Dropdown -->
+          <Transition name="dropdown">
+            <div v-if="isUserMenuOpen" class="user-dropdown">
+              <div class="user-dropdown-header">
+                <span class="user-dropdown-name">{{ userName }}</span>
+                <span class="user-dropdown-email">{{ userEmail }}</span>
+              </div>
+              <div class="user-dropdown-divider"></div>
+              <router-link to="/schools/settings" class="user-dropdown-item" @click="isUserMenuOpen = false">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="3"/>
+                  <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+                </svg>
+                Settings
+              </router-link>
+              <button class="user-dropdown-item logout" @click="handleSignOut">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                  <polyline points="16 17 21 12 16 7"/>
+                  <line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+                Sign Out
+              </button>
             </div>
-            <div class="user-dropdown-divider"></div>
-            <router-link to="/schools/settings" class="user-dropdown-item" @click="isUserMenuOpen = false">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="3"/>
-                <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
-              </svg>
-              Settings
-            </router-link>
-            <button class="user-dropdown-item logout">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                <polyline points="16 17 21 12 16 7"/>
-                <line x1="21" y1="12" x2="9" y2="12"/>
-              </svg>
-              Sign Out
-            </button>
-          </div>
-        </Transition>
-      </div>
+          </Transition>
+        </div>
+      </template>
+
+      <!-- Loading skeleton -->
+      <template v-else>
+        <div class="auth-skeleton"></div>
+      </template>
     </div>
   </nav>
 </template>
@@ -432,6 +483,74 @@ const toggleUserMenu = () => {
   transform: translateY(-8px);
 }
 
+/* Auth Buttons */
+.auth-btn {
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.auth-btn--secondary {
+  background: transparent;
+  border: 1px solid var(--border-medium);
+  color: var(--text-secondary);
+}
+
+.auth-btn--secondary:hover {
+  border-color: var(--text-muted);
+  color: var(--text-primary);
+}
+
+.auth-btn--primary {
+  background: linear-gradient(135deg, var(--ssi-red), var(--ssi-red-dark));
+  border: none;
+  color: white;
+}
+
+.auth-btn--primary:hover {
+  box-shadow: 0 4px 15px rgba(194, 58, 58, 0.4);
+  transform: translateY(-1px);
+}
+
+/* User Avatar */
+.user-avatar {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-sm);
+  font-weight: var(--font-bold);
+  color: white;
+  background: linear-gradient(135deg, var(--ssi-red), var(--ssi-gold));
+  border-radius: 50%;
+}
+
+.user-dropdown-email {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Auth Skeleton */
+.auth-skeleton {
+  width: 120px;
+  height: 36px;
+  background: linear-gradient(90deg, var(--bg-card) 25%, var(--bg-elevated) 50%, var(--bg-card) 75%);
+  background-size: 200% 100%;
+  border-radius: var(--radius-lg);
+  animation: skeleton-shimmer 1.5s infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .top-nav {
@@ -444,6 +563,15 @@ const toggleUserMenu = () => {
 
   .school-badge {
     display: none;
+  }
+
+  .auth-btn--secondary {
+    display: none;
+  }
+
+  .auth-btn--primary {
+    padding: 0.5rem 0.75rem;
+    font-size: var(--text-xs);
   }
 }
 </style>

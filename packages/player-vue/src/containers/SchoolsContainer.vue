@@ -1,6 +1,27 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import TopNav from '@/components/schools/shared/TopNav.vue'
 import DevRoleSwitcher from '@/components/schools/DevRoleSwitcher.vue'
+import { SignInModal, SignUpModal } from '@/components/auth'
+
+// Auth modal state
+const isSignInOpen = ref(false)
+const isSignUpOpen = ref(false)
+
+const openSignIn = () => {
+  isSignInOpen.value = true
+  isSignUpOpen.value = false
+}
+
+const openSignUp = () => {
+  isSignUpOpen.value = true
+  isSignInOpen.value = false
+}
+
+const handleAuthSuccess = () => {
+  console.log('Auth successful!')
+  // Refresh user state, redirect, etc.
+}
 </script>
 
 <template>
@@ -36,7 +57,7 @@ import DevRoleSwitcher from '@/components/schools/DevRoleSwitcher.vue'
       <div class="drift-star drift-5"></div>
     </div>
 
-    <TopNav />
+    <TopNav @sign-in="openSignIn" @sign-up="openSignUp" />
 
     <!-- Dev Role Switcher (bottom right corner) -->
     <DevRoleSwitcher />
@@ -48,6 +69,20 @@ import DevRoleSwitcher from '@/components/schools/DevRoleSwitcher.vue'
         </transition>
       </router-view>
     </main>
+
+    <!-- Auth Modals -->
+    <SignInModal
+      :is-open="isSignInOpen"
+      @close="isSignInOpen = false"
+      @switch-to-sign-up="openSignUp"
+      @success="handleAuthSuccess"
+    />
+    <SignUpModal
+      :is-open="isSignUpOpen"
+      @close="isSignUpOpen = false"
+      @switch-to-sign-in="openSignIn"
+      @success="handleAuthSuccess"
+    />
   </div>
 </template>
 
