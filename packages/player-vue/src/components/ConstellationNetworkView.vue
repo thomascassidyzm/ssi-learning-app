@@ -301,6 +301,80 @@ function resetZoomPan() {
   userPan.value = { x: 0, y: 0 }
 }
 
+// ============================================================================
+// ZOOM/PAN CONTROLS (for buttons and keyboard)
+// ============================================================================
+
+const ZOOM_STEP = 1.2
+const PAN_STEP = 50
+
+function zoomIn() {
+  userScale.value = Math.min(MAX_SCALE, userScale.value * ZOOM_STEP)
+}
+
+function zoomOut() {
+  userScale.value = Math.max(MIN_SCALE, userScale.value / ZOOM_STEP)
+}
+
+function panLeft() {
+  userPan.value = { x: userPan.value.x + PAN_STEP / userScale.value, y: userPan.value.y }
+}
+
+function panRight() {
+  userPan.value = { x: userPan.value.x - PAN_STEP / userScale.value, y: userPan.value.y }
+}
+
+function panUp() {
+  userPan.value = { x: userPan.value.x, y: userPan.value.y + PAN_STEP / userScale.value }
+}
+
+function panDown() {
+  userPan.value = { x: userPan.value.x, y: userPan.value.y - PAN_STEP / userScale.value }
+}
+
+// ============================================================================
+// KEYBOARD CONTROLS
+// ============================================================================
+
+function handleKeyDown(e: KeyboardEvent) {
+  // Don't handle if user is typing in an input
+  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+
+  switch (e.key) {
+    case '+':
+    case '=':
+      e.preventDefault()
+      zoomIn()
+      break
+    case '-':
+    case '_':
+      e.preventDefault()
+      zoomOut()
+      break
+    case 'ArrowLeft':
+      e.preventDefault()
+      panLeft()
+      break
+    case 'ArrowRight':
+      e.preventDefault()
+      panRight()
+      break
+    case 'ArrowUp':
+      e.preventDefault()
+      panUp()
+      break
+    case 'ArrowDown':
+      e.preventDefault()
+      panDown()
+      break
+    case '0':
+      // Reset zoom/pan
+      e.preventDefault()
+      resetZoomPan()
+      break
+  }
+}
+
 // Watch for hero changes - optionally reset user pan
 watch(() => props.heroNodeId, () => {
   // Don't reset zoom, but could smooth the transition
@@ -315,11 +389,14 @@ onMounted(() => {
   // Add global mouse handlers for drag
   window.addEventListener('mousemove', handleMouseMove)
   window.addEventListener('mouseup', handleMouseUp)
+  // Add keyboard handlers for zoom/pan
+  window.addEventListener('keydown', handleKeyDown)
 })
 
 onUnmounted(() => {
   window.removeEventListener('mousemove', handleMouseMove)
   window.removeEventListener('mouseup', handleMouseUp)
+  window.removeEventListener('keydown', handleKeyDown)
 })
 
 // ============================================================================
@@ -720,11 +797,52 @@ const labelOpacity = computed(() => (node: ConstellationNode): number => {
         </g>
       </g>
     </svg>
+
+    <!-- Zoom/Pan Controls -->
+    <div class="network-controls">
+      <button
+        class="control-btn"
+        @click="zoomIn"
+        title="Zoom in (+)"
+        aria-label="Zoom in"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          <line x1="11" y1="8" x2="11" y2="14"/>
+          <line x1="8" y1="11" x2="14" y2="11"/>
+        </svg>
+      </button>
+      <button
+        class="control-btn"
+        @click="zoomOut"
+        title="Zoom out (-)"
+        aria-label="Zoom out"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          <line x1="8" y1="11" x2="14" y2="11"/>
+        </svg>
+      </button>
+      <button
+        class="control-btn"
+        @click="resetZoomPan"
+        title="Center network (0)"
+        aria-label="Center network"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
+        </svg>
+      </button>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .constellation-network {
+  position: relative;
   width: 100%;
   height: 100%;
   overflow: hidden;
@@ -850,5 +968,57 @@ const labelOpacity = computed(() => (node: ConstellationNode): number => {
   font-weight: 500;
   pointer-events: none;
   transition: opacity 0.3s ease;
+}
+
+/* ============================================================================
+   ZOOM/PAN CONTROLS
+   ============================================================================ */
+
+.network-controls {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 10;
+}
+
+.control-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(30, 30, 40, 0.7);
+  backdrop-filter: blur(8px);
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  transition: all 0.2s ease;
+}
+
+.control-btn:hover {
+  background: rgba(60, 60, 80, 0.8);
+  color: rgba(255, 255, 255, 0.95);
+  transform: scale(1.05);
+}
+
+.control-btn:active {
+  transform: scale(0.95);
+}
+
+.control-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Hide on mobile (touch gestures work well there) */
+@media (max-width: 768px) {
+  .network-controls {
+    display: none;
+  }
 }
 </style>
