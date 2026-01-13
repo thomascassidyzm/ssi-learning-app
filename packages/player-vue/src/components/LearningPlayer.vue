@@ -3671,8 +3671,9 @@ onMounted(async () => {
             )
 
             if (allRounds.length > 0) {
-              initializeFullNetwork(allRounds, networkConnections.value)
-              console.log(`[LearningPlayer] Full network ready: ${allRounds.length} nodes`)
+              // Pass current round index so we reveal nodes up to current playback position
+              initializeFullNetwork(allRounds, networkConnections.value, currentRoundIndex.value)
+              console.log(`[LearningPlayer] Full network ready: ${allRounds.length} nodes, revealed up to round ${currentRoundIndex.value}`)
             }
           } catch (err) {
             console.warn('[LearningPlayer] Failed to load full network:', err)
@@ -3829,8 +3830,9 @@ onMounted(async () => {
             )
 
             if (allRounds.length > 0) {
-              initializeFullNetwork(allRounds, networkConnections.value)
-              console.log(`[LearningPlayer] Fresh gen: Full network ready: ${allRounds.length} nodes`)
+              // Pass current round index so we reveal nodes up to current playback position
+              initializeFullNetwork(allRounds, networkConnections.value, currentRoundIndex.value)
+              console.log(`[LearningPlayer] Fresh gen: Full network ready: ${allRounds.length} nodes, revealed up to round ${currentRoundIndex.value}`)
             }
           } catch (err) {
             console.warn('[LearningPlayer] Fresh gen: Failed to load full network:', err)

@@ -235,6 +235,7 @@ export function usePrebuiltNetworkIntegration(
    *
    * @param allRounds - ALL rounds for the entire course
    * @param externalConnections - Connections from database
+   * @param currentRoundIndex - Current playback position (to reveal nodes up to this point)
    */
   function initializeFullNetwork(
     allRounds: Array<{
@@ -243,7 +244,8 @@ export function usePrebuiltNetworkIntegration(
       knownText?: string
       items?: Array<{ type: string; targetText?: string; knownText?: string }>
     }>,
-    externalConnections?: ExternalConnection[]
+    externalConnections?: ExternalConnection[],
+    currentRoundIndex: number = 0
   ): void {
     if (isFullNetworkLoaded.value) {
       console.log('[PrebuiltNetworkIntegration] Full network already loaded, skipping')
@@ -254,6 +256,13 @@ export function usePrebuiltNetworkIntegration(
 
     // Calculate ALL positions once - startOffset is always 0 for full network
     prebuiltNetwork.loadFromRounds(allRounds, config.canvasSize, externalConnections, 0)
+
+    // Reveal nodes up to the current playback position
+    // This is critical - loadFromRounds clears revealed nodes, so we must re-reveal
+    if (currentRoundIndex >= 0) {
+      prebuiltNetwork.revealUpToRound(currentRoundIndex, allRounds)
+      console.log(`[PrebuiltNetworkIntegration] Revealed ${currentRoundIndex + 1} nodes after full network load`)
+    }
 
     isFullNetworkLoaded.value = true
     isInitialized.value = true
