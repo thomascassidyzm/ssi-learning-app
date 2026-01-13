@@ -28,3 +28,6 @@ export * from './audio';
 
 // Pricing (Big 10 languages, access control)
 export * from './pricing';
+
+// Network engine (constellation/brain network calculation)
+export * from './network';
