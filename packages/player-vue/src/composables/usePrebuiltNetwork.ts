@@ -49,15 +49,14 @@ export interface PathHighlight {
 // BELT THRESHOLDS
 // ============================================================================
 
-// Must match useBeltProgress.ts BELTS thresholds!
 const BELT_THRESHOLDS = [
-  { belt: 'black', threshold: 400 },
-  { belt: 'brown', threshold: 280 },
-  { belt: 'purple', threshold: 150 },
-  { belt: 'blue', threshold: 80 },
-  { belt: 'green', threshold: 40 },
-  { belt: 'orange', threshold: 20 },
-  { belt: 'yellow', threshold: 8 },
+  { belt: 'black', threshold: 800 },
+  { belt: 'brown', threshold: 560 },
+  { belt: 'purple', threshold: 300 },
+  { belt: 'blue', threshold: 160 },
+  { belt: 'green', threshold: 80 },
+  { belt: 'orange', threshold: 40 },
+  { belt: 'yellow', threshold: 16 },
   { belt: 'white', threshold: 0 },
 ]
 
