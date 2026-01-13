@@ -2137,25 +2137,34 @@ const playIntroductionAudioDirectly = async (scriptItem) => {
   }
 
   try {
-    // Play intro sequence: presentation → pause → target1 → pause → target2
-    console.log('[LearningPlayer] Playing intro sequence for:', legoId)
+    // Check origin - human recordings (Welsh) already contain target audio
+    // TTS recordings need target1/target2 added separately
+    const origin = scriptItem?.presentationAudio?.origin || 'tts'
+    const isHumanRecording = origin === 'human'
+
+    console.log('[LearningPlayer] Playing intro sequence for:', legoId, '(origin:', origin, ')')
 
     // 1. Play presentation audio ("The Spanish for 'X', as in 'Y', is:")
     console.log('[LearningPlayer] Playing presentation:', presentationUrl)
     await playAudioAndWait(normalizeAudioUrl(presentationUrl))
 
-    // 2. Play target voice 1 with pause (from LEGO phrase data)
-    if (target1Url) {
-      await pause(1000)
-      console.log('[LearningPlayer] Playing target1:', target1Url)
-      await playAudioAndWait(normalizeAudioUrl(target1Url))
-    }
+    // 2. Play target voices ONLY for TTS intros (human recordings already include them)
+    if (!isHumanRecording) {
+      // 2a. Play target voice 1 with pause (from LEGO phrase data)
+      if (target1Url) {
+        await pause(1000)
+        console.log('[LearningPlayer] Playing target1:', target1Url)
+        await playAudioAndWait(normalizeAudioUrl(target1Url))
+      }
 
-    // 3. Play target voice 2 with pause (from LEGO phrase data)
-    if (target2Url) {
-      await pause(1000)
-      console.log('[LearningPlayer] Playing target2:', target2Url)
-      await playAudioAndWait(normalizeAudioUrl(target2Url))
+      // 2b. Play target voice 2 with pause (from LEGO phrase data)
+      if (target2Url) {
+        await pause(1000)
+        console.log('[LearningPlayer] Playing target2:', target2Url)
+        await playAudioAndWait(normalizeAudioUrl(target2Url))
+      }
+    } else {
+      console.log('[LearningPlayer] Human recording - skipping target1/target2 (already in presentation)')
     }
 
     // Success - mark as played so it won't repeat this session
