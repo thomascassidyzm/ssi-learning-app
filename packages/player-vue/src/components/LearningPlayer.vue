@@ -1554,6 +1554,15 @@ const handleCycleEvent = (event) => {
         case CyclePhase.PROMPT:
           // Clear transition flag - new cycle has started, safe to show text again
           isTransitioningItem.value = false
+          // Timing analysis: end previous cycle, start new one
+          if (isAdaptationActive.value) {
+            if (timingAnalyzer.value?.isAnalyzing()) {
+              const item = currentItem.value
+              const modelDuration = item?.audioDurations?.target1 ? item.audioDurations.target1 * 1000 : 2000
+              endTimingCycle(modelDuration)
+            }
+            startTimingCycle()
+          }
           break
         case CyclePhase.TRANSITION:
           // Hide target text immediately when TRANSITION starts
@@ -1596,21 +1605,13 @@ const handleCycleEvent = (event) => {
             if (currentItemForPath) {
               const legoIds = extractLegoIdsFromPhrase(currentItemForPath)
               if (legoIds.length > 0) {
-                // Get audio duration for timing sync - uses actual or estimates from word count
+                // Get audio duration for network animation timing
                 const audioDurationMs = getEstimatedDuration(currentItemForPath, 'target2')
                 distinctionNetwork.animatePathForVoice2(legoIds, audioDurationMs || 2000)
-
-                // Start fading target text 500ms BEFORE audio ends
-                // Only if we have duration data (actual or estimated from word count)
-                if (audioDurationMs && audioDurationMs > 500) {
-                  const fadeEarlyMs = Math.max(100, audioDurationMs - 500)
-                  setTimeout(() => {
-                    if (currentPhase.value === Phase.VOICE_2) {
-                      isTransitioningItem.value = true
-                    }
-                  }, fadeEarlyMs)
-                }
-                // If no duration data at all, text stays visible until orchestrator advances phase
+                // Text visibility is now purely phase-driven:
+                // - Target text appears when VOICE_2 starts (showTargetText computed)
+                // - Text hides when TRANSITION starts (isTransitioningItem set in TRANSITION case)
+                // No need for early-fade timeouts - phases drive everything
               }
               // Find M-LEGOs with partial word overlap (resonance effect)
               const resonating = findResonatingNodes(currentItemForPath, legoIds)
@@ -1619,17 +1620,6 @@ const handleCycleEvent = (event) => {
                 console.log(`[Network] Resonating M-LEGOs (partial match):`, resonating)
               }
             }
-          }
-          break
-        case CyclePhase.PROMPT:
-          // New PROMPT = new cycle, start timing (if adaptation enabled)
-          if (isAdaptationActive.value) {
-            if (timingAnalyzer.value?.isAnalyzing()) {
-              const item = currentItem.value
-              const modelDuration = item?.audioDurations?.target1 ? item.audioDurations.target1 * 1000 : 2000
-              endTimingCycle(modelDuration)
-            }
-            startTimingCycle()
           }
           break
       }

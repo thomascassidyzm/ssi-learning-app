@@ -67,8 +67,10 @@ export class CycleOrchestrator implements ICycleOrchestrator {
 
   /**
    * Start playing a learning item through all phases
+   * @param item - The learning item to play
+   * @param options - Optional per-item settings (pauseDuration overrides config)
    */
-  async startItem(item: LearningItem): Promise<void> {
+  async startItem(item: LearningItem, options?: { pauseDuration?: number }): Promise<void> {
     // Clean up any existing playback
     this.cleanup();
 
@@ -77,8 +79,12 @@ export class CycleOrchestrator implements ICycleOrchestrator {
     this.state.isPlaying = true;
     this.state.itemIndex++;
 
-    // Calculate pause duration (may adapt to phrase length)
-    this.state.pauseDuration = this.calculatePauseDuration(item);
+    // Use provided pause duration, or calculate from config
+    if (options?.pauseDuration !== undefined) {
+      this.state.pauseDuration = options.pauseDuration;
+    } else {
+      this.state.pauseDuration = this.calculatePauseDuration(item);
+    }
 
     this.emit('item_started', { item });
 
