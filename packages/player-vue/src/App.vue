@@ -134,6 +134,18 @@ const fetchEnrolledCourses = async () => {
       }))
       enrolledCourses.value = normalizedCourses
 
+      // Check for course from URL query parameter (e.g., ?course=spa_for_eng)
+      let urlCourseCode = null
+      try {
+        const urlParams = new URLSearchParams(window.location.search)
+        urlCourseCode = urlParams.get('course')
+        if (urlCourseCode) {
+          console.log('[App] Course from URL param:', urlCourseCode)
+        }
+      } catch (e) {
+        console.warn('[App] Failed to read URL params:', e)
+      }
+
       // Check for saved course preference
       let savedCourseCode = null
       try {
@@ -142,9 +154,27 @@ const fetchEnrolledCourses = async () => {
         console.warn('[App] Failed to read saved course:', e)
       }
 
-      // Find saved course or fall back to first available
+      // Priority: 1) URL param, 2) localStorage, 3) first available
       let defaultCourse = null
-      if (savedCourseCode) {
+
+      // First try URL param
+      if (urlCourseCode) {
+        defaultCourse = normalizedCourses.find(c => c.course_code === urlCourseCode)
+        if (defaultCourse) {
+          console.log('[App] Using course from URL:', urlCourseCode)
+          // Also save to localStorage for future visits
+          try {
+            localStorage.setItem(LAST_COURSE_KEY, urlCourseCode)
+          } catch (e) {
+            console.warn('[App] Failed to save course to localStorage:', e)
+          }
+        } else {
+          console.log('[App] Course from URL not found:', urlCourseCode, '- trying localStorage')
+        }
+      }
+
+      // Then try localStorage
+      if (!defaultCourse && savedCourseCode) {
         defaultCourse = normalizedCourses.find(c => c.course_code === savedCourseCode)
         if (defaultCourse) {
           console.log('[App] Restored saved course:', savedCourseCode)
