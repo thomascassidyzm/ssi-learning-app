@@ -168,7 +168,10 @@ const openCourseSelector = () => {
           <div class="hero-header" @click="openCourseSelector">
             <span class="course-flag">{{ activeCourseData.target_flag || activeCourseData.flag }}</span>
             <div class="course-info">
-              <h2 class="course-title">{{ activeCourseData.title }}</h2>
+              <div class="course-title-row">
+                <h2 class="course-title">{{ activeCourseData.title }}</h2>
+                <span v-if="activeCourseData.status === 'beta'" class="beta-badge">BETA</span>
+              </div>
               <span class="course-subtitle">{{ activeCourseData.subtitle }}</span>
             </div>
             <!-- Change course indicator -->
@@ -444,11 +447,29 @@ const openCourseSelector = () => {
   flex: 1;
 }
 
+.course-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .course-title {
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--text-primary);
   margin: 0;
+}
+
+.beta-badge {
+  padding: 0.2rem 0.5rem;
+  background: linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%);
+  border-radius: 4px;
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-size: 0.625rem;
+  font-weight: 700;
+  color: white;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .course-subtitle {
