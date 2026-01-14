@@ -1379,6 +1379,9 @@ const startRingAnimation = (duration) => {
 // ============================================
 
 class RealAudioController {
+  // Maximum number of preloaded URLs to keep (prevents memory leak in long sessions)
+  static MAX_PRELOAD_CACHE_SIZE = 50
+
   constructor() {
     this.endedCallbacks = new Set()
     // Create audio element immediately for mobile compatibility
@@ -1386,6 +1389,7 @@ class RealAudioController {
     this.audio = new Audio()
     this.currentCleanup = null
     this.preloadedUrls = new Set()
+    this.preloadOrder = []  // Track insertion order for LRU eviction
     this.skipNextNotify = false  // Set true to skip orchestrator callbacks (for intro/welcome)
     this.suppressAllCallbacks = false  // Set true during skip to prevent any audio callbacks
     this.playGeneration = 0  // Incremented on stop() to invalidate pending callbacks
@@ -1529,12 +1533,20 @@ class RealAudioController {
     const url = audioRef?.url
     if (!url || this.preloadedUrls.has(url)) return
 
+    // LRU eviction: if cache is full, remove oldest entries
+    while (this.preloadOrder.length >= RealAudioController.MAX_PRELOAD_CACHE_SIZE) {
+      const oldestUrl = this.preloadOrder.shift()
+      this.preloadedUrls.delete(oldestUrl)
+    }
+
     // Create a temporary Audio element just to trigger browser caching
     const audio = new Audio()
     audio.preload = 'auto'
     audio.src = url
     audio.load()
+
     this.preloadedUrls.add(url)
+    this.preloadOrder.push(url)
   }
 
   isPreloaded(audioRef) {
@@ -2475,17 +2487,20 @@ const startPlayback = async () => {
 const handleSkip = async () => {
   console.log('[LearningPlayer] Skip requested - halting all audio')
 
-  // 0. IMMEDIATELY suppress all audio callbacks to prevent race conditions
+  // 0. INCREMENT GENERATION FIRST - invalidates any pending callbacks from previous position
+  playbackGeneration.value++
+
+  // 1. IMMEDIATELY suppress all audio callbacks to prevent race conditions
   if (audioController.value?.suppressCallbacks) {
     audioController.value.suppressCallbacks()
   }
 
-  // 1. HALT EVERYTHING - stop orchestrator first (prevents new audio from starting)
+  // 2. HALT EVERYTHING - stop orchestrator first (prevents new audio from starting)
   if (orchestrator.value) {
     orchestrator.value.stop()
   }
 
-  // 2. Stop audio controller (stops current playback and clears any pending listeners)
+  // 3. Stop audio controller (stops current playback and clears any pending listeners)
   if (audioController.value) {
     audioController.value.stop()
     // Clear preload cache to prevent stale audio from previous round
@@ -2609,17 +2624,20 @@ const handleSkip = async () => {
 const handleRevisit = async () => {
   console.log('[LearningPlayer] Revisit requested - halting all audio')
 
-  // 0. IMMEDIATELY suppress all audio callbacks to prevent race conditions
+  // 0. INCREMENT GENERATION FIRST - invalidates any pending callbacks from previous position
+  playbackGeneration.value++
+
+  // 1. IMMEDIATELY suppress all audio callbacks to prevent race conditions
   if (audioController.value?.suppressCallbacks) {
     audioController.value.suppressCallbacks()
   }
 
-  // 1. HALT EVERYTHING - stop orchestrator first (prevents new events)
+  // 2. HALT EVERYTHING - stop orchestrator first (prevents new events)
   if (orchestrator.value) {
     orchestrator.value.stop()
   }
 
-  // 2. Stop audio controller (stops current playback)
+  // 3. Stop audio controller (stops current playback)
   if (audioController.value) {
     audioController.value.stop()
     // Clear preload cache to prevent stale audio

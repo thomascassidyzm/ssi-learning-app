@@ -174,6 +174,30 @@ async function submitFeedback() {
         throw new Error('Failed to submit')
       }
 
+      // Also create sample_flags entry so it appears in Dashboard QA workflow
+      if (audioId) {
+        const flagNotes = `Learner flagged: ${selectedType.value}${comment.value ? ` - "${comment.value}"` : ''}`
+        const { error: flagError } = await supabase.value
+          .from('sample_flags')
+          .upsert({
+            audio_uuid: audioId,
+            course_code: props.courseCode,
+            status: 'needs_review',
+            notes: flagNotes,
+            flagged_by: 'learner',
+            flagged_at: new Date().toISOString()
+          }, {
+            onConflict: 'audio_uuid,course_code'
+          })
+
+        if (flagError) {
+          // Log but don't fail - content_feedback was saved successfully
+          console.warn('[ReportIssue] Could not create sample_flags entry:', flagError)
+        } else {
+          console.log('[ReportIssue] Created sample_flags entry for QA review:', audioId)
+        }
+      }
+
       submitStatus.value = 'success'
       submitMessage.value = 'Thanks for your feedback!'
       // Auto-close after success

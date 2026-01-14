@@ -1,0 +1,5654 @@
+{
+  "metadata": {
+    "course_code": "por_for_eng",
+    "known_language": "English",
+    "target_language": "Portuguese",
+    "created": "2026-01-13T17:10:57.719Z",
+    "seeds_count": 30,
+    "legos_count": 92,
+    "phrases_count": 648
+  },
+  "stats": {
+    "a_type_legos": 37,
+    "m_type_legos": 55,
+    "avg_phrases_per_lego": "7.0",
+    "legos_with_7plus_phrases": 84,
+    "legos_with_10plus_phrases": 2,
+    "legos_with_5plus_eternal": 7
+  },
+  "seeds": [
+    {
+      "seed_number": 1,
+      "legos": [
+        {
+          "lego_index": 1,
+          "type": "M",
+          "is_new": true,
+          "known_text": "I want to",
+          "target_text": "quero",
+          "components": [
+            {
+              "known": "I",
+              "target": "eu"
+            },
+            {
+              "known": "want to",
+              "target": "quero"
+            }
+          ],
+          "phrase_count": 1,
+          "eternal_ready_count": 0,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "I want to",
+              "target_text": "quero",
+              "syllables": 2
+            }
+          ]
+        },
+        {
+          "lego_index": 2,
+          "type": "A",
+          "is_new": true,
+          "known_text": "to speak",
+          "target_text": "falar",
+          "components": null,
+          "phrase_count": 2,
+          "eternal_ready_count": 0,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "to speak",
+              "target_text": "falar",
+              "syllables": 2
+            },
+            {
+              "position": 2,
+              "known_text": "I want to speak",
+              "target_text": "quero falar",
+              "syllables": 4
+            }
+          ]
+        },
+        {
+          "lego_index": 3,
+          "type": "A",
+          "is_new": true,
+          "known_text": "Portuguese",
+          "target_text": "português",
+          "components": null,
+          "phrase_count": 3,
+          "eternal_ready_count": 0,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "Portuguese",
+              "target_text": "português",
+              "syllables": 3
+            },
+            {
+              "position": 2,
+              "known_text": "to speak Portuguese",
+              "target_text": "falar português",
+              "syllables": 5
+            },
+            {
+              "position": 3,
+              "known_text": "I want to speak Portuguese",
+              "target_text": "quero falar português",
+              "syllables": 7
+            }
+          ]
+        },
+        {
+          "lego_index": 4,
+          "type": "M",
+          "is_new": true,
+          "known_text": "with you",
+          "target_text": "com você",
+          "components": [
+            {
+              "known": "with",
+              "target": "com"
+            },
+            {
+              "known": "you",
+              "target": "você"
+            }
+          ],
+          "phrase_count": 5,
+          "eternal_ready_count": 1,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "with you",
+              "target_text": "com você",
+              "syllables": 3
+            },
+            {
+              "position": 2,
+              "known_text": "to speak with you",
+              "target_text": "falar com você",
+              "syllables": 5
+            },
+            {
+              "position": 3,
+              "known_text": "I want to speak with you",
+              "target_text": "quero falar com você",
+              "syllables": 7
+            },
+            {
+              "position": 4,
+              "known_text": "to speak Portuguese with you",
+              "target_text": "falar português com você",
+              "syllables": 8
+            },
+            {
+              "position": 5,
+              "known_text": "I want to speak Portuguese with you",
+              "target_text": "quero falar português com você",
+              "syllables": 10
+            }
+          ]
+        },
+        {
+          "lego_index": 5,
+          "type": "A",
+          "is_new": true,
+          "known_text": "now",
+          "target_text": "agora",
+          "components": null,
+          "phrase_count": 9,
+          "eternal_ready_count": 4,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "now",
+              "target_text": "agora",
+              "syllables": 3
+            },
+            {
+              "position": 2,
+              "known_text": "to speak now",
+              "target_text": "falar agora",
+              "syllables": 5
+            },
+            {
+              "position": 3,
+              "known_text": "I want to speak now",
+              "target_text": "quero falar agora",
+              "syllables": 7
+            },
+            {
+              "position": 4,
+              "known_text": "to speak Portuguese now",
+              "target_text": "falar português agora",
+              "syllables": 8
+            },
+            {
+              "position": 5,
+              "known_text": "I want to speak Portuguese now",
+              "target_text": "quero falar português agora",
+              "syllables": 10
+            },
+            {
+              "position": 6,
+              "known_text": "to speak with you now",
+              "target_text": "falar com você agora",
+              "syllables": 8
+            },
+            {
+              "position": 7,
+              "known_text": "I want to speak with you now",
+              "target_text": "quero falar com você agora",
+              "syllables": 10
+            },
+            {
+              "position": 8,
+              "known_text": "to speak Portuguese with you now",
+              "target_text": "falar português com você agora",
+              "syllables": 11
+            },
+            {
+              "position": 9,
+              "known_text": "I want to speak Portuguese with you now",
+              "target_text": "quero falar português com você agora",
+              "syllables": 13
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed_number": 2,
+      "legos": [
+        {
+          "lego_index": 1,
+          "type": "M",
+          "is_new": true,
+          "known_text": "I'm trying to",
+          "target_text": "estou tentando",
+          "components": [
+            {
+              "known": "I'm",
+              "target": "estou"
+            },
+            {
+              "known": "trying to",
+              "target": "tentando"
+            }
+          ],
+          "phrase_count": 8,
+          "eternal_ready_count": 6,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "I'm trying to",
+              "target_text": "estou tentando",
+              "syllables": 5
+            },
+            {
+              "position": 2,
+              "known_text": "I'm trying to speak",
+              "target_text": "estou tentando falar",
+              "syllables": 7
+            },
+            {
+              "position": 3,
+              "known_text": "I'm trying to speak Portuguese",
+              "target_text": "estou tentando falar português",
+              "syllables": 10
+            },
+            {
+              "position": 4,
+              "known_text": "I'm trying to speak with you",
+              "target_text": "estou tentando falar com você",
+              "syllables": 10
+            },
+            {
+              "position": 5,
+              "known_text": "I'm trying to speak now",
+              "target_text": "estou tentando falar agora",
+              "syllables": 10
+            },
+            {
+              "position": 6,
+              "known_text": "I'm trying to speak Portuguese with you",
+              "target_text": "estou tentando falar português com você",
+              "syllables": 13
+            },
+            {
+              "position": 7,
+              "known_text": "I'm trying to speak Portuguese now",
+              "target_text": "estou tentando falar português agora",
+              "syllables": 13
+            },
+            {
+              "position": 8,
+              "known_text": "I'm trying to speak with you now",
+              "target_text": "estou tentando falar com você agora",
+              "syllables": 13
+            }
+          ]
+        },
+        {
+          "lego_index": 2,
+          "type": "A",
+          "is_new": true,
+          "known_text": "to learn",
+          "target_text": "aprender",
+          "components": null,
+          "phrase_count": 9,
+          "eternal_ready_count": 2,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "to learn",
+              "target_text": "aprender",
+              "syllables": 3
+            },
+            {
+              "position": 2,
+              "known_text": "I want to learn",
+              "target_text": "quero aprender",
+              "syllables": 5
+            },
+            {
+              "position": 3,
+              "known_text": "I'm trying to learn",
+              "target_text": "estou tentando aprender",
+              "syllables": 8
+            },
+            {
+              "position": 4,
+              "known_text": "to learn Portuguese",
+              "target_text": "aprender português",
+              "syllables": 6
+            },
+            {
+              "position": 5,
+              "known_text": "I want to learn Portuguese",
+              "target_text": "quero aprender português",
+              "syllables": 8
+            },
+            {
+              "position": 6,
+              "known_text": "I'm trying to learn Portuguese",
+              "target_text": "estou tentando aprender português",
+              "syllables": 11
+            },
+            {
+              "position": 7,
+              "known_text": "to learn now",
+              "target_text": "aprender agora",
+              "syllables": 6
+            },
+            {
+              "position": 8,
+              "known_text": "I want to learn now",
+              "target_text": "quero aprender agora",
+              "syllables": 8
+            },
+            {
+              "position": 9,
+              "known_text": "I'm trying to learn now",
+              "target_text": "estou tentando aprender agora",
+              "syllables": 11
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed_number": 3,
+      "legos": [
+        {
+          "lego_index": 1,
+          "type": "A",
+          "is_new": true,
+          "known_text": "how to",
+          "target_text": "como",
+          "components": null,
+          "phrase_count": 5,
+          "eternal_ready_count": 0,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "how to",
+              "target_text": "como",
+              "syllables": 2
+            },
+            {
+              "position": 2,
+              "known_text": "how to speak",
+              "target_text": "como falar",
+              "syllables": 4
+            },
+            {
+              "position": 3,
+              "known_text": "how to speak Portuguese",
+              "target_text": "como falar português",
+              "syllables": 7
+            },
+            {
+              "position": 4,
+              "known_text": "how to learn",
+              "target_text": "como aprender",
+              "syllables": 5
+            },
+            {
+              "position": 5,
+              "known_text": "how to learn Portuguese",
+              "target_text": "como aprender português",
+              "syllables": 8
+            }
+          ]
+        },
+        {
+          "lego_index": 2,
+          "type": "M",
+          "is_new": true,
+          "known_text": "as often as possible",
+          "target_text": "sempre que possível",
+          "components": [
+            {
+              "known": "whenever",
+              "target": "sempre que"
+            },
+            {
+              "known": "possible",
+              "target": "possível"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 4,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "as often as possible",
+              "target_text": "sempre que possível",
+              "syllables": 6
+            },
+            {
+              "position": 2,
+              "known_text": "to speak as often as possible",
+              "target_text": "falar sempre que possível",
+              "syllables": 8
+            },
+            {
+              "position": 3,
+              "known_text": "I want to speak as often as possible",
+              "target_text": "quero falar sempre que possível",
+              "syllables": 10
+            },
+            {
+              "position": 4,
+              "known_text": "to learn as often as possible",
+              "target_text": "aprender sempre que possível",
+              "syllables": 9
+            },
+            {
+              "position": 5,
+              "known_text": "I'm trying to speak as often as possible",
+              "target_text": "estou tentando falar sempre que possível",
+              "syllables": 13
+            },
+            {
+              "position": 6,
+              "known_text": "to speak Portuguese as often as possible",
+              "target_text": "falar português sempre que possível",
+              "syllables": 11
+            },
+            {
+              "position": 7,
+              "known_text": "how to speak as often as possible",
+              "target_text": "como falar sempre que possível",
+              "syllables": 10
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed_number": 4,
+      "legos": [
+        {
+          "lego_index": 1,
+          "type": "A",
+          "is_new": true,
+          "known_text": "to say",
+          "target_text": "dizer",
+          "components": null,
+          "phrase_count": 5,
+          "eternal_ready_count": 0,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "to say",
+              "target_text": "dizer",
+              "syllables": 2
+            },
+            {
+              "position": 2,
+              "known_text": "I want to say",
+              "target_text": "quero dizer",
+              "syllables": 4
+            },
+            {
+              "position": 3,
+              "known_text": "I'm trying to say",
+              "target_text": "estou tentando dizer",
+              "syllables": 7
+            },
+            {
+              "position": 4,
+              "known_text": "how to say",
+              "target_text": "como dizer",
+              "syllables": 4
+            },
+            {
+              "position": 5,
+              "known_text": "I want to say now",
+              "target_text": "quero dizer agora",
+              "syllables": 7
+            }
+          ]
+        },
+        {
+          "lego_index": 2,
+          "type": "A",
+          "is_new": true,
+          "known_text": "something",
+          "target_text": "algo",
+          "components": null,
+          "phrase_count": 7,
+          "eternal_ready_count": 0,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "something",
+              "target_text": "algo",
+              "syllables": 2
+            },
+            {
+              "position": 2,
+              "known_text": "to say something",
+              "target_text": "dizer algo",
+              "syllables": 4
+            },
+            {
+              "position": 3,
+              "known_text": "I want to say something",
+              "target_text": "quero dizer algo",
+              "syllables": 6
+            },
+            {
+              "position": 4,
+              "known_text": "I'm trying to say something",
+              "target_text": "estou tentando dizer algo",
+              "syllables": 9
+            },
+            {
+              "position": 5,
+              "known_text": "how to say something",
+              "target_text": "como dizer algo",
+              "syllables": 6
+            },
+            {
+              "position": 6,
+              "known_text": "to learn something",
+              "target_text": "aprender algo",
+              "syllables": 5
+            },
+            {
+              "position": 7,
+              "known_text": "I want to learn something",
+              "target_text": "quero aprender algo",
+              "syllables": 7
+            }
+          ]
+        },
+        {
+          "lego_index": 3,
+          "type": "M",
+          "is_new": true,
+          "known_text": "in Portuguese",
+          "target_text": "em português",
+          "components": [
+            {
+              "known": "in",
+              "target": "em"
+            },
+            {
+              "known": "Portuguese",
+              "target": "português"
+            }
+          ],
+          "phrase_count": 5,
+          "eternal_ready_count": 3,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "in Portuguese",
+              "target_text": "em português",
+              "syllables": 4
+            },
+            {
+              "position": 2,
+              "known_text": "to say something in Portuguese",
+              "target_text": "dizer algo em português",
+              "syllables": 8
+            },
+            {
+              "position": 3,
+              "known_text": "how to say something in Portuguese",
+              "target_text": "como dizer algo em português",
+              "syllables": 10
+            },
+            {
+              "position": 4,
+              "known_text": "I want to say something in Portuguese",
+              "target_text": "quero dizer algo em português",
+              "syllables": 10
+            },
+            {
+              "position": 5,
+              "known_text": "I'm trying to say something in Portuguese",
+              "target_text": "estou tentando dizer algo em português",
+              "syllables": 13
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed_number": 5,
+      "legos": [
+        {
+          "lego_index": 1,
+          "type": "M",
+          "is_new": true,
+          "known_text": "I'm going to",
+          "target_text": "vou",
+          "components": [
+            {
+              "known": "I",
+              "target": "eu"
+            },
+            {
+              "known": "am going to",
+              "target": "vou"
+            }
+          ],
+          "phrase_count": 8,
+          "eternal_ready_count": 0,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "I'm going to",
+              "target_text": "vou",
+              "syllables": 1
+            },
+            {
+              "position": 2,
+              "known_text": "I'm going to speak",
+              "target_text": "vou falar",
+              "syllables": 3
+            },
+            {
+              "position": 3,
+              "known_text": "I'm going to speak Portuguese",
+              "target_text": "vou falar português",
+              "syllables": 6
+            },
+            {
+              "position": 4,
+              "known_text": "I'm going to learn",
+              "target_text": "vou aprender",
+              "syllables": 4
+            },
+            {
+              "position": 5,
+              "known_text": "I'm going to say something",
+              "target_text": "vou dizer algo",
+              "syllables": 5
+            },
+            {
+              "position": 6,
+              "known_text": "I'm going to speak with you",
+              "target_text": "vou falar com você",
+              "syllables": 6
+            },
+            {
+              "position": 7,
+              "known_text": "I'm going to speak now",
+              "target_text": "vou falar agora",
+              "syllables": 6
+            },
+            {
+              "position": 8,
+              "known_text": "I'm going to learn Portuguese",
+              "target_text": "vou aprender português",
+              "syllables": 7
+            }
+          ]
+        },
+        {
+          "lego_index": 2,
+          "type": "A",
+          "is_new": true,
+          "known_text": "to practise",
+          "target_text": "praticar",
+          "components": null,
+          "phrase_count": 8,
+          "eternal_ready_count": 0,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "to practise",
+              "target_text": "praticar",
+              "syllables": 3
+            },
+            {
+              "position": 2,
+              "known_text": "I want to practise",
+              "target_text": "quero praticar",
+              "syllables": 5
+            },
+            {
+              "position": 3,
+              "known_text": "I'm going to practise",
+              "target_text": "vou praticar",
+              "syllables": 4
+            },
+            {
+              "position": 4,
+              "known_text": "I'm trying to practise",
+              "target_text": "estou tentando praticar",
+              "syllables": 8
+            },
+            {
+              "position": 5,
+              "known_text": "to practise now",
+              "target_text": "praticar agora",
+              "syllables": 6
+            },
+            {
+              "position": 6,
+              "known_text": "I want to practise now",
+              "target_text": "quero praticar agora",
+              "syllables": 8
+            },
+            {
+              "position": 7,
+              "known_text": "I'm going to practise now",
+              "target_text": "vou praticar agora",
+              "syllables": 7
+            },
+            {
+              "position": 8,
+              "known_text": "to practise as often as possible",
+              "target_text": "praticar sempre que possível",
+              "syllables": 9
+            }
+          ]
+        },
+        {
+          "lego_index": 3,
+          "type": "M",
+          "is_new": true,
+          "known_text": "someone else",
+          "target_text": "outra pessoa",
+          "components": [
+            {
+              "known": "other",
+              "target": "outra"
+            },
+            {
+              "known": "person",
+              "target": "pessoa"
+            }
+          ],
+          "phrase_count": 1,
+          "eternal_ready_count": 0,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "someone else",
+              "target_text": "outra pessoa",
+              "syllables": 4
+            }
+          ]
+        },
+        {
+          "lego_index": 4,
+          "type": "A",
+          "is_new": true,
+          "known_text": "with",
+          "target_text": "com",
+          "components": null,
+          "phrase_count": 10,
+          "eternal_ready_count": 2,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "with",
+              "target_text": "com",
+              "syllables": 1
+            },
+            {
+              "position": 2,
+              "known_text": "with you",
+              "target_text": "com você",
+              "syllables": 3
+            },
+            {
+              "position": 3,
+              "known_text": "with someone else",
+              "target_text": "com outra pessoa",
+              "syllables": 5
+            },
+            {
+              "position": 4,
+              "known_text": "to speak with",
+              "target_text": "falar com",
+              "syllables": 3
+            },
+            {
+              "position": 5,
+              "known_text": "to speak with someone else",
+              "target_text": "falar com outra pessoa",
+              "syllables": 7
+            },
+            {
+              "position": 6,
+              "known_text": "to practise with someone else",
+              "target_text": "praticar com outra pessoa",
+              "syllables": 8
+            },
+            {
+              "position": 7,
+              "known_text": "I want to speak with someone else",
+              "target_text": "quero falar com outra pessoa",
+              "syllables": 9
+            },
+            {
+              "position": 8,
+              "known_text": "I'm going to practise with someone else",
+              "target_text": "vou praticar com outra pessoa",
+              "syllables": 9
+            },
+            {
+              "position": 9,
+              "known_text": "to speak Portuguese with someone else",
+              "target_text": "falar português com outra pessoa",
+              "syllables": 10
+            },
+            {
+              "position": 10,
+              "known_text": "I'm trying to speak Portuguese with someone else now",
+              "target_text": "estou tentando falar português com outra pessoa agora",
+              "syllables": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed_number": 6,
+      "legos": [
+        {
+          "lego_index": 1,
+          "type": "A",
+          "is_new": true,
+          "known_text": "to remember",
+          "target_text": "lembrar",
+          "components": null,
+          "phrase_count": 8,
+          "eternal_ready_count": 0,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "to remember",
+              "target_text": "lembrar",
+              "syllables": 2
+            },
+            {
+              "position": 2,
+              "known_text": "I want to remember",
+              "target_text": "quero lembrar",
+              "syllables": 4
+            },
+            {
+              "position": 3,
+              "known_text": "I'm trying to remember",
+              "target_text": "estou tentando lembrar",
+              "syllables": 7
+            },
+            {
+              "position": 4,
+              "known_text": "I'm going to remember",
+              "target_text": "vou lembrar",
+              "syllables": 3
+            },
+            {
+              "position": 5,
+              "known_text": "how to remember",
+              "target_text": "como lembrar",
+              "syllables": 4
+            },
+            {
+              "position": 6,
+              "known_text": "to remember something",
+              "target_text": "lembrar algo",
+              "syllables": 4
+            },
+            {
+              "position": 7,
+              "known_text": "I want to remember something",
+              "target_text": "quero lembrar algo",
+              "syllables": 6
+            },
+            {
+              "position": 8,
+              "known_text": "I'm trying to remember something",
+              "target_text": "estou tentando lembrar algo",
+              "syllables": 9
+            }
+          ]
+        },
+        {
+          "lego_index": 2,
+          "type": "M",
+          "is_new": true,
+          "known_text": "a word",
+          "target_text": "uma palavra",
+          "components": [
+            {
+              "known": "a",
+              "target": "uma"
+            },
+            {
+              "known": "word",
+              "target": "palavra"
+            }
+          ],
+          "phrase_count": 9,
+          "eternal_ready_count": 3,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "a word",
+              "target_text": "uma palavra",
+              "syllables": 5
+            },
+            {
+              "position": 2,
+              "known_text": "to remember a word",
+              "target_text": "lembrar uma palavra",
+              "syllables": 7
+            },
+            {
+              "position": 3,
+              "known_text": "I want to remember a word",
+              "target_text": "quero lembrar uma palavra",
+              "syllables": 9
+            },
+            {
+              "position": 4,
+              "known_text": "I'm trying to remember a word",
+              "target_text": "estou tentando lembrar uma palavra",
+              "syllables": 12
+            },
+            {
+              "position": 5,
+              "known_text": "I'm going to remember a word",
+              "target_text": "vou lembrar uma palavra",
+              "syllables": 8
+            },
+            {
+              "position": 6,
+              "known_text": "to say a word",
+              "target_text": "dizer uma palavra",
+              "syllables": 7
+            },
+            {
+              "position": 7,
+              "known_text": "I want to say a word",
+              "target_text": "quero dizer uma palavra",
+              "syllables": 9
+            },
+            {
+              "position": 8,
+              "known_text": "to say a word in Portuguese",
+              "target_text": "dizer uma palavra em português",
+              "syllables": 11
+            },
+            {
+              "position": 9,
+              "known_text": "how to say a word in Portuguese",
+              "target_text": "como dizer uma palavra em português",
+              "syllables": 13
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed_number": 7,
+      "legos": [
+        {
+          "lego_index": 1,
+          "type": "A",
+          "is_new": true,
+          "known_text": "to try",
+          "target_text": "tentar",
+          "components": null,
+          "phrase_count": 7,
+          "eternal_ready_count": 0,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "to try",
+              "target_text": "tentar",
+              "syllables": 2
+            },
+            {
+              "position": 2,
+              "known_text": "I want to try",
+              "target_text": "quero tentar",
+              "syllables": 4
+            },
+            {
+              "position": 3,
+              "known_text": "I'm going to try",
+              "target_text": "vou tentar",
+              "syllables": 3
+            },
+            {
+              "position": 4,
+              "known_text": "I'm trying to try",
+              "target_text": "estou tentando tentar",
+              "syllables": 7
+            },
+            {
+              "position": 5,
+              "known_text": "to try now",
+              "target_text": "tentar agora",
+              "syllables": 5
+            },
+            {
+              "position": 6,
+              "known_text": "I want to try now",
+              "target_text": "quero tentar agora",
+              "syllables": 7
+            },
+            {
+              "position": 7,
+              "known_text": "I'm going to try now",
+              "target_text": "vou tentar agora",
+              "syllables": 6
+            }
+          ]
+        },
+        {
+          "lego_index": 2,
+          "type": "M",
+          "is_new": true,
+          "known_text": "as much as possible",
+          "target_text": "o máximo possível",
+          "components": [
+            {
+              "known": "the maximum",
+              "target": "o máximo"
+            },
+            {
+              "known": "possible",
+              "target": "possível"
+            }
+          ],
+          "phrase_count": 8,
+          "eternal_ready_count": 6,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "as much as possible",
+              "target_text": "o máximo possível",
+              "syllables": 7
+            },
+            {
+              "position": 2,
+              "known_text": "to try as much as possible",
+              "target_text": "tentar o máximo possível",
+              "syllables": 9
+            },
+            {
+              "position": 3,
+              "known_text": "I want to try as much as possible",
+              "target_text": "quero tentar o máximo possível",
+              "syllables": 11
+            },
+            {
+              "position": 4,
+              "known_text": "I'm going to try as much as possible",
+              "target_text": "vou tentar o máximo possível",
+              "syllables": 10
+            },
+            {
+              "position": 5,
+              "known_text": "to practise as much as possible",
+              "target_text": "praticar o máximo possível",
+              "syllables": 10
+            },
+            {
+              "position": 6,
+              "known_text": "I want to practise as much as possible",
+              "target_text": "quero praticar o máximo possível",
+              "syllables": 12
+            },
+            {
+              "position": 7,
+              "known_text": "to learn as much as possible",
+              "target_text": "aprender o máximo possível",
+              "syllables": 10
+            },
+            {
+              "position": 8,
+              "known_text": "I want to learn as much as possible",
+              "target_text": "quero aprender o máximo possível",
+              "syllables": 12
+            }
+          ]
+        },
+        {
+          "lego_index": 3,
+          "type": "A",
+          "is_new": true,
+          "known_text": "today",
+          "target_text": "hoje",
+          "components": null,
+          "phrase_count": 10,
+          "eternal_ready_count": 0,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "today",
+              "target_text": "hoje",
+              "syllables": 2
+            },
+            {
+              "position": 2,
+              "known_text": "to try today",
+              "target_text": "tentar hoje",
+              "syllables": 4
+            },
+            {
+              "position": 3,
+              "known_text": "I want to try today",
+              "target_text": "quero tentar hoje",
+              "syllables": 6
+            },
+            {
+              "position": 4,
+              "known_text": "I'm going to try today",
+              "target_text": "vou tentar hoje",
+              "syllables": 5
+            },
+            {
+              "position": 5,
+              "known_text": "to speak Portuguese today",
+              "target_text": "falar português hoje",
+              "syllables": 7
+            },
+            {
+              "position": 6,
+              "known_text": "I want to speak Portuguese today",
+              "target_text": "quero falar português hoje",
+              "syllables": 9
+            },
+            {
+              "position": 7,
+              "known_text": "to practise today",
+              "target_text": "praticar hoje",
+              "syllables": 5
+            },
+            {
+              "position": 8,
+              "known_text": "I'm going to practise today",
+              "target_text": "vou praticar hoje",
+              "syllables": 6
+            },
+            {
+              "position": 9,
+              "known_text": "to learn something today",
+              "target_text": "aprender algo hoje",
+              "syllables": 7
+            },
+            {
+              "position": 10,
+              "known_text": "I want to learn something today",
+              "target_text": "quero aprender algo hoje",
+              "syllables": 9
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed_number": 8,
+      "legos": [
+        {
+          "lego_index": 1,
+          "type": "A",
+          "is_new": true,
+          "known_text": "to explain",
+          "target_text": "explicar",
+          "components": null,
+          "phrase_count": 9,
+          "eternal_ready_count": 0,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "to explain",
+              "target_text": "explicar",
+              "syllables": 3
+            },
+            {
+              "position": 2,
+              "known_text": "I want to explain",
+              "target_text": "quero explicar",
+              "syllables": 5
+            },
+            {
+              "position": 3,
+              "known_text": "I'm going to explain",
+              "target_text": "vou explicar",
+              "syllables": 4
+            },
+            {
+              "position": 4,
+              "known_text": "I'm trying to explain",
+              "target_text": "estou tentando explicar",
+              "syllables": 8
+            },
+            {
+              "position": 5,
+              "known_text": "to try to explain",
+              "target_text": "tentar explicar",
+              "syllables": 5
+            },
+            {
+              "position": 6,
+              "known_text": "I want to try to explain",
+              "target_text": "quero tentar explicar",
+              "syllables": 7
+            },
+            {
+              "position": 7,
+              "known_text": "I'm going to try to explain",
+              "target_text": "vou tentar explicar",
+              "syllables": 6
+            },
+            {
+              "position": 8,
+              "known_text": "to explain something",
+              "target_text": "explicar algo",
+              "syllables": 5
+            },
+            {
+              "position": 9,
+              "known_text": "I want to explain something",
+              "target_text": "quero explicar algo",
+              "syllables": 7
+            }
+          ]
+        },
+        {
+          "lego_index": 2,
+          "type": "M",
+          "is_new": true,
+          "known_text": "what I mean",
+          "target_text": "o que quero dizer",
+          "components": [
+            {
+              "known": "what",
+              "target": "o que"
+            },
+            {
+              "known": "I mean",
+              "target": "quero dizer"
+            }
+          ],
+          "phrase_count": 9,
+          "eternal_ready_count": 5,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "what I mean",
+              "target_text": "o que quero dizer",
+              "syllables": 6
+            },
+            {
+              "position": 2,
+              "known_text": "to explain what I mean",
+              "target_text": "explicar o que quero dizer",
+              "syllables": 9
+            },
+            {
+              "position": 3,
+              "known_text": "I want to explain what I mean",
+              "target_text": "quero explicar o que quero dizer",
+              "syllables": 11
+            },
+            {
+              "position": 4,
+              "known_text": "I'm going to explain what I mean",
+              "target_text": "vou explicar o que quero dizer",
+              "syllables": 10
+            },
+            {
+              "position": 5,
+              "known_text": "I'm trying to explain what I mean",
+              "target_text": "estou tentando explicar o que quero dizer",
+              "syllables": 14
+            },
+            {
+              "position": 6,
+              "known_text": "to try to explain what I mean",
+              "target_text": "tentar explicar o que quero dizer",
+              "syllables": 11
+            },
+            {
+              "position": 7,
+              "known_text": "I'm going to try to explain what I mean",
+              "target_text": "vou tentar explicar o que quero dizer",
+              "syllables": 12
+            },
+            {
+              "position": 8,
+              "known_text": "to say what I mean",
+              "target_text": "dizer o que quero dizer",
+              "syllables": 8
+            },
+            {
+              "position": 9,
+              "known_text": "to remember what I mean",
+              "target_text": "lembrar o que quero dizer",
+              "syllables": 8
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed_number": 9,
+      "legos": [
+        {
+          "lego_index": 1,
+          "type": "A",
+          "is_new": true,
+          "known_text": "I speak",
+          "target_text": "falo",
+          "components": null,
+          "phrase_count": 7,
+          "eternal_ready_count": 0,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "I speak",
+              "target_text": "falo",
+              "syllables": 2
+            },
+            {
+              "position": 2,
+              "known_text": "I speak Portuguese",
+              "target_text": "falo português",
+              "syllables": 5
+            },
+            {
+              "position": 3,
+              "known_text": "I speak with you",
+              "target_text": "falo com você",
+              "syllables": 5
+            },
+            {
+              "position": 4,
+              "known_text": "I speak Portuguese with you",
+              "target_text": "falo português com você",
+              "syllables": 8
+            },
+            {
+              "position": 5,
+              "known_text": "I speak now",
+              "target_text": "falo agora",
+              "syllables": 5
+            },
+            {
+              "position": 6,
+              "known_text": "I speak Portuguese now",
+              "target_text": "falo português agora",
+              "syllables": 8
+            },
+            {
+              "position": 7,
+              "known_text": "I speak with someone else",
+              "target_text": "falo com outra pessoa",
+              "syllables": 7
+            }
+          ]
+        },
+        {
+          "lego_index": 2,
+          "type": "M",
+          "is_new": true,
+          "known_text": "a little",
+          "target_text": "um pouco de",
+          "components": [
+            {
+              "known": "a little",
+              "target": "um pouco"
+            },
+            {
+              "known": "of",
+              "target": "de"
+            }
+          ],
+          "phrase_count": 8,
+          "eternal_ready_count": 3,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "a little",
+              "target_text": "um pouco de",
+              "syllables": 4
+            },
+            {
+              "position": 2,
+              "known_text": "a little Portuguese",
+              "target_text": "um pouco de português",
+              "syllables": 7
+            },
+            {
+              "position": 3,
+              "known_text": "I speak a little",
+              "target_text": "falo um pouco de",
+              "syllables": 6
+            },
+            {
+              "position": 4,
+              "known_text": "I speak a little Portuguese",
+              "target_text": "falo um pouco de português",
+              "syllables": 9
+            },
+            {
+              "position": 5,
+              "known_text": "I speak a little Portuguese now",
+              "target_text": "falo um pouco de português agora",
+              "syllables": 12
+            },
+            {
+              "position": 6,
+              "known_text": "I want to learn a little",
+              "target_text": "quero aprender um pouco de",
+              "syllables": 9
+            },
+            {
+              "position": 7,
+              "known_text": "I want to learn a little Portuguese",
+              "target_text": "quero aprender um pouco de português",
+              "syllables": 12
+            },
+            {
+              "position": 8,
+              "known_text": "I'm trying to learn a little Portuguese",
+              "target_text": "estou tentando aprender um pouco de português",
+              "syllables": 15
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed_number": 10,
+      "legos": [
+        {
+          "lego_index": 1,
+          "type": "M",
+          "is_new": true,
+          "known_text": "I'm not sure",
+          "target_text": "não tenho certeza",
+          "components": [
+            {
+              "known": "not",
+              "target": "não"
+            },
+            {
+              "known": "I have certainty",
+              "target": "tenho certeza"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 2,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "I'm not sure",
+              "target_text": "não tenho certeza",
+              "syllables": 6
+            },
+            {
+              "position": 2,
+              "known_text": "I'm not sure now",
+              "target_text": "não tenho certeza agora",
+              "syllables": 9
+            },
+            {
+              "position": 3,
+              "known_text": "I'm not sure today",
+              "target_text": "não tenho certeza hoje",
+              "syllables": 8
+            },
+            {
+              "position": 4,
+              "known_text": "I'm not sure now",
+              "target_text": "não tenho certeza agora",
+              "syllables": 9
+            },
+            {
+              "position": 5,
+              "known_text": "I'm not sure today",
+              "target_text": "não tenho certeza hoje",
+              "syllables": 8
+            },
+            {
+              "position": 6,
+              "known_text": "I'm not sure what I mean",
+              "target_text": "não tenho certeza o que quero dizer",
+              "syllables": 12
+            },
+            {
+              "position": 7,
+              "known_text": "I'm not sure what I mean",
+              "target_text": "não tenho certeza o que quero dizer",
+              "syllables": 12
+            }
+          ]
+        },
+        {
+          "lego_index": 2,
+          "type": "A",
+          "is_new": true,
+          "known_text": "if",
+          "target_text": "se",
+          "components": null,
+          "phrase_count": 7,
+          "eternal_ready_count": 0,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "if",
+              "target_text": "se",
+              "syllables": 1
+            },
+            {
+              "position": 2,
+              "known_text": "I'm not sure if",
+              "target_text": "não tenho certeza se",
+              "syllables": 7
+            },
+            {
+              "position": 3,
+              "known_text": "if now",
+              "target_text": "se agora",
+              "syllables": 4
+            },
+            {
+              "position": 4,
+              "known_text": "if today",
+              "target_text": "se hoje",
+              "syllables": 3
+            },
+            {
+              "position": 7,
+              "known_text": "something if",
+              "target_text": "algo se",
+              "syllables": 3
+            },
+            {
+              "position": 8,
+              "known_text": "if I'm not sure",
+              "target_text": "se não tenho certeza",
+              "syllables": 7
+            },
+            {
+              "position": 9,
+              "known_text": "I'm not sure if",
+              "target_text": "não tenho certeza se",
+              "syllables": 7
+            }
+          ]
+        },
+        {
+          "lego_index": 3,
+          "type": "A",
+          "is_new": true,
+          "known_text": "I can",
+          "target_text": "consigo",
+          "components": null,
+          "phrase_count": 9,
+          "eternal_ready_count": 3,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "I can",
+              "target_text": "consigo",
+              "syllables": 3
+            },
+            {
+              "position": 2,
+              "known_text": "I can speak",
+              "target_text": "consigo falar",
+              "syllables": 5
+            },
+            {
+              "position": 3,
+              "known_text": "I can speak Portuguese",
+              "target_text": "consigo falar português",
+              "syllables": 8
+            },
+            {
+              "position": 4,
+              "known_text": "I can remember",
+              "target_text": "consigo lembrar",
+              "syllables": 5
+            },
+            {
+              "position": 5,
+              "known_text": "I can say",
+              "target_text": "consigo dizer",
+              "syllables": 5
+            },
+            {
+              "position": 6,
+              "known_text": "I can explain",
+              "target_text": "consigo explicar",
+              "syllables": 6
+            },
+            {
+              "position": 7,
+              "known_text": "I'm not sure if I can",
+              "target_text": "não tenho certeza se consigo",
+              "syllables": 10
+            },
+            {
+              "position": 8,
+              "known_text": "I'm not sure if I can speak",
+              "target_text": "não tenho certeza se consigo falar",
+              "syllables": 12
+            },
+            {
+              "position": 9,
+              "known_text": "I'm not sure if I can remember",
+              "target_text": "não tenho certeza se consigo lembrar",
+              "syllables": 12
+            }
+          ]
+        },
+        {
+          "lego_index": 4,
+          "type": "M",
+          "is_new": true,
+          "known_text": "the whole sentence",
+          "target_text": "a frase toda",
+          "components": [
+            {
+              "known": "the sentence",
+              "target": "a frase"
+            },
+            {
+              "known": "whole",
+              "target": "toda"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 4,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "the whole sentence",
+              "target_text": "a frase toda",
+              "syllables": 5
+            },
+            {
+              "position": 2,
+              "known_text": "to remember the whole sentence",
+              "target_text": "lembrar a frase toda",
+              "syllables": 7
+            },
+            {
+              "position": 3,
+              "known_text": "I can remember the whole sentence",
+              "target_text": "consigo lembrar a frase toda",
+              "syllables": 10
+            },
+            {
+              "position": 4,
+              "known_text": "I'm not sure if I can remember the whole sentence",
+              "target_text": "não tenho certeza se consigo lembrar a frase toda",
+              "syllables": 17
+            },
+            {
+              "position": 5,
+              "known_text": "to say the whole sentence",
+              "target_text": "dizer a frase toda",
+              "syllables": 7
+            },
+            {
+              "position": 8,
+              "known_text": "to say the whole sentence in Portuguese",
+              "target_text": "dizer a frase toda em português",
+              "syllables": 11
+            },
+            {
+              "position": 9,
+              "known_text": "I'm not sure if I can remember the whole sentence",
+              "target_text": "não tenho certeza se consigo lembrar a frase toda",
+              "syllables": 17
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed_number": 11,
+      "legos": [
+        {
+          "lego_index": 1,
+          "type": "M",
+          "is_new": true,
+          "known_text": "I'd like to",
+          "target_text": "gostaria de",
+          "components": [
+            {
+              "known": "I'd",
+              "target": "eu"
+            },
+            {
+              "known": "like to",
+              "target": "gostaria de"
+            }
+          ],
+          "phrase_count": 8,
+          "eternal_ready_count": 1,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "I'd like to",
+              "target_text": "gostaria de",
+              "syllables": 4
+            },
+            {
+              "position": 2,
+              "known_text": "I'd like to speak",
+              "target_text": "gostaria de falar",
+              "syllables": 6
+            },
+            {
+              "position": 3,
+              "known_text": "I'd like to learn",
+              "target_text": "gostaria de aprender",
+              "syllables": 7
+            },
+            {
+              "position": 4,
+              "known_text": "I'd like to speak Portuguese",
+              "target_text": "gostaria de falar português",
+              "syllables": 9
+            },
+            {
+              "position": 5,
+              "known_text": "I'd like to learn Portuguese",
+              "target_text": "gostaria de aprender português",
+              "syllables": 10
+            },
+            {
+              "position": 6,
+              "known_text": "I'd like to try",
+              "target_text": "gostaria de tentar",
+              "syllables": 6
+            },
+            {
+              "position": 7,
+              "known_text": "I'd like to explain",
+              "target_text": "gostaria de explicar",
+              "syllables": 7
+            },
+            {
+              "position": 8,
+              "known_text": "I'd like to practise",
+              "target_text": "gostaria de praticar",
+              "syllables": 7
+            }
+          ]
+        },
+        {
+          "lego_index": 2,
+          "type": "A",
+          "is_new": true,
+          "known_text": "to be able to",
+          "target_text": "poder",
+          "components": null,
+          "phrase_count": 7,
+          "eternal_ready_count": 2,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "to be able to",
+              "target_text": "poder",
+              "syllables": 2
+            },
+            {
+              "position": 2,
+              "known_text": "to be able to speak",
+              "target_text": "poder falar",
+              "syllables": 4
+            },
+            {
+              "position": 3,
+              "known_text": "I'd like to be able to",
+              "target_text": "gostaria de poder",
+              "syllables": 6
+            },
+            {
+              "position": 4,
+              "known_text": "I'd like to be able to speak",
+              "target_text": "gostaria de poder falar",
+              "syllables": 8
+            },
+            {
+              "position": 5,
+              "known_text": "I'd like to be able to speak Portuguese",
+              "target_text": "gostaria de poder falar português",
+              "syllables": 11
+            },
+            {
+              "position": 6,
+              "known_text": "I'd like to be able to speak",
+              "target_text": "gostaria de poder falar",
+              "syllables": 8
+            },
+            {
+              "position": 7,
+              "known_text": "I'd like to be able to remember the whole sentence",
+              "target_text": "gostaria de poder lembrar a frase toda",
+              "syllables": 13
+            }
+          ]
+        },
+        {
+          "lego_index": 3,
+          "type": "M",
+          "is_new": true,
+          "known_text": "after you finish",
+          "target_text": "depois que você terminar",
+          "components": [
+            {
+              "known": "after",
+              "target": "depois que"
+            },
+            {
+              "known": "you finish",
+              "target": "você terminar"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 6,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "after you finish",
+              "target_text": "depois que você terminar",
+              "syllables": 8
+            },
+            {
+              "position": 2,
+              "known_text": "to speak after you finish",
+              "target_text": "falar depois que você terminar",
+              "syllables": 10
+            },
+            {
+              "position": 3,
+              "known_text": "I'd like to speak after you finish",
+              "target_text": "gostaria de falar depois que você terminar",
+              "syllables": 14
+            },
+            {
+              "position": 5,
+              "known_text": "after you finish speaking",
+              "target_text": "depois que você terminar de falar",
+              "syllables": 11
+            },
+            {
+              "position": 6,
+              "known_text": "after you finish practising",
+              "target_text": "depois que você terminar de praticar",
+              "syllables": 12
+            },
+            {
+              "position": 7,
+              "known_text": "I'd like to speak after you finish",
+              "target_text": "gostaria de falar depois que você terminar",
+              "syllables": 14
+            },
+            {
+              "position": 8,
+              "known_text": "I'd like to be able to speak after you finish",
+              "target_text": "gostaria de poder falar depois que você terminar",
+              "syllables": 16
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed_number": 12,
+      "legos": [
+        {
+          "lego_index": 1,
+          "type": "M",
+          "is_new": true,
+          "known_text": "I wouldn't like to",
+          "target_text": "não gostaria de",
+          "components": [
+            {
+              "known": "not",
+              "target": "não"
+            },
+            {
+              "known": "I'd like to",
+              "target": "gostaria de"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 0,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "I wouldn't like to",
+              "target_text": "não gostaria de",
+              "syllables": 5
+            },
+            {
+              "position": 2,
+              "known_text": "I wouldn't like to speak",
+              "target_text": "não gostaria de falar",
+              "syllables": 7
+            },
+            {
+              "position": 3,
+              "known_text": "I wouldn't like to try",
+              "target_text": "não gostaria de tentar",
+              "syllables": 7
+            },
+            {
+              "position": 4,
+              "known_text": "I wouldn't like to explain",
+              "target_text": "não gostaria de explicar",
+              "syllables": 8
+            },
+            {
+              "position": 5,
+              "known_text": "I wouldn't like to now",
+              "target_text": "não gostaria de agora",
+              "syllables": 8
+            },
+            {
+              "position": 6,
+              "known_text": "I wouldn't like to today",
+              "target_text": "não gostaria de hoje",
+              "syllables": 7
+            },
+            {
+              "position": 7,
+              "known_text": "I wouldn't like to explain",
+              "target_text": "não gostaria de explicar",
+              "syllables": 8
+            }
+          ]
+        },
+        {
+          "lego_index": 2,
+          "type": "A",
+          "is_new": true,
+          "known_text": "to guess",
+          "target_text": "adivinhar",
+          "components": null,
+          "phrase_count": 7,
+          "eternal_ready_count": 2,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "to guess",
+              "target_text": "adivinhar",
+              "syllables": 4
+            },
+            {
+              "position": 4,
+              "known_text": "I wouldn't like to guess",
+              "target_text": "não gostaria de adivinhar",
+              "syllables": 9
+            },
+            {
+              "position": 5,
+              "known_text": "I'd like to guess",
+              "target_text": "gostaria de adivinhar",
+              "syllables": 8
+            },
+            {
+              "position": 6,
+              "known_text": "I wouldn't like to guess",
+              "target_text": "não gostaria de adivinhar",
+              "syllables": 9
+            },
+            {
+              "position": 7,
+              "known_text": "I'd like to be able to guess",
+              "target_text": "gostaria de poder adivinhar",
+              "syllables": 10
+            },
+            {
+              "position": 8,
+              "known_text": "I'm not sure if I can guess",
+              "target_text": "não tenho certeza se consigo adivinhar",
+              "syllables": 14
+            },
+            {
+              "position": 9,
+              "known_text": "I wouldn't like to guess",
+              "target_text": "não gostaria de adivinhar",
+              "syllables": 9
+            }
+          ]
+        },
+        {
+          "lego_index": 3,
+          "type": "M",
+          "is_new": true,
+          "known_text": "what's going to happen",
+          "target_text": "o que vai acontecer",
+          "components": [
+            {
+              "known": "what",
+              "target": "o que"
+            },
+            {
+              "known": "is going to happen",
+              "target": "vai acontecer"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 6,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "what's going to happen",
+              "target_text": "o que vai acontecer",
+              "syllables": 7
+            },
+            {
+              "position": 2,
+              "known_text": "to guess what's going to happen",
+              "target_text": "adivinhar o que vai acontecer",
+              "syllables": 11
+            },
+            {
+              "position": 4,
+              "known_text": "I'm not sure what's going to happen",
+              "target_text": "não tenho certeza o que vai acontecer",
+              "syllables": 13
+            },
+            {
+              "position": 8,
+              "known_text": "what's going to happen now",
+              "target_text": "o que vai acontecer agora",
+              "syllables": 10
+            },
+            {
+              "position": 9,
+              "known_text": "I'm trying to guess what's going to happen",
+              "target_text": "estou tentando adivinhar o que vai acontecer",
+              "syllables": 16
+            },
+            {
+              "position": 10,
+              "known_text": "I wouldn't like to guess what's going to happen",
+              "target_text": "não gostaria de adivinhar o que vai acontecer",
+              "syllables": 16
+            },
+            {
+              "position": 11,
+              "known_text": "I'm not sure what's going to happen",
+              "target_text": "não tenho certeza o que vai acontecer",
+              "syllables": 13
+            }
+          ]
+        },
+        {
+          "lego_index": 4,
+          "type": "A",
+          "is_new": true,
+          "known_text": "tomorrow",
+          "target_text": "amanhã",
+          "components": null,
+          "phrase_count": 7,
+          "eternal_ready_count": 4,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "tomorrow",
+              "target_text": "amanhã",
+              "syllables": 3
+            },
+            {
+              "position": 2,
+              "known_text": "to speak tomorrow",
+              "target_text": "falar amanhã",
+              "syllables": 5
+            },
+            {
+              "position": 5,
+              "known_text": "I'd like to speak tomorrow",
+              "target_text": "gostaria de falar amanhã",
+              "syllables": 9
+            },
+            {
+              "position": 6,
+              "known_text": "what's going to happen tomorrow",
+              "target_text": "o que vai acontecer amanhã",
+              "syllables": 10
+            },
+            {
+              "position": 7,
+              "known_text": "I wouldn't like to guess what's going to happen tomorrow",
+              "target_text": "não gostaria de adivinhar o que vai acontecer amanhã",
+              "syllables": 19
+            },
+            {
+              "position": 8,
+              "known_text": "I'd like to be able to speak tomorrow",
+              "target_text": "gostaria de poder falar amanhã",
+              "syllables": 11
+            },
+            {
+              "position": 9,
+              "known_text": "I'm not sure what's going to happen tomorrow",
+              "target_text": "não tenho certeza o que vai acontecer amanhã",
+              "syllables": 16
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed_number": 13,
+      "legos": [
+        {
+          "lego_index": 1,
+          "type": "M",
+          "is_new": true,
+          "known_text": "you speak",
+          "target_text": "você fala",
+          "components": [
+            {
+              "known": "you",
+              "target": "você"
+            },
+            {
+              "known": "speak",
+              "target": "fala"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 2,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "you speak",
+              "target_text": "você fala",
+              "syllables": 4
+            },
+            {
+              "position": 2,
+              "known_text": "you speak Portuguese",
+              "target_text": "você fala português",
+              "syllables": 7
+            },
+            {
+              "position": 3,
+              "known_text": "you speak Portuguese",
+              "target_text": "você fala português",
+              "syllables": 7
+            },
+            {
+              "position": 4,
+              "known_text": "you speak now",
+              "target_text": "você fala agora",
+              "syllables": 7
+            },
+            {
+              "position": 5,
+              "known_text": "you speak today",
+              "target_text": "você fala hoje",
+              "syllables": 6
+            },
+            {
+              "position": 7,
+              "known_text": "I'm not sure if you speak Portuguese",
+              "target_text": "não tenho certeza se você fala português",
+              "syllables": 14
+            },
+            {
+              "position": 8,
+              "known_text": "I'm not sure if you speak Portuguese",
+              "target_text": "não tenho certeza se você fala português",
+              "syllables": 14
+            }
+          ]
+        },
+        {
+          "lego_index": 2,
+          "type": "M",
+          "is_new": true,
+          "known_text": "very well",
+          "target_text": "muito bem",
+          "components": [
+            {
+              "known": "very",
+              "target": "muito"
+            },
+            {
+              "known": "well",
+              "target": "bem"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 3,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "very well",
+              "target_text": "muito bem",
+              "syllables": 3
+            },
+            {
+              "position": 3,
+              "known_text": "you speak Portuguese very well",
+              "target_text": "você fala português muito bem",
+              "syllables": 10
+            },
+            {
+              "position": 4,
+              "known_text": "I speak very well",
+              "target_text": "falo muito bem",
+              "syllables": 5
+            },
+            {
+              "position": 5,
+              "known_text": "I speak Portuguese very well",
+              "target_text": "falo português muito bem",
+              "syllables": 8
+            },
+            {
+              "position": 7,
+              "known_text": "I'd like to speak very well",
+              "target_text": "gostaria de falar muito bem",
+              "syllables": 9
+            },
+            {
+              "position": 8,
+              "known_text": "I'd like to be able to speak very well",
+              "target_text": "gostaria de poder falar muito bem",
+              "syllables": 11
+            },
+            {
+              "position": 9,
+              "known_text": "you speak Portuguese very well",
+              "target_text": "você fala português muito bem",
+              "syllables": 10
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed_number": 14,
+      "legos": [
+        {
+          "lego_index": 1,
+          "type": "M",
+          "is_new": true,
+          "known_text": "all day",
+          "target_text": "o dia todo",
+          "components": [
+            {
+              "known": "the day",
+              "target": "o dia"
+            },
+            {
+              "known": "all",
+              "target": "todo"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 4,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "all day",
+              "target_text": "o dia todo",
+              "syllables": 4
+            },
+            {
+              "position": 2,
+              "known_text": "you speak all day",
+              "target_text": "você fala o dia todo",
+              "syllables": 8
+            },
+            {
+              "position": 3,
+              "known_text": "you speak Portuguese all day",
+              "target_text": "você fala português o dia todo",
+              "syllables": 11
+            },
+            {
+              "position": 4,
+              "known_text": "I speak Portuguese all day",
+              "target_text": "falo português o dia todo",
+              "syllables": 9
+            },
+            {
+              "position": 8,
+              "known_text": "I'd like to speak Portuguese all day",
+              "target_text": "gostaria de falar português o dia todo",
+              "syllables": 13
+            },
+            {
+              "position": 9,
+              "known_text": "you speak Portuguese very well all day",
+              "target_text": "você fala português muito bem o dia todo",
+              "syllables": 14
+            },
+            {
+              "position": 10,
+              "known_text": "I'd like to be able to speak all day",
+              "target_text": "gostaria de poder falar o dia todo",
+              "syllables": 12
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed_number": 15,
+      "legos": [
+        {
+          "lego_index": 1,
+          "type": "A",
+          "is_new": true,
+          "known_text": "and",
+          "target_text": "e",
+          "components": null,
+          "phrase_count": 7,
+          "eternal_ready_count": 0,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "and",
+              "target_text": "e",
+              "syllables": 1
+            },
+            {
+              "position": 2,
+              "known_text": "and I want to",
+              "target_text": "e quero",
+              "syllables": 3
+            },
+            {
+              "position": 3,
+              "known_text": "and I want to speak",
+              "target_text": "e quero falar",
+              "syllables": 5
+            },
+            {
+              "position": 4,
+              "known_text": "and I'm going to",
+              "target_text": "e vou",
+              "syllables": 2
+            },
+            {
+              "position": 5,
+              "known_text": "and I'd like to",
+              "target_text": "e gostaria de",
+              "syllables": 5
+            },
+            {
+              "position": 6,
+              "known_text": "and now",
+              "target_text": "e agora",
+              "syllables": 4
+            },
+            {
+              "position": 7,
+              "known_text": "and today",
+              "target_text": "e hoje",
+              "syllables": 3
+            }
+          ]
+        },
+        {
+          "lego_index": 2,
+          "type": "M",
+          "is_new": true,
+          "known_text": "I want you to speak",
+          "target_text": "quero que você fale",
+          "components": [
+            {
+              "known": "I want",
+              "target": "quero"
+            },
+            {
+              "known": "you to speak",
+              "target": "que você fale"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 7,
+          "phrases": [
+            {
+              "position": 5,
+              "known_text": "and I want you to speak Portuguese",
+              "target_text": "e quero que você fale português",
+              "syllables": 11
+            },
+            {
+              "position": 6,
+              "known_text": "I want you to speak Portuguese",
+              "target_text": "quero que você fale português",
+              "syllables": 10
+            },
+            {
+              "position": 9,
+              "known_text": "I want you to speak very well",
+              "target_text": "quero que você fale muito bem",
+              "syllables": 10
+            },
+            {
+              "position": 10,
+              "known_text": "I want you to speak all day",
+              "target_text": "quero que você fale o dia todo",
+              "syllables": 11
+            },
+            {
+              "position": 11,
+              "known_text": "I want you to speak Portuguese",
+              "target_text": "quero que você fale português",
+              "syllables": 10
+            },
+            {
+              "position": 12,
+              "known_text": "I want you to speak very well",
+              "target_text": "quero que você fale muito bem",
+              "syllables": 10
+            },
+            {
+              "position": 13,
+              "known_text": "I want you to speak all day",
+              "target_text": "quero que você fale o dia todo",
+              "syllables": 11
+            }
+          ]
+        },
+        {
+          "lego_index": 3,
+          "type": "M",
+          "is_new": true,
+          "known_text": "with me",
+          "target_text": "comigo",
+          "components": [
+            {
+              "known": "with",
+              "target": "com"
+            },
+            {
+              "known": "me",
+              "target": "migo"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 2,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "with me",
+              "target_text": "comigo",
+              "syllables": 3
+            },
+            {
+              "position": 2,
+              "known_text": "to speak with me",
+              "target_text": "falar comigo",
+              "syllables": 5
+            },
+            {
+              "position": 4,
+              "known_text": "to speak Portuguese with me",
+              "target_text": "falar português comigo",
+              "syllables": 8
+            },
+            {
+              "position": 5,
+              "known_text": "you speak Portuguese with me",
+              "target_text": "você fala português comigo",
+              "syllables": 10
+            },
+            {
+              "position": 6,
+              "known_text": "I'd like to speak with me",
+              "target_text": "gostaria de falar comigo",
+              "syllables": 9
+            },
+            {
+              "position": 7,
+              "known_text": "to practise with me",
+              "target_text": "praticar comigo",
+              "syllables": 6
+            },
+            {
+              "position": 8,
+              "known_text": "I want you to speak with me",
+              "target_text": "quero que você fale comigo",
+              "syllables": 10
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed_number": 16,
+      "legos": [
+        {
+          "lego_index": 1,
+          "type": "M",
+          "is_new": true,
+          "known_text": "he wants to",
+          "target_text": "ele quer",
+          "components": [
+            {
+              "known": "he",
+              "target": "ele"
+            },
+            {
+              "known": "wants to",
+              "target": "quer"
+            }
+          ],
+          "phrase_count": 8,
+          "eternal_ready_count": 1,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "he wants to",
+              "target_text": "ele quer",
+              "syllables": 3
+            },
+            {
+              "position": 2,
+              "known_text": "he wants to speak",
+              "target_text": "ele quer falar",
+              "syllables": 5
+            },
+            {
+              "position": 3,
+              "known_text": "he wants to learn",
+              "target_text": "ele quer aprender",
+              "syllables": 6
+            },
+            {
+              "position": 4,
+              "known_text": "he wants to speak Portuguese",
+              "target_text": "ele quer falar português",
+              "syllables": 8
+            },
+            {
+              "position": 5,
+              "known_text": "he wants to try",
+              "target_text": "ele quer tentar",
+              "syllables": 5
+            },
+            {
+              "position": 6,
+              "known_text": "he wants to speak Portuguese",
+              "target_text": "ele quer falar português",
+              "syllables": 8
+            },
+            {
+              "position": 7,
+              "known_text": "he wants to learn",
+              "target_text": "ele quer aprender",
+              "syllables": 6
+            },
+            {
+              "position": 8,
+              "known_text": "he wants to speak with you today",
+              "target_text": "ele quer falar com você hoje",
+              "syllables": 10
+            }
+          ]
+        },
+        {
+          "lego_index": 2,
+          "type": "A",
+          "is_new": true,
+          "known_text": "to come back",
+          "target_text": "voltar",
+          "components": null,
+          "phrase_count": 7,
+          "eternal_ready_count": 0,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "to come back",
+              "target_text": "voltar",
+              "syllables": 2
+            },
+            {
+              "position": 4,
+              "known_text": "he wants to come back",
+              "target_text": "ele quer voltar",
+              "syllables": 5
+            },
+            {
+              "position": 5,
+              "known_text": "I'd like to come back",
+              "target_text": "gostaria de voltar",
+              "syllables": 6
+            },
+            {
+              "position": 6,
+              "known_text": "to come back tomorrow",
+              "target_text": "voltar amanhã",
+              "syllables": 5
+            },
+            {
+              "position": 7,
+              "known_text": "he wants to come back",
+              "target_text": "ele quer voltar",
+              "syllables": 5
+            },
+            {
+              "position": 8,
+              "known_text": "he wants to come back and speak",
+              "target_text": "ele quer voltar e falar",
+              "syllables": 8
+            },
+            {
+              "position": 9,
+              "known_text": "he wants to come back tomorrow",
+              "target_text": "ele quer voltar amanhã",
+              "syllables": 8
+            }
+          ]
+        },
+        {
+          "lego_index": 3,
+          "type": "M",
+          "is_new": true,
+          "known_text": "everyone else",
+          "target_text": "todo mundo",
+          "components": [
+            {
+              "known": "all",
+              "target": "todo"
+            },
+            {
+              "known": "world",
+              "target": "mundo"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 3,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "everyone else",
+              "target_text": "todo mundo",
+              "syllables": 4
+            },
+            {
+              "position": 2,
+              "known_text": "to speak with everyone else",
+              "target_text": "falar com todo mundo",
+              "syllables": 7
+            },
+            {
+              "position": 4,
+              "known_text": "he wants to speak with everyone else",
+              "target_text": "ele quer falar com todo mundo",
+              "syllables": 10
+            },
+            {
+              "position": 5,
+              "known_text": "to speak with everyone",
+              "target_text": "falar com todo mundo",
+              "syllables": 7
+            },
+            {
+              "position": 7,
+              "known_text": "he wants to speak Portuguese with everyone",
+              "target_text": "ele quer falar português com todo mundo",
+              "syllables": 13
+            },
+            {
+              "position": 8,
+              "known_text": "he wants to speak with everyone",
+              "target_text": "ele quer falar com todo mundo",
+              "syllables": 10
+            },
+            {
+              "position": 9,
+              "known_text": "everyone wants to come back",
+              "target_text": "todo mundo quer voltar",
+              "syllables": 7
+            }
+          ]
+        },
+        {
+          "lego_index": 4,
+          "type": "M",
+          "is_new": true,
+          "known_text": "later on",
+          "target_text": "mais tarde",
+          "components": [
+            {
+              "known": "more",
+              "target": "mais"
+            },
+            {
+              "known": "late",
+              "target": "tarde"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 0,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "later on",
+              "target_text": "mais tarde",
+              "syllables": 3
+            },
+            {
+              "position": 2,
+              "known_text": "to speak later on",
+              "target_text": "falar mais tarde",
+              "syllables": 5
+            },
+            {
+              "position": 4,
+              "known_text": "to come back later on",
+              "target_text": "voltar mais tarde",
+              "syllables": 5
+            },
+            {
+              "position": 5,
+              "known_text": "he wants to come back later on",
+              "target_text": "ele quer voltar mais tarde",
+              "syllables": 8
+            },
+            {
+              "position": 6,
+              "known_text": "I'd like to come back later on",
+              "target_text": "gostaria de voltar mais tarde",
+              "syllables": 9
+            },
+            {
+              "position": 8,
+              "known_text": "he wants to come back later on",
+              "target_text": "ele quer voltar mais tarde",
+              "syllables": 8
+            },
+            {
+              "position": 9,
+              "known_text": "he wants to come back later on",
+              "target_text": "ele quer voltar mais tarde",
+              "syllables": 8
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed_number": 17,
+      "legos": [
+        {
+          "lego_index": 1,
+          "type": "M",
+          "is_new": true,
+          "known_text": "she wants to",
+          "target_text": "ela quer",
+          "components": [
+            {
+              "known": "she",
+              "target": "ela"
+            },
+            {
+              "known": "wants to",
+              "target": "quer"
+            }
+          ],
+          "phrase_count": 8,
+          "eternal_ready_count": 1,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "she wants to",
+              "target_text": "ela quer",
+              "syllables": 3
+            },
+            {
+              "position": 2,
+              "known_text": "she wants to speak",
+              "target_text": "ela quer falar",
+              "syllables": 5
+            },
+            {
+              "position": 3,
+              "known_text": "she wants to learn",
+              "target_text": "ela quer aprender",
+              "syllables": 6
+            },
+            {
+              "position": 4,
+              "known_text": "she wants to come back",
+              "target_text": "ela quer voltar",
+              "syllables": 5
+            },
+            {
+              "position": 5,
+              "known_text": "she wants to try",
+              "target_text": "ela quer tentar",
+              "syllables": 5
+            },
+            {
+              "position": 6,
+              "known_text": "she wants to speak Portuguese",
+              "target_text": "ela quer falar português",
+              "syllables": 8
+            },
+            {
+              "position": 7,
+              "known_text": "she wants to learn",
+              "target_text": "ela quer aprender",
+              "syllables": 6
+            },
+            {
+              "position": 8,
+              "known_text": "she wants to speak with you today",
+              "target_text": "ela quer falar com você hoje",
+              "syllables": 10
+            }
+          ]
+        },
+        {
+          "lego_index": 2,
+          "type": "A",
+          "is_new": true,
+          "known_text": "to find out",
+          "target_text": "descobrir",
+          "components": null,
+          "phrase_count": 7,
+          "eternal_ready_count": 0,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "to find out",
+              "target_text": "descobrir",
+              "syllables": 3
+            },
+            {
+              "position": 4,
+              "known_text": "she wants to find out",
+              "target_text": "ela quer descobrir",
+              "syllables": 6
+            },
+            {
+              "position": 5,
+              "known_text": "he wants to find out",
+              "target_text": "ele quer descobrir",
+              "syllables": 6
+            },
+            {
+              "position": 6,
+              "known_text": "I'd like to find out",
+              "target_text": "gostaria de descobrir",
+              "syllables": 7
+            },
+            {
+              "position": 7,
+              "known_text": "she wants to find out",
+              "target_text": "ela quer descobrir",
+              "syllables": 6
+            },
+            {
+              "position": 8,
+              "known_text": "she wants to find out later on",
+              "target_text": "ela quer descobrir mais tarde",
+              "syllables": 9
+            },
+            {
+              "position": 9,
+              "known_text": "he wants to find out",
+              "target_text": "ele quer descobrir",
+              "syllables": 6
+            }
+          ]
+        },
+        {
+          "lego_index": 3,
+          "type": "M",
+          "is_new": true,
+          "known_text": "what the answer is",
+          "target_text": "qual é a resposta",
+          "components": [
+            {
+              "known": "what/which",
+              "target": "qual"
+            },
+            {
+              "known": "is the answer",
+              "target": "é a resposta"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 3,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "what the answer is",
+              "target_text": "qual é a resposta",
+              "syllables": 6
+            },
+            {
+              "position": 2,
+              "known_text": "to find out what the answer is",
+              "target_text": "descobrir qual é a resposta",
+              "syllables": 9
+            },
+            {
+              "position": 4,
+              "known_text": "she wants to find out what the answer is",
+              "target_text": "ela quer descobrir qual é a resposta",
+              "syllables": 12
+            },
+            {
+              "position": 6,
+              "known_text": "what the answer is now",
+              "target_text": "qual é a resposta agora",
+              "syllables": 9
+            },
+            {
+              "position": 7,
+              "known_text": "what the answer is today",
+              "target_text": "qual é a resposta hoje",
+              "syllables": 8
+            },
+            {
+              "position": 8,
+              "known_text": "she wants to find out what the answer is",
+              "target_text": "ela quer descobrir qual é a resposta",
+              "syllables": 12
+            },
+            {
+              "position": 9,
+              "known_text": "he wants to find out what the answer is",
+              "target_text": "ele quer descobrir qual é a resposta",
+              "syllables": 12
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed_number": 18,
+      "legos": [
+        {
+          "lego_index": 1,
+          "type": "M",
+          "is_new": true,
+          "known_text": "we want to",
+          "target_text": "queremos",
+          "components": [
+            {
+              "known": "we",
+              "target": "nós"
+            },
+            {
+              "known": "want to",
+              "target": "queremos"
+            }
+          ],
+          "phrase_count": 8,
+          "eternal_ready_count": 1,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "we want to",
+              "target_text": "queremos",
+              "syllables": 3
+            },
+            {
+              "position": 2,
+              "known_text": "we want to speak",
+              "target_text": "queremos falar",
+              "syllables": 5
+            },
+            {
+              "position": 3,
+              "known_text": "we want to learn",
+              "target_text": "queremos aprender",
+              "syllables": 6
+            },
+            {
+              "position": 4,
+              "known_text": "we want to speak Portuguese",
+              "target_text": "queremos falar português",
+              "syllables": 8
+            },
+            {
+              "position": 5,
+              "known_text": "we want to practise",
+              "target_text": "queremos praticar",
+              "syllables": 6
+            },
+            {
+              "position": 6,
+              "known_text": "we want to speak Portuguese",
+              "target_text": "queremos falar português",
+              "syllables": 8
+            },
+            {
+              "position": 7,
+              "known_text": "we want to learn",
+              "target_text": "queremos aprender",
+              "syllables": 6
+            },
+            {
+              "position": 8,
+              "known_text": "we want to speak with you today",
+              "target_text": "queremos falar com você hoje",
+              "syllables": 10
+            }
+          ]
+        },
+        {
+          "lego_index": 2,
+          "type": "M",
+          "is_new": true,
+          "known_text": "to meet",
+          "target_text": "nos encontrar",
+          "components": [
+            {
+              "known": "ourselves",
+              "target": "nos"
+            },
+            {
+              "known": "to find",
+              "target": "encontrar"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 2,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "to meet",
+              "target_text": "nos encontrar",
+              "syllables": 4
+            },
+            {
+              "position": 3,
+              "known_text": "we want to meet",
+              "target_text": "queremos nos encontrar",
+              "syllables": 7
+            },
+            {
+              "position": 4,
+              "known_text": "I'd like to meet",
+              "target_text": "gostaria de nos encontrar",
+              "syllables": 8
+            },
+            {
+              "position": 5,
+              "known_text": "to meet later on",
+              "target_text": "nos encontrar mais tarde",
+              "syllables": 7
+            },
+            {
+              "position": 6,
+              "known_text": "we want to meet later on",
+              "target_text": "queremos nos encontrar mais tarde",
+              "syllables": 10
+            },
+            {
+              "position": 7,
+              "known_text": "we want to meet",
+              "target_text": "queremos nos encontrar",
+              "syllables": 7
+            },
+            {
+              "position": 8,
+              "known_text": "we want to meet later on",
+              "target_text": "queremos nos encontrar mais tarde",
+              "syllables": 10
+            }
+          ]
+        },
+        {
+          "lego_index": 3,
+          "type": "M",
+          "is_new": true,
+          "known_text": "at six o'clock",
+          "target_text": "às seis horas",
+          "components": [
+            {
+              "known": "at",
+              "target": "às"
+            },
+            {
+              "known": "six hours",
+              "target": "seis horas"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 3,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "at six o'clock",
+              "target_text": "às seis horas",
+              "syllables": 4
+            },
+            {
+              "position": 2,
+              "known_text": "to meet at six o'clock",
+              "target_text": "nos encontrar às seis horas",
+              "syllables": 8
+            },
+            {
+              "position": 3,
+              "known_text": "we want to meet at six o'clock",
+              "target_text": "queremos nos encontrar às seis horas",
+              "syllables": 11
+            },
+            {
+              "position": 5,
+              "known_text": "at six o'clock now",
+              "target_text": "às seis horas agora",
+              "syllables": 7
+            },
+            {
+              "position": 6,
+              "known_text": "at six o'clock today",
+              "target_text": "às seis horas hoje",
+              "syllables": 6
+            },
+            {
+              "position": 7,
+              "known_text": "we want to meet at six o'clock",
+              "target_text": "queremos nos encontrar às seis horas",
+              "syllables": 11
+            },
+            {
+              "position": 8,
+              "known_text": "we want to meet at six o'clock",
+              "target_text": "queremos nos encontrar às seis horas",
+              "syllables": 11
+            }
+          ]
+        },
+        {
+          "lego_index": 4,
+          "type": "M",
+          "is_new": true,
+          "known_text": "this evening",
+          "target_text": "esta noite",
+          "components": [
+            {
+              "known": "this",
+              "target": "esta"
+            },
+            {
+              "known": "night",
+              "target": "noite"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 4,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "this evening",
+              "target_text": "esta noite",
+              "syllables": 4
+            },
+            {
+              "position": 2,
+              "known_text": "to speak this evening",
+              "target_text": "falar esta noite",
+              "syllables": 6
+            },
+            {
+              "position": 4,
+              "known_text": "to meet this evening",
+              "target_text": "nos encontrar esta noite",
+              "syllables": 8
+            },
+            {
+              "position": 5,
+              "known_text": "we want to meet this evening",
+              "target_text": "queremos nos encontrar esta noite",
+              "syllables": 11
+            },
+            {
+              "position": 6,
+              "known_text": "we want to meet at six o'clock this evening",
+              "target_text": "queremos nos encontrar às seis horas esta noite",
+              "syllables": 15
+            },
+            {
+              "position": 8,
+              "known_text": "we want to meet at six o'clock this evening",
+              "target_text": "queremos nos encontrar às seis horas esta noite",
+              "syllables": 15
+            },
+            {
+              "position": 9,
+              "known_text": "we want to meet this evening",
+              "target_text": "queremos nos encontrar esta noite",
+              "syllables": 11
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed_number": 19,
+      "legos": [
+        {
+          "lego_index": 1,
+          "type": "A",
+          "is_new": true,
+          "known_text": "but",
+          "target_text": "mas",
+          "components": null,
+          "phrase_count": 8,
+          "eternal_ready_count": 1,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "but",
+              "target_text": "mas",
+              "syllables": 1
+            },
+            {
+              "position": 2,
+              "known_text": "but I want to",
+              "target_text": "mas quero",
+              "syllables": 3
+            },
+            {
+              "position": 3,
+              "known_text": "but I'm going to",
+              "target_text": "mas vou",
+              "syllables": 2
+            },
+            {
+              "position": 4,
+              "known_text": "but I'd like to",
+              "target_text": "mas gostaria de",
+              "syllables": 5
+            },
+            {
+              "position": 5,
+              "known_text": "but I want to speak",
+              "target_text": "mas quero falar",
+              "syllables": 5
+            },
+            {
+              "position": 6,
+              "known_text": "but I want to speak",
+              "target_text": "mas quero falar",
+              "syllables": 5
+            },
+            {
+              "position": 7,
+              "known_text": "but I want to learn Portuguese",
+              "target_text": "mas quero aprender português",
+              "syllables": 9
+            },
+            {
+              "position": 8,
+              "known_text": "but I want to speak with you today",
+              "target_text": "mas quero falar com você hoje",
+              "syllables": 10
+            }
+          ]
+        },
+        {
+          "lego_index": 2,
+          "type": "M",
+          "is_new": true,
+          "known_text": "I don't want to",
+          "target_text": "não quero",
+          "components": [
+            {
+              "known": "not",
+              "target": "não"
+            },
+            {
+              "known": "I want to",
+              "target": "quero"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 0,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "I don't want to",
+              "target_text": "não quero",
+              "syllables": 3
+            },
+            {
+              "position": 2,
+              "known_text": "I don't want to speak",
+              "target_text": "não quero falar",
+              "syllables": 5
+            },
+            {
+              "position": 3,
+              "known_text": "but I don't want to",
+              "target_text": "mas não quero",
+              "syllables": 4
+            },
+            {
+              "position": 4,
+              "known_text": "I don't want to guess",
+              "target_text": "não quero adivinhar",
+              "syllables": 7
+            },
+            {
+              "position": 5,
+              "known_text": "I don't want to come back",
+              "target_text": "não quero voltar",
+              "syllables": 5
+            },
+            {
+              "position": 6,
+              "known_text": "I don't want to now",
+              "target_text": "não quero agora",
+              "syllables": 6
+            },
+            {
+              "position": 7,
+              "known_text": "I don't want to today",
+              "target_text": "não quero hoje",
+              "syllables": 5
+            }
+          ]
+        },
+        {
+          "lego_index": 3,
+          "type": "M",
+          "is_new": true,
+          "known_text": "to stop",
+          "target_text": "parar de",
+          "components": [
+            {
+              "known": "to stop",
+              "target": "parar"
+            },
+            {
+              "known": "of",
+              "target": "de"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 0,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "to stop",
+              "target_text": "parar de",
+              "syllables": 3
+            },
+            {
+              "position": 2,
+              "known_text": "to stop speaking",
+              "target_text": "parar de falar",
+              "syllables": 5
+            },
+            {
+              "position": 3,
+              "known_text": "I don't want to stop",
+              "target_text": "não quero parar de",
+              "syllables": 6
+            },
+            {
+              "position": 4,
+              "known_text": "I don't want to stop speaking",
+              "target_text": "não quero parar de falar",
+              "syllables": 8
+            },
+            {
+              "position": 5,
+              "known_text": "but I don't want to stop speaking",
+              "target_text": "mas não quero parar de falar",
+              "syllables": 9
+            },
+            {
+              "position": 6,
+              "known_text": "to stop learning",
+              "target_text": "parar de aprender",
+              "syllables": 6
+            },
+            {
+              "position": 7,
+              "known_text": "I don't want to stop learning",
+              "target_text": "não quero parar de aprender",
+              "syllables": 9
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed_number": 20,
+      "legos": [
+        {
+          "lego_index": 1,
+          "type": "M",
+          "is_new": true,
+          "known_text": "you want to",
+          "target_text": "você quer",
+          "components": [
+            {
+              "known": "you",
+              "target": "você"
+            },
+            {
+              "known": "want to",
+              "target": "quer"
+            }
+          ],
+          "phrase_count": 8,
+          "eternal_ready_count": 1,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "you want to",
+              "target_text": "você quer",
+              "syllables": 3
+            },
+            {
+              "position": 2,
+              "known_text": "you want to speak",
+              "target_text": "você quer falar",
+              "syllables": 5
+            },
+            {
+              "position": 3,
+              "known_text": "you want to learn",
+              "target_text": "você quer aprender",
+              "syllables": 6
+            },
+            {
+              "position": 4,
+              "known_text": "you want to try",
+              "target_text": "você quer tentar",
+              "syllables": 5
+            },
+            {
+              "position": 5,
+              "known_text": "you want to come back",
+              "target_text": "você quer voltar",
+              "syllables": 5
+            },
+            {
+              "position": 6,
+              "known_text": "you want to speak Portuguese",
+              "target_text": "você quer falar português",
+              "syllables": 8
+            },
+            {
+              "position": 7,
+              "known_text": "you want to learn",
+              "target_text": "você quer aprender",
+              "syllables": 6
+            },
+            {
+              "position": 8,
+              "known_text": "you want to speak with me today",
+              "target_text": "você quer falar comigo hoje",
+              "syllables": 10
+            }
+          ]
+        },
+        {
+          "lego_index": 2,
+          "type": "M",
+          "is_new": true,
+          "known_text": "his name",
+          "target_text": "o nome dele",
+          "components": [
+            {
+              "known": "the name",
+              "target": "o nome"
+            },
+            {
+              "known": "of him",
+              "target": "dele"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 3,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "his name",
+              "target_text": "o nome dele",
+              "syllables": 5
+            },
+            {
+              "position": 2,
+              "known_text": "to learn his name",
+              "target_text": "aprender o nome dele",
+              "syllables": 8
+            },
+            {
+              "position": 3,
+              "known_text": "you want to learn his name",
+              "target_text": "você quer aprender o nome dele",
+              "syllables": 11
+            },
+            {
+              "position": 5,
+              "known_text": "to remember his name",
+              "target_text": "lembrar o nome dele",
+              "syllables": 7
+            },
+            {
+              "position": 7,
+              "known_text": "his name now",
+              "target_text": "o nome dele agora",
+              "syllables": 8
+            },
+            {
+              "position": 8,
+              "known_text": "do you want to know his name",
+              "target_text": "você quer descobrir o nome dele",
+              "syllables": 11
+            },
+            {
+              "position": 9,
+              "known_text": "do you want to find out his name later on",
+              "target_text": "você quer descobrir o nome dele mais tarde",
+              "syllables": 14
+            }
+          ]
+        },
+        {
+          "lego_index": 3,
+          "type": "A",
+          "is_new": true,
+          "known_text": "quickly",
+          "target_text": "rapidamente",
+          "components": null,
+          "phrase_count": 7,
+          "eternal_ready_count": 4,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "quickly",
+              "target_text": "rapidamente",
+              "syllables": 5
+            },
+            {
+              "position": 2,
+              "known_text": "to learn quickly",
+              "target_text": "aprender rapidamente",
+              "syllables": 8
+            },
+            {
+              "position": 3,
+              "known_text": "to speak quickly",
+              "target_text": "falar rapidamente",
+              "syllables": 7
+            },
+            {
+              "position": 4,
+              "known_text": "you want to learn quickly",
+              "target_text": "você quer aprender rapidamente",
+              "syllables": 11
+            },
+            {
+              "position": 6,
+              "known_text": "to learn his name quickly",
+              "target_text": "aprender o nome dele rapidamente",
+              "syllables": 13
+            },
+            {
+              "position": 7,
+              "known_text": "you want to learn his name quickly",
+              "target_text": "você quer aprender o nome dele rapidamente",
+              "syllables": 16
+            },
+            {
+              "position": 8,
+              "known_text": "do you want to find out quickly",
+              "target_text": "você quer descobrir rapidamente",
+              "syllables": 11
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed_number": 21,
+      "legos": [
+        {
+          "lego_index": 1,
+          "type": "A",
+          "is_new": true,
+          "known_text": "why",
+          "target_text": "por que",
+          "components": null,
+          "phrase_count": 7,
+          "eternal_ready_count": 1,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "why",
+              "target_text": "por que",
+              "syllables": 2
+            },
+            {
+              "position": 2,
+              "known_text": "why do you want to",
+              "target_text": "por que você quer",
+              "syllables": 5
+            },
+            {
+              "position": 3,
+              "known_text": "why do you want to speak",
+              "target_text": "por que você quer falar",
+              "syllables": 7
+            },
+            {
+              "position": 4,
+              "known_text": "why do you want to learn",
+              "target_text": "por que você quer aprender",
+              "syllables": 8
+            },
+            {
+              "position": 5,
+              "known_text": "why now",
+              "target_text": "por que agora",
+              "syllables": 5
+            },
+            {
+              "position": 6,
+              "known_text": "why today",
+              "target_text": "por que hoje",
+              "syllables": 4
+            },
+            {
+              "position": 7,
+              "known_text": "why do you want to find out his name",
+              "target_text": "por que você quer descobrir o nome dele",
+              "syllables": 13
+            }
+          ]
+        },
+        {
+          "lego_index": 2,
+          "type": "M",
+          "is_new": true,
+          "known_text": "you are learning",
+          "target_text": "você está aprendendo",
+          "components": [
+            {
+              "known": "you are",
+              "target": "você está"
+            },
+            {
+              "known": "learning",
+              "target": "aprendendo"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 6,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "you are learning",
+              "target_text": "você está aprendendo",
+              "syllables": 8
+            },
+            {
+              "position": 2,
+              "known_text": "you are learning Portuguese",
+              "target_text": "você está aprendendo português",
+              "syllables": 11
+            },
+            {
+              "position": 3,
+              "known_text": "why are you learning",
+              "target_text": "por que você está aprendendo",
+              "syllables": 10
+            },
+            {
+              "position": 4,
+              "known_text": "why are you learning Portuguese",
+              "target_text": "por que você está aprendendo português",
+              "syllables": 13
+            },
+            {
+              "position": 5,
+              "known_text": "you are learning Portuguese",
+              "target_text": "você está aprendendo português",
+              "syllables": 11
+            },
+            {
+              "position": 6,
+              "known_text": "you are learning to speak",
+              "target_text": "você está aprendendo a falar",
+              "syllables": 11
+            },
+            {
+              "position": 7,
+              "known_text": "you are learning to speak Portuguese with me",
+              "target_text": "você está aprendendo a falar português comigo",
+              "syllables": 17
+            }
+          ]
+        },
+        {
+          "lego_index": 3,
+          "type": "M",
+          "is_new": true,
+          "known_text": "her name",
+          "target_text": "o nome dela",
+          "components": [
+            {
+              "known": "the name",
+              "target": "o nome"
+            },
+            {
+              "known": "of her",
+              "target": "dela"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 3,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "her name",
+              "target_text": "o nome dela",
+              "syllables": 5
+            },
+            {
+              "position": 2,
+              "known_text": "to learn her name",
+              "target_text": "aprender o nome dela",
+              "syllables": 8
+            },
+            {
+              "position": 3,
+              "known_text": "you are learning her name",
+              "target_text": "você está aprendendo o nome dela",
+              "syllables": 13
+            },
+            {
+              "position": 4,
+              "known_text": "why are you learning her name",
+              "target_text": "por que você está aprendendo o nome dela",
+              "syllables": 15
+            },
+            {
+              "position": 6,
+              "known_text": "to remember her name",
+              "target_text": "lembrar o nome dela",
+              "syllables": 7
+            },
+            {
+              "position": 7,
+              "known_text": "her name now",
+              "target_text": "o nome dela agora",
+              "syllables": 8
+            },
+            {
+              "position": 8,
+              "known_text": "why do you want to know her name",
+              "target_text": "por que você quer descobrir o nome dela",
+              "syllables": 13
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed_number": 22,
+      "legos": [
+        {
+          "lego_index": 1,
+          "type": "A",
+          "is_new": true,
+          "known_text": "because",
+          "target_text": "porque",
+          "components": null,
+          "phrase_count": 7,
+          "eternal_ready_count": 0,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "because",
+              "target_text": "porque",
+              "syllables": 2
+            },
+            {
+              "position": 2,
+              "known_text": "because I want to",
+              "target_text": "porque quero",
+              "syllables": 4
+            },
+            {
+              "position": 3,
+              "known_text": "because I want to speak",
+              "target_text": "porque quero falar",
+              "syllables": 6
+            },
+            {
+              "position": 4,
+              "known_text": "because I want to learn",
+              "target_text": "porque quero aprender",
+              "syllables": 7
+            },
+            {
+              "position": 5,
+              "known_text": "because I'm trying to",
+              "target_text": "porque estou tentando",
+              "syllables": 7
+            },
+            {
+              "position": 6,
+              "known_text": "because now",
+              "target_text": "porque agora",
+              "syllables": 5
+            },
+            {
+              "position": 7,
+              "known_text": "because today",
+              "target_text": "porque hoje",
+              "syllables": 4
+            }
+          ]
+        },
+        {
+          "lego_index": 2,
+          "type": "A",
+          "is_new": true,
+          "known_text": "to meet (people)",
+          "target_text": "conhecer",
+          "components": null,
+          "phrase_count": 7,
+          "eternal_ready_count": 3,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "to meet people",
+              "target_text": "conhecer",
+              "syllables": 3
+            },
+            {
+              "position": 3,
+              "known_text": "I'd like to meet people",
+              "target_text": "gostaria de conhecer",
+              "syllables": 7
+            },
+            {
+              "position": 4,
+              "known_text": "because I want to meet people",
+              "target_text": "porque quero conhecer",
+              "syllables": 7
+            },
+            {
+              "position": 5,
+              "known_text": "because I want to meet you",
+              "target_text": "porque quero conhecer você",
+              "syllables": 9
+            },
+            {
+              "position": 6,
+              "known_text": "because she wants to meet him",
+              "target_text": "porque ela quer conhecer ele",
+              "syllables": 10
+            },
+            {
+              "position": 7,
+              "known_text": "why do you want to meet everyone",
+              "target_text": "por que você quer conhecer todo mundo",
+              "syllables": 12
+            },
+            {
+              "position": 8,
+              "known_text": "I want to meet everyone this evening",
+              "target_text": "quero conhecer todo mundo esta noite",
+              "syllables": 13
+            }
+          ]
+        },
+        {
+          "lego_index": 3,
+          "type": "A",
+          "is_new": true,
+          "known_text": "people",
+          "target_text": "pessoas",
+          "components": null,
+          "phrase_count": 7,
+          "eternal_ready_count": 1,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "people",
+              "target_text": "pessoas",
+              "syllables": 2
+            },
+            {
+              "position": 2,
+              "known_text": "to meet people",
+              "target_text": "conhecer pessoas",
+              "syllables": 5
+            },
+            {
+              "position": 4,
+              "known_text": "to speak with people",
+              "target_text": "falar com pessoas",
+              "syllables": 5
+            },
+            {
+              "position": 5,
+              "known_text": "people now",
+              "target_text": "pessoas agora",
+              "syllables": 5
+            },
+            {
+              "position": 6,
+              "known_text": "people today",
+              "target_text": "pessoas hoje",
+              "syllables": 4
+            },
+            {
+              "position": 7,
+              "known_text": "because I want to meet people",
+              "target_text": "porque quero conhecer pessoas",
+              "syllables": 9
+            },
+            {
+              "position": 8,
+              "known_text": "I want to meet people this evening",
+              "target_text": "quero conhecer pessoas esta noite",
+              "syllables": 11
+            }
+          ]
+        },
+        {
+          "lego_index": 4,
+          "type": "M",
+          "is_new": true,
+          "known_text": "who speak",
+          "target_text": "que falam",
+          "components": [
+            {
+              "known": "who/that",
+              "target": "que"
+            },
+            {
+              "known": "speak",
+              "target": "falam"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 4,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "who speak",
+              "target_text": "que falam",
+              "syllables": 3
+            },
+            {
+              "position": 2,
+              "known_text": "people who speak",
+              "target_text": "pessoas que falam",
+              "syllables": 5
+            },
+            {
+              "position": 3,
+              "known_text": "people who speak Portuguese",
+              "target_text": "pessoas que falam português",
+              "syllables": 8
+            },
+            {
+              "position": 4,
+              "known_text": "to meet people who speak Portuguese",
+              "target_text": "conhecer pessoas que falam português",
+              "syllables": 11
+            },
+            {
+              "position": 6,
+              "known_text": "because I want to meet people who speak Portuguese",
+              "target_text": "porque quero conhecer pessoas que falam português",
+              "syllables": 15
+            },
+            {
+              "position": 7,
+              "known_text": "people who speak Portuguese with you",
+              "target_text": "pessoas que falam português com você",
+              "syllables": 11
+            },
+            {
+              "position": 8,
+              "known_text": "because I want to meet people who speak Portuguese",
+              "target_text": "porque quero conhecer pessoas que falam português",
+              "syllables": 15
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed_number": 23,
+      "legos": [
+        {
+          "lego_index": 1,
+          "type": "M",
+          "is_new": true,
+          "known_text": "to start",
+          "target_text": "começar a",
+          "components": [
+            {
+              "known": "to start",
+              "target": "começar"
+            },
+            {
+              "known": "to",
+              "target": "a"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 3,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "to start",
+              "target_text": "começar a",
+              "syllables": 4
+            },
+            {
+              "position": 2,
+              "known_text": "to start speaking",
+              "target_text": "começar a falar",
+              "syllables": 6
+            },
+            {
+              "position": 7,
+              "known_text": "to start learning",
+              "target_text": "começar a aprender",
+              "syllables": 7
+            },
+            {
+              "position": 8,
+              "known_text": "because I want to start learning",
+              "target_text": "porque quero começar a aprender",
+              "syllables": 11
+            },
+            {
+              "position": 9,
+              "known_text": "why do you want to start",
+              "target_text": "por que você quer começar a",
+              "syllables": 9
+            },
+            {
+              "position": 10,
+              "known_text": "she wants to start learning quickly",
+              "target_text": "ela quer começar a aprender rapidamente",
+              "syllables": 15
+            },
+            {
+              "position": 11,
+              "known_text": "I want to start meeting people",
+              "target_text": "quero começar a conhecer pessoas",
+              "syllables": 11
+            }
+          ]
+        },
+        {
+          "lego_index": 2,
+          "type": "A",
+          "is_new": true,
+          "known_text": "more",
+          "target_text": "mais",
+          "components": null,
+          "phrase_count": 7,
+          "eternal_ready_count": 2,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "more",
+              "target_text": "mais",
+              "syllables": 1
+            },
+            {
+              "position": 2,
+              "known_text": "to speak more",
+              "target_text": "falar mais",
+              "syllables": 3
+            },
+            {
+              "position": 3,
+              "known_text": "to learn more",
+              "target_text": "aprender mais",
+              "syllables": 4
+            },
+            {
+              "position": 4,
+              "known_text": "I want to start learning more",
+              "target_text": "quero começar a aprender mais",
+              "syllables": 10
+            },
+            {
+              "position": 5,
+              "known_text": "I want to meet more people",
+              "target_text": "quero conhecer mais pessoas",
+              "syllables": 8
+            },
+            {
+              "position": 7,
+              "known_text": "because she wants to learn more",
+              "target_text": "porque ela quer aprender mais",
+              "syllables": 9
+            },
+            {
+              "position": 8,
+              "known_text": "I want to start learning more",
+              "target_text": "quero começar a aprender mais",
+              "syllables": 10
+            }
+          ]
+        },
+        {
+          "lego_index": 3,
+          "type": "M",
+          "is_new": true,
+          "known_text": "soon",
+          "target_text": "em breve",
+          "components": [
+            {
+              "known": "in",
+              "target": "em"
+            },
+            {
+              "known": "brief",
+              "target": "breve"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 3,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "soon",
+              "target_text": "em breve",
+              "syllables": 3
+            },
+            {
+              "position": 2,
+              "known_text": "to speak soon",
+              "target_text": "falar em breve",
+              "syllables": 5
+            },
+            {
+              "position": 5,
+              "known_text": "to come back soon",
+              "target_text": "voltar em breve",
+              "syllables": 5
+            },
+            {
+              "position": 6,
+              "known_text": "I want to start soon",
+              "target_text": "quero começar a em breve",
+              "syllables": 9
+            },
+            {
+              "position": 7,
+              "known_text": "I want to meet more people soon",
+              "target_text": "quero conhecer mais pessoas em breve",
+              "syllables": 11
+            },
+            {
+              "position": 8,
+              "known_text": "she wants to start learning more soon",
+              "target_text": "ela quer começar a aprender mais em breve",
+              "syllables": 14
+            },
+            {
+              "position": 9,
+              "known_text": "we want to meet soon",
+              "target_text": "queremos nos encontrar em breve",
+              "syllables": 10
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed_number": 24,
+      "legos": [
+        {
+          "lego_index": 1,
+          "type": "M",
+          "is_new": true,
+          "known_text": "I'm not going to",
+          "target_text": "não vou",
+          "components": [
+            {
+              "known": "not",
+              "target": "não"
+            },
+            {
+              "known": "I'm going to",
+              "target": "vou"
+            }
+          ],
+          "phrase_count": 8,
+          "eternal_ready_count": 2,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "I'm not going to",
+              "target_text": "não vou",
+              "syllables": 2
+            },
+            {
+              "position": 2,
+              "known_text": "I'm not going to speak",
+              "target_text": "não vou falar",
+              "syllables": 4
+            },
+            {
+              "position": 3,
+              "known_text": "I'm not going to try",
+              "target_text": "não vou tentar",
+              "syllables": 4
+            },
+            {
+              "position": 4,
+              "known_text": "I'm not going to come back",
+              "target_text": "não vou voltar",
+              "syllables": 4
+            },
+            {
+              "position": 5,
+              "known_text": "I'm not going to start",
+              "target_text": "não vou começar a",
+              "syllables": 6
+            },
+            {
+              "position": 6,
+              "known_text": "I'm not going to stop",
+              "target_text": "não vou parar",
+              "syllables": 4
+            },
+            {
+              "position": 7,
+              "known_text": "I'm not going to stop learning Portuguese",
+              "target_text": "não vou parar de aprender português",
+              "syllables": 11
+            },
+            {
+              "position": 8,
+              "known_text": "I'm not going to stop practising with you",
+              "target_text": "não vou parar de praticar com você",
+              "syllables": 11
+            }
+          ]
+        },
+        {
+          "lego_index": 2,
+          "type": "A",
+          "is_new": true,
+          "known_text": "to be able to (achieve)",
+          "target_text": "conseguir",
+          "components": null,
+          "phrase_count": 7,
+          "eternal_ready_count": 3,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "to be able to",
+              "target_text": "conseguir",
+              "syllables": 3
+            },
+            {
+              "position": 2,
+              "known_text": "to be able to speak",
+              "target_text": "conseguir falar",
+              "syllables": 5
+            },
+            {
+              "position": 3,
+              "known_text": "I'm not going to be able to",
+              "target_text": "não vou conseguir",
+              "syllables": 5
+            },
+            {
+              "position": 4,
+              "known_text": "I'm not going to be able to speak",
+              "target_text": "não vou conseguir falar",
+              "syllables": 7
+            },
+            {
+              "position": 5,
+              "known_text": "I'm not going to be able to start soon",
+              "target_text": "não vou conseguir começar a em breve",
+              "syllables": 12
+            },
+            {
+              "position": 6,
+              "known_text": "I'm not going to be able to meet more people",
+              "target_text": "não vou conseguir conhecer mais pessoas",
+              "syllables": 11
+            },
+            {
+              "position": 7,
+              "known_text": "she wants to be able to learn more",
+              "target_text": "ela quer conseguir aprender mais",
+              "syllables": 10
+            }
+          ]
+        },
+        {
+          "lego_index": 3,
+          "type": "A",
+          "is_new": true,
+          "known_text": "easily",
+          "target_text": "facilmente",
+          "components": null,
+          "phrase_count": 7,
+          "eternal_ready_count": 2,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "easily",
+              "target_text": "facilmente",
+              "syllables": 4
+            },
+            {
+              "position": 2,
+              "known_text": "to remember easily",
+              "target_text": "lembrar facilmente",
+              "syllables": 6
+            },
+            {
+              "position": 3,
+              "known_text": "to learn easily",
+              "target_text": "aprender facilmente",
+              "syllables": 7
+            },
+            {
+              "position": 4,
+              "known_text": "I'm not going to remember easily",
+              "target_text": "não vou lembrar facilmente",
+              "syllables": 8
+            },
+            {
+              "position": 5,
+              "known_text": "I'm not going to be able to remember easily",
+              "target_text": "não vou conseguir lembrar facilmente",
+              "syllables": 11
+            },
+            {
+              "position": 6,
+              "known_text": "I can remember easily",
+              "target_text": "consigo lembrar facilmente",
+              "syllables": 9
+            },
+            {
+              "position": 7,
+              "known_text": "I can speak Portuguese easily",
+              "target_text": "consigo falar português facilmente",
+              "syllables": 12
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed_number": 25,
+      "legos": [
+        {
+          "lego_index": 1,
+          "type": "M",
+          "is_new": true,
+          "known_text": "are you going to",
+          "target_text": "você vai",
+          "components": [
+            {
+              "known": "you",
+              "target": "você"
+            },
+            {
+              "known": "are going to",
+              "target": "vai"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 1,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "are you going to",
+              "target_text": "você vai",
+              "syllables": 3
+            },
+            {
+              "position": 2,
+              "known_text": "are you going to speak",
+              "target_text": "você vai falar",
+              "syllables": 5
+            },
+            {
+              "position": 4,
+              "known_text": "are you going to come back",
+              "target_text": "você vai voltar",
+              "syllables": 5
+            },
+            {
+              "position": 5,
+              "known_text": "are you going to try",
+              "target_text": "você vai tentar",
+              "syllables": 5
+            },
+            {
+              "position": 6,
+              "known_text": "are you going to speak Portuguese",
+              "target_text": "você vai falar português",
+              "syllables": 8
+            },
+            {
+              "position": 7,
+              "known_text": "are you going to learn",
+              "target_text": "você vai aprender",
+              "syllables": 6
+            },
+            {
+              "position": 8,
+              "known_text": "are you going to speak with me today",
+              "target_text": "você vai falar comigo hoje",
+              "syllables": 10
+            }
+          ]
+        },
+        {
+          "lego_index": 2,
+          "type": "M",
+          "is_new": true,
+          "known_text": "help me",
+          "target_text": "me ajudar",
+          "components": [
+            {
+              "known": "me",
+              "target": "me"
+            },
+            {
+              "known": "help",
+              "target": "ajudar"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 2,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "help me",
+              "target_text": "me ajudar",
+              "syllables": 4
+            },
+            {
+              "position": 2,
+              "known_text": "to help me",
+              "target_text": "me ajudar",
+              "syllables": 4
+            },
+            {
+              "position": 3,
+              "known_text": "are you going to help me",
+              "target_text": "você vai me ajudar",
+              "syllables": 7
+            },
+            {
+              "position": 7,
+              "known_text": "help me now",
+              "target_text": "me ajudar agora",
+              "syllables": 7
+            },
+            {
+              "position": 8,
+              "known_text": "are you going to help me",
+              "target_text": "você vai me ajudar",
+              "syllables": 7
+            },
+            {
+              "position": 9,
+              "known_text": "are you going to help me soon",
+              "target_text": "você vai me ajudar em breve",
+              "syllables": 10
+            },
+            {
+              "position": 10,
+              "known_text": "are you going to help me learn more",
+              "target_text": "você vai me ajudar a aprender mais",
+              "syllables": 12
+            }
+          ]
+        },
+        {
+          "lego_index": 3,
+          "type": "M",
+          "is_new": true,
+          "known_text": "before",
+          "target_text": "antes de",
+          "components": [
+            {
+              "known": "before",
+              "target": "antes"
+            },
+            {
+              "known": "of",
+              "target": "de"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 0,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "before",
+              "target_text": "antes de",
+              "syllables": 3
+            },
+            {
+              "position": 2,
+              "known_text": "before speaking",
+              "target_text": "antes de falar",
+              "syllables": 5
+            },
+            {
+              "position": 4,
+              "known_text": "to speak before",
+              "target_text": "falar antes de",
+              "syllables": 5
+            },
+            {
+              "position": 5,
+              "known_text": "before now",
+              "target_text": "antes de agora",
+              "syllables": 6
+            },
+            {
+              "position": 6,
+              "known_text": "before today",
+              "target_text": "antes de hoje",
+              "syllables": 5
+            },
+            {
+              "position": 8,
+              "known_text": "before you help me",
+              "target_text": "antes de você me ajudar",
+              "syllables": 9
+            },
+            {
+              "position": 9,
+              "known_text": "before you help me",
+              "target_text": "antes de você me ajudar",
+              "syllables": 9
+            }
+          ]
+        },
+        {
+          "lego_index": 4,
+          "type": "M",
+          "is_new": true,
+          "known_text": "I have to",
+          "target_text": "eu ter que",
+          "components": [
+            {
+              "known": "I",
+              "target": "eu"
+            },
+            {
+              "known": "have to",
+              "target": "ter que"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 1,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "I have to",
+              "target_text": "eu ter que",
+              "syllables": 3
+            },
+            {
+              "position": 2,
+              "known_text": "I have to speak",
+              "target_text": "eu ter que falar",
+              "syllables": 5
+            },
+            {
+              "position": 3,
+              "known_text": "I have to now",
+              "target_text": "eu ter que agora",
+              "syllables": 6
+            },
+            {
+              "position": 4,
+              "known_text": "I have to today",
+              "target_text": "eu ter que hoje",
+              "syllables": 5
+            },
+            {
+              "position": 7,
+              "known_text": "something I have to",
+              "target_text": "algo eu ter que",
+              "syllables": 5
+            },
+            {
+              "position": 8,
+              "known_text": "before I have to speak",
+              "target_text": "antes de eu ter que falar",
+              "syllables": 8
+            },
+            {
+              "position": 9,
+              "known_text": "are you going to help me before I have to speak",
+              "target_text": "você vai me ajudar antes de eu ter que falar",
+              "syllables": 15
+            }
+          ]
+        },
+        {
+          "lego_index": 5,
+          "type": "A",
+          "is_new": true,
+          "known_text": "to go",
+          "target_text": "ir",
+          "components": null,
+          "phrase_count": 7,
+          "eternal_ready_count": 0,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "to go",
+              "target_text": "ir",
+              "syllables": 1
+            },
+            {
+              "position": 4,
+              "known_text": "I have to go",
+              "target_text": "tenho que ir",
+              "syllables": 4
+            },
+            {
+              "position": 5,
+              "known_text": "I don't want to go",
+              "target_text": "não quero ir",
+              "syllables": 4
+            },
+            {
+              "position": 6,
+              "known_text": "I'd like to go",
+              "target_text": "gostaria de ir",
+              "syllables": 5
+            },
+            {
+              "position": 7,
+              "known_text": "before I go",
+              "target_text": "antes de eu ir",
+              "syllables": 5
+            },
+            {
+              "position": 8,
+              "known_text": "are you going to go",
+              "target_text": "você vai ir",
+              "syllables": 4
+            },
+            {
+              "position": 9,
+              "known_text": "before I have to go",
+              "target_text": "antes de eu ter que ir",
+              "syllables": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed_number": 26,
+      "legos": [
+        {
+          "lego_index": 1,
+          "type": "M",
+          "is_new": true,
+          "known_text": "I like",
+          "target_text": "gosto de",
+          "components": [
+            {
+              "known": "I like",
+              "target": "gosto"
+            },
+            {
+              "known": "of",
+              "target": "de"
+            }
+          ],
+          "phrase_count": 8,
+          "eternal_ready_count": 0,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "I like",
+              "target_text": "gosto de",
+              "syllables": 3
+            },
+            {
+              "position": 2,
+              "known_text": "I like speaking",
+              "target_text": "gosto de falar",
+              "syllables": 5
+            },
+            {
+              "position": 3,
+              "known_text": "I like learning",
+              "target_text": "gosto de aprender",
+              "syllables": 6
+            },
+            {
+              "position": 4,
+              "known_text": "I like speaking Portuguese",
+              "target_text": "gosto de falar português",
+              "syllables": 8
+            },
+            {
+              "position": 5,
+              "known_text": "I like practising",
+              "target_text": "gosto de praticar",
+              "syllables": 6
+            },
+            {
+              "position": 6,
+              "known_text": "I like to speak Portuguese",
+              "target_text": "gosto de falar português",
+              "syllables": 8
+            },
+            {
+              "position": 7,
+              "known_text": "I like to learn",
+              "target_text": "gosto de aprender",
+              "syllables": 6
+            },
+            {
+              "position": 8,
+              "known_text": "I like to speak with you",
+              "target_text": "gosto de falar com você",
+              "syllables": 8
+            }
+          ]
+        },
+        {
+          "lego_index": 2,
+          "type": "A",
+          "is_new": true,
+          "known_text": "to feel",
+          "target_text": "sentir",
+          "components": null,
+          "phrase_count": 7,
+          "eternal_ready_count": 4,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "to feel",
+              "target_text": "sentir",
+              "syllables": 2
+            },
+            {
+              "position": 2,
+              "known_text": "I like to feel",
+              "target_text": "gosto de sentir",
+              "syllables": 5
+            },
+            {
+              "position": 4,
+              "known_text": "I like to feel as if I can speak",
+              "target_text": "gosto de sentir como se consigo falar",
+              "syllables": 13
+            },
+            {
+              "position": 7,
+              "known_text": "I want to feel as if I can speak Portuguese",
+              "target_text": "quero sentir como se consigo falar português",
+              "syllables": 15
+            },
+            {
+              "position": 8,
+              "known_text": "I like to feel",
+              "target_text": "gosto de sentir",
+              "syllables": 5
+            },
+            {
+              "position": 10,
+              "known_text": "before I have to go I like to feel ready",
+              "target_text": "antes de eu ter que ir gosto de sentir",
+              "syllables": 12
+            },
+            {
+              "position": 11,
+              "known_text": "I like to feel as if I can speak",
+              "target_text": "gosto de sentir como se consigo falar",
+              "syllables": 13
+            }
+          ]
+        },
+        {
+          "lego_index": 3,
+          "type": "M",
+          "is_new": true,
+          "known_text": "as if",
+          "target_text": "como se",
+          "components": [
+            {
+              "known": "as/like",
+              "target": "como"
+            },
+            {
+              "known": "if",
+              "target": "se"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 2,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "as if",
+              "target_text": "como se",
+              "syllables": 3
+            },
+            {
+              "position": 2,
+              "known_text": "to feel as if",
+              "target_text": "sentir como se",
+              "syllables": 5
+            },
+            {
+              "position": 3,
+              "known_text": "I like to feel as if",
+              "target_text": "gosto de sentir como se",
+              "syllables": 8
+            },
+            {
+              "position": 4,
+              "known_text": "as if now",
+              "target_text": "como se agora",
+              "syllables": 6
+            },
+            {
+              "position": 5,
+              "known_text": "as if today",
+              "target_text": "como se hoje",
+              "syllables": 5
+            },
+            {
+              "position": 6,
+              "known_text": "as if I can speak Portuguese",
+              "target_text": "como se consigo falar português",
+              "syllables": 11
+            },
+            {
+              "position": 7,
+              "known_text": "I like to feel as if I can help",
+              "target_text": "gosto de sentir como se consigo ajudar",
+              "syllables": 14
+            }
+          ]
+        },
+        {
+          "lego_index": 4,
+          "type": "M",
+          "is_new": true,
+          "known_text": "nearly ready",
+          "target_text": "quase pronto",
+          "components": [
+            {
+              "known": "almost",
+              "target": "quase"
+            },
+            {
+              "known": "ready",
+              "target": "pronto"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 0,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "nearly ready",
+              "target_text": "quase pronto",
+              "syllables": 4
+            },
+            {
+              "position": 2,
+              "known_text": "I'm nearly ready",
+              "target_text": "estou quase pronto",
+              "syllables": 6
+            },
+            {
+              "position": 3,
+              "known_text": "nearly ready now",
+              "target_text": "quase pronto agora",
+              "syllables": 7
+            },
+            {
+              "position": 4,
+              "known_text": "nearly ready today",
+              "target_text": "quase pronto hoje",
+              "syllables": 6
+            },
+            {
+              "position": 7,
+              "known_text": "something nearly ready",
+              "target_text": "algo quase pronto",
+              "syllables": 6
+            },
+            {
+              "position": 8,
+              "known_text": "I like to feel nearly ready",
+              "target_text": "gosto de sentir quase pronto",
+              "syllables": 9
+            },
+            {
+              "position": 9,
+              "known_text": "I like to feel nearly ready",
+              "target_text": "gosto de sentir quase pronto",
+              "syllables": 9
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed_number": 27,
+      "legos": [
+        {
+          "lego_index": 1,
+          "type": "M",
+          "is_new": true,
+          "known_text": "I don't like",
+          "target_text": "não gosto de",
+          "components": [
+            {
+              "known": "not",
+              "target": "não"
+            },
+            {
+              "known": "I like",
+              "target": "gosto de"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 2,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "I don't like",
+              "target_text": "não gosto de",
+              "syllables": 4
+            },
+            {
+              "position": 2,
+              "known_text": "I don't like speaking",
+              "target_text": "não gosto de falar",
+              "syllables": 6
+            },
+            {
+              "position": 4,
+              "known_text": "but I don't like",
+              "target_text": "mas não gosto de",
+              "syllables": 5
+            },
+            {
+              "position": 5,
+              "known_text": "I don't like now",
+              "target_text": "não gosto de agora",
+              "syllables": 7
+            },
+            {
+              "position": 6,
+              "known_text": "I don't like today",
+              "target_text": "não gosto de hoje",
+              "syllables": 6
+            },
+            {
+              "position": 7,
+              "known_text": "I don't like to feel as if I can't speak",
+              "target_text": "não gosto de sentir como se não consigo falar",
+              "syllables": 15
+            },
+            {
+              "position": 8,
+              "known_text": "I don't like to feel nearly ready",
+              "target_text": "não gosto de sentir quase pronto",
+              "syllables": 10
+            }
+          ]
+        },
+        {
+          "lego_index": 2,
+          "type": "A",
+          "is_new": true,
+          "known_text": "to take time",
+          "target_text": "demorar",
+          "components": null,
+          "phrase_count": 7,
+          "eternal_ready_count": 1,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "to take time",
+              "target_text": "demorar",
+              "syllables": 3
+            },
+            {
+              "position": 3,
+              "known_text": "I don't want to take time",
+              "target_text": "não quero demorar",
+              "syllables": 6
+            },
+            {
+              "position": 4,
+              "known_text": "I'm not going to take time",
+              "target_text": "não vou demorar",
+              "syllables": 5
+            },
+            {
+              "position": 5,
+              "known_text": "I don't like to take too long",
+              "target_text": "não gosto de demorar muito",
+              "syllables": 9
+            },
+            {
+              "position": 6,
+              "known_text": "I don't want to take too long before I have to go",
+              "target_text": "não quero demorar muito antes de eu ter que ir",
+              "syllables": 15
+            },
+            {
+              "position": 7,
+              "known_text": "are you going to take long",
+              "target_text": "você vai demorar muito",
+              "syllables": 8
+            },
+            {
+              "position": 8,
+              "known_text": "I don't like to take time",
+              "target_text": "não gosto de demorar",
+              "syllables": 7
+            }
+          ]
+        },
+        {
+          "lego_index": 3,
+          "type": "M",
+          "is_new": true,
+          "known_text": "too much",
+          "target_text": "muito",
+          "components": [
+            {
+              "known": "much",
+              "target": "muito"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 0,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "too much",
+              "target_text": "muito",
+              "syllables": 2
+            },
+            {
+              "position": 2,
+              "known_text": "to take too much time",
+              "target_text": "demorar muito",
+              "syllables": 5
+            },
+            {
+              "position": 3,
+              "known_text": "I don't like taking too much time",
+              "target_text": "não gosto de demorar muito",
+              "syllables": 9
+            },
+            {
+              "position": 4,
+              "known_text": "to speak too much",
+              "target_text": "falar muito",
+              "syllables": 4
+            },
+            {
+              "position": 5,
+              "known_text": "too much now",
+              "target_text": "muito agora",
+              "syllables": 5
+            },
+            {
+              "position": 6,
+              "known_text": "too much today",
+              "target_text": "muito hoje",
+              "syllables": 4
+            },
+            {
+              "position": 7,
+              "known_text": "I don't like to take too long",
+              "target_text": "não gosto de demorar muito",
+              "syllables": 9
+            }
+          ]
+        },
+        {
+          "lego_index": 4,
+          "type": "A",
+          "is_new": true,
+          "known_text": "to answer",
+          "target_text": "responder",
+          "components": null,
+          "phrase_count": 7,
+          "eternal_ready_count": 4,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "to answer",
+              "target_text": "responder",
+              "syllables": 3
+            },
+            {
+              "position": 5,
+              "known_text": "to answer quickly",
+              "target_text": "responder rapidamente",
+              "syllables": 8
+            },
+            {
+              "position": 8,
+              "known_text": "I don't like to take too long to answer you",
+              "target_text": "não gosto de demorar muito a responder você",
+              "syllables": 15
+            },
+            {
+              "position": 9,
+              "known_text": "I don't like to take too long to answer",
+              "target_text": "não gosto de demorar muito a responder",
+              "syllables": 13
+            },
+            {
+              "position": 10,
+              "known_text": "I don't want to take too long to answer",
+              "target_text": "não quero demorar muito a responder",
+              "syllables": 12
+            },
+            {
+              "position": 11,
+              "known_text": "are you going to answer soon",
+              "target_text": "você vai responder em breve",
+              "syllables": 9
+            },
+            {
+              "position": 12,
+              "known_text": "I'm nearly ready to answer",
+              "target_text": "estou quase pronto a responder",
+              "syllables": 10
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed_number": 28,
+      "legos": [
+        {
+          "lego_index": 1,
+          "type": "M",
+          "is_new": true,
+          "known_text": "it's useful",
+          "target_text": "é útil",
+          "components": [
+            {
+              "known": "it's",
+              "target": "é"
+            },
+            {
+              "known": "useful",
+              "target": "útil"
+            }
+          ],
+          "phrase_count": 8,
+          "eternal_ready_count": 1,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "it's useful",
+              "target_text": "é útil",
+              "syllables": 3
+            },
+            {
+              "position": 2,
+              "known_text": "it's useful to speak",
+              "target_text": "é útil falar",
+              "syllables": 5
+            },
+            {
+              "position": 3,
+              "known_text": "it's useful to learn",
+              "target_text": "é útil aprender",
+              "syllables": 6
+            },
+            {
+              "position": 4,
+              "known_text": "it's useful to practise",
+              "target_text": "é útil praticar",
+              "syllables": 6
+            },
+            {
+              "position": 5,
+              "known_text": "it's useful to start",
+              "target_text": "é útil começar a",
+              "syllables": 7
+            },
+            {
+              "position": 6,
+              "known_text": "it's useful to learn",
+              "target_text": "é útil aprender",
+              "syllables": 6
+            },
+            {
+              "position": 7,
+              "known_text": "it's useful to speak Portuguese",
+              "target_text": "é útil falar português",
+              "syllables": 8
+            },
+            {
+              "position": 8,
+              "known_text": "it's useful to practise as much as possible",
+              "target_text": "é útil praticar o máximo possível",
+              "syllables": 13
+            }
+          ]
+        },
+        {
+          "lego_index": 2,
+          "type": "M",
+          "is_new": true,
+          "known_text": "as soon as you can",
+          "target_text": "assim que puder",
+          "components": [
+            {
+              "known": "as soon as",
+              "target": "assim que"
+            },
+            {
+              "known": "you can",
+              "target": "puder"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 3,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "as soon as you can",
+              "target_text": "assim que puder",
+              "syllables": 5
+            },
+            {
+              "position": 2,
+              "known_text": "to speak as soon as you can",
+              "target_text": "falar assim que puder",
+              "syllables": 7
+            },
+            {
+              "position": 3,
+              "known_text": "to start as soon as you can",
+              "target_text": "começar a assim que puder",
+              "syllables": 9
+            },
+            {
+              "position": 4,
+              "known_text": "it's useful to start speaking as soon as you can",
+              "target_text": "é útil começar a falar assim que puder",
+              "syllables": 14
+            },
+            {
+              "position": 5,
+              "known_text": "I'm going to answer as soon as I can",
+              "target_text": "vou responder assim que puder",
+              "syllables": 9
+            },
+            {
+              "position": 6,
+              "known_text": "it's useful to answer as soon as I can",
+              "target_text": "é útil responder assim que puder",
+              "syllables": 11
+            },
+            {
+              "position": 7,
+              "known_text": "I don't want to take too long, I'm going to answer as soon as I can",
+              "target_text": "não quero demorar muito, vou responder assim que puder",
+              "syllables": 17
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed_number": 29,
+      "legos": [
+        {
+          "lego_index": 1,
+          "type": "M",
+          "is_new": true,
+          "known_text": "I'm looking forward to",
+          "target_text": "estou ansioso para",
+          "components": [
+            {
+              "known": "I'm",
+              "target": "estou"
+            },
+            {
+              "known": "anxious/eager for",
+              "target": "ansioso para"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 4,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "I'm looking forward to",
+              "target_text": "estou ansioso para",
+              "syllables": 7
+            },
+            {
+              "position": 2,
+              "known_text": "I'm looking forward to speaking",
+              "target_text": "estou ansioso para falar",
+              "syllables": 9
+            },
+            {
+              "position": 3,
+              "known_text": "I'm looking forward to learning",
+              "target_text": "estou ansioso para aprender",
+              "syllables": 10
+            },
+            {
+              "position": 4,
+              "known_text": "I'm looking forward to meeting",
+              "target_text": "estou ansioso para conhecer",
+              "syllables": 10
+            },
+            {
+              "position": 5,
+              "known_text": "I'm looking forward to starting",
+              "target_text": "estou ansioso para começar a",
+              "syllables": 11
+            },
+            {
+              "position": 6,
+              "known_text": "I'm looking forward to now",
+              "target_text": "estou ansioso para agora",
+              "syllables": 10
+            },
+            {
+              "position": 7,
+              "known_text": "I'm looking forward to today",
+              "target_text": "estou ansioso para hoje",
+              "syllables": 9
+            }
+          ]
+        },
+        {
+          "lego_index": 2,
+          "type": "A",
+          "is_new": true,
+          "known_text": "better",
+          "target_text": "melhor",
+          "components": null,
+          "phrase_count": 7,
+          "eternal_ready_count": 2,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "better",
+              "target_text": "melhor",
+              "syllables": 2
+            },
+            {
+              "position": 2,
+              "known_text": "to speak better",
+              "target_text": "falar melhor",
+              "syllables": 4
+            },
+            {
+              "position": 4,
+              "known_text": "I'm looking forward to speaking better",
+              "target_text": "estou ansioso para falar melhor",
+              "syllables": 11
+            },
+            {
+              "position": 6,
+              "known_text": "I'd like to speak better",
+              "target_text": "gostaria de falar melhor",
+              "syllables": 8
+            },
+            {
+              "position": 9,
+              "known_text": "I want to speak better",
+              "target_text": "quero falar melhor",
+              "syllables": 6
+            },
+            {
+              "position": 10,
+              "known_text": "I want to speak better",
+              "target_text": "quero falar melhor",
+              "syllables": 6
+            },
+            {
+              "position": 11,
+              "known_text": "I'm looking forward to speaking better",
+              "target_text": "estou ansioso para falar melhor",
+              "syllables": 11
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed_number": 30,
+      "legos": [
+        {
+          "lego_index": 1,
+          "type": "M",
+          "is_new": true,
+          "known_text": "I wanted to",
+          "target_text": "queria",
+          "components": [
+            {
+              "known": "I",
+              "target": "eu"
+            },
+            {
+              "known": "wanted to",
+              "target": "queria"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 1,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "I wanted to",
+              "target_text": "queria",
+              "syllables": 2
+            },
+            {
+              "position": 2,
+              "known_text": "I wanted to speak",
+              "target_text": "queria falar",
+              "syllables": 4
+            },
+            {
+              "position": 3,
+              "known_text": "I wanted to learn",
+              "target_text": "queria aprender",
+              "syllables": 5
+            },
+            {
+              "position": 5,
+              "known_text": "I wanted to try",
+              "target_text": "queria tentar",
+              "syllables": 4
+            },
+            {
+              "position": 6,
+              "known_text": "I wanted to come back",
+              "target_text": "queria voltar",
+              "syllables": 4
+            },
+            {
+              "position": 7,
+              "known_text": "I wanted to speak",
+              "target_text": "queria falar",
+              "syllables": 4
+            },
+            {
+              "position": 8,
+              "known_text": "I wanted to speak Portuguese with you",
+              "target_text": "queria falar português com você",
+              "syllables": 10
+            }
+          ]
+        },
+        {
+          "lego_index": 2,
+          "type": "M",
+          "is_new": true,
+          "known_text": "to ask you",
+          "target_text": "te perguntar",
+          "components": [
+            {
+              "known": "you",
+              "target": "te"
+            },
+            {
+              "known": "to ask",
+              "target": "perguntar"
+            }
+          ],
+          "phrase_count": 7,
+          "eternal_ready_count": 2,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "to ask you",
+              "target_text": "te perguntar",
+              "syllables": 4
+            },
+            {
+              "position": 3,
+              "known_text": "I wanted to ask you",
+              "target_text": "queria te perguntar",
+              "syllables": 6
+            },
+            {
+              "position": 4,
+              "known_text": "I'd like to ask you",
+              "target_text": "gostaria de te perguntar",
+              "syllables": 8
+            },
+            {
+              "position": 5,
+              "known_text": "I wanted to ask you something",
+              "target_text": "queria te perguntar algo",
+              "syllables": 8
+            },
+            {
+              "position": 6,
+              "known_text": "I'm looking forward to asking you",
+              "target_text": "estou ansioso para te perguntar",
+              "syllables": 11
+            },
+            {
+              "position": 7,
+              "known_text": "I wanted to ask you if it's useful",
+              "target_text": "queria te perguntar se é útil",
+              "syllables": 10
+            },
+            {
+              "position": 8,
+              "known_text": "I wanted to ask you something",
+              "target_text": "queria te perguntar algo",
+              "syllables": 8
+            }
+          ]
+        },
+        {
+          "lego_index": 3,
+          "type": "A",
+          "is_new": true,
+          "known_text": "yesterday",
+          "target_text": "ontem",
+          "components": null,
+          "phrase_count": 7,
+          "eternal_ready_count": 0,
+          "phrases": [
+            {
+              "position": 1,
+              "known_text": "yesterday",
+              "target_text": "ontem",
+              "syllables": 2
+            },
+            {
+              "position": 3,
+              "known_text": "I wanted to speak yesterday",
+              "target_text": "queria falar ontem",
+              "syllables": 6
+            },
+            {
+              "position": 4,
+              "known_text": "yesterday now",
+              "target_text": "ontem agora",
+              "syllables": 5
+            },
+            {
+              "position": 5,
+              "known_text": "yesterday today",
+              "target_text": "ontem hoje",
+              "syllables": 4
+            },
+            {
+              "position": 8,
+              "known_text": "something yesterday",
+              "target_text": "algo ontem",
+              "syllables": 4
+            },
+            {
+              "position": 9,
+              "known_text": "I wanted to ask you yesterday",
+              "target_text": "queria te perguntar ontem",
+              "syllables": 8
+            },
+            {
+              "position": 11,
+              "known_text": "I wanted to speak Portuguese yesterday",
+              "target_text": "queria falar português ontem",
+              "syllables": 9
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
