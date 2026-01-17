@@ -24,10 +24,13 @@ const getLangMeta = (code) => LANGUAGE_META[code] || { name: code?.toUpperCase()
 
 // Extract target language name from display_name or fall back to locale lookup
 // e.g., "Welsh (North) for English Speakers" → "Welsh (North)"
+// e.g., "Chinese (Concept-First Experiment)" → "Chinese (Concept-First Experiment)" (no "for" pattern)
 const getTargetDisplayName = (course) => {
   if (course.display_name) {
     const match = course.display_name.match(/^(.+?)\s+for\s+/i)
     if (match) return match[1]
+    // No "for X Speakers" pattern - return full display_name
+    return course.display_name
   }
   return getLangMeta(course.target_lang).name
 }
