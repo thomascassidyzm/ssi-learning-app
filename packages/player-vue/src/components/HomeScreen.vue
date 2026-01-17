@@ -22,17 +22,15 @@ const LANGUAGE_META = {
 
 const getLangMeta = (code) => LANGUAGE_META[code] || { name: code?.toUpperCase() || '?', flag: '🌐' }
 
-// Extract target language name from display_name or fall back to locale lookup
-// e.g., "Welsh (North) for English Speakers" → "Welsh (North)"
-// e.g., "Chinese (Concept-First Experiment)" → "Chinese (Concept-First Experiment)" (no "for" pattern)
+// Get display name for target language
+// Strips " for X Speakers" suffix if present, otherwise uses display_name as-is
+// Falls back to language code lookup if no display_name
 const getTargetDisplayName = (course) => {
-  if (course.display_name) {
-    const match = course.display_name.match(/^(.+?)\s+for\s+/i)
-    if (match) return match[1]
-    // No "for X Speakers" pattern - return full display_name
-    return course.display_name
+  if (!course.display_name) {
+    return getLangMeta(course.target_lang).name
   }
-  return getLangMeta(course.target_lang).name
+  // Strip " for ..." suffix if present
+  return course.display_name.replace(/\s+for\s+.+$/i, '')
 }
 
 const props = defineProps({
