@@ -67,8 +67,8 @@ const activeCourseData = computed(() => {
   return {
     ...course,
     // Display fields derived from database fields
-    // Use display_name first (e.g., "Welsh (North)"), then target_lang lookup
-    title: course.title || getTargetDisplayName(course),
+    // Use display_name first (e.g., "Welsh (North)", "Chinese (Concept-First Experiment)")
+    title: getTargetDisplayName(course),
     subtitle: course.subtitle || `for ${knownMeta.name} Speakers`,
     target_flag: course.target_flag || targetMeta.flag,
     // Progress fields (from learner data or defaults)
