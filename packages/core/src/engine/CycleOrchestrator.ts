@@ -315,11 +315,19 @@ export class CycleOrchestrator implements ICycleOrchestrator {
       return this.config.pause_duration_ms;
     }
 
-    // Adapt pause duration based on phrase length
+    // Prefer actual audio duration (2x target audio gives learner time to speak)
+    const targetDurationMs = item.phrase.audioRefs?.target?.voice1?.duration_ms;
+    if (targetDurationMs && targetDurationMs > 0) {
+      const adaptedMs = targetDurationMs * 2;
+      return Math.min(
+        Math.max(adaptedMs, this.config.min_pause_ms),
+        this.config.max_pause_ms
+      );
+    }
+
+    // Fallback: adapt based on word count if duration not available
     const wordCount = item.phrase.wordCount;
     const baseMs = this.config.pause_duration_ms;
-
-    // Add ~300ms per word beyond 3 words
     const extraWords = Math.max(0, wordCount - 3);
     const adaptedMs = baseMs + (extraWords * 300);
 
