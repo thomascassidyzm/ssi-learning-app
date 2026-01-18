@@ -94,13 +94,24 @@ export interface PracticePhraseRow {
   course_code: string;
   seed_number: number;
   lego_index: number;
-  position: number;  // 0=component, 1=lego, 2-7=debut, 8+=eternal
+  position: number;  // Legacy ordering field, now secondary to phrase_role
   known_text: string;
   target_text: string;
   word_count: number;
   lego_count: number;
   difficulty?: 'easy' | 'medium' | 'hard';
   register?: 'casual' | 'formal';
+
+  // Explicit role (replaces position-based categorization)
+  phrase_role: 'component' | 'practice' | 'eternal_eligible';
+
+  // Coverage metadata (for selection variety)
+  connected_lego_ids: string[];  // Other LEGOs in this phrase
+  lego_position?: 'start' | 'middle' | 'end';  // Where primary LEGO appears
+
+  // Cognitive load proxy
+  target_syllable_count?: number;
+
   metadata?: Record<string, unknown>;
   status: 'draft' | 'released' | 'deprecated';
   release_batch?: number;
@@ -159,12 +170,20 @@ export interface PracticeCycleRow {
   position: number;
   lego_id: string;  // Computed in view
 
-  // Phrase type (computed in view from position)
+  // Phrase role (explicit from table, not computed)
+  phrase_role: 'component' | 'practice' | 'eternal_eligible';
+
+  // Phrase type (computed in view for backwards compatibility)
   phrase_type: 'component' | 'debut' | 'practice' | 'eternal';
+
+  // Coverage metadata (for selection variety)
+  connected_lego_ids: string[];  // Other LEGOs in this phrase
+  lego_position?: 'start' | 'middle' | 'end';  // Where primary LEGO appears
 
   // Practice metadata
   word_count: number;
   lego_count: number;
+  target_syllable_count?: number;  // Cognitive load proxy
   difficulty?: 'easy' | 'medium' | 'hard';
   register?: 'casual' | 'formal';
   status: 'draft' | 'released' | 'deprecated';
@@ -404,9 +423,14 @@ export function convertPracticePhraseRowToPracticePhrase(row: PracticePhraseRow)
   // Build lego_id from seed_number and lego_index
   const legoId = `S${String(row.seed_number).padStart(4, '0')}L${String(row.lego_index).padStart(2, '0')}`;
 
+  // Use explicit phrase_role if available, fallback to position-based computation
+  const phraseType = row.phrase_role
+    ? mapPhraseRoleToType(row.phrase_role)
+    : computePhraseType(row.position);
+
   return {
     id: row.id,
-    phraseType: computePhraseType(row.position),
+    phraseType,
     phrase: {
       known: row.known_text,
       target: row.target_text,
@@ -420,8 +444,22 @@ export function convertPracticePhraseRowToPracticePhrase(row: PracticePhraseRow)
       },
     },
     wordCount: row.word_count,
-    containsLegos: [legoId],
+    // Include connected LEGOs if available, otherwise just the primary LEGO
+    containsLegos: row.connected_lego_ids?.length
+      ? [legoId, ...row.connected_lego_ids]
+      : [legoId],
   };
+}
+
+/**
+ * Maps phrase_role to phrase_type for backwards compatibility
+ */
+export function mapPhraseRoleToType(role: 'component' | 'practice' | 'eternal_eligible'): 'component' | 'debut' | 'practice' | 'eternal' {
+  switch (role) {
+    case 'component': return 'component';
+    case 'practice': return 'practice';
+    case 'eternal_eligible': return 'eternal';
+  }
 }
 
 /**
