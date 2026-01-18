@@ -1429,8 +1429,57 @@ export async function generateLearningScript(
         })
       }
 
-      console.log('[generateLearningScript] Loaded', introAudioMap.size, 'intro audio entries')
+      console.log('[generateLearningScript] Loaded', introAudioMap.size, 'intro audio entries from lego_introductions')
     }
+
+    // FALLBACK: Query course_audio with role='presentation' for missing LEGOs
+    // This handles courses where intro audio is in course_audio but not lego_introductions
+    const missingLegoIds = legoIds.filter(id => !introAudioMap.has(id))
+    if (missingLegoIds.length > 0) {
+      console.log('[generateLearningScript] Looking for', missingLegoIds.length, 'missing intro audios in course_audio')
+
+      // Get the target text for each missing LEGO
+      const legoTextMap = new Map<string, string>()
+      for (const lego of legos) {
+        if (missingLegoIds.includes(lego.lego.id)) {
+          legoTextMap.set(lego.lego.target_text.toLowerCase().trim(), lego.lego.id)
+        }
+      }
+
+      // Query course_audio for presentation audio
+      const BATCH_SIZE = 100
+      for (let i = 0; i < missingLegoIds.length; i += BATCH_SIZE) {
+        const batchTexts = [...legoTextMap.keys()].slice(i, i + BATCH_SIZE)
+        const { data: presentationAudio } = await supabase
+          .from('course_audio')
+          .select('id, text_normalized, s3_key')
+          .eq('course_code', courseId)
+          .eq('role', 'presentation')
+          .in('text_normalized', batchTexts)
+
+        if (presentationAudio && presentationAudio.length > 0) {
+          let baseUrl = audioBaseUrl
+          if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1)
+
+          for (const audio of presentationAudio) {
+            const legoId = legoTextMap.get(audio.text_normalized)
+            if (legoId && audio.s3_key && !introAudioMap.has(legoId)) {
+              introAudioMap.set(legoId, {
+                id: audio.id,
+                url: `${baseUrl}/${audio.s3_key}`
+              })
+            }
+          }
+        }
+      }
+
+      const foundCount = missingLegoIds.length - [...missingLegoIds].filter(id => !introAudioMap.has(id)).length
+      if (foundCount > 0) {
+        console.log('[generateLearningScript] Found', foundCount, 'additional intro audios from course_audio')
+      }
+    }
+
+    console.log('[generateLearningScript] Total intro audio entries:', introAudioMap.size)
   } catch (err) {
     console.warn('[generateLearningScript] Failed to load intro audio:', err)
   }
