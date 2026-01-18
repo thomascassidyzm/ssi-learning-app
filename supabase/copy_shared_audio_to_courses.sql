@@ -19,7 +19,7 @@ WHERE audio_type IN ('instruction', 'encouragement')
 GROUP BY audio_type;
 
 -- Check which courses will receive the audio
-SELECT code, known_lang, target_lang
+SELECT course_code, known_lang, target_lang
 FROM courses
 WHERE known_lang = 'eng';
 
@@ -50,7 +50,7 @@ INSERT INTO course_audio (
   created_at
 )
 SELECT
-  c.code as course_code,
+  c.course_code,
   sa.text,
   sa.text_normalized,
   sa.language,
@@ -64,7 +64,7 @@ FROM shared_audio sa
 CROSS JOIN courses c
 WHERE sa.audio_type = 'instruction'
   AND c.known_lang = sa.language
-ORDER BY c.code, sa.sequence
+ORDER BY c.course_code, sa.sequence
 ON CONFLICT (course_code, text_normalized, language, role) DO NOTHING;
 
 -- ============================================
@@ -84,7 +84,7 @@ INSERT INTO course_audio (
   created_at
 )
 SELECT
-  c.code as course_code,
+  c.course_code,
   sa.text,
   sa.text_normalized,
   sa.language,

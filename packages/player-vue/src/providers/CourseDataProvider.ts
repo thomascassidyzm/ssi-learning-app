@@ -15,7 +15,7 @@
  * Roles: known, target1, target2, presentation, encouragement, instruction
  *
  * Key v13.1 changes:
- * - courses.code (not course_code), voice_config JSONB (not separate voice columns)
+ * - courses.course_code (renamed from 'code' 2026-01-18), voice_config JSONB (not separate voice columns)
  * - Order phrases by target1_duration_ms (not word_count) for cognitive load
  * - Use s3_key from database for URLs (not id with .mp3 appended)
  * - audio_samples table is DEPRECATED - do not use
@@ -263,7 +263,7 @@ export class CourseDataProvider {
   }
 
   /**
-   * Get course metadata (v13: uses 'code' not 'course_code')
+   * Get course metadata (uses 'course_code' - renamed from 'code' 2026-01-18)
    */
   async getCourseMetadata() {
     if (!this.client) return null
@@ -272,7 +272,7 @@ export class CourseDataProvider {
       const { data, error } = await this.client
         .from('courses')
         .select('*')
-        .eq('code', this.courseId)
+        .eq('course_code', this.courseId)
         .single()
 
       if (error) {
@@ -633,11 +633,11 @@ export class CourseDataProvider {
     if (!this.client) return null
 
     try {
-      // Get course language configuration (v13: 'code' not 'course_code')
+      // Get course language configuration (uses 'course_code' - renamed from 'code' 2026-01-18)
       const { data: course, error: courseError } = await this.client
         .from('courses')
         .select('known_lang, target_lang')
-        .eq('code', this.courseId)
+        .eq('course_code', this.courseId)
         .single()
 
       if (courseError || !course) {
@@ -686,11 +686,11 @@ export class CourseDataProvider {
     if (!this.client || texts.length === 0) return results
 
     try {
-      // Get course language configuration once (v13: 'code' not 'course_code')
+      // Get course language configuration once (uses 'course_code' - renamed from 'code' 2026-01-18)
       const { data: course, error: courseError } = await this.client
         .from('courses')
         .select('known_lang, target_lang')
-        .eq('code', this.courseId)
+        .eq('course_code', this.courseId)
         .single()
 
       if (courseError || !course) return results

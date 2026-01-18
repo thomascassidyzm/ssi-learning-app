@@ -127,12 +127,8 @@ const fetchEnrolledCourses = async () => {
 
     // Set active course from: 1) localStorage, 2) first available
     if (data && data.length > 0) {
-      // Normalize: courses table uses 'code', but rest of app expects 'course_code'
-      const normalizedCourses = data.map(c => ({
-        ...c,
-        course_code: c.code, // Map 'code' to 'course_code' for app consistency
-      }))
-      enrolledCourses.value = normalizedCourses
+      // courses table now uses 'course_code' directly (renamed from 'code' 2026-01-18)
+      enrolledCourses.value = data
 
       // Check for course from URL query parameter (e.g., ?course=spa_for_eng)
       let urlCourseCode = null
@@ -159,7 +155,7 @@ const fetchEnrolledCourses = async () => {
 
       // First try URL param
       if (urlCourseCode) {
-        defaultCourse = normalizedCourses.find(c => c.course_code === urlCourseCode)
+        defaultCourse = data.find(c => c.course_code === urlCourseCode)
         if (defaultCourse) {
           console.log('[App] Using course from URL:', urlCourseCode)
           // Also save to localStorage for future visits
@@ -175,7 +171,7 @@ const fetchEnrolledCourses = async () => {
 
       // Then try localStorage
       if (!defaultCourse && savedCourseCode) {
-        defaultCourse = normalizedCourses.find(c => c.course_code === savedCourseCode)
+        defaultCourse = data.find(c => c.course_code === savedCourseCode)
         if (defaultCourse) {
           console.log('[App] Restored saved course:', savedCourseCode)
         } else {
@@ -183,7 +179,7 @@ const fetchEnrolledCourses = async () => {
         }
       }
       if (!defaultCourse) {
-        defaultCourse = normalizedCourses[0]
+        defaultCourse = data[0]
       }
 
       if (defaultCourse && !activeCourse.value) {
