@@ -1,0 +1,596 @@
+# APML Persistence: Progressive Loading + Progress Persistence
+# SSI Learning App v2.1.0
+# Version: 1.0.0 (2026-01-18)
+# Status: Implemented
+
+## ============================================================================
+## OVERVIEW
+## ============================================================================
+
+SPECIFICATION:
+  name: "Belt-Aware Progressive Loading + Progress Persistence"
+  purpose: |
+    Enable fast startup (<2s on 3G), handle belt skip-ahead,
+    provide infinite offline play, and sync progress cross-device.
+  version: "1.0.0"
+  date: "2026-01-18"
+
+  sources:
+    useBeltLoader: "packages/player-vue/src/composables/useBeltLoader.ts"
+    useOfflinePlay: "packages/player-vue/src/composables/useOfflinePlay.ts"
+    useBeltProgress: "packages/player-vue/src/composables/useBeltProgress.ts"
+    migration: "supabase/migrations/20260118100000_highest_completed_seed.sql"
+    settings_ui: "packages/player-vue/src/components/SettingsScreen.vue"
+
+## ============================================================================
+## PROBLEM STATEMENT
+## ============================================================================
+
+PROBLEM:
+  fast_startup:
+    requirement: "First interaction in <2 seconds on 3G"
+    challenge: "Full course = ~100MB audio, 668 seeds"
+    solution: "Layer 1 blocking loads only current belt first 5 rounds (~760KB)"
+
+  skip_ahead:
+    requirement: "Users jump between belts, especially early on"
+    challenge: "Can't wait for sequential download"
+    solution: "Breadth-first loading across belts (P1-P5 background)"
+
+  offline_resilience:
+    requirement: "Never stop - cycle through cached content infinitely"
+    challenge: "Network may drop mid-session"
+    solution: "Seamless switch to shuffled cached content"
+
+  cross_device_sync:
+    requirement: "Progress syncs across devices, survives course updates"
+    challenge: "Offline-first but needs server authority"
+    solution: "highest_completed_seed as anchor, max(local, remote) wins"
+
+## ============================================================================
+## THREE-LAYER LOADING ARCHITECTURE
+## ============================================================================
+
+LOADING_ARCHITECTURE:
+  description: |
+    Progressive loading with priority queue ensures fast startup
+    while enabling skip-ahead and offline resilience.
+
+  layers:
+    layer_1_blocking:
+      name: "BLOCKING (P0)"
+      priority: 0
+      timing: "Must complete before 'Start Learning'"
+      content:
+        script: "Current belt first 5 rounds (~10KB)"
+        audio: "Current belt first 5 rounds (~750KB)"
+      total: "~760KB"
+      target: "User can START in <2 seconds"
+
+    layer_2_skip_protection:
+      name: "SKIP PROTECTION (P1-P5)"
+      priority: "1-5"
+      timing: "Parallel background load"
+      sequence:
+        P1: "Audio - Next belt first 5 rounds"
+        P2: "Script + Audio - Current belt remainder"
+        P3: "Audio - Belt+2 first 5 rounds"
+        P4: "Script + Audio - Next belt remainder"
+        P5: "Audio - Belt+3 first 5 rounds"
+      strategy: "Breadth-first across belts"
+
+    layer_3_infinite_play:
+      name: "INFINITE PLAY"
+      priority: "Background (lowest)"
+      timing: "Continuous background"
+      behavior: |
+        When offline: Shuffle through ALL cached items indefinitely
+        No blocking, no waiting - seamless degradation
+
+  visual_diagram: |
+    ┌─────────────────────────────────────────────────────────────────┐
+    │  LAYER 1: BLOCKING (must complete before "Start Learning")      │
+    │  ─────────────────────────────────────────────────────────────  │
+    │  Script: Current belt first 5 rounds           (~10KB)          │
+    │  Audio:  Current belt first 5 rounds           (~750KB)         │
+    │  TOTAL: ~760KB → User can START in <2s                          │
+    └─────────────────────────────────────────────────────────────────┘
+                                ↓
+    ┌─────────────────────────────────────────────────────────────────┐
+    │  LAYER 2: SKIP PROTECTION (parallel background load)            │
+    │  ─────────────────────────────────────────────────────────────  │
+    │  P1: Audio - Next belt first 5 rounds                           │
+    │  P2: Script + Audio - Current belt remainder                    │
+    │  P3: Audio - Belt+2 first 5 rounds                              │
+    │  ...                                                            │
+    └─────────────────────────────────────────────────────────────────┘
+                                ↓
+    ┌─────────────────────────────────────────────────────────────────┐
+    │  LAYER 3: INFINITE PLAY (offline resilience)                    │
+    │  ─────────────────────────────────────────────────────────────  │
+    │  When offline: Shuffle through ALL cached items indefinitely    │
+    └─────────────────────────────────────────────────────────────────┘
+
+## ============================================================================
+## BELT CONFIGURATION
+## ============================================================================
+
+BELT_RANGES:
+  description: "Seed ranges for each belt (thresholds: 0, 8, 20, 40, 80, 150, 280, 400)"
+
+  belts:
+    white:
+      start: 1
+      end: 7
+      seed_count: 7
+
+    yellow:
+      start: 8
+      end: 19
+      seed_count: 12
+
+    orange:
+      start: 20
+      end: 39
+      seed_count: 20
+
+    green:
+      start: 40
+      end: 79
+      seed_count: 40
+
+    blue:
+      start: 80
+      end: 149
+      seed_count: 70
+
+    purple:
+      start: 150
+      end: 279
+      seed_count: 130
+
+    brown:
+      start: 280
+      end: 399
+      seed_count: 120
+
+    black:
+      start: 400
+      end: 668
+      seed_count: 269
+
+  helper_functions:
+    getBeltForSeed: "Returns belt name for a given seed number"
+    getNextBelts: "Returns next N belts after current belt"
+
+## ============================================================================
+## PROGRESS MODEL: SEED AS STABLE ANCHOR
+## ============================================================================
+
+PROGRESS_MODEL:
+  description: |
+    Store `highest_completed_seed` in Supabase as the ONE source of truth.
+    Everything else derives from it.
+
+  anchor: "highest_completed_seed"
+  range: "1-668"
+  stability: "Survives course updates"
+
+  derived_values:
+    belt: "Which threshold does seed fall into?"
+    percent_complete: "seed / total_seeds (668)"
+    resume_position: "seed + 1"
+
+  visual_diagram: |
+                      ┌──────────────────┐
+                      │  SEED NUMBER     │ ← Stable across course updates
+                      │  (1-668)         │
+                      └────────┬─────────┘
+                               │
+            ┌──────────────────┼──────────────────┐
+            ↓                  ↓                  ↓
+     ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+     │ Belt (derived)│  │ % Complete   │  │ Position     │
+     │ from seed #   │  │ seeds/668    │  │ (transient)  │
+     └──────────────┘  └──────────────┘  └──────────────┘
+
+  course_update_resilience:
+    description: |
+      If course updates change LEGOs or rounds, user just resumes from
+      their seed number. Content might differ, but position preserved.
+
+    edge_cases:
+      course_shortened: "User completes course instantly if past new end"
+      course_lengthened: "User continues from their seed"
+      seed_content_changed: "User gets new content but same position"
+
+## ============================================================================
+## SYNC STRATEGY
+## ============================================================================
+
+SYNC_STRATEGY:
+  principle: "localStorage primary, Supabase background"
+
+  layers:
+    local:
+      storage: "localStorage"
+      timing: "Instant (synchronous)"
+      purpose: "Primary source, works offline"
+      key_pattern: "ssi_belt_progress_{courseCode}"
+
+    remote:
+      storage: "Supabase course_enrollments.highest_completed_seed"
+      timing: "Background (asynchronous)"
+      purpose: "Cross-device sync"
+
+  merge_strategy:
+    name: "max wins"
+    formula: "progress = max(local, remote)"
+    rationale: "Progress never goes backward"
+
+  sync_flow:
+    on_load:
+      1: "Load local progress (instant)"
+      2: "Fetch remote progress (async)"
+      3: "Merge: take max(local, remote)"
+      4: "If local > remote: sync to remote"
+      5: "If remote > local: update local"
+
+    on_save:
+      1: "Save to localStorage (instant)"
+      2: "Sync to Supabase (background, non-blocking)"
+
+  conflict_resolution: |
+    No conflicts possible - max always wins.
+    User who completed more seeds on Device A will see that
+    reflected when they open Device B.
+
+## ============================================================================
+## COMPOSABLE: useBeltLoader
+## ============================================================================
+
+COMPOSABLE_BELT_LOADER:
+  name: "useBeltLoader"
+  source: "packages/player-vue/src/composables/useBeltLoader.ts"
+  purpose: "Progressive loading with belt-aware priority queue"
+
+  state:
+    readyRounds: "Map<number, Round> - Rounds ready to play"
+    readyBelts: "Set<string> - Belts with first 5 rounds ready"
+    queue: "LoadTask[] - Priority queue of loading tasks"
+    isLoading: "boolean - Background loading in progress"
+    isReady: "boolean - P0 complete, user can start"
+    cachedAudioCount: "number - Total cached audio files"
+    cachedScriptSeeds: "number - Seeds with cached scripts"
+    loadingStatus: "string - Current loading task description"
+
+  types:
+    LoadTask:
+      priority: "number (0=blocking, 1-5=background)"
+      type: "'script' | 'audio'"
+      belt: "string (belt name)"
+      seedRange: "[number, number] (start, end)"
+      status: "'pending' | 'loading' | 'complete' | 'error'"
+
+  functions:
+    initializeFromSeed:
+      signature: "(seed: number) => Promise<void>"
+      description: "Initialize loading queue from a specific seed position"
+
+    getRoundsForRange:
+      signature: "(startSeed: number, count: number) => Round[]"
+      description: "Get rounds for a seed range (for playback)"
+
+    getRoundBySeed:
+      signature: "(seed: number) => Round | undefined"
+      description: "Get a specific round by seed number"
+
+    getAllCachedItems:
+      signature: "() => ScriptItem[]"
+      description: "Get all cached items (for infinite play mode)"
+
+    isBeltReady:
+      signature: "(belt: string) => boolean"
+      description: "Check if a specific belt is ready to play"
+
+    expandFromSeed:
+      signature: "(seed: number) => Promise<void>"
+      description: "Expand loading when approaching end of cached content"
+
+    clearCache:
+      signature: "() => void"
+      description: "Clear all cached data"
+
+    downloadForOffline:
+      signature: "(option: 'current' | 'next50' | 'next100' | 'entire', currentSeed: number, onProgress?: DownloadProgressCallback) => Promise<void>"
+      description: "Download content for offline use with progress callback"
+      options:
+        current: "Download remainder of current belt"
+        next50: "Download next 50 seeds"
+        next100: "Download next 100 seeds"
+        entire: "Download entire course (seeds 1-668)"
+
+    cancelDownload:
+      signature: "() => void"
+      description: "Cancel an in-progress download"
+
+  types_download:
+    DownloadProgress:
+      totalSeeds: "number - Total seeds to download"
+      completedSeeds: "number - Seeds completed"
+      totalAudio: "number - Total audio files to download"
+      completedAudio: "number - Audio files downloaded"
+      phase: "'scripts' | 'audio' | 'complete' | 'cancelled'"
+      percent: "number - Progress percentage (0-100)"
+
+## ============================================================================
+## COMPOSABLE: useOfflinePlay
+## ============================================================================
+
+COMPOSABLE_OFFLINE_PLAY:
+  name: "useOfflinePlay"
+  source: "packages/player-vue/src/composables/useOfflinePlay.ts"
+  purpose: "Infinite play mode for offline resilience"
+
+  state:
+    isOnline: "boolean - Device network status"
+    isInfinitePlay: "boolean - Infinite play mode active"
+    forceInfinitePlay: "boolean - Manually force infinite play"
+    cachedItemCount: "number - Items available for infinite play"
+    recentItemIds: "string[] - Recently played items (for avoidance)"
+
+  config:
+    recentAvoidCount:
+      default: 10
+      description: "How many recent items to avoid repeating"
+
+  functions:
+    getNextItemInfinite:
+      signature: "() => ScriptItem | null"
+      description: |
+        Get next item for infinite play mode.
+        Shuffles through cached items, avoiding recently played items.
+
+    enableInfinitePlay:
+      signature: "() => void"
+      description: "Enable forced infinite play mode (for testing)"
+
+    disableInfinitePlay:
+      signature: "() => void"
+      description: "Disable forced infinite play mode"
+
+    toggleInfinitePlay:
+      signature: "() => boolean"
+      description: "Toggle forced infinite play mode"
+
+    clearRecentHistory:
+      signature: "() => void"
+      description: "Clear recent items (useful when resuming normal playback)"
+
+    markAsPlayed:
+      signature: "(item: ScriptItem) => void"
+      description: "Mark an item as recently played"
+
+  behavior:
+    online_to_offline: |
+      Seamless transition when network drops.
+      Switch to infinite play mode automatically.
+      No user indicator (invisible degradation per design).
+
+    offline_to_online: |
+      Resume normal progression when network returns.
+      Background sync progress to server.
+
+## ============================================================================
+## COMPOSABLE: useBeltProgress (Enhanced)
+## ============================================================================
+
+COMPOSABLE_BELT_PROGRESS_SYNC:
+  name: "useBeltProgress"
+  source: "packages/player-vue/src/composables/useBeltProgress.ts"
+  purpose: "Belt progression with localStorage + Supabase sync"
+
+  enhancement: "Added Supabase sync to existing belt progress tracking"
+
+  sync_config:
+    interface: "BeltProgressSyncConfig"
+    properties:
+      supabase: "Ref<SupabaseClient | null> | SupabaseClient | null"
+      learnerId: "Ref<string | null> | string | null"
+
+  new_state:
+    isSyncing: "boolean - Remote sync in progress"
+    lastSyncError: "string | null - Last sync error message"
+
+  new_functions:
+    syncToRemote:
+      signature: "(seeds: number) => Promise<void>"
+      description: "Sync progress to Supabase (background, non-blocking)"
+
+    mergeProgress:
+      signature: "() => Promise<number>"
+      description: "Merge local and remote progress, take highest"
+
+    canSync:
+      signature: "() => boolean"
+      description: "Check if sync is available (supabase + learnerId)"
+
+    initializeSync:
+      signature: "() => void"
+      description: "Initialize synchronously (backwards compatible)"
+
+  usage:
+    basic: |
+      const beltProgress = useBeltProgress(courseCode)
+      beltProgress.initializeSync()
+
+    with_sync: |
+      const beltProgress = useBeltProgress(courseCode, {
+        supabase: supabaseRef,
+        learnerId: learnerIdRef,
+      })
+      await beltProgress.initialize() // Merges with remote
+
+## ============================================================================
+## DATABASE SCHEMA
+## ============================================================================
+
+DATABASE_SCHEMA:
+  table: "course_enrollments"
+  migration: "supabase/migrations/20260118100000_highest_completed_seed.sql"
+
+  new_column:
+    name: "highest_completed_seed"
+    type: "INTEGER"
+    default: 0
+    comment: |
+      Highest seed number completed by learner (1-668).
+      Primary progress anchor for cross-device sync.
+      max(local, remote) wins.
+
+  new_index:
+    name: "idx_enrollments_highest_seed"
+    columns: ["course_id", "highest_completed_seed DESC"]
+    purpose: "Efficient leaderboard queries and progress lookups"
+
+  view_update:
+    view: "course_progress"
+    change: "Added highest_completed_seed to SELECT"
+
+## ============================================================================
+## OFFLINE DOWNLOAD UI
+## ============================================================================
+
+OFFLINE_DOWNLOAD_UI:
+  location: "SettingsScreen.vue"
+  section: "Offline Learning"
+  status: "Fully implemented and wired"
+
+  implementation:
+    description: |
+      SettingsScreen uses courseDataProvider.generateLearningScript()
+      to fetch scripts and preloadAudioBatch() to cache audio files.
+      Two-phase download: scripts (0-50%), audio (50-100%).
+      Supports cancellation via AbortController.
+
+  features:
+    cache_status:
+      display: "X audio files (Y MB)"
+      indicator: "Online/Offline status"
+
+    download_options:
+      current_belt:
+        label: "Current belt only"
+        estimate: "~3MB"
+
+      next_50:
+        label: "Next 50 seeds"
+        estimate: "~8MB"
+
+      next_100:
+        label: "Next 100 seeds"
+        estimate: "~15MB"
+
+      entire:
+        label: "Entire course"
+        estimate: "~100MB"
+
+    progress_indicator:
+      type: "Linear progress bar"
+      elements:
+        - "Downloading X seeds..."
+        - "Percentage complete"
+        - "Cancel button"
+
+  visual_layout: |
+    ┌─────────────────────────────────────────┐
+    │  Offline Learning                       │
+    ├─────────────────────────────────────────┤
+    │  Cached Content        [Online/Offline] │
+    │  42 audio files (8MB)                   │
+    ├─────────────────────────────────────────┤
+    │  Download for Offline                   │
+    │  Pre-download content to learn offline  │
+    │                                         │
+    │  ○ Current belt only        (~3MB)      │
+    │  ○ Next 50 seeds            (~8MB)      │
+    │  ○ Next 100 seeds           (~15MB)     │
+    │  ● Entire course            (~100MB)    │
+    │                                         │
+    │  [Download]                             │
+    └─────────────────────────────────────────┘
+
+## ============================================================================
+## DESIGN DECISIONS
+## ============================================================================
+
+DESIGN_DECISIONS:
+  cache_limit:
+    decision: "User-controlled 'Download for Offline'"
+    rationale: "Let user choose how much to cache, show storage estimate"
+    alternatives_rejected:
+      - "Automatic full download (too aggressive)"
+      - "Fixed cache limit (not user-friendly)"
+
+  offline_ux:
+    decision: "Seamless (invisible)"
+    rationale: "Just keep playing, no indicator. User doesn't notice."
+    alternatives_rejected:
+      - "Offline mode banner (disrupts flow)"
+      - "Pause until online (breaks offline-first promise)"
+
+  sync_conflict:
+    decision: "Highest wins"
+    rationale: "Progress never goes backward. max(local, server)"
+    alternatives_rejected:
+      - "Server wins (loses offline progress)"
+      - "Timestamp-based (complex, clock sync issues)"
+
+## ============================================================================
+## VERIFICATION CHECKLIST
+## ============================================================================
+
+VERIFICATION:
+  fast_loading:
+    test_steps:
+      1: "Throttle network to 3G in DevTools"
+      2: "Clear all caches"
+      3: "Load app"
+    expected: "Content visible in <2 seconds"
+    check: "Network tab shows ~760KB initial load"
+
+  skip_ahead:
+    test_steps:
+      1: "Start at White belt"
+      2: "Skip to Yellow belt"
+      3: "Skip to Orange belt"
+    expected: "Each belt plays immediately (was preloaded)"
+    check: "Console shows loading queue priorities working"
+
+  offline_mode:
+    test_steps:
+      1: "Start playing"
+      2: "Disable network (DevTools offline)"
+      3: "Complete current item"
+    expected: "Seamlessly switches to infinite play"
+    check: "Content keeps cycling through cached items"
+
+  cross_device_sync:
+    test_steps:
+      1: "Complete 10 seeds on Device A"
+      2: "Login on Device B"
+    expected: "Progress shows 10 seeds completed"
+    check: "Continue learning starts from seed 11"
+
+  course_update_resilience:
+    test_steps:
+      1: "Complete 20 seeds (Orange belt)"
+      2: "[Simulate] Course updates with new LEGOs"
+      3: "Reload app"
+    expected: "Still at seed 20, Orange belt"
+    check: "Content reflects new course structure"
+
+## ============================================================================
+## GENERATED: 2026-01-18
+## APML v1.0.0
+## ============================================================================

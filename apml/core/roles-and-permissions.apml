@@ -1,0 +1,789 @@
+# SSi Roles and Permissions Specification
+# Adaptive Pedagogy Markup Language (APML)
+# Single Source of Truth for all user roles across the platform
+
+metadata:
+  title: "SSi Roles and Permissions"
+  version: "1.0.0"
+  date: "2026-01-18"
+  author: "Tom Cassidy & Claude"
+  status: "specification"
+  extends: "apml/schools/ssi-schools-integration.apml"
+
+# =============================================================================
+# DESIGN PRINCIPLES
+# =============================================================================
+
+principle RoleHierarchy:
+  statement: "Roles form a clear hierarchy with inherited permissions"
+
+  levels:
+    1_platform: "ssi_admin - platform-wide control"
+    2_government: "govt_admin - regional language authority"
+    3_school: "school_admin - single school management"
+    4_classroom: "teacher - classroom management"
+    5_learner: "student/learner - learning experience"
+    6_content: "course_creator - content creation (orthogonal)"
+
+  inheritance: |
+    Higher roles CAN access lower-role features but DON'T by default.
+    A school_admin can "become" a teacher to create a class.
+    A govt_admin can view school dashboards in read-only mode.
+
+principle SeparationOfConcerns:
+  statement: "Content creation is separate from content delivery"
+
+  delivery_roles:
+    - "learner"
+    - "student"
+    - "teacher"
+    - "school_admin"
+    - "govt_admin"
+    - "ssi_admin"
+
+  creation_roles:
+    - "course_creator"
+    - "ssi_admin"
+
+  note: |
+    A course_creator uses Popty (ssi-dashboard-v7-clean) to create courses.
+    They do NOT have special permissions in the learning app.
+    They may also be a learner, teacher, or school_admin separately.
+
+principle PrivacyByDesign:
+  statement: "Higher roles see aggregates, not individual data"
+
+  examples:
+    govt_admin:
+      sees: "147 schools, 12,345 students, 89,432 hours learned"
+      never_sees: "Individual student names or progress"
+
+    school_admin:
+      sees: "Class roster, aggregate class progress"
+      never_sees: "Individual student response latencies"
+
+    teacher:
+      sees: "Class position, student count"
+      never_sees: "Individual student belt levels (unless student shares)"
+
+# =============================================================================
+# ROLE DEFINITIONS
+# =============================================================================
+
+role ssi_admin:
+  name: "Platform Administrator"
+  description: "SSi team members with full platform access"
+
+  scope: "Entire platform"
+
+  permissions:
+    courses:
+      - "view_all_courses"
+      - "approve_community_courses"
+      - "feature_courses"
+      - "disable_courses"
+
+    users:
+      - "view_all_users"
+      - "impersonate_user"
+      - "ban_user"
+      - "grant_roles"
+
+    schools:
+      - "view_all_schools"
+      - "view_all_regions"
+
+    analytics:
+      - "view_platform_analytics"
+      - "view_revenue_metrics"
+      - "export_reports"
+
+    content:
+      - "access_popty_dashboard"
+      - "create_official_courses"
+
+  ui_access:
+    - "player-vue (learner experience)"
+    - "schools-dashboard (as any role)"
+    - "admin-dashboard (platform admin)"
+    - "popty (content creation)"
+
+  assignment:
+    method: "Manual by existing ssi_admin"
+    storage: "user_profiles.platform_role = 'ssi_admin'"
+
+role govt_admin:
+  name: "Government/Regional Language Authority"
+  description: "Officials overseeing language learning adoption in a region"
+
+  scope: "All schools in their assigned region(s)"
+
+  examples:
+    - "Welsh Government Language Office"
+    - "Brittany Regional Council"
+    - "Basque Country Education Ministry"
+    - "Irish Language Commissioner"
+
+  permissions:
+    schools:
+      - "view_schools_in_region"
+      - "view_aggregate_school_metrics"
+
+    analytics:
+      - "view_regional_adoption"
+      - "view_aggregate_learning_hours"
+      - "view_geographic_distribution"
+      - "export_anonymized_reports"
+
+    never:
+      - "view_individual_student_data"
+      - "view_individual_teacher_data"
+      - "modify_school_settings"
+      - "access_content_creation"
+
+  ui_access:
+    - "govt-dashboard (regional overview)"
+    - "player-vue (as personal learner, if desired)"
+
+  assignment:
+    method: "Manual by ssi_admin"
+    requires: "Verified government/institution email"
+    storage:
+      table: "govt_admins"
+      columns:
+        user_id: "uuid references user_profiles"
+        region_code: "text (e.g., 'wales', 'brittany', 'basque')"
+        organization_name: "text"
+        verified_at: "timestamptz"
+
+role school_admin:
+  name: "School Administrator"
+  description: "Manages a single school's SSi deployment"
+  defined_in: "apml/schools/ssi-schools-integration.apml"
+
+  scope: "Single school"
+
+  permissions:
+    teachers:
+      - "invite_teachers"
+      - "remove_teachers"
+      - "view_teacher_list"
+
+    classes:
+      - "view_all_classes"
+      - "view_class_rosters"
+
+    analytics:
+      - "view_school_analytics"
+      - "view_teacher_engagement"
+
+    settings:
+      - "regenerate_teacher_join_code"
+      - "update_school_name"
+
+  ui_access:
+    - "schools-dashboard (full admin view)"
+    - "player-vue (as personal learner)"
+
+  assignment:
+    method: "Self-registration during signup"
+    storage: "user_profiles.educational_role = 'school_admin'"
+
+role teacher:
+  name: "Teacher"
+  description: "Creates and manages classes, runs class sessions"
+  defined_in: "apml/schools/ssi-schools-integration.apml"
+
+  scope: "Own classes within school"
+
+  permissions:
+    classes:
+      - "create_class"
+      - "delete_own_class"
+      - "run_class_session"
+      - "view_class_roster"
+      - "regenerate_student_join_code"
+
+    students:
+      - "view_student_count"
+      - "remove_student_from_class"
+
+  ui_access:
+    - "schools-dashboard (teacher view)"
+    - "player-vue (personal + class play mode)"
+
+  assignment:
+    method: "Join via school's teacher_join_code"
+    storage:
+      - "user_profiles.educational_role = 'teacher'"
+      - "user_tags.tag_value = 'SCHOOL:{school_id}'"
+
+role student:
+  name: "Student"
+  description: "Learner associated with a class"
+  defined_in: "apml/schools/ssi-schools-integration.apml"
+
+  scope: "Own learning progress"
+
+  permissions:
+    learning:
+      - "access_player"
+      - "track_own_progress"
+      - "skip_belts"
+
+    class:
+      - "view_own_class_name"
+      - "leave_class"
+
+  ui_access:
+    - "player-vue (learner experience)"
+
+  assignment:
+    method: "Join via class's student_join_code"
+    storage:
+      - "user_profiles.educational_role = 'student'"
+      - "user_tags.tag_value = 'CLASS:{class_id}'"
+
+role learner:
+  name: "Individual Learner"
+  description: "Self-directed learner, not affiliated with school"
+
+  scope: "Own learning progress"
+
+  permissions:
+    learning:
+      - "access_player"
+      - "track_own_progress"
+      - "skip_belts"
+
+    courses:
+      - "enroll_in_courses"
+      - "access_free_community_courses"
+      - "purchase_paid_courses"
+
+  ui_access:
+    - "player-vue (learner experience)"
+
+  assignment:
+    method: "Default role on signup"
+    storage: "user_profiles.educational_role = NULL"
+
+role course_creator:
+  name: "Course Creator"
+  description: "Language activist creating community courses"
+
+  scope: "Own courses in Popty"
+
+  permissions:
+    popty:
+      - "create_course"
+      - "edit_own_course"
+      - "submit_for_review"
+      - "view_course_analytics"
+
+    never:
+      - "publish_without_review"
+      - "edit_others_courses"
+      - "access_paid_course_creation"
+
+  ui_access:
+    - "popty (content creation)"
+    - "player-vue (as learner, for testing)"
+
+  assignment:
+    method: "Application reviewed by ssi_admin"
+    storage:
+      table: "course_creators"
+      columns:
+        user_id: "uuid references user_profiles"
+        languages: "text[] (ISO 639-3 codes they can create for)"
+        approved_at: "timestamptz"
+        approved_by: "uuid references user_profiles"
+
+# =============================================================================
+# ROLE COMBINATIONS
+# =============================================================================
+
+combinations:
+  description: "Users can hold multiple roles simultaneously"
+
+  valid_combinations:
+    teacher_and_student:
+      description: "Teacher learning another language personally"
+      example: "Welsh teacher learning Spanish for themselves"
+
+    school_admin_and_teacher:
+      description: "Head teacher who also runs classes"
+      example: "Small school where admin teaches too"
+
+    course_creator_and_learner:
+      description: "Language activist who also learns other languages"
+      example: "Breton creator learning Welsh"
+
+    govt_admin_and_learner:
+      description: "Official who also wants to learn"
+      example: "Welsh Gov employee learning Welsh"
+
+  storage:
+    educational_role: "Primary role in school context"
+    platform_role: "Platform-level role (ssi_admin only)"
+    course_creator: "Separate table for content creation"
+    govt_admin: "Separate table for government access"
+
+# =============================================================================
+# REGIONS AND LANGUAGES
+# =============================================================================
+
+data Regions:
+  description: "Geographic/political regions for language policy"
+
+  schema:
+    table: "regions"
+    columns:
+      code: "text primary key (e.g., 'wales', 'brittany')"
+      name: "text"
+      country_code: "text (ISO 3166-1 alpha-2)"
+      primary_language: "text (ISO 639-3)"
+      govt_contact_email: "text nullable"
+      created_at: "timestamptz"
+
+  initial_data:
+    wales:
+      code: "wales"
+      name: "Wales"
+      country_code: "GB"
+      primary_language: "cym"
+
+    brittany:
+      code: "brittany"
+      name: "Brittany"
+      country_code: "FR"
+      primary_language: "bre"
+
+    basque_es:
+      code: "basque_es"
+      name: "Basque Country (Spain)"
+      country_code: "ES"
+      primary_language: "eus"
+
+    basque_fr:
+      code: "basque_fr"
+      name: "Basque Country (France)"
+      country_code: "FR"
+      primary_language: "eus"
+
+    catalonia:
+      code: "catalonia"
+      name: "Catalonia"
+      country_code: "ES"
+      primary_language: "cat"
+
+    ireland:
+      code: "ireland"
+      name: "Ireland"
+      country_code: "IE"
+      primary_language: "gle"
+
+    scotland:
+      code: "scotland"
+      name: "Scotland"
+      country_code: "GB"
+      primary_language: "gla"
+
+    cornwall:
+      code: "cornwall"
+      name: "Cornwall"
+      country_code: "GB"
+      primary_language: "cor"
+
+    isle_of_man:
+      code: "isle_of_man"
+      name: "Isle of Man"
+      country_code: "IM"
+      primary_language: "glv"
+
+data SchoolRegionLink:
+  description: "Link schools to regions for govt_admin access"
+
+  schema:
+    add_column_to: "schools"
+    column:
+      name: "region_code"
+      type: "text references regions(code)"
+      nullable: true
+      description: "Which region this school belongs to"
+
+  assignment:
+    method: "school_admin selects during setup or in settings"
+    validation: "Region must exist and be active"
+
+# =============================================================================
+# ENDANGERED LANGUAGES ROADMAP
+# =============================================================================
+
+data EndangeredLanguages:
+  description: "Languages targeted for government/community adoption"
+
+  business_model:
+    community_courses:
+      pricing: "Free forever"
+      examples: ["Welsh", "Breton", "Irish", "Basque", "Catalan"]
+      rationale: "Community language activists as evangelists"
+
+    big_10_courses:
+      pricing: "Paid subscription"
+      examples: ["Spanish for English", "English for Chinese"]
+      rationale: "Sustainable revenue"
+
+    government_contracts:
+      pricing: "Annual contract (e.g., £30k/month)"
+      includes:
+        - "Schools platform access"
+        - "govt_admin dashboard"
+        - "Aggregate analytics"
+        - "Curriculum alignment reports"
+
+  roadmap:
+    phase_1_celtic:
+      status: "In Progress"
+      languages:
+        cym_for_eng:
+          name: "Welsh for English Speakers"
+          variants: ["north", "south"]
+          status: "LIVE"
+          region: "wales"
+
+        gle_for_eng:
+          name: "Irish for English Speakers"
+          status: "PLANNED"
+          region: "ireland"
+          target_launch: "2026 Q3"
+
+        gla_for_eng:
+          name: "Scottish Gaelic for English Speakers"
+          status: "PLANNED"
+          region: "scotland"
+          target_launch: "2026 Q4"
+
+        bre_for_fra:
+          name: "Breton for French Speakers"
+          status: "PLANNED"
+          region: "brittany"
+          target_launch: "2026 Q4"
+
+        cor_for_eng:
+          name: "Cornish for English Speakers"
+          status: "LIVE"
+          region: "cornwall"
+
+        glv_for_eng:
+          name: "Manx for English Speakers"
+          status: "LIVE"
+          region: "isle_of_man"
+
+    phase_2_iberian:
+      status: "Future"
+      languages:
+        eus_for_spa:
+          name: "Basque for Spanish Speakers"
+          status: "PLANNED"
+          region: "basque_es"
+
+        eus_for_fra:
+          name: "Basque for French Speakers"
+          status: "PLANNED"
+          region: "basque_fr"
+
+        cat_for_spa:
+          name: "Catalan for Spanish Speakers"
+          status: "PLANNED"
+          region: "catalonia"
+
+        cat_for_fra:
+          name: "Catalan for French Speakers"
+          status: "FUTURE"
+          region: "catalonia"  # Northern Catalonia
+
+        glg_for_spa:
+          name: "Galician for Spanish Speakers"
+          status: "FUTURE"
+
+        oci_for_fra:
+          name: "Occitan for French Speakers"
+          status: "FUTURE"
+
+    phase_3_global:
+      status: "Long-term"
+      languages:
+        mri_for_eng:
+          name: "Maori for English Speakers"
+          status: "FUTURE"
+          region: "new_zealand"
+
+        haw_for_eng:
+          name: "Hawaiian for English Speakers"
+          status: "FUTURE"
+          region: "hawaii"
+
+# =============================================================================
+# GOVERNMENT DASHBOARD
+# =============================================================================
+
+interface GovtAdminDashboard:
+  name: "Government Language Authority Dashboard"
+  location: "apps/govt-dashboard (NEW)"
+
+  purpose: |
+    Provide regional language authorities with adoption metrics
+    and aggregate learning data WITHOUT exposing individual data.
+
+  sections:
+    overview:
+      title: "Regional Overview"
+      displays:
+        - "Total schools using SSi"
+        - "Total teachers"
+        - "Total students"
+        - "Total learning hours (this month)"
+        - "New speakers estimate (reached conversational level)"
+
+    adoption:
+      title: "Adoption Metrics"
+      displays:
+        - "Schools by adoption status (pie chart)"
+        - "Geographic distribution (map)"
+        - "Month-over-month growth"
+        - "Target vs actual adoption rate"
+
+    engagement:
+      title: "Learning Engagement"
+      displays:
+        - "Hours learned per week (trend)"
+        - "Average session length"
+        - "Belt distribution (anonymized)"
+        - "Course completion rate"
+
+    curriculum:
+      title: "Curriculum Alignment"
+      displays:
+        - "Vocabulary coverage vs curriculum requirements"
+        - "Grammar points covered"
+        - "Link to standards mapping document"
+
+    export:
+      title: "Reports"
+      actions:
+        - "Export anonymized monthly report (PDF)"
+        - "Export adoption spreadsheet (CSV)"
+        - "Schedule automated reports"
+
+  data_privacy:
+    never_shows:
+      - "Individual student names"
+      - "Individual teacher names"
+      - "School names (unless opt-in)"
+      - "Response latencies or performance data"
+
+    aggregation_minimum: "Data only shown if >= 5 schools/50 students"
+
+  mock_data:
+    overview_stats:
+      schools_total: 1500
+      schools_using_ssi: 247
+      adoption_rate: "16.5%"
+      teachers: 1234
+      students: 45678
+      hours_this_month: 89432
+      new_speakers_estimate: 2340
+
+# =============================================================================
+# DATABASE SCHEMA ADDITIONS
+# =============================================================================
+
+schema GovtAdminTable:
+  table: "govt_admins"
+  description: "Government/regional authority administrators"
+
+  columns:
+    id:
+      type: "uuid"
+      primary_key: true
+      default: "gen_random_uuid()"
+
+    user_id:
+      type: "uuid"
+      references: "user_profiles.id"
+      unique: true
+
+    region_code:
+      type: "text"
+      references: "regions.code"
+
+    organization_name:
+      type: "text"
+      description: "e.g., 'Welsh Government Language Office'"
+
+    verified_at:
+      type: "timestamptz"
+      nullable: true
+
+    verified_by:
+      type: "uuid"
+      references: "user_profiles.id"
+      nullable: true
+
+    created_at:
+      type: "timestamptz"
+      default: "now()"
+
+  indexes:
+    - "idx_govt_admins_user ON govt_admins(user_id)"
+    - "idx_govt_admins_region ON govt_admins(region_code)"
+
+schema CourseCreatorTable:
+  table: "course_creators"
+  description: "Community course creators"
+
+  columns:
+    id:
+      type: "uuid"
+      primary_key: true
+      default: "gen_random_uuid()"
+
+    user_id:
+      type: "uuid"
+      references: "user_profiles.id"
+      unique: true
+
+    languages:
+      type: "text[]"
+      description: "ISO 639-3 codes they can create courses for"
+      example: "['bre', 'cym']"
+
+    application_text:
+      type: "text"
+      description: "Why they want to create courses"
+
+    approved_at:
+      type: "timestamptz"
+      nullable: true
+
+    approved_by:
+      type: "uuid"
+      references: "user_profiles.id"
+      nullable: true
+
+    created_at:
+      type: "timestamptz"
+      default: "now()"
+
+  indexes:
+    - "idx_course_creators_user ON course_creators(user_id)"
+
+schema PlatformRoleColumn:
+  description: "Add platform role to user_profiles"
+
+  alter_table: "user_profiles"
+  add_column:
+    name: "platform_role"
+    type: "text"
+    values: ["ssi_admin"]
+    nullable: true
+    description: "Platform-level role (separate from educational_role)"
+
+# =============================================================================
+# PERMISSION CHECKS (Pseudocode)
+# =============================================================================
+
+logic PermissionChecks:
+  description: "How to check permissions in code"
+
+  examples:
+    can_view_school:
+      check: |
+        // User can view school if:
+        // 1. They are ssi_admin (see all)
+        // 2. They are govt_admin for the school's region
+        // 3. They are school_admin of that school
+        // 4. They are teacher at that school
+
+        function canViewSchool(user, schoolId) {
+          if (user.platform_role === 'ssi_admin') return true
+
+          const school = getSchool(schoolId)
+
+          if (isGovtAdmin(user, school.region_code)) return true
+          if (isSchoolAdmin(user, schoolId)) return true
+          if (isTeacherAt(user, schoolId)) return true
+
+          return false
+        }
+
+    can_view_student_roster:
+      check: |
+        // Only teachers of the class and school_admins can see roster
+
+        function canViewRoster(user, classId) {
+          const klass = getClass(classId)
+
+          if (isSchoolAdmin(user, klass.school_id)) return true
+          if (isTeacherOf(user, classId)) return true
+
+          return false
+        }
+
+    can_view_regional_analytics:
+      check: |
+        // Only govt_admin for region and ssi_admin
+
+        function canViewRegionalAnalytics(user, regionCode) {
+          if (user.platform_role === 'ssi_admin') return true
+          if (isGovtAdmin(user, regionCode)) return true
+
+          return false
+        }
+
+# =============================================================================
+# MIGRATION PATH
+# =============================================================================
+
+migration RolesV1:
+  description: "Database migrations for full role system"
+
+  order:
+    1: "Create regions table"
+    2: "Add region_code to schools table"
+    3: "Add platform_role to user_profiles"
+    4: "Create govt_admins table"
+    5: "Create course_creators table"
+    6: "Seed initial regions"
+
+  sql_files:
+    - "20260118200000_create_regions.sql"
+    - "20260118200001_schools_add_region.sql"
+    - "20260118200002_user_profiles_platform_role.sql"
+    - "20260118200003_create_govt_admins.sql"
+    - "20260118200004_create_course_creators.sql"
+    - "20260118200005_seed_regions.sql"
+
+# =============================================================================
+# VERSION HISTORY
+# =============================================================================
+
+version_history:
+  v1.0.0:
+    date: "2026-01-18"
+    author: "Tom Cassidy & Claude"
+    changes:
+      - "Initial specification"
+      - "Full role hierarchy defined"
+      - "govt_admin role for government contracts"
+      - "course_creator role for community courses"
+      - "Endangered languages roadmap"
+      - "Government dashboard specification"
+      - "Database schema additions"
+
+# =============================================================================
+# GENERATED: 2026-01-18
+# APML v1.0.0
+# =============================================================================

@@ -16,7 +16,9 @@ import ReportIssueButton from './ReportIssueButton.vue'
 import { useLearningSession } from '../composables/useLearningSession'
 import { useScriptCache, setCachedScript } from '../composables/useScriptCache'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
-import { useSharedBeltProgress } from '../composables/useBeltProgress'
+import { useSharedBeltProgress, type BeltProgressSyncConfig } from '../composables/useBeltProgress'
+import { useBeltLoader, getBeltForSeed, BELT_RANGES, type BeltLoaderConfig } from '../composables/useBeltLoader'
+import { useOfflinePlay } from '../composables/useOfflinePlay'
 import { generateLearningScript } from '../providers/CourseDataProvider'
 // Prebuilt network: positions pre-calculated, pans to hero via CSS
 import { usePrebuiltNetworkIntegration } from '../composables/usePrebuiltNetworkIntegration'
@@ -767,8 +769,22 @@ const sessionMultiplier = computed(() => {
 // ============================================
 
 // Belt progress composable - initialized after courseCode is available
-// Uses localStorage for persistence, will swap to Supabase later
+// Uses localStorage for persistence with Supabase sync for cross-device
 const beltProgress = shallowRef(null)
+
+// Belt loader for progressive loading with priority queue
+// Loads current belt first 5 rounds (P0 blocking), then background loads next belts
+const beltLoader = shallowRef(null)
+
+// Offline play composable for infinite play when offline
+// Seamlessly cycles through cached content when network is unavailable
+const offlinePlay = shallowRef(null)
+
+// Track if we're using belt loader for playback
+const useBeltLoaderPlayback = ref(false)
+
+// Online/offline state for UI indicators
+const isOnline = ref(navigator.onLine)
 
 // Computed properties that delegate to the composable (with fallbacks for initial load)
 const completedSeeds = computed(() => beltProgress.value?.completedSeeds.value ?? 0)
@@ -801,12 +817,104 @@ const beltCssVars = computed(() => beltProgress.value?.beltCssVars.value ?? {
 })
 
 // Initialize belt progress when course code is available
-const initializeBeltProgress = () => {
+const initializeBeltProgress = async () => {
   if (courseCode.value && !beltProgress.value) {
-    beltProgress.value = useSharedBeltProgress(courseCode.value)
+    // Initialize belt progress with Supabase sync config
+    const syncConfig: BeltProgressSyncConfig = {
+      supabase: supabase,
+      learnerId: computed(() => learnerId.value),
+    }
+    beltProgress.value = useSharedBeltProgress(courseCode.value, syncConfig)
+
+    // Await async initialization to merge with remote progress
+    if (beltProgress.value.canSync()) {
+      await beltProgress.value.initialize()
+    }
+
     console.log('[LearningPlayer] Belt progress initialized for', courseCode.value, '- seeds:', beltProgress.value.completedSeeds.value)
   }
 }
+
+/**
+ * Initialize belt loader for progressive loading
+ * Call after belt progress is initialized to know starting position
+ */
+const initializeBeltLoader = async () => {
+  if (!courseCode.value || !beltProgress.value || beltLoader.value) return
+
+  console.log('[LearningPlayer] Initializing belt loader...')
+
+  // Create script chunk generator that uses generateLearningScript
+  const generateScriptChunk = async (startSeed: number, count: number) => {
+    // Generate script from startSeed position
+    const result = await generateLearningScript(
+      supabase?.value,
+      courseCode.value,
+      startSeed,
+      count,
+      AUDIO_S3_BASE_URL
+    )
+
+    return {
+      rounds: result.rounds || [],
+      nextSeed: startSeed + (result.rounds?.length || 0),
+      hasMore: (startSeed + count) < 668, // Assuming 668 total seeds
+    }
+  }
+
+  // Initialize belt loader
+  const loaderConfig: BeltLoaderConfig = {
+    supabase: supabase,
+    courseCode: computed(() => courseCode.value),
+    audioBaseUrl: AUDIO_S3_BASE_URL,
+    generateScriptChunk,
+  }
+
+  beltLoader.value = useBeltLoader(loaderConfig)
+
+  // Initialize from current progress position
+  const startSeed = beltProgress.value.completedSeeds.value + 1
+  await beltLoader.value.initializeFromSeed(startSeed)
+
+  console.log('[LearningPlayer] Belt loader ready, starting from seed', startSeed)
+}
+
+/**
+ * Initialize offline play composable
+ */
+const initializeOfflinePlay = () => {
+  if (offlinePlay.value) return
+
+  offlinePlay.value = useOfflinePlay({
+    getCachedItems: () => beltLoader.value?.getAllCachedItems() || [],
+    recentAvoidCount: 10,
+  })
+
+  // Setup online/offline event listeners
+  const handleOnline = () => {
+    isOnline.value = true
+    console.log('[LearningPlayer] Network: online')
+  }
+  const handleOffline = () => {
+    isOnline.value = false
+    console.log('[LearningPlayer] Network: offline - infinite play available')
+  }
+
+  window.addEventListener('online', handleOnline)
+  window.addEventListener('offline', handleOffline)
+
+  // Store cleanup for later
+  const cleanup = () => {
+    window.removeEventListener('online', handleOnline)
+    window.removeEventListener('offline', handleOffline)
+  }
+
+  // Return cleanup for onUnmounted
+  return cleanup
+}
+
+// Track cleanup function for offline play
+let offlinePlayCleanup: (() => void) | null = null
 
 // ============================================
 // ROUND BOUNDARY INTERRUPTIONS
@@ -3610,8 +3718,11 @@ onMounted(async () => {
   audioController.value = new RealAudioController()
   currentCourseCode.value = courseCode.value
 
-  // Initialize belt progress (loads from localStorage)
-  initializeBeltProgress()
+  // Initialize belt progress (loads from localStorage, merges with Supabase)
+  await initializeBeltProgress()
+
+  // Initialize offline play composable (sets up online/offline listeners)
+  offlinePlayCleanup = initializeOfflinePlay()
 
   // Initialize brain network visualization (after DOM is ready)
   nextTick(() => {
@@ -4155,6 +4266,15 @@ onUnmounted(() => {
   if (vadInstance.value) {
     vadInstance.value.dispose()
     vadInstance.value = null
+  }
+  // Cleanup offline play event listeners
+  if (offlinePlayCleanup) {
+    offlinePlayCleanup()
+    offlinePlayCleanup = null
+  }
+  // Clear belt loader
+  if (beltLoader.value) {
+    beltLoader.value.clearCache()
   }
 })
 </script>

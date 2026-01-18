@@ -1,5 +1,8 @@
 <script setup>
-import { ref, computed, inject, onMounted } from 'vue'
+import { ref, computed, inject, onMounted, onUnmounted } from 'vue'
+import { getAudioCacheStats, preloadAudioBatch } from '../composables/useScriptCache'
+import { BELT_RANGES, getBeltForSeed } from '../composables/useBeltLoader'
+import { useBeltProgress } from '../composables/useBeltProgress'
 
 const emit = defineEmits(['close', 'openExplorer', 'openNetwork', 'settingChanged'])
 
@@ -13,6 +16,11 @@ const props = defineProps({
 // Inject auth and data providers
 const auth = inject('auth', null)
 const supabase = inject('supabase', null)
+const courseDataProvider = inject('courseDataProvider', null)
+
+// Get belt progress for current seed position
+const courseCode = computed(() => props.course?.course_code || 'demo')
+const { completedSeeds } = useBeltProgress(courseCode.value)
 
 // Reset progress state
 const showResetConfirm = ref(false)
@@ -22,7 +30,6 @@ const resetSuccess = ref(false)
 
 // Current course info for reset
 const courseName = computed(() => props.course?.display_name || props.course?.course_code || 'this course')
-const courseCode = computed(() => props.course?.course_code)
 
 // App info
 const appVersion = '1.0.0'
@@ -31,10 +38,175 @@ const buildNumber = '2024.12.16'
 // Display settings
 const showFirePath = ref(true)
 
-onMounted(() => {
+// ============================================
+// OFFLINE DOWNLOAD STATE
+// ============================================
+
+const offlineDownloadOption = ref('current') // 'current', 'next50', 'next100', 'entire'
+const isDownloading = ref(false)
+const downloadProgress = ref(0)
+const downloadError = ref(null)
+const cacheStats = ref({ count: 0, estimatedMB: 0 })
+const isOnline = ref(navigator.onLine)
+
+// Storage estimates (approximate)
+const storageEstimates = {
+  current: { seeds: 20, size: '~3MB' },
+  next50: { seeds: 50, size: '~8MB' },
+  next100: { seeds: 100, size: '~15MB' },
+  entire: { seeds: 668, size: '~100MB' },
+}
+
+const selectedEstimate = computed(() => storageEstimates[offlineDownloadOption.value])
+
+// Network status listeners
+const handleOnline = () => { isOnline.value = true }
+const handleOffline = () => { isOnline.value = false }
+
+onMounted(async () => {
   // Load saved display settings
   showFirePath.value = localStorage.getItem('ssi-show-fire-path') !== 'false'
+
+  // Load cache stats
+  try {
+    cacheStats.value = await getAudioCacheStats()
+  } catch (err) {
+    console.warn('[Settings] Failed to load cache stats:', err)
+  }
+
+  // Setup network listeners
+  window.addEventListener('online', handleOnline)
+  window.addEventListener('offline', handleOffline)
 })
+
+onUnmounted(() => {
+  window.removeEventListener('online', handleOnline)
+  window.removeEventListener('offline', handleOffline)
+})
+
+// Abort controller for download cancellation
+let downloadAbortController = null
+
+// Start offline download
+const startOfflineDownload = async () => {
+  if (isDownloading.value || !isOnline.value) return
+  if (!courseDataProvider?.value) {
+    downloadError.value = 'Course not loaded. Please select a course first.'
+    return
+  }
+
+  isDownloading.value = true
+  downloadProgress.value = 0
+  downloadError.value = null
+  downloadAbortController = new AbortController()
+
+  try {
+    // Calculate seed range based on option
+    const currentSeed = completedSeeds.value + 1 // Start from next seed
+    let startSeed, endSeed
+
+    switch (offlineDownloadOption.value) {
+      case 'current': {
+        const belt = getBeltForSeed(currentSeed)
+        const range = BELT_RANGES[belt]
+        startSeed = currentSeed
+        endSeed = range.end
+        break
+      }
+      case 'next50':
+        startSeed = currentSeed
+        endSeed = Math.min(currentSeed + 49, 668)
+        break
+      case 'next100':
+        startSeed = currentSeed
+        endSeed = Math.min(currentSeed + 99, 668)
+        break
+      case 'entire':
+        startSeed = 1
+        endSeed = 668
+        break
+    }
+
+    const totalSeeds = endSeed - startSeed + 1
+    console.log(`[Settings] Downloading seeds ${startSeed}-${endSeed} (${totalSeeds} seeds)`)
+
+    // Phase 1: Generate scripts and collect audio URLs (50% of progress)
+    const allAudioUrls = []
+    const chunkSize = 20
+
+    for (let seed = startSeed; seed <= endSeed; seed += chunkSize) {
+      if (downloadAbortController.signal.aborted) {
+        console.log('[Settings] Download cancelled during script phase')
+        return
+      }
+
+      const count = Math.min(chunkSize, endSeed - seed + 1)
+
+      try {
+        const script = await courseDataProvider.value.generateLearningScript(seed, count)
+
+        // Extract audio URLs from script
+        for (const round of script.rounds || []) {
+          for (const item of round.items || []) {
+            if (item.audioRefs) {
+              if (item.audioRefs.known?.url) allAudioUrls.push(item.audioRefs.known.url)
+              if (item.audioRefs.target?.voice1?.url) allAudioUrls.push(item.audioRefs.target.voice1.url)
+              if (item.audioRefs.target?.voice2?.url) allAudioUrls.push(item.audioRefs.target.voice2.url)
+            }
+          }
+        }
+      } catch (err) {
+        console.warn(`[Settings] Failed to generate script for seed ${seed}:`, err)
+      }
+
+      // Update progress (0-50% for scripts)
+      const scriptsProgress = Math.round(((seed - startSeed + count) / totalSeeds) * 50)
+      downloadProgress.value = scriptsProgress
+    }
+
+    console.log(`[Settings] Collected ${allAudioUrls.length} audio URLs, starting download`)
+
+    // Phase 2: Download audio files (50-100% of progress)
+    const audioBatchSize = 10
+    const totalAudio = allAudioUrls.length
+
+    for (let i = 0; i < allAudioUrls.length; i += audioBatchSize) {
+      if (downloadAbortController.signal.aborted) {
+        console.log('[Settings] Download cancelled during audio phase')
+        return
+      }
+
+      const batch = allAudioUrls.slice(i, i + audioBatchSize)
+      await preloadAudioBatch(batch)
+
+      // Update progress (50-100% for audio)
+      const audioProgress = 50 + Math.round(((i + batch.length) / totalAudio) * 50)
+      downloadProgress.value = audioProgress
+    }
+
+    // Update cache stats after download
+    cacheStats.value = await getAudioCacheStats()
+
+    downloadProgress.value = 100
+    console.log(`[Settings] Offline download complete: ${totalSeeds} seeds, ${allAudioUrls.length} audio files`)
+  } catch (err) {
+    console.error('[Settings] Download error:', err)
+    downloadError.value = 'Download failed. Please try again.'
+  } finally {
+    isDownloading.value = false
+    downloadAbortController = null
+  }
+}
+
+// Cancel download
+const cancelDownload = () => {
+  if (downloadAbortController) {
+    downloadAbortController.abort()
+    downloadAbortController = null
+  }
+  isDownloading.value = false
+  downloadProgress.value = 0
+}
 
 const toggleFirePath = () => {
   showFirePath.value = !showFirePath.value
@@ -179,6 +351,80 @@ const confirmReset = async () => {
                 <div class="toggle-thumb"></div>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Offline Section -->
+      <section class="section">
+        <h3 class="section-title">Offline Learning</h3>
+        <div class="card">
+          <!-- Cache Status -->
+          <div class="setting-row">
+            <div class="setting-info">
+              <span class="setting-label">Cached Content</span>
+              <span class="setting-desc">{{ cacheStats.count }} audio files ({{ cacheStats.estimatedMB }}MB)</span>
+            </div>
+            <span class="setting-value" :class="{ 'is-offline': !isOnline }">
+              {{ isOnline ? 'Online' : 'Offline' }}
+            </span>
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- Download Options -->
+          <div class="setting-row download-section" v-if="!isDownloading">
+            <div class="setting-info">
+              <span class="setting-label">Download for Offline</span>
+              <span class="setting-desc">Pre-download content to learn without internet</span>
+            </div>
+          </div>
+
+          <!-- Download Option Selection -->
+          <div class="download-options" v-if="!isDownloading">
+            <label class="download-option" v-for="(estimate, key) in storageEstimates" :key="key">
+              <input
+                type="radio"
+                :value="key"
+                v-model="offlineDownloadOption"
+                name="downloadOption"
+              />
+              <span class="option-radio"></span>
+              <span class="option-content">
+                <span class="option-label">
+                  {{ key === 'current' ? 'Current belt' : key === 'next50' ? 'Next 50 seeds' : key === 'next100' ? 'Next 100 seeds' : 'Entire course' }}
+                </span>
+                <span class="option-size">{{ estimate.size }}</span>
+              </span>
+            </label>
+          </div>
+
+          <!-- Download Button -->
+          <div class="download-action" v-if="!isDownloading">
+            <button
+              class="download-btn"
+              @click="startOfflineDownload"
+              :disabled="!isOnline"
+            >
+              {{ isOnline ? 'Download' : 'Go online to download' }}
+            </button>
+          </div>
+
+          <!-- Download Progress -->
+          <div class="download-progress" v-if="isDownloading">
+            <div class="progress-info">
+              <span class="progress-label">Downloading {{ selectedEstimate.seeds }} seeds...</span>
+              <span class="progress-percent">{{ downloadProgress }}%</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" :style="{ width: downloadProgress + '%' }"></div>
+            </div>
+            <button class="cancel-btn" @click="cancelDownload">Cancel</button>
+          </div>
+
+          <!-- Download Error -->
+          <div class="download-error" v-if="downloadError">
+            {{ downloadError }}
           </div>
         </div>
       </section>
@@ -531,6 +777,167 @@ const confirmReset = async () => {
 
 .reset-btn--confirm:hover:not(:disabled) {
   background: #dc2626;
+}
+
+/* Offline Download Styles */
+.is-offline {
+  color: #ef4444;
+}
+
+.download-section {
+  border-bottom: none;
+}
+
+.download-options {
+  padding: 0.5rem 1rem 1rem;
+}
+
+.download-option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.download-option input {
+  display: none;
+}
+
+.option-radio {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--text-muted);
+  flex-shrink: 0;
+  position: relative;
+  transition: border-color 0.2s ease;
+}
+
+.download-option input:checked + .option-radio {
+  border-color: var(--accent);
+}
+
+.download-option input:checked + .option-radio::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.option-content {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.option-label {
+  font-size: 0.9375rem;
+  color: var(--text-primary);
+}
+
+.option-size {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.download-action {
+  padding: 0.5rem 1rem 1rem;
+}
+
+.download-btn {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  background: var(--accent);
+  color: white;
+}
+
+.download-btn:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.download-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+}
+
+.download-progress {
+  padding: 1rem;
+}
+
+.progress-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.progress-label {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.progress-percent {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.875rem;
+  color: var(--accent);
+}
+
+.progress-bar {
+  height: 6px;
+  background: var(--bg-elevated);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.2s ease;
+}
+
+.cancel-btn {
+  width: 100%;
+  padding: 0.625rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+}
+
+.cancel-btn:hover {
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+.download-error {
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  border-top: 1px solid var(--border-subtle);
 }
 
 /* Fade transition */

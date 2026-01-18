@@ -4,7 +4,7 @@
 
 app SSiLearningApp:
   title: "SSI Learning App"
-  version: "2.0.0"
+  version: "2.1.0"
   apml_version: "2.0.0"
 
   description: |
@@ -13,9 +13,11 @@ app SSiLearningApp:
     an immersive 4-phase prompt-response learning experience with
     constellation network visualization.
 
+    v2.1.0: Belt-aware progressive loading, cross-device sync, offline play.
+
   compilation_method: "forward-compilation"
-  generated_from: "Working v2.0.0 codebase (2026-01-09)"
-  last_updated: "2026-01-09"
+  generated_from: "Working v2.1.0 codebase (2026-01-18)"
+  last_updated: "2026-01-18"
 
   ## ==========================================================================
   ## RELATIONSHIP TO DASHBOARD
@@ -137,11 +139,29 @@ app SSiLearningApp:
   ## PERSISTENCE SPECIFICATIONS
   ## ==========================================================================
 
+  import persistence/progressive-loading:
+    status: "implemented"
+    date: "2026-01-18"
+    source: "packages/player-vue/src/composables/useBeltLoader.ts"
+    coverage: |
+      Belt-aware progressive loading, three-layer architecture,
+      offline infinite play, cross-device sync via Supabase
+    composables:
+      - "useBeltLoader.ts - Priority queue loading"
+      - "useOfflinePlay.ts - Infinite play mode"
+      - "useBeltProgress.ts - Supabase sync enhancement"
+    database:
+      - "course_enrollments.highest_completed_seed column"
+    ui:
+      - "SettingsScreen.vue - Offline download UI"
+
   import persistence/progress-store:
-    status: "designed"
-    date: "2025-12-03"
+    status: "implemented"
+    date: "2026-01-18"
     source: "packages/core/src/persistence/ProgressStore.ts"
-    coverage: "IndexedDB storage, Supabase sync"
+    coverage: |
+      Supabase persistence for learner progress, enrollments,
+      LEGO progress, seed progress, baselines
 
   import persistence/session-store:
     status: "designed"
@@ -278,6 +298,30 @@ app SSiLearningApp:
   ## ==========================================================================
 
   version_history:
+    v2.1.0:
+      date: "2026-01-18"
+      title: "Belt-Aware Progressive Loading"
+      features:
+        - "Three-layer loading architecture (blocking/background/infinite)"
+        - "Belt-aware priority queue (P0=current, P1-P5=next belts)"
+        - "Fast startup (<2s on 3G with ~760KB initial load)"
+        - "Skip-ahead support (breadth-first belt loading)"
+        - "Infinite offline play (shuffle cached content forever)"
+        - "Cross-device progress sync via Supabase"
+        - "highest_completed_seed as stable anchor"
+        - "Offline download UI in Settings"
+
+      architecture:
+        - "useBeltLoader for progressive loading with priority queue"
+        - "useOfflinePlay for infinite play mode"
+        - "useBeltProgress enhanced with Supabase sync"
+        - "course_enrollments.highest_completed_seed column"
+
+      design_decisions:
+        - "User-controlled offline download (not automatic)"
+        - "Seamless offline UX (invisible degradation)"
+        - "max(local, remote) sync strategy (progress never goes backward)"
+
     v2.0.0:
       date: "2026-01-09"
       title: "Deep Space Constellation"
@@ -335,6 +379,8 @@ app SSiLearningApp:
       - "engine/cycle-orchestrator.apml (100%)"
       - "interfaces/learning-player.apml (100%)"
       - "interfaces/brain-view.apml (design complete)"
+      - "interfaces/constellation-network.apml (100%)"
+      - "persistence/progressive-loading.apml (100%)"
 
     in_progress:
       - "core/variable-registry.apml"
@@ -344,7 +390,6 @@ app SSiLearningApp:
       - "learning/triple-helix.apml"
       - "learning/spaced-repetition.apml"
       - "learning/adaptation.apml"
-      - "persistence/progress-store.apml"
       - "persistence/session-store.apml"
       - "validation/gate-compliance.apml"
 
@@ -433,7 +478,7 @@ app SSiLearningApp:
       data_types_coverage: "100%"
       engine_coverage: "100%"
       learning_coverage: "50% (designed, not fully tested)"
-      persistence_coverage: "30% (designed)"
+      persistence_coverage: "80% (progressive loading + sync implemented)"
       interface_coverage: "100%"
       validation_coverage: "0% (pending)"
 
@@ -442,16 +487,17 @@ app SSiLearningApp:
         - "Extract remaining APML segments"
         - "Complete variable registry"
         - "Add validation specifications"
+        - "Wire DownloadManager to offline download UI"
 
       medium_term:
-        - "Supabase integration"
-        - "Speech recognition"
+        - "Speech recognition during PAUSE phase"
         - "Full Triple Helix implementation"
+        - "Spaced repetition queue integration"
 
       long_term:
-        - "PWA offline capability"
         - "Schools version"
         - "Multi-platform deployment"
+        - "A/B testing framework"
 
 ## ============================================================================
 ## MASTER SPECIFICATION v1.0.0

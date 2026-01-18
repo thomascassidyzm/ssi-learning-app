@@ -1,17 +1,24 @@
 /**
- * useBeltProgress - Belt progression system with localStorage persistence
+ * useBeltProgress - Belt progression system with localStorage + Supabase sync
  *
  * Tracks:
- * - completedSeeds per course (persisted)
+ * - completedSeeds per course (persisted locally + synced to Supabase)
  * - Session history for learning rate calculation
  * - Rolling average for time-to-next-belt estimates
+ *
+ * Sync Strategy:
+ * - localStorage is primary (instant, works offline)
+ * - Supabase is background sync (cross-device)
+ * - On load: merge local + remote, take highest
+ * - Progress never goes backward (max wins)
  *
  * Belt System (from APML):
  * - 8 belts: White → Yellow → Orange → Green → Blue → Purple → Brown → Black
  * - Thresholds: 0, 8, 20, 40, 80, 150, 280, 400 seeds
  */
 
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, type Ref } from 'vue'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 // ============================================================================
 // BELT CONFIGURATION (from APML)
@@ -69,31 +76,199 @@ interface StoredSessionHistory {
 }
 
 // ============================================================================
+// SUPABASE SYNC CONFIG
+// ============================================================================
+
+export interface BeltProgressSyncConfig {
+  /** Supabase client for remote sync */
+  supabase?: Ref<SupabaseClient | null> | SupabaseClient | null
+  /** Learner ID for remote sync */
+  learnerId?: Ref<string | null> | string | null
+}
+
+// ============================================================================
 // COMPOSABLE
 // ============================================================================
 
-export function useBeltProgress(courseCode: string) {
+export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyncConfig) {
   // Core state
   const completedSeeds = ref(0)
   const sessionHistory = ref<SessionRecord[]>([])
   const isLoaded = ref(false)
+  const isSyncing = ref(false)
+  const lastSyncError = ref<string | null>(null)
 
   // Current session tracking
   const sessionStartTime = ref<number | null>(null)
   const sessionStartSeeds = ref(0)
 
   // ============================================================================
-  // PERSISTENCE
+  // SYNC HELPERS
   // ============================================================================
 
-  const loadProgress = () => {
+  /**
+   * Get Supabase client from config (handles both ref and direct value)
+   */
+  const getSupabase = (): SupabaseClient | null => {
+    if (!syncConfig?.supabase) return null
+    return 'value' in syncConfig.supabase
+      ? syncConfig.supabase.value
+      : syncConfig.supabase
+  }
+
+  /**
+   * Get learner ID from config (handles both ref and direct value)
+   */
+  const getLearnerId = (): string | null => {
+    if (!syncConfig?.learnerId) return null
+    return 'value' in syncConfig.learnerId
+      ? syncConfig.learnerId.value
+      : syncConfig.learnerId
+  }
+
+  /**
+   * Check if sync is available
+   */
+  const canSync = (): boolean => {
+    const supabase = getSupabase()
+    const learnerId = getLearnerId()
+    return !!(supabase && learnerId && !learnerId.startsWith('guest-'))
+  }
+
+  // ============================================================================
+  // SUPABASE SYNC
+  // ============================================================================
+
+  /**
+   * Fetch highest_completed_seed from Supabase
+   * Returns null if not found or error
+   */
+  const fetchRemoteProgress = async (): Promise<number | null> => {
+    const supabase = getSupabase()
+    const learnerId = getLearnerId()
+
+    if (!supabase || !learnerId) return null
+
+    try {
+      const { data, error } = await supabase
+        .from('course_enrollments')
+        .select('highest_completed_seed')
+        .eq('learner_id', learnerId)
+        .eq('course_id', courseCode)
+        .maybeSingle()
+
+      if (error) {
+        console.warn('[BeltProgress] Remote fetch error:', error.message)
+        return null
+      }
+
+      return data?.highest_completed_seed ?? null
+    } catch (err) {
+      console.warn('[BeltProgress] Remote fetch failed:', err)
+      return null
+    }
+  }
+
+  /**
+   * Sync progress to Supabase (background, non-blocking)
+   * Updates highest_completed_seed if local value is higher
+   */
+  const syncToRemote = async (seeds: number): Promise<void> => {
+    if (!canSync()) return
+
+    const supabase = getSupabase()
+    const learnerId = getLearnerId()
+
+    if (!supabase || !learnerId) return
+
+    isSyncing.value = true
+    lastSyncError.value = null
+
+    try {
+      // Upsert: create enrollment if doesn't exist, update if it does
+      const { error } = await supabase
+        .from('course_enrollments')
+        .upsert({
+          learner_id: learnerId,
+          course_id: courseCode,
+          highest_completed_seed: seeds,
+          last_practiced_at: new Date().toISOString(),
+        }, {
+          onConflict: 'learner_id,course_id',
+        })
+
+      if (error) {
+        // If upsert fails, try update only (enrollment might exist without highest_completed_seed)
+        const { error: updateError } = await supabase
+          .from('course_enrollments')
+          .update({
+            highest_completed_seed: seeds,
+            last_practiced_at: new Date().toISOString(),
+          })
+          .eq('learner_id', learnerId)
+          .eq('course_id', courseCode)
+
+        if (updateError) {
+          console.warn('[BeltProgress] Remote sync failed:', updateError.message)
+          lastSyncError.value = updateError.message
+        } else {
+          console.log('[BeltProgress] Synced to remote:', seeds, 'seeds')
+        }
+      } else {
+        console.log('[BeltProgress] Synced to remote:', seeds, 'seeds')
+      }
+    } catch (err) {
+      console.warn('[BeltProgress] Remote sync error:', err)
+      lastSyncError.value = String(err)
+    } finally {
+      isSyncing.value = false
+    }
+  }
+
+  /**
+   * Merge local and remote progress, taking the highest value
+   * This ensures progress never goes backward across devices
+   */
+  const mergeProgress = async (): Promise<number> => {
+    const localSeeds = completedSeeds.value
+    const remoteSeeds = await fetchRemoteProgress()
+
+    if (remoteSeeds === null) {
+      console.log('[BeltProgress] No remote progress, using local:', localSeeds)
+      return localSeeds
+    }
+
+    const mergedSeeds = Math.max(localSeeds, remoteSeeds)
+
+    if (mergedSeeds !== localSeeds) {
+      console.log('[BeltProgress] Merged progress: local', localSeeds, '+ remote', remoteSeeds, '=', mergedSeeds)
+      completedSeeds.value = mergedSeeds
+      saveProgressLocal() // Persist merged value locally
+    }
+
+    if (mergedSeeds > remoteSeeds) {
+      // Local is ahead, sync to remote
+      syncToRemote(mergedSeeds) // Fire and forget
+    }
+
+    return mergedSeeds
+  }
+
+  // ============================================================================
+  // PERSISTENCE (localStorage)
+  // ============================================================================
+
+  /**
+   * Load progress from localStorage only
+   */
+  const loadProgressLocal = () => {
     try {
       const key = `${PROGRESS_KEY_PREFIX}${courseCode}`
       const stored = localStorage.getItem(key)
       if (stored) {
         const data: StoredProgress = JSON.parse(stored)
         completedSeeds.value = data.completedSeeds || 0
-        console.log(`[BeltProgress] Loaded ${completedSeeds.value} seeds for ${courseCode}`)
+        console.log(`[BeltProgress] Loaded ${completedSeeds.value} seeds from localStorage for ${courseCode}`)
       } else {
         completedSeeds.value = 0
         console.log(`[BeltProgress] No saved progress for ${courseCode}, starting at 0`)
@@ -104,7 +279,10 @@ export function useBeltProgress(courseCode: string) {
     }
   }
 
-  const saveProgress = () => {
+  /**
+   * Save progress to localStorage only
+   */
+  const saveProgressLocal = () => {
     try {
       const key = `${PROGRESS_KEY_PREFIX}${courseCode}`
       const data: StoredProgress = {
@@ -114,6 +292,34 @@ export function useBeltProgress(courseCode: string) {
       localStorage.setItem(key, JSON.stringify(data))
     } catch (err) {
       console.warn('[BeltProgress] Failed to save progress:', err)
+    }
+  }
+
+  /**
+   * Save progress to both localStorage and Supabase
+   * localStorage is synchronous (instant), Supabase is background
+   */
+  const saveProgress = () => {
+    // Always save locally first (instant)
+    saveProgressLocal()
+
+    // Sync to remote in background (non-blocking)
+    if (canSync()) {
+      syncToRemote(completedSeeds.value)
+    }
+  }
+
+  /**
+   * Load progress from both localStorage and Supabase, taking highest
+   * Called on initialization to merge cross-device progress
+   */
+  const loadProgress = async (): Promise<void> => {
+    // Load local first (instant)
+    loadProgressLocal()
+
+    // Then merge with remote (async)
+    if (canSync()) {
+      await mergeProgress()
     }
   }
 
@@ -440,14 +646,41 @@ export function useBeltProgress(courseCode: string) {
   // INITIALIZATION
   // ============================================================================
 
-  const initialize = () => {
+  /**
+   * Initialize belt progress - loads from localStorage immediately,
+   * then merges with Supabase in background
+   */
+  const initialize = async (): Promise<void> => {
     if (isLoaded.value) return
-    loadProgress()
+
+    // Load local progress first (sync, instant)
+    loadProgressLocal()
+    loadSessionHistory()
+    isLoaded.value = true
+
+    // Merge with remote in background (async)
+    if (canSync()) {
+      try {
+        await mergeProgress()
+      } catch (err) {
+        console.warn('[BeltProgress] Remote merge failed:', err)
+        // Continue with local progress - offline is fine
+      }
+    }
+  }
+
+  /**
+   * Initialize synchronously (for backwards compatibility)
+   * Use initialize() for full sync support
+   */
+  const initializeSync = () => {
+    if (isLoaded.value) return
+    loadProgressLocal()
     loadSessionHistory()
     isLoaded.value = true
   }
 
-  // Auto-save on changes
+  // Auto-save on changes (both local and remote)
   watch(completedSeeds, () => {
     if (isLoaded.value) saveProgress()
   })
@@ -456,6 +689,8 @@ export function useBeltProgress(courseCode: string) {
     // State
     completedSeeds,
     isLoaded,
+    isSyncing,
+    lastSyncError,
 
     // Belt info
     currentBelt,
@@ -482,6 +717,12 @@ export function useBeltProgress(courseCode: string) {
     setSeeds,
     resetProgress,
     initialize,
+    initializeSync,
+
+    // Sync actions
+    syncToRemote,
+    mergeProgress,
+    canSync,
 
     // Belt navigation
     getBeltStartSeed,
@@ -498,13 +739,41 @@ export function useBeltProgress(courseCode: string) {
 // Export singleton-style for sharing across components
 let sharedInstance: ReturnType<typeof useBeltProgress> | null = null
 let sharedCourseCode: string | null = null
+let sharedSyncConfig: BeltProgressSyncConfig | null = null
 
-export function useSharedBeltProgress(courseCode: string) {
-  if (sharedInstance && sharedCourseCode === courseCode) {
+/**
+ * Shared belt progress instance for cross-component state
+ * Supports optional Supabase sync when syncConfig is provided
+ */
+export function useSharedBeltProgress(
+  courseCode: string,
+  syncConfig?: BeltProgressSyncConfig
+): ReturnType<typeof useBeltProgress> {
+  // Return existing instance if course code and sync config match
+  if (
+    sharedInstance &&
+    sharedCourseCode === courseCode &&
+    JSON.stringify(sharedSyncConfig) === JSON.stringify(syncConfig)
+  ) {
     return sharedInstance
   }
-  sharedInstance = useBeltProgress(courseCode)
+
+  // Create new instance
+  sharedInstance = useBeltProgress(courseCode, syncConfig)
   sharedCourseCode = courseCode
-  sharedInstance.initialize()
+  sharedSyncConfig = syncConfig ?? null
+
+  // Initialize (use sync version for backwards compatibility)
+  // Caller can await initialize() separately for full sync support
+  sharedInstance.initializeSync()
+
+  return sharedInstance
+}
+
+/**
+ * Get the shared instance without creating a new one
+ * Returns null if not initialized
+ */
+export function getSharedBeltProgress(): ReturnType<typeof useBeltProgress> | null {
   return sharedInstance
 }

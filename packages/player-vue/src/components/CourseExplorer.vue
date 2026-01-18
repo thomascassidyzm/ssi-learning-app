@@ -3,11 +3,7 @@ import { ref, computed, inject, onMounted, onUnmounted, nextTick, watch } from '
 import { useVirtualList } from '@vueuse/core'
 import { CyclePhase } from '@ssi/core'
 import { generateLearningScript } from '../providers/CourseDataProvider'
-import {
-  getCachedScript,
-  setCachedScript,
-  loadIntroAudio,
-} from '../composables/useScriptCache'
+import { loadIntroAudio } from '../composables/useScriptCache'
 
 // ============================================================================
 // Simple audio controller for script preview playback
@@ -109,13 +105,19 @@ const loadedFromCache = ref(false)
 const cachedAt = ref(null)
 const error = ref(null)
 
-// Course content - ALL rounds loaded at once
+// Course content - PAGINATED loading (50 rounds at a time)
 const rounds = ref([])
 const allItems = ref([]) // Flattened items for virtual list
 const totalSeeds = ref(0)
 const totalLegos = ref(0)
 const scriptLoaded = ref(false)
 const isLoadingScript = ref(false)
+
+// Pagination state
+const ROUNDS_PER_PAGE = 50
+const loadedRoundsCount = ref(0)
+const hasMoreRounds = ref(true)
+const isLoadingMore = ref(false)
 
 // Audio map for resolving text -> audio UUIDs
 const audioMap = ref(new Map())
@@ -400,7 +402,7 @@ const loadSummary = async () => {
   }
 }
 
-// Load ALL script data at once
+// Load script data PAGINATED (50 rounds at a time)
 const loadScript = async (forceRefresh = false) => {
   console.log('[CourseExplorer] loadScript called, forceRefresh:', forceRefresh)
 
@@ -413,44 +415,20 @@ const loadScript = async (forceRefresh = false) => {
     rounds.value = createDemoRounds()
     flattenItems()
     scriptLoaded.value = true
+    loadedRoundsCount.value = rounds.value.length
+    hasMoreRounds.value = false
     restorePositionFromLocalStorage()
     return
   }
 
   const courseId = props.course?.course_code || 'demo'
 
-  // Try cache first
-  if (!forceRefresh) {
-    try {
-      const cached = await getCachedScript(courseId)
-      if (cached) {
-        console.log('[CourseExplorer] Using cached script from', new Date(cached.cachedAt).toLocaleString())
-        rounds.value = cached.rounds
-        audioMap.value = new Map(Object.entries(cached.audioMapObj || {}))
-        loadedFromCache.value = true
-        cachedAt.value = cached.cachedAt
-        flattenItems()
-        scriptLoaded.value = true
-        isLoadingScript.value = false
-        restorePositionFromLocalStorage()
-
-        // Load intro audio in background
-        const legoIds = new Set()
-        for (const round of cached.rounds || []) {
-          for (const item of round.items || []) {
-            if (item.type === 'intro' && item.legoId) {
-              legoIds.add(item.legoId)
-            }
-          }
-        }
-        if (legoIds.size > 0 && supabase?.value) {
-          loadIntroAudio(supabase.value, courseId, legoIds, audioMap.value)
-        }
-        return
-      }
-    } catch (err) {
-      console.warn('[CourseExplorer] Cache read failed:', err)
-    }
+  // Reset pagination state on fresh load
+  if (forceRefresh) {
+    rounds.value = []
+    allItems.value = []
+    loadedRoundsCount.value = 0
+    hasMoreRounds.value = true
   }
 
   try {
@@ -458,19 +436,20 @@ const loadScript = async (forceRefresh = false) => {
     if (forceRefresh) isRefreshing.value = true
     error.value = null
 
-    // Generate FULL script - all LEGOs
-    console.log('[CourseExplorer] Generating FULL script for:', courseId)
-    // Provider now contains all config - single source of truth
+    // Generate FIRST PAGE of script (50 rounds)
+    console.log('[CourseExplorer] Generating script page 1 for:', courseId, '(first', ROUNDS_PER_PAGE, 'LEGOs)')
     const script = await generateLearningScript(
       courseDataProvider.value,
-      totalLegos.value || 1000 // Load all LEGOs
+      ROUNDS_PER_PAGE // Load only first 50 rounds
     )
-    console.log('[CourseExplorer] Full script generated:', script?.rounds?.length, 'rounds')
+    console.log('[CourseExplorer] Script page 1 generated:', script?.rounds?.length, 'rounds')
 
     rounds.value = script.rounds
+    loadedRoundsCount.value = script.rounds.length
+    hasMoreRounds.value = script.rounds.length >= ROUNDS_PER_PAGE && script.rounds.length < (totalLegos.value || 0)
     flattenItems()
 
-    // Load all intro audio
+    // Load intro audio for this page
     const legoIds = new Set()
     for (const item of script.allItems) {
       if (item.type === 'intro' && item.legoId) {
@@ -483,60 +462,71 @@ const loadScript = async (forceRefresh = false) => {
 
     scriptLoaded.value = true
     restorePositionFromLocalStorage()
-
-    // Cache the full script
-    try {
-      const audioMapObj = Object.fromEntries(audioMap.value)
-      const serializableRounds = JSON.parse(JSON.stringify(script.rounds))
-
-      // Fetch welcome audio from course_audio (role='welcome')
-      let courseWelcome = null
-      if (supabase?.value && courseId) {
-        try {
-          const { data: welcomeData } = await supabase.value
-            .from('course_audio')
-            .select('id, s3_key, duration_ms, text')
-            .eq('course_code', courseId)
-            .eq('role', 'welcome')
-            .limit(1)
-            .maybeSingle()
-          if (welcomeData?.s3_key) {
-            courseWelcome = {
-              id: welcomeData.id,
-              s3_key: welcomeData.s3_key,
-              duration: welcomeData.duration_ms,
-              text: welcomeData.text
-            }
-          }
-        } catch (e) {
-          console.warn('[CourseExplorer] Failed to fetch welcome:', e)
-        }
-      }
-
-      await setCachedScript(courseId, {
-        rounds: serializableRounds,
-        totalSeeds: totalSeeds.value,
-        totalLegos: totalLegos.value,
-        loadedLegos: script.rounds.length,
-        totalCycles: script.allItems.length,
-        audioMapObj,
-        courseWelcome
-      })
-      console.log('[CourseExplorer] Full script cached')
-    } catch (cacheErr) {
-      console.warn('[CourseExplorer] Cache write failed:', cacheErr)
-    }
-
     loadedFromCache.value = false
     cachedAt.value = Date.now()
 
-    console.log('[CourseExplorer] Loaded', script.rounds.length, 'rounds,', allItems.value.length, 'total items')
+    console.log('[CourseExplorer] Loaded page 1:', script.rounds.length, 'rounds,', allItems.value.length, 'items. hasMore:', hasMoreRounds.value)
   } catch (err) {
     console.error('[CourseExplorer] Script load error:', err)
     error.value = 'Failed to load script'
   } finally {
     isLoadingScript.value = false
     isRefreshing.value = false
+  }
+}
+
+// Load more rounds (pagination)
+const loadMoreRounds = async () => {
+  if (!courseDataProvider?.value || isLoadingMore.value || !hasMoreRounds.value) {
+    return
+  }
+
+  const courseId = props.course?.course_code || 'demo'
+  const startFrom = loadedRoundsCount.value
+
+  try {
+    isLoadingMore.value = true
+    console.log('[CourseExplorer] Loading more rounds starting from:', startFrom)
+
+    // Generate next page of script
+    const script = await generateLearningScript(
+      courseDataProvider.value,
+      startFrom + ROUNDS_PER_PAGE // Load up to this many total LEGOs
+    )
+
+    // Extract only the NEW rounds (skip already loaded)
+    const newRounds = script.rounds.slice(startFrom)
+    console.log('[CourseExplorer] Got', newRounds.length, 'new rounds')
+
+    if (newRounds.length === 0) {
+      hasMoreRounds.value = false
+      return
+    }
+
+    // Append new rounds
+    rounds.value = [...rounds.value, ...newRounds]
+    loadedRoundsCount.value = rounds.value.length
+    hasMoreRounds.value = newRounds.length >= ROUNDS_PER_PAGE && rounds.value.length < (totalLegos.value || 0)
+    flattenItems()
+
+    // Load intro audio for new rounds
+    const legoIds = new Set()
+    for (const round of newRounds) {
+      for (const item of round.items || []) {
+        if (item.type === 'intro' && item.legoId) {
+          legoIds.add(item.legoId)
+        }
+      }
+    }
+    if (legoIds.size > 0 && supabase?.value) {
+      await loadIntroAudio(supabase.value, courseId, legoIds, audioMap.value)
+    }
+
+    console.log('[CourseExplorer] Now have', rounds.value.length, 'rounds total. hasMore:', hasMoreRounds.value)
+  } catch (err) {
+    console.error('[CourseExplorer] Load more error:', err)
+  } finally {
+    isLoadingMore.value = false
   }
 }
 
@@ -1045,8 +1035,8 @@ onUnmounted(() => {
       </div>
       <div class="stat-divider"></div>
       <div class="stat">
-        <span class="stat-value">{{ rounds.length }}</span>
-        <span class="stat-label">Rounds</span>
+        <span class="stat-value">{{ loadedRoundsCount }}<span class="stat-total" v-if="hasMoreRounds">/{{ totalLegos }}</span></span>
+        <span class="stat-label">Loaded</span>
       </div>
       <div class="stat-divider"></div>
       <div class="stat">
@@ -1119,7 +1109,7 @@ onUnmounted(() => {
       <!-- Loading state -->
       <div v-if="isLoadingScript" class="script-loading">
         <div class="loading-spinner"></div>
-        <p>Generating full script ({{ totalLegos }} LEGOs)...</p>
+        <p>Loading script (first {{ ROUNDS_PER_PAGE }} rounds)...</p>
       </div>
 
       <template v-else>
@@ -1202,6 +1192,28 @@ onUnmounted(() => {
                 </div>
               </template>
             </div>
+          </div>
+
+          <!-- Load More Button -->
+          <div v-if="hasMoreRounds" class="load-more-container">
+            <button
+              class="load-more-btn"
+              @click="loadMoreRounds"
+              :disabled="isLoadingMore"
+            >
+              <template v-if="isLoadingMore">
+                <div class="loading-spinner small"></div>
+                Loading...
+              </template>
+              <template v-else>
+                Load More ({{ loadedRoundsCount }} / {{ totalLegos }} rounds)
+              </template>
+            </button>
+          </div>
+
+          <!-- End of content indicator -->
+          <div v-else-if="rounds.length > 0" class="end-of-content">
+            All {{ rounds.length }} rounds loaded
           </div>
         </div>
       </template>
@@ -1348,6 +1360,11 @@ onUnmounted(() => {
   font-size: 0.625rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.stat-total {
+  font-size: 0.75rem;
   color: var(--text-muted);
 }
 
@@ -1585,6 +1602,56 @@ onUnmounted(() => {
   min-height: 0;
   overflow-y: auto;
   padding-bottom: 100px;
+}
+
+/* Load More Button */
+.load-more-container {
+  display: flex;
+  justify-content: center;
+  padding: 1.5rem 1rem;
+}
+
+.load-more-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--gold);
+  border-radius: 8px;
+  color: var(--gold);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.load-more-btn:hover:not(:disabled) {
+  background: var(--gold-glow);
+  transform: translateY(-1px);
+}
+
+.load-more-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.loading-spinner.small {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+}
+
+.end-of-content {
+  text-align: center;
+  padding: 1.5rem 1rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 /* Script Rows */
