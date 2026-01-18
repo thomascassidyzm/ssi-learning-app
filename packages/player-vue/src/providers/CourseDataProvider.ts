@@ -1041,6 +1041,40 @@ export interface RoundData {
 }
 
 /**
+ * Validate that an INTRO item has presentation audio
+ * Returns false if missing - the entire round should be skipped
+ */
+export function isValidIntroItem(item: ScriptItem): boolean {
+  if (item.type !== 'intro') return true  // Not an intro, doesn't apply
+  return !!(item.presentationAudio?.url)
+}
+
+/**
+ * Validate that a practice item has all required audio
+ * Returns false if any audio is missing - item should be skipped silently
+ */
+export function isValidPracticeItem(item: ScriptItem): boolean {
+  if (item.type === 'intro') return true  // Intro validated separately
+
+  const hasKnown = !!(item.audioRefs?.known?.url)
+  const hasTarget1 = !!(item.audioRefs?.target?.voice1?.url)
+  const hasTarget2 = !!(item.audioRefs?.target?.voice2?.url)
+
+  return hasKnown && hasTarget1 && hasTarget2
+}
+
+/**
+ * Validate a complete ScriptItem - combines intro and practice validation
+ * Used as runtime safety net before playing
+ */
+export function isValidScriptItem(item: ScriptItem): boolean {
+  if (item.type === 'intro') {
+    return isValidIntroItem(item)
+  }
+  return isValidPracticeItem(item)
+}
+
+/**
  * Calculate which previous LEGOs to review during ROUND N
  * Based on formula: N - fibonacci[i] >= 1
  *
@@ -1612,18 +1646,52 @@ export async function generateLearningScript(
       lastPracticeItem = item
     }
 
+    // ========================================
+    // RUNTIME VALIDATION: Skip incomplete rounds/items
+    // ========================================
+
+    // Check 1: If intro audio is missing, skip the ENTIRE round
+    // (Can't introduce a LEGO without the presentation audio)
+    const introItem = dedupedItems.find(item => item.type === 'intro')
+    if (introItem && !isValidIntroItem(introItem)) {
+      console.warn(`[generateLearningScript] Skipping round ${n} (${currentLego.lego.id}) - missing intro audio`)
+      continue  // Skip to next LEGO
+    }
+
+    // Check 2: Filter out practice items with incomplete audio
+    // (No point playing a prompt if target voices won't play)
+    const validatedItems = dedupedItems.filter(item => {
+      if (!isValidPracticeItem(item)) {
+        console.warn(`[generateLearningScript] Skipping item in round ${n}: incomplete audio for "${item.targetText?.slice(0, 30)}..."`)
+        return false
+      }
+      return true
+    })
+
+    // Check 3: Only add round if it has meaningful content after filtering
+    // (Need at least intro + 1 practice item)
+    const practiceItemCount = validatedItems.filter(i => i.type !== 'intro').length
+    if (practiceItemCount === 0) {
+      console.warn(`[generateLearningScript] Skipping round ${n} (${currentLego.lego.id}) - no valid practice items`)
+      continue
+    }
+
     rounds.push({
       roundNumber: n,
       legoId: currentLego.lego.id,
       legoIndex: n,
       seedId: currentLego.seed.seed_id,
-      items: dedupedItems,
+      items: validatedItems,
       spacedRepReviews: reviewIndices,
     })
 
-    allItems.push(...dedupedItems)
+    allItems.push(...validatedItems)
   }
 
+  const skippedRounds = legos.length - rounds.length
+  if (skippedRounds > 0) {
+    console.warn(`[generateLearningScript] Skipped ${skippedRounds} rounds due to missing audio`)
+  }
   console.log(`[generateLearningScript] Generated ${rounds.length} rounds with ${allItems.length} total items`)
 
   return { rounds, allItems }

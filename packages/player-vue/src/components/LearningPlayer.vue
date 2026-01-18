@@ -396,9 +396,28 @@ const normalizeAudioUrl = (url) => {
 }
 
 /**
+ * Validate a playable item has all required audio URLs.
+ * Returns false if any required audio is missing.
+ */
+const isValidPlayableItem = (playable, scriptItem) => {
+  if (!playable) return false
+
+  // For INTRO items, we don't validate here - intro audio is handled separately
+  if (scriptItem?.type === 'intro') return true
+
+  // For practice items, need known + target1 + target2
+  const hasKnown = !!playable.lego?.audioRefs?.known?.url
+  const hasTarget1 = !!playable.lego?.audioRefs?.target?.voice1?.url
+  const hasTarget2 = !!playable.lego?.audioRefs?.target?.voice2?.url
+
+  return hasKnown && hasTarget1 && hasTarget2
+}
+
+/**
  * Convert a ScriptItem to a playable item for the orchestrator.
  * Uses pre-populated audioRefs from script generation when available,
  * falls back to lazy audio lookup from cache.
+ * Returns null if item is invalid (missing audio) - caller should skip to next item.
  */
 const scriptItemToPlayableItem = async (scriptItem) => {
   if (!scriptItem) return null
@@ -455,7 +474,7 @@ const scriptItemToPlayableItem = async (scriptItem) => {
   // Spaced rep items review OLD LEGOs from previous rounds, so they're not "new"
   const isNewLego = scriptItem.legoIndex === scriptItem.roundNumber
 
-  return {
+  const playable = {
     lego: {
       id: scriptItem.legoId,
       type: 'M', // Default to molecular
@@ -509,6 +528,16 @@ const scriptItemToPlayableItem = async (scriptItem) => {
     // Track original script item data
     _scriptItem: scriptItem,
   }
+
+  // RUNTIME SAFETY NET: Validate the item has all required audio
+  // If validation fails, return null so caller skips to next item silently
+  if (!isValidPlayableItem(playable, scriptItem)) {
+    console.warn('[scriptItemToPlayableItem] Skipping item with missing audio:',
+      scriptItem.type, scriptItem.targetText?.slice(0, 30))
+    return null
+  }
+
+  return playable
 }
 
 // Current script item (from round)
