@@ -992,7 +992,7 @@ const labelOpacity = computed(() => (node: ConstellationNode): number => {
 
 .network-controls {
   position: absolute;
-  bottom: 16px;
+  bottom: calc(100px + env(safe-area-inset-bottom, 0px));
   right: 16px;
   display: flex;
   flex-direction: column;

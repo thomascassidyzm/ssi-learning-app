@@ -641,13 +641,6 @@ onUnmounted(() => {
 
 <template>
   <div class="brain-view" ref="containerRef">
-    <!-- Close button -->
-    <button class="close-btn" @click="emit('close')" title="Close">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M19 12H5M12 19l-7-7 7-7"/>
-      </svg>
-    </button>
-
     <!-- Page title with mounting -->
     <div v-if="languageName" class="brain-title-mount">
       <h1 class="brain-title" :style="{ color: accentColor }">Your brain on {{ languageName }}</h1>
@@ -763,19 +756,6 @@ onUnmounted(() => {
     <!-- BRAIN TAB CONTENT -->
     <!-- ============================================ -->
     <template v-if="activeTab === 'brain'">
-      <!-- Stats badge -->
-      <div class="stats-badge" :style="{ borderColor: accentColor }">
-        <span class="stat-item">
-          <span class="stat-value">{{ visibleCount }}</span>
-          <span class="stat-label">concepts</span>
-        </span>
-        <span class="stat-divider">·</span>
-        <span class="stat-item">
-          <span class="stat-value">{{ globalStats.phrases.toLocaleString() }}</span>
-          <span class="stat-label">phrases</span>
-        </span>
-      </div>
-
       <!-- Loading state -->
       <div v-if="isLoading" class="loading-state">
       <div class="loading-spinner"></div>
@@ -1480,7 +1460,7 @@ onUnmounted(() => {
 /* Stage Slider Panel - positioned above bottom nav (nav is ~90px with play button, plus gap) */
 .stage-slider-panel {
   position: absolute;
-  bottom: calc(110px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(140px + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%);
   z-index: 20;

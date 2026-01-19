@@ -4597,29 +4597,23 @@ defineExpose({
       <span class="class-course">{{ props.classContext.course }}</span>
     </div>
 
-    <!-- Header -->
+    <!-- Header - Centered belt/timer, logo top right -->
     <header class="header" :class="{ 'has-banner': props.classContext }">
-      <button class="close-btn" @click="handleExit" :title="props.classContext ? 'Back to Schools' : 'Exit to Home'">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M19 12H5M12 19l-7-7 7-7"/>
-        </svg>
+      <!-- Unified Belt + Timer - Centered, wide, opens modal on tap -->
+      <button
+        class="belt-timer-unified"
+        @click="openBeltProgressModal"
+        :title="!nextBelt ? 'Black belt achieved!' : `${Math.round(beltProgressPercent)}% to ${nextBelt.name} belt`"
+      >
+        <div class="belt-bar-track">
+          <div class="belt-bar-fill" :style="{ width: `${beltProgressPercent}%` }"></div>
+        </div>
+        <span class="belt-timer-label">{{ formattedSessionTime }}</span>
       </button>
+
+      <!-- Logo - Top right -->
       <div class="brand">
         <span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span>
-      </div>
-
-      <div class="header-right">
-        <!-- Unified Belt + Timer - Always shows both, opens modal on tap -->
-        <button
-          class="belt-timer-unified"
-          @click="openBeltProgressModal"
-          :title="!nextBelt ? 'Black belt achieved!' : `${Math.round(beltProgressPercent)}% to ${nextBelt.name} belt`"
-        >
-          <div class="belt-bar-track">
-            <div class="belt-bar-fill" :style="{ width: `${beltProgressPercent}%` }"></div>
-          </div>
-          <span class="belt-timer-label">{{ formattedSessionTime }}</span>
-        </button>
       </div>
     </header>
 
@@ -5227,7 +5221,7 @@ defineExpose({
   z-index: 15; /* Higher than hero-text-pane (10) to prevent overlap issues */
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center; /* Center the belt-timer */
   padding: calc(1rem + var(--safe-area-top, 0px)) 1.5rem 1rem 1.5rem;
   gap: 0.75rem;
   pointer-events: auto; /* Header buttons clickable */
@@ -5238,42 +5232,27 @@ defineExpose({
   padding-top: 0.75rem;
 }
 
+/* Close button removed - navigation handled by bottom nav */
 .close-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  border: 1px solid var(--border-subtle);
-  background: var(--bg-card);
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  -webkit-tap-highlight-color: transparent;
-  flex-shrink: 0;
+  display: none;
 }
 
-.close-btn svg {
-  width: 20px;
-  height: 20px;
-}
-
-.close-btn:hover {
-  background: var(--bg-elevated);
-  color: var(--text-primary);
-  border-color: var(--text-muted);
-}
-
-.close-btn:active {
-  transform: scale(0.95);
-}
-
+/* Brand/logo positioned top-right */
 .brand {
+  position: absolute;
+  right: 1.5rem;
+  top: 50%;
+  transform: translateY(-50%);
   font-family: 'DM Sans', -apple-system, sans-serif;
   font-weight: 700;
-  font-size: 1.0625rem;
+  font-size: clamp(0.875rem, 2vw, 1.0625rem);
   letter-spacing: -0.02em;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.brand:hover {
+  opacity: 1;
 }
 
 .logo-say, .logo-in { color: var(--accent); }
@@ -5434,17 +5413,20 @@ defineExpose({
 
 /* ============ UNIFIED BELT + TIMER ============ */
 /* Single element showing belt progress bar + session time, opens modal on tap */
+/* Wide and centered - matches transport controls width */
 .belt-timer-unified {
   display: flex;
   align-items: center;
-  gap: clamp(0.5rem, 2vw, 0.75rem);
-  padding: clamp(0.375rem, 1vw, 0.5rem) clamp(0.75rem, 2vw, 1rem);
+  gap: clamp(0.75rem, 3vw, 1.25rem);
+  padding: clamp(0.5rem, 1.5vw, 0.75rem) clamp(1rem, 3vw, 1.5rem);
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
-  border-radius: clamp(8px, 2vw, 12px);
+  border-radius: clamp(12px, 3vw, 20px);
   cursor: pointer;
   transition: all 0.2s ease;
-  min-width: clamp(100px, 25vw, 160px);
+  /* Wide - similar to transport controls */
+  width: clamp(200px, 50vw, 400px);
+  max-width: calc(100vw - 180px); /* Leave room for logo on right */
 }
 
 .belt-timer-unified:hover {
