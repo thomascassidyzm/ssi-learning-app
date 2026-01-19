@@ -197,6 +197,12 @@ const fetchEnrolledCourses = async () => {
           audioBaseUrl: config.s3.audioBaseUrl,
           courseId: defaultCourse.course_code,
         })
+        // Remember this course for next visit
+        try {
+          localStorage.setItem(LAST_COURSE_KEY, defaultCourse.course_code)
+        } catch (e) {
+          // Ignore localStorage errors
+        }
         console.log('[App] Active course set:', defaultCourse.course_code)
       }
     }
