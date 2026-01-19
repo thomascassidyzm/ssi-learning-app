@@ -25,7 +25,7 @@ import { BELTS } from '../composables/useBeltProgress'
 class TargetAudioController {
   private audio: HTMLAudioElement | null = null
 
-  async play(url: string): Promise<void> {
+  async play(url: string, speed: number = 1): Promise<void> {
     if (!this.audio) {
       this.audio = new Audio()
     }
@@ -49,8 +49,7 @@ class TargetAudioController {
       this.audio!.addEventListener('ended', onEnded)
       this.audio!.addEventListener('error', onError)
 
-      // Set playback rate just before playing (1.5x for review mode)
-      this.audio!.playbackRate = 1.5
+      this.audio!.playbackRate = speed
       this.audio!.play().catch(onError)
     })
   }
@@ -118,6 +117,9 @@ const allRounds = ref<any[]>([])
 const sliderValue = ref(props.completedSeeds || 100)
 const sliderMax = computed(() => allRounds.value.length || 100)
 
+// Admin/Testing mode - show all nodes regardless of progress
+const showAllForTesting = ref(false)
+
 // Container ref for sizing
 const containerRef = ref<HTMLElement | null>(null)
 const canvasSize = ref({ width: 800, height: 800 })
@@ -129,6 +131,10 @@ const isPanelOpen = ref(false)
 // Phrase playback state
 const selectedNodePhrases = ref<PhraseWithPath[]>([])
 const isPlayingAudio = ref(false)
+
+// Playback speed options
+const SPEED_OPTIONS = [1, 1.2, 1.5, 2] as const
+const playbackSpeed = ref(1.5)  // Default to 1.5x for review mode
 const isPracticingPhrases = ref(false)
 const currentPhraseIndex = ref(0)
 const currentPracticingPhrase = ref<PhraseWithPath | null>(null)
@@ -174,8 +180,13 @@ const beltColors: Record<string, string> = {
 
 const accentColor = computed(() => beltColors[props.beltLevel] || beltColors.white)
 
-// Nodes to show based on slider
-const visibleCount = computed(() => Math.min(sliderValue.value, allRounds.value.length))
+// Nodes to show based on slider (or all if testing mode)
+const visibleCount = computed(() => {
+  if (showAllForTesting.value) {
+    return allRounds.value.length
+  }
+  return Math.min(sliderValue.value, allRounds.value.length)
+})
 
 // Course code
 const courseCode = computed(() => props.course?.course_code || '')
@@ -577,8 +588,8 @@ async function playPhrase(phrase: PhraseWithPath) {
         // Start fire path animation synchronized with audio
         animateFirePath(phrase.legoPath, audioDuration)
 
-        // Play the audio
-        await audioController.value.play(audioUrl)
+        // Play the audio at user's selected speed
+        await audioController.value.play(audioUrl, playbackSpeed.value)
       }
     }
   } catch (err) {
@@ -1010,20 +1021,36 @@ onUnmounted(() => {
         <div v-if="selectedNodePhrases.length > 0" class="panel-phrases">
           <div class="phrases-header">
             <span class="phrases-label">Practice phrases</span>
-            <button
-              class="practice-btn"
-              @click="isPracticingPhrases ? stopPhrasePractice() : startPhrasePractice()"
-              :style="{ borderColor: accentColor, color: isPracticingPhrases ? accentColor : 'inherit' }"
-            >
-              <svg v-if="!isPracticingPhrases" viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
-                <polygon points="5 3 19 12 5 21 5 3"/>
-              </svg>
-              <svg v-else viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
-                <rect x="6" y="4" width="4" height="16"/>
-                <rect x="14" y="4" width="4" height="16"/>
-              </svg>
-              {{ isPracticingPhrases ? 'Stop' : 'Play All' }}
-            </button>
+            <div class="phrases-controls">
+              <!-- Speed selector -->
+              <div class="speed-selector">
+                <button
+                  v-for="speed in SPEED_OPTIONS"
+                  :key="speed"
+                  class="speed-btn"
+                  :class="{ active: playbackSpeed === speed }"
+                  :style="playbackSpeed === speed ? { color: accentColor, borderColor: accentColor } : {}"
+                  @click="playbackSpeed = speed"
+                >
+                  {{ speed }}x
+                </button>
+              </div>
+              <!-- Play/Stop button -->
+              <button
+                class="practice-btn"
+                @click="isPracticingPhrases ? stopPhrasePractice() : startPhrasePractice()"
+                :style="{ borderColor: accentColor, color: isPracticingPhrases ? accentColor : 'inherit' }"
+              >
+                <svg v-if="!isPracticingPhrases" viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                  <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+                <svg v-else viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                  <rect x="6" y="4" width="4" height="16"/>
+                  <rect x="14" y="4" width="4" height="16"/>
+                </svg>
+                {{ isPracticingPhrases ? 'Stop' : 'Play All' }}
+              </button>
+            </div>
           </div>
 
           <div class="phrases-list">
@@ -1808,6 +1835,38 @@ onUnmounted(() => {
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+.phrases-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.speed-selector {
+  display: flex;
+  gap: 2px;
+}
+
+.speed-btn {
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.65rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.speed-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.speed-btn.active {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: currentColor;
 }
 
 .practice-btn {
