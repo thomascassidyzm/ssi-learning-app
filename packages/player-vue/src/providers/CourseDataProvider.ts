@@ -1082,10 +1082,21 @@ export function isValidScriptItem(item: ScriptItem): boolean {
  * Based on formula: N - fibonacci[i] >= 1
  *
  * Each LEGO only appears once per round (deduplicated in case of edge cases).
+ *
+ * v2.0: Now includes phrase count with gentle ramping:
+ * - N-1 (first revisit): 1x (rounds 2-3), 2x (rounds 4-5), 3x (round 6+)
+ * - All other reviews: always 1x
  */
-function calculateSpacedRepReviews(roundNumber: number): Array<{ legoIndex: number; fibPosition: number }> {
-  const reviews: Array<{ legoIndex: number; fibPosition: number }> = []
+function calculateSpacedRepReviews(roundNumber: number): Array<{ legoIndex: number; fibPosition: number; phraseCount: number }> {
+  const reviews: Array<{ legoIndex: number; fibPosition: number; phraseCount: number }> = []
   const seenLegos = new Set<number>()
+
+  // Calculate N-1 phrase count based on round (gentle ramping)
+  const getN1PhraseCount = (round: number): number => {
+    if (round <= 3) return 1  // Rounds 2-3: light touch
+    if (round <= 5) return 2  // Rounds 4-5: building
+    return 3                   // Round 6+: full intensity
+  }
 
   for (let i = 0; i < FIBONACCI.length; i++) {
     const skip = FIBONACCI[i]
@@ -1102,13 +1113,29 @@ function calculateSpacedRepReviews(roundNumber: number): Array<{ legoIndex: numb
     }
 
     seenLegos.add(reviewLego)
+
+    // N-1 gets ramped phrase count, all others get 1
+    const isN1 = reviewLego === roundNumber - 1
+    const phraseCount = isN1 ? getN1PhraseCount(roundNumber) : 1
+
     reviews.push({
       legoIndex: reviewLego,
-      fibPosition: i
+      fibPosition: i,
+      phraseCount
     })
   }
 
   return reviews
+}
+
+/**
+ * Calculate how many consolidation eternals to include based on round
+ * Gentle ramping: 0 early, 1 mid, 2 late
+ */
+function getConsolidationEternalCount(roundNumber: number): number {
+  if (roundNumber <= 4) return 0   // Rounds 1-4: no eternals yet
+  if (roundNumber <= 7) return 1   // Rounds 5-7: building pool
+  return 2                          // Round 8+: full 2 eternals
 }
 
 /**
@@ -1150,12 +1177,14 @@ interface EternalPhrase {
  * This works across ALL languages including non-Roman scripts.
  */
 // Component breakdown for M-type LEGOs (visual display only)
-interface ComponentPart {
-  known: string
-  target: string
-  position: number
-}
-
+/**
+ * Load all practice phrases grouped by LEGO
+ * v2.0: NO COMPONENTS - they're removed entirely from the learning flow
+ *
+ * Returns:
+ * - debutMap: phrases for introduction (phrase_role = 'practice'), ordered by duration
+ * - eternalMap: phrases for spaced rep / consolidation (phrase_role = 'eternal_eligible')
+ */
 async function loadAllPracticePhrasesGrouped(
   supabase: any,
   courseId: string,
@@ -1163,13 +1192,11 @@ async function loadAllPracticePhrasesGrouped(
 ): Promise<{
   debutMap: Map<string, EternalPhrase[]>
   eternalMap: Map<string, EternalPhrase[]>
-  componentMap: Map<string, ComponentPart[]>
 }> {
   const debutMap = new Map<string, EternalPhrase[]>()
   const eternalMap = new Map<string, EternalPhrase[]>()
-  const componentMap = new Map<string, ComponentPart[]>()
 
-  if (!supabase) return { debutMap, eternalMap, componentMap }
+  if (!supabase) return { debutMap, eternalMap }
 
   // Helper to resolve audio URL - s3_key is the actual S3 object key
   const resolveAudioUrl = (s3Key: string | null): string => {
@@ -1272,45 +1299,13 @@ async function loadAllPracticePhrasesGrouped(
       eternalOffset += pageSize
     }
 
-    // Load components for M-type LEGOs (visual display only, no audio)
-    let componentOffset = 0
+    // v2.0: NO COMPONENTS - removed entirely from learning flow
 
-    while (true) {
-      const { data: page, error } = await supabase
-        .from('practice_cycles')
-        .select('lego_id, position, known_text, target_text')
-        .eq('course_code', courseId)
-        .eq('phrase_role', 'component')
-        .order('lego_id', { ascending: true })
-        .order('position', { ascending: true })
-        .range(componentOffset, componentOffset + pageSize - 1)
-
-      if (error) {
-        console.error('[loadAllPracticePhrasesGrouped] Query error (components):', error)
-        break
-      }
-      if (!page || page.length === 0) break
-
-      for (const row of page) {
-        if (!componentMap.has(row.lego_id)) {
-          componentMap.set(row.lego_id, [])
-        }
-        componentMap.get(row.lego_id)!.push({
-          known: row.known_text,
-          target: row.target_text,
-          position: row.position
-        })
-      }
-
-      if (page.length < pageSize) break
-      componentOffset += pageSize
-    }
-
-    console.log(`[loadAllPracticePhrasesGrouped] Loaded ${debutMap.size} LEGOs with debut, ${eternalMap.size} eternal, ${componentMap.size} with components`)
-    return { debutMap, eternalMap, componentMap }
+    console.log(`[loadAllPracticePhrasesGrouped] Loaded ${debutMap.size} LEGOs with debut, ${eternalMap.size} with eternal`)
+    return { debutMap, eternalMap }
   } catch (err) {
     console.error('[loadAllPracticePhrasesGrouped] Error:', err)
-    return { debutMap, eternalMap, componentMap }
+    return { debutMap, eternalMap }
   }
 }
 
@@ -1397,8 +1392,9 @@ export async function generateLearningScript(
     return { rounds: [], allItems: [] }
   }
 
-  // Load ALL practice phrases by role: debut, eternal, and components
-  const { debutMap: debutPhrases, eternalMap: eternalPhrases, componentMap } = await loadAllPracticePhrasesGrouped(
+  // Load ALL practice phrases by role: debut and eternal
+  // v2.0: NO COMPONENTS - removed entirely from learning flow
+  const { debutMap: debutPhrases, eternalMap: eternalPhrases } = await loadAllPracticePhrasesGrouped(
     supabase,
     courseId,
     audioBaseUrl
@@ -1593,19 +1589,15 @@ export async function generateLearningScript(
     }
 
     // Phase 1: Introduction Audio (not a phrase, doesn't count)
-    // Include presentation audio directly in the script item
-    // For M-type LEGOs, include component breakdown for visual display
+    // v2.0: NO COMPONENTS - removed entirely from learning flow
     const introAudio = introAudioMap.get(currentLego.lego.id)
-    const legoComponents = componentMap.get(currentLego.lego.id)
     roundItems.push({
       ...baseItem,
       type: 'intro',
       presentationAudio: introAudio, // Already resolved URL
-      // Visual breakdown for M-type LEGOs: "después de / que / termines" -> "after / that / you finish"
-      components: legoComponents?.map(c => ({ known: c.known, target: c.target })),
     })
 
-    // Phase 2: Components - now visual only (displayed in intro phase above)
+    // Phase 2: (Removed in v2.0 - no component breakdown)
 
     // Phase 3: LEGO Debut
     roundItems.push({
@@ -1641,9 +1633,10 @@ export async function generateLearningScript(
       reviewIndices.push(review.legoIndex)
       const reviewEternals = eternalPhrases.get(reviewLego.lego.id) || []
 
-      // N-1 (first revisit) gets 3x phrases, others get 1x
-      const isFirstRevisit = review.legoIndex === n - 1
-      const targetPhraseCount = isFirstRevisit ? 3 : 1
+      // v2.0: Use ramped phrase count from calculateSpacedRepReviews
+      // N-1: 1x (rounds 2-3), 2x (rounds 4-5), 3x (round 6+)
+      // Others: always 1x
+      const targetPhraseCount = review.phraseCount
 
       // Find unused phrases from the eternal pool (case-insensitive)
       const availablePhrases = reviewEternals.filter(p => !usedPhrasesInRound.has(normalizePhrase(p.targetText)))
@@ -1676,11 +1669,13 @@ export async function generateLearningScript(
       }
     }
 
-    // Phase 6: Consolidation (2 eternal phrases for the new LEGO)
+    // Phase 6: Consolidation (eternal phrases for the new LEGO)
+    // v2.0: Gentle ramping - 0 early, 1 mid, 2 late
     // Must also check usedPhrasesInRound to avoid repeating LEGO/DEBUT phrases
     const usedConsolidation = new Set<string>()
+    const consolidationCount = getConsolidationEternalCount(n)
 
-    for (let c = 0; c < 2; c++) {
+    for (let c = 0; c < consolidationCount; c++) {
       // Find phrases not yet used in round OR consolidation
       const availableForConsolidation = currentEternals.filter(p =>
         !usedPhrasesInRound.has(normalizePhrase(p.targetText)) &&
