@@ -31,7 +31,6 @@ class TargetAudioController {
     }
 
     this.audio.src = url
-    this.audio.playbackRate = 1.5  // Faster playback for listening/review mode
     this.audio.load()
 
     return new Promise((resolve, reject) => {
@@ -50,6 +49,8 @@ class TargetAudioController {
       this.audio!.addEventListener('ended', onEnded)
       this.audio!.addEventListener('error', onError)
 
+      // Set playback rate just before playing (2x for review mode)
+      this.audio!.playbackRate = 2.0
       this.audio!.play().catch(onError)
     })
   }

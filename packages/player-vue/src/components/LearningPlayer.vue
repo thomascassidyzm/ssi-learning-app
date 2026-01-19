@@ -3185,6 +3185,10 @@ const handleGoBackBelt = async () => {
 const turboActive = ref(false)
 const listeningModeComingSoon = ref(false) // Future: passive listening mode
 
+// Mode explanation popups
+const showTurboPopup = ref(false)
+const showListeningPopup = ref(false)
+
 // Belt skip feedback state
 const isSkippingBelt = ref(false)
 
@@ -3329,18 +3333,41 @@ const endTimingCycle = (modelDurationMs) => {
   return result
 }
 
-// Show "coming soon" for listening mode
+// Show listening mode explanation popup
 const handleListeningMode = () => {
-  listeningModeComingSoon.value = true
-  setTimeout(() => {
-    listeningModeComingSoon.value = false
-  }, 2000)
+  showListeningPopup.value = true
 }
 
-const toggleTurbo = () => {
-  turboActive.value = !turboActive.value
+// Close listening popup
+const closeListeningPopup = () => {
+  showListeningPopup.value = false
+}
 
-  // Update orchestrator config based on algorithm settings
+// Show turbo explanation popup (first time) or toggle if already enabled
+const handleTurboClick = () => {
+  if (turboActive.value) {
+    // Already on - just toggle off
+    toggleTurbo()
+  } else {
+    // Show explanation popup first
+    showTurboPopup.value = true
+  }
+}
+
+// Confirm and enable turbo mode
+const confirmTurbo = () => {
+  showTurboPopup.value = false
+  turboActive.value = true
+  applyTurboConfig()
+}
+
+// Close turbo popup without enabling
+const closeTurboPopup = () => {
+  showTurboPopup.value = false
+}
+
+// Apply turbo config to orchestrator
+const applyTurboConfig = () => {
   if (orchestrator.value) {
     const config = turboActive.value ? turboConfig.value : normalConfig.value
     const item = currentItem.value
@@ -3348,15 +3375,16 @@ const toggleTurbo = () => {
       ? Math.round(item.audioDurations.target1 * 1000)
       : 2000 // Fallback
 
-    // Calculate pause using config parameters
-    const pauseMs = calculatePause(config, targetDurationMs)
-    orchestrator.value.updateConfig({ pause_duration_ms: pauseMs })
-
-    // TODO: Apply playback_speed to audio controller when supported
-    // audioController.value?.setPlaybackRate(config.playback_speed)
-
-    console.log(`[Turbo] ${turboActive.value ? 'ON' : 'OFF'} - pause: ${pauseMs}ms, config:`, config)
+    // Calculate pause using the config formula
+    const pauseMs = calculatePause(targetDurationMs, turboActive.value)
+    orchestrator.value.updateConfig({ pauseDuration: pauseMs })
+    console.log(`[Turbo] ${turboActive.value ? 'ON' : 'OFF'} - pause: ${pauseMs}ms`)
   }
+}
+
+const toggleTurbo = () => {
+  turboActive.value = !turboActive.value
+  applyTurboConfig()
 }
 
 // ============================================
@@ -4640,23 +4668,25 @@ defineExpose({
       <span class="class-course">{{ props.classContext.course }}</span>
     </div>
 
-    <!-- Header - Centered belt/timer, logo top right -->
+    <!-- Header - Logo with belt underneath, centered -->
     <header class="header" :class="{ 'has-banner': props.classContext }">
-      <!-- Unified Belt + Timer - Centered, wide, opens modal on tap -->
-      <button
-        class="belt-timer-unified"
-        @click="openBeltProgressModal"
-        :title="!nextBelt ? 'Black belt achieved!' : `${Math.round(beltProgressPercent)}% to ${nextBelt.name} belt`"
-      >
-        <div class="belt-bar-track">
-          <div class="belt-bar-fill" :style="{ width: `${beltProgressPercent}%` }"></div>
+      <div class="header-stack">
+        <!-- Logo - Centered -->
+        <div class="brand">
+          <span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span>
         </div>
-        <span class="belt-timer-label">{{ formattedSessionTime }}</span>
-      </button>
 
-      <!-- Logo - Top right -->
-      <div class="brand">
-        <span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span>
+        <!-- Belt + Timer - Underneath logo, opens modal on tap -->
+        <button
+          class="belt-timer-unified"
+          @click="openBeltProgressModal"
+          :title="!nextBelt ? 'Black belt achieved!' : `${Math.round(beltProgressPercent)}% to ${nextBelt.name} belt`"
+        >
+          <div class="belt-bar-track">
+            <div class="belt-bar-fill" :style="{ width: `${beltProgressPercent}%` }"></div>
+          </div>
+          <span class="belt-timer-label">{{ formattedSessionTime }}</span>
+        </button>
       </div>
     </header>
 
@@ -4671,6 +4701,51 @@ defineExpose({
       @close="closeBeltProgressModal"
       @view-progress="handleViewFullProgress"
     />
+
+    <!-- Turbo Mode Explanation Popup -->
+    <Transition name="fade">
+      <div v-if="showTurboPopup" class="mode-popup-overlay" @click.self="closeTurboPopup">
+        <div class="mode-popup">
+          <div class="mode-popup-icon mode-popup-icon--turbo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+            </svg>
+          </div>
+          <h3 class="mode-popup-title">Turbo Mode</h3>
+          <p class="mode-popup-desc">
+            Turbo mode reduces the pause time between phrases, giving you less thinking time.
+            It's great for building fluency once you're comfortable with the material.
+          </p>
+          <div class="mode-popup-actions">
+            <button class="mode-popup-btn mode-popup-btn--cancel" @click="closeTurboPopup">Cancel</button>
+            <button class="mode-popup-btn mode-popup-btn--confirm" @click="confirmTurbo">Enable Turbo</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Listening Mode Explanation Popup -->
+    <Transition name="fade">
+      <div v-if="showListeningPopup" class="mode-popup-overlay" @click.self="closeListeningPopup">
+        <div class="mode-popup">
+          <div class="mode-popup-icon mode-popup-icon--listening">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+              <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+            </svg>
+          </div>
+          <h3 class="mode-popup-title">Listening Mode</h3>
+          <p class="mode-popup-desc">
+            Listening mode lets you absorb the language passively without needing to speak.
+            Perfect for when you can't talk out loud or want a more relaxed session.
+          </p>
+          <p class="mode-popup-coming-soon">Coming soon!</p>
+          <div class="mode-popup-actions">
+            <button class="mode-popup-btn mode-popup-btn--confirm" @click="closeListeningPopup">Got it</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
 
     <!-- SPLIT-STAGE LAYOUT: Network Theater (top) + Control Pane (bottom) -->
 
@@ -4867,7 +4942,7 @@ defineExpose({
         <button
           class="mode-btn mode-btn--turbo"
           :class="{ active: turboActive }"
-          @click="toggleTurbo"
+          @click="handleTurboClick"
           title="Turbo Boost"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -5264,15 +5339,23 @@ defineExpose({
   z-index: 15; /* Higher than hero-text-pane (10) to prevent overlap issues */
   display: flex;
   align-items: center;
-  justify-content: center; /* Center the belt-timer */
-  padding: calc(1rem + var(--safe-area-top, 0px)) 1.5rem 1rem 1.5rem;
+  justify-content: center; /* Center the header stack */
+  padding: calc(0.75rem + var(--safe-area-top, 0px)) 1.5rem 0.5rem 1.5rem;
   gap: 0.75rem;
   pointer-events: auto; /* Header buttons clickable */
   min-height: 60px; /* Prevent header from getting too small */
 }
 
 .header.has-banner {
-  padding-top: 0.75rem;
+  padding-top: 0.5rem;
+}
+
+/* Header stack - logo on top, belt underneath */
+.header-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.375rem;
 }
 
 /* Close button removed - navigation handled by bottom nav */
@@ -5280,12 +5363,8 @@ defineExpose({
   display: none;
 }
 
-/* Brand/logo positioned top-right */
+/* Brand/logo - centered in stack */
 .brand {
-  position: absolute;
-  right: 1.5rem;
-  top: 50%;
-  transform: translateY(-50%);
   font-family: 'DM Sans', -apple-system, sans-serif;
   font-weight: 700;
   font-size: clamp(0.875rem, 2vw, 1.0625rem);
@@ -7501,14 +7580,116 @@ defineExpose({
   box-shadow: 0 0 16px rgba(212, 168, 83, 0.4);
 }
 
+/* Mode Explanation Popups */
+.mode-popup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  padding: 1.5rem;
+}
+
+.mode-popup {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-medium);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  max-width: 320px;
+  text-align: center;
+}
+
+.mode-popup-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 1rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mode-popup-icon svg {
+  width: 28px;
+  height: 28px;
+}
+
+.mode-popup-icon--turbo {
+  background: var(--gold-soft);
+  color: var(--gold);
+}
+
+.mode-popup-icon--listening {
+  background: rgba(96, 165, 250, 0.15);
+  color: #60a5fa;
+}
+
+.mode-popup-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 0.75rem;
+}
+
+.mode-popup-desc {
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0 0 1.25rem;
+}
+
+.mode-popup-coming-soon {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--accent);
+  margin: -0.5rem 0 1.25rem;
+}
+
+.mode-popup-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.mode-popup-btn {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.mode-popup-btn--cancel {
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+}
+
+.mode-popup-btn--cancel:hover {
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+.mode-popup-btn--confirm {
+  background: var(--accent);
+  color: white;
+}
+
+.mode-popup-btn--confirm:hover {
+  filter: brightness(1.1);
+}
+
 /* Belt Navigation Buttons - Double chevrons for belt jumps */
 .belt-nav-btn {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  border: 1px solid transparent;
+  border: 2px solid;
   background: rgba(255, 255, 255, 0.04);
-  color: var(--text-muted);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -7523,8 +7704,7 @@ defineExpose({
 
 .belt-nav-btn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.1);
-  color: var(--belt-color, var(--text-primary));
-  border-color: var(--belt-color, var(--text-muted));
+  transform: scale(1.05);
 }
 
 .belt-nav-btn:disabled {
@@ -7532,25 +7712,25 @@ defineExpose({
   cursor: not-allowed;
 }
 
-/* Forward button shows next belt color */
+/* Forward button shows next belt color - always visible border */
 .belt-nav-btn--forward {
   color: var(--next-belt-color, var(--text-muted));
+  border-color: var(--next-belt-color, var(--text-muted));
 }
 
 .belt-nav-btn--forward:hover:not(:disabled) {
   color: var(--next-belt-color, var(--text-primary));
-  border-color: var(--next-belt-color, var(--text-muted));
   box-shadow: 0 0 12px var(--next-belt-glow, transparent);
 }
 
-/* Back button shows target belt color */
+/* Back button shows target belt color - always visible border */
 .belt-nav-btn--back {
   color: var(--back-belt-color, var(--text-muted));
+  border-color: var(--back-belt-color, var(--text-muted));
 }
 
 .belt-nav-btn--back:hover:not(:disabled) {
   color: var(--back-belt-color, var(--text-primary));
-  border-color: var(--back-belt-color, var(--text-muted));
 }
 
 /* Belt skip processing animation for bottom nav */
