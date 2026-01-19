@@ -4554,6 +4554,8 @@ onUnmounted(() => {
               <div class="belt-bar-fill" :style="{ width: `${beltProgressPercent}%` }"></div>
             </div>
             <div class="belt-bar-label">{{ Math.round(beltProgressPercent) }}%</div>
+            <!-- Inline timer for mobile compact mode -->
+            <span class="belt-inline-timer">{{ formattedSessionTime }}</span>
           </button>
 
           <!-- Skip to next belt -->
@@ -5433,6 +5435,18 @@ onUnmounted(() => {
   text-align: right;
 }
 
+/* Inline timer - hidden by default, shown on mobile compact mode */
+.belt-inline-timer {
+  display: none;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  padding-left: 0.5rem;
+  border-left: 1px solid var(--border-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ============ FULLSCREEN NETWORK LAYOUT ============ */
 /* Network fills the whole screen, controls float on top */
 
@@ -6224,8 +6238,8 @@ onUnmounted(() => {
 /* Extra small phones (320px) */
 @media (max-width: 360px) {
   .hero-text-pane {
-    /* Position below 2-row wrapped header + safe area */
-    top: calc(130px + var(--safe-area-top, 0px));
+    /* Position below single-row compact header + safe area */
+    top: calc(70px + var(--safe-area-top, 0px));
     max-width: 98vw;
     gap: 8px;
   }
@@ -6277,8 +6291,8 @@ onUnmounted(() => {
 /* Small phones (361-479px) - includes iPhone 16 (393px) */
 @media (min-width: 361px) and (max-width: 479px) {
   .hero-text-pane {
-    /* Position below 2-row wrapped header: ~50px row1 + ~50px row2 + safe area + padding */
-    top: calc(140px + var(--safe-area-top, 0px));
+    /* Position below single-row compact header + safe area */
+    top: calc(80px + var(--safe-area-top, 0px));
     max-width: 95vw;
     gap: 12px;
   }
@@ -6328,7 +6342,7 @@ onUnmounted(() => {
 @media (min-width: 480px) and (max-width: 767px) {
   .hero-text-pane {
     /* Position below header with safe area consideration */
-    top: calc(90px + var(--safe-area-top, 0px));
+    top: calc(85px + var(--safe-area-top, 0px));
     max-width: 90vw;
     gap: 14px;
   }
@@ -7558,7 +7572,7 @@ onUnmounted(() => {
 @media (max-width: 360px) {
   .header {
     padding: calc(0.5rem + var(--safe-area-top, 0px)) 0.75rem 0.5rem 0.75rem;
-    flex-wrap: wrap;
+    flex-wrap: nowrap; /* Single row - no wrapping */
     gap: 0.375rem;
     min-height: 52px;
   }
@@ -7584,44 +7598,35 @@ onUnmounted(() => {
     gap: 0.25rem;
   }
 
+  /* Hide belt nav arrows on extra small - just show combined progress+timer */
   .belt-nav-header-btn {
-    min-width: 44px;
-    min-height: 44px;
-    width: 28px;
-    height: 28px;
-  }
-
-  .belt-nav-header-btn svg {
-    width: 12px;
-    height: 12px;
+    display: none;
   }
 
   .belt-progress-btn {
-    padding: 0.25rem 0.375rem;
-    gap: 0.25rem;
+    padding: 0.375rem 0.5rem;
+    gap: 0.375rem;
     min-height: 36px;
   }
 
   .belt-bar-track {
-    width: 32px;
+    width: 40px;
     height: 4px;
   }
 
   .belt-bar-label {
-    font-size: 0.625rem;
-    min-width: 24px;
+    font-size: 0.6875rem;
+    min-width: 28px;
+  }
+
+  /* Show inline timer, hide separate timer */
+  .belt-inline-timer {
+    display: block;
+    font-size: 0.6875rem;
   }
 
   .session-timer {
-    padding: 0.25rem 0.375rem;
-    font-size: 0.625rem;
-    gap: 0.25rem;
-    min-height: 36px;
-  }
-
-  .timer-end-icon {
-    width: 12px;
-    height: 12px;
+    display: none;
   }
 
   .main {
@@ -7693,11 +7698,11 @@ onUnmounted(() => {
   }
 }
 
-/* Small phones (361-479px) */
+/* Small phones (361-479px) - includes iPhone 16 */
 @media (min-width: 361px) and (max-width: 479px) {
   .header {
     padding: calc(0.75rem + var(--safe-area-top, 0px)) 1rem 0.75rem 1rem;
-    flex-wrap: wrap;
+    flex-wrap: nowrap; /* Single row - no wrapping */
     gap: 0.5rem;
   }
 
@@ -7714,38 +7719,34 @@ onUnmounted(() => {
     gap: 0.375rem;
   }
 
+  /* Hide belt nav arrows - just show combined progress+timer */
   .belt-nav-header-btn {
-    width: 24px;
-    height: 24px;
-    min-width: 44px;
-    min-height: 44px;
-  }
-
-  .belt-nav-header-btn svg {
-    width: 12px;
-    height: 12px;
+    display: none;
   }
 
   .belt-progress-btn {
-    padding: 0.25rem 0.5rem;
-    gap: 0.375rem;
+    padding: 0.375rem 0.625rem;
+    gap: 0.5rem;
   }
 
   .belt-bar-track {
-    width: 40px;
+    width: 50px;
     height: 5px;
   }
 
   .belt-bar-label {
-    font-size: 0.6875rem;
-    min-width: 28px;
+    font-size: 0.75rem;
+    min-width: 30px;
+  }
+
+  /* Show inline timer, hide separate timer */
+  .belt-inline-timer {
+    display: block;
+    font-size: 0.75rem;
   }
 
   .session-timer {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.6875rem;
-    gap: 0.375rem;
-    min-height: 40px;
+    display: none;
   }
 
   .main {
