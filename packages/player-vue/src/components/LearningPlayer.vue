@@ -26,7 +26,7 @@ import { useLegoNetwork } from '../composables/useLegoNetwork'
 import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
 import ConstellationNetworkView from './ConstellationNetworkView.vue'
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'playStateChanged'])
 
 const props = defineProps({
   classContext: {
@@ -1109,6 +1109,11 @@ const corePhaseToUiPhase = (corePhase) => {
 const currentPhase = ref(Phase.PROMPT)
 const currentItemIndex = ref(0)
 const isPlaying = ref(false) // Start paused until engine ready
+
+// Emit play state changes to parent (for nav bar play/stop toggle)
+watch(isPlaying, (playing) => {
+  emit('playStateChanged', playing)
+})
 
 // Layout mode: 'default' | 'subtitle' | 'floating' | 'minimal'
 const layoutMode = ref('subtitle')  // Try subtitle mode by default
@@ -4342,6 +4347,22 @@ onUnmounted(() => {
     beltLoader.value.clearCache()
   }
 })
+
+// Expose methods for parent component (PlayerContainer) to control playback
+const togglePlayback = () => {
+  if (isPlaying.value) {
+    handlePause()
+  } else {
+    handleResume()
+  }
+}
+
+defineExpose({
+  isPlaying,
+  togglePlayback,
+  handlePause,
+  handleResume,
+})
 </script>
 
 <template>
@@ -4753,101 +4774,91 @@ onUnmounted(() => {
       </div>
     </Transition>
 
-    <!-- Control Bar - Always visible -->
+    <!-- Control Bar - Always visible, 3+3 balanced layout around nav bar play button -->
     <div class="control-bar">
-      <button
-        class="mode-btn"
-        :class="{ 'coming-soon': listeningModeComingSoon }"
-        @click="handleListeningMode"
-        title="Listening Mode (Coming Soon)"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
-          <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
-        </svg>
-        <span v-if="listeningModeComingSoon" class="coming-soon-label">Coming Soon</span>
-      </button>
+      <!-- Left side: Listening | Belt Back | Revisit -->
+      <div class="control-group control-group--left">
+        <button
+          class="mode-btn"
+          :class="{ 'coming-soon': listeningModeComingSoon }"
+          @click="handleListeningMode"
+          title="Listening Mode (Coming Soon)"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+            <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+          </svg>
+          <span v-if="listeningModeComingSoon" class="coming-soon-label">Coming Soon</span>
+        </button>
 
-      <!-- Belt Navigation: Back -->
-      <button
-        class="belt-nav-btn belt-nav-btn--back"
-        :class="{ 'is-skipping': isSkippingBelt }"
-        @click="handleGoBackBelt"
-        :disabled="!previousBelt && currentBelt.seedsRequired === completedSeeds"
-        :title="`Back to ${backTargetBelt.name} belt`"
-        :style="{ '--back-belt-color': backTargetBelt.color }"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="11 17 6 12 11 7"/>
-          <polyline points="18 17 13 12 18 7"/>
-        </svg>
-      </button>
+        <button
+          class="belt-nav-btn belt-nav-btn--back"
+          :class="{ 'is-skipping': isSkippingBelt }"
+          @click="handleGoBackBelt"
+          :disabled="!previousBelt && currentBelt.seedsRequired === completedSeeds"
+          :title="`Back to ${backTargetBelt.name} belt`"
+          :style="{ '--back-belt-color': backTargetBelt.color }"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="11 17 6 12 11 7"/>
+            <polyline points="18 17 13 12 18 7"/>
+          </svg>
+        </button>
 
-      <div class="transport-controls">
         <button class="transport-btn" @click="handleRevisit" title="Revisit">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="1 4 1 10 7 10"/>
             <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
           </svg>
         </button>
+      </div>
 
-        <!-- Main Play/Stop Button -->
-        <button
-          class="transport-btn transport-btn--main"
-          @click="isPlaying ? handlePause() : handleResume()"
-          :title="isPlaying ? 'Stop' : 'Play'"
-        >
-          <svg v-if="isPlaying" viewBox="0 0 24 24" fill="currentColor">
-            <rect x="4" y="4" width="16" height="16" rx="2"/>
-          </svg>
-          <svg v-else viewBox="0 0 24 24" fill="currentColor">
-            <polygon points="6 3 20 12 6 21 6 3"/>
-          </svg>
-        </button>
-
+      <!-- Right side: Skip | Belt Forward | Turbo -->
+      <div class="control-group control-group--right">
         <button class="transport-btn" @click="handleSkip" title="Skip">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polygon points="5 4 15 12 5 20 5 4" fill="currentColor"/>
             <line x1="19" y1="5" x2="19" y2="19"/>
           </svg>
         </button>
+
+        <button
+          class="belt-nav-btn belt-nav-btn--forward"
+          :class="{ 'is-skipping': isSkippingBelt }"
+          @click="handleSkipToNextBelt"
+          :disabled="!nextBelt"
+          :title="nextBelt ? `Skip to ${nextBelt.name} belt` : 'Black belt achieved!'"
+          :style="nextBelt ? { '--next-belt-color': nextBelt.color, '--next-belt-glow': nextBelt.glow } : {}"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="13 17 18 12 13 7"/>
+            <polyline points="6 17 11 12 6 7"/>
+          </svg>
+        </button>
+
+        <button
+          class="mode-btn mode-btn--turbo"
+          :class="{ active: turboActive }"
+          @click="toggleTurbo"
+          title="Turbo Boost"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+          </svg>
+        </button>
       </div>
-
-      <!-- Belt Navigation: Forward - colored with next belt -->
-      <button
-        class="belt-nav-btn belt-nav-btn--forward"
-        :class="{ 'is-skipping': isSkippingBelt }"
-        @click="handleSkipToNextBelt"
-        :disabled="!nextBelt"
-        :title="nextBelt ? `Skip to ${nextBelt.name} belt` : 'Black belt achieved!'"
-        :style="nextBelt ? { '--next-belt-color': nextBelt.color, '--next-belt-glow': nextBelt.glow } : {}"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="13 17 18 12 13 7"/>
-          <polyline points="6 17 11 12 6 7"/>
-        </svg>
-      </button>
-
-      <button
-        class="mode-btn mode-btn--turbo"
-        :class="{ active: turboActive }"
-        @click="toggleTurbo"
-        title="Turbo Boost"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-        </svg>
-      </button>
-
-      <!-- Report Issue Button (for QA feedback) -->
-      <ReportIssueButton
-        :course-code="activeCourseCode"
-        :current-item="currentItem"
-        :current-known="visibleTexts.known"
-        :current-target="visibleTexts.target"
-        :qa-mode="isQaMode"
-      />
     </div>
+
+    <!-- Report Issue Button - moved to header area for QA mode only -->
+    <ReportIssueButton
+      v-if="isQaMode"
+      class="qa-report-btn"
+      :course-code="activeCourseCode"
+      :current-item="currentItem"
+      :current-known="visibleTexts.known"
+      :current-target="visibleTexts.target"
+      :qa-mode="isQaMode"
+    />
 
     <!-- Footer -->
     <footer class="footer">
@@ -7385,7 +7396,7 @@ onUnmounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 1.25rem;
+  gap: 3rem; /* Gap between left and right groups - space for nav play button */
   padding: 0.75rem 1.5rem;
   position: absolute;
   /* Position above the bottom nav bar (80px) + some spacing */
@@ -7404,6 +7415,21 @@ onUnmounted(() => {
   /* Always visible */
   opacity: 1;
   pointer-events: auto;
+}
+
+/* Control groups for 3+3 layout */
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* QA Report button - positioned in header area */
+.qa-report-btn {
+  position: fixed;
+  top: calc(1rem + env(safe-area-inset-top, 0px));
+  right: 1rem;
+  z-index: 100;
 }
 
 .mode-btn {
@@ -7517,25 +7543,13 @@ onUnmounted(() => {
   border-color: var(--back-belt-color, var(--accent));
 }
 
-.transport-controls {
-  display: flex;
-  gap: 0.25rem;
-  padding: 0.25rem;
-  background: rgba(255, 255, 255, 0.06);
-  border: none;
-  border-radius: 100px;
-  /* Subtle belt-colored glow underneath */
-  box-shadow:
-    0 2px 12px rgba(0, 0, 0, 0.3),
-    0 0 0 1px var(--belt-glow, rgba(194, 58, 58, 0.06));
-}
-
+/* Transport buttons (Revisit, Skip) */
 .transport-btn {
   width: 36px;
   height: 36px;
   border-radius: 50%;
   border: none;
-  background: transparent;
+  background: rgba(255, 255, 255, 0.08);
   color: var(--text-muted);
   cursor: pointer;
   display: flex;
@@ -7550,31 +7564,9 @@ onUnmounted(() => {
 }
 
 .transport-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.15);
   color: var(--text-primary);
-}
-
-/* Main Play/Stop Button - Prominent */
-.transport-btn--main {
-  width: 44px;
-  height: 44px;
-  background: var(--accent);
-  color: white;
-  border-radius: 50%;
-  box-shadow: 0 2px 12px var(--accent-glow);
-  transition: all 0.2s ease;
-}
-
-.transport-btn--main svg {
-  width: 18px;
-  height: 18px;
-}
-
-.transport-btn--main:hover {
-  background: var(--accent);
-  color: white;
-  transform: scale(1.1);
-  box-shadow: 0 6px 24px var(--accent-glow);
+  transform: scale(1.05);
 }
 
 /* ============ FOOTER ============ */
@@ -7814,11 +7806,15 @@ onUnmounted(() => {
   }
 
   .control-bar {
-    gap: 0.5rem;
+    gap: 1.5rem; /* Smaller gap on small screens */
     padding: 0.375rem 0.5rem;
     /* Above nav bar on extra small phones */
     bottom: calc(90px + env(safe-area-inset-bottom, 0px));
     border-radius: 14px;
+  }
+
+  .control-group {
+    gap: 0.25rem;
   }
 
   .mode-btn,
@@ -7846,16 +7842,6 @@ onUnmounted(() => {
   .transport-btn svg {
     width: 12px;
     height: 12px;
-  }
-
-  .transport-btn--main {
-    width: 36px;
-    height: 36px;
-  }
-
-  .transport-btn--main svg {
-    width: 14px;
-    height: 14px;
   }
 }
 
@@ -7935,10 +7921,14 @@ onUnmounted(() => {
   }
 
   .control-bar {
-    gap: 0.75rem;
+    gap: 2rem; /* Space for nav play button */
     padding: 0.5rem 0.75rem;
     /* Above nav bar on small phones */
     bottom: calc(95px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .control-group {
+    gap: 0.375rem;
   }
 
   .mode-btn,
@@ -7966,16 +7956,6 @@ onUnmounted(() => {
   .transport-btn svg {
     width: 14px;
     height: 14px;
-  }
-
-  .transport-btn--main {
-    width: 40px;
-    height: 40px;
-  }
-
-  .transport-btn--main svg {
-    width: 16px;
-    height: 16px;
   }
 }
 
@@ -8026,9 +8006,13 @@ onUnmounted(() => {
   }
 
   .control-bar {
-    gap: 1.25rem;
+    gap: 3rem; /* Space for nav play button */
     padding: 0.875rem 1.5rem;
     border-radius: 22px;
+  }
+
+  .control-group {
+    gap: 0.75rem;
   }
 
   .mode-btn {
@@ -8049,16 +8033,6 @@ onUnmounted(() => {
   .transport-btn svg {
     width: 20px;
     height: 20px;
-  }
-
-  .transport-btn--main {
-    width: 56px;
-    height: 56px;
-  }
-
-  .transport-btn--main svg {
-    width: 24px;
-    height: 24px;
   }
 }
 
@@ -8137,11 +8111,15 @@ onUnmounted(() => {
   }
 
   .control-bar {
-    gap: 1.75rem;
+    gap: 4rem; /* Space for nav play button */
     padding: 1.25rem 2.5rem;
     border-radius: 28px;
     /* Above nav bar on large desktops */
     bottom: calc(110px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .control-group {
+    gap: 1rem;
   }
 
   .mode-btn {
@@ -8163,16 +8141,6 @@ onUnmounted(() => {
   .transport-btn svg {
     width: 24px;
     height: 24px;
-  }
-
-  .transport-btn--main {
-    width: 68px;
-    height: 68px;
-  }
-
-  .transport-btn--main svg {
-    width: 28px;
-    height: 28px;
   }
 
   .belt-nav-btn {
@@ -8222,9 +8190,13 @@ onUnmounted(() => {
 
   .control-bar {
     padding: 0.375rem 0.75rem;
-    gap: 0.5rem;
+    gap: 1.5rem; /* Space for nav play button */
     /* Above nav bar in landscape */
     bottom: 85px;
+  }
+
+  .control-group {
+    gap: 0.25rem;
   }
 
   .mode-btn {
@@ -8239,11 +8211,6 @@ onUnmounted(() => {
     height: 32px;
     min-height: 44px;
     min-width: 44px;
-  }
-
-  .transport-btn--main {
-    width: 40px;
-    height: 40px;
   }
 }
 

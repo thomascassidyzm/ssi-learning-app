@@ -10,10 +10,15 @@ const props = defineProps({
   isLearning: {
     type: Boolean,
     default: false
+  },
+  // When on player screen, show play/stop based on this
+  isPlaying: {
+    type: Boolean,
+    default: false
   }
 })
 
-const emit = defineEmits(['navigate', 'startLearning'])
+const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback'])
 
 // Auth state from injected auth provider
 const auth = inject('auth', null)
@@ -61,7 +66,10 @@ const handleNavTap = (itemId) => {
   emit('navigate', itemId)
 }
 
-// Handle play button
+// Check if we're on the player screen
+const isOnPlayerScreen = computed(() => props.currentScreen === 'player')
+
+// Handle play button - either start learning or toggle playback
 const handlePlayTap = () => {
   playButtonPressed.value = true
   setTimeout(() => { playButtonPressed.value = false }, 200)
@@ -70,8 +78,22 @@ const handlePlayTap = () => {
     navigator.vibrate([10, 50, 10])
   }
 
-  emit('startLearning')
+  if (isOnPlayerScreen.value) {
+    // On player screen - toggle play/pause
+    emit('togglePlayback')
+  } else {
+    // Not on player - start learning
+    emit('startLearning')
+  }
 }
+
+// Button label and icon based on state
+const playButtonLabel = computed(() => {
+  if (isOnPlayerScreen.value) {
+    return props.isPlaying ? 'Stop' : 'Play'
+  }
+  return 'Learn'
+})
 
 // Handle account button tap
 const handleAccountTap = () => {
@@ -138,21 +160,26 @@ const isVisible = computed(() => !props.isLearning)
           </button>
         </div>
 
-        <!-- Central Play Button -->
+        <!-- Central Play/Stop Button -->
         <div class="play-button-container">
           <button
             class="play-button"
-            :class="{ pressed: playButtonPressed }"
+            :class="{ pressed: playButtonPressed, 'is-playing': isOnPlayerScreen && isPlaying }"
             @click="handlePlayTap"
           >
             <div class="play-button-glow"></div>
             <div class="play-button-inner">
-              <svg viewBox="0 0 24 24" fill="currentColor">
+              <!-- Stop icon when playing on player screen -->
+              <svg v-if="isOnPlayerScreen && isPlaying" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="6" y="6" width="12" height="12" rx="1"/>
+              </svg>
+              <!-- Play icon otherwise -->
+              <svg v-else viewBox="0 0 24 24" fill="currentColor">
                 <polygon points="6 3 20 12 6 21 6 3"/>
               </svg>
             </div>
           </button>
-          <span class="play-label">Learn</span>
+          <span class="play-label">{{ playButtonLabel }}</span>
         </div>
 
         <!-- Right nav items -->
@@ -467,6 +494,11 @@ const isVisible = computed(() => !props.isLearning)
   height: 24px;
   margin-left: 2px; /* Optical centering for play icon */
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+}
+
+/* Stop icon doesn't need the optical centering offset */
+.play-button.is-playing .play-button-inner svg {
+  margin-left: 0;
 }
 
 .play-label {

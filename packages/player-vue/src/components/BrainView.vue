@@ -15,6 +15,7 @@ import ConstellationNetworkView from './ConstellationNetworkView.vue'
 import { usePrebuiltNetwork, type ExternalConnection, type ConstellationNode } from '../composables/usePrebuiltNetwork'
 import { useLegoNetwork, type PhraseWithPath } from '../composables/useLegoNetwork'
 import { generateLearningScript } from '../providers/CourseDataProvider'
+import { getLanguageName } from '../composables/useI18n'
 
 // ============================================================================
 // AUDIO CONTROLLER (target language only)
@@ -158,6 +159,12 @@ const visibleCount = computed(() => Math.min(sliderValue.value, allRounds.value.
 
 // Course code
 const courseCode = computed(() => props.course?.course_code || '')
+
+// Language name for title (e.g., "Spanish", "Welsh")
+const languageName = computed(() => {
+  const targetLang = props.course?.target_lang
+  return targetLang ? getLanguageName(targetLang) : ''
+})
 
 // Global stats from network data
 const globalStats = computed(() => {
@@ -484,6 +491,9 @@ onUnmounted(() => {
       </svg>
     </button>
 
+    <!-- Page title -->
+    <h1 v-if="languageName" class="brain-title">Your brain on {{ languageName }}</h1>
+
     <!-- Stats badge -->
     <div class="stats-badge" :style="{ borderColor: accentColor }">
       <span class="stat-item">
@@ -697,6 +707,21 @@ onUnmounted(() => {
   height: 20px;
 }
 
+.brain-title {
+  position: absolute;
+  top: calc(20px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.7);
+  text-align: center;
+  margin: 0;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
 .stats-badge {
   position: absolute;
   top: calc(16px + env(safe-area-inset-top, 0px));
@@ -767,10 +792,10 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
-/* Stage Slider Panel */
+/* Stage Slider Panel - positioned above bottom nav (nav is ~90px with play button, plus gap) */
 .stage-slider-panel {
   position: absolute;
-  bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(110px + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%);
   z-index: 20;

@@ -47,6 +47,10 @@ const currentScreen = ref('home')
 const selectedCourse = ref(null)
 const isLearning = ref(false)
 
+// Player state - shared with nav bar for play/stop button
+const isPlaying = ref(false)
+const learningPlayerRef = ref(null)
+
 // Component refs
 const legoNetworkRef = ref(null)
 
@@ -96,6 +100,18 @@ const handleStartLearning = () => {
     return
   }
   startLearning(selectedCourse.value)
+}
+
+// Handle play/stop toggle from nav bar
+const handleTogglePlayback = () => {
+  if (learningPlayerRef.value) {
+    learningPlayerRef.value.togglePlayback()
+  }
+}
+
+// Handle play state changes from LearningPlayer
+const handlePlayStateChanged = (playing) => {
+  isPlaying.value = playing
 }
 
 // Learner data (would come from database in production)
@@ -194,10 +210,12 @@ onMounted(() => {
     <Transition name="slide-up" mode="out-in">
       <LearningPlayer
         v-if="currentScreen === 'player' && activeCourse"
+        ref="learningPlayerRef"
         :classContext="classContext"
         :course="activeCourse"
         :previewLegoIndex="previewLegoIndex"
         @close="handleGoHome"
+        @playStateChanged="handlePlayStateChanged"
       />
     </Transition>
 
@@ -248,8 +266,10 @@ onMounted(() => {
     <BottomNav
       :currentScreen="currentScreen"
       :isLearning="isLearning"
+      :isPlaying="isPlaying"
       @navigate="handleNavigation"
       @startLearning="handleStartLearning"
+      @togglePlayback="handleTogglePlayback"
     />
 
     <!-- Build Badge (dev/staging visibility) -->
