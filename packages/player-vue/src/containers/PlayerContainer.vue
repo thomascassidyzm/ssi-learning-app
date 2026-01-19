@@ -8,6 +8,7 @@ import JourneyMap from '@/components/JourneyMap.vue'
 import SettingsScreen from '@/components/SettingsScreen.vue'
 import CourseExplorer from '@/components/CourseExplorer.vue'
 import BrainView from '@/components/BrainView.vue'
+import UsageStats from '@/components/UsageStats.vue'
 import BottomNav from '@/components/BottomNav.vue'
 import BuildBadge from '@/components/BuildBadge.vue'
 
@@ -43,7 +44,7 @@ const {
 } = useAuthModal()
 
 // Navigation state
-// Screens: 'home' | 'player' | 'journey' | 'settings' | 'explorer' | 'network'
+// Screens: 'home' | 'player' | 'journey' | 'settings' | 'explorer' | 'network' | 'stats'
 const currentScreen = ref('home')
 const selectedCourse = ref(null)
 const isLearning = ref(false)
@@ -83,10 +84,11 @@ const navigate = (screen, data = null) => {
 
 const goHome = () => navigate('home')
 const startLearning = (course) => navigate('player', course)
-const viewJourney = (course) => navigate('network', course)
+const viewJourney = () => navigate('stats') // Stats button on home goes to usage stats
 const openSettings = () => navigate('settings')
 const openExplorer = () => navigate('explorer')
 const openNetwork = () => navigate('network')
+const openStats = () => navigate('stats')
 
 // Handle nav events
 const handleNavigation = (screen) => {
@@ -185,7 +187,7 @@ onMounted(() => {
   // Check URL params for direct navigation (e.g., ?screen=project)
   const urlParams = new URLSearchParams(window.location.search)
   const screenParam = urlParams.get('screen')
-  if (screenParam && ['project', 'explorer', 'network', 'settings'].includes(screenParam)) {
+  if (screenParam && ['project', 'explorer', 'network', 'settings', 'stats'].includes(screenParam)) {
     currentScreen.value = screenParam
   }
 
@@ -272,6 +274,17 @@ onMounted(() => {
         :course="activeCourse"
         :belt-level="currentBeltName"
         :completed-seeds="learnerStats.completedSeeds"
+        @close="goHome"
+      />
+    </Transition>
+
+    <!-- Usage Stats -->
+    <Transition name="slide-right" mode="out-in">
+      <UsageStats
+        v-if="currentScreen === 'stats'"
+        :total-minutes="learnerStats.lifetimeLearningMinutes || 127"
+        :total-words-introduced="learnerStats.totalWordsIntroduced || 142"
+        :total-phrases-spoken="learnerStats.totalPhrasesSpoken || 847"
         @close="goHome"
       />
     </Transition>
