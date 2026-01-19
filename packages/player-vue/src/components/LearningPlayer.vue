@@ -1127,6 +1127,22 @@ function cycleLayoutMode() {
 const itemsPracticed = ref(0)
 const showSessionComplete = ref(false)
 
+// ============================================
+// LEARNING HINTS - Contextual phase instructions
+// Show for first ~10 prompts per session, dismissible with X
+// ============================================
+const LEARNING_HINT_PROMPT_LIMIT = 10 // Show hints for first N prompts per session
+const learningHintDismissed = ref(false) // User clicked X to dismiss
+const learningHintPromptsShown = ref(0) // Counter for this session
+
+// NOTE: showLearningHint and phaseInstruction computed properties are defined
+// after isIntroPhase (around line ~1510) to avoid dependency issues
+
+// Function to dismiss learning hints
+function dismissLearningHint() {
+  learningHintDismissed.value = true
+}
+
 // Current playable item (for round-based playback)
 const currentPlayableItem = ref(null)
 
@@ -1449,6 +1465,36 @@ const isIntroPhase = computed(() => {
     ? currentPlayableItem.value
     : sessionItems.value[currentItemIndex.value]
   return item?.type === 'intro'
+})
+
+// ============================================
+// LEARNING HINTS - Computed properties (defined after isIntroPhase)
+// ============================================
+
+// Computed: should we show the learning hint?
+const showLearningHint = computed(() => {
+  // Don't show if user dismissed
+  if (learningHintDismissed.value) return false
+  // Don't show after prompt limit
+  if (learningHintPromptsShown.value >= LEARNING_HINT_PROMPT_LIMIT) return false
+  // Don't show during intro phase (typewriter message shows instead)
+  if (isIntroPhase.value) return false
+  return true
+})
+
+// Computed: instruction text based on current phase
+const phaseInstruction = computed(() => {
+  switch (currentPhase.value) {
+    case Phase.PROMPT:
+      return 'get ready to speak'
+    case Phase.SPEAK:
+      return "you're meant to be speaking now"
+    case Phase.VOICE_1:
+    case Phase.VOICE_2:
+      return 'listen carefully'
+    default:
+      return ''
+  }
 })
 
 // Intro typewriter messages - gentle "listen up" prompts during introductions
@@ -1812,6 +1858,7 @@ const handleCycleEvent = (event) => {
 
     case 'item_completed':
       itemsPracticed.value++
+      learningHintPromptsShown.value++ // Track for auto-hiding learning hints
 
       // Clear path highlights - cycle is complete, ready for next item
       distinctionNetwork.clearPathAnimation()
@@ -4394,30 +4441,19 @@ onUnmounted(() => {
           </div>
         </template>
 
-        <!-- NORMAL MODE: Phase strip + text -->
+        <!-- NORMAL MODE: Instruction hint + text -->
         <template v-else>
-          <!-- Horizontal Phase Strip: speaker → mic → speaker → eyes -->
-          <div class="phase-strip">
-            <div class="phase-section speaker-section" :class="{ active: currentPhase === 'prompt' }">
-              <svg class="phase-icon-svg" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+          <!-- Learning Hint - contextual instruction based on phase -->
+          <div v-if="showLearningHint" class="learning-hint" :class="{ 'is-speaking': currentPhase === 'speak' }">
+            <span class="hint-text">{{ phaseInstruction }}</span>
+            <button class="hint-dismiss" @click.stop="dismissLearningHint" title="Hide hints">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 6L6 18M6 6l12 12"/>
               </svg>
-            </div>
-            <div class="phase-section mic-section" :class="{ active: currentPhase === 'speak' }">
-              <svg class="phase-icon-svg" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>
-              </svg>
-              <div class="speak-timer" v-if="currentPhase === 'speak'">
-                <div class="speak-timer-fill" :style="{ width: ringProgress + '%' }"></div>
-              </div>
-            </div>
-            <div class="phase-section speaker-section" :class="{ active: currentPhase === 'voice_1' }">
-              <svg class="phase-icon-svg" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
-              </svg>
-            </div>
-            <div class="phase-section eyes-section" :class="{ active: currentPhase === 'voice_2' }">
-              <span class="phase-icon-emoji">👀</span>
+            </button>
+            <!-- Timer bar during speak phase -->
+            <div v-if="currentPhase === 'speak'" class="hint-timer">
+              <div class="hint-timer-fill" :style="{ width: ringProgress + '%' }"></div>
             </div>
           </div>
 
@@ -6111,7 +6147,109 @@ onUnmounted(() => {
   to { stroke-dashoffset: 172; }
 }
 
+/* ============ LEARNING HINT - Contextual instructions ============ */
+.learning-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  margin-bottom: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.hint-text {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.7);
+  letter-spacing: 0.01em;
+}
+
+.hint-dismiss {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  opacity: 0.4;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.hint-dismiss:hover {
+  opacity: 0.8;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.hint-dismiss svg {
+  width: 14px;
+  height: 14px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Speaking state - ALIVE! Recording feel */
+.learning-hint.is-speaking {
+  background: rgba(220, 38, 38, 0.15);
+  border-color: rgba(220, 38, 38, 0.4);
+  box-shadow:
+    0 0 20px rgba(220, 38, 38, 0.2),
+    inset 0 0 20px rgba(220, 38, 38, 0.05);
+  animation: speaking-pulse 1.2s ease-in-out infinite;
+}
+
+.learning-hint.is-speaking .hint-text {
+  color: rgba(255, 255, 255, 0.95);
+  font-weight: 600;
+}
+
+@keyframes speaking-pulse {
+  0%, 100% {
+    border-color: rgba(220, 38, 38, 0.4);
+    box-shadow:
+      0 0 20px rgba(220, 38, 38, 0.2),
+      inset 0 0 20px rgba(220, 38, 38, 0.05);
+  }
+  50% {
+    border-color: rgba(220, 38, 38, 0.7);
+    box-shadow:
+      0 0 30px rgba(220, 38, 38, 0.4),
+      inset 0 0 30px rgba(220, 38, 38, 0.1);
+  }
+}
+
+/* Timer bar inside hint during speak phase */
+.hint-timer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 0 0 20px 20px;
+  overflow: hidden;
+}
+
+.hint-timer-fill {
+  height: 100%;
+  background: #dc2626;
+  border-radius: 0 0 0 20px;
+  transition: width 0.1s linear;
+  box-shadow: 0 0 8px rgba(220, 38, 38, 0.6);
+}
+
+/* ============ PHASE STRIP (legacy - kept for reference) ============ */
 /* Horizontal Phase Strip - speaker → mic → speaker → eyes */
+/* NOTE: This is now replaced by .learning-hint in the template */
 .phase-strip {
   display: flex;
   justify-content: center;
