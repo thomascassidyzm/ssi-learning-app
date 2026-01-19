@@ -139,6 +139,10 @@ let pathAnimationTimers: ReturnType<typeof setTimeout>[] = []
 // Download state
 const isDownloading = ref(false)
 
+// Search state
+const searchQuery = ref('')
+const isSearchFocused = ref(false)
+
 // ============================================================================
 // COMPUTED
 // ============================================================================
@@ -193,6 +197,23 @@ const selectedNodePhraseCount = computed(() => {
   return phrases?.length || 0
 })
 
+// Search results - filter nodes by target or known text
+const searchResults = computed(() => {
+  const query = searchQuery.value.trim().toLowerCase()
+  if (!query || query.length < 2) return []
+
+  const nodes = prebuiltNetwork.nodes.value
+  if (!nodes.length) return []
+
+  return nodes
+    .filter(node => {
+      const targetMatch = node.targetText?.toLowerCase().includes(query)
+      const knownMatch = node.knownText?.toLowerCase().includes(query)
+      return targetMatch || knownMatch
+    })
+    .slice(0, 10) // Limit to 10 results
+})
+
 // ============================================================================
 // METHODS
 // ============================================================================
@@ -236,6 +257,18 @@ function handleNodeTap(node: ConstellationNode) {
   selectedNodeConnections.value = getLegoConnections(node.id)
 
   console.log('[BrainView] Selected node:', node.id, 'phrases:', selectedNodePhrases.value.length, 'connections:', selectedNodeConnections.value)
+}
+
+/**
+ * Handle selecting a search result
+ */
+function selectSearchResult(node: ConstellationNode) {
+  // Clear search
+  searchQuery.value = ''
+  isSearchFocused.value = false
+
+  // Select the node (same as tapping it)
+  handleNodeTap(node)
 }
 
 /**
