@@ -7388,8 +7388,8 @@ onUnmounted(() => {
   gap: 1.25rem;
   padding: 0.75rem 1.5rem;
   position: absolute;
-  /* Position above iOS home indicator safe area */
-  bottom: calc(30px + env(safe-area-inset-bottom, 0px));
+  /* Position above the bottom nav bar (80px) + some spacing */
+  bottom: calc(100px + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%);
   z-index: 15;
@@ -7816,7 +7816,8 @@ onUnmounted(() => {
   .control-bar {
     gap: 0.5rem;
     padding: 0.375rem 0.5rem;
-    bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+    /* Above nav bar on extra small phones */
+    bottom: calc(90px + env(safe-area-inset-bottom, 0px));
     border-radius: 14px;
   }
 
@@ -7936,7 +7937,8 @@ onUnmounted(() => {
   .control-bar {
     gap: 0.75rem;
     padding: 0.5rem 0.75rem;
-    bottom: calc(30px + env(safe-area-inset-bottom, 0px));
+    /* Above nav bar on small phones */
+    bottom: calc(95px + env(safe-area-inset-bottom, 0px));
   }
 
   .mode-btn,
@@ -8138,7 +8140,8 @@ onUnmounted(() => {
     gap: 1.75rem;
     padding: 1.25rem 2.5rem;
     border-radius: 28px;
-    bottom: calc(48px + env(safe-area-inset-bottom, 0px));
+    /* Above nav bar on large desktops */
+    bottom: calc(110px + env(safe-area-inset-bottom, 0px));
   }
 
   .mode-btn {
@@ -8220,7 +8223,8 @@ onUnmounted(() => {
   .control-bar {
     padding: 0.375rem 0.75rem;
     gap: 0.5rem;
-    bottom: 8px;
+    /* Above nav bar in landscape */
+    bottom: 85px;
   }
 
   .mode-btn {
@@ -8246,7 +8250,8 @@ onUnmounted(() => {
 /* PWA standalone mode - extra bottom padding for iOS home indicator */
 @media (display-mode: standalone) {
   .control-bar {
-    bottom: calc(40px + env(safe-area-inset-bottom, 0px));
+    /* Above nav bar on iOS PWA */
+    bottom: calc(100px + env(safe-area-inset-bottom, 0px));
   }
 }
 

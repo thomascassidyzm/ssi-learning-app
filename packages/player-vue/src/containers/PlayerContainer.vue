@@ -72,7 +72,8 @@ const navigate = (screen, data = null) => {
     selectedCourse.value = data
   }
   currentScreen.value = screen
-  isLearning.value = screen === 'player'
+  // Nav bar stays visible on all screens including player
+  isLearning.value = false
 }
 
 const goHome = () => navigate('home')
@@ -165,7 +166,8 @@ onMounted(() => {
   if (hasClassContext) {
     // Auto-start player when coming from Schools
     currentScreen.value = 'player'
-    isLearning.value = true
+    // Nav stays visible even when learning
+    isLearning.value = false
   }
 })
 </script>
