@@ -871,12 +871,16 @@ const runPhase = async (phase, myCycleId) => {
           }
           return
         } catch (err) {
+          console.warn('[CourseExplorer] voice1 play error, skipping to next item:', err.message || err)
           if (myCycleId !== cycleId) return
-          stopPlayback()
+          // Skip to next item on error (e.g., 404, network error)
+          advanceToNextItem(myCycleId)
           return
         }
       }
-      stopPlayback()
+      // No voice1 URL - skip to next item gracefully
+      console.warn('[CourseExplorer] No voice1 URL for:', item.targetText?.slice(0, 30))
+      if (myCycleId === cycleId) advanceToNextItem(myCycleId)
       break
     }
 
@@ -890,7 +894,9 @@ const runPhase = async (phase, myCycleId) => {
           advanceToNextItem(myCycleId)
           return
         } catch (err) {
+          console.warn('[CourseExplorer] voice2 play error, advancing:', err.message || err)
           if (myCycleId !== cycleId) return
+          // Fall through to advance
         }
       }
       if (myCycleId === cycleId) advanceToNextItem(myCycleId)
