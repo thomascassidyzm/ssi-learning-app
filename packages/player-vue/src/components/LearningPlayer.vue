@@ -4807,8 +4807,7 @@ defineExpose({
 
         <button class="transport-btn" @click="handleRevisit" title="Revisit">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="1 4 1 10 7 10"/>
-            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+            <polyline points="15 18 9 12 15 6"/>
           </svg>
         </button>
       </div>
@@ -4817,8 +4816,7 @@ defineExpose({
       <div class="control-group control-group--right">
         <button class="transport-btn" @click="handleSkip" title="Skip">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="5 4 15 12 5 20 5 4" fill="currentColor"/>
-            <line x1="19" y1="5" x2="19" y2="19"/>
+            <polyline points="9 18 15 12 9 6"/>
           </svg>
         </button>
 
