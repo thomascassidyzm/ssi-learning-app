@@ -1434,41 +1434,29 @@ export async function generateLearningScript(
 
     // FALLBACK: Query course_audio with role='presentation' for missing LEGOs
     // This handles courses where intro audio is in course_audio but not lego_introductions
+    // v13.1: Query by lego_id directly (course_audio now has lego_id column)
     const missingLegoIds = legoIds.filter(id => !introAudioMap.has(id))
     if (missingLegoIds.length > 0) {
       console.log('[generateLearningScript] Looking for', missingLegoIds.length, 'missing intro audios in course_audio')
 
-      // Get the target text for each missing LEGO
-      const legoTextMap = new Map<string, string>()
-      for (const lego of legos) {
-        if (missingLegoIds.includes(lego.lego.id)) {
-          // LearningItem structure: lego.lego.lego.target contains the target text
-          const targetText = lego.lego.lego?.target || lego.phrase?.phrase?.target
-          if (targetText) {
-            legoTextMap.set(targetText.toLowerCase().trim(), lego.lego.id)
-          }
-        }
-      }
-
-      // Query course_audio for presentation audio
+      // Query course_audio by lego_id directly
       const BATCH_SIZE = 100
       for (let i = 0; i < missingLegoIds.length; i += BATCH_SIZE) {
-        const batchTexts = [...legoTextMap.keys()].slice(i, i + BATCH_SIZE)
+        const batchLegoIds = missingLegoIds.slice(i, i + BATCH_SIZE)
         const { data: presentationAudio } = await supabase
           .from('course_audio')
-          .select('id, text_normalized, s3_key')
+          .select('id, lego_id, s3_key')
           .eq('course_code', courseId)
           .eq('role', 'presentation')
-          .in('text_normalized', batchTexts)
+          .in('lego_id', batchLegoIds)
 
         if (presentationAudio && presentationAudio.length > 0) {
           let baseUrl = audioBaseUrl
           if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1)
 
           for (const audio of presentationAudio) {
-            const legoId = legoTextMap.get(audio.text_normalized)
-            if (legoId && audio.s3_key && !introAudioMap.has(legoId)) {
-              introAudioMap.set(legoId, {
+            if (audio.lego_id && audio.s3_key && !introAudioMap.has(audio.lego_id)) {
+              introAudioMap.set(audio.lego_id, {
                 id: audio.id,
                 url: `${baseUrl}/${audio.s3_key}`
               })
