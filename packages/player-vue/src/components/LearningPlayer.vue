@@ -6248,21 +6248,23 @@ onUnmounted(() => {
 }
 
 /* Timer bar inside hint during speak phase */
+/* Inset to respect the 24px rounded corners */
 .hint-timer {
   position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  bottom: 6px;
+  /* Inset from edges so it doesn't extend beyond the rounded corners */
+  left: 20px;
+  right: 20px;
   height: 3px;
   background: rgba(0, 0, 0, 0.3);
-  border-radius: 0 0 24px 24px;
+  border-radius: 2px;
   overflow: hidden;
 }
 
 .hint-timer-fill {
   height: 100%;
   background: #dc2626;
-  border-radius: 0 0 0 24px;
+  border-radius: 2px;
   transition: width 0.1s linear;
   box-shadow: 0 0 8px rgba(220, 38, 38, 0.6);
 }
