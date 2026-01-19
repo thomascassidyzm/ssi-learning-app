@@ -8,7 +8,7 @@ import JourneyMap from '@/components/JourneyMap.vue'
 import SettingsScreen from '@/components/SettingsScreen.vue'
 import CourseExplorer from '@/components/CourseExplorer.vue'
 import BrainView from '@/components/BrainView.vue'
-import BrainCanvas from '@/components/BrainCanvas.vue'
+import ProgressConstellation from '@/components/ProgressConstellation.vue'
 import UsageStats from '@/components/UsageStats.vue'
 import BottomNav from '@/components/BottomNav.vue'
 import BuildBadge from '@/components/BuildBadge.vue'
@@ -267,9 +267,9 @@ onMounted(() => {
       />
     </Transition>
 
-    <!-- Progress Map Visualization (Brain Canvas - fast Canvas-based version) -->
+    <!-- Progress Constellation (static view with search) -->
     <Transition name="slide-right" mode="out-in">
-      <BrainCanvas
+      <ProgressConstellation
         v-if="currentScreen === 'network'"
         :current-belt="currentBeltName"
         :completed-nodes="[]"
