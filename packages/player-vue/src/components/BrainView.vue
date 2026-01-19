@@ -31,6 +31,7 @@ class TargetAudioController {
     }
 
     this.audio.src = url
+    this.audio.playbackRate = 1.5  // Faster playback for listening/review mode
     this.audio.load()
 
     return new Promise((resolve, reject) => {
@@ -751,14 +752,6 @@ onUnmounted(() => {
         :style="activeTab === 'brain' ? { color: accentColor, borderColor: accentColor } : {}"
         @click="activeTab = 'brain'"
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="5" r="2"/>
-          <circle cx="6" cy="12" r="2"/>
-          <circle cx="18" cy="12" r="2"/>
-          <circle cx="9" cy="19" r="2"/>
-          <circle cx="15" cy="19" r="2"/>
-          <path d="M12 7v3M8 11l-1 1M16 11l1 1M10 17l-1-2M14 17l1-2"/>
-        </svg>
         Brain
       </button>
       <button
@@ -767,11 +760,6 @@ onUnmounted(() => {
         :style="activeTab === 'belts' ? { color: accentColor, borderColor: accentColor } : {}"
         @click="activeTab = 'belts'"
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="8" width="18" height="8" rx="1"/>
-          <path d="M12 8v8"/>
-          <circle cx="12" cy="12" r="2"/>
-        </svg>
         Belts
       </button>
       <button
@@ -780,10 +768,6 @@ onUnmounted(() => {
         :style="activeTab === 'usage' ? { color: accentColor, borderColor: accentColor } : {}"
         @click="activeTab = 'usage'"
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M3 3v18h18"/>
-          <path d="M7 16l4-4 4 4 5-6"/>
-        </svg>
         Usage
       </button>
     </div>
@@ -795,7 +779,7 @@ onUnmounted(() => {
         class="action-btn"
         @click="downloadBrainImage"
         :disabled="isDownloading || isLoading"
-        title="Download to share"
+        title="Copy this image for sharing"
       >
         <svg v-if="!isDownloading" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -817,7 +801,7 @@ onUnmounted(() => {
           type="text"
           class="search-input"
           v-model="searchQuery"
-          placeholder="Search concepts..."
+          placeholder="Search words..."
           @focus="isSearchFocused = true"
           @blur="setTimeout(() => isSearchFocused = false, 200)"
         />

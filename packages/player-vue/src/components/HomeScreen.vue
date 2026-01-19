@@ -1,5 +1,6 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import * as d3 from 'd3'
 import CourseSelector from './CourseSelector.vue'
 
 // Language metadata mapping (3-letter codes to display info)
@@ -131,6 +132,172 @@ const handleCourseSelect = (course) => {
 const openCourseSelector = () => {
   showCourseSelector.value = true
 }
+
+// ============================================
+// USAGE STATS SECTION
+// ============================================
+
+// Stats data - would come from database in production
+const usageStats = computed(() => ({
+  totalMinutes: activeCourseData.value?.totalMinutes || 47,
+  totalWordsIntroduced: activeCourseData.value?.completedSeeds || 0,
+  totalPhrasesSpoken: (activeCourseData.value?.completedSeeds || 0) * 5,
+}))
+
+// Format total time as hours and minutes
+const formattedTotalTime = computed(() => {
+  const mins = usageStats.value.totalMinutes
+  const hours = Math.floor(mins / 60)
+  if (hours === 0) {
+    return `${mins}m`
+  }
+  return `${hours}h ${mins % 60}m`
+})
+
+// Chart refs
+const dailyChartRef = ref(null)
+const weeklyChartRef = ref(null)
+
+// Generate demo data
+const getChartData = () => {
+  const now = new Date()
+
+  // Daily data - last 7 days
+  const daily = []
+  for (let i = 6; i >= 0; i--) {
+    const date = new Date(now)
+    date.setDate(date.getDate() - i)
+    daily.push({
+      date: date,
+      minutes: Math.floor(Math.random() * 30) + 5
+    })
+  }
+
+  // Weekly data - last 4 weeks
+  const weekly = []
+  for (let i = 3; i >= 0; i--) {
+    const weekStart = new Date(now)
+    weekStart.setDate(weekStart.getDate() - (i * 7))
+    weekly.push({
+      week: `W${4 - i}`,
+      minutes: Math.floor(Math.random() * 120) + 30
+    })
+  }
+
+  return { daily, weekly }
+}
+
+const chartData = ref(getChartData())
+
+// Draw a simple bar chart
+const drawBarChart = (container, data, xAccessor, yAccessor, label) => {
+  if (!container) return
+
+  d3.select(container).selectAll('*').remove()
+
+  const rect = container.getBoundingClientRect()
+  const margin = { top: 10, right: 10, bottom: 24, left: 32 }
+  const width = rect.width - margin.left - margin.right
+  const height = rect.height - margin.top - margin.bottom
+
+  if (width <= 0 || height <= 0) return
+
+  const svg = d3.select(container)
+    .append('svg')
+    .attr('width', rect.width)
+    .attr('height', rect.height)
+    .append('g')
+    .attr('transform', `translate(${margin.left},${margin.top})`)
+
+  // Scales
+  const xScale = d3.scaleBand()
+    .domain(data.map(xAccessor))
+    .range([0, width])
+    .padding(0.3)
+
+  const yMax = d3.max(data, yAccessor) || 60
+  const yScale = d3.scaleLinear()
+    .domain([0, yMax * 1.1])
+    .range([height, 0])
+
+  // Bars
+  svg.selectAll('.bar')
+    .data(data)
+    .join('rect')
+    .attr('class', 'bar')
+    .attr('x', d => xScale(xAccessor(d)))
+    .attr('y', d => yScale(yAccessor(d)))
+    .attr('width', xScale.bandwidth())
+    .attr('height', d => height - yScale(yAccessor(d)))
+    .attr('fill', 'var(--accent)')
+    .attr('rx', 3)
+    .attr('opacity', 0.8)
+
+  // X axis
+  svg.append('g')
+    .attr('transform', `translate(0,${height})`)
+    .call(d3.axisBottom(xScale).tickSize(0))
+    .call(g => g.select('.domain').remove())
+    .selectAll('text')
+    .attr('fill', 'var(--text-muted)')
+    .attr('font-size', '9px')
+    .attr('dy', '0.8em')
+
+  // Y axis
+  svg.append('g')
+    .call(d3.axisLeft(yScale).ticks(3).tickSize(0))
+    .call(g => g.select('.domain').remove())
+    .selectAll('text')
+    .attr('fill', 'var(--text-muted)')
+    .attr('font-size', '9px')
+}
+
+// Draw charts
+const drawCharts = () => {
+  nextTick(() => {
+    const data = chartData.value
+
+    if (dailyChartRef.value && data.daily.length > 0) {
+      drawBarChart(
+        dailyChartRef.value,
+        data.daily,
+        d => d.date instanceof Date ? d.date.toLocaleDateString('en-US', { weekday: 'short' }) : d.date,
+        d => d.minutes,
+        'daily'
+      )
+    }
+
+    if (weeklyChartRef.value && data.weekly.length > 0) {
+      drawBarChart(
+        weeklyChartRef.value,
+        data.weekly,
+        d => d.week,
+        d => d.minutes,
+        'weekly'
+      )
+    }
+  })
+}
+
+// Resize observer
+let resizeObserver = null
+
+onMounted(() => {
+  drawCharts()
+
+  resizeObserver = new ResizeObserver(() => {
+    drawCharts()
+  })
+
+  if (dailyChartRef.value) resizeObserver.observe(dailyChartRef.value)
+  if (weeklyChartRef.value) resizeObserver.observe(weeklyChartRef.value)
+})
+
+onUnmounted(() => {
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+  }
+})
 </script>
 
 <template>
@@ -205,7 +372,7 @@ const openCourseSelector = () => {
                 <path d="M12 20V4"/>
                 <path d="M6 20v-6"/>
               </svg>
-              <span>Stats</span>
+              <span>Progress</span>
             </button>
           </div>
         </div>
@@ -229,6 +396,59 @@ const openCourseSelector = () => {
             <path d="M9 18l6-6-6-6"/>
           </svg>
         </button>
+      </section>
+
+      <!-- Usage Stats Section -->
+      <section class="usage-section" v-if="activeCourseData">
+        <h3 class="section-title">Your Activity</h3>
+
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+              </svg>
+            </div>
+            <div class="stat-value">{{ formattedTotalTime }}</div>
+            <div class="stat-label">Total Time</div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+              </svg>
+            </div>
+            <div class="stat-value">{{ usageStats.totalWordsIntroduced }}</div>
+            <div class="stat-label">Words</div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+              </svg>
+            </div>
+            <div class="stat-value">{{ usageStats.totalPhrasesSpoken }}</div>
+            <div class="stat-label">Phrases</div>
+          </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="charts-grid">
+          <div class="chart-card">
+            <h4 class="chart-title">Daily Activity</h4>
+            <div class="chart-container" ref="dailyChartRef"></div>
+          </div>
+          <div class="chart-card">
+            <h4 class="chart-title">Weekly Activity</h4>
+            <div class="chart-container" ref="weeklyChartRef"></div>
+          </div>
+        </div>
       </section>
 
     </main>
@@ -738,6 +958,98 @@ const openCourseSelector = () => {
 .safe-area {
   height: 2rem;
   flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   USAGE STATS SECTION
+   ═══════════════════════════════════════════════════════════════ */
+
+.usage-section {
+  margin-bottom: 1.5rem;
+}
+
+.section-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0 0 0.75rem 0.25rem;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 0.875rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.375rem;
+}
+
+.stat-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--accent-glow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stat-icon svg {
+  width: 16px;
+  height: 16px;
+  color: var(--accent);
+}
+
+.stat-value {
+  font-family: 'Space Mono', monospace;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.stat-label {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+}
+
+.chart-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 0.875rem;
+}
+
+.chart-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0 0 0.5rem 0;
+}
+
+.chart-container {
+  width: 100%;
+  height: 100px;
+  position: relative;
 }
 
 /* ═══════════════════════════════════════════════════════════════

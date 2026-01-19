@@ -37,6 +37,7 @@ const {
   isSignUpOpen,
   openSignIn,
   openSignUp,
+  closeAll: closeAuthModals,
   closeSignIn,
   closeSignUp,
   switchToSignIn,
@@ -74,6 +75,9 @@ const handleCourseSelect = inject('handleCourseSelect')
 
 // Navigation functions
 const navigate = (screen, data = null) => {
+  // Close any open auth modals when navigating
+  closeAuthModals()
+
   if (data) {
     selectedCourse.value = data
   }
