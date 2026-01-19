@@ -1442,7 +1442,11 @@ export async function generateLearningScript(
       const legoTextMap = new Map<string, string>()
       for (const lego of legos) {
         if (missingLegoIds.includes(lego.lego.id)) {
-          legoTextMap.set(lego.lego.target_text.toLowerCase().trim(), lego.lego.id)
+          // LearningItem structure: lego.lego.lego.target contains the target text
+          const targetText = lego.lego.lego?.target || lego.phrase?.phrase?.target
+          if (targetText) {
+            legoTextMap.set(targetText.toLowerCase().trim(), lego.lego.id)
+          }
         }
       }
 
