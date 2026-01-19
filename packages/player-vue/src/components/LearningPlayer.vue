@@ -5182,7 +5182,7 @@ onUnmounted(() => {
 /* ============ HEADER ============ */
 .header {
   position: relative;
-  z-index: 10;
+  z-index: 15; /* Higher than hero-text-pane (10) to prevent overlap issues */
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -6224,7 +6224,8 @@ onUnmounted(() => {
 /* Extra small phones (320px) */
 @media (max-width: 360px) {
   .hero-text-pane {
-    top: 12%;
+    /* Position below header: header height (~52px) + safe area + padding */
+    top: calc(100px + var(--safe-area-top, 0px));
     max-width: 98vw;
     gap: 8px;
   }
@@ -6276,7 +6277,8 @@ onUnmounted(() => {
 /* Small phones (361-479px) */
 @media (min-width: 361px) and (max-width: 479px) {
   .hero-text-pane {
-    top: 14%;
+    /* Position below header: header height + safe area + padding */
+    top: calc(110px + var(--safe-area-top, 0px));
     max-width: 95vw;
     gap: 12px;
   }
@@ -6325,7 +6327,8 @@ onUnmounted(() => {
 /* Phone landscape / small tablets (480-767px) */
 @media (min-width: 480px) and (max-width: 767px) {
   .hero-text-pane {
-    top: 15%;
+    /* Position below header with safe area consideration */
+    top: calc(90px + var(--safe-area-top, 0px));
     max-width: 90vw;
     gap: 14px;
   }
