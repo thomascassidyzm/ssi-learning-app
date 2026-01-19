@@ -407,12 +407,16 @@ async function downloadBrainImage() {
     ctx.fillText(`Your brain on ${languageName.value}`, canvas.width / 2, 52)
     ctx.shadowBlur = 0
 
-    // Draw edges - make them visible!
+    // Draw edges - only between revealed nodes are prominent
     ctx.lineCap = 'round'
     edges.forEach(edge => {
       const sourceNode = nodes.find(n => n.id === edge.source)
       const targetNode = nodes.find(n => n.id === edge.target)
       if (!sourceNode || !targetNode) return
+
+      const sourceRevealed = !revealed || revealed.has(sourceNode.id)
+      const targetRevealed = !revealed || revealed.has(targetNode.id)
+      const bothRevealed = sourceRevealed && targetRevealed
 
       const from = toCanvas(sourceNode.x, sourceNode.y)
       const to = toCanvas(targetNode.x, targetNode.y)
@@ -434,9 +438,13 @@ async function downloadBrainImage() {
       ctx.beginPath()
       ctx.moveTo(from.x, from.y)
       ctx.quadraticCurveTo(cpX, cpY, to.x, to.y)
-      // Much more visible edges
-      ctx.strokeStyle = `rgba(255, 255, 255, ${0.15 + Math.sqrt(edge.strength) * 0.03})`
-      ctx.lineWidth = 1 + Math.sqrt(edge.strength) * 0.3
+
+      // Edges between learned nodes are visible; others are ghost outlines
+      const edgeOpacity = bothRevealed
+        ? 0.2 + Math.sqrt(edge.strength) * 0.04
+        : 0.02  // Ghost edges for unlearned parts
+      ctx.strokeStyle = `rgba(255, 255, 255, ${edgeOpacity})`
+      ctx.lineWidth = bothRevealed ? 1 + Math.sqrt(edge.strength) * 0.3 : 0.5
       ctx.stroke()
     })
 
@@ -452,40 +460,50 @@ async function downloadBrainImage() {
       black: { glow: '#d4a853', core: '#2a2518', inner: '#d4a853' },
     }
 
-    // Draw nodes - much bigger for visibility
+    // Draw nodes - learned nodes prominent, unlearned are ghost outlines
     nodes.forEach(node => {
       const pos = toCanvas(node.x, node.y)
       const isRevealed = !revealed || revealed.has(node.id)
       const palette = beltColorMap[node.belt] || beltColorMap.white
-      const opacity = isRevealed ? (node.isComponent ? 0.6 : 0.9) : 0.12
+      // Learned nodes are bright; unlearned are barely visible ghosts (0.03)
+      const opacity = isRevealed ? (node.isComponent ? 0.7 : 1.0) : 0.03
       const nodeScale = node.isComponent ? 0.7 : 1
-      // Much bigger base radius - fixed size, not scaled down
       const baseRadius = 6 * nodeScale
 
-      // Outer glow ring
-      ctx.beginPath()
-      ctx.arc(pos.x, pos.y, baseRadius * 1.8, 0, Math.PI * 2)
-      ctx.strokeStyle = palette.glow
-      ctx.globalAlpha = opacity * 0.7
-      ctx.lineWidth = 2
-      ctx.stroke()
+      // Only draw full node for revealed, just faint dot for unrevealed
+      if (isRevealed) {
+        // Outer glow ring
+        ctx.beginPath()
+        ctx.arc(pos.x, pos.y, baseRadius * 1.8, 0, Math.PI * 2)
+        ctx.strokeStyle = palette.glow
+        ctx.globalAlpha = opacity * 0.7
+        ctx.lineWidth = 2
+        ctx.stroke()
 
-      // Core circle
-      ctx.beginPath()
-      ctx.arc(pos.x, pos.y, baseRadius, 0, Math.PI * 2)
-      ctx.fillStyle = palette.core
-      ctx.globalAlpha = opacity
-      ctx.fill()
-      ctx.strokeStyle = palette.glow
-      ctx.lineWidth = 1.5
-      ctx.stroke()
+        // Core circle
+        ctx.beginPath()
+        ctx.arc(pos.x, pos.y, baseRadius, 0, Math.PI * 2)
+        ctx.fillStyle = palette.core
+        ctx.globalAlpha = opacity
+        ctx.fill()
+        ctx.strokeStyle = palette.glow
+        ctx.lineWidth = 1.5
+        ctx.stroke()
 
-      // Bright inner dot
-      ctx.beginPath()
-      ctx.arc(pos.x, pos.y, baseRadius * 0.4, 0, Math.PI * 2)
-      ctx.fillStyle = palette.inner
-      ctx.globalAlpha = opacity
-      ctx.fill()
+        // Bright inner dot
+        ctx.beginPath()
+        ctx.arc(pos.x, pos.y, baseRadius * 0.4, 0, Math.PI * 2)
+        ctx.fillStyle = palette.inner
+        ctx.globalAlpha = opacity
+        ctx.fill()
+      } else {
+        // Ghost node - just a tiny faint dot to show network shape
+        ctx.beginPath()
+        ctx.arc(pos.x, pos.y, 2, 0, Math.PI * 2)
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.04)'
+        ctx.globalAlpha = 1
+        ctx.fill()
+      }
 
       ctx.globalAlpha = 1
     })
