@@ -649,6 +649,51 @@ onUnmounted(() => {
       <div v-else class="download-spinner"></div>
     </button>
 
+    <!-- Search bar -->
+    <div class="search-container" :class="{ focused: isSearchFocused, 'has-results': searchResults.length > 0 }">
+      <div class="search-input-wrapper">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/>
+          <path d="M21 21l-4.35-4.35"/>
+        </svg>
+        <input
+          type="text"
+          class="search-input"
+          v-model="searchQuery"
+          placeholder="Search concepts..."
+          @focus="isSearchFocused = true"
+          @blur="setTimeout(() => isSearchFocused = false, 200)"
+        />
+        <button
+          v-if="searchQuery"
+          class="search-clear"
+          @click="searchQuery = ''"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Search results dropdown -->
+      <div v-if="isSearchFocused && searchResults.length > 0" class="search-results">
+        <button
+          v-for="node in searchResults"
+          :key="node.id"
+          class="search-result-item"
+          @mousedown.prevent="selectSearchResult(node)"
+        >
+          <span class="result-target">{{ node.targetText }}</span>
+          <span class="result-known">{{ node.knownText }}</span>
+        </button>
+      </div>
+
+      <!-- No results message -->
+      <div v-else-if="isSearchFocused && searchQuery.length >= 2 && searchResults.length === 0" class="search-no-results">
+        No matches found
+      </div>
+    </div>
+
     <!-- Stats badge -->
     <div class="stats-badge" :style="{ borderColor: accentColor }">
       <span class="stat-item">
@@ -930,6 +975,142 @@ onUnmounted(() => {
   border-top-color: rgba(255, 255, 255, 0.7);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
+}
+
+/* Search bar */
+.search-container {
+  position: absolute;
+  top: calc(64px + env(safe-area-inset-top, 0px));
+  left: 16px;
+  z-index: 25;
+  width: 220px;
+}
+
+.search-input-wrapper {
+  display: flex;
+  align-items: center;
+  background: rgba(10, 10, 15, 0.9);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 8px 12px;
+  transition: all 0.2s ease;
+}
+
+.search-container.focused .search-input-wrapper {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(10, 10, 15, 0.95);
+}
+
+.search-icon {
+  width: 16px;
+  height: 16px;
+  color: rgba(255, 255, 255, 0.4);
+  flex-shrink: 0;
+}
+
+.search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.875rem;
+  padding: 0 8px;
+  min-width: 0;
+}
+
+.search-input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.search-clear {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 50%;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.search-clear svg {
+  width: 12px;
+  height: 12px;
+}
+
+.search-clear:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.search-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: rgba(10, 10, 15, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  overflow: hidden;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.search-result-item {
+  width: 100%;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transition: background 0.15s ease;
+}
+
+.search-result-item:last-child {
+  border-bottom: none;
+}
+
+.search-result-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.result-target {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.result-known {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.75rem;
+}
+
+.search-no-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  padding: 12px;
+  background: rgba(10, 10, 15, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.8125rem;
+  text-align: center;
 }
 
 .stats-badge {
