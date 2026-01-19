@@ -49,8 +49,8 @@ class TargetAudioController {
       this.audio!.addEventListener('ended', onEnded)
       this.audio!.addEventListener('error', onError)
 
-      // Set playback rate just before playing (2x for review mode)
-      this.audio!.playbackRate = 2.0
+      // Set playback rate just before playing (1.5x for review mode)
+      this.audio!.playbackRate = 1.5
       this.audio!.play().catch(onError)
     })
   }

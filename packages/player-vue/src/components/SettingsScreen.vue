@@ -38,6 +38,119 @@ const buildNumber = '2024.12.16'
 // Display settings
 const showFirePath = ref(true)
 
+// Theme settings
+const isDarkMode = ref(true) // Default to dark mode
+
+// Account management state
+const showDeleteConfirm = ref(false)
+const isDeleting = ref(false)
+const deleteError = ref(null)
+
+// Check if user is signed in
+const isSignedIn = computed(() => auth?.user?.value != null)
+const userEmail = computed(() => auth?.user?.value?.emailAddresses?.[0]?.emailAddress || '')
+const userName = computed(() => auth?.user?.value?.fullName || auth?.user?.value?.firstName || '')
+
+// Open Clerk's user profile for managing account
+const openUserProfile = () => {
+  if (auth?.openUserProfile) {
+    auth.openUserProfile()
+  } else {
+    // Fallback - show message
+    console.log('[Settings] User profile management not available')
+  }
+}
+
+// Handle change email - uses Clerk's user management
+const handleChangeEmail = () => {
+  if (auth?.openUserProfile) {
+    auth.openUserProfile()
+  }
+}
+
+// Handle change password - uses Clerk's user management
+const handleChangePassword = () => {
+  if (auth?.openUserProfile) {
+    auth.openUserProfile()
+  }
+}
+
+// Handle cancel subscription - redirect to billing
+const handleCancelSubscription = () => {
+  // For now, open an email to support
+  window.location.href = 'mailto:support@saysomethingin.com?subject=Cancel%20Subscription%20Request'
+}
+
+// Handle delete account
+const handleDeleteClick = () => {
+  showDeleteConfirm.value = true
+  deleteError.value = null
+}
+
+const cancelDelete = () => {
+  showDeleteConfirm.value = false
+}
+
+const confirmDelete = async () => {
+  if (!supabase?.value || !auth?.learnerId?.value) {
+    deleteError.value = 'Unable to delete - not signed in'
+    return
+  }
+
+  isDeleting.value = true
+  deleteError.value = null
+
+  try {
+    const learnerId = auth.learnerId.value
+
+    // Delete all user data from all tables
+    const tables = [
+      'response_metrics',
+      'spike_events',
+      'lego_progress',
+      'seed_progress',
+      'sessions',
+      'course_enrollments',
+    ]
+
+    for (const table of tables) {
+      await supabase.value
+        .from(table)
+        .delete()
+        .eq('learner_id', learnerId)
+    }
+
+    // Delete learner record
+    await supabase.value
+      .from('learners')
+      .delete()
+      .eq('id', learnerId)
+
+    // Sign out via Clerk
+    if (auth?.signOut) {
+      await auth.signOut()
+    }
+
+    console.log('[Settings] Account deleted successfully')
+    // Clear local storage
+    localStorage.clear()
+    // Reload to go back to welcome screen
+    window.location.reload()
+  } catch (err) {
+    console.error('[Settings] Delete error:', err)
+    deleteError.value = 'Failed to delete account. Please contact support.'
+  } finally {
+    isDeleting.value = false
+  }
+}
+
+// Toggle dark/light mode
+const toggleTheme = () => {
+  isDarkMode.value = !isDarkMode.value
+  document.documentElement.setAttribute('data-theme', isDarkMode.value ? 'dark' : 'light')
+  localStorage.setItem('ssi-theme', isDarkMode.value ? 'dark' : 'light')
+}
+
 // ============================================
 // OFFLINE DOWNLOAD STATE
 // ============================================
@@ -330,6 +443,34 @@ const confirmReset = async () => {
       </div>
     </Transition>
 
+    <!-- Delete Account Confirmation Dialog -->
+    <Transition name="fade">
+      <div v-if="showDeleteConfirm" class="reset-overlay">
+        <div class="reset-dialog">
+          <div class="reset-icon delete-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              <line x1="10" y1="11" x2="10" y2="17"/>
+              <line x1="14" y1="11" x2="14" y2="17"/>
+            </svg>
+          </div>
+          <h3 class="reset-title">Delete Account?</h3>
+          <p class="reset-desc">
+            This will permanently delete your account and all your learning progress across all courses. This action cannot be undone.
+          </p>
+          <p v-if="deleteError" class="reset-error">{{ deleteError }}</p>
+          <div class="reset-actions">
+            <button class="reset-btn reset-btn--cancel" @click="cancelDelete" :disabled="isDeleting">
+              Cancel
+            </button>
+            <button class="reset-btn reset-btn--confirm" @click="confirmDelete" :disabled="isDeleting">
+              {{ isDeleting ? 'Deleting...' : 'Delete Account' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
     <!-- Header -->
     <header class="header">
       <h1 class="title">Settings</h1>
@@ -429,14 +570,113 @@ const confirmReset = async () => {
         </div>
       </section>
 
-      <!-- Account Section -->
+      <!-- Appearance Section -->
       <section class="section">
+        <h3 class="section-title">Appearance</h3>
+        <div class="card">
+          <div class="setting-row clickable" @click="toggleTheme">
+            <div class="setting-info">
+              <span class="setting-label">Dark Mode</span>
+              <span class="setting-desc">Toggle light/dark theme</span>
+            </div>
+            <div class="toggle-switch" :class="{ 'is-on': isDarkMode }">
+              <div class="toggle-track">
+                <div class="toggle-thumb"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Account Section (only for signed-in users) -->
+      <section class="section" v-if="isSignedIn">
         <h3 class="section-title">Account</h3>
+        <div class="card">
+          <!-- User Info -->
+          <div class="setting-row" v-if="userName || userEmail">
+            <div class="setting-info">
+              <span class="setting-label">{{ userName || 'User' }}</span>
+              <span class="setting-desc">{{ userEmail }}</span>
+            </div>
+          </div>
+
+          <div class="divider" v-if="userName || userEmail"></div>
+
+          <!-- Update Profile -->
+          <div class="setting-row clickable" @click="openUserProfile">
+            <div class="setting-info">
+              <span class="setting-label">Update Profile</span>
+              <span class="setting-desc">Change your name and photo</span>
+            </div>
+            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- Change Email -->
+          <div class="setting-row clickable" @click="handleChangeEmail">
+            <div class="setting-info">
+              <span class="setting-label">Change Email</span>
+              <span class="setting-desc">Update your email address</span>
+            </div>
+            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- Change Password -->
+          <div class="setting-row clickable" @click="handleChangePassword">
+            <div class="setting-info">
+              <span class="setting-label">Change Password</span>
+              <span class="setting-desc">Update your password</span>
+            </div>
+            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </div>
+        </div>
+      </section>
+
+      <!-- Subscription Section (only for signed-in users) -->
+      <section class="section" v-if="isSignedIn">
+        <h3 class="section-title">Subscription</h3>
+        <div class="card">
+          <div class="setting-row clickable" @click="handleCancelSubscription">
+            <div class="setting-info">
+              <span class="setting-label">Manage Subscription</span>
+              <span class="setting-desc">View or cancel your subscription</span>
+            </div>
+            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </div>
+        </div>
+      </section>
+
+      <!-- Data Section -->
+      <section class="section">
+        <h3 class="section-title">Data</h3>
         <div class="card">
           <div class="setting-row clickable danger" @click="handleResetClick">
             <div class="setting-info">
               <span class="setting-label">Reset Progress</span>
-              <span class="setting-desc">Start fresh (cannot be undone)</span>
+              <span class="setting-desc">Start fresh for this course</span>
+            </div>
+            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </div>
+
+          <div class="divider" v-if="isSignedIn"></div>
+
+          <div class="setting-row clickable danger" @click="handleDeleteClick" v-if="isSignedIn">
+            <div class="setting-info">
+              <span class="setting-label">Delete Account</span>
+              <span class="setting-desc">Permanently delete your account and all data</span>
             </div>
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6"/>
