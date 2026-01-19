@@ -1026,6 +1026,9 @@ export interface ScriptItem {
   fibonacciPosition?: number // For spaced_rep: which Fibonacci position triggered this
   // For INTRO items: presentation audio ("The Welsh for X is...")
   presentationAudio?: { id: string; url: string }
+  // For INTRO items on M-type LEGOs: visual component breakdown
+  // Format: [{known: "after", target: "después de"}, {known: "that", target: "que"}, ...]
+  components?: Array<{ known: string; target: string }>
 }
 
 /**
@@ -1146,15 +1149,27 @@ interface EternalPhrase {
  * v13: Uses target1_duration_ms (audio duration = cognitive load)
  * This works across ALL languages including non-Roman scripts.
  */
+// Component breakdown for M-type LEGOs (visual display only)
+interface ComponentPart {
+  known: string
+  target: string
+  position: number
+}
+
 async function loadAllPracticePhrasesGrouped(
   supabase: any,
   courseId: string,
   audioBaseUrl: string
-): Promise<{ debutMap: Map<string, EternalPhrase[]>; eternalMap: Map<string, EternalPhrase[]> }> {
+): Promise<{
+  debutMap: Map<string, EternalPhrase[]>
+  eternalMap: Map<string, EternalPhrase[]>
+  componentMap: Map<string, ComponentPart[]>
+}> {
   const debutMap = new Map<string, EternalPhrase[]>()
   const eternalMap = new Map<string, EternalPhrase[]>()
+  const componentMap = new Map<string, ComponentPart[]>()
 
-  if (!supabase) return { debutMap, eternalMap }
+  if (!supabase) return { debutMap, eternalMap, componentMap }
 
   // Helper to resolve audio URL - s3_key is the actual S3 object key
   const resolveAudioUrl = (s3Key: string | null): string => {
@@ -1257,11 +1272,45 @@ async function loadAllPracticePhrasesGrouped(
       eternalOffset += pageSize
     }
 
-    console.log(`[loadAllPracticePhrasesGrouped] Loaded ${debutMap.size} LEGOs with debut phrases, ${eternalMap.size} with eternal phrases`)
-    return { debutMap, eternalMap }
+    // Load components for M-type LEGOs (visual display only, no audio)
+    let componentOffset = 0
+
+    while (true) {
+      const { data: page, error } = await supabase
+        .from('practice_cycles')
+        .select('lego_id, position, known_text, target_text')
+        .eq('course_code', courseId)
+        .eq('phrase_role', 'component')
+        .order('lego_id', { ascending: true })
+        .order('position', { ascending: true })
+        .range(componentOffset, componentOffset + pageSize - 1)
+
+      if (error) {
+        console.error('[loadAllPracticePhrasesGrouped] Query error (components):', error)
+        break
+      }
+      if (!page || page.length === 0) break
+
+      for (const row of page) {
+        if (!componentMap.has(row.lego_id)) {
+          componentMap.set(row.lego_id, [])
+        }
+        componentMap.get(row.lego_id)!.push({
+          known: row.known_text,
+          target: row.target_text,
+          position: row.position
+        })
+      }
+
+      if (page.length < pageSize) break
+      componentOffset += pageSize
+    }
+
+    console.log(`[loadAllPracticePhrasesGrouped] Loaded ${debutMap.size} LEGOs with debut, ${eternalMap.size} eternal, ${componentMap.size} with components`)
+    return { debutMap, eternalMap, componentMap }
   } catch (err) {
     console.error('[loadAllPracticePhrasesGrouped] Error:', err)
-    return { debutMap, eternalMap }
+    return { debutMap, eternalMap, componentMap }
   }
 }
 
@@ -1348,9 +1397,8 @@ export async function generateLearningScript(
     return { rounds: [], allItems: [] }
   }
 
-  // Load ALL practice phrases and split into debut (shortest 7) and eternal (longest 5)
-  // Single query for efficiency
-  const { debutMap: debutPhrases, eternalMap: eternalPhrases } = await loadAllPracticePhrasesGrouped(
+  // Load ALL practice phrases by role: debut, eternal, and components
+  const { debutMap: debutPhrases, eternalMap: eternalPhrases, componentMap } = await loadAllPracticePhrasesGrouped(
     supabase,
     courseId,
     audioBaseUrl
@@ -1546,14 +1594,18 @@ export async function generateLearningScript(
 
     // Phase 1: Introduction Audio (not a phrase, doesn't count)
     // Include presentation audio directly in the script item
+    // For M-type LEGOs, include component breakdown for visual display
     const introAudio = introAudioMap.get(currentLego.lego.id)
+    const legoComponents = componentMap.get(currentLego.lego.id)
     roundItems.push({
       ...baseItem,
       type: 'intro',
       presentationAudio: introAudio, // Already resolved URL
+      // Visual breakdown for M-type LEGOs: "después de / que / termines" -> "after / that / you finish"
+      components: legoComponents?.map(c => ({ known: c.known, target: c.target })),
     })
 
-    // Phase 2: Components (for M-type LEGOs - skipped for now)
+    // Phase 2: Components - now visual only (displayed in intro phase above)
 
     // Phase 3: LEGO Debut
     roundItems.push({

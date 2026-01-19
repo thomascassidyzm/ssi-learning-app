@@ -1430,6 +1430,18 @@ watch([showTargetText, () => currentPhrase.value.target], ([showing, newTarget])
   }
 }, { immediate: true })
 
+// Component breakdown for M-type LEGOs (visual display only)
+// Format: [{known: "after", target: "después de"}, ...]
+const displayedComponents = ref<Array<{known: string, target: string}>>([])
+watch(() => {
+  const item = useRoundBasedPlayback.value
+    ? currentPlayableItem.value
+    : sessionItems.value[currentItemIndex.value]
+  return item?.components
+}, (components) => {
+  displayedComponents.value = components || []
+}, { immediate: true })
+
 // Is current item an intro? (network should fade, show typewriter message)
 // NOTE: Only 'intro' items show typewriter. 'debut' items (lego_itself) show normal phrase display.
 const isIntroPhase = computed(() => {
@@ -4612,6 +4624,20 @@ onUnmounted(() => {
             {{ displayedTargetText }}
           </p>
         </div>
+
+        <!-- Component Breakdown for M-type LEGOs (visual only, shown during intro) -->
+        <div v-if="displayedComponents.length > 0 && isIntroPhase" class="pane-components">
+          <div class="components-row components-target">
+            <span v-for="(comp, i) in displayedComponents" :key="'t'+i" class="component-part">
+              {{ comp.target }}<span v-if="i < displayedComponents.length - 1" class="component-sep"> / </span>
+            </span>
+          </div>
+          <div class="components-row components-known">
+            <span v-for="(comp, i) in displayedComponents" :key="'k'+i" class="component-part">
+              {{ comp.known }}<span v-if="i < displayedComponents.length - 1" class="component-sep"> / </span>
+            </span>
+          </div>
+        </div>
       </div>
 
       <!-- Play button when paused -->
@@ -5814,6 +5840,44 @@ onUnmounted(() => {
   color: var(--text-muted);
   opacity: 0.3;
   letter-spacing: 0.3em;
+}
+
+/* Component breakdown for M-type LEGOs */
+.pane-components {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  border-left: 3px solid rgba(251, 191, 36, 0.4);
+}
+
+.components-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.25rem;
+  line-height: 1.5;
+}
+
+.components-target {
+  font-size: 1.1rem;
+  color: rgba(251, 191, 36, 0.9);
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+}
+
+.components-known {
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.component-part {
+  white-space: nowrap;
+}
+
+.component-sep {
+  color: rgba(255, 255, 255, 0.3);
+  margin: 0 0.15rem;
 }
 
 /* Hidden ring reference (for backwards compatibility) */
