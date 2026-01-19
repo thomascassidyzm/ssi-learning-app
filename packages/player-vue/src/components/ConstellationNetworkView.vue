@@ -95,6 +95,14 @@ const props = defineProps({
     type: String,
     default: '#ffffff',  // Color for brain boundary outline
   },
+  disableInteraction: {
+    type: Boolean,
+    default: false,  // When true, disables zoom/drag - fixed view only
+  },
+  hideUnrevealedNodes: {
+    type: Boolean,
+    default: false,  // When true, unrevealed nodes are completely hidden (not ghost)
+  },
 })
 
 const emit = defineEmits<{
@@ -161,6 +169,9 @@ const combinedTransform = computed(() => {
 function handleWheel(e: WheelEvent) {
   e.preventDefault()
 
+  // Skip if interaction is disabled
+  if (props.disableInteraction) return
+
   // Mark as zooming to disable transition
   isWheelZooming.value = true
   if (wheelZoomTimeout) clearTimeout(wheelZoomTimeout)
@@ -192,6 +203,9 @@ function handleWheel(e: WheelEvent) {
 // ============================================================================
 
 function handleMouseDown(e: MouseEvent) {
+  // Skip if interaction is disabled
+  if (props.disableInteraction) return
+
   // Only pan on left click, and not on nodes
   if (e.button !== 0) return
   if ((e.target as Element).closest('.node')) return
@@ -239,6 +253,9 @@ function getTouchCenter(e: TouchEvent): { x: number; y: number } {
 }
 
 function handleTouchStart(e: TouchEvent) {
+  // Skip if interaction is disabled
+  if (props.disableInteraction) return
+
   // Don't prevent default - allow native scrolling to work when needed
   if ((e.target as Element).closest('.node')) return
 
@@ -256,6 +273,9 @@ function handleTouchStart(e: TouchEvent) {
 }
 
 function handleTouchMove(e: TouchEvent) {
+  // Skip if interaction is disabled
+  if (props.disableInteraction) return
+
   if (e.touches.length === 2 && initialPinchDistance.value > 0) {
     e.preventDefault()
 
@@ -447,8 +467,10 @@ function isNodeRevealed(nodeId: string): boolean {
 }
 
 function getNodeOpacity(node: ConstellationNode): number {
-  // Unrevealed nodes are very faint (showing the full brain shape)
-  if (!isNodeRevealed(node.id)) return 0.08
+  // Unrevealed nodes: completely hide if hideUnrevealedNodes, otherwise very faint
+  if (!isNodeRevealed(node.id)) {
+    return props.hideUnrevealedNodes ? 0 : 0.08
+  }
   // Hero node (current LEGO being learned) is brightest
   if (node.id === props.heroNodeId) return 1
   // Nodes actively in the current phrase path
@@ -487,6 +509,14 @@ function getNodeSize(node: ConstellationNode, isActive: boolean): {
 }
 
 function getEdgeOpacity(edge: ConstellationEdge): number {
+  // If hideUnrevealedNodes is true, hide edges connected to unrevealed nodes
+  if (props.hideUnrevealedNodes) {
+    const sourceId = getEdgeNodeId(edge.source as string | { id: string })
+    const targetId = getEdgeNodeId(edge.target as string | { id: string })
+    if (!isNodeRevealed(sourceId) || !isNodeRevealed(targetId)) {
+      return 0
+    }
+  }
   // Active path edges are bright
   if (isEdgeInPath(edge.id)) return 0.85
   // Background edges: subtle, Hebbian strength increases opacity slightly
