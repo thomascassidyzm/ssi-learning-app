@@ -19,6 +19,7 @@ import { useMetaCommentary } from '../composables/useMetaCommentary'
 import { useSharedBeltProgress, type BeltProgressSyncConfig } from '../composables/useBeltProgress'
 import { useBeltLoader, getBeltForSeed, BELT_RANGES, type BeltLoaderConfig } from '../composables/useBeltLoader'
 import { useOfflinePlay } from '../composables/useOfflinePlay'
+import { useOfflineCache } from '../composables/useOfflineCache'
 import { generateLearningScript } from '../providers/CourseDataProvider'
 // Prebuilt network: positions pre-calculated, pans to hero via CSS
 import { usePrebuiltNetworkIntegration } from '../composables/usePrebuiltNetworkIntegration'
@@ -1085,6 +1086,9 @@ const dismissBreakSuggestion = () => {
 const audioController = shallowRef(null)
 const orchestrator = shallowRef(null)
 
+// Offline cache for IndexedDB-based audio caching
+const { initAudioSource, cache: offlineCache, cacheStats, refreshCacheStats } = useOfflineCache()
+
 // Map core CyclePhase to UI phases (for backward compatibility)
 const Phase = {
   PROMPT: 'prompt',      // Maps to CyclePhase.PROMPT
@@ -1599,17 +1603,36 @@ class RealAudioController {
     this.skipNextNotify = false  // Set true to skip orchestrator callbacks (for intro/welcome)
     this.suppressAllCallbacks = false  // Set true during skip to prevent any audio callbacks
     this.playGeneration = 0  // Incremented on stop() to invalidate pending callbacks
+    this.audioSource = null  // Optional AudioSource for IndexedDB caching
+  }
+
+  /**
+   * Set the AudioSource for cache-first URL resolution.
+   * When set, play() will use cached blob URLs when available.
+   */
+  setAudioSource(audioSource) {
+    this.audioSource = audioSource
   }
 
   async play(audioRef) {
     // Stop any currently playing audio and cleanup handlers
     this.stop()
 
-    const url = audioRef?.url
-    if (!url) {
+    if (!audioRef?.url) {
       console.warn('[AudioController] No URL in audioRef:', audioRef)
       this._notifyEnded()
       return Promise.resolve()
+    }
+
+    // Resolve URL through cache layer if available (returns blob: URL if cached)
+    let url = audioRef.url
+    if (this.audioSource) {
+      try {
+        url = await this.audioSource.getAudioUrl(audioRef)
+      } catch (err) {
+        console.warn('[AudioController] Cache lookup failed, using direct URL:', err.message)
+        url = audioRef.url
+      }
     }
 
     // Capture generation at start of this play - if it changes, this play was cancelled
@@ -3803,6 +3826,14 @@ onMounted(async () => {
   document.documentElement.setAttribute('data-theme', 'dark')
   audioController.value = new RealAudioController()
   currentCourseCode.value = courseCode.value
+
+  // Initialize audio caching layer (IndexedDB-based)
+  // AudioSource provides cache-first URL resolution for offline support
+  if (courseCode.value) {
+    const audioSource = initAudioSource(courseCode.value)
+    audioController.value.setAudioSource(audioSource)
+    console.log('[LearningPlayer] Audio cache layer initialized for course:', courseCode.value)
+  }
 
   // Initialize belt progress (loads from localStorage, merges with Supabase)
   await initializeBeltProgress()

@@ -5,6 +5,8 @@ import { createProgressStore, createSessionStore } from '@ssi/core'
 import { createCourseDataProvider } from './providers/CourseDataProvider'
 import { loadConfig, isSupabaseConfigured, isClerkConfigured } from './config/env'
 import { useAuth } from './composables/useAuth'
+import { checkKillSwitch } from './composables/useServiceWorkerSafety'
+import PwaUpdatePrompt from './components/PwaUpdatePrompt.vue'
 
 // Build version injected by Vite at build time
 // @ts-ignore - __BUILD_NUMBER__ is defined by Vite
@@ -219,6 +221,12 @@ onMounted(async () => {
   // Clear stale caches on new deploy
   invalidateStaleCaches()
 
+  // Check service worker kill switch (for emergency recovery)
+  // If kill switch is active, this will unregister SW and reload
+  checkKillSwitch().catch(err => {
+    console.warn('[App] Kill switch check failed (non-fatal):', err)
+  })
+
   // Only initialize Supabase if configured and feature flag is enabled
   if (config.features.useDatabase && isSupabaseConfigured(config)) {
     try {
@@ -262,6 +270,7 @@ onMounted(async () => {
 <template>
   <div class="app-root">
     <router-view />
+    <PwaUpdatePrompt />
   </div>
 </template>
 

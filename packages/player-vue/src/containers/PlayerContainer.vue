@@ -8,6 +8,7 @@ import JourneyMap from '@/components/JourneyMap.vue'
 import SettingsScreen from '@/components/SettingsScreen.vue'
 import CourseExplorer from '@/components/CourseExplorer.vue'
 import BrainView from '@/components/BrainView.vue'
+import BrainCanvas from '@/components/BrainCanvas.vue'
 import UsageStats from '@/components/UsageStats.vue'
 import BottomNav from '@/components/BottomNav.vue'
 import BuildBadge from '@/components/BuildBadge.vue'
@@ -266,14 +267,12 @@ onMounted(() => {
       />
     </Transition>
 
-    <!-- Progress Map Visualization (Brain View) -->
+    <!-- Progress Map Visualization (Brain Canvas - fast Canvas-based version) -->
     <Transition name="slide-right" mode="out-in">
-      <BrainView
+      <BrainCanvas
         v-if="currentScreen === 'network'"
-        ref="legoNetworkRef"
-        :course="activeCourse"
-        :belt-level="currentBeltName"
-        :completed-seeds="learnerStats.completedSeeds"
+        :current-belt="currentBeltName"
+        :completed-nodes="[]"
         @close="goHome"
       />
     </Transition>
