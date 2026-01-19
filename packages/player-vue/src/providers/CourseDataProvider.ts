@@ -470,17 +470,8 @@ export class CourseDataProvider {
   }
 
   /**
-   * Get introduction audio for a LEGO ("The Spanish for X is...")
-   *
-   * v14.2: Simplified schema - only queries presentation_audio_id
-   * Target audio (target1, target2) comes from the LEGO's existing phrase data
-   *
-   * The intro sequence is: presentation → target1 → target2
-   * But only presentation is unique to the intro - targets are reused from the LEGO
-   *
-   * Returns:
-   * - origin='human' (Welsh): Single pre-recorded file - play presentationUrl only
-   * - origin='tts': Sequence - presentationUrl → [targets from LEGO phrase data]
+   * Get introduction audio for a LEGO ("The German for X is...")
+   * Queries course_audio directly where role='presentation' and lego_id matches.
    */
   async getIntroductionAudio(legoId: string): Promise<{
     id: string
@@ -491,71 +482,29 @@ export class CourseDataProvider {
     if (!this.client) return null
 
     try {
-      // Query lego_introductions for presentation audio
+      // Query course_audio directly for presentation audio by lego_id
       const { data, error } = await this.client
-        .from('lego_introductions')
-        .select('lego_id, audio_uuid, presentation_audio_id')
-        .eq('lego_id', legoId)
+        .from('course_audio')
+        .select('id, s3_key, duration_ms, origin')
         .eq('course_code', this.courseId)
+        .eq('role', 'presentation')
+        .eq('lego_id', legoId)
         .maybeSingle()
 
       if (error) {
-        console.warn('[CourseDataProvider] lego_introductions query error:', error.message)
+        console.warn('[CourseDataProvider] Presentation audio query error:', error.message)
         return null
       }
 
-      if (!data) {
-        // Fallback: Query course_audio directly for presentation audio
-        // This handles courses where intro audio has lego_id set but not linked via lego_introductions
-        const { data: presentationAudio, error: presError } = await this.client
-          .from('course_audio')
-          .select('id, s3_key, duration_ms, origin')
-          .eq('course_code', this.courseId)
-          .eq('role', 'presentation')
-          .eq('lego_id', legoId)
-          .maybeSingle()
-
-        if (!presError && presentationAudio?.s3_key) {
-          return {
-            id: presentationAudio.id,
-            url: this.resolveAudioUrl(presentationAudio.s3_key),
-            duration_ms: presentationAudio.duration_ms,
-            origin: presentationAudio.origin || 'tts',
-          }
-        }
-
-        return null
-      }
-
-      // v13: Use presentation_audio_id to lookup s3_key from course_audio
-      if (data.presentation_audio_id) {
-        const { data: audioData, error: audioError } = await this.client
-          .from('course_audio')
-          .select('id, s3_key, duration_ms, origin')
-          .eq('id', data.presentation_audio_id)
-          .maybeSingle()
-
-        if (!audioError && audioData?.s3_key) {
-          return {
-            id: audioData.id,
-            url: this.resolveAudioUrl(audioData.s3_key),
-            duration_ms: audioData.duration_ms,
-            origin: audioData.origin || 'tts',
-          }
-        }
-      }
-
-      // Legacy: Use audio_uuid directly (raw UUID → mastered/{UUID}.mp3)
-      if (data.audio_uuid) {
-        const legacyUrl = `${this.audioBaseUrl.replace(/\/$/, '')}/mastered/${data.audio_uuid.toUpperCase()}.mp3`
+      if (data?.s3_key) {
         return {
-          id: data.audio_uuid,
-          url: legacyUrl,
-          origin: 'human', // Legacy Welsh recordings are human
+          id: data.id,
+          url: this.resolveAudioUrl(data.s3_key),
+          duration_ms: data.duration_ms,
+          origin: data.origin || 'tts',
         }
       }
 
-      console.warn('[CourseDataProvider] No presentation audio for:', legoId)
       return null
     } catch (err) {
       console.error('[CourseDataProvider] Error loading intro audio:', err)
