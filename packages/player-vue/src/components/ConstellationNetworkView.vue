@@ -87,6 +87,14 @@ const props = defineProps({
     type: Set as unknown as PropType<Set<string> | null>,
     default: null,  // null = all nodes revealed, Set = only these are revealed
   },
+  brainBoundarySvgPath: {
+    type: String,
+    default: '',  // SVG path data for brain boundary (optional)
+  },
+  brainBoundaryColor: {
+    type: String,
+    default: '#ffffff',  // Color for brain boundary outline
+  },
 })
 
 const emit = defineEmits<{
@@ -686,10 +694,32 @@ defineExpose({
             <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>
+
+        <!-- Brain boundary glow filter -->
+        <filter id="brain-boundary-glow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="2" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
       </defs>
 
       <!-- Pan group - transforms to center on hero + user zoom/pan -->
       <g class="pan-group" :style="{ transform: combinedTransform }">
+
+        <!-- Brain boundary outline (subtle, shows the "growing brain" shape) -->
+        <path
+          v-if="brainBoundarySvgPath"
+          class="brain-boundary"
+          :d="brainBoundarySvgPath"
+          :stroke="brainBoundaryColor"
+          stroke-width="1.5"
+          fill="none"
+          opacity="0.12"
+          filter="url(#brain-boundary-glow)"
+        />
+
         <!-- Edges layer -->
         <g class="edges-layer">
           <path

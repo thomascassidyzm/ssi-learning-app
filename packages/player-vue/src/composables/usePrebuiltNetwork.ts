@@ -69,6 +69,219 @@ function getBeltForPosition(position: number): string {
 }
 
 // ============================================================================
+// GROWING BRAIN BOUNDARIES
+// ============================================================================
+
+/**
+ * Brain boundary shapes for each belt level.
+ * The brain "grows" as you progress - from a small embryonic shape at white belt
+ * to a full adult brain shape at black belt.
+ *
+ * Each shape is defined by:
+ * - scale: Overall size multiplier (0.0 to 1.0)
+ * - asymmetry: How asymmetric left vs right (0.0 = symmetric, 1.0 = full brain asymmetry)
+ * - lobeDefinition: How pronounced the brain lobes are (0.0 = smooth, 1.0 = full lobes)
+ */
+export interface BrainBoundary {
+  belt: string
+  scale: number        // 0.3 (small) to 1.0 (full size)
+  asymmetry: number    // 0 (symmetric) to 1 (brain-like asymmetry)
+  lobeDefinition: number  // 0 (smooth oval) to 1 (defined lobes)
+}
+
+export const BRAIN_BOUNDARIES: BrainBoundary[] = [
+  { belt: 'white',  scale: 0.30, asymmetry: 0.0, lobeDefinition: 0.0 },   // Seed/embryo - tiny circle
+  { belt: 'yellow', scale: 0.40, asymmetry: 0.1, lobeDefinition: 0.1 },   // Early growth
+  { belt: 'orange', scale: 0.50, asymmetry: 0.2, lobeDefinition: 0.2 },   // Taking shape
+  { belt: 'green',  scale: 0.60, asymmetry: 0.3, lobeDefinition: 0.35 },  // Developing structure
+  { belt: 'blue',   scale: 0.70, asymmetry: 0.5, lobeDefinition: 0.5 },   // Clear brain form
+  { belt: 'purple', scale: 0.80, asymmetry: 0.65, lobeDefinition: 0.65 }, // Maturing
+  { belt: 'brown',  scale: 0.90, asymmetry: 0.8, lobeDefinition: 0.8 },   // Nearly complete
+  { belt: 'black',  scale: 1.00, asymmetry: 1.0, lobeDefinition: 1.0 },   // Full adult brain
+]
+
+/**
+ * Get the brain boundary for a given belt level
+ */
+export function getBrainBoundary(belt: string): BrainBoundary {
+  return BRAIN_BOUNDARIES.find(b => b.belt === belt) || BRAIN_BOUNDARIES[0]
+}
+
+/**
+ * Get the brain boundary based on the highest belt reached (by node count)
+ */
+export function getBrainBoundaryForNodeCount(nodeCount: number): BrainBoundary {
+  // Find the highest belt threshold that nodeCount exceeds
+  for (let i = 0; i < BELT_THRESHOLDS.length; i++) {
+    if (nodeCount >= BELT_THRESHOLDS[i].threshold) {
+      return BRAIN_BOUNDARIES.find(b => b.belt === BELT_THRESHOLDS[i].belt) || BRAIN_BOUNDARIES[0]
+    }
+  }
+  return BRAIN_BOUNDARIES[0] // White belt default
+}
+
+/**
+ * Check if a point is inside the brain boundary.
+ * Uses a parametric brain shape that evolves based on boundary parameters.
+ *
+ * The brain shape is a modified super-ellipse with:
+ * - Overall scale based on belt level
+ * - Left-right asymmetry (left side slightly larger, like real brains)
+ * - Lobe indentations that become more pronounced at higher belts
+ *
+ * @param x - X coordinate (relative to center)
+ * @param y - Y coordinate (relative to center)
+ * @param boundary - Brain boundary parameters
+ * @param maxRadius - Maximum radius of the full brain at scale 1.0
+ */
+export function isInsideBrainBoundary(
+  x: number,
+  y: number,
+  boundary: BrainBoundary,
+  maxRadius: number
+): boolean {
+  // Calculate the boundary radius at this angle
+  const angle = Math.atan2(y, x)
+  const boundaryRadius = getBrainRadiusAtAngle(angle, boundary, maxRadius)
+
+  // Check if point is inside
+  const distance = Math.sqrt(x * x + y * y)
+  return distance <= boundaryRadius
+}
+
+/**
+ * Get the brain boundary radius at a given angle.
+ * This creates the brain shape with:
+ * - Base ellipse (wider than tall)
+ * - Asymmetry (left side larger)
+ * - Lobe modulation (creates the characteristic brain curves)
+ */
+export function getBrainRadiusAtAngle(
+  angle: number,
+  boundary: BrainBoundary,
+  maxRadius: number
+): number {
+  const { scale, asymmetry, lobeDefinition } = boundary
+
+  // Base ellipse - wider than tall (brain is wider)
+  const aspectRatio = 1.15  // Width/Height ratio
+  const ellipseRadius = maxRadius / Math.sqrt(
+    Math.pow(Math.cos(angle), 2) +
+    Math.pow(Math.sin(angle) / aspectRatio, 2)
+  )
+
+  // Left-right asymmetry (left hemisphere slightly larger)
+  // cos(angle) > 0 means right side, < 0 means left side
+  const asymmetryFactor = 1 + asymmetry * 0.08 * (Math.cos(angle) < 0 ? 1 : -0.5)
+
+  // Lobe modulation - creates the characteristic brain curves
+  // Uses a combination of harmonics to create frontal/parietal/occipital/temporal regions
+  const lobeWave =
+    Math.sin(angle * 2) * 0.08 +  // Major lobe division
+    Math.sin(angle * 3) * 0.04 +  // Secondary features
+    Math.sin(angle * 5) * 0.02    // Fine detail
+  const lobeModulation = 1 + lobeDefinition * lobeWave
+
+  // Flatten the bottom slightly (brainstem area)
+  const bottomFlattening = angle > 0.3 && angle < Math.PI - 0.3
+    ? 1 - lobeDefinition * 0.05 * Math.sin(angle)
+    : 1
+
+  return ellipseRadius * scale * asymmetryFactor * lobeModulation * bottomFlattening
+}
+
+/**
+ * Get points defining the brain boundary (for SVG rendering)
+ * Returns an array of {x, y} points forming the brain outline
+ */
+export function getBrainBoundaryPath(
+  boundary: BrainBoundary,
+  maxRadius: number,
+  center: { x: number; y: number },
+  numPoints: number = 100
+): { x: number; y: number }[] {
+  const points: { x: number; y: number }[] = []
+
+  for (let i = 0; i < numPoints; i++) {
+    const angle = (i / numPoints) * Math.PI * 2 - Math.PI  // Start from left (-π)
+    const radius = getBrainRadiusAtAngle(angle, boundary, maxRadius)
+    points.push({
+      x: center.x + Math.cos(angle) * radius,
+      y: center.y + Math.sin(angle) * radius
+    })
+  }
+
+  return points
+}
+
+/**
+ * Convert boundary points to SVG path data
+ */
+export function brainBoundaryToSvgPath(points: { x: number; y: number }[]): string {
+  if (points.length === 0) return ''
+
+  let path = `M ${points[0].x} ${points[0].y}`
+  for (let i = 1; i < points.length; i++) {
+    path += ` L ${points[i].x} ${points[i].y}`
+  }
+  path += ' Z'
+
+  return path
+}
+
+/**
+ * Custom D3 force that constrains nodes within the brain boundary.
+ * Nodes outside the boundary are gently pushed back inside.
+ */
+export function forceBrainBoundary(
+  center: { x: number; y: number },
+  boundary: BrainBoundary,
+  maxRadius: number,
+  strength: number = 0.3
+) {
+  let nodes: any[] = []
+
+  function force(alpha: number) {
+    for (const node of nodes) {
+      // Calculate position relative to center
+      const dx = node.x - center.x
+      const dy = node.y - center.y
+      const distance = Math.sqrt(dx * dx + dy * dy)
+
+      if (distance === 0) continue
+
+      // Get the boundary radius at this angle
+      const angle = Math.atan2(dy, dx)
+      const boundaryRadius = getBrainRadiusAtAngle(angle, boundary, maxRadius)
+
+      // If outside boundary, push back inside
+      if (distance > boundaryRadius) {
+        const overflow = distance - boundaryRadius
+        const pushStrength = strength * alpha * (1 + overflow / boundaryRadius)
+
+        // Push toward center, proportional to overflow
+        node.vx -= (dx / distance) * overflow * pushStrength
+        node.vy -= (dy / distance) * overflow * pushStrength
+      }
+
+      // Also add a gentle inward force to keep nodes from clustering at the edge
+      const edgeProximity = distance / boundaryRadius
+      if (edgeProximity > 0.85) {
+        const gentlePush = (edgeProximity - 0.85) * 0.15 * alpha * strength
+        node.vx -= (dx / distance) * gentlePush * distance
+        node.vy -= (dy / distance) * gentlePush * distance
+      }
+    }
+  }
+
+  force.initialize = function(_nodes: any[]) {
+    nodes = _nodes
+  }
+
+  return force
+}
+
+// ============================================================================
 // PRE-CALCULATION
 // ============================================================================
 
@@ -95,13 +308,15 @@ export interface ExternalConnection {
  * @param externalConnections - Pre-loaded connections from database (optional)
  *                              If provided, uses these instead of inferring from round items
  * @param startOffset - The seed position where these rounds start (for correct belt colors)
+ * @param currentBelt - The current belt level (determines brain boundary size)
  */
 export function preCalculatePositions(
   rounds: RoundData[],
   canvasSize: { width: number; height: number } = { width: 800, height: 800 },
   externalConnections?: ExternalConnection[],
-  startOffset: number = 0
-): { nodes: ConstellationNode[], edges: ConstellationEdge[] } {
+  startOffset: number = 0,
+  currentBelt: string = 'black'  // Default to full brain for backwards compat
+): { nodes: ConstellationNode[], edges: ConstellationEdge[], brainBoundary: BrainBoundary } {
   const center = { x: canvasSize.width / 2, y: canvasSize.height / 2 }
 
   // Build nodes from rounds
@@ -362,9 +577,18 @@ export function preCalculatePositions(
     console.log(`[PrebuiltNetwork] Added ${componentEdges.length} component→M-type edges`)
   }
 
-  // Run D3 force simulation to completion
-  // Spread nodes out more so edges have room to display
+  // Get brain boundary for current belt
+  const brainBoundary = getBrainBoundary(currentBelt)
+
+  // Calculate max radius for brain boundary (fill most of canvas)
+  const maxRadius = Math.min(canvasSize.width, canvasSize.height) * 0.42
+
+  // Run D3 force simulation to completion with brain boundary constraint
+  // The network is constrained within a growing brain shape
   if (nodes.length > 0) {
+    // Scale forces based on boundary size (smaller brain = tighter forces)
+    const scaleFactor = brainBoundary.scale
+
     const simulation = d3.forceSimulation(nodes as any)
       .force('link', d3.forceLink(edges as any)
         .id((d: any) => d.id)
@@ -374,10 +598,11 @@ export function preCalculatePositions(
           // Component edges should be shorter to keep components close to parents
           const isComponentEdge = edge.source.toString().startsWith('_c_') ||
                                    (typeof edge.source === 'object' && (edge.source as any).id?.startsWith('_c_'))
-          const baseDistance = isComponentEdge ? 80 : 180
-          const minDistance = isComponentEdge ? 40 : 80
-          const scaleFactor = 1 + Math.pow(strength, 0.4)
-          return Math.max(minDistance, baseDistance / scaleFactor)
+          // Scale distances based on brain size
+          const baseDistance = (isComponentEdge ? 60 : 120) * scaleFactor
+          const minDistance = (isComponentEdge ? 30 : 50) * scaleFactor
+          const distanceScale = 1 + Math.pow(strength, 0.4)
+          return Math.max(minDistance, baseDistance / distanceScale)
         })
         .strength((d: any) => {
           const edge = d as ConstellationEdge
@@ -388,19 +613,27 @@ export function preCalculatePositions(
           return isComponentEdge ? 0.8 : Math.min(1.0, 0.2 + Math.pow(strength, 0.3) * 0.15)
         })
       )
-      // Stronger repulsion to spread nodes apart (less for components)
+      // Repulsion scaled to brain size (smaller brain = less repulsion)
       .force('charge', d3.forceManyBody()
-        .strength((d: any) => (d as ConstellationNode).isComponent ? -200 : -500)
-        .distanceMax(600))
+        .strength((d: any) => {
+          const baseStrength = (d as ConstellationNode).isComponent ? -150 : -350
+          return baseStrength * scaleFactor
+        })
+        .distanceMax(maxRadius * scaleFactor * 1.5))
       .force('center', d3.forceCenter(center.x, center.y))
-      // Smaller collision radius for component nodes
+      // Collision radius scaled to brain size
       .force('collide', d3.forceCollide()
-        .radius((d: any) => (d as ConstellationNode).isComponent ? 25 : 45)
+        .radius((d: any) => {
+          const baseRadius = (d as ConstellationNode).isComponent ? 20 : 35
+          return baseRadius * scaleFactor
+        })
         .strength(0.9))
+      // BRAIN BOUNDARY CONSTRAINT - keeps nodes inside the growing brain shape
+      .force('brainBoundary', forceBrainBoundary(center, brainBoundary, maxRadius, 0.5))
       .stop()
 
-    // Run to completion (300 ticks is usually enough)
-    for (let i = 0; i < 300; i++) {
+    // Run to completion (400 ticks for better boundary convergence)
+    for (let i = 0; i < 400; i++) {
       simulation.tick()
     }
 
@@ -409,6 +642,8 @@ export function preCalculatePositions(
       node.x = node.x ?? center.x
       node.y = node.y ?? center.y
     })
+
+    console.log(`[PrebuiltNetwork] Brain boundary: ${currentBelt} belt (scale: ${brainBoundary.scale}, asymmetry: ${brainBoundary.asymmetry})`)
   }
 
   // More detailed diagnostics
@@ -434,7 +669,7 @@ export function preCalculatePositions(
     console.warn('[PrebuiltNetwork] No edges from items. Consider loading connections from database.')
   }
 
-  return { nodes, edges }
+  return { nodes, edges, brainBoundary }
 }
 
 // ============================================================================
@@ -445,6 +680,10 @@ export function usePrebuiltNetwork() {
   // Pre-calculated data (set once on load)
   const nodes: Ref<ConstellationNode[]> = ref([])
   const edges: Ref<ConstellationEdge[]> = ref([])
+
+  // Brain boundary state (grows with belt level)
+  const brainBoundary: Ref<BrainBoundary> = ref(BRAIN_BOUNDARIES[0])  // Default to white belt
+  const maxBrainRadius: Ref<number> = ref(350)  // Will be set based on canvas size
 
   // Runtime state
   const heroNodeId: Ref<string | null> = ref(null)
@@ -465,22 +704,26 @@ export function usePrebuiltNetwork() {
    * @param canvasSize - Canvas dimensions
    * @param externalConnections - Pre-loaded connections from database (optional)
    * @param startOffset - The seed position where these rounds start (for correct belt colors)
+   * @param currentBelt - Current belt level (determines brain boundary size)
    */
   function loadFromRounds(
     rounds: RoundData[],
     canvasSize?: { width: number; height: number },
     externalConnections?: ExternalConnection[],
-    startOffset: number = 0
+    startOffset: number = 0,
+    currentBelt: string = 'black'  // Default to full brain for backwards compat
   ): void {
-    const result = preCalculatePositions(rounds, canvasSize, externalConnections, startOffset)
+    const result = preCalculatePositions(rounds, canvasSize, externalConnections, startOffset, currentBelt)
     nodes.value = result.nodes
     edges.value = result.edges
+    brainBoundary.value = result.brainBoundary
     revealedNodeIds.value = new Set()
     heroNodeId.value = null
     currentPath.value = null
 
     if (canvasSize) {
       networkCenter.value = { x: canvasSize.width / 2, y: canvasSize.height / 2 }
+      maxBrainRadius.value = Math.min(canvasSize.width, canvasSize.height) * 0.42
     }
   }
 
@@ -716,12 +959,32 @@ export function usePrebuiltNetwork() {
   // EXPORT
   // ============================================================================
 
+  // Computed brain boundary path for SVG rendering
+  const brainBoundaryPath = computed(() => {
+    return getBrainBoundaryPath(
+      brainBoundary.value,
+      maxBrainRadius.value,
+      networkCenter.value
+    )
+  })
+
+  const brainBoundarySvgPath = computed(() => {
+    return brainBoundaryToSvgPath(brainBoundaryPath.value)
+  })
+
   return {
     // Data
     nodes,
     edges,
     visibleNodes,
     visibleEdges,
+
+    // Brain boundary (grows with belt level)
+    brainBoundary,
+    maxBrainRadius,
+    brainBoundaryPath,
+    brainBoundarySvgPath,
+    networkCenter,
 
     // State
     heroNodeId,

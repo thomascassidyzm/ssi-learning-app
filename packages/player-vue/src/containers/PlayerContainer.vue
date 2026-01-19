@@ -8,7 +8,6 @@ import JourneyMap from '@/components/JourneyMap.vue'
 import SettingsScreen from '@/components/SettingsScreen.vue'
 import CourseExplorer from '@/components/CourseExplorer.vue'
 import BrainView from '@/components/BrainView.vue'
-import ProgressConstellation from '@/components/ProgressConstellation.vue'
 import UsageStats from '@/components/UsageStats.vue'
 import BottomNav from '@/components/BottomNav.vue'
 import BuildBadge from '@/components/BuildBadge.vue'
@@ -267,12 +266,13 @@ onMounted(() => {
       />
     </Transition>
 
-    <!-- Progress Constellation (static view with search) -->
+    <!-- Brain View (growing brain network visualization) -->
     <Transition name="slide-right" mode="out-in">
-      <ProgressConstellation
+      <BrainView
         v-if="currentScreen === 'network'"
-        :current-belt="currentBeltName"
-        :completed-nodes="[]"
+        :course="activeCourse"
+        :belt-level="currentBeltName"
+        :completed-seeds="learnerStats.completedSeeds"
         @close="goHome"
       />
     </Transition>

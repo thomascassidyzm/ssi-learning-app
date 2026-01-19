@@ -692,11 +692,14 @@ async function loadData() {
       }
     }
 
-    // Pre-calculate all positions
-    prebuiltNetwork.loadFromRounds(rounds, canvasSize.value, connections)
+    // Pre-calculate all positions with brain boundary based on belt level
+    // The network will be constrained within a "growing brain" shape
+    prebuiltNetwork.loadFromRounds(rounds, canvasSize.value, connections, 0, props.beltLevel)
 
     // Set center for panning (centered on network, not hero)
     prebuiltNetwork.setCenter(canvasSize.value.width / 2, canvasSize.value.height / 2)
+
+    console.log(`[BrainView] Brain boundary set for ${props.beltLevel} belt`)
 
     // Initial visibility (no hero panning)
     updateVisibility(sliderValue.value)
@@ -877,6 +880,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Network visualization - shows all nodes, unrevealed ones greyed out -->
+    <!-- Network is constrained within a "growing brain" shape based on belt level -->
     <ConstellationNetworkView
       v-else
       ref="networkRef"
@@ -887,6 +891,8 @@ onUnmounted(() => {
       :current-path="prebuiltNetwork.currentPath.value"
       :pan-transform="'translate(0px, 0px)'"
       :show-path-labels="true"
+      :brain-boundary-svg-path="prebuiltNetwork.brainBoundarySvgPath.value"
+      :brain-boundary-color="accentColor"
       @node-tap="handleNodeTap"
     />
 
