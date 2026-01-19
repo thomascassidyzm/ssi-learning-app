@@ -7394,7 +7394,9 @@ defineExpose({
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 3rem; /* Gap between left and right groups - space for nav play button */
+  /* Gap sized so spacing around nav play button matches button spacing (0.5rem) */
+  /* Play button ~58px + 0.5rem on each side = ~74px total gap */
+  gap: 4.625rem;
   padding: 0.75rem 1.5rem;
   position: absolute;
   /* Position above the bottom nav bar (80px) + some spacing */
@@ -7804,7 +7806,8 @@ defineExpose({
   }
 
   .control-bar {
-    gap: 1.5rem; /* Smaller gap on small screens */
+    /* Play button 48px + 2*4px gap = 56px ≈ 3.5rem */
+    gap: 3.5rem;
     padding: 0.375rem 0.5rem;
     /* Above nav bar on extra small phones */
     bottom: calc(90px + env(safe-area-inset-bottom, 0px));
@@ -7919,7 +7922,8 @@ defineExpose({
   }
 
   .control-bar {
-    gap: 2rem; /* Space for nav play button */
+    /* Play button 52px + 2*6px gap = 64px = 4rem */
+    gap: 4rem;
     padding: 0.5rem 0.75rem;
     /* Above nav bar on small phones */
     bottom: calc(95px + env(safe-area-inset-bottom, 0px));
@@ -8004,7 +8008,8 @@ defineExpose({
   }
 
   .control-bar {
-    gap: 3rem; /* Space for nav play button */
+    /* Play button 60px + 2*12px gap = 84px ≈ 5.25rem */
+    gap: 5.25rem;
     padding: 0.875rem 1.5rem;
     border-radius: 22px;
   }
@@ -8109,7 +8114,8 @@ defineExpose({
   }
 
   .control-bar {
-    gap: 4rem; /* Space for nav play button */
+    /* Play button 76px + 2*16px gap = 108px ≈ 6.75rem */
+    gap: 6.75rem;
     padding: 1.25rem 2.5rem;
     border-radius: 28px;
     /* Above nav bar on large desktops */
@@ -8188,7 +8194,8 @@ defineExpose({
 
   .control-bar {
     padding: 0.375rem 0.75rem;
-    gap: 1.5rem; /* Space for nav play button */
+    /* Play button ~44px + 2*4px gap = 52px ≈ 3.25rem */
+    gap: 3.25rem;
     /* Above nav bar in landscape */
     bottom: 85px;
   }
