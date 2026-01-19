@@ -136,6 +136,9 @@ let phrasePracticeTimer: ReturnType<typeof setTimeout> | null = null
 // Path animation timers
 let pathAnimationTimers: ReturnType<typeof setTimeout>[] = []
 
+// Download state
+const isDownloading = ref(false)
+
 // ============================================================================
 // COMPUTED
 // ============================================================================
@@ -275,6 +278,105 @@ function animateFirePath(legoIds: string[], audioDurationMs: number) {
       prebuiltNetwork.setPathActiveIndex(i)
     }, i * stepDuration)
     pathAnimationTimers.push(timer)
+  }
+}
+
+/**
+ * Download brain network as shareable image
+ */
+async function downloadBrainImage() {
+  if (!containerRef.value || isDownloading.value) return
+
+  isDownloading.value = true
+
+  try {
+    // Find the SVG element within the container
+    const svgElement = containerRef.value.querySelector('svg')
+    if (!svgElement) {
+      console.warn('[BrainView] SVG element not found')
+      return
+    }
+
+    // Get SVG dimensions
+    const svgRect = svgElement.getBoundingClientRect()
+    const width = Math.round(svgRect.width)
+    const height = Math.round(svgRect.height)
+
+    // Create canvas with extra space for title
+    const titleHeight = 60
+    const padding = 20
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height + titleHeight
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    // Dark background
+    ctx.fillStyle = '#0a0a0f'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+    // Draw title
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)'
+    ctx.font = '500 24px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+    ctx.textAlign = 'center'
+    ctx.fillText(`Your brain on ${languageName.value}`, canvas.width / 2, 40)
+
+    // Clone SVG for manipulation
+    const clonedSvg = svgElement.cloneNode(true) as SVGSVGElement
+
+    // Ensure SVG has explicit dimensions
+    clonedSvg.setAttribute('width', String(width))
+    clonedSvg.setAttribute('height', String(height))
+
+    // Inline all computed styles for external rendering
+    const allElements = clonedSvg.querySelectorAll('*')
+    allElements.forEach((el) => {
+      const computedStyle = window.getComputedStyle(el as Element)
+      const element = el as SVGElement
+      // Copy key styles that affect rendering
+      if (computedStyle.fill) element.style.fill = computedStyle.fill
+      if (computedStyle.stroke) element.style.stroke = computedStyle.stroke
+      if (computedStyle.strokeWidth) element.style.strokeWidth = computedStyle.strokeWidth
+      if (computedStyle.opacity) element.style.opacity = computedStyle.opacity
+    })
+
+    // Serialize SVG to string
+    const serializer = new XMLSerializer()
+    const svgString = serializer.serializeToString(clonedSvg)
+
+    // Create blob and image
+    const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
+    const url = URL.createObjectURL(svgBlob)
+
+    // Load SVG into image
+    const img = new Image()
+    img.onload = () => {
+      // Draw SVG below title
+      ctx.drawImage(img, 0, titleHeight)
+
+      // Clean up
+      URL.revokeObjectURL(url)
+
+      // Download
+      const downloadUrl = canvas.toDataURL('image/png')
+      const link = document.createElement('a')
+      link.download = `brain-on-${languageName.value.toLowerCase().replace(/\s+/g, '-')}.png`
+      link.href = downloadUrl
+      link.click()
+
+      isDownloading.value = false
+    }
+
+    img.onerror = () => {
+      console.warn('[BrainView] Failed to load SVG as image')
+      URL.revokeObjectURL(url)
+      isDownloading.value = false
+    }
+
+    img.src = url
+  } catch (err) {
+    console.error('[BrainView] Download failed:', err)
+    isDownloading.value = false
   }
 }
 
@@ -493,6 +595,21 @@ onUnmounted(() => {
 
     <!-- Page title -->
     <h1 v-if="languageName" class="brain-title">Your brain on {{ languageName }}</h1>
+
+    <!-- Download button -->
+    <button
+      class="download-btn"
+      @click="downloadBrainImage"
+      :disabled="isDownloading || isLoading"
+      title="Download to share"
+    >
+      <svg v-if="!isDownloading" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      <div v-else class="download-spinner"></div>
+    </button>
 
     <!-- Stats badge -->
     <div class="stats-badge" :style="{ borderColor: accentColor }">
@@ -722,9 +839,52 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-.stats-badge {
+.download-btn {
   position: absolute;
   top: calc(16px + env(safe-area-inset-top, 0px));
+  right: 16px;
+  z-index: 20;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(10, 10, 15, 0.8);
+  backdrop-filter: blur(10px);
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.download-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.download-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.download-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.download-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: rgba(255, 255, 255, 0.7);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.stats-badge {
+  position: absolute;
+  top: calc(64px + env(safe-area-inset-top, 0px));
   right: 16px;
   z-index: 20;
   padding: 8px 16px;
