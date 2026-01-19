@@ -1524,6 +1524,11 @@ export async function generateLearningScript(
   const rounds: RoundData[] = []
   const allItems: ScriptItem[] = []
 
+  // Track skip reasons for diagnostics
+  let skippedMissingIntroAudio = 0
+  let skippedNoValidPractice = 0
+  let skippedPhrasesMissingAudio = 0
+
   // Create a lookup map for LEGOs by index
   const legoMap = new Map<number, typeof legos[0]>()
   legos.forEach((lego, idx) => {
@@ -1533,9 +1538,16 @@ export async function generateLearningScript(
   // Generate each ROUND
   for (let n = 1; n <= legos.length; n++) {
     const currentLego = legos[n - 1]
-    const currentDebuts = debutPhrases.get(currentLego.lego.id) || []
+    const allDebuts = debutPhrases.get(currentLego.lego.id) || []
     const currentEternals = eternalPhrases.get(currentLego.lego.id) || []
     const roundItems: ScriptItem[] = []
+
+    // CRITICAL: Debut phrases MUST CONTAIN the LEGO target text
+    // Filter out any phrases that are just components (don't contain the full LEGO)
+    const legoTarget = (currentLego.phrase?.phrase?.target || '').toLowerCase().trim()
+    const currentDebuts = allDebuts.filter(p =>
+      p.targetText.toLowerCase().includes(legoTarget)
+    )
 
     // Track ALL phrases used in this round (no duplicates within a round!)
     // Normalize: lowercase, trim, strip punctuation for matching
@@ -1744,24 +1756,29 @@ export async function generateLearningScript(
     const introItem = dedupedItems.find(item => item.type === 'intro')
     if (introItem && !isValidIntroItem(introItem)) {
       console.warn(`[generateLearningScript] Skipping round ${n} (${currentLego.lego.id}) - missing intro audio`)
+      skippedMissingIntroAudio++
       continue  // Skip to next LEGO
     }
 
     // Check 2: Filter out practice items with incomplete audio
     // (No point playing a prompt if target voices won't play)
+    const skippedInThisRound = { count: 0 }
     const validatedItems = dedupedItems.filter(item => {
       if (!isValidPracticeItem(item)) {
         console.warn(`[generateLearningScript] Skipping item in round ${n}: incomplete audio for "${item.targetText?.slice(0, 30)}..."`)
+        skippedInThisRound.count++
         return false
       }
       return true
     })
+    skippedPhrasesMissingAudio += skippedInThisRound.count
 
     // Check 3: Only add round if it has meaningful content after filtering
     // (Need at least intro + 1 practice item)
     const practiceItemCount = validatedItems.filter(i => i.type !== 'intro').length
     if (practiceItemCount === 0) {
       console.warn(`[generateLearningScript] Skipping round ${n} (${currentLego.lego.id}) - no valid practice items`)
+      skippedNoValidPractice++
       continue
     }
 
@@ -1779,8 +1796,20 @@ export async function generateLearningScript(
 
   const skippedRounds = legos.length - rounds.length
   if (skippedRounds > 0) {
-    console.warn(`[generateLearningScript] Skipped ${skippedRounds} rounds due to missing audio`)
+    console.warn(`[generateLearningScript] Skipped ${skippedRounds} rounds due to missing audio:`)
+    console.warn(`  - Missing intro audio: ${skippedMissingIntroAudio} rounds`)
+    console.warn(`  - No valid practice items: ${skippedNoValidPractice} rounds`)
+    console.warn(`  - Phrases missing audio: ${skippedPhrasesMissingAudio} phrases`)
   }
+
+  if (rounds.length === 0) {
+    console.error(`[generateLearningScript] ⚠️ NO VALID ROUNDS generated! Course cannot play.`)
+    console.error(`  Attempted to generate ${legos.length} rounds from offset ${offset}`)
+    console.error(`  Skip breakdown: intro audio missing=${skippedMissingIntroAudio}, no practice items=${skippedNoValidPractice}`)
+    console.error(`  This usually means the course is missing audio data in the database.`)
+    console.error(`  Check that course_audio, lego_introductions, and lego_cycles have data for this course.`)
+  }
+
   console.log(`[generateLearningScript] Generated ${rounds.length} rounds with ${allItems.length} total items`)
 
   return { rounds, allItems }
