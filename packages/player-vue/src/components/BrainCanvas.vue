@@ -40,55 +40,34 @@ const isDragging = ref(false)
 const dragStart = ref({ x: 0, y: 0 })
 const lastTransform = ref({ x: 0, y: 0 })
 
-// Belt colors
+// Belt colors - galaxy/nebula style with glows
 const BELT_COLORS = {
-  white: { fill: '#f5f5f5', stroke: '#e0e0e0', glow: 'rgba(245, 245, 245, 0.5)' },
-  yellow: { fill: '#fcd34d', stroke: '#f59e0b', glow: 'rgba(252, 211, 77, 0.5)' },
-  orange: { fill: '#fb923c', stroke: '#ea580c', glow: 'rgba(251, 146, 60, 0.5)' },
-  green: { fill: '#4ade80', stroke: '#16a34a', glow: 'rgba(74, 222, 128, 0.5)' },
-  blue: { fill: '#60a5fa', stroke: '#2563eb', glow: 'rgba(96, 165, 250, 0.5)' },
-  purple: { fill: '#a78bfa', stroke: '#7c3aed', glow: 'rgba(167, 139, 250, 0.5)' },
-  brown: { fill: '#a8856c', stroke: '#78716c', glow: 'rgba(168, 133, 108, 0.5)' },
-  black: { fill: '#374151', stroke: '#1f2937', glow: 'rgba(55, 65, 81, 0.5)' }
+  white: { fill: '#f5f5f5', glow: 'rgba(245, 245, 245, 0.6)', nebula: 'rgba(245, 245, 245, 0.08)' },
+  yellow: { fill: '#fcd34d', glow: 'rgba(252, 211, 77, 0.6)', nebula: 'rgba(252, 211, 77, 0.08)' },
+  orange: { fill: '#fb923c', glow: 'rgba(251, 146, 60, 0.6)', nebula: 'rgba(251, 146, 60, 0.08)' },
+  green: { fill: '#4ade80', glow: 'rgba(74, 222, 128, 0.6)', nebula: 'rgba(74, 222, 128, 0.08)' },
+  blue: { fill: '#60a5fa', glow: 'rgba(96, 165, 250, 0.6)', nebula: 'rgba(96, 165, 250, 0.08)' },
+  purple: { fill: '#a78bfa', glow: 'rgba(167, 139, 250, 0.6)', nebula: 'rgba(167, 139, 250, 0.08)' },
+  brown: { fill: '#a8856c', glow: 'rgba(168, 133, 108, 0.6)', nebula: 'rgba(168, 133, 108, 0.08)' },
+  black: { fill: '#6b7280', glow: 'rgba(107, 114, 128, 0.6)', nebula: 'rgba(107, 114, 128, 0.08)' }
 }
 
 const BELT_ORDER = ['white', 'yellow', 'orange', 'green', 'blue', 'purple', 'brown', 'black']
 
-// Brain outline path (normalized 0-1 coordinates)
-// Simplified brain shape - left hemisphere view
-const BRAIN_PATH = [
-  { x: 0.5, y: 0.95 },   // Brain stem bottom
-  { x: 0.45, y: 0.85 },  // Brain stem
-  { x: 0.35, y: 0.78 },  // Cerebellum
-  { x: 0.2, y: 0.7 },    // Back lower
-  { x: 0.1, y: 0.55 },   // Back middle
-  { x: 0.08, y: 0.4 },   // Back upper
-  { x: 0.12, y: 0.25 },  // Top back
-  { x: 0.25, y: 0.12 },  // Top
-  { x: 0.45, y: 0.05 },  // Top front
-  { x: 0.65, y: 0.08 },  // Frontal top
-  { x: 0.8, y: 0.18 },   // Frontal upper
-  { x: 0.9, y: 0.35 },   // Frontal middle
-  { x: 0.88, y: 0.5 },   // Frontal lower
-  { x: 0.8, y: 0.65 },   // Temporal
-  { x: 0.65, y: 0.75 },  // Lower temporal
-  { x: 0.55, y: 0.85 },  // Near stem
-  { x: 0.5, y: 0.95 },   // Back to stem
-]
-
-// Belt regions within the brain (normalized coordinates for center of each region)
-const BELT_REGIONS = {
-  white:  { cx: 0.48, cy: 0.82, rx: 0.08, ry: 0.06 },  // Brain stem area
-  yellow: { cx: 0.32, cy: 0.72, rx: 0.10, ry: 0.08 },  // Cerebellum
-  orange: { cx: 0.18, cy: 0.55, rx: 0.08, ry: 0.12 },  // Occipital (back)
-  green:  { cx: 0.22, cy: 0.32, rx: 0.10, ry: 0.12 },  // Parietal (top back)
-  blue:   { cx: 0.45, cy: 0.18, rx: 0.15, ry: 0.10 },  // Top/Motor cortex
-  purple: { cx: 0.72, cy: 0.25, rx: 0.12, ry: 0.12 },  // Frontal upper
-  brown:  { cx: 0.82, cy: 0.48, rx: 0.08, ry: 0.14 },  // Frontal middle
-  black:  { cx: 0.7, cy: 0.68, rx: 0.12, ry: 0.10 },   // Temporal
+// Belt cluster positions - arranged in a flowing galaxy pattern
+// Each belt gets a region where its nodes cluster
+const BELT_CLUSTERS = {
+  white:  { cx: 0.5, cy: 0.5, radius: 0.12 },   // Center - where you start
+  yellow: { cx: 0.35, cy: 0.38, radius: 0.11 },  // Upper left
+  orange: { cx: 0.28, cy: 0.58, radius: 0.10 },  // Left
+  green:  { cx: 0.42, cy: 0.72, radius: 0.11 },  // Lower center-left
+  blue:   { cx: 0.62, cy: 0.68, radius: 0.12 },  // Lower center-right
+  purple: { cx: 0.72, cy: 0.48, radius: 0.11 },  // Right
+  brown:  { cx: 0.65, cy: 0.28, radius: 0.10 },  // Upper right
+  black:  { cx: 0.48, cy: 0.22, radius: 0.12 },  // Top - mastery
 }
 
-// Pre-calculate node positions based on their belt
+// Pre-calculate node positions based on their belt - clustered in galaxy pattern
 const nodePositions = computed(() => {
   const positions = new Map()
 
@@ -103,19 +82,22 @@ const nodePositions = computed(() => {
     }
   })
 
-  // Position nodes within their belt region
+  // Position nodes within their belt cluster
   BELT_ORDER.forEach(belt => {
     const nodes = nodesByBelt[belt]
-    const region = BELT_REGIONS[belt]
+    const cluster = BELT_CLUSTERS[belt]
 
     nodes.forEach((node, i) => {
-      // Distribute nodes in a spiral/scattered pattern within region
+      // Distribute nodes in a scattered pattern within cluster
       const count = nodes.length
-      const angle = (i / Math.max(count, 1)) * Math.PI * 2 + (i * 0.5)
-      const radiusFactor = 0.3 + (i % 3) * 0.25 // Vary distance from center
+      // Golden angle for nice distribution
+      const goldenAngle = Math.PI * (3 - Math.sqrt(5))
+      const angle = i * goldenAngle
+      // Vary distance from center - more nodes = more spread
+      const radiusFactor = 0.2 + (Math.sqrt(i / Math.max(count, 1))) * 0.7
 
-      const x = region.cx + Math.cos(angle) * region.rx * radiusFactor
-      const y = region.cy + Math.sin(angle) * region.ry * radiusFactor
+      const x = cluster.cx + Math.cos(angle) * cluster.radius * radiusFactor
+      const y = cluster.cy + Math.sin(angle) * cluster.radius * radiusFactor
 
       positions.set(node.id, { x, y, belt: node.belt, node })
     })
@@ -124,7 +106,7 @@ const nodePositions = computed(() => {
   return positions
 })
 
-// Draw the brain visualization
+// Draw the galaxy/constellation visualization
 const draw = () => {
   const canvas = canvasRef.value
   if (!canvas) return
@@ -145,57 +127,34 @@ const draw = () => {
   ctx.scale(transform.value.scale, transform.value.scale)
   ctx.translate(-w / 2 + transform.value.x, -h / 2 + transform.value.y)
 
-  // Calculate brain dimensions (fit to canvas with padding)
-  const padding = 40
-  const brainW = w - padding * 2
-  const brainH = h - padding * 2
-  const brainX = padding
-  const brainY = padding
+  // Draw area dimensions
+  const padding = 20
+  const areaW = w - padding * 2
+  const areaH = h - padding * 2
 
-  // Draw brain outline (subtle)
-  ctx.beginPath()
-  BRAIN_PATH.forEach((p, i) => {
-    const x = brainX + p.x * brainW
-    const y = brainY + p.y * brainH
-    if (i === 0) ctx.moveTo(x, y)
-    else ctx.lineTo(x, y)
-  })
-  ctx.closePath()
-  ctx.fillStyle = 'rgba(30, 30, 40, 0.3)'
-  ctx.fill()
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)'
-  ctx.lineWidth = 2
-  ctx.stroke()
-
-  // Draw belt region backgrounds (subtle)
+  // Draw subtle nebula clouds for each belt cluster (background glow)
   BELT_ORDER.forEach(belt => {
-    const region = BELT_REGIONS[belt]
+    const cluster = BELT_CLUSTERS[belt]
     const colors = BELT_COLORS[belt]
     const isCurrentBelt = belt === props.currentBelt
 
-    const cx = brainX + region.cx * brainW
-    const cy = brainY + region.cy * brainH
-    const rx = region.rx * brainW
-    const ry = region.ry * brainH
+    const cx = padding + cluster.cx * areaW
+    const cy = padding + cluster.cy * areaH
+    const radius = cluster.radius * Math.min(areaW, areaH)
+
+    // Nebula glow - larger, softer
+    const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius * 1.5)
+    gradient.addColorStop(0, isCurrentBelt ? colors.nebula.replace('0.08', '0.15') : colors.nebula)
+    gradient.addColorStop(0.5, isCurrentBelt ? colors.nebula.replace('0.08', '0.08') : colors.nebula.replace('0.08', '0.04'))
+    gradient.addColorStop(1, 'transparent')
 
     ctx.beginPath()
-    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2)
-    ctx.fillStyle = isCurrentBelt
-      ? `${colors.glow.replace('0.5', '0.15')}`
-      : 'rgba(255, 255, 255, 0.02)'
+    ctx.arc(cx, cy, radius * 1.5, 0, Math.PI * 2)
+    ctx.fillStyle = gradient
     ctx.fill()
-
-    if (isCurrentBelt) {
-      ctx.strokeStyle = colors.stroke
-      ctx.lineWidth = 1
-      ctx.globalAlpha = 0.3
-      ctx.stroke()
-      ctx.globalAlpha = 1
-    }
   })
 
-  // Draw connections (dendrites)
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'
+  // Draw connections (constellation lines) - use stable positions, no random
   ctx.lineWidth = 1
 
   nodePositions.value.forEach((pos, nodeId) => {
@@ -204,47 +163,53 @@ const draw = () => {
       node.connections.forEach(targetId => {
         const targetPos = nodePositions.value.get(targetId)
         if (targetPos) {
-          const x1 = brainX + pos.x * brainW
-          const y1 = brainY + pos.y * brainH
-          const x2 = brainX + targetPos.x * brainW
-          const y2 = brainY + targetPos.y * brainH
+          const x1 = padding + pos.x * areaW
+          const y1 = padding + pos.y * areaH
+          const x2 = padding + targetPos.x * areaW
+          const y2 = padding + targetPos.y * areaH
+
+          // Gradient line between nodes
+          const lineGradient = ctx.createLinearGradient(x1, y1, x2, y2)
+          const color1 = BELT_COLORS[pos.belt] || BELT_COLORS.white
+          const color2 = BELT_COLORS[targetPos.belt] || BELT_COLORS.white
+          lineGradient.addColorStop(0, color1.glow.replace('0.6', '0.2'))
+          lineGradient.addColorStop(1, color2.glow.replace('0.6', '0.2'))
 
           ctx.beginPath()
           ctx.moveTo(x1, y1)
-          // Curved line for organic feel
-          const midX = (x1 + x2) / 2 + (Math.random() - 0.5) * 20
-          const midY = (y1 + y2) / 2 + (Math.random() - 0.5) * 20
-          ctx.quadraticCurveTo(midX, midY, x2, y2)
+          ctx.lineTo(x2, y2)
+          ctx.strokeStyle = lineGradient
           ctx.stroke()
         }
       })
     }
   })
 
-  // Draw nodes
+  // Draw nodes (stars)
   nodePositions.value.forEach((pos, nodeId) => {
     const colors = BELT_COLORS[pos.belt] || BELT_COLORS.white
-    const x = brainX + pos.x * brainW
-    const y = brainY + pos.y * brainH
+    const x = padding + pos.x * areaW
+    const y = padding + pos.y * areaH
     const isCurrentBelt = pos.belt === props.currentBelt
-    const radius = isCurrentBelt ? 6 : 4
+    const radius = isCurrentBelt ? 5 : 3
 
-    // Glow for current belt nodes
-    if (isCurrentBelt) {
-      ctx.beginPath()
-      ctx.arc(x, y, radius + 4, 0, Math.PI * 2)
-      ctx.fillStyle = colors.glow
-      ctx.fill()
-    }
+    // Outer glow
+    const glowRadius = isCurrentBelt ? 12 : 8
+    const gradient = ctx.createRadialGradient(x, y, 0, x, y, glowRadius)
+    gradient.addColorStop(0, colors.glow)
+    gradient.addColorStop(0.3, colors.glow.replace('0.6', '0.3'))
+    gradient.addColorStop(1, 'transparent')
 
-    // Node circle
+    ctx.beginPath()
+    ctx.arc(x, y, glowRadius, 0, Math.PI * 2)
+    ctx.fillStyle = gradient
+    ctx.fill()
+
+    // Core star
     ctx.beginPath()
     ctx.arc(x, y, radius, 0, Math.PI * 2)
     ctx.fillStyle = colors.fill
     ctx.fill()
-    ctx.strokeStyle = colors.stroke
-    ctx.lineWidth = 1.5
-    ctx.stroke()
   })
 
   ctx.restore()
@@ -425,7 +390,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="brain-canvas-view">
+  <div class="constellation-view">
     <!-- Background -->
     <div class="bg-gradient"></div>
 
@@ -436,7 +401,7 @@ onUnmounted(() => {
           <path d="M15 18l-6-6 6-6"/>
         </svg>
       </button>
-      <h1 class="title">Your Learning Brain</h1>
+      <h1 class="title">Your Progress</h1>
       <button class="reset-btn" @click="resetView">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
@@ -480,7 +445,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.brain-canvas-view {
+.constellation-view {
   position: fixed;
   inset: 0;
   background: var(--bg-primary);
