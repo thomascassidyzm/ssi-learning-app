@@ -45,6 +45,12 @@ const props = defineProps({
   previewLegoIndex: {
     type: Number,
     default: 0  // 0 = normal mode, >0 = preview mode
+  },
+  // Auto-start playback when component mounts (after loading)
+  // Default true so play button launches directly into learning
+  autoStart: {
+    type: Boolean,
+    default: true
   }
 })
 
@@ -4359,16 +4365,22 @@ onMounted(async () => {
     if (isPlaying.value) sessionSeconds.value++
   }, 1000)
 
-  // Don't auto-start learning - wait for user to click play
-  isPlaying.value = false
-
-  // BUT auto-play the welcome audio if this is a fresh start
-  // (The user gesture from "Continue Learning" button should carry through)
-  if (currentRoundIndex.value === 0 && !welcomeChecked.value) {
-    // Small delay to ensure audio controller is ready
-    setTimeout(async () => {
-      await playWelcomeIfNeeded()
+  // Auto-start if prop is true (default), otherwise wait for user to click play
+  // The user gesture from tapping the play button carries through for audio
+  if (props.autoStart) {
+    // Small delay to ensure orchestrator is ready
+    setTimeout(() => {
+      handleResume()
     }, 100)
+  } else {
+    isPlaying.value = false
+
+    // Even without auto-start, play welcome audio if this is a fresh start
+    if (currentRoundIndex.value === 0 && !welcomeChecked.value) {
+      setTimeout(async () => {
+        await playWelcomeIfNeeded()
+      }, 100)
+    }
   }
 
   console.log('[LearningPlayer] Total awakening time:', Date.now() - startTime, 'ms')
