@@ -16,6 +16,7 @@ import { SignInModal, SignUpModal } from '@/components/auth'
 
 // Global auth modal state (shared singleton)
 import { useAuthModal } from '@/composables/useAuthModal'
+import { BELTS } from '@/composables/useBeltProgress'
 
 // Clerk components (conditionally imported)
 import { SignedIn, SignedOut, UserButton } from '@clerk/vue'
@@ -93,13 +94,8 @@ const handleNavigation = (screen) => {
 }
 
 const handleStartLearning = () => {
-  // If on Brain View (network), trigger replay mode instead of navigating
-  if (currentScreen.value === 'network' && legoNetworkRef.value) {
-    legoNetworkRef.value.startReplay()
-    isLearning.value = true
-    return
-  }
-  startLearning(selectedCourse.value)
+  // Navigate to player from any screen
+  startLearning(activeCourse.value || selectedCourse.value)
 }
 
 // Handle play/stop toggle from nav bar
@@ -119,6 +115,17 @@ const learnerStats = ref({
   completedSeeds: 42,
   totalSeeds: 668,
   learningVelocity: 1.2,
+})
+
+// Current belt based on completedSeeds
+const currentBeltName = computed(() => {
+  const seeds = learnerStats.value.completedSeeds
+  for (let i = BELTS.length - 1; i >= 0; i--) {
+    if (seeds >= BELTS[i].seedsRequired) {
+      return BELTS[i].name
+    }
+  }
+  return 'white'
 })
 
 // Handle auth success (close modals, refresh state if needed)
@@ -257,7 +264,8 @@ onMounted(() => {
         v-if="currentScreen === 'network'"
         ref="legoNetworkRef"
         :course="activeCourse"
-        belt-level="yellow"
+        :belt-level="currentBeltName"
+        :completed-seeds="learnerStats.completedSeeds"
         @close="goHome"
       />
     </Transition>

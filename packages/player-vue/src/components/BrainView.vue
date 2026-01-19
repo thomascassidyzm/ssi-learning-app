@@ -72,6 +72,10 @@ const props = defineProps({
   beltLevel: {
     type: String,
     default: 'white'
+  },
+  completedSeeds: {
+    type: Number,
+    default: 0
   }
 })
 
@@ -107,8 +111,8 @@ const { loadNetworkData, networkData, getEternalPhrasesForLego, getLegoConnectio
 // All rounds loaded from script
 const allRounds = ref<any[]>([])
 
-// Slider state
-const sliderValue = ref(100)
+// Slider state - defaults to learner's progress (completedSeeds approximates LEGOs encountered)
+const sliderValue = ref(props.completedSeeds || 100)
 const sliderMax = computed(() => allRounds.value.length || 100)
 
 // Container ref for sizing
