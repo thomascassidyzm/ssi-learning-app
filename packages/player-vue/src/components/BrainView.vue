@@ -144,6 +144,9 @@ let pathAnimationTimers: ReturnType<typeof setTimeout>[] = []
 // Download state
 const isDownloading = ref(false)
 
+// Network component ref (for fit-all button)
+const networkRef = ref<{ resetZoomPan: () => void } | null>(null)
+
 // Search state
 const searchQuery = ref('')
 const isSearchFocused = ref(false)
@@ -404,7 +407,7 @@ async function downloadBrainImage() {
     ctx.fillText(`Your brain on ${languageName.value}`, canvas.width / 2, 52)
     ctx.shadowBlur = 0
 
-    // Draw edges
+    // Draw edges - make them visible!
     ctx.lineCap = 'round'
     edges.forEach(edge => {
       const sourceNode = nodes.find(n => n.id === edge.source)
@@ -420,7 +423,7 @@ async function downloadBrainImage() {
       const dx = to.x - from.x
       const dy = to.y - from.y
       const len = Math.sqrt(dx * dx + dy * dy)
-      const curveAmount = Math.min(20 * scale, len * 0.12)
+      const curveAmount = Math.min(20, len * 0.12)
       const perpX = -dy / (len || 1)
       const perpY = dx / (len || 1)
       const hash = edge.id.split('').reduce((a, c) => a + c.charCodeAt(0), 0)
@@ -431,8 +434,9 @@ async function downloadBrainImage() {
       ctx.beginPath()
       ctx.moveTo(from.x, from.y)
       ctx.quadraticCurveTo(cpX, cpY, to.x, to.y)
-      ctx.strokeStyle = `rgba(255, 255, 255, ${0.08 + Math.sqrt(edge.strength) * 0.015})`
-      ctx.lineWidth = Math.min(1.5, 0.5 + Math.sqrt(edge.strength) * 0.08) * scale * 0.5
+      // Much more visible edges
+      ctx.strokeStyle = `rgba(255, 255, 255, ${0.15 + Math.sqrt(edge.strength) * 0.03})`
+      ctx.lineWidth = 1 + Math.sqrt(edge.strength) * 0.3
       ctx.stroke()
     })
 
@@ -448,36 +452,37 @@ async function downloadBrainImage() {
       black: { glow: '#d4a853', core: '#2a2518', inner: '#d4a853' },
     }
 
-    // Draw nodes
+    // Draw nodes - much bigger for visibility
     nodes.forEach(node => {
       const pos = toCanvas(node.x, node.y)
       const isRevealed = !revealed || revealed.has(node.id)
       const palette = beltColorMap[node.belt] || beltColorMap.white
-      const opacity = isRevealed ? (node.isComponent ? 0.5 : 0.7) : 0.08
-      const nodeScale = node.isComponent ? 0.6 : 1
-      const baseRadius = 8 * scale * 0.5 * nodeScale
+      const opacity = isRevealed ? (node.isComponent ? 0.6 : 0.9) : 0.12
+      const nodeScale = node.isComponent ? 0.7 : 1
+      // Much bigger base radius - fixed size, not scaled down
+      const baseRadius = 6 * nodeScale
 
-      // Outer glow
+      // Outer glow ring
       ctx.beginPath()
-      ctx.arc(pos.x, pos.y, baseRadius * 1.5, 0, Math.PI * 2)
+      ctx.arc(pos.x, pos.y, baseRadius * 1.8, 0, Math.PI * 2)
       ctx.strokeStyle = palette.glow
-      ctx.globalAlpha = opacity * 0.6
-      ctx.lineWidth = 2 * scale * 0.3
+      ctx.globalAlpha = opacity * 0.7
+      ctx.lineWidth = 2
       ctx.stroke()
 
-      // Core
+      // Core circle
       ctx.beginPath()
       ctx.arc(pos.x, pos.y, baseRadius, 0, Math.PI * 2)
       ctx.fillStyle = palette.core
       ctx.globalAlpha = opacity
       ctx.fill()
       ctx.strokeStyle = palette.glow
-      ctx.lineWidth = 1.5 * scale * 0.3
+      ctx.lineWidth = 1.5
       ctx.stroke()
 
-      // Inner dot
+      // Bright inner dot
       ctx.beginPath()
-      ctx.arc(pos.x, pos.y, baseRadius * 0.35, 0, Math.PI * 2)
+      ctx.arc(pos.x, pos.y, baseRadius * 0.4, 0, Math.PI * 2)
       ctx.fillStyle = palette.inner
       ctx.globalAlpha = opacity
       ctx.fill()
@@ -762,21 +767,35 @@ onUnmounted(() => {
       </button>
     </div>
 
-    <!-- Download button (only on brain tab) -->
-    <button
-      v-if="activeTab === 'brain'"
-      class="download-btn"
-      @click="downloadBrainImage"
-      :disabled="isDownloading || isLoading"
-      title="Download to share"
-    >
-      <svg v-if="!isDownloading" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-        <polyline points="7 10 12 15 17 10"/>
-        <line x1="12" y1="15" x2="12" y2="3"/>
-      </svg>
-      <div v-else class="download-spinner"></div>
-    </button>
+    <!-- Action buttons (only on brain tab) -->
+    <div v-if="activeTab === 'brain'" class="brain-actions">
+      <!-- Fit All button -->
+      <button
+        class="action-btn"
+        @click="networkRef?.resetZoomPan()"
+        :disabled="isLoading"
+        title="Fit entire brain"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+          <path d="M9 3v18M15 3v18M3 9h18M3 15h18"/>
+        </svg>
+      </button>
+      <!-- Download button -->
+      <button
+        class="action-btn"
+        @click="downloadBrainImage"
+        :disabled="isDownloading || isLoading"
+        title="Download to share"
+      >
+        <svg v-if="!isDownloading" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        <div v-else class="download-spinner"></div>
+      </button>
+    </div>
 
     <!-- Search bar (only on brain tab) -->
     <div v-if="activeTab === 'brain'" class="search-container" :class="{ focused: isSearchFocused, 'has-results': searchResults.length > 0 }">
@@ -842,6 +861,7 @@ onUnmounted(() => {
     <!-- Network visualization - shows all nodes, unrevealed ones greyed out -->
     <ConstellationNetworkView
       v-else
+      ref="networkRef"
       :nodes="prebuiltNetwork.nodes.value"
       :edges="prebuiltNetwork.visibleEdges.value"
       :hero-node-id="null"
@@ -1279,11 +1299,18 @@ onUnmounted(() => {
   margin-top: 16px;
 }
 
-.download-btn {
+/* Action buttons container (fit all, download) */
+.brain-actions {
   position: absolute;
   top: calc(110px + env(safe-area-inset-top, 0px));
   right: 16px;
   z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.action-btn {
   width: 40px;
   height: 40px;
   border-radius: 50%;
@@ -1298,17 +1325,17 @@ onUnmounted(() => {
   transition: all 0.2s ease;
 }
 
-.download-btn:hover:not(:disabled) {
+.action-btn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.1);
   color: white;
 }
 
-.download-btn:disabled {
+.action-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.download-btn svg {
+.action-btn svg {
   width: 20px;
   height: 20px;
 }

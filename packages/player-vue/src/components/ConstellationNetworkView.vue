@@ -631,6 +631,15 @@ const labelOpacity = computed(() => (node: ConstellationNode): number => {
   }
   return 0
 })
+
+// Expose methods for parent components
+defineExpose({
+  resetZoomPan,
+  zoomIn,
+  zoomOut,
+  userScale,
+  userPan
+})
 </script>
 
 <template>
