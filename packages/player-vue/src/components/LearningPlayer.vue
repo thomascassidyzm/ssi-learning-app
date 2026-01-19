@@ -25,6 +25,7 @@ import { usePrebuiltNetworkIntegration } from '../composables/usePrebuiltNetwork
 import { useLegoNetwork } from '../composables/useLegoNetwork'
 import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
 import ConstellationNetworkView from './ConstellationNetworkView.vue'
+import BeltProgressModal from './BeltProgressModal.vue'
 
 const emit = defineEmits(['close', 'playStateChanged'])
 
@@ -1131,6 +1132,11 @@ function cycleLayoutMode() {
 }
 const itemsPracticed = ref(0)
 const showSessionComplete = ref(false)
+const showBeltProgressModal = ref(false)
+
+// Lifetime learning minutes (would come from persistence in production)
+// For now, track session time and estimate based on session history
+const lifetimeLearningMinutes = ref(0)
 
 // ============================================
 // LEARNING HINTS - Contextual phase instructions
@@ -3347,6 +3353,22 @@ const showPausedSummary = () => {
   }
 }
 
+// Belt Progress Modal handlers
+const openBeltProgressModal = () => {
+  showBeltProgressModal.value = true
+}
+
+const closeBeltProgressModal = () => {
+  showBeltProgressModal.value = false
+}
+
+const handleViewFullProgress = () => {
+  closeBeltProgressModal()
+  // Emit to parent to navigate to Brain View / Progress screen
+  emit('close')
+  // The parent (PlayerContainer) will handle navigation to the network/progress view
+}
+
 const handleResumeLearning = async () => {
   // Hide summary and continue the infinite stream
   showSessionComplete.value = false
@@ -4587,60 +4609,31 @@ defineExpose({
       </div>
 
       <div class="header-right">
-        <!-- Belt Navigation Group -->
-        <div class="belt-nav-header">
-          <!-- Back to previous/current belt start -->
-          <button
-            class="belt-nav-header-btn belt-nav-header-btn--back"
-            :class="{ 'is-skipping': isSkippingBelt }"
-            @click.stop="handleGoBackBelt"
-            :disabled="!previousBelt && currentBelt.seedsRequired === completedSeeds"
-            :title="`Back to ${backTargetBelt.name} belt`"
-            :style="{ '--back-belt-color': backTargetBelt.color }"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <polyline points="15 18 9 12 15 6"/>
-            </svg>
-          </button>
-
-          <!-- Belt Progress Bar - Clickable to show summary -->
-          <button
-            class="belt-progress-btn"
-            @click="showPausedSummary"
-            :title="!nextBelt ? 'Black belt achieved!' : `${Math.round(beltProgressPercent)}% to ${nextBelt.name} belt`"
-          >
-            <div class="belt-bar-track">
-              <div class="belt-bar-fill" :style="{ width: `${beltProgressPercent}%` }"></div>
-            </div>
-            <div class="belt-bar-label">{{ Math.round(beltProgressPercent) }}%</div>
-            <!-- Inline timer for mobile compact mode -->
-            <span class="belt-inline-timer">{{ formattedSessionTime }}</span>
-          </button>
-
-          <!-- Skip to next belt -->
-          <button
-            class="belt-nav-header-btn belt-nav-header-btn--forward"
-            :class="{ 'is-skipping': isSkippingBelt }"
-            @click.stop="handleSkipToNextBelt"
-            :disabled="!nextBelt"
-            :title="nextBelt ? `Skip to ${nextBelt.name} belt` : 'Black belt achieved!'"
-            :style="nextBelt ? { '--next-belt-color': nextBelt.color } : {}"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <polyline points="9 18 15 12 9 6"/>
-            </svg>
-          </button>
-        </div>
-
-        <!-- Session Timer - Also clickable -->
-        <button class="session-timer" @click="showPausedSummary" title="Pause &amp; Summary">
-          <span class="timer-value">{{ formattedSessionTime }}</span>
-          <svg class="timer-end-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="6" y="6" width="12" height="12" rx="1"/>
-          </svg>
+        <!-- Unified Belt + Timer - Always shows both, opens modal on tap -->
+        <button
+          class="belt-timer-unified"
+          @click="openBeltProgressModal"
+          :title="!nextBelt ? 'Black belt achieved!' : `${Math.round(beltProgressPercent)}% to ${nextBelt.name} belt`"
+        >
+          <div class="belt-bar-track">
+            <div class="belt-bar-fill" :style="{ width: `${beltProgressPercent}%` }"></div>
+          </div>
+          <span class="belt-timer-label">{{ formattedSessionTime }}</span>
         </button>
       </div>
     </header>
+
+    <!-- Belt Progress Modal -->
+    <BeltProgressModal
+      :is-open="showBeltProgressModal"
+      :current-belt="currentBelt"
+      :next-belt="nextBelt"
+      :completed-seeds="completedSeeds"
+      :session-seconds="sessionSeconds"
+      :lifetime-learning-minutes="lifetimeLearningMinutes"
+      @close="closeBeltProgressModal"
+      @view-progress="handleViewFullProgress"
+    />
 
     <!-- SPLIT-STAGE LAYOUT: Network Theater (top) + Control Pane (bottom) -->
 
@@ -5439,59 +5432,69 @@ defineExpose({
   background: rgba(255, 255, 255, 0.1);
 }
 
-/* ============ BELT PROGRESS BAR ============ */
-.belt-progress-btn {
+/* ============ UNIFIED BELT + TIMER ============ */
+/* Single element showing belt progress bar + session time, opens modal on tap */
+.belt-timer-unified {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.375rem 0.75rem;
+  gap: clamp(0.5rem, 2vw, 0.75rem);
+  padding: clamp(0.375rem, 1vw, 0.5rem) clamp(0.75rem, 2vw, 1rem);
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
-  border-radius: 8px;
+  border-radius: clamp(8px, 2vw, 12px);
   cursor: pointer;
   transition: all 0.2s ease;
+  min-width: clamp(100px, 25vw, 160px);
 }
 
-.belt-progress-btn:hover {
+.belt-timer-unified:hover {
   background: var(--bg-elevated);
   border-color: var(--belt-color);
+  box-shadow: 0 0 12px var(--belt-glow);
 }
 
-.belt-bar-track {
-  width: 60px;
-  height: 6px;
+.belt-timer-unified:active {
+  transform: scale(0.98);
+}
+
+.belt-timer-unified .belt-bar-track {
+  flex: 1;
+  min-width: clamp(40px, 10vw, 80px);
+  height: clamp(5px, 1vw, 7px);
   background: var(--bg-elevated);
-  border-radius: 3px;
+  border-radius: 4px;
   overflow: hidden;
 }
 
-.belt-bar-fill {
+.belt-timer-unified .belt-bar-fill {
   height: 100%;
   background: var(--belt-color);
-  border-radius: 3px;
+  border-radius: 4px;
   transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1), background 0.5s ease;
   box-shadow: 0 0 6px var(--belt-glow);
   min-width: 2px;
 }
 
-.belt-bar-label {
-  font-size: 0.75rem;
+.belt-timer-label {
+  font-family: 'Space Mono', monospace;
+  font-size: clamp(0.75rem, 2vw, 0.875rem);
   font-weight: 600;
-  color: var(--belt-color);
-  min-width: 32px;
-  text-align: right;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
 }
 
-/* Inline timer - hidden by default, shown on mobile compact mode */
+/* Legacy styles kept for backwards compatibility */
+.belt-progress-btn {
+  display: none; /* Hidden - replaced by belt-timer-unified */
+}
+
+.belt-bar-label {
+  display: none; /* Hidden - replaced by belt-timer-label */
+}
+
 .belt-inline-timer {
-  display: none;
-  font-family: 'Space Mono', monospace;
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-  padding-left: 0.5rem;
-  border-left: 1px solid var(--border-subtle);
-  font-variant-numeric: tabular-nums;
+  display: none; /* Hidden - timer now always visible in belt-timer-label */
 }
 
 /* ============ FULLSCREEN NETWORK LAYOUT ============ */
@@ -7394,13 +7397,15 @@ defineExpose({
   display: flex;
   justify-content: center;
   align-items: center;
-  /* Gap sized so spacing around nav play button matches button spacing (0.5rem) */
-  /* Play button ~58px + 0.5rem on each side = ~74px total gap */
-  gap: 4.625rem;
-  padding: 0.75rem 1.5rem;
+  /* Gap sized for play button width + consistent spacing on each side */
+  /* Mobile: ~48px play + spacing, Tablet: ~58px, Desktop: ~68-76px */
+  /* clamp(mobile, fluid, desktop) */
+  gap: clamp(3.5rem, 8vw, 6.75rem);
+  padding: clamp(0.5rem, 1vw, 1.25rem) clamp(0.75rem, 2vw, 2.5rem);
   position: absolute;
-  /* Position above the bottom nav bar (80px) + some spacing */
-  bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+  /* Position above the bottom nav bar */
+  bottom: clamp(90px, 12vh, 110px);
+  bottom: calc(clamp(90px, 12vh, 110px) + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%);
   z-index: 15;
@@ -7409,19 +7414,18 @@ defineExpose({
   background: rgba(10, 10, 15, 0.5);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-radius: 100px;
+  border-radius: clamp(14px, 3vw, 28px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.3);
   /* Always visible */
   opacity: 1;
-  pointer-events: auto;
 }
 
 /* Control groups for 3+3 layout */
 .control-group {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: clamp(0.25rem, 1vw, 1rem);
 }
 
 /* QA Report button - positioned in header area */
@@ -7805,18 +7809,7 @@ defineExpose({
     min-height: 50px;
   }
 
-  .control-bar {
-    /* Play button 48px + 2*4px gap = 56px ≈ 3.5rem */
-    gap: 3.5rem;
-    padding: 0.375rem 0.5rem;
-    /* Above nav bar on extra small phones */
-    bottom: calc(90px + env(safe-area-inset-bottom, 0px));
-    border-radius: 14px;
-  }
-
-  .control-group {
-    gap: 0.25rem;
-  }
+  /* control-bar and control-group now use clamp() in base styles */
 
   .mode-btn,
   .transport-btn,
@@ -7921,17 +7914,7 @@ defineExpose({
     min-height: 60px;
   }
 
-  .control-bar {
-    /* Play button 52px + 2*6px gap = 64px = 4rem */
-    gap: 4rem;
-    padding: 0.5rem 0.75rem;
-    /* Above nav bar on small phones */
-    bottom: calc(95px + env(safe-area-inset-bottom, 0px));
-  }
-
-  .control-group {
-    gap: 0.375rem;
-  }
+  /* control-bar and control-group now use clamp() in base styles */
 
   .mode-btn,
   .transport-btn,
@@ -8007,16 +7990,7 @@ defineExpose({
     height: 44px;
   }
 
-  .control-bar {
-    /* Play button 60px + 2*12px gap = 84px ≈ 5.25rem */
-    gap: 5.25rem;
-    padding: 0.875rem 1.5rem;
-    border-radius: 22px;
-  }
-
-  .control-group {
-    gap: 0.75rem;
-  }
+  /* control-bar and control-group now use clamp() in base styles */
 
   .mode-btn {
     width: 48px;
@@ -8113,18 +8087,7 @@ defineExpose({
     max-width: 800px;
   }
 
-  .control-bar {
-    /* Play button 76px + 2*16px gap = 108px ≈ 6.75rem */
-    gap: 6.75rem;
-    padding: 1.25rem 2.5rem;
-    border-radius: 28px;
-    /* Above nav bar on large desktops */
-    bottom: calc(110px + env(safe-area-inset-bottom, 0px));
-  }
-
-  .control-group {
-    gap: 1rem;
-  }
+  /* control-bar and control-group now use clamp() in base styles */
 
   .mode-btn {
     width: 56px;

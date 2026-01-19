@@ -291,16 +291,16 @@ const isVisible = computed(() => !props.isLearning)
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  padding: 0 12px;
-  max-width: 420px;
+  padding: 0 clamp(6px, 2vw, 12px);
+  max-width: clamp(320px, 90vw, 440px);
   margin: 0 auto;
-  height: 72px;
+  height: clamp(64px, 18vw, 74px);
 }
 
 .nav-group {
   display: flex;
   flex: 1;
-  max-width: 140px;
+  max-width: clamp(100px, 30vw, 140px);
 }
 
 .nav-group--left {
@@ -317,14 +317,15 @@ const isVisible = computed(() => !props.isLearning)
   flex-direction: column;
   align-items: center;
   justify-content: flex-end;
-  gap: 5px;
-  padding: 0 12px 14px;
+  gap: clamp(4px, 1vw, 5px);
+  padding: 0 clamp(6px, 2vw, 12px) clamp(10px, 3vw, 14px);
   background: transparent;
   border: none;
   cursor: pointer;
   position: relative;
   transition: all 0.2s ease;
-  min-width: 56px;
+  min-width: 44px; /* Touch-friendly minimum */
+  min-height: 44px; /* Touch-friendly minimum */
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -334,8 +335,8 @@ const isVisible = computed(() => !props.isLearning)
 }
 
 .nav-icon {
-  width: 22px;
-  height: 22px;
+  width: clamp(18px, 5vw, 22px);
+  height: clamp(18px, 5vw, 22px);
   color: rgba(255, 255, 255, 0.35);
   transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -354,20 +355,20 @@ const isVisible = computed(() => !props.isLearning)
 }
 
 .account-avatar {
-  width: 22px;
-  height: 22px;
+  width: clamp(18px, 5vw, 22px);
+  height: clamp(18px, 5vw, 22px);
   border-radius: 50%;
   object-fit: cover;
   border: 1.5px solid rgba(255, 255, 255, 0.2);
 }
 
 .account-initial {
-  width: 22px;
-  height: 22px;
+  width: clamp(18px, 5vw, 22px);
+  height: clamp(18px, 5vw, 22px);
   border-radius: 50%;
   background: linear-gradient(145deg, #c23a3a 0%, #9a2e2e 100%);
   color: white;
-  font-size: 11px;
+  font-size: clamp(9px, 2.5vw, 11px);
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -376,7 +377,7 @@ const isVisible = computed(() => !props.isLearning)
 
 .nav-label {
   font-family: 'DM Sans', -apple-system, sans-serif;
-  font-size: 10px;
+  font-size: clamp(9px, 2.5vw, 10px);
   font-weight: 500;
   color: rgba(255, 255, 255, 0.35);
   transition: all 0.25s ease;
@@ -397,8 +398,8 @@ const isVisible = computed(() => !props.isLearning)
 .active-indicator {
   position: absolute;
   bottom: 6px;
-  width: 4px;
-  height: 4px;
+  width: clamp(3px, 1vw, 4px);
+  height: clamp(3px, 1vw, 4px);
   border-radius: 50%;
   background: #c23a3a;
   opacity: 0;
@@ -428,15 +429,16 @@ const isVisible = computed(() => !props.isLearning)
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin: 0 16px;
+  margin: 0 clamp(8px, 3vw, 16px);
   position: relative;
-  top: -20px;
+  top: clamp(-14px, -4vw, -20px);
 }
 
 .play-button {
   position: relative;
-  width: 58px;
-  height: 58px;
+  /* Fluid scaling: 48px on smallest mobile -> 60px at mobile max (767px) */
+  width: clamp(48px, 12vw, 60px);
+  height: clamp(48px, 12vw, 60px);
   border-radius: 50%;
   border: none;
   background: linear-gradient(145deg, #d44545 0%, #b83232 100%);
@@ -462,7 +464,7 @@ const isVisible = computed(() => !props.isLearning)
 
 .play-button-glow {
   position: absolute;
-  inset: -6px;
+  inset: clamp(-4px, -1vw, -6px);
   border-radius: 50%;
   background: radial-gradient(circle, rgba(194, 58, 58, 0.5) 0%, transparent 70%);
   opacity: 0.5;
@@ -490,8 +492,8 @@ const isVisible = computed(() => !props.isLearning)
 }
 
 .play-button-inner svg {
-  width: 24px;
-  height: 24px;
+  width: clamp(18px, 5vw, 24px);
+  height: clamp(18px, 5vw, 24px);
   margin-left: 2px; /* Optical centering for play icon */
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
 }
@@ -503,10 +505,10 @@ const isVisible = computed(() => !props.isLearning)
 
 .play-label {
   font-family: 'DM Sans', -apple-system, sans-serif;
-  font-size: 10px;
+  font-size: clamp(9px, 2.5vw, 10px);
   font-weight: 600;
   color: rgba(255, 255, 255, 0.5);
-  margin-top: 8px;
+  margin-top: clamp(5px, 1.5vw, 8px);
   letter-spacing: 0.02em;
 }
 
@@ -532,354 +534,127 @@ const isVisible = computed(() => !props.isLearning)
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   RESPONSIVE - Full breakpoint coverage with proper touch targets
+   RESPONSIVE - 3 breakpoints with clamp() for fluid scaling
+   Mobile (default, <768px) | Tablet (768-1279px) | Desktop (1280px+)
    ═══════════════════════════════════════════════════════════════ */
 
-/* Extra small phones (320px) - compact but usable */
-@media (max-width: 360px) {
+/*
+ * Mobile-first base styles (above) use clamp() for fluid scaling.
+ * Play button: clamp(48px, 12vw, 76px) scales 48px -> 76px
+ * Nav icons: clamp(18px, 5vw, 22px) scales 18px -> 22px
+ * etc.
+ */
+
+/* Tablet (768px - 1279px) */
+@media (min-width: 768px) {
   .nav-content {
-    padding: 0 6px;
-    height: 64px;
+    max-width: clamp(480px, 50vw, 580px);
+    height: clamp(76px, 8vh, 88px);
   }
 
   .nav-group {
-    max-width: 100px;
+    max-width: clamp(160px, 18vw, 220px);
   }
 
   .nav-item {
-    padding: 0 6px 10px;
-    /* Ensure minimum touch target of 44px */
-    min-width: 44px;
-    min-height: 44px;
+    padding: clamp(0px, 1vw, 0px) clamp(14px, 2vw, 20px) clamp(12px, 1.5vh, 16px);
+    min-width: 56px;
+    gap: clamp(5px, 0.6vh, 7px);
   }
 
   .nav-icon {
-    width: 18px;
-    height: 18px;
+    width: clamp(22px, 2.5vw, 28px);
+    height: clamp(22px, 2.5vw, 28px);
   }
 
   .nav-label {
-    font-size: 9px;
+    font-size: clamp(10px, 1.1vw, 12px);
   }
 
   .account-avatar,
   .account-initial {
-    width: 18px;
-    height: 18px;
+    width: clamp(22px, 2.5vw, 28px);
+    height: clamp(22px, 2.5vw, 28px);
   }
 
   .account-initial {
-    font-size: 9px;
+    font-size: clamp(11px, 1.2vw, 13px);
   }
 
   .play-button-container {
-    margin: 0 8px;
-    top: -14px;
+    margin: 0 clamp(20px, 3vw, 32px);
+    top: clamp(-22px, -2.5vh, -28px);
   }
 
   .play-button {
-    width: 48px;
-    height: 48px;
+    width: clamp(64px, 7vw, 76px);
+    height: clamp(64px, 7vw, 76px);
   }
 
   .play-button-inner svg {
-    width: 18px;
-    height: 18px;
-  }
-
-  .play-label {
-    font-size: 9px;
-    margin-top: 5px;
+    width: clamp(26px, 3vw, 32px);
+    height: clamp(26px, 3vw, 32px);
   }
 
   .play-button-glow {
-    inset: -4px;
+    inset: clamp(-6px, -0.7vw, -8px);
+  }
+
+  .play-label {
+    font-size: clamp(10px, 1.1vw, 12px);
+    margin-top: clamp(8px, 1vh, 10px);
   }
 
   .active-indicator {
-    width: 3px;
-    height: 3px;
+    width: clamp(4px, 0.4vw, 5px);
+    height: clamp(4px, 0.4vw, 5px);
   }
 }
 
-/* Small phones (361-479px) */
-@media (min-width: 361px) and (max-width: 479px) {
+/* Desktop (1280px+) */
+@media (min-width: 1280px) {
   .nav-content {
-    padding: 0 8px;
-    height: 68px;
+    max-width: clamp(580px, 40vw, 680px);
+    height: clamp(88px, 7vh, 96px);
   }
 
   .nav-group {
-    max-width: 120px;
+    max-width: clamp(200px, 15vw, 260px);
   }
 
   .nav-item {
-    padding: 0 8px 12px;
-    min-width: 48px;
-    min-height: 44px;
-  }
-
-  .nav-icon {
-    width: 20px;
-    height: 20px;
-  }
-
-  .play-button-container {
-    margin: 0 12px;
-    top: -16px;
-  }
-
-  .play-button {
-    width: 52px;
-    height: 52px;
-  }
-
-  .play-button-inner svg {
-    width: 20px;
-    height: 20px;
-  }
-
-  .play-label {
-    margin-top: 6px;
-  }
-}
-
-/* Phone landscape / small tablets (480-767px) */
-@media (min-width: 480px) and (max-width: 767px) {
-  .nav-content {
-    max-width: 440px;
-    height: 74px;
-  }
-
-  .nav-group {
-    max-width: 140px;
-  }
-
-  .nav-item {
-    min-width: 52px;
-    min-height: 44px;
-  }
-
-  .nav-icon {
-    width: 22px;
-    height: 22px;
-  }
-
-  .nav-label {
-    font-size: 10px;
-  }
-
-  .play-button {
-    width: 60px;
-    height: 60px;
-  }
-
-  .play-button-inner svg {
-    width: 24px;
-    height: 24px;
-  }
-}
-
-/* Tablets (768-1023px) */
-@media (min-width: 768px) and (max-width: 1023px) {
-  .nav-content {
-    max-width: 520px;
-    height: 80px;
-  }
-
-  .nav-group {
-    max-width: 180px;
-  }
-
-  .nav-item {
-    padding: 0 16px 14px;
-    min-width: 60px;
-  }
-
-  .nav-icon {
-    width: 24px;
-    height: 24px;
-  }
-
-  .nav-label {
-    font-size: 11px;
-  }
-
-  .account-avatar,
-  .account-initial {
-    width: 24px;
-    height: 24px;
-  }
-
-  .account-initial {
-    font-size: 12px;
-  }
-
-  .play-button-container {
-    margin: 0 24px;
-    top: -24px;
-  }
-
-  .play-button {
-    width: 68px;
-    height: 68px;
-  }
-
-  .play-button-inner svg {
-    width: 28px;
-    height: 28px;
-  }
-
-  .play-label {
-    font-size: 11px;
-  }
-}
-
-/* Laptops (1024-1279px) */
-@media (min-width: 1024px) and (max-width: 1279px) {
-  .nav-content {
-    max-width: 560px;
-    height: 84px;
-  }
-
-  .nav-group {
-    max-width: 200px;
-  }
-
-  .nav-item {
-    padding: 0 18px 16px;
+    padding: 0 clamp(18px, 1.5vw, 24px) clamp(14px, 1.2vh, 18px);
     min-width: 64px;
+    gap: clamp(6px, 0.5vh, 7px);
   }
 
   .nav-icon {
-    width: 26px;
-    height: 26px;
+    width: clamp(26px, 2vw, 32px);
+    height: clamp(26px, 2vw, 32px);
   }
 
   .nav-label {
-    font-size: 11px;
-  }
-
-  .play-button-container {
-    margin: 0 28px;
-    top: -26px;
-  }
-
-  .play-button {
-    width: 72px;
-    height: 72px;
-  }
-
-  .play-button-inner svg {
-    width: 30px;
-    height: 30px;
-  }
-}
-
-/* Desktops (1280-1535px) */
-@media (min-width: 1280px) and (max-width: 1535px) {
-  .nav-content {
-    max-width: 600px;
-    height: 88px;
-  }
-
-  .nav-group {
-    max-width: 220px;
-  }
-
-  .nav-item {
-    padding: 0 20px 16px;
-    gap: 6px;
-  }
-
-  .nav-icon {
-    width: 28px;
-    height: 28px;
-  }
-
-  .nav-label {
-    font-size: 12px;
+    font-size: clamp(11px, 0.9vw, 13px);
   }
 
   .account-avatar,
   .account-initial {
-    width: 28px;
-    height: 28px;
+    width: clamp(26px, 2vw, 32px);
+    height: clamp(26px, 2vw, 32px);
   }
 
   .account-initial {
-    font-size: 13px;
+    font-size: clamp(12px, 1vw, 14px);
   }
 
   .play-button-container {
-    margin: 0 32px;
-    top: -28px;
+    margin: 0 clamp(28px, 2.5vw, 40px);
+    top: clamp(-26px, -2vh, -32px);
   }
 
   .play-button {
-    width: 76px;
-    height: 76px;
-  }
-
-  .play-button-inner svg {
-    width: 32px;
-    height: 32px;
-  }
-
-  .play-label {
-    font-size: 12px;
-    margin-top: 10px;
-  }
-
-  .active-indicator {
-    width: 5px;
-    height: 5px;
-  }
-}
-
-/* Large desktops and ultrawides (1536px+) */
-@media (min-width: 1536px) {
-  .nav-content {
-    max-width: 680px;
-    height: 96px;
-  }
-
-  .nav-group {
-    max-width: 260px;
-  }
-
-  .nav-item {
-    padding: 0 24px 18px;
-    gap: 7px;
-  }
-
-  .nav-icon {
-    width: 32px;
-    height: 32px;
-  }
-
-  .nav-label {
-    font-size: 13px;
-  }
-
-  .account-avatar,
-  .account-initial {
-    width: 32px;
-    height: 32px;
-  }
-
-  .account-initial {
-    font-size: 14px;
-  }
-
-  .play-button-container {
-    margin: 0 40px;
-    top: -32px;
-  }
-
-  .play-button {
-    width: 84px;
-    height: 84px;
+    width: clamp(76px, 5vw, 84px);
+    height: clamp(76px, 5vw, 84px);
     box-shadow:
       0 6px 24px rgba(194, 58, 58, 0.5),
       0 12px 36px rgba(194, 58, 58, 0.3),
@@ -887,23 +662,23 @@ const isVisible = computed(() => !props.isLearning)
       inset 0 -1px 1px rgba(0, 0, 0, 0.15);
   }
 
-  .play-button-glow {
-    inset: -10px;
+  .play-button-inner svg {
+    width: clamp(30px, 2.2vw, 36px);
+    height: clamp(30px, 2.2vw, 36px);
   }
 
-  .play-button-inner svg {
-    width: 36px;
-    height: 36px;
+  .play-button-glow {
+    inset: clamp(-8px, -0.6vw, -10px);
   }
 
   .play-label {
-    font-size: 13px;
-    margin-top: 12px;
+    font-size: clamp(11px, 0.85vw, 13px);
+    margin-top: clamp(10px, 0.8vh, 12px);
   }
 
   .active-indicator {
-    width: 6px;
-    height: 6px;
+    width: clamp(5px, 0.35vw, 6px);
+    height: clamp(5px, 0.35vw, 6px);
   }
 
   .safe-area-spacer {
@@ -911,12 +686,8 @@ const isVisible = computed(() => !props.isLearning)
   }
 }
 
-/* Landscape orientation - compact bottom nav */
+/* Landscape orientation - compact bottom nav (keeps min touch targets) */
 @media (orientation: landscape) and (max-height: 500px) {
-  .bottom-nav {
-    /* Slide to side on landscape phones */
-  }
-
   .nav-content {
     height: 56px;
     max-width: 360px;
@@ -930,6 +701,7 @@ const isVisible = computed(() => !props.isLearning)
   .nav-item {
     padding: 0 6px 8px;
     gap: 3px;
+    min-width: 44px;
     min-height: 44px;
   }
 
