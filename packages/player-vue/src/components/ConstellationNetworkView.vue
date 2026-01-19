@@ -83,6 +83,10 @@ const props = defineProps({
     type: Boolean,
     default: true,  // Fire path animation enabled by default
   },
+  revealedNodeIds: {
+    type: Set as unknown as PropType<Set<string> | null>,
+    default: null,  // null = all nodes revealed, Set = only these are revealed
+  },
 })
 
 const emit = defineEmits<{
@@ -427,7 +431,16 @@ function isEdgeInPath(edgeId: string): boolean {
   return idx < props.currentPath.activeIndex
 }
 
+// Check if a node has been revealed (learned by user)
+function isNodeRevealed(nodeId: string): boolean {
+  // If no revealedNodeIds prop, all nodes are considered revealed
+  if (!props.revealedNodeIds) return true
+  return props.revealedNodeIds.has(nodeId)
+}
+
 function getNodeOpacity(node: ConstellationNode): number {
+  // Unrevealed nodes are very faint (showing the full brain shape)
+  if (!isNodeRevealed(node.id)) return 0.08
   // Hero node (current LEGO being learned) is brightest
   if (node.id === props.heroNodeId) return 1
   // Nodes actively in the current phrase path
@@ -610,6 +623,8 @@ watch(
 
 // Computed for label visibility
 const labelOpacity = computed(() => (node: ConstellationNode): number => {
+  // Hide labels for unrevealed nodes
+  if (!isNodeRevealed(node.id)) return 0
   if (props.showPathLabels) {
     if (isNodeInPath(node.id)) return 1
     if (isNodeResonating(node.id)) return 0.5
@@ -739,7 +754,8 @@ const labelOpacity = computed(() => (node: ConstellationNode): number => {
               'node-in-path': isNodeInPath(node.id),
               'node-hero': node.id === heroNodeId,
               'node-resonating': isNodeResonating(node.id),
-              'node-component': node.isComponent
+              'node-component': node.isComponent,
+              'node-unrevealed': !isNodeRevealed(node.id)
             }"
             :transform="`translate(${node.x}, ${node.y})`"
             :opacity="getNodeOpacity(node)"

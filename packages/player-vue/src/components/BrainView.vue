@@ -315,11 +315,14 @@ async function downloadBrainImage() {
     ctx.fillStyle = '#0a0a0f'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-    // Draw title
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)'
-    ctx.font = '500 24px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+    // Draw title in belt color
+    ctx.fillStyle = accentColor.value
+    ctx.font = '600 28px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
     ctx.textAlign = 'center'
-    ctx.fillText(`Your brain on ${languageName.value}`, canvas.width / 2, 40)
+    ctx.shadowColor = accentColor.value
+    ctx.shadowBlur = 15
+    ctx.fillText(`Your brain on ${languageName.value}`, canvas.width / 2, 42)
+    ctx.shadowBlur = 0
 
     // Clone SVG for manipulation
     const clonedSvg = svgElement.cloneNode(true) as SVGSVGElement
@@ -593,8 +596,10 @@ onUnmounted(() => {
       </svg>
     </button>
 
-    <!-- Page title -->
-    <h1 v-if="languageName" class="brain-title">Your brain on {{ languageName }}</h1>
+    <!-- Page title with mounting -->
+    <div v-if="languageName" class="brain-title-mount">
+      <h1 class="brain-title" :style="{ color: accentColor }">Your brain on {{ languageName }}</h1>
+    </div>
 
     <!-- Download button -->
     <button
@@ -636,12 +641,13 @@ onUnmounted(() => {
       <button @click="loadData">Retry</button>
     </div>
 
-    <!-- Network visualization -->
+    <!-- Network visualization - shows all nodes, unrevealed ones greyed out -->
     <ConstellationNetworkView
       v-else
-      :nodes="prebuiltNetwork.visibleNodes.value"
+      :nodes="prebuiltNetwork.nodes.value"
       :edges="prebuiltNetwork.visibleEdges.value"
       :hero-node-id="null"
+      :revealed-node-ids="prebuiltNetwork.revealedNodeIds.value"
       :current-path="prebuiltNetwork.currentPath.value"
       :pan-transform="'translate(0px, 0px)'"
       :show-path-labels="true"
@@ -824,19 +830,30 @@ onUnmounted(() => {
   height: 20px;
 }
 
-.brain-title {
+.brain-title-mount {
   position: absolute;
-  top: calc(20px + env(safe-area-inset-top, 0px));
+  top: calc(12px + env(safe-area-inset-top, 0px));
   left: 50%;
   transform: translateX(-50%);
   z-index: 20;
-  font-size: 1.125rem;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.7);
+  background: rgba(10, 10, 15, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  padding: 10px 24px;
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.brain-title {
+  font-size: 1.375rem;
+  font-weight: 600;
   text-align: center;
   margin: 0;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.02em;
   white-space: nowrap;
+  text-shadow: 0 0 20px currentColor;
 }
 
 .download-btn {
