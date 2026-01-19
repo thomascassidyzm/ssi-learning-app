@@ -291,16 +291,19 @@ const isVisible = computed(() => !props.isLearning)
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  padding: 0 clamp(6px, 2vw, 12px);
-  max-width: clamp(320px, 90vw, 440px);
+  /* Mobile: full width with small padding, no artificial constraints */
+  padding: 0 8px;
+  width: 100%;
+  max-width: 500px; /* Only constrain on very wide phones */
   margin: 0 auto;
-  height: clamp(64px, 18vw, 74px);
+  height: 68px;
 }
 
 .nav-group {
   display: flex;
   flex: 1;
-  max-width: clamp(100px, 30vw, 140px);
+  /* Let groups fill available space naturally */
+  max-width: 140px;
 }
 
 .nav-group--left {
@@ -317,8 +320,8 @@ const isVisible = computed(() => !props.isLearning)
   flex-direction: column;
   align-items: center;
   justify-content: flex-end;
-  gap: clamp(4px, 1vw, 5px);
-  padding: 0 clamp(6px, 2vw, 12px) clamp(10px, 3vw, 14px);
+  gap: 4px;
+  padding: 0 10px 12px;
   background: transparent;
   border: none;
   cursor: pointer;
@@ -335,8 +338,8 @@ const isVisible = computed(() => !props.isLearning)
 }
 
 .nav-icon {
-  width: clamp(18px, 5vw, 22px);
-  height: clamp(18px, 5vw, 22px);
+  width: 22px;
+  height: 22px;
   color: rgba(255, 255, 255, 0.35);
   transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -355,20 +358,20 @@ const isVisible = computed(() => !props.isLearning)
 }
 
 .account-avatar {
-  width: clamp(18px, 5vw, 22px);
-  height: clamp(18px, 5vw, 22px);
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   object-fit: cover;
   border: 1.5px solid rgba(255, 255, 255, 0.2);
 }
 
 .account-initial {
-  width: clamp(18px, 5vw, 22px);
-  height: clamp(18px, 5vw, 22px);
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   background: linear-gradient(145deg, #c23a3a 0%, #9a2e2e 100%);
   color: white;
-  font-size: clamp(9px, 2.5vw, 11px);
+  font-size: 11px;
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -377,7 +380,7 @@ const isVisible = computed(() => !props.isLearning)
 
 .nav-label {
   font-family: 'DM Sans', -apple-system, sans-serif;
-  font-size: clamp(9px, 2.5vw, 10px);
+  font-size: 10px;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.35);
   transition: all 0.25s ease;
@@ -398,8 +401,8 @@ const isVisible = computed(() => !props.isLearning)
 .active-indicator {
   position: absolute;
   bottom: 6px;
-  width: clamp(3px, 1vw, 4px);
-  height: clamp(3px, 1vw, 4px);
+  width: 4px;
+  height: 4px;
   border-radius: 50%;
   background: #c23a3a;
   opacity: 0;
@@ -429,16 +432,16 @@ const isVisible = computed(() => !props.isLearning)
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin: 0 clamp(8px, 3vw, 16px);
+  margin: 0 12px;
   position: relative;
-  top: clamp(-14px, -4vw, -20px);
+  top: -18px;
 }
 
 .play-button {
   position: relative;
-  /* Fluid scaling: 48px on smallest mobile -> 60px at mobile max (767px) */
-  width: clamp(48px, 12vw, 60px);
-  height: clamp(48px, 12vw, 60px);
+  /* Fixed size for mobile - comfortable tap target */
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   border: none;
   background: linear-gradient(145deg, #d44545 0%, #b83232 100%);
@@ -464,7 +467,7 @@ const isVisible = computed(() => !props.isLearning)
 
 .play-button-glow {
   position: absolute;
-  inset: clamp(-4px, -1vw, -6px);
+  inset: -6px;
   border-radius: 50%;
   background: radial-gradient(circle, rgba(194, 58, 58, 0.5) 0%, transparent 70%);
   opacity: 0.5;
@@ -492,8 +495,8 @@ const isVisible = computed(() => !props.isLearning)
 }
 
 .play-button-inner svg {
-  width: clamp(18px, 5vw, 24px);
-  height: clamp(18px, 5vw, 24px);
+  width: 22px;
+  height: 22px;
   margin-left: 2px; /* Optical centering for play icon */
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
 }
@@ -505,10 +508,10 @@ const isVisible = computed(() => !props.isLearning)
 
 .play-label {
   font-family: 'DM Sans', -apple-system, sans-serif;
-  font-size: clamp(9px, 2.5vw, 10px);
+  font-size: 10px;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.5);
-  margin-top: clamp(5px, 1.5vw, 8px);
+  margin-top: 6px;
   letter-spacing: 0.02em;
 }
 
@@ -534,127 +537,120 @@ const isVisible = computed(() => !props.isLearning)
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   RESPONSIVE - 3 breakpoints with clamp() for fluid scaling
+   RESPONSIVE - Simple breakpoints with fixed values
    Mobile (default, <768px) | Tablet (768-1279px) | Desktop (1280px+)
    ═══════════════════════════════════════════════════════════════ */
-
-/*
- * Mobile-first base styles (above) use clamp() for fluid scaling.
- * Play button: clamp(48px, 12vw, 76px) scales 48px -> 76px
- * Nav icons: clamp(18px, 5vw, 22px) scales 18px -> 22px
- * etc.
- */
 
 /* Tablet (768px - 1279px) */
 @media (min-width: 768px) {
   .nav-content {
-    max-width: clamp(480px, 50vw, 580px);
-    height: clamp(76px, 8vh, 88px);
+    max-width: 540px;
+    height: 80px;
   }
 
   .nav-group {
-    max-width: clamp(160px, 18vw, 220px);
+    max-width: 180px;
   }
 
   .nav-item {
-    padding: clamp(0px, 1vw, 0px) clamp(14px, 2vw, 20px) clamp(12px, 1.5vh, 16px);
+    padding: 0 16px 14px;
     min-width: 56px;
-    gap: clamp(5px, 0.6vh, 7px);
+    gap: 5px;
   }
 
   .nav-icon {
-    width: clamp(22px, 2.5vw, 28px);
-    height: clamp(22px, 2.5vw, 28px);
+    width: 26px;
+    height: 26px;
   }
 
   .nav-label {
-    font-size: clamp(10px, 1.1vw, 12px);
+    font-size: 11px;
   }
 
   .account-avatar,
   .account-initial {
-    width: clamp(22px, 2.5vw, 28px);
-    height: clamp(22px, 2.5vw, 28px);
+    width: 26px;
+    height: 26px;
   }
 
   .account-initial {
-    font-size: clamp(11px, 1.2vw, 13px);
+    font-size: 12px;
   }
 
   .play-button-container {
-    margin: 0 clamp(20px, 3vw, 32px);
-    top: clamp(-22px, -2.5vh, -28px);
+    margin: 0 24px;
+    top: -24px;
   }
 
   .play-button {
-    width: clamp(64px, 7vw, 76px);
-    height: clamp(64px, 7vw, 76px);
+    width: 68px;
+    height: 68px;
   }
 
   .play-button-inner svg {
-    width: clamp(26px, 3vw, 32px);
-    height: clamp(26px, 3vw, 32px);
+    width: 28px;
+    height: 28px;
   }
 
   .play-button-glow {
-    inset: clamp(-6px, -0.7vw, -8px);
+    inset: -8px;
   }
 
   .play-label {
-    font-size: clamp(10px, 1.1vw, 12px);
-    margin-top: clamp(8px, 1vh, 10px);
+    font-size: 11px;
+    margin-top: 8px;
   }
 
   .active-indicator {
-    width: clamp(4px, 0.4vw, 5px);
-    height: clamp(4px, 0.4vw, 5px);
+    width: 5px;
+    height: 5px;
   }
 }
 
 /* Desktop (1280px+) */
 @media (min-width: 1280px) {
   .nav-content {
-    max-width: clamp(580px, 40vw, 680px);
-    height: clamp(88px, 7vh, 96px);
+    max-width: 620px;
+    height: 90px;
   }
 
   .nav-group {
-    max-width: clamp(200px, 15vw, 260px);
+    max-width: 220px;
   }
 
   .nav-item {
-    padding: 0 clamp(18px, 1.5vw, 24px) clamp(14px, 1.2vh, 18px);
+    padding: 0 20px 16px;
     min-width: 64px;
-    gap: clamp(6px, 0.5vh, 7px);
+    gap: 6px;
   }
 
   .nav-icon {
-    width: clamp(26px, 2vw, 32px);
-    height: clamp(26px, 2vw, 32px);
+    width: 28px;
+    height: 28px;
   }
 
   .nav-label {
-    font-size: clamp(11px, 0.9vw, 13px);
+    font-size: 12px;
   }
 
   .account-avatar,
   .account-initial {
-    width: clamp(26px, 2vw, 32px);
-    height: clamp(26px, 2vw, 32px);
+    width: 28px;
+    height: 28px;
   }
 
   .account-initial {
-    font-size: clamp(12px, 1vw, 14px);
+    font-size: 13px;
   }
 
   .play-button-container {
-    margin: 0 clamp(28px, 2.5vw, 40px);
-    top: clamp(-26px, -2vh, -32px);
+    margin: 0 32px;
+    top: -28px;
   }
 
   .play-button {
-    width: clamp(76px, 5vw, 84px);
-    height: clamp(76px, 5vw, 84px);
+    width: 76px;
+    height: 76px;
     box-shadow:
       0 6px 24px rgba(194, 58, 58, 0.5),
       0 12px 36px rgba(194, 58, 58, 0.3),
@@ -663,22 +659,22 @@ const isVisible = computed(() => !props.isLearning)
   }
 
   .play-button-inner svg {
-    width: clamp(30px, 2.2vw, 36px);
-    height: clamp(30px, 2.2vw, 36px);
+    width: 32px;
+    height: 32px;
   }
 
   .play-button-glow {
-    inset: clamp(-8px, -0.6vw, -10px);
+    inset: -10px;
   }
 
   .play-label {
-    font-size: clamp(11px, 0.85vw, 13px);
-    margin-top: clamp(10px, 0.8vh, 12px);
+    font-size: 12px;
+    margin-top: 10px;
   }
 
   .active-indicator {
-    width: clamp(5px, 0.35vw, 6px);
-    height: clamp(5px, 0.35vw, 6px);
+    width: 5px;
+    height: 5px;
   }
 
   .safe-area-spacer {
