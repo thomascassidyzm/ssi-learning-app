@@ -505,6 +505,25 @@ export class CourseDataProvider {
       }
 
       if (!data) {
+        // Fallback: Query course_audio directly for presentation audio
+        // This handles courses where intro audio has lego_id set but not linked via lego_introductions
+        const { data: presentationAudio, error: presError } = await this.client
+          .from('course_audio')
+          .select('id, s3_key, duration_ms, origin')
+          .eq('course_code', this.courseId)
+          .eq('role', 'presentation')
+          .eq('lego_id', legoId)
+          .maybeSingle()
+
+        if (!presError && presentationAudio?.s3_key) {
+          return {
+            id: presentationAudio.id,
+            url: this.resolveAudioUrl(presentationAudio.s3_key),
+            duration_ms: presentationAudio.duration_ms,
+            origin: presentationAudio.origin || 'tts',
+          }
+        }
+
         return null
       }
 

@@ -13,7 +13,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 // Cache configuration
 // Bump version when script generation logic or database schema changes
-const SCRIPT_KEY_PREFIX = 'ssi-script-v6-' // v6: batched queries for intro audio (fix 400 errors on large courses)
+const SCRIPT_KEY_PREFIX = 'ssi-script-v7-' // v7: fallback to course_audio for presentation audio (Portuguese fix)
 const AUDIO_CACHE_NAME = 'ssi-audio-v1'
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
 
@@ -334,10 +334,9 @@ export const loadIntroAudio = async (
     }
 
     const introData = allIntroData
-    if (!introData || introData.length === 0) {
-      console.log('[ScriptCache] No intro audio found for LEGOs')
-      return
-    }
+
+    // Track which LEGOs have intro audio from lego_introductions
+    const foundLegoIds = new Set<string>()
 
     // Separate v13 (has presentation_audio_id) from legacy (only audio_uuid)
     const v13Entries = introData.filter(i => i.presentation_audio_id)
@@ -367,6 +366,7 @@ export const loadIntroAudio = async (
         const s3Key = s3KeyMap.get(intro.presentation_audio_id)
         if (s3Key) {
           audioMap.set(`intro:${intro.lego_id}`, { intro: s3Key })
+          foundLegoIds.add(intro.lego_id)
         }
       }
       console.log('[ScriptCache] Loaded', v13Entries.length, 'intro audio entries (v13)')
@@ -375,9 +375,47 @@ export const loadIntroAudio = async (
     // Handle legacy entries: use audio_uuid directly (URL: mastered/{UUID}.mp3)
     for (const intro of legacyEntries) {
       audioMap.set(`intro:${intro.lego_id}`, { intro: intro.audio_uuid })
+      foundLegoIds.add(intro.lego_id)
     }
     if (legacyEntries.length > 0) {
       console.log('[ScriptCache] Loaded', legacyEntries.length, 'intro audio entries (legacy)')
+    }
+
+    // FALLBACK: Query course_audio for LEGOs not in lego_introductions
+    // This handles courses (like Portuguese) where intro audio is in course_audio
+    // but not linked via lego_introductions table
+    const missingLegoIds = legoIdArray.filter(id => !foundLegoIds.has(id))
+    if (missingLegoIds.length > 0) {
+      console.log('[ScriptCache] Looking for', missingLegoIds.length, 'missing intro audios in course_audio')
+
+      for (let i = 0; i < missingLegoIds.length; i += BATCH_SIZE) {
+        const batchIds = missingLegoIds.slice(i, i + BATCH_SIZE)
+        const { data: presentationAudio, error: presError } = await supabase
+          .from('course_audio')
+          .select('id, lego_id, s3_key')
+          .eq('course_code', courseCode)
+          .eq('role', 'presentation')
+          .in('lego_id', batchIds)
+
+        if (presError) {
+          console.warn('[ScriptCache] Presentation audio query error:', presError.message)
+          continue
+        }
+
+        if (presentationAudio && presentationAudio.length > 0) {
+          for (const audio of presentationAudio) {
+            if (audio.lego_id && audio.s3_key && !audioMap.has(`intro:${audio.lego_id}`)) {
+              audioMap.set(`intro:${audio.lego_id}`, { intro: audio.s3_key })
+              foundLegoIds.add(audio.lego_id)
+            }
+          }
+        }
+      }
+
+      const foundFromFallback = missingLegoIds.filter(id => foundLegoIds.has(id)).length
+      if (foundFromFallback > 0) {
+        console.log('[ScriptCache] Found', foundFromFallback, 'intro audios from course_audio fallback')
+      }
     }
 
   } catch (err) {

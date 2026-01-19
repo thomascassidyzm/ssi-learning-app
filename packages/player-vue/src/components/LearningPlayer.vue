@@ -4075,6 +4075,12 @@ onMounted(async () => {
             if (legoIds.size > 0) {
               await loadIntroAudio(supabase.value, courseCode.value, legoIds, audioMap.value)
             }
+          } else {
+            // No valid rounds generated - course is missing audio data
+            console.error('[LearningPlayer] No valid rounds generated! Course cannot play.')
+            console.error('[LearningPlayer] This typically means audio data is missing from the database.')
+            console.error('[LearningPlayer] Check: course_audio, lego_introductions, lego_cycles tables.')
+            positionInitialized.value = true
           }
         } catch (genErr) {
           console.warn('[LearningPlayer] Script generation failed:', genErr)
