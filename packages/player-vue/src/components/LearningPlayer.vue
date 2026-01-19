@@ -4428,7 +4428,23 @@ onUnmounted(() => {
     />
 
     <!-- Hero-Centric Text Labels - Floating above/below the hero node -->
-    <div class="hero-text-pane" :class="[currentPhase, { 'is-intro': isIntroPhase }]">
+    <div class="hero-text-pane" :class="[currentPhase, { 'is-intro': isIntroPhase, 'has-hint': showLearningHint && !isIntroPhase }]">
+
+      <!-- Learning Hint Box - sits ABOVE the main text box -->
+      <div v-if="showLearningHint && !isIntroPhase" class="learning-hint-box" :class="{ 'is-speaking': currentPhase === 'speak' }">
+        <span class="hint-text">{{ phaseInstruction }}</span>
+        <button class="hint-dismiss" @click.stop="dismissLearningHint" title="Hide hints">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+        </button>
+        <!-- Timer bar during speak phase -->
+        <div v-if="currentPhase === 'speak'" class="hint-timer">
+          <div class="hint-timer-fill" :style="{ width: ringProgress + '%' }"></div>
+        </div>
+      </div>
+
+      <!-- Main Text Box -->
       <div class="hero-glass">
         <!-- INTRO MODE: Typewriter-style encouraging message -->
         <template v-if="isIntroPhase && !isAwakening">
@@ -4441,22 +4457,8 @@ onUnmounted(() => {
           </div>
         </template>
 
-        <!-- NORMAL MODE: Instruction hint + text -->
+        <!-- NORMAL MODE: Text only (hint is now above) -->
         <template v-else>
-          <!-- Learning Hint - contextual instruction based on phase -->
-          <div v-if="showLearningHint" class="learning-hint" :class="{ 'is-speaking': currentPhase === 'speak' }">
-            <span class="hint-text">{{ phaseInstruction }}</span>
-            <button class="hint-dismiss" @click.stop="dismissLearningHint" title="Hide hints">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M18 6L6 18M6 6l12 12"/>
-              </svg>
-            </button>
-            <!-- Timer bar during speak phase -->
-            <div v-if="currentPhase === 'speak'" class="hint-timer">
-              <div class="hint-timer-fill" :style="{ width: ringProgress + '%' }"></div>
-            </div>
-          </div>
-
           <!-- Text container - fades all text together during transition -->
           <div class="hero-text-container" :class="{ 'is-transitioning': isTransitioningItem }">
             <!-- Known text - always visible, stable position -->
@@ -6147,83 +6149,101 @@ onUnmounted(() => {
   to { stroke-dashoffset: 172; }
 }
 
-/* ============ LEARNING HINT - Contextual instructions ============ */
-.learning-hint {
+/* ============ LEARNING HINT BOX - Matches hero-glass style ============ */
+.learning-hint-box {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 8px 16px;
-  margin-bottom: 12px;
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 12px;
+  padding: 12px 24px;
+  /* Match hero-glass styling */
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: none;
+  box-shadow:
+    0 2px 16px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
+  /* Match hero-glass width */
+  min-width: 320px;
+  max-width: 400px;
+  width: 100%;
   position: relative;
   transition: all 0.3s ease;
+  /* Make clickable despite parent pointer-events: none */
+  pointer-events: auto;
 }
 
 .hint-text {
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
   font-size: 0.9375rem;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.7);
-  letter-spacing: 0.01em;
+  color: rgba(255, 255, 255, 0.75);
+  letter-spacing: 0.02em;
+  text-align: center;
 }
 
 .hint-dismiss {
+  position: absolute;
+  top: 8px;
+  right: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   padding: 0;
-  background: transparent;
+  background: rgba(255, 255, 255, 0.08);
   border: none;
   border-radius: 50%;
   cursor: pointer;
-  opacity: 0.4;
+  opacity: 0.5;
   transition: all 0.2s ease;
   flex-shrink: 0;
 }
 
 .hint-dismiss:hover {
-  opacity: 0.8;
-  background: rgba(255, 255, 255, 0.1);
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .hint-dismiss svg {
   width: 14px;
   height: 14px;
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, 0.8);
 }
 
 /* Speaking state - ALIVE! Recording feel */
-.learning-hint.is-speaking {
-  background: rgba(220, 38, 38, 0.15);
-  border-color: rgba(220, 38, 38, 0.4);
+.learning-hint-box.is-speaking {
+  background: rgba(220, 38, 38, 0.12);
   box-shadow:
-    0 0 20px rgba(220, 38, 38, 0.2),
-    inset 0 0 20px rgba(220, 38, 38, 0.05);
+    0 2px 16px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(220, 38, 38, 0.4),
+    0 0 30px rgba(220, 38, 38, 0.2),
+    inset 0 0 30px rgba(220, 38, 38, 0.05);
   animation: speaking-pulse 1.2s ease-in-out infinite;
 }
 
-.learning-hint.is-speaking .hint-text {
+.learning-hint-box.is-speaking .hint-text {
   color: rgba(255, 255, 255, 0.95);
   font-weight: 600;
 }
 
 @keyframes speaking-pulse {
   0%, 100% {
-    border-color: rgba(220, 38, 38, 0.4);
     box-shadow:
-      0 0 20px rgba(220, 38, 38, 0.2),
-      inset 0 0 20px rgba(220, 38, 38, 0.05);
+      0 2px 16px rgba(0, 0, 0, 0.3),
+      0 0 0 1px rgba(220, 38, 38, 0.4),
+      0 0 20px rgba(220, 38, 38, 0.15),
+      inset 0 0 20px rgba(220, 38, 38, 0.03);
   }
   50% {
-    border-color: rgba(220, 38, 38, 0.7);
     box-shadow:
-      0 0 30px rgba(220, 38, 38, 0.4),
-      inset 0 0 30px rgba(220, 38, 38, 0.1);
+      0 2px 16px rgba(0, 0, 0, 0.3),
+      0 0 0 2px rgba(220, 38, 38, 0.6),
+      0 0 40px rgba(220, 38, 38, 0.3),
+      inset 0 0 40px rgba(220, 38, 38, 0.08);
   }
 }
 
@@ -6235,14 +6255,14 @@ onUnmounted(() => {
   right: 0;
   height: 3px;
   background: rgba(0, 0, 0, 0.3);
-  border-radius: 0 0 20px 20px;
+  border-radius: 0 0 24px 24px;
   overflow: hidden;
 }
 
 .hint-timer-fill {
   height: 100%;
   background: #dc2626;
-  border-radius: 0 0 0 20px;
+  border-radius: 0 0 0 24px;
   transition: width 0.1s linear;
   box-shadow: 0 0 8px rgba(220, 38, 38, 0.6);
 }
