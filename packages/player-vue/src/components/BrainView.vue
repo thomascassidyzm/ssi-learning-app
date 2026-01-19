@@ -335,102 +335,173 @@ function animateFirePath(legoIds: string[], audioDurationMs: number) {
 
 /**
  * Download brain network as shareable image
+ * Renders directly to Canvas for reliability (bypasses SVG/CSS complexity)
  */
 async function downloadBrainImage() {
-  if (!containerRef.value || isDownloading.value) return
+  if (isDownloading.value) return
 
   isDownloading.value = true
 
   try {
-    // Find the SVG element within the container
-    const svgElement = containerRef.value.querySelector('svg')
-    if (!svgElement) {
-      console.warn('[BrainView] SVG element not found')
+    const nodes = prebuiltNetwork.nodes.value
+    const edges = prebuiltNetwork.visibleEdges.value
+    const revealed = prebuiltNetwork.revealedNodeIds.value
+
+    if (!nodes.length) {
+      console.warn('[BrainView] No nodes to render')
+      isDownloading.value = false
       return
     }
 
-    // Get SVG dimensions
-    const svgRect = svgElement.getBoundingClientRect()
-    const width = Math.round(svgRect.width)
-    const height = Math.round(svgRect.height)
+    // Canvas dimensions (high-res for sharing)
+    const size = 1200
+    const titleHeight = 80
+    const padding = 100
 
-    // Create canvas with extra space for title
-    const titleHeight = 60
-    const padding = 20
     const canvas = document.createElement('canvas')
-    canvas.width = width
-    canvas.height = height + titleHeight
+    canvas.width = size
+    canvas.height = size + titleHeight
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    // Dark background
-    ctx.fillStyle = '#0a0a0f'
+    // Calculate bounds of the network
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+    nodes.forEach(node => {
+      minX = Math.min(minX, node.x)
+      maxX = Math.max(maxX, node.x)
+      minY = Math.min(minY, node.y)
+      maxY = Math.max(maxY, node.y)
+    })
+
+    // Scale to fit canvas with padding
+    const networkWidth = maxX - minX || 1
+    const networkHeight = maxY - minY || 1
+    const scale = Math.min(
+      (size - padding * 2) / networkWidth,
+      (size - padding * 2) / networkHeight
+    )
+
+    // Transform function to map network coords to canvas coords
+    const toCanvas = (x: number, y: number) => ({
+      x: padding + (x - minX) * scale,
+      y: titleHeight + padding + (y - minY) * scale
+    })
+
+    // Dark background with subtle gradient
+    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height)
+    gradient.addColorStop(0, '#0a0a0f')
+    gradient.addColorStop(0.5, '#0f0f18')
+    gradient.addColorStop(1, '#12121a')
+    ctx.fillStyle = gradient
     ctx.fillRect(0, 0, canvas.width, canvas.height)
 
     // Draw title in belt color
     ctx.fillStyle = accentColor.value
-    ctx.font = '600 28px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+    ctx.font = '600 36px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
     ctx.textAlign = 'center'
     ctx.shadowColor = accentColor.value
-    ctx.shadowBlur = 15
-    ctx.fillText(`Your brain on ${languageName.value}`, canvas.width / 2, 42)
+    ctx.shadowBlur = 20
+    ctx.fillText(`Your brain on ${languageName.value}`, canvas.width / 2, 52)
     ctx.shadowBlur = 0
 
-    // Clone SVG for manipulation
-    const clonedSvg = svgElement.cloneNode(true) as SVGSVGElement
+    // Draw edges
+    ctx.lineCap = 'round'
+    edges.forEach(edge => {
+      const sourceNode = nodes.find(n => n.id === edge.source)
+      const targetNode = nodes.find(n => n.id === edge.target)
+      if (!sourceNode || !targetNode) return
 
-    // Ensure SVG has explicit dimensions
-    clonedSvg.setAttribute('width', String(width))
-    clonedSvg.setAttribute('height', String(height))
+      const from = toCanvas(sourceNode.x, sourceNode.y)
+      const to = toCanvas(targetNode.x, targetNode.y)
 
-    // Inline all computed styles for external rendering
-    const allElements = clonedSvg.querySelectorAll('*')
-    allElements.forEach((el) => {
-      const computedStyle = window.getComputedStyle(el as Element)
-      const element = el as SVGElement
-      // Copy key styles that affect rendering
-      if (computedStyle.fill) element.style.fill = computedStyle.fill
-      if (computedStyle.stroke) element.style.stroke = computedStyle.stroke
-      if (computedStyle.strokeWidth) element.style.strokeWidth = computedStyle.strokeWidth
-      if (computedStyle.opacity) element.style.opacity = computedStyle.opacity
+      // Curved edge (quadratic bezier)
+      const midX = (from.x + to.x) / 2
+      const midY = (from.y + to.y) / 2
+      const dx = to.x - from.x
+      const dy = to.y - from.y
+      const len = Math.sqrt(dx * dx + dy * dy)
+      const curveAmount = Math.min(20 * scale, len * 0.12)
+      const perpX = -dy / (len || 1)
+      const perpY = dx / (len || 1)
+      const hash = edge.id.split('').reduce((a, c) => a + c.charCodeAt(0), 0)
+      const direction = hash % 2 === 0 ? 1 : -1
+      const cpX = midX + perpX * curveAmount * direction
+      const cpY = midY + perpY * curveAmount * direction
+
+      ctx.beginPath()
+      ctx.moveTo(from.x, from.y)
+      ctx.quadraticCurveTo(cpX, cpY, to.x, to.y)
+      ctx.strokeStyle = `rgba(255, 255, 255, ${0.08 + Math.sqrt(edge.strength) * 0.015})`
+      ctx.lineWidth = Math.min(1.5, 0.5 + Math.sqrt(edge.strength) * 0.08) * scale * 0.5
+      ctx.stroke()
     })
 
-    // Serialize SVG to string
-    const serializer = new XMLSerializer()
-    const svgString = serializer.serializeToString(clonedSvg)
-
-    // Create blob and image
-    const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
-    const url = URL.createObjectURL(svgBlob)
-
-    // Load SVG into image
-    const img = new Image()
-    img.onload = () => {
-      // Draw SVG below title
-      ctx.drawImage(img, 0, titleHeight)
-
-      // Clean up
-      URL.revokeObjectURL(url)
-
-      // Download
-      const downloadUrl = canvas.toDataURL('image/png')
-      const link = document.createElement('a')
-      link.download = `brain-on-${languageName.value.toLowerCase().replace(/\s+/g, '-')}.png`
-      link.href = downloadUrl
-      link.click()
-
-      isDownloading.value = false
+    // Belt colors for nodes
+    const beltColorMap: Record<string, { glow: string; core: string; inner: string }> = {
+      white: { glow: '#9ca3af', core: '#2a2a35', inner: '#ffffff' },
+      yellow: { glow: '#fbbf24', core: '#2a2518', inner: '#fbbf24' },
+      orange: { glow: '#f97316', core: '#2a1a10', inner: '#f97316' },
+      green: { glow: '#22c55e', core: '#102a1a', inner: '#22c55e' },
+      blue: { glow: '#3b82f6', core: '#101a2a', inner: '#3b82f6' },
+      purple: { glow: '#8b5cf6', core: '#1a102a', inner: '#8b5cf6' },
+      brown: { glow: '#a87848', core: '#2a1a10', inner: '#a87848' },
+      black: { glow: '#d4a853', core: '#2a2518', inner: '#d4a853' },
     }
 
-    img.onerror = () => {
-      console.warn('[BrainView] Failed to load SVG as image')
-      URL.revokeObjectURL(url)
-      isDownloading.value = false
-    }
+    // Draw nodes
+    nodes.forEach(node => {
+      const pos = toCanvas(node.x, node.y)
+      const isRevealed = !revealed || revealed.has(node.id)
+      const palette = beltColorMap[node.belt] || beltColorMap.white
+      const opacity = isRevealed ? (node.isComponent ? 0.5 : 0.7) : 0.08
+      const nodeScale = node.isComponent ? 0.6 : 1
+      const baseRadius = 8 * scale * 0.5 * nodeScale
 
-    img.src = url
+      // Outer glow
+      ctx.beginPath()
+      ctx.arc(pos.x, pos.y, baseRadius * 1.5, 0, Math.PI * 2)
+      ctx.strokeStyle = palette.glow
+      ctx.globalAlpha = opacity * 0.6
+      ctx.lineWidth = 2 * scale * 0.3
+      ctx.stroke()
+
+      // Core
+      ctx.beginPath()
+      ctx.arc(pos.x, pos.y, baseRadius, 0, Math.PI * 2)
+      ctx.fillStyle = palette.core
+      ctx.globalAlpha = opacity
+      ctx.fill()
+      ctx.strokeStyle = palette.glow
+      ctx.lineWidth = 1.5 * scale * 0.3
+      ctx.stroke()
+
+      // Inner dot
+      ctx.beginPath()
+      ctx.arc(pos.x, pos.y, baseRadius * 0.35, 0, Math.PI * 2)
+      ctx.fillStyle = palette.inner
+      ctx.globalAlpha = opacity
+      ctx.fill()
+
+      ctx.globalAlpha = 1
+    })
+
+    // Add watermark/branding
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)'
+    ctx.font = '14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+    ctx.textAlign = 'right'
+    ctx.fillText('saysomethingin.com', size - 20, size + titleHeight - 20)
+
+    // Download
+    const downloadUrl = canvas.toDataURL('image/png')
+    const link = document.createElement('a')
+    link.download = `brain-on-${languageName.value.toLowerCase().replace(/\s+/g, '-')}.png`
+    link.href = downloadUrl
+    link.click()
+
+    console.log('[BrainView] Image downloaded successfully')
   } catch (err) {
     console.error('[BrainView] Download failed:', err)
+  } finally {
     isDownloading.value = false
   }
 }
