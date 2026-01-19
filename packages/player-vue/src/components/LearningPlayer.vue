@@ -7710,13 +7710,24 @@ defineExpose({
 @media (max-width: 360px) {
   .header {
     padding: calc(0.5rem + var(--safe-area-top, 0px)) 0.75rem 0.5rem 0.75rem;
-    flex-wrap: nowrap; /* Single row - no wrapping */
-    gap: 0.375rem;
-    min-height: 52px;
+    flex-direction: column; /* Stack: logo on top, belt below */
+    align-items: center;
+    gap: 0.5rem;
+    min-height: auto;
   }
 
   .brand {
+    position: static; /* Remove absolute positioning */
+    transform: none;
     font-size: 0.875rem;
+    order: -1; /* Logo first (on top) */
+    opacity: 0.85;
+  }
+
+  .belt-timer-unified {
+    width: 100%; /* Full width */
+    max-width: none;
+    justify-content: center;
   }
 
   .close-btn {
