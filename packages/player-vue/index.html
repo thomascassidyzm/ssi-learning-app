@@ -45,13 +45,11 @@
         overscroll-behavior-y: contain;
       }
 
-      /* Safe area handling */
+      /* Safe area handling - let components manage their own insets */
       #app {
         min-height: 100vh;
         min-height: 100dvh;
-        padding-top: env(safe-area-inset-top, 0);
-        padding-left: env(safe-area-inset-left, 0);
-        padding-right: env(safe-area-inset-right, 0);
+        /* Safe area padding handled by individual components */
       }
 
       /* Loading state */
