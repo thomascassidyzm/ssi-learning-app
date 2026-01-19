@@ -16,6 +16,7 @@ import { usePrebuiltNetwork, type ExternalConnection, type ConstellationNode } f
 import { useLegoNetwork, type PhraseWithPath } from '../composables/useLegoNetwork'
 import { generateLearningScript } from '../providers/CourseDataProvider'
 import { getLanguageName } from '../composables/useI18n'
+import { BELTS } from '../composables/useBeltProgress'
 
 // ============================================================================
 // AUDIO CONTROLLER (target language only)
@@ -147,6 +148,9 @@ const isDownloading = ref(false)
 const searchQuery = ref('')
 const isSearchFocused = ref(false)
 
+// Tab state: 'brain' | 'belts' | 'usage'
+const activeTab = ref<'brain' | 'belts' | 'usage'>('brain')
+
 // ============================================================================
 // COMPUTED
 // ============================================================================
@@ -199,6 +203,17 @@ const selectedNodePhraseCount = computed(() => {
   if (!selectedNode.value || !networkData.value) return 0
   const phrases = networkData.value.phrasesByLego.get(selectedNode.value.id)
   return phrases?.length || 0
+})
+
+// Belt data for belts tab
+const beltsList = computed(() => BELTS)
+const currentBeltIndex = computed(() => {
+  for (let i = BELTS.length - 1; i >= 0; i--) {
+    if (props.completedSeeds >= BELTS[i].seedsRequired) {
+      return i
+    }
+  }
+  return 0
 })
 
 // Search results - filter nodes by target or known text
@@ -638,8 +653,54 @@ onUnmounted(() => {
       <h1 class="brain-title" :style="{ color: accentColor }">Your brain on {{ languageName }}</h1>
     </div>
 
-    <!-- Download button -->
+    <!-- Tab navigation -->
+    <div class="progress-tabs">
+      <button
+        class="tab-btn"
+        :class="{ active: activeTab === 'brain' }"
+        :style="activeTab === 'brain' ? { color: accentColor, borderColor: accentColor } : {}"
+        @click="activeTab = 'brain'"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="5" r="2"/>
+          <circle cx="6" cy="12" r="2"/>
+          <circle cx="18" cy="12" r="2"/>
+          <circle cx="9" cy="19" r="2"/>
+          <circle cx="15" cy="19" r="2"/>
+          <path d="M12 7v3M8 11l-1 1M16 11l1 1M10 17l-1-2M14 17l1-2"/>
+        </svg>
+        Brain
+      </button>
+      <button
+        class="tab-btn"
+        :class="{ active: activeTab === 'belts' }"
+        :style="activeTab === 'belts' ? { color: accentColor, borderColor: accentColor } : {}"
+        @click="activeTab = 'belts'"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="8" width="18" height="8" rx="1"/>
+          <path d="M12 8v8"/>
+          <circle cx="12" cy="12" r="2"/>
+        </svg>
+        Belts
+      </button>
+      <button
+        class="tab-btn"
+        :class="{ active: activeTab === 'usage' }"
+        :style="activeTab === 'usage' ? { color: accentColor, borderColor: accentColor } : {}"
+        @click="activeTab = 'usage'"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 3v18h18"/>
+          <path d="M7 16l4-4 4 4 5-6"/>
+        </svg>
+        Usage
+      </button>
+    </div>
+
+    <!-- Download button (only on brain tab) -->
     <button
+      v-if="activeTab === 'brain'"
       class="download-btn"
       @click="downloadBrainImage"
       :disabled="isDownloading || isLoading"
@@ -653,8 +714,8 @@ onUnmounted(() => {
       <div v-else class="download-spinner"></div>
     </button>
 
-    <!-- Search bar -->
-    <div class="search-container" :class="{ focused: isSearchFocused, 'has-results': searchResults.length > 0 }">
+    <!-- Search bar (only on brain tab) -->
+    <div v-if="activeTab === 'brain'" class="search-container" :class="{ focused: isSearchFocused, 'has-results': searchResults.length > 0 }">
       <div class="search-input-wrapper">
         <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="11" cy="11" r="8"/>
@@ -698,21 +759,25 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Stats badge -->
-    <div class="stats-badge" :style="{ borderColor: accentColor }">
-      <span class="stat-item">
-        <span class="stat-value">{{ visibleCount }}</span>
-        <span class="stat-label">concepts</span>
-      </span>
-      <span class="stat-divider">·</span>
-      <span class="stat-item">
-        <span class="stat-value">{{ globalStats.phrases.toLocaleString() }}</span>
-        <span class="stat-label">phrases</span>
-      </span>
-    </div>
+    <!-- ============================================ -->
+    <!-- BRAIN TAB CONTENT -->
+    <!-- ============================================ -->
+    <template v-if="activeTab === 'brain'">
+      <!-- Stats badge -->
+      <div class="stats-badge" :style="{ borderColor: accentColor }">
+        <span class="stat-item">
+          <span class="stat-value">{{ visibleCount }}</span>
+          <span class="stat-label">concepts</span>
+        </span>
+        <span class="stat-divider">·</span>
+        <span class="stat-item">
+          <span class="stat-value">{{ globalStats.phrases.toLocaleString() }}</span>
+          <span class="stat-label">phrases</span>
+        </span>
+      </div>
 
-    <!-- Loading state -->
-    <div v-if="isLoading" class="loading-state">
+      <!-- Loading state -->
+      <div v-if="isLoading" class="loading-state">
       <div class="loading-spinner"></div>
       <p>Loading neural network...</p>
     </div>
@@ -777,6 +842,48 @@ onUnmounted(() => {
         >
           All
         </button>
+      </div>
+    </div>
+    </template>
+
+    <!-- ============================================ -->
+    <!-- BELTS TAB CONTENT -->
+    <!-- ============================================ -->
+    <div v-if="activeTab === 'belts'" class="belts-tab-content">
+      <div class="belts-list">
+        <div
+          v-for="(belt, index) in beltsList"
+          :key="belt.name"
+          class="belt-card"
+          :class="{ current: belt.name === beltLevel, completed: index < currentBeltIndex }"
+          :style="{ '--belt-color': belt.color }"
+        >
+          <div class="belt-indicator" :style="{ backgroundColor: belt.color }"></div>
+          <div class="belt-info">
+            <span class="belt-name">{{ belt.name.charAt(0).toUpperCase() + belt.name.slice(1) }} Belt</span>
+            <span class="belt-threshold">{{ belt.seedsRequired }} seeds</span>
+          </div>
+          <div class="belt-status">
+            <span v-if="belt.name === beltLevel" class="status-badge current">Current</span>
+            <span v-else-if="index < currentBeltIndex" class="status-badge completed">✓</span>
+            <span v-else class="status-badge locked">Locked</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- USAGE TAB CONTENT -->
+    <!-- ============================================ -->
+    <div v-if="activeTab === 'usage'" class="usage-tab-content">
+      <div class="usage-placeholder">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="placeholder-icon">
+          <path d="M3 3v18h18"/>
+          <path d="M7 16l4-4 4 4 5-6"/>
+        </svg>
+        <h3>Usage Statistics</h3>
+        <p>Track your learning patterns over time</p>
+        <p class="coming-soon">Coming soon</p>
       </div>
     </div>
 
@@ -938,9 +1045,192 @@ onUnmounted(() => {
   text-shadow: 0 0 20px currentColor;
 }
 
+/* Tab Navigation */
+.progress-tabs {
+  position: absolute;
+  top: calc(60px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  gap: 4px;
+  background: rgba(10, 10, 15, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 4px;
+}
+
+.tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: transparent;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tab-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.tab-btn:hover:not(.active) {
+  color: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tab-btn.active {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: currentColor;
+}
+
+/* Belts Tab Content */
+.belts-tab-content {
+  position: absolute;
+  top: calc(120px + env(safe-area-inset-top, 0px));
+  left: 16px;
+  right: 16px;
+  bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+  padding: 16px 0;
+}
+
+.belts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.belt-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: rgba(10, 10, 15, 0.8);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+.belt-card.current {
+  border-color: var(--belt-color);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--belt-color) 30%, transparent);
+}
+
+.belt-card.completed {
+  opacity: 0.7;
+}
+
+.belt-indicator {
+  width: 48px;
+  height: 12px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.belt-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.belt-name {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.belt-threshold {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.75rem;
+}
+
+.belt-status {
+  flex-shrink: 0;
+}
+
+.status-badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.status-badge.current {
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.status-badge.completed {
+  background: rgba(34, 197, 94, 0.2);
+  color: #22c55e;
+}
+
+.status-badge.locked {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* Usage Tab Content */
+.usage-tab-content {
+  position: absolute;
+  top: calc(120px + env(safe-area-inset-top, 0px));
+  left: 16px;
+  right: 16px;
+  bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.usage-placeholder {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.placeholder-icon {
+  width: 64px;
+  height: 64px;
+  margin-bottom: 16px;
+  opacity: 0.3;
+}
+
+.usage-placeholder h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0 0 8px 0;
+}
+
+.usage-placeholder p {
+  font-size: 0.875rem;
+  margin: 0 0 4px 0;
+}
+
+.usage-placeholder .coming-soon {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-top: 16px;
+}
+
 .download-btn {
   position: absolute;
-  top: calc(16px + env(safe-area-inset-top, 0px));
+  top: calc(110px + env(safe-area-inset-top, 0px));
   right: 16px;
   z-index: 20;
   width: 40px;
@@ -984,7 +1274,7 @@ onUnmounted(() => {
 /* Search bar */
 .search-container {
   position: absolute;
-  top: calc(64px + env(safe-area-inset-top, 0px));
+  top: calc(110px + env(safe-area-inset-top, 0px));
   left: 16px;
   z-index: 25;
   width: 220px;
@@ -1119,7 +1409,7 @@ onUnmounted(() => {
 
 .stats-badge {
   position: absolute;
-  top: calc(64px + env(safe-area-inset-top, 0px));
+  top: calc(160px + env(safe-area-inset-top, 0px));
   right: 16px;
   z-index: 20;
   padding: 8px 16px;
