@@ -1166,97 +1166,98 @@ async function loadAllPracticePhrasesGrouped(
   }
 
   try {
-    // Load ALL practice phrases for all LEGOs (position > 1)
-    // Order by duration so we can split into debut (shortest) and eternal (longest)
-    // Position structure:
-    //   0 = Components (for M-type LEGOs, e.g., "estoy", "intentando")
-    //   1 = LEGO debut (the LEGO itself, e.g., "estoy intentando")
-    //   2+ = Practice phrases (e.g., "estoy intentando hablar español")
+    // Load practice phrases using phrase_role for explicit categorization
+    // phrase_role values:
+    //   'component' - Parts of M-type LEGOs shown during introduction
+    //   'practice' - Build-up phrases used during debut sequence
+    //   'eternal_eligible' - Phrases eligible for spaced rep / consolidation
 
-    // Paginate to handle Supabase's 1000 row limit
-    let allData: any[] = []
-    let offset = 0
+    // Helper to transform row to EternalPhrase
+    const toPhrase = (row: any): EternalPhrase => ({
+      knownText: row.known_text,
+      targetText: row.target_text,
+      syllableCount: row.target1_duration_ms || 0,
+      audioRefs: {
+        known: {
+          id: row.known_audio_uuid || '',
+          url: resolveAudioUrl(row.known_s3_key)
+        },
+        target: {
+          voice1: {
+            id: row.target1_audio_uuid || '',
+            url: resolveAudioUrl(row.target1_s3_key)
+          },
+          voice2: {
+            id: row.target2_audio_uuid || '',
+            url: resolveAudioUrl(row.target2_s3_key)
+          }
+        }
+      }
+    })
+
+    // Load debut phrases (phrase_role = 'practice')
+    // Sorted by duration ascending for cognitive load progression
+    let debutOffset = 0
     const pageSize = 1000
 
     while (true) {
-      // Include ALL practice phrases (position >= 1) for both OLD and NEW courses
-      // v13: Sort by target1_duration_ms (audio duration = cognitive load)
       const { data: page, error } = await supabase
         .from('practice_cycles')
         .select('*')
         .eq('course_code', courseId)
-        .gte('position', 1) // Include position 1 (OLD courses have practice phrases there)
+        .eq('phrase_role', 'practice')
         .order('lego_id', { ascending: true })
         .order('target1_duration_ms', { ascending: true, nullsFirst: false })
-        .range(offset, offset + pageSize - 1)
+        .range(debutOffset, debutOffset + pageSize - 1)
 
       if (error) {
-        console.error('[loadAllPracticePhrasesGrouped] Query error:', error)
-        return { debutMap, eternalMap }
+        console.error('[loadAllPracticePhrasesGrouped] Query error (debut):', error)
+        break
       }
-
       if (!page || page.length === 0) break
 
-      allData = allData.concat(page)
-      if (page.length < pageSize) break
-      offset += pageSize
-    }
-
-    const data = allData
-    if (data.length === 0) return { debutMap, eternalMap }
-
-    console.log(`[loadAllPracticePhrasesGrouped] Loaded ${data.length} practice phrases from practice_cycles`)
-
-    // Group by lego_id
-    const grouped = new Map<string, any[]>()
-    for (const row of data) {
-      const legoId = row.lego_id
-      if (!grouped.has(legoId)) {
-        grouped.set(legoId, [])
-      }
-      grouped.get(legoId)!.push(row)
-    }
-
-    // Transform and split into debut (first 7) and eternal (last 5)
-    for (const [legoId, rows] of grouped) {
-      // Rows are already sorted by target1_duration_ms ascending (v13)
-      // v13.1: Use s3_key fields for URLs
-      const allPhrases: EternalPhrase[] = rows.map(row => ({
-        knownText: row.known_text,
-        targetText: row.target_text,
-        syllableCount: row.target1_duration_ms || 0, // v13: Use duration as cognitive load proxy
-        audioRefs: {
-          known: {
-            id: row.known_audio_uuid || '',
-            url: resolveAudioUrl(row.known_s3_key)
-          },
-          target: {
-            voice1: {
-              id: row.target1_audio_uuid || '',
-              url: resolveAudioUrl(row.target1_s3_key)
-            },
-            voice2: {
-              id: row.target2_audio_uuid || '',
-              url: resolveAudioUrl(row.target2_s3_key)
-            }
-          }
+      for (const row of page) {
+        if (!debutMap.has(row.lego_id)) {
+          debutMap.set(row.lego_id, [])
         }
-      }))
-
-      // Debut = shortest 7 (already sorted by duration ascending)
-      const debutPhrases = allPhrases.slice(0, 7)
-      if (debutPhrases.length > 0) {
-        debutMap.set(legoId, debutPhrases)
+        debutMap.get(row.lego_id)!.push(toPhrase(row))
       }
 
-      // Eternal = longest 5 (take from end, reverse so longest is first)
-      const eternalPhrases = allPhrases.slice(-5).reverse()
-      if (eternalPhrases.length > 0) {
-        eternalMap.set(legoId, eternalPhrases)
-      }
+      if (page.length < pageSize) break
+      debutOffset += pageSize
     }
 
-    console.log(`[loadAllPracticePhrasesGrouped] Grouped into ${debutMap.size} LEGOs with debut phrases, ${eternalMap.size} with eternal phrases`)
+    // Load eternal phrases (phrase_role = 'eternal_eligible')
+    let eternalOffset = 0
+
+    while (true) {
+      const { data: page, error } = await supabase
+        .from('practice_cycles')
+        .select('*')
+        .eq('course_code', courseId)
+        .eq('phrase_role', 'eternal_eligible')
+        .order('lego_id', { ascending: true })
+        .order('target1_duration_ms', { ascending: true, nullsFirst: false })
+        .range(eternalOffset, eternalOffset + pageSize - 1)
+
+      if (error) {
+        console.error('[loadAllPracticePhrasesGrouped] Query error (eternal):', error)
+        break
+      }
+      if (!page || page.length === 0) break
+
+      for (const row of page) {
+        if (!eternalMap.has(row.lego_id)) {
+          eternalMap.set(row.lego_id, [])
+        }
+        eternalMap.get(row.lego_id)!.push(toPhrase(row))
+      }
+
+      if (page.length < pageSize) break
+      eternalOffset += pageSize
+    }
+
+    console.log(`[loadAllPracticePhrasesGrouped] Loaded ${debutMap.size} LEGOs with debut phrases, ${eternalMap.size} with eternal phrases`)
     return { debutMap, eternalMap }
   } catch (err) {
     console.error('[loadAllPracticePhrasesGrouped] Error:', err)
