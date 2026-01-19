@@ -6224,8 +6224,8 @@ onUnmounted(() => {
 /* Extra small phones (320px) */
 @media (max-width: 360px) {
   .hero-text-pane {
-    /* Position below header: header height (~52px) + safe area + padding */
-    top: calc(100px + var(--safe-area-top, 0px));
+    /* Position below 2-row wrapped header + safe area */
+    top: calc(130px + var(--safe-area-top, 0px));
     max-width: 98vw;
     gap: 8px;
   }
@@ -6274,11 +6274,11 @@ onUnmounted(() => {
   }
 }
 
-/* Small phones (361-479px) */
+/* Small phones (361-479px) - includes iPhone 16 (393px) */
 @media (min-width: 361px) and (max-width: 479px) {
   .hero-text-pane {
-    /* Position below header: header height + safe area + padding */
-    top: calc(110px + var(--safe-area-top, 0px));
+    /* Position below 2-row wrapped header: ~50px row1 + ~50px row2 + safe area + padding */
+    top: calc(140px + var(--safe-area-top, 0px));
     max-width: 95vw;
     gap: 12px;
   }
