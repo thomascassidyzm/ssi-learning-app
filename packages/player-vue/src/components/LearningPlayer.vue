@@ -27,7 +27,7 @@ import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
 import ConstellationNetworkView from './ConstellationNetworkView.vue'
 import BeltProgressModal from './BeltProgressModal.vue'
 
-const emit = defineEmits(['close', 'playStateChanged'])
+const emit = defineEmits(['close', 'playStateChanged', 'viewProgress'])
 
 const props = defineProps({
   classContext: {
@@ -3365,7 +3365,7 @@ const closeBeltProgressModal = () => {
 const handleViewFullProgress = () => {
   closeBeltProgressModal()
   // Emit to parent to navigate to Brain View / Progress screen
-  emit('close')
+  emit('viewProgress')
   // The parent (PlayerContainer) will handle navigation to the network/progress view
 }
 

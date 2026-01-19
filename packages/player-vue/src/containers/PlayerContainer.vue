@@ -110,6 +110,11 @@ const handlePlayStateChanged = (playing) => {
   isPlaying.value = playing
 }
 
+// Handle view progress from LearningPlayer (belt modal)
+const handleViewProgress = () => {
+  navigate('network')
+}
+
 // Learner data (would come from database in production)
 const learnerStats = ref({
   completedSeeds: 42,
@@ -223,6 +228,7 @@ onMounted(() => {
         :previewLegoIndex="previewLegoIndex"
         @close="handleGoHome"
         @playStateChanged="handlePlayStateChanged"
+        @viewProgress="handleViewProgress"
       />
     </Transition>
 
