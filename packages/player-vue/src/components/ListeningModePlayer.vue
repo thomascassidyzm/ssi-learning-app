@@ -511,19 +511,41 @@ defineExpose({
 
 <template>
   <div class="listening-mode">
+    <!-- Deep Space Background Layers (matches main player) -->
+    <div class="space-gradient"></div>
+    <div class="space-nebula"></div>
+    <div class="bg-noise"></div>
+
+    <!-- Static Star Field -->
+    <div class="star-field">
+      <div class="star star-1"></div>
+      <div class="star star-2"></div>
+      <div class="star star-3"></div>
+      <div class="star star-4"></div>
+      <div class="star star-5"></div>
+      <div class="star star-6"></div>
+      <div class="star star-7"></div>
+      <div class="star star-8"></div>
+      <div class="star star-9"></div>
+      <div class="star star-10"></div>
+      <div class="star star-11"></div>
+      <div class="star star-12"></div>
+    </div>
+
     <!-- Header -->
     <header class="header">
-      <button class="back-btn" @click="$emit('close')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M19 12H5M12 19l-7-7 7-7"/>
-        </svg>
-      </button>
-      <div class="header-content">
-        <h1 class="header-title">Listening Mode</h1>
-        <span class="header-badge">{{ courseName }}</span>
-      </div>
-      <div class="header-stats">
-        <span class="phrase-count">{{ loadedCount }} / {{ totalCount }}</span>
+      <div class="header-stack">
+        <!-- Brand row -->
+        <div class="brand-row">
+          <div class="brand">
+            <span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span>
+          </div>
+        </div>
+        <!-- Title and badge row -->
+        <div class="listening-badge-row">
+          <span class="listening-badge">Listening Mode</span>
+          <span class="phrase-count">{{ loadedCount }} / {{ totalCount }}</span>
+        </div>
       </div>
     </header>
 
@@ -610,83 +632,182 @@ defineExpose({
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600;700&display=swap');
 
 .listening-mode {
+  /* Layout system matching main player */
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --header-height: clamp(56px, 8vh, 72px);
+  --nav-height: 80px;
+  --nav-total: calc(var(--nav-height) + var(--safe-area-bottom));
+  --space-md: clamp(12px, 2vmin, 20px);
+  --space-lg: clamp(16px, 3vmin, 32px);
+
+  /* Theme colors */
+  --accent: #c23a3a;
+  --gold: #d4a853;
+  --gold-glow: rgba(212, 168, 83, 0.15);
+
+  position: relative;
   min-height: 100vh;
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
   background: var(--bg-primary);
   font-family: 'DM Sans', -apple-system, sans-serif;
-  /* Account for safe areas */
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-bottom: var(--nav-height-safe, 100px);
+  overflow: hidden;
+  /* Bottom padding for nav bar */
+  padding-bottom: var(--nav-total);
 }
 
-/* Header */
+/* ============ DEEP SPACE BACKGROUNDS ============ */
+.space-gradient {
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 120% 80% at 20% 10%, rgba(30, 20, 50, 0.8) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 60% at 80% 90%, rgba(20, 30, 50, 0.6) 0%, transparent 40%),
+    radial-gradient(ellipse 80% 80% at 50% 50%, rgba(10, 10, 20, 1) 0%, #08080c 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.space-nebula {
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 30% 30%, rgba(100, 80, 140, 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 30% at 70% 60%, rgba(80, 100, 140, 0.04) 0%, transparent 40%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.bg-noise {
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  opacity: 0.03;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ============ STAR FIELD ============ */
+.star-field {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.star {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: white;
+  border-radius: 50%;
+  animation: star-twinkle 4s ease-in-out infinite;
+}
+
+.star-1 { left: 5%; top: 8%; animation-delay: 0s; opacity: 0.4; }
+.star-2 { left: 15%; top: 22%; animation-delay: -0.5s; opacity: 0.6; width: 3px; height: 3px; }
+.star-3 { left: 28%; top: 12%; animation-delay: -1s; opacity: 0.3; }
+.star-4 { left: 42%; top: 5%; animation-delay: -1.5s; opacity: 0.5; }
+.star-5 { left: 55%; top: 18%; animation-delay: -2s; opacity: 0.4; width: 3px; height: 3px; }
+.star-6 { left: 68%; top: 8%; animation-delay: -2.5s; opacity: 0.6; }
+.star-7 { left: 82%; top: 15%; animation-delay: -3s; opacity: 0.3; }
+.star-8 { left: 92%; top: 25%; animation-delay: -3.5s; opacity: 0.5; }
+.star-9 { left: 8%; top: 35%; animation-delay: -0.3s; opacity: 0.5; }
+.star-10 { left: 22%; top: 42%; animation-delay: -0.8s; opacity: 0.4; }
+.star-11 { left: 35%; top: 32%; animation-delay: -1.3s; opacity: 0.6; width: 3px; height: 3px; }
+.star-12 { left: 62%; top: 28%; animation-delay: -2.3s; opacity: 0.5; }
+
+@keyframes star-twinkle {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.72; }
+}
+
+/* Belt-colored glow on some stars */
+.star-2, .star-5, .star-11 {
+  box-shadow: 0 0 4px var(--gold);
+}
+
+/* ============ MIST THEME OVERRIDES ============ */
+:root[data-theme="mist"] .space-gradient {
+  background:
+    radial-gradient(ellipse 120% 80% at 20% 10%, rgba(60, 70, 100, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 60% at 80% 90%, rgba(50, 60, 90, 0.12) 0%, transparent 40%),
+    radial-gradient(ellipse 80% 80% at 50% 50%, rgba(28, 28, 36, 1) 0%, #1c1c24 100%);
+}
+
+:root[data-theme="mist"] .space-nebula {
+  background:
+    radial-gradient(ellipse 60% 40% at 30% 30%, rgba(80, 90, 120, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 30% at 70% 60%, rgba(70, 80, 110, 0.04) 0%, transparent 40%);
+}
+
+:root[data-theme="mist"] .bg-noise {
+  opacity: 0.015;
+}
+
+/* ============ HEADER ============ */
 .header {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem 1.5rem;
-  background: linear-gradient(to bottom, var(--bg-primary) 60%, transparent);
-  backdrop-filter: blur(16px);
-}
-
-.back-btn {
-  width: 40px;
-  height: 40px;
+  position: relative;
+  z-index: 15;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 12px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
+  padding: calc(var(--space-md) + var(--safe-area-top)) var(--space-lg) var(--space-md);
+  min-height: var(--header-height);
+  pointer-events: auto;
 }
 
-.back-btn:hover {
-  background: var(--bg-elevated);
-  color: var(--text-primary);
+.header-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-.back-btn svg {
-  width: 20px;
-  height: 20px;
-}
-
-.header-content {
-  flex: 1;
+.brand-row {
   display: flex;
   align-items: center;
   gap: 0.75rem;
 }
 
-.header-title {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0;
+.brand {
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-weight: 700;
+  font-size: clamp(1.3125rem, 3vw, 1.6rem);
+  letter-spacing: -0.02em;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
 }
 
-.header-badge {
+.brand:hover {
+  opacity: 1;
+}
+
+.logo-say, .logo-in { color: var(--accent); }
+.logo-something { color: var(--text-primary); }
+
+.listening-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.listening-badge {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 0.625rem;
+  font-size: 0.6875rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  padding: 0.25rem 0.5rem;
+  padding: 0.25rem 0.625rem;
   background: var(--gold-glow);
   color: var(--gold);
   border: 1px solid var(--gold);
   border-radius: 4px;
 }
 
-.header-stats {
+.phrase-count {
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.75rem;
   color: var(--text-muted);
@@ -694,10 +815,12 @@ defineExpose({
 
 /* Mode Toggle */
 .mode-toggle {
+  position: relative;
+  z-index: 10;
   display: flex;
   justify-content: center;
   gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
+  padding: 0.5rem 1.5rem;
 }
 
 .mode-btn {
@@ -733,6 +856,8 @@ defineExpose({
 
 /* Loading / Error */
 .loading, .error {
+  position: relative;
+  z-index: 10;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -772,12 +897,14 @@ defineExpose({
 
 /* Teleprompter */
 .teleprompter {
+  position: relative;
+  z-index: 10;
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 2rem 1rem;
+  padding: 1rem;
   overflow: hidden;
 }
 
@@ -814,9 +941,16 @@ defineExpose({
 .phrase-row.current {
   opacity: 1;
   transform: scale(1.05);
-  background: linear-gradient(135deg, rgba(212, 168, 83, 0.15), rgba(212, 168, 83, 0.05));
-  border: 1px solid var(--gold);
-  box-shadow: 0 0 20px rgba(212, 168, 83, 0.2);
+  background: linear-gradient(135deg,
+    rgba(212, 168, 83, 0.12) 0%,
+    rgba(212, 168, 83, 0.06) 50%,
+    rgba(212, 168, 83, 0.03) 100%);
+  border: 1px solid rgba(212, 168, 83, 0.5);
+  box-shadow:
+    0 0 20px rgba(212, 168, 83, 0.15),
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(8px);
 }
 
 .phrase-row:hover:not(.current) {
@@ -825,15 +959,19 @@ defineExpose({
 }
 
 .phrase-target {
-  font-size: 1.125rem;
-  font-weight: 600;
+  font-size: 1.0625rem;
+  font-weight: 500;
   color: var(--text-primary);
   text-align: center;
   line-height: 1.4;
+  transition: all 0.3s ease;
 }
 
 .phrase-row.current .phrase-target {
+  font-size: clamp(1.25rem, 3vmin, 1.5rem);
+  font-weight: 600;
   color: var(--gold);
+  text-shadow: 0 0 20px rgba(212, 168, 83, 0.3);
 }
 
 .loading-more {
@@ -842,6 +980,8 @@ defineExpose({
 
 /* Progress Bar */
 .progress-container {
+  position: relative;
+  z-index: 10;
   display: flex;
   align-items: center;
   gap: 0.75rem;
