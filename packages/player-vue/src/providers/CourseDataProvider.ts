@@ -819,10 +819,19 @@ export class CourseDataProvider {
 
     try {
       // Query lego_cycles view (which has audio UUIDs) then dedupe by lego_id
-      const { data, error } = await this.client
+      // IMPORTANT: offset is a SEED NUMBER (absolute position), not array index
+      // Filter by seed_number >= offset to start from the correct belt position
+      let query = this.client
         .from('lego_cycles')
         .select('*')
         .eq('course_code', this.courseId)
+
+      // Filter by seed number if offset specified (belt skip uses absolute seed positions)
+      if (offset > 0) {
+        query = query.gte('seed_number', offset)
+      }
+
+      const { data, error } = await query
         .order('seed_number', { ascending: true })
         .order('lego_index', { ascending: true })
 
@@ -832,7 +841,7 @@ export class CourseDataProvider {
       }
 
       if (!data || data.length === 0) {
-        console.warn('[CourseDataProvider] No LEGOs found for course:', this.courseId)
+        console.warn('[CourseDataProvider] No LEGOs found for course:', this.courseId, 'from seed', offset)
         return []
       }
 
@@ -846,11 +855,11 @@ export class CourseDataProvider {
         return true
       })
 
-      console.log('[CourseDataProvider] Loaded', uniqueRecords.length, 'unique LEGOs for', this.courseId)
+      console.log('[CourseDataProvider] Loaded', uniqueRecords.length, 'unique LEGOs for', this.courseId, 'from seed', offset)
 
-      // Transform to LearningItem format (with pagination)
+      // Transform to LearningItem format (apply limit for pagination)
       // v13.1: Use s3_key fields for URLs
-      return uniqueRecords.slice(offset, offset + limit).map((record) => {
+      return uniqueRecords.slice(0, limit).map((record) => {
         const legoId = record.lego_id
         const seedId = `S${String(record.seed_number).padStart(4, '0')}`
 
