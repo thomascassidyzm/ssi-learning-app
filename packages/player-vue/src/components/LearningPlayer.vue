@@ -4555,8 +4555,28 @@ onMounted(async () => {
               }
             }
 
-            // 3. If no resume position, set currentPlayableItem to first item for splash screen
+            // 3. If no resume position, start from beginning (round 0 = current belt level)
+            // This is the absolute fallback - player must ALWAYS have somewhere to go
             if (!resumed && cachedScript.rounds.length > 0) {
+              // Explicitly set indices to beginning
+              currentRoundIndex.value = 0
+              currentItemInRound.value = 0
+
+              const firstItem = cachedScript.rounds[0]?.items?.[0]
+              if (firstItem) {
+                const playable = await scriptItemToPlayableItem(firstItem)
+                if (playable) {
+                  currentPlayableItem.value = playable
+                  console.log('[LearningPlayer] Fresh start: round 0 (belt level:', beltProgress.value?.completedSeeds.value ?? 0, 'seeds)')
+                }
+              }
+            }
+
+            // Safety check: if we still have no playable item but have rounds, force set one
+            if (!currentPlayableItem.value && cachedScript.rounds.length > 0) {
+              console.warn('[LearningPlayer] Safety fallback: forcing position to round 0')
+              currentRoundIndex.value = 0
+              currentItemInRound.value = 0
               const firstItem = cachedScript.rounds[0]?.items?.[0]
               if (firstItem) {
                 const playable = await scriptItemToPlayableItem(firstItem)
@@ -4564,6 +4584,11 @@ onMounted(async () => {
                   currentPlayableItem.value = playable
                 }
               }
+            }
+
+            // If we have NO rounds at all, something went wrong - log error
+            if (cachedScript.rounds.length === 0) {
+              console.error('[LearningPlayer] CRITICAL: No rounds generated - cannot start player')
             }
 
             // Mark position as initialized (enables saving on future changes)
