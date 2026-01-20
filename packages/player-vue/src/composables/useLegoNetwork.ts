@@ -250,13 +250,12 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
       }
 
       // Load all phrases from practice_cycles
-      // Include lego_id and connected_lego_ids for direct mapping (more reliable than text decomposition)
+      // Include lego_id for direct mapping (more reliable than text decomposition)
       let allPhrases: {
         id: string
         target_text: string
         target1_duration_ms: number | null
         lego_id: string | null
-        connected_lego_ids: string[] | null  // Precomputed connections from database
       }[] = []
       let offset = 0
       const pageSize = 1000
@@ -264,7 +263,7 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
       while (true) {
         const { data: phrasePage, error: phraseError } = await supabase.value
           .from('practice_cycles')
-          .select('id, target_text, target1_duration_ms, lego_id, connected_lego_ids')
+          .select('id, target_text, target1_duration_ms, lego_id')
           .eq('course_code', courseCode)
           .range(offset, offset + pageSize - 1)
 
@@ -291,7 +290,7 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
         while (true) {
           const { data: page, error: pageError } = await supabase.value
             .from('course_practice_phrases')
-            .select('id, target_text, seed_number, lego_index, connected_lego_ids')
+            .select('id, target_text, seed_number, lego_index')
             .eq('course_code', courseCode)
             .range(fallbackOffset, fallbackOffset + pageSize - 1)
 
@@ -308,8 +307,7 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
               id: row.id,
               target_text: row.target_text,
               target1_duration_ms: null,
-              lego_id: legoId,
-              connected_lego_ids: row.connected_lego_ids || null
+              lego_id: legoId
             })
           }
 

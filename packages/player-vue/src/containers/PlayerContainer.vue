@@ -319,6 +319,7 @@ onMounted(() => {
         ref="listeningModePlayerRef"
         :course="activeCourse"
         @close="goHome"
+        @playStateChanged="handleListeningPlayStateChanged"
       />
     </Transition>
 
