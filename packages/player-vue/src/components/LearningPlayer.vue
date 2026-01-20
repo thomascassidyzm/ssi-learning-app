@@ -5361,6 +5361,7 @@ defineExpose({
       <ListeningOverlay
         v-if="showListeningOverlay"
         :course-code="activeCourseCode"
+        :belt-color="currentBelt.color"
         @close="handleCloseListening"
       />
     </Transition>

@@ -9,6 +9,14 @@ import { ref, computed, inject, onMounted, onUnmounted, watch, nextTick } from '
 class ListeningAudioController {
   constructor() {
     this.audio = null
+    this.playbackRate = 1
+  }
+
+  setPlaybackRate(rate) {
+    this.playbackRate = rate
+    if (this.audio) {
+      this.audio.playbackRate = rate
+    }
   }
 
   async play(url) {
@@ -22,6 +30,7 @@ class ListeningAudioController {
     }
 
     this.audio.src = url
+    this.audio.playbackRate = this.playbackRate
     this.audio.load()
 
     return new Promise((resolve, reject) => {
@@ -58,8 +67,16 @@ const props = defineProps({
   courseCode: {
     type: String,
     required: true
+  },
+  beltColor: {
+    type: String,
+    default: '#d4a853' // Default gold for backwards compatibility
   }
 })
+
+// Playback speed options
+const SPEED_OPTIONS = [1, 1.2, 1.5, 2]
+const playbackSpeed = ref(1)
 
 // Inject providers
 const supabase = inject('supabase', null)
@@ -409,10 +426,17 @@ onMounted(() => {
 onUnmounted(() => {
   stopPlayback()
 })
+
+// Sync playback speed with audio controller
+watch(playbackSpeed, (newSpeed) => {
+  if (audioController.value) {
+    audioController.value.setPlaybackRate(newSpeed)
+  }
+})
 </script>
 
 <template>
-  <div class="listening-overlay" @click="handleOverlayTap">
+  <div class="listening-overlay" :style="{ '--belt-color': beltColor }" @click="handleOverlayTap">
     <!-- Close button -->
     <button class="close-btn" @click.stop="handleClose">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -459,6 +483,22 @@ onUnmounted(() => {
         </svg>
         Shuffled
       </button>
+    </div>
+
+    <!-- Speed Selector -->
+    <div class="speed-controls" @click.stop>
+      <span class="speed-label">Speed</span>
+      <div class="speed-selector">
+        <button
+          v-for="speed in SPEED_OPTIONS"
+          :key="speed"
+          class="speed-btn"
+          :class="{ active: playbackSpeed === speed }"
+          @click="playbackSpeed = speed"
+        >
+          {{ speed }}x
+        </button>
+      </div>
     </div>
 
     <!-- Loading State -->
@@ -524,10 +564,10 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
-/* Theme colors */
+/* Theme colors - belt color is set dynamically via inline style */
 .listening-overlay {
-  --gold: #d4a853;
-  --gold-glow: rgba(212, 168, 83, 0.15);
+  /* --belt-color is set dynamically from beltColor prop */
+  --belt-glow: color-mix(in srgb, var(--belt-color) 15%, transparent);
 }
 
 /* Close button */
@@ -579,9 +619,9 @@ onUnmounted(() => {
   text-transform: uppercase;
   letter-spacing: 0.1em;
   padding: 0.375rem 0.75rem;
-  background: var(--gold-glow);
-  color: var(--gold);
-  border: 1px solid var(--gold);
+  background: var(--belt-glow);
+  color: var(--belt-color);
+  border: 1px solid var(--belt-color);
   border-radius: 4px;
 }
 
@@ -621,14 +661,61 @@ onUnmounted(() => {
 }
 
 .mode-btn.active {
-  background: var(--gold-glow);
-  border-color: var(--gold);
-  color: var(--gold);
+  background: var(--belt-glow);
+  border-color: var(--belt-color);
+  color: var(--belt-color);
 }
 
 .mode-btn svg {
   width: 16px;
   height: 16px;
+}
+
+/* Speed Controls */
+.speed-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.25rem 1.5rem 0.5rem;
+  cursor: default;
+}
+
+.speed-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted, #666);
+}
+
+.speed-selector {
+  display: flex;
+  gap: 2px;
+}
+
+.speed-btn {
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.5);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.speed-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.speed-btn.active {
+  background: var(--belt-glow);
+  border-color: var(--belt-color);
+  color: var(--belt-color);
 }
 
 /* Loading / Error */
@@ -647,7 +734,7 @@ onUnmounted(() => {
   width: 32px;
   height: 32px;
   border: 2px solid rgba(255, 255, 255, 0.1);
-  border-top-color: var(--gold);
+  border-top-color: var(--belt-color);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -658,7 +745,7 @@ onUnmounted(() => {
 
 .error button {
   padding: 0.5rem 1rem;
-  background: var(--gold);
+  background: var(--belt-color);
   border: none;
   border-radius: 8px;
   color: #000;
@@ -672,9 +759,16 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 1rem;
-  overflow: hidden;
+  padding: 0 1rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Hide scrollbar for cleaner look */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.teleprompter::-webkit-scrollbar {
+  display: none;
 }
 
 .phrase-list {
@@ -684,6 +778,8 @@ onUnmounted(() => {
   gap: 0.75rem;
   width: 100%;
   max-width: 600px;
+  /* Add padding to allow first/last items to scroll to center */
+  padding-block: 25vh;
 }
 
 .phrase-row {
@@ -694,29 +790,37 @@ onUnmounted(() => {
   padding: 0.75rem 1.5rem;
   border-radius: 12px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  /* Smooth, spring-like transitions for phase changes */
+  transition:
+    opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+    background 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.4s ease;
   text-align: center;
+  will-change: transform, opacity;
 }
 
 .phrase-row.past {
-  opacity: 0.3;
-  transform: scale(0.95);
+  opacity: 0.25;
+  transform: scale(0.92) translateY(-2px);
 }
 
 .phrase-row.future {
-  opacity: 0.5;
+  opacity: 0.45;
+  transform: scale(0.96);
 }
 
 .phrase-row.current {
   opacity: 1;
   transform: scale(1.05);
   background: linear-gradient(135deg,
-    rgba(212, 168, 83, 0.12) 0%,
-    rgba(212, 168, 83, 0.06) 50%,
-    rgba(212, 168, 83, 0.03) 100%);
-  border: 1px solid rgba(212, 168, 83, 0.5);
+    color-mix(in srgb, var(--belt-color) 12%, transparent) 0%,
+    color-mix(in srgb, var(--belt-color) 6%, transparent) 50%,
+    color-mix(in srgb, var(--belt-color) 3%, transparent) 100%);
+  border: 1px solid color-mix(in srgb, var(--belt-color) 50%, transparent);
   box-shadow:
-    0 0 20px rgba(212, 168, 83, 0.15),
+    0 0 20px color-mix(in srgb, var(--belt-color) 15%, transparent),
     0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
@@ -731,14 +835,18 @@ onUnmounted(() => {
   color: var(--text-primary, #ffffff);
   text-align: center;
   line-height: 1.4;
-  transition: all 0.3s ease;
+  transition:
+    font-size 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+    font-weight 0.2s ease,
+    color 0.3s ease,
+    text-shadow 0.4s ease;
 }
 
 .phrase-row.current .phrase-target {
   font-size: clamp(1.25rem, 3vmin, 1.5rem);
   font-weight: 600;
-  color: var(--gold);
-  text-shadow: 0 0 20px rgba(212, 168, 83, 0.3);
+  color: var(--belt-color);
+  text-shadow: 0 0 20px color-mix(in srgb, var(--belt-color) 30%, transparent);
 }
 
 /* Playback hint */
@@ -773,7 +881,7 @@ onUnmounted(() => {
 
 .progress-fill {
   height: 100%;
-  background: var(--gold);
+  background: var(--belt-color);
   border-radius: 2px;
   transition: width 0.3s ease;
 }
