@@ -603,33 +603,6 @@ defineExpose({
       </div>
       <span class="progress-text">{{ progressPercent }}%</span>
     </div>
-
-    <!-- Transport Controls -->
-    <div class="transport">
-      <button class="transport-btn" @click="skipPrev" :disabled="currentIndex <= 0">
-        <svg viewBox="0 0 24 24" fill="currentColor">
-          <polygon points="19 20 9 12 19 4 19 20"/>
-          <line x1="5" y1="19" x2="5" y2="5" stroke="currentColor" stroke-width="2"/>
-        </svg>
-      </button>
-
-      <button class="transport-btn play-btn" @click="togglePlayback">
-        <svg v-if="isPlaying" viewBox="0 0 24 24" fill="currentColor">
-          <rect x="6" y="4" width="4" height="16" rx="1"/>
-          <rect x="14" y="4" width="4" height="16" rx="1"/>
-        </svg>
-        <svg v-else viewBox="0 0 24 24" fill="currentColor">
-          <polygon points="5 3 19 12 5 21 5 3"/>
-        </svg>
-      </button>
-
-      <button class="transport-btn" @click="skipNext" :disabled="currentIndex >= allPhrases.length - 1">
-        <svg viewBox="0 0 24 24" fill="currentColor">
-          <polygon points="5 4 15 12 5 20 5 4"/>
-          <line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="2"/>
-        </svg>
-      </button>
-    </div>
   </div>
 </template>
 
@@ -643,7 +616,8 @@ defineExpose({
   flex-direction: column;
   background: var(--bg-primary);
   font-family: 'DM Sans', -apple-system, sans-serif;
-  /* Account for bottom nav bar */
+  /* Account for safe areas */
+  padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: var(--nav-height-safe, 100px);
 }
 
@@ -894,65 +868,6 @@ defineExpose({
   font-size: 0.6875rem;
   color: var(--text-muted);
   min-width: 36px;
-}
-
-/* Transport Controls */
-.transport {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1.5rem;
-  padding: 1.5rem;
-  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
-  background: var(--bg-card);
-  border-top: 1px solid var(--border-subtle);
-}
-
-.transport-btn {
-  width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-subtle);
-  border-radius: 50%;
-  color: var(--text-primary);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.transport-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
-  transform: scale(1.05);
-}
-
-.transport-btn:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-.transport-btn svg {
-  width: 20px;
-  height: 20px;
-}
-
-.transport-btn.play-btn {
-  width: 64px;
-  height: 64px;
-  background: var(--gold);
-  border-color: var(--gold);
-  color: #000;
-}
-
-.transport-btn.play-btn:hover {
-  background: #e0b058;
-  transform: scale(1.08);
-}
-
-.transport-btn.play-btn svg {
-  width: 28px;
-  height: 28px;
 }
 
 /* Responsive */
