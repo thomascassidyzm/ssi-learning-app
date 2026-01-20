@@ -322,103 +322,79 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
         }
       }
 
-      // Build connection graph from phrase co-occurrence
-      // Priority: Use precomputed connected_lego_ids from database, fall back to text decomposition
+      // Build phrase index: any phrase containing a LEGO's text is indexed under that LEGO
+      // Simple substring matching - if the LEGO text appears in the phrase, it counts
       const connectionCounts = new Map<string, number>()
       const legoUsage = new Map<string, number>()
       const phrasesWithPath: PhraseWithPath[] = []
       const phrasesByLego = new Map<string, PhraseWithPath[]>()
       let phrasesWithPathCount = 0
-      let phrasesUsingDbConnections = 0  // Phrases using precomputed connected_lego_ids
-      let phrasesUsingTextDecomp = 0     // Phrases using text decomposition
-      let phrasesUsingDbLegoIdOnly = 0   // Phrases using only primary lego_id (fallback)
+
+      // Build reverse lookup: normalized text -> lego_id (for connection building)
+      const normalizedLegoTexts = new Map<string, { id: string, text: string }>()
+      for (const node of nodes) {
+        const normText = normalize(node.targetText)
+        if (normText) {
+          normalizedLegoTexts.set(node.id, { id: node.id, text: normText })
+        }
+      }
 
       for (const phrase of allPhrases || []) {
-        let legoIds: string[] = []
-        let usedDbConnections = false
+        if (!phrase.target_text) continue
 
-        // PRIORITY 1: Use precomputed connected_lego_ids from database if available
-        if (phrase.connected_lego_ids && phrase.connected_lego_ids.length > 0 && phrase.lego_id) {
-          // connected_lego_ids contains OTHER LEGOs in this phrase (not including primary)
-          // Combine primary lego_id with connected_lego_ids for full path
-          legoIds = [phrase.lego_id, ...phrase.connected_lego_ids]
-          usedDbConnections = true
-          phrasesUsingDbConnections++
-        }
-        // PRIORITY 2: Fall back to text decomposition
-        else {
-          legoIds = decomposePhrase(phrase.target_text, legoMap)
-          if (legoIds.length > 0) {
-            phrasesUsingTextDecomp++
+        const normalizedPhrase = normalize(phrase.target_text)
+        const matchingLegoIds: string[] = []
+
+        // Find ALL LEGOs whose text appears in this phrase
+        for (const [legoId, legoInfo] of normalizedLegoTexts) {
+          if (normalizedPhrase.includes(legoInfo.text)) {
+            matchingLegoIds.push(legoId)
           }
         }
 
+        // Also ensure primary lego_id is included
+        if (phrase.lego_id && !matchingLegoIds.includes(phrase.lego_id)) {
+          matchingLegoIds.push(phrase.lego_id)
+        }
+
+        if (matchingLegoIds.length === 0) continue
+
         // Track LEGO usage
-        for (const legoId of legoIds) {
+        for (const legoId of matchingLegoIds) {
           legoUsage.set(legoId, (legoUsage.get(legoId) || 0) + 1)
         }
 
-        // Store phrase with its path (only if it has at least one LEGO)
-        if (legoIds.length >= 1) {
-          const phraseWithPath: PhraseWithPath = {
-            id: phrase.id,
-            targetText: phrase.target_text,
-            legoPath: legoIds,
-            durationMs: phrase.target1_duration_ms || undefined,
-          }
-          phrasesWithPath.push(phraseWithPath)
+        // Create phrase object
+        const phraseWithPath: PhraseWithPath = {
+          id: phrase.id,
+          targetText: phrase.target_text,
+          legoPath: matchingLegoIds,
+          durationMs: phrase.target1_duration_ms || undefined,
+        }
+        phrasesWithPath.push(phraseWithPath)
 
-          // Index by each LEGO in the path
-          for (const legoId of legoIds) {
-            if (!phrasesByLego.has(legoId)) {
-              phrasesByLego.set(legoId, [])
-            }
-            phrasesByLego.get(legoId)!.push(phraseWithPath)
+        // Index phrase under EVERY matching LEGO
+        for (const legoId of matchingLegoIds) {
+          if (!phrasesByLego.has(legoId)) {
+            phrasesByLego.set(legoId, [])
           }
-        } else if (phrase.lego_id) {
-          // FALLBACK: No connections found, but we have lego_id from database
-          // Index phrase under its primary LEGO at minimum
-          const phraseWithPath: PhraseWithPath = {
-            id: phrase.id,
-            targetText: phrase.target_text,
-            legoPath: [phrase.lego_id],  // Only the primary LEGO
-            durationMs: phrase.target1_duration_ms || undefined,
-          }
-          phrasesWithPath.push(phraseWithPath)
-
-          if (!phrasesByLego.has(phrase.lego_id)) {
-            phrasesByLego.set(phrase.lego_id, [])
-          }
-          phrasesByLego.get(phrase.lego_id)!.push(phraseWithPath)
-
-          legoUsage.set(phrase.lego_id, (legoUsage.get(phrase.lego_id) || 0) + 1)
-          phrasesUsingDbLegoIdOnly++
+          phrasesByLego.get(legoId)!.push(phraseWithPath)
         }
 
-        // Build connections between LEGOs in this phrase
-        // For database connections: connect primary to each connected LEGO (star pattern)
-        // For text decomposition: connect consecutive LEGOs (chain pattern)
-        if (legoIds.length >= 2) {
+        // Build connections between LEGOs that co-occur in this phrase
+        if (matchingLegoIds.length >= 2) {
           phrasesWithPathCount++
-
-          if (usedDbConnections && phrase.lego_id) {
-            // Star pattern: primary LEGO connects to each other LEGO
-            for (let i = 1; i < legoIds.length; i++) {
-              const key = `${phrase.lego_id}→${legoIds[i]}`
-              connectionCounts.set(key, (connectionCounts.get(key) || 0) + 1)
-            }
-          } else {
-            // Chain pattern: consecutive LEGOs connect
-            for (let i = 0; i < legoIds.length - 1; i++) {
-              const key = `${legoIds[i]}→${legoIds[i + 1]}`
+          // Connect each pair of LEGOs that appear together
+          for (let i = 0; i < matchingLegoIds.length; i++) {
+            for (let j = i + 1; j < matchingLegoIds.length; j++) {
+              const key = `${matchingLegoIds[i]}→${matchingLegoIds[j]}`
               connectionCounts.set(key, (connectionCounts.get(key) || 0) + 1)
             }
           }
         }
       }
 
-      // Log connection sources
-      console.log(`[useLegoNetwork] Connection sources: ${phrasesUsingDbConnections} from DB, ${phrasesUsingTextDecomp} from text decomposition, ${phrasesUsingDbLegoIdOnly} primary-only fallback`)
+      console.log(`[useLegoNetwork] Indexed ${phrasesWithPath.length} phrases across ${phrasesByLego.size} LEGOs (substring matching)`)
 
       // Convert to connection array
       const connections: LegoConnection[] = []
