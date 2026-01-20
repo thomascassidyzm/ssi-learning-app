@@ -1,116 +1,125 @@
-<script setup>
-import { ref, computed, onMounted } from 'vue'
+<script setup lang="ts">
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useGodMode } from '@/composables/useGodMode'
+import { useClassesData } from '@/composables/useClassesData'
 
 const router = useRouter()
 const route = useRoute()
 
-// Class data - would come from Supabase in production
-const classData = ref({
-  id: '',
-  class_name: '',
-  course_code: '',
-  student_count: 0,
-  current_seed: 1,
-  student_join_code: ''
+// God Mode and data
+const { selectedUser } = useGodMode()
+const { classDetail, fetchClassDetail } = useClassesData()
+
+// Class data - derived from classDetail
+const classData = computed(() => {
+  if (classDetail.value) {
+    return {
+      id: classDetail.value.class_id,
+      class_name: classDetail.value.class_name,
+      course_code: classDetail.value.course_code,
+      student_count: classDetail.value.students.length,
+      current_seed: classDetail.value.current_seed || 1,
+      student_join_code: classDetail.value.student_join_code || 'N/A'
+    }
+  }
+  // Fallback to sessionStorage for backwards compatibility
+  const stored = sessionStorage.getItem('ssi-class-detail')
+  if (stored) {
+    try {
+      return JSON.parse(stored)
+    } catch (e) {
+      return { id: '', class_name: '', course_code: '', student_count: 0, current_seed: 1, student_join_code: '' }
+    }
+  }
+  return { id: '', class_name: '', course_code: '', student_count: 0, current_seed: 1, student_join_code: '' }
+})
+
+// Belt gradients for avatars
+const beltGradients: Record<string, string> = {
+  white: 'linear-gradient(135deg, #f5f5f5, #e0e0e0)',
+  yellow: 'linear-gradient(135deg, #fbbf24, #d97706)',
+  orange: 'linear-gradient(135deg, #f97316, #ea580c)',
+  green: 'linear-gradient(135deg, #22c55e, #16a34a)',
+  blue: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+  brown: 'linear-gradient(135deg, #92400e, #78350f)',
+  black: 'linear-gradient(135deg, #1f2937, #111827)'
+}
+
+const beltTextColors: Record<string, string> = {
+  white: '#333',
+  yellow: '#333',
+  orange: '#fff',
+  green: '#fff',
+  blue: '#fff',
+  brown: '#fff',
+  black: '#fff'
+}
+
+// Get belt based on seeds completed
+function getBelt(seedsCompleted: number): string {
+  if (seedsCompleted >= 400) return 'black'
+  if (seedsCompleted >= 280) return 'brown'
+  if (seedsCompleted >= 150) return 'blue'
+  if (seedsCompleted >= 80) return 'green'
+  if (seedsCompleted >= 40) return 'orange'
+  if (seedsCompleted >= 20) return 'yellow'
+  return 'white'
+}
+
+// Get initials from name
+function getInitials(name: string): string {
+  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+}
+
+// Format date for display
+function formatJoinDate(dateStr: string | null): string {
+  if (!dateStr) return 'Unknown'
+  const date = new Date(dateStr)
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+// Transform students from classDetail
+const students = computed(() => {
+  if (!classDetail.value?.students) return []
+  return classDetail.value.students.map(s => {
+    const belt = getBelt(s.seeds_completed)
+    return {
+      id: s.learner_id,
+      name: s.display_name,
+      email: `${s.user_id.replace('user_2bre_', '')}@student.edu`,
+      initials: getInitials(s.display_name),
+      avatarColor: beltGradients[belt],
+      textColor: beltTextColors[belt],
+      joined_at: s.joined_at,
+      joined_display: formatJoinDate(s.joined_at)
+    }
+  })
 })
 
 // Load class data on mount
 onMounted(() => {
-  const stored = sessionStorage.getItem('ssi-class-detail')
-  if (stored) {
-    try {
-      classData.value = JSON.parse(stored)
-    } catch (e) {
-      console.error('Failed to parse class data:', e)
+  const classId = route.params.id as string
+  if (classId && selectedUser.value) {
+    fetchClassDetail(classId)
+  } else if (!classId) {
+    // No class ID, try sessionStorage fallback
+    const stored = sessionStorage.getItem('ssi-class-detail')
+    if (!stored) {
       router.push({ name: 'classes' })
     }
-  } else {
-    // In production, would fetch from Supabase using route.params.id
-    console.warn('No class data found, redirecting...')
-    router.push({ name: 'classes' })
+  }
+})
+
+watch(selectedUser, (newUser) => {
+  const classId = route.params.id as string
+  if (newUser && classId) {
+    fetchClassDetail(classId)
   }
 })
 
 // Copy state for join code
 const copySuccess = ref(false)
-
-// Demo student data - would come from Supabase in production
-const students = ref([
-  {
-    id: '1',
-    name: 'Angharad Roberts',
-    email: 'angharad.r@student.edu',
-    initials: 'AR',
-    avatarColor: 'linear-gradient(135deg, #1f2937, #111827)',
-    joined_at: '2025-09-02T00:00:00Z',
-    joined_display: '2 Sep 2025'
-  },
-  {
-    id: '2',
-    name: 'Catrin Edwards',
-    email: 'catrin.e@student.edu',
-    initials: 'CE',
-    avatarColor: 'linear-gradient(135deg, #22c55e, #16a34a)',
-    joined_at: '2025-09-03T00:00:00Z',
-    joined_display: '3 Sep 2025'
-  },
-  {
-    id: '3',
-    name: 'Dafydd Hughes',
-    email: 'dafydd.h@student.edu',
-    initials: 'DH',
-    avatarColor: 'linear-gradient(135deg, #3b82f6, #2563eb)',
-    joined_at: '2025-09-04T00:00:00Z',
-    joined_display: '4 Sep 2025'
-  },
-  {
-    id: '4',
-    name: 'Elin Morgan',
-    email: 'elin.m@student.edu',
-    initials: 'EM',
-    avatarColor: 'linear-gradient(135deg, #f97316, #ea580c)',
-    joined_at: '2025-09-05T00:00:00Z',
-    joined_display: '5 Sep 2025'
-  },
-  {
-    id: '5',
-    name: 'Gareth Llywelyn',
-    email: 'gareth.l@student.edu',
-    initials: 'GL',
-    avatarColor: 'linear-gradient(135deg, #fbbf24, #d97706)',
-    joined_at: '2025-09-06T00:00:00Z',
-    joined_display: '6 Sep 2025'
-  },
-  {
-    id: '6',
-    name: 'Megan Davies',
-    email: 'megan.d@student.edu',
-    initials: 'MD',
-    avatarColor: 'linear-gradient(135deg, #3b82f6, #2563eb)',
-    joined_at: '2025-09-08T00:00:00Z',
-    joined_display: '8 Sep 2025'
-  },
-  {
-    id: '7',
-    name: 'Owen Price',
-    email: 'owen.p@student.edu',
-    initials: 'OP',
-    avatarColor: 'linear-gradient(135deg, #f5f5f5, #e0e0e0)',
-    textColor: '#333',
-    joined_at: '2025-09-10T00:00:00Z',
-    joined_display: '10 Sep 2025'
-  },
-  {
-    id: '8',
-    name: 'Tomos Hughes',
-    email: 'tomos.h@student.edu',
-    initials: 'TH',
-    avatarColor: 'linear-gradient(135deg, #f97316, #ea580c)',
-    joined_at: '2025-09-12T00:00:00Z',
-    joined_display: '12 Sep 2025'
-  }
-])
 
 // Search students
 const searchQuery = ref('')
@@ -150,11 +159,13 @@ const courseNames = {
 }
 
 const courseFlag = computed(() => {
-  return courseFlags[classData.value.course_code] || '\uD83C\uDF10'
+  const code = classData.value.course_code as keyof typeof courseFlags
+  return courseFlags[code] || '\uD83C\uDF10'
 })
 
 const courseName = computed(() => {
-  return courseNames[classData.value.course_code] || classData.value.course_code
+  const code = classData.value.course_code as keyof typeof courseNames
+  return courseNames[code] || classData.value.course_code
 })
 
 // Handlers
@@ -187,10 +198,12 @@ const copyJoinCode = async () => {
   }
 }
 
-const handleRemoveStudent = (student) => {
+const handleRemoveStudent = (student: { id: string; name: string }) => {
   if (confirm(`Remove ${student.name} from this class?`)) {
-    students.value = students.value.filter(s => s.id !== student.id)
-    // In production: would call Supabase to remove the class tag from the student
+    // TODO: Implement Supabase call to remove the class tag from the student
+    console.log('Would remove student:', student.id, 'from class:', classData.value.id)
+    // After removal, refetch the class detail
+    // fetchClassDetail(classData.value.id)
   }
 }
 </script>

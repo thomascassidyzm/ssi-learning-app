@@ -1,115 +1,56 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import JoinCodeBanner from '../components/JoinCodeBanner.vue'
+import { useGodMode } from '@/composables/useGodMode'
+import { useTeachersData } from '@/composables/useTeachersData'
+import { useSchoolData } from '@/composables/useSchoolData'
 
-interface Teacher {
-  id: number
-  name: string
-  initials: string
-  email: string
-  course: string
-  belt: string
-  status: 'active' | 'inactive'
-  classCount: number
-  studentCount: number
-  phrasesLearned: number
-  engagementRate: number
-  joinDate: string
-}
+// God Mode and data
+const { selectedUser } = useGodMode()
+const { teachers: teachersData, fetchTeachers } = useTeachersData()
+const { currentSchool, fetchSchools } = useSchoolData()
 
-// Mock data
-const teacherJoinCode = ref('CYM-247')
+// Get join code from school data
+const teacherJoinCode = computed(() => currentSchool.value?.teacher_join_code || 'N/A')
+
 const searchQuery = ref('')
 const selectedCourse = ref('all')
 const selectedBelt = ref('all')
 const showAddModal = ref(false)
 
-const teachers = ref<Teacher[]>([
-  {
-    id: 1,
-    name: 'Sian Morgan',
-    initials: 'SM',
-    email: 'sian.morgan@ysgolcymraeg.edu',
-    course: 'Welsh (Northern)',
-    belt: 'black',
-    status: 'active',
-    classCount: 3,
-    studentCount: 67,
-    phrasesLearned: 2450,
-    engagementRate: 92,
-    joinDate: '2024-09-15'
-  },
-  {
-    id: 2,
-    name: 'Rhys Jones',
-    initials: 'RJ',
-    email: 'rhys.jones@ysgolcymraeg.edu',
-    course: 'Welsh (Southern)',
-    belt: 'blue',
-    status: 'active',
-    classCount: 2,
-    studentCount: 48,
-    phrasesLearned: 1820,
-    engagementRate: 87,
-    joinDate: '2024-10-02'
-  },
-  {
-    id: 3,
-    name: 'Elen Williams',
-    initials: 'EW',
-    email: 'elen.williams@ysgolcymraeg.edu',
-    course: 'Welsh (Northern)',
-    belt: 'yellow',
-    status: 'active',
-    classCount: 2,
-    studentCount: 52,
-    phrasesLearned: 980,
-    engagementRate: 78,
-    joinDate: '2024-11-20'
-  },
-  {
-    id: 4,
-    name: 'Dewi Pritchard',
-    initials: 'DP',
-    email: 'dewi.pritchard@ysgolcymraeg.edu',
-    course: 'Welsh (Southern)',
-    belt: 'green',
-    status: 'inactive',
-    classCount: 2,
-    studentCount: 38,
-    phrasesLearned: 1240,
-    engagementRate: 65,
-    joinDate: '2024-08-10'
-  },
-  {
-    id: 5,
-    name: 'Maria Garcia',
-    initials: 'MG',
-    email: 'maria.garcia@ysgolcymraeg.edu',
-    course: 'Spanish (Latin Am)',
-    belt: 'orange',
-    status: 'active',
-    classCount: 3,
-    studentCount: 79,
-    phrasesLearned: 1650,
-    engagementRate: 88,
-    joinDate: '2024-10-15'
-  },
-  {
-    id: 6,
-    name: 'Carys Thomas',
-    initials: 'CT',
-    email: 'carys.thomas@ysgolcymraeg.edu',
-    course: 'Welsh (Northern)',
-    belt: 'white',
-    status: 'active',
-    classCount: 1,
-    studentCount: 18,
-    phrasesLearned: 156,
-    engagementRate: 95,
-    joinDate: '2025-01-05'
-  }
-])
+// Get initials from name
+function getInitials(name: string): string {
+  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+}
+
+// Get belt based on practice hours
+function getBelt(practiceHours: number): string {
+  if (practiceHours >= 100) return 'black'
+  if (practiceHours >= 70) return 'brown'
+  if (practiceHours >= 40) return 'blue'
+  if (practiceHours >= 20) return 'green'
+  if (practiceHours >= 10) return 'orange'
+  if (practiceHours >= 5) return 'yellow'
+  return 'white'
+}
+
+// Transform teachers data for display
+const teachers = computed(() => {
+  return teachersData.value.map((t, idx) => ({
+    id: idx + 1,
+    name: t.display_name,
+    initials: getInitials(t.display_name),
+    email: `${t.user_id.replace('user_2bre_', '')}@school.edu`,
+    course: 'Welsh (Northern)', // Default course
+    belt: getBelt(t.total_practice_hours),
+    status: 'active' as const,
+    classCount: t.class_count,
+    studentCount: t.student_count,
+    phrasesLearned: Math.round(t.total_practice_hours * 20), // Rough estimate
+    engagementRate: Math.min(100, Math.round(80 + Math.random() * 20)), // Placeholder
+    joinDate: t.joined_at ? t.joined_at.split('T')[0] : '2025-01-01'
+  }))
+})
 
 const courses = ['Welsh (Northern)', 'Welsh (Southern)', 'Spanish (Latin Am)']
 const belts = ['white', 'yellow', 'orange', 'green', 'blue', 'brown', 'black']
@@ -170,7 +111,10 @@ function handleRegenerateCode() {
 
 function handleRemoveTeacher(teacherId: number) {
   if (confirm('Are you sure you want to remove this teacher from your school?')) {
-    teachers.value = teachers.value.filter(t => t.id !== teacherId)
+    // TODO: Implement Supabase call to remove the teacher tag from the school
+    console.log('Would remove teacher:', teacherId)
+    // After removal, refetch teachers
+    // fetchTeachers()
   }
 }
 
@@ -188,6 +132,17 @@ onMounted(() => {
   setTimeout(() => {
     isVisible.value = true
   }, 50)
+  if (selectedUser.value) {
+    fetchTeachers()
+    fetchSchools()
+  }
+})
+
+watch(selectedUser, (newUser) => {
+  if (newUser) {
+    fetchTeachers()
+    fetchSchools()
+  }
 })
 </script>
 

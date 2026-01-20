@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import { useDevRole, type DevRole } from '@/composables/useDevRole'
 
-const { currentRole, currentUser, setRole, MOCK_USERS } = useDevRole()
+const { currentRole, currentUser, setRole } = useDevRole()
 
 const isOpen = ref(false)
 

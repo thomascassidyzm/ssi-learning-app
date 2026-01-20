@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import JoinCodeBanner from '../components/JoinCodeBanner.vue'
 import StatsCard from '../components/StatsCard.vue'
 

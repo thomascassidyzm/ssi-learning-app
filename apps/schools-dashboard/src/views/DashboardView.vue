@@ -1,6 +1,34 @@
 <script setup lang="ts">
+import { onMounted, computed } from 'vue'
 import Card from '@/components/shared/Card.vue'
-import Badge from '@/components/shared/Badge.vue'
+import { useGodMode } from '@/composables/useGodMode'
+import { useSchoolData } from '@/composables/useSchoolData'
+
+const { selectedUser, isGovtAdmin } = useGodMode()
+const {
+  currentSchool,
+  regionSummary,
+  totalStudents,
+  totalTeachers,
+  totalClasses,
+  totalPracticeHours,
+  fetchSchools,
+  isLoading
+} = useSchoolData()
+
+// Display values
+const schoolName = computed(() => {
+  if (isGovtAdmin.value && regionSummary.value) return regionSummary.value.region_name
+  return currentSchool.value?.school_name || selectedUser.value?.school_name || 'Your School'
+})
+
+const practiceHoursDisplay = computed(() => Math.round(totalPracticeHours.value))
+
+onMounted(() => {
+  if (selectedUser.value) {
+    fetchSchools()
+  }
+})
 </script>
 
 <template>
@@ -9,20 +37,31 @@ import Badge from '@/components/shared/Badge.vue'
     <header class="page-header animate-in">
       <div class="page-title">
         <h1>Dashboard</h1>
-        <p class="page-subtitle">Welcome back! Here's what's happening at your school.</p>
+        <p class="page-subtitle">
+          <template v-if="selectedUser">
+            {{ isGovtAdmin ? 'Regional overview for' : 'Welcome back!' }} {{ schoolName }}
+          </template>
+          <template v-else>
+            Select a user from God Mode to view dashboard data
+          </template>
+        </p>
       </div>
     </header>
 
+    <!-- Loading State -->
+    <div v-if="isLoading" class="loading-state animate-in delay-1">
+      <p>Loading dashboard data...</p>
+    </div>
+
     <!-- Stats Grid -->
-    <div class="stats-grid animate-in delay-1">
-      <Card variant="stats" accent="red">
+    <div v-else class="stats-grid animate-in delay-1">
+      <Card variant="stats" accent="blue">
         <div class="stat-card">
-          <div class="stat-icon">&#128218;</div>
+          <div class="stat-icon">&#128101;</div>
           <div class="stat-content">
-            <div class="stat-value">4,287</div>
-            <div class="stat-label">Phrases Learned</div>
+            <div class="stat-value">{{ totalStudents.toLocaleString() }}</div>
+            <div class="stat-label">{{ isGovtAdmin ? 'Total Students' : 'Active Students' }}</div>
           </div>
-          <Badge variant="success" size="sm" class="stat-badge">+12%</Badge>
         </div>
       </Card>
 
@@ -30,32 +69,29 @@ import Badge from '@/components/shared/Badge.vue'
         <div class="stat-card">
           <div class="stat-icon">&#128337;</div>
           <div class="stat-content">
-            <div class="stat-value">127</div>
-            <div class="stat-label">Hours Learned</div>
+            <div class="stat-value">{{ practiceHoursDisplay.toLocaleString() }}</div>
+            <div class="stat-label">Hours Practiced</div>
           </div>
-          <Badge variant="success" size="sm" class="stat-badge">+8%</Badge>
+        </div>
+      </Card>
+
+      <Card variant="stats" accent="red">
+        <div class="stat-card">
+          <div class="stat-icon">&#128218;</div>
+          <div class="stat-content">
+            <div class="stat-value">{{ totalClasses }}</div>
+            <div class="stat-label">{{ isGovtAdmin ? 'Total Classes' : 'Active Classes' }}</div>
+          </div>
         </div>
       </Card>
 
       <Card variant="stats" accent="green">
         <div class="stat-card">
-          <div class="stat-icon">&#127942;</div>
+          <div class="stat-icon">&#127979;</div>
           <div class="stat-content">
-            <div class="stat-value">23</div>
-            <div class="stat-label">Belt Promotions</div>
+            <div class="stat-value">{{ totalTeachers }}</div>
+            <div class="stat-label">Teachers</div>
           </div>
-          <Badge variant="success" size="sm" class="stat-badge">+5</Badge>
-        </div>
-      </Card>
-
-      <Card variant="stats" accent="blue">
-        <div class="stat-card">
-          <div class="stat-icon">&#128101;</div>
-          <div class="stat-content">
-            <div class="stat-value">284</div>
-            <div class="stat-label">Active Students</div>
-          </div>
-          <Badge variant="info" size="sm" class="stat-badge">92%</Badge>
         </div>
       </Card>
     </div>

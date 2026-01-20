@@ -1,10 +1,16 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import ClassCard from '../components/ClassCard.vue'
 import CreateClassModal from '../components/CreateClassModal.vue'
+import { useGodMode } from '@/composables/useGodMode'
+import { useClassesData } from '@/composables/useClassesData'
 
 const router = useRouter()
+
+// God Mode and data
+const { selectedUser } = useGodMode()
+const { classes: classesData, fetchClasses, isLoading } = useClassesData()
 
 // Modal state
 const isCreateModalOpen = ref(false)
@@ -12,61 +18,35 @@ const isCreateModalOpen = ref(false)
 // Search and filter state
 const searchQuery = ref('')
 
-// Demo data - would come from Supabase in production
-const classes = ref([
-  {
-    id: '1',
-    class_name: 'Year 7 Welsh',
-    course_code: 'cym_for_eng_north',
-    student_count: 28,
-    current_seed: 47,
-    sessions: 23,
-    total_time: '12h',
-    student_join_code: 'CYM-247',
-    last_played: '2 hours ago',
-    last_played_recently: true,
-    created_at: '2025-09-01T00:00:00Z'
-  },
-  {
-    id: '2',
-    class_name: 'Year 8 Advanced',
-    course_code: 'cym_for_eng_north',
-    student_count: 24,
-    current_seed: 156,
-    sessions: 45,
-    total_time: '28h',
-    student_join_code: 'ADV-892',
-    last_played: 'Yesterday',
+// Transform classes data for ClassCard component
+const classes = computed(() => {
+  return classesData.value.map(c => ({
+    id: c.id,
+    class_name: c.class_name,
+    course_code: c.course_code,
+    student_count: c.student_count,
+    current_seed: c.current_seed,
+    sessions: 0, // Would need session count from analytics
+    total_time: `${c.avg_practice_minutes}m avg`,
+    student_join_code: c.student_join_code,
+    last_played: 'N/A', // Would need last session timestamp
     last_played_recently: false,
-    created_at: '2025-09-01T00:00:00Z'
-  },
-  {
-    id: '3',
-    class_name: 'Year 9 Beginners',
-    course_code: 'cym_for_eng_south',
-    student_count: 31,
-    current_seed: 12,
-    sessions: 8,
-    total_time: '4h',
-    student_join_code: 'BEG-103',
-    last_played: '3 days ago',
-    last_played_recently: false,
-    created_at: '2025-10-15T00:00:00Z'
-  },
-  {
-    id: '4',
-    class_name: 'Staff Spanish Club',
-    course_code: 'spa_for_eng',
-    student_count: 12,
-    current_seed: 34,
-    sessions: 15,
-    total_time: '8h',
-    student_join_code: 'SPA-456',
-    last_played: '1 week ago',
-    last_played_recently: false,
-    created_at: '2025-11-01T00:00:00Z'
+    created_at: c.created_at
+  }))
+})
+
+// Fetch data when user changes
+onMounted(() => {
+  if (selectedUser.value) {
+    fetchClasses()
   }
-])
+})
+
+watch(selectedUser, (newUser) => {
+  if (newUser) {
+    fetchClasses()
+  }
+})
 
 // Filtered classes based on search
 const filteredClasses = computed(() => {

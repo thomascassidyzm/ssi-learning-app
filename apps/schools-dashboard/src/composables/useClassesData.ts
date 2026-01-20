@@ -1,0 +1,232 @@
+/**
+ * useClassesData - Classes list and class detail
+ *
+ * Provides class data for teacher dashboard and class detail views.
+ */
+
+import { ref, computed } from 'vue'
+import { getClient } from './useSupabase'
+import { useGodMode } from './useGodMode'
+
+export interface ClassInfo {
+  id: string
+  class_name: string
+  course_code: string
+  school_id: string
+  teacher_user_id: string
+  student_join_code: string
+  current_seed: number
+  is_active: boolean
+  student_count: number
+  avg_seeds_completed: number
+  avg_practice_minutes: number
+  created_at: string
+}
+
+export interface StudentProgress {
+  student_user_id: string
+  learner_id: string
+  student_name: string
+  seeds_completed: number
+  legos_mastered: number
+  total_practice_minutes: number
+  last_active_at: string | null
+  joined_class_at: string
+}
+
+const classes = ref<ClassInfo[]>([])
+const currentClass = ref<ClassInfo | null>(null)
+const classStudents = ref<StudentProgress[]>([])
+const isLoading = ref(false)
+const error = ref<string | null>(null)
+
+export function useClassesData() {
+  const client = getClient()
+  const { selectedUser, isTeacher, isSchoolAdmin } = useGodMode()
+
+  // Fetch classes for current user
+  async function fetchClasses(): Promise<void> {
+    if (!selectedUser.value) return
+
+    isLoading.value = true
+    error.value = null
+
+    try {
+      let query = client.from('classes').select(`
+        id, class_name, course_code, school_id, teacher_user_id,
+        student_join_code, current_seed, is_active, created_at
+      `)
+
+      if (isTeacher.value) {
+        // Teacher sees only their classes
+        query = query.eq('teacher_user_id', selectedUser.value.user_id)
+      } else if (isSchoolAdmin.value && selectedUser.value.school_id) {
+        // School admin sees all classes in school
+        query = query.eq('school_id', selectedUser.value.school_id)
+      }
+
+      query = query.eq('is_active', true).order('class_name')
+
+      const { data, error: fetchError } = await query
+
+      if (fetchError) throw fetchError
+
+      // Get student counts per class from class_student_progress view
+      const classIds = (data || []).map(c => c.id)
+
+      if (classIds.length > 0) {
+        const { data: progressData } = await client
+          .from('class_student_progress')
+          .select('class_id, seeds_completed, total_practice_seconds')
+          .in('class_id', classIds)
+
+        // Aggregate stats per class
+        const statsMap = new Map<string, { count: number; totalSeeds: number; totalMinutes: number }>()
+
+        progressData?.forEach(p => {
+          const existing = statsMap.get(p.class_id) || { count: 0, totalSeeds: 0, totalMinutes: 0 }
+          existing.count++
+          existing.totalSeeds += p.seeds_completed
+          existing.totalMinutes += (p.total_practice_seconds || 0) / 60
+          statsMap.set(p.class_id, existing)
+        })
+
+        classes.value = (data || []).map(c => {
+          const stats = statsMap.get(c.id) || { count: 0, totalSeeds: 0, totalMinutes: 0 }
+          return {
+            id: c.id,
+            class_name: c.class_name,
+            course_code: c.course_code,
+            school_id: c.school_id,
+            teacher_user_id: c.teacher_user_id,
+            student_join_code: c.student_join_code,
+            current_seed: c.current_seed,
+            is_active: c.is_active,
+            student_count: stats.count,
+            avg_seeds_completed: stats.count > 0 ? Math.round(stats.totalSeeds / stats.count) : 0,
+            avg_practice_minutes: stats.count > 0 ? Math.round(stats.totalMinutes / stats.count) : 0,
+            created_at: c.created_at,
+          }
+        })
+      } else {
+        classes.value = []
+      }
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to fetch classes'
+      console.error('Classes fetch error:', err)
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  // Fetch single class detail with students
+  async function fetchClassDetail(classId: string): Promise<void> {
+    isLoading.value = true
+    error.value = null
+
+    try {
+      // Fetch class info
+      const { data: classData, error: classError } = await client
+        .from('classes')
+        .select('*')
+        .eq('id', classId)
+        .single()
+
+      if (classError) throw classError
+
+      // Fetch student progress for this class
+      const { data: progressData, error: progressError } = await client
+        .from('class_student_progress')
+        .select('*')
+        .eq('class_id', classId)
+        .order('student_name')
+
+      if (progressError) throw progressError
+
+      const students = (progressData || []).map(p => ({
+        student_user_id: p.student_user_id,
+        learner_id: p.learner_id,
+        student_name: p.student_name,
+        seeds_completed: p.seeds_completed,
+        legos_mastered: p.legos_mastered,
+        total_practice_minutes: Math.round((p.total_practice_seconds || 0) / 60),
+        last_active_at: p.last_active_at,
+        joined_class_at: p.joined_class_at,
+      }))
+
+      classStudents.value = students
+
+      // Calculate class stats
+      const totalSeeds = students.reduce((sum, s) => sum + s.seeds_completed, 0)
+      const totalMinutes = students.reduce((sum, s) => sum + s.total_practice_minutes, 0)
+
+      currentClass.value = {
+        id: classData.id,
+        class_name: classData.class_name,
+        course_code: classData.course_code,
+        school_id: classData.school_id,
+        teacher_user_id: classData.teacher_user_id,
+        student_join_code: classData.student_join_code,
+        current_seed: classData.current_seed,
+        is_active: classData.is_active,
+        student_count: students.length,
+        avg_seeds_completed: students.length > 0 ? Math.round(totalSeeds / students.length) : 0,
+        avg_practice_minutes: students.length > 0 ? Math.round(totalMinutes / students.length) : 0,
+        created_at: classData.created_at,
+      }
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to fetch class detail'
+      console.error('Class detail fetch error:', err)
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  // Computed
+  const totalStudentsInClasses = computed(() => {
+    return classes.value.reduce((sum, c) => sum + c.student_count, 0)
+  })
+
+  // Combined class detail with students (for ClassDetail.vue)
+  const classDetail = computed(() => {
+    if (!currentClass.value) return null
+    return {
+      class_id: currentClass.value.id,
+      class_name: currentClass.value.class_name,
+      course_code: currentClass.value.course_code,
+      school_id: currentClass.value.school_id,
+      teacher_user_id: currentClass.value.teacher_user_id,
+      student_join_code: currentClass.value.student_join_code,
+      current_seed: currentClass.value.current_seed,
+      is_active: currentClass.value.is_active,
+      created_at: currentClass.value.created_at,
+      students: classStudents.value.map(s => ({
+        learner_id: s.learner_id,
+        user_id: s.student_user_id,
+        display_name: s.student_name,
+        seeds_completed: s.seeds_completed,
+        legos_mastered: s.legos_mastered,
+        total_practice_minutes: s.total_practice_minutes,
+        last_active_at: s.last_active_at,
+        joined_at: s.joined_class_at,
+      }))
+    }
+  })
+
+  return {
+    // State
+    classes,
+    currentClass,
+    classStudents,
+    isLoading,
+    error,
+
+    // Computed
+    totalStudentsInClasses,
+    classDetail,
+
+    // Actions
+    fetchClasses,
+    fetchClassDetail,
+  }
+}

@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import TopNav from '@/components/shared/TopNav.vue'
-import DevRoleSwitcher from '@/components/DevRoleSwitcher.vue'
+import GodModePanel from '@/components/GodModePanel.vue'
 </script>
 
 <template>
   <div class="app-container">
     <TopNav />
 
-    <!-- Dev Role Switcher (bottom right corner) -->
-    <DevRoleSwitcher />
+    <!-- God Mode Panel (bottom right corner) -->
+    <GodModePanel />
     <main class="main-content">
       <router-view v-slot="{ Component }">
         <transition name="fade" mode="out-in">

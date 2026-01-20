@@ -1,42 +1,73 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import SearchBox from '@/components/shared/SearchBox.vue'
 import FilterDropdown from '@/components/shared/FilterDropdown.vue'
 import Badge from '@/components/shared/Badge.vue'
 import Button from '@/components/shared/Button.vue'
+import { useGodMode } from '@/composables/useGodMode'
+import { useStudentsData } from '@/composables/useStudentsData'
 
-interface Student {
-  id: number
-  name: string
-  initials: string
-  email: string
-  class: string
-  belt: 'white' | 'yellow' | 'orange' | 'green' | 'blue' | 'brown' | 'black'
-  phrasesLearned: number
-  sessionsCompleted: number
-  lastActive: string
-  progress: number
-}
+// God Mode and data
+const { selectedUser } = useGodMode()
+const { students: studentsData, fetchStudents } = useStudentsData()
 
-// Mock data
+// Filters
 const searchQuery = ref('')
 const selectedClass = ref<string | null>(null)
 const selectedBelt = ref<string | null>(null)
 
-const students = ref<Student[]>([
-  { id: 1, name: 'Angharad Roberts', initials: 'AR', email: 'angharad.r@school.edu', class: 'Year 7 Welsh', belt: 'blue', phrasesLearned: 1247, sessionsCompleted: 47, lastActive: '2 hours ago', progress: 78 },
-  { id: 2, name: 'Megan Davies', initials: 'MD', email: 'megan.d@school.edu', class: 'Year 7 Welsh', belt: 'green', phrasesLearned: 892, sessionsCompleted: 38, lastActive: '1 day ago', progress: 65 },
-  { id: 3, name: 'Catrin Edwards', initials: 'CE', email: 'catrin.e@school.edu', class: 'Year 8 Advanced', belt: 'yellow', phrasesLearned: 756, sessionsCompleted: 32, lastActive: '3 hours ago', progress: 52 },
-  { id: 4, name: 'Gareth Llywelyn', initials: 'GL', email: 'gareth.l@school.edu', class: 'Year 8 Advanced', belt: 'orange', phrasesLearned: 623, sessionsCompleted: 28, lastActive: '5 days ago', progress: 45 },
-  { id: 5, name: 'Tomos Hughes', initials: 'TH', email: 'tomos.h@school.edu', class: 'Year 9 Beginners', belt: 'white', phrasesLearned: 412, sessionsCompleted: 18, lastActive: '1 week ago', progress: 28 },
-  { id: 6, name: 'Owen Price', initials: 'OP', email: 'owen.p@school.edu', class: 'Year 9 Beginners', belt: 'white', phrasesLearned: 189, sessionsCompleted: 12, lastActive: 'Today', progress: 15 },
-])
+// Get belt based on seeds completed (rough approximation)
+function getBelt(seedsCompleted: number): 'white' | 'yellow' | 'orange' | 'green' | 'blue' | 'brown' | 'black' {
+  if (seedsCompleted >= 400) return 'black'
+  if (seedsCompleted >= 280) return 'brown'
+  if (seedsCompleted >= 150) return 'blue'
+  if (seedsCompleted >= 80) return 'green'
+  if (seedsCompleted >= 40) return 'orange'
+  if (seedsCompleted >= 20) return 'yellow'
+  return 'white'
+}
 
-const classOptions = [
-  { value: 'Year 7 Welsh', label: 'Year 7 Welsh' },
-  { value: 'Year 8 Advanced', label: 'Year 8 Advanced' },
-  { value: 'Year 9 Beginners', label: 'Year 9 Beginners' },
-]
+// Get initials from name
+function getInitials(name: string): string {
+  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+}
+
+// Format last active
+function formatLastActive(dateStr: string | null): string {
+  if (!dateStr) return 'Never'
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+  if (diffDays === 0) return 'Today'
+  if (diffDays === 1) return 'Yesterday'
+  if (diffDays < 7) return `${diffDays} days ago`
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`
+  return `${Math.floor(diffDays / 30)} months ago`
+}
+
+// Transform students data for display
+const students = computed(() => {
+  return studentsData.value.map((s, idx) => ({
+    id: idx + 1,
+    name: s.display_name,
+    initials: getInitials(s.display_name),
+    email: `${s.user_id}@student.edu`,
+    class: s.class_name,
+    belt: getBelt(s.seeds_completed),
+    phrasesLearned: s.legos_mastered * 3, // Rough estimate
+    sessionsCompleted: Math.ceil(s.total_practice_minutes / 20),
+    lastActive: formatLastActive(s.last_active_at),
+    progress: Math.min(100, Math.round((s.seeds_completed / 50) * 100))
+  }))
+})
+
+// Build class options from actual classes
+const classOptions = computed(() => {
+  const uniqueClasses = [...new Set(studentsData.value.map(s => s.class_name))]
+  return uniqueClasses.map(c => ({ value: c, label: c }))
+})
 
 const beltOptions = [
   { value: 'white', label: 'White Belt' },
@@ -67,6 +98,15 @@ const totalStudents = computed(() => students.value.length)
 const isVisible = ref(false)
 onMounted(() => {
   setTimeout(() => { isVisible.value = true }, 50)
+  if (selectedUser.value) {
+    fetchStudents()
+  }
+})
+
+watch(selectedUser, (newUser) => {
+  if (newUser) {
+    fetchStudents()
+  }
 })
 </script>
 
