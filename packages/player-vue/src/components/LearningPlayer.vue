@@ -28,7 +28,7 @@ import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
 import ConstellationNetworkView from './ConstellationNetworkView.vue'
 import BeltProgressModal from './BeltProgressModal.vue'
 
-const emit = defineEmits(['close', 'playStateChanged', 'viewProgress'])
+const emit = defineEmits(['close', 'playStateChanged', 'viewProgress', 'openListening'])
 
 const props = defineProps({
   classContext: {
@@ -1321,6 +1321,7 @@ const {
   initializeFullNetwork,
   revealNodesUpToIndex,
   isFullNetworkLoaded,
+  loadMinimalConstellation,
   stats: networkStats,
 } = distinctionNetwork
 
@@ -3569,6 +3570,12 @@ const closeListeningPopup = () => {
   showListeningPopup.value = false
 }
 
+// Launch listening mode - emit event and close popup
+const launchListeningMode = () => {
+  showListeningPopup.value = false
+  emit('openListening')
+}
+
 // Show turbo explanation popup (first time) or toggle if already enabled
 const handleTurboClick = () => {
   if (turboActive.value) {
@@ -3737,24 +3744,73 @@ const addNetworkNode = (legoId, targetText, knownText, beltColor = 'white') => {
   }
 }
 
-// Populate network with all LEGOs up to a given round index
-// Called when skipping/jumping to ensure network reflects all "learned" LEGOs
-const populateNetworkUpToRound = (targetRoundIndex) => {
+/**
+ * Load minimal constellation for the current round
+ * Shows only the hero LEGO and the LEGOs used in its practice phrases
+ * Much lighter than the full network - perfect for focused learning
+ */
+const loadConstellationForRound = (roundIndex: number) => {
   if (!cachedRounds.value.length) return
+  if (roundIndex < 0 || roundIndex >= cachedRounds.value.length) return
 
-  console.log(`[LearningPlayer] populateNetworkUpToRound: ${targetRoundIndex}, connections: ${networkConnections.value.length}`)
-  if (networkConnections.value.length > 0) {
-    console.log('[LearningPlayer] Sample connections:', networkConnections.value.slice(0, 3))
-  }
+  const round = cachedRounds.value[roundIndex]
+  if (!round) return
 
-  // Use composable to populate with database connections (like brain view)
-  // Pass scriptBaseOffset so belt colors are correct for mid-course positions
-  populateNetworkFromRounds(
-    cachedRounds.value,
-    targetRoundIndex,
-    networkConnections.value.length > 0 ? networkConnections.value : undefined,
-    scriptBaseOffset.value
+  const heroId = round.legoId
+  if (!heroId) return
+
+  // Get hero data
+  const heroTarget = round.targetText || round.items?.[0]?.targetText || heroId
+  const heroKnown = round.knownText || round.items?.[0]?.knownText || ''
+  const heroBelt = currentBelt.value?.name || 'white'
+
+  // Extract all LEGOs from this round's practice phrases
+  const phraseLegoIds: string[] = []
+  const legoDataMap = new Map<string, { target: string; known: string }>()
+
+  // Add hero to map
+  legoDataMap.set(heroId, { target: heroTarget, known: heroKnown })
+
+  // Process each item in the round to find LEGOs in phrases
+  round.items?.forEach(item => {
+    // Try to extract LEGO IDs from this item's phrase
+    const itemLegoIds = extractLegoIdsFromPhrase(item)
+    itemLegoIds.forEach(id => {
+      if (!phraseLegoIds.includes(id)) {
+        phraseLegoIds.push(id)
+      }
+      // Store data for this LEGO if we have it
+      if (!legoDataMap.has(id)) {
+        // Try to find this LEGO's data from other rounds
+        const legoRound = cachedRounds.value.find(r => r.legoId === id)
+        if (legoRound) {
+          legoDataMap.set(id, {
+            target: legoRound.targetText || legoRound.items?.[0]?.targetText || id,
+            known: legoRound.knownText || legoRound.items?.[0]?.knownText || ''
+          })
+        } else {
+          // Fallback - just use the ID
+          legoDataMap.set(id, { target: id, known: '' })
+        }
+      }
+    })
+  })
+
+  console.log(`[LearningPlayer] Loading minimal constellation for ${heroId}: ${phraseLegoIds.length} phrase LEGOs`)
+
+  // Load the minimal constellation
+  loadMinimalConstellation(
+    heroId,
+    { target: heroTarget, known: heroKnown, belt: heroBelt },
+    phraseLegoIds,
+    legoDataMap
   )
+}
+
+// Legacy function - kept for backwards compatibility
+// Now just calls loadConstellationForRound for the specified round
+const populateNetworkUpToRound = (targetRoundIndex: number) => {
+  loadConstellationForRound(targetRoundIndex)
 }
 
 // ============================================
@@ -5014,7 +5070,7 @@ defineExpose({
       </div>
     </Transition>
 
-    <!-- Listening Mode Explanation Popup -->
+    <!-- Listening Mode Confirmation Popup -->
     <Transition name="fade">
       <div v-if="showListeningPopup" class="mode-popup-overlay" @click.self="closeListeningPopup">
         <div class="mode-popup">
@@ -5024,14 +5080,14 @@ defineExpose({
               <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
             </svg>
           </div>
-          <h3 class="mode-popup-title">Listening Mode</h3>
+          <h3 class="mode-popup-title">Switch to Listening Mode?</h3>
           <p class="mode-popup-desc">
-            Listening mode lets you absorb the language passively without needing to speak.
-            Perfect for when you can't talk out loud or want a more relaxed session.
+            Review phrases passively without speaking. Play in order or shuffled like a playlist.
+            Your learning session will pause.
           </p>
-          <p class="mode-popup-coming-soon">Coming soon!</p>
           <div class="mode-popup-actions">
-            <button class="mode-popup-btn mode-popup-btn--confirm" @click="closeListeningPopup">Got it</button>
+            <button class="mode-popup-btn mode-popup-btn--cancel" @click="closeListeningPopup">Cancel</button>
+            <button class="mode-popup-btn mode-popup-btn--confirm" @click="launchListeningMode">Start Listening</button>
           </div>
         </div>
       </div>

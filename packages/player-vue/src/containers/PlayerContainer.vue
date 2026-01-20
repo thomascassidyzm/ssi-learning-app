@@ -237,6 +237,7 @@ onMounted(() => {
         @close="handleGoHome"
         @playStateChanged="handlePlayStateChanged"
         @viewProgress="handleViewProgress"
+        @openListening="openListening"
       />
     </Transition>
 
