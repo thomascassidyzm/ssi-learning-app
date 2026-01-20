@@ -279,25 +279,39 @@ const POSITION_STORAGE_KEY_PREFIX = 'ssi_learning_position_'
 const getPositionStorageKey = () => `${POSITION_STORAGE_KEY_PREFIX}${courseCode.value}`
 
 /**
+ * Extract seed number from seedId (e.g., "S0045" → 45)
+ */
+const extractSeedNumber = (seedId: string): number => {
+  if (!seedId) return 0
+  const match = seedId.match(/S(\d+)/)
+  return match ? parseInt(match[1], 10) : 0
+}
+
+/**
  * Save current learning position to localStorage
- * Called whenever position changes (round or item)
- * Includes 'view' field to enable same-view vs cross-view resume logic
- * Includes 'scriptOffset' to detect when belt progress changed (invalidates position)
+ * Uses ABSOLUTE identifiers (LEGO ID, seed number) - not relative round indices
+ * This ensures position is valid across script regeneration
  */
 const savePositionToLocalStorage = () => {
   if (!courseCode.value) return
 
+  const round = currentRound.value
+  if (!round) return
+
   try {
     const position = {
-      roundIndex: currentRoundIndex.value,
+      // Absolute identifiers - stable across script regeneration
+      legoId: round.legoId,
+      seedId: round.seedId,
+      seedNumber: extractSeedNumber(round.seedId),
+      // Item within the round (still relative, but within a known LEGO)
       itemInRound: currentItemInRound.value,
+      // Metadata
       lastUpdated: Date.now(),
       courseCode: courseCode.value,
-      view: 'player', // Track which view saved this position
-      scriptOffset: beltProgress.value?.completedSeeds.value ?? 0, // Track offset for validation
     }
     localStorage.setItem(getPositionStorageKey(), JSON.stringify(position))
-    console.log('[LearningPlayer] Position saved:', position.roundIndex, '/', position.itemInRound, 'at offset', position.scriptOffset)
+    console.log('[LearningPlayer] Position saved: LEGO', position.legoId, 'seed', position.seedNumber, 'item', position.itemInRound)
   } catch (err) {
     console.warn('[LearningPlayer] Failed to save position to localStorage:', err)
   }
@@ -305,8 +319,8 @@ const savePositionToLocalStorage = () => {
 
 /**
  * Load learning position from localStorage
- * Returns null if no saved position, position is too old (>7 days), or offset changed
- * The offset check ensures position is valid when belt progress changes between sessions
+ * Returns absolute identifiers (LEGO ID, seed number) for restoration
+ * No offset validation needed - we use absolute positions
  */
 const loadPositionFromLocalStorage = () => {
   if (!courseCode.value) return null
@@ -329,16 +343,13 @@ const loadPositionFromLocalStorage = () => {
       return null
     }
 
-    // Check if offset changed (belt progress changed since position was saved)
-    // If so, the stored roundIndex is no longer valid for the new script batch
-    const currentOffset = beltProgress.value?.completedSeeds.value ?? 0
-    const storedOffset = position.scriptOffset ?? 0
-    if (storedOffset !== currentOffset) {
-      console.log('[LearningPlayer] Belt progress changed (offset', storedOffset, '→', currentOffset, '), position invalidated')
+    // Must have absolute identifiers
+    if (!position.legoId || typeof position.seedNumber !== 'number') {
+      console.log('[LearningPlayer] Legacy position format, starting fresh')
       return null
     }
 
-    console.log('[LearningPlayer] Loaded position from localStorage:', position.roundIndex, '/', position.itemInRound, 'at offset', storedOffset)
+    console.log('[LearningPlayer] Loaded position: LEGO', position.legoId, 'seed', position.seedNumber, 'item', position.itemInRound)
     return position
   } catch (err) {
     console.warn('[LearningPlayer] Failed to load position from localStorage:', err)
@@ -4486,21 +4497,23 @@ onMounted(async () => {
             let resumed = false
 
             // 1. Try localStorage first (works for all users, fast, offline-ready)
+            // Position is stored as absolute LEGO ID + seed number
             const localPosition = loadPositionFromLocalStorage()
-            if (localPosition && typeof localPosition.roundIndex === 'number') {
-              const resumeRound = localPosition.roundIndex
+            if (localPosition?.legoId) {
+              // Find the round with this LEGO ID
+              const resumeRoundIndex = cachedScript.rounds.findIndex(r => r.legoId === localPosition.legoId)
 
-              // Same-view resume: restore exact item position
-              // Cross-view resume: restart at beginning of round
-              const sameView = localPosition.view === 'player'
-              const resumeItem = sameView ? (localPosition.itemInRound || 0) : 0
-
-              if (resumeRound < cachedScript.rounds.length) {
-                currentRoundIndex.value = resumeRound
-                currentItemInRound.value = resumeItem
+              if (resumeRoundIndex >= 0) {
+                currentRoundIndex.value = resumeRoundIndex
+                currentItemInRound.value = localPosition.itemInRound ?? 0
+                // Clamp item index to valid range
+                const maxItem = cachedScript.rounds[resumeRoundIndex]?.items?.length ?? 1
+                if (currentItemInRound.value >= maxItem) {
+                  currentItemInRound.value = 0
+                }
 
                 // Also set currentPlayableItem so splash screen shows correct text
-                const resumeScriptItem = cachedScript.rounds[resumeRound]?.items?.[resumeItem]
+                const resumeScriptItem = cachedScript.rounds[resumeRoundIndex]?.items?.[currentItemInRound.value]
                 if (resumeScriptItem) {
                   const playable = await scriptItemToPlayableItem(resumeScriptItem)
                   if (playable) {
@@ -4508,14 +4521,12 @@ onMounted(async () => {
                   }
                 }
 
-                if (sameView) {
-                  console.log('[LearningPlayer] Same-view resume: round', resumeRound, 'item', resumeItem)
-                } else {
-                  console.log('[LearningPlayer] Cross-view resume: round', resumeRound, '(from explorer, starting at item 0)')
-                }
+                console.log('[LearningPlayer] Resumed at LEGO', localPosition.legoId, '→ round', resumeRoundIndex, 'item', currentItemInRound.value)
                 resumed = true
               } else {
-                console.log('[LearningPlayer] localStorage position beyond available rounds, starting fresh')
+                console.log('[LearningPlayer] Saved LEGO', localPosition.legoId, 'not in cached rounds, will regenerate')
+                // The cached script might be from a different position - we need to regenerate
+                // Clear the cache and fall through to regeneration
               }
             }
 
@@ -4663,16 +4674,20 @@ onMounted(async () => {
         })()
 
         try {
-          // Provider now contains all config - single source of truth
-          // Start with small batch for fast initial load, expand progressively
-          // Use completedSeeds as offset so returning learners resume from their progress
-          const startOffset = beltProgress.value?.completedSeeds.value ?? 0
+          // Check for saved position FIRST to determine script generation offset
+          // This ensures we generate the script from the right starting point
+          const savedPosition = loadPositionFromLocalStorage()
+
+          // Use saved seed position if available, otherwise use current belt progress
+          const startOffset = savedPosition?.seedNumber ?? beltProgress.value?.completedSeeds.value ?? 0
           scriptBaseOffset.value = startOffset // Track for expansion calculations
-          console.log('[LearningPlayer] Generating script with offset:', startOffset, '(completedSeeds)')
+          console.log('[LearningPlayer] Generating script with offset:', startOffset,
+            savedPosition ? `(from saved position, LEGO ${savedPosition.legoId})` : '(from belt progress)')
+
           const { rounds, allItems } = await generateLearningScript(
             courseDataProvider.value,
             INITIAL_ROUNDS, // Start small, expand as learner progresses
-            startOffset     // Resume from belt progress
+            startOffset     // Resume from saved position or belt progress
           )
 
           if (rounds.length > 0) {
@@ -4683,23 +4698,29 @@ onMounted(async () => {
             })
             cachedRounds.value = rounds
 
-            // Try to restore position from localStorage (even for fresh script generation)
-            // Note: loadPositionFromLocalStorage validates the offset matches, so position is only
-            // returned if it's valid for the current script batch
-            const localPosition = loadPositionFromLocalStorage()
-            if (localPosition && typeof localPosition.roundIndex === 'number') {
-              if (localPosition.roundIndex < rounds.length) {
-                // Same-view resume: restore exact item position
-                // Cross-view resume: restart at beginning of round
-                const sameView = localPosition.view === 'player'
-                currentRoundIndex.value = localPosition.roundIndex
-                currentItemInRound.value = sameView ? (localPosition.itemInRound || 0) : 0
-                console.log('[LearningPlayer] Resuming from localStorage: round', localPosition.roundIndex, sameView ? `item ${currentItemInRound.value}` : '(cross-view, item 0)')
+            // Restore position by finding the saved LEGO ID in the generated rounds
+            if (savedPosition?.legoId) {
+              const resumeRoundIndex = rounds.findIndex(r => r.legoId === savedPosition.legoId)
+              if (resumeRoundIndex >= 0) {
+                currentRoundIndex.value = resumeRoundIndex
+                currentItemInRound.value = savedPosition.itemInRound ?? 0
+                // Clamp item index to valid range
+                const maxItem = rounds[resumeRoundIndex]?.items?.length ?? 1
+                if (currentItemInRound.value >= maxItem) {
+                  currentItemInRound.value = 0
+                }
+                console.log('[LearningPlayer] Resumed at LEGO', savedPosition.legoId, '→ round', resumeRoundIndex, 'item', currentItemInRound.value)
+              } else {
+                console.log('[LearningPlayer] Saved LEGO', savedPosition.legoId, 'not in generated rounds, starting at round 0')
+                currentRoundIndex.value = 0
+                currentItemInRound.value = 0
               }
+            } else {
+              // No saved position - start at round 0 (which is the correct belt level)
+              currentRoundIndex.value = 0
+              currentItemInRound.value = 0
+              console.log('[LearningPlayer] No saved position, starting at round 0 (seed', startOffset, ')')
             }
-            // No belt progress fallback needed - the script is generated with startOffset=completedSeeds,
-            // so rounds[0] already represents the correct starting position for returning learners.
-            // If localStorage position is invalid (offset changed), we start at round 0 which is correct.
 
             // Mark position as initialized
             positionInitialized.value = true
