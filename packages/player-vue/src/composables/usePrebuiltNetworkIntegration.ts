@@ -430,10 +430,20 @@ export function usePrebuiltNetworkIntegration(
   const viewProps = computed(() => {
     const edges = prebuiltNetwork.visibleEdges.value
     const nodes = prebuiltNetwork.visibleNodes.value
-    // Debug: log edge count periodically
-    if (edges.length > 0 || nodes.length > 3) {
+    const allNodes = prebuiltNetwork.nodes.value
+    const revealedCount = prebuiltNetwork.revealedNodeIds.value.size
+
+    // Debug: always log to diagnose empty network issue
+    if (allNodes.length > 0 && nodes.length === 0) {
+      console.warn(`[PrebuiltNetworkIntegration] viewProps: 0 visible of ${allNodes.length} total nodes! Revealed IDs: ${revealedCount}`)
+      if (revealedCount > 0) {
+        console.log('[PrebuiltNetworkIntegration] Revealed IDs sample:', Array.from(prebuiltNetwork.revealedNodeIds.value).slice(0, 5))
+        console.log('[PrebuiltNetworkIntegration] Node IDs sample:', allNodes.slice(0, 5).map(n => n.id))
+      }
+    } else if (nodes.length > 0) {
       console.log(`[PrebuiltNetworkIntegration] viewProps: ${nodes.length} nodes, ${edges.length} edges`)
     }
+
     return {
       nodes,
       edges,

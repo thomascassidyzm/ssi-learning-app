@@ -5110,8 +5110,8 @@ defineExpose({
   --control-bar-bottom: calc(var(--nav-total) + var(--control-bar-offset));
 
   /* Hero text pane position: below header with breathing room */
-  /* On mobile: closer to header; on larger screens: more centered */
-  --hero-offset: clamp(8px, 2vh, 24px);
+  /* On mobile: needs space for belt row + skip buttons; on larger screens: more centered */
+  --hero-offset: clamp(48px, 8vh, 72px);
   --hero-top: calc(var(--header-total) + var(--hero-offset));
 
   /* Spacing scale using viewport-relative clamp() */
@@ -6760,21 +6760,24 @@ defineExpose({
   }
 }
 
-/* Session points display */
+/* Session points display - floating above transport controls, centered */
 .session-points-display {
-  position: absolute;
-  top: 12px;
-  right: 16px;
+  position: fixed;
+  /* Position above control bar */
+  bottom: calc(var(--nav-total) + var(--control-bar-offset) + 80px);
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   align-items: baseline;
   gap: 4px;
-  padding: 6px 12px;
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  padding: 6px 16px;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  z-index: 20;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  z-index: 25;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 .session-points-value {
