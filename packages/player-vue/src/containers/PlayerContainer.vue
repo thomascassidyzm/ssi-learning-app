@@ -9,7 +9,6 @@ import SettingsScreen from '@/components/SettingsScreen.vue'
 import CourseExplorer from '@/components/CourseExplorer.vue'
 import BrainView from '@/components/BrainView.vue'
 import UsageStats from '@/components/UsageStats.vue'
-import ListeningModePlayer from '@/components/ListeningModePlayer.vue'
 import BottomNav from '@/components/BottomNav.vue'
 import BuildBadge from '@/components/BuildBadge.vue'
 
@@ -46,7 +45,7 @@ const {
 } = useAuthModal()
 
 // Navigation state
-// Screens: 'home' | 'player' | 'journey' | 'settings' | 'explorer' | 'network' | 'stats' | 'listening'
+// Screens: 'home' | 'player' | 'journey' | 'settings' | 'explorer' | 'network' | 'stats'
 const currentScreen = ref('home')
 const selectedCourse = ref(null)
 const isLearning = ref(false)
@@ -55,9 +54,8 @@ const isLearning = ref(false)
 const isPlaying = ref(false)
 const learningPlayerRef = ref(null)
 
-// Listening mode state - shared with nav bar for play/stop button
-const isListeningPlaying = ref(false)
-const listeningModePlayerRef = ref(null)
+// Listening mode overlay state (overlay is inside LearningPlayer, but we track it for BottomNav)
+const isListeningMode = ref(false)
 
 // Component refs
 const legoNetworkRef = ref(null)
@@ -98,7 +96,6 @@ const openSettings = () => navigate('settings')
 const openExplorer = () => navigate('explorer')
 const openNetwork = () => navigate('network')
 const openStats = () => navigate('stats')
-const openListening = () => navigate('listening')
 
 // Handle nav events
 const handleNavigation = (screen) => {
@@ -122,16 +119,9 @@ const handlePlayStateChanged = (playing) => {
   isPlaying.value = playing
 }
 
-// Handle listening mode play/stop toggle from nav bar
-const handleToggleListeningPlayback = () => {
-  if (listeningModePlayerRef.value) {
-    listeningModePlayerRef.value.togglePlayback()
-  }
-}
-
-// Handle play state changes from ListeningModePlayer
-const handleListeningPlayStateChanged = (playing) => {
-  isListeningPlaying.value = playing
+// Handle listening mode state changes from LearningPlayer
+const handleListeningModeChanged = (listening) => {
+  isListeningMode.value = listening
 }
 
 // Handle view progress from LearningPlayer (belt modal)
@@ -209,7 +199,7 @@ onMounted(() => {
   // Check URL params for direct navigation (e.g., ?screen=project)
   const urlParams = new URLSearchParams(window.location.search)
   const screenParam = urlParams.get('screen')
-  if (screenParam && ['project', 'explorer', 'network', 'settings', 'stats', 'listening'].includes(screenParam)) {
+  if (screenParam && ['project', 'explorer', 'network', 'settings', 'stats'].includes(screenParam)) {
     currentScreen.value = screenParam
   }
 
@@ -253,7 +243,7 @@ onMounted(() => {
         @close="handleGoHome"
         @playStateChanged="handlePlayStateChanged"
         @viewProgress="handleViewProgress"
-        @openListening="openListening"
+        @listeningModeChanged="handleListeningModeChanged"
       />
     </Transition>
 
@@ -277,7 +267,6 @@ onMounted(() => {
         @close="goHome"
         @openExplorer="openExplorer"
         @openNetwork="openNetwork"
-        @openListening="openListening"
       />
     </Transition>
 
@@ -312,27 +301,15 @@ onMounted(() => {
       />
     </Transition>
 
-    <!-- Listening Mode Player -->
-    <Transition name="slide-up" mode="out-in">
-      <ListeningModePlayer
-        v-if="currentScreen === 'listening'"
-        ref="listeningModePlayerRef"
-        :course="activeCourse"
-        @close="goHome"
-        @playStateChanged="handleListeningPlayStateChanged"
-      />
-    </Transition>
-
     <!-- Bottom Navigation -->
     <BottomNav
       :currentScreen="currentScreen"
       :isLearning="isLearning"
       :isPlaying="isPlaying"
-      :isListeningPlaying="isListeningPlaying"
+      :isListeningMode="isListeningMode"
       @navigate="handleNavigation"
       @startLearning="handleStartLearning"
       @togglePlayback="handleTogglePlayback"
-      @toggleListeningPlayback="handleToggleListeningPlayback"
     />
 
     <!-- Build Badge (dev/staging visibility) -->

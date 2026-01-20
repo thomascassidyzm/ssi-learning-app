@@ -27,8 +27,9 @@ import { useLegoNetwork } from '../composables/useLegoNetwork'
 import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
 import ConstellationNetworkView from './ConstellationNetworkView.vue'
 import BeltProgressModal from './BeltProgressModal.vue'
+import ListeningOverlay from './ListeningOverlay.vue'
 
-const emit = defineEmits(['close', 'playStateChanged', 'viewProgress', 'openListening'])
+const emit = defineEmits(['close', 'playStateChanged', 'viewProgress', 'listeningModeChanged'])
 
 const props = defineProps({
   classContext: {
@@ -3565,11 +3566,10 @@ const handleSkipToBeltFromModal = async (belt) => {
 
 // Mode toggles
 const turboActive = ref(false)
-const listeningModeComingSoon = ref(false) // Future: passive listening mode
+const showListeningOverlay = ref(false) // Show listening mode overlay
 
 // Mode explanation popups
 const showTurboPopup = ref(false)
-const showListeningPopup = ref(false)
 
 // Belt skip feedback state
 const isSkippingBelt = ref(false)
@@ -3715,20 +3715,23 @@ const endTimingCycle = (modelDurationMs) => {
   return result
 }
 
-// Show listening mode explanation popup
+// Open listening mode overlay
 const handleListeningMode = () => {
-  showListeningPopup.value = true
+  // Pause main player audio
+  if (isPlaying.value) {
+    audioController.value?.stop()
+    cycleOrchestrator.value?.stop()
+    isPlaying.value = false
+  }
+  showListeningOverlay.value = true
+  emit('listeningModeChanged', true)
 }
 
-// Close listening popup
-const closeListeningPopup = () => {
-  showListeningPopup.value = false
-}
-
-// Launch listening mode - emit event and close popup
-const launchListeningMode = () => {
-  showListeningPopup.value = false
-  emit('openListening')
+// Close listening overlay and resume main player
+const handleCloseListening = () => {
+  showListeningOverlay.value = false
+  emit('listeningModeChanged', false)
+  // Don't auto-resume - user will tap to play when ready
 }
 
 // Show turbo explanation popup (first time) or toggle if already enabled
@@ -5323,27 +5326,13 @@ defineExpose({
       </div>
     </Transition>
 
-    <!-- Listening Mode Confirmation Popup -->
-    <Transition name="fade">
-      <div v-if="showListeningPopup" class="mode-popup-overlay" @click.self="closeListeningPopup">
-        <div class="mode-popup">
-          <div class="mode-popup-icon mode-popup-icon--listening">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
-              <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
-            </svg>
-          </div>
-          <h3 class="mode-popup-title">Switch to Listening Mode?</h3>
-          <p class="mode-popup-desc">
-            Review phrases passively without speaking. Play in order or shuffled like a playlist.
-            Your learning session will pause.
-          </p>
-          <div class="mode-popup-actions">
-            <button class="mode-popup-btn mode-popup-btn--cancel" @click="closeListeningPopup">Cancel</button>
-            <button class="mode-popup-btn mode-popup-btn--confirm" @click="launchListeningMode">Start Listening</button>
-          </div>
-        </div>
-      </div>
+    <!-- Listening Mode Overlay -->
+    <Transition name="listening-overlay">
+      <ListeningOverlay
+        v-if="showListeningOverlay"
+        :course-code="activeCourseCode"
+        @close="handleCloseListening"
+      />
     </Transition>
 
     <!-- SPLIT-STAGE LAYOUT: Network Theater (top) + Control Pane (bottom) -->
@@ -5486,16 +5475,15 @@ defineExpose({
       <!-- Left side: Listening | Belt Back | Revisit -->
       <div class="control-group control-group--left">
         <button
-          class="mode-btn"
-          :class="{ 'coming-soon': listeningModeComingSoon }"
+          class="mode-btn mode-btn--listening"
+          :class="{ active: showListeningOverlay }"
           @click="handleListeningMode"
-          title="Listening Mode (Coming Soon)"
+          title="Listening Mode"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
             <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
           </svg>
-          <span v-if="listeningModeComingSoon" class="coming-soon-label">Coming Soon</span>
         </button>
 
         <button
@@ -9131,5 +9119,31 @@ defineExpose({
 @keyframes belt-celebration-out {
   from { opacity: 1; }
   to { opacity: 0; }
+}
+
+/* Listening overlay transition - slides up from bottom */
+.listening-overlay-enter-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.listening-overlay-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.listening-overlay-enter-from {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.listening-overlay-leave-to {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+/* Listening mode button active state */
+.mode-btn--listening.active {
+  background: var(--gold-glow, rgba(212, 168, 83, 0.15));
+  border-color: var(--gold, #d4a853);
+  color: var(--gold, #d4a853);
 }
 </style>

@@ -16,14 +16,14 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
-  // When on listening screen, show play/stop based on this
-  isListeningPlaying: {
+  // When listening overlay is open, disable the play button
+  isListeningMode: {
     type: Boolean,
     default: false
   }
 })
 
-const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'toggleListeningPlayback'])
+const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback'])
 
 // Auth state from injected auth provider
 const auth = inject('auth', null)
@@ -74,11 +74,12 @@ const handleNavTap = (itemId) => {
 // Check if we're on the player screen
 const isOnPlayerScreen = computed(() => props.currentScreen === 'player')
 
-// Check if we're on the listening screen
-const isOnListeningScreen = computed(() => props.currentScreen === 'listening')
-
 // Handle play button - either start learning or toggle playback
+// Disabled when listening mode overlay is open
 const handlePlayTap = () => {
+  // Don't respond when listening mode is active
+  if (props.isListeningMode) return
+
   playButtonPressed.value = true
   setTimeout(() => { playButtonPressed.value = false }, 200)
 
@@ -86,10 +87,7 @@ const handlePlayTap = () => {
     navigator.vibrate([10, 50, 10])
   }
 
-  if (isOnListeningScreen.value) {
-    // On listening screen - toggle listening playback
-    emit('toggleListeningPlayback')
-  } else if (isOnPlayerScreen.value) {
+  if (isOnPlayerScreen.value) {
     // On player screen - toggle play/pause
     emit('togglePlayback')
   } else {
@@ -100,8 +98,8 @@ const handlePlayTap = () => {
 
 // Button label and icon based on state
 const playButtonLabel = computed(() => {
-  if (isOnListeningScreen.value) {
-    return props.isListeningPlaying ? 'Stop' : 'Play'
+  if (props.isListeningMode) {
+    return 'Listening'
   }
   if (isOnPlayerScreen.value) {
     return props.isPlaying ? 'Stop' : 'Play'
@@ -178,16 +176,21 @@ const isVisible = computed(() => !props.isLearning)
             :class="{
               pressed: playButtonPressed,
               'is-playing': isOnPlayerScreen && isPlaying,
-              'is-listening-mode': isOnListeningScreen,
-              'is-listening-playing': isOnListeningScreen && isListeningPlaying
+              'is-disabled': isListeningMode
             }"
+            :disabled="isListeningMode"
             @click="handlePlayTap"
           >
             <div class="play-button-glow"></div>
             <div class="play-button-inner">
               <!-- Stop icon when playing -->
-              <svg v-if="(isOnPlayerScreen && isPlaying) || (isOnListeningScreen && isListeningPlaying)" viewBox="0 0 24 24" fill="currentColor">
+              <svg v-if="isOnPlayerScreen && isPlaying && !isListeningMode" viewBox="0 0 24 24" fill="currentColor">
                 <rect x="6" y="6" width="12" height="12" rx="1"/>
+              </svg>
+              <!-- Headphones icon when in listening mode -->
+              <svg v-else-if="isListeningMode" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+                <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
               </svg>
               <!-- Play icon otherwise -->
               <svg v-else viewBox="0 0 24 24" fill="currentColor">
@@ -518,40 +521,33 @@ const isVisible = computed(() => !props.isLearning)
 }
 
 /* Stop icon doesn't need the optical centering offset */
-.play-button.is-playing .play-button-inner svg,
-.play-button.is-listening-playing .play-button-inner svg {
+.play-button.is-playing .play-button-inner svg {
   margin-left: 0;
 }
 
-/* Listening mode - gold play button */
-.play-button.is-listening-mode {
-  background: linear-gradient(145deg, #d4a853 0%, #b8923e 100%);
+/* Disabled state - when listening overlay is open */
+.play-button.is-disabled {
+  background: linear-gradient(145deg, #3a3a3a 0%, #2a2a2a 100%);
   box-shadow:
-    0 4px 16px rgba(212, 168, 83, 0.45),
-    0 8px 24px rgba(212, 168, 83, 0.25),
-    inset 0 1px 1px rgba(255, 255, 255, 0.25),
-    inset 0 -1px 1px rgba(0, 0, 0, 0.15);
+    0 2px 8px rgba(0, 0, 0, 0.3),
+    0 4px 12px rgba(0, 0, 0, 0.2),
+    inset 0 1px 1px rgba(255, 255, 255, 0.1),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.1);
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 
-.play-button.is-listening-mode:active,
-.play-button.is-listening-mode.pressed {
-  box-shadow:
-    0 2px 8px rgba(212, 168, 83, 0.5),
-    0 4px 12px rgba(212, 168, 83, 0.3),
-    inset 0 1px 1px rgba(255, 255, 255, 0.25),
-    inset 0 -1px 1px rgba(0, 0, 0, 0.15);
+.play-button.is-disabled .play-button-glow {
+  opacity: 0;
+  animation: none;
 }
 
-.play-button.is-listening-mode .play-button-glow {
-  background: radial-gradient(circle, rgba(212, 168, 83, 0.5) 0%, transparent 70%);
+.play-button.is-disabled .play-button-inner {
+  color: rgba(255, 255, 255, 0.5);
 }
 
-.play-button.is-listening-mode:hover .play-button-glow {
-  opacity: 0.9;
-}
-
-.play-button.is-listening-mode:hover {
-  background: linear-gradient(145deg, #e0b85e 0%, #c9a349 100%);
+.play-button.is-disabled .play-button-inner svg {
+  margin-left: 0;
 }
 
 .play-label {
