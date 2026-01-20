@@ -3717,12 +3717,8 @@ const endTimingCycle = (modelDurationMs) => {
 
 // Open listening mode overlay
 const handleListeningMode = () => {
-  // Pause main player audio
-  if (isPlaying.value) {
-    audioController.value?.stop()
-    cycleOrchestrator.value?.stop()
-    isPlaying.value = false
-  }
+  // Stop main player using the proper pause method (handles all audio/animation states)
+  handlePause()
   showListeningOverlay.value = true
   emit('listeningModeChanged', true)
 }
