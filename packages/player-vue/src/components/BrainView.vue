@@ -683,7 +683,23 @@ async function loadData() {
     const netData = await loadNetworkData(props.course.course_code)
     const connections: ExternalConnection[] = netData?.connections || []
 
-    console.log(`[BrainView] Loaded ${connections.length} connections, ${netData?.phrases?.length || 0} phrases`)
+    console.log(`[BrainView] Network data for ${props.course.course_code}:`)
+    console.log(`  - LEGOs: ${netData?.stats?.totalLegos || 0}`)
+    console.log(`  - Components: ${netData?.stats?.totalComponents || 0}`)
+    console.log(`  - Phrases: ${netData?.stats?.totalPhrases || 0}`)
+    console.log(`  - Phrases with paths: ${netData?.stats?.phrasesWithPaths || 0}`)
+    console.log(`  - Connections: ${netData?.stats?.uniqueConnections || 0}`)
+    console.log(`  - phrasesByLego entries: ${netData?.phrasesByLego?.size || 0}`)
+
+    if (netData?.stats?.totalPhrases > 0 && netData?.stats?.phrasesWithPaths === 0) {
+      console.warn(`[BrainView] ⚠️ PROBLEM: ${netData.stats.totalPhrases} phrases loaded but none have LEGO paths!`)
+      console.warn(`[BrainView] This means phrase decomposition failed - phrase text doesn't match LEGO target texts`)
+    }
+
+    if (netData?.stats?.totalLegos > 0 && (netData?.phrasesByLego?.size || 0) === 0) {
+      console.warn(`[BrainView] ⚠️ PROBLEM: LEGOs exist but no phrases are indexed to them`)
+      console.warn(`[BrainView] When you click a LEGO, it will show "no phrases use this lego"`)
+    }
 
     // Load learning script (all rounds up to reasonable max)
     const MAX_ROUNDS = 1000

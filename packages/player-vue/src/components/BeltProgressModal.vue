@@ -1,5 +1,17 @@
 <script setup>
-import { computed, watch, onMounted, onUnmounted } from 'vue'
+import { computed, watch, onMounted, onUnmounted, ref } from 'vue'
+
+// All belt levels in order
+const ALL_BELTS = [
+  { name: 'white', color: '#e5e7eb', seedsRequired: 0, glow: 'rgba(229, 231, 235, 0.3)' },
+  { name: 'yellow', color: '#fbbf24', seedsRequired: 8, glow: 'rgba(251, 191, 36, 0.3)' },
+  { name: 'orange', color: '#f97316', seedsRequired: 20, glow: 'rgba(249, 115, 22, 0.3)' },
+  { name: 'green', color: '#22c55e', seedsRequired: 40, glow: 'rgba(34, 197, 94, 0.3)' },
+  { name: 'blue', color: '#3b82f6', seedsRequired: 80, glow: 'rgba(59, 130, 246, 0.3)' },
+  { name: 'purple', color: '#8b5cf6', seedsRequired: 150, glow: 'rgba(139, 92, 246, 0.3)' },
+  { name: 'brown', color: '#a87848', seedsRequired: 280, glow: 'rgba(168, 120, 72, 0.3)' },
+  { name: 'black', color: '#d4a853', seedsRequired: 400, glow: 'rgba(212, 168, 83, 0.3)' },
+]
 
 const props = defineProps({
   isOpen: {
@@ -27,10 +39,14 @@ const props = defineProps({
   lifetimeLearningMinutes: {
     type: Number,
     default: 0
+  },
+  isSkipping: {
+    type: Boolean,
+    default: false
   }
 })
 
-const emit = defineEmits(['close', 'viewProgress'])
+const emit = defineEmits(['close', 'viewProgress', 'skipToBelt'])
 
 // Format session time as MM:SS
 const formattedSessionTime = computed(() => {
@@ -73,6 +89,19 @@ const beltCssVars = computed(() => ({
   '--belt-glow': props.currentBelt.glow || props.currentBelt.color,
   '--next-belt-color': props.nextBelt?.color || props.currentBelt.color
 }))
+
+// Handle clicking on a belt to skip to it
+const handleBeltClick = (belt) => {
+  // Don't allow skipping to current belt
+  if (belt.name === props.currentBelt.name) return
+  emit('skipToBelt', belt)
+}
+
+// Check if a belt is the current belt
+const isCurrent = (belt) => belt.name === props.currentBelt.name
+
+// Check if a belt is "completed" (past current)
+const isCompleted = (belt) => belt.seedsRequired < props.currentBelt.seedsRequired
 
 // Close on escape key
 const handleKeydown = (e) => {
@@ -157,6 +186,30 @@ onUnmounted(() => {
               <!-- Progress text -->
               <div class="progress-text" :class="{ 'progress-text--complete': !nextBelt }">
                 {{ seedsProgressText }}
+              </div>
+            </div>
+
+            <!-- Jump to Belt Section -->
+            <div class="belt-jump-section">
+              <div class="belt-jump-label">Jump to belt:</div>
+              <div class="belt-grid">
+                <button
+                  v-for="belt in ALL_BELTS"
+                  :key="belt.name"
+                  class="belt-chip"
+                  :class="{
+                    'belt-chip--current': isCurrent(belt),
+                    'belt-chip--completed': isCompleted(belt),
+                    'is-skipping': isSkipping
+                  }"
+                  :style="{ '--chip-color': belt.color, '--chip-glow': belt.glow }"
+                  :disabled="isCurrent(belt) || isSkipping"
+                  @click="handleBeltClick(belt)"
+                  :title="`Jump to ${belt.name} belt (seed ${belt.seedsRequired})`"
+                >
+                  <span class="belt-chip-dot"></span>
+                  <span class="belt-chip-name">{{ belt.name }}</span>
+                </button>
               </div>
             </div>
 
@@ -352,6 +405,93 @@ onUnmounted(() => {
 .progress-text--complete {
   color: var(--ssi-gold, #d4a853);
   font-weight: 500;
+}
+
+/* Jump to Belt Section */
+.belt-jump-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.belt-jump-label {
+  font-size: 0.8125rem;
+  color: var(--text-muted, #707070);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.belt-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+}
+
+.belt-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.5rem 0.25rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.belt-chip:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--chip-color);
+  box-shadow: 0 0 12px var(--chip-glow);
+  transform: translateY(-1px);
+}
+
+.belt-chip:disabled {
+  cursor: default;
+}
+
+.belt-chip--current {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--chip-color);
+  box-shadow: 0 0 8px var(--chip-glow);
+}
+
+.belt-chip--completed {
+  opacity: 0.5;
+}
+
+.belt-chip--completed:hover:not(:disabled) {
+  opacity: 0.8;
+}
+
+.belt-chip.is-skipping {
+  animation: belt-chip-pulse 0.6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes belt-chip-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.belt-chip-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--chip-color);
+  box-shadow: 0 0 6px var(--chip-glow);
+}
+
+.belt-chip-name {
+  font-size: 0.6875rem;
+  color: var(--text-secondary, #b0b0b0);
+  text-transform: capitalize;
+  font-weight: 500;
+}
+
+.belt-chip--current .belt-chip-name {
+  color: var(--text-primary, #ffffff);
 }
 
 /* Lifetime Stats */

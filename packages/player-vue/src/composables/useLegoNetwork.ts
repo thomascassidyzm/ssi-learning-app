@@ -128,9 +128,20 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
         .order('seed_number')
         .order('lego_index')
 
-      if (legoError) throw legoError
+      if (legoError) {
+        console.error(`[useLegoNetwork] ❌ lego_cycles query error:`, legoError)
+        throw legoError
+      }
+
+      console.log(`[useLegoNetwork] lego_cycles returned ${legos?.length || 0} rows for ${courseCode}`)
+      if (legos && legos.length > 0) {
+        console.log(`[useLegoNetwork] Sample LEGOs:`, legos.slice(0, 3).map(l => ({ id: l.lego_id, target: l.target_text })))
+      }
 
       if (!legos || legos.length === 0) {
+        console.error(`[useLegoNetwork] ⚠️ No LEGOs found in lego_cycles for course: ${courseCode}`)
+        console.error(`[useLegoNetwork] This usually means course_legos table has no data for this course.`)
+        console.error(`[useLegoNetwork] The lego_cycles view JOINs course_legos with course_audio.`)
         error.value = 'No LEGOs found for this course'
         return null
       }
@@ -238,15 +249,16 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
         console.log(`[useLegoNetwork] Extracted ${componentMap.size} unique components from ${mTypeLegos.length} M-type LEGOs`)
       }
 
-      // Load all phrases from practice_cycles (has duration data for eternal/debut sorting)
-      let allPhrases: { id: string; target_text: string; target1_duration_ms: number | null }[] = []
+      // Load all phrases from practice_cycles
+      // Include lego_id for direct LEGO→phrase mapping (more reliable than text decomposition)
+      let allPhrases: { id: string; target_text: string; target1_duration_ms: number | null; lego_id: string | null }[] = []
       let offset = 0
       const pageSize = 1000
 
       while (true) {
         const { data: phrasePage, error: phraseError } = await supabase.value
           .from('practice_cycles')
-          .select('id, target_text, target1_duration_ms')
+          .select('id, target_text, target1_duration_ms, lego_id')
           .eq('course_code', courseCode)
           .range(offset, offset + pageSize - 1)
 
@@ -260,7 +272,13 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
 
       const phrases = allPhrases
 
-      console.log(`[useLegoNetwork] Loaded ${phrases?.length || 0} phrases`)
+      console.log(`[useLegoNetwork] practice_cycles returned ${phrases?.length || 0} rows for ${courseCode}`)
+      if (phrases && phrases.length > 0) {
+        console.log(`[useLegoNetwork] Sample phrases:`, phrases.slice(0, 3).map(p => ({ id: p.id, target: p.target_text?.slice(0, 50) })))
+      } else {
+        console.warn(`[useLegoNetwork] ⚠️ No phrases returned from practice_cycles for ${courseCode}`)
+        console.warn(`[useLegoNetwork] This may be due to practice_cycles JOIN with lego_cycles - if lego_cycles has no data, this view returns nothing.`)
+      }
 
       // Build connection graph from phrase co-occurrence
       // Also store phrases with their decomposed paths
@@ -269,8 +287,10 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
       const phrasesWithPath: PhraseWithPath[] = []
       const phrasesByLego = new Map<string, PhraseWithPath[]>()
       let phrasesWithPathCount = 0
+      let phrasesWithDbLegoId = 0  // Phrases indexed via database lego_id
 
       for (const phrase of phrases || []) {
+        // Try text decomposition first (finds ALL LEGOs in phrase, not just primary)
         const legoIds = decomposePhrase(phrase.target_text, legoMap)
 
         // Track LEGO usage
@@ -295,6 +315,24 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
             }
             phrasesByLego.get(legoId)!.push(phraseWithPath)
           }
+        } else if (phrase.lego_id) {
+          // FALLBACK: Text decomposition failed, but we have lego_id from database
+          // Index phrase under its primary LEGO at minimum
+          const phraseWithPath: PhraseWithPath = {
+            id: phrase.id,
+            targetText: phrase.target_text,
+            legoPath: [phrase.lego_id],  // Only the primary LEGO
+            durationMs: phrase.target1_duration_ms || undefined,
+          }
+          phrasesWithPath.push(phraseWithPath)
+
+          if (!phrasesByLego.has(phrase.lego_id)) {
+            phrasesByLego.set(phrase.lego_id, [])
+          }
+          phrasesByLego.get(phrase.lego_id)!.push(phraseWithPath)
+
+          legoUsage.set(phrase.lego_id, (legoUsage.get(phrase.lego_id) || 0) + 1)
+          phrasesWithDbLegoId++
         }
 
         // Build directional connections between consecutive LEGOs
@@ -305,6 +343,10 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
             connectionCounts.set(key, (connectionCounts.get(key) || 0) + 1)
           }
         }
+      }
+
+      if (phrasesWithDbLegoId > 0) {
+        console.log(`[useLegoNetwork] ${phrasesWithDbLegoId} phrases indexed via database lego_id (text decomposition fallback)`)
       }
 
       // Convert to connection array
@@ -389,8 +431,23 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
         node.usedInPhrases = legoUsage.get(node.id) || 0
       }
 
-      console.log(`[useLegoNetwork] Built ${connections.length} unique connections from ${phrasesWithPathCount} phrases`)
+      console.log(`[useLegoNetwork] Built ${connections.length} unique connections from ${phrasesWithPathCount} phrases (2+ LEGOs matched)`)
       console.log(`[useLegoNetwork] Indexed ${phrasesWithPath.length} phrases across ${phrasesByLego.size} LEGOs`)
+
+      // Diagnostic: If we have phrases but few/no connections, decomposition is failing
+      if (phrases && phrases.length > 0 && connections.length === 0) {
+        console.warn(`[useLegoNetwork] ⚠️ DECOMPOSITION FAILED: ${phrases.length} phrases loaded but no connections built`)
+        console.warn(`[useLegoNetwork] legoMap has ${legoMap.size} entries`)
+        if (legoMap.size > 0) {
+          console.warn(`[useLegoNetwork] Sample legoMap entries:`, [...legoMap.entries()].slice(0, 5))
+        }
+        // Test decomposition on first few phrases
+        const testPhrases = phrases.slice(0, 3)
+        for (const p of testPhrases) {
+          const decomposed = decomposePhrase(p.target_text, legoMap)
+          console.warn(`[useLegoNetwork] Phrase "${p.target_text?.slice(0, 40)}..." → decomposed to ${decomposed.length} LEGOs: [${decomposed.join(', ')}]`)
+        }
+      }
 
       const componentCount = nodes.filter(n => n.isComponent).length
       const legoCount = nodes.length - componentCount

@@ -3181,6 +3181,76 @@ const handleGoBackBelt = async () => {
   }
 }
 
+/**
+ * Jump to a specific belt from the modal
+ * Handles both forward and backward jumps
+ */
+const handleSkipToBeltFromModal = async (belt) => {
+  if (!belt || !beltProgress.value) {
+    console.log('[LearningPlayer] Cannot skip - invalid belt or no belt progress')
+    return
+  }
+
+  const targetSeed = belt.seedsRequired
+  console.log(`[LearningPlayer] Skipping to ${belt.name} belt (seed ${targetSeed}) from modal`)
+
+  // Close modal first for better UX
+  closeBeltProgressModal()
+
+  isSkippingBelt.value = true
+  try {
+    // Calculate absolute position
+    const absoluteEnd = scriptBaseOffset.value + cachedRounds.value.length
+
+    // Forward skip: may need to expand script
+    if (targetSeed >= scriptBaseOffset.value && targetSeed >= absoluteEnd && courseDataProvider.value) {
+      console.log(`[LearningPlayer] Expanding script to reach seed ${targetSeed}...`)
+      const neededRounds = targetSeed - absoluteEnd + 10
+      const { rounds: moreRounds } = await generateLearningScript(
+        courseDataProvider.value,
+        neededRounds,
+        absoluteEnd
+      )
+      if (moreRounds.length > 0) {
+        cachedRounds.value = [...cachedRounds.value, ...moreRounds]
+      }
+    }
+
+    // Backward skip: may need to reload script from earlier position
+    if (targetSeed < scriptBaseOffset.value && courseDataProvider.value) {
+      console.log(`[LearningPlayer] Reloading script from seed ${targetSeed}...`)
+      if (orchestrator.value) orchestrator.value.stop()
+      if (audioController.value) audioController.value.stop()
+      clearPathAnimation()
+
+      scriptBaseOffset.value = targetSeed
+      const { rounds, allItems } = await generateLearningScript(
+        courseDataProvider.value,
+        ROUNDS_TO_FETCH,
+        targetSeed
+      )
+
+      if (rounds.length > 0) {
+        cachedRounds.value = rounds
+        allPlayableItems.value = allItems
+        populateNetworkFromRounds(rounds, 0, networkConnections.value, targetSeed)
+        await jumpToRound(0)
+        return
+      }
+    }
+
+    // Normal case: target is within current script range
+    const targetRound = Math.min(
+      Math.max(0, targetSeed - scriptBaseOffset.value),
+      cachedRounds.value.length - 1
+    )
+    await jumpToRound(targetRound)
+
+  } finally {
+    isSkippingBelt.value = false
+  }
+}
+
 // Mode toggles
 const turboActive = ref(false)
 const listeningModeComingSoon = ref(false) // Future: passive listening mode
@@ -4676,17 +4746,50 @@ defineExpose({
           <span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span>
         </div>
 
-        <!-- Belt + Timer - Underneath logo, opens modal on tap -->
-        <button
-          class="belt-timer-unified"
-          @click="openBeltProgressModal"
-          :title="!nextBelt ? 'Black belt achieved!' : `${Math.round(beltProgressPercent)}% to ${nextBelt.name} belt`"
-        >
-          <div class="belt-bar-track">
-            <div class="belt-bar-fill" :style="{ width: `${beltProgressPercent}%` }"></div>
-          </div>
-          <span class="belt-timer-label">{{ formattedSessionTime }}</span>
-        </button>
+        <!-- Belt row: Skip buttons + progress/timer + Skip buttons -->
+        <div class="belt-row">
+          <!-- Skip back button -->
+          <button
+            class="belt-header-skip belt-header-skip--back"
+            :class="{ 'is-skipping': isSkippingBelt }"
+            @click="handleGoBackBelt"
+            :disabled="!previousBelt && currentBelt.seedsRequired === completedSeeds"
+            :title="`Back to ${backTargetBelt.name} belt`"
+            :style="{ '--skip-belt-color': backTargetBelt.color }"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="11 17 6 12 11 7"/>
+              <polyline points="18 17 13 12 18 7"/>
+            </svg>
+          </button>
+
+          <!-- Belt + Timer - narrower, opens modal on tap -->
+          <button
+            class="belt-timer-unified"
+            @click="openBeltProgressModal"
+            :title="!nextBelt ? 'Black belt achieved!' : `${Math.round(beltProgressPercent)}% to ${nextBelt.name} belt`"
+          >
+            <div class="belt-bar-track">
+              <div class="belt-bar-fill" :style="{ width: `${beltProgressPercent}%` }"></div>
+            </div>
+            <span class="belt-timer-label">{{ formattedSessionTime }}</span>
+          </button>
+
+          <!-- Skip forward button -->
+          <button
+            class="belt-header-skip belt-header-skip--forward"
+            :class="{ 'is-skipping': isSkippingBelt }"
+            @click="handleSkipToNextBelt"
+            :disabled="!nextBelt"
+            :title="nextBelt ? `Skip to ${nextBelt.name} belt` : 'Black belt achieved!'"
+            :style="nextBelt ? { '--skip-belt-color': nextBelt.color, '--skip-belt-glow': nextBelt.glow } : {}"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="13 17 18 12 13 7"/>
+              <polyline points="6 17 11 12 6 7"/>
+            </svg>
+          </button>
+        </div>
       </div>
     </header>
 
@@ -4698,8 +4801,10 @@ defineExpose({
       :completed-seeds="completedSeeds"
       :session-seconds="sessionSeconds"
       :lifetime-learning-minutes="lifetimeLearningMinutes"
+      :is-skipping="isSkippingBelt"
       @close="closeBeltProgressModal"
       @view-progress="handleViewFullProgress"
+      @skip-to-belt="handleSkipToBeltFromModal"
     />
 
     <!-- Turbo Mode Explanation Popup -->
@@ -5573,9 +5678,58 @@ defineExpose({
   background: rgba(255, 255, 255, 0.1);
 }
 
+/* ============ BELT ROW WITH SKIP BUTTONS ============ */
+/* Container for belt skip buttons + progress/timer */
+.belt-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.5rem, 2vw, 0.75rem);
+  width: 100%;
+}
+
+/* Belt header skip buttons - circular with belt color border */
+.belt-header-skip {
+  width: clamp(32px, 8vw, 40px);
+  height: clamp(32px, 8vw, 40px);
+  border-radius: 50%;
+  border: 2px solid var(--skip-belt-color, var(--text-muted));
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--skip-belt-color, var(--text-muted));
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.belt-header-skip svg {
+  width: clamp(14px, 3.5vw, 18px);
+  height: clamp(14px, 3.5vw, 18px);
+}
+
+.belt-header-skip:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  transform: scale(1.05);
+  box-shadow: 0 0 12px var(--skip-belt-glow, var(--skip-belt-color));
+}
+
+.belt-header-skip:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.belt-header-skip.is-skipping {
+  animation: belt-skip-flash 0.6s ease-in-out infinite;
+  pointer-events: none;
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 0 12px var(--skip-belt-glow, var(--skip-belt-color));
+}
+
 /* ============ UNIFIED BELT + TIMER ============ */
 /* Single element showing belt progress bar + session time, opens modal on tap */
-/* Matches text box width on mobile for visual consistency */
+/* Narrower to fit alongside skip buttons */
 .belt-timer-unified {
   display: flex;
   align-items: center;
@@ -5586,9 +5740,11 @@ defineExpose({
   border-radius: clamp(12px, 3vw, 20px);
   cursor: pointer;
   transition: all 0.2s ease;
-  /* Match text box width: clamp(300px, 92vw, 720px) - slightly narrower */
-  width: clamp(280px, 88vw, 500px);
-  max-width: calc(100vw - 2rem);
+  /* Narrower to fit skip buttons on either side */
+  width: clamp(180px, 60vw, 380px);
+  max-width: calc(100vw - 6rem);
+  flex: 1;
+  min-width: 0;
 }
 
 .belt-timer-unified:hover {
@@ -7676,8 +7832,27 @@ defineExpose({
     opacity: 0.85;
   }
 
+  .belt-row {
+    gap: 0.375rem;
+    width: 100%;
+    max-width: calc(100vw - 1.5rem);
+  }
+
+  .belt-header-skip {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+  }
+
+  .belt-header-skip svg {
+    width: 14px;
+    height: 14px;
+  }
+
   .belt-timer-unified {
-    width: 100%; /* Full width */
+    flex: 1;
+    width: auto;
     max-width: none;
     justify-content: center;
   }
@@ -7699,7 +7874,7 @@ defineExpose({
     gap: 0.25rem;
   }
 
-  /* Hide belt nav arrows on extra small - just show combined progress+timer */
+  /* Hide old belt nav arrows on extra small */
   .belt-nav-header-btn {
     display: none;
   }
