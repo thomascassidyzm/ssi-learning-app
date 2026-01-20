@@ -325,11 +325,11 @@ onMounted(async () => {
 
   /* Network visualization - Dark mode */
   --network-bg: radial-gradient(ellipse at 50% 50%, rgba(80,80,100,0.05) 0%, transparent 50%);
-  --network-node-fill: rgba(255, 255, 255, 0.6);
-  --network-node-stroke: rgba(255, 255, 255, 0.3);
-  --network-edge-stroke: rgba(255, 255, 255, 0.1);
+  --network-node-fill: rgba(255, 255, 255, 0.85);
+  --network-node-stroke: rgba(255, 255, 255, 0.6);
+  --network-edge-stroke: rgba(255, 255, 255, 0.15);
   --network-active-edge: #60a5fa;
-  --network-label-fill: rgba(255, 255, 255, 0.8);
+  --network-label-fill: rgba(255, 255, 255, 0.9);
 
   /* Safe area for bottom nav */
   --nav-height: 80px;
@@ -380,11 +380,11 @@ onMounted(async () => {
 
   /* Network visualization - Light on dark (like cosmos) */
   --network-bg: radial-gradient(ellipse at 50% 50%, rgba(100, 100, 140, 0.06) 0%, transparent 50%);
-  --network-node-fill: rgba(255, 255, 255, 0.55);
-  --network-node-stroke: rgba(255, 255, 255, 0.28);
-  --network-edge-stroke: rgba(255, 255, 255, 0.1);
+  --network-node-fill: rgba(255, 255, 255, 0.8);
+  --network-node-stroke: rgba(255, 255, 255, 0.55);
+  --network-edge-stroke: rgba(255, 255, 255, 0.15);
   --network-active-edge: #60a5fa;
-  --network-label-fill: rgba(255, 255, 255, 0.75);
+  --network-label-fill: rgba(255, 255, 255, 0.85);
 
   /* Mountain opacity for schools */
   --mountain-opacity: 0.4;

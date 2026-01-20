@@ -467,20 +467,20 @@ function isNodeRevealed(nodeId: string): boolean {
 }
 
 function getNodeOpacity(node: ConstellationNode): number {
-  // Unrevealed nodes: completely hide if hideUnrevealedNodes, otherwise very faint
+  // Unrevealed nodes: completely hide if hideUnrevealedNodes, otherwise faint ghost
   if (!isNodeRevealed(node.id)) {
-    return props.hideUnrevealedNodes ? 0 : 0.08
+    return props.hideUnrevealedNodes ? 0 : 0.15
   }
   // Hero node (current LEGO being learned) is brightest
   if (node.id === props.heroNodeId) return 1
   // Nodes actively in the current phrase path
   if (isNodeInPath(node.id)) return 1
-  // Resonating nodes - subtle glimmer (contain words from phrase)
-  if (isNodeResonating(node.id)) return 0.25
-  // All other revealed nodes: very subtle background presence
-  // This keeps focus on the active phrase while hinting at the larger network
-  if (node.isComponent) return 0.1
-  return 0.12
+  // Resonating nodes - glimmer effect (contain words from phrase)
+  if (isNodeResonating(node.id)) return 0.55
+  // All other revealed nodes: visible but not distracting
+  // Increased from 0.1/0.12 to make nodes clearly visible in Brain View
+  if (node.isComponent) return 0.4
+  return 0.5
 }
 
 /**
@@ -518,18 +518,18 @@ function getEdgeOpacity(edge: ConstellationEdge): number {
     }
   }
   // Active path edges are bright
-  if (isEdgeInPath(edge.id)) return 0.85
-  // Background edges: subtle, Hebbian strength increases opacity slightly
-  // Range: ~0.08 to ~0.25 (much more subtle than before)
-  return Math.min(0.25, 0.08 + Math.sqrt(edge.strength) * 0.015)
+  if (isEdgeInPath(edge.id)) return 0.9
+  // Background edges: visible but subtle, Hebbian strength increases opacity
+  // Increased range: ~0.15 to ~0.4 for better visibility
+  return Math.min(0.4, 0.15 + Math.sqrt(edge.strength) * 0.025)
 }
 
 function getEdgeWidth(edge: ConstellationEdge): number {
   // Active path edges are prominent
   if (isEdgeInPath(edge.id)) return 3
-  // Background edges: thin, Hebbian strength increases width slightly
-  // Range: ~0.5 to ~1.5 (much thinner than before)
-  return Math.min(1.5, 0.5 + Math.sqrt(edge.strength) * 0.08)
+  // Background edges: visible, Hebbian strength increases width slightly
+  // Increased range: ~0.8 to ~2.0 for better visibility
+  return Math.min(2.0, 0.8 + Math.sqrt(edge.strength) * 0.1)
 }
 
 // Helper to extract ID from edge source/target (D3 forceLink mutates these to object refs)
@@ -838,7 +838,7 @@ defineExpose({
               fill="none"
               :stroke="getPalette(node.belt).glow"
               :stroke-width="isNodeInPath(node.id) || node.id === heroNodeId ? 3 : 2"
-              :opacity="isNodeInPath(node.id) || node.id === heroNodeId ? 0.8 : (node.isComponent ? 0.4 : 0.6)"
+              :opacity="isNodeInPath(node.id) || node.id === heroNodeId ? 0.9 : (node.isComponent ? 0.65 : 0.75)"
               :filter="isNodeInPath(node.id) || node.id === heroNodeId ? 'url(#constellation-glow)' : 'none'"
             />
 
@@ -849,7 +849,7 @@ defineExpose({
               :fill="getPalette(node.belt).core"
               :stroke="getPalette(node.belt).glow"
               :stroke-width="isNodeInPath(node.id) || node.id === heroNodeId ? 2 : 1.5"
-              :stroke-opacity="isNodeInPath(node.id) || node.id === heroNodeId ? 1 : 0.7"
+              :stroke-opacity="isNodeInPath(node.id) || node.id === heroNodeId ? 1 : 0.85"
             />
 
             <!-- Inner dot -->
@@ -857,7 +857,7 @@ defineExpose({
               class="node-inner"
               :r="getNodeSize(node, node.id === heroNodeId).inner"
               :fill="getPalette(node.belt).inner"
-              :opacity="isNodeInPath(node.id) || node.id === heroNodeId ? 1 : 0.7"
+              :opacity="isNodeInPath(node.id) || node.id === heroNodeId ? 1 : 0.85"
             />
           </g>
         </g>

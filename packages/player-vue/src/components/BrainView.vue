@@ -12,6 +12,7 @@
 
 import { ref, computed, inject, onMounted, onUnmounted, watch } from 'vue'
 import ConstellationNetworkView from './ConstellationNetworkView.vue'
+import UsageStats from './UsageStats.vue'
 import { usePrebuiltNetwork, type ExternalConnection, type ConstellationNode } from '../composables/usePrebuiltNetwork'
 import { useLegoNetwork, type PhraseWithPath } from '../composables/useLegoNetwork'
 import { generateLearningScript } from '../providers/CourseDataProvider'
@@ -1004,17 +1005,13 @@ onUnmounted(() => {
     <!-- ============================================ -->
     <!-- USAGE TAB CONTENT -->
     <!-- ============================================ -->
-    <div v-if="activeTab === 'usage'" class="usage-tab-content">
-      <div class="usage-placeholder">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="placeholder-icon">
-          <path d="M3 3v18h18"/>
-          <path d="M7 16l4-4 4 4 5-6"/>
-        </svg>
-        <h3>Usage Statistics</h3>
-        <p>Track your learning patterns over time</p>
-        <p class="coming-soon">Coming soon</p>
-      </div>
-    </div>
+    <UsageStats
+      v-if="activeTab === 'usage'"
+      :totalMinutes="0"
+      :totalWordsIntroduced="globalStats.concepts"
+      :totalPhrasesSpoken="globalStats.phrases"
+      @close="activeTab = 'brain'"
+    />
 
     <!-- Detail Panel (slides in from right) -->
     <div class="detail-panel" :class="{ open: isPanelOpen }">
@@ -1332,50 +1329,6 @@ onUnmounted(() => {
 .status-badge.locked {
   background: rgba(255, 255, 255, 0.05);
   color: rgba(255, 255, 255, 0.3);
-}
-
-/* Usage Tab Content */
-.usage-tab-content {
-  position: absolute;
-  top: calc(120px + env(safe-area-inset-top, 0px));
-  left: 16px;
-  right: 16px;
-  bottom: calc(100px + env(safe-area-inset-bottom, 0px));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.usage-placeholder {
-  text-align: center;
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.placeholder-icon {
-  width: 64px;
-  height: 64px;
-  margin-bottom: 16px;
-  opacity: 0.3;
-}
-
-.usage-placeholder h3 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.7);
-  margin: 0 0 8px 0;
-}
-
-.usage-placeholder p {
-  font-size: 0.875rem;
-  margin: 0 0 4px 0;
-}
-
-.usage-placeholder .coming-soon {
-  font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.3);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  margin-top: 16px;
 }
 
 /* Action buttons container (fit all, download) */

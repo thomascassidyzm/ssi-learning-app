@@ -101,7 +101,7 @@ const navigate = (screen, data = null) => {
 
 const goHome = () => navigate('home')
 const startLearning = (course) => navigate('player', course)
-const viewJourney = () => navigate('stats') // Stats button on home goes to usage stats
+const handleViewJourney = () => navigate('stats')
 const openSettings = () => navigate('settings')
 const openExplorer = () => navigate('explorer')
 const openNetwork = () => navigate('network')
@@ -234,8 +234,7 @@ onMounted(() => {
         :activeCourse="activeCourse"
         :enrolledCourses="enrolledCourses"
         @startLearning="startLearning"
-        @viewJourney="viewJourney"
-        @openProfile="openProfile"
+        @viewJourney="handleViewJourney"
         @openSettings="openSettings"
         @selectCourse="handleCourseSelect"
         @openExplorer="openExplorer"
@@ -253,6 +252,7 @@ onMounted(() => {
       :classContext="classContext"
       :course="activeCourse"
       :previewLegoIndex="previewLegoIndex"
+      :isVisible="currentScreen === 'player'"
       @close="handleGoHome"
       @playStateChanged="handlePlayStateChanged"
       @viewProgress="handleViewProgress"
