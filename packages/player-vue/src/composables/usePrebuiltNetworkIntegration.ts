@@ -256,10 +256,14 @@ export function usePrebuiltNetworkIntegration(
 
     // Debug: Check if rounds have valid legoIds
     const validRounds = allRounds.filter(r => r?.legoId)
+    console.log(`%c[PrebuiltNetworkIntegration] ===== initializeFullNetwork =====`, 'background: #00f; color: #fff; font-weight: bold')
+    console.log(`  Total rounds: ${allRounds.length}`)
+    console.log(`  Valid rounds (with legoId): ${validRounds.length}`)
+    console.log(`  External connections: ${externalConnections?.length || 0}`)
+    console.log(`  Current round index: ${currentRoundIndex}`)
     if (validRounds.length !== allRounds.length) {
-      console.warn(`[PrebuiltNetworkIntegration] ${allRounds.length - validRounds.length} rounds missing legoId!`)
+      console.warn(`  ⚠️ ${allRounds.length - validRounds.length} rounds missing legoId!`)
     }
-    console.log(`[PrebuiltNetworkIntegration] Loading ${validRounds.length} rounds, ${externalConnections?.length || 0} connections`)
 
     // Calculate ALL positions once - startOffset is always 0 for full network
     // Pass 'black' belt explicitly to ensure full brain boundary (scale 1.0)

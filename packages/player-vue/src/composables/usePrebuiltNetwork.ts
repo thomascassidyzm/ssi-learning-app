@@ -319,6 +319,17 @@ export function preCalculatePositions(
 ): { nodes: ConstellationNode[], edges: ConstellationEdge[], brainBoundary: BrainBoundary } {
   const center = { x: canvasSize.width / 2, y: canvasSize.height / 2 }
 
+  // ========== DIAGNOSTIC: Input summary ==========
+  console.log(`%c[PrebuiltNetwork] ===== preCalculatePositions INPUT =====`, 'background: #333; color: #0f0; font-weight: bold')
+  console.log(`  Rounds: ${rounds?.length || 0}`)
+  console.log(`  Canvas: ${canvasSize.width}x${canvasSize.height}`)
+  console.log(`  External connections: ${externalConnections?.length || 0}`)
+  console.log(`  Start offset: ${startOffset}, Belt: ${currentBelt}`)
+  if (rounds?.length > 0) {
+    console.log(`  First round:`, { legoId: rounds[0]?.legoId, hasItems: !!rounds[0]?.items?.length })
+  }
+  // ========== END DIAGNOSTIC ==========
+
   // Build nodes from rounds
   const nodes: ConstellationNode[] = []
   const nodeMap = new Map<string, ConstellationNode>()
@@ -671,12 +682,17 @@ export function preCalculatePositions(
     edgesCreated: edges.length,
     sampleEdges: edges.slice(0, 5).map(e => `${getNodeId(e.source)} → ${getNodeId(e.target)} (strength: ${e.strength})`),
   }
-  console.log(`[PrebuiltNetwork] Pre-calculated ${nodes.length} nodes, ${edges.length} edges (source: ${edgeSource})`)
+  console.log(`%c[PrebuiltNetwork] ===== preCalculatePositions OUTPUT =====`, 'background: #333; color: #0f0; font-weight: bold')
+  console.log(`  Nodes: ${nodes.length}, Edges: ${edges.length}`)
   console.table(diagnostics)
 
   // Diagnose why no edges if that's the case
   if (edges.length === 0 && !externalConnections) {
     console.warn('[PrebuiltNetwork] No edges from items. Consider loading connections from database.')
+  }
+
+  if (edges.length === 0) {
+    console.warn(`%c[PrebuiltNetwork] ⚠️ NO EDGES - network will have no connections!`, 'background: #f00; color: #fff; font-weight: bold')
   }
 
   return { nodes, edges, brainBoundary }
