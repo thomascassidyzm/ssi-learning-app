@@ -633,14 +633,22 @@ async function playNextPhraseInPractice() {
   }
 
   const phrase = selectedNodePhrases.value[currentPhraseIndex.value]
-  await playPhrase(phrase)
 
-  // Schedule next phrase
-  const delay = 2000 + (phrase.legoPath.length * 300)
-  phrasePracticeTimer = setTimeout(() => {
-    currentPhraseIndex.value++
-    playNextPhraseInPractice()
-  }, delay)
+  try {
+    await playPhrase(phrase)
+  } catch (err) {
+    console.warn('[BrainView] Error playing phrase, continuing to next:', err)
+  }
+
+  // Schedule next phrase regardless of success/failure
+  // Short delay between phrases for natural rhythm
+  if (isPracticingPhrases.value) {
+    const delay = 1500  // 1.5 second gap between phrases
+    phrasePracticeTimer = setTimeout(() => {
+      currentPhraseIndex.value++
+      playNextPhraseInPractice()
+    }, delay)
+  }
 }
 
 /**
@@ -778,6 +786,13 @@ onUnmounted(() => {
 
 <template>
   <div class="brain-view" ref="containerRef">
+    <!-- Close button -->
+    <button class="close-btn" @click="emit('close')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M19 12H5M12 19l-7-7 7-7"/>
+      </svg>
+    </button>
+
     <!-- Page title with mounting -->
     <div v-if="languageName" class="brain-title-mount">
       <h1 class="brain-title" :style="{ color: accentColor }">Your brain on {{ languageName }}</h1>
@@ -1129,30 +1144,35 @@ onUnmounted(() => {
 .close-btn {
   position: absolute;
   top: calc(16px + env(safe-area-inset-top, 0px));
-  left: 16px;
-  z-index: 20;
-  width: 40px;
-  height: 40px;
+  left: calc(16px + env(safe-area-inset-left, 0px));
+  z-index: 30;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(10, 10, 15, 0.8);
-  backdrop-filter: blur(10px);
-  color: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(10, 10, 15, 0.9);
+  backdrop-filter: blur(12px);
+  color: rgba(255, 255, 255, 0.8);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .close-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.15);
   color: white;
 }
 
+.close-btn:active {
+  transform: scale(0.95);
+}
+
 .close-btn svg {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
 }
 
 .brain-title-mount {
@@ -1766,7 +1786,9 @@ onUnmounted(() => {
   z-index: 30;
   overflow-y: auto;
   padding: 20px;
+  padding-top: calc(20px + env(safe-area-inset-top, 0px));
   padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  padding-right: calc(20px + env(safe-area-inset-right, 0px));
 }
 
 .detail-panel.open {
@@ -1775,28 +1797,33 @@ onUnmounted(() => {
 
 .panel-close {
   position: absolute;
-  top: 12px;
-  right: 12px;
-  width: 32px;
-  height: 32px;
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  right: calc(16px + env(safe-area-inset-right, 0px));
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(10, 10, 15, 0.9);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 1.5rem;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .panel-close:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.15);
   color: white;
 }
 
+.panel-close:active {
+  transform: scale(0.95);
+}
+
 .panel-content {
-  margin-top: 40px;
+  margin-top: calc(40px + env(safe-area-inset-top, 0px));
 }
 
 .panel-header {
