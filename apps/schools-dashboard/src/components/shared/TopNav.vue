@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useGodMode } from '@/composables/useGodMode'
+import { useSchoolData } from '@/composables/useSchoolData'
 
 interface NavTab {
   name: string
@@ -11,6 +12,7 @@ interface NavTab {
 
 const route = useRoute()
 const { selectedUser, isGovtAdmin } = useGodMode()
+const { viewingSchool, isViewingSchool } = useSchoolData()
 
 const tabs: NavTab[] = [
   { name: 'dashboard', path: '/', label: 'Dashboard' },
@@ -20,9 +22,14 @@ const tabs: NavTab[] = [
   { name: 'analytics', path: '/analytics', label: 'Analytics' },
 ]
 
-// Context info derived from God Mode selected user
+// Context info derived from God Mode selected user (or drill-down context)
 const contextName = computed(() => {
   if (!selectedUser.value) return 'No User Selected'
+  // If govt admin is drilled into a school, show that school
+  if (isViewingSchool.value && viewingSchool.value) {
+    return viewingSchool.value.school_name
+  }
+  // Otherwise show org/region for govt admin
   if (isGovtAdmin.value) {
     return selectedUser.value.organization_name || selectedUser.value.region_code || 'Region Admin'
   }

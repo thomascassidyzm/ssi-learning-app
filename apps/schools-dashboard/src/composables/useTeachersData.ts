@@ -4,9 +4,10 @@
  * Provides teacher data for school admin views.
  */
 
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { getClient } from './useSupabase'
 import { useGodMode } from './useGodMode'
+import { useSchoolData } from './useSchoolData'
 
 export interface Teacher {
   user_id: string
@@ -25,10 +26,16 @@ const error = ref<string | null>(null)
 export function useTeachersData() {
   const client = getClient()
   const { selectedUser } = useGodMode()
+  const { viewingSchool } = useSchoolData()
+
+  // The active school ID (drill-down takes precedence)
+  const activeSchoolId = computed(() =>
+    viewingSchool.value?.id || selectedUser.value?.school_id
+  )
 
   // Fetch teachers for school
   async function fetchTeachers(schoolId?: string): Promise<void> {
-    const targetSchoolId = schoolId || selectedUser.value?.school_id
+    const targetSchoolId = schoolId || activeSchoolId.value
     if (!targetSchoolId) return
 
     isLoading.value = true

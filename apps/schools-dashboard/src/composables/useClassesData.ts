@@ -7,6 +7,7 @@
 import { ref, computed } from 'vue'
 import { getClient } from './useSupabase'
 import { useGodMode } from './useGodMode'
+import { useSchoolData } from './useSchoolData'
 
 export interface ClassInfo {
   id: string
@@ -42,7 +43,13 @@ const error = ref<string | null>(null)
 
 export function useClassesData() {
   const client = getClient()
-  const { selectedUser, isTeacher, isSchoolAdmin } = useGodMode()
+  const { selectedUser, isTeacher, isSchoolAdmin, isGovtAdmin } = useGodMode()
+  const { viewingSchool, isViewingSchool } = useSchoolData()
+
+  // The active school ID (drill-down takes precedence)
+  const activeSchoolId = computed(() =>
+    viewingSchool.value?.id || selectedUser.value?.school_id
+  )
 
   // Fetch classes for current user
   async function fetchClasses(): Promise<void> {
@@ -60,6 +67,9 @@ export function useClassesData() {
       if (isTeacher.value) {
         // Teacher sees only their classes
         query = query.eq('teacher_user_id', selectedUser.value.user_id)
+      } else if (isGovtAdmin.value && isViewingSchool.value && activeSchoolId.value) {
+        // Govt admin drilled into a school sees all classes in that school
+        query = query.eq('school_id', activeSchoolId.value)
       } else if (isSchoolAdmin.value && selectedUser.value.school_id) {
         // School admin sees all classes in school
         query = query.eq('school_id', selectedUser.value.school_id)
