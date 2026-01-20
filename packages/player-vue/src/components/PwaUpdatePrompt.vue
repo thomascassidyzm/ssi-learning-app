@@ -6,41 +6,87 @@
  * User must approve the update (registerType: 'prompt' in vite.config.js).
  *
  * This prevents mid-session surprises during learning.
+ *
+ * Android fix: Check for updates periodically since Android Chrome
+ * doesn't always detect service worker updates reliably.
  */
 import { useRegisterSW } from 'virtual:pwa-register/vue'
+import { ref, onMounted, onUnmounted } from 'vue'
+
+const isUpdating = ref(false)
+let updateCheckInterval: ReturnType<typeof setInterval> | null = null
 
 const {
   needRefresh,
   updateServiceWorker,
 } = useRegisterSW({
+  immediate: true,  // Register immediately
   onRegistered(registration) {
     console.log('[PWA] Service worker registered:', registration)
+
+    // Android fix: Check for updates periodically (every 60 seconds when app is open)
+    // This helps detect updates that Android Chrome might miss
+    if (registration) {
+      updateCheckInterval = setInterval(() => {
+        console.log('[PWA] Checking for updates...')
+        registration.update().catch((err) => {
+          console.warn('[PWA] Update check failed:', err)
+        })
+      }, 60 * 1000)  // Check every minute
+    }
   },
   onRegisterError(error) {
     console.error('[PWA] Service worker registration error:', error)
   },
+  onNeedRefresh() {
+    console.log('[PWA] New content available, showing update prompt')
+  },
 })
 
-function onUpdate() {
-  updateServiceWorker(true)
+async function onUpdate() {
+  console.log('[PWA] User clicked update, applying...')
+  isUpdating.value = true
+
+  try {
+    // Update the service worker (triggers skipWaiting)
+    await updateServiceWorker(true)
+    console.log('[PWA] Update applied, reloading page...')
+
+    // Force reload to ensure new version is loaded
+    // Use a small delay to let service worker activate
+    setTimeout(() => {
+      window.location.reload()
+    }, 100)
+  } catch (err) {
+    console.error('[PWA] Update failed:', err)
+    isUpdating.value = false
+    // Still try to reload as fallback
+    window.location.reload()
+  }
 }
 
 function onDismiss() {
   needRefresh.value = false
 }
+
+onUnmounted(() => {
+  if (updateCheckInterval) {
+    clearInterval(updateCheckInterval)
+  }
+})
 </script>
 
 <template>
   <Transition name="slide-up">
     <div v-if="needRefresh" class="pwa-update-banner">
       <div class="pwa-update-content">
-        <span class="pwa-update-text">New version available</span>
+        <span class="pwa-update-text">{{ isUpdating ? 'Updating...' : 'New version available' }}</span>
         <div class="pwa-update-actions">
-          <button class="pwa-update-dismiss" @click="onDismiss">
+          <button class="pwa-update-dismiss" @click="onDismiss" :disabled="isUpdating">
             Later
           </button>
-          <button class="pwa-update-button" @click="onUpdate">
-            Update
+          <button class="pwa-update-button" @click="onUpdate" :disabled="isUpdating">
+            {{ isUpdating ? 'Please wait' : 'Update' }}
           </button>
         </div>
       </div>
@@ -120,6 +166,13 @@ function onDismiss() {
 
 .pwa-update-button:active {
   transform: translateY(0);
+}
+
+.pwa-update-button:disabled,
+.pwa-update-dismiss:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
 }
 
 /* Transition animations */
