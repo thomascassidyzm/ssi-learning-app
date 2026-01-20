@@ -1129,6 +1129,7 @@ const corePhaseToUiPhase = (corePhase) => {
 const currentPhase = ref(Phase.PROMPT)
 const currentItemIndex = ref(0)
 const isPlaying = ref(false) // Start paused until engine ready
+const isSkipInProgress = ref(false) // Flag to prevent cycle_stopped from resetting isPlaying during skip
 
 // Emit play state changes to parent (for nav bar play/stop toggle)
 watch(isPlaying, (playing) => {
@@ -2146,7 +2147,11 @@ const handleCycleEvent = (event) => {
       break
 
     case 'cycle_stopped':
-      isPlaying.value = false
+      // Don't reset isPlaying if we're in the middle of a skip operation
+      // (skip stops the old cycle but immediately starts a new one)
+      if (!isSkipInProgress.value) {
+        isPlaying.value = false
+      }
       break
 
     case 'error':
@@ -2765,9 +2770,13 @@ const startPlayback = async () => {
 const handleSkip = async () => {
   console.log('[LearningPlayer] ========== SKIP REQUESTED ==========')
 
+  // Mark that we're in a skip operation (prevents cycle_stopped from resetting isPlaying)
+  const wasPlaying = isPlaying.value
+  isSkipInProgress.value = true
+
   // 0. INCREMENT GENERATION FIRST - invalidates any pending callbacks from previous position
   playbackGeneration.value++
-  console.log('[LearningPlayer] Skip: Generation incremented to', playbackGeneration.value)
+  console.log('[LearningPlayer] Skip: Generation incremented to', playbackGeneration.value, 'wasPlaying:', wasPlaying)
 
   // 1. IMMEDIATELY suppress all audio callbacks to prevent race conditions
   if (audioController.value?.suppressCallbacks) {
@@ -2906,6 +2915,10 @@ const handleSkip = async () => {
   if (audioController.value?.enableCallbacks) {
     audioController.value.enableCallbacks()
   }
+
+  // Clear skip flag - skip operation complete
+  isSkipInProgress.value = false
+  console.log('[LearningPlayer] Skip: Complete, isPlaying:', isPlaying.value)
 }
 
 /**
@@ -2915,9 +2928,13 @@ const handleSkip = async () => {
 const handleRevisit = async () => {
   console.log('[LearningPlayer] ========== REVISIT REQUESTED ==========')
 
+  // Mark that we're in a skip operation (prevents cycle_stopped from resetting isPlaying)
+  const wasPlaying = isPlaying.value
+  isSkipInProgress.value = true
+
   // 0. INCREMENT GENERATION FIRST - invalidates any pending callbacks from previous position
   playbackGeneration.value++
-  console.log('[LearningPlayer] Revisit: Generation incremented to', playbackGeneration.value)
+  console.log('[LearningPlayer] Revisit: Generation incremented to', playbackGeneration.value, 'wasPlaying:', wasPlaying)
 
   // 1. IMMEDIATELY suppress all audio callbacks to prevent race conditions
   if (audioController.value?.suppressCallbacks) {
@@ -3028,6 +3045,10 @@ const handleRevisit = async () => {
   if (audioController.value?.enableCallbacks) {
     audioController.value.enableCallbacks()
   }
+
+  // Clear skip flag - revisit operation complete
+  isSkipInProgress.value = false
+  console.log('[LearningPlayer] Revisit: Complete, isPlaying:', isPlaying.value)
 }
 
 /**
@@ -3049,9 +3070,13 @@ const jumpToRound = async (roundIndex) => {
 
   console.log('[LearningPlayer] ========== JUMP TO ROUND', roundIndex, '==========')
 
+  // Mark that we're in a skip operation (prevents cycle_stopped from resetting isPlaying)
+  const wasPlaying = isPlaying.value
+  isSkipInProgress.value = true
+
   // 0. Increment generation to invalidate any pending callbacks from previous position
   playbackGeneration.value++
-  console.log('[LearningPlayer] Jump: Generation incremented to', playbackGeneration.value)
+  console.log('[LearningPlayer] Jump: Generation incremented to', playbackGeneration.value, 'wasPlaying:', wasPlaying)
 
   // 1. IMMEDIATELY suppress all audio callbacks to prevent race conditions
   if (audioController.value?.suppressCallbacks) {
@@ -3150,6 +3175,10 @@ const jumpToRound = async (roundIndex) => {
   if (audioController.value?.enableCallbacks) {
     audioController.value.enableCallbacks()
   }
+
+  // Clear skip flag - jump operation complete
+  isSkipInProgress.value = false
+  console.log('[LearningPlayer] Jump: Complete, isPlaying:', isPlaying.value)
 
   return true
 }
