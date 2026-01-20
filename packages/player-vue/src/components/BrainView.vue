@@ -280,29 +280,23 @@ function updateVisibility(count: number) {
 /**
  * Handle node tap from ConstellationNetworkView
  */
-function handleNodeTap(node: ConstellationNode) {
+async function handleNodeTap(node: ConstellationNode) {
   selectedNode.value = node
   isPanelOpen.value = true
-
-  // Load eternal phrases for this LEGO (5 longest by duration)
-  // Pass targetText as fallback for substring matching if ID lookup fails
-  selectedNodePhrases.value = getEternalPhrasesForLego(node.id, node.targetText)
   currentPhraseIndex.value = 0
   isPracticingPhrases.value = false
   currentPracticingPhrase.value = null
 
+  // Clear previous phrases while loading new ones
+  selectedNodePhrases.value = []
+
   // Load connection data (what precedes/follows this LEGO)
   selectedNodeConnections.value = getLegoConnections(node.id)
 
-  // Debug: show what IDs are available in phrasesByLego vs the clicked node
-  const phrasesByLegoKeys = networkData.value?.phrasesByLego
-    ? [...networkData.value.phrasesByLego.keys()].slice(0, 10)
-    : []
-  console.log('[BrainView] Selected node:', node.id, 'phrases:', selectedNodePhrases.value.length)
-  console.log('[BrainView] phrasesByLego has', networkData.value?.phrasesByLego?.size || 0, 'entries')
-  console.log('[BrainView] Sample phrasesByLego keys:', phrasesByLegoKeys)
-  console.log('[BrainView] Is node.id in phrasesByLego?', networkData.value?.phrasesByLego?.has(node.id))
-  console.log('[BrainView] connections:', selectedNodeConnections.value)
+  // Load phrases on-demand (async database query)
+  console.log('[BrainView] Loading phrases for:', node.targetText)
+  selectedNodePhrases.value = await getEternalPhrasesForLego(node.id, node.targetText)
+  console.log('[BrainView] Found', selectedNodePhrases.value.length, 'phrases')
 }
 
 /**
