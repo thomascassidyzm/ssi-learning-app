@@ -52,6 +52,13 @@ const props = defineProps({
   autoStart: {
     type: Boolean,
     default: true
+  },
+  // Whether the player is currently visible/selected
+  // When false, prevents any audio from playing until explicitly navigated to
+  // Used with v-show to prevent autoplay when player stays mounted but hidden
+  isVisible: {
+    type: Boolean,
+    default: true
   }
 })
 
@@ -3609,6 +3616,7 @@ const handleSkipToBeltFromModal = async (belt) => {
 
 // Mode toggles
 const turboActive = ref(false)
+const turboPopupShownThisSession = ref(false)
 const showListeningOverlay = ref(false) // Show listening mode overlay
 
 // Mode explanation popups
@@ -3784,13 +3792,16 @@ const handleCloseListening = () => {
   // Don't auto-resume - user will tap to play when ready
 }
 
-// Show turbo explanation popup (first time) or toggle if already enabled
+// Show turbo explanation popup (first time in session) or toggle directly
 const handleTurboClick = () => {
   if (turboActive.value) {
     // Already on - just toggle off
     toggleTurbo()
+  } else if (turboPopupShownThisSession.value) {
+    // Popup already shown this session - just toggle on directly
+    toggleTurbo()
   } else {
-    // Show explanation popup first
+    // First time this session - show explanation popup
     showTurboPopup.value = true
   }
 }
@@ -3798,6 +3809,7 @@ const handleTurboClick = () => {
 // Confirm and enable turbo mode
 const confirmTurbo = () => {
   showTurboPopup.value = false
+  turboPopupShownThisSession.value = true  // Don't show popup again this session
   turboActive.value = true
   applyTurboConfig()
 }
@@ -3805,6 +3817,7 @@ const confirmTurbo = () => {
 // Close turbo popup without enabling
 const closeTurboPopup = () => {
   showTurboPopup.value = false
+  turboPopupShownThisSession.value = true  // They've seen it, don't show again
 }
 
 // Apply turbo config to orchestrator
@@ -4974,7 +4987,8 @@ onMounted(async () => {
 
   // Auto-start if prop is true (default), otherwise wait for user to click play
   // The user gesture from tapping the play button carries through for audio
-  if (props.autoStart) {
+  // IMPORTANT: Only start audio if player is actually visible (prevents autoplay when v-show hidden)
+  if (props.autoStart && props.isVisible) {
     // Small delay to ensure orchestrator is ready
     setTimeout(() => {
       handleResume()
@@ -4983,7 +4997,8 @@ onMounted(async () => {
     isPlaying.value = false
 
     // Even without auto-start, play welcome audio if this is a fresh start
-    if (currentRoundIndex.value === 0 && !welcomeChecked.value) {
+    // But only if player is visible - don't play audio when hidden
+    if (props.isVisible && currentRoundIndex.value === 0 && !welcomeChecked.value) {
       setTimeout(async () => {
         await playWelcomeIfNeeded()
       }, 100)
@@ -5017,6 +5032,34 @@ onUnmounted(() => {
   // Clear belt loader
   if (beltLoader.value) {
     beltLoader.value.clearCache()
+  }
+})
+
+// ============================================
+// VISIBILITY CHANGE DETECTION
+// When player becomes visible after being hidden (v-show), trigger deferred auto-start
+// This ensures audio only plays when user explicitly navigates to the player screen
+// ============================================
+let hasTriggeredAutoStart = false // Track if we've already auto-started this session
+
+watch(() => props.isVisible, (isNowVisible, wasVisible) => {
+  // Only trigger when transitioning from hidden to visible
+  if (isNowVisible && !wasVisible && !hasTriggeredAutoStart) {
+    console.log('[LearningPlayer] Player became visible, checking for deferred auto-start')
+
+    // Only auto-start if the prop is enabled and we haven't already started
+    if (props.autoStart && !isPlaying.value) {
+      hasTriggeredAutoStart = true
+      setTimeout(() => {
+        handleResume()
+      }, 100)
+    } else if (!props.autoStart && currentRoundIndex.value === 0 && !welcomeChecked.value) {
+      // Play welcome audio if needed (deferred from mount)
+      hasTriggeredAutoStart = true
+      setTimeout(async () => {
+        await playWelcomeIfNeeded()
+      }, 100)
+    }
   }
 })
 
@@ -5158,6 +5201,8 @@ defineExpose({
 </script>
 
 <template>
+  <!-- Single root wrapper - required for v-show from parent to work correctly -->
+  <div class="learning-player-root">
 
   <!-- Paused Summary Overlay -->
   <Transition name="session-complete">
@@ -5477,6 +5522,7 @@ defineExpose({
           <h3 class="mode-popup-title">Turbo Mode</h3>
           <p class="mode-popup-desc">
             Turbo mode reduces the pause time between phrases, giving you less thinking time.
+            It also gives you fewer repetitions.
             It's great for building fluency once you're comfortable with the material.
           </p>
           <div class="mode-popup-actions">
@@ -5727,6 +5773,7 @@ defineExpose({
     </footer>
 
   </div>
+  </div><!-- /.learning-player-root -->
 </template>
 
 <style scoped>
@@ -5736,6 +5783,16 @@ defineExpose({
    ============================================ */
 
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500&family=Space+Mono:wght@400;700&family=Noto+Serif+SC:wght@600&family=Noto+Serif:wght@500&display=swap');
+
+/* Root wrapper - enables v-show to work correctly from parent component */
+/* When parent uses v-show="currentScreen === 'player'", this div receives display:none */
+/* which properly hides all fixed-position children (space-gradient, overlays, etc.) */
+.learning-player-root {
+  /* Fill viewport so fixed children display correctly when visible */
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
 
 .player {
   /* ============ LAYOUT SYSTEM - CSS Custom Properties ============ */
