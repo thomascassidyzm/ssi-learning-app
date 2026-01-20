@@ -5020,6 +5020,115 @@ onUnmounted(() => {
   }
 })
 
+// ============================================
+// COURSE CHANGE DETECTION
+// Since we use v-show (not v-if) to preserve state when navigating to BrainView,
+// we need to detect course changes and reinitialize everything
+// ============================================
+let previousCourseCode = ''
+
+watch(courseCode, async (newCourseCode, oldCourseCode) => {
+  // Skip if this is the initial mount (no previous course)
+  if (!oldCourseCode || !newCourseCode || newCourseCode === oldCourseCode) {
+    previousCourseCode = newCourseCode
+    return
+  }
+
+  console.log(`[LearningPlayer] COURSE CHANGED: ${oldCourseCode} → ${newCourseCode}`)
+
+  // 1. Stop all audio immediately
+  handlePause()
+  if (isPlayingIntroduction.value) skipIntroduction()
+  if (isPlayingWelcome.value) skipWelcome()
+  if (orchestrator.value) {
+    orchestrator.value.stop()
+  }
+
+  // 2. Reset all state
+  currentRoundIndex.value = 0
+  currentItemInRound.value = 0
+  sessionItems.value = []
+  cachedRounds.value = []
+  cachedCourseWelcome.value = null
+  completedSeeds.value = 0
+  totalSeedsPlayed.value = 0
+  sessionSeconds.value = 0
+  welcomeChecked.value = false
+  isInitialized.value = false
+
+  // 3. Clear in-memory audio map (each course has different audio)
+  audioMap.value.clear()
+  currentCourseCode.value = newCourseCode
+
+  // 4. Clear network state
+  networkConnections.value = []
+  prebuiltNetwork.clear()
+
+  // 5. Reset UI state
+  setLoadingStage('awakening')
+
+  // 6. Small delay then reinitialize (let Vue update, then reload data)
+  await nextTick()
+
+  console.log('[LearningPlayer] Reinitializing for new course...')
+
+  // Load cached script for new course
+  let cachedScript = await getCachedScript(newCourseCode)
+
+  if (cachedScript) {
+    console.log('[LearningPlayer] Found cached script for new course:', cachedScript.rounds.length, 'rounds')
+    cachedRounds.value = cachedScript.rounds
+
+    if (cachedScript.courseWelcome) {
+      cachedCourseWelcome.value = cachedScript.courseWelcome
+    }
+
+    if (cachedScript.audioMapObj) {
+      for (const [key, value] of Object.entries(cachedScript.audioMapObj)) {
+        audioMap.value.set(key, value)
+      }
+    }
+  }
+
+  // Load network connections for new course
+  if (supabase?.value) {
+    try {
+      const networkData = await loadLegoNetworkData(newCourseCode)
+      if (networkData?.connections) {
+        networkConnections.value = networkData.connections
+      }
+    } catch (err) {
+      console.warn('[LearningPlayer] Failed to load network connections for new course:', err)
+    }
+  }
+
+  // Generate initial rounds if no cache
+  if (cachedRounds.value.length === 0 && courseDataProvider.value) {
+    const { rounds, allItems } = await generateLearningScript(
+      courseDataProvider.value,
+      10, // Initial chunk
+      0
+    )
+    cachedRounds.value = rounds
+    sessionItems.value = allItems
+  } else if (cachedRounds.value.length > 0) {
+    // Flatten cached rounds into session items
+    sessionItems.value = cachedRounds.value.flatMap(r => r.items || [])
+  }
+
+  // Initialize orchestrator with new items
+  if (sessionItems.value.length > 0) {
+    await initOrchestrator()
+  }
+
+  // Mark as ready
+  setLoadingStage('ready')
+  isInitialized.value = true
+
+  previousCourseCode = newCourseCode
+  console.log('[LearningPlayer] Course change complete, ready to play')
+}, { immediate: false })
+
 // Expose methods for parent component (PlayerContainer) to control playback
 const togglePlayback = () => {
   if (isPlaying.value) {
