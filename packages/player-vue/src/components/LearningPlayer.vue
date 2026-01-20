@@ -5343,39 +5343,40 @@ defineExpose({
 
 /* ═══════════════════════════════════════════════════════════════
    MIST THEME - Background overrides
-   Soft foggy atmosphere instead of deep space
+   Softer, warmer dark mode - slate grey instead of deep black
+   Still space aesthetic, just not as stark
    ═══════════════════════════════════════════════════════════════ */
 :root[data-theme="mist"] .space-gradient {
   background:
-    radial-gradient(ellipse 120% 80% at 20% 10%, rgba(200, 210, 230, 0.4) 0%, transparent 50%),
-    radial-gradient(ellipse 100% 60% at 80% 90%, rgba(190, 200, 220, 0.3) 0%, transparent 40%),
-    radial-gradient(ellipse 80% 80% at 50% 50%, rgba(228, 231, 237, 1) 0%, #d8dce4 100%);
+    radial-gradient(ellipse 120% 80% at 20% 10%, rgba(60, 70, 100, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 60% at 80% 90%, rgba(50, 60, 90, 0.12) 0%, transparent 40%),
+    radial-gradient(ellipse 80% 80% at 50% 50%, rgba(28, 28, 36, 1) 0%, #1c1c24 100%);
 }
 
 :root[data-theme="mist"] .space-nebula {
   background:
-    radial-gradient(ellipse 60% 40% at 30% 30%, rgba(160, 170, 190, 0.08) 0%, transparent 50%),
-    radial-gradient(ellipse 50% 30% at 70% 60%, rgba(150, 160, 180, 0.06) 0%, transparent 40%);
+    radial-gradient(ellipse 60% 40% at 30% 30%, rgba(80, 90, 120, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 30% at 70% 60%, rgba(70, 80, 110, 0.04) 0%, transparent 40%);
 }
 
 :root[data-theme="mist"] .bg-noise {
-  opacity: 0.02;
+  opacity: 0.015;
 }
 
-/* Hide stars in mist mode - they don't fit the foggy aesthetic */
+/* Softer stars in mist mode */
 :root[data-theme="mist"] .star-field,
 :root[data-theme="mist"] .drift-stars {
-  display: none;
+  opacity: 0.6;
 }
 
 :root[data-theme="mist"] .nebula-glow {
   background:
     linear-gradient(
       to top,
-      rgba(184, 50, 50, 0.06) 0%,
+      rgba(208, 64, 64, 0.08) 0%,
       transparent 20%
     );
-  opacity: 0.4;
+  opacity: 0.5;
 }
 
 /* ============ BRAIN NETWORK VISUALIZATION ============ */
