@@ -5036,22 +5036,6 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
 
   console.log(`[LearningPlayer] COURSE CHANGED: ${oldCourseCode} → ${newCourseCode}`)
 
-  // Wait for courseDataProvider to be updated for the new course
-  // (App.vue updates it when course changes, but there may be a timing gap)
-  let waitAttempts = 0
-  const maxWaitAttempts = 20 // 2 seconds max
-  while (courseDataProvider.value?.getCourseId?.() !== newCourseCode && waitAttempts < maxWaitAttempts) {
-    console.log(`[LearningPlayer] Waiting for courseDataProvider to update... (attempt ${waitAttempts + 1})`)
-    await new Promise(resolve => setTimeout(resolve, 100))
-    waitAttempts++
-  }
-
-  if (courseDataProvider.value?.getCourseId?.() !== newCourseCode) {
-    console.warn(`[LearningPlayer] courseDataProvider didn't update to ${newCourseCode}, proceeding anyway`)
-  } else {
-    console.log(`[LearningPlayer] courseDataProvider confirmed for ${newCourseCode}`)
-  }
-
   // 1. Stop all audio immediately
   handlePause()
   if (isPlayingIntroduction.value) skipIntroduction()
@@ -5083,10 +5067,17 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
   // 5. Reset UI state
   setLoadingStage('awakening')
 
-  // 6. Small delay then reinitialize (let Vue update, then reload data)
+  // 6. Longer delay to let Vue propagate all reactive changes (courseDataProvider, etc.)
   await nextTick()
+  await new Promise(resolve => setTimeout(resolve, 300))
 
   console.log('[LearningPlayer] Reinitializing for new course...')
+
+  // Verify courseDataProvider is for the new course before using it
+  const providerCourseId = courseDataProvider.value?.getCourseId?.()
+  if (providerCourseId && providerCourseId !== newCourseCode) {
+    console.warn(`[LearningPlayer] courseDataProvider mismatch: ${providerCourseId} vs ${newCourseCode}, skipping script generation`)
+  }
 
   // Load cached script for new course
   let cachedScript = await getCachedScript(newCourseCode)
@@ -5118,8 +5109,10 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
     }
   }
 
-  // Generate initial rounds if no cache
-  if (cachedRounds.value.length === 0 && courseDataProvider.value) {
+  // Generate initial rounds if no cache - but ONLY if courseDataProvider matches
+  const currentProviderCourseId = courseDataProvider.value?.getCourseId?.()
+  if (cachedRounds.value.length === 0 && courseDataProvider.value && currentProviderCourseId === newCourseCode) {
+    console.log('[LearningPlayer] No cache, generating fresh script for', newCourseCode)
     const { rounds, allItems } = await generateLearningScript(
       courseDataProvider.value,
       10, // Initial chunk
@@ -5130,6 +5123,8 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
   } else if (cachedRounds.value.length > 0) {
     // Flatten cached rounds into session items
     sessionItems.value = cachedRounds.value.flatMap(r => r.items || [])
+  } else {
+    console.warn('[LearningPlayer] No cache and courseDataProvider mismatch - player may need refresh')
   }
 
   // Initialize orchestrator with new items
