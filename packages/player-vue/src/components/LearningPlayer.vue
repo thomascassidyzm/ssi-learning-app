@@ -4398,17 +4398,8 @@ onMounted(async () => {
       // Load cache first (needed for other operations)
       cachedScript = await getCachedScript(courseCode.value)
 
-      // Validate cached script offset matches current belt progress
-      // If offset changed (completedSeeds changed since script was cached), invalidate
-      const currentOffset = beltProgress.value?.completedSeeds.value ?? 0
-      if (cachedScript && (cachedScript.scriptOffset ?? 0) !== currentOffset) {
-        console.log('[LearningPlayer] Belt progress changed (cached offset:', cachedScript.scriptOffset, '→ current:', currentOffset, '), invalidating cache')
-        cachedScript = null
-      }
-
       if (cachedScript) {
-        console.log('[LearningPlayer] Found cached script with', cachedScript.rounds.length, 'rounds at offset', cachedScript.scriptOffset ?? 0)
-        scriptBaseOffset.value = cachedScript.scriptOffset ?? 0 // Restore base offset from cache
+        console.log('[LearningPlayer] Found cached script with', cachedScript.rounds.length, 'rounds')
         // Debug: show items per round for first few rounds
         cachedScript.rounds.slice(0, 3).forEach((r, i) => {
           console.log(`[LearningPlayer] Cached Round ${i} has ${r.items?.length} items:`, r.items?.map(it => it.type).join(', '))
