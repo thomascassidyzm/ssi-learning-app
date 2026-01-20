@@ -1130,6 +1130,44 @@ const currentPhase = ref(Phase.PROMPT)
 const currentItemIndex = ref(0)
 const isPlaying = ref(false) // Start paused until engine ready
 const isSkipInProgress = ref(false) // Flag to prevent cycle_stopped from resetting isPlaying during skip
+const isPreparingToPlay = ref(false) // True when play pressed but audio hasn't started yet
+const preparingMessage = ref('') // Current "preparing" message being displayed
+
+// Messages shown while preparing to play (after pressing play button)
+const PREPARING_MESSAGES = [
+  'firing up the neurons...',
+  'getting your phrases ready...',
+  'connecting the pathways...',
+  'tuning into your frequency...',
+  'warming up the synapses...',
+]
+
+// Start the "preparing to play" state with typewriter effect
+let preparingTypewriterTimeout: ReturnType<typeof setTimeout> | null = null
+const startPreparingState = () => {
+  isPreparingToPlay.value = true
+  const message = PREPARING_MESSAGES[Math.floor(Math.random() * PREPARING_MESSAGES.length)]
+  preparingMessage.value = ''
+
+  let charIndex = 0
+  const typeChar = () => {
+    if (charIndex < message.length && isPreparingToPlay.value) {
+      preparingMessage.value += message[charIndex]
+      charIndex++
+      preparingTypewriterTimeout = setTimeout(typeChar, 35)
+    }
+  }
+  typeChar()
+}
+
+const clearPreparingState = () => {
+  isPreparingToPlay.value = false
+  preparingMessage.value = ''
+  if (preparingTypewriterTimeout) {
+    clearTimeout(preparingTypewriterTimeout)
+    preparingTypewriterTimeout = null
+  }
+}
 
 // Emit play state changes to parent (for nav bar play/stop toggle)
 watch(isPlaying, (playing) => {
@@ -1860,6 +1898,8 @@ const handleCycleEvent = (event) => {
       // Handle phase-specific logic
       switch (event.phase) {
         case CyclePhase.PROMPT:
+          // Clear "preparing to play" message - audio is now playing
+          clearPreparingState()
           // Clear transition flag - new cycle has started, safe to show text again
           isTransitioningItem.value = false
           // Timing analysis: end previous cycle, start new one
@@ -2670,6 +2710,12 @@ const skipIntroduction = () => {
 }
 
 const startPlayback = async () => {
+  // Show "preparing to play" message on cold start (first ever play)
+  const isColdStart = !hasEverStarted.value
+  if (isColdStart) {
+    startPreparingState()
+  }
+
   hasEverStarted.value = true
   isPlaying.value = true
 
@@ -4760,6 +4806,9 @@ defineExpose({
               <p v-if="isAwakening" class="hero-known loading-text">
                 {{ currentLoadingMessage }}<span class="loading-cursor">▌</span>
               </p>
+              <p v-else-if="isPreparingToPlay" class="hero-known loading-text preparing-text">
+                {{ preparingMessage }}<span class="loading-cursor">▌</span>
+              </p>
               <p v-else class="hero-known">
                 {{ displayedKnownText }}
               </p>
@@ -5022,6 +5071,9 @@ defineExpose({
         <div class="pane-text-known">
           <p v-if="isAwakening" class="known-text loading-text">
             {{ currentLoadingMessage }}<span class="loading-cursor">▌</span>
+          </p>
+          <p v-else-if="isPreparingToPlay" class="known-text loading-text preparing-text">
+            {{ preparingMessage }}<span class="loading-cursor">▌</span>
           </p>
           <p v-else class="known-text">
             {{ displayedKnownText }}
