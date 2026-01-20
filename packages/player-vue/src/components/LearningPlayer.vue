@@ -25,6 +25,7 @@ import { generateLearningScript } from '../providers/CourseDataProvider'
 import { usePrebuiltNetworkIntegration } from '../composables/usePrebuiltNetworkIntegration'
 import { useLegoNetwork } from '../composables/useLegoNetwork'
 import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
+import { useAuthModal } from '../composables/useAuthModal'
 import ConstellationNetworkView from './ConstellationNetworkView.vue'
 import BeltProgressModal from './BeltProgressModal.vue'
 import ListeningOverlay from './ListeningOverlay.vue'
@@ -181,6 +182,9 @@ const {
   calculatePause,
   isLoaded: algorithmConfigLoaded
 } = useAlgorithmConfig(supabase)
+
+// Auth modal for sign-in/sign-up prompts
+const { openSignIn, openSignUp: openCreateAccount } = useAuthModal()
 
 // Network data from database (for edge connections - like brain view)
 const { loadNetworkData: loadLegoNetworkData } = useLegoNetwork(supabase)
@@ -5553,6 +5557,32 @@ defineExpose({
         <span class="session-points-value">{{ sessionPoints }}</span>
         <span class="session-points-label">pts</span>
       </div>
+
+      <!-- Progress Warning Overlay - shown for guest users -->
+      <div v-if="isGuestLearner" class="progress-warning-overlay">
+        <div class="progress-warning-content">
+          <div class="progress-warning-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </div>
+          <h3 class="progress-warning-title">Your progress is fragile</h3>
+          <p class="progress-warning-text">
+            Everything you learn lives only in this browser. Clear your data, switch devices, or lose your phone — and it's gone forever.
+          </p>
+          <p class="progress-warning-cta">Sign in to make your journey permanent.</p>
+          <div class="progress-warning-actions">
+            <button class="progress-warning-btn progress-warning-btn--primary" @click="openSignIn">
+              Sign In
+            </button>
+            <button class="progress-warning-btn progress-warning-btn--secondary" @click="openCreateAccount">
+              Create Account
+            </button>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- CONTROL PANE - Minimal text display, tap to play/pause -->
@@ -6591,6 +6621,132 @@ defineExpose({
   bottom: 0; /* FULLSCREEN - extends to bottom */
   z-index: 5;
   pointer-events: none; /* Let events pass through to network below */
+}
+
+/* Progress Warning Overlay - Shown for guest users */
+.progress-warning-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(10, 10, 20, 0.92) 0%,
+    rgba(5, 5, 12, 0.96) 100%
+  );
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 10;
+  pointer-events: auto;
+}
+
+.progress-warning-content {
+  max-width: 380px;
+  text-align: center;
+  animation: warningFadeIn 0.5s ease-out;
+}
+
+@keyframes warningFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.progress-warning-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 20px;
+  color: #e8a87c;
+  opacity: 0.9;
+}
+
+.progress-warning-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.progress-warning-title {
+  font-family: var(--font-display, 'DM Sans', sans-serif);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+  margin: 0 0 16px 0;
+  letter-spacing: -0.01em;
+}
+
+.progress-warning-text {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0 0 12px 0;
+}
+
+.progress-warning-cta {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #e8a87c;
+  margin: 0 0 28px 0;
+  font-weight: 500;
+}
+
+.progress-warning-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.progress-warning-btn {
+  display: block;
+  width: 100%;
+  padding: 14px 24px;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.progress-warning-btn--primary {
+  background: linear-gradient(135deg, #e8a87c 0%, #d4896b 100%);
+  color: #1a1a2e;
+  box-shadow: 0 4px 16px rgba(232, 168, 124, 0.25);
+}
+
+.progress-warning-btn--primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(232, 168, 124, 0.35);
+}
+
+.progress-warning-btn--primary:active {
+  transform: translateY(0);
+}
+
+.progress-warning-btn--secondary {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.progress-warning-btn--secondary:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.progress-warning-btn--secondary:active {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 /* Layout Mode Toggle Button */
