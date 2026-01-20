@@ -2955,6 +2955,13 @@ const startPlayback = async () => {
  * IMPORTANT: Must fully halt all audio before advancing
  */
 const handleSkip = async () => {
+  // CRITICAL: Guard against concurrent skips - if already skipping, abort any playing intro and return
+  if (isSkipInProgress.value) {
+    console.log('[LearningPlayer] Skip already in progress - aborting current intro and returning')
+    skipIntroduction() // Nuclear abort any playing intro
+    return
+  }
+
   console.log('[LearningPlayer] ========== SKIP REQUESTED ==========')
 
   // Mark that we're in a skip operation (prevents cycle_stopped from resetting isPlaying)
@@ -3061,6 +3068,14 @@ const handleSkip = async () => {
         const introPlayed = await playIntroductionAudioDirectly(firstItem)
         console.log('[LearningPlayer] Skip → intro played:', introPlayed)
 
+        // CRITICAL: If intro was aborted (another skip happened), bail out completely
+        // The other skip is now in control - don't interfere
+        if (!introPlayed) {
+          console.log('[LearningPlayer] Skip → intro was aborted, bailing out')
+          isSkipInProgress.value = false
+          return
+        }
+
         // CRITICAL: Ensure complete audio silence before starting next item
         // This prevents any stale audio fragments from contaminating the new playback
         if (audioController.value) {
@@ -3115,6 +3130,13 @@ const handleSkip = async () => {
  * IMPORTANT: Must fully halt all audio before navigating
  */
 const handleRevisit = async () => {
+  // Guard against concurrent operations
+  if (isSkipInProgress.value) {
+    console.log('[LearningPlayer] Skip/revisit already in progress - aborting intro and returning')
+    skipIntroduction()
+    return
+  }
+
   console.log('[LearningPlayer] ========== REVISIT REQUESTED ==========')
 
   // Mark that we're in a skip operation (prevents cycle_stopped from resetting isPlaying)
@@ -3204,6 +3226,13 @@ const handleRevisit = async () => {
         const introPlayed = await playIntroductionAudioDirectly(firstItem)
         console.log('[LearningPlayer] Revisit → intro played:', introPlayed)
 
+        // CRITICAL: If intro was aborted, bail out
+        if (!introPlayed) {
+          console.log('[LearningPlayer] Revisit → intro was aborted, bailing out')
+          isSkipInProgress.value = false
+          return
+        }
+
         // CRITICAL: Ensure complete audio silence before starting next item
         if (audioController.value) {
           audioController.value.stop()
@@ -3261,6 +3290,13 @@ const jumpToRound = async (roundIndex) => {
 
   if (roundIndex < 0 || roundIndex >= cachedRounds.value.length) {
     console.log('[LearningPlayer] Invalid round index:', roundIndex)
+    return false
+  }
+
+  // Guard against concurrent operations
+  if (isSkipInProgress.value) {
+    console.log('[LearningPlayer] Skip/jump already in progress - aborting intro and returning')
+    skipIntroduction()
     return false
   }
 
@@ -3347,6 +3383,13 @@ const jumpToRound = async (roundIndex) => {
       console.log('[LearningPlayer] Jump → Playing INTRO for:', firstItem.legoId)
       const introPlayed = await playIntroductionAudioDirectly(firstItem)
       console.log('[LearningPlayer] Jump → intro played:', introPlayed)
+
+      // CRITICAL: If intro was aborted, bail out
+      if (!introPlayed) {
+        console.log('[LearningPlayer] Jump → intro was aborted, bailing out')
+        isSkipInProgress.value = false
+        return false
+      }
 
       // CRITICAL: Ensure complete audio silence before starting next item
       if (audioController.value) {
