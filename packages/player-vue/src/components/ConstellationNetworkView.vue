@@ -715,11 +715,10 @@ defineExpose({
           </feMerge>
         </filter>
 
-        <!-- Traveling pulse glow -->
+        <!-- Traveling pulse glow (subtle) -->
         <filter id="pulse-glow" x="-100%" y="-100%" width="300%" height="300%">
-          <feGaussianBlur stdDeviation="4" result="blur" />
+          <feGaussianBlur stdDeviation="2" result="blur" />
           <feMerge>
-            <feMergeNode in="blur" />
             <feMergeNode in="blur" />
             <feMergeNode in="SourceGraphic" />
           </feMerge>
@@ -772,8 +771,9 @@ defineExpose({
             v-for="pulse in travelingPulses"
             :key="pulse.id"
             class="traveling-pulse"
-            r="8"
-            fill="#fbbf24"
+            r="3"
+            fill="#d4a853"
+            opacity="0.7"
             filter="url(#pulse-glow)"
           >
             <!-- Animate the pulse along the edge path -->
@@ -788,7 +788,7 @@ defineExpose({
             <animate
               attributeName="opacity"
               :dur="`${pulse.duration}ms`"
-              values="1;1;0"
+              values="0.7;0.7;0"
               keyTimes="0;0.7;1"
               fill="freeze"
             />
@@ -796,7 +796,7 @@ defineExpose({
             <animate
               attributeName="r"
               :dur="`${pulse.duration}ms`"
-              values="6;8;12"
+              values="3;4;6"
               keyTimes="0;0.7;1"
               fill="freeze"
             />
