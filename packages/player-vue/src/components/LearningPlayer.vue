@@ -5570,9 +5570,9 @@ defineExpose({
           </div>
           <h3 class="progress-warning-title">Your progress is fragile</h3>
           <p class="progress-warning-text">
-            Everything you learn lives only in this browser. Clear your data, switch devices, or lose your phone — and it's gone forever.
+            Create an account or sign-in to store your progress in our database.
           </p>
-          <p class="progress-warning-cta">Sign in to make your journey permanent.</p>
+          <p class="progress-warning-cta">Sign-in to save your progress.</p>
           <div class="progress-warning-actions">
             <button class="progress-warning-btn progress-warning-btn--primary" @click="openSignIn">
               Sign In
