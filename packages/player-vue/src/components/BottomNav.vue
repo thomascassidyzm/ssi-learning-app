@@ -15,10 +15,15 @@ const props = defineProps({
   isPlaying: {
     type: Boolean,
     default: false
+  },
+  // When on listening screen, show play/stop based on this
+  isListeningPlaying: {
+    type: Boolean,
+    default: false
   }
 })
 
-const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback'])
+const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'toggleListeningPlayback'])
 
 // Auth state from injected auth provider
 const auth = inject('auth', null)
@@ -69,6 +74,9 @@ const handleNavTap = (itemId) => {
 // Check if we're on the player screen
 const isOnPlayerScreen = computed(() => props.currentScreen === 'player')
 
+// Check if we're on the listening screen
+const isOnListeningScreen = computed(() => props.currentScreen === 'listening')
+
 // Handle play button - either start learning or toggle playback
 const handlePlayTap = () => {
   playButtonPressed.value = true
@@ -78,7 +86,10 @@ const handlePlayTap = () => {
     navigator.vibrate([10, 50, 10])
   }
 
-  if (isOnPlayerScreen.value) {
+  if (isOnListeningScreen.value) {
+    // On listening screen - toggle listening playback
+    emit('toggleListeningPlayback')
+  } else if (isOnPlayerScreen.value) {
     // On player screen - toggle play/pause
     emit('togglePlayback')
   } else {
@@ -89,6 +100,9 @@ const handlePlayTap = () => {
 
 // Button label and icon based on state
 const playButtonLabel = computed(() => {
+  if (isOnListeningScreen.value) {
+    return props.isListeningPlaying ? 'Stop' : 'Play'
+  }
   if (isOnPlayerScreen.value) {
     return props.isPlaying ? 'Stop' : 'Play'
   }
@@ -161,13 +175,18 @@ const isVisible = computed(() => !props.isLearning)
         <div class="play-button-container">
           <button
             class="play-button"
-            :class="{ pressed: playButtonPressed, 'is-playing': isOnPlayerScreen && isPlaying }"
+            :class="{
+              pressed: playButtonPressed,
+              'is-playing': isOnPlayerScreen && isPlaying,
+              'is-listening-mode': isOnListeningScreen,
+              'is-listening-playing': isOnListeningScreen && isListeningPlaying
+            }"
             @click="handlePlayTap"
           >
             <div class="play-button-glow"></div>
             <div class="play-button-inner">
-              <!-- Stop icon when playing on player screen -->
-              <svg v-if="isOnPlayerScreen && isPlaying" viewBox="0 0 24 24" fill="currentColor">
+              <!-- Stop icon when playing -->
+              <svg v-if="(isOnPlayerScreen && isPlaying) || (isOnListeningScreen && isListeningPlaying)" viewBox="0 0 24 24" fill="currentColor">
                 <rect x="6" y="6" width="12" height="12" rx="1"/>
               </svg>
               <!-- Play icon otherwise -->
@@ -499,8 +518,40 @@ const isVisible = computed(() => !props.isLearning)
 }
 
 /* Stop icon doesn't need the optical centering offset */
-.play-button.is-playing .play-button-inner svg {
+.play-button.is-playing .play-button-inner svg,
+.play-button.is-listening-playing .play-button-inner svg {
   margin-left: 0;
+}
+
+/* Listening mode - gold play button */
+.play-button.is-listening-mode {
+  background: linear-gradient(145deg, #d4a853 0%, #b8923e 100%);
+  box-shadow:
+    0 4px 16px rgba(212, 168, 83, 0.45),
+    0 8px 24px rgba(212, 168, 83, 0.25),
+    inset 0 1px 1px rgba(255, 255, 255, 0.25),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.15);
+}
+
+.play-button.is-listening-mode:active,
+.play-button.is-listening-mode.pressed {
+  box-shadow:
+    0 2px 8px rgba(212, 168, 83, 0.5),
+    0 4px 12px rgba(212, 168, 83, 0.3),
+    inset 0 1px 1px rgba(255, 255, 255, 0.25),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.15);
+}
+
+.play-button.is-listening-mode .play-button-glow {
+  background: radial-gradient(circle, rgba(212, 168, 83, 0.5) 0%, transparent 70%);
+}
+
+.play-button.is-listening-mode:hover .play-button-glow {
+  opacity: 0.9;
+}
+
+.play-button.is-listening-mode:hover {
+  background: linear-gradient(145deg, #e0b85e 0%, #c9a349 100%);
 }
 
 .play-label {

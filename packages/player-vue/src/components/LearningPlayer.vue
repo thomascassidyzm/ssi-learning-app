@@ -3745,6 +3745,67 @@ const addNetworkNode = (legoId, targetText, knownText, beltColor = 'white') => {
 }
 
 /**
+ * Build LEGO map from cached rounds (not from network nodes)
+ * Used for phrase decomposition when network might be empty
+ */
+const buildLegoMapFromRounds = (): Map<string, { id: string; target: string; known: string }> => {
+  const legoMap = new Map<string, { id: string; target: string; known: string }>()
+
+  cachedRounds.value.forEach(round => {
+    if (round.legoId && round.targetText) {
+      const normalizedTarget = round.targetText.toLowerCase().trim()
+      legoMap.set(normalizedTarget, {
+        id: round.legoId,
+        target: round.targetText,
+        known: round.knownText || round.items?.[0]?.knownText || ''
+      })
+    }
+  })
+
+  return legoMap
+}
+
+/**
+ * Extract LEGO IDs from phrase text using cached rounds as source
+ * (doesn't rely on network nodes being populated)
+ */
+const extractLegoIdsFromText = (text: string, legoMap: Map<string, { id: string; target: string; known: string }>): string[] => {
+  if (!text) return []
+
+  const normalized = text.toLowerCase().trim()
+  const words = normalized.split(/\s+/)
+  const result: string[] = []
+  let i = 0
+
+  while (i < words.length) {
+    let longestMatch: string | null = null
+    let longestLength = 0
+
+    // Try longest phrases first (up to 5 words)
+    for (let len = Math.min(words.length - i, 5); len > 0; len--) {
+      const candidate = words.slice(i, i + len).join(' ')
+      const legoData = legoMap.get(candidate)
+      if (legoData) {
+        longestMatch = legoData.id
+        longestLength = len
+        break
+      }
+    }
+
+    if (longestMatch) {
+      if (!result.includes(longestMatch)) {
+        result.push(longestMatch)
+      }
+      i += longestLength
+    } else {
+      i++ // Skip unmatched word
+    }
+  }
+
+  return result
+}
+
+/**
  * Load minimal constellation for the current round
  * Shows only the hero LEGO and the LEGOs used in its practice phrases
  * Much lighter than the full network - perfect for focused learning
@@ -3764,6 +3825,10 @@ const loadConstellationForRound = (roundIndex: number) => {
   const heroKnown = round.knownText || round.items?.[0]?.knownText || ''
   const heroBelt = currentBelt.value?.name || 'white'
 
+  // Build LEGO map from cached rounds (not from network which might be empty)
+  const legoMap = buildLegoMapFromRounds()
+  console.log(`[LearningPlayer] Built LEGO map from rounds: ${legoMap.size} LEGOs`)
+
   // Extract all LEGOs from this round's practice phrases
   const phraseLegoIds: string[] = []
   const legoDataMap = new Map<string, { target: string; known: string }>()
@@ -3773,30 +3838,28 @@ const loadConstellationForRound = (roundIndex: number) => {
 
   // Process each item in the round to find LEGOs in phrases
   round.items?.forEach(item => {
-    // Try to extract LEGO IDs from this item's phrase
-    const itemLegoIds = extractLegoIdsFromPhrase(item)
-    itemLegoIds.forEach(id => {
-      if (!phraseLegoIds.includes(id)) {
-        phraseLegoIds.push(id)
-      }
-      // Store data for this LEGO if we have it
-      if (!legoDataMap.has(id)) {
-        // Try to find this LEGO's data from other rounds
-        const legoRound = cachedRounds.value.find(r => r.legoId === id)
-        if (legoRound) {
-          legoDataMap.set(id, {
-            target: legoRound.targetText || legoRound.items?.[0]?.targetText || id,
-            known: legoRound.knownText || legoRound.items?.[0]?.knownText || ''
-          })
-        } else {
-          // Fallback - just use the ID
-          legoDataMap.set(id, { target: id, known: '' })
+    const phraseText = item?.phrase?.phrase?.target || item?.targetText || ''
+    if (phraseText) {
+      // Extract LEGOs from this phrase using cached rounds
+      const itemLegoIds = extractLegoIdsFromText(phraseText, legoMap)
+      itemLegoIds.forEach(id => {
+        if (!phraseLegoIds.includes(id)) {
+          phraseLegoIds.push(id)
         }
-      }
-    })
+        // Store data for this LEGO
+        if (!legoDataMap.has(id)) {
+          const legoData = Array.from(legoMap.values()).find(l => l.id === id)
+          if (legoData) {
+            legoDataMap.set(id, { target: legoData.target, known: legoData.known })
+          } else {
+            legoDataMap.set(id, { target: id, known: '' })
+          }
+        }
+      })
+    }
   })
 
-  console.log(`[LearningPlayer] Loading minimal constellation for ${heroId}: ${phraseLegoIds.length} phrase LEGOs`)
+  console.log(`[LearningPlayer] Loading minimal constellation for ${heroId}: ${phraseLegoIds.length} phrase LEGOs`, phraseLegoIds)
 
   // Load the minimal constellation
   loadMinimalConstellation(

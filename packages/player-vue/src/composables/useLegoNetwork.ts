@@ -319,6 +319,11 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
 
         if (allPhrases.length > 0) {
           console.log(`[useLegoNetwork] Fallback: loaded ${allPhrases.length} phrases from course_practice_phrases`)
+        } else {
+          console.error(`[useLegoNetwork] ❌ Fallback ALSO returned 0 phrases!`)
+          console.error(`[useLegoNetwork] The course_practice_phrases table has NO data for course_code="${courseCode}"`)
+          console.error(`[useLegoNetwork] This means the course phrases have not been populated in the database.`)
+          console.error(`[useLegoNetwork] Check: 1) Is the course_code correct? 2) Has the dashboard exported phrases for this course?`)
         }
       }
 

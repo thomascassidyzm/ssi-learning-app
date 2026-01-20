@@ -1,5 +1,5 @@
 <script setup>
-import { ref, provide, onMounted, computed, inject } from 'vue'
+import { ref, provide, onMounted, computed, inject, watch } from 'vue'
 
 // Screen components
 import HomeScreen from '@/components/HomeScreen.vue'
@@ -54,6 +54,10 @@ const isLearning = ref(false)
 // Player state - shared with nav bar for play/stop button
 const isPlaying = ref(false)
 const learningPlayerRef = ref(null)
+
+// Listening mode state - shared with nav bar for play/stop button
+const isListeningPlaying = ref(false)
+const listeningModePlayerRef = ref(null)
 
 // Component refs
 const legoNetworkRef = ref(null)
@@ -116,6 +120,18 @@ const handleTogglePlayback = () => {
 // Handle play state changes from LearningPlayer
 const handlePlayStateChanged = (playing) => {
   isPlaying.value = playing
+}
+
+// Handle listening mode play/stop toggle from nav bar
+const handleToggleListeningPlayback = () => {
+  if (listeningModePlayerRef.value) {
+    listeningModePlayerRef.value.togglePlayback()
+  }
+}
+
+// Handle play state changes from ListeningModePlayer
+const handleListeningPlayStateChanged = (playing) => {
+  isListeningPlaying.value = playing
 }
 
 // Handle view progress from LearningPlayer (belt modal)
@@ -300,6 +316,7 @@ onMounted(() => {
     <Transition name="slide-up" mode="out-in">
       <ListeningModePlayer
         v-if="currentScreen === 'listening'"
+        ref="listeningModePlayerRef"
         :course="activeCourse"
         @close="goHome"
       />
@@ -310,9 +327,11 @@ onMounted(() => {
       :currentScreen="currentScreen"
       :isLearning="isLearning"
       :isPlaying="isPlaying"
+      :isListeningPlaying="isListeningPlaying"
       @navigate="handleNavigation"
       @startLearning="handleStartLearning"
       @togglePlayback="handleTogglePlayback"
+      @toggleListeningPlayback="handleToggleListeningPlayback"
     />
 
     <!-- Build Badge (dev/staging visibility) -->

@@ -74,7 +74,7 @@ class ListeningAudioController {
   }
 }
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'playStateChanged'])
 
 const props = defineProps({
   course: {
@@ -496,6 +496,17 @@ watch(() => props.course?.course_code, () => {
   loadedCount.value = 0
   loadPhrases()
 })
+
+// Emit play state changes to parent
+watch(isPlaying, (newVal) => {
+  emit('playStateChanged', newVal)
+})
+
+// Expose for external control (e.g., BottomNav play button)
+defineExpose({
+  isPlaying,
+  togglePlayback
+})
 </script>
 
 <template>
@@ -575,8 +586,6 @@ watch(() => props.course?.course_code, () => {
           }"
           @click="handlePhraseClick(phrase.displayIndex)"
         >
-          <div class="phrase-known">{{ phrase.knownText }}</div>
-          <div class="phrase-arrow">→</div>
           <div class="phrase-target">{{ phrase.targetText }}</div>
         </div>
       </div>
@@ -634,6 +643,8 @@ watch(() => props.course?.course_code, () => {
   flex-direction: column;
   background: var(--bg-primary);
   font-family: 'DM Sans', -apple-system, sans-serif;
+  /* Account for bottom nav bar */
+  padding-bottom: var(--nav-height-safe, 100px);
 }
 
 /* Header */
@@ -809,12 +820,12 @@ watch(() => props.course?.course_code, () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.75rem;
   width: 100%;
-  padding: 0.75rem 1rem;
+  padding: 0.75rem 1.5rem;
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.3s ease;
+  text-align: center;
 }
 
 .phrase-row.past {
@@ -839,31 +850,12 @@ watch(() => props.course?.course_code, () => {
   background: rgba(255, 255, 255, 0.03);
 }
 
-.phrase-known {
-  font-size: 1rem;
-  color: var(--text-secondary);
-  text-align: right;
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.phrase-arrow {
-  font-size: 0.875rem;
-  color: var(--text-muted);
-  flex-shrink: 0;
-}
-
 .phrase-target {
   font-size: 1.125rem;
   font-weight: 600;
   color: var(--text-primary);
-  text-align: left;
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  text-align: center;
+  line-height: 1.4;
 }
 
 .phrase-row.current .phrase-target {
@@ -965,12 +957,12 @@ watch(() => props.course?.course_code, () => {
 
 /* Responsive */
 @media (max-width: 480px) {
-  .phrase-known, .phrase-target {
-    font-size: 0.875rem;
+  .phrase-target {
+    font-size: 1rem;
   }
 
   .phrase-row.current .phrase-target {
-    font-size: 1rem;
+    font-size: 1.125rem;
   }
 }
 </style>
