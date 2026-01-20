@@ -3762,6 +3762,17 @@ const endTimingCycle = (modelDurationMs) => {
 const handleListeningMode = () => {
   // Stop main player using the proper pause method (handles all audio/animation states)
   handlePause()
+
+  // CRITICAL: Also abort any playing intro/welcome audio (these use separate audio elements)
+  if (isPlayingIntroduction.value) {
+    skipIntroduction()
+    console.log('[LearningPlayer] Listening mode: Intro aborted')
+  }
+  if (isPlayingWelcome.value) {
+    skipWelcome()
+    console.log('[LearningPlayer] Listening mode: Welcome aborted')
+  }
+
   showListeningOverlay.value = true
   emit('listeningModeChanged', true)
 }
