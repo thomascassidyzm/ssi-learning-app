@@ -260,14 +260,16 @@ const searchResults = computed(() => {
 function updateVisibility(count: number) {
   if (!allRounds.value.length) return
 
-  // Reveal nodes up to the slider value
-  prebuiltNetwork.revealedNodeIds.value = new Set()
+  // Build new Set first, then assign to trigger Vue reactivity
+  // (Set mutations like .add() don't trigger reactive updates)
+  const newSet = new Set<string>()
   for (let i = 0; i < count && i < allRounds.value.length; i++) {
     const legoId = allRounds.value[i]?.legoId
     if (legoId) {
-      prebuiltNetwork.revealedNodeIds.value.add(legoId)
+      newSet.add(legoId)
     }
   }
+  prebuiltNetwork.revealedNodeIds.value = newSet  // Triggers reactivity
 
   // NO hero panning - keep centered on network core
   // Clear hero to keep view centered

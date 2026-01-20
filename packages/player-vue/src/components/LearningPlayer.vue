@@ -5789,6 +5789,7 @@ defineExpose({
   justify-content: center;
   gap: clamp(0.5rem, 2vw, 0.75rem);
   width: 100%;
+  margin-top: clamp(0.5rem, 1.5vh, 1rem); /* Space between logo and belt/timer */
 }
 
 /* Belt header skip buttons - circular with belt color border */

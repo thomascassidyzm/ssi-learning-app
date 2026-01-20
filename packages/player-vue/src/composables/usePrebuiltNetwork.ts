@@ -760,7 +760,8 @@ export function usePrebuiltNetwork() {
       return
     }
 
-    revealedNodeIds.value.add(nodeId)
+    // Create new Set to trigger Vue reactivity (Set.add() doesn't trigger reactive updates)
+    revealedNodeIds.value = new Set([...revealedNodeIds.value, nodeId])
 
     if (makeHero) {
       heroNodeId.value = nodeId
@@ -774,12 +775,15 @@ export function usePrebuiltNetwork() {
    * Reveal nodes up to a certain round (for resume)
    */
   function revealUpToRound(roundIndex: number, rounds: RoundData[]): void {
+    // Build new Set to trigger Vue reactivity (Set mutations don't trigger reactive updates)
+    const newSet = new Set(revealedNodeIds.value)
     for (let i = 0; i <= roundIndex && i < rounds.length; i++) {
       const legoId = rounds[i]?.legoId
       if (legoId) {
-        revealedNodeIds.value.add(legoId)
+        newSet.add(legoId)
       }
     }
+    revealedNodeIds.value = newSet  // Assign new Set to trigger reactivity
 
     // Set hero to current round
     const heroId = rounds[roundIndex]?.legoId
