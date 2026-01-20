@@ -1008,6 +1008,95 @@ export function usePrebuiltNetwork() {
     reset()
   }
 
+  /**
+   * Load a minimal constellation for just the current phrase
+   * Much lighter than full network - only shows hero + phrase LEGOs
+   *
+   * @param heroId - The main LEGO being learned
+   * @param heroData - { target, known, belt } for the hero
+   * @param phraseLegoIds - LEGO IDs that appear in the practice phrases
+   * @param legoDataMap - Map of LEGO ID to { target, known } for phrase LEGOs
+   * @param canvasSize - Canvas dimensions
+   */
+  function loadMinimalConstellation(
+    heroId: string,
+    heroData: { target: string; known: string; belt: string },
+    phraseLegoIds: string[],
+    legoDataMap: Map<string, { target: string; known: string }>,
+    canvasSize: { width: number; height: number } = { width: 800, height: 800 }
+  ): void {
+    const center = { x: canvasSize.width / 2, y: canvasSize.height / 2 }
+    const radius = Math.min(canvasSize.width, canvasSize.height) * 0.25  // Smaller radius for minimal view
+
+    // Collect unique LEGOs (hero + phrase LEGOs, deduplicated)
+    const uniqueIds = new Set([heroId, ...phraseLegoIds])
+    const legoList = Array.from(uniqueIds)
+
+    // Create nodes - hero in center, others in a circle around it
+    const newNodes: ConstellationNode[] = []
+    const heroIndex = legoList.indexOf(heroId)
+
+    legoList.forEach((id, i) => {
+      const isHero = id === heroId
+      let x: number, y: number
+
+      if (isHero) {
+        // Hero in center
+        x = center.x
+        y = center.y
+      } else {
+        // Others arranged in a circle
+        const otherIndex = i > heroIndex ? i - 1 : i
+        const totalOthers = legoList.length - 1
+        const angle = (otherIndex / Math.max(totalOthers, 1)) * Math.PI * 2 - Math.PI / 2
+        x = center.x + Math.cos(angle) * radius
+        y = center.y + Math.sin(angle) * radius
+      }
+
+      // Get data for this node
+      const data = id === heroId
+        ? heroData
+        : legoDataMap.get(id) || { target: id, known: '' }
+
+      newNodes.push({
+        id,
+        x,
+        y,
+        targetText: data.target,
+        knownText: data.known || '',
+        belt: isHero ? heroData.belt : 'white',  // Hero has belt color, others are white
+        isComponent: false,
+      })
+    })
+
+    // Create edges between hero and each phrase LEGO
+    const newEdges: ConstellationEdge[] = []
+    phraseLegoIds.forEach(phraseId => {
+      if (phraseId !== heroId) {
+        const edgeId = `${heroId}->${phraseId}`
+        newEdges.push({
+          id: edgeId,
+          source: heroId,
+          target: phraseId,
+          strength: 5,  // Medium strength for visual
+        })
+      }
+    })
+
+    // Set the data
+    nodes.value = newNodes
+    edges.value = newEdges
+    networkCenter.value = center
+    maxBrainRadius.value = radius * 1.5
+
+    // Reveal all nodes and set hero
+    revealedNodeIds.value = new Set(legoList)
+    heroNodeId.value = heroId
+    updatePanOffset()
+
+    console.log(`[PrebuiltNetwork] Loaded minimal constellation: hero=${heroId}, ${newNodes.length} nodes, ${newEdges.length} edges`)
+  }
+
   // ============================================================================
   // EXPORT
   // ============================================================================
@@ -1049,6 +1138,7 @@ export function usePrebuiltNetwork() {
 
     // Initialization
     loadFromRounds,
+    loadMinimalConstellation,
     setCenter,
     updatePanOffset,
 

@@ -460,6 +460,31 @@ export function usePrebuiltNetworkIntegration(
   })
 
   // ============================================================================
+  // MINIMAL CONSTELLATION (for focused phrase view)
+  // ============================================================================
+
+  /**
+   * Load a minimal constellation showing only the current LEGO and its phrase LEGOs
+   * Much lighter than full network - perfect for focused learning view
+   */
+  function loadMinimalConstellation(
+    heroId: string,
+    heroData: { target: string; known: string; belt: string },
+    phraseLegoIds: string[],
+    legoDataMap: Map<string, { target: string; known: string }>
+  ): void {
+    prebuiltNetwork.loadMinimalConstellation(
+      heroId,
+      heroData,
+      phraseLegoIds,
+      legoDataMap,
+      config.canvasSize
+    )
+    isInitialized.value = true
+    console.log(`[PrebuiltNetworkIntegration] Loaded minimal constellation for ${heroId}`)
+  }
+
+  // ============================================================================
   // EXPORT (matching existing API)
   // ============================================================================
 
@@ -497,6 +522,9 @@ export function usePrebuiltNetworkIntegration(
     initializeFullNetwork,
     revealNodesUpToIndex,
     isFullNetworkLoaded,
+
+    // Minimal constellation (for focused phrase view)
+    loadMinimalConstellation,
 
     // Display settings
     showFirePath,
