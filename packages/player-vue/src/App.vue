@@ -343,54 +343,53 @@ onMounted(async () => {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   MIST THEME - Soft slate/twilight dark mode
-   Warmer, softer than cosmos - good for low brightness viewing
-   Still dark with light text, just not as deep black
+   MIST THEME - Bright, clean light mode
+   Light backgrounds with dark text for daytime/bright environment use
    ═══════════════════════════════════════════════════════════════ */
 [data-theme="mist"] {
-  /* Backgrounds - Warm slate grey (not black, not light) */
-  --bg-primary: #1c1c24;
-  --bg-secondary: #242430;
-  --bg-card: rgba(255, 255, 255, 0.04);
-  --bg-elevated: rgba(255, 255, 255, 0.07);
-  --bg-overlay: rgba(0, 0, 0, 0.5);
+  /* Backgrounds - Bright, clean surfaces */
+  --bg-primary: #f5f5f7;
+  --bg-secondary: #ffffff;
+  --bg-card: rgba(255, 255, 255, 0.9);
+  --bg-elevated: rgba(255, 255, 255, 0.95);
+  --bg-overlay: rgba(0, 0, 0, 0.3);
 
-  /* Text - Light on dark (same as cosmos, good contrast) */
-  --text-primary: #f0f0f5;
-  --text-secondary: rgba(240, 240, 245, 0.7);
-  --text-muted: rgba(240, 240, 245, 0.4);
-  --text-inverse: #1c1c24;
+  /* Text - Dark on light for excellent readability */
+  --text-primary: #1a1a1a;
+  --text-secondary: rgba(26, 26, 26, 0.7);
+  --text-muted: rgba(26, 26, 26, 0.45);
+  --text-inverse: #ffffff;
 
-  /* Borders - Subtle light */
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-medium: rgba(255, 255, 255, 0.12);
+  /* Borders - Subtle dark borders on light background */
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --border-medium: rgba(0, 0, 0, 0.15);
 
-  /* Accent colors - slightly warmer red */
-  --accent: #d04040;
-  --accent-light: #e04848;
-  --accent-dark: #c03838;
-  --accent-glow: rgba(208, 64, 64, 0.35);
-  --gold: #e0b058;
-  --gold-glow: rgba(224, 176, 88, 0.35);
+  /* Accent colors - SSi red works well on light */
+  --accent: #c23a3a;
+  --accent-light: #d94545;
+  --accent-dark: #a83232;
+  --accent-glow: rgba(194, 58, 58, 0.2);
+  --gold: #d4a853;
+  --gold-glow: rgba(212, 168, 83, 0.25);
 
-  /* Gradients - Mist mode */
-  --gradient-accent: linear-gradient(145deg, #e04848 0%, #c03838 100%);
-  --glow-accent: 0 4px 16px rgba(208, 64, 64, 0.3);
-  --glow-soft: rgba(120, 120, 160, 0.08);
+  /* Gradients - Light mode */
+  --gradient-accent: linear-gradient(145deg, #d94545 0%, #a83232 100%);
+  --glow-accent: 0 4px 16px rgba(194, 58, 58, 0.2);
+  --glow-soft: rgba(0, 0, 0, 0.04);
 
-  /* Network visualization - Light on dark (like cosmos) */
-  --network-bg: radial-gradient(ellipse at 50% 50%, rgba(100, 100, 140, 0.06) 0%, transparent 50%);
-  --network-node-fill: rgba(255, 255, 255, 0.8);
-  --network-node-stroke: rgba(255, 255, 255, 0.55);
-  --network-edge-stroke: rgba(255, 255, 255, 0.15);
-  --network-active-edge: #60a5fa;
-  --network-label-fill: rgba(255, 255, 255, 0.85);
+  /* Network visualization - Dark on light */
+  --network-bg: radial-gradient(ellipse at 50% 50%, rgba(200, 200, 220, 0.3) 0%, transparent 50%);
+  --network-node-fill: rgba(26, 26, 26, 0.8);
+  --network-node-stroke: rgba(26, 26, 26, 0.5);
+  --network-edge-stroke: rgba(26, 26, 26, 0.15);
+  --network-active-edge: #2563eb;
+  --network-label-fill: rgba(26, 26, 26, 0.85);
 
-  /* Mountain opacity for schools */
-  --mountain-opacity: 0.4;
+  /* Mountain opacity for schools - more visible on light */
+  --mountain-opacity: 0.25;
 
   /* Theme indicator */
-  --theme-mode: dark;
+  --theme-mode: light;
 }
 
 * {

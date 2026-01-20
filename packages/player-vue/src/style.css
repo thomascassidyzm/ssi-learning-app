@@ -41,7 +41,40 @@
   --shadow-glow: 0 0 30px rgba(194, 58, 58, 0.3);
 }
 
-/* Light theme removed - app is dark mode only */
+/* Light Theme (Mist) - Bright, clean surfaces */
+[data-theme="mist"] {
+  /* Background hierarchy - light, airy surfaces */
+  --bg-primary: #f5f5f7;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f9f9f9;
+  --bg-elevated: #f0f0f2;
+  --bg-input: #ffffff;
+
+  /* Text hierarchy - dark text for contrast */
+  --text-primary: #1a1a1a;
+  --text-secondary: #555555;
+  --text-muted: #888888;
+  --text-inverse: #ffffff;
+
+  /* Borders - subtle dark borders */
+  --border-subtle: rgba(0, 0, 0, 0.06);
+  --border-medium: rgba(0, 0, 0, 0.12);
+  --border-strong: rgba(0, 0, 0, 0.2);
+  --border-focus: var(--ssi-red);
+
+  /* Shadows - softer for light theme */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.12);
+  --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.16);
+  --shadow-xl: 0 12px 60px rgba(0, 0, 0, 0.2);
+  --shadow-glow: 0 0 30px rgba(194, 58, 58, 0.15);
+
+  /* Special surfaces */
+  --nav-bg: rgba(255, 255, 255, 0.95);
+  --nav-bg-blur: rgba(255, 255, 255, 0.85);
+  --modal-backdrop: rgba(0, 0, 0, 0.4);
+}
 
 * {
   margin: 0;

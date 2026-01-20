@@ -121,6 +121,22 @@ const sliderMax = computed(() => allRounds.value.length || 100)
 // Admin/Testing mode - show all nodes regardless of progress
 const showAllForTesting = ref(false)
 
+// Admin mode - check URL param (?admin=true) or localStorage
+const isAdmin = computed(() => {
+  if (typeof window === 'undefined') return false
+  try {
+    // Check URL parameter first
+    const urlParams = new URLSearchParams(window.location.search)
+    if (urlParams.get('admin') === 'true') {
+      return true
+    }
+    // Fallback to localStorage
+    return localStorage.getItem('ssi-admin-mode') === 'true'
+  } catch (e) {
+    return false
+  }
+})
+
 // Container ref for sizing
 const containerRef = ref<HTMLElement | null>(null)
 const canvasSize = ref({ width: 800, height: 800 })
@@ -790,7 +806,10 @@ onUnmounted(() => {
 
     <!-- Page title with mounting -->
     <div v-if="languageName" class="brain-title-mount">
-      <h1 class="brain-title" :style="{ color: accentColor }">Your brain on {{ languageName }}</h1>
+      <h1 class="brain-title">
+        <span class="brain-title-prefix">Your brain on</span>
+        <span class="brain-title-language" :style="{ color: accentColor }">{{ languageName }}</span>
+      </h1>
     </div>
 
     <!-- Tab navigation -->
@@ -919,8 +938,8 @@ onUnmounted(() => {
       @node-tap="handleNodeTap"
     />
 
-    <!-- Stage slider panel -->
-    <div v-if="!isLoading && !error && allRounds.length > 0 && !isPanelOpen" class="stage-slider-panel">
+    <!-- Stage slider panel (admin only) -->
+    <div v-if="isAdmin && !isLoading && !error && allRounds.length > 0 && !isPanelOpen" class="stage-slider-panel">
       <div class="stage-header">
         <span class="stage-label">Network Stage</span>
         <span class="stage-count" :style="{ color: accentColor }">
@@ -1010,6 +1029,7 @@ onUnmounted(() => {
       :totalMinutes="0"
       :totalWordsIntroduced="globalStats.concepts"
       :totalPhrasesSpoken="globalStats.phrases"
+      :embedded="true"
       @close="activeTab = 'brain'"
     />
 
@@ -1189,13 +1209,20 @@ onUnmounted(() => {
   margin: 0;
   letter-spacing: 0.02em;
   white-space: nowrap;
+}
+
+.brain-title-prefix {
+  color: white;
+}
+
+.brain-title-language {
   text-shadow: 0 0 20px currentColor;
 }
 
 /* Tab Navigation */
 .progress-tabs {
   position: absolute;
-  top: calc(60px + env(safe-area-inset-top, 0px));
+  top: calc(72px + env(safe-area-inset-top, 0px));
   left: 50%;
   transform: translateX(-50%);
   z-index: 20;

@@ -770,22 +770,23 @@ defineExpose({
   box-shadow: 0 0 4px var(--belt-color);
 }
 
-/* ============ MIST THEME OVERRIDES ============ */
+/* ============ MIST THEME OVERRIDES - Bright light mode ============ */
 :root[data-theme="mist"] .space-gradient {
   background:
-    radial-gradient(ellipse 120% 80% at 20% 10%, rgba(60, 70, 100, 0.15) 0%, transparent 50%),
-    radial-gradient(ellipse 100% 60% at 80% 90%, rgba(50, 60, 90, 0.12) 0%, transparent 40%),
-    radial-gradient(ellipse 80% 80% at 50% 50%, rgba(28, 28, 36, 1) 0%, #1c1c24 100%);
+    radial-gradient(ellipse 120% 80% at 20% 10%, rgba(200, 210, 230, 0.4) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 60% at 80% 90%, rgba(210, 200, 220, 0.3) 0%, transparent 40%),
+    radial-gradient(ellipse 80% 80% at 50% 50%, #f5f5f7 0%, #e8e8ec 100%);
 }
 
 :root[data-theme="mist"] .space-nebula {
   background:
-    radial-gradient(ellipse 60% 40% at 30% 30%, rgba(80, 90, 120, 0.06) 0%, transparent 50%),
-    radial-gradient(ellipse 50% 30% at 70% 60%, rgba(70, 80, 110, 0.04) 0%, transparent 40%);
+    radial-gradient(ellipse 60% 40% at 30% 30%, rgba(180, 190, 210, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 30% at 70% 60%, rgba(200, 180, 200, 0.1) 0%, transparent 40%);
 }
 
 :root[data-theme="mist"] .bg-noise {
-  opacity: 0.015;
+  opacity: 0.02;
+  filter: invert(1);
 }
 
 /* ============ HEADER ============ */

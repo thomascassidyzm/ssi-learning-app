@@ -497,8 +497,8 @@ const confirmReset = async () => {
 
           <div class="setting-row clickable" @click="emit('openExplorer')">
             <div class="setting-info">
-              <span class="setting-label">Script Explorer</span>
-              <span class="setting-desc">Browse and play the full learning script</span>
+              <span class="setting-label">Course Browser</span>
+              <span class="setting-desc">Browse and play course content</span>
             </div>
             <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>

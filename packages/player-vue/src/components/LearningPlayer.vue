@@ -5551,12 +5551,15 @@ defineExpose({
 
     <!-- NETWORK THEATER - The brain visualization fills this space -->
     <section ref="networkTheaterRef" class="network-theater">
-      <!-- Session Points Counter - subtle top-right display -->
+      <!-- Session Points Counter - HIDDEN (belt progression system is used instead) -->
+      <!-- Points are still calculated internally for reward words but not shown to users -->
+      <!--
       <div v-if="sessionPoints > 0" class="session-points-display" :class="{ 'has-multiplier': sessionMultiplier > 1 }">
         <span v-if="sessionMultiplier > 1" class="session-multiplier-indicator" title="Turbo bonus active">×</span>
         <span class="session-points-value">{{ sessionPoints }}</span>
         <span class="session-points-label">pts</span>
       </div>
+      -->
 
       <!-- Progress Warning Overlay - shown for guest users -->
       <div v-if="isGuestLearner" class="progress-warning-overlay">
@@ -5597,7 +5600,8 @@ defineExpose({
           :style="{ '--x-offset': `${reward.xOffset}px` }"
         >
           <span class="ink-word">{{ reward.word }}</span>
-          <span class="ink-points">+{{ reward.points }}</span>
+          <!-- Points hidden - belt progression system is used instead -->
+          <!-- <span class="ink-points">+{{ reward.points }}</span> -->
         </div>
       </TransitionGroup>
 
@@ -6050,37 +6054,37 @@ defineExpose({
 
 /* ═══════════════════════════════════════════════════════════════
    MIST THEME - Background overrides
-   Softer, warmer dark mode - slate grey instead of deep black
-   Still space aesthetic, just not as stark
+   Bright, clean light mode backgrounds
    ═══════════════════════════════════════════════════════════════ */
 :root[data-theme="mist"] .space-gradient {
   background:
-    radial-gradient(ellipse 120% 80% at 20% 10%, rgba(60, 70, 100, 0.15) 0%, transparent 50%),
-    radial-gradient(ellipse 100% 60% at 80% 90%, rgba(50, 60, 90, 0.12) 0%, transparent 40%),
-    radial-gradient(ellipse 80% 80% at 50% 50%, rgba(28, 28, 36, 1) 0%, #1c1c24 100%);
+    radial-gradient(ellipse 120% 80% at 20% 10%, rgba(200, 210, 230, 0.4) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 60% at 80% 90%, rgba(210, 200, 220, 0.3) 0%, transparent 40%),
+    radial-gradient(ellipse 80% 80% at 50% 50%, #f5f5f7 0%, #e8e8ec 100%);
 }
 
 :root[data-theme="mist"] .space-nebula {
   background:
-    radial-gradient(ellipse 60% 40% at 30% 30%, rgba(80, 90, 120, 0.06) 0%, transparent 50%),
-    radial-gradient(ellipse 50% 30% at 70% 60%, rgba(70, 80, 110, 0.04) 0%, transparent 40%);
+    radial-gradient(ellipse 60% 40% at 30% 30%, rgba(180, 190, 210, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 30% at 70% 60%, rgba(200, 180, 200, 0.1) 0%, transparent 40%);
 }
 
 :root[data-theme="mist"] .bg-noise {
-  opacity: 0.015;
+  opacity: 0.02;
+  filter: invert(1);
 }
 
 /* Stars controlled by belt progression (starFieldOpacity computed) */
-/* Both themes use the same fade logic - your LEGOs become your stars */
+/* In light mode, stars are less visible - subtle decorative touches */
 
 :root[data-theme="mist"] .nebula-glow {
   background:
     linear-gradient(
       to top,
-      rgba(208, 64, 64, 0.08) 0%,
+      rgba(194, 58, 58, 0.08) 0%,
       transparent 20%
     );
-  opacity: 0.5;
+  opacity: 0.3;
 }
 
 /* ============ BRAIN NETWORK VISUALIZATION ============ */

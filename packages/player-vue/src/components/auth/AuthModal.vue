@@ -53,16 +53,8 @@ onUnmounted(() => {
   <Teleport to="body">
     <Transition name="modal">
       <div v-if="isOpen" class="auth-modal-backdrop" @click="handleBackdropClick">
-        <!-- Floating orbs -->
-        <div class="orb orb-1" aria-hidden="true"></div>
-        <div class="orb orb-2" aria-hidden="true"></div>
-        <div class="orb orb-3" aria-hidden="true"></div>
-
         <!-- Modal container -->
         <div ref="modalRef" class="auth-modal" role="dialog" aria-modal="true">
-          <!-- Decorative ring -->
-          <div class="modal-ring" aria-hidden="true"></div>
-
           <!-- Close button -->
           <button class="modal-close" @click="emit('close')" aria-label="Close">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -110,48 +102,6 @@ onUnmounted(() => {
   -webkit-overflow-scrolling: touch;
 }
 
-/* Floating orbs - celestial atmosphere */
-.orb {
-  position: absolute;
-  border-radius: 50%;
-  pointer-events: none;
-  filter: blur(60px);
-  opacity: 0.4;
-}
-
-.orb-1 {
-  width: 300px;
-  height: 300px;
-  background: radial-gradient(circle, var(--ssi-red) 0%, transparent 70%);
-  top: 10%;
-  left: 10%;
-  animation: orb-float 15s ease-in-out infinite;
-}
-
-.orb-2 {
-  width: 200px;
-  height: 200px;
-  background: radial-gradient(circle, var(--ssi-gold) 0%, transparent 70%);
-  bottom: 20%;
-  right: 15%;
-  animation: orb-float 12s ease-in-out infinite reverse;
-}
-
-.orb-3 {
-  width: 150px;
-  height: 150px;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.3) 0%, transparent 70%);
-  top: 50%;
-  right: 30%;
-  animation: orb-float 18s ease-in-out infinite;
-}
-
-@keyframes orb-float {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(30px, -20px) scale(1.1); }
-  66% { transform: translate(-20px, 30px) scale(0.95); }
-}
-
 /* Modal card */
 .auth-modal {
   position: relative;
@@ -163,8 +113,8 @@ onUnmounted(() => {
   -webkit-overflow-scrolling: touch;
   background: linear-gradient(
     145deg,
-    rgba(30, 30, 35, 0.95) 0%,
-    rgba(20, 20, 25, 0.98) 100%
+    rgba(45, 45, 52, 0.98) 0%,
+    rgba(35, 35, 42, 0.99) 100%
   );
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 24px;
@@ -200,34 +150,6 @@ onUnmounted(() => {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
-}
-
-/* Decorative ring */
-.modal-ring {
-  position: absolute;
-  top: -2px;
-  left: -2px;
-  right: -2px;
-  bottom: -2px;
-  border-radius: 26px;
-  background: conic-gradient(
-    from 0deg,
-    transparent 0deg,
-    var(--ssi-red) 60deg,
-    var(--ssi-gold) 120deg,
-    transparent 180deg,
-    var(--ssi-red) 240deg,
-    var(--ssi-gold) 300deg,
-    transparent 360deg
-  );
-  opacity: 0.3;
-  z-index: -1;
-  animation: ring-rotate 20s linear infinite;
-}
-
-@keyframes ring-rotate {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
 }
 
 /* Close button */
@@ -319,11 +241,6 @@ onUnmounted(() => {
 
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
-  .orb,
-  .modal-ring {
-    animation: none;
-  }
-
   .auth-modal {
     animation: none;
   }
