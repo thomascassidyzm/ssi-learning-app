@@ -30,7 +30,6 @@ class ListeningAudioController {
     }
 
     this.audio.src = url
-    this.audio.playbackRate = this.playbackRate
     this.audio.load()
 
     return new Promise((resolve, reject) => {
@@ -49,6 +48,8 @@ class ListeningAudioController {
       this.audio.addEventListener('ended', onEnded)
       this.audio.addEventListener('error', onError)
 
+      // Set playbackRate right before play() - some browsers reset it after load()
+      this.audio.playbackRate = this.playbackRate
       this.audio.play().catch(onError)
     })
   }
