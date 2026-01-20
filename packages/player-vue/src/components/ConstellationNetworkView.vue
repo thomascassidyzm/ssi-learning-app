@@ -756,14 +756,13 @@ defineExpose({
             v-for="edge in edges"
             :key="edge.id"
             :d="getEdgePath(edge)"
-            :stroke="isEdgeInPath(edge.id) ? '#60a5fa' : '#ffffff'"
+            class="edge"
+            :class="{ 'edge-active': isEdgeInPath(edge.id) }"
             :stroke-width="getEdgeWidth(edge)"
             :opacity="getEdgeOpacity(edge)"
             :filter="isEdgeInPath(edge.id) ? 'url(#edge-active-glow)' : 'none'"
             fill="none"
             stroke-linecap="round"
-            class="edge"
-            :class="{ 'edge-active': isEdgeInPath(edge.id) }"
           />
         </g>
 
@@ -973,12 +972,13 @@ defineExpose({
 }
 
 .edge {
+  stroke: var(--network-edge-stroke, rgba(255, 255, 255, 0.1));
   transition: stroke 0.3s ease, stroke-width 0.3s ease, opacity 0.3s ease;
 }
 
 .edge-active {
   animation: edge-pulse 0.6s ease-in-out infinite alternate;
-  stroke: #60a5fa !important;
+  stroke: var(--network-active-edge, #60a5fa) !important;
 }
 
 @keyframes edge-pulse {
@@ -1036,10 +1036,10 @@ defineExpose({
 
 @keyframes node-resonate {
   from {
-    filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.1));
+    filter: drop-shadow(0 0 3px var(--network-node-stroke, rgba(255, 255, 255, 0.1)));
   }
   to {
-    filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.3));
+    filter: drop-shadow(0 0 8px var(--network-node-stroke, rgba(255, 255, 255, 0.3)));
   }
 }
 
@@ -1074,9 +1074,9 @@ defineExpose({
   height: 36px;
   border-radius: 8px;
   border: none;
-  background: rgba(30, 30, 40, 0.7);
+  background: var(--bg-elevated, rgba(30, 30, 40, 0.7));
   backdrop-filter: blur(8px);
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1086,8 +1086,8 @@ defineExpose({
 }
 
 .control-btn:hover {
-  background: rgba(60, 60, 80, 0.8);
-  color: rgba(255, 255, 255, 0.95);
+  background: var(--bg-card, rgba(60, 60, 80, 0.8));
+  color: var(--text-primary, rgba(255, 255, 255, 0.95));
   transform: scale(1.05);
 }
 

@@ -323,6 +323,7 @@ onMounted(async () => {
   --network-node-fill: rgba(255, 255, 255, 0.6);
   --network-node-stroke: rgba(255, 255, 255, 0.3);
   --network-edge-stroke: rgba(255, 255, 255, 0.1);
+  --network-active-edge: #60a5fa;
   --network-label-fill: rgba(255, 255, 255, 0.8);
 
   /* Safe area for bottom nav */
@@ -376,6 +377,7 @@ onMounted(async () => {
   --network-node-fill: rgba(26, 29, 36, 0.5);
   --network-node-stroke: rgba(26, 29, 36, 0.25);
   --network-edge-stroke: rgba(26, 29, 36, 0.1);
+  --network-active-edge: #3b82f6;
   --network-label-fill: rgba(26, 29, 36, 0.75);
 
   /* Mountain opacity for schools */
