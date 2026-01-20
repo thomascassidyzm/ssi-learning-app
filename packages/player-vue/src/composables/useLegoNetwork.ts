@@ -250,15 +250,21 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
       }
 
       // Load all phrases from practice_cycles
-      // Include lego_id for direct LEGO→phrase mapping (more reliable than text decomposition)
-      let allPhrases: { id: string; target_text: string; target1_duration_ms: number | null; lego_id: string | null }[] = []
+      // Include lego_id and connected_lego_ids for direct mapping (more reliable than text decomposition)
+      let allPhrases: {
+        id: string
+        target_text: string
+        target1_duration_ms: number | null
+        lego_id: string | null
+        connected_lego_ids: string[] | null  // Precomputed connections from database
+      }[] = []
       let offset = 0
       const pageSize = 1000
 
       while (true) {
         const { data: phrasePage, error: phraseError } = await supabase.value
           .from('practice_cycles')
-          .select('id, target_text, target1_duration_ms, lego_id')
+          .select('id, target_text, target1_duration_ms, lego_id, connected_lego_ids')
           .eq('course_code', courseCode)
           .range(offset, offset + pageSize - 1)
 
@@ -285,7 +291,7 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
         while (true) {
           const { data: page, error: pageError } = await supabase.value
             .from('course_practice_phrases')
-            .select('id, target_text, seed_number, lego_index')
+            .select('id, target_text, seed_number, lego_index, connected_lego_ids')
             .eq('course_code', courseCode)
             .range(fallbackOffset, fallbackOffset + pageSize - 1)
 
@@ -302,7 +308,8 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
               id: row.id,
               target_text: row.target_text,
               target1_duration_ms: null,
-              lego_id: legoId
+              lego_id: legoId,
+              connected_lego_ids: row.connected_lego_ids || null
             })
           }
 
@@ -316,17 +323,35 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
       }
 
       // Build connection graph from phrase co-occurrence
-      // Also store phrases with their decomposed paths
+      // Priority: Use precomputed connected_lego_ids from database, fall back to text decomposition
       const connectionCounts = new Map<string, number>()
       const legoUsage = new Map<string, number>()
       const phrasesWithPath: PhraseWithPath[] = []
       const phrasesByLego = new Map<string, PhraseWithPath[]>()
       let phrasesWithPathCount = 0
-      let phrasesWithDbLegoId = 0  // Phrases indexed via database lego_id
+      let phrasesUsingDbConnections = 0  // Phrases using precomputed connected_lego_ids
+      let phrasesUsingTextDecomp = 0     // Phrases using text decomposition
+      let phrasesUsingDbLegoIdOnly = 0   // Phrases using only primary lego_id (fallback)
 
       for (const phrase of allPhrases || []) {
-        // Try text decomposition first (finds ALL LEGOs in phrase, not just primary)
-        const legoIds = decomposePhrase(phrase.target_text, legoMap)
+        let legoIds: string[] = []
+        let usedDbConnections = false
+
+        // PRIORITY 1: Use precomputed connected_lego_ids from database if available
+        if (phrase.connected_lego_ids && phrase.connected_lego_ids.length > 0 && phrase.lego_id) {
+          // connected_lego_ids contains OTHER LEGOs in this phrase (not including primary)
+          // Combine primary lego_id with connected_lego_ids for full path
+          legoIds = [phrase.lego_id, ...phrase.connected_lego_ids]
+          usedDbConnections = true
+          phrasesUsingDbConnections++
+        }
+        // PRIORITY 2: Fall back to text decomposition
+        else {
+          legoIds = decomposePhrase(phrase.target_text, legoMap)
+          if (legoIds.length > 0) {
+            phrasesUsingTextDecomp++
+          }
+        }
 
         // Track LEGO usage
         for (const legoId of legoIds) {
@@ -351,7 +376,7 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
             phrasesByLego.get(legoId)!.push(phraseWithPath)
           }
         } else if (phrase.lego_id) {
-          // FALLBACK: Text decomposition failed, but we have lego_id from database
+          // FALLBACK: No connections found, but we have lego_id from database
           // Index phrase under its primary LEGO at minimum
           const phraseWithPath: PhraseWithPath = {
             id: phrase.id,
@@ -367,22 +392,33 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
           phrasesByLego.get(phrase.lego_id)!.push(phraseWithPath)
 
           legoUsage.set(phrase.lego_id, (legoUsage.get(phrase.lego_id) || 0) + 1)
-          phrasesWithDbLegoId++
+          phrasesUsingDbLegoIdOnly++
         }
 
-        // Build directional connections between consecutive LEGOs
+        // Build connections between LEGOs in this phrase
+        // For database connections: connect primary to each connected LEGO (star pattern)
+        // For text decomposition: connect consecutive LEGOs (chain pattern)
         if (legoIds.length >= 2) {
           phrasesWithPathCount++
-          for (let i = 0; i < legoIds.length - 1; i++) {
-            const key = `${legoIds[i]}→${legoIds[i + 1]}`
-            connectionCounts.set(key, (connectionCounts.get(key) || 0) + 1)
+
+          if (usedDbConnections && phrase.lego_id) {
+            // Star pattern: primary LEGO connects to each other LEGO
+            for (let i = 1; i < legoIds.length; i++) {
+              const key = `${phrase.lego_id}→${legoIds[i]}`
+              connectionCounts.set(key, (connectionCounts.get(key) || 0) + 1)
+            }
+          } else {
+            // Chain pattern: consecutive LEGOs connect
+            for (let i = 0; i < legoIds.length - 1; i++) {
+              const key = `${legoIds[i]}→${legoIds[i + 1]}`
+              connectionCounts.set(key, (connectionCounts.get(key) || 0) + 1)
+            }
           }
         }
       }
 
-      if (phrasesWithDbLegoId > 0) {
-        console.log(`[useLegoNetwork] ${phrasesWithDbLegoId} phrases indexed via database lego_id (text decomposition fallback)`)
-      }
+      // Log connection sources
+      console.log(`[useLegoNetwork] Connection sources: ${phrasesUsingDbConnections} from DB, ${phrasesUsingTextDecomp} from text decomposition, ${phrasesUsingDbLegoIdOnly} primary-only fallback`)
 
       // Convert to connection array
       const connections: LegoConnection[] = []

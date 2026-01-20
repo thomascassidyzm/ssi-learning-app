@@ -163,6 +163,7 @@ const sessionStore = inject('sessionStore', { value: null })
 const courseDataProvider = inject('courseDataProvider', { value: null })
 const supabase = inject('supabase', { value: null })
 const auth = inject('auth', null)
+const themeContext = inject('theme', null)
 
 // Algorithm config - admin-tweakable parameters (Turbo Boost, pause timing, etc.)
 const {
@@ -4741,9 +4742,35 @@ defineExpose({
     <!-- Header - Logo with belt underneath, centered -->
     <header class="header" :class="{ 'has-banner': props.classContext }">
       <div class="header-stack">
-        <!-- Logo - Centered -->
-        <div class="brand">
-          <span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span>
+        <!-- Logo row with theme toggle -->
+        <div class="brand-row">
+          <div class="brand">
+            <span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span>
+          </div>
+          <!-- Theme toggle button -->
+          <button
+            v-if="themeContext"
+            class="theme-toggle-btn"
+            @click="themeContext.toggleTheme"
+            :title="themeContext.theme.value === 'cosmos' ? 'Switch to Mist theme' : 'Switch to Cosmos theme'"
+          >
+            <!-- Sun icon for mist/day mode -->
+            <svg v-if="themeContext.theme.value === 'cosmos'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="5"/>
+              <line x1="12" y1="1" x2="12" y2="3"/>
+              <line x1="12" y1="21" x2="12" y2="23"/>
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+              <line x1="1" y1="12" x2="3" y2="12"/>
+              <line x1="21" y1="12" x2="23" y2="12"/>
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+            </svg>
+            <!-- Moon icon for cosmos/night mode -->
+            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            </svg>
+          </button>
         </div>
 
         <!-- Belt row: Skip buttons + progress/timer + Skip buttons -->
@@ -5314,6 +5341,43 @@ defineExpose({
   opacity: 0.8;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   MIST THEME - Background overrides
+   Soft foggy atmosphere instead of deep space
+   ═══════════════════════════════════════════════════════════════ */
+:root[data-theme="mist"] .space-gradient {
+  background:
+    radial-gradient(ellipse 120% 80% at 20% 10%, rgba(200, 210, 230, 0.4) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 60% at 80% 90%, rgba(190, 200, 220, 0.3) 0%, transparent 40%),
+    radial-gradient(ellipse 80% 80% at 50% 50%, rgba(228, 231, 237, 1) 0%, #d8dce4 100%);
+}
+
+:root[data-theme="mist"] .space-nebula {
+  background:
+    radial-gradient(ellipse 60% 40% at 30% 30%, rgba(160, 170, 190, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 30% at 70% 60%, rgba(150, 160, 180, 0.06) 0%, transparent 40%);
+}
+
+:root[data-theme="mist"] .bg-noise {
+  opacity: 0.02;
+}
+
+/* Hide stars in mist mode - they don't fit the foggy aesthetic */
+:root[data-theme="mist"] .star-field,
+:root[data-theme="mist"] .drift-stars {
+  display: none;
+}
+
+:root[data-theme="mist"] .nebula-glow {
+  background:
+    linear-gradient(
+      to top,
+      rgba(184, 50, 50, 0.06) 0%,
+      transparent 20%
+    );
+  opacity: 0.4;
+}
+
 /* ============ BRAIN NETWORK VISUALIZATION ============ */
 .brain-network-container {
   position: fixed;
@@ -5508,6 +5572,13 @@ defineExpose({
   display: none;
 }
 
+/* Brand row - logo + theme toggle */
+.brand-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 /* Brand/logo - centered in stack */
 .brand {
   font-family: 'DM Sans', -apple-system, sans-serif;
@@ -5516,6 +5587,38 @@ defineExpose({
   letter-spacing: -0.02em;
   opacity: 0.7;
   transition: opacity 0.2s ease;
+}
+
+/* Theme toggle button */
+.theme-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  opacity: 0.6;
+}
+
+.theme-toggle-btn:hover {
+  opacity: 1;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.theme-toggle-btn:active {
+  transform: scale(0.95);
+}
+
+.theme-toggle-btn svg {
+  width: 18px;
+  height: 18px;
 }
 
 .brand:hover {
