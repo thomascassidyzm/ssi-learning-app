@@ -244,9 +244,11 @@ onMounted(() => {
 
     <!-- Learning Player - use v-show to keep it mounted when navigating away -->
     <!-- This preserves playback state when viewing BrainView, Settings, etc. -->
+    <!-- :key forces full remount when course changes (cache invalidation) -->
     <LearningPlayer
       v-if="activeCourse"
       v-show="currentScreen === 'player'"
+      :key="activeCourse?.course_code"
       ref="learningPlayerRef"
       :classContext="classContext"
       :course="activeCourse"
