@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
+import { useGodMode } from '@/composables/useGodMode'
 
 interface NavTab {
   name: string
@@ -9,6 +10,7 @@ interface NavTab {
 }
 
 const route = useRoute()
+const { selectedUser, isGovtAdmin } = useGodMode()
 
 const tabs: NavTab[] = [
   { name: 'dashboard', path: '/', label: 'Dashboard' },
@@ -18,10 +20,37 @@ const tabs: NavTab[] = [
   { name: 'analytics', path: '/analytics', label: 'Analytics' },
 ]
 
-// School info (would come from auth/store in real app)
-const schoolName = ref('Ysgol Cymraeg')
-const schoolInitials = ref('YC')
-const userName = ref('Admin')
+// Context info derived from God Mode selected user
+const contextName = computed(() => {
+  if (!selectedUser.value) return 'No User Selected'
+  if (isGovtAdmin.value) {
+    return selectedUser.value.organization_name || selectedUser.value.region_code || 'Region Admin'
+  }
+  return selectedUser.value.school_name || 'Unknown School'
+})
+
+const contextInitials = computed(() => {
+  const name = contextName.value
+  return name
+    .split(' ')
+    .map(w => w[0])
+    .join('')
+    .substring(0, 2)
+    .toUpperCase()
+})
+
+const userName = computed(() => selectedUser.value?.display_name || 'Guest')
+
+const userRoleLabel = computed(() => {
+  if (!selectedUser.value) return 'Not logged in'
+  switch (selectedUser.value.educational_role) {
+    case 'govt_admin': return 'Government Administrator'
+    case 'school_admin': return 'School Administrator'
+    case 'teacher': return 'Teacher'
+    case 'student': return 'Student'
+    default: return 'User'
+  }
+})
 
 // Theme toggle
 const isDark = ref(document.documentElement.getAttribute('data-theme') !== 'light')
@@ -73,10 +102,10 @@ const toggleUserMenu = () => {
 
     <!-- Right Section -->
     <div class="nav-right">
-      <!-- School Badge -->
+      <!-- Context Badge (School or Region) -->
       <div class="school-badge">
-        <div class="school-avatar">{{ schoolInitials }}</div>
-        <span class="school-name">{{ schoolName }}</span>
+        <div class="school-avatar">{{ contextInitials }}</div>
+        <span class="school-name">{{ contextName }}</span>
       </div>
 
       <!-- Theme Toggle -->
@@ -123,7 +152,7 @@ const toggleUserMenu = () => {
           <div v-if="isUserMenuOpen" class="user-dropdown">
             <div class="user-dropdown-header">
               <span class="user-dropdown-name">{{ userName }}</span>
-              <span class="user-dropdown-role">School Administrator</span>
+              <span class="user-dropdown-role">{{ userRoleLabel }}</span>
             </div>
             <div class="user-dropdown-divider"></div>
             <router-link to="/settings" class="user-dropdown-item" @click="isUserMenuOpen = false">
