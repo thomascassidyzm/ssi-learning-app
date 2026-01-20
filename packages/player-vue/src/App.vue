@@ -87,6 +87,20 @@ const LAST_COURSE_KEY = 'ssi-last-course'
 const handleCourseSelect = async (course) => {
   const courseCode = course.course_code || course.id
   console.log('[App] Course selected:', courseCode)
+
+  // IMPORTANT: Update courseDataProvider BEFORE activeCourse
+  // This ensures LearningPlayer has the correct provider when it remounts
+  // (activeCourse change triggers :key change which remounts the player)
+  if (supabaseClient.value) {
+    courseDataProvider.value = createCourseDataProvider({
+      supabaseClient: supabaseClient.value,
+      audioBaseUrl: config.s3.audioBaseUrl,
+      courseId: courseCode,
+    })
+    console.log('[App] courseDataProvider updated for:', courseCode)
+  }
+
+  // NOW update activeCourse (triggers LearningPlayer remount via :key)
   activeCourse.value = course
 
   // Persist course selection
@@ -95,15 +109,6 @@ const handleCourseSelect = async (course) => {
     console.log('[App] Course persisted to localStorage:', courseCode)
   } catch (e) {
     console.warn('[App] Failed to persist course selection:', e)
-  }
-
-  // Update courseDataProvider for the new course
-  if (supabaseClient.value) {
-    courseDataProvider.value = createCourseDataProvider({
-      supabaseClient: supabaseClient.value,
-      audioBaseUrl: config.s3.audioBaseUrl,
-      courseId: courseCode,
-    })
   }
 }
 
