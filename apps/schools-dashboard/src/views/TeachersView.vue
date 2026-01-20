@@ -40,19 +40,20 @@ const teachers = computed(() => {
     id: idx + 1,
     name: t.display_name,
     initials: getInitials(t.display_name),
-    email: `${t.user_id.replace('user_2bre_', '')}@school.edu`,
-    course: 'Welsh (Northern)', // Default course
+    email: t.learner_id ? `teacher_${t.learner_id.substring(0, 8)}` : 'N/A', // No email in schema yet
+    course: t.class_count > 0 ? 'Language Course' : 'No Classes', // Courses come from classes
     belt: getBelt(t.total_practice_hours),
     status: 'active' as const,
     classCount: t.class_count,
     studentCount: t.student_count,
-    phrasesLearned: Math.round(t.total_practice_hours * 20), // Rough estimate
-    engagementRate: Math.min(100, Math.round(80 + Math.random() * 20)), // Placeholder
-    joinDate: t.joined_at ? t.joined_at.split('T')[0] : '2025-01-01'
+    phrasesLearned: Math.round(t.total_practice_hours * 20), // Derived from practice time
+    engagementRate: t.student_count > 0 ? Math.min(100, Math.round((t.student_count / t.class_count) * 5)) : 0,
+    joinDate: t.joined_at ? new Date(t.joined_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Unknown'
   }))
 })
 
-const courses = ['Welsh (Northern)', 'Welsh (Southern)', 'Spanish (Latin Am)']
+// Courses would come from database - currently placeholder
+const courses = ['All Courses']
 const belts = ['white', 'yellow', 'orange', 'green', 'blue', 'brown', 'black']
 
 const beltGradients: Record<string, string> = {

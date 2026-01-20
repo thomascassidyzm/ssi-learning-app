@@ -53,13 +53,13 @@ const students = computed(() => {
     id: idx + 1,
     name: s.display_name,
     initials: getInitials(s.display_name),
-    email: `${s.user_id}@student.edu`,
+    email: s.learner_id ? `student_${s.learner_id.substring(0, 8)}` : 'N/A', // No email in schema yet
     class: s.class_name,
     belt: getBelt(s.seeds_completed),
-    phrasesLearned: s.legos_mastered * 3, // Rough estimate
-    sessionsCompleted: Math.ceil(s.total_practice_minutes / 20),
+    phrasesLearned: s.legos_mastered, // LEGOs mastered = phrases learned
+    sessionsCompleted: Math.ceil(s.total_practice_minutes / 30), // ~30 min per session
     lastActive: formatLastActive(s.last_active_at),
-    progress: Math.min(100, Math.round((s.seeds_completed / 50) * 100))
+    progress: s.seeds_completed // Seeds completed is the actual progress
   }))
 })
 

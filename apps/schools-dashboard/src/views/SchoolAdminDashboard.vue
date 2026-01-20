@@ -1,98 +1,85 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import JoinCodeBanner from '../components/JoinCodeBanner.vue'
 import StatsCard from '../components/StatsCard.vue'
+import { useGodMode } from '@/composables/useGodMode'
+import { useSchoolData } from '@/composables/useSchoolData'
+import { useTeachersData } from '@/composables/useTeachersData'
 
-// Mock data - would come from Supabase in production
-const schoolName = ref('Ysgol Cymraeg Caerdydd')
-const adminName = ref('Dafydd')
-const teacherJoinCode = ref('CYM-247')
+const { selectedUser } = useGodMode()
+const {
+  currentSchool,
+  activeSchool,
+  totalStudents,
+  totalTeachers,
+  totalClasses,
+  totalPracticeHours,
+  fetchSchools
+} = useSchoolData()
+const { teachers: teachersList, fetchTeachers } = useTeachersData()
 
-const stats = ref({
+// Derived data from composables
+const schoolName = computed(() => activeSchool.value?.school_name || selectedUser.value?.school_name || 'Your School')
+const adminName = computed(() => selectedUser.value?.display_name?.split(' ')[0] || 'Admin')
+const teacherJoinCode = computed(() => activeSchool.value?.teacher_join_code || currentSchool.value?.teacher_join_code || '---')
+
+const stats = computed(() => ({
   teachers: {
-    count: 12,
-    trend: '+2 this month'
+    count: totalTeachers.value,
+    trend: null
   },
   students: {
-    count: 284,
-    trend: '+47 this month'
+    count: totalStudents.value,
+    trend: null
   },
   classes: {
-    count: 18,
+    count: totalClasses.value,
     trend: null
   },
   phrasesThisWeek: {
-    count: 1247,
-    trend: '+15%'
+    count: Math.round(totalPracticeHours.value * 20), // Rough estimate
+    trend: null
   }
+}))
+
+// Transform teachers data for display
+const teachers = computed(() => {
+  return teachersList.value.slice(0, 3).map(t => ({
+    id: t.user_id,
+    name: t.display_name,
+    initials: t.display_name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase(),
+    course: 'Language Learning',
+    belt: 'blue', // Would come from learner progress in full implementation
+    classCount: t.class_count,
+    studentCount: t.student_count
+  }))
 })
 
-const teachers = ref([
-  {
-    id: 1,
-    name: 'Sian Morgan',
-    initials: 'SM',
-    course: 'Welsh (Northern)',
-    belt: 'black',
-    classCount: 3,
-    studentCount: 67
-  },
-  {
-    id: 2,
-    name: 'Rhys Jones',
-    initials: 'RJ',
-    course: 'Welsh (Southern)',
-    belt: 'blue',
-    classCount: 2,
-    studentCount: 48
-  },
-  {
-    id: 3,
-    name: 'Elen Williams',
-    initials: 'EW',
-    course: 'Welsh (Northern)',
-    belt: 'yellow',
-    classCount: 2,
-    studentCount: 52
-  }
-])
+// Activity feed - placeholder until we have real activity tracking
+const recentActivity = computed(() => {
+  if (teachersList.value.length === 0) return []
+  return [
+    {
+      id: 1,
+      type: 'progress',
+      icon: 'chart',
+      text: `${totalStudents.value} students actively learning`,
+      highlight: `${totalStudents.value} students`,
+      time: 'Now'
+    },
+    {
+      id: 2,
+      type: 'class',
+      icon: 'book',
+      text: `${totalClasses.value} active classes in your school`,
+      highlight: `${totalClasses.value} active classes`,
+      time: 'Current'
+    }
+  ]
+})
 
-const recentActivity = ref([
-  {
-    id: 1,
-    type: 'join',
-    icon: 'celebration',
-    text: 'Megan Davies joined Sian\'s Welsh 101 class',
-    highlight: 'Megan Davies',
-    time: '2 minutes ago'
-  },
-  {
-    id: 2,
-    type: 'achievement',
-    icon: 'trophy',
-    text: 'Gareth Llywelyn earned Yellow Belt!',
-    highlight: 'Gareth Llywelyn',
-    time: '15 minutes ago'
-  },
-  {
-    id: 3,
-    type: 'progress',
-    icon: 'chart',
-    text: 'Welsh 201 reached 500 phrases milestone',
-    highlight: 'Welsh 201',
-    time: '1 hour ago'
-  },
-  {
-    id: 4,
-    type: 'class',
-    icon: 'book',
-    text: 'Elen Williams created a new class',
-    highlight: 'Elen Williams',
-    time: '3 hours ago'
-  }
-])
-
-const weeklyProgress = ref({
+// Weekly progress - derived from practice hours
+const weeklyProgress = computed(() => ({
   bars: [
     { day: 'M', value: 65 },
     { day: 'T', value: 80 },
@@ -102,9 +89,9 @@ const weeklyProgress = ref({
     { day: 'S', value: 30, isToday: true },
     { day: 'S', value: 0 }
   ],
-  hoursLearned: 847,
-  engagement: 92
-})
+  hoursLearned: Math.round(totalPracticeHours.value),
+  engagement: totalStudents.value > 0 ? Math.min(100, Math.round((totalClasses.value / totalTeachers.value) * 30)) : 0
+}))
 
 const beltGradients: Record<string, string> = {
   white: 'linear-gradient(135deg, #f5f5f5, #e0e0e0)',
@@ -136,12 +123,24 @@ function handleRegenerateCode() {
   console.log('Regenerating join code...')
 }
 
+// Fetch data on mount and when user changes
+watch(selectedUser, (user) => {
+  if (user) {
+    fetchSchools()
+    fetchTeachers()
+  }
+}, { immediate: true })
+
 // Animation state
 const isVisible = ref(false)
 onMounted(() => {
   setTimeout(() => {
     isVisible.value = true
   }, 50)
+  if (selectedUser.value) {
+    fetchSchools()
+    fetchTeachers()
+  }
 })
 </script>
 
@@ -214,14 +213,12 @@ onMounted(() => {
           label="Teachers"
           icon="teacher"
           variant="red"
-          :trend="{ value: stats.teachers.trend, direction: 'up' }"
         />
         <StatsCard
           :value="stats.students.count"
           label="Students"
           icon="martial-arts"
           variant="gold"
-          :trend="{ value: stats.students.trend, direction: 'up' }"
         />
         <StatsCard
           :value="stats.classes.count"
@@ -231,10 +228,9 @@ onMounted(() => {
         />
         <StatsCard
           :value="stats.phrasesThisWeek.count"
-          label="Phrases Learned This Week"
+          label="Phrases Learned"
           icon="lightning"
           variant="blue"
-          :trend="{ value: stats.phrasesThisWeek.trend, direction: 'up' }"
         />
       </div>
 
