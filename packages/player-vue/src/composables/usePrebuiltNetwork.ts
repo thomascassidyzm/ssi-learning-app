@@ -318,6 +318,8 @@ export function preCalculatePositions(
   currentBelt: string = 'black'  // Default to full brain for backwards compat
 ): { nodes: ConstellationNode[], edges: ConstellationEdge[], brainBoundary: BrainBoundary } {
   const center = { x: canvasSize.width / 2, y: canvasSize.height / 2 }
+  // Calculate max radius early - needed for initial node positioning
+  const maxRadius = Math.min(canvasSize.width, canvasSize.height) * 0.42
 
   // ========== DIAGNOSTIC: Input summary ==========
   console.log(`%c[PrebuiltNetwork] ===== preCalculatePositions INPUT =====`, 'background: #333; color: #0f0; font-weight: bold')
@@ -347,14 +349,20 @@ export function preCalculatePositions(
 
     legoTexts.set(round.legoId, targetText.toLowerCase())
 
+    // Spread initial positions more for larger networks to avoid numerical instability
+    // Use golden angle distribution for more even spread
+    const goldenAngle = Math.PI * (3 - Math.sqrt(5)) // ~137.5 degrees
+    const angle = i * goldenAngle
+    const radius = Math.sqrt(i / Math.max(rounds.length, 1)) * maxRadius * 0.8
+
     const node: ConstellationNode = {
       id: round.legoId,
       targetText,
       knownText,
       belt: getBeltForPosition(startOffset + i),
-      // Initial position will be set by D3
-      x: center.x + (Math.random() - 0.5) * 200,
-      y: center.y + (Math.random() - 0.5) * 200,
+      // Use golden spiral for initial positions - better distribution for large networks
+      x: center.x + Math.cos(angle) * radius + (Math.random() - 0.5) * 20,
+      y: center.y + Math.sin(angle) * radius + (Math.random() - 0.5) * 20,
     }
 
     nodes.push(node)
@@ -386,14 +394,17 @@ export function preCalculatePositions(
       let componentNode = componentNodes.get(wordLower)
 
       if (!componentNode) {
-        // Create new component node
+        // Create new component node - position near parent with small offset
+        // Smaller offset than before to reduce chance of overlapping clusters
+        const offsetAngle = Math.random() * Math.PI * 2
+        const offsetRadius = 30 + Math.random() * 40
         componentNode = {
           id: componentId,
           targetText: word,
           knownText: '',  // Components don't have known text
           belt: node.belt,  // Inherit belt from first parent
-          x: node.x + (Math.random() - 0.5) * 100,  // Near parent
-          y: node.y + (Math.random() - 0.5) * 100,
+          x: node.x + Math.cos(offsetAngle) * offsetRadius,
+          y: node.y + Math.sin(offsetAngle) * offsetRadius,
           isComponent: true,
           parentLegoIds: [node.id],
         }
@@ -591,9 +602,6 @@ export function preCalculatePositions(
   // Get brain boundary for current belt
   const brainBoundary = getBrainBoundary(currentBelt)
 
-  // Calculate max radius for brain boundary (fill most of canvas)
-  const maxRadius = Math.min(canvasSize.width, canvasSize.height) * 0.42
-
   // Run D3 force simulation to completion with brain boundary constraint
   // The network is constrained within a growing brain shape
   if (nodes.length > 0) {
@@ -648,11 +656,26 @@ export function preCalculatePositions(
       simulation.tick()
     }
 
-    // Copy final positions to nodes
-    nodes.forEach((node: any) => {
+    // Copy final positions to nodes, with NaN guards
+    let nanCount = 0
+    nodes.forEach((node: any, idx: number) => {
+      // Guard against NaN from numerical instability in large networks
+      if (isNaN(node.x) || isNaN(node.y)) {
+        nanCount++
+        // Fall back to golden spiral position
+        const goldenAngle = Math.PI * (3 - Math.sqrt(5))
+        const angle = idx * goldenAngle
+        const radius = Math.sqrt(idx / nodes.length) * maxRadius * 0.8
+        node.x = center.x + Math.cos(angle) * radius
+        node.y = center.y + Math.sin(angle) * radius
+      }
       node.x = node.x ?? center.x
       node.y = node.y ?? center.y
     })
+
+    if (nanCount > 0) {
+      console.warn(`%c[PrebuiltNetwork] ⚠️ Fixed ${nanCount} NaN positions (numerical instability)`, 'background: #f80; color: #000; font-weight: bold')
+    }
 
     // Diagnose position spread
     if (nodes.length > 0) {
