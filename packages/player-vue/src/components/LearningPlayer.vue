@@ -2310,8 +2310,12 @@ const playIntroductionIfNeeded = async (item) => {
     introductionPhase.value = true
     playedIntroductions.value.add(legoId)
 
-    // Play intro using shared audio element (for mobile compatibility)
-    // Set skipNextNotify to prevent orchestrator callbacks from firing when intro ends
+    // Create abort controller for this intro
+    introAbortController = new AbortController()
+    introEventCleanups = []
+
+    // Play intro using DEDICATED audio element (not shared with audioController)
+    // This prevents cross-contamination when skip is called
     return new Promise((resolve) => {
       audioController.value?.stop()
 
@@ -2320,13 +2324,30 @@ const playIntroductionIfNeeded = async (item) => {
         audioController.value.skipNextNotify = true
       }
 
-      const audio = audioController.value?.audio || new Audio()
+      // Check if already aborted
+      if (introAbortController?.signal.aborted) {
+        resolve(false)
+        return
+      }
 
-      const onEnded = () => {
+      // IMPORTANT: Use dedicated audio element, not shared with audioController
+      const audio = new Audio()
+      introAudioElement = audio
+
+      const cleanup = () => {
         audio.removeEventListener('ended', onEnded)
         audio.removeEventListener('error', onError)
+        const idx = introEventCleanups.indexOf(cleanup)
+        if (idx > -1) introEventCleanups.splice(idx, 1)
+      }
+
+      const onEnded = () => {
+        cleanup()
         isPlayingIntroduction.value = false
         introductionPhase.value = false
+        introAudioElement = null
+        introAbortController = null
+        introEventCleanups = []
         // Reset skipNextNotify so next audio triggers orchestrator callbacks
         if (audioController.value) {
           audioController.value.skipNextNotify = false
@@ -2337,15 +2358,30 @@ const playIntroductionIfNeeded = async (item) => {
 
       const onError = (e) => {
         console.error('[LearningPlayer] Introduction audio error:', e)
-        audio.removeEventListener('ended', onEnded)
-        audio.removeEventListener('error', onError)
+        cleanup()
         isPlayingIntroduction.value = false
         introductionPhase.value = false
+        introAudioElement = null
+        introAbortController = null
+        introEventCleanups = []
         // Reset skipNextNotify so next audio triggers orchestrator callbacks
         if (audioController.value) {
           audioController.value.skipNextNotify = false
         }
         resolve(false)
+      }
+
+      // Track cleanup for skipIntroduction
+      introEventCleanups.push(cleanup)
+
+      // Listen to abort controller
+      if (introAbortController) {
+        introAbortController.signal.addEventListener('abort', () => {
+          audio.pause()
+          audio.src = ''
+          cleanup()
+          resolve(false)
+        }, { once: true })
       }
 
       audio.addEventListener('ended', onEnded)
@@ -2434,15 +2470,31 @@ const playIntroductionAudioDirectly = async (scriptItem) => {
   isPlayingIntroduction.value = true
   introductionPhase.value = true
 
-  // Helper to play a single audio and wait for it to end
+  // Create abort controller for this intro sequence
+  introAbortController = new AbortController()
+  introEventCleanups = []
+
+  // Helper to play a single audio and wait for it to end (with cancellation support)
   const playAudioAndWait = (url) => {
     return new Promise((resolve) => {
-      const audio = audioController.value?.audio || new Audio()
+      // Check if already aborted
+      if (introAbortController?.signal.aborted) {
+        resolve(false)
+        return
+      }
+
+      // IMPORTANT: Always create a NEW audio element for intro audio
+      // Don't share with audioController to avoid cross-contamination
+      const audio = new Audio()
       introAudioElement = audio
 
       const cleanup = () => {
         audio.removeEventListener('ended', onEnded)
         audio.removeEventListener('error', onError)
+        audio.removeEventListener('abort', onAbort)
+        // Also remove from tracked cleanups
+        const idx = introEventCleanups.indexOf(cleanup)
+        if (idx > -1) introEventCleanups.splice(idx, 1)
       }
 
       const onEnded = () => {
@@ -2451,21 +2503,56 @@ const playIntroductionAudioDirectly = async (scriptItem) => {
       }
 
       const onError = (e) => {
-        console.error('[LearningPlayer] Audio error:', e)
+        console.error('[LearningPlayer] Intro audio error:', e)
         cleanup()
         resolve(false)
       }
 
+      const onAbort = () => {
+        console.log('[LearningPlayer] Intro audio aborted')
+        cleanup()
+        resolve(false)
+      }
+
+      // Track cleanup function for skipIntroduction to call
+      introEventCleanups.push(cleanup)
+
       audio.addEventListener('ended', onEnded)
       audio.addEventListener('error', onError)
+      audio.addEventListener('abort', onAbort)
+
+      // Also listen to abort controller signal
+      if (introAbortController) {
+        introAbortController.signal.addEventListener('abort', () => {
+          audio.pause()
+          audio.src = ''
+          cleanup()
+          resolve(false)
+        }, { once: true })
+      }
+
       audio.src = url
       audio.load()
-      audio.play().catch(onError)
+      audio.play().catch((e) => {
+        console.error('[LearningPlayer] Intro play() failed:', e)
+        cleanup()
+        resolve(false)
+      })
     })
   }
 
-  // Helper to pause for a duration
-  const pause = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+  // Helper to pause for a duration (with cancellation support)
+  const pause = (ms) => new Promise(resolve => {
+    if (introAbortController?.signal.aborted) {
+      resolve()
+      return
+    }
+    const timer = setTimeout(resolve, ms)
+    introAbortController?.signal.addEventListener('abort', () => {
+      clearTimeout(timer)
+      resolve()
+    }, { once: true })
+  })
 
   if (audioController.value) {
     audioController.value.stop()
@@ -2503,6 +2590,12 @@ const playIntroductionAudioDirectly = async (scriptItem) => {
       console.log('[LearningPlayer] Human recording - skipping target1/target2 (already in presentation)')
     }
 
+    // Check if we were aborted mid-sequence
+    if (introAbortController?.signal.aborted) {
+      console.log('[LearningPlayer] Introduction was aborted mid-sequence')
+      return false
+    }
+
     // Success - mark as played so it won't repeat this session
     playedIntroductions.value.add(legoId)
 
@@ -2515,6 +2608,8 @@ const playIntroductionAudioDirectly = async (scriptItem) => {
     isPlayingIntroduction.value = false
     introductionPhase.value = false
     introAudioElement = null
+    introAbortController = null
+    introEventCleanups = []
     if (audioController.value) {
       audioController.value.skipNextNotify = false
     }
@@ -2526,6 +2621,8 @@ const playIntroductionAudioDirectly = async (scriptItem) => {
     isPlayingIntroduction.value = false
     introductionPhase.value = false
     introAudioElement = null
+    introAbortController = null
+    introEventCleanups = []
     if (audioController.value) {
       audioController.value.skipNextNotify = false
     }
@@ -2541,6 +2638,8 @@ const playIntroductionAudioDirectly = async (scriptItem) => {
 let welcomeAudioElement = null // Store reference for skip functionality
 let welcomeResolve = null // Store resolve function so skip can complete the promise
 let introAudioElement = null // Store reference for intro skip functionality
+let introAbortController = null // AbortController for cancelling pending intro audio
+let introEventCleanups = [] // Array of cleanup functions for intro audio event listeners
 
 const playWelcomeIfNeeded = async () => {
   // Only check once per session
@@ -2668,46 +2767,73 @@ const playWelcomeIfNeeded = async () => {
 }
 
 const skipWelcome = async () => {
+  console.log('[LearningPlayer] skipWelcome called')
+
+  // 1. Stop and clean up the audio element
   if (welcomeAudioElement) {
+    // Remove any event listeners by cloning the approach from skipIntroduction
+    // We can't easily get references to the handlers, so we'll do a full cleanup
     welcomeAudioElement.pause()
-    welcomeAudioElement.currentTime = 0
+    welcomeAudioElement.removeAttribute('src')
+    welcomeAudioElement.src = ''
+    try { welcomeAudioElement.load() } catch (e) { /* ignore */ }
   }
+
+  // 2. Reset state
   isPlayingWelcome.value = false
   showWelcomeSkip.value = false
   welcomeAudioElement = null
 
-  // Reset skipNextNotify so next audio triggers orchestrator callbacks
+  // 3. Reset skipNextNotify so next audio triggers orchestrator callbacks
   if (audioController.value) {
     audioController.value.skipNextNotify = false
   }
 
-  // Resolve the promise so startPlayback can continue
+  // 4. Resolve the promise so startPlayback can continue
   if (welcomeResolve) {
     welcomeResolve(true)
     welcomeResolve = null
   }
 
-  // Mark as played (skipped counts as played)
+  // 5. Mark as played (skipped counts as played)
   if (courseDataProvider.value) {
     await courseDataProvider.value.markWelcomePlayed(learnerId.value)
   }
-  console.log('[LearningPlayer] Welcome skipped')
+  console.log('[LearningPlayer] Welcome fully skipped and cleaned up')
 }
 
 const skipIntroduction = () => {
-  if (introAudioElement) {
-    // Remove all event listeners to prevent stale callbacks
-    introAudioElement.onended = null
-    introAudioElement.onerror = null
-    introAudioElement.pause()
-    introAudioElement.currentTime = 0
-    // Clear src to fully reset
-    introAudioElement.removeAttribute('src')
+  console.log('[LearningPlayer] skipIntroduction called')
+
+  // 1. ABORT the abort controller FIRST - this signals all pending promises to resolve
+  if (introAbortController) {
+    introAbortController.abort()
+    introAbortController = null
   }
+
+  // 2. Call all tracked cleanup functions to remove event listeners
+  for (const cleanup of introEventCleanups) {
+    try { cleanup() } catch (e) { /* ignore */ }
+  }
+  introEventCleanups = []
+
+  // 3. Force stop the audio element
+  if (introAudioElement) {
+    // Pause immediately
+    introAudioElement.pause()
+    // Remove src to release browser resources
+    introAudioElement.removeAttribute('src')
+    introAudioElement.src = ''
+    // Force browser to release audio buffer
+    try { introAudioElement.load() } catch (e) { /* ignore */ }
+  }
+
+  // 4. Reset state
   isPlayingIntroduction.value = false
   introductionPhase.value = false
   introAudioElement = null
-  console.log('[LearningPlayer] Introduction skipped')
+
+  console.log('[LearningPlayer] Introduction fully skipped and cleaned up')
 }
 
 const startPlayback = async () => {
@@ -2755,6 +2881,13 @@ const startPlayback = async () => {
         currentPlayableItem.value = playableItem
         // Play intro audio and wait for completion
         await playIntroductionAudioDirectly(scriptItem)
+
+        // CRITICAL: Ensure complete audio silence before starting next item
+        if (audioController.value) {
+          audioController.value.stop()
+        }
+        await new Promise(resolve => setTimeout(resolve, 50))
+
         // Advance to next item in round (the DEBUT that follows)
         currentItemInRound.value++
         // Get and play the next item directly (don't call handleCycleEvent which would double-increment)
@@ -2921,11 +3054,13 @@ const handleSkip = async () => {
         const introPlayed = await playIntroductionAudioDirectly(firstItem)
         console.log('[LearningPlayer] Skip → intro played:', introPlayed)
 
-        // CRITICAL: Fully reset audio state before starting next item
-        // This ensures no stale audio from intro contaminates the new playback
+        // CRITICAL: Ensure complete audio silence before starting next item
+        // This prevents any stale audio fragments from contaminating the new playback
         if (audioController.value) {
           audioController.value.stop()
         }
+        // Brief delay to ensure browser has released audio resources
+        await new Promise(resolve => setTimeout(resolve, 50))
 
         // Advance to next item (the DEBUT)
         currentItemInRound.value++
@@ -3061,6 +3196,13 @@ const handleRevisit = async () => {
         console.log('[LearningPlayer] Revisit → Playing INTRO for:', firstItem.legoId)
         const introPlayed = await playIntroductionAudioDirectly(firstItem)
         console.log('[LearningPlayer] Revisit → intro played:', introPlayed)
+
+        // CRITICAL: Ensure complete audio silence before starting next item
+        if (audioController.value) {
+          audioController.value.stop()
+        }
+        await new Promise(resolve => setTimeout(resolve, 50))
+
         // Advance to next item (the DEBUT)
         currentItemInRound.value++
         const nextItem = cachedRounds.value[targetIndex]?.items?.[currentItemInRound.value]
@@ -3198,6 +3340,13 @@ const jumpToRound = async (roundIndex) => {
       console.log('[LearningPlayer] Jump → Playing INTRO for:', firstItem.legoId)
       const introPlayed = await playIntroductionAudioDirectly(firstItem)
       console.log('[LearningPlayer] Jump → intro played:', introPlayed)
+
+      // CRITICAL: Ensure complete audio silence before starting next item
+      if (audioController.value) {
+        audioController.value.stop()
+      }
+      await new Promise(resolve => setTimeout(resolve, 50))
+
       // Advance to next item (the DEBUT)
       currentItemInRound.value++
       const nextItem = cachedRounds.value[roundIndex]?.items?.[currentItemInRound.value]
