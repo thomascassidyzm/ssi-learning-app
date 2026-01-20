@@ -567,11 +567,27 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
   /**
    * Get eternal phrases for a LEGO - the 5 longest by audio duration
    * These are used for spaced repetition practice
+   *
+   * @param legoId - The LEGO ID to look up
+   * @param targetText - Optional: the LEGO's target text for substring matching fallback
    */
-  function getEternalPhrasesForLego(legoId: string): PhraseWithPath[] {
+  function getEternalPhrasesForLego(legoId: string, targetText?: string): PhraseWithPath[] {
     if (!networkData.value) return []
 
-    const phrases = networkData.value.phrasesByLego.get(legoId) || []
+    // First try direct ID lookup
+    let phrases = networkData.value.phrasesByLego.get(legoId) || []
+
+    // If no results and we have targetText, do substring search on all phrases
+    if (phrases.length === 0 && targetText && networkData.value.phrases.length > 0) {
+      const normalizedTarget = normalize(targetText)
+      if (normalizedTarget) {
+        phrases = networkData.value.phrases.filter(p => {
+          const normalizedPhrase = normalize(p.targetText)
+          return normalizedPhrase.includes(normalizedTarget)
+        })
+        console.log(`[useLegoNetwork] ID lookup failed for ${legoId}, text search for "${targetText}" found ${phrases.length} phrases`)
+      }
+    }
 
     // Sort by duration descending (longest first), then by path length as tiebreaker
     return [...phrases]

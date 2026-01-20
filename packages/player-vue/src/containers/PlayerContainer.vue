@@ -9,6 +9,7 @@ import SettingsScreen from '@/components/SettingsScreen.vue'
 import CourseExplorer from '@/components/CourseExplorer.vue'
 import BrainView from '@/components/BrainView.vue'
 import UsageStats from '@/components/UsageStats.vue'
+import ListeningModePlayer from '@/components/ListeningModePlayer.vue'
 import BottomNav from '@/components/BottomNav.vue'
 import BuildBadge from '@/components/BuildBadge.vue'
 
@@ -45,7 +46,7 @@ const {
 } = useAuthModal()
 
 // Navigation state
-// Screens: 'home' | 'player' | 'journey' | 'settings' | 'explorer' | 'network' | 'stats'
+// Screens: 'home' | 'player' | 'journey' | 'settings' | 'explorer' | 'network' | 'stats' | 'listening'
 const currentScreen = ref('home')
 const selectedCourse = ref(null)
 const isLearning = ref(false)
@@ -93,6 +94,7 @@ const openSettings = () => navigate('settings')
 const openExplorer = () => navigate('explorer')
 const openNetwork = () => navigate('network')
 const openStats = () => navigate('stats')
+const openListening = () => navigate('listening')
 
 // Handle nav events
 const handleNavigation = (screen) => {
@@ -191,7 +193,7 @@ onMounted(() => {
   // Check URL params for direct navigation (e.g., ?screen=project)
   const urlParams = new URLSearchParams(window.location.search)
   const screenParam = urlParams.get('screen')
-  if (screenParam && ['project', 'explorer', 'network', 'settings', 'stats'].includes(screenParam)) {
+  if (screenParam && ['project', 'explorer', 'network', 'settings', 'stats', 'listening'].includes(screenParam)) {
     currentScreen.value = screenParam
   }
 
@@ -258,6 +260,7 @@ onMounted(() => {
         @close="goHome"
         @openExplorer="openExplorer"
         @openNetwork="openNetwork"
+        @openListening="openListening"
       />
     </Transition>
 
@@ -288,6 +291,15 @@ onMounted(() => {
         :total-minutes="learnerStats.lifetimeLearningMinutes || 127"
         :total-words-introduced="learnerStats.totalWordsIntroduced || 142"
         :total-phrases-spoken="learnerStats.totalPhrasesSpoken || 847"
+        @close="goHome"
+      />
+    </Transition>
+
+    <!-- Listening Mode Player -->
+    <Transition name="slide-up" mode="out-in">
+      <ListeningModePlayer
+        v-if="currentScreen === 'listening'"
+        :course="activeCourse"
         @close="goHome"
       />
     </Transition>

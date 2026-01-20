@@ -285,7 +285,8 @@ function handleNodeTap(node: ConstellationNode) {
   isPanelOpen.value = true
 
   // Load eternal phrases for this LEGO (5 longest by duration)
-  selectedNodePhrases.value = getEternalPhrasesForLego(node.id)
+  // Pass targetText as fallback for substring matching if ID lookup fails
+  selectedNodePhrases.value = getEternalPhrasesForLego(node.id, node.targetText)
   currentPhraseIndex.value = 0
   isPracticingPhrases.value = false
   currentPracticingPhrase.value = null

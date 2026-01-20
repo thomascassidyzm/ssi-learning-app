@@ -4,7 +4,7 @@ import { getAudioCacheStats, preloadAudioBatch } from '../composables/useScriptC
 import { BELT_RANGES, getBeltForSeed } from '../composables/useBeltLoader'
 import { useBeltProgress } from '../composables/useBeltProgress'
 
-const emit = defineEmits(['close', 'openExplorer', 'openNetwork', 'settingChanged'])
+const emit = defineEmits(['close', 'openExplorer', 'openNetwork', 'openListening', 'settingChanged'])
 
 const props = defineProps({
   course: {
@@ -478,6 +478,58 @@ const confirmReset = async () => {
 
     <!-- Main Content -->
     <main class="main">
+      <!-- Tools Section -->
+      <section class="section">
+        <h3 class="section-title">Tools</h3>
+        <div class="card">
+          <div class="setting-row clickable" @click="emit('openListening')">
+            <div class="setting-info">
+              <span class="setting-label">Listening Mode</span>
+              <span class="setting-desc">Review phrases with passive listening</span>
+            </div>
+            <svg class="tool-icon headphones" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+              <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+            </svg>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row clickable" @click="emit('openExplorer')">
+            <div class="setting-info">
+              <span class="setting-label">Script Explorer</span>
+              <span class="setting-desc">Browse and play the full learning script</span>
+            </div>
+            <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <path d="M14 2v6h6"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+            </svg>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row clickable" @click="emit('openNetwork')">
+            <div class="setting-info">
+              <span class="setting-label">Brain Network</span>
+              <span class="setting-desc">Visualize your vocabulary connections</span>
+            </div>
+            <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"/>
+              <circle cx="19" cy="5" r="2"/>
+              <circle cx="5" cy="19" r="2"/>
+              <circle cx="5" cy="5" r="2"/>
+              <circle cx="19" cy="19" r="2"/>
+              <line x1="14" y1="10" x2="17" y2="7"/>
+              <line x1="10" y1="14" x2="7" y2="17"/>
+              <line x1="10" y1="10" x2="7" y2="7"/>
+              <line x1="14" y1="14" x2="17" y2="17"/>
+            </svg>
+          </div>
+        </div>
+      </section>
+
       <!-- Display Section -->
       <section class="section">
         <h3 class="section-title">Display</h3>
@@ -855,6 +907,22 @@ const confirmReset = async () => {
   height: 20px;
   color: var(--text-muted);
   flex-shrink: 0;
+}
+
+.tool-icon {
+  width: 22px;
+  height: 22px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: color 0.2s ease;
+}
+
+.setting-row.clickable:hover .tool-icon {
+  color: var(--gold);
+}
+
+.tool-icon.headphones {
+  color: var(--gold);
 }
 
 /* Toggle Switch */
