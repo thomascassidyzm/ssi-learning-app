@@ -5036,6 +5036,22 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
 
   console.log(`[LearningPlayer] COURSE CHANGED: ${oldCourseCode} → ${newCourseCode}`)
 
+  // Wait for courseDataProvider to be updated for the new course
+  // (App.vue updates it when course changes, but there may be a timing gap)
+  let waitAttempts = 0
+  const maxWaitAttempts = 20 // 2 seconds max
+  while (courseDataProvider.value?.getCourseId?.() !== newCourseCode && waitAttempts < maxWaitAttempts) {
+    console.log(`[LearningPlayer] Waiting for courseDataProvider to update... (attempt ${waitAttempts + 1})`)
+    await new Promise(resolve => setTimeout(resolve, 100))
+    waitAttempts++
+  }
+
+  if (courseDataProvider.value?.getCourseId?.() !== newCourseCode) {
+    console.warn(`[LearningPlayer] courseDataProvider didn't update to ${newCourseCode}, proceeding anyway`)
+  } else {
+    console.log(`[LearningPlayer] courseDataProvider confirmed for ${newCourseCode}`)
+  }
+
   // 1. Stop all audio immediately
   handlePause()
   if (isPlayingIntroduction.value) skipIntroduction()
