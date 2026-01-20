@@ -189,8 +189,8 @@ const getChartData = () => {
 
 const chartData = ref(getChartData())
 
-// Draw a simple bar chart
-const drawBarChart = (container, data, xAccessor, yAccessor, label) => {
+// Draw a line chart (matches UsageStats style)
+const drawLineChart = (container, data, xAccessor, yAccessor, label) => {
   if (!container) return
 
   d3.select(container).selectAll('*').remove()
@@ -210,28 +210,84 @@ const drawBarChart = (container, data, xAccessor, yAccessor, label) => {
     .attr('transform', `translate(${margin.left},${margin.top})`)
 
   // Scales
-  const xScale = d3.scaleBand()
+  const xScale = d3.scalePoint()
     .domain(data.map(xAccessor))
     .range([0, width])
-    .padding(0.3)
+    .padding(0.5)
 
   const yMax = d3.max(data, yAccessor) || 60
   const yScale = d3.scaleLinear()
     .domain([0, yMax * 1.1])
     .range([height, 0])
 
-  // Bars
-  svg.selectAll('.bar')
+  // Grid lines
+  svg.append('g')
+    .attr('class', 'grid')
+    .selectAll('line')
+    .data(yScale.ticks(3))
+    .join('line')
+    .attr('x1', 0)
+    .attr('x2', width)
+    .attr('y1', d => yScale(d))
+    .attr('y2', d => yScale(d))
+    .attr('stroke', 'rgba(255, 255, 255, 0.05)')
+    .attr('stroke-dasharray', '2,2')
+
+  // Area gradient
+  const areaGradient = svg.append('defs')
+    .append('linearGradient')
+    .attr('id', `areaGradient-${label}`)
+    .attr('x1', '0%')
+    .attr('y1', '0%')
+    .attr('x2', '0%')
+    .attr('y2', '100%')
+
+  areaGradient.append('stop')
+    .attr('offset', '0%')
+    .attr('stop-color', 'var(--accent)')
+    .attr('stop-opacity', 0.3)
+
+  areaGradient.append('stop')
+    .attr('offset', '100%')
+    .attr('stop-color', 'var(--accent)')
+    .attr('stop-opacity', 0)
+
+  // Area fill
+  const area = d3.area()
+    .x(d => xScale(xAccessor(d)))
+    .y0(height)
+    .y1(d => yScale(yAccessor(d)))
+    .curve(d3.curveMonotoneX)
+
+  svg.append('path')
+    .datum(data)
+    .attr('fill', `url(#areaGradient-${label})`)
+    .attr('d', area)
+
+  // Line
+  const line = d3.line()
+    .x(d => xScale(xAccessor(d)))
+    .y(d => yScale(yAccessor(d)))
+    .curve(d3.curveMonotoneX)
+
+  svg.append('path')
+    .datum(data)
+    .attr('fill', 'none')
+    .attr('stroke', 'var(--accent)')
+    .attr('stroke-width', 2)
+    .attr('d', line)
+
+  // Dots
+  svg.selectAll('.dot')
     .data(data)
-    .join('rect')
-    .attr('class', 'bar')
-    .attr('x', d => xScale(xAccessor(d)))
-    .attr('y', d => yScale(yAccessor(d)))
-    .attr('width', xScale.bandwidth())
-    .attr('height', d => height - yScale(yAccessor(d)))
-    .attr('fill', 'var(--accent)')
-    .attr('rx', 3)
-    .attr('opacity', 0.8)
+    .join('circle')
+    .attr('class', 'dot')
+    .attr('cx', d => xScale(xAccessor(d)))
+    .attr('cy', d => yScale(yAccessor(d)))
+    .attr('r', 3)
+    .attr('fill', 'var(--bg-primary)')
+    .attr('stroke', 'var(--accent)')
+    .attr('stroke-width', 1.5)
 
   // X axis
   svg.append('g')
@@ -258,7 +314,7 @@ const drawCharts = () => {
     const data = chartData.value
 
     if (dailyChartRef.value && data.daily.length > 0) {
-      drawBarChart(
+      drawLineChart(
         dailyChartRef.value,
         data.daily,
         d => d.date instanceof Date ? d.date.toLocaleDateString('en-US', { weekday: 'short' }) : d.date,
@@ -268,7 +324,7 @@ const drawCharts = () => {
     }
 
     if (weeklyChartRef.value && data.weekly.length > 0) {
-      drawBarChart(
+      drawLineChart(
         weeklyChartRef.value,
         data.weekly,
         d => d.week,
