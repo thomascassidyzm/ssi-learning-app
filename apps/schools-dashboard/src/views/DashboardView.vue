@@ -6,6 +6,7 @@ import { useSchoolData } from '@/composables/useSchoolData'
 
 const { selectedUser, isGovtAdmin } = useGodMode()
 const {
+  schools,
   currentSchool,
   regionSummary,
   totalStudents,
@@ -115,8 +116,41 @@ onMounted(() => {
       </Card>
     </div>
 
+    <!-- Schools in Region (Govt Admin only) -->
+    <section v-if="isGovtAdmin && schools.length > 0" class="region-schools animate-in delay-2">
+      <Card :title="`Schools in ${regionSummary?.region_name || 'Region'}`" :subtitle="`${schools.length} schools`">
+        <template #icon>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+        </template>
+        <div class="schools-grid">
+          <div v-for="school in schools" :key="school.id" class="school-card">
+            <div class="school-header">
+              <div class="school-avatar">{{ school.school_name.substring(0, 2).toUpperCase() }}</div>
+              <div class="school-info">
+                <h4>{{ school.school_name }}</h4>
+                <span class="school-meta">{{ school.teacher_count }} teachers · {{ school.class_count }} classes</span>
+              </div>
+            </div>
+            <div class="school-stats">
+              <div class="school-stat">
+                <span class="stat-num">{{ school.student_count }}</span>
+                <span class="stat-label">Students</span>
+              </div>
+              <div class="school-stat">
+                <span class="stat-num">{{ Math.round(school.total_practice_hours) }}</span>
+                <span class="stat-label">Hours</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Card>
+    </section>
+
     <!-- Quick Actions -->
-    <section class="quick-actions animate-in delay-2">
+    <section class="quick-actions animate-in delay-3">
       <Card title="Quick Actions">
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -235,6 +269,83 @@ onMounted(() => {
 
 .stat-badge {
   flex-shrink: 0;
+}
+
+/* Region Schools */
+.region-schools {
+  margin-bottom: var(--space-8);
+}
+
+.schools-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-4);
+}
+
+.school-card {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  transition: all var(--transition-base);
+}
+
+.school-card:hover {
+  background: var(--bg-elevated);
+  transform: translateY(-2px);
+}
+
+.school-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.school-avatar {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, var(--ssi-red), var(--ssi-gold));
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: var(--font-bold);
+  font-size: var(--text-sm);
+  color: white;
+}
+
+.school-info h4 {
+  font-weight: var(--font-semibold);
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-1);
+}
+
+.school-meta {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.school-stats {
+  display: flex;
+  gap: var(--space-6);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.school-stat {
+  display: flex;
+  flex-direction: column;
+}
+
+.school-stat .stat-num {
+  font-family: var(--font-display);
+  font-weight: var(--font-bold);
+  font-size: var(--text-lg);
+}
+
+.school-stat .stat-label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
 }
 
 /* Quick Actions */
