@@ -74,6 +74,9 @@ DECLARE
   -- Class name patterns
   v_class_levels TEXT[] := ARRAY['CM1', 'CM2', '6eme', '5eme', '4eme'];
 
+  -- School abbreviations for unique class names
+  v_school_abbrevs TEXT[] := ARRAY['KMP', 'BRE', 'ROA', 'GWN', 'STB', 'LAN', 'KAR', 'PON', 'MTR', 'NAN'];
+
   -- Counters and temp variables
   v_school_id UUID;
   v_school_admin_user_id TEXT;
@@ -196,13 +199,13 @@ BEGIN
       VALUES (
         v_school_id,
         v_teacher_user_id,
-        v_class_levels[v_class_idx] || ' Brezhoneg',
+        v_class_levels[v_class_idx] || ' Brezhoneg (' || v_school_abbrevs[v_school_idx] || ')',
         v_course_code,
         generate_join_code()
       )
       RETURNING id INTO v_class_id;
 
-      RAISE NOTICE '    Class %: % Brezhoneg', v_class_idx, v_class_levels[v_class_idx];
+      RAISE NOTICE '    Class %: % Brezhoneg (%)', v_class_idx, v_class_levels[v_class_idx], v_school_abbrevs[v_school_idx];
 
       -- Create 20 students per class
       FOR v_student_idx IN 1..20 LOOP
