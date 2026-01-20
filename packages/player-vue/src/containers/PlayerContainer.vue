@@ -232,20 +232,20 @@ onMounted(() => {
       />
     </Transition>
 
-    <!-- Learning Player -->
-    <Transition name="slide-up" mode="out-in">
-      <LearningPlayer
-        v-if="currentScreen === 'player' && activeCourse"
-        ref="learningPlayerRef"
-        :classContext="classContext"
-        :course="activeCourse"
-        :previewLegoIndex="previewLegoIndex"
-        @close="handleGoHome"
-        @playStateChanged="handlePlayStateChanged"
-        @viewProgress="handleViewProgress"
-        @listeningModeChanged="handleListeningModeChanged"
-      />
-    </Transition>
+    <!-- Learning Player - use v-show to keep it mounted when navigating away -->
+    <!-- This preserves playback state when viewing BrainView, Settings, etc. -->
+    <LearningPlayer
+      v-if="activeCourse"
+      v-show="currentScreen === 'player'"
+      ref="learningPlayerRef"
+      :classContext="classContext"
+      :course="activeCourse"
+      :previewLegoIndex="previewLegoIndex"
+      @close="handleGoHome"
+      @playStateChanged="handlePlayStateChanged"
+      @viewProgress="handleViewProgress"
+      @listeningModeChanged="handleListeningModeChanged"
+    />
 
     <!-- Journey Map -->
     <Transition name="slide-up" mode="out-in">
