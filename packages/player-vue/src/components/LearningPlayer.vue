@@ -4986,14 +4986,52 @@ defineExpose({
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500&family=Space+Mono:wght@400;700&family=Noto+Serif+SC:wght@600&family=Noto+Serif:wght@500&display=swap');
 
 .player {
+  /* ============ LAYOUT SYSTEM - CSS Custom Properties ============ */
+  /* Safe areas from device */
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+
+  /* Header height: intrinsic content + safe area + padding */
+  /* Uses clamp for responsive sizing: mobile 56px, scales to desktop 72px */
+  --header-height: clamp(56px, 8vh, 72px);
+  --header-total: calc(var(--header-height) + var(--safe-area-top));
+
+  /* Bottom nav height (from BottomNav component) */
+  --nav-height: 80px;
+  --nav-total: calc(var(--nav-height) + var(--safe-area-bottom));
+
+  /* Control bar offset from bottom (above nav) */
+  --control-bar-offset: clamp(12px, 2vh, 24px);
+  --control-bar-bottom: calc(var(--nav-total) + var(--control-bar-offset));
+
+  /* Hero text pane position: below header with breathing room */
+  /* On mobile: closer to header; on larger screens: more centered */
+  --hero-offset: clamp(8px, 2vh, 24px);
+  --hero-top: calc(var(--header-total) + var(--hero-offset));
+
+  /* Spacing scale using viewport-relative clamp() */
+  --space-xs: clamp(4px, 1vmin, 8px);
+  --space-sm: clamp(8px, 1.5vmin, 12px);
+  --space-md: clamp(12px, 2vmin, 20px);
+  --space-lg: clamp(16px, 3vmin, 32px);
+  --space-xl: clamp(24px, 4vmin, 48px);
+
+  /* Text sizing using viewport-relative clamp() */
+  --text-sm: clamp(0.8125rem, 2vmin, 0.9375rem);
+  --text-base: clamp(1rem, 2.5vmin, 1.25rem);
+  --text-lg: clamp(1.125rem, 3vmin, 1.5rem);
+  --text-xl: clamp(1.25rem, 3.5vmin, 1.75rem);
+  --text-2xl: clamp(1.5rem, 4vmin, 2.25rem);
+
+  /* ============ THEME COLORS ============ */
   --accent: #c23a3a;
   --accent-soft: rgba(194, 58, 58, 0.15);
   --accent-glow: rgba(194, 58, 58, 0.4);
   --gold: #d4a853;
   --gold-soft: rgba(212, 168, 83, 0.15);
   --success: #22c55e;
-  --safe-area-top: env(safe-area-inset-top, 0px);
 
+  /* ============ LAYOUT ============ */
   position: relative;
   display: flex;
   flex-direction: column;
@@ -5340,10 +5378,12 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center; /* Center the header stack */
-  padding: calc(0.75rem + var(--safe-area-top, 0px)) 1.5rem 0.5rem 1.5rem;
-  gap: 0.75rem;
+  /* Use safe area + spacing from design system */
+  padding: calc(var(--space-md) + var(--safe-area-top)) var(--space-lg) var(--space-sm);
+  gap: var(--space-md);
   pointer-events: auto; /* Header buttons clickable */
-  min-height: 60px; /* Prevent header from getting too small */
+  /* Height defined by CSS custom property for consistency */
+  min-height: var(--header-height);
 }
 
 .header.has-banner {
@@ -5535,7 +5575,7 @@ defineExpose({
 
 /* ============ UNIFIED BELT + TIMER ============ */
 /* Single element showing belt progress bar + session time, opens modal on tap */
-/* Wide and centered - matches transport controls width */
+/* Matches text box width on mobile for visual consistency */
 .belt-timer-unified {
   display: flex;
   align-items: center;
@@ -5546,9 +5586,9 @@ defineExpose({
   border-radius: clamp(12px, 3vw, 20px);
   cursor: pointer;
   transition: all 0.2s ease;
-  /* Wide - similar to transport controls */
-  width: clamp(200px, 50vw, 400px);
-  max-width: calc(100vw - 180px); /* Leave room for logo on right */
+  /* Match text box width: clamp(300px, 92vw, 720px) - slightly narrower */
+  width: clamp(280px, 88vw, 500px);
+  max-width: calc(100vw - 2rem);
 }
 
 .belt-timer-unified:hover {
@@ -5606,7 +5646,8 @@ defineExpose({
 
 .network-theater {
   position: absolute;
-  top: calc(60px + var(--safe-area-top, 0px)); /* Below header, accounting for notch */
+  /* Use the calculated header total from CSS custom properties */
+  top: var(--header-total);
   left: 0;
   right: 0;
   bottom: 0; /* FULLSCREEN - extends to bottom */
@@ -6084,8 +6125,8 @@ defineExpose({
 /* Text labels floating above/below the hero node with glass effect */
 .hero-text-pane {
   position: absolute;
-  /* Position in top 1/4 of screen - leaves network visible below */
-  top: 18%;
+  /* Position below header using CSS custom property - no media queries needed */
+  top: var(--hero-top);
   left: 50%;
   transform: translate(-50%, 0);
   z-index: 10;
@@ -6093,8 +6134,9 @@ defineExpose({
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px; /* Tighter gap since no hero node between */
-  max-width: 90vw;
+  gap: var(--space-md);
+  /* Responsive max-width using clamp */
+  max-width: clamp(300px, 92vw, 720px);
   transition: opacity 0.4s ease, transform 0.4s ease;
 }
 
@@ -6108,10 +6150,11 @@ defineExpose({
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 12px 24px 16px;
-  /* Match transport control styling - pill shape with mounted feel */
-  border-radius: 24px;
+  gap: var(--space-sm);
+  /* Responsive padding using spacing scale */
+  padding: var(--space-md) var(--space-lg) var(--space-md);
+  /* Responsive border-radius */
+  border-radius: clamp(16px, 3vmin, 32px);
   background: rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -6119,9 +6162,9 @@ defineExpose({
   box-shadow:
     0 2px 16px rgba(0, 0, 0, 0.3),
     0 0 0 1px var(--belt-glow, rgba(194, 58, 58, 0.08));
-  /* Match transport control width */
-  min-width: 320px;
-  max-width: 400px;
+  /* Responsive width using clamp - no media queries needed */
+  min-width: clamp(280px, 85vw, 420px);
+  max-width: clamp(320px, 90vw, 640px);
 }
 
 /* Glass pane is hidden during intro - this rule kept for any edge cases */
@@ -6144,9 +6187,10 @@ defineExpose({
 .intro-typewriter {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-sm);
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
-  font-size: 1rem;
+  /* Responsive text size using CSS custom property */
+  font-size: var(--text-base);
   font-weight: 400;
   letter-spacing: 0.02em;
   color: var(--belt-color, rgba(255, 255, 255, 0.85));
@@ -6181,7 +6225,8 @@ defineExpose({
 
 .hero-known {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
-  font-size: 1.25rem;
+  /* Responsive text size using CSS custom property */
+  font-size: var(--text-lg);
   font-weight: 400;
   color: rgba(255, 255, 255, 0.85);
   margin: 0;
@@ -6191,7 +6236,8 @@ defineExpose({
 
 .hero-target {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
-  font-size: 1.35rem;
+  /* Responsive text size - slightly larger than known text */
+  font-size: var(--text-xl);
   font-weight: 500;
   color: var(--belt-color, #c23a3a);
   margin: 0;
@@ -6508,367 +6554,53 @@ defineExpose({
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   RESPONSIVE HERO TEXT PANE - Full breakpoint coverage
+   RESPONSIVE LAYOUT - Consolidated using CSS Custom Properties
+
+   Core sizing handled by clamp() in --text-*, --space-*, etc.
+   Only special cases (landscape compact mode) need media queries.
    ═══════════════════════════════════════════════════════════════ */
 
-/* Extra small phones (320px) */
-@media (max-width: 360px) {
-  .hero-text-pane {
-    /* Position below single-row compact header + safe area */
-    top: calc(70px + var(--safe-area-top, 0px));
-    max-width: 98vw;
-    gap: 8px;
-  }
-
-  .hero-glass {
-    padding: 10px 14px 12px;
-    gap: 6px;
-    min-width: 90vw;
-    max-width: 96vw;
-    border-radius: 18px;
-  }
-
-  .hero-known {
-    font-size: 1.125rem;
-    line-height: 1.4;
-  }
-
-  .hero-target {
-    font-size: 1.25rem;
-    line-height: 1.4;
-  }
-
-  .intro-typewriter {
-    font-size: 0.8125rem;
-  }
-
-  /* Phase strip extra small */
-  .phase-strip {
-    gap: 3px;
-    margin-bottom: 6px;
-  }
-
-  .phase-section {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-  }
-
-  .phase-icon-svg {
-    width: 16px;
-    height: 16px;
-  }
-
-  .phase-icon-emoji {
-    font-size: 16px;
-  }
+/* Phase strip - responsive sizing using clamp() */
+.phase-strip {
+  gap: clamp(3px, 1vmin, 12px);
+  margin-bottom: clamp(6px, 1.5vmin, 16px);
 }
 
-/* Small phones (361-479px) - includes iPhone 16 (393px) */
-@media (min-width: 361px) and (max-width: 479px) {
-  .hero-text-pane {
-    /* Position below single-row compact header + safe area */
-    top: calc(80px + var(--safe-area-top, 0px));
-    max-width: 95vw;
-    gap: 12px;
-  }
-
-  .hero-glass {
-    padding: 12px 18px 14px;
-    gap: 8px;
-    min-width: 85vw;
-    max-width: 92vw;
-    border-radius: 20px;
-  }
-
-  .hero-known {
-    font-size: 1.3rem;
-  }
-
-  .hero-target {
-    font-size: 1.5rem;
-  }
-
-  .intro-typewriter {
-    font-size: 0.9375rem;
-  }
-
-  /* Phase strip small */
-  .phase-strip {
-    gap: 4px;
-    margin-bottom: 8px;
-  }
-
-  .phase-section {
-    width: 36px;
-    height: 36px;
-  }
-
-  .phase-icon-svg {
-    width: 18px;
-    height: 18px;
-  }
-
-  .phase-icon-emoji {
-    font-size: 18px;
-  }
+.phase-section {
+  width: clamp(28px, 6vmin, 64px);
+  height: clamp(28px, 6vmin, 64px);
+  border-radius: clamp(6px, 1.5vmin, 16px);
 }
 
-/* Phone landscape / small tablets (480-767px) */
-@media (min-width: 480px) and (max-width: 767px) {
-  .hero-text-pane {
-    /* Position below header with safe area consideration */
-    top: calc(85px + var(--safe-area-top, 0px));
-    max-width: 90vw;
-    gap: 14px;
-  }
-
-  .hero-glass {
-    padding: 14px 22px 18px;
-    gap: 10px;
-    min-width: 380px;
-    max-width: 480px;
-  }
-
-  .hero-known {
-    font-size: 1.4rem;
-  }
-
-  .hero-target {
-    font-size: 1.6rem;
-  }
-
-  .intro-typewriter {
-    font-size: 1rem;
-  }
+.phase-icon-svg {
+  width: clamp(14px, 3vmin, 32px);
+  height: clamp(14px, 3vmin, 32px);
 }
 
-/* Tablets (768-1023px) */
-@media (min-width: 768px) and (max-width: 1023px) {
-  .hero-text-pane {
-    top: 16%;
-    gap: 16px;
-  }
-
-  .hero-glass {
-    padding: 16px 28px 20px;
-    gap: 12px;
-    min-width: 400px;
-    max-width: 520px;
-  }
-
-  .hero-known {
-    font-size: 1.5rem;
-  }
-
-  .hero-target {
-    font-size: 1.75rem;
-  }
-
-  .phase-strip {
-    gap: 8px;
-    margin-bottom: 12px;
-  }
-
-  .phase-section {
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
-  }
-
-  .phase-icon-svg {
-    width: 24px;
-    height: 24px;
-  }
-
-  .phase-icon-emoji {
-    font-size: 24px;
-  }
-
-  .intro-typewriter {
-    font-size: 1.125rem;
-  }
+.phase-icon-emoji {
+  font-size: clamp(14px, 3vmin, 32px);
 }
 
-/* Laptops (1024-1279px) */
-@media (min-width: 1024px) and (max-width: 1279px) {
-  .hero-text-pane {
-    top: 16%;
-    gap: 18px;
-  }
-
-  .hero-glass {
-    padding: 18px 32px 24px;
-    gap: 14px;
-    min-width: 420px;
-    max-width: 560px;
-  }
-
-  .hero-known {
-    font-size: 1.625rem;
-  }
-
-  .hero-target {
-    font-size: 1.875rem;
-  }
-
-  .phase-section {
-    width: 52px;
-    height: 52px;
-  }
-
-  .phase-icon-svg {
-    width: 26px;
-    height: 26px;
-  }
-}
-
-/* Desktops (1280-1535px) */
-@media (min-width: 1280px) and (max-width: 1535px) {
-  .hero-text-pane {
-    top: 15%;
-    gap: 20px;
-  }
-
-  .hero-glass {
-    padding: 20px 40px 28px;
-    gap: 16px;
-    min-width: 480px;
-    max-width: 640px;
-    border-radius: 28px;
-  }
-
-  .hero-known {
-    font-size: 1.75rem;
-  }
-
-  .hero-target {
-    font-size: 2rem;
-  }
-
-  .intro-typewriter {
-    font-size: 1.25rem;
-  }
-
-  .phase-strip {
-    gap: 10px;
-    margin-bottom: 14px;
-  }
-
-  .phase-section {
-    width: 56px;
-    height: 56px;
-    border-radius: 14px;
-  }
-
-  .phase-icon-svg {
-    width: 28px;
-    height: 28px;
-  }
-
-  .phase-icon-emoji {
-    font-size: 28px;
-  }
-}
-
-/* Large desktops and ultrawides (1536px+) */
-@media (min-width: 1536px) {
-  .hero-text-pane {
-    top: 14%;
-    gap: 24px;
-  }
-
-  .hero-glass {
-    padding: 24px 48px 32px;
-    gap: 18px;
-    min-width: 520px;
-    max-width: 720px;
-    border-radius: 32px;
-    box-shadow:
-      0 4px 24px rgba(0, 0, 0, 0.4),
-      0 0 0 1px var(--belt-glow, rgba(194, 58, 58, 0.1));
-  }
-
-  .hero-known {
-    font-size: 2rem;
-  }
-
-  .hero-target {
-    font-size: 2.25rem;
-  }
-
-  .intro-typewriter {
-    font-size: 1.375rem;
-  }
-
-  .phase-strip {
-    gap: 12px;
-    margin-bottom: 16px;
-  }
-
-  .phase-section {
-    width: 64px;
-    height: 64px;
-    border-radius: 16px;
-  }
-
-  .phase-icon-svg {
-    width: 32px;
-    height: 32px;
-  }
-
-  .phase-icon-emoji {
-    font-size: 32px;
-  }
-}
-
-/* Landscape orientation - compact hero pane */
+/* Landscape orientation - compact mode for short screens */
 @media (orientation: landscape) and (max-height: 500px) {
-  .hero-text-pane {
-    top: 10%;
-    gap: 8px;
+  .player {
+    /* Override CSS custom properties for compact layout */
+    --header-height: 48px;
+    --hero-offset: 4px;
+    --control-bar-offset: 8px;
+    --space-xs: 2px;
+    --space-sm: 4px;
+    --space-md: 6px;
+    --space-lg: 12px;
+    --text-sm: 0.75rem;
+    --text-base: 0.8125rem;
+    --text-lg: 1rem;
+    --text-xl: 1.125rem;
   }
 
-  .hero-glass {
-    padding: 8px 16px 10px;
-    gap: 6px;
-    min-width: 280px;
-    max-width: 400px;
-    border-radius: 14px;
-  }
-
-  .hero-known {
-    font-size: 1rem;
-    line-height: 1.3;
-  }
-
+  .hero-known,
   .hero-target {
-    font-size: 1.125rem;
     line-height: 1.3;
-  }
-
-  .intro-typewriter {
-    font-size: 0.8125rem;
-  }
-
-  .phase-strip {
-    gap: 4px;
-    margin-bottom: 6px;
-  }
-
-  .phase-section {
-    width: 28px;
-    height: 28px;
-    border-radius: 6px;
-  }
-
-  .phase-icon-svg {
-    width: 14px;
-    height: 14px;
-  }
-
-  .phase-icon-emoji {
-    font-size: 14px;
   }
 }
 
@@ -7501,15 +7233,12 @@ defineExpose({
   display: flex;
   justify-content: center;
   align-items: center;
-  /* Gap sized for play button width + consistent spacing on each side */
-  /* Mobile: ~48px play + spacing, Tablet: ~58px, Desktop: ~68-76px */
-  /* clamp(mobile, fluid, desktop) */
+  /* Gap sized for play button width - responsive using clamp */
   gap: clamp(3.5rem, 8vw, 6.75rem);
-  padding: clamp(0.5rem, 1vw, 1.25rem) clamp(0.75rem, 2vw, 2.5rem);
+  padding: var(--space-sm) var(--space-md);
   position: absolute;
-  /* Position above the bottom nav bar */
-  bottom: clamp(90px, 12vh, 110px);
-  bottom: calc(clamp(90px, 12vh, 110px) + env(safe-area-inset-bottom, 0px));
+  /* Position above bottom nav using CSS custom property */
+  bottom: var(--control-bar-bottom);
   left: 50%;
   transform: translateX(-50%);
   z-index: 15;
@@ -8338,45 +8067,11 @@ defineExpose({
 }
 
 /* Landscape orientation - compact layout */
+/* Landscape control button sizing - positioning handled by CSS custom properties */
 @media (orientation: landscape) and (max-height: 500px) {
-  .header {
-    padding: 0.5rem 1rem;
-    min-height: 48px;
-  }
-
-  .brand {
-    font-size: 0.9375rem;
-  }
-
-  .main {
-    padding: 0.5rem 1rem;
-    gap: 0.75rem;
-    flex-direction: row;
-    justify-content: center;
-    align-items: center;
-  }
-
-  .ring-container {
-    width: 100px;
-    height: 100px;
-  }
-
-  .ring-center {
-    width: 64px;
-    height: 64px;
-  }
-
-  .play-indicator svg {
-    width: 24px;
-    height: 24px;
-  }
-
   .control-bar {
-    padding: 0.375rem 0.75rem;
-    /* Play button ~44px + 2*4px gap = 52px ≈ 3.25rem */
+    /* Tighter gap in landscape */
     gap: 3.25rem;
-    /* Above nav bar in landscape */
-    bottom: 85px;
   }
 
   .control-group {
@@ -8398,13 +8093,8 @@ defineExpose({
   }
 }
 
-/* PWA standalone mode - extra bottom padding for iOS home indicator */
-@media (display-mode: standalone) {
-  .control-bar {
-    /* Above nav bar on iOS PWA */
-    bottom: calc(100px + env(safe-area-inset-bottom, 0px));
-  }
-}
+/* PWA standalone mode - safe area handled by CSS custom properties */
+/* Note: --control-bar-bottom already includes --nav-total which includes --safe-area-bottom */
 
 /* ============ SESSION COMPLETE TRANSITION ============ */
 .session-complete-enter-active {
