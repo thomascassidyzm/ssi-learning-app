@@ -11,7 +11,7 @@
  */
 
 import { ref, computed, inject, onMounted, onUnmounted, watch } from 'vue'
-import ConstellationNetworkView from './ConstellationNetworkView.vue'
+import CanvasNetworkView from './CanvasNetworkView.vue'
 import UsageStats from './UsageStats.vue'
 import { usePrebuiltNetwork, type ExternalConnection, type ConstellationNode } from '../composables/usePrebuiltNetwork'
 import { useLegoNetwork, type PhraseWithPath } from '../composables/useLegoNetwork'
@@ -921,7 +921,8 @@ onUnmounted(() => {
 
     <!-- Network visualization - fixed view, only revealed nodes shown -->
     <!-- Network is constrained within a "growing brain" shape based on belt level -->
-    <ConstellationNetworkView
+    <!-- Uses Canvas+SVG hybrid for smooth performance with large networks -->
+    <CanvasNetworkView
       v-else
       ref="networkRef"
       :nodes="prebuiltNetwork.nodes.value"
@@ -929,7 +930,6 @@ onUnmounted(() => {
       :hero-node-id="null"
       :revealed-node-ids="showAllForTesting ? null : prebuiltNetwork.revealedNodeIds.value"
       :current-path="prebuiltNetwork.currentPath.value"
-      :pan-transform="'translate(0px, 0px)'"
       :show-path-labels="true"
       :brain-boundary-svg-path="prebuiltNetwork.brainBoundarySvgPath.value"
       :brain-boundary-color="accentColor"
