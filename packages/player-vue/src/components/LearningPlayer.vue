@@ -825,6 +825,14 @@ const beltCssVars = computed(() => beltProgress.value?.beltCssVars.value ?? {
   '--belt-glow': 'rgba(245, 245, 245, 0.3)',
 })
 
+// Star field fades as constellation fills in - your LEGOs become your stars
+// White=100%, Yellow=75%, Orange=50%, Green=25%, Blue+=0%
+const starFieldOpacity = computed(() => {
+  const beltIndex = currentBelt.value?.index ?? 0
+  if (beltIndex >= 4) return 0 // Blue belt and beyond: stars gone
+  return 1 - (beltIndex * 0.25)
+})
+
 // Initialize belt progress when course code is available
 const initializeBeltProgress = async () => {
   if (courseCode.value && !beltProgress.value) {
@@ -4689,8 +4697,8 @@ defineExpose({
       </div>
     </Transition>
 
-    <!-- Static Star Field - Deep space backdrop -->
-    <div class="star-field">
+    <!-- Static Star Field - Deep space backdrop (fades as constellation fills) -->
+    <div class="star-field" :style="{ opacity: starFieldOpacity }">
       <div class="star star-1"></div>
       <div class="star star-2"></div>
       <div class="star star-3"></div>
@@ -4717,8 +4725,8 @@ defineExpose({
       <div class="star star-24"></div>
     </div>
 
-    <!-- Drifting Star Particles - Slow motion through space -->
-    <div class="drift-stars">
+    <!-- Drifting Star Particles - Slow motion through space (fades with constellation) -->
+    <div class="drift-stars" :style="{ opacity: starFieldOpacity }">
       <div class="drift-star drift-1"></div>
       <div class="drift-star drift-2"></div>
       <div class="drift-star drift-3"></div>
@@ -5363,11 +5371,8 @@ defineExpose({
   opacity: 0.015;
 }
 
-/* Softer stars in mist mode */
-:root[data-theme="mist"] .star-field,
-:root[data-theme="mist"] .drift-stars {
-  opacity: 0.6;
-}
+/* Stars controlled by belt progression (starFieldOpacity computed) */
+/* Both themes use the same fade logic - your LEGOs become your stars */
 
 :root[data-theme="mist"] .nebula-glow {
   background:
