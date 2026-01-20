@@ -1765,12 +1765,45 @@ class RealAudioController {
     if (this.audio) {
       this.audio.pause()
       this.audio.currentTime = 0
-      // Clear src completely - empty string prevents cached audio playback
-      // Don't use silent data URI as it can cause race conditions
+      // Clear src completely to prevent cached audio playback
       this.audio.removeAttribute('src')
-      // Don't call load() - just clearing src is enough
+      // Force browser to release the audio buffer by calling load() with empty src
+      // This is more aggressive than just removing src
+      this.audio.load()
       // Don't null the audio element - reuse it for mobile compatibility
     }
+  }
+
+  /**
+   * Hard reset - completely destroys and recreates audio state
+   * Use this on skip operations to ensure NO audio from previous state can play
+   */
+  hardReset() {
+    // First do a normal stop
+    this.stop()
+
+    // Clear all callbacks
+    this.endedCallbacks.clear()
+
+    // Clear preload cache
+    this.preloadedUrls.clear()
+    this.preloadOrder.length = 0
+
+    // Recreate audio element to ensure clean state
+    // This is the nuclear option - guarantees no stale audio
+    if (this.audio) {
+      // Remove all event listeners by cloning
+      const oldAudio = this.audio
+      this.audio = new Audio()
+      this.audio.preload = 'auto'
+
+      // Clean up old element
+      oldAudio.pause()
+      oldAudio.src = ''
+      oldAudio.load()
+    }
+
+    console.log('[AudioController] Hard reset complete - all audio state cleared')
   }
 
   async preload(audioRef) {
@@ -2730,42 +2763,55 @@ const startPlayback = async () => {
  * IMPORTANT: Must fully halt all audio before advancing
  */
 const handleSkip = async () => {
-  console.log('[LearningPlayer] Skip requested - halting all audio')
+  console.log('[LearningPlayer] ========== SKIP REQUESTED ==========')
 
   // 0. INCREMENT GENERATION FIRST - invalidates any pending callbacks from previous position
   playbackGeneration.value++
+  console.log('[LearningPlayer] Skip: Generation incremented to', playbackGeneration.value)
 
   // 1. IMMEDIATELY suppress all audio callbacks to prevent race conditions
   if (audioController.value?.suppressCallbacks) {
     audioController.value.suppressCallbacks()
   }
 
-  // 2. HALT EVERYTHING - stop orchestrator first (prevents new audio from starting)
+  // 2. HALT ORCHESTRATOR FIRST - prevents it from starting new audio
   if (orchestrator.value) {
     orchestrator.value.stop()
+    console.log('[LearningPlayer] Skip: Orchestrator stopped')
   }
 
-  // 3. Stop audio controller (stops current playback and clears any pending listeners)
+  // 3. HARD RESET audio controller - nuclear option to ensure clean slate
+  // This recreates the audio element, clearing ALL browser buffers
   if (audioController.value) {
-    audioController.value.stop()
-    // Clear preload cache to prevent stale audio from previous round
-    audioController.value.clearPreloadCache()
+    audioController.value.hardReset()
+    console.log('[LearningPlayer] Skip: Audio controller hard reset complete')
   }
 
-  // 3. Skip any playing intro/welcome
+  // 4. Skip any playing intro/welcome (these use separate audio elements)
   if (isPlayingIntroduction.value) {
     skipIntroduction()
+    console.log('[LearningPlayer] Skip: Intro skipped')
   }
   if (isPlayingWelcome.value) {
     skipWelcome()
+    console.log('[LearningPlayer] Skip: Welcome skipped')
   }
 
-  // 4. Clear any path animations
+  // 5. Clear any path animations
   clearPathAnimation()
 
-  // 5. Delay to ensure everything is settled (audio stops + text transitions complete)
-  // CSS text transition is 300ms, so 150ms is a reasonable buffer after stopping audio
-  await new Promise(resolve => setTimeout(resolve, 150))
+  // 6. Wait for complete audio silence - ensures no fragments can play
+  // This is critical: we MUST wait for browser to fully release audio resources
+  await new Promise(resolve => setTimeout(resolve, 50))
+
+  // 7. Double-stop: call stop again after delay to catch any stragglers
+  if (audioController.value) {
+    audioController.value.stop()
+  }
+
+  // 8. Final settling delay for CSS transitions (300ms transition, add buffer)
+  await new Promise(resolve => setTimeout(resolve, 100))
+  console.log('[LearningPlayer] Skip: All audio cleanup complete, proceeding to next item')
 
   // 6. Re-enable callbacks AFTER skip navigation is complete
   // (this happens at end of function)
@@ -2867,41 +2913,53 @@ const handleSkip = async () => {
  * IMPORTANT: Must fully halt all audio before navigating
  */
 const handleRevisit = async () => {
-  console.log('[LearningPlayer] Revisit requested - halting all audio')
+  console.log('[LearningPlayer] ========== REVISIT REQUESTED ==========')
 
   // 0. INCREMENT GENERATION FIRST - invalidates any pending callbacks from previous position
   playbackGeneration.value++
+  console.log('[LearningPlayer] Revisit: Generation incremented to', playbackGeneration.value)
 
   // 1. IMMEDIATELY suppress all audio callbacks to prevent race conditions
   if (audioController.value?.suppressCallbacks) {
     audioController.value.suppressCallbacks()
   }
 
-  // 2. HALT EVERYTHING - stop orchestrator first (prevents new events)
+  // 2. HALT ORCHESTRATOR FIRST - prevents it from starting new audio
   if (orchestrator.value) {
     orchestrator.value.stop()
+    console.log('[LearningPlayer] Revisit: Orchestrator stopped')
   }
 
-  // 3. Stop audio controller (stops current playback)
+  // 3. HARD RESET audio controller - nuclear option to ensure clean slate
   if (audioController.value) {
-    audioController.value.stop()
-    // Clear preload cache to prevent stale audio
-    audioController.value.clearPreloadCache()
+    audioController.value.hardReset()
+    console.log('[LearningPlayer] Revisit: Audio controller hard reset complete')
   }
 
-  // 3. Skip any playing intro/welcome
+  // 4. Skip any playing intro/welcome (these use separate audio elements)
   if (isPlayingIntroduction.value) {
     skipIntroduction()
+    console.log('[LearningPlayer] Revisit: Intro skipped')
   }
   if (isPlayingWelcome.value) {
     skipWelcome()
+    console.log('[LearningPlayer] Revisit: Welcome skipped')
   }
 
-  // 4. Clear path animations
+  // 5. Clear path animations
   clearPathAnimation()
 
-  // 5. Delay to ensure everything is settled (audio stops + text transitions complete)
-  await new Promise(resolve => setTimeout(resolve, 150))
+  // 6. Wait for complete audio silence
+  await new Promise(resolve => setTimeout(resolve, 50))
+
+  // 7. Double-stop: call stop again after delay to catch any stragglers
+  if (audioController.value) {
+    audioController.value.stop()
+  }
+
+  // 8. Final settling delay for CSS transitions
+  await new Promise(resolve => setTimeout(resolve, 100))
+  console.log('[LearningPlayer] Revisit: All audio cleanup complete, proceeding')
 
   // Round-based navigation
   if (useRoundBasedPlayback.value && cachedRounds.value.length) {
@@ -2989,39 +3047,53 @@ const jumpToRound = async (roundIndex) => {
     return false
   }
 
-  console.log('[LearningPlayer] Jump requested - halting all audio')
+  console.log('[LearningPlayer] ========== JUMP TO ROUND', roundIndex, '==========')
 
   // 0. Increment generation to invalidate any pending callbacks from previous position
   playbackGeneration.value++
+  console.log('[LearningPlayer] Jump: Generation incremented to', playbackGeneration.value)
 
   // 1. IMMEDIATELY suppress all audio callbacks to prevent race conditions
   if (audioController.value?.suppressCallbacks) {
     audioController.value.suppressCallbacks()
   }
 
-  // 1. HALT EVERYTHING - stop orchestrator first (prevents new events)
+  // 2. HALT ORCHESTRATOR FIRST - prevents it from starting new audio
   if (orchestrator.value) {
     orchestrator.value.stop()
+    console.log('[LearningPlayer] Jump: Orchestrator stopped')
   }
 
-  // 2. Stop audio controller
+  // 3. HARD RESET audio controller - nuclear option to ensure clean slate
+  if (audioController.value) {
+    audioController.value.hardReset()
+    console.log('[LearningPlayer] Jump: Audio controller hard reset complete')
+  }
+
+  // 4. Skip any playing intro/welcome (these use separate audio elements)
+  if (isPlayingIntroduction.value) {
+    skipIntroduction()
+    console.log('[LearningPlayer] Jump: Intro skipped')
+  }
+  if (isPlayingWelcome.value) {
+    skipWelcome()
+    console.log('[LearningPlayer] Jump: Welcome skipped')
+  }
+
+  // 5. Clear path animations
+  clearPathAnimation()
+
+  // 6. Wait for complete audio silence
+  await new Promise(resolve => setTimeout(resolve, 50))
+
+  // 7. Double-stop: call stop again after delay to catch any stragglers
   if (audioController.value) {
     audioController.value.stop()
   }
 
-  // 3. Skip any playing intro/welcome
-  if (isPlayingIntroduction.value) {
-    skipIntroduction()
-  }
-  if (isPlayingWelcome.value) {
-    skipWelcome()
-  }
-
-  // 4. Clear path animations
-  clearPathAnimation()
-
-  // 5. Delay to ensure everything is settled
+  // 8. Final settling delay for CSS transitions
   await new Promise(resolve => setTimeout(resolve, 100))
+  console.log('[LearningPlayer] Jump: All audio cleanup complete, proceeding')
 
   const previousIndex = currentRoundIndex.value
   currentRoundIndex.value = roundIndex
