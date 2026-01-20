@@ -9,19 +9,35 @@ const {
   schools,
   currentSchool,
   regionSummary,
+  viewingSchool,
+  isViewingSchool,
   totalStudents,
   totalTeachers,
   totalClasses,
   totalPracticeHours,
   fetchSchools,
+  selectSchoolToView,
+  clearViewingSchool,
   isLoading,
   error
 } = useSchoolData()
 
 // Display values
 const schoolName = computed(() => {
+  // If govt admin is viewing a specific school (drilled down)
+  if (isViewingSchool.value && viewingSchool.value) return viewingSchool.value.school_name
+  // If govt admin at regional level
   if (isGovtAdmin.value && regionSummary.value) return regionSummary.value.region_name
   return currentSchool.value?.school_name || selectedUser.value?.school_name || 'Your School'
+})
+
+// Breadcrumb for drill-down navigation
+const breadcrumb = computed(() => {
+  if (!isViewingSchool.value) return null
+  return {
+    region: regionSummary.value?.region_name || 'Region',
+    school: viewingSchool.value?.school_name || 'School'
+  }
 })
 
 const practiceHoursDisplay = computed(() => Math.round(totalPracticeHours.value))
@@ -53,13 +69,33 @@ onMounted(() => {
 
 <template>
   <div class="dashboard-view">
+    <!-- Breadcrumb (when drilled down) -->
+    <nav v-if="breadcrumb" class="breadcrumb animate-in">
+      <button class="breadcrumb-link" @click="clearViewingSchool">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+        {{ breadcrumb.region }}
+      </button>
+      <span class="breadcrumb-separator">/</span>
+      <span class="breadcrumb-current">{{ breadcrumb.school }}</span>
+    </nav>
+
     <!-- Page Header -->
     <header class="page-header animate-in">
       <div class="page-title">
         <h1>Dashboard</h1>
         <p class="page-subtitle">
           <template v-if="selectedUser">
-            {{ isGovtAdmin ? 'Regional overview for' : 'Welcome back!' }} {{ schoolName }}
+            <template v-if="isViewingSchool">
+              Viewing {{ schoolName }}
+            </template>
+            <template v-else-if="isGovtAdmin">
+              Regional overview for {{ schoolName }}
+            </template>
+            <template v-else>
+              Welcome back! {{ schoolName }}
+            </template>
           </template>
           <template v-else>
             Select a user from God Mode to view dashboard data
@@ -116,8 +152,8 @@ onMounted(() => {
       </Card>
     </div>
 
-    <!-- Schools in Region (Govt Admin only) -->
-    <section v-if="isGovtAdmin && schools.length > 0" class="region-schools animate-in delay-2">
+    <!-- Schools in Region (Govt Admin only, at regional level) -->
+    <section v-if="isGovtAdmin && !isViewingSchool && schools.length > 0" class="region-schools animate-in delay-2">
       <Card :title="`Schools in ${regionSummary?.region_name || 'Region'}`" :subtitle="`${schools.length} schools`">
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -126,13 +162,21 @@ onMounted(() => {
           </svg>
         </template>
         <div class="schools-grid">
-          <div v-for="school in schools" :key="school.id" class="school-card">
+          <button
+            v-for="school in schools"
+            :key="school.id"
+            class="school-card"
+            @click="selectSchoolToView(school)"
+          >
             <div class="school-header">
               <div class="school-avatar">{{ school.school_name.substring(0, 2).toUpperCase() }}</div>
               <div class="school-info">
                 <h4>{{ school.school_name }}</h4>
                 <span class="school-meta">{{ school.teacher_count }} teachers · {{ school.class_count }} classes</span>
               </div>
+              <svg class="school-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
             </div>
             <div class="school-stats">
               <div class="school-stat">
@@ -144,7 +188,7 @@ onMounted(() => {
                 <span class="stat-label">Hours</span>
               </div>
             </div>
-          </div>
+          </button>
         </div>
       </Card>
     </section>
@@ -211,6 +255,42 @@ onMounted(() => {
 <style scoped>
 .dashboard-view {
   max-width: 1200px;
+}
+
+/* Breadcrumb */
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  font-size: var(--text-sm);
+}
+
+.breadcrumb-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  background: none;
+  border: none;
+  color: var(--ssi-red);
+  cursor: pointer;
+  font-size: inherit;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-base);
+}
+
+.breadcrumb-link:hover {
+  background: var(--bg-elevated);
+}
+
+.breadcrumb-separator {
+  color: var(--text-muted);
+}
+
+.breadcrumb-current {
+  color: var(--text-secondary);
+  font-weight: var(--font-medium);
 }
 
 .page-header {
@@ -287,11 +367,17 @@ onMounted(() => {
   border-radius: var(--radius-lg);
   padding: var(--space-4);
   transition: all var(--transition-base);
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  font-family: inherit;
 }
 
 .school-card:hover {
   background: var(--bg-elevated);
   transform: translateY(-2px);
+  border-color: var(--ssi-red);
 }
 
 .school-header {
@@ -299,6 +385,20 @@ onMounted(() => {
   align-items: center;
   gap: var(--space-3);
   margin-bottom: var(--space-4);
+}
+
+.school-chevron {
+  margin-left: auto;
+  color: var(--text-muted);
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: all var(--transition-base);
+}
+
+.school-card:hover .school-chevron {
+  opacity: 1;
+  transform: translateX(0);
+  color: var(--ssi-red);
 }
 
 .school-avatar {

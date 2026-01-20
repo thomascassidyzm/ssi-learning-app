@@ -24,6 +24,7 @@ export interface School {
 const schools = ref<School[]>([])
 const currentSchool = ref<School | null>(null)
 const regionSummary = ref<RegionSummary | null>(null)
+const viewingSchool = ref<School | null>(null) // For govt admin drill-down
 const isLoading = ref(false)
 const error = ref<string | null>(null)
 
@@ -113,22 +114,41 @@ export function useSchoolData() {
     }
   }
 
-  // Computed stats
+  // Drill-down: select a school to view (for govt admin)
+  function selectSchoolToView(school: School) {
+    viewingSchool.value = school
+  }
+
+  function clearViewingSchool() {
+    viewingSchool.value = null
+  }
+
+  // Is the govt admin currently viewing a specific school?
+  const isViewingSchool = computed(() => isGovtAdmin.value && !!viewingSchool.value)
+
+  // The "active" school - either the viewing school (drill-down) or current school
+  const activeSchool = computed(() => viewingSchool.value || currentSchool.value)
+
+  // Computed stats - respect drill-down context
   const totalStudents = computed(() => {
+    if (viewingSchool.value) return viewingSchool.value.student_count
     if (regionSummary.value) return regionSummary.value.student_count
     return schools.value.reduce((sum, s) => sum + s.student_count, 0)
   })
 
   const totalTeachers = computed(() => {
+    if (viewingSchool.value) return viewingSchool.value.teacher_count
     if (regionSummary.value) return regionSummary.value.teacher_count
     return schools.value.reduce((sum, s) => sum + s.teacher_count, 0)
   })
 
   const totalClasses = computed(() => {
+    if (viewingSchool.value) return viewingSchool.value.class_count
     return schools.value.reduce((sum, s) => sum + s.class_count, 0)
   })
 
   const totalPracticeHours = computed(() => {
+    if (viewingSchool.value) return viewingSchool.value.total_practice_hours
     if (regionSummary.value) return regionSummary.value.total_practice_hours
     return schools.value.reduce((sum, s) => sum + s.total_practice_hours, 0)
   })
@@ -138,10 +158,13 @@ export function useSchoolData() {
     schools,
     currentSchool,
     regionSummary,
+    viewingSchool,
     isLoading,
     error,
 
     // Computed
+    activeSchool,
+    isViewingSchool,
     totalStudents,
     totalTeachers,
     totalClasses,
@@ -149,5 +172,7 @@ export function useSchoolData() {
 
     // Actions
     fetchSchools,
+    selectSchoolToView,
+    clearViewingSchool,
   }
 }
