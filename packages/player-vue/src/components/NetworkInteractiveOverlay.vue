@@ -2,11 +2,17 @@
 /**
  * NetworkInteractiveOverlay.vue - SVG Overlay for Canvas-Rendered Network
  *
- * This component sits on top of a Canvas-rendered network and handles:
- * - Selected/highlighted node rendering (full detail with glow)
- * - Search result highlights (subtle ring)
+ * This component sits on top of a Canvas-rendered network and provides:
+ * - Selection/highlight RINGS only (not full nodes - those are on canvas)
  * - Click/tap detection via invisible hit areas
- * - Fire path animation (nodes in current path)
+ *
+ * Visual indicators rendered:
+ * - Selected node: Pulsing glow ring (belt-colored) around the canvas node
+ * - Fire path nodes: Blue pulsing ring around nodes in the current path
+ * - Search results: Subtle dashed ring for highlighted nodes
+ *
+ * The canvas renders all actual nodes - this overlay only adds selection
+ * indicators like a selection outline in a design tool.
  *
  * The overlay is position: absolute with pointer-events: none by default,
  * with only the hit areas having pointer-events: all for click detection.
@@ -19,23 +25,18 @@ import { computed, type PropType } from 'vue'
 import type { ConstellationNode, PathHighlight } from '../composables/usePrebuiltNetwork'
 
 // ============================================================================
-// BELT PALETTES (copied from ConstellationNetworkView)
+// BELT GLOW COLORS (for highlight rings only - nodes are rendered on canvas)
 // ============================================================================
 
-const BELT_PALETTES: Record<string, {
-  glow: string
-  core: string
-  inner: string
-  label: string
-}> = {
-  white: { glow: '#9ca3af', core: '#2a2a35', inner: '#ffffff', label: '#ffffffcc' },
-  yellow: { glow: '#fbbf24', core: '#2a2518', inner: '#fbbf24', label: '#fbbf24cc' },
-  orange: { glow: '#f97316', core: '#2a1a10', inner: '#f97316', label: '#f97316cc' },
-  green: { glow: '#22c55e', core: '#102a1a', inner: '#22c55e', label: '#22c55ecc' },
-  blue: { glow: '#3b82f6', core: '#101a2a', inner: '#3b82f6', label: '#3b82f6cc' },
-  purple: { glow: '#8b5cf6', core: '#1a102a', inner: '#8b5cf6', label: '#8b5cf6cc' },
-  brown: { glow: '#a87848', core: '#2a1a10', inner: '#a87848', label: '#a87848cc' },
-  black: { glow: '#d4a853', core: '#2a2518', inner: '#d4a853', label: '#d4a853cc' },
+const BELT_GLOW_COLORS: Record<string, string> = {
+  white: '#9ca3af',
+  yellow: '#fbbf24',
+  orange: '#f97316',
+  green: '#22c55e',
+  blue: '#3b82f6',
+  purple: '#8b5cf6',
+  brown: '#a87848',
+  black: '#d4a853',
 }
 
 // ============================================================================
@@ -134,34 +135,20 @@ function isNodeSelected(nodeId: string): boolean {
 // HELPERS
 // ============================================================================
 
-function getPalette(belt: string) {
-  return BELT_PALETTES[belt] || BELT_PALETTES.white
+function getGlowColor(belt: string): string {
+  return BELT_GLOW_COLORS[belt] || BELT_GLOW_COLORS.white
 }
 
 /**
- * Get node size multiplier - component nodes are smaller
- * Same logic as ConstellationNetworkView
+ * Get the ring radius for highlighting - sits outside the canvas-rendered node
+ * The canvas renders nodes at approximately 12-14px radius for core
+ * We want the ring to sit AROUND that, so we use a larger radius
  */
-function getNodeSize(node: ConstellationNode, isActive: boolean): {
-  glow: number
-  core: number
-  inner: number
-} {
+function getHighlightRingRadius(node: ConstellationNode): number {
   // Component nodes are 60% the size of regular nodes
   const scale = node.isComponent ? 0.6 : 1
-
-  if (isActive) {
-    return {
-      glow: 22 * scale,
-      core: 14 * scale,
-      inner: 5 * scale,
-    }
-  }
-  return {
-    glow: 18 * scale,
-    core: 12 * scale,
-    inner: 4 * scale,
-  }
+  // Ring sits outside the node (node core is ~12-14px, we want ring at ~20-22px)
+  return 20 * scale
 }
 
 /**
@@ -247,60 +234,51 @@ function handleBackgroundTap(event: MouseEvent | TouchEvent): void {
         />
       </g>
 
-      <!-- Visible nodes layer (only interactive nodes) -->
-      <g class="visible-nodes-layer">
-        <g
-          v-for="node in interactiveNodes"
-          :key="node.id"
-          class="overlay-node"
-          :class="{
-            'node-selected': isNodeSelected(node.id),
-            'node-highlighted': isNodeHighlighted(node.id) && !isNodeSelected(node.id),
-            'node-in-path': isNodeInPath(node.id),
-            'node-component': node.isComponent,
-          }"
-          :transform="`translate(${node.x}, ${node.y})`"
-        >
-          <!-- Outer glow ring -->
-          <circle
-            class="node-glow"
-            :r="getNodeSize(node, isNodeSelected(node.id) || isNodeInPath(node.id)).glow"
-            fill="none"
-            :stroke="getPalette(node.belt).glow"
-            :stroke-width="isNodeSelected(node.id) || isNodeInPath(node.id) ? 3 : 2"
-            :opacity="isNodeSelected(node.id) || isNodeInPath(node.id) ? 0.9 : 0.75"
-            :filter="isNodeSelected(node.id) ? 'url(#overlay-glow)' : (isNodeHighlighted(node.id) ? 'url(#overlay-highlight-glow)' : 'none')"
-          />
+      <!-- Highlight rings layer (only interactive nodes - nodes are rendered on canvas) -->
+      <g class="highlight-rings-layer">
+        <!-- Selected node ring - prominent pulsing glow halo -->
+        <circle
+          v-for="node in interactiveNodes.filter(n => isNodeSelected(n.id))"
+          :key="`selected-${node.id}`"
+          class="selection-ring"
+          :cx="node.x"
+          :cy="node.y"
+          :r="getHighlightRingRadius(node)"
+          fill="none"
+          :stroke="getGlowColor(node.belt)"
+          stroke-width="3"
+          opacity="0.9"
+          filter="url(#overlay-glow)"
+        />
 
-          <!-- Core circle -->
-          <circle
-            class="node-core"
-            :r="getNodeSize(node, isNodeSelected(node.id) || isNodeInPath(node.id)).core"
-            :fill="getPalette(node.belt).core"
-            :stroke="getPalette(node.belt).glow"
-            :stroke-width="isNodeSelected(node.id) || isNodeInPath(node.id) ? 2 : 1.5"
-            :stroke-opacity="isNodeSelected(node.id) || isNodeInPath(node.id) ? 1 : 0.85"
-          />
+        <!-- Path nodes ring - blue pulsing halo for fire path -->
+        <circle
+          v-for="node in interactiveNodes.filter(n => isNodeInPath(n.id) && !isNodeSelected(n.id))"
+          :key="`path-${node.id}`"
+          class="path-ring"
+          :cx="node.x"
+          :cy="node.y"
+          :r="getHighlightRingRadius(node)"
+          fill="none"
+          stroke="rgba(96, 165, 250, 0.8)"
+          stroke-width="2.5"
+          filter="url(#overlay-highlight-glow)"
+        />
 
-          <!-- Inner dot -->
-          <circle
-            class="node-inner"
-            :r="getNodeSize(node, isNodeSelected(node.id)).inner"
-            :fill="getPalette(node.belt).inner"
-            :opacity="isNodeSelected(node.id) || isNodeInPath(node.id) ? 1 : 0.85"
-          />
-
-          <!-- Highlight ring for search results -->
-          <circle
-            v-if="isNodeHighlighted(node.id) && !isNodeSelected(node.id) && !isNodeInPath(node.id)"
-            class="highlight-ring"
-            :r="getNodeSize(node, false).glow + 4"
-            fill="none"
-            stroke="rgba(96, 165, 250, 0.6)"
-            stroke-width="2"
-            stroke-dasharray="4 2"
-          />
-        </g>
+        <!-- Highlighted nodes ring - subtle dashed ring for search results -->
+        <circle
+          v-for="node in interactiveNodes.filter(n => isNodeHighlighted(n.id) && !isNodeSelected(n.id) && !isNodeInPath(n.id))"
+          :key="`highlight-${node.id}`"
+          class="highlight-ring"
+          :cx="node.x"
+          :cy="node.y"
+          :r="getHighlightRingRadius(node) + 4"
+          fill="none"
+          stroke="rgba(96, 165, 250, 0.6)"
+          stroke-width="2"
+          stroke-dasharray="4 2"
+          filter="url(#overlay-highlight-glow)"
+        />
       </g>
     </g>
   </svg>
@@ -330,71 +308,44 @@ function handleBackgroundTap(event: MouseEvent | TouchEvent): void {
   pointer-events: all;
 }
 
-/* Visible nodes layer - no pointer events, just rendering */
-.visible-nodes-layer {
+/* Highlight rings layer - no pointer events, just visual indicators */
+.highlight-rings-layer {
   pointer-events: none;
 }
 
-.overlay-node {
-  pointer-events: none;
+/* Selection ring - prominent pulsing glow around selected node */
+.selection-ring {
+  animation: selection-pulse 1.2s ease-in-out infinite alternate;
 }
 
-/* Node styling */
-.node-glow {
-  transition: r 0.2s ease, stroke-width 0.2s ease, opacity 0.2s ease;
-}
-
-.node-core {
-  transition: r 0.2s ease, stroke-width 0.2s ease;
-}
-
-.node-inner {
-  transition: opacity 0.2s ease;
-}
-
-/* Selected node - prominent pulsing glow */
-.node-selected {
-  animation: node-selected-pulse 1.2s ease-in-out infinite alternate;
-}
-
-@keyframes node-selected-pulse {
+@keyframes selection-pulse {
   from {
-    filter: drop-shadow(0 0 10px rgba(251, 191, 36, 0.5));
+    opacity: 0.7;
+    stroke-width: 2.5;
   }
   to {
-    filter: drop-shadow(0 0 20px rgba(251, 191, 36, 0.8));
+    opacity: 1;
+    stroke-width: 4;
   }
 }
 
-/* Nodes in fire path - same animation as ConstellationNetworkView */
-.node-in-path:not(.node-selected) {
-  animation: node-path-pulse 0.8s ease-in-out infinite alternate;
+/* Path ring - blue pulsing for fire path nodes */
+.path-ring {
+  animation: path-pulse 0.8s ease-in-out infinite alternate;
 }
 
-@keyframes node-path-pulse {
+@keyframes path-pulse {
   from {
-    filter: drop-shadow(0 0 8px rgba(96, 165, 250, 0.4));
+    opacity: 0.5;
+    stroke-width: 2;
   }
   to {
-    filter: drop-shadow(0 0 16px rgba(96, 165, 250, 0.8));
+    opacity: 0.9;
+    stroke-width: 3;
   }
 }
 
-/* Highlighted nodes (search results) - subtle animation */
-.node-highlighted:not(.node-selected):not(.node-in-path) {
-  animation: node-highlight-pulse 1.5s ease-in-out infinite alternate;
-}
-
-@keyframes node-highlight-pulse {
-  from {
-    filter: drop-shadow(0 0 4px rgba(96, 165, 250, 0.3));
-  }
-  to {
-    filter: drop-shadow(0 0 10px rgba(96, 165, 250, 0.6));
-  }
-}
-
-/* Highlight ring for search results */
+/* Highlight ring for search results - rotating dashed ring */
 .highlight-ring {
   animation: highlight-ring-rotate 4s linear infinite;
 }
