@@ -1,9 +1,11 @@
 {
-  "buildCommand": "pnpm --filter @ssi/core build && pnpm --filter player-vue build",
+  "buildCommand": "pnpm --filter @ssi/core build && pnpm --filter player-vue build && pnpm --filter @ssi/schools-dashboard build && mkdir -p packages/player-vue/dist/schools && cp -r apps/schools-dashboard/dist/* packages/player-vue/dist/schools/",
   "outputDirectory": "packages/player-vue/dist",
   "installCommand": "npm install -g pnpm && pnpm install",
   "framework": "vite",
   "rewrites": [
+    { "source": "/schools", "destination": "/schools/index.html" },
+    { "source": "/schools/(.*)", "destination": "/schools/index.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
