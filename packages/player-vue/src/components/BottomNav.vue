@@ -384,9 +384,9 @@ const isVisible = computed(() => !props.isLearning)
   letter-spacing: 0.01em;
 }
 
-/* Active state */
+/* Active state - uses belt color when available, falls back to brand red */
 .nav-item.active .nav-icon {
-  color: #c23a3a;
+  color: var(--belt-color, #c23a3a);
   transform: translateY(-1px) scale(1.05);
 }
 
@@ -401,11 +401,11 @@ const isVisible = computed(() => !props.isLearning)
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: #c23a3a;
+  background: var(--belt-color, #c23a3a);
   opacity: 0;
   transform: scale(0) translateY(4px);
   transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  box-shadow: 0 0 8px rgba(194, 58, 58, 0.6);
+  box-shadow: 0 0 8px var(--belt-glow, rgba(194, 58, 58, 0.6));
 }
 
 .nav-item.active .active-indicator {

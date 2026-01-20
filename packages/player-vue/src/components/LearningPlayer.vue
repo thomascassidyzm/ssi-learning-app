@@ -5841,10 +5841,13 @@ defineExpose({
   gap: clamp(0.75rem, 3vw, 1.25rem);
   padding: clamp(0.5rem, 1.5vw, 0.75rem) clamp(1rem, 3vw, 1.5rem);
   background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
+  /* Belt-colored subtle border accent */
+  border: 1px solid color-mix(in srgb, var(--belt-color) 35%, var(--border-subtle));
   border-radius: clamp(12px, 3vw, 20px);
   cursor: pointer;
   transition: all 0.2s ease;
+  /* Subtle belt glow */
+  box-shadow: 0 0 15px color-mix(in srgb, var(--belt-glow) 12%, transparent);
   /* Narrower to fit skip buttons on either side */
   width: clamp(180px, 60vw, 380px);
   max-width: calc(100vw - 6rem);
@@ -6880,9 +6883,12 @@ defineExpose({
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  /* Belt-colored subtle border accent */
+  border: 1px solid color-mix(in srgb, var(--belt-color) 30%, rgba(255, 255, 255, 0.1));
   z-index: 25;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  /* Subtle belt glow */
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3),
+              0 0 12px color-mix(in srgb, var(--belt-glow) 15%, transparent);
 }
 
 .session-points-value {
@@ -7512,8 +7518,11 @@ defineExpose({
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-radius: clamp(14px, 3vw, 28px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.3);
+  /* Belt-colored subtle border accent */
+  border: 1px solid color-mix(in srgb, var(--belt-color) 25%, rgba(255, 255, 255, 0.06));
+  /* Subtle belt glow on bottom edge */
+  box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.3),
+              0 0 20px color-mix(in srgb, var(--belt-glow) 10%, transparent);
   /* Always visible */
   opacity: 1;
 }
