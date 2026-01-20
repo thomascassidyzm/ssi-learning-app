@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useGodMode, type EducationalRole, type GodModeUser } from '@/composables/useGodMode'
 import AddEntityModal from './AddEntityModal.vue'
+
+const router = useRouter()
 
 const {
   selectedUser,
@@ -57,12 +60,13 @@ const quickSelectUsers = computed(() => {
 function handleSelectUser(user: GodModeUser) {
   selectUser(user)
   isOpen.value = false
-  window.location.reload()
+  // Use router.go(0) to reload while preserving the /schools base path
+  router.go(0)
 }
 
 function handleClear() {
   clearSelection()
-  window.location.reload()
+  router.go(0)
 }
 
 function setRoleFilter(role: EducationalRole | null) {
