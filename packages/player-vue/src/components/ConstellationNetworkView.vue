@@ -475,12 +475,12 @@ function getNodeOpacity(node: ConstellationNode): number {
   if (node.id === props.heroNodeId) return 1
   // Nodes actively in the current phrase path
   if (isNodeInPath(node.id)) return 1
-  // Resonating nodes - fainter glimmer (contain words from phrase)
-  if (isNodeResonating(node.id)) return 0.35
-  // Component nodes are subtler
-  if (node.isComponent) return 0.4
-  // Default: revealed nodes should still be clearly visible
-  return 0.55
+  // Resonating nodes - subtle glimmer (contain words from phrase)
+  if (isNodeResonating(node.id)) return 0.25
+  // All other revealed nodes: very subtle background presence
+  // This keeps focus on the active phrase while hinting at the larger network
+  if (node.isComponent) return 0.1
+  return 0.12
 }
 
 /**
