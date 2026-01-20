@@ -2474,7 +2474,15 @@ const playIntroductionAudioDirectly = async (scriptItem) => {
   introAbortController = new AbortController()
   introEventCleanups = []
 
+  // Create ONE dedicated audio element for the entire intro sequence
+  // CRITICAL: Reuse same element for mobile compatibility (user gesture permission)
+  // Don't share with audioController to avoid cross-contamination on skip
+  const introAudio = new Audio()
+  introAudio.preload = 'auto'
+  introAudioElement = introAudio
+
   // Helper to play a single audio and wait for it to end (with cancellation support)
+  // Reuses the same introAudio element for all segments
   const playAudioAndWait = (url) => {
     return new Promise((resolve) => {
       // Check if already aborted
@@ -2483,16 +2491,10 @@ const playIntroductionAudioDirectly = async (scriptItem) => {
         return
       }
 
-      // IMPORTANT: Always create a NEW audio element for intro audio
-      // Don't share with audioController to avoid cross-contamination
-      const audio = new Audio()
-      introAudioElement = audio
-
       const cleanup = () => {
-        audio.removeEventListener('ended', onEnded)
-        audio.removeEventListener('error', onError)
-        audio.removeEventListener('abort', onAbort)
-        // Also remove from tracked cleanups
+        introAudio.removeEventListener('ended', onEnded)
+        introAudio.removeEventListener('error', onError)
+        // Remove from tracked cleanups
         const idx = introEventCleanups.indexOf(cleanup)
         if (idx > -1) introEventCleanups.splice(idx, 1)
       }
@@ -2508,32 +2510,25 @@ const playIntroductionAudioDirectly = async (scriptItem) => {
         resolve(false)
       }
 
-      const onAbort = () => {
-        console.log('[LearningPlayer] Intro audio aborted')
-        cleanup()
-        resolve(false)
-      }
-
       // Track cleanup function for skipIntroduction to call
       introEventCleanups.push(cleanup)
 
-      audio.addEventListener('ended', onEnded)
-      audio.addEventListener('error', onError)
-      audio.addEventListener('abort', onAbort)
+      introAudio.addEventListener('ended', onEnded)
+      introAudio.addEventListener('error', onError)
 
       // Also listen to abort controller signal
       if (introAbortController) {
         introAbortController.signal.addEventListener('abort', () => {
-          audio.pause()
-          audio.src = ''
+          introAudio.pause()
+          introAudio.src = ''
           cleanup()
           resolve(false)
         }, { once: true })
       }
 
-      audio.src = url
-      audio.load()
-      audio.play().catch((e) => {
+      introAudio.src = url
+      introAudio.load()
+      introAudio.play().catch((e) => {
         console.error('[LearningPlayer] Intro play() failed:', e)
         cleanup()
         resolve(false)
