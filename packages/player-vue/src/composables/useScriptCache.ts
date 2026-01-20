@@ -12,10 +12,10 @@ import { ref, type Ref } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 // Cache configuration
-// Bump version when script generation logic or database schema changes
+// Bump SCRIPT_KEY_PREFIX when script generation logic or database schema changes
+// This is the ONLY way to invalidate the cache - no TTL expiry
 const SCRIPT_KEY_PREFIX = 'ssi-script-v7-' // v7: fallback to course_audio for presentation audio (Portuguese fix)
 const AUDIO_CACHE_NAME = 'ssi-audio-v1'
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
 
 // Types
 export interface ScriptItem {
@@ -72,16 +72,10 @@ export const getCachedScript = async (courseCode: string): Promise<CachedScript 
     if (!stored) return null
 
     const data = JSON.parse(stored) as CachedScript
-
-    // Check TTL
-    if (Date.now() - data.cachedAt < CACHE_TTL_MS) {
-      console.log('[ScriptCache] Loaded from localStorage')
-      return data
-    }
-
-    // Expired
-    localStorage.removeItem(key)
-    return null
+    // No TTL check - cache persists until version bump or explicit clear
+    // This is a PWA - the cache is the source of truth
+    console.log('[ScriptCache] Loaded from localStorage')
+    return data
   } catch (err) {
     console.warn('[ScriptCache] Read failed:', err)
     return null
