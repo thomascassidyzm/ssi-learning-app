@@ -643,6 +643,16 @@ export function preCalculatePositions(
       node.y = node.y ?? center.y
     })
 
+    // Diagnose position spread
+    if (nodes.length > 0) {
+      const xs = nodes.map(n => n.x)
+      const ys = nodes.map(n => n.y)
+      const xRange = { min: Math.round(Math.min(...xs)), max: Math.round(Math.max(...xs)) }
+      const yRange = { min: Math.round(Math.min(...ys)), max: Math.round(Math.max(...ys)) }
+      console.log(`[PrebuiltNetwork] Position ranges - X: ${xRange.min}-${xRange.max}, Y: ${yRange.min}-${yRange.max}`)
+      console.log(`[PrebuiltNetwork] Sample positions:`, nodes.slice(0, 5).map(n => ({ id: n.id.slice(-8), x: Math.round(n.x), y: Math.round(n.y) })))
+    }
+
     console.log(`[PrebuiltNetwork] Brain boundary: ${currentBelt} belt (scale: ${brainBoundary.scale}, asymmetry: ${brainBoundary.asymmetry})`)
   }
 

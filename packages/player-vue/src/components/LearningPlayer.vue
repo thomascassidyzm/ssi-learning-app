@@ -5407,7 +5407,7 @@ defineExpose({
 .brand {
   font-family: 'DM Sans', -apple-system, sans-serif;
   font-weight: 700;
-  font-size: clamp(0.875rem, 2vw, 1.0625rem);
+  font-size: clamp(1.3125rem, 3vw, 1.6rem);
   letter-spacing: -0.02em;
   opacity: 0.7;
   transition: opacity 0.2s ease;
@@ -7671,7 +7671,7 @@ defineExpose({
   .brand {
     position: static; /* Remove absolute positioning */
     transform: none;
-    font-size: 0.875rem;
+    font-size: 1.3125rem;
     order: -1; /* Logo first (on top) */
     opacity: 0.85;
   }
@@ -7793,7 +7793,7 @@ defineExpose({
   }
 
   .brand {
-    font-size: 1rem;
+    font-size: 1.5rem;
   }
 
   .close-btn {
@@ -7897,7 +7897,7 @@ defineExpose({
   }
 
   .brand {
-    font-size: 1.125rem;
+    font-size: 1.6875rem;
   }
 
   .close-btn {
@@ -7966,7 +7966,7 @@ defineExpose({
   }
 
   .brand {
-    font-size: 1.25rem;
+    font-size: 1.875rem;
   }
 
   .close-btn {

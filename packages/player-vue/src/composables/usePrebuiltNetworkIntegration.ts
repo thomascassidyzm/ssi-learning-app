@@ -254,8 +254,23 @@ export function usePrebuiltNetworkIntegration(
 
     fullNetworkRounds = allRounds
 
+    // Debug: Check if rounds have valid legoIds
+    const validRounds = allRounds.filter(r => r?.legoId)
+    if (validRounds.length !== allRounds.length) {
+      console.warn(`[PrebuiltNetworkIntegration] ${allRounds.length - validRounds.length} rounds missing legoId!`)
+    }
+    console.log(`[PrebuiltNetworkIntegration] Loading ${validRounds.length} rounds, ${externalConnections?.length || 0} connections`)
+
     // Calculate ALL positions once - startOffset is always 0 for full network
-    prebuiltNetwork.loadFromRounds(allRounds, config.canvasSize, externalConnections, 0)
+    // Pass 'black' belt explicitly to ensure full brain boundary (scale 1.0)
+    prebuiltNetwork.loadFromRounds(allRounds, config.canvasSize, externalConnections, 0, 'black')
+
+    // Debug: Check positions after calculation
+    const calculatedNodes = prebuiltNetwork.nodes.value
+    if (calculatedNodes.length > 0) {
+      const samplePositions = calculatedNodes.slice(0, 3).map(n => ({ id: n.id, x: Math.round(n.x), y: Math.round(n.y) }))
+      console.log(`[PrebuiltNetworkIntegration] Sample node positions:`, samplePositions)
+    }
 
     // Reveal nodes up to the current playback position
     // This is critical - loadFromRounds clears revealed nodes, so we must re-reveal
@@ -267,7 +282,7 @@ export function usePrebuiltNetworkIntegration(
     isFullNetworkLoaded.value = true
     isInitialized.value = true
 
-    console.log(`[PrebuiltNetworkIntegration] FULL network initialized: ${allRounds.length} nodes, ${externalConnections?.length || 0} connections`)
+    console.log(`[PrebuiltNetworkIntegration] FULL network initialized: ${prebuiltNetwork.nodes.value.length} nodes with positions`)
   }
 
   /**
@@ -322,14 +337,21 @@ export function usePrebuiltNetworkIntegration(
     // This way positions are stable as we reveal more nodes
     // Pass external connections if provided (from database)
     // Pass startOffset so belt colors are correct when loading mid-course
-    prebuiltNetwork.loadFromRounds(rounds, config.canvasSize, externalConnections, startOffset)
+    // Pass 'black' belt to ensure full brain boundary (scale 1.0)
+    prebuiltNetwork.loadFromRounds(rounds, config.canvasSize, externalConnections, startOffset, 'black')
+
+    // Debug: Check positions after calculation
+    if (prebuiltNetwork.nodes.value.length > 0) {
+      const sample = prebuiltNetwork.nodes.value.slice(0, 3).map(n => ({ id: n.id, x: Math.round(n.x), y: Math.round(n.y) }))
+      console.log(`[PrebuiltNetworkIntegration] Sample positions:`, sample)
+    }
 
     // Reveal nodes up to the current round
     prebuiltNetwork.revealUpToRound(upToIndex, rounds)
 
     isInitialized.value = true
 
-    console.log(`[PrebuiltNetworkIntegration] Pre-calculated ${rounds.length} positions (offset: ${startOffset}), revealed ${upToIndex + 1} nodes, connections: ${externalConnections ? 'database' : 'items'}`)
+    console.log(`[PrebuiltNetworkIntegration] Pre-calculated ${prebuiltNetwork.nodes.value.length} positions (offset: ${startOffset}), revealed ${upToIndex + 1} nodes, connections: ${externalConnections ? 'database' : 'items'}`)
   }
 
   /**

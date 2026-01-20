@@ -871,14 +871,14 @@ onUnmounted(() => {
       :nodes="prebuiltNetwork.nodes.value"
       :edges="prebuiltNetwork.visibleEdges.value"
       :hero-node-id="null"
-      :revealed-node-ids="prebuiltNetwork.revealedNodeIds.value"
+      :revealed-node-ids="showAllForTesting ? null : prebuiltNetwork.revealedNodeIds.value"
       :current-path="prebuiltNetwork.currentPath.value"
       :pan-transform="'translate(0px, 0px)'"
       :show-path-labels="true"
       :brain-boundary-svg-path="prebuiltNetwork.brainBoundarySvgPath.value"
       :brain-boundary-color="accentColor"
       :disable-interaction="true"
-      :hide-unrevealed-nodes="true"
+      :hide-unrevealed-nodes="!showAllForTesting"
       @node-tap="handleNodeTap"
     />
 
@@ -908,20 +908,32 @@ onUnmounted(() => {
           v-for="preset in [50, 100, 200, 400]"
           :key="preset"
           class="preset-btn"
-          :class="{ active: sliderValue === preset }"
-          :style="sliderValue === preset ? { backgroundColor: accentColor + '30', borderColor: accentColor } : {}"
-          @click="sliderValue = Math.min(preset, sliderMax)"
+          :class="{ active: sliderValue === preset && !showAllForTesting }"
+          :style="sliderValue === preset && !showAllForTesting ? { backgroundColor: accentColor + '30', borderColor: accentColor } : {}"
+          @click="sliderValue = Math.min(preset, sliderMax); showAllForTesting = false"
           :disabled="preset > sliderMax"
         >
           {{ preset }}
         </button>
         <button
           class="preset-btn"
-          :class="{ active: sliderValue === sliderMax }"
-          :style="sliderValue === sliderMax ? { backgroundColor: accentColor + '30', borderColor: accentColor } : {}"
-          @click="sliderValue = sliderMax"
+          :class="{ active: sliderValue === sliderMax && !showAllForTesting }"
+          :style="sliderValue === sliderMax && !showAllForTesting ? { backgroundColor: accentColor + '30', borderColor: accentColor } : {}"
+          @click="sliderValue = sliderMax; showAllForTesting = false"
         >
           All
+        </button>
+      </div>
+
+      <!-- Testing mode toggle -->
+      <div class="testing-toggle">
+        <button
+          class="testing-btn"
+          :class="{ active: showAllForTesting }"
+          :style="showAllForTesting ? { backgroundColor: accentColor + '30', borderColor: accentColor, color: accentColor } : {}"
+          @click="showAllForTesting = !showAllForTesting"
+        >
+          {{ showAllForTesting ? 'Showing All (Testing)' : 'Show All (Testing)' }}
         </button>
       </div>
     </div>
@@ -1680,6 +1692,35 @@ onUnmounted(() => {
 .preset-btn.active {
   color: white;
   font-weight: 600;
+}
+
+/* Testing Mode Toggle */
+.testing-toggle {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.testing-btn {
+  width: 100%;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.testing-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.testing-btn.active {
+  font-weight: 600;
+  border-style: solid;
 }
 
 /* Detail Panel */
