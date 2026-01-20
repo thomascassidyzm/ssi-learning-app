@@ -81,6 +81,16 @@ const navigate = (screen, data = null) => {
   // Close any open auth modals when navigating
   closeAuthModals()
 
+  // CRITICAL: Pause the player when navigating AWAY from it
+  // This prevents audio conflicts with BrainView, etc.
+  // The player stays mounted (v-show) so state is preserved
+  if (currentScreen.value === 'player' && screen !== 'player') {
+    if (learningPlayerRef.value?.handlePause) {
+      learningPlayerRef.value.handlePause()
+      console.log('[PlayerContainer] Paused player before navigating to', screen)
+    }
+  }
+
   if (data) {
     selectedCourse.value = data
   }
