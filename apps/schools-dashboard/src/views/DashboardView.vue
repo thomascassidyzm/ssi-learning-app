@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, computed } from 'vue'
+import { onMounted, computed, watch } from 'vue'
 import Card from '@/components/shared/Card.vue'
 import { useGodMode } from '@/composables/useGodMode'
 import { useSchoolData } from '@/composables/useSchoolData'
@@ -13,7 +13,8 @@ const {
   totalClasses,
   totalPracticeHours,
   fetchSchools,
-  isLoading
+  isLoading,
+  error
 } = useSchoolData()
 
 // Display values
@@ -23,6 +24,24 @@ const schoolName = computed(() => {
 })
 
 const practiceHoursDisplay = computed(() => Math.round(totalPracticeHours.value))
+
+// Debug info for testing
+const debugInfo = computed(() => ({
+  hasUser: !!selectedUser.value,
+  userName: selectedUser.value?.display_name,
+  role: selectedUser.value?.educational_role,
+  regionCode: selectedUser.value?.region_code,
+  isGovtAdmin: isGovtAdmin.value,
+  hasRegionSummary: !!regionSummary.value,
+  error: error.value,
+}))
+
+// Fetch data when user changes
+watch(selectedUser, (user) => {
+  if (user) {
+    fetchSchools()
+  }
+}, { immediate: true })
 
 onMounted(() => {
   if (selectedUser.value) {
@@ -138,6 +157,20 @@ onMounted(() => {
         </div>
       </Card>
     </section>
+
+    <!-- Debug Panel (temporary) -->
+    <section class="debug-panel animate-in delay-4">
+      <Card title="Debug Info" subtitle="God Mode state">
+        <template #icon>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="16" x2="12" y2="12"/>
+            <line x1="12" y1="8" x2="12.01" y2="8"/>
+          </svg>
+        </template>
+        <pre class="debug-output">{{ JSON.stringify(debugInfo, null, 2) }}</pre>
+      </Card>
+    </section>
   </div>
 </template>
 
@@ -242,6 +275,22 @@ onMounted(() => {
 .activity-placeholder {
   padding: var(--space-12);
   text-align: center;
+}
+
+/* Debug Panel */
+.debug-panel {
+  margin-top: var(--space-8);
+}
+
+.debug-output {
+  background: var(--bg-secondary);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  font-family: monospace;
+  font-size: var(--text-sm);
+  overflow-x: auto;
+  white-space: pre-wrap;
+  color: var(--text-secondary);
 }
 
 /* Responsive */
