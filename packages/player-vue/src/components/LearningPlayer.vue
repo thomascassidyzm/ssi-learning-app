@@ -5977,6 +5977,14 @@ defineExpose({
   --belt-bar-width: 60px;
   --belt-bar-height: 5px;
 
+  /* ============ RING / TEXT ZONE ============ */
+  --ring-size: 180px;
+  --ring-center-size: 110px;
+  --ring-icon-size: 36px;
+  --text-zone-min-height: 80px;
+  --known-text-size: 1.75rem;
+  --target-text-size: 1.5rem;
+
   /* ============ THEME COLORS ============ */
   --accent: #c23a3a;
   --accent-soft: rgba(194, 58, 58, 0.15);
@@ -6687,8 +6695,8 @@ defineExpose({
 
 .belt-timer-unified .belt-bar-track {
   flex: 1;
-  min-width: clamp(40px, 10vw, 80px);
-  height: clamp(5px, 1vw, 7px);
+  min-width: var(--belt-bar-width);
+  height: var(--belt-bar-height);
   background: var(--bg-elevated);
   border-radius: 4px;
   overflow: hidden;
@@ -7791,29 +7799,6 @@ defineExpose({
   font-size: clamp(14px, 3vmin, 32px);
 }
 
-/* Landscape orientation - compact mode for short screens */
-@media (orientation: landscape) and (max-height: 500px) {
-  .player {
-    /* Override CSS custom properties for compact layout */
-    --header-height: 48px;
-    --hero-offset: 4px;
-    --control-bar-offset: 8px;
-    --space-xs: 2px;
-    --space-sm: 4px;
-    --space-md: 6px;
-    --space-lg: 12px;
-    --text-sm: 0.75rem;
-    --text-base: 0.8125rem;
-    --text-lg: 1rem;
-    --text-xl: 1.125rem;
-  }
-
-  .hero-known,
-  .hero-target {
-    line-height: 1.3;
-  }
-}
-
 /* Session points display - floating above transport controls, centered */
 .session-points-display {
   position: fixed;
@@ -7900,7 +7885,7 @@ defineExpose({
 .text-zone {
   width: 100%;
   max-width: 600px;
-  min-height: 80px;
+  min-height: var(--text-zone-min-height);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -7912,7 +7897,7 @@ defineExpose({
 }
 
 .known-text {
-  font-size: clamp(1.5rem, 5vw, 2rem);
+  font-size: var(--known-text-size);
   font-weight: 500;
   color: var(--text-primary);
   line-height: 1.3;
@@ -7923,7 +7908,7 @@ defineExpose({
 }
 
 .target-text {
-  font-size: clamp(1.25rem, 4vw, 1.75rem);
+  font-size: var(--target-text-size);
   font-weight: 600;
   color: var(--gold);
   line-height: 1.3;
@@ -7937,8 +7922,8 @@ defineExpose({
 /* ============ HERO NODE - Brain Network Center ============ */
 .ring-container {
   position: relative;
-  width: 200px;
-  height: 200px;
+  width: var(--ring-size);
+  height: var(--ring-size);
   cursor: pointer;
   transition: transform 0.2s ease;
   z-index: 10; /* Above network edges */
@@ -8037,8 +8022,8 @@ defineExpose({
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 120px;
-  height: 120px;
+  width: var(--ring-center-size);
+  height: var(--ring-center-size);
   border-radius: 50%;
   background: radial-gradient(circle at 30% 30%,
     var(--bg-elevated) 0%,
@@ -8634,8 +8619,10 @@ defineExpose({
 
 /* Belt Navigation Buttons - Double chevrons for belt jumps */
 .belt-nav-btn {
-  width: 36px;
-  height: 36px;
+  width: var(--belt-nav-btn-size);
+  height: var(--belt-nav-btn-size);
+  min-width: var(--btn-touch-target);
+  min-height: var(--btn-touch-target);
   border-radius: 50%;
   border: 2px solid;
   background: rgba(255, 255, 255, 0.04);
@@ -8647,8 +8634,8 @@ defineExpose({
 }
 
 .belt-nav-btn svg {
-  width: 18px;
-  height: 18px;
+  width: var(--belt-nav-btn-icon);
+  height: var(--belt-nav-btn-icon);
 }
 
 .belt-nav-btn:hover:not(:disabled) {
@@ -8837,500 +8824,140 @@ defineExpose({
   opacity: 0 !important;
 }
 
-/* ============ RESPONSIVE ============ */
+/* ════════════════════════════════════════════════════════════════════════════
+   RESPONSIVE BREAKPOINTS - Variable Updates Only
+
+   All sizing is controlled by CSS custom properties in .player
+   These breakpoints ONLY update variables - no component overrides
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* Small phones (360px+) - iPhone SE, etc */
+@media (min-width: 360px) {
+  .player {
+    --space-sm: 10px;
+    --space-md: 14px;
+    --space-lg: 18px;
+    --mode-btn-size: 38px;
+    --mode-btn-icon: 18px;
+    --transport-btn-size: 34px;
+    --transport-btn-icon: 15px;
+    --belt-timer-width: 200px;
+    --belt-bar-width: 70px;
+    --control-bar-gap: 3.25rem;
+    --ring-size: 190px;
+    --ring-center-size: 115px;
+    --ring-icon-size: 38px;
+  }
+}
+
+/* Medium phones (480px+) - iPhone Pro Max, larger Android */
+@media (min-width: 480px) {
+  .player {
+    --header-height: 60px;
+    --space-md: 16px;
+    --space-lg: 20px;
+    --mode-btn-size: 40px;
+    --mode-btn-icon: 20px;
+    --transport-btn-size: 36px;
+    --transport-btn-icon: 16px;
+    --belt-skip-btn-size: 38px;
+    --belt-skip-btn-icon: 18px;
+    --belt-timer-width: 220px;
+    --belt-bar-width: 80px;
+    --belt-bar-height: 6px;
+    --control-bar-gap: 3.5rem;
+    --ring-size: 200px;
+    --ring-center-size: 120px;
+    --ring-icon-size: 40px;
+    --known-text-size: 1.875rem;
+    --target-text-size: 1.625rem;
+  }
+}
+
+/* Tablets (768px+) */
 @media (min-width: 768px) {
-  .main {
-    gap: 2rem;
-  }
-
-  .ring-container {
-    width: 240px;
-    height: 240px;
-  }
-
-  .ring-center {
-    width: 140px;
-    height: 140px;
-  }
-
-  .phase-icon svg {
-    width: 44px;
-    height: 44px;
-  }
-
-  .play-indicator svg {
-    width: 48px;
-    height: 48px;
-  }
-
-  .text-zone {
-    min-height: 100px;
-  }
-
-  .known-text {
-    font-size: 2.25rem;
-  }
-
-  .target-text {
-    font-size: 1.875rem;
+  .player {
+    --header-height: 72px;
+    --hero-offset: 64px;
+    --space-md: 20px;
+    --space-lg: 24px;
+    --space-xl: 32px;
+    --mode-btn-size: 48px;
+    --mode-btn-icon: 22px;
+    --transport-btn-size: 44px;
+    --transport-btn-icon: 20px;
+    --belt-skip-btn-size: 44px;
+    --belt-skip-btn-icon: 20px;
+    --belt-nav-btn-size: 44px;
+    --belt-nav-btn-icon: 20px;
+    --belt-timer-width: 260px;
+    --belt-bar-width: 100px;
+    --belt-bar-height: 7px;
+    --control-bar-gap: 4rem;
+    --control-group-gap: 0.75rem;
+    --ring-size: 240px;
+    --ring-center-size: 140px;
+    --ring-icon-size: 48px;
+    --text-zone-min-height: 100px;
+    --known-text-size: 2rem;
+    --target-text-size: 1.75rem;
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   RESPONSIVE HEADER & CONTROLS - Full breakpoint coverage
-   ═══════════════════════════════════════════════════════════════ */
-
-/* Extra small phones (320px) */
-@media (max-width: 360px) {
-  .header {
-    padding: calc(0.5rem + var(--safe-area-top, 0px)) 0.75rem 0.5rem 0.75rem;
-    flex-direction: column; /* Stack: logo on top, belt below */
-    align-items: center;
-    gap: 0.5rem;
-    min-height: auto;
-  }
-
-  .brand {
-    position: static; /* Remove absolute positioning */
-    transform: none;
-    font-size: 1.3125rem;
-    order: -1; /* Logo first (on top) */
-    opacity: 0.85;
-  }
-
-  .belt-row {
-    gap: 0.375rem;
-    width: 100%;
-    max-width: calc(100vw - 1.5rem);
-  }
-
-  .belt-header-skip {
-    width: 32px;
-    height: 32px;
-    min-width: 32px;
-    min-height: 32px;
-  }
-
-  .belt-header-skip svg {
-    width: 14px;
-    height: 14px;
-  }
-
-  .belt-timer-unified {
-    flex: 1;
-    width: auto;
-    max-width: none;
-    justify-content: center;
-  }
-
-  .close-btn {
-    width: 36px;
-    height: 36px;
-    min-width: 44px;
-    min-height: 44px;
-    border-radius: 10px;
-  }
-
-  .close-btn svg {
-    width: 18px;
-    height: 18px;
-  }
-
-  .header-right {
-    gap: 0.25rem;
-  }
-
-  /* Hide old belt nav arrows on extra small */
-  .belt-nav-header-btn {
-    display: none;
-  }
-
-  .belt-progress-btn {
-    padding: 0.375rem 0.5rem;
-    gap: 0.375rem;
-    min-height: 36px;
-  }
-
-  .belt-bar-track {
-    width: 40px;
-    height: 4px;
-  }
-
-  .belt-bar-label {
-    font-size: 0.6875rem;
-    min-width: 28px;
-  }
-
-  /* Show inline timer, hide separate timer */
-  .belt-inline-timer {
-    display: block;
-    font-size: 0.6875rem;
-  }
-
-  .session-timer {
-    display: none;
-  }
-
-  .main {
-    padding: 0.5rem 0.75rem;
-    gap: 0.75rem;
-  }
-
-  .ring-container {
-    width: 140px;
-    height: 140px;
-  }
-
-  .ring-center {
-    width: 90px;
-    height: 90px;
-  }
-
-  .play-indicator svg {
-    width: 28px;
-    height: 28px;
-  }
-
-  .text-zone {
-    min-height: 50px;
-  }
-
-  /* control-bar and control-group now use clamp() in base styles */
-
-  .mode-btn,
-  .transport-btn,
-  .belt-nav-btn {
-    min-width: 44px;
-    min-height: 44px;
-  }
-
-  .mode-btn {
-    width: 32px;
-    height: 32px;
-  }
-
-  .mode-btn svg {
-    width: 14px;
-    height: 14px;
-  }
-
-  .transport-btn {
-    width: 28px;
-    height: 28px;
-  }
-
-  .transport-btn svg {
-    width: 12px;
-    height: 12px;
+/* Desktop (1024px+) */
+@media (min-width: 1024px) {
+  .player {
+    --header-height: 80px;
+    --hero-offset: 72px;
+    --space-lg: 28px;
+    --space-xl: 40px;
+    --mode-btn-size: 52px;
+    --mode-btn-icon: 24px;
+    --transport-btn-size: 48px;
+    --transport-btn-icon: 22px;
+    --belt-skip-btn-size: 48px;
+    --belt-skip-btn-icon: 22px;
+    --belt-nav-btn-size: 48px;
+    --belt-nav-btn-icon: 22px;
+    --belt-timer-width: 300px;
+    --belt-bar-width: 120px;
+    --belt-bar-height: 8px;
+    --control-bar-gap: 4.5rem;
   }
 }
 
-/* Small phones (361-479px) - includes iPhone 16 */
-@media (min-width: 361px) and (max-width: 479px) {
-  .header {
-    padding: calc(0.75rem + var(--safe-area-top, 0px)) 1rem 0.75rem 1rem;
-    flex-wrap: nowrap; /* Single row - no wrapping */
-    gap: 0.5rem;
-  }
-
-  .brand {
-    font-size: 1.5rem;
-  }
-
-  .close-btn {
-    min-width: 44px;
-    min-height: 44px;
-  }
-
-  .header-right {
-    gap: 0.375rem;
-  }
-
-  /* Hide belt nav arrows - just show combined progress+timer */
-  .belt-nav-header-btn {
-    display: none;
-  }
-
-  .belt-progress-btn {
-    padding: 0.375rem 0.625rem;
-    gap: 0.5rem;
-  }
-
-  .belt-bar-track {
-    width: 50px;
-    height: 5px;
-  }
-
-  .belt-bar-label {
-    font-size: 0.75rem;
-    min-width: 30px;
-  }
-
-  /* Show inline timer, hide separate timer */
-  .belt-inline-timer {
-    display: block;
-    font-size: 0.75rem;
-  }
-
-  .session-timer {
-    display: none;
-  }
-
-  .main {
-    padding: 0.75rem 1rem;
-    gap: 1rem;
-  }
-
-  .ring-container {
-    width: 160px;
-    height: 160px;
-  }
-
-  .ring-center {
-    width: 100px;
-    height: 100px;
-  }
-
-  .play-indicator svg {
-    width: 32px;
-    height: 32px;
-  }
-
-  .text-zone {
-    min-height: 60px;
-  }
-
-  /* control-bar and control-group now use clamp() in base styles */
-
-  .mode-btn,
-  .transport-btn,
-  .belt-nav-btn {
-    min-width: 44px;
-    min-height: 44px;
-  }
-
-  .mode-btn {
-    width: 36px;
-    height: 36px;
-  }
-
-  .mode-btn svg {
-    width: 16px;
-    height: 16px;
-  }
-
-  .transport-btn {
-    width: 32px;
-    height: 32px;
-  }
-
-  .transport-btn svg {
-    width: 14px;
-    height: 14px;
-  }
-}
-
-/* Tablets (768-1023px) */
-@media (min-width: 768px) and (max-width: 1023px) {
-  .header {
-    padding: calc(1.25rem + var(--safe-area-top, 0px)) 2rem 1.25rem 2rem;
-    min-height: 72px;
-  }
-
-  .brand {
-    font-size: 1.6875rem;
-  }
-
-  .close-btn {
-    width: 44px;
-    height: 44px;
-  }
-
-  .belt-progress-btn {
-    padding: 0.5rem 0.875rem;
-    gap: 0.625rem;
-  }
-
-  .belt-bar-track {
-    width: 72px;
-    height: 7px;
-  }
-
-  .session-timer {
-    padding: 0.625rem 1.125rem;
-    font-size: 0.9375rem;
-  }
-
-  .ring-container {
-    width: 220px;
-    height: 220px;
-  }
-
-  .ring-center {
-    width: 140px;
-    height: 140px;
-  }
-
-  .play-indicator svg {
-    width: 44px;
-    height: 44px;
-  }
-
-  /* control-bar and control-group now use clamp() in base styles */
-
-  .mode-btn {
-    width: 48px;
-    height: 48px;
-  }
-
-  .mode-btn svg {
-    width: 22px;
-    height: 22px;
-  }
-
-  .transport-btn {
-    width: 44px;
-    height: 44px;
-  }
-
-  .transport-btn svg {
-    width: 20px;
-    height: 20px;
-  }
-}
-
-/* Large desktops and ultrawides (1536px+) */
+/* Large desktop (1536px+) */
 @media (min-width: 1536px) {
-  .header {
-    padding: calc(1.75rem + var(--safe-area-top, 0px)) 3rem 1.75rem 3rem;
-    min-height: 88px;
-  }
-
-  .brand {
-    font-size: 1.875rem;
-  }
-
-  .close-btn {
-    width: 52px;
-    height: 52px;
-    border-radius: 16px;
-  }
-
-  .close-btn svg {
-    width: 24px;
-    height: 24px;
-  }
-
-  .belt-progress-btn {
-    padding: 0.625rem 1rem;
-    gap: 0.75rem;
-    border-radius: 10px;
-  }
-
-  .belt-bar-track {
-    width: 100px;
-    height: 8px;
-  }
-
-  .belt-bar-label {
-    font-size: 0.875rem;
-    min-width: 44px;
-  }
-
-  .session-timer {
-    padding: 0.75rem 1.5rem;
-    font-size: 1rem;
-    gap: 0.75rem;
-  }
-
-  .timer-end-icon {
-    width: 18px;
-    height: 18px;
-  }
-
-  .main {
-    padding: 1.5rem 2.5rem;
-    gap: 2rem;
-  }
-
-  .ring-container {
-    width: 280px;
-    height: 280px;
-  }
-
-  .ring-center {
-    width: 180px;
-    height: 180px;
-  }
-
-  .play-indicator svg {
-    width: 56px;
-    height: 56px;
-  }
-
-  .text-zone {
-    min-height: 100px;
-    max-width: 800px;
-  }
-
-  /* control-bar and control-group now use clamp() in base styles */
-
-  .mode-btn {
-    width: 56px;
-    height: 56px;
-    border-radius: 16px;
-  }
-
-  .mode-btn svg {
-    width: 26px;
-    height: 26px;
-  }
-
-  .transport-btn {
-    width: 52px;
-    height: 52px;
-  }
-
-  .transport-btn svg {
-    width: 24px;
-    height: 24px;
-  }
-
-  .belt-nav-btn {
-    width: 52px;
-    height: 52px;
-  }
-
-  .belt-nav-btn svg {
-    width: 24px;
-    height: 24px;
+  .player {
+    --header-height: 88px;
+    --hero-offset: 80px;
+    --space-lg: 32px;
+    --space-xl: 48px;
+    --mode-btn-size: 56px;
+    --mode-btn-icon: 26px;
+    --transport-btn-size: 52px;
+    --transport-btn-icon: 24px;
+    --belt-skip-btn-size: 52px;
+    --belt-skip-btn-icon: 24px;
+    --belt-nav-btn-size: 52px;
+    --belt-nav-btn-icon: 24px;
+    --belt-timer-width: 340px;
+    --belt-bar-width: 140px;
+    --control-bar-gap: 5rem;
+    --control-group-gap: 1rem;
   }
 }
 
-/* Landscape orientation - compact layout */
-/* Landscape control button sizing - positioning handled by CSS custom properties */
+/* Landscape orientation - compact vertical spacing */
 @media (orientation: landscape) and (max-height: 500px) {
-  .control-bar {
-    /* Tighter gap in landscape */
-    gap: 3.25rem;
-  }
-
-  .control-group {
-    gap: 0.25rem;
-  }
-
-  .mode-btn {
-    width: 36px;
-    height: 36px;
-    min-height: 44px;
-    min-width: 44px;
-  }
-
-  .transport-btn {
-    width: 32px;
-    height: 32px;
-    min-height: 44px;
-    min-width: 44px;
+  .player {
+    --header-height: 48px;
+    --hero-offset: 24px;
+    --space-sm: 4px;
+    --space-md: 8px;
+    --space-lg: 12px;
+    --control-bar-gap: 3rem;
+    --control-group-gap: 0.25rem;
   }
 }
 

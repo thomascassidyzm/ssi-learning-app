@@ -16,6 +16,23 @@ import { ref, onMounted, onUnmounted } from 'vue'
 const isUpdating = ref(false)
 let updateCheckInterval: ReturnType<typeof setInterval> | null = null
 
+// Timeout fallback - if update takes too long, force reload anyway
+let updateTimeout: ReturnType<typeof setTimeout> | null = null
+
+function startUpdateTimeout() {
+  updateTimeout = setTimeout(() => {
+    if (isUpdating.value) {
+      console.warn('[PWA] Update timed out, forcing reload...')
+      forceHardReload()
+    }
+  }, 5000)  // 5 second timeout
+}
+
+// Force reload with cache bypass
+function forceHardReload() {
+  window.location.href = window.location.href.split('?')[0] + '?v=' + Date.now()
+}
+
 const {
   needRefresh,
   updateServiceWorker,
@@ -46,22 +63,41 @@ const {
 async function onUpdate() {
   console.log('[PWA] User clicked update, applying...')
   isUpdating.value = true
+  startUpdateTimeout()  // Fallback if update gets stuck
 
   try {
+    // Clear all caches first to ensure fresh content
+    if ('caches' in window) {
+      const cacheNames = await caches.keys()
+      console.log('[PWA] Clearing caches:', cacheNames)
+      await Promise.all(cacheNames.map(name => caches.delete(name)))
+    }
+
     // Update the service worker (triggers skipWaiting)
     await updateServiceWorker(true)
-    console.log('[PWA] Update applied, reloading page...')
+    console.log('[PWA] Update applied, forcing hard reload...')
 
-    // Force reload to ensure new version is loaded
-    // Use a small delay to let service worker activate
+    // Force hard reload with cache bypass
+    // Small delay to let service worker activate
     setTimeout(() => {
-      window.location.reload()
-    }, 100)
+      forceHardReload()
+    }, 200)
   } catch (err) {
     console.error('[PWA] Update failed:', err)
     isUpdating.value = false
-    // Still try to reload as fallback
-    window.location.reload()
+
+    // Aggressive fallback: clear caches and force reload anyway
+    try {
+      if ('caches' in window) {
+        const cacheNames = await caches.keys()
+        await Promise.all(cacheNames.map(name => caches.delete(name)))
+      }
+    } catch (e) {
+      console.warn('[PWA] Cache clear failed:', e)
+    }
+
+    // Hard reload with cache bypass
+    forceHardReload()
   }
 }
 
@@ -72,6 +108,9 @@ function onDismiss() {
 onUnmounted(() => {
   if (updateCheckInterval) {
     clearInterval(updateCheckInterval)
+  }
+  if (updateTimeout) {
+    clearTimeout(updateTimeout)
   }
 })
 </script>

@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { ref, computed, inject, onMounted, onUnmounted } from 'vue'
 import { getAudioCacheStats, preloadAudioBatch } from '../composables/useScriptCache'
 import { BELT_RANGES, getBeltForSeed } from '../composables/useBeltLoader'
@@ -41,6 +41,10 @@ const showFirePath = ref(true)
 // Developer settings (hidden from regular users, useful for debugging)
 const showViewScript = ref(false)
 const showFragileProgressWarning = ref(true) // Default: show the warning to guests
+const enableQaMode = ref(false) // Show Report Issue button
+const showDebugOverlay = ref(false) // Show phase/round/LEGO info overlay
+const enableVerboseLogging = ref(false) // Detailed console logs
+const skipIntroAudio = ref(false) // Skip "The Spanish for X is..." intros
 
 // Theme settings
 const isDarkMode = ref(true) // Default to dark mode
@@ -187,6 +191,10 @@ onMounted(async () => {
   // Load developer settings
   showViewScript.value = localStorage.getItem('ssi-show-view-script') === 'true'
   showFragileProgressWarning.value = localStorage.getItem('ssi-show-fragile-warning') !== 'false' // Default true
+  enableQaMode.value = localStorage.getItem('ssi-enable-qa-mode') === 'true'
+  showDebugOverlay.value = localStorage.getItem('ssi-show-debug-overlay') === 'true'
+  enableVerboseLogging.value = localStorage.getItem('ssi-verbose-logging') === 'true'
+  skipIntroAudio.value = localStorage.getItem('ssi-skip-intro-audio') === 'true'
 
   // Load cache stats
   try {
@@ -347,9 +355,37 @@ const toggleViewScript = () => {
 const toggleFragileProgressWarning = () => {
   showFragileProgressWarning.value = !showFragileProgressWarning.value
   localStorage.setItem('ssi-show-fragile-warning', showFragileProgressWarning.value ? 'true' : 'false')
-  // Dispatch event so LearningPlayer can react without reload
+  dispatchSettingChanged('showFragileProgressWarning', showFragileProgressWarning.value)
+}
+
+const toggleQaMode = () => {
+  enableQaMode.value = !enableQaMode.value
+  localStorage.setItem('ssi-enable-qa-mode', enableQaMode.value ? 'true' : 'false')
+  dispatchSettingChanged('enableQaMode', enableQaMode.value)
+}
+
+const toggleDebugOverlay = () => {
+  showDebugOverlay.value = !showDebugOverlay.value
+  localStorage.setItem('ssi-show-debug-overlay', showDebugOverlay.value ? 'true' : 'false')
+  dispatchSettingChanged('showDebugOverlay', showDebugOverlay.value)
+}
+
+const toggleVerboseLogging = () => {
+  enableVerboseLogging.value = !enableVerboseLogging.value
+  localStorage.setItem('ssi-verbose-logging', enableVerboseLogging.value ? 'true' : 'false')
+  dispatchSettingChanged('enableVerboseLogging', enableVerboseLogging.value)
+}
+
+const toggleSkipIntroAudio = () => {
+  skipIntroAudio.value = !skipIntroAudio.value
+  localStorage.setItem('ssi-skip-intro-audio', skipIntroAudio.value ? 'true' : 'false')
+  dispatchSettingChanged('skipIntroAudio', skipIntroAudio.value)
+}
+
+// Helper to dispatch setting change events
+const dispatchSettingChanged = (key: string, value: boolean) => {
   window.dispatchEvent(new CustomEvent('ssi-setting-changed', {
-    detail: { key: 'showFragileProgressWarning', value: showFragileProgressWarning.value }
+    detail: { key, value }
   }))
 }
 
@@ -765,10 +801,11 @@ const confirmReset = async () => {
       <section class="section">
         <h3 class="section-title">Developer</h3>
         <div class="card">
+          <!-- Tools -->
           <div class="setting-row clickable" @click="toggleViewScript">
             <div class="setting-info">
-              <span class="setting-label">Show View Script</span>
-              <span class="setting-desc">Enable script browser in Tools section</span>
+              <span class="setting-label">View Script</span>
+              <span class="setting-desc">Show script browser in Tools section</span>
             </div>
             <div class="toggle-switch" :class="{ 'is-on': showViewScript }">
               <div class="toggle-track">
@@ -779,6 +816,63 @@ const confirmReset = async () => {
 
           <div class="divider"></div>
 
+          <div class="setting-row clickable" @click="toggleQaMode">
+            <div class="setting-info">
+              <span class="setting-label">QA Mode</span>
+              <span class="setting-desc">Show Report Issue button during learning</span>
+            </div>
+            <div class="toggle-switch" :class="{ 'is-on': enableQaMode }">
+              <div class="toggle-track">
+                <div class="toggle-thumb"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row clickable" @click="toggleDebugOverlay">
+            <div class="setting-info">
+              <span class="setting-label">Debug Overlay</span>
+              <span class="setting-desc">Show phase, round, and LEGO info on screen</span>
+            </div>
+            <div class="toggle-switch" :class="{ 'is-on': showDebugOverlay }">
+              <div class="toggle-track">
+                <div class="toggle-thumb"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row clickable" @click="toggleVerboseLogging">
+            <div class="setting-info">
+              <span class="setting-label">Verbose Logging</span>
+              <span class="setting-desc">Enable detailed console logs</span>
+            </div>
+            <div class="toggle-switch" :class="{ 'is-on': enableVerboseLogging }">
+              <div class="toggle-track">
+                <div class="toggle-thumb"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row clickable" @click="toggleSkipIntroAudio">
+            <div class="setting-info">
+              <span class="setting-label">Skip Intro Audio</span>
+              <span class="setting-desc">Skip "The Spanish for X is..." presentations</span>
+            </div>
+            <div class="toggle-switch" :class="{ 'is-on': skipIntroAudio }">
+              <div class="toggle-track">
+                <div class="toggle-thumb"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- UI Visibility -->
           <div class="setting-row clickable" @click="toggleFragileProgressWarning">
             <div class="setting-info">
               <span class="setting-label">Fragile Progress Warning</span>
