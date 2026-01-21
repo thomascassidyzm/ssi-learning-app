@@ -38,6 +38,9 @@ const buildNumber = '2024.12.16'
 // Display settings
 const showFirePath = ref(true)
 
+// Developer settings
+const showViewScript = ref(false)
+
 // Theme settings
 const isDarkMode = ref(true) // Default to dark mode
 
@@ -179,6 +182,9 @@ const handleOffline = () => { isOnline.value = false }
 onMounted(async () => {
   // Load saved display settings
   showFirePath.value = localStorage.getItem('ssi-show-fire-path') !== 'false'
+
+  // Load developer settings
+  showViewScript.value = localStorage.getItem('ssi-show-view-script') === 'true'
 
   // Load cache stats
   try {
@@ -329,6 +335,11 @@ const toggleFirePath = () => {
     detail: { key: 'showFirePath', value: showFirePath.value }
   }))
   emit('settingChanged', { key: 'showFirePath', value: showFirePath.value })
+}
+
+const toggleViewScript = () => {
+  showViewScript.value = !showViewScript.value
+  localStorage.setItem('ssi-show-view-script', showViewScript.value ? 'true' : 'false')
 }
 
 // Reset progress functions
@@ -493,20 +504,22 @@ const confirmReset = async () => {
             </svg>
           </div>
 
-          <div class="divider"></div>
+          <template v-if="showViewScript">
+            <div class="divider"></div>
 
-          <div class="setting-row clickable" @click="emit('openExplorer')">
-            <div class="setting-info">
-              <span class="setting-label">Course Browser</span>
-              <span class="setting-desc">Browse and play course content</span>
+            <div class="setting-row clickable" @click="emit('openExplorer')">
+              <div class="setting-info">
+                <span class="setting-label">View Script</span>
+                <span class="setting-desc">Browse course rounds and lego sequences</span>
+              </div>
+              <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <path d="M14 2v6h6"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+              </svg>
             </div>
-            <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <path d="M14 2v6h6"/>
-              <line x1="16" y1="13" x2="8" y2="13"/>
-              <line x1="16" y1="17" x2="8" y2="17"/>
-            </svg>
-          </div>
+          </template>
 
           <div class="divider"></div>
 
@@ -733,6 +746,24 @@ const confirmReset = async () => {
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6"/>
             </svg>
+          </div>
+        </div>
+      </section>
+
+      <!-- Developer Section -->
+      <section class="section">
+        <h3 class="section-title">Developer</h3>
+        <div class="card">
+          <div class="setting-row clickable" @click="toggleViewScript">
+            <div class="setting-info">
+              <span class="setting-label">Show View Script</span>
+              <span class="setting-desc">Enable script browser in Tools section</span>
+            </div>
+            <div class="toggle-switch" :class="{ 'is-on': showViewScript }">
+              <div class="toggle-track">
+                <div class="toggle-thumb"></div>
+              </div>
+            </div>
           </div>
         </div>
       </section>

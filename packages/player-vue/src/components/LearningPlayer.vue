@@ -3101,8 +3101,11 @@ const handleSkip = async () => {
       }
     }
 
-    // Start the new round if playing
-    if (isPlaying.value && firstItem) {
+    // Start the new round if wasPlaying (use captured value, not current isPlaying which may have been reset)
+    if (wasPlaying && firstItem) {
+      // Restore playing state since we're about to play
+      isPlaying.value = true
+
       // INTRO items: play introduction audio directly, then advance to next item
       if (firstItem.type === 'intro') {
         console.log('[LearningPlayer] Skip → Playing INTRO for:', firstItem.legoId)
@@ -3259,8 +3262,11 @@ const handleRevisit = async () => {
       }
     }
 
-    // Start the round if playing
-    if (isPlaying.value && firstItem) {
+    // Start the round if wasPlaying (use captured value, not current isPlaying which may have been reset)
+    if (wasPlaying && firstItem) {
+      // Restore playing state since we're about to play
+      isPlaying.value = true
+
       // INTRO items: play introduction audio directly, then advance to next item
       if (firstItem.type === 'intro') {
         console.log('[LearningPlayer] Revisit → Playing INTRO for:', firstItem.legoId)

@@ -49,15 +49,16 @@ interface InternalNode extends BrainNode {
 // CONSTANTS
 // ============================================================================
 
+// Muted, moonlit dojo palette - soft glowing neurons in darkness
 export const BELT_COLORS: Record<Belt, string> = {
-  white: '#9ca3af',
-  yellow: '#fbbf24',
-  orange: '#f97316',
-  green: '#22c55e',
-  blue: '#3b82f6',
-  purple: '#8b5cf6',
-  brown: '#a87848',
-  black: '#d4a853',
+  white: '#7a8090',    // Soft silver-gray, like moonlight on stone
+  yellow: '#c9a84c',   // Warm amber, like candlelight
+  orange: '#b87a4a',   // Muted terracotta, earthy warmth
+  green: '#4a9068',    // Forest green, soft moss
+  blue: '#5a7fa8',     // Twilight blue, calm depth
+  purple: '#7a6a98',   // Dusty lavender, gentle mystery
+  brown: '#8a6a50',    // Warm walnut, grounded
+  black: '#a89868',    // Aged gold, mastery's quiet glow
 }
 
 // Belt depth layers (Z position multiplier based on belt level)
@@ -73,9 +74,9 @@ const BELT_DEPTH: Record<Belt, number> = {
   black: 1.0,
 }
 
-// Particle sizes
-const BASE_PARTICLE_SIZE = 18.0  // Larger base size for visibility
-const MAX_PARTICLE_SIZE = 40.0  // Max size for high-frequency nodes
+// Particle sizes - larger for organic neuron clusters
+const BASE_PARTICLE_SIZE = 28.0  // Larger base size for visibility
+const MAX_PARTICLE_SIZE = 55.0  // Max size for high-frequency nodes
 const COMPONENT_SIZE_MULTIPLIER = 0.6  // Components are smaller
 const SIZE_LOG_SCALE = 0.15  // Logarithmic scaling factor for usage-based sizing
 
@@ -88,11 +89,11 @@ const USAGE_SCALE_FACTOR = 0.02  // Subtle increase with usage
 const HIGHLIGHT_PULSE_SPEED = 3.0  // Radians per second
 const HIGHLIGHT_PULSE_AMPLITUDE = 0.3  // Brightness variation
 
-// Brain shape parameters
+// Brain shape parameters - tighter clustering for organic neuron groups
 const BRAIN_ELLIPSOID = {
-  radiusX: 200,  // Width (left-right)
-  radiusY: 160,  // Height (top-bottom)
-  radiusZ: 120,  // Depth (front-back)
+  radiusX: 140,  // Width (left-right) - reduced for tighter packing
+  radiusY: 110,  // Height (top-bottom) - reduced for tighter packing
+  radiusZ: 85,   // Depth (front-back) - reduced for tighter packing
 }
 
 // ============================================================================
@@ -217,10 +218,10 @@ function map2DTo3DBrain(
   // Mix with belt depth - earlier belts are forward, later belts deeper
   const z = baseZ * (1 - beltDepth * 0.5)
 
-  // Add slight random jitter for organic feel
-  const jitterX = (Math.random() - 0.5) * 10
-  const jitterY = (Math.random() - 0.5) * 10
-  const jitterZ = (Math.random() - 0.5) * 15
+  // Add slight random jitter for organic feel - reduced for tighter clustering
+  const jitterX = (Math.random() - 0.5) * 4
+  const jitterY = (Math.random() - 0.5) * 4
+  const jitterZ = (Math.random() - 0.5) * 6
 
   return new THREE.Vector3(
     clampedX * BRAIN_ELLIPSOID.radiusX + jitterX,

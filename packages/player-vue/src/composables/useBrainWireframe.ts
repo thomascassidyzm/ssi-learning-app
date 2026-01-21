@@ -7,15 +7,22 @@
  *
  * Design philosophy:
  * - Subtle, not distracting - low opacity wireframe
- * - Brain-like but stylized - think "brain icon" not "medical illustration"
+ * - Anatomically-inspired - recognizable brain silhouette with key features
  * - Provides orientation cues - users can see the shape of the brain
  * - Frames the nodes - contains the visualization visually
+ * - Belt-responsive - brain "grows" with learner progression
  *
- * The brain shape is procedurally generated using spherical harmonics to
- * create a recognizable brain silhouette with:
- * - Two hemispheres with slight separation (longitudinal fissure)
- * - Bulging frontal and temporal lobes
- * - Overall ellipsoidal form (wider than tall, flattened front-to-back)
+ * Anatomical features:
+ * - Two hemispheres with visible longitudinal fissure (corpus callosum region)
+ * - Rounded frontal lobe area
+ * - Slightly pointed occipital (back) region
+ * - Subtle temporal lobe bulges on the sides
+ *
+ * Belt progression mirrors human brain development:
+ * - white/yellow (early): Smaller, simpler shape - like infant brain
+ * - orange/green (middle): Medium size, more defined lobes
+ * - blue/purple (advanced): Full adult brain shape
+ * - brown/black (mastery): Slightly larger, fully developed
  */
 
 import { ref, shallowRef, type Ref, type ShallowRef } from 'vue'
@@ -26,15 +33,19 @@ import * as THREE from 'three'
 // ============================================================================
 
 export interface BrainWireframeConfig {
-  /** Base opacity for the wireframe (default: 0.12) */
+  /** Base opacity for the wireframe (default: 0.08) */
   opacity?: number
   /** Wireframe color (default: '#4a5568' - neutral gray) */
   color?: string
-  /** Number of segments for mesh detail (default: 32) */
+  /** Number of segments for mesh detail (default: 48) */
   segments?: number
   /** Show the wireframe (default: true) */
   visible?: boolean
+  /** Initial belt level (default: 'white') */
+  belt?: BeltLevel
 }
+
+export type BeltLevel = 'white' | 'yellow' | 'orange' | 'green' | 'blue' | 'purple' | 'brown' | 'black'
 
 export interface BrainWireframeReturn {
   /** Create the wireframe mesh with specified dimensions */
@@ -45,12 +56,16 @@ export interface BrainWireframeReturn {
   setOpacity: (opacity: number) => void
   /** Set visibility of the wireframe */
   setVisible: (visible: boolean) => void
+  /** Morph the brain to a specific belt developmental stage */
+  setBeltLevel: (belt: BeltLevel) => void
   /** Dispose of Three.js resources */
   dispose: () => void
   /** The wireframe mesh object */
   mesh: ShallowRef<THREE.Object3D | null>
   /** Current visibility state */
   isVisible: Ref<boolean>
+  /** Current belt level */
+  currentBelt: Ref<BeltLevel>
 }
 
 // ============================================================================
@@ -58,26 +73,141 @@ export interface BrainWireframeReturn {
 // ============================================================================
 
 const DEFAULT_CONFIG: Required<BrainWireframeConfig> = {
-  opacity: 0.12,
+  opacity: 0.08,
   color: '#4a5568',
-  segments: 32,
+  segments: 48,
   visible: true,
+  belt: 'white',
 }
 
-// Spherical harmonic coefficients for brain-like deformation
-// These create the characteristic bulges and indentations
-const BRAIN_HARMONICS = {
-  // Longitudinal fissure (central groove between hemispheres)
-  fissureDepth: 0.15,
-  fissureWidth: 0.2,
-  // Frontal lobe bulge
-  frontalBulge: 0.12,
-  // Temporal lobe bulges (sides)
-  temporalBulge: 0.08,
-  // Occipital (back) slight indent
-  occipitalIndent: 0.05,
-  // Overall asymmetry (left slightly larger than right, like real brains)
-  asymmetry: 0.02,
+/**
+ * Belt-specific brain development parameters
+ * Mirrors human brain development from infant to fully mature
+ */
+interface BrainDevelopmentParams {
+  /** Overall scale multiplier */
+  scale: number
+  /** Depth of the longitudinal fissure (hemisphere divide) */
+  fissureDepth: number
+  /** Width of the fissure groove */
+  fissureWidth: number
+  /** Frontal lobe prominence */
+  frontalBulge: number
+  /** Temporal lobe prominence */
+  temporalBulge: number
+  /** Occipital (back) point sharpness */
+  occipitalPoint: number
+  /** Parietal (top-back) roundness */
+  parietalRound: number
+  /** Cerebellum bulge (back-bottom) */
+  cerebellumBulge: number
+  /** Overall surface complexity/folding */
+  gyrification: number
+  /** Left-right asymmetry (natural) */
+  asymmetry: number
+}
+
+const BELT_BRAIN_PARAMS: Record<BeltLevel, BrainDevelopmentParams> = {
+  // Early stage: Infant-like brain - smooth, round, smaller
+  white: {
+    scale: 0.75,
+    fissureDepth: 0.08,
+    fissureWidth: 0.35,
+    frontalBulge: 0.06,
+    temporalBulge: 0.04,
+    occipitalPoint: 0.02,
+    parietalRound: 0.08,
+    cerebellumBulge: 0.03,
+    gyrification: 0.01,
+    asymmetry: 0.01,
+  },
+  yellow: {
+    scale: 0.80,
+    fissureDepth: 0.10,
+    fissureWidth: 0.32,
+    frontalBulge: 0.08,
+    temporalBulge: 0.05,
+    occipitalPoint: 0.04,
+    parietalRound: 0.10,
+    cerebellumBulge: 0.04,
+    gyrification: 0.015,
+    asymmetry: 0.012,
+  },
+  // Middle stage: Adolescent-like brain - more defined features
+  orange: {
+    scale: 0.87,
+    fissureDepth: 0.14,
+    fissureWidth: 0.28,
+    frontalBulge: 0.12,
+    temporalBulge: 0.08,
+    occipitalPoint: 0.06,
+    parietalRound: 0.12,
+    cerebellumBulge: 0.06,
+    gyrification: 0.02,
+    asymmetry: 0.015,
+  },
+  green: {
+    scale: 0.92,
+    fissureDepth: 0.17,
+    fissureWidth: 0.25,
+    frontalBulge: 0.14,
+    temporalBulge: 0.10,
+    occipitalPoint: 0.08,
+    parietalRound: 0.13,
+    cerebellumBulge: 0.08,
+    gyrification: 0.025,
+    asymmetry: 0.018,
+  },
+  // Advanced stage: Adult brain - fully defined lobes
+  blue: {
+    scale: 0.96,
+    fissureDepth: 0.20,
+    fissureWidth: 0.22,
+    frontalBulge: 0.16,
+    temporalBulge: 0.12,
+    occipitalPoint: 0.10,
+    parietalRound: 0.14,
+    cerebellumBulge: 0.10,
+    gyrification: 0.03,
+    asymmetry: 0.02,
+  },
+  purple: {
+    scale: 0.98,
+    fissureDepth: 0.22,
+    fissureWidth: 0.20,
+    frontalBulge: 0.17,
+    temporalBulge: 0.13,
+    occipitalPoint: 0.11,
+    parietalRound: 0.15,
+    cerebellumBulge: 0.11,
+    gyrification: 0.035,
+    asymmetry: 0.02,
+  },
+  // Mastery stage: Fully developed, slightly enlarged
+  brown: {
+    scale: 1.0,
+    fissureDepth: 0.24,
+    fissureWidth: 0.18,
+    frontalBulge: 0.18,
+    temporalBulge: 0.14,
+    occipitalPoint: 0.12,
+    parietalRound: 0.16,
+    cerebellumBulge: 0.12,
+    gyrification: 0.04,
+    asymmetry: 0.022,
+  },
+  black: {
+    scale: 1.05,
+    fissureDepth: 0.25,
+    fissureWidth: 0.16,
+    frontalBulge: 0.20,
+    temporalBulge: 0.15,
+    occipitalPoint: 0.13,
+    parietalRound: 0.17,
+    cerebellumBulge: 0.13,
+    gyrification: 0.045,
+    asymmetry: 0.025,
+  },
 }
 
 // ============================================================================
