@@ -601,11 +601,12 @@ async function downloadBrainImage() {
       ctx.quadraticCurveTo(cpX, cpY, to.x, to.y)
 
       // Edges between learned nodes are visible; others are ghost outlines
+      // FIXED: Increased opacity so edges are clearly visible
       const edgeOpacity = bothRevealed
-        ? 0.2 + Math.sqrt(edge.strength) * 0.04
-        : 0.02  // Ghost edges for unlearned parts
+        ? 0.35 + Math.sqrt(edge.strength) * 0.15
+        : 0.04  // Ghost edges for unlearned parts
       ctx.strokeStyle = `rgba(255, 255, 255, ${edgeOpacity})`
-      ctx.lineWidth = bothRevealed ? 1 + Math.sqrt(edge.strength) * 0.3 : 0.5
+      ctx.lineWidth = bothRevealed ? 1.5 + Math.sqrt(edge.strength) * 0.5 : 0.5
       ctx.stroke()
     })
 

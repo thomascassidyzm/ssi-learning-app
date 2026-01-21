@@ -673,40 +673,42 @@ export function preCalculatePositions(
           // Component edges should be shorter to keep components close to parents
           const isComponentEdge = edge.source.toString().startsWith('_c_') ||
                                    (typeof edge.source === 'object' && (edge.source as any).id?.startsWith('_c_'))
-          // Scale link distances to brain size so connected nodes stay proportionally close
-          const baseDistance = isComponentEdge ? 40 : 80
-          const minDistance = isComponentEdge ? 20 : 40
-          const distanceScale = 1 + Math.pow(strength, 0.4)
-          return Math.max(minDistance, baseDistance / distanceScale) * brainBoundary.scale
+          // FIXED: Use larger base distances so nodes spread out
+          // Don't scale down too aggressively - let repulsion do its work
+          const baseDistance = isComponentEdge ? 60 : 150
+          const minDistance = isComponentEdge ? 40 : 80
+          // Weaker scaling - don't compress distances too much
+          const distanceScale = 1 + Math.pow(strength, 0.3) * 0.5
+          return Math.max(minDistance, baseDistance / distanceScale)
         })
         .strength((d: any) => {
           const edge = d as ConstellationEdge
           const strength = edge.strength || 1
-          // Stronger pull for component edges to keep them close
+          // FIXED: MUCH weaker link strength - let repulsion spread nodes out
+          // Links should suggest connections, not pull nodes into a blob
           const isComponentEdge = edge.source.toString().startsWith('_c_') ||
                                    (typeof edge.source === 'object' && (edge.source as any).id?.startsWith('_c_'))
-          return isComponentEdge ? 0.8 : Math.min(1.0, 0.2 + Math.pow(strength, 0.3) * 0.15)
+          return isComponentEdge ? 0.15 : Math.min(0.12, 0.05 + Math.pow(strength, 0.3) * 0.03)
         })
       )
-      // Strong repulsion to spread nodes apart - NOT scaled by brain size
-      // Actually increase repulsion for smaller brains to prevent clustering
+      // Strong repulsion to spread nodes apart
+      // Increased strength to overcome link force and spread nodes
       .force('charge', d3.forceManyBody()
         .strength((d: any) => {
-          const baseStrength = (d as ConstellationNode).isComponent ? -200 : -500
+          const baseStrength = (d as ConstellationNode).isComponent ? -300 : -800
           return baseStrength * densityFactor  // More repulsion for smaller/denser brains
         })
-        .distanceMax(effectiveRadius * 2))
+        .distanceMax(effectiveRadius * 2.5))
       .force('center', d3.forceCenter(center.x, center.y))
-      // Collision radius - keep constant so nodes don't overlap regardless of brain size
+      // Collision radius - prevent overlap
       .force('collide', d3.forceCollide()
         .radius((d: any) => {
-          const baseRadius = (d as ConstellationNode).isComponent ? 15 : 30
+          const baseRadius = (d as ConstellationNode).isComponent ? 18 : 35
           return baseRadius
         })
-        .strength(0.95))
+        .strength(0.9))
       // BRAIN BOUNDARY CONSTRAINT - keeps nodes inside the growing brain shape
-      // Use stronger boundary force to contain nodes firmly
-      .force('brainBoundary', forceBrainBoundary(center, brainBoundary, maxRadius, 0.8))
+      .force('brainBoundary', forceBrainBoundary(center, brainBoundary, maxRadius, 0.6))
       .stop()
 
     // Run to completion (500 ticks for better convergence with stronger forces)
