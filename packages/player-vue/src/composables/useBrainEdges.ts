@@ -71,15 +71,15 @@ interface EdgeMeshData {
 // ============================================================================
 
 const DEFAULT_OPTIONS: Required<EdgeRenderOptions> = {
-  baseOpacity: 0.85,     // High visibility for connections
-  maxOpacity: 1.0,       // Full opacity for strong connections
-  baseWidth: 5,          // Thick base width for visibility
-  maxWidth: 12,          // Much thicker for strong connections
-  highlightOpacity: 1.0,
-  glowOpacity: 1.0,
-  curveSegments: 24,     // Smooth curves
-  tubeSegments: 8,       // Round appearance
-  curveBend: 0.25,       // Gentle curve deviation
+  baseOpacity: 0.3,      // Subtle, understated connections
+  maxOpacity: 0.5,       // Slightly more visible for strong connections
+  baseWidth: 0.8,        // Very thin lines
+  maxWidth: 1.5,         // Slightly thicker for strong connections
+  highlightOpacity: 0.8, // Brighter when highlighted (phrase playback)
+  glowOpacity: 1.0,      // Full glow during fire path
+  curveSegments: 16,     // Smooth enough curves
+  tubeSegments: 4,       // Minimal for thin lines
+  curveBend: 0.15,       // Subtle curve deviation
 }
 
 const DEFAULT_COLORS: EdgeColors = {

@@ -65,16 +65,16 @@ interface InternalNode extends BrainNode {
 // CONSTANTS
 // ============================================================================
 
-// Muted, moonlit dojo palette - soft glowing neurons in darkness
+// Crisp, vibrant belt colors - distinct and recognizable
 export const BELT_COLORS: Record<Belt, string> = {
-  white: '#7a8090',    // Soft silver-gray, like moonlight on stone
-  yellow: '#c9a84c',   // Warm amber, like candlelight
-  orange: '#b87a4a',   // Muted terracotta, earthy warmth
-  green: '#4a9068',    // Forest green, soft moss
-  blue: '#5a7fa8',     // Twilight blue, calm depth
-  purple: '#7a6a98',   // Dusty lavender, gentle mystery
-  brown: '#8a6a50',    // Warm walnut, grounded
-  black: '#a89868',    // Aged gold, mastery's quiet glow
+  white: '#e8eaed',    // Clean white/silver
+  yellow: '#fbbf24',   // Vibrant gold/yellow
+  orange: '#f97316',   // Bright orange
+  green: '#22c55e',    // Fresh green
+  blue: '#3b82f6',     // Clear blue
+  purple: '#a855f7',   // Vivid purple
+  brown: '#a87848',    // Warm brown
+  black: '#fbbf24',    // Gold for mastery (black belt = gold glow)
 }
 
 // Belt depth layers (Z position multiplier based on belt level)

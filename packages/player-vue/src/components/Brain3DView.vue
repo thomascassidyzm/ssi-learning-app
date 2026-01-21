@@ -321,11 +321,6 @@ async function initScene(): Promise<void> {
       (nodeId: string) => brainNodes.getNodePosition(nodeId)
     )
 
-    // Set edge color to match current belt
-    brainEdges.setColors({
-      default: new THREE.Color(accentColor.value),
-    })
-
     // Add lines to scene
     brainScene.scene.value.add(linesObject)
 
@@ -494,11 +489,6 @@ function rebuildNodesAndEdges(): void {
     (nodeId: string) => brainNodes.getNodePosition(nodeId)
   )
 
-  // Set edge color to match current belt
-  brainEdges.setColors({
-    default: new THREE.Color(accentColor.value),
-  })
-
   brainScene.scene.value.add(linesObject)
 
   // 6. Re-initialize interaction layer with new nodes
@@ -660,14 +650,10 @@ watch(() => props.revealedNodeIds, (_revealed, _oldRevealed) => {
   rebuildNodesAndEdges()
 }, { deep: true })
 
-// Watch for belt level changes and update colors
+// Watch for belt level changes and update wireframe color (edges stay neutral)
 watch(accentColor, (newColor) => {
   if (sceneInitialized.value) {
     brainWireframe.setColor(newColor)
-    // Also update edge default color to match belt
-    brainEdges.setColors({
-      default: new THREE.Color(newColor),
-    })
   }
 })
 

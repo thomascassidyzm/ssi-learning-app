@@ -78,7 +78,7 @@ const DEFAULT_CONFIG: Required<BrainSceneConfig> = {
   backgroundColor: 0x050508,
   antialias: true,
   autoRotateSpeed: 0.1,
-  autoRotate: true,
+  autoRotate: false,     // Off by default - user can enable via toggle
   minDistance: 200,      // Can get closer for detail
   maxDistance: 1500,     // Can zoom way out
   cameraDistance: 600,   // Start far enough to see entire brain (radius ~200-400)
