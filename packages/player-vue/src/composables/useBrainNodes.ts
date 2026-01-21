@@ -74,15 +74,15 @@ const BELT_DEPTH: Record<Belt, number> = {
 }
 
 // Particle sizes
-const BASE_PARTICLE_SIZE = 12.0
-const MAX_PARTICLE_SIZE = 28.0  // Max size for high-frequency nodes
+const BASE_PARTICLE_SIZE = 18.0  // Larger base size for visibility
+const MAX_PARTICLE_SIZE = 40.0  // Max size for high-frequency nodes
 const COMPONENT_SIZE_MULTIPLIER = 0.6  // Components are smaller
 const SIZE_LOG_SCALE = 0.15  // Logarithmic scaling factor for usage-based sizing
 
 // Brightness range based on usage
-const MIN_BRIGHTNESS = 0.3
+const MIN_BRIGHTNESS = 0.85  // Much brighter baseline - nodes must be visible!
 const MAX_BRIGHTNESS = 1.0
-const USAGE_SCALE_FACTOR = 0.05  // How much each usage increases brightness
+const USAGE_SCALE_FACTOR = 0.02  // Subtle increase with usage
 
 // Highlight animation
 const HIGHLIGHT_PULSE_SPEED = 3.0  // Radians per second
@@ -147,8 +147,9 @@ const FRAGMENT_SHADER = `
     glow *= 0.4;  // Reduce glow intensity
 
     // Combine: solid core with subtle glow halo
-    float alpha = core * 0.95 + glow * 0.25;
+    float alpha = core * 1.0 + glow * 0.4;
     alpha *= vBrightness;
+    alpha = clamp(alpha, 0.0, 1.0);
 
     // Add extra glow when highlighted (still subtle)
     float highlightGlow = vHighlighted * glow * 0.4;
