@@ -171,8 +171,11 @@ const confirmDelete = async () => {
 // Toggle dark/light mode
 const toggleTheme = () => {
   isDarkMode.value = !isDarkMode.value
-  document.documentElement.setAttribute('data-theme', isDarkMode.value ? 'dark' : 'light')
-  localStorage.setItem('ssi-theme', isDarkMode.value ? 'dark' : 'light')
+  const newTheme = isDarkMode.value ? 'dark' : 'light'
+  document.documentElement.setAttribute('data-theme', newTheme)
+  localStorage.setItem('ssi-theme', newTheme)
+  // Reload to ensure all cached pages render with new theme
+  window.location.reload()
 }
 
 // ============================================
