@@ -6292,7 +6292,7 @@ defineExpose({
 .brand {
   font-family: 'DM Sans', -apple-system, sans-serif;
   font-weight: 700;
-  font-size: clamp(1.3125rem, 3vw, 1.6rem);
+  font-size: 1.5rem; /* Fixed size - don't scale */
   letter-spacing: -0.02em;
   opacity: 0.7;
   transition: opacity 0.2s ease;
@@ -8338,8 +8338,8 @@ defineExpose({
   display: flex;
   justify-content: center;
   align-items: center;
-  /* Gap sized for play button width - responsive using clamp */
-  gap: clamp(3.5rem, 8vw, 6.75rem);
+  /* Gap sized for play button width */
+  gap: 3.5rem;
   padding: var(--space-sm) var(--space-md);
   position: absolute;
   /* Position above bottom nav using CSS custom property */
@@ -8352,7 +8352,7 @@ defineExpose({
   background: rgba(10, 10, 15, 0.5);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-radius: clamp(14px, 3vw, 28px);
+  border-radius: 20px;
   /* Belt-colored subtle border accent */
   border: 1px solid color-mix(in srgb, var(--belt-color) 25%, rgba(255, 255, 255, 0.06));
   /* Subtle belt glow on bottom edge */
@@ -8360,13 +8360,16 @@ defineExpose({
               0 0 20px color-mix(in srgb, var(--belt-glow) 10%, transparent);
   /* Always visible */
   opacity: 1;
+  /* Match bottom navbar width */
+  width: calc(100% - 2rem);
+  max-width: 420px;
 }
 
 /* Control groups for 3+3 layout */
 .control-group {
   display: flex;
   align-items: center;
-  gap: clamp(0.25rem, 1vw, 1rem);
+  gap: 0.5rem;
 }
 
 /* QA Report button - positioned in header area */
