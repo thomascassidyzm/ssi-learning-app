@@ -1425,25 +1425,131 @@ const confirmReset = async () => {
   opacity: 0;
 }
 
-/* Responsive */
-@media (max-width: 480px) {
-  .header {
-    padding: 0.75rem 1rem;
-  }
+/* ═══════════════════════════════════════════════════════════════
+   RESPONSIVE - Simplified 2-breakpoint system
+   Base: Mobile (0-767px)
+   768px+: Tablet/Desktop
+   ═══════════════════════════════════════════════════════════════ */
 
-  .main {
-    padding: 1rem 1rem 1.5rem;
-  }
-
-  .setting-row {
-    padding: 0.875rem 1rem;
-  }
-}
-
+/* Tablet and Desktop (768px+) */
 @media (min-width: 768px) {
   .main {
     max-width: 600px;
     margin: 0 auto;
+    padding: 1rem 2rem 2rem;
+  }
+
+  .section {
+    margin-bottom: 2rem;
+  }
+
+  .card {
+    border-radius: 20px;
+  }
+
+  .setting-row {
+    padding: 1rem 1.25rem;
+  }
+
+  .setting-label {
+    font-size: 1rem;
+  }
+
+  .setting-desc {
+    font-size: 0.875rem;
+  }
+
+  .reset-dialog {
+    padding: 2.5rem;
+    max-width: 400px;
+  }
+}
+
+/* Landscape phones - compact vertical spacing */
+@media (orientation: landscape) and (max-height: 500px) {
+  .settings-screen {
+    padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .header {
+    padding: 0.5rem 1rem;
+    position: relative;
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border-bottom: none;
+  }
+
+  .title {
+    font-size: 1rem;
+  }
+
+  .main {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem 1rem;
+    align-items: start;
+    max-width: none;
+    padding: 0.5rem 1rem 1rem;
+  }
+
+  .section {
+    margin-bottom: 0;
+  }
+
+  .section-title {
+    font-size: 0.6875rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .card {
+    border-radius: 12px;
+  }
+
+  .setting-row {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .setting-label {
+    font-size: 0.8125rem;
+  }
+
+  .setting-desc {
+    font-size: 0.6875rem;
+  }
+
+  .toggle-switch {
+    width: 40px;
+    height: 24px;
+  }
+
+  .toggle-thumb {
+    width: 16px;
+    height: 16px;
+  }
+
+  .toggle-switch.is-on .toggle-thumb {
+    transform: translateX(16px);
+  }
+
+  .brand-footer {
+    grid-column: 1 / -1;
+    padding: 1rem 0;
+    margin-top: 0;
+  }
+
+  .brand {
+    font-size: 0.875rem;
+  }
+
+  .copyright {
+    font-size: 0.6875rem;
+  }
+
+  /* Hide less essential sections in landscape */
+  .download-options,
+  .download-action {
+    display: none;
   }
 }
 </style>
