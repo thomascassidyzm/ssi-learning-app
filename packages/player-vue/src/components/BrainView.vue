@@ -2201,6 +2201,13 @@ onUnmounted(() => {
 }
 
 /* Mobile adjustments */
+@media (max-width: 768px) {
+  /* Hide search on mobile - no side modal to show phrases */
+  .search-container {
+    display: none;
+  }
+}
+
 @media (max-width: 480px) {
   .stage-slider-panel {
     min-width: unset;
