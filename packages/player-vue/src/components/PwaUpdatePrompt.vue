@@ -22,15 +22,30 @@ let updateTimeout: ReturnType<typeof setTimeout> | null = null
 function startUpdateTimeout() {
   updateTimeout = setTimeout(() => {
     if (isUpdating.value) {
-      console.warn('[PWA] Update timed out, forcing reload...')
+      console.warn('[PWA] Update timed out after 3s, forcing reload...')
       forceHardReload()
     }
-  }, 5000)  // 5 second timeout
+  }, 3000)  // 3 second timeout (reduced from 5)
 }
 
-// Force reload with cache bypass
+// Force reload with aggressive cache bypass
 function forceHardReload() {
-  window.location.href = window.location.href.split('?')[0] + '?v=' + Date.now()
+  console.log('[PWA] Forcing hard reload...')
+  // Clear the timeout flag
+  isUpdating.value = false
+  // Method 1: Hard reload with cache bypass
+  if ('caches' in window) {
+    caches.keys().then(names => {
+      Promise.all(names.map(name => caches.delete(name))).then(() => {
+        // Use location.reload with forceReload (deprecated but still works)
+        window.location.reload()
+      })
+    }).catch(() => {
+      window.location.reload()
+    })
+  } else {
+    window.location.reload()
+  }
 }
 
 const {
@@ -63,7 +78,7 @@ const {
 async function onUpdate() {
   console.log('[PWA] User clicked update, applying...')
   isUpdating.value = true
-  startUpdateTimeout()  // Fallback if update gets stuck
+  startUpdateTimeout()  // Fallback if update gets stuck (3 seconds)
 
   try {
     // Clear all caches first to ensure fresh content
@@ -73,30 +88,25 @@ async function onUpdate() {
       await Promise.all(cacheNames.map(name => caches.delete(name)))
     }
 
-    // Update the service worker (triggers skipWaiting)
-    await updateServiceWorker(true)
-    console.log('[PWA] Update applied, forcing hard reload...')
+    // Tell the waiting service worker to skip waiting and activate
+    // Don't await this - it might hang on some browsers
+    updateServiceWorker(true).catch(err => {
+      console.warn('[PWA] updateServiceWorker error (non-fatal):', err)
+    })
 
-    // Force hard reload with cache bypass
-    // Small delay to let service worker activate
-    setTimeout(() => {
-      forceHardReload()
-    }, 200)
-  } catch (err) {
-    console.error('[PWA] Update failed:', err)
-    isUpdating.value = false
-
-    // Aggressive fallback: clear caches and force reload anyway
-    try {
-      if ('caches' in window) {
-        const cacheNames = await caches.keys()
-        await Promise.all(cacheNames.map(name => caches.delete(name)))
-      }
-    } catch (e) {
-      console.warn('[PWA] Cache clear failed:', e)
+    // Also try to message the service worker directly
+    if (navigator.serviceWorker?.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' })
     }
 
-    // Hard reload with cache bypass
+    // Give SW a moment to activate, then reload
+    setTimeout(() => {
+      console.log('[PWA] Reloading after SW update...')
+      forceHardReload()
+    }, 500)
+  } catch (err) {
+    console.error('[PWA] Update failed:', err)
+    // Force reload anyway - the cache was cleared
     forceHardReload()
   }
 }
