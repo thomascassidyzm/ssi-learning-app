@@ -90,10 +90,10 @@ const BELT_DEPTH: Record<Belt, number> = {
   black: 1.0,
 }
 
-// Particle sizes - larger for organic neuron clusters
-const BASE_PARTICLE_SIZE = 28.0  // Larger base size for visibility
-const MAX_PARTICLE_SIZE = 55.0  // Max size for high-frequency nodes
-const COMPONENT_SIZE_MULTIPLIER = 0.6  // Components are smaller
+// Particle sizes - larger for organic neuron clusters and easier clicking
+const BASE_PARTICLE_SIZE = 55.0  // Large base size for visibility and clickability
+const MAX_PARTICLE_SIZE = 85.0  // Max size for high-frequency nodes
+const COMPONENT_SIZE_MULTIPLIER = 0.7  // Components are slightly smaller
 const SIZE_LOG_SCALE = 0.15  // Logarithmic scaling factor for usage-based sizing
 
 // Brightness range based on usage
@@ -105,11 +105,11 @@ const USAGE_SCALE_FACTOR = 0.02  // Subtle increase with usage
 const HIGHLIGHT_PULSE_SPEED = 3.0  // Radians per second
 const HIGHLIGHT_PULSE_AMPLITUDE = 0.3  // Brightness variation
 
-// Brain shape parameters - tighter clustering for organic neuron groups
-const BRAIN_ELLIPSOID = {
-  radiusX: 140,  // Width (left-right) - reduced for tighter packing
-  radiusY: 110,  // Height (top-bottom) - reduced for tighter packing
-  radiusZ: 85,   // Depth (front-back) - reduced for tighter packing
+// Brain shape parameters for surface positioning
+const BRAIN_DIMENSIONS = {
+  width: 160,    // Width (left-right)
+  height: 130,   // Height (top-bottom)
+  depth: 100,    // Depth (front-back)
 }
 
 // ============================================================================
@@ -235,10 +235,56 @@ function hashString(str: string): number {
 }
 
 /**
- * Calculate initial 3D position based on birth order (organic tree growth)
- * Early nodes form the stem, later nodes branch outward
+ * Get the brain surface radius at a given angle (side profile)
+ * Uses overlapping Gaussian bumps to create recognizable brain features
  */
-function getInitialTreePosition(
+function getBrainSurfaceRadius(angle: number): number {
+  // Base radius
+  let r = 1.0
+
+  // Frontal lobe bulge (front-top, around 55 degrees)
+  const frontalAngle = Math.PI * 0.3
+  const frontalDist = Math.abs(angle - frontalAngle)
+  r += 0.18 * Math.exp(-frontalDist * frontalDist * 2)
+
+  // Parietal dome (top-back, around 110 degrees)
+  const parietalAngle = Math.PI * 0.6
+  const parietalDist = Math.abs(angle - parietalAngle)
+  r += 0.1 * Math.exp(-parietalDist * parietalDist * 1.5)
+
+  // Occipital bulge (back, around 150 degrees)
+  const occipitalAngle = Math.PI * 0.85
+  const occipitalDist = Math.abs(angle - occipitalAngle)
+  r += 0.12 * Math.exp(-occipitalDist * occipitalDist * 2)
+
+  // Cerebellum (back-bottom, around 200 degrees) - distinct bulge
+  const cerebellumAngle = Math.PI * 1.1
+  const cerebellumDist = Math.abs(angle - cerebellumAngle)
+  r += 0.2 * Math.exp(-cerebellumDist * cerebellumDist * 4)
+
+  // Brain stem indentation (bottom-back, around 225 degrees)
+  const stemAngle = Math.PI * 1.25
+  const stemDist = Math.abs(angle - stemAngle)
+  r -= 0.3 * Math.exp(-stemDist * stemDist * 6)
+
+  // Temporal lobe (side-bottom, around 270 degrees)
+  const temporalAngle = Math.PI * 1.5
+  const temporalDist = Math.abs(angle - temporalAngle)
+  r += 0.08 * Math.exp(-temporalDist * temporalDist * 1.5)
+
+  // Front-bottom curve (under frontal lobe, around 325 degrees)
+  const frontBottomAngle = Math.PI * 1.8
+  const frontBottomDist = Math.abs(angle - frontBottomAngle)
+  r -= 0.12 * Math.exp(-frontBottomDist * frontBottomDist * 3)
+
+  return r
+}
+
+/**
+ * Calculate position ON the brain surface
+ * Nodes are distributed across the brain surface based on birth order and belt
+ */
+function getBrainSurfacePosition(
   birthOrder: number,
   totalNodes: number,
   belt: Belt,
@@ -249,56 +295,58 @@ function getInitialTreePosition(
   // Normalize birth order to 0-1 range
   const progress = totalNodes > 1 ? birthOrder / (totalNodes - 1) : 0
 
-  // Belt affects depth (z-position) - earlier belts more central
+  // Belt affects which "layer" of the brain - earlier belts more central/inner
   const beltDepth = BELT_DEPTH[belt]
 
-  // Tree growth pattern:
-  // - Early nodes (progress < 0.1): Stem - near bottom center
-  // - Middle nodes (0.1 - 0.6): Main branches - spread outward
-  // - Late nodes (0.6 - 1.0): Dendrite tips - outer regions
+  // Use golden angle for even distribution across surface
+  const goldenAngle = Math.PI * (3 - Math.sqrt(5))
+  const theta = goldenAngle * birthOrder + random() * 0.3  // Azimuthal angle (around Y axis)
 
-  let radius: number
-  let height: number // y-position (up in the brain)
-  let angleSpread: number
+  // Distribute vertically across the brain, biased toward upper regions
+  // Progress 0 = bottom, Progress 1 = top
+  const verticalBias = 0.3 + progress * 0.5 + random() * 0.2  // Range roughly 0.3 to 1.0
+  const phi = Math.acos(1 - 2 * verticalBias)  // Polar angle from top
 
-  if (progress < 0.1) {
-    // STEM: First ~10% of nodes form the central core
-    radius = progress * 30 + random() * 10
-    height = -BRAIN_ELLIPSOID.radiusY * 0.6 + progress * BRAIN_ELLIPSOID.radiusY * 0.4
-    angleSpread = Math.PI * 2 // Full circle but small radius
-  } else if (progress < 0.4) {
-    // MAIN BRANCHES: Spread outward and upward
-    const branchProgress = (progress - 0.1) / 0.3
-    radius = 30 + branchProgress * BRAIN_ELLIPSOID.radiusX * 0.6
-    height = -BRAIN_ELLIPSOID.radiusY * 0.2 + branchProgress * BRAIN_ELLIPSOID.radiusY * 0.5
-    angleSpread = Math.PI * 2
-  } else if (progress < 0.7) {
-    // SECONDARY BRANCHES: Continue spreading
-    const secondaryProgress = (progress - 0.4) / 0.3
-    radius = BRAIN_ELLIPSOID.radiusX * 0.5 + secondaryProgress * BRAIN_ELLIPSOID.radiusX * 0.35
-    height = BRAIN_ELLIPSOID.radiusY * 0.1 + secondaryProgress * BRAIN_ELLIPSOID.radiusY * 0.4
-    angleSpread = Math.PI * 2
-  } else {
-    // DENDRITE TIPS: Outermost nodes
-    const tipProgress = (progress - 0.7) / 0.3
-    radius = BRAIN_ELLIPSOID.radiusX * 0.7 + tipProgress * BRAIN_ELLIPSOID.radiusX * 0.25
-    height = BRAIN_ELLIPSOID.radiusY * 0.3 + tipProgress * BRAIN_ELLIPSOID.radiusY * 0.3
-    angleSpread = Math.PI * 2
+  // Get brain surface radius at this angle (side profile)
+  const sideAngle = Math.atan2(Math.sin(phi), Math.cos(phi))
+  const brainRadius = getBrainSurfaceRadius(sideAngle)
+
+  // Convert spherical to cartesian, then scale to brain dimensions
+  const sinPhi = Math.sin(phi)
+  const cosPhi = Math.cos(phi)
+  const sinTheta = Math.sin(theta)
+  const cosTheta = Math.cos(theta)
+
+  // Base position on brain surface
+  let x = brainRadius * sinPhi * cosTheta * BRAIN_DIMENSIONS.width
+  let y = brainRadius * cosPhi * BRAIN_DIMENSIONS.height
+  let z = brainRadius * sinPhi * sinTheta * BRAIN_DIMENSIONS.depth
+
+  // Add longitudinal fissure effect (groove at top-center)
+  const topness = Math.max(0, y / BRAIN_DIMENSIONS.height)
+  const centerDist = Math.abs(x) / BRAIN_DIMENSIONS.width
+  const fissureFalloff = Math.exp(-centerDist * centerDist * 20)
+  y -= topness * fissureFalloff * 12  // Indent at top center
+
+  // Add left hemisphere slight asymmetry
+  if (x < 0) {
+    x *= 1.03
   }
 
-  // Add organic variation based on node ID (reproducible randomness)
-  const angle = random() * angleSpread
-  const radiusJitter = (random() - 0.5) * radius * 0.3
-  const heightJitter = (random() - 0.5) * 20
+  // Belt-based depth variation - earlier belts slightly inside, later belts on surface
+  const depthMultiplier = 0.85 + beltDepth * 0.15
+  x *= depthMultiplier
+  y *= depthMultiplier
+  z *= depthMultiplier
 
-  const x = Math.cos(angle) * (radius + radiusJitter)
-  const y = height + heightJitter
+  // Add small organic jitter for natural look
+  const jitter = 8
+  x += (random() - 0.5) * jitter
+  y += (random() - 0.5) * jitter
+  z += (random() - 0.5) * jitter
 
-  // Z depth combines belt depth with organic variation
-  // Earlier belts are more central (smaller z), later belts more peripheral
-  const baseZ = (random() - 0.5) * BRAIN_ELLIPSOID.radiusZ * 0.8
-  const beltInfluence = (beltDepth - 0.5) * BRAIN_ELLIPSOID.radiusZ * 0.4
-  const z = baseZ + beltInfluence
+  // Shift so brain is centered properly
+  y += BRAIN_DIMENSIONS.height * 0.1
 
   return { x, y, z }
 }
@@ -407,11 +455,11 @@ function runForceSimulation(
         nodeA.vz -= nodeA.z * gravityStrength
       }
 
-      // 4. BOUNDARY CONSTRAINT: Keep within brain ellipsoid
+      // 4. BOUNDARY CONSTRAINT: Keep within brain dimensions
       const normalizedDist = Math.sqrt(
-        (nodeA.x / BRAIN_ELLIPSOID.radiusX) ** 2 +
-        (nodeA.y / BRAIN_ELLIPSOID.radiusY) ** 2 +
-        (nodeA.z / BRAIN_ELLIPSOID.radiusZ) ** 2
+        (nodeA.x / BRAIN_DIMENSIONS.width) ** 2 +
+        (nodeA.y / BRAIN_DIMENSIONS.height) ** 2 +
+        (nodeA.z / BRAIN_DIMENSIONS.depth) ** 2
       )
 
       if (normalizedDist > 0.95) {
@@ -446,16 +494,23 @@ function runForceSimulation(
     }
   }
 
-  // Final boundary enforcement - hard clamp to ellipsoid
+  // Final boundary enforcement - hard clamp to brain surface
   for (const node of forceNodes) {
     const normalizedDist = Math.sqrt(
-      (node.x / BRAIN_ELLIPSOID.radiusX) ** 2 +
-      (node.y / BRAIN_ELLIPSOID.radiusY) ** 2 +
-      (node.z / BRAIN_ELLIPSOID.radiusZ) ** 2
+      (node.x / BRAIN_DIMENSIONS.width) ** 2 +
+      (node.y / BRAIN_DIMENSIONS.height) ** 2 +
+      (node.z / BRAIN_DIMENSIONS.depth) ** 2
     )
 
-    if (normalizedDist > 0.95) {
-      const scale = 0.95 / normalizedDist
+    // Keep nodes near the surface (0.85 to 1.0 of brain radius)
+    if (normalizedDist > 1.0) {
+      const scale = 1.0 / normalizedDist
+      node.x *= scale
+      node.y *= scale
+      node.z *= scale
+    } else if (normalizedDist < 0.8) {
+      // Push nodes outward toward surface if too central
+      const scale = 0.8 / normalizedDist
       node.x *= scale
       node.y *= scale
       node.z *= scale
@@ -464,7 +519,7 @@ function runForceSimulation(
 }
 
 /**
- * Calculate organic 3D positions for all nodes using tree growth + force-directed layout
+ * Calculate organic 3D positions for all nodes using brain surface positioning + force-directed layout
  *
  * @param nodes - Array of brain nodes in birth order (first = earliest learned)
  * @param edges - Connections between nodes
@@ -478,9 +533,9 @@ function calculateOrganicPositions(
 
   if (nodes.length === 0) return positions
 
-  // 1. Create force nodes with initial tree-based positions
+  // 1. Create force nodes with initial brain surface positions
   const forceNodes: ForceNode[] = nodes.map((node, index) => {
-    const initial = getInitialTreePosition(index, nodes.length, node.belt, node.id)
+    const initial = getBrainSurfacePosition(index, nodes.length, node.belt, node.id)
     return {
       id: node.id,
       x: initial.x,

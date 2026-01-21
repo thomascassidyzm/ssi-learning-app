@@ -15,7 +15,7 @@ import CanvasNetworkView from './CanvasNetworkView.vue'
 import UsageStats from './UsageStats.vue'
 import Brain3DView from './Brain3DView.vue'
 import BrainStatsMobile from './BrainStatsMobile.vue'
-import { usePrebuiltNetwork, type ExternalConnection, type ConstellationNode } from '../composables/usePrebuiltNetwork'
+import { usePrebuiltNetwork, type ExternalConnection, type ExternalNode, type ConstellationNode } from '../composables/usePrebuiltNetwork'
 import { useLegoNetwork, type PhraseWithPath } from '../composables/useLegoNetwork'
 import { generateLearningScript } from '../providers/CourseDataProvider'
 import { getLanguageName } from '../composables/useI18n'
@@ -835,7 +835,8 @@ async function loadData() {
   try {
     console.log('[BrainView] Loading data for', props.course.course_code)
 
-    // Load connections AND phrases from database
+    // Load connections AND nodes from database
+    // Using database nodes ensures all LEGOs referenced in connections have corresponding nodes
     const netData = await loadNetworkData(props.course.course_code)
     const connections: ExternalConnection[] = netData?.connections || []
 
@@ -857,7 +858,22 @@ async function loadData() {
       console.warn(`[BrainView] When you click a LEGO, it will show "no phrases use this lego"`)
     }
 
-    // Load learning script (all rounds up to reasonable max)
+    // Convert database nodes to ExternalNode format for the prebuilt network
+    // This ensures all LEGOs are available for connections (not just those in learning script rounds)
+    const externalNodes: ExternalNode[] = (netData?.nodes || []).map(dbNode => ({
+      id: dbNode.id,
+      targetText: dbNode.targetText,
+      knownText: dbNode.knownText,
+      seedId: dbNode.seedId,
+      legoIndex: dbNode.legoIndex,
+      belt: dbNode.birthBelt,
+      isComponent: dbNode.isComponent,
+      parentLegoIds: dbNode.parentLegoIds,
+    }))
+
+    console.log(`[BrainView] Converted ${externalNodes.length} database nodes for network`)
+
+    // Load learning script (for backwards compat and round-based visibility)
     const MAX_ROUNDS = 1000
     const { rounds } = await generateLearningScript(
       courseDataProvider.value,
@@ -878,8 +894,9 @@ async function loadData() {
     }
 
     // Pre-calculate all positions with brain boundary based on belt level
+    // Use database nodes as the primary source to ensure all LEGOs have nodes
     // The network will be constrained within a "growing brain" shape
-    prebuiltNetwork.loadFromRounds(rounds, canvasSize.value, connections, 0, props.beltLevel)
+    prebuiltNetwork.loadFromRounds(rounds, canvasSize.value, connections, 0, props.beltLevel, externalNodes)
 
     // Set center for panning (centered on network, not hero)
     prebuiltNetwork.setCenter(canvasSize.value.width / 2, canvasSize.value.height / 2)

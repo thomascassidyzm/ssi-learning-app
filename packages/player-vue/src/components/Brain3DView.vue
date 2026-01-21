@@ -15,6 +15,7 @@
  */
 
 import { ref, computed, watch, onMounted, onUnmounted, type PropType } from 'vue'
+import * as THREE from 'three'
 
 // =============================================================================
 // COMPOSABLE IMPORTS
@@ -155,10 +156,10 @@ const brainInteraction = useBrainInteraction()
 const brainFirePath = useBrainFirePath()
 const brainReplay = useBrainReplay()
 const brainWireframe = useBrainWireframe({
-  opacity: 0.5,
-  color: '#4a90d9',  // Deep blue like reference image
-  vertexSize: 4.0,
-  glowIntensity: 1.2,
+  opacity: 0,  // Invisible scaffold - brain shape emerges from nodes
+  color: '#4a90d9',
+  vertexSize: 0,  // No visible vertices on scaffold
+  glowIntensity: 0,
 })
 
 // =============================================================================
@@ -310,6 +311,11 @@ async function initScene(): Promise<void> {
       brainEdgeData,
       (nodeId: string) => brainNodes.getNodePosition(nodeId)
     )
+
+    // Set edge color to match current belt
+    brainEdges.setColors({
+      default: new THREE.Color(accentColor.value),
+    })
 
     // Add lines to scene
     brainScene.scene.value.add(linesObject)
@@ -478,6 +484,12 @@ function rebuildNodesAndEdges(): void {
     brainEdgeData,
     (nodeId: string) => brainNodes.getNodePosition(nodeId)
   )
+
+  // Set edge color to match current belt
+  brainEdges.setColors({
+    default: new THREE.Color(accentColor.value),
+  })
+
   brainScene.scene.value.add(linesObject)
 
   // 6. Re-initialize interaction layer with new nodes
@@ -639,10 +651,14 @@ watch(() => props.revealedNodeIds, (_revealed, _oldRevealed) => {
   rebuildNodesAndEdges()
 }, { deep: true })
 
-// Watch for belt level changes and update wireframe color
+// Watch for belt level changes and update colors
 watch(accentColor, (newColor) => {
   if (sceneInitialized.value) {
     brainWireframe.setColor(newColor)
+    // Also update edge default color to match belt
+    brainEdges.setColors({
+      default: new THREE.Color(newColor),
+    })
   }
 })
 

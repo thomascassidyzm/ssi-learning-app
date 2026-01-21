@@ -299,23 +299,39 @@ export interface ExternalConnection {
   count: number
 }
 
+// External node data from database (from useLegoNetwork)
+export interface ExternalNode {
+  id: string
+  targetText: string
+  knownText: string
+  seedId?: string
+  legoIndex?: number
+  belt?: string
+  isComponent?: boolean
+  parentLegoIds?: string[]
+}
+
 /**
  * Pre-calculate all node positions by running D3 force simulation to completion
  * This is called ONCE when the script loads, not during learning
  *
- * @param rounds - The learning script rounds
+ * @param rounds - The learning script rounds (used if externalNodes not provided)
  * @param canvasSize - Canvas dimensions for layout
  * @param externalConnections - Pre-loaded connections from database (optional)
  *                              If provided, uses these instead of inferring from round items
  * @param startOffset - The seed position where these rounds start (for correct belt colors)
  * @param currentBelt - The current belt level (determines brain boundary size)
+ * @param externalNodes - Pre-loaded nodes from database (optional)
+ *                        If provided, uses these as the node source instead of rounds
+ *                        This ensures all LEGOs referenced in connections have nodes
  */
 export function preCalculatePositions(
   rounds: RoundData[],
   canvasSize: { width: number; height: number } = { width: 800, height: 800 },
   externalConnections?: ExternalConnection[],
   startOffset: number = 0,
-  currentBelt: string = 'black'  // Default to full brain for backwards compat
+  currentBelt: string = 'black',  // Default to full brain for backwards compat
+  externalNodes?: ExternalNode[]
 ): { nodes: ConstellationNode[], edges: ConstellationEdge[], brainBoundary: BrainBoundary } {
   const center = { x: canvasSize.width / 2, y: canvasSize.height / 2 }
   // Calculate max radius early - needed for initial node positioning
@@ -326,48 +342,82 @@ export function preCalculatePositions(
   console.log(`  Rounds: ${rounds?.length || 0}`)
   console.log(`  Canvas: ${canvasSize.width}x${canvasSize.height}`)
   console.log(`  External connections: ${externalConnections?.length || 0}`)
+  console.log(`  External nodes: ${externalNodes?.length || 0}`)
   console.log(`  Start offset: ${startOffset}, Belt: ${currentBelt}`)
   if (rounds?.length > 0) {
     console.log(`  First round:`, { legoId: rounds[0]?.legoId, hasItems: !!rounds[0]?.items?.length })
   }
   // ========== END DIAGNOSTIC ==========
 
-  // Build nodes from rounds
+  // Build nodes - prefer external nodes (from database) if provided
+  // This ensures all LEGOs referenced in connections have corresponding nodes
   const nodes: ConstellationNode[] = []
   const nodeMap = new Map<string, ConstellationNode>()
   const legoTexts = new Map<string, string>()
 
-  for (let i = 0; i < rounds.length; i++) {
-    const round = rounds[i]
-    if (!round?.legoId || nodeMap.has(round.legoId)) continue
+  if (externalNodes && externalNodes.length > 0) {
+    // Use database nodes - these include ALL LEGOs for the course
+    console.log(`[PrebuiltNetwork] Using ${externalNodes.length} external nodes from database`)
 
-    const introItem = round.items?.find(item =>
-      item.type === 'intro' || item.type === 'debut'
-    )
-    const targetText = introItem?.targetText || round.targetText || round.legoId
-    const knownText = introItem?.knownText || round.knownText || ''
+    for (let i = 0; i < externalNodes.length; i++) {
+      const extNode = externalNodes[i]
+      if (!extNode?.id || nodeMap.has(extNode.id)) continue
 
-    legoTexts.set(round.legoId, targetText.toLowerCase())
+      legoTexts.set(extNode.id, extNode.targetText?.toLowerCase() || '')
 
-    // Spread initial positions more for larger networks to avoid numerical instability
-    // Use golden angle distribution for more even spread
-    const goldenAngle = Math.PI * (3 - Math.sqrt(5)) // ~137.5 degrees
-    const angle = i * goldenAngle
-    const radius = Math.sqrt(i / Math.max(rounds.length, 1)) * maxRadius * 0.8
+      // Use golden angle distribution for initial positions
+      const goldenAngle = Math.PI * (3 - Math.sqrt(5)) // ~137.5 degrees
+      const angle = i * goldenAngle
+      const radius = Math.sqrt(i / Math.max(externalNodes.length, 1)) * maxRadius * 0.8
 
-    const node: ConstellationNode = {
-      id: round.legoId,
-      targetText,
-      knownText,
-      belt: getBeltForPosition(startOffset + i),
-      // Use golden spiral for initial positions - better distribution for large networks
-      x: center.x + Math.cos(angle) * radius + (Math.random() - 0.5) * 20,
-      y: center.y + Math.sin(angle) * radius + (Math.random() - 0.5) * 20,
+      const node: ConstellationNode = {
+        id: extNode.id,
+        targetText: extNode.targetText || extNode.id,
+        knownText: extNode.knownText || '',
+        belt: extNode.belt || getBeltForPosition(startOffset + i),
+        x: center.x + Math.cos(angle) * radius + (Math.random() - 0.5) * 20,
+        y: center.y + Math.sin(angle) * radius + (Math.random() - 0.5) * 20,
+        isComponent: extNode.isComponent,
+        parentLegoIds: extNode.parentLegoIds,
+      }
+
+      nodes.push(node)
+      nodeMap.set(extNode.id, node)
     }
+  } else {
+    // Fallback: Build nodes from rounds (learning script)
+    for (let i = 0; i < rounds.length; i++) {
+      const round = rounds[i]
+      if (!round?.legoId || nodeMap.has(round.legoId)) continue
 
-    nodes.push(node)
-    nodeMap.set(round.legoId, node)
+      const introItem = round.items?.find(item =>
+        item.type === 'intro' || item.type === 'debut'
+      )
+      const targetText = introItem?.targetText || round.targetText || round.legoId
+      const knownText = introItem?.knownText || round.knownText || ''
+
+      legoTexts.set(round.legoId, targetText.toLowerCase())
+
+      // Use golden angle distribution for initial positions
+      const goldenAngle = Math.PI * (3 - Math.sqrt(5)) // ~137.5 degrees
+      const angle = i * goldenAngle
+      const radius = Math.sqrt(i / Math.max(rounds.length, 1)) * maxRadius * 0.8
+
+      const node: ConstellationNode = {
+        id: round.legoId,
+        targetText,
+        knownText,
+        belt: getBeltForPosition(startOffset + i),
+        x: center.x + Math.cos(angle) * radius + (Math.random() - 0.5) * 20,
+        y: center.y + Math.sin(angle) * radius + (Math.random() - 0.5) * 20,
+      }
+
+      nodes.push(node)
+      nodeMap.set(round.legoId, node)
+    }
   }
+
+  console.log(`[PrebuiltNetwork] Built ${nodes.length} nodes`)
 
   // ============================================================================
   // INFERRED COMPONENT NODES
@@ -605,8 +655,14 @@ export function preCalculatePositions(
   // Run D3 force simulation to completion with brain boundary constraint
   // The network is constrained within a growing brain shape
   if (nodes.length > 0) {
-    // Scale forces based on boundary size (smaller brain = tighter forces)
-    const scaleFactor = brainBoundary.scale
+    // Calculate effective radius for this brain size
+    const effectiveRadius = maxRadius * brainBoundary.scale
+
+    // IMPORTANT: Do NOT scale forces by brain size!
+    // The brain boundary constraint already keeps nodes within the smaller area.
+    // If we also weaken repulsion, nodes cluster in the center.
+    // Instead, use STRONGER repulsion for smaller brains to spread nodes within the limited space.
+    const densityFactor = Math.max(1.0, 1.5 - brainBoundary.scale)  // More repulsion for smaller brains
 
     const simulation = d3.forceSimulation(nodes as any)
       .force('link', d3.forceLink(edges as any)
@@ -617,11 +673,11 @@ export function preCalculatePositions(
           // Component edges should be shorter to keep components close to parents
           const isComponentEdge = edge.source.toString().startsWith('_c_') ||
                                    (typeof edge.source === 'object' && (edge.source as any).id?.startsWith('_c_'))
-          // Scale distances based on brain size
-          const baseDistance = (isComponentEdge ? 60 : 120) * scaleFactor
-          const minDistance = (isComponentEdge ? 30 : 50) * scaleFactor
+          // Scale link distances to brain size so connected nodes stay proportionally close
+          const baseDistance = isComponentEdge ? 40 : 80
+          const minDistance = isComponentEdge ? 20 : 40
           const distanceScale = 1 + Math.pow(strength, 0.4)
-          return Math.max(minDistance, baseDistance / distanceScale)
+          return Math.max(minDistance, baseDistance / distanceScale) * brainBoundary.scale
         })
         .strength((d: any) => {
           const edge = d as ConstellationEdge
@@ -632,27 +688,29 @@ export function preCalculatePositions(
           return isComponentEdge ? 0.8 : Math.min(1.0, 0.2 + Math.pow(strength, 0.3) * 0.15)
         })
       )
-      // Repulsion scaled to brain size (smaller brain = less repulsion)
+      // Strong repulsion to spread nodes apart - NOT scaled by brain size
+      // Actually increase repulsion for smaller brains to prevent clustering
       .force('charge', d3.forceManyBody()
         .strength((d: any) => {
-          const baseStrength = (d as ConstellationNode).isComponent ? -150 : -350
-          return baseStrength * scaleFactor
+          const baseStrength = (d as ConstellationNode).isComponent ? -200 : -500
+          return baseStrength * densityFactor  // More repulsion for smaller/denser brains
         })
-        .distanceMax(maxRadius * scaleFactor * 1.5))
+        .distanceMax(effectiveRadius * 2))
       .force('center', d3.forceCenter(center.x, center.y))
-      // Collision radius scaled to brain size
+      // Collision radius - keep constant so nodes don't overlap regardless of brain size
       .force('collide', d3.forceCollide()
         .radius((d: any) => {
-          const baseRadius = (d as ConstellationNode).isComponent ? 20 : 35
-          return baseRadius * scaleFactor
+          const baseRadius = (d as ConstellationNode).isComponent ? 15 : 30
+          return baseRadius
         })
-        .strength(0.9))
+        .strength(0.95))
       // BRAIN BOUNDARY CONSTRAINT - keeps nodes inside the growing brain shape
-      .force('brainBoundary', forceBrainBoundary(center, brainBoundary, maxRadius, 0.5))
+      // Use stronger boundary force to contain nodes firmly
+      .force('brainBoundary', forceBrainBoundary(center, brainBoundary, maxRadius, 0.8))
       .stop()
 
-    // Run to completion (400 ticks for better boundary convergence)
-    for (let i = 0; i < 400; i++) {
+    // Run to completion (500 ticks for better convergence with stronger forces)
+    for (let i = 0; i < 500; i++) {
       simulation.tick()
     }
 
@@ -749,20 +807,23 @@ export function usePrebuiltNetwork() {
 
   /**
    * Load pre-calculated network from rounds
-   * @param rounds - Learning script rounds
+   * @param rounds - Learning script rounds (used if externalNodes not provided)
    * @param canvasSize - Canvas dimensions
    * @param externalConnections - Pre-loaded connections from database (optional)
    * @param startOffset - The seed position where these rounds start (for correct belt colors)
    * @param currentBelt - Current belt level (determines brain boundary size)
+   * @param externalNodes - Pre-loaded nodes from database (optional)
+   *                        If provided, uses these as the node source instead of rounds
    */
   function loadFromRounds(
     rounds: RoundData[],
     canvasSize?: { width: number; height: number },
     externalConnections?: ExternalConnection[],
     startOffset: number = 0,
-    currentBelt: string = 'black'  // Default to full brain for backwards compat
+    currentBelt: string = 'black',  // Default to full brain for backwards compat
+    externalNodes?: ExternalNode[]
   ): void {
-    const result = preCalculatePositions(rounds, canvasSize, externalConnections, startOffset, currentBelt)
+    const result = preCalculatePositions(rounds, canvasSize, externalConnections, startOffset, currentBelt, externalNodes)
     nodes.value = result.nodes
     edges.value = result.edges
     brainBoundary.value = result.brainBoundary
