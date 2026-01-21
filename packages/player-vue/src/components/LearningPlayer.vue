@@ -5843,8 +5843,8 @@ defineExpose({
   --nav-height: 80px;
   --nav-total: calc(var(--nav-height) + var(--safe-area-bottom));
 
-  /* Control bar offset from bottom (above nav) */
-  --control-bar-offset: clamp(12px, 2vh, 24px);
+  /* Control bar sits just above nav - play button links them visually */
+  --control-bar-offset: 4px;
   --control-bar-bottom: calc(var(--nav-total) + var(--control-bar-offset));
 
   /* Hero text pane position: below header with breathing room */
