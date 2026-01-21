@@ -189,6 +189,16 @@ const { openSignIn, openSignUp: openCreateAccount } = useAuthModal()
 // Network data from database (for edge connections - like brain view)
 const { loadNetworkData: loadLegoNetworkData } = useLegoNetwork(supabase)
 const networkConnections = ref<Array<{ source: string; target: string; count: number }>>([])
+const dbNetworkNodes = ref<Array<{
+  id: string
+  targetText: string
+  knownText: string
+  seedId?: string
+  legoIndex?: number
+  belt?: string
+  isComponent?: boolean
+  parentLegoIds?: string[]
+}>>([])
 
 // Get course code from prop (required - App.vue ensures course exists before rendering)
 const courseCode = computed(() => props.course?.course_code || '')
@@ -1400,7 +1410,7 @@ const nodePhraseItems = ref<any[]>([])
 
 // Hero node scaling - fewer nodes = bigger nodes (for ring visual)
 const heroNodeScale = computed(() => {
-  const count = networkNodes.value.length
+  const count = dbNetworkNodes.value.length
   if (count <= 3) return 2.5
   if (count <= 8) return 1.8
   if (count <= 15) return 1.3
@@ -4398,7 +4408,7 @@ const extractLegoIdsFromPhrase = (item) => {
 
   // Build a map of normalized LEGO text -> ID from current network nodes
   const legoMap = new Map()
-  networkNodes.value.forEach(node => {
+  dbNetworkNodes.value.forEach(node => {
     if (node.targetText) {
       legoMap.set(node.targetText.toLowerCase().trim(), node.id)
     }
@@ -4439,7 +4449,7 @@ const extractLegoIdsFromPhrase = (item) => {
   // If decomposition found nothing, fall back to the current LEGO
   if (result.length === 0) {
     const legoId = item?.lego?.id || item?.legoId
-    if (legoId && networkNodes.value.find(n => n.id === legoId)) {
+    if (legoId && dbNetworkNodes.value.find(n => n.id === legoId)) {
       result.push(legoId)
     }
   }
@@ -4457,7 +4467,7 @@ const findResonatingNodes = (item, exactMatches) => {
   const targetWords = targetText.toLowerCase().split(/\s+/).filter(w => w.length > 2)
   const resonating = []
 
-  networkNodes.value.forEach(node => {
+  dbNetworkNodes.value.forEach(node => {
     // Skip if already an exact match
     if (exactMatches.includes(node.id)) return
 
@@ -4611,13 +4621,27 @@ onMounted(async () => {
               console.warn('[LearningPlayer] No supabase client - skipping network connections')
               return
             }
-            console.log('[LearningPlayer] Loading network connections from database...')
+            console.log('[LearningPlayer] Loading network data from database...')
             const networkData = await loadLegoNetworkData(courseCode.value)
             if (networkData?.connections) {
               networkConnections.value = networkData.connections
               console.log(`[LearningPlayer] Loaded ${networkData.connections.length} network connections`)
             } else {
               console.warn('[LearningPlayer] No connections returned from loadLegoNetworkData')
+            }
+            // Store nodes for full network initialization (ensures all LEGOs in connections have nodes)
+            if (networkData?.nodes) {
+              dbNetworkNodes.value = networkData.nodes.map(n => ({
+                id: n.id,
+                targetText: n.targetText,
+                knownText: n.knownText,
+                seedId: n.seedId,
+                legoIndex: n.legoIndex,
+                belt: n.birthBelt,
+                isComponent: n.isComponent,
+                parentLegoIds: n.parentLegoIds,
+              }))
+              console.log(`[LearningPlayer] Loaded ${dbNetworkNodes.value.length} network nodes`)
             }
           } catch (err) {
             console.warn('[LearningPlayer] Failed to load network connections:', err)
@@ -4650,7 +4674,8 @@ onMounted(async () => {
 
             if (allRounds.length > 0) {
               // Pass current round index so we reveal nodes up to current playback position
-              initializeFullNetwork(allRounds, networkConnections.value, currentRoundIndex.value)
+              // Pass dbNetworkNodes so all LEGOs in connections have corresponding nodes
+              initializeFullNetwork(allRounds, networkConnections.value, currentRoundIndex.value, dbNetworkNodes.value)
               console.log(`[LearningPlayer] Full network ready: ${allRounds.length} nodes, revealed up to round ${currentRoundIndex.value}`)
             }
           } catch (err) {
@@ -4812,6 +4837,20 @@ onMounted(async () => {
             } else {
               console.warn('[LearningPlayer] Fresh gen: No connections returned')
             }
+            // Store nodes for full network initialization (ensures all LEGOs in connections have nodes)
+            if (networkData?.nodes) {
+              dbNetworkNodes.value = networkData.nodes.map(n => ({
+                id: n.id,
+                targetText: n.targetText,
+                knownText: n.knownText,
+                seedId: n.seedId,
+                legoIndex: n.legoIndex,
+                belt: n.birthBelt,
+                isComponent: n.isComponent,
+                parentLegoIds: n.parentLegoIds,
+              }))
+              console.log(`[LearningPlayer] Fresh gen: Loaded ${dbNetworkNodes.value.length} network nodes`)
+            }
           } catch (err) {
             console.warn('[LearningPlayer] Failed to load network connections:', err)
           }
@@ -4834,7 +4873,8 @@ onMounted(async () => {
 
             if (allRounds.length > 0) {
               // Pass current round index so we reveal nodes up to current playback position
-              initializeFullNetwork(allRounds, networkConnections.value, currentRoundIndex.value)
+              // Pass dbNetworkNodes so all LEGOs in connections have corresponding nodes
+              initializeFullNetwork(allRounds, networkConnections.value, currentRoundIndex.value, dbNetworkNodes.value)
               console.log(`[LearningPlayer] Fresh gen: Full network ready: ${allRounds.length} nodes, revealed up to round ${currentRoundIndex.value}`)
             }
           } catch (err) {

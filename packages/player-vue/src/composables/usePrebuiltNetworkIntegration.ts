@@ -236,6 +236,7 @@ export function usePrebuiltNetworkIntegration(
    * @param allRounds - ALL rounds for the entire course
    * @param externalConnections - Connections from database
    * @param currentRoundIndex - Current playback position (to reveal nodes up to this point)
+   * @param externalNodes - Nodes from database (optional, ensures all LEGOs in connections have nodes)
    */
   function initializeFullNetwork(
     allRounds: Array<{
@@ -245,7 +246,17 @@ export function usePrebuiltNetworkIntegration(
       items?: Array<{ type: string; targetText?: string; knownText?: string }>
     }>,
     externalConnections?: ExternalConnection[],
-    currentRoundIndex: number = 0
+    currentRoundIndex: number = 0,
+    externalNodes?: Array<{
+      id: string
+      targetText: string
+      knownText: string
+      seedId?: string
+      legoIndex?: number
+      belt?: string
+      isComponent?: boolean
+      parentLegoIds?: string[]
+    }>
   ): void {
     if (isFullNetworkLoaded.value) {
       console.log('[PrebuiltNetworkIntegration] Full network already loaded, skipping')
@@ -260,6 +271,7 @@ export function usePrebuiltNetworkIntegration(
     console.log(`  Total rounds: ${allRounds.length}`)
     console.log(`  Valid rounds (with legoId): ${validRounds.length}`)
     console.log(`  External connections: ${externalConnections?.length || 0}`)
+    console.log(`  External nodes: ${externalNodes?.length || 0}`)
     console.log(`  Current round index: ${currentRoundIndex}`)
     if (validRounds.length !== allRounds.length) {
       console.warn(`  ⚠️ ${allRounds.length - validRounds.length} rounds missing legoId!`)
@@ -267,7 +279,8 @@ export function usePrebuiltNetworkIntegration(
 
     // Calculate ALL positions once - startOffset is always 0 for full network
     // Pass 'black' belt explicitly to ensure full brain boundary (scale 1.0)
-    prebuiltNetwork.loadFromRounds(allRounds, config.canvasSize, externalConnections, 0, 'black')
+    // Pass externalNodes so all LEGOs referenced in connections have network nodes
+    prebuiltNetwork.loadFromRounds(allRounds, config.canvasSize, externalConnections, 0, 'black', externalNodes)
 
     // Debug: Check positions after calculation
     const calculatedNodes = prebuiltNetwork.nodes.value
