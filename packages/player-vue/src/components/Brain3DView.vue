@@ -48,9 +48,14 @@ export interface ConstellationNode {
 
 export interface ConstellationEdge {
   id: string
-  source: string
-  target: string
+  source: string | { id: string }  // Can be string ID or object with id
+  target: string | { id: string }  // Can be string ID or object with id
   strength: number
+}
+
+// Helper to extract ID from source/target (handles both string and object formats)
+function getEdgeNodeId(nodeRef: string | { id: string }): string {
+  return typeof nodeRef === 'string' ? nodeRef : nodeRef.id
 }
 
 export interface PathHighlight {
@@ -223,9 +228,12 @@ function getFilteredEdges(): ConstellationEdge[] {
     return props.edges
   }
   // Filter to only edges where both endpoints are revealed
-  return props.edges.filter(edge =>
-    revealed.has(edge.source) && revealed.has(edge.target)
-  )
+  // Handle both string IDs and object references for source/target
+  return props.edges.filter(edge => {
+    const sourceId = getEdgeNodeId(edge.source)
+    const targetId = getEdgeNodeId(edge.target)
+    return revealed.has(sourceId) && revealed.has(targetId)
+  })
 }
 
 // =============================================================================
@@ -250,12 +258,13 @@ function toBrainNode(node: ConstellationNode): BrainNode {
 
 /**
  * Convert ConstellationEdge to BrainEdge format
+ * Handles source/target being either string IDs or objects with id property
  */
 function toBrainEdge(edge: ConstellationEdge): BrainEdge {
   return {
     id: edge.id,
-    source: edge.source,
-    target: edge.target,
+    source: getEdgeNodeId(edge.source),
+    target: getEdgeNodeId(edge.target),
     strength: edge.strength,
   }
 }
