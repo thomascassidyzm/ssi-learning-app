@@ -5848,8 +5848,8 @@ defineExpose({
   --control-bar-bottom: calc(var(--nav-total) + var(--control-bar-offset));
 
   /* Hero text pane position: below header with breathing room */
-  /* On mobile: needs space for belt row + skip buttons; on larger screens: more centered */
-  --hero-offset: clamp(48px, 8vh, 72px);
+  /* Fixed offset - consistent spacing at all widths */
+  --hero-offset: 56px;
   --hero-top: calc(var(--header-total) + var(--hero-offset));
 
   /* Spacing scale using viewport-relative clamp() */
@@ -6496,11 +6496,11 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: clamp(0.5rem, 2vw, 0.75rem);
+  gap: 0.625rem;
   width: 100%;
   max-width: 420px; /* Cap width for desktop - keeps phone-like proportions */
   margin: 0 auto;
-  margin-top: clamp(0.5rem, 1.5vh, 1rem); /* Space between logo and belt/timer */
+  margin-top: 0.75rem; /* Fixed space between logo and belt/timer */
   padding: 0 1rem;
 }
 
@@ -7233,7 +7233,7 @@ defineExpose({
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-md);
+  gap: 0.75rem; /* Fixed gap between hint and text box */
   /* Cap width for desktop - keeps phone-like proportions */
   width: calc(100% - 2rem);
   max-width: 420px;
