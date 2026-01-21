@@ -148,6 +148,22 @@ const travelingPulses = ref<TravelingPulse[]>([])
 let pulseIdCounter = 0
 const PULSE_DURATION = 400 // ms for pulse to travel along edge
 
+// ============================================================================
+// RECENTLY REVEALED TRACKING (for entry animations)
+// ============================================================================
+
+const NODE_ENTER_DURATION = 500 // ms - slightly longer than animation to ensure cleanup
+const EDGE_ENTER_DURATION = 500 // ms
+
+// Track which nodes were just revealed (within last 500ms)
+const recentlyRevealedNodes = ref<Set<string>>(new Set())
+
+// Track which edges just became "active" (both endpoints revealed)
+const recentlyRevealedEdges = ref<Set<string>>(new Set())
+
+// Keep a snapshot of previously revealed nodes to detect additions
+let previousRevealedNodeIds: Set<string> | null = null
+
 // Combined transform (user zoom/pan + hero centering)
 const combinedTransform = computed(() => {
   // Parse the hero pan offset from panTransform prop
@@ -414,6 +430,93 @@ watch(() => props.heroNodeId, () => {
 })
 
 // ============================================================================
+// WATCH FOR NEWLY REVEALED NODES (entry animation trigger)
+// ============================================================================
+
+watch(
+  () => props.revealedNodeIds,
+  (newRevealedIds) => {
+    // Skip if no revealed set (all nodes visible, no animation needed)
+    if (!newRevealedIds) {
+      previousRevealedNodeIds = null
+      return
+    }
+
+    // On first run, just snapshot - don't animate all initial nodes
+    if (previousRevealedNodeIds === null) {
+      previousRevealedNodeIds = new Set(newRevealedIds)
+      return
+    }
+
+    // Find newly revealed nodes (in new set but not in previous)
+    const newlyRevealed: string[] = []
+    newRevealedIds.forEach(nodeId => {
+      if (!previousRevealedNodeIds!.has(nodeId)) {
+        newlyRevealed.push(nodeId)
+      }
+    })
+
+    // If we have newly revealed nodes, trigger their entry animation
+    if (newlyRevealed.length > 0) {
+      // Add to recently revealed set
+      newlyRevealed.forEach(nodeId => {
+        recentlyRevealedNodes.value.add(nodeId)
+      })
+      // Force reactivity update
+      recentlyRevealedNodes.value = new Set(recentlyRevealedNodes.value)
+
+      // Find edges that now have both endpoints revealed (they should animate too)
+      const newlyRevealedEdgeIds: string[] = []
+      props.edges.forEach(edge => {
+        const sourceId = getEdgeNodeId(edge.source as string | { id: string })
+        const targetId = getEdgeNodeId(edge.target as string | { id: string })
+
+        // Edge is newly "complete" if one of its nodes just got revealed
+        // AND both nodes are now revealed
+        const sourceNewlyRevealed = newlyRevealed.includes(sourceId)
+        const targetNewlyRevealed = newlyRevealed.includes(targetId)
+        const sourceRevealed = newRevealedIds.has(sourceId)
+        const targetRevealed = newRevealedIds.has(targetId)
+
+        // If one endpoint just appeared AND both are now visible, animate the edge
+        if ((sourceNewlyRevealed || targetNewlyRevealed) && sourceRevealed && targetRevealed) {
+          newlyRevealedEdgeIds.push(edge.id)
+        }
+      })
+
+      // Add edges to recently revealed set
+      if (newlyRevealedEdgeIds.length > 0) {
+        newlyRevealedEdgeIds.forEach(edgeId => {
+          recentlyRevealedEdges.value.add(edgeId)
+        })
+        recentlyRevealedEdges.value = new Set(recentlyRevealedEdges.value)
+      }
+
+      // Schedule cleanup of animation classes
+      setTimeout(() => {
+        newlyRevealed.forEach(nodeId => {
+          recentlyRevealedNodes.value.delete(nodeId)
+        })
+        recentlyRevealedNodes.value = new Set(recentlyRevealedNodes.value)
+      }, NODE_ENTER_DURATION)
+
+      if (newlyRevealedEdgeIds.length > 0) {
+        setTimeout(() => {
+          newlyRevealedEdgeIds.forEach(edgeId => {
+            recentlyRevealedEdges.value.delete(edgeId)
+          })
+          recentlyRevealedEdges.value = new Set(recentlyRevealedEdges.value)
+        }, EDGE_ENTER_DURATION)
+      }
+    }
+
+    // Update snapshot for next comparison
+    previousRevealedNodeIds = new Set(newRevealedIds)
+  },
+  { deep: true }
+)
+
+// ============================================================================
 // LIFECYCLE
 // ============================================================================
 
@@ -579,6 +682,16 @@ function handleNodeTap(node: ConstellationNode): void {
 
 function handleNodeHover(node: ConstellationNode | null): void {
   emit('node-hover', node)
+}
+
+// Check if a node was just revealed (for entry animation)
+function isNodeEntering(nodeId: string): boolean {
+  return recentlyRevealedNodes.value.has(nodeId)
+}
+
+// Check if an edge was just revealed (for entry animation)
+function isEdgeEntering(edgeId: string): boolean {
+  return recentlyRevealedEdges.value.has(edgeId)
 }
 
 // ============================================================================
@@ -756,7 +869,10 @@ defineExpose({
             :key="edge.id"
             :d="getEdgePath(edge)"
             class="edge"
-            :class="{ 'edge-active': isEdgeInPath(edge.id) }"
+            :class="{
+              'edge-active': isEdgeInPath(edge.id),
+              'edge-entering': isEdgeEntering(edge.id)
+            }"
             :stroke-width="getEdgeWidth(edge)"
             :opacity="getEdgeOpacity(edge)"
             :filter="isEdgeInPath(edge.id) ? 'url(#edge-active-glow)' : 'none'"
@@ -823,7 +939,8 @@ defineExpose({
               'node-hero': node.id === heroNodeId,
               'node-resonating': isNodeResonating(node.id),
               'node-component': node.isComponent,
-              'node-unrevealed': !isNodeRevealed(node.id)
+              'node-unrevealed': !isNodeRevealed(node.id),
+              'node-entering': isNodeEntering(node.id)
             }"
             :transform="`translate(${node.x}, ${node.y})`"
             :opacity="getNodeOpacity(node)"
@@ -1105,5 +1222,44 @@ defineExpose({
   .network-controls {
     display: none;
   }
+}
+
+/* ============================================================================
+   NODE ENTRY ANIMATION - Sequential Building Effect
+   ============================================================================ */
+
+@keyframes node-enter {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+    /* Final opacity controlled by getNodeOpacity() via inline style */
+  }
+}
+
+.node-entering {
+  animation: node-enter 400ms cubic-bezier(0.34, 1.53, 0.64, 1) forwards;
+}
+
+/* ============================================================================
+   EDGE ENTRY ANIMATION - Edges connecting to newly revealed nodes
+   ============================================================================ */
+
+@keyframes edge-enter {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    /* Final opacity controlled by getEdgeOpacity() via inline style */
+  }
+}
+
+.edge-entering {
+  animation: edge-enter 400ms ease-out forwards;
 }
 </style>

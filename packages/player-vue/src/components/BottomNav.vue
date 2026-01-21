@@ -23,7 +23,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback'])
+const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'exitListeningMode'])
 
 // Auth state from injected auth provider
 const auth = inject('auth', null)
@@ -66,6 +66,11 @@ const handleNavTap = (itemId) => {
   // Haptic feedback (if available)
   if (navigator.vibrate) {
     navigator.vibrate(10)
+  }
+
+  // If listening mode is active, exit it first (stops audio, closes overlay)
+  if (props.isListeningMode) {
+    emit('exitListeningMode')
   }
 
   emit('navigate', itemId)
@@ -114,6 +119,11 @@ const handleAccountTap = () => {
 
   if (navigator.vibrate) {
     navigator.vibrate(10)
+  }
+
+  // If listening mode is active, exit it first (stops audio, closes overlay)
+  if (props.isListeningMode) {
+    emit('exitListeningMode')
   }
 
   if (isGuest.value) {

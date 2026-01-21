@@ -9,7 +9,7 @@
  * - Same visual style as ConstellationNetworkView
  */
 
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 
 interface ProgressNode {
   id: string
@@ -200,6 +200,23 @@ function clearSearch() {
 // Watch search query
 watch(searchQuery, handleSearch)
 
+// Current belt accent color
+const currentBeltColor = computed(() => {
+  return BELT_PALETTES[props.currentBelt]?.glow || BELT_PALETTES.white.glow
+})
+
+// Set CSS variable for current belt color
+const containerRef = ref<HTMLElement | null>(null)
+
+function updateBeltColor() {
+  if (containerRef.value) {
+    containerRef.value.style.setProperty('--belt-accent', currentBeltColor.value)
+  }
+}
+
+onMounted(updateBeltColor)
+watch(() => props.currentBelt, updateBeltColor)
+
 // Edge path calculation
 function getEdgePath(fromId: string, toId: string): string {
   const from = positionedNodes.value.find(n => n.id === fromId)
@@ -259,7 +276,7 @@ function getEdgeOpacity(edge: { from: string; to: string }): number {
 </script>
 
 <template>
-  <div class="progress-constellation">
+  <div ref="containerRef" class="progress-constellation">
     <!-- Header with search -->
     <header class="header">
       <button class="back-btn" @click="emit('close')">
@@ -431,6 +448,7 @@ function getEdgeOpacity(edge: { from: string; to: string }): number {
   display: flex;
   flex-direction: column;
   z-index: 100;
+  --belt-accent: #9ca3af; /* Default white belt, updated via JS */
 }
 
 /* Header */
@@ -461,7 +479,8 @@ function getEdgeOpacity(edge: { from: string; to: string }): number {
 
 .back-btn:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  border-color: var(--belt-accent);
+  color: var(--belt-accent);
 }
 
 .back-btn svg {
@@ -484,6 +503,12 @@ function getEdgeOpacity(edge: { from: string; to: string }): number {
   height: 18px;
   color: rgba(255, 255, 255, 0.4);
   pointer-events: none;
+  transition: color 0.2s ease;
+}
+
+.search-input:focus ~ .search-icon,
+.search-container:focus-within .search-icon {
+  color: var(--belt-accent);
 }
 
 .search-input {
@@ -504,7 +529,7 @@ function getEdgeOpacity(edge: { from: string; to: string }): number {
 
 .search-input:focus {
   background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: var(--belt-accent);
 }
 
 .clear-btn {
@@ -520,6 +545,12 @@ function getEdgeOpacity(edge: { from: string; to: string }): number {
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.clear-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--belt-accent);
 }
 
 .clear-btn svg {
@@ -559,9 +590,13 @@ function getEdgeOpacity(edge: { from: string; to: string }): number {
   transition: all 0.15s ease;
 }
 
-.search-result:hover,
+.search-result:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
 .search-result--active {
   background: rgba(255, 255, 255, 0.08);
+  border-left: 2px solid var(--belt-accent);
 }
 
 .result-dot {
@@ -635,6 +670,7 @@ function getEdgeOpacity(edge: { from: string; to: string }): number {
   padding: 0.25rem 0.5rem;
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.03);
+  border: 1px solid transparent;
   opacity: 0.5;
   transition: all 0.2s ease;
 }
@@ -642,6 +678,7 @@ function getEdgeOpacity(edge: { from: string; to: string }): number {
 .legend-item--active {
   opacity: 1;
   background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--belt-accent);
 }
 
 .legend-dot {
@@ -658,7 +695,7 @@ function getEdgeOpacity(edge: { from: string; to: string }): number {
 }
 
 .legend-item--active .legend-label {
-  color: #fff;
+  color: var(--belt-accent);
 }
 
 /* Responsive */

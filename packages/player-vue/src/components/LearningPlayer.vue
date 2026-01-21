@@ -1678,6 +1678,7 @@ class RealAudioController {
     this.currentCleanup = null
     this.preloadedUrls = new Set()
     this.preloadOrder = []  // Track insertion order for LRU eviction
+    this.preloadedAudioElements = new Map()  // url → Audio element (to stop zombie preloads)
     this.skipNextNotify = false  // Set true to skip orchestrator callbacks (for intro/welcome)
     this.suppressAllCallbacks = false  // Set true during skip to prevent any audio callbacks
     this.playGeneration = 0  // Incremented on stop() to invalidate pending callbacks
@@ -1835,6 +1836,17 @@ class RealAudioController {
       this.audio.load()
       // Don't null the audio element - reuse it for mobile compatibility
     }
+
+    // Stop all "zombie" preload audio elements that may still be playing
+    for (const preloadAudio of this.preloadedAudioElements.values()) {
+      try {
+        preloadAudio.pause()
+        preloadAudio.src = ''
+        preloadAudio.load()
+      } catch (e) {
+        console.warn('[AudioController] Error stopping preload element:', e)
+      }
+    }
   }
 
   /**
@@ -1842,7 +1854,7 @@ class RealAudioController {
    * Use this on skip operations to ensure NO audio from previous state can play
    */
   hardReset() {
-    // First do a normal stop
+    // First do a normal stop (this also stops all preload elements)
     this.stop()
 
     // Clear all callbacks
@@ -1851,6 +1863,7 @@ class RealAudioController {
     // Clear preload cache
     this.preloadedUrls.clear()
     this.preloadOrder.length = 0
+    this.preloadedAudioElements.clear()
 
     // Recreate audio element to ensure clean state
     // This is the nuclear option - guarantees no stale audio
@@ -1877,6 +1890,14 @@ class RealAudioController {
     while (this.preloadOrder.length >= RealAudioController.MAX_PRELOAD_CACHE_SIZE) {
       const oldestUrl = this.preloadOrder.shift()
       this.preloadedUrls.delete(oldestUrl)
+      // Stop and remove the old Audio element to prevent zombie playback
+      const oldAudio = this.preloadedAudioElements.get(oldestUrl)
+      if (oldAudio) {
+        oldAudio.pause()
+        oldAudio.src = ''
+        oldAudio.load()
+        this.preloadedAudioElements.delete(oldestUrl)
+      }
     }
 
     // Create a temporary Audio element just to trigger browser caching
@@ -1887,6 +1908,7 @@ class RealAudioController {
 
     this.preloadedUrls.add(url)
     this.preloadOrder.push(url)
+    this.preloadedAudioElements.set(url, audio)  // Track element for cleanup
   }
 
   isPreloaded(audioRef) {
@@ -1895,7 +1917,15 @@ class RealAudioController {
 
   // Clear the preload cache (call on skip to prevent stale audio)
   clearPreloadCache() {
+    // Stop all preloaded audio elements to prevent zombie playback
+    for (const preloadAudio of this.preloadedAudioElements.values()) {
+      preloadAudio.pause()
+      preloadAudio.src = ''
+      preloadAudio.load()
+    }
+    this.preloadedAudioElements.clear()
     this.preloadedUrls.clear()
+    this.preloadOrder.length = 0
   }
 
   isPlaying() {
@@ -3796,6 +3826,17 @@ const handleCloseListening = () => {
   // Don't auto-resume - user will tap to play when ready
 }
 
+// Exit listening mode completely - close overlay AND stop all audio
+// Called when user navigates away via bottom nav
+const exitListeningMode = () => {
+  if (showListeningOverlay.value) {
+    showListeningOverlay.value = false
+    emit('listeningModeChanged', false)
+  }
+  // Stop all audio immediately
+  handlePause()
+}
+
 // Show turbo explanation popup (first time in session) or toggle directly
 const handleTurboClick = () => {
   if (turboActive.value) {
@@ -5201,6 +5242,7 @@ defineExpose({
   togglePlayback,
   handlePause,
   handleResume,
+  exitListeningMode,
 })
 </script>
 

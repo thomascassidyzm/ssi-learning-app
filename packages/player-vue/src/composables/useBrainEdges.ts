@@ -62,11 +62,11 @@ interface EdgeData {
 // ============================================================================
 
 const DEFAULT_OPTIONS: Required<EdgeRenderOptions> = {
-  baseOpacity: 0.20,
-  maxOpacity: 0.35,
-  baseWidth: 1,
-  maxWidth: 2,
-  highlightOpacity: 0.8,
+  baseOpacity: 0.5,    // Neural connections should be clearly visible
+  maxOpacity: 0.85,    // Strong connections are prominent
+  baseWidth: 1.5,      // Visible line width
+  maxWidth: 4,         // Strong connections are thicker
+  highlightOpacity: 1.0,
   glowOpacity: 1.0,
 }
 

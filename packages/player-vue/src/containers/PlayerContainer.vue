@@ -134,6 +134,13 @@ const handleListeningModeChanged = (listening) => {
   isListeningMode.value = listening
 }
 
+// Handle exit listening mode from BottomNav (user navigated away)
+const handleExitListeningMode = () => {
+  if (learningPlayerRef.value) {
+    learningPlayerRef.value.exitListeningMode()
+  }
+}
+
 // Handle view progress from LearningPlayer (belt modal)
 const handleViewProgress = () => {
   navigate('network')
@@ -322,6 +329,7 @@ onMounted(() => {
       @navigate="handleNavigation"
       @startLearning="handleStartLearning"
       @togglePlayback="handleTogglePlayback"
+      @exitListeningMode="handleExitListeningMode"
     />
 
     <!-- Build Badge (dev/staging visibility) -->
