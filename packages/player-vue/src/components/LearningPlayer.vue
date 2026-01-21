@@ -5849,7 +5849,7 @@ defineExpose({
 
   /* Hero text pane position: below header with breathing room */
   /* On mobile: needs space for belt row + skip buttons; on larger screens: more centered */
-  --hero-offset: clamp(40px, 6vh, 64px);
+  --hero-offset: clamp(48px, 8vh, 72px);
   --hero-top: calc(var(--header-total) + var(--hero-offset));
 
   /* Spacing scale using viewport-relative clamp() */
@@ -6496,12 +6496,9 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: clamp(0.5rem, 2.5vw, 1rem);
+  gap: clamp(0.5rem, 2vw, 0.75rem);
   width: 100%;
-  max-width: min(100%, 500px);
-  margin: 0 auto;
-  margin-top: clamp(0.5rem, 2vh, 1rem); /* Space between logo and belt/timer */
-  padding: 0 clamp(0.5rem, 2vw, 1rem);
+  margin-top: clamp(0.5rem, 1.5vh, 1rem); /* Space between logo and belt/timer */
 }
 
 /* Belt header skip buttons - circular with belt color border */
@@ -6549,20 +6546,21 @@ defineExpose({
 .belt-timer-unified {
   display: flex;
   align-items: center;
-  gap: clamp(0.625rem, 2.5vw, 1rem);
-  padding: clamp(0.5rem, 1.5vw, 0.625rem) clamp(0.75rem, 2.5vw, 1.25rem);
+  gap: clamp(0.75rem, 3vw, 1.25rem);
+  padding: clamp(0.5rem, 1.5vw, 0.75rem) clamp(1rem, 3vw, 1.5rem);
   background: var(--bg-card);
   /* Belt-colored subtle border accent */
   border: 1px solid color-mix(in srgb, var(--belt-color) 35%, var(--border-subtle));
-  border-radius: clamp(12px, 2.5vw, 18px);
+  border-radius: clamp(12px, 3vw, 20px);
   cursor: pointer;
   transition: all 0.2s ease;
   /* Subtle belt glow */
   box-shadow: 0 0 15px color-mix(in srgb, var(--belt-glow) 12%, transparent);
-  /* Flexible width - let it fill available space between skip buttons */
+  /* Narrower to fit skip buttons on either side */
+  width: clamp(180px, 60vw, 380px);
+  max-width: calc(100vw - 6rem);
   flex: 1;
-  min-width: 140px;
-  max-width: 340px;
+  min-width: 0;
 }
 
 .belt-timer-unified:hover {
@@ -7236,9 +7234,7 @@ defineExpose({
   align-items: center;
   gap: var(--space-md);
   /* Responsive max-width using clamp */
-  width: 100%;
-  max-width: clamp(320px, 92vw, 600px);
-  padding: 0 1rem;
+  max-width: clamp(300px, 92vw, 720px);
   transition: opacity 0.4s ease, transform 0.4s ease;
 }
 
@@ -7256,7 +7252,7 @@ defineExpose({
   /* Responsive padding using spacing scale */
   padding: var(--space-md) var(--space-lg) var(--space-md);
   /* Responsive border-radius */
-  border-radius: clamp(16px, 3vmin, 24px);
+  border-radius: clamp(16px, 3vmin, 32px);
   background: rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -7264,9 +7260,9 @@ defineExpose({
   box-shadow:
     0 2px 16px rgba(0, 0, 0, 0.3),
     0 0 0 1px var(--belt-glow, rgba(194, 58, 58, 0.08));
-  /* Responsive width - single fluid width constraint */
-  width: clamp(280px, 88vw, 560px);
-  max-width: calc(100vw - 2rem);
+  /* Responsive width using clamp - no media queries needed */
+  min-width: clamp(280px, 85vw, 420px);
+  max-width: clamp(320px, 90vw, 640px);
 }
 
 /* Glass pane is hidden during intro - this rule kept for any edge cases */
@@ -8789,30 +8785,27 @@ defineExpose({
 
   .belt-row {
     gap: 0.375rem;
-    max-width: 100%;
-    padding: 0 0.75rem;
+    width: 100%;
+    max-width: calc(100vw - 1.5rem);
   }
 
   .belt-header-skip {
-    width: 30px;
-    height: 30px;
-    min-width: 30px;
-    min-height: 30px;
-    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
   }
 
   .belt-header-skip svg {
-    width: 12px;
-    height: 12px;
+    width: 14px;
+    height: 14px;
   }
 
   .belt-timer-unified {
     flex: 1;
-    min-width: 120px;
+    width: auto;
     max-width: none;
     justify-content: center;
-    gap: 0.5rem;
-    padding: 0.375rem 0.625rem;
   }
 
   .close-btn {
@@ -9022,29 +9015,6 @@ defineExpose({
   }
 }
 
-/* Small tablets / large phones (480-767px) */
-@media (min-width: 480px) and (max-width: 767px) {
-  .belt-row {
-    gap: 0.625rem;
-    max-width: 420px;
-  }
-
-  .belt-header-skip {
-    width: 36px;
-    height: 36px;
-  }
-
-  .belt-timer-unified {
-    max-width: 280px;
-    gap: 0.75rem;
-    padding: 0.5rem 1rem;
-  }
-
-  .hero-glass {
-    padding: var(--space-md) var(--space-lg);
-  }
-}
-
 /* Tablets (768-1023px) */
 @media (min-width: 768px) and (max-width: 1023px) {
   .header {
@@ -9059,22 +9029,6 @@ defineExpose({
   .close-btn {
     width: 44px;
     height: 44px;
-  }
-
-  .belt-row {
-    gap: 0.75rem;
-    max-width: 460px;
-  }
-
-  .belt-header-skip {
-    width: 40px;
-    height: 40px;
-  }
-
-  .belt-timer-unified {
-    max-width: 320px;
-    gap: 1rem;
-    padding: 0.625rem 1.25rem;
   }
 
   .belt-progress-btn {
@@ -9150,22 +9104,6 @@ defineExpose({
   .close-btn svg {
     width: 24px;
     height: 24px;
-  }
-
-  .belt-row {
-    gap: 1rem;
-    max-width: 520px;
-  }
-
-  .belt-header-skip {
-    width: 44px;
-    height: 44px;
-  }
-
-  .belt-timer-unified {
-    max-width: 360px;
-    gap: 1.25rem;
-    padding: 0.75rem 1.5rem;
   }
 
   .belt-progress-btn {
