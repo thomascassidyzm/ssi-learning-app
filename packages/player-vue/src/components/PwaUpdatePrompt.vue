@@ -146,11 +146,12 @@ onUnmounted(() => {
 <style scoped>
 .pwa-update-banner {
   position: fixed;
-  bottom: 0;
+  /* Position above BottomNav (68px + safe area + breathing room) */
+  bottom: calc(68px + env(safe-area-inset-bottom, 0px) + 16px);
   left: 0;
   right: 0;
   z-index: 10000;
-  padding: 0 16px 16px;
+  padding: 0 16px;
   pointer-events: none;
 }
 
