@@ -2254,8 +2254,13 @@ const handleCycleEvent = (event) => {
     case 'cycle_stopped':
       // Don't reset isPlaying if we're in the middle of a skip operation
       // (skip stops the old cycle but immediately starts a new one)
-      if (!isSkipInProgress.value) {
+      // isSkipInProgress: used by skip/revisit/jumpToRound for single-item navigation
+      // isSkippingBelt: used by belt skip functions that stop audio before calling jumpToRound
+      if (!isSkipInProgress.value && !isSkippingBelt.value) {
+        console.log('[LearningPlayer] cycle_stopped → setting isPlaying = false')
         isPlaying.value = false
+      } else {
+        console.log('[LearningPlayer] cycle_stopped → preserving isPlaying (isSkipInProgress:', isSkipInProgress.value, ', isSkippingBelt:', isSkippingBelt.value, ')')
       }
       break
 
@@ -3550,6 +3555,9 @@ const handleGoBackBelt = async () => {
   }
 
   isSkippingBelt.value = true
+  const wasPlayingBeforeSkip = isPlaying.value
+  console.log(`[LearningPlayer] handleGoBackBelt: started, isPlaying=${wasPlayingBeforeSkip}, isSkippingBelt=true`)
+
   try {
     const targetSeed = beltProgress.value.goBackToBeltStart()
     console.log(`[LearningPlayer] Going back to seed ${targetSeed}, current base offset: ${scriptBaseOffset.value}`)
@@ -3582,8 +3590,9 @@ const handleGoBackBelt = async () => {
           populateNetworkFromRounds(rounds, 0, networkConnections.value, targetSeed)
 
           // Jump to first round (which is now at targetSeed)
+          console.log(`[LearningPlayer] handleGoBackBelt: before jumpToRound(0), isPlaying=${isPlaying.value}`)
           await jumpToRound(0)
-          console.log(`[LearningPlayer] Reloaded script from seed ${targetSeed}, now at round 0`)
+          console.log(`[LearningPlayer] Reloaded script from seed ${targetSeed}, now at round 0, isPlaying=${isPlaying.value}`)
           return
         }
       }
@@ -3591,10 +3600,12 @@ const handleGoBackBelt = async () => {
 
     // Target is within loaded range - simple jump
     const targetRound = Math.max(0, Math.min(targetSeed - scriptBaseOffset.value, cachedRounds.value.length - 1))
-    console.log(`[LearningPlayer] Jumping to round ${targetRound} (seed ${targetSeed})`)
+    console.log(`[LearningPlayer] Jumping to round ${targetRound} (seed ${targetSeed}), isPlaying=${isPlaying.value}`)
     await jumpToRound(targetRound)
+    console.log(`[LearningPlayer] handleGoBackBelt: after jumpToRound, isPlaying=${isPlaying.value}`)
   } finally {
     isSkippingBelt.value = false
+    console.log(`[LearningPlayer] handleGoBackBelt: finally, isSkippingBelt=false, isPlaying=${isPlaying.value}`)
   }
 }
 
