@@ -251,8 +251,8 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
         console.log(`[useLegoNetwork] Extracted ${componentMap.size} unique components from ${mTypeLegos.length} M-type LEGOs`)
       }
 
-      // Build connections from M-type LEGO components
-      // LEGOs that appear together (as components of an M-type) should be connected
+      // Build connections from pre-computed connected_lego_ids in practice_cycles
+      // This data is populated by the Dashboard during course generation
       const connections: LegoConnection[] = []
       const connectionMap = new Map<string, number>()  // "source|target" -> count
 
@@ -264,29 +264,58 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
         connectionMap.set(key, (connectionMap.get(key) || 0) + 1)
       }
 
-      if (mTypeLegos && mTypeLegos.length > 0) {
-        for (const mLego of mTypeLegos) {
-          if (!mLego.components || !Array.isArray(mLego.components)) continue
+      // Load phrases with their pre-computed connections
+      const { data: phrases, error: phraseError } = await supabase.value
+        .from('practice_cycles')
+        .select('lego_id, connected_lego_ids')
+        .eq('course_code', courseCode)
+        .not('connected_lego_ids', 'is', null)
 
-          // Get all component IDs for this M-type
-          const componentIds: string[] = []
-          for (const comp of mLego.components) {
-            const target = comp.target || comp.target_text || ''
-            if (!target) continue
-            const targetNorm = normalize(target)
-            const compId = legoMap.get(targetNorm)
-            if (compId) componentIds.push(compId)
+      if (phraseError) {
+        console.warn('[useLegoNetwork] Error loading phrase connections:', phraseError)
+      }
+
+      if (phrases && phrases.length > 0) {
+        console.log(`[useLegoNetwork] Loaded ${phrases.length} phrases with connection data`)
+
+        for (const phrase of phrases) {
+          if (!phrase.connected_lego_ids || !Array.isArray(phrase.connected_lego_ids)) continue
+
+          // Connect the phrase's primary LEGO to each connected LEGO
+          for (const connectedId of phrase.connected_lego_ids) {
+            if (connectedId && connectedId !== phrase.lego_id) {
+              addConnection(phrase.lego_id, connectedId)
+            }
           }
+        }
+      } else {
+        console.log('[useLegoNetwork] No pre-computed connections found, falling back to M-type components')
 
-          // Connect M-type to each of its components
-          for (const compId of componentIds) {
-            addConnection(mLego.lego_id, compId)
-          }
+        // Fallback: Build connections from M-type LEGO components
+        if (mTypeLegos && mTypeLegos.length > 0) {
+          for (const mLego of mTypeLegos) {
+            if (!mLego.components || !Array.isArray(mLego.components)) continue
 
-          // Connect components to each other (they co-occur in this M-type)
-          for (let i = 0; i < componentIds.length; i++) {
-            for (let j = i + 1; j < componentIds.length; j++) {
-              addConnection(componentIds[i], componentIds[j])
+            // Get all component IDs for this M-type
+            const componentIds: string[] = []
+            for (const comp of mLego.components) {
+              const target = comp.target || comp.target_text || ''
+              if (!target) continue
+              const targetNorm = normalize(target)
+              const compId = legoMap.get(targetNorm)
+              if (compId) componentIds.push(compId)
+            }
+
+            // Connect M-type to each of its components
+            for (const compId of componentIds) {
+              addConnection(mLego.lego_id, compId)
+            }
+
+            // Connect components to each other (they co-occur in this M-type)
+            for (let i = 0; i < componentIds.length; i++) {
+              for (let j = i + 1; j < componentIds.length; j++) {
+                addConnection(componentIds[i], componentIds[j])
+              }
             }
           }
         }
@@ -300,7 +329,7 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
 
       const phrasesByLego = new Map<string, PhraseWithPath[]>()
 
-      console.log(`[useLegoNetwork] Loaded ${nodes.length} LEGOs, built ${connections.length} connections from M-type components`)
+      console.log(`[useLegoNetwork] Loaded ${nodes.length} LEGOs, built ${connections.length} connections`)
 
       const componentCount = nodes.filter(n => n.isComponent).length
       const legoCount = nodes.length - componentCount
