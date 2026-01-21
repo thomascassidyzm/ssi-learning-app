@@ -5107,6 +5107,14 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  // CRITICAL: Stop any playing intro/welcome audio to prevent zombie audio
+  if (isPlayingIntroduction.value) {
+    skipIntroduction()
+  }
+  if (isPlayingWelcome.value) {
+    skipWelcome()
+  }
+
   if (orchestrator.value) {
     orchestrator.value.removeEventListener(handleCycleEvent)
     orchestrator.value.stop()
@@ -5135,6 +5143,23 @@ onUnmounted(() => {
   if (settingChangedHandler) {
     window.removeEventListener('ssi-setting-changed', settingChangedHandler)
     settingChangedHandler = null
+  }
+
+  // Safety cleanup: directly stop any audio elements that might still exist
+  // (in case state flags were out of sync)
+  if (introAudioElement) {
+    try {
+      introAudioElement.pause()
+      introAudioElement.src = ''
+    } catch (e) { /* ignore */ }
+    introAudioElement = null
+  }
+  if (welcomeAudioElement) {
+    try {
+      welcomeAudioElement.pause()
+      welcomeAudioElement.src = ''
+    } catch (e) { /* ignore */ }
+    welcomeAudioElement = null
   }
 })
 
@@ -8543,7 +8568,8 @@ defineExpose({
   bottom: var(--control-bar-bottom);
   left: 50%;
   transform: translateX(-50%);
-  z-index: 15;
+  /* Above BottomNav backdrop (z:100) but below BottomNav play button (z:110) */
+  z-index: 105;
   pointer-events: auto;
   background: rgba(10, 10, 15, 0.5);
   backdrop-filter: blur(20px);

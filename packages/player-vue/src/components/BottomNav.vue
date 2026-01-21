@@ -281,7 +281,7 @@ const isVisible = computed(() => !props.isLearning)
   bottom: 0;
   left: 0;
   right: 0;
-  z-index: 1000;
+  /* No z-index here - let children control their own stacking */
 }
 
 .nav-backdrop {
@@ -296,6 +296,8 @@ const isVisible = computed(() => !props.isLearning)
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   border-top: 1px solid rgba(255, 255, 255, 0.04);
+  /* Below control-bar so transport controls are visible */
+  z-index: 100;
 }
 
 /* Subtle top edge highlight */
@@ -326,6 +328,7 @@ const isVisible = computed(() => !props.isLearning)
   max-width: 400px;
   margin: 0 auto;
   height: 68px;
+  /* No z-index - let children control their own stacking relative to root */
 }
 
 .nav-group {
@@ -333,6 +336,9 @@ const isVisible = computed(() => !props.isLearning)
   flex: 1;
   /* Let groups fill available space naturally */
   max-width: 140px;
+  /* Above backdrop (z:100) but below control-bar (z:105) */
+  position: relative;
+  z-index: 102;
 }
 
 .nav-group--left {
@@ -464,6 +470,8 @@ const isVisible = computed(() => !props.isLearning)
   margin: 0 12px;
   position: relative;
   top: -18px;
+  /* Above LearningPlayer control-bar (z:105) */
+  z-index: 110;
 }
 
 .play-button {
