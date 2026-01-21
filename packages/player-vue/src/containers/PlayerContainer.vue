@@ -429,7 +429,8 @@ onMounted(() => {
 /* Clerk User Button positioning */
 .user-button-container {
   position: fixed;
-  top: 1rem;
+  /* Account for iOS safe area (status bar) */
+  top: calc(0.75rem + env(safe-area-inset-top, 0px));
   right: 1rem;
   z-index: 100;
 }

@@ -1,6 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
-import * as d3 from 'd3'
+import { ref, computed } from 'vue'
 import CourseSelector from './CourseSelector.vue'
 
 // Language metadata mapping (3-letter codes to display info)
@@ -153,207 +152,6 @@ const formattedTotalTime = computed(() => {
   }
   return `${hours}h ${mins % 60}m`
 })
-
-// Chart refs
-const dailyChartRef = ref(null)
-const weeklyChartRef = ref(null)
-
-// Generate demo data
-const getChartData = () => {
-  const now = new Date()
-
-  // Daily data - last 7 days
-  const daily = []
-  for (let i = 6; i >= 0; i--) {
-    const date = new Date(now)
-    date.setDate(date.getDate() - i)
-    daily.push({
-      date: date,
-      minutes: Math.floor(Math.random() * 30) + 5
-    })
-  }
-
-  // Weekly data - last 4 weeks
-  const weekly = []
-  for (let i = 3; i >= 0; i--) {
-    const weekStart = new Date(now)
-    weekStart.setDate(weekStart.getDate() - (i * 7))
-    weekly.push({
-      week: `W${4 - i}`,
-      minutes: Math.floor(Math.random() * 120) + 30
-    })
-  }
-
-  return { daily, weekly }
-}
-
-const chartData = ref(getChartData())
-
-// Draw a line chart (matches UsageStats style)
-const drawLineChart = (container, data, xAccessor, yAccessor, label) => {
-  if (!container) return
-
-  d3.select(container).selectAll('*').remove()
-
-  const rect = container.getBoundingClientRect()
-  const margin = { top: 10, right: 10, bottom: 24, left: 32 }
-  const width = rect.width - margin.left - margin.right
-  const height = rect.height - margin.top - margin.bottom
-
-  if (width <= 0 || height <= 0) return
-
-  const svg = d3.select(container)
-    .append('svg')
-    .attr('width', rect.width)
-    .attr('height', rect.height)
-    .append('g')
-    .attr('transform', `translate(${margin.left},${margin.top})`)
-
-  // Scales
-  const xScale = d3.scalePoint()
-    .domain(data.map(xAccessor))
-    .range([0, width])
-    .padding(0.5)
-
-  const yMax = d3.max(data, yAccessor) || 60
-  const yScale = d3.scaleLinear()
-    .domain([0, yMax * 1.1])
-    .range([height, 0])
-
-  // Grid lines
-  svg.append('g')
-    .attr('class', 'grid')
-    .selectAll('line')
-    .data(yScale.ticks(3))
-    .join('line')
-    .attr('x1', 0)
-    .attr('x2', width)
-    .attr('y1', d => yScale(d))
-    .attr('y2', d => yScale(d))
-    .attr('stroke', 'rgba(255, 255, 255, 0.05)')
-    .attr('stroke-dasharray', '2,2')
-
-  // Area gradient
-  const areaGradient = svg.append('defs')
-    .append('linearGradient')
-    .attr('id', `areaGradient-${label}`)
-    .attr('x1', '0%')
-    .attr('y1', '0%')
-    .attr('x2', '0%')
-    .attr('y2', '100%')
-
-  areaGradient.append('stop')
-    .attr('offset', '0%')
-    .attr('stop-color', 'var(--accent)')
-    .attr('stop-opacity', 0.3)
-
-  areaGradient.append('stop')
-    .attr('offset', '100%')
-    .attr('stop-color', 'var(--accent)')
-    .attr('stop-opacity', 0)
-
-  // Area fill
-  const area = d3.area()
-    .x(d => xScale(xAccessor(d)))
-    .y0(height)
-    .y1(d => yScale(yAccessor(d)))
-    .curve(d3.curveMonotoneX)
-
-  svg.append('path')
-    .datum(data)
-    .attr('fill', `url(#areaGradient-${label})`)
-    .attr('d', area)
-
-  // Line
-  const line = d3.line()
-    .x(d => xScale(xAccessor(d)))
-    .y(d => yScale(yAccessor(d)))
-    .curve(d3.curveMonotoneX)
-
-  svg.append('path')
-    .datum(data)
-    .attr('fill', 'none')
-    .attr('stroke', 'var(--accent)')
-    .attr('stroke-width', 2)
-    .attr('d', line)
-
-  // Dots
-  svg.selectAll('.dot')
-    .data(data)
-    .join('circle')
-    .attr('class', 'dot')
-    .attr('cx', d => xScale(xAccessor(d)))
-    .attr('cy', d => yScale(yAccessor(d)))
-    .attr('r', 3)
-    .attr('fill', 'var(--bg-primary)')
-    .attr('stroke', 'var(--accent)')
-    .attr('stroke-width', 1.5)
-
-  // X axis
-  svg.append('g')
-    .attr('transform', `translate(0,${height})`)
-    .call(d3.axisBottom(xScale).tickSize(0))
-    .call(g => g.select('.domain').remove())
-    .selectAll('text')
-    .attr('fill', 'var(--text-muted)')
-    .attr('font-size', '9px')
-    .attr('dy', '0.8em')
-
-  // Y axis
-  svg.append('g')
-    .call(d3.axisLeft(yScale).ticks(3).tickSize(0))
-    .call(g => g.select('.domain').remove())
-    .selectAll('text')
-    .attr('fill', 'var(--text-muted)')
-    .attr('font-size', '9px')
-}
-
-// Draw charts
-const drawCharts = () => {
-  nextTick(() => {
-    const data = chartData.value
-
-    if (dailyChartRef.value && data.daily.length > 0) {
-      drawLineChart(
-        dailyChartRef.value,
-        data.daily,
-        d => d.date instanceof Date ? d.date.toLocaleDateString('en-US', { weekday: 'short' }) : d.date,
-        d => d.minutes,
-        'daily'
-      )
-    }
-
-    if (weeklyChartRef.value && data.weekly.length > 0) {
-      drawLineChart(
-        weeklyChartRef.value,
-        data.weekly,
-        d => d.week,
-        d => d.minutes,
-        'weekly'
-      )
-    }
-  })
-}
-
-// Resize observer
-let resizeObserver = null
-
-onMounted(() => {
-  drawCharts()
-
-  resizeObserver = new ResizeObserver(() => {
-    drawCharts()
-  })
-
-  if (dailyChartRef.value) resizeObserver.observe(dailyChartRef.value)
-  if (weeklyChartRef.value) resizeObserver.observe(weeklyChartRef.value)
-})
-
-onUnmounted(() => {
-  if (resizeObserver) {
-    resizeObserver.disconnect()
-  }
-})
 </script>
 
 <template>
@@ -494,17 +292,6 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <!-- Charts -->
-        <div class="charts-grid">
-          <div class="chart-card">
-            <h4 class="chart-title">Daily Activity</h4>
-            <div class="chart-container" ref="dailyChartRef"></div>
-          </div>
-          <div class="chart-card">
-            <h4 class="chart-title">Weekly Activity</h4>
-            <div class="chart-container" ref="weeklyChartRef"></div>
-          </div>
-        </div>
       </section>
 
     </main>
@@ -1080,32 +867,6 @@ onUnmounted(() => {
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.02em;
-}
-
-.charts-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0.75rem;
-}
-
-.chart-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 12px;
-  padding: 0.875rem;
-}
-
-.chart-title {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin: 0 0 0.5rem 0;
-}
-
-.chart-container {
-  width: 100%;
-  height: 100px;
-  position: relative;
 }
 
 /* ═══════════════════════════════════════════════════════════════
