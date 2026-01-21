@@ -138,7 +138,7 @@ const loadPhrases = async (offset = 0) => {
         .from('course_practice_phrases')
         .select('*', { count: 'exact', head: true })
         .eq('course_code', props.courseCode)
-        .eq('phrase_role', 'eternal_eligible')
+        .eq('phrase_type', 'eternal_eligible')
 
       totalCount.value = count || 0
     }
@@ -147,7 +147,7 @@ const loadPhrases = async (offset = 0) => {
       .from('course_practice_phrases')
       .select('seed_number, lego_index, known_text, target_text, position')
       .eq('course_code', props.courseCode)
-      .eq('phrase_role', 'eternal_eligible')
+      .eq('phrase_type', 'eternal_eligible')
       .order('seed_number', { ascending: true })
       .order('lego_index', { ascending: true })
       .order('position', { ascending: true })

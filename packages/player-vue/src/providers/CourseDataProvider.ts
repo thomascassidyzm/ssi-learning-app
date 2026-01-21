@@ -1159,8 +1159,8 @@ interface EternalPhrase {
  * v2.0: NO COMPONENTS - they're removed entirely from the learning flow
  *
  * Returns:
- * - debutMap: phrases for introduction (phrase_role = 'practice'), ordered by duration
- * - eternalMap: phrases for spaced rep / consolidation (phrase_role = 'eternal_eligible')
+ * - debutMap: phrases for introduction (phrase_type = 'practice'), ordered by duration
+ * - eternalMap: phrases for spaced rep / consolidation (phrase_type = 'eternal_eligible')
  */
 async function loadAllPracticePhrasesGrouped(
   supabase: any,
@@ -1185,8 +1185,8 @@ async function loadAllPracticePhrasesGrouped(
   }
 
   try {
-    // Load practice phrases using phrase_role for explicit categorization
-    // phrase_role values:
+    // Load practice phrases using phrase_type for explicit categorization
+    // phrase_type values:
     //   'component' - Parts of M-type LEGOs shown during introduction
     //   'practice' - Build-up phrases used during debut sequence
     //   'eternal_eligible' - Phrases eligible for spaced rep / consolidation
@@ -1214,7 +1214,7 @@ async function loadAllPracticePhrasesGrouped(
       }
     })
 
-    // Load debut phrases (phrase_role = 'practice')
+    // Load debut phrases (phrase_type = 'practice')
     // Sorted by duration ascending for cognitive load progression
     let debutOffset = 0
     const pageSize = 1000
@@ -1224,7 +1224,7 @@ async function loadAllPracticePhrasesGrouped(
         .from('practice_cycles')
         .select('*')
         .eq('course_code', courseId)
-        .eq('phrase_role', 'practice')
+        .eq('phrase_type', 'practice')
         .order('lego_id', { ascending: true })
         .order('target1_duration_ms', { ascending: true, nullsFirst: false })
         .range(debutOffset, debutOffset + pageSize - 1)
@@ -1246,7 +1246,7 @@ async function loadAllPracticePhrasesGrouped(
       debutOffset += pageSize
     }
 
-    // Load eternal phrases (phrase_role = 'eternal_eligible')
+    // Load eternal phrases (phrase_type = 'eternal_eligible')
     let eternalOffset = 0
 
     while (true) {
@@ -1254,7 +1254,7 @@ async function loadAllPracticePhrasesGrouped(
         .from('practice_cycles')
         .select('*')
         .eq('course_code', courseId)
-        .eq('phrase_role', 'eternal_eligible')
+        .eq('phrase_type', 'eternal_eligible')
         .order('lego_id', { ascending: true })
         .order('target1_duration_ms', { ascending: true, nullsFirst: false })
         .range(eternalOffset, eternalOffset + pageSize - 1)
