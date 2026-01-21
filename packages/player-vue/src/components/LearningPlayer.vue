@@ -6498,7 +6498,7 @@ defineExpose({
   justify-content: center;
   gap: 0.625rem;
   width: 100%;
-  max-width: 420px; /* Cap width for desktop - keeps phone-like proportions */
+  max-width: 400px; /* Fixed phone-like width */
   margin: 0 auto;
   margin-top: 0.75rem; /* Fixed space between logo and belt/timer */
   padding: 0 1rem;
@@ -7234,9 +7234,9 @@ defineExpose({
   flex-direction: column;
   align-items: center;
   gap: 0.75rem; /* Fixed gap between hint and text box */
-  /* Cap width for desktop - keeps phone-like proportions */
+  /* Fixed phone-like width */
   width: calc(100% - 2rem);
-  max-width: 420px;
+  max-width: 400px;
   transition: opacity 0.4s ease, transform 0.4s ease;
 }
 
@@ -8360,9 +8360,9 @@ defineExpose({
               0 0 20px color-mix(in srgb, var(--belt-glow) 10%, transparent);
   /* Always visible */
   opacity: 1;
-  /* Match bottom navbar width */
+  /* Fixed phone-like width - matches other content */
   width: calc(100% - 2rem);
-  max-width: 420px;
+  max-width: 400px;
 }
 
 /* Control groups for 3+3 layout */

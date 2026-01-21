@@ -310,10 +310,10 @@ const isVisible = computed(() => !props.isLearning)
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  /* Mobile: full width with small padding, no artificial constraints */
+  /* Fixed phone-like width - matches transport bar */
   padding: 0 8px;
   width: 100%;
-  max-width: 500px; /* Only constrain on very wide phones */
+  max-width: 400px;
   margin: 0 auto;
   height: 68px;
 }
@@ -585,11 +585,11 @@ const isVisible = computed(() => !props.isLearning)
    Mobile (default, <768px) | Tablet (768-1279px) | Desktop (1280px+)
    ═══════════════════════════════════════════════════════════════ */
 
-/* Tablet (768px - 1279px) */
+/* Tablet and Desktop - same fixed width as mobile */
 @media (min-width: 768px) {
   .nav-content {
-    max-width: 540px;
-    height: 80px;
+    max-width: 400px;
+    height: 68px;
   }
 
   .nav-group {
@@ -651,78 +651,15 @@ const isVisible = computed(() => !props.isLearning)
   }
 }
 
-/* Desktop (1280px+) */
+/* Desktop (1280px+) - same as mobile, fixed phone-like width */
 @media (min-width: 1280px) {
   .nav-content {
-    max-width: 620px;
-    height: 90px;
+    max-width: 400px;
+    height: 68px;
   }
 
   .nav-group {
-    max-width: 220px;
-  }
-
-  .nav-item {
-    padding: 0 20px 16px;
-    min-width: 64px;
-    gap: 6px;
-  }
-
-  .nav-icon {
-    width: 28px;
-    height: 28px;
-  }
-
-  .nav-label {
-    font-size: 12px;
-  }
-
-  .account-avatar,
-  .account-initial {
-    width: 28px;
-    height: 28px;
-  }
-
-  .account-initial {
-    font-size: 13px;
-  }
-
-  .play-button-container {
-    margin: 0 32px;
-    top: -28px;
-  }
-
-  .play-button {
-    width: 76px;
-    height: 76px;
-    box-shadow:
-      0 6px 24px rgba(194, 58, 58, 0.5),
-      0 12px 36px rgba(194, 58, 58, 0.3),
-      inset 0 1px 1px rgba(255, 255, 255, 0.25),
-      inset 0 -1px 1px rgba(0, 0, 0, 0.15);
-  }
-
-  .play-button-inner svg {
-    width: 32px;
-    height: 32px;
-  }
-
-  .play-button-glow {
-    inset: -10px;
-  }
-
-  .play-label {
-    font-size: 12px;
-    margin-top: 10px;
-  }
-
-  .active-indicator {
-    width: 5px;
-    height: 5px;
-  }
-
-  .safe-area-spacer {
-    min-height: 8px;
+    max-width: 140px;
   }
 }
 
