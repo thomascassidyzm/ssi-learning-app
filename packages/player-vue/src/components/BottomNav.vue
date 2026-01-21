@@ -420,6 +420,7 @@ const isVisible = computed(() => !props.isLearning)
   color: rgba(255, 255, 255, 0.35);
   transition: all 0.25s ease;
   letter-spacing: 0.01em;
+  white-space: nowrap; /* Prevent text wrapping (e.g., "Sign In") */
 }
 
 /* Active state - uses belt color when available, falls back to brand red */
