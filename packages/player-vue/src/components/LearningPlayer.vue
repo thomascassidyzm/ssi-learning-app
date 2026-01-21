@@ -1420,7 +1420,7 @@ const hasEverStarted = ref(false) // True after first play tap (even if welcome 
 const ringProgressRaw = ref(0)
 let ringAnimationFrame = null
 let pauseStartTime = 0
-let pauseDuration = DEFAULT_CONFIG.cycle.pause_duration_ms
+const pauseDurationRef = ref(DEFAULT_CONFIG.cycle.pause_duration_ms)
 
 // Session timer
 const sessionSeconds = ref(0)
@@ -1653,7 +1653,7 @@ const animateRing = () => {
   }
 
   const elapsed = Date.now() - pauseStartTime
-  const progress = Math.min((elapsed / pauseDuration) * 100, 100)
+  const progress = Math.min((elapsed / pauseDurationRef.value) * 100, 100)
 
   ringProgressRaw.value = progress
 
@@ -1664,7 +1664,7 @@ const animateRing = () => {
 
 const startRingAnimation = (duration) => {
   pauseStartTime = Date.now()
-  pauseDuration = duration || DEFAULT_CONFIG.cycle.pause_duration_ms
+  pauseDurationRef.value = duration || DEFAULT_CONFIG.cycle.pause_duration_ms
   ringProgressRaw.value = 0
   if (ringAnimationFrame) cancelAnimationFrame(ringAnimationFrame)
   ringAnimationFrame = requestAnimationFrame(animateRing)
@@ -5690,12 +5690,27 @@ defineExpose({
       <!-- Debug Overlay - shows current phase, round, LEGO info (can be toggled in Settings > Developer) -->
       <div v-if="showDebugOverlay" class="debug-overlay">
         <div class="debug-info">
+          <div class="debug-section-title">Position</div>
           <div class="debug-row"><span class="debug-label">Phase:</span> {{ currentPhase }}</div>
           <div class="debug-row"><span class="debug-label">Round:</span> {{ currentRoundIndex + 1 }} / {{ cachedRounds.length }}</div>
           <div class="debug-row"><span class="debug-label">Item:</span> {{ currentItemInRound + 1 }} / {{ currentRound?.items?.length || 0 }}</div>
           <div class="debug-row"><span class="debug-label">LEGO:</span> {{ currentItem?.legoId || '-' }}</div>
           <div class="debug-row"><span class="debug-label">Type:</span> {{ currentItem?.type || '-' }}</div>
           <div class="debug-row" v-if="currentItem?.reviewOf"><span class="debug-label">Review of:</span> LEGO {{ currentItem.reviewOf }}</div>
+          
+          <div class="debug-section-title">Audio Durations</div>
+          <div class="debug-row"><span class="debug-label">Source:</span> {{ currentItem?.audioDurations?.source ? (currentItem.audioDurations.source * 1000).toFixed(0) + 'ms' : '-' }}</div>
+          <div class="debug-row"><span class="debug-label">Target1:</span> {{ currentItem?.audioDurations?.target1 ? (currentItem.audioDurations.target1 * 1000).toFixed(0) + 'ms' : '-' }}</div>
+          <div class="debug-row"><span class="debug-label">Target2:</span> {{ currentItem?.audioDurations?.target2 ? (currentItem.audioDurations.target2 * 1000).toFixed(0) + 'ms' : '-' }}</div>
+          
+          <div class="debug-section-title">Timing</div>
+          <div class="debug-row"><span class="debug-label">Pause:</span> {{ Math.round(pauseDurationRef) }}ms</div>
+          <div class="debug-row"><span class="debug-label">Turbo:</span> {{ turboActive ? 'ON' : 'OFF' }}</div>
+          <div class="debug-row"><span class="debug-label">Adaptation:</span> {{ isAdaptationActive ? 'ON' : 'OFF' }}</div>
+          
+          <div class="debug-section-title" v-if="lastTimingResult?.speech_detected">Last Response</div>
+          <div class="debug-row" v-if="lastTimingResult?.speech_detected"><span class="debug-label">Latency:</span> {{ lastTimingResult.response_latency_ms !== null ? Math.round(lastTimingResult.response_latency_ms) + 'ms' : '-' }}</div>
+          <div class="debug-row" v-if="lastTimingResult?.speech_detected"><span class="debug-label">Delta:</span> {{ lastTimingResult.duration_delta_ms !== null ? (lastTimingResult.duration_delta_ms > 0 ? '+' : '') + Math.round(lastTimingResult.duration_delta_ms) + 'ms' : '-' }}</div>
         </div>
       </div>
     </section>
@@ -6941,7 +6956,25 @@ defineExpose({
 
 .debug-label {
   color: rgba(255, 255, 255, 0.5);
-  min-width: 60px;
+  min-width: 70px;
+}
+
+.debug-section-title {
+  font-size: 9px;
+  font-weight: 600;
+  color: rgba(255, 200, 100, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 6px;
+  margin-bottom: 2px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.debug-section-title:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
 }
 
 /* Layout Mode Toggle Button */
