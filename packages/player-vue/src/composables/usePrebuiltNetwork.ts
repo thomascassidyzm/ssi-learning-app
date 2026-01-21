@@ -496,8 +496,31 @@ export function preCalculatePositions(
   if (externalConnections && externalConnections.length > 0) {
     // USE DATABASE CONNECTIONS (same as brain view)
     // Filter to only include edges where both nodes exist
+    let skippedMissingSource = 0
+    let skippedMissingTarget = 0
+    let skippedMissingBoth = 0
+    const missingNodeIds = new Set<string>()
+
     for (const conn of externalConnections) {
-      if (!nodeMap.has(conn.source) || !nodeMap.has(conn.target)) continue
+      const hasSource = nodeMap.has(conn.source)
+      const hasTarget = nodeMap.has(conn.target)
+
+      if (!hasSource && !hasTarget) {
+        skippedMissingBoth++
+        missingNodeIds.add(conn.source)
+        missingNodeIds.add(conn.target)
+        continue
+      }
+      if (!hasSource) {
+        skippedMissingSource++
+        missingNodeIds.add(conn.source)
+        continue
+      }
+      if (!hasTarget) {
+        skippedMissingTarget++
+        missingNodeIds.add(conn.target)
+        continue
+      }
 
       const edgeId = `${conn.source}->${conn.target}`
       const edge: ConstellationEdge = {
@@ -511,6 +534,11 @@ export function preCalculatePositions(
     }
 
     console.log(`[PrebuiltNetwork] Using ${edges.length} edges from database (filtered from ${externalConnections.length} total)`)
+    if (skippedMissingSource + skippedMissingTarget + skippedMissingBoth > 0) {
+      console.log(`[PrebuiltNetwork] Skipped edges: ${skippedMissingSource} missing source, ${skippedMissingTarget} missing target, ${skippedMissingBoth} missing both`)
+      console.log(`[PrebuiltNetwork] Missing node IDs (first 5):`, Array.from(missingNodeIds).slice(0, 5))
+      console.log(`[PrebuiltNetwork] Node IDs in nodeMap (first 5):`, Array.from(nodeMap.keys()).slice(0, 5))
+    }
   }
 
   // If no edges from database, try fallback inference
