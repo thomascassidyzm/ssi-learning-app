@@ -939,8 +939,7 @@ defineExpose({
               'node-hero': node.id === heroNodeId,
               'node-resonating': isNodeResonating(node.id),
               'node-component': node.isComponent,
-              'node-unrevealed': !isNodeRevealed(node.id),
-              'node-entering': isNodeEntering(node.id)
+              'node-unrevealed': !isNodeRevealed(node.id)
             }"
             :transform="`translate(${node.x}, ${node.y})`"
             :opacity="getNodeOpacity(node)"
@@ -948,34 +947,37 @@ defineExpose({
             @mouseenter="handleNodeHover(node)"
             @mouseleave="handleNodeHover(null)"
           >
-            <!-- Outer glow ring -->
-            <circle
-              class="node-glow"
-              :r="getNodeSize(node, isNodeInPath(node.id) || node.id === heroNodeId).glow"
-              fill="none"
-              :stroke="getPalette(node.belt).glow"
-              :stroke-width="isNodeInPath(node.id) || node.id === heroNodeId ? 3 : 2"
-              :opacity="isNodeInPath(node.id) || node.id === heroNodeId ? 0.9 : (node.isComponent ? 0.65 : 0.75)"
-              :filter="isNodeInPath(node.id) || node.id === heroNodeId ? 'url(#constellation-glow)' : 'none'"
-            />
+            <!-- Inner wrapper for entry animation (scale without affecting position) -->
+            <g class="node-inner-wrapper" :class="{ 'node-entering': isNodeEntering(node.id) }">
+              <!-- Outer glow ring -->
+              <circle
+                class="node-glow"
+                :r="getNodeSize(node, isNodeInPath(node.id) || node.id === heroNodeId).glow"
+                fill="none"
+                :stroke="getPalette(node.belt).glow"
+                :stroke-width="isNodeInPath(node.id) || node.id === heroNodeId ? 3 : 2"
+                :opacity="isNodeInPath(node.id) || node.id === heroNodeId ? 0.9 : (node.isComponent ? 0.65 : 0.75)"
+                :filter="isNodeInPath(node.id) || node.id === heroNodeId ? 'url(#constellation-glow)' : 'none'"
+              />
 
-            <!-- Core circle -->
-            <circle
-              class="node-core"
-              :r="getNodeSize(node, isNodeInPath(node.id) || node.id === heroNodeId).core"
-              :fill="getPalette(node.belt).core"
-              :stroke="getPalette(node.belt).glow"
-              :stroke-width="isNodeInPath(node.id) || node.id === heroNodeId ? 2 : 1.5"
-              :stroke-opacity="isNodeInPath(node.id) || node.id === heroNodeId ? 1 : 0.85"
-            />
+              <!-- Core circle -->
+              <circle
+                class="node-core"
+                :r="getNodeSize(node, isNodeInPath(node.id) || node.id === heroNodeId).core"
+                :fill="getPalette(node.belt).core"
+                :stroke="getPalette(node.belt).glow"
+                :stroke-width="isNodeInPath(node.id) || node.id === heroNodeId ? 2 : 1.5"
+                :stroke-opacity="isNodeInPath(node.id) || node.id === heroNodeId ? 1 : 0.85"
+              />
 
-            <!-- Inner dot -->
-            <circle
-              class="node-inner"
-              :r="getNodeSize(node, node.id === heroNodeId).inner"
-              :fill="getPalette(node.belt).inner"
-              :opacity="isNodeInPath(node.id) || node.id === heroNodeId ? 1 : 0.85"
-            />
+              <!-- Inner dot -->
+              <circle
+                class="node-inner"
+                :r="getNodeSize(node, node.id === heroNodeId).inner"
+                :fill="getPalette(node.belt).inner"
+                :opacity="isNodeInPath(node.id) || node.id === heroNodeId ? 1 : 0.85"
+              />
+            </g>
           </g>
         </g>
 
@@ -1242,7 +1244,7 @@ defineExpose({
   }
 }
 
-.node-entering {
+.node-inner-wrapper.node-entering {
   animation: node-enter 400ms cubic-bezier(0.34, 1.53, 0.64, 1) forwards;
 }
 
