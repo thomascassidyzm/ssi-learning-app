@@ -997,7 +997,7 @@ onUnmounted(() => {
           type="text"
           class="search-input"
           v-model="searchQuery"
-          placeholder="Search words..."
+          placeholder="Search your words..."
           @focus="isSearchFocused = true"
           @blur="setTimeout(() => isSearchFocused = false, 200)"
         />

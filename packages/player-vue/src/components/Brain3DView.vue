@@ -154,7 +154,12 @@ const brainEdges = useBrainEdges()
 const brainInteraction = useBrainInteraction()
 const brainFirePath = useBrainFirePath()
 const brainReplay = useBrainReplay()
-const brainWireframe = useBrainWireframe({ opacity: 0.1, color: '#4a5568' })
+const brainWireframe = useBrainWireframe({
+  opacity: 0.5,
+  color: '#4a90d9',  // Deep blue like reference image
+  vertexSize: 4.0,
+  glowIntensity: 1.2,
+})
 
 // =============================================================================
 // LOCAL STATE
@@ -277,11 +282,11 @@ async function initScene(): Promise<void> {
     }
 
     // 2. Create and add the wireframe brain shape FIRST (renders behind nodes)
-    // Wireframe is slightly larger than node ellipsoid (140x110x85) to enclose the organic tree
-    const wireframeMesh = brainWireframe.createWireframe(320, 260, 200)
+    // Wireframe encases the node network with recognizable brain silhouette
+    const wireframeMesh = brainWireframe.createWireframe(350, 280, 220)
     brainScene.scene.value.add(wireframeMesh)
-    // Tint the wireframe to match the current belt color
-    brainWireframe.setColor(accentColor.value)
+    // Set belt level for appropriate brain size (grows with learning progress)
+    brainWireframe.setBeltLevel(props.beltLevel as any)
 
     // 3. Get filtered nodes and edges based on revealedNodeIds
     const filteredNodes = getFilteredNodes()
@@ -381,7 +386,15 @@ async function initScene(): Promise<void> {
     sceneInitialized.value = true
     brainScene.startLoop()
 
-    console.log('[Brain3DView] Scene initialized with', filteredNodes.length, 'nodes and', filteredEdges.length, 'edges (filtered from', props.nodes.length, 'total)')
+    console.log('[Brain3DView] Scene initialized with', filteredNodes.length, 'nodes and', filteredEdges.length, 'edges')
+    console.log('[Brain3DView] Props received:', props.nodes.length, 'nodes,', props.edges.length, 'edges')
+    if (filteredEdges.length > 0) {
+      console.log('[Brain3DView] Sample edge:', filteredEdges[0])
+    }
+    if (filteredEdges.length === 0 && props.edges.length > 0) {
+      console.log('[Brain3DView] WARNING: Props have edges but filtered is empty - check revealedNodeIds')
+      console.log('[Brain3DView] Sample props edge:', props.edges[0])
+    }
 
   } catch (err) {
     console.error('[Brain3DView] Failed to initialize scene:', err)

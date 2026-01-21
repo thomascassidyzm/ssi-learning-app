@@ -5980,7 +5980,7 @@ defineExpose({
   --nav-height: 80px;
   --nav-total: calc(var(--nav-height) + var(--safe-area-bottom));
   --control-bar-bottom: var(--nav-total);
-  --hero-offset: 48px;
+  --hero-offset: 64px;
   --hero-top: calc(var(--header-total) + var(--hero-offset));
 
   /* ============ SPACING SCALE ============ */
@@ -6677,16 +6677,17 @@ defineExpose({
   padding: 0 var(--space-lg);
 }
 
-/* Belt header skip buttons - circular with belt color border */
+/* Belt header skip buttons - subtle chevrons only (no circle) */
 .belt-header-skip {
   width: var(--belt-skip-btn-size);
   height: var(--belt-skip-btn-size);
   min-width: var(--btn-touch-target);
   min-height: var(--btn-touch-target);
   border-radius: 50%;
-  border: 2px solid var(--skip-belt-color, var(--text-muted));
-  background: rgba(255, 255, 255, 0.04);
+  border: none;
+  background: transparent;
   color: var(--skip-belt-color, var(--text-muted));
+  opacity: 0.6;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -6701,9 +6702,8 @@ defineExpose({
 }
 
 .belt-header-skip:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
-  transform: scale(1.05);
-  box-shadow: 0 0 12px var(--skip-belt-glow, var(--skip-belt-color));
+  opacity: 1;
+  transform: scale(1.1);
 }
 
 .belt-header-skip:disabled {
@@ -6714,8 +6714,7 @@ defineExpose({
 .belt-header-skip.is-skipping {
   animation: belt-skip-flash 0.6s ease-in-out infinite;
   pointer-events: none;
-  background: rgba(255, 255, 255, 0.15);
-  box-shadow: 0 0 12px var(--skip-belt-glow, var(--skip-belt-color));
+  opacity: 1;
 }
 
 /* ============ UNIFIED BELT + TIMER ============ */
@@ -8942,7 +8941,7 @@ defineExpose({
 @media (min-width: 768px) {
   .player {
     --header-height: 64px;
-    --hero-offset: 56px;
+    --hero-offset: 80px;
     --space-md: 16px;
     --space-lg: 20px;
     --mode-btn-size: 44px;
