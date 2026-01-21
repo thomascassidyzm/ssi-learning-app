@@ -1603,6 +1603,7 @@ onUnmounted(() => {
   left: 16px;
   z-index: 25;
   width: 220px;
+  pointer-events: none; /* Allow clicks to pass through to content below */
 }
 
 .search-input-wrapper {
@@ -1614,6 +1615,7 @@ onUnmounted(() => {
   border-radius: 20px;
   padding: 8px 12px;
   transition: all 0.2s ease;
+  pointer-events: auto; /* Re-enable clicks on the actual search input */
 }
 
 .search-container.focused .search-input-wrapper {

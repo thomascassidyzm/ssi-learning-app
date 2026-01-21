@@ -6,6 +6,8 @@ type AuthModalView = 'signIn' | 'signUp' | null
 const isSignInOpen = ref(false)
 const isSignUpOpen = ref(false)
 const currentView = ref<AuthModalView>(null)
+// Shared email for preserving across sign-in/sign-up switches
+const sharedEmail = ref('')
 
 const openSignIn = () => {
   currentView.value = 'signIn'
@@ -23,12 +25,14 @@ const closeAll = () => {
   currentView.value = null
   isSignInOpen.value = false
   isSignUpOpen.value = false
+  sharedEmail.value = '' // Clear email on full close
 }
 
 const closeSignIn = () => {
   isSignInOpen.value = false
   if (currentView.value === 'signIn') {
     currentView.value = null
+    sharedEmail.value = '' // Clear email when closing (not switching)
   }
 }
 
@@ -36,14 +40,17 @@ const closeSignUp = () => {
   isSignUpOpen.value = false
   if (currentView.value === 'signUp') {
     currentView.value = null
+    sharedEmail.value = '' // Clear email when closing (not switching)
   }
 }
 
-const switchToSignIn = () => {
+const switchToSignIn = (email?: string) => {
+  if (email) sharedEmail.value = email
   openSignIn()
 }
 
-const switchToSignUp = () => {
+const switchToSignUp = (email?: string) => {
+  if (email) sharedEmail.value = email
   openSignUp()
 }
 
@@ -58,6 +65,7 @@ export function useAuthModal() {
     isSignInOpen,
     isSignUpOpen,
     currentView: readonly(currentView),
+    sharedEmail, // Email preserved when switching between sign-in/sign-up
 
     // Actions
     openSignIn,

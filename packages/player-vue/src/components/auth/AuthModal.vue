@@ -111,18 +111,20 @@ onUnmounted(() => {
   max-height: calc(100dvh - 2rem);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  /* Darker, richer background matching app theme */
   background: linear-gradient(
     145deg,
-    rgba(45, 45, 52, 0.98) 0%,
-    rgba(35, 35, 42, 0.99) 100%
+    rgba(20, 20, 28, 0.98) 0%,
+    rgba(12, 12, 18, 0.99) 100%
   );
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 24px;
   padding: 2.5rem;
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.05),
-    0 25px 80px rgba(0, 0, 0, 0.5),
-    0 0 60px rgba(194, 58, 58, 0.15);
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 25px 80px rgba(0, 0, 0, 0.6),
+    0 0 80px rgba(194, 58, 58, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
   animation: modal-enter 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 

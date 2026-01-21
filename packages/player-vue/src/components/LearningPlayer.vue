@@ -6968,7 +6968,8 @@ defineExpose({
 /* Debug Overlay - Developer tool for showing current state */
 .debug-overlay {
   position: absolute;
-  top: 12px;
+  /* Position below header area so it doesn't push content up */
+  top: calc(80px + env(safe-area-inset-top, 0px));
   left: 12px;
   z-index: 100;
   pointer-events: none;

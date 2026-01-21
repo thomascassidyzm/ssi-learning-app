@@ -2,12 +2,13 @@
 import { ref, computed, watch } from 'vue'
 import { useSignUp, useClerk } from '@clerk/vue'
 import AuthModal from './AuthModal.vue'
+import { useAuthModal } from '@/composables/useAuthModal'
 
 interface Props {
   isOpen: boolean
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 
 const emit = defineEmits<{
   close: []
@@ -17,10 +18,18 @@ const emit = defineEmits<{
 
 const { isLoaded, signUp, setActive } = useSignUp()
 const clerk = useClerk()
+const { sharedEmail, switchToSignIn } = useAuthModal()
 
 // Form state
 const email = ref('')
 const password = ref('')
+
+// Initialize email from sharedEmail when modal opens
+watch(() => props.isOpen, (isOpen) => {
+  if (isOpen && sharedEmail.value) {
+    email.value = sharedEmail.value
+  }
+}, { immediate: true })
 const confirmPassword = ref('')
 const verificationCode = ref('')
 const isLoading = ref(false)
@@ -323,7 +332,7 @@ const handleClose = () => {
       <!-- Switch to sign in -->
       <p class="switch-mode">
         Already have an account?
-        <button type="button" @click="$emit('switchToSignIn')">Sign in</button>
+        <button type="button" @click="switchToSignIn(email)">Sign in</button>
       </p>
     </form>
 
