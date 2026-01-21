@@ -8896,145 +8896,49 @@ defineExpose({
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
-   RESPONSIVE BREAKPOINTS - Variable Updates Only
+   RESPONSIVE BREAKPOINTS - Just 2
 
-   All sizing is controlled by CSS custom properties in .player
-   These breakpoints ONLY update variables - no component overrides
+   Mobile (base) = the default experience, where 95% of users are
+   Tablet+ (768px) = larger screens, slightly more generous sizing
+
+   Player content is always phone-sized. On desktop, it centers with
+   the space background extending to fill the viewport.
    ════════════════════════════════════════════════════════════════════════════ */
 
-/* Small phones (360px+) - iPhone SE, etc */
-@media (min-width: 360px) {
+/* Tablet and Desktop (768px+) - more breathing room */
+@media (min-width: 768px) {
   .player {
-    --space-sm: 10px;
-    --space-md: 14px;
-    --space-lg: 18px;
-    --mode-btn-size: 38px;
-    --mode-btn-icon: 18px;
-    --transport-btn-size: 34px;
-    --transport-btn-icon: 15px;
-    --belt-timer-width: 200px;
-    --belt-bar-width: 70px;
-    --control-bar-gap: 3.25rem;
-    --ring-size: 190px;
-    --ring-center-size: 115px;
-    --ring-icon-size: 38px;
-  }
-}
-
-/* Medium phones (480px+) - iPhone Pro Max, larger Android */
-@media (min-width: 480px) {
-  .player {
-    --header-height: 60px;
+    --header-height: 64px;
+    --hero-offset: 56px;
     --space-md: 16px;
     --space-lg: 20px;
-    --mode-btn-size: 40px;
+    --mode-btn-size: 44px;
     --mode-btn-icon: 20px;
-    --transport-btn-size: 36px;
-    --transport-btn-icon: 16px;
-    --belt-skip-btn-size: 38px;
+    --transport-btn-size: 40px;
+    --transport-btn-icon: 18px;
+    --belt-skip-btn-size: 40px;
     --belt-skip-btn-icon: 18px;
-    --belt-timer-width: 220px;
-    --belt-bar-width: 80px;
+    --belt-nav-btn-size: 40px;
+    --belt-nav-btn-icon: 18px;
+    --belt-timer-width: 240px;
+    --belt-bar-width: 90px;
     --belt-bar-height: 6px;
     --control-bar-gap: 3.5rem;
-    --ring-size: 200px;
-    --ring-center-size: 120px;
-    --ring-icon-size: 40px;
+    --control-group-gap: 0.625rem;
+    --ring-size: 220px;
+    --ring-center-size: 130px;
+    --ring-icon-size: 44px;
+    --text-zone-min-height: 90px;
     --known-text-size: 1.875rem;
     --target-text-size: 1.625rem;
   }
 }
 
-/* Tablets (768px+) */
-@media (min-width: 768px) {
-  .player {
-    --header-height: 72px;
-    --hero-offset: 64px;
-    --space-md: 20px;
-    --space-lg: 24px;
-    --space-xl: 32px;
-    --mode-btn-size: 48px;
-    --mode-btn-icon: 22px;
-    --transport-btn-size: 44px;
-    --transport-btn-icon: 20px;
-    --belt-skip-btn-size: 44px;
-    --belt-skip-btn-icon: 20px;
-    --belt-nav-btn-size: 44px;
-    --belt-nav-btn-icon: 20px;
-    --belt-timer-width: 260px;
-    --belt-bar-width: 100px;
-    --belt-bar-height: 7px;
-    --control-bar-gap: 4rem;
-    --control-group-gap: 0.75rem;
-    --ring-size: 240px;
-    --ring-center-size: 140px;
-    --ring-icon-size: 48px;
-    --text-zone-min-height: 100px;
-    --known-text-size: 2rem;
-    --target-text-size: 1.75rem;
-  }
-}
-
-/* Desktop (1024px+) */
-@media (min-width: 1024px) {
-  .player {
-    --header-height: 80px;
-    --hero-offset: 72px;
-    --space-lg: 28px;
-    --space-xl: 40px;
-    --mode-btn-size: 52px;
-    --mode-btn-icon: 24px;
-    --transport-btn-size: 48px;
-    --transport-btn-icon: 22px;
-    --belt-skip-btn-size: 48px;
-    --belt-skip-btn-icon: 22px;
-    --belt-nav-btn-size: 48px;
-    --belt-nav-btn-icon: 22px;
-    --belt-timer-width: 300px;
-    --belt-bar-width: 120px;
-    --belt-bar-height: 8px;
-    --control-bar-gap: 4.5rem;
-    --ring-size: 260px;
-    --ring-center-size: 160px;
-    --ring-icon-size: 52px;
-    --known-text-size: 2.125rem;
-    --target-text-size: 1.875rem;
-  }
-}
-
-/* Large desktop (1536px+) */
-@media (min-width: 1536px) {
-  .player {
-    --header-height: 88px;
-    --hero-offset: 80px;
-    --space-lg: 32px;
-    --space-xl: 48px;
-    --mode-btn-size: 56px;
-    --mode-btn-icon: 26px;
-    --transport-btn-size: 52px;
-    --transport-btn-icon: 24px;
-    --belt-skip-btn-size: 52px;
-    --belt-skip-btn-icon: 24px;
-    --belt-nav-btn-size: 52px;
-    --belt-nav-btn-icon: 24px;
-    --belt-timer-width: 340px;
-    --belt-bar-width: 140px;
-    --control-bar-gap: 5rem;
-    --control-group-gap: 1rem;
-    --ring-size: 280px;
-    --ring-center-size: 180px;
-    --ring-icon-size: 56px;
-    --text-zone-min-height: 120px;
-    --known-text-size: 2.25rem;
-    --target-text-size: 2rem;
-  }
-}
-
-/* Landscape orientation - compact vertical spacing */
+/* Landscape phones - compact vertical spacing */
 @media (orientation: landscape) and (max-height: 500px) {
   .player {
     --header-height: 48px;
-    --hero-offset: 24px;
+    --hero-offset: 20px;
     --space-sm: 4px;
     --space-md: 8px;
     --space-lg: 12px;

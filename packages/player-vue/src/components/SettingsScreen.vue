@@ -813,8 +813,8 @@ const confirmReset = async () => {
         </div>
       </section>
 
-      <!-- Developer Section -->
-      <section class="section">
+      <!-- Developer Section - Only visible to SSi team admins -->
+      <section class="section" v-if="isAdmin">
         <h3 class="section-title">Developer</h3>
         <div class="card">
           <!-- Tools -->
