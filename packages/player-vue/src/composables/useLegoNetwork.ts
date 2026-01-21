@@ -251,14 +251,56 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
         console.log(`[useLegoNetwork] Extracted ${componentMap.size} unique components from ${mTypeLegos.length} M-type LEGOs`)
       }
 
-      // NOTE: We no longer load phrases upfront - they're loaded on-demand when searching
-      // This dramatically improves initial load time
-      // Connections for the network visualization come from prebuiltNetwork's fallback inference
-
+      // Build connections from M-type LEGO components
+      // LEGOs that appear together (as components of an M-type) should be connected
       const connections: LegoConnection[] = []
+      const connectionMap = new Map<string, number>()  // "source|target" -> count
+
+      // Helper to add bidirectional connection
+      const addConnection = (sourceId: string, targetId: string) => {
+        // Create consistent edge ID (alphabetical order)
+        const [first, second] = sourceId < targetId ? [sourceId, targetId] : [targetId, sourceId]
+        const key = `${first}|${second}`
+        connectionMap.set(key, (connectionMap.get(key) || 0) + 1)
+      }
+
+      if (mTypeLegos && mTypeLegos.length > 0) {
+        for (const mLego of mTypeLegos) {
+          if (!mLego.components || !Array.isArray(mLego.components)) continue
+
+          // Get all component IDs for this M-type
+          const componentIds: string[] = []
+          for (const comp of mLego.components) {
+            const target = comp.target || comp.target_text || ''
+            if (!target) continue
+            const targetNorm = normalize(target)
+            const compId = legoMap.get(targetNorm)
+            if (compId) componentIds.push(compId)
+          }
+
+          // Connect M-type to each of its components
+          for (const compId of componentIds) {
+            addConnection(mLego.lego_id, compId)
+          }
+
+          // Connect components to each other (they co-occur in this M-type)
+          for (let i = 0; i < componentIds.length; i++) {
+            for (let j = i + 1; j < componentIds.length; j++) {
+              addConnection(componentIds[i], componentIds[j])
+            }
+          }
+        }
+      }
+
+      // Convert connection map to array
+      for (const [key, count] of connectionMap) {
+        const [source, target] = key.split('|')
+        connections.push({ source, target, count })
+      }
+
       const phrasesByLego = new Map<string, PhraseWithPath[]>()
 
-      console.log(`[useLegoNetwork] Loaded ${nodes.length} LEGOs (phrases loaded on-demand via search)`)
+      console.log(`[useLegoNetwork] Loaded ${nodes.length} LEGOs, built ${connections.length} connections from M-type components`)
 
       const componentCount = nodes.filter(n => n.isComponent).length
       const legoCount = nodes.length - componentCount

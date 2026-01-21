@@ -79,9 +79,9 @@ const DEFAULT_CONFIG: Required<BrainSceneConfig> = {
   antialias: true,
   autoRotateSpeed: 0.1,
   autoRotate: true,
-  minDistance: 2,
-  maxDistance: 20,
-  cameraDistance: 8,
+  minDistance: 200,      // Can get closer for detail
+  maxDistance: 1500,     // Can zoom way out
+  cameraDistance: 600,   // Start far enough to see entire brain (radius ~200-400)
   fov: 60,
   enableDamping: true,
   dampingFactor: 0.05,
@@ -150,8 +150,8 @@ export function useBrainScene(config: BrainSceneConfig = {}): BrainSceneReturn {
       newScene.background = new THREE.Color(cfg.backgroundColor)
     }
 
-    // Optional: Add subtle fog for depth
-    newScene.fog = new THREE.FogExp2(cfg.backgroundColor === 'transparent' ? 0x050508 : cfg.backgroundColor, 0.02)
+    // Optional: Add subtle fog for depth (very light - brain is ~400 units across)
+    newScene.fog = new THREE.FogExp2(cfg.backgroundColor === 'transparent' ? 0x050508 : cfg.backgroundColor, 0.001)
 
     scene.value = newScene
 
@@ -262,22 +262,22 @@ export function useBrainScene(config: BrainSceneConfig = {}): BrainSceneReturn {
    */
   function setupLighting(targetScene: THREE.Scene): void {
     // Ambient light - soft overall illumination
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4)
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5)
     targetScene.add(ambientLight)
 
-    // Main point light - from above-front for subtle highlights
-    const mainLight = new THREE.PointLight(0xffffff, 0.6, 100)
-    mainLight.position.set(5, 10, 5)
+    // Main point light - from above-front for subtle highlights (scaled for brain size ~400 units)
+    const mainLight = new THREE.PointLight(0xffffff, 0.6, 2000)
+    mainLight.position.set(300, 500, 400)
     targetScene.add(mainLight)
 
     // Fill light - subtle from below to reduce harsh shadows
-    const fillLight = new THREE.PointLight(0x4466ff, 0.2, 100)
-    fillLight.position.set(-5, -5, 5)
+    const fillLight = new THREE.PointLight(0x4466ff, 0.3, 2000)
+    fillLight.position.set(-300, -200, 300)
     targetScene.add(fillLight)
 
     // Rim light - from behind for subtle edge glow
-    const rimLight = new THREE.PointLight(0xff6644, 0.15, 100)
-    rimLight.position.set(0, 0, -10)
+    const rimLight = new THREE.PointLight(0xff6644, 0.2, 2000)
+    rimLight.position.set(0, 0, -500)
     targetScene.add(rimLight)
 
     console.log('[useBrainScene] Lighting configured')
