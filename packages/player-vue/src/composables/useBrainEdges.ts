@@ -11,7 +11,7 @@
  * - LOD: can hide edges when zoomed out far
  *
  * Visual style:
- * - Faint by default (opacity ~0.1-0.2)
+ * - Subtle but visible by default (opacity ~0.2-0.35)
  * - Slightly brighter for stronger connections
  * - Color: subtle white/gray, or tinted by connected node colors
  */
@@ -37,9 +37,9 @@ export interface EdgeColors {
 }
 
 export interface EdgeRenderOptions {
-  /** Base opacity for normal edges (default: 0.12) */
+  /** Base opacity for normal edges (default: 0.20) */
   baseOpacity?: number
-  /** Maximum opacity for strong connections (default: 0.25) */
+  /** Maximum opacity for strong connections (default: 0.35) */
   maxOpacity?: number
   /** Base line width (default: 1) */
   baseWidth?: number
@@ -62,8 +62,8 @@ interface EdgeData {
 // ============================================================================
 
 const DEFAULT_OPTIONS: Required<EdgeRenderOptions> = {
-  baseOpacity: 0.12,
-  maxOpacity: 0.25,
+  baseOpacity: 0.20,
+  maxOpacity: 0.35,
   baseWidth: 1,
   maxWidth: 2,
   highlightOpacity: 0.8,

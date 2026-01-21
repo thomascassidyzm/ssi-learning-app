@@ -26,6 +26,7 @@ import { useBrainEdges, type BrainEdge } from '../composables/useBrainEdges'
 import { useBrainInteraction } from '../composables/useBrainInteraction'
 import { useBrainFirePath } from '../composables/useBrainFirePath'
 import { useBrainReplay } from '../composables/useBrainReplay'
+import { useBrainWireframe } from '../composables/useBrainWireframe'
 
 // =============================================================================
 // TYPE DEFINITIONS
@@ -153,6 +154,7 @@ const brainEdges = useBrainEdges()
 const brainInteraction = useBrainInteraction()
 const brainFirePath = useBrainFirePath()
 const brainReplay = useBrainReplay()
+const brainWireframe = useBrainWireframe({ opacity: 0.1, color: '#4a5568' })
 
 // =============================================================================
 // LOCAL STATE
@@ -165,13 +167,60 @@ const error = ref<string | null>(null)
 // Computed state from composables
 const isInitialized = computed(() => brainScene.isInitialized.value)
 const autoRotate = computed(() => brainScene.isAutoRotating.value)
-const isReplaying = computed(() => brainReplay.isPlaying.value)
-const replayProgress = computed(() => brainReplay.progress.value)
-const replaySpeed = computed(() => brainReplay.currentSpeed.value)
+// Replay functionality removed - keeping imports for potential future use
+// const isReplaying = computed(() => brainReplay.isPlaying.value)
+// const replayProgress = computed(() => brainReplay.progress.value)
+// const replaySpeed = computed(() => brainReplay.currentSpeed.value)
 
 // Interaction state
 const hoveredNode = ref<ConstellationNode | null>(null)
 const tooltipPosition = ref({ top: '0px', left: '0px' })
+
+// Track if scene base infrastructure is initialized (vs nodes/edges)
+const sceneInitialized = ref(false)
+
+// =============================================================================
+// NODE/EDGE FILTERING
+// =============================================================================
+
+/**
+ * Get the set of revealed node IDs.
+ * If revealedNodeIds is null, returns null (show all nodes).
+ * Otherwise returns the set of revealed IDs.
+ */
+function getRevealedSet(): Set<string> | null {
+  return props.revealedNodeIds
+}
+
+/**
+ * Filter nodes to only include revealed nodes.
+ * If revealedNodeIds is null (testing mode), show all nodes.
+ */
+function getFilteredNodes(): ConstellationNode[] {
+  const revealed = getRevealedSet()
+  if (revealed === null) {
+    // Testing mode: show all nodes
+    return props.nodes
+  }
+  // Filter to only revealed nodes
+  return props.nodes.filter(node => revealed.has(node.id))
+}
+
+/**
+ * Filter edges to only include edges where BOTH source and target are revealed.
+ * If revealedNodeIds is null (testing mode), show all edges.
+ */
+function getFilteredEdges(): ConstellationEdge[] {
+  const revealed = getRevealedSet()
+  if (revealed === null) {
+    // Testing mode: show all edges
+    return props.edges
+  }
+  // Filter to only edges where both endpoints are revealed
+  return props.edges.filter(edge =>
+    revealed.has(edge.source) && revealed.has(edge.target)
+  )
+}
 
 // =============================================================================
 // SCENE INITIALIZATION
@@ -227,8 +276,18 @@ async function initScene(): Promise<void> {
       throw new Error('Failed to initialize Three.js scene')
     }
 
-    // 2. Convert props.nodes to BrainNode format and create particle system
-    const brainNodeData = props.nodes.map(toBrainNode)
+    // 2. Create and add the wireframe brain shape FIRST (renders behind nodes)
+    const wireframeMesh = brainWireframe.createWireframe(400, 320, 240)
+    brainScene.scene.value.add(wireframeMesh)
+    // Tint the wireframe to match the current belt color
+    brainWireframe.setColor(accentColor.value)
+
+    // 3. Get filtered nodes and edges based on revealedNodeIds
+    const filteredNodes = getFilteredNodes()
+    const filteredEdges = getFilteredEdges()
+
+    // 4. Convert to BrainNode format and create particle system
+    const brainNodeData = filteredNodes.map(toBrainNode)
     const containerWidth = containerRef.value.clientWidth
     const containerHeight = containerRef.value.clientHeight
     const pointsObject = brainNodes.createNodes(brainNodeData, containerWidth, containerHeight)
@@ -236,8 +295,8 @@ async function initScene(): Promise<void> {
     // Add points to scene
     brainScene.scene.value.add(pointsObject)
 
-    // 3. Convert props.edges to BrainEdge format and create line system
-    const brainEdgeData = props.edges.map(toBrainEdge)
+    // 5. Convert to BrainEdge format and create line system
+    const brainEdgeData = filteredEdges.map(toBrainEdge)
     const linesObject = brainEdges.createEdges(
       brainEdgeData,
       (nodeId: string) => brainNodes.getNodePosition(nodeId)
@@ -246,7 +305,7 @@ async function initScene(): Promise<void> {
     // Add lines to scene
     brainScene.scene.value.add(linesObject)
 
-    // 4. Initialize interaction layer (raycasting, hover, click)
+    // 6. Initialize interaction layer (raycasting, hover, click)
     brainInteraction.init(
       brainScene.camera.value,
       brainScene.renderer.value,
@@ -254,7 +313,7 @@ async function initScene(): Promise<void> {
       brainNodeData.map((n, index) => ({ ...n, pointIndex: index }))
     )
 
-    // 5. Wire up interaction event handlers
+    // 7. Wire up interaction event handlers
     brainInteraction.onNodeHover((event) => {
       if (event.node) {
         // Convert back to ConstellationNode format for emit
@@ -286,7 +345,7 @@ async function initScene(): Promise<void> {
       }
     })
 
-    // 6. Initialize fire path animation system
+    // 8. Initialize fire path animation system
     // Note: useBrainFirePath expects a prebuilt network-like object, so we'll create a compatible wrapper
     const networkWrapper = {
       nodes: ref(brainNodeData),
@@ -294,7 +353,7 @@ async function initScene(): Promise<void> {
     }
     brainFirePath.init(networkWrapper as any)
 
-    // 7. Initialize replay system
+    // 9. Initialize replay system
     const nodeSystemWrapper = {
       nodes: ref(brainNodeData),
       highlightNode: brainNodes.highlightNode,
@@ -314,10 +373,11 @@ async function initScene(): Promise<void> {
       brainReplay.setControls(brainScene.controls.value)
     }
 
-    // 8. Start the render loop
+    // 10. Mark scene as initialized and start the render loop
+    sceneInitialized.value = true
     brainScene.startLoop()
 
-    console.log('[Brain3DView] Scene initialized with', props.nodes.length, 'nodes and', props.edges.length, 'edges')
+    console.log('[Brain3DView] Scene initialized with', filteredNodes.length, 'nodes and', filteredEdges.length, 'edges (filtered from', props.nodes.length, 'total)')
 
   } catch (err) {
     console.error('[Brain3DView] Failed to initialize scene:', err)
@@ -348,9 +408,95 @@ function disposeScene(): void {
   brainInteraction.dispose()
   brainEdges.dispose()
   brainNodes.dispose()
+  brainWireframe.dispose()
   brainScene.dispose()
 
+  sceneInitialized.value = false
   console.log('[Brain3DView] Scene disposed')
+}
+
+/**
+ * Rebuild nodes and edges when revealedNodeIds changes.
+ * This removes old objects from the scene and creates new ones
+ * with the updated filtered set of nodes/edges.
+ */
+function rebuildNodesAndEdges(): void {
+  if (!brainScene.scene.value || !brainScene.camera.value || !brainScene.renderer.value || !containerRef.value) {
+    console.warn('[Brain3DView] Cannot rebuild: scene not ready')
+    return
+  }
+
+  // 1. Remove old nodes and edges from scene
+  const oldPointsObject = brainNodes.getPointsObject()
+  if (oldPointsObject) {
+    brainScene.scene.value.remove(oldPointsObject)
+  }
+  const oldLinesObject = brainEdges.lineSegments.value
+  if (oldLinesObject) {
+    brainScene.scene.value.remove(oldLinesObject)
+  }
+
+  // 2. Dispose old composable resources (but keep scene intact)
+  brainInteraction.dispose()
+  brainEdges.dispose()
+  brainNodes.dispose()
+
+  // 3. Get new filtered nodes and edges
+  const filteredNodes = getFilteredNodes()
+  const filteredEdges = getFilteredEdges()
+
+  // 4. Create new particle system with filtered nodes
+  const brainNodeData = filteredNodes.map(toBrainNode)
+  const containerWidth = containerRef.value.clientWidth
+  const containerHeight = containerRef.value.clientHeight
+  const pointsObject = brainNodes.createNodes(brainNodeData, containerWidth, containerHeight)
+  brainScene.scene.value.add(pointsObject)
+
+  // 5. Create new edge system with filtered edges
+  const brainEdgeData = filteredEdges.map(toBrainEdge)
+  const linesObject = brainEdges.createEdges(
+    brainEdgeData,
+    (nodeId: string) => brainNodes.getNodePosition(nodeId)
+  )
+  brainScene.scene.value.add(linesObject)
+
+  // 6. Re-initialize interaction layer with new nodes
+  brainInteraction.init(
+    brainScene.camera.value,
+    brainScene.renderer.value,
+    pointsObject,
+    brainNodeData.map((n, index) => ({ ...n, pointIndex: index }))
+  )
+
+  // Re-wire event handlers
+  brainInteraction.onNodeHover((event) => {
+    if (event.node) {
+      const constellationNode = props.nodes.find(n => n.id === event.node!.id)
+      hoveredNode.value = constellationNode ?? null
+      if (event.screenPosition) {
+        const rect = containerRef.value?.getBoundingClientRect()
+        if (rect) {
+          tooltipPosition.value = {
+            top: `${event.screenPosition.y - rect.top + 15}px`,
+            left: `${event.screenPosition.x - rect.left + 15}px`,
+          }
+        }
+      }
+      emit('node-hover', constellationNode ?? null)
+    } else {
+      hoveredNode.value = null
+      emit('node-hover', null)
+    }
+  })
+
+  brainInteraction.onNodeClick((event) => {
+    const constellationNode = props.nodes.find(n => n.id === event.node.id)
+    if (constellationNode) {
+      emit('node-tap', constellationNode)
+    }
+  })
+
+  console.log('[Brain3DView] Rebuilt with', filteredNodes.length, 'nodes and', filteredEdges.length, 'edges')
 }
 
 // =============================================================================
@@ -366,37 +512,25 @@ function toggleAutoRotate(): void {
 }
 
 /**
- * Start the growth replay animation
+ * Reset camera to fit the entire brain in view
+ * Resets zoom, position, and temporarily pauses auto-rotate
  */
-function startReplay(): void {
-  if (brainReplay.isPlaying.value) return
+function fitToScreen(): void {
+  if (!brainScene.controls.value) {
+    console.warn('[Brain3DView] Controls not available for fit-to-screen')
+    return
+  }
 
-  brainReplay.startReplay(brainReplay.currentSpeed.value)
-    .then(() => {
-      console.log('[Brain3DView] Replay completed')
-    })
-    .catch((err) => {
-      if (err.message !== 'Replay stopped') {
-        console.error('[Brain3DView] Replay error:', err)
-      }
-    })
+  // Reset the OrbitControls to initial state
+  brainScene.controls.value.reset()
+
+  console.log('[Brain3DView] Camera reset to fit screen')
 }
 
-/**
- * Stop the replay animation
- */
-function stopReplay(): void {
-  brainReplay.stopReplay()
-  console.log('[Brain3DView] Replay stopped')
-}
-
-/**
- * Set replay speed multiplier
- */
-function setSpeed(speed: number): void {
-  brainReplay.setSpeed(speed)
-  console.log('[Brain3DView] Replay speed:', speed)
-}
+// Replay functionality removed - keeping methods commented for potential future use
+// function startReplay(): void { ... }
+// function stopReplay(): void { ... }
+// function setSpeed(speed: number): void { ... }
 
 /**
  * Fly camera to a specific node (for search)
@@ -477,19 +611,20 @@ watch(() => props.currentPath, (path) => {
   console.log('[Brain3DView] Fire path updated:', path.nodeIds.length, 'nodes')
 }, { deep: true })
 
-// Watch for revealed nodes changes and update visibility
-watch(() => props.revealedNodeIds, (revealed) => {
-  if (!brainScene.isInitialized.value) return
+// Watch for revealed nodes changes and rebuild nodes/edges
+watch(() => props.revealedNodeIds, (_revealed, _oldRevealed) => {
+  if (!sceneInitialized.value || !brainScene.scene.value || !containerRef.value) return
 
-  // Update node brightness based on revealed state
-  for (const node of props.nodes) {
-    const isRevealed = revealed === null || revealed.has(node.id)
-    const brightness = isRevealed ? 0.5 : 0.1
-    brainNodes.updateNodeBrightness(node.id, brightness)
-  }
-
-  console.log('[Brain3DView] Visibility updated:', revealed?.size ?? 'all')
+  // Rebuild nodes and edges with new filtered set
+  rebuildNodesAndEdges()
 }, { deep: true })
+
+// Watch for belt level changes and update wireframe color
+watch(accentColor, (newColor) => {
+  if (sceneInitialized.value) {
+    brainWireframe.setColor(newColor)
+  }
+})
 
 // =============================================================================
 // LIFECYCLE
@@ -517,13 +652,9 @@ defineExpose({
    */
   toggleAutoRotate,
   /**
-   * Start growth replay
+   * Reset camera to fit entire brain in view
    */
-  startReplay,
-  /**
-   * Stop growth replay
-   */
-  stopReplay,
+  fitToScreen,
 })
 </script>
 
@@ -565,44 +696,16 @@ defineExpose({
       </button>
       <button
         class="control-btn"
-        :class="{ active: isReplaying }"
-        :style="isReplaying ? { borderColor: accentColor, color: accentColor } : {}"
-        @click="isReplaying ? stopReplay() : startReplay()"
-        title="Watch brain growth"
+        @click="fitToScreen"
+        title="Fit to screen"
       >
-        <svg v-if="!isReplaying" viewBox="0 0 24 24" fill="currentColor">
-          <polygon points="5 3 19 12 5 21 5 3"/>
-        </svg>
-        <svg v-else viewBox="0 0 24 24" fill="currentColor">
-          <rect x="6" y="4" width="4" height="16"/>
-          <rect x="14" y="4" width="4" height="16"/>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M8 3H5a2 2 0 0 0-2 2v3"/>
+          <path d="M21 8V5a2 2 0 0 0-2-2h-3"/>
+          <path d="M3 16v3a2 2 0 0 0 2 2h3"/>
+          <path d="M16 21h3a2 2 0 0 0 2-2v-3"/>
         </svg>
       </button>
-    </div>
-
-    <!-- Replay progress bar (when playing) -->
-    <div v-if="isReplaying" class="replay-controls">
-      <div class="progress-track">
-        <div
-          class="progress-bar"
-          :style="{
-            width: replayProgress * 100 + '%',
-            backgroundColor: accentColor
-          }"
-        ></div>
-      </div>
-      <div class="speed-controls">
-        <button
-          v-for="speed in [1, 2, 4, 8]"
-          :key="speed"
-          class="speed-btn"
-          :class="{ active: replaySpeed === speed }"
-          :style="replaySpeed === speed ? { color: accentColor, borderColor: accentColor } : {}"
-          @click="setSpeed(speed)"
-        >
-          {{ speed }}x
-        </button>
-      </div>
     </div>
 
     <!-- Tooltip (positioned near cursor) -->
@@ -742,69 +845,6 @@ defineExpose({
 }
 
 /* ============================================
-   REPLAY CONTROLS
-   ============================================ */
-
-.replay-controls {
-  position: absolute;
-  bottom: calc(100px + env(safe-area-inset-bottom, 0px));
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 20;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px 24px;
-  background: rgba(10, 10, 15, 0.9);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  min-width: 280px;
-}
-
-.progress-track {
-  width: 100%;
-  height: 6px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.progress-bar {
-  height: 100%;
-  border-radius: 3px;
-  transition: width 0.1s linear;
-}
-
-.speed-controls {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-}
-
-.speed-btn {
-  padding: 6px 14px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 20px;
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 0.75rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.speed-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.speed-btn.active {
-  background: rgba(255, 255, 255, 0.1);
-  font-weight: 600;
-}
-
-/* ============================================
    NODE TOOLTIP
    ============================================ */
 
@@ -854,19 +894,6 @@ defineExpose({
   .control-btn svg {
     width: 18px;
     height: 18px;
-  }
-
-  .replay-controls {
-    min-width: unset;
-    width: calc(100% - 32px);
-    max-width: 320px;
-    padding: 12px 16px;
-    bottom: calc(80px + env(safe-area-inset-bottom, 0px));
-  }
-
-  .speed-btn {
-    padding: 5px 10px;
-    font-size: 0.7rem;
   }
 
   .node-tooltip {

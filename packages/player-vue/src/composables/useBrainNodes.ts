@@ -75,7 +75,9 @@ const BELT_DEPTH: Record<Belt, number> = {
 
 // Particle sizes
 const BASE_PARTICLE_SIZE = 12.0
+const MAX_PARTICLE_SIZE = 28.0  // Max size for high-frequency nodes
 const COMPONENT_SIZE_MULTIPLIER = 0.6  // Components are smaller
+const SIZE_LOG_SCALE = 0.15  // Logarithmic scaling factor for usage-based sizing
 
 // Brightness range based on usage
 const MIN_BRIGHTNESS = 0.3
@@ -130,29 +132,35 @@ const FRAGMENT_SHADER = `
     vec2 center = gl_PointCoord - vec2(0.5);
     float dist = length(center) * 2.0;
 
-    // Soft circular falloff with glow
-    // Inner core is solid, outer region fades out
-    float coreRadius = 0.3;
-    float glowRadius = 1.0;
+    // Crisp node with subtle glow - "bright stars" not "fuzzy blobs"
+    // Larger solid core with sharper edge, thin glow halo
+    float coreRadius = 0.5;   // Solid core extends further
+    float edgeSharpness = 0.1;  // Sharp transition at edge
+    float glowStart = 0.6;   // Glow starts at edge of core
+    float glowEnd = 1.0;
 
-    float core = 1.0 - smoothstep(0.0, coreRadius, dist);
-    float glow = 1.0 - smoothstep(coreRadius, glowRadius, dist);
+    // Sharp-edged core with slight anti-aliasing
+    float core = 1.0 - smoothstep(coreRadius - edgeSharpness, coreRadius, dist);
 
-    // Combine core and glow with brightness
-    float alpha = core * 0.9 + glow * 0.4;
+    // Subtle outer glow - thin halo effect
+    float glow = 1.0 - smoothstep(glowStart, glowEnd, dist);
+    glow *= 0.4;  // Reduce glow intensity
+
+    // Combine: solid core with subtle glow halo
+    float alpha = core * 0.95 + glow * 0.25;
     alpha *= vBrightness;
 
-    // Add extra glow when highlighted
-    float highlightGlow = vHighlighted * glow * 0.5;
+    // Add extra glow when highlighted (still subtle)
+    float highlightGlow = vHighlighted * glow * 0.4;
     alpha += highlightGlow;
 
     // Discard fully transparent fragments for performance
     if (alpha < 0.01) discard;
 
-    // Final color with HDR-like bloom effect
-    vec3 finalColor = vColor * (vBrightness + highlightGlow * 0.5);
+    // Final color - brighter core, slight bloom
+    vec3 finalColor = vColor * (vBrightness + highlightGlow * 0.3);
 
-    // Slight color boost for highlighted particles
+    // Boost for highlighted particles
     if (vHighlighted > 0.5) {
       finalColor += vec3(0.1, 0.1, 0.15);
     }
@@ -229,6 +237,29 @@ function calculateBrightness(usageCount: number = 0): number {
   return Math.min(MAX_BRIGHTNESS, MIN_BRIGHTNESS + scaledUsage * (MAX_BRIGHTNESS - MIN_BRIGHTNESS))
 }
 
+/**
+ * Calculate particle size based on usage count
+ * Uses logarithmic scaling so high-frequency nodes don't dominate
+ */
+function calculateSizeFromUsage(usageCount: number = 0, isComponent: boolean): number {
+  const baseSize = isComponent
+    ? BASE_PARTICLE_SIZE * COMPONENT_SIZE_MULTIPLIER
+    : BASE_PARTICLE_SIZE
+
+  // Logarithmic scaling: log1p(x) = ln(1 + x), gives diminishing returns
+  // This prevents extremely used nodes from being too large
+  const usageBoost = Math.log1p(usageCount * SIZE_LOG_SCALE)
+
+  // Scale the boost to fit within our size range
+  const maxBoost = MAX_PARTICLE_SIZE - BASE_PARTICLE_SIZE
+  const sizeBoost = Math.min(usageBoost * 3, maxBoost)  // Cap at max size
+
+  // Apply component multiplier to the boost as well
+  const finalBoost = isComponent ? sizeBoost * COMPONENT_SIZE_MULTIPLIER : sizeBoost
+
+  return baseSize + finalBoost
+}
+
 // ============================================================================
 // COMPOSABLE
 // ============================================================================
@@ -287,10 +318,8 @@ export function useBrainNodes() {
       // Get belt color
       const color = hexToColor(BELT_COLORS[node.belt])
 
-      // Calculate particle size
-      const size = node.isComponent
-        ? BASE_PARTICLE_SIZE * COMPONENT_SIZE_MULTIPLIER
-        : BASE_PARTICLE_SIZE
+      // Calculate particle size based on usage frequency
+      const size = calculateSizeFromUsage(node.usageCount, node.isComponent)
 
       // Store internal node
       const internalNode: InternalNode = {
@@ -478,15 +507,23 @@ export function useBrainNodes() {
   }
 
   /**
-   * Increment usage count for a node and update brightness
+   * Increment usage count for a node and update brightness and size
    */
   function incrementUsage(nodeId: string): void {
     const node = internalNodes.value.get(nodeId)
-    if (!node) return
+    if (!node || !geometry) return
 
     node.usageCount = (node.usageCount || 0) + 1
+
+    // Update brightness
     const newBrightness = calculateBrightness(node.usageCount)
     updateNodeBrightness(nodeId, newBrightness)
+
+    // Update size based on new usage count
+    const newSize = calculateSizeFromUsage(node.usageCount, node.isComponent)
+    const sizeAttr = geometry.getAttribute('size') as THREE.BufferAttribute
+    sizeAttr.array[node.index] = newSize
+    sizeAttr.needsUpdate = true
   }
 
   /**
