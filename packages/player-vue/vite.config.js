@@ -23,9 +23,9 @@ export default defineConfig({
         // DON'T cache audio via workbox - we use IndexedDB
         globIgnores: ['**/*.{mp3,wav,ogg,m4a}'],
 
-        // Skip waiting - new SW activates immediately when user accepts update
-        skipWaiting: true,
-        clientsClaim: true,
+        // NOTE: Do NOT set skipWaiting/clientsClaim here!
+        // With registerType: 'prompt', vite-plugin-pwa handles skipWaiting
+        // based on user approval via updateServiceWorker(true)
 
         // Runtime caching for fonts/CDN
         runtimeCaching: [
