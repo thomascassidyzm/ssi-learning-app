@@ -13,9 +13,8 @@
 import { ref, computed, inject, onMounted, onUnmounted, watch } from 'vue'
 import CanvasNetworkView from './CanvasNetworkView.vue'
 import UsageStats from './UsageStats.vue'
-// TODO: Import these components once they're created by other agents
-// import Brain3DView from './Brain3DView.vue'
-// import BrainStatsMobile from './BrainStatsMobile.vue'
+import Brain3DView from './Brain3DView.vue'
+import BrainStatsMobile from './BrainStatsMobile.vue'
 import { usePrebuiltNetwork, type ExternalConnection, type ConstellationNode } from '../composables/usePrebuiltNetwork'
 import { useLegoNetwork, type PhraseWithPath } from '../composables/useLegoNetwork'
 import { generateLearningScript } from '../providers/CourseDataProvider'
@@ -176,8 +175,7 @@ const isDownloading = ref(false)
 const networkRef = ref<{ resetZoomPan: () => void } | null>(null)
 
 // 3D brain component ref (for flyToNode on desktop)
-// TODO: Add proper type once Brain3DView component is created
-const brain3DRef = ref<{ flyToNode: (nodeId: string) => void } | null>(null)
+const brain3DRef = ref<InstanceType<typeof Brain3DView> | null>(null)
 
 // Search state
 const searchQuery = ref('')
@@ -243,24 +241,45 @@ function cleanupPlatformDetection() {
 // ============================================================================
 
 // Calculate belt progress for mobile stats dashboard
-const beltProgress = computed(() => {
+const beltProgressData = computed(() => {
   const currentBelt = BELTS.find(b => b.name === props.beltLevel)
   const currentBeltIndex = BELTS.findIndex(b => b.name === props.beltLevel)
   const nextBelt = currentBeltIndex < BELTS.length - 1 ? BELTS[currentBeltIndex + 1] : null
 
   if (!currentBelt || !nextBelt) {
-    return { current: props.completedSeeds, target: currentBelt?.seedsRequired || 0, percentage: 100 }
+    return { current: props.completedSeeds, target: currentBelt?.seedsRequired || 0, percentage: 100, ratio: 1 }
   }
 
   const progressInBelt = props.completedSeeds - currentBelt.seedsRequired
   const beltRange = nextBelt.seedsRequired - currentBelt.seedsRequired
   const percentage = Math.min(100, Math.round((progressInBelt / beltRange) * 100))
+  const ratio = Math.min(1, progressInBelt / beltRange)
 
   return {
     current: props.completedSeeds,
     target: nextBelt.seedsRequired,
-    percentage
+    percentage,
+    ratio
   }
+})
+
+// Belt progress as 0-1 ratio for BrainStatsMobile
+const beltProgressRatio = computed(() => beltProgressData.value.ratio)
+
+// Seeds needed to reach next belt
+const seedsToNextBelt = computed(() => {
+  const currentBeltIndex = BELTS.findIndex(b => b.name === props.beltLevel)
+  const nextBelt = currentBeltIndex < BELTS.length - 1 ? BELTS[currentBeltIndex + 1] : null
+  if (!nextBelt) return 0
+  return Math.max(0, nextBelt.seedsRequired - props.completedSeeds)
+})
+
+// TODO: This should come from Supabase user_sessions table
+// For now, provide placeholder values (all zeros)
+const weekActivity = computed(() => {
+  // Return array of 7 values representing activity for each day of the week
+  // Once we have real data, this should query user_sessions
+  return [0, 0, 0, 0, 0, 0, 0]
 })
 
 // TODO: These stats should come from Supabase user_sessions table
@@ -1040,7 +1059,6 @@ onUnmounted(() => {
       <!-- ========================================== -->
       <!-- DESKTOP: 3D Brain Visualization -->
       <!-- ========================================== -->
-      <!-- TODO: Uncomment when Brain3DView component is ready
       <Brain3DView
         v-else-if="isDesktop"
         ref="brain3DRef"
@@ -1051,24 +1069,22 @@ onUnmounted(() => {
         :belt-level="beltLevel"
         @node-tap="handleNodeTap"
       />
-      -->
 
       <!-- ========================================== -->
       <!-- MOBILE: Stats Dashboard -->
       <!-- ========================================== -->
-      <!-- TODO: Uncomment when BrainStatsMobile component is ready
       <BrainStatsMobile
         v-else-if="!isDesktop"
         :belt-level="beltLevel"
-        :belt-progress="beltProgress"
+        :belt-progress="beltProgressRatio"
+        :seeds-to-next-belt="seedsToNextBelt"
         :words-learned="globalStats.concepts"
         :phrases-practiced="globalStats.phrases"
         :total-minutes="totalMinutes"
         :current-streak="currentStreak"
-        :accent-color="accentColor"
-        @search-word="handleMobileSearch"
+        :week-activity="weekActivity"
+        @close="emit('close')"
       />
-      -->
 
       <!-- ========================================== -->
       <!-- FALLBACK: Canvas Network View (current implementation) -->

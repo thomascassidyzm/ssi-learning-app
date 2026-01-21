@@ -17,6 +17,17 @@
 import { ref, computed, watch, onMounted, onUnmounted, type PropType } from 'vue'
 
 // =============================================================================
+// COMPOSABLE IMPORTS
+// =============================================================================
+
+import { useBrainScene } from '../composables/useBrainScene'
+import { useBrainNodes, type BrainNode, type Belt } from '../composables/useBrainNodes'
+import { useBrainEdges, type BrainEdge } from '../composables/useBrainEdges'
+import { useBrainInteraction } from '../composables/useBrainInteraction'
+import { useBrainFirePath } from '../composables/useBrainFirePath'
+import { useBrainReplay } from '../composables/useBrainReplay'
+
+// =============================================================================
 // TYPE DEFINITIONS
 // =============================================================================
 
@@ -45,18 +56,6 @@ export interface PathHighlight {
   edgeIds: string[]
   activeIndex: number
 }
-
-// =============================================================================
-// COMPOSABLE IMPORTS (TODO: Import when composables are ready)
-// =============================================================================
-
-// TODO: Uncomment these imports when the composables are implemented
-// import { useBrainScene } from '../composables/three/useBrainScene'
-// import { useBrainNodes } from '../composables/three/useBrainNodes'
-// import { useBrainEdges } from '../composables/three/useBrainEdges'
-// import { useBrainInteraction } from '../composables/three/useBrainInteraction'
-// import { useBrainFirePath } from '../composables/three/useBrainFirePath'
-// import { useBrainReplay } from '../composables/three/useBrainReplay'
 
 // =============================================================================
 // PROPS & EMITS
@@ -144,21 +143,31 @@ const accentColor = computed(() => BELT_COLORS[props.beltLevel] || BELT_COLORS.w
 const containerRef = ref<HTMLElement | null>(null)
 
 // =============================================================================
-// COMPOSABLE STATE (TODO: Replace with actual composables)
+// COMPOSABLE INITIALIZATION
 // =============================================================================
 
-// Placeholder state - will be replaced by actual composable returns
-const isInitialized = ref(false)
+// Initialize all composables
+const brainScene = useBrainScene()
+const brainNodes = useBrainNodes()
+const brainEdges = useBrainEdges()
+const brainInteraction = useBrainInteraction()
+const brainFirePath = useBrainFirePath()
+const brainReplay = useBrainReplay()
+
+// =============================================================================
+// LOCAL STATE
+// =============================================================================
+
+// Loading/error state
 const isLoading = ref(true)
 const error = ref<string | null>(null)
 
-// Controls state
-const autoRotate = ref(true)
-
-// Replay state
-const isReplaying = ref(false)
-const replayProgress = ref(0)
-const replaySpeed = ref(1)
+// Computed state from composables
+const isInitialized = computed(() => brainScene.isInitialized.value)
+const autoRotate = computed(() => brainScene.isAutoRotating.value)
+const isReplaying = computed(() => brainReplay.isPlaying.value)
+const replayProgress = computed(() => brainReplay.progress.value)
+const replaySpeed = computed(() => brainReplay.currentSpeed.value)
 
 // Interaction state
 const hoveredNode = ref<ConstellationNode | null>(null)
@@ -167,6 +176,34 @@ const tooltipPosition = ref({ top: '0px', left: '0px' })
 // =============================================================================
 // SCENE INITIALIZATION
 // =============================================================================
+
+/**
+ * Convert ConstellationNode to BrainNode format
+ */
+function toBrainNode(node: ConstellationNode): BrainNode {
+  return {
+    id: node.id,
+    x: node.x,
+    y: node.y,
+    targetText: node.targetText,
+    knownText: node.knownText,
+    belt: node.belt as Belt,
+    isComponent: node.isComponent ?? false,
+    usageCount: 0,
+  }
+}
+
+/**
+ * Convert ConstellationEdge to BrainEdge format
+ */
+function toBrainEdge(edge: ConstellationEdge): BrainEdge {
+  return {
+    id: edge.id,
+    source: edge.source,
+    target: edge.target,
+    strength: edge.strength,
+  }
+}
 
 /**
  * Initialize the Three.js scene and all subsystems
@@ -183,19 +220,104 @@ async function initScene(): Promise<void> {
   error.value = null
 
   try {
-    // TODO: Initialize composables when they're ready
-    // const scene = useBrainScene(containerRef)
-    // const nodes = useBrainNodes(scene, props.nodes, props.revealedNodeIds)
-    // const edges = useBrainEdges(scene, props.edges, props.nodes)
-    // const interaction = useBrainInteraction(scene, nodes, edges)
-    // const firePath = useBrainFirePath(scene, nodes, edges)
-    // const replay = useBrainReplay(scene, nodes, edges)
+    // 1. Initialize the scene (creates renderer, camera, controls)
+    brainScene.init(containerRef.value)
 
-    // Placeholder: Simulate initialization delay
-    await new Promise(resolve => setTimeout(resolve, 500))
+    if (!brainScene.scene.value || !brainScene.camera.value || !brainScene.renderer.value) {
+      throw new Error('Failed to initialize Three.js scene')
+    }
 
-    isInitialized.value = true
-    console.log('[Brain3DView] Scene initialized (placeholder)')
+    // 2. Convert props.nodes to BrainNode format and create particle system
+    const brainNodeData = props.nodes.map(toBrainNode)
+    const containerWidth = containerRef.value.clientWidth
+    const containerHeight = containerRef.value.clientHeight
+    const pointsObject = brainNodes.createNodes(brainNodeData, containerWidth, containerHeight)
+
+    // Add points to scene
+    brainScene.scene.value.add(pointsObject)
+
+    // 3. Convert props.edges to BrainEdge format and create line system
+    const brainEdgeData = props.edges.map(toBrainEdge)
+    const linesObject = brainEdges.createEdges(
+      brainEdgeData,
+      (nodeId: string) => brainNodes.getNodePosition(nodeId)
+    )
+
+    // Add lines to scene
+    brainScene.scene.value.add(linesObject)
+
+    // 4. Initialize interaction layer (raycasting, hover, click)
+    brainInteraction.init(
+      brainScene.camera.value,
+      brainScene.renderer.value,
+      pointsObject,
+      brainNodeData.map((n, index) => ({ ...n, pointIndex: index }))
+    )
+
+    // 5. Wire up interaction event handlers
+    brainInteraction.onNodeHover((event) => {
+      if (event.node) {
+        // Convert back to ConstellationNode format for emit
+        const constellationNode = props.nodes.find(n => n.id === event.node!.id)
+        hoveredNode.value = constellationNode ?? null
+
+        // Update tooltip position
+        if (event.screenPosition) {
+          const rect = containerRef.value?.getBoundingClientRect()
+          if (rect) {
+            tooltipPosition.value = {
+              top: `${event.screenPosition.y - rect.top + 15}px`,
+              left: `${event.screenPosition.x - rect.left + 15}px`,
+            }
+          }
+        }
+
+        emit('node-hover', constellationNode ?? null)
+      } else {
+        hoveredNode.value = null
+        emit('node-hover', null)
+      }
+    })
+
+    brainInteraction.onNodeClick((event) => {
+      const constellationNode = props.nodes.find(n => n.id === event.node.id)
+      if (constellationNode) {
+        emit('node-tap', constellationNode)
+      }
+    })
+
+    // 6. Initialize fire path animation system
+    // Note: useBrainFirePath expects a prebuilt network-like object, so we'll create a compatible wrapper
+    const networkWrapper = {
+      nodes: ref(brainNodeData),
+      edges: ref(brainEdgeData),
+    }
+    brainFirePath.init(networkWrapper as any)
+
+    // 7. Initialize replay system
+    const nodeSystemWrapper = {
+      nodes: ref(brainNodeData),
+      highlightNode: brainNodes.highlightNode,
+      unhighlightNode: brainNodes.unhighlightNode,
+      getNodePosition: brainNodes.getNodePosition,
+      updateNodeBrightness: brainNodes.updateNodeBrightness,
+    }
+    const edgeSystemWrapper = {
+      setEdgeGlow: brainEdges.setEdgeGlow,
+      unhighlightAll: brainEdges.unhighlightAll,
+      getEdgeIdBetweenNodes: brainEdges.getEdgeIdBetweenNodes,
+    }
+    brainReplay.init(nodeSystemWrapper, edgeSystemWrapper, brainScene.camera.value)
+
+    // Set OrbitControls reference for camera animation during replay
+    if (brainScene.controls.value) {
+      brainReplay.setControls(brainScene.controls.value)
+    }
+
+    // 8. Start the render loop
+    brainScene.startLoop()
+
+    console.log('[Brain3DView] Scene initialized with', props.nodes.length, 'nodes and', props.edges.length, 'edges')
 
   } catch (err) {
     console.error('[Brain3DView] Failed to initialize scene:', err)
@@ -210,13 +332,24 @@ async function initScene(): Promise<void> {
  * Called on unmount to prevent memory leaks
  */
 function disposeScene(): void {
-  // TODO: Call dispose on all composables
-  // scene.dispose()
-  // nodes.dispose()
-  // edges.dispose()
-  // etc.
+  // Stop replay if running
+  if (brainReplay.isPlaying.value) {
+    brainReplay.stopReplay()
+  }
 
-  isInitialized.value = false
+  // Stop fire path animation if running
+  if (brainFirePath.isPlaying.value) {
+    brainFirePath.stopFirePath()
+  }
+
+  // Dispose all composables in reverse order
+  brainReplay.dispose()
+  brainFirePath.reset()
+  brainInteraction.dispose()
+  brainEdges.dispose()
+  brainNodes.dispose()
+  brainScene.dispose()
+
   console.log('[Brain3DView] Scene disposed')
 }
 
@@ -228,46 +361,32 @@ function disposeScene(): void {
  * Toggle auto-rotation of the brain
  */
 function toggleAutoRotate(): void {
-  autoRotate.value = !autoRotate.value
-  // TODO: Update scene controls
-  // scene.controls.value.autoRotate = autoRotate.value
-  console.log('[Brain3DView] Auto-rotate:', autoRotate.value)
+  brainScene.setAutoRotate(!brainScene.isAutoRotating.value)
+  console.log('[Brain3DView] Auto-rotate:', brainScene.isAutoRotating.value)
 }
 
 /**
  * Start the growth replay animation
  */
 function startReplay(): void {
-  if (isReplaying.value) return
+  if (brainReplay.isPlaying.value) return
 
-  isReplaying.value = true
-  replayProgress.value = 0
-
-  // TODO: Start actual replay via composable
-  // replay.start(props.nodes, props.revealedNodeIds)
-
-  console.log('[Brain3DView] Replay started')
-
-  // Placeholder: Simulate replay progress
-  const interval = setInterval(() => {
-    replayProgress.value += 0.01
-    if (replayProgress.value >= 1) {
-      clearInterval(interval)
-      stopReplay()
-    }
-  }, 50 / replaySpeed.value)
+  brainReplay.startReplay(brainReplay.currentSpeed.value)
+    .then(() => {
+      console.log('[Brain3DView] Replay completed')
+    })
+    .catch((err) => {
+      if (err.message !== 'Replay stopped') {
+        console.error('[Brain3DView] Replay error:', err)
+      }
+    })
 }
 
 /**
  * Stop the replay animation
  */
 function stopReplay(): void {
-  isReplaying.value = false
-  replayProgress.value = 0
-
-  // TODO: Stop actual replay via composable
-  // replay.stop()
-
+  brainReplay.stopReplay()
   console.log('[Brain3DView] Replay stopped')
 }
 
@@ -275,9 +394,7 @@ function stopReplay(): void {
  * Set replay speed multiplier
  */
 function setSpeed(speed: number): void {
-  replaySpeed.value = speed
-  // TODO: Update replay composable speed
-  // replay.setSpeed(speed)
+  brainReplay.setSpeed(speed)
   console.log('[Brain3DView] Replay speed:', speed)
 }
 
@@ -291,53 +408,28 @@ function flyToNode(nodeId: string): void {
     return
   }
 
-  // TODO: Animate camera to node position via scene composable
-  // scene.flyTo(node.x, node.y, node.z ?? 0)
-
-  console.log('[Brain3DView] Flying to node:', nodeId)
+  // Use the interaction composable's fly-to functionality
+  brainInteraction.flyToNode(nodeId)
+    .then(() => {
+      console.log('[Brain3DView] Flew to node:', nodeId)
+    })
 }
 
 // =============================================================================
 // INTERACTION HANDLERS
 // =============================================================================
 
-/**
- * Handle mouse move for hover detection
- */
-function handleMouseMove(event: MouseEvent): void {
-  if (!containerRef.value || !isInitialized.value) return
+// Note: Mouse move and click events are handled by the brainInteraction composable
+// via event listeners attached to the renderer's DOM element during init().
+// The callbacks update hoveredNode and emit events - see initScene() for details.
 
-  // Update tooltip position to follow cursor
-  const rect = containerRef.value.getBoundingClientRect()
-  tooltipPosition.value = {
-    top: `${event.clientY - rect.top + 15}px`,
-    left: `${event.clientX - rect.left + 15}px`,
-  }
-
-  // TODO: Raycast via interaction composable
-  // const hit = interaction.raycast(event)
-  // if (hit !== hoveredNode.value) {
-  //   hoveredNode.value = hit
-  //   emit('node-hover', hit)
-  // }
+// These handlers are kept for any fallback or additional processing needed
+function handleMouseMove(_event: MouseEvent): void {
+  // Handled by brainInteraction composable
 }
 
-/**
- * Handle click/tap for node selection
- */
-function handleClick(event: MouseEvent): void {
-  if (!isInitialized.value) return
-
-  // TODO: Raycast via interaction composable
-  // const hit = interaction.raycast(event)
-  // if (hit) {
-  //   emit('node-tap', hit)
-  // }
-
-  // Placeholder: Use hovered node if available
-  if (hoveredNode.value) {
-    emit('node-tap', hoveredNode.value)
-  }
+function handleClick(_event: MouseEvent): void {
+  // Handled by brainInteraction composable
 }
 
 // =============================================================================
@@ -346,41 +438,55 @@ function handleClick(event: MouseEvent): void {
 
 // Watch for search node changes and fly to it
 watch(() => props.searchNodeId, (nodeId) => {
-  if (nodeId) {
-    flyToNode(nodeId)
+  if (nodeId && brainScene.isInitialized.value) {
+    brainInteraction.flyToNode(nodeId)
   }
 })
 
 // Watch for current path changes and trigger fire path animation
 watch(() => props.currentPath, (path) => {
+  if (!brainScene.isInitialized.value) return
+
   if (!path) {
-    // TODO: Clear fire path via composable
-    // firePath.clear()
+    // Clear fire path
+    brainFirePath.stopFirePath()
+    brainEdges.unhighlightAll()
+    brainNodes.unhighlightAll()
     return
   }
 
-  // TODO: Animate fire path via composable
-  // firePath.animate(path.nodeIds, path.edgeIds, path.activeIndex)
+  // Calculate animation duration based on number of nodes
+  // Roughly 200ms per node for a natural pace
+  const duration = Math.max(1000, path.nodeIds.length * 200)
+
+  // Highlight the path nodes
+  brainNodes.highlightNodes(path.nodeIds)
+
+  // Highlight the path edges
+  brainEdges.highlightPath(path.edgeIds)
+
+  // Play the fire path animation
+  brainFirePath.playFirePath({
+    nodeIds: path.nodeIds,
+    duration,
+  }).then(() => {
+    // Animation complete - keep the highlights visible
+    console.log('[Brain3DView] Fire path animation complete')
+  })
 
   console.log('[Brain3DView] Fire path updated:', path.nodeIds.length, 'nodes')
 }, { deep: true })
 
-// Watch for nodes changes and update particle system
-watch(() => props.nodes, (newNodes) => {
-  if (!isInitialized.value) return
-
-  // TODO: Update node positions via composable
-  // nodes.updatePositions(newNodes)
-
-  console.log('[Brain3DView] Nodes updated:', newNodes.length)
-}, { deep: true })
-
 // Watch for revealed nodes changes and update visibility
 watch(() => props.revealedNodeIds, (revealed) => {
-  if (!isInitialized.value) return
+  if (!brainScene.isInitialized.value) return
 
-  // TODO: Update node visibility via composable
-  // nodes.updateVisibility(revealed)
+  // Update node brightness based on revealed state
+  for (const node of props.nodes) {
+    const isRevealed = revealed === null || revealed.has(node.id)
+    const brightness = isRevealed ? 0.5 : 0.1
+    brainNodes.updateNodeBrightness(node.id, brightness)
+  }
 
   console.log('[Brain3DView] Visibility updated:', revealed?.size ?? 'all')
 }, { deep: true })
@@ -394,9 +500,6 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  if (isReplaying.value) {
-    stopReplay()
-  }
   disposeScene()
 })
 
