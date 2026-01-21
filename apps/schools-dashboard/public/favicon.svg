@@ -9,7 +9,7 @@
   <path d="M22 22 L26 26 L22 24" stroke="#c23a3a" stroke-width="2" fill="#121212"/>
 
   <!-- SSi text representation -->
-  <text x="16" y="15" font-family="system-ui, sans-serif" font-size="8" font-weight="700" fill="#c23a3a" text-anchor="middle" dominant-baseline="middle">
+  <text x="16" y="16" font-family="system-ui, sans-serif" font-size="8" font-weight="700" fill="#c23a3a" text-anchor="middle" dominant-baseline="middle">
     SSi
   </text>
 </svg>
