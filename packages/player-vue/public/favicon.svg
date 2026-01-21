@@ -5,6 +5,6 @@
       <stop offset="100%" style="stop-color:#d44545"/>
     </linearGradient>
   </defs>
-  <rect width="32" height="32" rx="8" fill="url(#grad)"/>
-  <text x="16" y="17" font-family="Arial, sans-serif" font-weight="bold" font-size="18" fill="white" text-anchor="middle" dominant-baseline="middle">S</text>
+  <rect width="32" height="32" fill="url(#grad)"/>
+  <text x="16" y="17" font-family="Arial, sans-serif" font-weight="bold" font-size="24" fill="white" text-anchor="middle" dominant-baseline="middle">S</text>
 </svg>
