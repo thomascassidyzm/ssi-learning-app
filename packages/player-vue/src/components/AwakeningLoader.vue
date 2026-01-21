@@ -284,13 +284,13 @@ onUnmounted(() => {
   min-width: 280px;
   max-width: 400px;
   padding: 1.5rem 2rem;
-  background: rgba(10, 10, 18, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-card, rgba(10, 10, 18, 0.7));
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
   border-radius: 8px;
   backdrop-filter: blur(8px);
   box-shadow:
     0 0 40px rgba(0, 0, 0, 0.5),
-    inset 0 0 20px rgba(255, 255, 255, 0.02);
+    inset 0 0 20px var(--border-subtle, rgba(255, 255, 255, 0.02));
 }
 
 .terminal-line {
@@ -302,11 +302,11 @@ onUnmounted(() => {
   font-weight: 400;
   letter-spacing: 0.02em;
   line-height: 1.8;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--text-primary, rgba(255, 255, 255, 0.85));
 }
 
 .terminal-line-past {
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-secondary, rgba(255, 255, 255, 0.5));
 }
 
 .terminal-line-current {
@@ -314,7 +314,7 @@ onUnmounted(() => {
 }
 
 .terminal-line-waiting {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted, rgba(255, 255, 255, 0.4));
 }
 
 .line-prefix {

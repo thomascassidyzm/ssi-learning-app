@@ -1322,10 +1322,10 @@ onUnmounted(() => {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(10, 10, 15, 0.9);
+  border: 1px solid var(--border-primary);
+  background: var(--bg-elevated);
   backdrop-filter: blur(12px);
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text-primary);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1335,8 +1335,8 @@ onUnmounted(() => {
 }
 
 .close-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: white;
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .close-btn:active {
@@ -1354,14 +1354,14 @@ onUnmounted(() => {
   left: 50%;
   transform: translateX(-50%);
   z-index: 20;
-  background: rgba(10, 10, 15, 0.85);
+  background: var(--bg-elevated);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-subtle);
   border-radius: 24px;
   padding: 10px 24px;
   box-shadow:
     0 4px 20px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    inset 0 1px 0 var(--border-subtle);
 }
 
 .brain-title {
@@ -1374,7 +1374,7 @@ onUnmounted(() => {
 }
 
 .brain-title-prefix {
-  color: white;
+  color: var(--text-primary);
 }
 
 .brain-title-language {
@@ -1390,9 +1390,9 @@ onUnmounted(() => {
   z-index: 20;
   display: flex;
   gap: 4px;
-  background: rgba(10, 10, 15, 0.85);
+  background: var(--bg-elevated);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-subtle);
   border-radius: 12px;
   padding: 4px;
 }
@@ -1405,7 +1405,7 @@ onUnmounted(() => {
   background: transparent;
   border: 2px solid transparent;
   border-radius: 8px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-secondary);
   font-size: 0.8125rem;
   font-weight: 500;
   cursor: pointer;
@@ -1418,12 +1418,12 @@ onUnmounted(() => {
 }
 
 .tab-btn:hover:not(.active) {
-  color: rgba(255, 255, 255, 0.75);
-  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+  background: var(--bg-hover);
 }
 
 .tab-btn.active {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--bg-active);
   border-color: currentColor;
 }
 
@@ -1477,9 +1477,9 @@ onUnmounted(() => {
   align-items: center;
   gap: 16px;
   padding: 16px;
-  background: rgba(10, 10, 15, 0.8);
+  background: var(--bg-elevated);
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-subtle);
   border-radius: 12px;
   transition: all 0.2s ease;
 }
@@ -1508,13 +1508,13 @@ onUnmounted(() => {
 }
 
 .belt-name {
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-primary);
   font-size: 1rem;
   font-weight: 600;
 }
 
 .belt-threshold {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
   font-size: 0.75rem;
 }
 
@@ -1532,8 +1532,8 @@ onUnmounted(() => {
 }
 
 .status-badge.current {
-  background: rgba(255, 255, 255, 0.15);
-  color: rgba(255, 255, 255, 0.9);
+  background: var(--bg-active);
+  color: var(--text-primary);
 }
 
 .status-badge.completed {
@@ -1542,8 +1542,8 @@ onUnmounted(() => {
 }
 
 .status-badge.locked {
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.3);
+  background: var(--bg-subtle);
+  color: var(--text-muted);
 }
 
 /* Action buttons container (fit all, download) */
@@ -1561,10 +1561,10 @@ onUnmounted(() => {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(10, 10, 15, 0.8);
+  border: 1px solid var(--border-primary);
+  background: var(--bg-elevated);
   backdrop-filter: blur(10px);
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-secondary);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1573,8 +1573,8 @@ onUnmounted(() => {
 }
 
 .action-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .action-btn:disabled {
@@ -1590,8 +1590,8 @@ onUnmounted(() => {
 .download-spinner {
   width: 16px;
   height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  border-top-color: rgba(255, 255, 255, 0.7);
+  border: 2px solid var(--border-primary);
+  border-top-color: var(--text-secondary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -1609,9 +1609,9 @@ onUnmounted(() => {
 .search-input-wrapper {
   display: flex;
   align-items: center;
-  background: rgba(10, 10, 15, 0.9);
+  background: var(--bg-elevated);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-primary);
   border-radius: 20px;
   padding: 8px 12px;
   transition: all 0.2s ease;
@@ -1619,14 +1619,14 @@ onUnmounted(() => {
 }
 
 .search-container.focused .search-input-wrapper {
-  border-color: rgba(255, 255, 255, 0.25);
-  background: rgba(10, 10, 15, 0.95);
+  border-color: var(--border-secondary);
+  background: var(--bg-elevated);
 }
 
 .search-icon {
   width: 16px;
   height: 16px;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 
@@ -1635,24 +1635,24 @@ onUnmounted(() => {
   background: transparent;
   border: none;
   outline: none;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-primary);
   font-size: 0.875rem;
   padding: 0 8px;
   min-width: 0;
 }
 
 .search-input::placeholder {
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--text-muted);
 }
 
 .search-clear {
   width: 20px;
   height: 20px;
   padding: 0;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--bg-hover);
   border: none;
   border-radius: 50%;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-secondary);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1666,8 +1666,8 @@ onUnmounted(() => {
 }
 
 .search-clear:hover {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
+  background: var(--bg-active);
+  color: var(--text-primary);
 }
 
 .search-results {
@@ -1676,9 +1676,9 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   margin-top: 4px;
-  background: rgba(10, 10, 15, 0.95);
+  background: var(--bg-elevated);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-primary);
   border-radius: 12px;
   overflow: hidden;
   max-height: 300px;
@@ -1690,7 +1690,7 @@ onUnmounted(() => {
   padding: 10px 12px;
   background: transparent;
   border: none;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--border-subtle);
   cursor: pointer;
   text-align: left;
   display: flex;
@@ -1704,17 +1704,17 @@ onUnmounted(() => {
 }
 
 .search-result-item:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--bg-hover);
 }
 
 .result-target {
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-primary);
   font-size: 0.875rem;
   font-weight: 500;
 }
 
 .result-known {
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-muted);
   font-size: 0.75rem;
 }
 
@@ -1725,11 +1725,11 @@ onUnmounted(() => {
   right: 0;
   margin-top: 4px;
   padding: 12px;
-  background: rgba(10, 10, 15, 0.95);
+  background: var(--bg-elevated);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-primary);
   border-radius: 12px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-muted);
   font-size: 0.8125rem;
   text-align: center;
 }
@@ -1740,7 +1740,7 @@ onUnmounted(() => {
   right: 16px;
   z-index: 20;
   padding: 8px 16px;
-  background: rgba(10, 10, 15, 0.9);
+  background: var(--bg-elevated);
   backdrop-filter: blur(10px);
   border: 1px solid;
   border-radius: 20px;
@@ -1758,16 +1758,16 @@ onUnmounted(() => {
 .stats-badge .stat-value {
   font-size: 0.9375rem;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.95);
+  color: var(--text-primary);
 }
 
 .stats-badge .stat-label {
   font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-secondary);
 }
 
 .stats-badge .stat-divider {
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--text-muted);
 }
 
 .loading-state,
@@ -1778,15 +1778,15 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-secondary);
   gap: 1rem;
 }
 
 .loading-spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid rgba(255, 255, 255, 0.1);
-  border-top-color: rgba(255, 255, 255, 0.5);
+  border: 3px solid var(--border-primary);
+  border-top-color: var(--text-secondary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -1797,10 +1797,10 @@ onUnmounted(() => {
 
 .error-state button {
   padding: 8px 16px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: var(--bg-hover);
+  border: 1px solid var(--border-secondary);
   border-radius: 8px;
-  color: white;
+  color: var(--text-primary);
   cursor: pointer;
 }
 
@@ -1811,9 +1811,9 @@ onUnmounted(() => {
   left: 50%;
   transform: translateX(-50%);
   z-index: 20;
-  background: rgba(10, 10, 15, 0.9);
+  background: var(--bg-elevated);
   backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-primary);
   border-radius: 16px;
   padding: 16px 24px;
   min-width: 300px;
@@ -1827,7 +1827,7 @@ onUnmounted(() => {
 }
 
 .stage-label {
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-secondary);
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -1847,7 +1847,7 @@ onUnmounted(() => {
   height: 6px;
   -webkit-appearance: none;
   appearance: none;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--bg-hover);
   border-radius: 3px;
   cursor: pointer;
 }
@@ -1881,18 +1881,18 @@ onUnmounted(() => {
 
 .preset-btn {
   padding: 6px 12px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-primary);
   border-radius: 20px;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-secondary);
   font-size: 0.75rem;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .preset-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .preset-btn:disabled {
@@ -1901,7 +1901,7 @@ onUnmounted(() => {
 }
 
 .preset-btn.active {
-  color: white;
+  color: var(--text-primary);
   font-weight: 600;
 }
 
@@ -1909,24 +1909,24 @@ onUnmounted(() => {
 .testing-toggle {
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid var(--border-primary);
 }
 
 .testing-btn {
   width: 100%;
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px dashed rgba(255, 255, 255, 0.2);
+  background: var(--bg-subtle);
+  border: 1px dashed var(--border-secondary);
   border-radius: 8px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-secondary);
   font-size: 0.75rem;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .testing-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.8);
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .testing-btn.active {
@@ -1942,9 +1942,9 @@ onUnmounted(() => {
   bottom: 0;
   width: 320px;
   max-width: 90vw;
-  background: rgba(10, 10, 15, 0.95);
+  background: var(--bg-elevated);
   backdrop-filter: blur(20px);
-  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  border-left: 1px solid var(--border-primary);
   transform: translateX(100%);
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 30;
@@ -1966,9 +1966,9 @@ onUnmounted(() => {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(10, 10, 15, 0.9);
-  color: rgba(255, 255, 255, 0.8);
+  border: 1px solid var(--border-primary);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
   font-size: 1.5rem;
   cursor: pointer;
   display: flex;
@@ -1978,8 +1978,8 @@ onUnmounted(() => {
 }
 
 .panel-close:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: white;
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .panel-close:active {
@@ -1993,7 +1993,7 @@ onUnmounted(() => {
 .panel-header {
   margin-bottom: 24px;
   padding-bottom: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .panel-phrase {
@@ -2006,11 +2006,11 @@ onUnmounted(() => {
 .phrase-target {
   font-size: 1.5rem;
   font-weight: 600;
-  color: white;
+  color: var(--text-primary);
 }
 
 .phrase-known {
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-secondary);
   font-size: 0.875rem;
 }
 
@@ -2018,8 +2018,8 @@ onUnmounted(() => {
   display: block;
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.4);
+  border-top: 1px solid var(--border-primary);
+  color: var(--text-muted);
   font-size: 0.75rem;
 }
 
@@ -2027,7 +2027,7 @@ onUnmounted(() => {
 .panel-connections {
   margin-top: 16px;
   padding: 12px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-subtle);
   border-radius: 12px;
   display: flex;
   flex-direction: column;
@@ -2044,7 +2044,7 @@ onUnmounted(() => {
   font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
 }
 
 .connection-list {
@@ -2058,22 +2058,22 @@ onUnmounted(() => {
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--bg-hover);
   border-radius: 12px;
   font-size: 0.8125rem;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--text-primary);
   cursor: default;
   transition: background 0.2s ease;
 }
 
 .connection-chip:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--bg-active);
 }
 
 .connection-count {
   font-size: 0.6875rem;
-  color: rgba(255, 255, 255, 0.4);
-  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+  background: var(--bg-hover);
   padding: 1px 5px;
   border-radius: 6px;
 }
@@ -2090,7 +2090,7 @@ onUnmounted(() => {
 }
 
 .phrases-label {
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-secondary);
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -2110,21 +2110,21 @@ onUnmounted(() => {
 .speed-btn {
   padding: 4px 8px;
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid var(--border-primary);
   border-radius: 4px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-secondary);
   font-size: 0.65rem;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .speed-btn:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.8);
+  background: var(--bg-subtle);
+  color: var(--text-primary);
 }
 
 .speed-btn.active {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--bg-hover);
   border-color: currentColor;
 }
 
@@ -2133,17 +2133,17 @@ onUnmounted(() => {
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-secondary);
   border-radius: 20px;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text-primary);
   font-size: 0.75rem;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .practice-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--bg-hover);
 }
 
 .practice-btn svg {
@@ -2159,21 +2159,21 @@ onUnmounted(() => {
 
 .phrase-item {
   padding: 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .phrase-item:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.15);
+  background: var(--bg-hover);
+  border-color: var(--border-primary);
 }
 
 .phrase-item.active {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: var(--bg-hover);
+  border-color: var(--border-secondary);
 }
 
 .phrase-item.playing {
@@ -2183,20 +2183,20 @@ onUnmounted(() => {
 
 .phrase-text {
   display: block;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-primary);
   font-size: 0.9rem;
   margin-bottom: 4px;
 }
 
 .phrase-legos {
   display: block;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
   font-size: 0.7rem;
 }
 
 .no-phrases {
   text-align: center;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
   padding: 24px;
 }
 

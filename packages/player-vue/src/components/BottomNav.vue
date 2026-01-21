@@ -289,13 +289,13 @@ const isVisible = computed(() => !props.isLearning)
   inset: 0;
   background: linear-gradient(
     to top,
-    rgba(10, 10, 15, 0.98) 0%,
-    rgba(10, 10, 15, 0.95) 50%,
-    rgba(10, 10, 15, 0.88) 100%
+    var(--bg-elevated) 0%,
+    var(--bg-elevated) 50%,
+    color-mix(in srgb, var(--bg-elevated) 88%, transparent) 100%
   );
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  border-top: 1px solid var(--border-subtle);
   /* Below control-bar so transport controls are visible */
   z-index: 100;
 }
@@ -311,8 +311,8 @@ const isVisible = computed(() => !props.isLearning)
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(255, 255, 255, 0.08) 20%,
-    rgba(255, 255, 255, 0.08) 80%,
+    var(--border-subtle) 20%,
+    var(--border-subtle) 80%,
     transparent
   );
 }
@@ -375,7 +375,7 @@ const isVisible = computed(() => !props.isLearning)
 .nav-icon {
   width: 22px;
   height: 22px;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--text-muted);
   transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
@@ -397,7 +397,7 @@ const isVisible = computed(() => !props.isLearning)
   height: 22px;
   border-radius: 50%;
   object-fit: cover;
-  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  border: 1.5px solid var(--border-default);
 }
 
 .account-initial {
@@ -405,7 +405,7 @@ const isVisible = computed(() => !props.isLearning)
   height: 22px;
   border-radius: 50%;
   background: linear-gradient(145deg, #c23a3a 0%, #9a2e2e 100%);
-  color: white;
+  color: var(--text-on-accent);
   font-size: 11px;
   font-weight: 600;
   display: flex;
@@ -417,7 +417,7 @@ const isVisible = computed(() => !props.isLearning)
   font-family: 'DM Sans', -apple-system, sans-serif;
   font-size: 10px;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--text-muted);
   transition: all 0.25s ease;
   letter-spacing: 0.01em;
   white-space: nowrap; /* Prevent text wrapping (e.g., "Sign In") */
@@ -430,7 +430,7 @@ const isVisible = computed(() => !props.isLearning)
 }
 
 .nav-item.active .nav-label {
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-primary);
   font-weight: 600;
 }
 
@@ -455,11 +455,11 @@ const isVisible = computed(() => !props.isLearning)
 /* Hover state (desktop) */
 @media (hover: hover) {
   .nav-item:hover:not(.active) .nav-icon {
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--text-secondary);
   }
 
   .nav-item:hover:not(.active) .nav-label {
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--text-secondary);
   }
 }
 
@@ -488,7 +488,7 @@ const isVisible = computed(() => !props.isLearning)
   box-shadow:
     0 4px 16px rgba(194, 58, 58, 0.45),
     0 8px 24px rgba(194, 58, 58, 0.25),
-    inset 0 1px 1px rgba(255, 255, 255, 0.25),
+    inset 0 1px 1px var(--highlight-inset),
     inset 0 -1px 1px rgba(0, 0, 0, 0.15);
   -webkit-tap-highlight-color: transparent;
 }
@@ -499,7 +499,7 @@ const isVisible = computed(() => !props.isLearning)
   box-shadow:
     0 2px 8px rgba(194, 58, 58, 0.5),
     0 4px 12px rgba(194, 58, 58, 0.3),
-    inset 0 1px 1px rgba(255, 255, 255, 0.25),
+    inset 0 1px 1px var(--highlight-inset),
     inset 0 -1px 1px rgba(0, 0, 0, 0.15);
 }
 
@@ -529,7 +529,7 @@ const isVisible = computed(() => !props.isLearning)
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--text-on-accent);
 }
 
 .play-button-inner svg {
@@ -546,11 +546,11 @@ const isVisible = computed(() => !props.isLearning)
 
 /* Disabled state - when listening overlay is open */
 .play-button.is-disabled {
-  background: linear-gradient(145deg, #3a3a3a 0%, #2a2a2a 100%);
+  background: linear-gradient(145deg, var(--bg-interactive-disabled) 0%, var(--bg-interactive-disabled) 100%);
   box-shadow:
     0 2px 8px rgba(0, 0, 0, 0.3),
     0 4px 12px rgba(0, 0, 0, 0.2),
-    inset 0 1px 1px rgba(255, 255, 255, 0.1),
+    inset 0 1px 1px var(--border-subtle),
     inset 0 -1px 1px rgba(0, 0, 0, 0.1);
   cursor: not-allowed;
   opacity: 0.7;
@@ -562,7 +562,7 @@ const isVisible = computed(() => !props.isLearning)
 }
 
 .play-button.is-disabled .play-button-inner {
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-secondary);
 }
 
 .play-button.is-disabled .play-button-inner svg {
@@ -573,7 +573,7 @@ const isVisible = computed(() => !props.isLearning)
   font-family: 'DM Sans', -apple-system, sans-serif;
   font-size: 10px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-secondary);
   margin-top: 6px;
   letter-spacing: 0.02em;
 }

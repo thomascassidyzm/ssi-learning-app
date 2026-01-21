@@ -1122,10 +1122,10 @@ const confirmReset = async () => {
   left: 3px;
   width: 20px;
   height: 20px;
-  background: white;
+  background: var(--bg-primary);
   border-radius: 50%;
   transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-sm);
 }
 
 .toggle-switch.is-on .toggle-thumb {
@@ -1164,7 +1164,7 @@ const confirmReset = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.7);
+  background: var(--overlay-bg);
   backdrop-filter: blur(8px);
   padding: 1.5rem;
 }
@@ -1249,7 +1249,7 @@ const confirmReset = async () => {
 
 .reset-btn--confirm {
   background: #ef4444;
-  color: white;
+  color: var(--text-on-accent);
 }
 
 .reset-btn--confirm:hover:not(:disabled) {
@@ -1340,7 +1340,7 @@ const confirmReset = async () => {
   transition: all 0.2s ease;
   border: none;
   background: var(--accent);
-  color: white;
+  color: var(--text-on-accent);
 }
 
 .download-btn:hover:not(:disabled) {

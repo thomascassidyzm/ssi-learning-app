@@ -778,8 +778,8 @@ defineExpose({
 .loading-spinner {
   width: 48px;
   height: 48px;
-  border: 3px solid rgba(255, 255, 255, 0.1);
-  border-top-color: rgba(255, 255, 255, 0.6);
+  border: 3px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+  border-top-color: var(--text-secondary, rgba(255, 255, 255, 0.6));
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -790,7 +790,7 @@ defineExpose({
 
 .loading-overlay p,
 .error-overlay p {
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-secondary, rgba(255, 255, 255, 0.6));
   font-size: 0.875rem;
 }
 
@@ -802,18 +802,18 @@ defineExpose({
 
 .retry-btn {
   padding: 8px 20px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: var(--bg-interactive, rgba(255, 255, 255, 0.1));
+  border: 1px solid var(--border-hover, rgba(255, 255, 255, 0.2));
   border-radius: 8px;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text-primary, rgba(255, 255, 255, 0.8));
   font-size: 0.875rem;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .retry-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: white;
+  background: var(--bg-interactive-hover, rgba(255, 255, 255, 0.15));
+  color: var(--text-primary, white);
 }
 
 /* ============================================
@@ -834,10 +834,10 @@ defineExpose({
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(10, 10, 15, 0.85);
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.15));
+  background: var(--bg-overlay, rgba(10, 10, 15, 0.85));
   backdrop-filter: blur(12px);
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -847,8 +847,8 @@ defineExpose({
 }
 
 .control-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
+  background: var(--bg-interactive-hover, rgba(255, 255, 255, 0.1));
+  color: var(--text-primary, white);
 }
 
 .control-btn:active {
@@ -856,7 +856,7 @@ defineExpose({
 }
 
 .control-btn.active {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--bg-interactive, rgba(255, 255, 255, 0.08));
 }
 
 .control-btn svg {
@@ -872,9 +872,9 @@ defineExpose({
   position: absolute;
   z-index: 100;
   padding: 10px 14px;
-  background: rgba(10, 10, 15, 0.95);
+  background: var(--bg-overlay, rgba(10, 10, 15, 0.95));
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.15));
   border-radius: 10px;
   pointer-events: none;
   max-width: 200px;
@@ -883,7 +883,7 @@ defineExpose({
 
 .tooltip-target {
   display: block;
-  color: rgba(255, 255, 255, 0.95);
+  color: var(--text-primary, rgba(255, 255, 255, 0.95));
   font-size: 0.9375rem;
   font-weight: 600;
   margin-bottom: 2px;
@@ -891,7 +891,7 @@ defineExpose({
 
 .tooltip-known {
   display: block;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-secondary, rgba(255, 255, 255, 0.5));
   font-size: 0.8125rem;
 }
 

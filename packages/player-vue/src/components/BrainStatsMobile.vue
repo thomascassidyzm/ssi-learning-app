@@ -158,7 +158,7 @@ const handleWordTap = (word: TopWord) => {
           <div class="progress-label" v-if="nextBeltInfo">
             <span class="seeds-count">{{ seedsToNextBelt }}</span>
             <span class="seeds-text">seeds to</span>
-            <span class="next-belt-name" :style="{ color: beltColors[nextBeltInfo.name]?.primary || '#fff' }">
+            <span class="next-belt-name" :style="{ color: beltColors[nextBeltInfo.name]?.primary || 'var(--text-primary)' }">
               {{ nextBeltInfo.name }}
             </span>
             <span class="seeds-text">belt</span>
@@ -225,7 +225,7 @@ const handleWordTap = (word: TopWord) => {
                 class="bar"
                 :style="{
                   height: `${getBarHeight(value)}%`,
-                  backgroundColor: value > 0 ? beltColor.primary : 'rgba(255,255,255,0.1)',
+                  backgroundColor: value > 0 ? beltColor.primary : 'var(--bg-elevated)',
                   boxShadow: value > 0 ? `0 0 8px ${beltColor.glow}` : 'none'
                 }"
               ></div>
@@ -264,7 +264,7 @@ const handleWordTap = (word: TopWord) => {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  background: #0a0a0f;
+  background: var(--bg-primary);
   font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   position: relative;
   overflow-y: auto;
@@ -276,8 +276,8 @@ const handleWordTap = (word: TopWord) => {
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(ellipse 100% 60% at 50% 0%, var(--accent-glow, rgba(255,255,255,0.1)) 0%, transparent 60%),
-    linear-gradient(to bottom, #0f0f18 0%, #0a0a0f 100%);
+    radial-gradient(ellipse 100% 60% at 50% 0%, var(--accent-glow, var(--border-subtle)) 0%, transparent 60%),
+    linear-gradient(to bottom, var(--bg-secondary) 0%, var(--bg-primary) 100%);
   pointer-events: none;
   z-index: 0;
 }
@@ -306,10 +306,10 @@ const handleWordTap = (word: TopWord) => {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(10, 10, 15, 0.8);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-overlay);
   backdrop-filter: blur(12px);
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -319,8 +319,8 @@ const handleWordTap = (word: TopWord) => {
 }
 
 .back-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
 }
 
 .back-btn:active {
@@ -335,7 +335,7 @@ const handleWordTap = (word: TopWord) => {
 .title {
   font-size: 1.25rem;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.95);
+  color: var(--text-primary);
   margin: 0;
   letter-spacing: -0.01em;
 }
@@ -358,8 +358,8 @@ const handleWordTap = (word: TopWord) => {
 
 /* Belt Section */
 .belt-section {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
   border-radius: 20px;
   padding: 1.5rem;
 }
@@ -375,7 +375,7 @@ const handleWordTap = (word: TopWord) => {
   width: 56px;
   height: 56px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-elevated);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -397,7 +397,7 @@ const handleWordTap = (word: TopWord) => {
 
 .belt-label {
   font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -416,7 +416,7 @@ const handleWordTap = (word: TopWord) => {
 
 .progress-track {
   height: 8px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--bg-elevated);
   border-radius: 4px;
   overflow: hidden;
 }
@@ -443,7 +443,7 @@ const handleWordTap = (word: TopWord) => {
 
 .seeds-text {
   font-size: 0.875rem;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-secondary);
 }
 
 .next-belt-name {
@@ -466,8 +466,8 @@ const handleWordTap = (word: TopWord) => {
 }
 
 .stat-card {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
   border-radius: 16px;
   padding: 1.25rem;
   position: relative;
@@ -477,11 +477,7 @@ const handleWordTap = (word: TopWord) => {
 .stat-card.hero {
   padding: 2rem 1.5rem;
   text-align: center;
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.05) 0%,
-    rgba(255, 255, 255, 0.02) 100%
-  );
+  background: var(--bg-card-gradient);
 }
 
 .stat-value-large {
@@ -496,7 +492,7 @@ const handleWordTap = (word: TopWord) => {
 
 .stat-card.hero .stat-label {
   font-size: 1rem;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-secondary);
 }
 
 .stat-icon-bg {
@@ -506,7 +502,8 @@ const handleWordTap = (word: TopWord) => {
   transform: translateY(-50%);
   width: 80px;
   height: 80px;
-  color: rgba(255, 255, 255, 0.03);
+  color: var(--text-muted);
+  opacity: 0.3;
 }
 
 .stat-icon-bg svg {
@@ -524,13 +521,13 @@ const handleWordTap = (word: TopWord) => {
   font-family: 'Space Mono', monospace;
   font-size: 1.75rem;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.95);
+  color: var(--text-primary);
   margin-bottom: 0.25rem;
 }
 
 .stat-label {
   font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -543,8 +540,8 @@ const handleWordTap = (word: TopWord) => {
 }
 
 .streak-card {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
   border-radius: 16px;
   padding: 1.25rem;
   display: flex;
@@ -577,27 +574,27 @@ const handleWordTap = (word: TopWord) => {
   font-family: 'Space Mono', monospace;
   font-size: 2rem;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.95);
+  color: var(--text-primary);
   line-height: 1;
 }
 
 .streak-label {
   font-size: 0.6875rem;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
 .week-chart {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
   border-radius: 16px;
   padding: 1rem 1.25rem;
 }
 
 .chart-title {
   font-size: 0.6875rem;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: 0.75rem;
@@ -629,14 +626,14 @@ const handleWordTap = (word: TopWord) => {
 
 .bar-label {
   font-size: 0.625rem;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
   font-weight: 500;
 }
 
 /* Words Section */
 .words-section {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
   border-radius: 16px;
   padding: 1.25rem;
 }
@@ -644,7 +641,7 @@ const handleWordTap = (word: TopWord) => {
 .section-title {
   font-size: 0.875rem;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-primary);
   margin: 0 0 1rem 0;
 }
 
@@ -659,8 +656,8 @@ const handleWordTap = (word: TopWord) => {
   align-items: center;
   gap: 6px;
   padding: 8px 14px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
   border-radius: 20px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -680,14 +677,14 @@ const handleWordTap = (word: TopWord) => {
 
 .word-text {
   font-size: 0.875rem;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-primary);
   font-weight: 500;
 }
 
 .word-count {
   font-size: 0.6875rem;
-  color: rgba(255, 255, 255, 0.4);
-  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  background: var(--bg-elevated);
   padding: 2px 6px;
   border-radius: 8px;
 }
@@ -695,7 +692,7 @@ const handleWordTap = (word: TopWord) => {
 .words-hint {
   margin: 0.75rem 0 0 0;
   font-size: 0.6875rem;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--text-muted);
   text-align: center;
 }
 

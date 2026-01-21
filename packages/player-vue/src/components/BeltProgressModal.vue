@@ -262,16 +262,16 @@ onUnmounted(() => {
   position: relative;
   width: 100%;
   max-width: 380px;
-  background: linear-gradient(
+  background: var(--bg-elevated, linear-gradient(
     145deg,
     rgba(30, 30, 35, 0.95) 0%,
     rgba(20, 20, 25, 0.98) 100%
-  );
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  ));
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.1));
   border-radius: 24px;
   overflow: hidden;
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 0 0 1px var(--border-subtle, rgba(255, 255, 255, 0.05)),
     0 25px 80px rgba(0, 0, 0, 0.5),
     0 0 60px var(--belt-glow, rgba(194, 58, 58, 0.15));
 }
@@ -282,7 +282,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
 }
 
 .modal-title {
@@ -297,8 +297,8 @@ onUnmounted(() => {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-interactive, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.1));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -314,8 +314,8 @@ onUnmounted(() => {
 }
 
 .modal-close:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: var(--bg-interactive-hover, rgba(255, 255, 255, 0.1));
+  border-color: var(--border-hover, rgba(255, 255, 255, 0.2));
 }
 
 .modal-close:hover svg {
@@ -384,7 +384,7 @@ onUnmounted(() => {
 .progress-bar-bg {
   width: 100%;
   height: 8px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--bg-interactive, rgba(255, 255, 255, 0.1));
   border-radius: 4px;
   overflow: hidden;
 }
@@ -433,15 +433,15 @@ onUnmounted(() => {
   align-items: center;
   gap: 0.25rem;
   padding: 0.5rem 0.25rem;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-card, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.1));
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .belt-chip:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--bg-interactive-hover, rgba(255, 255, 255, 0.08));
   border-color: var(--chip-color);
   box-shadow: 0 0 12px var(--chip-glow);
   transform: translateY(-1px);
@@ -452,7 +452,7 @@ onUnmounted(() => {
 }
 
 .belt-chip--current {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--bg-interactive-hover, rgba(255, 255, 255, 0.08));
   border-color: var(--chip-color);
   box-shadow: 0 0 8px var(--chip-glow);
 }
@@ -501,8 +501,8 @@ onUnmounted(() => {
   justify-content: center;
   gap: 0.5rem;
   padding: 0.75rem 1rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-interactive, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
   border-radius: 12px;
   font-size: 0.9375rem;
   color: var(--text-secondary, #b0b0b0);
@@ -532,7 +532,7 @@ onUnmounted(() => {
   font-family: 'DM Sans', sans-serif;
   font-size: 1rem;
   font-weight: 600;
-  color: white;
+  color: var(--text-on-accent, white);
   cursor: pointer;
   transition: all 0.2s ease;
   box-shadow: 0 4px 20px var(--belt-glow);

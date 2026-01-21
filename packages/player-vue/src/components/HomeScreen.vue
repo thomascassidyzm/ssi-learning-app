@@ -517,7 +517,7 @@ const formattedTotalTime = computed(() => {
   font-family: 'DM Sans', -apple-system, sans-serif;
   font-size: 0.625rem;
   font-weight: 700;
-  color: white;
+  color: var(--text-inverse);
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
