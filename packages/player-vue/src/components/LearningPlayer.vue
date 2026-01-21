@@ -4673,10 +4673,11 @@ onMounted(async () => {
             )
 
             if (allRounds.length > 0) {
-              // Pass current round index so we reveal nodes up to current playback position
-              // Pass dbNetworkNodes so all LEGOs in connections have corresponding nodes
-              initializeFullNetwork(allRounds, networkConnections.value, currentRoundIndex.value, dbNetworkNodes.value)
-              console.log(`[LearningPlayer] Full network ready: ${allRounds.length} nodes, revealed up to round ${currentRoundIndex.value}`)
+              // Reveal nodes up to learner's TOTAL progress (completedSeeds), not just current session
+              // This ensures previously learned LEGOs are visible so new ones can connect to them
+              const revealUpTo = Math.max(completedSeeds.value, currentRoundIndex.value)
+              initializeFullNetwork(allRounds, networkConnections.value, revealUpTo, dbNetworkNodes.value)
+              console.log(`[LearningPlayer] Full network ready: ${allRounds.length} nodes, revealed up to ${revealUpTo} (completedSeeds: ${completedSeeds.value}, currentRound: ${currentRoundIndex.value})`)
             }
           } catch (err) {
             console.warn('[LearningPlayer] Failed to load full network:', err)
@@ -4872,10 +4873,11 @@ onMounted(async () => {
             )
 
             if (allRounds.length > 0) {
-              // Pass current round index so we reveal nodes up to current playback position
-              // Pass dbNetworkNodes so all LEGOs in connections have corresponding nodes
-              initializeFullNetwork(allRounds, networkConnections.value, currentRoundIndex.value, dbNetworkNodes.value)
-              console.log(`[LearningPlayer] Fresh gen: Full network ready: ${allRounds.length} nodes, revealed up to round ${currentRoundIndex.value}`)
+              // Reveal nodes up to learner's TOTAL progress (completedSeeds), not just current session
+              // This ensures previously learned LEGOs are visible so new ones can connect to them
+              const revealUpTo = Math.max(completedSeeds.value, currentRoundIndex.value)
+              initializeFullNetwork(allRounds, networkConnections.value, revealUpTo, dbNetworkNodes.value)
+              console.log(`[LearningPlayer] Fresh gen: Full network ready: ${allRounds.length} nodes, revealed up to ${revealUpTo} (completedSeeds: ${completedSeeds.value}, currentRound: ${currentRoundIndex.value})`)
             }
           } catch (err) {
             console.warn('[LearningPlayer] Fresh gen: Failed to load full network:', err)
