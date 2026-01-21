@@ -1434,8 +1434,6 @@ const confirmReset = async () => {
 /* Tablet and Desktop (768px+) */
 @media (min-width: 768px) {
   .main {
-    max-width: 600px;
-    margin: 0 auto;
     padding: 1rem 2rem 2rem;
   }
 
