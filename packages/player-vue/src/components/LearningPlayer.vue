@@ -6498,13 +6498,16 @@ defineExpose({
   justify-content: center;
   gap: clamp(0.5rem, 2vw, 0.75rem);
   width: 100%;
+  max-width: 420px; /* Cap width for desktop - keeps phone-like proportions */
+  margin: 0 auto;
   margin-top: clamp(0.5rem, 1.5vh, 1rem); /* Space between logo and belt/timer */
+  padding: 0 1rem;
 }
 
 /* Belt header skip buttons - circular with belt color border */
 .belt-header-skip {
-  width: clamp(32px, 8vw, 40px);
-  height: clamp(32px, 8vw, 40px);
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   border: 2px solid var(--skip-belt-color, var(--text-muted));
   background: rgba(255, 255, 255, 0.04);
@@ -6518,8 +6521,8 @@ defineExpose({
 }
 
 .belt-header-skip svg {
-  width: clamp(14px, 3.5vw, 18px);
-  height: clamp(14px, 3.5vw, 18px);
+  width: 16px;
+  height: 16px;
 }
 
 .belt-header-skip:hover:not(:disabled) {
@@ -6546,19 +6549,17 @@ defineExpose({
 .belt-timer-unified {
   display: flex;
   align-items: center;
-  gap: clamp(0.75rem, 3vw, 1.25rem);
-  padding: clamp(0.5rem, 1.5vw, 0.75rem) clamp(1rem, 3vw, 1.5rem);
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
   background: var(--bg-card);
   /* Belt-colored subtle border accent */
   border: 1px solid color-mix(in srgb, var(--belt-color) 35%, var(--border-subtle));
-  border-radius: clamp(12px, 3vw, 20px);
+  border-radius: 16px;
   cursor: pointer;
   transition: all 0.2s ease;
   /* Subtle belt glow */
   box-shadow: 0 0 15px color-mix(in srgb, var(--belt-glow) 12%, transparent);
-  /* Narrower to fit skip buttons on either side */
-  width: clamp(180px, 60vw, 380px);
-  max-width: calc(100vw - 6rem);
+  /* Fill available space between skip buttons */
   flex: 1;
   min-width: 0;
 }
@@ -7233,8 +7234,9 @@ defineExpose({
   flex-direction: column;
   align-items: center;
   gap: var(--space-md);
-  /* Responsive max-width using clamp */
-  max-width: clamp(300px, 92vw, 720px);
+  /* Cap width for desktop - keeps phone-like proportions */
+  width: calc(100% - 2rem);
+  max-width: 420px;
   transition: opacity 0.4s ease, transform 0.4s ease;
 }
 
@@ -7252,7 +7254,7 @@ defineExpose({
   /* Responsive padding using spacing scale */
   padding: var(--space-md) var(--space-lg) var(--space-md);
   /* Responsive border-radius */
-  border-radius: clamp(16px, 3vmin, 32px);
+  border-radius: clamp(16px, 3vmin, 24px);
   background: rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -7260,9 +7262,8 @@ defineExpose({
   box-shadow:
     0 2px 16px rgba(0, 0, 0, 0.3),
     0 0 0 1px var(--belt-glow, rgba(194, 58, 58, 0.08));
-  /* Responsive width using clamp - no media queries needed */
-  min-width: clamp(280px, 85vw, 420px);
-  max-width: clamp(320px, 90vw, 640px);
+  /* Fill parent width - parent handles max-width */
+  width: 100%;
 }
 
 /* Glass pane is hidden during intro - this rule kept for any edge cases */
