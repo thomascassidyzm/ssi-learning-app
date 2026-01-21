@@ -37,24 +37,26 @@ export interface EdgeColors {
 }
 
 export interface EdgeRenderOptions {
-  /** Base opacity for normal edges (default: 0.7) */
+  /** Base opacity for normal edges (default: 0.3) */
   baseOpacity?: number
-  /** Maximum opacity for strong connections (default: 1.0) */
+  /** Maximum opacity for strong connections (default: 0.5) */
   maxOpacity?: number
-  /** Base tube radius (default: 3) */
+  /** Base tube radius (default: 0.8) */
   baseWidth?: number
-  /** Maximum tube radius for strong connections (default: 8) */
+  /** Maximum tube radius for strong connections (default: 1.5) */
   maxWidth?: number
-  /** Opacity for highlighted edges (default: 1.0) */
+  /** Opacity for highlighted edges (default: 0.8) */
   highlightOpacity?: number
   /** Opacity for glow path edges (default: 1.0) */
   glowOpacity?: number
-  /** Curve segments for smoothness (default: 20) */
+  /** Curve segments for smoothness (default: 16) */
   curveSegments?: number
-  /** Tube radial segments (default: 6) */
+  /** Tube radial segments (default: 4) */
   tubeSegments?: number
-  /** Curve bend amount (default: 0.3) - how much curves deviate from straight */
+  /** Curve bend amount (default: 0.15) */
   curveBend?: number
+  /** Low-power mode for mobile - reduces glow layers and segments */
+  lowPowerMode?: boolean
 }
 
 interface EdgeMeshData {
@@ -80,6 +82,7 @@ const DEFAULT_OPTIONS: Required<EdgeRenderOptions> = {
   curveSegments: 16,     // Smooth enough curves
   tubeSegments: 4,       // Minimal for thin lines
   curveBend: 0.15,       // Subtle curve deviation
+  lowPowerMode: false,   // Auto-detected based on device
 }
 
 const DEFAULT_COLORS: EdgeColors = {
@@ -228,7 +231,25 @@ function createTubeMesh(
 // ============================================================================
 
 export function useBrainEdges(options: EdgeRenderOptions = {}) {
-  const opts: Required<EdgeRenderOptions> = { ...DEFAULT_OPTIONS, ...options }
+  // Auto-detect low power mode if not specified
+  const autoLowPower = typeof window !== 'undefined' && (
+    window.innerWidth < 768 ||
+    ('ontouchstart' in window && window.innerWidth < 1024) ||
+    navigator.hardwareConcurrency <= 4
+  )
+
+  const opts: Required<EdgeRenderOptions> = {
+    ...DEFAULT_OPTIONS,
+    ...options,
+    lowPowerMode: options.lowPowerMode ?? autoLowPower
+  }
+
+  // Reduce complexity on low-power devices
+  if (opts.lowPowerMode) {
+    opts.curveSegments = Math.min(opts.curveSegments, 8)
+    opts.tubeSegments = Math.min(opts.tubeSegments, 3)
+  }
+
   const colors: EdgeColors = { ...DEFAULT_COLORS }
 
   // ============================================================================
@@ -309,39 +330,45 @@ export function useBrainEdges(options: EdgeRenderOptions = {}) {
       )
       coreMesh.name = `edge-core-${edge.id}`
 
-      // Inner glow - slightly larger, more transparent
-      const glowMesh = createTubeMesh(
-        curve,
-        radius * 1.8,
-        color,
-        opacity * 0.4,
-        opts.curveSegments,
-        opts.tubeSegments
-      )
-      glowMesh.name = `edge-glow-${edge.id}`
+      // Inner glow - slightly larger, more transparent (skip on low power)
+      let glowMesh: THREE.Mesh | null = null
+      if (!opts.lowPowerMode) {
+        glowMesh = createTubeMesh(
+          curve,
+          radius * 1.8,
+          color,
+          opacity * 0.4,
+          opts.curveSegments,
+          opts.tubeSegments
+        )
+        glowMesh.name = `edge-glow-${edge.id}`
+      }
 
-      // Outer glow - even larger, very soft
-      const outerGlowMesh = createTubeMesh(
-        curve,
-        radius * 3.0,
-        color,
-        opacity * 0.15,
-        opts.curveSegments,
-        opts.tubeSegments
-      )
-      outerGlowMesh.name = `edge-outer-glow-${edge.id}`
+      // Outer glow - even larger, very soft (skip on low power)
+      let outerGlowMesh: THREE.Mesh | null = null
+      if (!opts.lowPowerMode) {
+        outerGlowMesh = createTubeMesh(
+          curve,
+          radius * 3.0,
+          color,
+          opacity * 0.15,
+          opts.curveSegments,
+          opts.tubeSegments
+        )
+        outerGlowMesh.name = `edge-outer-glow-${edge.id}`
+      }
 
       // Add to group (outer first so it renders behind)
-      group.add(outerGlowMesh)
-      group.add(glowMesh)
+      if (outerGlowMesh) group.add(outerGlowMesh)
+      if (glowMesh) group.add(glowMesh)
       group.add(coreMesh)
 
       // Store mesh data for updates
       edgeMeshMap.value.set(edge.id, {
         edge,
         coreMesh,
-        glowMesh,
-        outerGlowMesh,
+        glowMesh: glowMesh || coreMesh,  // Fallback to core if no glow
+        outerGlowMesh: outerGlowMesh || coreMesh,  // Fallback to core if no outer glow
         sourcePos: sourcePos.clone(),
         targetPos: targetPos.clone()
       })

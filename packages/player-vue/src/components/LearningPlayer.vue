@@ -1542,21 +1542,36 @@ const showTargetText = computed(() =>
   currentPhase.value === Phase.VOICE_2 && !isTransitioningItem.value
 )
 
-// Stable known text - only updates when not transitioning (prevents flash on item change)
+// Stable known text - updates when not transitioning (prevents flash) OR when phrase changes
 const displayedKnownText = ref('')
+const lastKnownPhrase = ref('') // Track what phrase we've displayed
 watch([() => isTransitioningItem.value, () => currentPhrase.value.known], ([transitioning, newKnown]) => {
-  // Only update when NOT transitioning
-  if (!transitioning) {
+  // CRITICAL FIX: Always update if the underlying phrase changed (item transitioned)
+  // This prevents showing old known text while new audio plays
+  const phraseChanged = newKnown !== lastKnownPhrase.value
+
+  // Update when NOT transitioning, OR when phrase changed (MUST update regardless of transition state)
+  if (!transitioning || phraseChanged) {
     displayedKnownText.value = newKnown
+    lastKnownPhrase.value = newKnown
   }
 }, { immediate: true })
 
-// Stable target text - only updates when text is NOT showing (prevents flash on phrase change)
+// Stable target text - updates when hidden (prevents flash) OR when underlying phrase changes
 const displayedTargetText = ref('')
+const lastTargetPhrase = ref('') // Track what phrase we've displayed
 watch([showTargetText, () => currentPhrase.value.target], ([showing, newTarget]) => {
-  // Only update displayed text when it's hidden OR when first showing
-  if (!showing || !displayedTargetText.value) {
+  // CRITICAL FIX: Always update if the underlying phrase changed (item transitioned)
+  // This prevents showing old target text while new audio plays
+  const phraseChanged = newTarget !== lastTargetPhrase.value
+
+  // Update displayed text when:
+  // 1. Text is hidden (safe to change without flash)
+  // 2. OR when first showing (text was empty)
+  // 3. OR when the underlying phrase changed (item transitioned, MUST update)
+  if (!showing || !displayedTargetText.value || phraseChanged) {
     displayedTargetText.value = newTarget
+    lastTargetPhrase.value = newTarget
   }
 }, { immediate: true })
 
@@ -2164,10 +2179,20 @@ const handleCycleEvent = (event) => {
           if (nextScriptItem.type === 'intro') {
               console.log('[LearningPlayer] Playing INTRO item for:', nextScriptItem.legoId)
               const introPlayable = await scriptItemToPlayableItem(nextScriptItem)
+              // CRITICAL: Check generation after async - user may have skipped during conversion
+              if (playbackGeneration.value !== generationAtStart) {
+                console.log('[LearningPlayer] Stale after introPlayable conversion, aborting')
+                return
+              }
               if (introPlayable) {
                 currentPlayableItem.value = introPlayable
                 // Play intro audio and wait for completion
                 const introPlayed = await playIntroductionAudioDirectly(nextScriptItem)
+                // CRITICAL: Check generation after async intro audio
+                if (playbackGeneration.value !== generationAtStart) {
+                  console.log('[LearningPlayer] Stale after intro audio, aborting')
+                  return
+                }
                 if (introPlayed) {
                   console.log('[LearningPlayer] INTRO complete, advancing to next item')
                 }
@@ -2177,6 +2202,11 @@ const handleCycleEvent = (event) => {
                 const followingItem = currentRound.value?.items[currentItemInRound.value]
                 if (followingItem && isPlaying.value) {
                   const followingPlayable = await scriptItemToPlayableItem(followingItem)
+                  // CRITICAL: Check generation after async conversion
+                  if (playbackGeneration.value !== generationAtStart) {
+                    console.log('[LearningPlayer] Stale after followingPlayable conversion, aborting')
+                    return
+                  }
                   if (followingPlayable) {
                     currentPlayableItem.value = followingPlayable
                     if (followingPlayable.audioDurations) {
@@ -2191,6 +2221,11 @@ const handleCycleEvent = (event) => {
             }
 
             const nextPlayable = await scriptItemToPlayableItem(nextScriptItem)
+            // CRITICAL: Check generation after async - user may have skipped during conversion
+            if (playbackGeneration.value !== generationAtStart) {
+              console.log('[LearningPlayer] Stale after nextPlayable conversion, aborting')
+              return
+            }
             if (nextPlayable) {
               // Update pause duration: 1.5s boot up + target1 duration
               if (nextPlayable.audioDurations) {

@@ -140,6 +140,10 @@ export function useBrainScene(config: BrainSceneConfig = {}): BrainSceneReturn {
     const height = container.clientHeight
     const aspect = width / height
 
+    // Detect mobile for performance optimizations
+    const isMobile = width < 768 || ('ontouchstart' in window && width < 1024)
+    const isLowPower = isMobile || navigator.hardwareConcurrency <= 4
+
     // ========== SCENE ==========
     const newScene = new THREE.Scene()
 
@@ -166,23 +170,29 @@ export function useBrainScene(config: BrainSceneConfig = {}): BrainSceneReturn {
 
     // ========== RENDERER ==========
     const newRenderer = new THREE.WebGLRenderer({
-      antialias: cfg.antialias,
+      antialias: !isLowPower && cfg.antialias,  // Disable antialiasing on mobile/low-power
       alpha: cfg.backgroundColor === 'transparent',
-      powerPreference: 'high-performance',
+      powerPreference: isLowPower ? 'low-power' : 'high-performance',
     })
 
-    // Handle devicePixelRatio for crisp rendering on retina displays
-    const pixelRatio = Math.min(window.devicePixelRatio, 2) // Cap at 2x for performance
+    // Handle devicePixelRatio - lower cap on mobile for performance
+    const maxPixelRatio = isLowPower ? 1.5 : 2
+    const pixelRatio = Math.min(window.devicePixelRatio, maxPixelRatio)
     newRenderer.setPixelRatio(pixelRatio)
     newRenderer.setSize(width, height)
 
-    // Enable shadows for depth (optional, can be toggled for performance)
-    newRenderer.shadowMap.enabled = false // Disabled by default for performance
-    newRenderer.shadowMap.type = THREE.PCFSoftShadowMap
+    // Shadows disabled for performance
+    newRenderer.shadowMap.enabled = false
 
     // Tone mapping for better visual quality
     newRenderer.toneMapping = THREE.ACESFilmicToneMapping
     newRenderer.toneMappingExposure = 1.0
+
+    console.log('[useBrainScene] Initialized', {
+      width, height, pixelRatio,
+      isMobile, isLowPower,
+      antialias: !isLowPower && cfg.antialias
+    })
 
     // Append canvas to container
     container.appendChild(newRenderer.domElement)
@@ -247,13 +257,6 @@ export function useBrainScene(config: BrainSceneConfig = {}): BrainSceneReturn {
     // by the parent component when needed (e.g., via ResizeObserver)
 
     isInitialized.value = true
-
-    console.log('[useBrainScene] Initialized', {
-      width,
-      height,
-      pixelRatio,
-      autoRotate: isAutoRotating.value,
-    })
   }
 
   /**

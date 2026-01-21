@@ -1066,10 +1066,10 @@ onUnmounted(() => {
       </div>
 
       <!-- ========================================== -->
-      <!-- DESKTOP: 3D Brain Visualization -->
+      <!-- 3D Brain Visualization (all devices) -->
       <!-- ========================================== -->
       <Brain3DView
-        v-else-if="isDesktop"
+        v-else
         ref="brain3DRef"
         :nodes="prebuiltNetwork.nodes.value"
         :edges="prebuiltNetwork.visibleEdges.value"
@@ -1079,44 +1079,7 @@ onUnmounted(() => {
         @node-tap="handleNodeTap"
       />
 
-      <!-- ========================================== -->
-      <!-- MOBILE: Stats Dashboard -->
-      <!-- ========================================== -->
-      <BrainStatsMobile
-        v-else-if="!isDesktop"
-        :belt-level="beltLevel"
-        :belt-progress="beltProgressRatio"
-        :seeds-to-next-belt="seedsToNextBelt"
-        :words-learned="globalStats.concepts"
-        :phrases-practiced="globalStats.phrases"
-        :total-minutes="totalMinutes"
-        :current-streak="currentStreak"
-        :week-activity="weekActivity"
-        @close="emit('close')"
-      />
-
-      <!-- ========================================== -->
-      <!-- FALLBACK: Canvas Network View (current implementation) -->
-      <!-- TODO: Remove this fallback once Brain3DView and BrainStatsMobile are ready -->
-      <!-- ========================================== -->
-      <!-- Network visualization - fixed view, only revealed nodes shown -->
-      <!-- Network is constrained within a "growing brain" shape based on belt level -->
-      <!-- Uses Canvas+SVG hybrid for smooth performance with large networks -->
-      <CanvasNetworkView
-        v-else
-        ref="networkRef"
-        :nodes="prebuiltNetwork.nodes.value"
-        :edges="prebuiltNetwork.visibleEdges.value"
-        :hero-node-id="null"
-        :revealed-node-ids="showAllForTesting ? null : prebuiltNetwork.revealedNodeIds.value"
-        :current-path="prebuiltNetwork.currentPath.value"
-        :show-path-labels="true"
-        :brain-boundary-svg-path="prebuiltNetwork.brainBoundarySvgPath.value"
-        :brain-boundary-color="accentColor"
-        :disable-interaction="true"
-        :hide-unrevealed-nodes="!showAllForTesting"
-        @node-tap="handleNodeTap"
-      />
+      <!-- CanvasNetworkView fallback removed - Brain3DView now handles all devices -->
 
       <!-- Stage slider panel (admin only) -->
       <div v-if="isAdmin && !isLoading && !error && allRounds.length > 0 && !isPanelOpen" class="stage-slider-panel">
