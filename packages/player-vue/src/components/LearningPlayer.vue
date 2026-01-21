@@ -2388,8 +2388,8 @@ const playIntroductionIfNeeded = async (item) => {
         audioController.value.skipNextNotify = true
       }
 
-      // Check if already aborted
-      if (introAbortController?.signal.aborted) {
+      // Check if already aborted (null OR aborted signal)
+      if (!introAbortController || introAbortController.signal.aborted) {
         resolve(false)
         return
       }
@@ -2549,8 +2549,9 @@ const playIntroductionAudioDirectly = async (scriptItem) => {
   // Reuses the same introAudio element for all segments
   const playAudioAndWait = (url) => {
     return new Promise((resolve) => {
-      // Check if already aborted
-      if (introAbortController?.signal.aborted) {
+      // Check if already aborted (introAbortController set to null OR aborted)
+      // CRITICAL: skipIntroduction nulls out introAbortController AND introAudioElement
+      if (!introAbortController || introAbortController.signal.aborted || !introAudioElement) {
         resolve(false)
         return
       }
@@ -2602,12 +2603,14 @@ const playIntroductionAudioDirectly = async (scriptItem) => {
 
   // Helper to pause for a duration (with cancellation support)
   const pause = (ms) => new Promise(resolve => {
-    if (introAbortController?.signal.aborted) {
+    // Check if already aborted (null OR aborted signal)
+    if (!introAbortController || introAbortController.signal.aborted) {
       resolve()
       return
     }
     const timer = setTimeout(resolve, ms)
-    introAbortController?.signal.addEventListener('abort', () => {
+    // Safe to add listener since we already checked introAbortController exists
+    introAbortController.signal.addEventListener('abort', () => {
       clearTimeout(timer)
       resolve()
     }, { once: true })
