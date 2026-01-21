@@ -41,39 +41,39 @@
   --shadow-glow: 0 0 30px rgba(194, 58, 58, 0.3);
 }
 
-/* Light Theme (Mist) - Bright, clean surfaces */
-[data-theme="mist"] {
-  /* Background hierarchy - light, airy surfaces */
-  --bg-primary: #f5f5f7;
-  --bg-secondary: #ffffff;
-  --bg-card: #ffffff;
-  --bg-card-hover: #f9f9f9;
-  --bg-elevated: #f0f0f2;
-  --bg-input: #ffffff;
+/* Light Theme - Warm, creamy surfaces inspired by SSi brand */
+[data-theme="light"] {
+  /* Background hierarchy - warm cream tones */
+  --bg-primary: #f8f5f0;
+  --bg-secondary: #fffcf7;
+  --bg-card: #fffdf9;
+  --bg-card-hover: #fff8f0;
+  --bg-elevated: #f3efe8;
+  --bg-input: #fffdf9;
 
-  /* Text hierarchy - dark text for contrast */
-  --text-primary: #1a1a1a;
-  --text-secondary: #555555;
-  --text-muted: #888888;
-  --text-inverse: #ffffff;
+  /* Text hierarchy - warm dark text for contrast */
+  --text-primary: #2d2926;
+  --text-secondary: #5c5550;
+  --text-muted: #8a837a;
+  --text-inverse: #fffcf7;
 
-  /* Borders - subtle dark borders */
-  --border-subtle: rgba(0, 0, 0, 0.06);
-  --border-medium: rgba(0, 0, 0, 0.12);
-  --border-strong: rgba(0, 0, 0, 0.2);
+  /* Borders - warm tinted */
+  --border-subtle: rgba(139, 109, 76, 0.1);
+  --border-medium: rgba(139, 109, 76, 0.18);
+  --border-strong: rgba(139, 109, 76, 0.28);
   --border-focus: var(--ssi-red);
 
-  /* Shadows - softer for light theme */
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
-  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.12);
-  --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.16);
-  --shadow-xl: 0 12px 60px rgba(0, 0, 0, 0.2);
-  --shadow-glow: 0 0 30px rgba(194, 58, 58, 0.15);
+  /* Shadows - warm tinted */
+  --shadow-sm: 0 2px 8px rgba(139, 109, 76, 0.1);
+  --shadow-md: 0 4px 20px rgba(139, 109, 76, 0.14);
+  --shadow-lg: 0 8px 40px rgba(139, 109, 76, 0.18);
+  --shadow-xl: 0 12px 60px rgba(139, 109, 76, 0.22);
+  --shadow-glow: 0 0 30px rgba(194, 58, 58, 0.2);
 
   /* Special surfaces */
-  --nav-bg: rgba(255, 255, 255, 0.95);
-  --nav-bg-blur: rgba(255, 255, 255, 0.85);
-  --modal-backdrop: rgba(0, 0, 0, 0.4);
+  --nav-bg: rgba(255, 252, 247, 0.95);
+  --nav-bg-blur: rgba(255, 252, 247, 0.85);
+  --modal-backdrop: rgba(45, 41, 38, 0.5);
 }
 
 * {
