@@ -11,16 +11,64 @@ interface NavTab {
 }
 
 const route = useRoute()
-const { selectedUser, isGovtAdmin } = useGodMode()
+const { selectedUser, isGovtAdmin, isSchoolAdmin, isTeacher, isStudent } = useGodMode()
 const { viewingSchool, isViewingSchool } = useSchoolData()
 
-const tabs: NavTab[] = [
-  { name: 'dashboard', path: '/', label: 'Dashboard' },
-  { name: 'teachers', path: '/teachers', label: 'Teachers' },
-  { name: 'students', path: '/students', label: 'Students' },
-  { name: 'classes', path: '/classes', label: 'Classes' },
-  { name: 'analytics', path: '/analytics', label: 'Analytics' },
-]
+// Role-aware navigation tabs
+const tabs = computed<NavTab[]>(() => {
+  // When govt admin drills into a school, show school admin tabs
+  if (isGovtAdmin.value && isViewingSchool.value) {
+    return [
+      { name: 'dashboard', path: '/', label: 'Dashboard' },
+      { name: 'teachers', path: '/teachers', label: 'Teachers' },
+      { name: 'students', path: '/students', label: 'Students' },
+      { name: 'classes', path: '/classes', label: 'Classes' },
+      { name: 'analytics', path: '/analytics', label: 'Analytics' },
+    ]
+  }
+
+  // Govt Admin at regional level
+  if (isGovtAdmin.value) {
+    return [
+      { name: 'dashboard', path: '/', label: 'Dashboard' },
+      { name: 'schools', path: '/schools', label: 'Schools' },
+      { name: 'analytics', path: '/analytics', label: 'Analytics' },
+    ]
+  }
+
+  // School Admin
+  if (isSchoolAdmin.value) {
+    return [
+      { name: 'dashboard', path: '/', label: 'Dashboard' },
+      { name: 'teachers', path: '/teachers', label: 'Teachers' },
+      { name: 'students', path: '/students', label: 'Students' },
+      { name: 'classes', path: '/classes', label: 'Classes' },
+      { name: 'analytics', path: '/analytics', label: 'Analytics' },
+    ]
+  }
+
+  // Teacher
+  if (isTeacher.value) {
+    return [
+      { name: 'dashboard', path: '/', label: 'Dashboard' },
+      { name: 'classes', path: '/classes', label: 'My Classes' },
+      { name: 'students', path: '/students', label: 'Students' },
+    ]
+  }
+
+  // Student
+  if (isStudent.value) {
+    return [
+      { name: 'dashboard', path: '/', label: 'Dashboard' },
+      { name: 'progress', path: '/progress', label: 'My Progress' },
+    ]
+  }
+
+  // Default (no user selected)
+  return [
+    { name: 'dashboard', path: '/', label: 'Dashboard' },
+  ]
+})
 
 // Context info derived from God Mode selected user (or drill-down context)
 const contextName = computed(() => {

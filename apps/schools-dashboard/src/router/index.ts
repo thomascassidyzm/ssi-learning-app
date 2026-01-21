@@ -2,12 +2,14 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 
 // Lazy-loaded views for code splitting
 const DashboardView = () => import('@/views/DashboardView.vue')
+const SchoolsView = () => import('@/views/SchoolsView.vue')
 const TeachersView = () => import('@/views/TeachersView.vue')
 const StudentsView = () => import('@/views/StudentsView.vue')
 const TeacherDashboard = () => import('@/views/TeacherDashboard.vue')
 const ClassDetail = () => import('@/views/ClassDetail.vue')
 const AnalyticsView = () => import('@/views/AnalyticsView.vue')
 const SettingsView = () => import('@/views/SettingsView.vue')
+const StudentProgressView = () => import('@/views/StudentProgressView.vue')
 
 const routes: RouteRecordRaw[] = [
   {
@@ -17,6 +19,15 @@ const routes: RouteRecordRaw[] = [
     meta: {
       title: 'Dashboard',
       description: 'Overview of school learning activity',
+    },
+  },
+  {
+    path: '/schools',
+    name: 'schools',
+    component: SchoolsView,
+    meta: {
+      title: 'Schools',
+      description: 'View and manage schools in region',
     },
   },
   {
@@ -71,6 +82,15 @@ const routes: RouteRecordRaw[] = [
     meta: {
       title: 'Settings',
       description: 'School and account settings',
+    },
+  },
+  {
+    path: '/progress',
+    name: 'progress',
+    component: StudentProgressView,
+    meta: {
+      title: 'My Progress',
+      description: 'View your learning progress',
     },
   },
   // Catch-all redirect to dashboard
