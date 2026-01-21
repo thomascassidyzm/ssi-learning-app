@@ -190,23 +190,23 @@ const activeTab = ref<'brain' | 'belts' | 'usage'>('brain')
 
 /**
  * Reactive platform detection for conditional brain rendering
- * Desktop: screen width > 1024px AND not touch-primary device
- * Mobile: everything else
+ * Desktop: screen width > 1024px (touchscreen laptops should still get 3D view)
+ * Mobile: screen width <= 1024px (phones, tablets)
+ *
+ * Note: We removed the touch-primary check because many modern laptops have
+ * touchscreens but should still render the full 3D brain visualization.
  */
 const screenWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1024)
-const isTouchPrimary = ref(
-  typeof window !== 'undefined' &&
-  window.matchMedia('(pointer: coarse)').matches
-)
 
-// Reactive desktop detection
+// Reactive desktop detection - based purely on screen width
 const isDesktop = computed(() => {
-  return screenWidth.value > 1024 && !isTouchPrimary.value
+  const result = screenWidth.value > 1024
+  console.log('[BrainView] Platform detection:', { screenWidth: screenWidth.value, isDesktop: result })
+  return result
 })
 
 // Handle resize events for reactive platform detection
 let resizeHandler: (() => void) | null = null
-let touchMediaQuery: MediaQueryList | null = null
 
 function setupPlatformDetection() {
   if (typeof window === 'undefined') return
@@ -216,13 +216,6 @@ function setupPlatformDetection() {
     screenWidth.value = window.innerWidth
   }
   window.addEventListener('resize', resizeHandler)
-
-  // Media query listener for touch detection
-  touchMediaQuery = window.matchMedia('(pointer: coarse)')
-  const touchHandler = (e: MediaQueryListEvent) => {
-    isTouchPrimary.value = e.matches
-  }
-  touchMediaQuery.addEventListener('change', touchHandler)
 }
 
 function cleanupPlatformDetection() {
@@ -232,8 +225,6 @@ function cleanupPlatformDetection() {
     window.removeEventListener('resize', resizeHandler)
     resizeHandler = null
   }
-  // Note: touchMediaQuery cleanup handled via garbage collection
-  touchMediaQuery = null
 }
 
 // ============================================================================

@@ -4490,6 +4490,10 @@ onMounted(async () => {
 
   // Load developer settings
   showFragileProgressWarning.value = localStorage.getItem('ssi-show-fragile-warning') !== 'false'
+  enableQaMode.value = localStorage.getItem('ssi-enable-qa-mode') === 'true'
+  showDebugOverlay.value = localStorage.getItem('ssi-show-debug-overlay') === 'true'
+  enableVerboseLogging.value = localStorage.getItem('ssi-verbose-logging') === 'true'
+  skipIntroAudio.value = localStorage.getItem('ssi-skip-intro-audio') === 'true'
 
   // Listen for developer settings changes (from Settings screen)
   settingChangedHandler = (e: Event) => {
@@ -5682,6 +5686,18 @@ defineExpose({
           </div>
         </div>
       </div>
+
+      <!-- Debug Overlay - shows current phase, round, LEGO info (can be toggled in Settings > Developer) -->
+      <div v-if="showDebugOverlay" class="debug-overlay">
+        <div class="debug-info">
+          <div class="debug-row"><span class="debug-label">Phase:</span> {{ currentPhase }}</div>
+          <div class="debug-row"><span class="debug-label">Round:</span> {{ currentRoundIndex + 1 }} / {{ cachedRounds.length }}</div>
+          <div class="debug-row"><span class="debug-label">Item:</span> {{ currentItemInRound + 1 }} / {{ currentRound?.items?.length || 0 }}</div>
+          <div class="debug-row"><span class="debug-label">LEGO:</span> {{ currentItem?.legoId || '-' }}</div>
+          <div class="debug-row"><span class="debug-label">Type:</span> {{ currentItem?.type || '-' }}</div>
+          <div class="debug-row" v-if="currentItem?.reviewOf"><span class="debug-label">Review of:</span> LEGO {{ currentItem.reviewOf }}</div>
+        </div>
+      </div>
     </section>
 
     <!-- CONTROL PANE - Minimal text display, tap to play/pause -->
@@ -5882,13 +5898,13 @@ defineExpose({
 
     <!-- Report Issue Button - moved to header area for QA mode only -->
     <ReportIssueButton
-      v-if="isQaMode"
+      v-if="shouldShowQaMode"
       class="qa-report-btn"
       :course-code="activeCourseCode"
       :current-item="currentItem"
       :current-known="visibleTexts.known"
       :current-target="visibleTexts.target"
-      :qa-mode="isQaMode"
+      :qa-mode="shouldShowQaMode"
     />
 
     <!-- Footer -->
@@ -6894,6 +6910,38 @@ defineExpose({
 
 .progress-warning-btn--secondary:active {
   background: rgba(255, 255, 255, 0.08);
+}
+
+/* Debug Overlay - Developer tool for showing current state */
+.debug-overlay {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.debug-info {
+  background: rgba(0, 0, 0, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-family: 'SF Mono', 'Consolas', monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.debug-row {
+  display: flex;
+  gap: 8px;
+}
+
+.debug-label {
+  color: rgba(255, 255, 255, 0.5);
+  min-width: 60px;
 }
 
 /* Layout Mode Toggle Button */

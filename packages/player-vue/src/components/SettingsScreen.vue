@@ -59,6 +59,22 @@ const isSignedIn = computed(() => auth?.user?.value != null)
 const userEmail = computed(() => auth?.user?.value?.emailAddresses?.[0]?.emailAddress || '')
 const userName = computed(() => auth?.user?.value?.fullName || auth?.user?.value?.firstName || '')
 
+// Check if user is an SSi team admin (can see Developer section)
+// Add email domains or specific emails here
+const ADMIN_EMAIL_DOMAINS = ['saysomethingin.com', 'ssi.cymru']
+const ADMIN_EMAILS = ['tom@tomcassidy.co.uk'] // Add specific admin emails here
+const isAdmin = computed(() => {
+  const email = userEmail.value.toLowerCase()
+  if (!email) return false
+
+  // Check specific emails first
+  if (ADMIN_EMAILS.some(e => email === e.toLowerCase())) return true
+
+  // Check email domains
+  const domain = email.split('@')[1]
+  return ADMIN_EMAIL_DOMAINS.some(d => domain === d.toLowerCase())
+})
+
 // Open Clerk's user profile for managing account
 const openUserProfile = () => {
   if (auth?.openUserProfile) {
