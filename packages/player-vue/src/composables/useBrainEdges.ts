@@ -1,19 +1,19 @@
 /**
- * useBrainEdges - Three.js Line System for Brain Network Edges
+ * useBrainEdges - Three.js Neural Connection System for Brain Network
  *
- * Renders connections between nodes in a 3D brain visualization.
+ * Renders CURVED, GLOWING connections between nodes in a 3D brain visualization.
  * Edges represent connections between words that appear together in phrases.
  *
+ * Visual features:
+ * - Curved paths using CatmullRomCurve3 for organic, axon-like appearance
+ * - TubeGeometry for volumetric lines with proper thickness
+ * - Multi-layer glow effect using overlapping tubes
+ * - Additive blending for ethereal glow
+ *
  * Performance optimizations:
- * - Uses THREE.LineSegments with BufferGeometry for batch rendering
- * - Indexed geometry to minimize vertex data
  * - Batched updates (not per-frame unless needed)
  * - LOD: can hide edges when zoomed out far
- *
- * Visual style:
- * - Subtle but visible by default (opacity ~0.2-0.35)
- * - Slightly brighter for stronger connections
- * - Color: subtle white/gray, or tinted by connected node colors
+ * - Geometry disposal on cleanup
  */
 
 import { ref, shallowRef, type Ref, type ShallowRef } from 'vue'
@@ -37,24 +37,33 @@ export interface EdgeColors {
 }
 
 export interface EdgeRenderOptions {
-  /** Base opacity for normal edges (default: 0.20) */
+  /** Base opacity for normal edges (default: 0.7) */
   baseOpacity?: number
-  /** Maximum opacity for strong connections (default: 0.35) */
+  /** Maximum opacity for strong connections (default: 1.0) */
   maxOpacity?: number
-  /** Base line width (default: 1) */
+  /** Base tube radius (default: 3) */
   baseWidth?: number
-  /** Maximum line width for strong connections (default: 2) */
+  /** Maximum tube radius for strong connections (default: 8) */
   maxWidth?: number
-  /** Opacity for highlighted edges (default: 0.8) */
+  /** Opacity for highlighted edges (default: 1.0) */
   highlightOpacity?: number
   /** Opacity for glow path edges (default: 1.0) */
   glowOpacity?: number
+  /** Curve segments for smoothness (default: 20) */
+  curveSegments?: number
+  /** Tube radial segments (default: 6) */
+  tubeSegments?: number
+  /** Curve bend amount (default: 0.3) - how much curves deviate from straight */
+  curveBend?: number
 }
 
-interface EdgeData {
+interface EdgeMeshData {
   edge: BrainEdge
-  sourceIndex: number  // Index into positions array
-  targetIndex: number  // Index into positions array
+  coreMesh: THREE.Mesh
+  glowMesh: THREE.Mesh
+  outerGlowMesh: THREE.Mesh
+  sourcePos: THREE.Vector3
+  targetPos: THREE.Vector3
 }
 
 // ============================================================================
@@ -62,16 +71,19 @@ interface EdgeData {
 // ============================================================================
 
 const DEFAULT_OPTIONS: Required<EdgeRenderOptions> = {
-  baseOpacity: 0.5,    // Neural connections should be clearly visible
-  maxOpacity: 0.85,    // Strong connections are prominent
-  baseWidth: 1.5,      // Visible line width
-  maxWidth: 4,         // Strong connections are thicker
+  baseOpacity: 0.7,      // Much more visible
+  maxOpacity: 1.0,       // Full opacity for strong connections
+  baseWidth: 3,          // Thicker base width
+  maxWidth: 8,           // Much thicker for strong connections
   highlightOpacity: 1.0,
   glowOpacity: 1.0,
+  curveSegments: 24,     // Smooth curves
+  tubeSegments: 6,       // Enough for round appearance
+  curveBend: 0.3,        // Moderate curve deviation
 }
 
 const DEFAULT_COLORS: EdgeColors = {
-  default: new THREE.Color(0xffffff),
+  default: new THREE.Color(0xaaddff),  // Soft blue-white for neural look
   highlighted: new THREE.Color(0x60a5fa),  // Blue highlight
   glowPath: new THREE.Color(0xfbbf24),      // Warm yellow/gold for fire path
 }
@@ -85,20 +97,130 @@ const DEFAULT_COLORS: EdgeColors = {
  * Stronger connections (higher strength) are more visible
  */
 function calculateOpacity(strength: number, options: Required<EdgeRenderOptions>): number {
-  // Normalize strength (1-100) to opacity range
   const normalizedStrength = Math.min(100, Math.max(1, strength)) / 100
-  // Use sqrt for more gradual opacity increase
   const opacityRange = options.maxOpacity - options.baseOpacity
   return options.baseOpacity + Math.sqrt(normalizedStrength) * opacityRange
 }
 
 /**
- * Calculate line width based on connection strength
+ * Calculate tube radius based on connection strength
  */
-function calculateWidth(strength: number, options: Required<EdgeRenderOptions>): number {
+function calculateRadius(strength: number, options: Required<EdgeRenderOptions>): number {
   const normalizedStrength = Math.min(100, Math.max(1, strength)) / 100
   const widthRange = options.maxWidth - options.baseWidth
-  return options.baseWidth + Math.sqrt(normalizedStrength) * widthRange
+  // Scale down for tube radius (width values are now tube diameter-ish)
+  return (options.baseWidth + Math.sqrt(normalizedStrength) * widthRange) * 0.1
+}
+
+/**
+ * Generate a seeded random number for consistent curve offsets
+ * Uses simple hash of edge ID
+ */
+function seededRandom(seed: string): number {
+  let hash = 0
+  for (let i = 0; i < seed.length; i++) {
+    const char = seed.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
+    hash = hash & hash
+  }
+  return (Math.abs(hash) % 1000) / 1000
+}
+
+/**
+ * Create a curved path between two points using CatmullRomCurve3
+ * The curve has organic variation perpendicular to the direct line
+ */
+function createCurvedPath(
+  source: THREE.Vector3,
+  target: THREE.Vector3,
+  edgeId: string,
+  bendAmount: number
+): THREE.CatmullRomCurve3 {
+  // Get the direction vector
+  const direction = new THREE.Vector3().subVectors(target, source)
+  const distance = direction.length()
+  direction.normalize()
+
+  // Create a perpendicular vector for the curve offset
+  // Use cross product with a reference vector
+  const up = new THREE.Vector3(0, 1, 0)
+  let perpendicular = new THREE.Vector3().crossVectors(direction, up)
+
+  // If direction is parallel to up, use different reference
+  if (perpendicular.length() < 0.1) {
+    const right = new THREE.Vector3(1, 0, 0)
+    perpendicular = new THREE.Vector3().crossVectors(direction, right)
+  }
+  perpendicular.normalize()
+
+  // Also create another perpendicular for 3D variation
+  const perpendicular2 = new THREE.Vector3().crossVectors(direction, perpendicular).normalize()
+
+  // Use seeded random for consistent but varied curves
+  const rand1 = seededRandom(edgeId) * 2 - 1  // -1 to 1
+  const rand2 = seededRandom(edgeId + '_2') * 2 - 1
+  const rand3 = seededRandom(edgeId + '_3') * 2 - 1
+  const rand4 = seededRandom(edgeId + '_4') * 2 - 1
+
+  // Calculate control points at 1/3 and 2/3 along the path
+  const offsetScale = distance * bendAmount
+
+  // First control point (1/3 along the line)
+  const cp1 = new THREE.Vector3()
+    .addVectors(source, direction.clone().multiplyScalar(distance * 0.33))
+    .add(perpendicular.clone().multiplyScalar(rand1 * offsetScale))
+    .add(perpendicular2.clone().multiplyScalar(rand2 * offsetScale * 0.5))
+
+  // Second control point (2/3 along the line)
+  const cp2 = new THREE.Vector3()
+    .addVectors(source, direction.clone().multiplyScalar(distance * 0.67))
+    .add(perpendicular.clone().multiplyScalar(rand3 * offsetScale))
+    .add(perpendicular2.clone().multiplyScalar(rand4 * offsetScale * 0.5))
+
+  // Create CatmullRom curve through the points
+  // CatmullRom gives smooth organic curves through all points
+  const curve = new THREE.CatmullRomCurve3([
+    source.clone(),
+    cp1,
+    cp2,
+    target.clone()
+  ], false, 'centripetal', 0.5)
+
+  return curve
+}
+
+/**
+ * Create a tube mesh from a curve
+ */
+function createTubeMesh(
+  curve: THREE.CatmullRomCurve3,
+  radius: number,
+  color: THREE.Color,
+  opacity: number,
+  segments: number,
+  tubeSegments: number
+): THREE.Mesh {
+  const geometry = new THREE.TubeGeometry(
+    curve,
+    segments,
+    radius,
+    tubeSegments,
+    false  // not closed
+  )
+
+  const material = new THREE.MeshBasicMaterial({
+    color: color,
+    transparent: true,
+    opacity: opacity,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+  })
+
+  const mesh = new THREE.Mesh(geometry, material)
+  mesh.frustumCulled = false
+
+  return mesh
 }
 
 // ============================================================================
@@ -113,11 +235,11 @@ export function useBrainEdges(options: EdgeRenderOptions = {}) {
   // STATE
   // ============================================================================
 
-  // The main LineSegments object containing all edges
-  const lineSegments: ShallowRef<THREE.LineSegments | null> = shallowRef(null)
+  // Group containing all edge meshes
+  const edgeGroup: ShallowRef<THREE.Group | null> = shallowRef(null)
 
-  // Edge data storage for lookups
-  const edgeDataMap: Ref<Map<string, EdgeData>> = ref(new Map())
+  // Edge mesh data storage for lookups and updates
+  const edgeMeshMap: Ref<Map<string, EdgeMeshData>> = ref(new Map())
 
   // Current edges (stored for position updates)
   const currentEdges: Ref<BrainEdge[]> = ref([])
@@ -131,105 +253,103 @@ export function useBrainEdges(options: EdgeRenderOptions = {}) {
   // Visibility flag
   const isVisible: Ref<boolean> = ref(true)
 
+  // For backwards compatibility - expose as lineSegments
+  const lineSegments: ShallowRef<THREE.Group | null> = shallowRef(null)
+
   // ============================================================================
   // GEOMETRY CREATION
   // ============================================================================
 
   /**
-   * Create the line segments for rendering edges
-   *
-   * Uses BufferGeometry with:
-   * - position: Float32Array of vertex positions (x, y, z for each endpoint)
-   * - color: Float32Array of vertex colors (r, g, b for each endpoint)
-   *
-   * LineSegments draws a line between each pair of consecutive vertices
+   * Create curved tube meshes for rendering edges
+   * Each edge gets 3 layers:
+   * - Core: main visible tube
+   * - Glow: slightly larger, more transparent
+   * - Outer glow: even larger, very transparent for soft halo
    */
   function createEdges(
     edges: BrainEdge[],
     getNodePosition: (id: string) => THREE.Vector3 | null
-  ): THREE.LineSegments {
+  ): THREE.Group {
     // Store edges for later updates
     currentEdges.value = edges
-    edgeDataMap.value.clear()
+    edgeMeshMap.value.clear()
 
-    // Count valid edges (both nodes must exist)
-    const validEdges: BrainEdge[] = []
+    // Create group to hold all edge meshes
+    const group = new THREE.Group()
+    group.name = 'brain-edges'
+
     for (const edge of edges) {
       const sourcePos = getNodePosition(edge.source)
       const targetPos = getNodePosition(edge.target)
-      if (sourcePos && targetPos) {
-        validEdges.push(edge)
-      }
-    }
 
-    // Each edge needs 2 vertices (start and end)
-    const vertexCount = validEdges.length * 2
-    const positions = new Float32Array(vertexCount * 3)  // x, y, z per vertex
-    const colors = new Float32Array(vertexCount * 3)      // r, g, b per vertex
-    const opacities = new Float32Array(vertexCount)       // opacity per vertex
-
-    let vertexIndex = 0
-    for (let i = 0; i < validEdges.length; i++) {
-      const edge = validEdges[i]
-      const sourcePos = getNodePosition(edge.source)!
-      const targetPos = getNodePosition(edge.target)!
-
-      // Store edge data for lookups
-      edgeDataMap.value.set(edge.id, {
-        edge,
-        sourceIndex: vertexIndex,
-        targetIndex: vertexIndex + 1,
-      })
+      if (!sourcePos || !targetPos) continue
 
       // Calculate visual properties based on strength
       const opacity = calculateOpacity(edge.strength, opts)
-      const color = DEFAULT_COLORS.default
+      const radius = calculateRadius(edge.strength, opts)
+      const color = colors.default.clone()
 
-      // Source vertex
-      positions[vertexIndex * 3] = sourcePos.x
-      positions[vertexIndex * 3 + 1] = sourcePos.y
-      positions[vertexIndex * 3 + 2] = sourcePos.z
-      colors[vertexIndex * 3] = color.r * opacity
-      colors[vertexIndex * 3 + 1] = color.g * opacity
-      colors[vertexIndex * 3 + 2] = color.b * opacity
-      opacities[vertexIndex] = opacity
-      vertexIndex++
+      // Create curved path
+      const curve = createCurvedPath(
+        sourcePos,
+        targetPos,
+        edge.id,
+        opts.curveBend
+      )
 
-      // Target vertex
-      positions[vertexIndex * 3] = targetPos.x
-      positions[vertexIndex * 3 + 1] = targetPos.y
-      positions[vertexIndex * 3 + 2] = targetPos.z
-      colors[vertexIndex * 3] = color.r * opacity
-      colors[vertexIndex * 3 + 1] = color.g * opacity
-      colors[vertexIndex * 3 + 2] = color.b * opacity
-      opacities[vertexIndex] = opacity
-      vertexIndex++
+      // Core tube - main visible connection
+      const coreMesh = createTubeMesh(
+        curve,
+        radius,
+        color,
+        opacity,
+        opts.curveSegments,
+        opts.tubeSegments
+      )
+      coreMesh.name = `edge-core-${edge.id}`
+
+      // Inner glow - slightly larger, more transparent
+      const glowMesh = createTubeMesh(
+        curve,
+        radius * 1.8,
+        color,
+        opacity * 0.4,
+        opts.curveSegments,
+        opts.tubeSegments
+      )
+      glowMesh.name = `edge-glow-${edge.id}`
+
+      // Outer glow - even larger, very soft
+      const outerGlowMesh = createTubeMesh(
+        curve,
+        radius * 3.0,
+        color,
+        opacity * 0.15,
+        opts.curveSegments,
+        opts.tubeSegments
+      )
+      outerGlowMesh.name = `edge-outer-glow-${edge.id}`
+
+      // Add to group (outer first so it renders behind)
+      group.add(outerGlowMesh)
+      group.add(glowMesh)
+      group.add(coreMesh)
+
+      // Store mesh data for updates
+      edgeMeshMap.value.set(edge.id, {
+        edge,
+        coreMesh,
+        glowMesh,
+        outerGlowMesh,
+        sourcePos: sourcePos.clone(),
+        targetPos: targetPos.clone()
+      })
     }
 
-    // Create geometry
-    const geometry = new THREE.BufferGeometry()
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
-    geometry.setAttribute('opacity', new THREE.BufferAttribute(opacities, 1))
-
-    // Create material
-    // Using LineBasicMaterial with vertexColors for per-edge coloring
-    // Opacity is baked into the color values for simplicity
-    const material = new THREE.LineBasicMaterial({
-      vertexColors: true,
-      transparent: true,
-      opacity: 1.0,  // Opacity is controlled per-vertex via color
-      depthWrite: false,  // Edges behind nodes should still be visible
-      blending: THREE.AdditiveBlending,  // Additive for glow effect
-    })
-
-    // Create LineSegments
-    const lines = new THREE.LineSegments(geometry, material)
-    lines.name = 'brain-edges'
-    lines.frustumCulled = false  // Always render (edges span large area)
-
-    lineSegments.value = lines
-    return lines
+    edgeGroup.value = group
+    lineSegments.value = group  // For backwards compatibility
+    return group
   }
 
   // ============================================================================
@@ -238,31 +358,54 @@ export function useBrainEdges(options: EdgeRenderOptions = {}) {
 
   /**
    * Update edge positions when nodes move
-   * Only updates the position attribute, not colors
+   * Recreates the tube geometry for moved edges
    */
   function updateEdgePositions(
     getNodePosition: (id: string) => THREE.Vector3 | null
   ): void {
-    if (!lineSegments.value) return
+    if (!edgeGroup.value) return
 
-    const geometry = lineSegments.value.geometry
-    const positions = geometry.getAttribute('position') as THREE.BufferAttribute
-    if (!positions) return
+    for (const [edgeId, meshData] of edgeMeshMap.value) {
+      const sourcePos = getNodePosition(meshData.edge.source)
+      const targetPos = getNodePosition(meshData.edge.target)
 
-    for (const [, edgeData] of edgeDataMap.value) {
-      const sourcePos = getNodePosition(edgeData.edge.source)
-      const targetPos = getNodePosition(edgeData.edge.target)
+      if (!sourcePos || !targetPos) continue
 
-      if (sourcePos && targetPos) {
-        // Update source vertex
-        positions.setXYZ(edgeData.sourceIndex, sourcePos.x, sourcePos.y, sourcePos.z)
-        // Update target vertex
-        positions.setXYZ(edgeData.targetIndex, targetPos.x, targetPos.y, targetPos.z)
+      // Check if positions have changed
+      if (sourcePos.equals(meshData.sourcePos) && targetPos.equals(meshData.targetPos)) {
+        continue  // No change, skip update
       }
-    }
 
-    positions.needsUpdate = true
-    geometry.computeBoundingSphere()
+      // Update stored positions
+      meshData.sourcePos.copy(sourcePos)
+      meshData.targetPos.copy(targetPos)
+
+      // Recreate curve and geometry
+      const curve = createCurvedPath(
+        sourcePos,
+        targetPos,
+        edgeId,
+        opts.curveBend
+      )
+
+      const radius = calculateRadius(meshData.edge.strength, opts)
+
+      // Dispose old geometries
+      meshData.coreMesh.geometry.dispose()
+      meshData.glowMesh.geometry.dispose()
+      meshData.outerGlowMesh.geometry.dispose()
+
+      // Create new geometries
+      meshData.coreMesh.geometry = new THREE.TubeGeometry(
+        curve, opts.curveSegments, radius, opts.tubeSegments, false
+      )
+      meshData.glowMesh.geometry = new THREE.TubeGeometry(
+        curve, opts.curveSegments, radius * 1.8, opts.tubeSegments, false
+      )
+      meshData.outerGlowMesh.geometry = new THREE.TubeGeometry(
+        curve, opts.curveSegments, radius * 3.0, opts.tubeSegments, false
+      )
+    }
   }
 
   // ============================================================================
@@ -314,13 +457,7 @@ export function useBrainEdges(options: EdgeRenderOptions = {}) {
    * Update edge colors based on current highlight/glow state
    */
   function updateEdgeColors(): void {
-    if (!lineSegments.value) return
-
-    const geometry = lineSegments.value.geometry
-    const colorAttr = geometry.getAttribute('color') as THREE.BufferAttribute
-    if (!colorAttr) return
-
-    for (const [edgeId, edgeData] of edgeDataMap.value) {
+    for (const [edgeId, meshData] of edgeMeshMap.value) {
       const isHighlighted = highlightedEdgeIds.value.has(edgeId)
       const glowIntensity = glowEdgeIntensities.value.get(edgeId) || 0
 
@@ -329,29 +466,33 @@ export function useBrainEdges(options: EdgeRenderOptions = {}) {
 
       if (glowIntensity > 0) {
         // Fire path glow - interpolate from default to glow color
-        color = DEFAULT_COLORS.default.clone().lerp(DEFAULT_COLORS.glowPath, glowIntensity)
+        color = colors.default.clone().lerp(colors.glowPath, glowIntensity)
         opacity = opts.baseOpacity + (opts.glowOpacity - opts.baseOpacity) * glowIntensity
       } else if (isHighlighted) {
         // Simple highlight
-        color = DEFAULT_COLORS.highlighted
+        color = colors.highlighted.clone()
         opacity = opts.highlightOpacity
       } else {
         // Normal state
-        color = DEFAULT_COLORS.default
-        opacity = calculateOpacity(edgeData.edge.strength, opts)
+        color = colors.default.clone()
+        opacity = calculateOpacity(meshData.edge.strength, opts)
       }
 
-      // Apply color with opacity baked in
-      const r = color.r * opacity
-      const g = color.g * opacity
-      const b = color.b * opacity
+      // Update core mesh
+      const coreMat = meshData.coreMesh.material as THREE.MeshBasicMaterial
+      coreMat.color.copy(color)
+      coreMat.opacity = opacity
 
-      // Update both vertices of the edge
-      colorAttr.setXYZ(edgeData.sourceIndex, r, g, b)
-      colorAttr.setXYZ(edgeData.targetIndex, r, g, b)
+      // Update glow mesh (more transparent)
+      const glowMat = meshData.glowMesh.material as THREE.MeshBasicMaterial
+      glowMat.color.copy(color)
+      glowMat.opacity = opacity * 0.4
+
+      // Update outer glow mesh (even more transparent)
+      const outerGlowMat = meshData.outerGlowMesh.material as THREE.MeshBasicMaterial
+      outerGlowMat.color.copy(color)
+      outerGlowMat.opacity = opacity * 0.15
     }
-
-    colorAttr.needsUpdate = true
   }
 
   // ============================================================================
@@ -364,8 +505,8 @@ export function useBrainEdges(options: EdgeRenderOptions = {}) {
    */
   function setVisible(visible: boolean): void {
     isVisible.value = visible
-    if (lineSegments.value) {
-      lineSegments.value.visible = visible
+    if (edgeGroup.value) {
+      edgeGroup.value.visible = visible
     }
   }
 
@@ -385,14 +526,31 @@ export function useBrainEdges(options: EdgeRenderOptions = {}) {
    * Dispose of all Three.js resources
    */
   function dispose(): void {
-    if (lineSegments.value) {
-      lineSegments.value.geometry.dispose()
-      if (lineSegments.value.material instanceof THREE.Material) {
-        lineSegments.value.material.dispose()
+    for (const [, meshData] of edgeMeshMap.value) {
+      // Dispose geometries
+      meshData.coreMesh.geometry.dispose()
+      meshData.glowMesh.geometry.dispose()
+      meshData.outerGlowMesh.geometry.dispose()
+
+      // Dispose materials
+      if (meshData.coreMesh.material instanceof THREE.Material) {
+        meshData.coreMesh.material.dispose()
       }
-      lineSegments.value = null
+      if (meshData.glowMesh.material instanceof THREE.Material) {
+        meshData.glowMesh.material.dispose()
+      }
+      if (meshData.outerGlowMesh.material instanceof THREE.Material) {
+        meshData.outerGlowMesh.material.dispose()
+      }
     }
-    edgeDataMap.value.clear()
+
+    if (edgeGroup.value) {
+      edgeGroup.value.clear()
+      edgeGroup.value = null
+    }
+
+    lineSegments.value = null
+    edgeMeshMap.value.clear()
     currentEdges.value = []
     highlightedEdgeIds.value.clear()
     glowEdgeIntensities.value.clear()
@@ -405,15 +563,15 @@ export function useBrainEdges(options: EdgeRenderOptions = {}) {
   /**
    * Get edge data by ID
    */
-  function getEdgeData(edgeId: string): EdgeData | undefined {
-    return edgeDataMap.value.get(edgeId)
+  function getEdgeData(edgeId: string): EdgeMeshData | undefined {
+    return edgeMeshMap.value.get(edgeId)
   }
 
   /**
    * Get all edge IDs
    */
   function getEdgeIds(): string[] {
-    return Array.from(edgeDataMap.value.keys())
+    return Array.from(edgeMeshMap.value.keys())
   }
 
   /**
@@ -458,7 +616,8 @@ export function useBrainEdges(options: EdgeRenderOptions = {}) {
 
   return {
     // Core state
-    lineSegments,
+    lineSegments,  // For backwards compatibility (now returns the Group)
+    edgeGroup,     // New: the actual group
     isVisible,
 
     // Methods

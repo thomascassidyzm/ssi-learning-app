@@ -215,85 +215,182 @@ const BELT_BRAIN_PARAMS: Record<BeltLevel, BrainDevelopmentParams> = {
 // ============================================================================
 
 /**
- * Generate a brain-like shape by deforming a sphere using spherical harmonics
- * and custom displacement functions.
+ * Smooth interpolation helper (ease in/out)
+ */
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)))
+  return t * t * (3 - 2 * t)
+}
+
+/**
+ * Gaussian falloff for organic transitions
+ */
+function gaussian(x: number, sigma: number): number {
+  return Math.exp(-(x * x) / (2 * sigma * sigma))
+}
+
+/**
+ * Simple deterministic noise for organic surface variation
+ */
+function organicNoise(x: number, y: number, z: number, frequency: number): number {
+  const fx = Math.sin(x * frequency * 1.7 + y * 2.3) * 0.5 + 0.5
+  const fy = Math.sin(y * frequency * 2.1 + z * 1.9) * 0.5 + 0.5
+  const fz = Math.sin(z * frequency * 1.5 + x * 2.7) * 0.5 + 0.5
+  return (fx * fy * fz) * 2 - 0.5
+}
+
+/**
+ * Generate an anatomically-inspired brain shape using custom vertex positioning.
+ * Creates a realistic brain with:
+ * - Two hemispheres with visible longitudinal fissure
+ * - Rounded frontal lobes
+ * - Slightly pointed occipital region
+ * - Temporal lobe bulges
+ * - Parietal dome
+ * - Cerebellum hint at the back-bottom
  *
- * The approach:
- * 1. Start with a sphere
- * 2. Scale to ellipsoid (wider than tall)
- * 3. Apply brain-like deformations (fissure, lobes, etc.)
+ * @param width - Left-right extent
+ * @param height - Top-bottom extent
+ * @param depth - Front-back extent
+ * @param segments - Mesh resolution
+ * @param params - Brain development parameters (belt-specific)
  */
 function createBrainGeometry(
   width: number,
   height: number,
   depth: number,
-  segments: number
+  segments: number,
+  params: BrainDevelopmentParams
 ): THREE.BufferGeometry {
-  // Start with a sphere geometry
-  const geometry = new THREE.SphereGeometry(1, segments, segments)
+  const geometry = new THREE.BufferGeometry()
 
-  // Get position attribute for modification
-  const positions = geometry.getAttribute('position')
-  const posArray = positions.array as Float32Array
+  const phiSegments = segments
+  const thetaSegments = segments * 2
 
-  // Process each vertex
-  for (let i = 0; i < positions.count; i++) {
-    const x = posArray[i * 3]
-    const y = posArray[i * 3 + 1]
-    const z = posArray[i * 3 + 2]
+  const vertices: number[] = []
+  const indices: number[] = []
 
-    // Convert to spherical coordinates for easier deformation
-    const r = Math.sqrt(x * x + y * y + z * z)
-    const theta = Math.atan2(y, x)  // Azimuthal angle (around Y axis)
-    const phi = Math.acos(z / r)    // Polar angle (from Z axis)
+  // Generate vertices on a brain-shaped surface
+  for (let phi = 0; phi <= phiSegments; phi++) {
+    // phi: 0 = top (Z+), PI = bottom (Z-)
+    const phiRatio = phi / phiSegments
+    const phiAngle = phiRatio * Math.PI
 
-    // Calculate brain-like deformation
-    let deformation = 1.0
+    for (let theta = 0; theta <= thetaSegments; theta++) {
+      // theta: 0 = front (-Y), PI = back (+Y), wraps around
+      const thetaRatio = theta / thetaSegments
+      const thetaAngle = thetaRatio * Math.PI * 2
 
-    // 1. Longitudinal fissure - groove down the middle (top)
-    // This creates the characteristic split between hemispheres
-    const fissureAmount = Math.exp(-Math.pow(theta / BRAIN_HARMONICS.fissureWidth, 2))
-    const topFactor = Math.max(0, z)  // Only apply to top half
-    deformation -= BRAIN_HARMONICS.fissureDepth * fissureAmount * topFactor
+      // Base spherical coordinates (normalized)
+      const baseX = Math.sin(phiAngle) * Math.cos(thetaAngle)
+      const baseY = Math.sin(phiAngle) * Math.sin(thetaAngle)
+      const baseZ = Math.cos(phiAngle)
 
-    // 2. Frontal lobe bulge (front, slightly lower)
-    const frontalDirection = -y  // Front is -Y direction
-    const frontalAmount = Math.max(0, frontalDirection) * (1 - Math.abs(x) * 0.5)
-    deformation += BRAIN_HARMONICS.frontalBulge * frontalAmount * (1 - z * 0.3)
+      // Start with unit sphere radius
+      let radius = 1.0
 
-    // 3. Temporal lobe bulges (sides, lower half)
-    const temporalAmount = Math.abs(x) * Math.max(0, -z + 0.3)
-    deformation += BRAIN_HARMONICS.temporalBulge * temporalAmount
+      // ==================================================================
+      // 1. LONGITUDINAL FISSURE - Groove between hemispheres
+      // Runs front-to-back along the top midline
+      // ==================================================================
+      const fissureX = Math.abs(baseX) // Distance from midline
+      const fissureFalloff = gaussian(fissureX, params.fissureWidth)
+      const topInfluence = smoothstep(0, 0.7, baseZ) // Only on top half
+      const fissureDepression = params.fissureDepth * fissureFalloff * topInfluence
+      radius -= fissureDepression
 
-    // 4. Occipital indent (back, slightly)
-    const occipitalDirection = y  // Back is +Y direction
-    const occipitalAmount = Math.max(0, occipitalDirection) * (1 - Math.abs(x) * 0.3)
-    deformation -= BRAIN_HARMONICS.occipitalIndent * occipitalAmount
+      // ==================================================================
+      // 2. FRONTAL LOBE - Rounded bulge at the front
+      // Front is -Y direction, bulges forward and slightly down
+      // ==================================================================
+      const frontalDirection = -baseY // Positive when facing front
+      const frontalFalloff = smoothstep(0, 1, frontalDirection) * smoothstep(-0.3, 0.5, baseZ)
+      const frontalHemisphereFalloff = 1 - Math.abs(baseX) * 0.4 // Less at edges
+      radius += params.frontalBulge * frontalFalloff * frontalHemisphereFalloff
 
-    // 5. Slight left-right asymmetry (left hemisphere slightly larger)
-    if (x < 0) {
-      deformation += BRAIN_HARMONICS.asymmetry
+      // ==================================================================
+      // 3. TEMPORAL LOBES - Bulges on the sides, lower half
+      // Creates the characteristic "ear" bumps
+      // ==================================================================
+      const temporalSide = Math.abs(baseX) // Distance from center
+      const temporalHeight = smoothstep(0.3, -0.2, baseZ) // Lower half
+      const temporalFront = smoothstep(-0.5, 0.3, -baseY) // Slightly forward
+      const temporalBulge = temporalSide * temporalHeight * temporalFront
+      radius += params.temporalBulge * temporalBulge
+
+      // ==================================================================
+      // 4. OCCIPITAL REGION - Slightly pointed back
+      // Back is +Y direction
+      // ==================================================================
+      const occipitalDirection = baseY // Positive when facing back
+      const occipitalFalloff = smoothstep(0.3, 1, occipitalDirection)
+      const occipitalMidline = gaussian(baseX, 0.5) // Strongest at midline
+      const occipitalHeight = smoothstep(-0.3, 0.3, baseZ) // Mid height
+      // Slight point effect: add at back center, reduce at edges
+      radius += params.occipitalPoint * occipitalFalloff * occipitalMidline * occipitalHeight * 0.5
+      // Slight taper at back
+      radius -= params.occipitalPoint * occipitalFalloff * (1 - occipitalMidline) * 0.3
+
+      // ==================================================================
+      // 5. PARIETAL DOME - Rounded top-back area
+      // ==================================================================
+      const parietalHeight = smoothstep(0.2, 0.8, baseZ) // Upper region
+      const parietalBack = smoothstep(-0.3, 0.5, baseY) // Toward back
+      const parietalDome = parietalHeight * parietalBack * (1 - fissureFalloff * 0.5)
+      radius += params.parietalRound * parietalDome * 0.5
+
+      // ==================================================================
+      // 6. CEREBELLUM HINT - Small bulge at back-bottom
+      // ==================================================================
+      const cerebellumBack = smoothstep(0.2, 0.8, baseY) // Back region
+      const cerebellumBottom = smoothstep(0, -0.5, baseZ) // Bottom region
+      const cerebellumMidline = gaussian(baseX, 0.4)
+      radius += params.cerebellumBulge * cerebellumBack * cerebellumBottom * cerebellumMidline
+
+      // ==================================================================
+      // 7. NATURAL ASYMMETRY - Left hemisphere slightly larger
+      // ==================================================================
+      if (baseX < 0) {
+        radius += params.asymmetry
+      }
+
+      // ==================================================================
+      // 8. GYRIFICATION - Subtle surface complexity
+      // More developed brains have more folding
+      // ==================================================================
+      const gyriNoise = organicNoise(baseX * 3, baseY * 3, baseZ * 3, 4)
+      radius += params.gyrification * gyriNoise * 0.5
+
+      // Second frequency for more organic feel
+      const gyriNoise2 = organicNoise(baseX * 5, baseY * 5, baseZ * 5, 7)
+      radius += params.gyrification * gyriNoise2 * 0.3
+
+      // ==================================================================
+      // 9. OVERALL BRAIN SHAPE - Ellipsoid scaling
+      // Brain is wider than tall, and slightly shorter front-to-back
+      // ==================================================================
+      const scaledX = baseX * radius * (width / 2) * params.scale * 1.1  // Wider
+      const scaledY = baseY * radius * (depth / 2) * params.scale * 0.95 // Slightly shorter
+      const scaledZ = baseZ * radius * (height / 2) * params.scale       // Normal height
+
+      vertices.push(scaledX, scaledY, scaledZ)
     }
-
-    // 6. Add subtle organic noise for natural look
-    const noise = 0.02 * Math.sin(theta * 5) * Math.sin(phi * 4)
-    deformation += noise
-
-    // Apply deformation in radial direction
-    const newR = r * deformation
-
-    // Convert back to Cartesian and apply ellipsoid scaling
-    const newX = (newR * Math.sin(phi) * Math.cos(theta)) * (width / 2)
-    const newY = (newR * Math.sin(phi) * Math.sin(theta)) * (depth / 2)  // Depth is Y
-    const newZ = (newR * Math.cos(phi)) * (height / 2)
-
-    posArray[i * 3] = newX
-    posArray[i * 3 + 1] = newY
-    posArray[i * 3 + 2] = newZ
   }
 
-  // Update geometry
-  positions.needsUpdate = true
+  // Generate indices for triangles
+  for (let phi = 0; phi < phiSegments; phi++) {
+    for (let theta = 0; theta < thetaSegments; theta++) {
+      const first = phi * (thetaSegments + 1) + theta
+      const second = first + thetaSegments + 1
+
+      // Two triangles per quad
+      indices.push(first, second, first + 1)
+      indices.push(second, second + 1, first + 1)
+    }
+  }
+
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3))
+  geometry.setIndex(indices)
   geometry.computeVertexNormals()
   geometry.computeBoundingSphere()
 
@@ -309,15 +406,46 @@ function createInnerBrainGeometry(
   height: number,
   depth: number,
   segments: number,
-  scale: number = 0.85
+  params: BrainDevelopmentParams,
+  scale: number = 0.75
 ): THREE.BufferGeometry {
+  // Create slightly simpler inner geometry
+  const innerParams = { ...params }
+  // Inner brain has less surface detail
+  innerParams.gyrification *= 0.5
+
   const geometry = createBrainGeometry(
     width * scale,
     height * scale,
     depth * scale,
-    Math.max(16, Math.floor(segments * 0.7))
+    Math.max(24, Math.floor(segments * 0.6)),
+    innerParams
   )
   return geometry
+}
+
+/**
+ * Interpolate between two brain parameter sets for smooth morphing
+ */
+function interpolateBrainParams(
+  from: BrainDevelopmentParams,
+  to: BrainDevelopmentParams,
+  t: number
+): BrainDevelopmentParams {
+  const lerp = (a: number, b: number) => a + (b - a) * t
+
+  return {
+    scale: lerp(from.scale, to.scale),
+    fissureDepth: lerp(from.fissureDepth, to.fissureDepth),
+    fissureWidth: lerp(from.fissureWidth, to.fissureWidth),
+    frontalBulge: lerp(from.frontalBulge, to.frontalBulge),
+    temporalBulge: lerp(from.temporalBulge, to.temporalBulge),
+    occipitalPoint: lerp(from.occipitalPoint, to.occipitalPoint),
+    parietalRound: lerp(from.parietalRound, to.parietalRound),
+    cerebellumBulge: lerp(from.cerebellumBulge, to.cerebellumBulge),
+    gyrification: lerp(from.gyrification, to.gyrification),
+    asymmetry: lerp(from.asymmetry, to.asymmetry),
+  }
 }
 
 // ============================================================================
@@ -333,6 +461,7 @@ export function useBrainWireframe(config: BrainWireframeConfig = {}): BrainWiref
 
   const mesh: ShallowRef<THREE.Object3D | null> = shallowRef(null)
   const isVisible: Ref<boolean> = ref(cfg.visible)
+  const currentBelt: Ref<BeltLevel> = ref(cfg.belt)
 
   // Store references for updates
   let outerMaterial: THREE.LineBasicMaterial | null = null
@@ -341,6 +470,15 @@ export function useBrainWireframe(config: BrainWireframeConfig = {}): BrainWiref
   let innerGeometry: THREE.BufferGeometry | null = null
   let wireframeGeometry: THREE.WireframeGeometry | null = null
   let innerWireframeGeometry: THREE.WireframeGeometry | null = null
+  let outerWireframeMesh: THREE.LineSegments | null = null
+  let innerWireframeMesh: THREE.LineSegments | null = null
+
+  // Store base dimensions for rebuilding
+  let baseDimensions = { width: 0, height: 0, depth: 0 }
+
+  // Animation state
+  let morphAnimationId: number | null = null
+  let currentParams: BrainDevelopmentParams = BELT_BRAIN_PARAMS[cfg.belt]
 
   // ============================================================================
   // CREATION
@@ -358,6 +496,12 @@ export function useBrainWireframe(config: BrainWireframeConfig = {}): BrainWiref
     // Dispose any existing resources
     dispose()
 
+    // Store dimensions for rebuilding during morphing
+    baseDimensions = { width, height, depth }
+
+    // Get current belt parameters
+    currentParams = BELT_BRAIN_PARAMS[currentBelt.value]
+
     // Create a group to hold both wireframe layers
     const group = new THREE.Group()
     group.name = 'brain-wireframe'
@@ -365,8 +509,8 @@ export function useBrainWireframe(config: BrainWireframeConfig = {}): BrainWiref
     // Parse color
     const color = new THREE.Color(cfg.color)
 
-    // Create outer brain geometry
-    outerGeometry = createBrainGeometry(width, height, depth, cfg.segments)
+    // Create outer brain geometry with anatomical features
+    outerGeometry = createBrainGeometry(width, height, depth, cfg.segments, currentParams)
     wireframeGeometry = new THREE.WireframeGeometry(outerGeometry)
 
     // Create outer wireframe material
@@ -379,27 +523,27 @@ export function useBrainWireframe(config: BrainWireframeConfig = {}): BrainWiref
     })
 
     // Create outer wireframe mesh
-    const outerWireframe = new THREE.LineSegments(wireframeGeometry, outerMaterial)
-    outerWireframe.name = 'brain-wireframe-outer'
-    group.add(outerWireframe)
+    outerWireframeMesh = new THREE.LineSegments(wireframeGeometry, outerMaterial)
+    outerWireframeMesh.name = 'brain-wireframe-outer'
+    group.add(outerWireframeMesh)
 
     // Create inner brain geometry for depth
-    innerGeometry = createInnerBrainGeometry(width, height, depth, cfg.segments, 0.75)
+    innerGeometry = createInnerBrainGeometry(width, height, depth, cfg.segments, currentParams, 0.70)
     innerWireframeGeometry = new THREE.WireframeGeometry(innerGeometry)
 
     // Create inner wireframe material (slightly more transparent)
     innerMaterial = new THREE.LineBasicMaterial({
       color: color,
       transparent: true,
-      opacity: cfg.opacity * 0.5,
+      opacity: cfg.opacity * 0.4,
       depthWrite: false,
       blending: THREE.NormalBlending,
     })
 
     // Create inner wireframe mesh
-    const innerWireframe = new THREE.LineSegments(innerWireframeGeometry, innerMaterial)
-    innerWireframe.name = 'brain-wireframe-inner'
-    group.add(innerWireframe)
+    innerWireframeMesh = new THREE.LineSegments(innerWireframeGeometry, innerMaterial)
+    innerWireframeMesh.name = 'brain-wireframe-inner'
+    group.add(innerWireframeMesh)
 
     // Set initial visibility
     group.visible = isVisible.value
@@ -418,9 +562,47 @@ export function useBrainWireframe(config: BrainWireframeConfig = {}): BrainWiref
       depth,
       segments: cfg.segments,
       opacity: cfg.opacity,
+      belt: currentBelt.value,
     })
 
     return group
+  }
+
+  /**
+   * Rebuild the wireframe geometry with new parameters
+   * Used during morphing animation
+   */
+  function rebuildGeometry(params: BrainDevelopmentParams): void {
+    if (!mesh.value || baseDimensions.width === 0) return
+
+    const { width, height, depth } = baseDimensions
+    const group = mesh.value as THREE.Group
+
+    // Dispose old geometries
+    if (outerGeometry) outerGeometry.dispose()
+    if (innerGeometry) innerGeometry.dispose()
+    if (wireframeGeometry) wireframeGeometry.dispose()
+    if (innerWireframeGeometry) innerWireframeGeometry.dispose()
+
+    // Create new outer geometry
+    outerGeometry = createBrainGeometry(width, height, depth, cfg.segments, params)
+    wireframeGeometry = new THREE.WireframeGeometry(outerGeometry)
+
+    // Update outer wireframe
+    if (outerWireframeMesh) {
+      outerWireframeMesh.geometry.dispose()
+      outerWireframeMesh.geometry = wireframeGeometry
+    }
+
+    // Create new inner geometry
+    innerGeometry = createInnerBrainGeometry(width, height, depth, cfg.segments, params, 0.70)
+    innerWireframeGeometry = new THREE.WireframeGeometry(innerGeometry)
+
+    // Update inner wireframe
+    if (innerWireframeMesh) {
+      innerWireframeMesh.geometry.dispose()
+      innerWireframeMesh.geometry = innerWireframeGeometry
+    }
   }
 
   // ============================================================================
@@ -453,7 +635,7 @@ export function useBrainWireframe(config: BrainWireframeConfig = {}): BrainWiref
       outerMaterial.opacity = clampedOpacity
     }
     if (innerMaterial) {
-      innerMaterial.opacity = clampedOpacity * 0.5
+      innerMaterial.opacity = clampedOpacity * 0.4
     }
 
     console.log('[useBrainWireframe] Opacity set to', clampedOpacity)
@@ -472,6 +654,73 @@ export function useBrainWireframe(config: BrainWireframeConfig = {}): BrainWiref
     console.log('[useBrainWireframe] Visibility set to', visible)
   }
 
+  /**
+   * Morph the brain wireframe to a specific belt developmental stage.
+   * Animates smoothly between the current state and the target belt's brain shape.
+   *
+   * @param belt - The target belt level
+   */
+  function setBeltLevel(belt: BeltLevel): void {
+    if (belt === currentBelt.value) return
+
+    // Cancel any ongoing morphing animation
+    if (morphAnimationId !== null) {
+      cancelAnimationFrame(morphAnimationId)
+      morphAnimationId = null
+    }
+
+    const fromParams = { ...currentParams }
+    const toParams = BELT_BRAIN_PARAMS[belt]
+    const previousBelt = currentBelt.value
+
+    // Update the belt reference
+    currentBelt.value = belt
+
+    // Animation parameters
+    const duration = 1200 // 1.2 seconds for smooth organic transition
+    const startTime = performance.now()
+
+    // Ease function for organic feel
+    const easeInOutCubic = (t: number): number => {
+      return t < 0.5
+        ? 4 * t * t * t
+        : 1 - Math.pow(-2 * t + 2, 3) / 2
+    }
+
+    function animate(currentTime: number): void {
+      const elapsed = currentTime - startTime
+      const rawProgress = Math.min(elapsed / duration, 1)
+      const progress = easeInOutCubic(rawProgress)
+
+      // Interpolate parameters
+      const interpolatedParams = interpolateBrainParams(fromParams, toParams, progress)
+
+      // Rebuild geometry with interpolated params
+      rebuildGeometry(interpolatedParams)
+
+      // Update current params for potential interruption
+      currentParams = interpolatedParams
+
+      if (rawProgress < 1) {
+        morphAnimationId = requestAnimationFrame(animate)
+      } else {
+        morphAnimationId = null
+        currentParams = toParams
+        console.log('[useBrainWireframe] Belt morphing complete', {
+          from: previousBelt,
+          to: belt,
+        })
+      }
+    }
+
+    console.log('[useBrainWireframe] Starting belt morph', {
+      from: previousBelt,
+      to: belt,
+    })
+
+    morphAnimationId = requestAnimationFrame(animate)
+  }
+
   // ============================================================================
   // CLEANUP
   // ============================================================================
@@ -480,6 +729,12 @@ export function useBrainWireframe(config: BrainWireframeConfig = {}): BrainWiref
    * Dispose of all Three.js resources
    */
   function dispose(): void {
+    // Cancel any ongoing animation
+    if (morphAnimationId !== null) {
+      cancelAnimationFrame(morphAnimationId)
+      morphAnimationId = null
+    }
+
     if (outerGeometry) {
       outerGeometry.dispose()
       outerGeometry = null
@@ -505,7 +760,10 @@ export function useBrainWireframe(config: BrainWireframeConfig = {}): BrainWiref
       innerMaterial = null
     }
 
+    outerWireframeMesh = null
+    innerWireframeMesh = null
     mesh.value = null
+    baseDimensions = { width: 0, height: 0, depth: 0 }
 
     console.log('[useBrainWireframe] Disposed')
   }
@@ -519,9 +777,11 @@ export function useBrainWireframe(config: BrainWireframeConfig = {}): BrainWiref
     setColor,
     setOpacity,
     setVisible,
+    setBeltLevel,
     dispose,
     mesh,
     isVisible,
+    currentBelt,
   }
 }
 

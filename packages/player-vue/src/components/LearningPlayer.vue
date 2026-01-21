@@ -212,6 +212,10 @@ const isGuestLearner = computed(() => {
   return !id || id === 'demo-learner' || id.startsWith('guest-')
 })
 
+// Developer setting: Show fragile progress warning (can be toggled in Settings > Developer)
+const showFragileProgressWarning = ref(true)
+const shouldShowProgressWarning = computed(() => isGuestLearner.value && showFragileProgressWarning.value)
+
 // Save round completion progress to database
 const saveRoundProgress = async (legoId, roundIndex) => {
   if (isGuestLearner.value || !progressStore?.value) {
@@ -4458,6 +4462,9 @@ const findResonatingNodes = (item, exactMatches) => {
 // LIFECYCLE
 // ============================================
 
+// Event handler reference for cleanup
+let settingChangedHandler: ((e: Event) => void) | null = null
+
 onMounted(async () => {
   // ============================================
   // AWAKENING SEQUENCE - Parallel loading with cinematic timing
@@ -4473,6 +4480,19 @@ onMounted(async () => {
 
   // Initialize sync stuff immediately (no await needed)
   loadAdaptationConsent()
+
+  // Load developer settings
+  showFragileProgressWarning.value = localStorage.getItem('ssi-show-fragile-warning') !== 'false'
+
+  // Listen for developer settings changes (from Settings screen)
+  settingChangedHandler = (e: Event) => {
+    const detail = (e as CustomEvent).detail
+    if (detail?.key === 'showFragileProgressWarning') {
+      showFragileProgressWarning.value = detail.value
+    }
+  }
+  window.addEventListener('ssi-setting-changed', settingChangedHandler)
+
   // Force dark mode - constellation network is designed for dark only
   document.documentElement.setAttribute('data-theme', 'dark')
   audioController.value = new RealAudioController()
@@ -5084,6 +5104,11 @@ onUnmounted(() => {
   if (beltLoader.value) {
     beltLoader.value.clearCache()
   }
+  // Cleanup settings event listener
+  if (settingChangedHandler) {
+    window.removeEventListener('ssi-setting-changed', settingChangedHandler)
+    settingChangedHandler = null
+  }
 })
 
 // ============================================
@@ -5609,8 +5634,8 @@ defineExpose({
       </div>
       -->
 
-      <!-- Progress Warning Overlay - shown for guest users -->
-      <div v-if="isGuestLearner" class="progress-warning-overlay">
+      <!-- Progress Warning Overlay - shown for guest users (can be toggled in Settings > Developer) -->
+      <div v-if="shouldShowProgressWarning" class="progress-warning-overlay">
         <div class="progress-warning-content">
           <div class="progress-warning-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -5877,42 +5902,80 @@ defineExpose({
 }
 
 .player {
-  /* ============ LAYOUT SYSTEM - CSS Custom Properties ============ */
-  /* Safe areas from device */
+  /* ════════════════════════════════════════════════════════════════════════════
+     RESPONSIVE DESIGN SYSTEM - Single Source of Truth
+
+     All sizing controlled by CSS variables. Breakpoints ONLY update these vars.
+     Components use vars - no hardcoded sizes in component styles.
+
+     BREAKPOINTS (mobile-first):
+     - Base: 0-359px (extra small phones)
+     - sm: 360px+ (small phones - iPhone SE, etc)
+     - md: 480px+ (larger phones - iPhone Pro Max, etc)
+     - lg: 768px+ (tablets)
+     - xl: 1024px+ (desktop)
+     ════════════════════════════════════════════════════════════════════════════ */
+
+  /* ============ SAFE AREAS ============ */
   --safe-area-top: env(safe-area-inset-top, 0px);
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
 
-  /* Header height: intrinsic content + safe area + padding */
-  /* Uses clamp for responsive sizing: mobile 56px, scales to desktop 72px */
-  --header-height: clamp(56px, 8vh, 72px);
+  /* ============ LAYOUT STRUCTURE ============ */
+  --header-height: 56px;
   --header-total: calc(var(--header-height) + var(--safe-area-top));
-
-  /* Bottom nav height (from BottomNav component) */
   --nav-height: 80px;
   --nav-total: calc(var(--nav-height) + var(--safe-area-bottom));
-
-  /* Control bar sits directly on nav - play button links them visually */
-  --control-bar-offset: 0px;
-  --control-bar-bottom: calc(var(--nav-total) + var(--control-bar-offset));
-
-  /* Hero text pane position: below header with breathing room */
-  /* Fixed offset - consistent spacing at all widths */
-  --hero-offset: 56px;
+  --control-bar-bottom: var(--nav-total);
+  --hero-offset: 48px;
   --hero-top: calc(var(--header-total) + var(--hero-offset));
 
-  /* Spacing scale using viewport-relative clamp() */
-  --space-xs: clamp(4px, 1vmin, 8px);
-  --space-sm: clamp(8px, 1.5vmin, 12px);
-  --space-md: clamp(12px, 2vmin, 20px);
-  --space-lg: clamp(16px, 3vmin, 32px);
-  --space-xl: clamp(24px, 4vmin, 48px);
+  /* ============ SPACING SCALE ============ */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
 
-  /* Text sizing using viewport-relative clamp() */
-  --text-sm: clamp(0.8125rem, 2vmin, 0.9375rem);
-  --text-base: clamp(1rem, 2.5vmin, 1.25rem);
-  --text-lg: clamp(1.125rem, 3vmin, 1.5rem);
-  --text-xl: clamp(1.25rem, 3.5vmin, 1.75rem);
-  --text-2xl: clamp(1.5rem, 4vmin, 2.25rem);
+  /* ============ TYPOGRAPHY SCALE ============ */
+  --text-xs: 0.6875rem;   /* 11px */
+  --text-sm: 0.8125rem;   /* 13px */
+  --text-base: 1rem;      /* 16px */
+  --text-lg: 1.125rem;    /* 18px */
+  --text-xl: 1.25rem;     /* 20px */
+  --text-2xl: 1.5rem;     /* 24px */
+
+  /* ============ BUTTON SIZES ============ */
+  /* Touch target: always 44px min for accessibility */
+  --btn-touch-target: 44px;
+
+  /* Mode buttons (listening, turbo) */
+  --mode-btn-size: 36px;
+  --mode-btn-icon: 16px;
+
+  /* Transport buttons (skip, revisit) */
+  --transport-btn-size: 32px;
+  --transport-btn-icon: 14px;
+
+  /* Belt nav buttons (header skip arrows) */
+  --belt-skip-btn-size: 36px;
+  --belt-skip-btn-icon: 16px;
+
+  /* Belt nav buttons (control bar double arrows) */
+  --belt-nav-btn-size: 36px;
+  --belt-nav-btn-icon: 16px;
+
+  /* ============ CONTROL BAR ============ */
+  --control-bar-gap: 3rem;      /* Gap between left and right groups (for play button) */
+  --control-group-gap: 0.5rem;  /* Gap between buttons in a group */
+  --control-bar-padding: var(--space-sm) var(--space-md);
+  --control-bar-radius: 20px;
+
+  /* ============ HEADER ============ */
+  --header-padding: var(--space-md) var(--space-lg) var(--space-sm);
+  --belt-row-gap: 0.5rem;
+  --belt-timer-width: 180px;
+  --belt-bar-width: 60px;
+  --belt-bar-height: 5px;
 
   /* ============ THEME COLORS ============ */
   --accent: #c23a3a;
@@ -6544,18 +6607,20 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.625rem;
+  gap: var(--belt-row-gap);
   width: 100%;
-  max-width: 400px; /* Fixed phone-like width */
+  max-width: 400px;
   margin: 0 auto;
-  margin-top: 0.75rem; /* Fixed space between logo and belt/timer */
-  padding: 0 1rem;
+  margin-top: var(--space-md);
+  padding: 0 var(--space-lg);
 }
 
 /* Belt header skip buttons - circular with belt color border */
 .belt-header-skip {
-  width: 36px;
-  height: 36px;
+  width: var(--belt-skip-btn-size);
+  height: var(--belt-skip-btn-size);
+  min-width: var(--btn-touch-target);
+  min-height: var(--btn-touch-target);
   border-radius: 50%;
   border: 2px solid var(--skip-belt-color, var(--text-muted));
   background: rgba(255, 255, 255, 0.04);
@@ -6569,8 +6634,8 @@ defineExpose({
 }
 
 .belt-header-skip svg {
-  width: 16px;
-  height: 16px;
+  width: var(--belt-skip-btn-icon);
+  height: var(--belt-skip-btn-icon);
 }
 
 .belt-header-skip:hover:not(:disabled) {
@@ -6597,19 +6662,17 @@ defineExpose({
 .belt-timer-unified {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.5rem 1rem;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-lg);
   background: var(--bg-card);
-  /* Belt-colored subtle border accent */
   border: 1px solid color-mix(in srgb, var(--belt-color) 35%, var(--border-subtle));
   border-radius: 16px;
   cursor: pointer;
   transition: all 0.2s ease;
-  /* Subtle belt glow */
   box-shadow: 0 0 15px color-mix(in srgb, var(--belt-glow) 12%, transparent);
-  /* Fill available space between skip buttons */
   flex: 1;
   min-width: 0;
+  max-width: var(--belt-timer-width);
 }
 
 .belt-timer-unified:hover {
@@ -8386,22 +8449,18 @@ defineExpose({
   display: flex;
   justify-content: center;
   align-items: center;
-  /* Gap sized for play button width */
-  gap: 3.5rem;
-  padding: var(--space-sm) var(--space-md);
+  gap: var(--control-bar-gap);
+  padding: var(--control-bar-padding);
   position: absolute;
-  /* Position above bottom nav using CSS custom property */
   bottom: var(--control-bar-bottom);
   left: 50%;
   transform: translateX(-50%);
   z-index: 15;
-  pointer-events: auto; /* Clickable buttons */
-  /* Glassmorphism - slightly more prominent at bottom */
+  pointer-events: auto;
   background: rgba(10, 10, 15, 0.5);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-radius: 20px;
-  /* Belt-colored subtle border accent */
+  border-radius: var(--control-bar-radius);
   border: 1px solid color-mix(in srgb, var(--belt-color) 25%, rgba(255, 255, 255, 0.06));
   /* Subtle belt glow on bottom edge */
   box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.3),
@@ -8417,7 +8476,7 @@ defineExpose({
 .control-group {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--control-group-gap);
 }
 
 /* QA Report button - positioned in header area */
@@ -8429,8 +8488,10 @@ defineExpose({
 }
 
 .mode-btn {
-  width: 40px;
-  height: 40px;
+  width: var(--mode-btn-size);
+  height: var(--mode-btn-size);
+  min-width: var(--btn-touch-target);
+  min-height: var(--btn-touch-target);
   border-radius: 50%;
   border: none;
   background: rgba(255, 255, 255, 0.08);
@@ -8443,8 +8504,8 @@ defineExpose({
 }
 
 .mode-btn svg {
-  width: 20px;
-  height: 20px;
+  width: var(--mode-btn-icon);
+  height: var(--mode-btn-icon);
 }
 
 .mode-btn:hover {
@@ -8642,8 +8703,10 @@ defineExpose({
 
 /* Transport buttons (Revisit, Skip) */
 .transport-btn {
-  width: 36px;
-  height: 36px;
+  width: var(--transport-btn-size);
+  height: var(--transport-btn-size);
+  min-width: var(--btn-touch-target);
+  min-height: var(--btn-touch-target);
   border-radius: 50%;
   border: none;
   background: rgba(255, 255, 255, 0.08);
@@ -8656,8 +8719,8 @@ defineExpose({
 }
 
 .transport-btn svg {
-  width: 16px;
-  height: 16px;
+  width: var(--transport-btn-icon);
+  height: var(--transport-btn-icon);
 }
 
 .transport-btn:hover {

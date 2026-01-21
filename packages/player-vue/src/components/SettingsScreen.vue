@@ -38,8 +38,9 @@ const buildNumber = '2024.12.16'
 // Display settings
 const showFirePath = ref(true)
 
-// Developer settings
+// Developer settings (hidden from regular users, useful for debugging)
 const showViewScript = ref(false)
+const showFragileProgressWarning = ref(true) // Default: show the warning to guests
 
 // Theme settings
 const isDarkMode = ref(true) // Default to dark mode
@@ -185,6 +186,7 @@ onMounted(async () => {
 
   // Load developer settings
   showViewScript.value = localStorage.getItem('ssi-show-view-script') === 'true'
+  showFragileProgressWarning.value = localStorage.getItem('ssi-show-fragile-warning') !== 'false' // Default true
 
   // Load cache stats
   try {
@@ -340,6 +342,15 @@ const toggleFirePath = () => {
 const toggleViewScript = () => {
   showViewScript.value = !showViewScript.value
   localStorage.setItem('ssi-show-view-script', showViewScript.value ? 'true' : 'false')
+}
+
+const toggleFragileProgressWarning = () => {
+  showFragileProgressWarning.value = !showFragileProgressWarning.value
+  localStorage.setItem('ssi-show-fragile-warning', showFragileProgressWarning.value ? 'true' : 'false')
+  // Dispatch event so LearningPlayer can react without reload
+  window.dispatchEvent(new CustomEvent('ssi-setting-changed', {
+    detail: { key: 'showFragileProgressWarning', value: showFragileProgressWarning.value }
+  }))
 }
 
 // Reset progress functions
@@ -760,6 +771,20 @@ const confirmReset = async () => {
               <span class="setting-desc">Enable script browser in Tools section</span>
             </div>
             <div class="toggle-switch" :class="{ 'is-on': showViewScript }">
+              <div class="toggle-track">
+                <div class="toggle-thumb"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row clickable" @click="toggleFragileProgressWarning">
+            <div class="setting-info">
+              <span class="setting-label">Fragile Progress Warning</span>
+              <span class="setting-desc">Show "progress is fragile" banner for guests</span>
+            </div>
+            <div class="toggle-switch" :class="{ 'is-on': showFragileProgressWarning }">
               <div class="toggle-track">
                 <div class="toggle-thumb"></div>
               </div>

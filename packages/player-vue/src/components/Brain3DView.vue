@@ -277,7 +277,8 @@ async function initScene(): Promise<void> {
     }
 
     // 2. Create and add the wireframe brain shape FIRST (renders behind nodes)
-    const wireframeMesh = brainWireframe.createWireframe(400, 320, 240)
+    // Wireframe is slightly larger than node ellipsoid (140x110x85) to enclose the organic tree
+    const wireframeMesh = brainWireframe.createWireframe(320, 260, 200)
     brainScene.scene.value.add(wireframeMesh)
     // Tint the wireframe to match the current belt color
     brainWireframe.setColor(accentColor.value)
@@ -286,17 +287,20 @@ async function initScene(): Promise<void> {
     const filteredNodes = getFilteredNodes()
     const filteredEdges = getFilteredEdges()
 
-    // 4. Convert to BrainNode format and create particle system
+    // 4. Convert to BrainNode and BrainEdge formats
     const brainNodeData = filteredNodes.map(toBrainNode)
+    const brainEdgeData = filteredEdges.map(toBrainEdge)
     const containerWidth = containerRef.value.clientWidth
     const containerHeight = containerRef.value.clientHeight
-    const pointsObject = brainNodes.createNodes(brainNodeData, containerWidth, containerHeight)
+
+    // 5. Create particle system with organic tree positioning
+    // Pass edges so connected nodes cluster together (force-directed layout)
+    const pointsObject = brainNodes.createNodes(brainNodeData, containerWidth, containerHeight, brainEdgeData)
 
     // Add points to scene
     brainScene.scene.value.add(pointsObject)
 
-    // 5. Convert to BrainEdge format and create line system
-    const brainEdgeData = filteredEdges.map(toBrainEdge)
+    // 6. Create line system for edges (uses positions from brainNodes)
     const linesObject = brainEdges.createEdges(
       brainEdgeData,
       (nodeId: string) => brainNodes.getNodePosition(nodeId)
@@ -445,15 +449,18 @@ function rebuildNodesAndEdges(): void {
   const filteredNodes = getFilteredNodes()
   const filteredEdges = getFilteredEdges()
 
-  // 4. Create new particle system with filtered nodes
+  // 4. Convert to BrainNode and BrainEdge formats
   const brainNodeData = filteredNodes.map(toBrainNode)
+  const brainEdgeData = filteredEdges.map(toBrainEdge)
   const containerWidth = containerRef.value.clientWidth
   const containerHeight = containerRef.value.clientHeight
-  const pointsObject = brainNodes.createNodes(brainNodeData, containerWidth, containerHeight)
+
+  // 5. Create new particle system with organic tree positioning
+  // Pass edges so connected nodes cluster together (force-directed layout)
+  const pointsObject = brainNodes.createNodes(brainNodeData, containerWidth, containerHeight, brainEdgeData)
   brainScene.scene.value.add(pointsObject)
 
-  // 5. Create new edge system with filtered edges
-  const brainEdgeData = filteredEdges.map(toBrainEdge)
+  // 6. Create new edge system with filtered edges
   const linesObject = brainEdges.createEdges(
     brainEdgeData,
     (nodeId: string) => brainNodes.getNodePosition(nodeId)
