@@ -281,10 +281,12 @@ function getBrainSurfaceRadius(angle: number): number {
 }
 
 /**
- * Calculate position ON the brain surface
- * Nodes are distributed across the brain surface based on birth order and belt
+ * Calculate position INSIDE the brain volume
+ * Brain fills from the center outward as more nodes are added.
+ * Early learners = sparse nodes near center
+ * Advanced learners = dense mesh filling the brain shape
  */
-function getBrainSurfacePosition(
+function getBrainInteriorPosition(
   birthOrder: number,
   totalNodes: number,
   belt: Belt,
@@ -295,57 +297,65 @@ function getBrainSurfacePosition(
   // Normalize birth order to 0-1 range
   const progress = totalNodes > 1 ? birthOrder / (totalNodes - 1) : 0
 
-  // Belt affects which "layer" of the brain - earlier belts more central/inner
+  // Belt affects radial depth - earlier belts more central
   const beltDepth = BELT_DEPTH[belt]
 
-  // Use golden angle for even distribution across surface
+  // Use golden angle for even angular distribution
   const goldenAngle = Math.PI * (3 - Math.sqrt(5))
-  const theta = goldenAngle * birthOrder + random() * 0.3  // Azimuthal angle (around Y axis)
+  const theta = goldenAngle * birthOrder + random() * 0.4  // Azimuthal angle
 
-  // Distribute vertically across the brain, biased toward upper regions
-  // Progress 0 = bottom, Progress 1 = top
-  const verticalBias = 0.3 + progress * 0.5 + random() * 0.2  // Range roughly 0.3 to 1.0
-  const phi = Math.acos(1 - 2 * verticalBias)  // Polar angle from top
+  // Vertical distribution - spread across brain height with some randomness
+  const verticalT = random()  // Random vertical position
+  const phi = Math.acos(1 - 2 * verticalT)  // Convert to polar angle
 
-  // Get brain surface radius at this angle (side profile)
+  // FILL-OUT EFFECT: Radial distance from center grows with learning
+  // First nodes are central, later nodes fill outward toward surface
+  // Range: 0.2 (very center) to 0.95 (near surface)
+  const minRadius = 0.2
+  const maxRadius = 0.95
+
+  // Combine progress and belt for radial position
+  // Progress determines base radius, belt adds layering
+  const progressRadius = minRadius + progress * (maxRadius - minRadius) * 0.7
+  const beltRadius = beltDepth * (maxRadius - minRadius) * 0.3
+  let fillRadius = progressRadius + beltRadius + (random() - 0.5) * 0.15
+  fillRadius = Math.max(minRadius, Math.min(maxRadius, fillRadius))
+
+  // Get brain surface radius at this angle for boundary
   const sideAngle = Math.atan2(Math.sin(phi), Math.cos(phi))
-  const brainRadius = getBrainSurfaceRadius(sideAngle)
+  const surfaceRadius = getBrainSurfaceRadius(sideAngle)
 
-  // Convert spherical to cartesian, then scale to brain dimensions
+  // Scale by fill radius (interior position) and surface shape
+  const effectiveRadius = fillRadius * surfaceRadius
+
+  // Convert spherical to cartesian
   const sinPhi = Math.sin(phi)
   const cosPhi = Math.cos(phi)
   const sinTheta = Math.sin(theta)
   const cosTheta = Math.cos(theta)
 
-  // Base position on brain surface
-  let x = brainRadius * sinPhi * cosTheta * BRAIN_DIMENSIONS.width
-  let y = brainRadius * cosPhi * BRAIN_DIMENSIONS.height
-  let z = brainRadius * sinPhi * sinTheta * BRAIN_DIMENSIONS.depth
+  let x = effectiveRadius * sinPhi * cosTheta * BRAIN_DIMENSIONS.width
+  let y = effectiveRadius * cosPhi * BRAIN_DIMENSIONS.height
+  let z = effectiveRadius * sinPhi * sinTheta * BRAIN_DIMENSIONS.depth
 
   // Add longitudinal fissure effect (groove at top-center)
   const topness = Math.max(0, y / BRAIN_DIMENSIONS.height)
   const centerDist = Math.abs(x) / BRAIN_DIMENSIONS.width
-  const fissureFalloff = Math.exp(-centerDist * centerDist * 20)
-  y -= topness * fissureFalloff * 12  // Indent at top center
+  const fissureFalloff = Math.exp(-centerDist * centerDist * 15)
+  y -= topness * fissureFalloff * 8
 
-  // Add left hemisphere slight asymmetry
+  // Slight left hemisphere asymmetry
   if (x < 0) {
-    x *= 1.03
+    x *= 1.02
   }
 
-  // Belt-based depth variation - earlier belts slightly inside, later belts on surface
-  const depthMultiplier = 0.85 + beltDepth * 0.15
-  x *= depthMultiplier
-  y *= depthMultiplier
-  z *= depthMultiplier
-
-  // Add small organic jitter for natural look
-  const jitter = 8
+  // Organic jitter for natural clustering
+  const jitter = 10 * (1 - fillRadius * 0.5)  // Less jitter near surface
   x += (random() - 0.5) * jitter
   y += (random() - 0.5) * jitter
   z += (random() - 0.5) * jitter
 
-  // Shift so brain is centered properly
+  // Center the brain
   y += BRAIN_DIMENSIONS.height * 0.1
 
   return { x, y, z }
@@ -533,9 +543,9 @@ function calculateOrganicPositions(
 
   if (nodes.length === 0) return positions
 
-  // 1. Create force nodes with initial brain surface positions
+  // 1. Create force nodes with initial brain interior positions (fill-out effect)
   const forceNodes: ForceNode[] = nodes.map((node, index) => {
-    const initial = getBrainSurfacePosition(index, nodes.length, node.belt, node.id)
+    const initial = getBrainInteriorPosition(index, nodes.length, node.belt, node.id)
     return {
       id: node.id,
       x: initial.x,
