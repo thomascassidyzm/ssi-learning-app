@@ -1034,7 +1034,7 @@ onUnmounted(() => {
     <!-- ============================================ -->
     <!-- BRAIN TAB CONTENT -->
     <!-- ============================================ -->
-    <template v-if="activeTab === 'brain'">
+    <div class="tab-content-wrapper" v-if="activeTab === 'brain'">
       <!-- Loading state -->
       <div v-if="isLoading" class="loading-state">
         <div class="loading-spinner"></div>
@@ -1155,7 +1155,7 @@ onUnmounted(() => {
           </button>
         </div>
       </div>
-    </template>
+    </div>
 
     <!-- ============================================ -->
     <!-- BELTS TAB CONTENT -->
@@ -1425,6 +1425,32 @@ onUnmounted(() => {
 .tab-btn.active {
   background: rgba(255, 255, 255, 0.08);
   border-color: currentColor;
+}
+
+/* Tab content wrapper - clears the fixed header and tabs */
+.tab-content-wrapper {
+  position: absolute;
+  top: calc(130px + env(safe-area-inset-top, 0px));
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Override BrainStatsMobile styles when embedded */
+.tab-content-wrapper :deep(.brain-stats-mobile) {
+  min-height: auto;
+  height: 100%;
+}
+
+.tab-content-wrapper :deep(.brain-stats-mobile .header) {
+  display: none;
+}
+
+.tab-content-wrapper :deep(.brain-stats-mobile .bg-gradient),
+.tab-content-wrapper :deep(.brain-stats-mobile .bg-noise) {
+  display: none;
 }
 
 /* Belts Tab Content */
