@@ -1728,13 +1728,18 @@ export async function generateLearningScript(
     // RUNTIME VALIDATION: Skip incomplete rounds/items
     // ========================================
 
-    // Check 1: If intro audio is missing, skip the ENTIRE round
-    // (Can't introduce a LEGO without the presentation audio)
+    // Check 1: If intro audio is missing, just remove the intro item (don't skip entire round)
+    // These LEGOs were likely already introduced as components of earlier M-types
+    // The learner already knows them - just proceed to practice phrases
     const introItem = dedupedItems.find(item => item.type === 'intro')
     if (introItem && !isValidIntroItem(introItem)) {
-      console.warn(`[generateLearningScript] Skipping round ${n} (${currentLego.lego.id}) - missing intro audio`)
+      // Remove the invalid intro item instead of skipping the entire round
+      const introIndex = dedupedItems.indexOf(introItem)
+      if (introIndex > -1) {
+        dedupedItems.splice(introIndex, 1)
+      }
       skippedMissingIntroAudio++
-      continue  // Skip to next LEGO
+      // Continue processing - don't skip the round
     }
 
     // Check 2: Filter out practice items with incomplete audio
@@ -1751,7 +1756,7 @@ export async function generateLearningScript(
     skippedPhrasesMissingAudio += skippedInThisRound.count
 
     // Check 3: Only add round if it has meaningful content after filtering
-    // (Need at least intro + 1 practice item)
+    // (Need at least 1 practice item - intro is optional for component LEGOs)
     const practiceItemCount = validatedItems.filter(i => i.type !== 'intro').length
     if (practiceItemCount === 0) {
       console.warn(`[generateLearningScript] Skipping round ${n} (${currentLego.lego.id}) - no valid practice items`)
@@ -1772,11 +1777,17 @@ export async function generateLearningScript(
   }
 
   const skippedRounds = legos.length - rounds.length
-  if (skippedRounds > 0) {
-    console.warn(`[generateLearningScript] Skipped ${skippedRounds} rounds due to missing audio:`)
-    console.warn(`  - Missing intro audio: ${skippedMissingIntroAudio} rounds`)
-    console.warn(`  - No valid practice items: ${skippedNoValidPractice} rounds`)
-    console.warn(`  - Phrases missing audio: ${skippedPhrasesMissingAudio} phrases`)
+  if (skippedRounds > 0 || skippedMissingIntroAudio > 0) {
+    console.log(`[generateLearningScript] Audio status:`)
+    if (skippedMissingIntroAudio > 0) {
+      console.log(`  - Rounds without intro (component LEGOs): ${skippedMissingIntroAudio}`)
+    }
+    if (skippedNoValidPractice > 0) {
+      console.warn(`  - Skipped (no valid practice items): ${skippedNoValidPractice} rounds`)
+    }
+    if (skippedPhrasesMissingAudio > 0) {
+      console.warn(`  - Phrases missing audio: ${skippedPhrasesMissingAudio} phrases`)
+    }
   }
 
   if (rounds.length === 0) {
