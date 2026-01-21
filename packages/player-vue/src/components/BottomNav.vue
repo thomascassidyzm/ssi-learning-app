@@ -281,7 +281,7 @@ const isVisible = computed(() => !props.isLearning)
   bottom: 0;
   left: 0;
   right: 0;
-  /* No z-index here - let children control their own stacking */
+  z-index: 1000;
 }
 
 .nav-backdrop {
