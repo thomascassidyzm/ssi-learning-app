@@ -212,9 +212,16 @@ const isGuestLearner = computed(() => {
   return !id || id === 'demo-learner' || id.startsWith('guest-')
 })
 
-// Developer setting: Show fragile progress warning (can be toggled in Settings > Developer)
+// Developer settings (can be toggled in Settings > Developer)
 const showFragileProgressWarning = ref(true)
+const enableQaMode = ref(false)
+const showDebugOverlay = ref(false)
+const enableVerboseLogging = ref(false)
+const skipIntroAudio = ref(false)
+
+// Computed properties for conditional rendering
 const shouldShowProgressWarning = computed(() => isGuestLearner.value && showFragileProgressWarning.value)
+const shouldShowQaMode = computed(() => enableQaMode.value || isQaMode.value) // Either setting or URL param
 
 // Save round completion progress to database
 const saveRoundProgress = async (legoId, roundIndex) => {
@@ -4487,8 +4494,24 @@ onMounted(async () => {
   // Listen for developer settings changes (from Settings screen)
   settingChangedHandler = (e: Event) => {
     const detail = (e as CustomEvent).detail
-    if (detail?.key === 'showFragileProgressWarning') {
-      showFragileProgressWarning.value = detail.value
+    if (!detail?.key) return
+    
+    switch (detail.key) {
+      case 'showFragileProgressWarning':
+        showFragileProgressWarning.value = detail.value
+        break
+      case 'enableQaMode':
+        enableQaMode.value = detail.value
+        break
+      case 'showDebugOverlay':
+        showDebugOverlay.value = detail.value
+        break
+      case 'enableVerboseLogging':
+        enableVerboseLogging.value = detail.value
+        break
+      case 'skipIntroAudio':
+        skipIntroAudio.value = detail.value
+        break
     }
   }
   window.addEventListener('ssi-setting-changed', settingChangedHandler)
@@ -8923,6 +8946,11 @@ defineExpose({
     --belt-bar-width: 120px;
     --belt-bar-height: 8px;
     --control-bar-gap: 4.5rem;
+    --ring-size: 260px;
+    --ring-center-size: 160px;
+    --ring-icon-size: 52px;
+    --known-text-size: 2.125rem;
+    --target-text-size: 1.875rem;
   }
 }
 
@@ -8945,6 +8973,12 @@ defineExpose({
     --belt-bar-width: 140px;
     --control-bar-gap: 5rem;
     --control-group-gap: 1rem;
+    --ring-size: 280px;
+    --ring-center-size: 180px;
+    --ring-icon-size: 56px;
+    --text-zone-min-height: 120px;
+    --known-text-size: 2.25rem;
+    --target-text-size: 2rem;
   }
 }
 
@@ -8958,6 +8992,12 @@ defineExpose({
     --space-lg: 12px;
     --control-bar-gap: 3rem;
     --control-group-gap: 0.25rem;
+    --ring-size: 140px;
+    --ring-center-size: 85px;
+    --ring-icon-size: 28px;
+    --text-zone-min-height: 50px;
+    --known-text-size: 1.5rem;
+    --target-text-size: 1.25rem;
   }
 }
 
