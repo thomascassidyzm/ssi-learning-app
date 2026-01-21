@@ -13,6 +13,9 @@
 import { ref, computed, inject, onMounted, onUnmounted, watch } from 'vue'
 import CanvasNetworkView from './CanvasNetworkView.vue'
 import UsageStats from './UsageStats.vue'
+// TODO: Import these components once they're created by other agents
+// import Brain3DView from './Brain3DView.vue'
+// import BrainStatsMobile from './BrainStatsMobile.vue'
 import { usePrebuiltNetwork, type ExternalConnection, type ConstellationNode } from '../composables/usePrebuiltNetwork'
 import { useLegoNetwork, type PhraseWithPath } from '../composables/useLegoNetwork'
 import { generateLearningScript } from '../providers/CourseDataProvider'
@@ -172,12 +175,106 @@ const isDownloading = ref(false)
 // Network component ref (for fit-all button)
 const networkRef = ref<{ resetZoomPan: () => void } | null>(null)
 
+// 3D brain component ref (for flyToNode on desktop)
+// TODO: Add proper type once Brain3DView component is created
+const brain3DRef = ref<{ flyToNode: (nodeId: string) => void } | null>(null)
+
 // Search state
 const searchQuery = ref('')
 const isSearchFocused = ref(false)
 
 // Tab state: 'brain' | 'belts' | 'usage'
 const activeTab = ref<'brain' | 'belts' | 'usage'>('brain')
+
+// ============================================================================
+// PLATFORM DETECTION (Desktop vs Mobile)
+// ============================================================================
+
+/**
+ * Reactive platform detection for conditional brain rendering
+ * Desktop: screen width > 1024px AND not touch-primary device
+ * Mobile: everything else
+ */
+const screenWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1024)
+const isTouchPrimary = ref(
+  typeof window !== 'undefined' &&
+  window.matchMedia('(pointer: coarse)').matches
+)
+
+// Reactive desktop detection
+const isDesktop = computed(() => {
+  return screenWidth.value > 1024 && !isTouchPrimary.value
+})
+
+// Handle resize events for reactive platform detection
+let resizeHandler: (() => void) | null = null
+let touchMediaQuery: MediaQueryList | null = null
+
+function setupPlatformDetection() {
+  if (typeof window === 'undefined') return
+
+  // Resize handler for screen width
+  resizeHandler = () => {
+    screenWidth.value = window.innerWidth
+  }
+  window.addEventListener('resize', resizeHandler)
+
+  // Media query listener for touch detection
+  touchMediaQuery = window.matchMedia('(pointer: coarse)')
+  const touchHandler = (e: MediaQueryListEvent) => {
+    isTouchPrimary.value = e.matches
+  }
+  touchMediaQuery.addEventListener('change', touchHandler)
+}
+
+function cleanupPlatformDetection() {
+  if (typeof window === 'undefined') return
+
+  if (resizeHandler) {
+    window.removeEventListener('resize', resizeHandler)
+    resizeHandler = null
+  }
+  // Note: touchMediaQuery cleanup handled via garbage collection
+  touchMediaQuery = null
+}
+
+// ============================================================================
+// MOBILE STATS DATA (for BrainStatsMobile component)
+// ============================================================================
+
+// Calculate belt progress for mobile stats dashboard
+const beltProgress = computed(() => {
+  const currentBelt = BELTS.find(b => b.name === props.beltLevel)
+  const currentBeltIndex = BELTS.findIndex(b => b.name === props.beltLevel)
+  const nextBelt = currentBeltIndex < BELTS.length - 1 ? BELTS[currentBeltIndex + 1] : null
+
+  if (!currentBelt || !nextBelt) {
+    return { current: props.completedSeeds, target: currentBelt?.seedsRequired || 0, percentage: 100 }
+  }
+
+  const progressInBelt = props.completedSeeds - currentBelt.seedsRequired
+  const beltRange = nextBelt.seedsRequired - currentBelt.seedsRequired
+  const percentage = Math.min(100, Math.round((progressInBelt / beltRange) * 100))
+
+  return {
+    current: props.completedSeeds,
+    target: nextBelt.seedsRequired,
+    percentage
+  }
+})
+
+// TODO: These stats should come from Supabase user_sessions table
+// For now, provide placeholder values
+const totalMinutes = computed(() => {
+  // Estimate: ~2.5 minutes per seed completed
+  return Math.round(props.completedSeeds * 2.5)
+})
+
+const currentStreak = computed(() => {
+  // TODO: Calculate from user_sessions table
+  // For now, return a placeholder
+  return 0
+})
 
 // ============================================================================
 // COMPUTED
@@ -318,14 +415,33 @@ async function handleNodeTap(node: ConstellationNode) {
 
 /**
  * Handle selecting a search result
+ * Desktop: Fly to node in 3D view, then open detail panel
+ * Mobile: Open detail panel directly (or show "view on desktop" message)
  */
 function selectSearchResult(node: ConstellationNode) {
   // Clear search
   searchQuery.value = ''
   isSearchFocused.value = false
 
-  // Select the node (same as tapping it)
-  handleNodeTap(node)
+  if (isDesktop.value && brain3DRef.value?.flyToNode) {
+    // Desktop: Fly to node in 3D view first
+    brain3DRef.value.flyToNode(node.id)
+    // Then open detail panel
+    setTimeout(() => handleNodeTap(node), 500) // Small delay for fly animation
+  } else {
+    // Mobile or fallback: Select the node directly
+    handleNodeTap(node)
+  }
+}
+
+/**
+ * Handle mobile search from BrainStatsMobile component
+ * On mobile, searches filter a word list or show guidance
+ */
+function handleMobileSearch(query: string) {
+  searchQuery.value = query
+  isSearchFocused.value = true
+  // The search results computed will filter nodes automatically
 }
 
 /**
@@ -786,10 +902,12 @@ watch(sliderValue, (newVal) => {
 // ============================================================================
 
 onMounted(() => {
+  setupPlatformDetection()
   loadData()
 })
 
 onUnmounted(() => {
+  cleanupPlatformDetection()
   stopPhrasePractice()
   clearPathAnimation()
 })
@@ -909,90 +1027,127 @@ onUnmounted(() => {
     <template v-if="activeTab === 'brain'">
       <!-- Loading state -->
       <div v-if="isLoading" class="loading-state">
-      <div class="loading-spinner"></div>
-      <p>Loading neural network...</p>
-    </div>
-
-    <!-- Error state -->
-    <div v-else-if="error" class="error-state">
-      <p>{{ error }}</p>
-      <button @click="loadData">Retry</button>
-    </div>
-
-    <!-- Network visualization - fixed view, only revealed nodes shown -->
-    <!-- Network is constrained within a "growing brain" shape based on belt level -->
-    <!-- Uses Canvas+SVG hybrid for smooth performance with large networks -->
-    <CanvasNetworkView
-      v-else
-      ref="networkRef"
-      :nodes="prebuiltNetwork.nodes.value"
-      :edges="prebuiltNetwork.visibleEdges.value"
-      :hero-node-id="null"
-      :revealed-node-ids="showAllForTesting ? null : prebuiltNetwork.revealedNodeIds.value"
-      :current-path="prebuiltNetwork.currentPath.value"
-      :show-path-labels="true"
-      :brain-boundary-svg-path="prebuiltNetwork.brainBoundarySvgPath.value"
-      :brain-boundary-color="accentColor"
-      :disable-interaction="true"
-      :hide-unrevealed-nodes="!showAllForTesting"
-      @node-tap="handleNodeTap"
-    />
-
-    <!-- Stage slider panel (admin only) -->
-    <div v-if="isAdmin && !isLoading && !error && allRounds.length > 0 && !isPanelOpen" class="stage-slider-panel">
-      <div class="stage-header">
-        <span class="stage-label">Network Stage</span>
-        <span class="stage-count" :style="{ color: accentColor }">
-          {{ visibleCount }} / {{ sliderMax }} LEGOs
-        </span>
+        <div class="loading-spinner"></div>
+        <p>Loading neural network...</p>
       </div>
 
-      <div class="stage-slider-row">
-        <input
-          type="range"
-          class="stage-slider"
-          :min="10"
-          :max="sliderMax"
-          :step="10"
-          v-model.number="sliderValue"
-          :style="{ '--accent-color': accentColor }"
-        />
+      <!-- Error state -->
+      <div v-else-if="error" class="error-state">
+        <p>{{ error }}</p>
+        <button @click="loadData">Retry</button>
       </div>
 
-      <div class="stage-presets">
-        <button
-          v-for="preset in [50, 100, 200, 400]"
-          :key="preset"
-          class="preset-btn"
-          :class="{ active: sliderValue === preset && !showAllForTesting }"
-          :style="sliderValue === preset && !showAllForTesting ? { backgroundColor: accentColor + '30', borderColor: accentColor } : {}"
-          @click="sliderValue = Math.min(preset, sliderMax); showAllForTesting = false"
-          :disabled="preset > sliderMax"
-        >
-          {{ preset }}
-        </button>
-        <button
-          class="preset-btn"
-          :class="{ active: sliderValue === sliderMax && !showAllForTesting }"
-          :style="sliderValue === sliderMax && !showAllForTesting ? { backgroundColor: accentColor + '30', borderColor: accentColor } : {}"
-          @click="sliderValue = sliderMax; showAllForTesting = false"
-        >
-          All
-        </button>
-      </div>
+      <!-- ========================================== -->
+      <!-- DESKTOP: 3D Brain Visualization -->
+      <!-- ========================================== -->
+      <!-- TODO: Uncomment when Brain3DView component is ready
+      <Brain3DView
+        v-else-if="isDesktop"
+        ref="brain3DRef"
+        :nodes="prebuiltNetwork.nodes.value"
+        :edges="prebuiltNetwork.visibleEdges.value"
+        :revealed-node-ids="showAllForTesting ? null : prebuiltNetwork.revealedNodeIds.value"
+        :current-path="prebuiltNetwork.currentPath.value"
+        :belt-level="beltLevel"
+        @node-tap="handleNodeTap"
+      />
+      -->
 
-      <!-- Testing mode toggle -->
-      <div class="testing-toggle">
-        <button
-          class="testing-btn"
-          :class="{ active: showAllForTesting }"
-          :style="showAllForTesting ? { backgroundColor: accentColor + '30', borderColor: accentColor, color: accentColor } : {}"
-          @click="showAllForTesting = !showAllForTesting"
-        >
-          {{ showAllForTesting ? 'Showing All (Testing)' : 'Show All (Testing)' }}
-        </button>
+      <!-- ========================================== -->
+      <!-- MOBILE: Stats Dashboard -->
+      <!-- ========================================== -->
+      <!-- TODO: Uncomment when BrainStatsMobile component is ready
+      <BrainStatsMobile
+        v-else-if="!isDesktop"
+        :belt-level="beltLevel"
+        :belt-progress="beltProgress"
+        :words-learned="globalStats.concepts"
+        :phrases-practiced="globalStats.phrases"
+        :total-minutes="totalMinutes"
+        :current-streak="currentStreak"
+        :accent-color="accentColor"
+        @search-word="handleMobileSearch"
+      />
+      -->
+
+      <!-- ========================================== -->
+      <!-- FALLBACK: Canvas Network View (current implementation) -->
+      <!-- TODO: Remove this fallback once Brain3DView and BrainStatsMobile are ready -->
+      <!-- ========================================== -->
+      <!-- Network visualization - fixed view, only revealed nodes shown -->
+      <!-- Network is constrained within a "growing brain" shape based on belt level -->
+      <!-- Uses Canvas+SVG hybrid for smooth performance with large networks -->
+      <CanvasNetworkView
+        v-else
+        ref="networkRef"
+        :nodes="prebuiltNetwork.nodes.value"
+        :edges="prebuiltNetwork.visibleEdges.value"
+        :hero-node-id="null"
+        :revealed-node-ids="showAllForTesting ? null : prebuiltNetwork.revealedNodeIds.value"
+        :current-path="prebuiltNetwork.currentPath.value"
+        :show-path-labels="true"
+        :brain-boundary-svg-path="prebuiltNetwork.brainBoundarySvgPath.value"
+        :brain-boundary-color="accentColor"
+        :disable-interaction="true"
+        :hide-unrevealed-nodes="!showAllForTesting"
+        @node-tap="handleNodeTap"
+      />
+
+      <!-- Stage slider panel (admin only) -->
+      <div v-if="isAdmin && !isLoading && !error && allRounds.length > 0 && !isPanelOpen" class="stage-slider-panel">
+        <div class="stage-header">
+          <span class="stage-label">Network Stage</span>
+          <span class="stage-count" :style="{ color: accentColor }">
+            {{ visibleCount }} / {{ sliderMax }} LEGOs
+          </span>
+        </div>
+
+        <div class="stage-slider-row">
+          <input
+            type="range"
+            class="stage-slider"
+            :min="10"
+            :max="sliderMax"
+            :step="10"
+            v-model.number="sliderValue"
+            :style="{ '--accent-color': accentColor }"
+          />
+        </div>
+
+        <div class="stage-presets">
+          <button
+            v-for="preset in [50, 100, 200, 400]"
+            :key="preset"
+            class="preset-btn"
+            :class="{ active: sliderValue === preset && !showAllForTesting }"
+            :style="sliderValue === preset && !showAllForTesting ? { backgroundColor: accentColor + '30', borderColor: accentColor } : {}"
+            @click="sliderValue = Math.min(preset, sliderMax); showAllForTesting = false"
+            :disabled="preset > sliderMax"
+          >
+            {{ preset }}
+          </button>
+          <button
+            class="preset-btn"
+            :class="{ active: sliderValue === sliderMax && !showAllForTesting }"
+            :style="sliderValue === sliderMax && !showAllForTesting ? { backgroundColor: accentColor + '30', borderColor: accentColor } : {}"
+            @click="sliderValue = sliderMax; showAllForTesting = false"
+          >
+            All
+          </button>
+        </div>
+
+        <!-- Testing mode toggle -->
+        <div class="testing-toggle">
+          <button
+            class="testing-btn"
+            :class="{ active: showAllForTesting }"
+            :style="showAllForTesting ? { backgroundColor: accentColor + '30', borderColor: accentColor, color: accentColor } : {}"
+            @click="showAllForTesting = !showAllForTesting"
+          >
+            {{ showAllForTesting ? 'Showing All (Testing)' : 'Show All (Testing)' }}
+          </button>
+        </div>
       </div>
-    </div>
     </template>
 
     <!-- ============================================ -->
