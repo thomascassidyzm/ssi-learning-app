@@ -98,7 +98,7 @@ const SIZE_LOG_SCALE = 0.15  // Logarithmic scaling factor for usage-based sizin
 
 // Brightness range based on usage
 const MIN_BRIGHTNESS = 0.85  // Much brighter baseline - nodes must be visible!
-const MAX_BRIGHTNESS = 1.0
+const MAX_BRIGHTNESS = 3.0   // Allow bright glow for fire path animation (peak is 2.5)
 const USAGE_SCALE_FACTOR = 0.02  // Subtle increase with usage
 
 // Highlight animation

@@ -398,24 +398,16 @@ async function initScene(): Promise<void> {
       brainNodes.update(deltaTime)
 
       // Apply fire path animation states when playing
-      if (brainFirePath.isPlaying.value && brainScene.camera.value) {
-        // Only animate when zoomed in (camera distance < 500 units)
-        const cameraDistance = brainScene.camera.value.position.length()
-        if (cameraDistance < 500) {
-          // Apply node brightness from fire path states
-          for (const [nodeId, state] of brainFirePath.nodeStates.value) {
-            if (state.isFiring) {
-              // Boost brightness when firing (1.0 base + extra from fire path)
-              brainNodes.updateNodeBrightness(nodeId, Math.min(1.0, state.brightness))
-            }
-          }
+      if (brainFirePath.isPlaying.value) {
+        // Apply node brightness from fire path states
+        for (const [nodeId, state] of brainFirePath.nodeStates.value) {
+          // Update brightness for all nodes in the path (firing or decaying)
+          brainNodes.updateNodeBrightness(nodeId, state.brightness)
+        }
 
-          // Apply edge glow from fire path states
-          for (const [edgeId, state] of brainFirePath.edgeStates.value) {
-            if (state.glowIntensity > 0) {
-              brainEdges.setEdgeGlow(edgeId, state.glowIntensity)
-            }
-          }
+        // Apply edge glow from fire path states
+        for (const [edgeId, state] of brainFirePath.edgeStates.value) {
+          brainEdges.setEdgeGlow(edgeId, state.glowIntensity)
         }
       }
     })
