@@ -1496,15 +1496,18 @@ onUnmounted(() => {
   border-color: currentColor;
 }
 
-/* Tab content wrapper - clears the fixed header and tabs */
+/* Tab content wrapper - clears the fixed header and tabs, accounts for bottom nav */
 .tab-content-wrapper {
   position: absolute;
   top: calc(130px + env(safe-area-inset-top, 0px));
   left: 0;
   right: 0;
-  bottom: 0;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+  /* Account for bottom nav (68px) + safe area to center brain in available viewport */
+  bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Override BrainStatsMobile styles when embedded */
@@ -2301,11 +2304,12 @@ onUnmounted(() => {
 /* Mobile Subtitle Overlay */
 .subtitle-overlay {
   position: fixed;
-  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  /* Position above bottom nav (68px) + safe area + breathing room */
+  bottom: calc(68px + env(safe-area-inset-bottom, 0px) + 12px);
   left: 16px;
   right: 16px;
   z-index: 30;
-  background: rgba(5, 5, 8, 0.85);
+  background: rgba(5, 5, 8, 0.92);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--border-primary);
