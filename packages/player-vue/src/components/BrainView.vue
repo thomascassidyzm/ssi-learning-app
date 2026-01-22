@@ -523,10 +523,17 @@ function clearPathAnimation() {
 function animateFirePath(legoIds: string[], audioDurationMs: number) {
   clearPathAnimation()
 
-  if (!legoIds || legoIds.length === 0) return
+  console.log('[BrainView] animateFirePath called with', legoIds?.length || 0, 'LEGOs:', legoIds)
+
+  if (!legoIds || legoIds.length === 0) {
+    console.log('[BrainView] No LEGOs in path, skipping animation')
+    return
+  }
 
   // Set up the path (starts with activeIndex -1)
+  console.log('[BrainView] Setting highlight path...')
   prebuiltNetwork.setHighlightPath(legoIds)
+  console.log('[BrainView] currentPath is now:', prebuiltNetwork.currentPath.value)
 
   // Calculate step duration - spread nodes across audio
   const stepDuration = Math.max(150, audioDurationMs / legoIds.length)

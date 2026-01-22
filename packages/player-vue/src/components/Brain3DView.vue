@@ -630,10 +630,15 @@ watch(() => props.searchNodeId, (nodeId) => {
 
 // Watch for current path changes and trigger fire path animation
 watch(() => props.currentPath, (path) => {
-  if (!brainScene.isInitialized.value) return
+  console.log('[Brain3DView] currentPath changed:', path ? `${path.nodeIds.length} nodes` : 'null')
+  if (!brainScene.isInitialized.value) {
+    console.log('[Brain3DView] Scene not initialized, skipping')
+    return
+  }
 
   if (!path) {
     // Clear fire path and restore all nodes/edges to normal
+    console.log('[Brain3DView] Clearing fire path, restoring brightness')
     brainFirePath.stopFirePath()
     brainEdges.unhighlightAll()
     brainEdges.setDimmed(false)  // Restore edge opacity
@@ -643,6 +648,7 @@ watch(() => props.currentPath, (path) => {
   }
 
   // Dim ALL nodes and edges to make fire path stand out
+  console.log('[Brain3DView] Dimming all nodes/edges for fire path focus')
   brainNodes.setAllNodesBrightness(0.15)
   brainEdges.setDimmed(true)
 
