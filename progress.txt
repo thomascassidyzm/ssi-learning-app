@@ -53,8 +53,19 @@ Refactor SSi Learning App to use Cycles as atomic units where text and audio are
 - All tests pass
 - Updated ralph-prd.json: item 8 marked as passes: true
 
+### Item 9: Create CyclePlayer.vue component
+- Created /packages/player-vue/src/components/CyclePlayer.vue with:
+  - Props: cycle, audioCache (Map with blob)
+  - Uses useCyclePlayback for 4-phase playback
+  - Shows known text always, target text only in VOICE_2 phase
+  - Emits cycle-complete and cycle-error events
+  - Auto-starts on mount, restarts on cycle prop change
+  - 154 lines (under 200 line requirement)
+- All tests pass
+- Updated ralph-prd.json: item 9 marked as passes: true
+
 ## Current Blockers
 (none)
 
 ## Notes for Next Iteration
-Items 1-8 complete. Next: Item 9 - Create minimal CyclePlayer.vue component.
+Items 1-9 complete. Next: Item 10 - Create test page to manually verify CyclePlayer works.

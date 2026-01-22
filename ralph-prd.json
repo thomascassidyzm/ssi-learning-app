@@ -85,7 +85,7 @@
     "category": "component",
     "description": "Create minimal CyclePlayer.vue",
     "details": "In /packages/player-vue/src/components/CyclePlayer.vue. Props: cycle, audioCache. Uses useCyclePlayback. Shows known text always, target text only in VOICE_2 phase. Emits cycle-complete. Keep under 200 lines.",
-    "passes": false,
+    "passes": true,
     "risk": "high",
     "verification": "Component renders, TypeScript compiles"
   },
