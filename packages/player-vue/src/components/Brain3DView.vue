@@ -649,6 +649,13 @@ watch(() => props.currentPath, (path) => {
 
   // Dim ALL nodes and edges to make fire path stand out
   console.log('[Brain3DView] Dimming all nodes/edges for fire path focus')
+  console.log('[Brain3DView] Checking if path nodes exist in 3D scene...')
+  const existingNodes = path.nodeIds.filter(id => brainNodes.hasNode(id))
+  const missingNodes = path.nodeIds.filter(id => !brainNodes.hasNode(id))
+  console.log('[Brain3DView] Path nodes in scene:', existingNodes.length, '/', path.nodeIds.length)
+  if (missingNodes.length > 0) {
+    console.log('[Brain3DView] Missing nodes (not revealed?):', missingNodes)
+  }
   brainNodes.setAllNodesBrightness(0.15)
   brainEdges.setDimmed(true)
 
