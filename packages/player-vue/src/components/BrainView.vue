@@ -185,7 +185,8 @@ const searchQuery = ref('')
 const isSearchFocused = ref(false)
 
 // Tab state: 'brain' | 'belts' | 'usage'
-const activeTab = ref<'brain' | 'belts' | 'usage'>('brain')
+// Default to 'belts' so brain loads in background while user views simpler content
+const activeTab = ref<'brain' | 'belts' | 'usage'>('belts')
 
 // ============================================================================
 // PLATFORM DETECTION (Desktop vs Mobile)
