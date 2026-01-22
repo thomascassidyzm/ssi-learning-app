@@ -36,6 +36,7 @@ LearningPlayer.vue stays working throughout. New modules are built alongside, wi
   - Network visualization events (cycle-started with legoId)
   - Belt progress events (cycle-complete with cycle)
   - Skip and jump controls (exposed via ref)
+9. Created SessionTestPage at /test/session - full session test with belt/event log
 
 ## Current Blockers
 (none)

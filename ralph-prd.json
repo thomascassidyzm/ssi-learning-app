@@ -76,7 +76,7 @@
     "category": "test",
     "description": "Create LearningSession test page",
     "details": "Route /test/session that loads LearningSession with real course data. Uses existing CourseDataProvider + scriptItemToCycle bridge. Shows network, belt, skip controls.",
-    "passes": false,
+    "passes": true,
     "risk": "medium",
     "verification": "Full session plays in browser"
   },
