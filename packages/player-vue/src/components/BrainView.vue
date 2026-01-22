@@ -158,6 +158,9 @@ const isPracticingPhrases = ref(false)
 const currentPhraseIndex = ref(0)
 const currentPracticingPhrase = ref<PhraseWithPath | null>(null)
 
+// Mobile subtitle overlay state
+const showSubtitleOverlay = ref(false)
+
 // Connection data for selected node
 const selectedNodeConnections = ref<{ followsFrom: { legoId: string; count: number }[]; leadsTo: { legoId: string; count: number }[] }>({ followsFrom: [], leadsTo: [] })
 
@@ -403,16 +406,24 @@ function updateVisibility(count: number) {
 
 /**
  * Handle node tap from ConstellationNetworkView
+ * Desktop: Open full side panel
+ * Mobile: Show subtitle overlay (keeps brain visible for fire path animation)
  */
 async function handleNodeTap(node: ConstellationNode) {
   selectedNode.value = node
-  isPanelOpen.value = true
   currentPhraseIndex.value = 0
   isPracticingPhrases.value = false
   currentPracticingPhrase.value = null
 
   // Clear previous phrases while loading new ones
   selectedNodePhrases.value = []
+
+  // Desktop: open full panel, Mobile: show subtitle overlay
+  if (isDesktop.value) {
+    isPanelOpen.value = true
+  } else {
+    showSubtitleOverlay.value = true
+  }
 
   // Load connection data (what precedes/follows this LEGO)
   selectedNodeConnections.value = getLegoConnections(node.id)
@@ -464,6 +475,37 @@ function closePanel() {
   clearPathAnimation()
   selectedNodePhrases.value = []
   prebuiltNetwork.clearHighlightPath()
+}
+
+/**
+ * Close the mobile subtitle overlay
+ */
+function closeSubtitleOverlay() {
+  showSubtitleOverlay.value = false
+  selectedNode.value = null
+  stopPhrasePractice()
+  clearPathAnimation()
+  selectedNodePhrases.value = []
+  prebuiltNetwork.clearHighlightPath()
+}
+
+/**
+ * Expand from subtitle overlay to full panel (mobile)
+ */
+function expandToFullPanel() {
+  showSubtitleOverlay.value = false
+  isPanelOpen.value = true
+}
+
+/**
+ * Toggle phrase practice playback
+ */
+function togglePhrasePractice() {
+  if (isPracticingPhrases.value) {
+    stopPhrasePractice()
+  } else {
+    startPhrasePractice()
+  }
 }
 
 /**
@@ -1175,6 +1217,50 @@ onUnmounted(() => {
       :embedded="true"
       @close="activeTab = 'brain'"
     />
+
+    <!-- Mobile Subtitle Overlay -->
+    <div v-if="!isDesktop && showSubtitleOverlay && selectedNode" class="subtitle-overlay">
+      <button class="overlay-close" @click="closeSubtitleOverlay">×</button>
+      <div class="subtitle-content">
+        <div class="subtitle-phrase">
+          <span class="target-text">{{ currentPracticingPhrase?.targetText || selectedNode.targetText }}</span>
+          <span class="known-text">{{ currentPracticingPhrase ? '' : selectedNode.knownText }}</span>
+        </div>
+        <div class="subtitle-controls">
+          <button
+            class="play-btn"
+            @click="togglePhrasePractice"
+            :disabled="selectedNodePhrases.length === 0"
+            :style="{ borderColor: accentColor, color: isPracticingPhrases ? accentColor : 'inherit' }"
+          >
+            <svg v-if="!isPracticingPhrases" viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+              <polygon points="5 3 19 12 5 21 5 3"/>
+            </svg>
+            <svg v-else viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+              <rect x="6" y="4" width="4" height="16"/>
+              <rect x="14" y="4" width="4" height="16"/>
+            </svg>
+          </button>
+          <div class="speed-buttons">
+            <button
+              v-for="speed in SPEED_OPTIONS"
+              :key="speed"
+              class="speed-btn"
+              :class="{ active: playbackSpeed === speed }"
+              :style="playbackSpeed === speed ? { color: accentColor, borderColor: accentColor } : {}"
+              @click="playbackSpeed = speed"
+            >
+              {{ speed }}x
+            </button>
+          </div>
+          <button class="expand-btn" @click="expandToFullPanel" title="Show all phrases">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+              <path d="M18 15l-6-6-6 6"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- Detail Panel (slides in from right) -->
     <div class="detail-panel" :class="{ open: isPanelOpen }">
@@ -2208,5 +2294,159 @@ onUnmounted(() => {
     width: 100%;
     max-width: 100%;
   }
+}
+
+/* Mobile Subtitle Overlay */
+.subtitle-overlay {
+  position: fixed;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  left: 16px;
+  right: 16px;
+  z-index: 30;
+  background: rgba(5, 5, 8, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-primary);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow:
+    0 -4px 20px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 var(--border-subtle);
+}
+
+.overlay-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: 1.25rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.overlay-close:active {
+  transform: scale(0.95);
+}
+
+.subtitle-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.subtitle-phrase {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-right: 32px; /* Space for close button */
+}
+
+.subtitle-phrase .target-text {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.subtitle-phrase .known-text {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.subtitle-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.subtitle-controls .play-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid var(--border-secondary);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.subtitle-controls .play-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.subtitle-controls .play-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.subtitle-controls .play-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.speed-buttons {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+
+.speed-buttons .speed-btn {
+  flex: 1;
+  padding: 8px 4px;
+  background: transparent;
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.speed-buttons .speed-btn:active {
+  transform: scale(0.95);
+}
+
+.speed-buttons .speed-btn.active {
+  background: var(--bg-hover);
+  border-color: currentColor;
+  color: var(--text-primary);
+}
+
+.subtitle-controls .expand-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.subtitle-controls .expand-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.subtitle-controls .expand-btn:active {
+  transform: scale(0.95);
 }
 </style>
