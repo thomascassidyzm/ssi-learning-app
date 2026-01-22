@@ -68,6 +68,9 @@ export interface BrainSceneReturn {
   isInitialized: Ref<boolean>
   isLoopRunning: Ref<boolean>
   setAutoRotate: (enabled: boolean) => void
+
+  // Animation callbacks
+  onUpdate: (callback: (deltaTime: number) => void) => () => void
 }
 
 // ============================================================================
