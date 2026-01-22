@@ -438,13 +438,24 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
       console.log(`[useLegoNetwork] Found ${phrases.length} phrases containing "${targetText}"`)
 
       // Convert to PhraseWithPath format
-      // For the legoPath, we just include the searched LEGO - full decomposition isn't needed
-      const results: PhraseWithPath[] = phrases.map(p => ({
-        id: p.id,
-        targetText: p.target_text,
-        legoPath: [legoId],
-        durationMs: p.target1_duration_ms || undefined,
-      }))
+      // Use legoMap to decompose each phrase into its constituent LEGOs for fire path animation
+      const legoMap = networkData.value?.legoMap
+      const results: PhraseWithPath[] = phrases.map(p => {
+        // Decompose phrase into LEGO path if we have the map
+        let path: string[] = [legoId]  // Fallback to single LEGO
+        if (legoMap && legoMap.size > 0) {
+          const decomposed = decomposePhrase(p.target_text, legoMap)
+          if (decomposed.length > 0) {
+            path = decomposed
+          }
+        }
+        return {
+          id: p.id,
+          targetText: p.target_text,
+          legoPath: path,
+          durationMs: p.target1_duration_ms || undefined,
+        }
+      })
 
       return results.slice(0, 5)  // Return top 5
     } catch (err) {
