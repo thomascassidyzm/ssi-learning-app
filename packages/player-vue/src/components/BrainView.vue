@@ -431,8 +431,20 @@ async function handleNodeTap(node: ConstellationNode) {
 
   // Load phrases on-demand (async database query)
   console.log('[BrainView] Loading phrases for:', node.targetText)
-  selectedNodePhrases.value = await getEternalPhrasesForLego(node.id, node.targetText)
-  console.log('[BrainView] Found', selectedNodePhrases.value.length, 'phrases')
+  const allPhrases = await getEternalPhrasesForLego(node.id, node.targetText)
+
+  // Filter to only phrases where ALL LEGOs are revealed (playable at this point)
+  const revealedIds = prebuiltNetwork.revealedNodeIds.value
+  const playablePhrases = allPhrases.filter(phrase => {
+    const allRevealed = phrase.legoPath.every(legoId => revealedIds.has(legoId))
+    if (!allRevealed) {
+      console.log('[BrainView] Filtering out phrase (LEGOs not yet revealed):', phrase.targetText)
+    }
+    return allRevealed
+  })
+
+  selectedNodePhrases.value = playablePhrases
+  console.log('[BrainView] Found', allPhrases.length, 'phrases,', playablePhrases.length, 'playable')
 }
 
 /**
