@@ -1002,15 +1002,8 @@ onUnmounted(() => {
     </div>
 
     <!-- Tab navigation -->
+    <!-- Tab order: Belts → Usage → Brain (brain loads in background while viewing earlier tabs) -->
     <div class="progress-tabs">
-      <button
-        class="tab-btn"
-        :class="{ active: activeTab === 'brain' }"
-        :style="activeTab === 'brain' ? { color: accentColor, borderColor: accentColor } : {}"
-        @click="activeTab = 'brain'"
-      >
-        Brain
-      </button>
       <button
         class="tab-btn"
         :class="{ active: activeTab === 'belts' }"
@@ -1026,6 +1019,14 @@ onUnmounted(() => {
         @click="activeTab = 'usage'"
       >
         Usage
+      </button>
+      <button
+        class="tab-btn"
+        :class="{ active: activeTab === 'brain' }"
+        :style="activeTab === 'brain' ? { color: accentColor, borderColor: accentColor } : {}"
+        @click="activeTab = 'brain'"
+      >
+        Brain
       </button>
     </div>
 
