@@ -40,7 +40,7 @@
     "category": "validation",
     "description": "Create validateCycle function",
     "details": "In /packages/player-vue/src/utils/validateCycle.ts. Takes (cycle: Cycle, audioCache: Map<string, CachedAudio>). Returns ValidationResult. Checks all 3 audio IDs exist in cache.",
-    "passes": false,
+    "passes": true,
     "risk": "medium",
     "verification": "Function exists, TypeScript compiles"
   },
@@ -49,7 +49,7 @@
     "category": "validation",
     "description": "Create validateSession function",
     "details": "Same file. Takes (cycles: Cycle[], audioCache: Map<string, CachedAudio>). Returns ValidationResult with all missing IDs aggregated.",
-    "passes": false,
+    "passes": true,
     "risk": "low",
     "verification": "Function exists, TypeScript compiles"
   },

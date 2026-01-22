@@ -28,9 +28,16 @@ Refactor SSi Learning App to use Cycles as atomic units where text and audio are
 - Direct tsc verification confirms Cycle.ts compiles cleanly
 - Updated ralph-prd.json: items 1-3 marked as passes: true
 
+### Items 4-5: Create validation functions
+- Created /packages/player-vue/src/utils/validateCycle.ts with:
+  - validateCycle(): Checks single cycle has all 3 audio IDs in cache
+  - validateSession(): Aggregates missing IDs across all cycles in session
+  - Type guard for discriminated union access
+- pnpm test passes (existing tests)
+- Updated ralph-prd.json: items 4-5 marked as passes: true
+
 ## Current Blockers
 (none)
 
 ## Notes for Next Iteration
-Items 1-3 complete. Next: Item 4 - Create validateCycle function in validateCycle.ts
-This will use the Cycle and CachedAudio types to check if all audio IDs exist in cache.
+Items 1-5 complete. Next: Item 6 - Write tests for validateCycle function.

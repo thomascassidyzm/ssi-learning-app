@@ -16,15 +16,18 @@ echo ""
 for ((i=1; i<=$MAX_ITERATIONS; i++)); do
   echo "--- Iteration $i of $MAX_ITERATIONS ---"
 
-  result=$(claude -p "
-@CLAUDE.md @ralph-prd.json @progress.txt @ralph-prompt.md
+  result=$(claude --dangerously-skip-permissions -p "
+@CLAUDE.md @ralph-prd.json @progress.txt
 
-Follow the instructions in ralph-prompt.md.
+You are in autonomous mode. Do not ask for permission. Just do the work.
 
-After completing your work:
-1. Update progress.txt with what you did
-2. Update ralph-prd.json if you completed a task
-3. Commit your changes
+RULES:
+- Pick the next incomplete item from ralph-prd.json (passes: false)
+- Implement it with small, focused changes
+- Run feedback loops: pnpm --filter player-vue typecheck && pnpm --filter player-vue test
+- If feedback passes, update ralph-prd.json (set passes: true) and progress.txt
+- Commit your changes with a clear message
+- DO NOT explain what you're going to do. Just do it.
 
 If ALL items in ralph-prd.json have passes: true, output <promise>CYCLE_REFACTOR_COMPLETE</promise>
 ")
