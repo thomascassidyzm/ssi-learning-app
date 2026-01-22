@@ -659,5 +659,57 @@ pnpm --filter @ssi/web dev
 
 ---
 
-*Last updated: 2026-01-09*
-*Status: Deep Space Constellation UI with database-first architecture*
+## Cycle Refactor (January 2026)
+
+### The Core Problem
+Text and audio can desync. This is unacceptable for a learning app - teaching the wrong thing is worse than teaching nothing.
+
+### The Solution: Cycles as Atomic Units
+A **Cycle** is an immutable, pre-validated learning unit:
+- `known`: { text, audioId, durationMs }
+- `target`: { text, voice1AudioId, voice2AudioId, durations }
+- Audio bound by **ID**, never by text lookup
+- Cycle is complete or doesn't exist
+
+### Quality Expectations for This Refactor
+
+**Non-Negotiable:**
+- Text and audio MUST come from the same Cycle object
+- No audio lookup by text string - always use IDs
+- A Cycle is complete (all 3 audio IDs valid) or it doesn't play
+- Pre-validate sessions before starting - never assemble at runtime
+
+**For Schools:**
+- Teachers have zero tolerance for bugs
+- Students must never hear audio that doesn't match displayed text
+- System must work offline with cached content
+- "Downloading..." is acceptable; mismatched audio is not
+
+**Code Quality:**
+- Small, focused changes
+- One logical commit per task
+- All feedback loops must pass (types, tests, lint) before commit
+- Keep new components under 300 lines
+
+### Feedback Loops
+Before every commit:
+```bash
+pnpm --filter player-vue typecheck  # Must pass
+pnpm --filter player-vue test       # Must pass
+pnpm --filter player-vue lint       # Must pass
+```
+
+### Files Being Created
+- `/packages/player-vue/src/types/Cycle.ts` - Type definitions
+- `/packages/player-vue/src/utils/validateCycle.ts` - Validation functions
+- `/packages/player-vue/src/composables/useCyclePlayback.ts` - Playback logic
+- `/packages/player-vue/src/components/CyclePlayer.vue` - Simple player component
+
+### Progress Tracking
+- See `ralph-prd.json` for task list
+- See `progress.txt` for iteration history
+
+---
+
+*Last updated: 2026-01-22*
+*Status: Cycle refactor in progress*

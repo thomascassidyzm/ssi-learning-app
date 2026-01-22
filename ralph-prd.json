@@ -1,0 +1,101 @@
+[
+  {
+    "id": "0",
+    "category": "setup",
+    "description": "Set up vitest for player-vue package",
+    "details": "Install vitest and @vue/test-utils as dev dependencies. Create vitest.config.ts. Add 'test' script to package.json. Verify with a simple passing test.",
+    "passes": true,
+    "risk": "medium",
+    "verification": "pnpm --filter player-vue test runs successfully"
+  },
+  {
+    "id": "1",
+    "category": "types",
+    "description": "Create Cycle interface in /packages/player-vue/src/types/Cycle.ts",
+    "details": "Cycle has: id, seedId, legoId, type (intro|debut|practice|review), known: {text, audioId, durationMs}, target: {text, voice1AudioId, voice1DurationMs, voice2AudioId, voice2DurationMs}, pauseDurationMs. Audio is by ID, never by text lookup.",
+    "passes": true,
+    "risk": "high",
+    "verification": "File exists, TypeScript compiles"
+  },
+  {
+    "id": "2",
+    "category": "types",
+    "description": "Create CachedAudio interface in same file",
+    "details": "CachedAudio has: id (string), durationMs (number), checksum (string). This represents what's in IndexedDB.",
+    "passes": true,
+    "risk": "low",
+    "verification": "TypeScript compiles"
+  },
+  {
+    "id": "3",
+    "category": "types",
+    "description": "Create ValidationResult type",
+    "details": "Either { ready: true } or { ready: false, missing: string[] } where missing is array of audio IDs not in cache.",
+    "passes": true,
+    "risk": "low",
+    "verification": "TypeScript compiles"
+  },
+  {
+    "id": "4",
+    "category": "validation",
+    "description": "Create validateCycle function",
+    "details": "In /packages/player-vue/src/utils/validateCycle.ts. Takes (cycle: Cycle, audioCache: Map<string, CachedAudio>). Returns ValidationResult. Checks all 3 audio IDs exist in cache.",
+    "passes": false,
+    "risk": "medium",
+    "verification": "Function exists, TypeScript compiles"
+  },
+  {
+    "id": "5",
+    "category": "validation",
+    "description": "Create validateSession function",
+    "details": "Same file. Takes (cycles: Cycle[], audioCache: Map<string, CachedAudio>). Returns ValidationResult with all missing IDs aggregated.",
+    "passes": false,
+    "risk": "low",
+    "verification": "Function exists, TypeScript compiles"
+  },
+  {
+    "id": "6",
+    "category": "tests",
+    "description": "Write tests for validateCycle",
+    "details": "In /packages/player-vue/src/utils/validateCycle.test.ts. Test: complete cycle passes. Test: missing known audio fails. Test: missing target1 fails. Test: missing target2 fails.",
+    "passes": false,
+    "risk": "medium",
+    "verification": "pnpm --filter player-vue test passes"
+  },
+  {
+    "id": "7",
+    "category": "tests",
+    "description": "Write tests for validateSession",
+    "details": "Same test file. Test: all cycles valid returns ready. Test: one bad cycle returns all missing IDs. Test: empty session returns ready.",
+    "passes": false,
+    "risk": "low",
+    "verification": "pnpm --filter player-vue test passes"
+  },
+  {
+    "id": "8",
+    "category": "composable",
+    "description": "Create useCyclePlayback composable",
+    "details": "In /packages/player-vue/src/composables/useCyclePlayback.ts. Provides playCycle(cycle, getAudioBlob) that plays the 4 phases in sequence. Returns promise that resolves on complete. Has stop() method.",
+    "passes": false,
+    "risk": "high",
+    "verification": "TypeScript compiles, exports correctly"
+  },
+  {
+    "id": "9",
+    "category": "component",
+    "description": "Create minimal CyclePlayer.vue",
+    "details": "In /packages/player-vue/src/components/CyclePlayer.vue. Props: cycle, audioCache. Uses useCyclePlayback. Shows known text always, target text only in VOICE_2 phase. Emits cycle-complete. Keep under 200 lines.",
+    "passes": false,
+    "risk": "high",
+    "verification": "Component renders, TypeScript compiles"
+  },
+  {
+    "id": "10",
+    "category": "demo",
+    "description": "Create test page that plays one Cycle",
+    "details": "Simple test: hardcode a Cycle object with mock audio, render CyclePlayer, verify it plays through all 4 phases with correct text visibility.",
+    "passes": false,
+    "risk": "medium",
+    "verification": "Manual test in browser works"
+  }
+]

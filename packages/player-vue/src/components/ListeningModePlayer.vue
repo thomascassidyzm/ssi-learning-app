@@ -98,7 +98,7 @@ const props = defineProps({
 })
 
 // Playback speed options
-const SPEED_OPTIONS = [1, 1.2, 1.5, 2] as const
+const SPEED_OPTIONS = [1, 1.2, 1.5, 2]
 const playbackSpeed = ref(1)
 
 // Inject providers

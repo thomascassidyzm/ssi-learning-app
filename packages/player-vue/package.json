@@ -6,7 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "vue-tsc --noEmit",
+    "lint": "echo 'No linter configured yet'"
   },
   "dependencies": {
     "@clerk/vue": "^1.17.5",
@@ -22,8 +26,13 @@
   "devDependencies": {
     "@types/three": "^0.182.0",
     "@vitejs/plugin-vue": "^6.0.1",
+    "@vue/test-utils": "^2.4.6",
+    "happy-dom": "^20.3.4",
     "sharp": "^0.34.5",
+    "typescript": "^5.9.3",
     "vite": "^7.2.4",
-    "vite-plugin-pwa": "^1.2.0"
+    "vite-plugin-pwa": "^1.2.0",
+    "vitest": "^1.0.0",
+    "vue-tsc": "^2.0.6"
   }
 }
