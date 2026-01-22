@@ -31,6 +31,11 @@ LearningPlayer.vue stays working throughout. New modules are built alongside, wi
 1. Created useSessionManager composable - queue/progression logic extracted
 2. Wrote useSessionManager tests - 11 tests, all passing (22 total tests)
 3. Created scriptItemToCycle bridge converter - maps ScriptItem to Cycle format
+4-8. Created LearningSession.vue orchestrator (186 lines) with:
+  - Session validation gate (blocks until audio ready)
+  - Network visualization events (cycle-started with legoId)
+  - Belt progress events (cycle-complete with cycle)
+  - Skip and jump controls (exposed via ref)
 
 ## Current Blockers
 (none)

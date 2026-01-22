@@ -31,7 +31,7 @@
     "category": "integrate",
     "description": "Create LearningSession.vue orchestrator",
     "details": "New component that composes useSessionManager + CyclePlayer. Gets cycles via scriptItemToCycle bridge. On cycle-complete, calls markCycleComplete and loads next. Has stop/pause controls. Under 200 lines. File: /packages/player-vue/src/components/LearningSession.vue",
-    "passes": false,
+    "passes": true,
     "risk": "high",
     "verification": "Component plays cycles in sequence"
   },
@@ -40,7 +40,7 @@
     "category": "integrate",
     "description": "Add session validation gate",
     "details": "Before LearningSession starts, validate all cycles have audio. Use validateSession from validateCycle.ts. Show 'Loading...' or 'Ready' state. Block playback until validated.",
-    "passes": false,
+    "passes": true,
     "risk": "medium",
     "verification": "Session won't start with missing audio"
   },
@@ -49,7 +49,7 @@
     "category": "wire",
     "description": "Wire network visualization events",
     "details": "LearningSession emits 'cycle-started' with legoId. Parent component (or composable) uses this to reveal network nodes. Don't move network code - just emit events for it to consume.",
-    "passes": false,
+    "passes": true,
     "risk": "low",
     "verification": "Events emit with correct legoId"
   },
@@ -58,7 +58,7 @@
     "category": "wire",
     "description": "Wire belt progress events",
     "details": "LearningSession emits 'cycle-complete' with cycle type. For 'debut' cycles, this triggers belt update. Connect to existing useBeltProgress.",
-    "passes": false,
+    "passes": true,
     "risk": "low",
     "verification": "Belt updates on debut completion"
   },
@@ -67,7 +67,7 @@
     "category": "feature",
     "description": "Add skip and jump controls",
     "details": "LearningSession exposes skip() and jumpTo(). Skip stops current cycle and advances. JumpTo stops and moves to index. Wire to UI buttons and network node clicks.",
-    "passes": false,
+    "passes": true,
     "risk": "medium",
     "verification": "Skip button and node clicks work"
   },
