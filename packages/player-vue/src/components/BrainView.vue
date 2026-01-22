@@ -2322,19 +2322,21 @@ onUnmounted(() => {
 
 .overlay-close {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 28px;
-  height: 28px;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  border: 1px solid var(--border-primary);
-  background: var(--bg-elevated);
-  color: var(--text-secondary);
-  font-size: 1.25rem;
+  border: 1px solid var(--border-secondary);
+  background: rgba(40, 40, 50, 0.9);
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  font-weight: 300;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 10;
   -webkit-tap-highlight-color: transparent;
 }
 
