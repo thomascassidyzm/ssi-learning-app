@@ -392,7 +392,12 @@ async function initScene(): Promise<void> {
       brainReplay.setControls(brainScene.controls.value)
     }
 
-    // 10. Mark scene as initialized and start the render loop
+    // 10. Register node update callback for pulse animations
+    brainScene.onUpdate((deltaTime) => {
+      brainNodes.update(deltaTime)
+    })
+
+    // 11. Mark scene as initialized and start the render loop
     sceneInitialized.value = true
     brainScene.startLoop()
 

@@ -116,6 +116,10 @@ export function useBrainScene(config: BrainSceneConfig = {}): BrainSceneReturn {
   // Container reference for resize handling
   let container: HTMLElement | null = null
 
+  // Update callbacks (called each frame with deltaTime)
+  const updateCallbacks: Array<(deltaTime: number) => void> = []
+  let lastFrameTime: number = 0
+
   // ============================================================================
   // INITIALIZATION
   // ============================================================================
@@ -431,17 +435,28 @@ export function useBrainScene(config: BrainSceneConfig = {}): BrainSceneReturn {
     }
 
     isLoopRunning.value = true
+    lastFrameTime = performance.now()
 
-    function animate(): void {
+    function animate(currentTime: number): void {
       if (!isLoopRunning.value) {
         return
       }
 
       animationFrameId = requestAnimationFrame(animate)
+
+      // Calculate delta time in seconds
+      const deltaTime = (currentTime - lastFrameTime) / 1000
+      lastFrameTime = currentTime
+
+      // Call update callbacks (for animations like node pulsing)
+      for (const callback of updateCallbacks) {
+        callback(deltaTime)
+      }
+
       render()
     }
 
-    animate()
+    requestAnimationFrame(animate)
 
     console.log('[useBrainScene] Animation loop started')
   }
@@ -476,6 +491,26 @@ export function useBrainScene(config: BrainSceneConfig = {}): BrainSceneReturn {
   }
 
   // ============================================================================
+  // UPDATE CALLBACKS
+  // ============================================================================
+
+  /**
+   * Register a callback to be called each frame with deltaTime
+   * Used for animations like node pulsing
+   * @param callback - Function that receives deltaTime in seconds
+   * @returns Cleanup function to unregister the callback
+   */
+  function onUpdate(callback: (deltaTime: number) => void): () => void {
+    updateCallbacks.push(callback)
+    return () => {
+      const index = updateCallbacks.indexOf(callback)
+      if (index > -1) {
+        updateCallbacks.splice(index, 1)
+      }
+    }
+  }
+
+  // ============================================================================
   // RETURN
   // ============================================================================
 
@@ -499,5 +534,8 @@ export function useBrainScene(config: BrainSceneConfig = {}): BrainSceneReturn {
     isInitialized,
     isLoopRunning,
     setAutoRotate,
+
+    // Animation callbacks
+    onUpdate,
   }
 }
