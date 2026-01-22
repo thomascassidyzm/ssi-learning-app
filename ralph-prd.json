@@ -85,7 +85,7 @@
     "category": "flag",
     "description": "Add feature flag for new player",
     "details": "In PlayerContainer or router, add USE_NEW_SESSION flag. When true, render LearningSession. When false, render old LearningPlayer. Default false for safety.",
-    "passes": false,
+    "passes": true,
     "risk": "low",
     "verification": "Flag toggles between old and new player"
   }

@@ -44,6 +44,9 @@ const {
   switchToSignUp,
 } = useAuthModal()
 
+// Feature flags
+const USE_NEW_SESSION = ref(false) // Toggle to use LearningSession instead of LearningPlayer
+
 // Navigation state
 // Screens: 'home' | 'player' | 'journey' | 'settings' | 'explorer' | 'network' | 'stats'
 const currentScreen = ref('home')

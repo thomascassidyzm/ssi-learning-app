@@ -27,7 +27,7 @@ LearningSession.vue (thin orchestrator, <200 lines)
 ### Key Principle
 LearningPlayer.vue stays working throughout. New modules are built alongside, wired via feature flag.
 
-## Completed Tasks (Phase 2)
+## Completed Tasks (Phase 2) - ALL COMPLETE
 1. Created useSessionManager composable - queue/progression logic extracted
 2. Wrote useSessionManager tests - 11 tests, all passing (22 total tests)
 3. Created scriptItemToCycle bridge converter - maps ScriptItem to Cycle format
@@ -37,11 +37,14 @@ LearningPlayer.vue stays working throughout. New modules are built alongside, wi
   - Belt progress events (cycle-complete with cycle)
   - Skip and jump controls (exposed via ref)
 9. Created SessionTestPage at /test/session - full session test with belt/event log
+10. Added USE_NEW_SESSION feature flag in PlayerContainer (default: false)
 
-## Current Blockers
-(none)
+## Summary
+Phase 2 complete. All 10 PRD items passing.
+- New modules: useSessionManager, scriptItemToCycle, LearningSession.vue
+- Test coverage: 22 tests passing
+- Backwards compatible: Old LearningPlayer unchanged, new system behind feature flag
+- Test routes: /test/cycle and /test/session
 
-## Notes for Next Iteration
-Start with item 1: Create useSessionManager composable.
-This extracts queue/progression logic from LearningPlayer.
-Key methods: getCurrentCycle, getNextCycle, markCycleComplete, skipToNext, jumpTo.
+## Next Steps
+Integration with PlayerContainer to use new LearningSession when flag is enabled.
