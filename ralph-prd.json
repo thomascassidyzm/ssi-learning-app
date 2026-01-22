@@ -58,7 +58,7 @@
     "category": "tests",
     "description": "Write tests for validateCycle",
     "details": "In /packages/player-vue/src/utils/validateCycle.test.ts. Test: complete cycle passes. Test: missing known audio fails. Test: missing target1 fails. Test: missing target2 fails.",
-    "passes": false,
+    "passes": true,
     "risk": "medium",
     "verification": "pnpm --filter player-vue test passes"
   },
@@ -67,7 +67,7 @@
     "category": "tests",
     "description": "Write tests for validateSession",
     "details": "Same test file. Test: all cycles valid returns ready. Test: one bad cycle returns all missing IDs. Test: empty session returns ready.",
-    "passes": false,
+    "passes": true,
     "risk": "low",
     "verification": "pnpm --filter player-vue test passes"
   },

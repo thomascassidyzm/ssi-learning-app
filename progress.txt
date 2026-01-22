@@ -36,8 +36,15 @@ Refactor SSi Learning App to use Cycles as atomic units where text and audio are
 - pnpm test passes (existing tests)
 - Updated ralph-prd.json: items 4-5 marked as passes: true
 
+### Items 6-7: Write validation tests
+- Created /packages/player-vue/src/utils/validateCycle.test.ts with:
+  - validateCycle tests: complete cycle passes, missing known/target1/target2 fails, multiple missing
+  - validateSession tests: all valid passes, aggregates missing IDs, empty session passes, no duplicates
+- All 11 tests pass (10 validation tests + 1 setup test)
+- Updated ralph-prd.json: items 6-7 marked as passes: true
+
 ## Current Blockers
 (none)
 
 ## Notes for Next Iteration
-Items 1-5 complete. Next: Item 6 - Write tests for validateCycle function.
+Items 1-7 complete. Next: Item 8 - Create useCyclePlayback composable for playback logic.
