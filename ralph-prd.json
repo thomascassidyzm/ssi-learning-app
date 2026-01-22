@@ -1,101 +1,92 @@
 [
   {
-    "id": "0",
-    "category": "setup",
-    "description": "Set up vitest for player-vue package",
-    "details": "Install vitest and @vue/test-utils as dev dependencies. Create vitest.config.ts. Add 'test' script to package.json. Verify with a simple passing test.",
-    "passes": true,
-    "risk": "medium",
-    "verification": "pnpm --filter player-vue test runs successfully"
-  },
-  {
     "id": "1",
-    "category": "types",
-    "description": "Create Cycle interface in /packages/player-vue/src/types/Cycle.ts",
-    "details": "Cycle has: id, seedId, legoId, type (intro|debut|practice|review), known: {text, audioId, durationMs}, target: {text, voice1AudioId, voice1DurationMs, voice2AudioId, voice2DurationMs}, pauseDurationMs. Audio is by ID, never by text lookup.",
+    "category": "extract",
+    "description": "Create useSessionManager composable",
+    "details": "Extract session/cycle queue logic. Manages: current cycle index, cycle array, progression. Uses Cycle types. Methods: getCurrentCycle(), getNextCycle(), markCycleComplete(), skipToNext(), jumpTo(index). Does NOT handle playback - just queue management. File: /packages/player-vue/src/composables/useSessionManager.ts",
     "passes": true,
     "risk": "high",
-    "verification": "File exists, TypeScript compiles"
+    "verification": "TypeScript compiles, exports all methods"
   },
   {
     "id": "2",
-    "category": "types",
-    "description": "Create CachedAudio interface in same file",
-    "details": "CachedAudio has: id (string), durationMs (number), checksum (string). This represents what's in IndexedDB.",
-    "passes": true,
-    "risk": "low",
-    "verification": "TypeScript compiles"
+    "category": "test",
+    "description": "Write useSessionManager tests",
+    "details": "Test: getCurrentCycle returns cycle at current index. Test: markCycleComplete advances index. Test: skipToNext skips current. Test: jumpTo moves to specific index. Test: getNextCycle returns null at end. File: /packages/player-vue/src/composables/useSessionManager.test.ts",
+    "passes": false,
+    "risk": "medium",
+    "verification": "pnpm --filter player-vue test passes"
   },
   {
     "id": "3",
-    "category": "types",
-    "description": "Create ValidationResult type",
-    "details": "Either { ready: true } or { ready: false, missing: string[] } where missing is array of audio IDs not in cache.",
-    "passes": true,
-    "risk": "low",
-    "verification": "TypeScript compiles"
+    "category": "bridge",
+    "description": "Create scriptItemToCycle converter",
+    "details": "Bridge function that converts existing ScriptItem (from generateLearningScript) to new Cycle format. Maps: knownText→known.text, audioRefs→audioIds, etc. Allows gradual migration. File: /packages/player-vue/src/utils/scriptItemToCycle.ts",
+    "passes": false,
+    "risk": "medium",
+    "verification": "TypeScript compiles, converts ScriptItem to Cycle"
   },
   {
     "id": "4",
-    "category": "validation",
-    "description": "Create validateCycle function",
-    "details": "In /packages/player-vue/src/utils/validateCycle.ts. Takes (cycle: Cycle, audioCache: Map<string, CachedAudio>). Returns ValidationResult. Checks all 3 audio IDs exist in cache.",
-    "passes": true,
-    "risk": "medium",
-    "verification": "Function exists, TypeScript compiles"
+    "category": "integrate",
+    "description": "Create LearningSession.vue orchestrator",
+    "details": "New component that composes useSessionManager + CyclePlayer. Gets cycles via scriptItemToCycle bridge. On cycle-complete, calls markCycleComplete and loads next. Has stop/pause controls. Under 200 lines. File: /packages/player-vue/src/components/LearningSession.vue",
+    "passes": false,
+    "risk": "high",
+    "verification": "Component plays cycles in sequence"
   },
   {
     "id": "5",
-    "category": "validation",
-    "description": "Create validateSession function",
-    "details": "Same file. Takes (cycles: Cycle[], audioCache: Map<string, CachedAudio>). Returns ValidationResult with all missing IDs aggregated.",
-    "passes": true,
-    "risk": "low",
-    "verification": "Function exists, TypeScript compiles"
+    "category": "integrate",
+    "description": "Add session validation gate",
+    "details": "Before LearningSession starts, validate all cycles have audio. Use validateSession from validateCycle.ts. Show 'Loading...' or 'Ready' state. Block playback until validated.",
+    "passes": false,
+    "risk": "medium",
+    "verification": "Session won't start with missing audio"
   },
   {
     "id": "6",
-    "category": "tests",
-    "description": "Write tests for validateCycle",
-    "details": "In /packages/player-vue/src/utils/validateCycle.test.ts. Test: complete cycle passes. Test: missing known audio fails. Test: missing target1 fails. Test: missing target2 fails.",
-    "passes": true,
-    "risk": "medium",
-    "verification": "pnpm --filter player-vue test passes"
+    "category": "wire",
+    "description": "Wire network visualization events",
+    "details": "LearningSession emits 'cycle-started' with legoId. Parent component (or composable) uses this to reveal network nodes. Don't move network code - just emit events for it to consume.",
+    "passes": false,
+    "risk": "low",
+    "verification": "Events emit with correct legoId"
   },
   {
     "id": "7",
-    "category": "tests",
-    "description": "Write tests for validateSession",
-    "details": "Same test file. Test: all cycles valid returns ready. Test: one bad cycle returns all missing IDs. Test: empty session returns ready.",
-    "passes": true,
+    "category": "wire",
+    "description": "Wire belt progress events",
+    "details": "LearningSession emits 'cycle-complete' with cycle type. For 'debut' cycles, this triggers belt update. Connect to existing useBeltProgress.",
+    "passes": false,
     "risk": "low",
-    "verification": "pnpm --filter player-vue test passes"
+    "verification": "Belt updates on debut completion"
   },
   {
     "id": "8",
-    "category": "composable",
-    "description": "Create useCyclePlayback composable",
-    "details": "In /packages/player-vue/src/composables/useCyclePlayback.ts. Provides playCycle(cycle, getAudioBlob) that plays the 4 phases in sequence. Returns promise that resolves on complete. Has stop() method.",
-    "passes": true,
-    "risk": "high",
-    "verification": "TypeScript compiles, exports correctly"
+    "category": "feature",
+    "description": "Add skip and jump controls",
+    "details": "LearningSession exposes skip() and jumpTo(). Skip stops current cycle and advances. JumpTo stops and moves to index. Wire to UI buttons and network node clicks.",
+    "passes": false,
+    "risk": "medium",
+    "verification": "Skip button and node clicks work"
   },
   {
     "id": "9",
-    "category": "component",
-    "description": "Create minimal CyclePlayer.vue",
-    "details": "In /packages/player-vue/src/components/CyclePlayer.vue. Props: cycle, audioCache. Uses useCyclePlayback. Shows known text always, target text only in VOICE_2 phase. Emits cycle-complete. Keep under 200 lines.",
-    "passes": true,
-    "risk": "high",
-    "verification": "Component renders, TypeScript compiles"
+    "category": "test",
+    "description": "Create LearningSession test page",
+    "details": "Route /test/session that loads LearningSession with real course data. Uses existing CourseDataProvider + scriptItemToCycle bridge. Shows network, belt, skip controls.",
+    "passes": false,
+    "risk": "medium",
+    "verification": "Full session plays in browser"
   },
   {
     "id": "10",
-    "category": "demo",
-    "description": "Create test page that plays one Cycle",
-    "details": "Simple test: hardcode a Cycle object with mock audio, render CyclePlayer, verify it plays through all 4 phases with correct text visibility.",
-    "passes": true,
-    "risk": "medium",
-    "verification": "Manual test in browser works"
+    "category": "flag",
+    "description": "Add feature flag for new player",
+    "details": "In PlayerContainer or router, add USE_NEW_SESSION flag. When true, render LearningSession. When false, render old LearningPlayer. Default false for safety.",
+    "passes": false,
+    "risk": "low",
+    "verification": "Flag toggles between old and new player"
   }
 ]

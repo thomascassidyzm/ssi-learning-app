@@ -1,89 +1,39 @@
-# Cycle Refactor Progress
+# LearningPlayer Decomposition Progress
 
-## Goal
-Refactor SSi Learning App to use Cycles as atomic units where text and audio are bound together by ID, making text/audio mismatch structurally impossible.
+## Phase 1 Complete: Cycle Foundation
+Created atomic Cycle types with validation, playback composable, player component.
+- Cycle type definitions (types/Cycle.ts)
+- validateCycle / validateSession (utils/validateCycle.ts)
+- useCyclePlayback composable
+- CyclePlayer.vue component (154 lines)
+- 11 tests passing
+- Test page at /test/cycle
 
-## Background
-- Current architecture has separate currentScriptItem and currentPlayableItem that can desync
-- Audio sometimes looked up by text string (fragile)
-- LearningPlayer.vue is 5000+ lines doing too much
-- Need: Cycle as atomic unit, pre-validation before session, simple player
+## Phase 2: Decomposition (Current)
 
-## Completed Tasks
+### Goal
+Decompose 5000-line LearningPlayer.vue into focused modules using the Cycle foundation.
 
-### Item 0: Set up vitest (manual, pre-Ralph)
-- Installed vitest, @vue/test-utils, happy-dom
-- Created vitest.config.ts with happy-dom environment
-- Added test, test:watch, typecheck, lint scripts to package.json
-- Created setup.test.ts to verify - passes
+### Target Architecture
+```
+LearningSession.vue (thin orchestrator, <200 lines)
+├── useSessionManager (queue, progression)
+├── CyclePlayer (plays one cycle)
+├── Events → Network visualization
+├── Events → Belt progress
+└── scriptItemToCycle bridge (gradual migration)
+```
 
-### Items 1-3: Create Cycle type definitions
-- Created /packages/player-vue/src/types/Cycle.ts with:
-  - Cycle interface: atomic learning unit with known/target audio bound by ID
-  - CachedAudio interface: IndexedDB audio representation
-  - ValidationResult type: discriminated union for validation results
-- Installed vue-tsc and typescript dev dependencies
-- Created tsconfig.json and tsconfig.node.json for Vue 3 + TypeScript
-- Fixed type assertion in ListeningModePlayer.vue (removed `as const`)
-- Direct tsc verification confirms Cycle.ts compiles cleanly
-- Updated ralph-prd.json: items 1-3 marked as passes: true
+### Key Principle
+LearningPlayer.vue stays working throughout. New modules are built alongside, wired via feature flag.
 
-### Items 4-5: Create validation functions
-- Created /packages/player-vue/src/utils/validateCycle.ts with:
-  - validateCycle(): Checks single cycle has all 3 audio IDs in cache
-  - validateSession(): Aggregates missing IDs across all cycles in session
-  - Type guard for discriminated union access
-- pnpm test passes (existing tests)
-- Updated ralph-prd.json: items 4-5 marked as passes: true
+## Completed Tasks (Phase 2)
+1. Created useSessionManager composable - queue/progression logic extracted
 
-### Items 6-7: Write validation tests
-- Created /packages/player-vue/src/utils/validateCycle.test.ts with:
-  - validateCycle tests: complete cycle passes, missing known/target1/target2 fails, multiple missing
-  - validateSession tests: all valid passes, aggregates missing IDs, empty session passes, no duplicates
-- All 11 tests pass (10 validation tests + 1 setup test)
-- Updated ralph-prd.json: items 6-7 marked as passes: true
+## Current Blockers
+(none)
 
-### Item 8: Create useCyclePlayback composable
-- Created /packages/player-vue/src/composables/useCyclePlayback.ts with:
-  - playCycle(): Plays all 4 phases (PROMPT → PAUSE → VOICE_1 → VOICE_2)
-  - Single reusable Audio element for mobile compatibility
-  - stop(): Aborts playback immediately
-  - State tracking: phase, isPlaying, error
-  - Proper cleanup on unmount
-- All tests pass
-- Updated ralph-prd.json: item 8 marked as passes: true
-
-### Item 9: Create CyclePlayer.vue component
-- Created /packages/player-vue/src/components/CyclePlayer.vue with:
-  - Props: cycle, audioCache (Map with blob)
-  - Uses useCyclePlayback for 4-phase playback
-  - Shows known text always, target text only in VOICE_2 phase
-  - Emits cycle-complete and cycle-error events
-  - Auto-starts on mount, restarts on cycle prop change
-  - 154 lines (under 200 line requirement)
-- All tests pass
-- Updated ralph-prd.json: item 9 marked as passes: true
-
-### Item 10: Create test page
-- Created /packages/player-vue/src/views/CycleTestPage.vue with:
-  - Hardcoded test Cycle with mock data
-  - Generates silent WAV audio blobs for testing
-  - Validates cycle before rendering player
-  - Shows cycle completion/error messages
-  - Restart button to replay cycle
-  - Added route: /test/cycle
-- All tests pass
-- Updated ralph-prd.json: item 10 marked as passes: true
-
-## Current Status
-All items 0-10 complete. Cycle refactor foundation complete.
-
-## Summary
-Created atomic Cycle types with validation, playback composable, player component, and test page.
-Text/audio mismatch is now structurally impossible - audio is bound by ID in immutable Cycle objects.
-
-## Next Steps (Not in PRD)
-- Test manually in browser at /test/cycle
-- Integrate with real audio from IndexedDB
-- Build session manager that uses Cycles
-- Gradually migrate LearningPlayer.vue to use Cycles
+## Notes for Next Iteration
+Start with item 1: Create useSessionManager composable.
+This extracts queue/progression logic from LearningPlayer.
+Key methods: getCurrentCycle, getNextCycle, markCycleComplete, skipToNext, jumpTo.
