@@ -3,6 +3,7 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 // Lazy-loaded views
 const PlayerContainer = () => import('@/containers/PlayerContainer.vue')
 const SchoolsContainer = () => import('@/containers/SchoolsContainer.vue')
+const CycleTestPage = () => import('@/views/CycleTestPage.vue')
 
 // Schools views (lazy-loaded)
 const DashboardView = () => import('@/views/schools/DashboardView.vue')
@@ -21,6 +22,15 @@ const routes: RouteRecordRaw[] = [
     component: PlayerContainer,
     meta: {
       title: 'Learn',
+    },
+  },
+  // Cycle test page
+  {
+    path: '/test/cycle',
+    name: 'cycle-test',
+    component: CycleTestPage,
+    meta: {
+      title: 'Cycle Test',
     },
   },
   // Schools dashboard routes

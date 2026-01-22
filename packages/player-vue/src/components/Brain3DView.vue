@@ -392,9 +392,32 @@ async function initScene(): Promise<void> {
       brainReplay.setControls(brainScene.controls.value)
     }
 
-    // 10. Register node update callback for pulse animations
+    // 10. Register node update callback for pulse animations and fire path
     brainScene.onUpdate((deltaTime) => {
+      // Update node pulse animations (for highlighted nodes)
       brainNodes.update(deltaTime)
+
+      // Apply fire path animation states when playing
+      if (brainFirePath.isPlaying.value && brainScene.camera.value) {
+        // Only animate when zoomed in (camera distance < 500 units)
+        const cameraDistance = brainScene.camera.value.position.length()
+        if (cameraDistance < 500) {
+          // Apply node brightness from fire path states
+          for (const [nodeId, state] of brainFirePath.nodeStates.value) {
+            if (state.isFiring) {
+              // Boost brightness when firing (1.0 base + extra from fire path)
+              brainNodes.updateNodeBrightness(nodeId, Math.min(1.0, state.brightness))
+            }
+          }
+
+          // Apply edge glow from fire path states
+          for (const [edgeId, state] of brainFirePath.edgeStates.value) {
+            if (state.glowIntensity > 0) {
+              brainEdges.setEdgeGlow(edgeId, state.glowIntensity)
+            }
+          }
+        }
+      }
     })
 
     // 11. Mark scene as initialized and start the render loop

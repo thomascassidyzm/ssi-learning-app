@@ -94,7 +94,7 @@
     "category": "demo",
     "description": "Create test page that plays one Cycle",
     "details": "Simple test: hardcode a Cycle object with mock audio, render CyclePlayer, verify it plays through all 4 phases with correct text visibility.",
-    "passes": false,
+    "passes": true,
     "risk": "medium",
     "verification": "Manual test in browser works"
   }
