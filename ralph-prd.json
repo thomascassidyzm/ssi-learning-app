@@ -22,7 +22,7 @@
     "category": "bridge",
     "description": "Create scriptItemToCycle converter",
     "details": "Bridge function that converts existing ScriptItem (from generateLearningScript) to new Cycle format. Maps: knownText→known.text, audioRefs→audioIds, etc. Allows gradual migration. File: /packages/player-vue/src/utils/scriptItemToCycle.ts",
-    "passes": false,
+    "passes": true,
     "risk": "medium",
     "verification": "TypeScript compiles, converts ScriptItem to Cycle"
   },
