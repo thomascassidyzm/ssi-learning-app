@@ -13,7 +13,7 @@
     "category": "test",
     "description": "Write useSessionManager tests",
     "details": "Test: getCurrentCycle returns cycle at current index. Test: markCycleComplete advances index. Test: skipToNext skips current. Test: jumpTo moves to specific index. Test: getNextCycle returns null at end. File: /packages/player-vue/src/composables/useSessionManager.test.ts",
-    "passes": false,
+    "passes": true,
     "risk": "medium",
     "verification": "pnpm --filter player-vue test passes"
   },

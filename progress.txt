@@ -29,6 +29,7 @@ LearningPlayer.vue stays working throughout. New modules are built alongside, wi
 
 ## Completed Tasks (Phase 2)
 1. Created useSessionManager composable - queue/progression logic extracted
+2. Wrote useSessionManager tests - 11 tests, all passing (22 total tests)
 
 ## Current Blockers
 (none)
