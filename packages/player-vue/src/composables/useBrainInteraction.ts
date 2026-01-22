@@ -80,8 +80,10 @@ interface OctreeCell {
 /** Raycasting throttle interval in ms (~30fps) */
 const RAYCAST_THROTTLE_MS = 33
 
-/** Maximum distance for point intersection (in world units) */
-const POINT_THRESHOLD = 0.5
+/** Maximum distance for point intersection (in world units)
+ * Brain is ~160 units wide, nodes are 55-85 visual units
+ * Needs to be large enough to make clicking easy */
+const POINT_THRESHOLD = 15
 
 /** Hover debounce time - prevents flicker on edge of nodes */
 const HOVER_DEBOUNCE_MS = 50

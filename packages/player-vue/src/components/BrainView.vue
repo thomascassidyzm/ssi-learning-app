@@ -1664,6 +1664,8 @@ onUnmounted(() => {
   overflow: hidden;
   max-height: 300px;
   overflow-y: auto;
+  z-index: 100;
+  pointer-events: auto;
 }
 
 .search-result-item {
