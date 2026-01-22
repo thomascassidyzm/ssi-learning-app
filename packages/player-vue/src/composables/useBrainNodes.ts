@@ -1018,6 +1018,42 @@ export function useBrainNodes() {
     brightnessAttr.needsUpdate = true
   }
 
+  /**
+   * Set brightness for ALL nodes at once (for dimming effect during fire path)
+   * @param brightness - Target brightness (0.0-1.0 for dim, 1.0+ for bright)
+   * @param excludeIds - Optional set of node IDs to exclude from dimming
+   */
+  function setAllNodesBrightness(brightness: number, excludeIds?: Set<string>): void {
+    if (!geometry) return
+
+    const brightnessAttr = geometry.getAttribute('brightness') as THREE.BufferAttribute
+    const clampedBrightness = Math.max(MIN_BRIGHTNESS * 0.1, Math.min(MAX_BRIGHTNESS, brightness))
+
+    for (const [nodeId, node] of internalNodes.value) {
+      if (excludeIds && excludeIds.has(nodeId)) continue
+      node.currentBrightness = clampedBrightness
+      brightnessAttr.array[node.index] = clampedBrightness
+    }
+
+    brightnessAttr.needsUpdate = true
+  }
+
+  /**
+   * Restore all nodes to their base brightness
+   */
+  function restoreAllNodesBrightness(): void {
+    if (!geometry) return
+
+    const brightnessAttr = geometry.getAttribute('brightness') as THREE.BufferAttribute
+
+    for (const [, node] of internalNodes.value) {
+      node.currentBrightness = node.baseBrightness
+      brightnessAttr.array[node.index] = node.baseBrightness
+    }
+
+    brightnessAttr.needsUpdate = true
+  }
+
   return {
     // Methods
     createNodes,
@@ -1038,6 +1074,8 @@ export function useBrainNodes() {
     getPointsObject,
     highlightNodes,
     unhighlightAll,
+    setAllNodesBrightness,
+    restoreAllNodesBrightness,
 
     // State (reactive)
     nodes,

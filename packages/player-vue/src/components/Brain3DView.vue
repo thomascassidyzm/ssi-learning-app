@@ -633,19 +633,22 @@ watch(() => props.currentPath, (path) => {
   if (!brainScene.isInitialized.value) return
 
   if (!path) {
-    // Clear fire path
+    // Clear fire path and restore all nodes/edges to normal
     brainFirePath.stopFirePath()
     brainEdges.unhighlightAll()
+    brainEdges.setDimmed(false)  // Restore edge opacity
     brainNodes.unhighlightAll()
+    brainNodes.restoreAllNodesBrightness()
     return
   }
+
+  // Dim ALL nodes and edges to make fire path stand out
+  brainNodes.setAllNodesBrightness(0.15)
+  brainEdges.setDimmed(true)
 
   // Calculate animation duration based on number of nodes
   // Roughly 200ms per node for a natural pace
   const duration = Math.max(1000, path.nodeIds.length * 200)
-
-  // Highlight the path nodes
-  brainNodes.highlightNodes(path.nodeIds)
 
   // Highlight the path edges
   brainEdges.highlightPath(path.edgeIds)
@@ -655,7 +658,7 @@ watch(() => props.currentPath, (path) => {
     nodeIds: path.nodeIds,
     duration,
   }).then(() => {
-    // Animation complete - keep the highlights visible
+    // Animation complete - keep path nodes visible but dimmed
     console.log('[Brain3DView] Fire path animation complete')
   })
 

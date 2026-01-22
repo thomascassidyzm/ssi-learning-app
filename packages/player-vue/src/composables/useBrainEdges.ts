@@ -522,6 +522,26 @@ export function useBrainEdges(options: EdgeRenderOptions = {}) {
     }
   }
 
+  /**
+   * Dim all edges (for fire path focus effect)
+   * @param dimmed - Whether to dim edges
+   * @param dimFactor - How much to dim (0.1 = very dim, 1.0 = normal)
+   */
+  function setDimmed(dimmed: boolean, dimFactor: number = 0.1): void {
+    for (const [, meshData] of edgeMeshMap.value) {
+      const opacity = dimmed ? dimFactor * 0.3 : calculateOpacity(meshData.edge.strength, opts)
+
+      const coreMat = meshData.coreMesh.material as THREE.MeshBasicMaterial
+      coreMat.opacity = opacity
+
+      const glowMat = meshData.glowMesh.material as THREE.MeshBasicMaterial
+      glowMat.opacity = opacity * 0.4
+
+      const outerGlowMat = meshData.outerGlowMesh.material as THREE.MeshBasicMaterial
+      outerGlowMat.opacity = opacity * 0.15
+    }
+  }
+
   // ============================================================================
   // VISIBILITY / LOD
   // ============================================================================
@@ -654,6 +674,7 @@ export function useBrainEdges(options: EdgeRenderOptions = {}) {
     highlightPath,
     unhighlightAll,
     setEdgeGlow,
+    setDimmed,
     setVisible,
     shouldBeVisible,
     dispose,
