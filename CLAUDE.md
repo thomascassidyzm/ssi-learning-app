@@ -711,5 +711,42 @@ pnpm --filter player-vue lint       # Must pass
 
 ---
 
+## Ralph Loop Methodology
+
+We use Ralph loops for autonomous, overnight coding tasks.
+
+### What is Ralph?
+A self-correcting loop where Claude picks tasks from a PRD, implements them, runs feedback loops (tests), and commits - repeating until complete.
+
+### Files
+- `ralph-prd.json` - Task list with pass/fail status
+- `progress.txt` - Iteration history and notes
+- `ralph-prompt.md` - Core prompt with context and rules
+- `ralph-once.sh` - Single iteration (HITL mode)
+- `ralph-afk.sh` - Loop mode (overnight/AFK)
+
+### Running Ralph
+
+**HITL (watch and learn):**
+```bash
+./ralph-once.sh
+```
+
+**AFK (overnight):**
+```bash
+./ralph-afk.sh 25  # max 25 iterations
+```
+
+### Key Principles
+1. **Small tasks** - One logical change per iteration
+2. **Feedback loops** - Tests must pass before commit
+3. **Progress tracking** - progress.txt carries context between iterations
+4. **Clear completion** - PRD items have pass/fail, not ambiguity
+
+### Results
+First run (2026-01-22): Completed 7 items in ~4 minutes, 10 tests passing, clean code.
+
+---
+
 *Last updated: 2026-01-22*
-*Status: Cycle refactor in progress*
+*Status: Cycle refactor complete, integration pending*

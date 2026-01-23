@@ -113,6 +113,13 @@ const props = defineProps({
     type: String as PropType<string | null>,
     default: null,
   },
+  /**
+   * Currently selected node ID (dims all other nodes when set)
+   */
+  selectedNodeId: {
+    type: String as PropType<string | null>,
+    default: null,
+  },
 })
 
 const emit = defineEmits<{
@@ -628,6 +635,28 @@ watch(() => props.searchNodeId, (nodeId) => {
   }
 })
 
+// Watch for selected node changes - dim all other nodes when a node is selected
+// This creates focus on the selected node before any phrase plays
+watch(() => props.selectedNodeId, (nodeId, oldNodeId) => {
+  if (!brainScene.isInitialized.value) return
+
+  if (!nodeId) {
+    // No node selected - restore all nodes to normal brightness (unless path is active)
+    if (!props.currentPath) {
+      console.log('[Brain3DView] No node selected, restoring brightness')
+      brainNodes.restoreAllNodesBrightness()
+      brainEdges.setDimmed(false)
+    }
+    return
+  }
+
+  // Node selected - dim all OTHER nodes, keep selected node bright
+  console.log('[Brain3DView] Node selected:', nodeId, '- dimming other nodes')
+  const excludeIds = new Set([nodeId])
+  brainNodes.setAllNodesBrightness(0.15, excludeIds)
+  brainEdges.setDimmed(true)
+})
+
 // Watch for current path changes and trigger fire path animation
 watch(() => props.currentPath, (path) => {
   console.log('[Brain3DView] currentPath changed:', path ? `${path.nodeIds.length} nodes` : 'null')
@@ -637,18 +666,28 @@ watch(() => props.currentPath, (path) => {
   }
 
   if (!path) {
-    // Clear fire path and restore all nodes/edges to normal
-    console.log('[Brain3DView] Clearing fire path, restoring brightness')
+    // Clear fire path - but only restore brightness if no node is selected
+    console.log('[Brain3DView] Clearing fire path')
     brainFirePath.stopFirePath()
     brainEdges.unhighlightAll()
-    brainEdges.setDimmed(false)  // Restore edge opacity
-    brainNodes.unhighlightAll()
-    brainNodes.restoreAllNodesBrightness()
+
+    if (props.selectedNodeId) {
+      // Node still selected - keep dimmed state but re-brighten selected node
+      console.log('[Brain3DView] Path cleared but node still selected, keeping dim')
+      const excludeIds = new Set([props.selectedNodeId])
+      brainNodes.setAllNodesBrightness(0.15, excludeIds)
+    } else {
+      // No node selected - restore everything to normal
+      console.log('[Brain3DView] Restoring brightness')
+      brainEdges.setDimmed(false)
+      brainNodes.unhighlightAll()
+      brainNodes.restoreAllNodesBrightness()
+    }
     return
   }
 
-  // Dim ALL nodes and edges to make fire path stand out
-  console.log('[Brain3DView] Dimming all nodes/edges for fire path focus')
+  // Ensure nodes are dimmed for fire path, but exclude selected node
+  console.log('[Brain3DView] Setting up fire path animation')
   console.log('[Brain3DView] Checking if path nodes exist in 3D scene...')
   const existingNodes = path.nodeIds.filter(id => brainNodes.hasNode(id))
   const missingNodes = path.nodeIds.filter(id => !brainNodes.hasNode(id))
@@ -656,7 +695,10 @@ watch(() => props.currentPath, (path) => {
   if (missingNodes.length > 0) {
     console.log('[Brain3DView] Missing nodes (not revealed?):', missingNodes)
   }
-  brainNodes.setAllNodesBrightness(0.15)
+
+  // Dim all nodes except the selected one (path nodes will light up via fire animation)
+  const excludeIds = props.selectedNodeId ? new Set([props.selectedNodeId]) : undefined
+  brainNodes.setAllNodesBrightness(0.15, excludeIds)
   brainEdges.setDimmed(true)
 
   // Calculate animation duration based on number of nodes

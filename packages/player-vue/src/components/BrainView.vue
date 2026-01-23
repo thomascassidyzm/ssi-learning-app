@@ -429,22 +429,15 @@ async function handleNodeTap(node: ConstellationNode) {
   // Load connection data (what precedes/follows this LEGO)
   selectedNodeConnections.value = getLegoConnections(node.id)
 
-  // Load phrases on-demand (async database query)
-  console.log('[BrainView] Loading phrases for:', node.targetText)
-  const allPhrases = await getEternalPhrasesForLego(node.id, node.targetText)
+  // Load eternal phrases for this LEGO (async database query)
+  // These are phrases containing this LEGO - like the Brain Network does
+  console.log('[BrainView] Loading eternal phrases for:', node.targetText)
+  const phrases = await getEternalPhrasesForLego(node.id, node.targetText)
 
-  // Filter to only phrases where ALL LEGOs are revealed (playable at this point)
-  const revealedIds = prebuiltNetwork.revealedNodeIds.value
-  const playablePhrases = allPhrases.filter(phrase => {
-    const allRevealed = phrase.legoPath.every(legoId => revealedIds.has(legoId))
-    if (!allRevealed) {
-      console.log('[BrainView] Filtering out phrase (LEGOs not yet revealed):', phrase.targetText)
-    }
-    return allRevealed
-  })
-
-  selectedNodePhrases.value = playablePhrases
-  console.log('[BrainView] Found', allPhrases.length, 'phrases,', playablePhrases.length, 'playable')
+  // Don't filter phrases - show all eternal phrases for this LEGO
+  // Fire path animation will only animate nodes that are visible in the brain
+  selectedNodePhrases.value = phrases
+  console.log('[BrainView] Found', phrases.length, 'eternal phrases for', node.targetText)
 }
 
 /**
@@ -531,6 +524,7 @@ function clearPathAnimation() {
 
 /**
  * Animate the fire path - stepping through nodes synchronized with audio
+ * Only animates nodes that are visible in the brain (revealed)
  */
 function animateFirePath(legoIds: string[], audioDurationMs: number) {
   clearPathAnimation()
@@ -542,16 +536,28 @@ function animateFirePath(legoIds: string[], audioDurationMs: number) {
     return
   }
 
-  // Set up the path (starts with activeIndex -1)
-  console.log('[BrainView] Setting highlight path...')
-  prebuiltNetwork.setHighlightPath(legoIds)
+  // Filter to only animate nodes that are visible in the brain
+  // This allows phrases to play even when some LEGOs aren't revealed yet
+  const revealedIds = prebuiltNetwork.revealedNodeIds.value
+  const visiblePath = legoIds.filter(id => revealedIds.has(id))
+
+  console.log('[BrainView] Fire path: full path has', legoIds.length, 'LEGOs,', visiblePath.length, 'visible in brain')
+
+  if (visiblePath.length === 0) {
+    console.log('[BrainView] No visible LEGOs in path, skipping animation (audio still plays)')
+    return
+  }
+
+  // Set up the path with only visible nodes (starts with activeIndex -1)
+  console.log('[BrainView] Setting highlight path for visible LEGOs:', visiblePath)
+  prebuiltNetwork.setHighlightPath(visiblePath)
   console.log('[BrainView] currentPath is now:', prebuiltNetwork.currentPath.value)
 
-  // Calculate step duration - spread nodes across audio
-  const stepDuration = Math.max(150, audioDurationMs / legoIds.length)
+  // Calculate step duration - spread visible nodes across audio
+  const stepDuration = Math.max(150, audioDurationMs / visiblePath.length)
 
-  // Animate through each node
-  for (let i = 0; i < legoIds.length; i++) {
+  // Animate through each visible node
+  for (let i = 0; i < visiblePath.length; i++) {
     const timer = setTimeout(() => {
       prebuiltNetwork.setPathActiveIndex(i)
     }, i * stepDuration)
@@ -1138,6 +1144,7 @@ onUnmounted(() => {
         :edges="prebuiltNetwork.visibleEdges.value"
         :revealed-node-ids="showAllForTesting ? null : prebuiltNetwork.revealedNodeIds.value"
         :current-path="prebuiltNetwork.currentPath.value"
+        :selected-node-id="selectedNode?.id || null"
         :belt-level="beltLevel"
         @node-tap="handleNodeTap"
       />
