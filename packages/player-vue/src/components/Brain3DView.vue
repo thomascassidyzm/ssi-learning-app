@@ -407,9 +407,15 @@ async function initScene(): Promise<void> {
       // Apply fire path animation states when playing
       if (brainFirePath.isPlaying.value) {
         // Apply node brightness from fire path states
+        // Only update for nodes that are actively firing - others stay dimmed
         for (const [nodeId, state] of brainFirePath.nodeStates.value) {
-          // Update brightness for all nodes in the path (firing or decaying)
-          brainNodes.updateNodeBrightness(nodeId, state.brightness)
+          if (state.isFiring) {
+            // Node is actively firing - apply the bright glow
+            brainNodes.updateNodeBrightness(nodeId, state.brightness)
+          } else if (state.brightness <= 1.0) {
+            // Node has finished firing - return to dimmed state
+            brainNodes.updateNodeBrightness(nodeId, 0.50)
+          }
         }
 
         // Apply edge glow from fire path states
