@@ -766,7 +766,9 @@ export function useBrainNodes() {
     const node = internalNodes.value.get(nodeId)
     if (!node || !geometry) return
 
-    const clampedBrightness = Math.max(MIN_BRIGHTNESS, Math.min(MAX_BRIGHTNESS, brightness))
+    // Allow dimming below MIN_BRIGHTNESS (for fire path dimming effect)
+    // Use same floor as setAllNodesBrightness: MIN_BRIGHTNESS * 0.1
+    const clampedBrightness = Math.max(MIN_BRIGHTNESS * 0.1, Math.min(MAX_BRIGHTNESS, brightness))
     node.baseBrightness = clampedBrightness
     node.currentBrightness = clampedBrightness
 
