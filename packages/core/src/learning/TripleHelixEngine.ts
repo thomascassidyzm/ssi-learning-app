@@ -56,9 +56,11 @@ export class TripleHelixEngine {
   private roundStates: Map<string, RoundState> = new Map();
   private legoProgressMap: Map<string, LegoProgress> = new Map();
   private roundConfig: RoundEngineConfig = {
+    // REVIEW: 3 spaced rep items per ROUND (provides good interleaving without
+    // overwhelming the learner; can be configured higher up to MAX_SPACED_REP_PHRASES=12)
     spacedRepInterleaveCount: 3,
-    consolidationCount: 2,
-    skipComponents: false,
+    consolidationCount: 2,         // CONSOLIDATE: 2 phrases
+    maxBuildPhrases: 7,            // BUILD: up to 7 phrases
     phraseSelector: {
       eternalSelectionMode: 'random_urn',
       minEternalsBeforeRepeat: 3,

@@ -17,25 +17,25 @@ for ((i=1; i<=$MAX_ITERATIONS; i++)); do
   echo "--- Iteration $i of $MAX_ITERATIONS ---"
 
   result=$(claude --dangerously-skip-permissions -p "
-@CLAUDE.md @ralph-prd.json @progress.txt
+@CLAUDE.md @ralph-prd-phase3.json @progress.txt @ralph-prompt-phase3.md
 
 You are in autonomous mode. Do not ask for permission. Just do the work.
 
 RULES:
-- Pick the next incomplete item from ralph-prd.json (passes: false)
+- Pick the next incomplete item from ralph-prd-phase3.json (passes: false)
 - Implement it with small, focused changes
 - Run feedback loops: pnpm --filter player-vue typecheck && pnpm --filter player-vue test
-- If feedback passes, update ralph-prd.json (set passes: true) and progress.txt
+- If feedback passes, update ralph-prd-phase3.json (set passes: true) and progress.txt
 - Commit your changes with a clear message
 - DO NOT explain what you're going to do. Just do it.
 
-If ALL items in ralph-prd.json have passes: true, output <promise>CYCLE_REFACTOR_COMPLETE</promise>
+If ALL items in ralph-prd-phase3.json have passes: true, output <promise>CYCLE_INTEGRATION_COMPLETE</promise>
 ")
 
   echo "$result"
 
   # Check for completion promise
-  if [[ "$result" == *"<promise>CYCLE_REFACTOR_COMPLETE</promise>"* ]]; then
+  if [[ "$result" == *"<promise>CYCLE_INTEGRATION_COMPLETE</promise>"* ]]; then
     echo ""
     echo "=== COMPLETE ==="
     echo "All PRD items passed!"

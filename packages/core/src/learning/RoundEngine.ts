@@ -2,12 +2,14 @@
  * RoundEngine - Orchestrates the ROUND-based introduction sequence for a LEGO
  *
  * A ROUND is the complete learning progression for one LEGO:
- * 1. Introduction Audio ("The Spanish for X is...")
- * 2. Components (M-type only - break down into parts)
- * 3. LEGO Debut (the LEGO phrase itself)
- * 4. Debut Phrases (shortest phrases first, build confidence)
- * 5. Interleaved Spaced Rep (review older LEGOs)
- * 6. Consolidation (1-2 eternals before next Round)
+ * 1. INTRO - Introduction Audio ("The Spanish for X is...")
+ * 2. LEGO - The LEGO phrase itself (debut)
+ * 3. BUILD - Up to 7 practice phrases (builds confidence with the new LEGO)
+ * 4. REVIEW - Interleaved spaced rep (USE phrases from older LEGOs)
+ * 5. CONSOLIDATE - 2 phrases before next Round
+ *
+ * NOTE: Components are NOT played to learners - they are internal building blocks
+ * used for content creation, not delivery.
  *
  * The ROUND is orthogonal to CYCLE:
  * - CYCLE = HOW (delivery: PROMPT → PAUSE → VOICE_1 → VOICE_2)
@@ -29,32 +31,43 @@ import type {
 
 import {
   selectDebutPhrase,
-  selectComponent,
   selectEternalPhrase,
-  getComponentCount,
   getDebutPhraseCount,
   type PhraseSelectorConfig,
 } from './PhraseSelector';
+
+// ============================================
+// ROUND ENGINE CONSTANTS
+// ============================================
+
+/** Maximum BUILD phrases per ROUND (up to 7, drawing from build and use roles) */
+const MAX_BUILD_PHRASES = 7;
+
+/** Maximum REVIEW (spaced rep) items per ROUND */
+const MAX_SPACED_REP_PHRASES = 12;
+
+/** Number of CONSOLIDATE phrases at end of ROUND */
+const CONSOLIDATE_COUNT = 2;
 
 // ============================================
 // ROUND ENGINE CONFIGURATION
 // ============================================
 
 export interface RoundEngineConfig {
-  /** How many spaced rep items to interleave during a ROUND (default: 3) */
+  /** How many spaced rep items to interleave during a ROUND (default: 12 max) */
   spacedRepInterleaveCount: number;
-  /** How many consolidation eternals at end of ROUND (default: 2) */
+  /** How many consolidation phrases at end of ROUND (default: 2) */
   consolidationCount: number;
-  /** Skip components for M-type LEGOs (default: false) */
-  skipComponents: boolean;
+  /** Maximum BUILD phrases per ROUND (default: 7) */
+  maxBuildPhrases: number;
   /** Phrase selector config */
   phraseSelector: PhraseSelectorConfig;
 }
 
 const DEFAULT_CONFIG: RoundEngineConfig = {
-  spacedRepInterleaveCount: 3,
-  consolidationCount: 2,
-  skipComponents: false,
+  spacedRepInterleaveCount: MAX_SPACED_REP_PHRASES,
+  consolidationCount: CONSOLIDATE_COUNT,
+  maxBuildPhrases: MAX_BUILD_PHRASES,
   phraseSelector: {
     eternalSelectionMode: 'random_urn',
     minEternalsBeforeRepeat: 3,
@@ -129,7 +142,7 @@ export function getNextRoundItem(
       return handleDebutLego(lego, seed, basket, progress, roundState, threadId);
 
     case 'debut_phrases':
-      return handleDebutPhrases(lego, seed, basket, progress, roundState, threadId);
+      return handleDebutPhrases(lego, seed, basket, progress, roundState, threadId, config);
 
     case 'spaced_rep':
       return handleSpacedRep(lego, seed, basket, progress, roundState, threadId);
@@ -199,8 +212,10 @@ function handleIntroAudio(
 }
 
 /**
- * Phase 2: Components (M-type only)
- * Practice individual parts before the whole
+ * Phase 2: Components - ALWAYS SKIPPED
+ *
+ * Components are internal building blocks used for content creation, NOT delivery.
+ * They are never played to the learner. This phase immediately advances to debut_lego.
  */
 function handleComponents(
   lego: LegoPair,
@@ -208,44 +223,10 @@ function handleComponents(
   basket: ClassifiedBasket,
   progress: LegoProgress,
   roundState: RoundState,
-  threadId: number,
+  _threadId: number,
   config: RoundEngineConfig
 ): RoundResult {
-  // Skip if not M-type or config says skip
-  if (lego.type !== 'M' || config.skipComponents || basket.components.length === 0) {
-    return getNextRoundItem(
-      lego,
-      seed,
-      basket,
-      progress,
-      advancePhase(roundState, basket, lego),
-      config
-    );
-  }
-
-  const component = selectComponent(basket, roundState.phase_index);
-
-  if (component) {
-    return {
-      item: {
-        lego,
-        phrase: component,
-        seed,
-        thread_id: threadId,
-        mode: 'breakdown',
-      },
-      updatedProgress: progress,
-      updatedRoundState: {
-        ...roundState,
-        phase_index: roundState.phase_index + 1,
-      },
-      roundComplete: false,
-      needsSpacedRepItem: false,
-      isIntroductionAudio: false,
-    };
-  }
-
-  // All components done, advance to next phase
+  // Components are NOT played to learners - always skip to debut_lego
   return getNextRoundItem(
     lego,
     seed,
@@ -300,8 +281,9 @@ function handleDebutLego(
 }
 
 /**
- * Phase 4: Debut Phrases
- * Practice short phrases (builds confidence)
+ * Phase 4: BUILD Phrases
+ * Practice phrases that reinforce the new LEGO (up to 7 phrases).
+ * Draws from both 'build' and 'use' role phrases for the current LEGO.
  */
 function handleDebutPhrases(
   lego: LegoPair,
@@ -309,9 +291,25 @@ function handleDebutPhrases(
   basket: ClassifiedBasket,
   progress: LegoProgress,
   roundState: RoundState,
-  threadId: number
+  threadId: number,
+  config: RoundEngineConfig = DEFAULT_CONFIG
 ): RoundResult {
-  // Select next debut phrase (progress.introduction_index tracks position)
+  // Check if we've hit the max BUILD phrases cap
+  // introduction_index starts at 1 after debut_lego phase, so BUILD count = index - 1
+  const buildPhraseCount = progress.introduction_index - 1;
+  if (buildPhraseCount >= config.maxBuildPhrases) {
+    // Already at max BUILD phrases, advance to REVIEW (spaced_rep)
+    return getNextRoundItem(
+      lego,
+      seed,
+      basket,
+      progress,
+      advancePhase(roundState, basket, lego),
+      config
+    );
+  }
+
+  // Select next BUILD phrase (progress.introduction_index tracks position)
   const phrase = selectDebutPhrase(basket, progress);
 
   if (phrase) {
@@ -334,20 +332,23 @@ function handleDebutPhrases(
     };
   }
 
-  // All debut phrases done, advance to spaced rep
+  // All BUILD phrases done (or less than 7 available), advance to REVIEW
   return getNextRoundItem(
     lego,
     seed,
     basket,
     progress,
     advancePhase(roundState, basket, lego),
-    DEFAULT_CONFIG
+    config
   );
 }
 
 /**
- * Phase 5: Interleaved Spaced Rep
- * Review older LEGOs (the actual review items come from TripleHelix)
+ * Phase 5: REVIEW (Spaced Repetition)
+ *
+ * Reviews older LEGOs using USE-role phrases only.
+ * The actual review items come from TripleHelix (Fibonacci-based scheduling).
+ * Max 12 REVIEW items per ROUND.
  */
 function handleSpacedRep(
   lego: LegoPair,
@@ -357,9 +358,9 @@ function handleSpacedRep(
   roundState: RoundState,
   _threadId: number
 ): RoundResult {
-  // Check if we need more spaced rep items
+  // Check if we need more REVIEW items
   if (roundState.spaced_rep_completed < roundState.spaced_rep_target) {
-    // Signal that TripleHelix should provide a spaced rep item
+    // Signal that TripleHelix should provide a REVIEW item (USE phrases from older LEGOs)
     return {
       item: null, // TripleHelix will provide the item
       updatedProgress: progress,
@@ -373,7 +374,7 @@ function handleSpacedRep(
     };
   }
 
-  // Spaced rep complete, advance to consolidation
+  // REVIEW complete, advance to CONSOLIDATE
   return getNextRoundItem(
     lego,
     seed,
@@ -385,8 +386,11 @@ function handleSpacedRep(
 }
 
 /**
- * Phase 6: Consolidation
- * Practice eternal phrases before moving to next Round
+ * Phase 6: CONSOLIDATE
+ *
+ * Wraps up the ROUND with 2 practice phrases before moving to the next LEGO.
+ * Can reuse BUILD phrases since REVIEW phase provides separation.
+ * Uses eternal_phrases pool which includes phrases from both build and use roles.
  */
 function handleConsolidation(
   lego: LegoPair,
@@ -449,11 +453,16 @@ function createCompleteResult(progress: LegoProgress, roundState: RoundState): R
 
 /**
  * Advances to the next phase in the Round.
+ *
+ * Phase order: INTRO → LEGO → BUILD → REVIEW → CONSOLIDATE
+ *
+ * NOTE: Components phase is always skipped - components are internal building
+ * blocks for content creation, not for learner delivery.
  */
 function advancePhase(
   roundState: RoundState,
-  basket: ClassifiedBasket,
-  lego: LegoPair
+  _basket: ClassifiedBasket,
+  _lego: LegoPair
 ): RoundState {
   const phaseOrder: RoundPhase[] = [
     'intro_audio',
@@ -467,13 +476,14 @@ function advancePhase(
   const currentIndex = phaseOrder.indexOf(roundState.current_phase);
   let nextPhase = phaseOrder[currentIndex + 1];
 
-  // Skip components if not M-type
-  if (nextPhase === 'components' && (lego.type !== 'M' || basket.components.length === 0)) {
+  // ALWAYS skip components - they are NOT played to learners
+  // Components are internal building blocks for content creation only
+  if (nextPhase === 'components') {
     nextPhase = 'debut_lego';
   }
 
-  // Skip spaced_rep if there are no older LEGOs to review (handled by TripleHelix)
-  // We'll still signal needsSpacedRepItem and let TripleHelix decide
+  // Note: spaced_rep is always entered - TripleHelix decides if there are
+  // older LEGOs to review. If none, it returns 0 items.
 
   return {
     ...roundState,
@@ -491,6 +501,9 @@ export function needsRound(progress: LegoProgress): boolean {
 
 /**
  * Calculates how many items remain in the current Round.
+ *
+ * Counts: INTRO (1) + LEGO (1) + BUILD (up to 7) + REVIEW (up to 12) + CONSOLIDATE (2)
+ * Components are NOT counted - they're skipped.
  */
 export function getRemainingRoundItems(
   basket: ClassifiedBasket,
@@ -500,45 +513,55 @@ export function getRemainingRoundItems(
 ): number {
   let remaining = 0;
 
+  // Calculate actual BUILD phrase count (capped at maxBuildPhrases)
+  const availableBuildPhrases = Math.min(
+    getDebutPhraseCount(basket),
+    config.maxBuildPhrases
+  );
+
   // Count based on current phase
   switch (roundState.current_phase) {
     case 'intro_audio':
       if (!progress.introduction_played) remaining += 1;
-      // Fall through to count remaining phases
-      remaining += getComponentCount(basket);
-      remaining += 1; // debut_lego
-      remaining += getDebutPhraseCount(basket);
-      remaining += config.spacedRepInterleaveCount;
-      remaining += config.consolidationCount;
+      // Fall through to count remaining phases (NO components)
+      remaining += 1; // debut_lego (LEGO)
+      remaining += availableBuildPhrases; // BUILD (capped)
+      remaining += config.spacedRepInterleaveCount; // REVIEW
+      remaining += config.consolidationCount; // CONSOLIDATE
       break;
 
     case 'components':
-      remaining += basket.components.length - roundState.phase_index;
-      remaining += 1; // debut_lego
-      remaining += getDebutPhraseCount(basket);
-      remaining += config.spacedRepInterleaveCount;
-      remaining += config.consolidationCount;
+      // Components are always skipped, so this falls through to debut_lego
+      remaining += 1; // debut_lego (LEGO)
+      remaining += availableBuildPhrases; // BUILD
+      remaining += config.spacedRepInterleaveCount; // REVIEW
+      remaining += config.consolidationCount; // CONSOLIDATE
       break;
 
     case 'debut_lego':
-      remaining += 1;
-      remaining += getDebutPhraseCount(basket);
-      remaining += config.spacedRepInterleaveCount;
-      remaining += config.consolidationCount;
+      remaining += 1; // LEGO itself
+      remaining += availableBuildPhrases; // BUILD
+      remaining += config.spacedRepInterleaveCount; // REVIEW
+      remaining += config.consolidationCount; // CONSOLIDATE
       break;
 
-    case 'debut_phrases':
-      remaining += basket.debut_phrases.length - (progress.introduction_index - 1);
-      remaining += config.spacedRepInterleaveCount;
-      remaining += config.consolidationCount;
+    case 'debut_phrases': {
+      // BUILD phrases remaining (capped)
+      const buildCompleted = progress.introduction_index - 1;
+      remaining += Math.max(0, availableBuildPhrases - buildCompleted);
+      remaining += config.spacedRepInterleaveCount; // REVIEW
+      remaining += config.consolidationCount; // CONSOLIDATE
       break;
+    }
 
     case 'spaced_rep':
+      // REVIEW items remaining
       remaining += roundState.spaced_rep_target - roundState.spaced_rep_completed;
-      remaining += config.consolidationCount;
+      remaining += config.consolidationCount; // CONSOLIDATE
       break;
 
     case 'consolidation':
+      // CONSOLIDATE items remaining
       remaining += roundState.consolidation_remaining;
       break;
   }

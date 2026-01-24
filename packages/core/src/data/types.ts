@@ -76,13 +76,24 @@ export interface SeedPair {
 // PRACTICE PHRASES
 // ============================================
 
+/** Legacy phrase type classification */
 export type PhraseType = 'component' | 'debut' | 'practice' | 'eternal';
+
+/**
+ * Phrase role determines how phrases are used in the ROUND structure:
+ * - 'component': Internal building blocks (NOT played to learners)
+ * - 'build': Practice phrases for BUILD phase (drilling the new LEGO)
+ * - 'use': Practice phrases for REVIEW (older LEGOs) and CONSOLIDATE
+ */
+export type PhraseRole = 'component' | 'build' | 'use';
 
 export interface PracticePhrase {
   /** Unique identifier */
   id: string;
-  /** Type of phrase in the learning sequence */
+  /** Type of phrase in the learning sequence (legacy) */
   phraseType: PhraseType;
+  /** Role of phrase in ROUND structure (new - takes precedence if present) */
+  phraseRole?: PhraseRole;
   /** The phrase text pair */
   phrase: LanguagePair;
   /** Audio references */
@@ -231,14 +242,19 @@ export interface ClassifiedBasket {
 /**
  * Current state of a ROUND in progress.
  * A ROUND is the complete introduction sequence for one LEGO.
+ *
+ * ROUND structure: INTRO → LEGO → BUILD (×7) → REVIEW (×12 max) → CONSOLIDATE (×2)
+ *
+ * NOTE: Components phase exists for backwards compatibility but is ALWAYS SKIPPED.
+ * Components are internal building blocks for content creation, not for learner delivery.
  */
 export type RoundPhase =
-  | 'intro_audio'      // Phase 1: Play "The Spanish for X is..."
-  | 'components'       // Phase 2: Practice individual parts (M-type only)
-  | 'debut_lego'       // Phase 3: Practice the LEGO itself
-  | 'debut_phrases'    // Phase 4: Practice shortest phrases
-  | 'spaced_rep'       // Phase 5: Interleaved review of older LEGOs
-  | 'consolidation';   // Phase 6: 1-2 eternals before next Round
+  | 'intro_audio'      // INTRO: Play "The Spanish for X is..."
+  | 'components'       // SKIPPED: Components are NOT played to learners
+  | 'debut_lego'       // LEGO: Practice the LEGO phrase itself
+  | 'debut_phrases'    // BUILD: Up to 7 practice phrases (from build + use roles)
+  | 'spaced_rep'       // REVIEW: Spaced rep review using USE phrases from older LEGOs
+  | 'consolidation';   // CONSOLIDATE: 2 phrases to wrap up the ROUND
 
 export interface RoundState {
   /** LEGO being introduced */

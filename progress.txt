@@ -9,7 +9,7 @@ Created atomic Cycle types with validation, playback composable, player componen
 - 11 tests passing
 - Test page at /test/cycle
 
-## Phase 2: Decomposition (Current)
+## Phase 2 Complete: Decomposition
 
 ### Goal
 Decompose 5000-line LearningPlayer.vue into focused modules using the Cycle foundation.
@@ -46,5 +46,59 @@ Phase 2 complete. All 10 PRD items passing.
 - Backwards compatible: Old LearningPlayer unchanged, new system behind feature flag
 - Test routes: /test/cycle and /test/session
 
-## Next Steps
-Integration with PlayerContainer to use new LearningSession when flag is enabled.
+## Phase 3: Cycle Playback Integration (Current)
+
+### Goal
+Swap LearningPlayer's internal playback engine from old CycleOrchestrator to new useCyclePlayback.
+This is NOT a replacement - LearningPlayer keeps all its features, we just swap the playback mechanics.
+
+### What Changed
+1. **Script generation** - RoundEngine updated (BUILD capped at 7, components skipped, LEGO validation) - DONE
+2. **Cycle playback** - Text+audio now LOCKED in Cycle objects by ID - DONE (p3-1)
+
+### PRD
+See ralph-prd-phase3.json for task breakdown (6 focused tasks).
+
+### Key Principle
+LearningPlayer.vue already works fantastically. We're only swapping the playback engine.
+All existing features (audio fetching, belt progress, network, listening mode) stay as-is.
+
+### Architecture
+```
+LearningPlayer.vue (5000 lines - KEEP ALL OF IT)
+├── generateLearningScript() → scriptItems (already works)
+├── Audio fetching from S3 (keep as-is)
+├── Belt progress (keep as-is)
+├── Network visualization (keep as-is, add fire-path event)
+├── Listening mode (keep as-is)
+└── Playback engine (SWAP THIS)
+    ├── OLD: CycleOrchestrator from @ssi/core - REMOVED
+    └── NEW: useCyclePlayback + scriptItemToCycle bridge - ACTIVE
+```
+
+### Brain View Architecture (for p3-3)
+Use the NEW lightweight Three.js brain visualization:
+- useBrainNodes.ts - GPU-accelerated particles (THREE.Points + BufferGeometry)
+- useBrainFirePath.ts - Fire path animation (playFirePath({ nodeIds, duration }))
+- Brain3DView.vue - The 3D renderer component
+
+### Progress
+- [x] p3-1: Swap LearningPlayer to use useCyclePlayback (HIGH RISK) - COMPLETE
+  - Removed CycleOrchestrator import
+  - Added useCyclePlayback composable
+  - Created getAudioBlob for IndexedDB/fetch integration
+  - Created startCyclePlayback wrapper (converts ScriptItem → Cycle → play)
+  - Replaced all orchestrator.startItem calls with startCyclePlayback
+  - Replaced orchestrator.stop with stopCycle
+  - Added phase mapping watchers
+  - All 22 tests passing
+- [ ] p3-2: Update phase rendering to use Cycle data
+- [ ] p3-3: Wire fire-path event to Brain3DView
+- [ ] p3-4: Verify belt progress still works
+- [ ] p3-5: Verify listening mode still works
+- [ ] p3-6: Remove old CycleOrchestrator usage
+
+### Ralph Loop Ready
+- PRD: ralph-prd-phase3.json (6 tasks)
+- Prompt: ralph-prompt-phase3.md
+- Completion signal: <promise>CYCLE_INTEGRATION_COMPLETE</promise>

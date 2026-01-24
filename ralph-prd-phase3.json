@@ -1,0 +1,56 @@
+[
+  {
+    "id": "p3-1",
+    "category": "refactor",
+    "description": "Swap LearningPlayer to use useCyclePlayback",
+    "details": "Replace CycleOrchestrator import with useCyclePlayback composable. The old orchestrator handles phases internally. The new useCyclePlayback exposes: startCycle(cycle, audioCache), phase (ref), isPlaying (ref). LearningPlayer already has audio fetching, belt progress, network - just swap the playback engine. Key change: construct Cycle objects using scriptItemToCycle bridge before playing.",
+    "passes": true,
+    "risk": "high",
+    "verification": "LearningPlayer plays cycles using useCyclePlayback, 4-phase timing works"
+  },
+  {
+    "id": "p3-2",
+    "category": "refactor",
+    "description": "Update phase rendering to use Cycle data",
+    "details": "LearningPlayer's template shows known/target text based on phase. Update to read from current Cycle object instead of old ScriptItem format. Text and audio are now LOCKED in the Cycle - no separate lookups. Phases: PROMPT (known text), PAUSE (known text), VOICE_1 (known text), VOICE_2 (known + target text).",
+    "passes": false,
+    "risk": "medium",
+    "verification": "Text displays correctly in all 4 phases, matches audio being played"
+  },
+  {
+    "id": "p3-3",
+    "category": "integrate",
+    "description": "Wire fire-path event to Brain3DView",
+    "details": "When a cycle plays, emit fire-path event with the LEGO IDs in the phrase. LearningPlayer already has network visualization. Add: on cycle start, get legoIds from Cycle.legoId (single) or from phrase decomposition, emit to Brain3DView which calls useBrainFirePath.playFirePath({ nodeIds, durationMs }).",
+    "passes": false,
+    "risk": "medium",
+    "verification": "Brain nodes light up in sequence when cycles play"
+  },
+  {
+    "id": "p3-4",
+    "category": "test",
+    "description": "Verify belt progress still works",
+    "details": "Belt progress tracking should still work after the playback swap. On cycle complete, useBeltProgress.recordCycleComplete() should be called. Verify Supabase sync still functions. No code changes expected - just verification that existing integration wasn't broken.",
+    "passes": false,
+    "risk": "low",
+    "verification": "Belt progress increments and syncs to Supabase"
+  },
+  {
+    "id": "p3-5",
+    "category": "test",
+    "description": "Verify listening mode still works",
+    "details": "Listening mode overlay should still function. When activated, main playback pauses. When exited, playback resumes. The new useCyclePlayback has pause/resume methods. Verify ListeningOverlay integration wasn't broken.",
+    "passes": false,
+    "risk": "low",
+    "verification": "Listening mode pauses/resumes correctly"
+  },
+  {
+    "id": "p3-6",
+    "category": "cleanup",
+    "description": "Remove old CycleOrchestrator usage",
+    "details": "Once p3-1 through p3-5 pass, remove CycleOrchestrator import from LearningPlayer. The @ssi/core CycleOrchestrator is now unused in player-vue. Keep the core package export for backwards compatibility but add deprecation comment.",
+    "passes": false,
+    "risk": "low",
+    "verification": "LearningPlayer no longer imports CycleOrchestrator, all tests pass"
+  }
+]

@@ -2,9 +2,10 @@
  * PhraseSelector - Intelligent phrase selection for ROUND-based learning
  *
  * Handles:
- * - Classifying phrases into pools (components, debut, eternal)
- * - Selecting debut phrases in cognitive order (shortest first)
+ * - Classifying phrases into pools (components, debut/build, eternal/use)
+ * - Selecting BUILD phrases in cognitive order (shortest first)
  * - Selecting eternal phrases via random urn (variety without repetition)
+ * - LEGO character validation (ensures phrases contain all LEGO characters)
  *
  * @module learning/PhraseSelector
  */
@@ -16,6 +17,49 @@ import type {
   LegoPair,
   AudioRef,
 } from '../data/types';
+
+// ============================================
+// LEGO CHARACTER VALIDATION
+// ============================================
+
+/**
+ * Validates that a phrase contains ALL characters from the LEGO target.
+ *
+ * This ensures practice phrases actually reinforce the LEGO being learned.
+ * For CJK languages (Chinese, Japanese, Korean), this checks that every
+ * character in the LEGO appears in the phrase. For alphabetic languages,
+ * this is less critical but still enforced.
+ *
+ * @param phraseTarget - The target text of the practice phrase
+ * @param legoTarget - The target text of the LEGO
+ * @returns true if phrase contains all LEGO characters
+ *
+ * @example
+ * // Japanese: LEGO "日本語" in phrase "日本語を勉強します" = true
+ * phraseContainsLegoChars("日本語を勉強します", "日本語") // true
+ *
+ * // Japanese: LEGO "食べる" NOT fully in phrase "食事" = false
+ * phraseContainsLegoChars("食事", "食べる") // false (missing べ, る)
+ */
+export function phraseContainsLegoChars(
+  phraseTarget: string,
+  legoTarget: string
+): boolean {
+  if (!phraseTarget || !legoTarget) return false;
+
+  // Remove whitespace and punctuation from LEGO target to get meaningful chars
+  // Using Unicode property escapes for comprehensive punctuation handling
+  const legoChars = new Set(legoTarget.replace(/[\s\p{P}]/gu, '').split(''));
+
+  // Check that every LEGO character appears in the phrase
+  for (const char of legoChars) {
+    if (!phraseTarget.includes(char)) {
+      return false;
+    }
+  }
+
+  return true;
+}
 
 // ============================================
 // ETERNAL SELECTION MODES
@@ -44,7 +88,16 @@ const DEFAULT_CONFIG: PhraseSelectorConfig = {
 
 /**
  * Creates a ClassifiedBasket from raw phrase data.
- * Phrases are classified by their position/type field from the database.
+ *
+ * Classification uses `phraseRole` when available (new database column),
+ * falling back to `phraseType` for backwards compatibility.
+ *
+ * ROUND structure mapping:
+ * - Components: NOT played to learners (internal only)
+ * - BUILD (debut_phrases): 'build' role phrases + 'use' role phrases (up to 7)
+ * - CONSOLIDATE (eternal_phrases): 'use' role phrases
+ *
+ * All practice phrases are validated to contain ALL characters from the LEGO target.
  */
 export function classifyBasket(
   legoId: string,
@@ -54,34 +107,54 @@ export function classifyBasket(
 ): ClassifiedBasket {
   const components: PracticePhrase[] = [];
   let debut: PracticePhrase | null = null;
-  const debutPhrases: PracticePhrase[] = [];
-  const eternalPhrases: PracticePhrase[] = [];
+  const buildPhrases: PracticePhrase[] = [];  // BUILD phase (from 'build' role)
+  const usePhrases: PracticePhrase[] = [];    // REVIEW/CONSOLIDATE (from 'use' role)
+
+  const legoTarget = lego?.lego?.target || '';
 
   for (const phrase of phrases) {
-    switch (phrase.phraseType) {
+    // Use phraseRole if available (new), otherwise fall back to phraseType (legacy)
+    const role = phrase.phraseRole || mapPhraseTypeToRole(phrase.phraseType);
+
+    switch (role) {
       case 'component':
+        // Components are NOT played to learners, but we still collect them
+        // for backwards compatibility and potential future use
         components.push(phrase);
         break;
-      case 'debut':
-        // The first debut is THE lego itself, rest are debut phrases
-        if (!debut) {
-          debut = phrase;
-        } else {
-          debutPhrases.push(phrase);
+
+      case 'build':
+        // BUILD phrases: validate they contain all LEGO characters
+        if (phraseContainsLegoChars(phrase.phrase.target, legoTarget)) {
+          buildPhrases.push(phrase);
         }
         break;
-      case 'practice':
-      case 'eternal':
-        eternalPhrases.push(phrase);
+
+      case 'use':
+        // USE phrases: validate they contain all LEGO characters
+        if (phraseContainsLegoChars(phrase.phrase.target, legoTarget)) {
+          usePhrases.push(phrase);
+        }
         break;
+    }
+
+    // Also check for debut phrase (the LEGO itself)
+    if (phrase.phraseType === 'debut' && !debut) {
+      debut = phrase;
     }
   }
 
-  // Sort debut phrases by target text character length (cognitive load proxy)
+  // BUILD phase draws from BOTH build AND use role phrases (up to 7 total)
+  // This gives maximum flexibility when one pool is limited
+  const debutPhrases = [...buildPhrases, ...usePhrases];
+
+  // Sort by target text character length (cognitive load proxy)
   // Character count works better than word count across all languages
   debutPhrases.sort((a, b) => a.phrase.target.length - b.phrase.target.length);
 
-  // Sort eternal phrases by target text character length too (for consistent ordering)
+  // CONSOLIDATE uses the same pool (eternal_phrases)
+  // Can reuse BUILD phrases because REVIEW phase provides separation
+  const eternalPhrases = [...buildPhrases, ...usePhrases];
   eternalPhrases.sort((a, b) => a.phrase.target.length - b.phrase.target.length);
 
   // If no explicit debut phrase, create one from the LEGO itself
@@ -104,6 +177,25 @@ export function classifyBasket(
     eternal_phrases: eternalPhrases,
     introduction_audio: introductionAudio,
   };
+}
+
+/**
+ * Maps legacy phraseType to new phraseRole for backwards compatibility.
+ */
+function mapPhraseTypeToRole(phraseType: PracticePhrase['phraseType']): 'component' | 'build' | 'use' {
+  switch (phraseType) {
+    case 'component':
+      return 'component';
+    case 'debut':
+      // Debut phrases (not the LEGO debut itself) are BUILD phrases
+      return 'build';
+    case 'practice':
+    case 'eternal':
+      // Practice and eternal are USE phrases
+      return 'use';
+    default:
+      return 'use';
+  }
 }
 
 /**

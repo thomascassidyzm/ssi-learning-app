@@ -2,13 +2,15 @@
 import { ref, computed, onMounted, onUnmounted, watch, shallowRef, inject, nextTick } from 'vue'
 import * as d3 from 'd3'
 import {
-  CycleOrchestrator,
   AudioController,
   CyclePhase,
   DEFAULT_CONFIG,
   createVoiceActivityDetector,
   createSpeechTimingAnalyzer,
 } from '@ssi/core'
+import { useCyclePlayback } from '../composables/useCyclePlayback'
+import { scriptItemToCycle } from '../utils/scriptItemToCycle'
+import type { Cycle } from '../types/Cycle'
 import SessionComplete from './SessionComplete.vue'
 // OnboardingTooltips removed - deprecated
 import ReportIssueButton from './ReportIssueButton.vue'
@@ -1141,12 +1143,78 @@ const dismissBreakSuggestion = () => {
 // Using @ssi/core CycleOrchestrator
 // ============================================
 
-// Create mock audio controller (no actual audio for now)
+// Create audio controller
 const audioController = shallowRef(null)
-const orchestrator = shallowRef(null)
+
+// Use new cycle playback composable
+const { state: cyclePlaybackState, playCycle, stop: stopCycle } = useCyclePlayback()
+const currentCycle = ref<Cycle | null>(null)
 
 // Offline cache for IndexedDB-based audio caching
 const { initAudioSource, cache: offlineCache, cacheStats, refreshCacheStats } = useOfflineCache()
+
+/**
+ * Get audio blob from cache or fetch from URL
+ * Used by useCyclePlayback to load audio
+ */
+const getAudioBlob = async (audioId: string): Promise<Blob | null> => {
+  try {
+    // Try IndexedDB cache first
+    if (offlineCache) {
+      const cached = await offlineCache.getCachedAudio(audioId)
+      if (cached) {
+        return cached
+      }
+    }
+
+    // Fall back to fetching from URL via audioController's audioSource
+    if (audioController.value?.audioSource) {
+      const url = await audioController.value.audioSource.resolveUrl(audioId)
+      if (url) {
+        const response = await fetch(url)
+        if (response.ok) {
+          const blob = await response.blob()
+          // Cache it for next time
+          if (offlineCache) {
+            await offlineCache.cacheAudio(audioId, blob)
+          }
+          return blob
+        }
+      }
+    }
+
+    console.warn('[getAudioBlob] Failed to resolve audio:', audioId)
+    return null
+  } catch (err) {
+    console.error('[getAudioBlob] Error fetching audio:', audioId, err)
+    return null
+  }
+}
+
+/**
+ * Start playing a cycle using the new useCyclePlayback system
+ * Replaces orchestrator.startItem() calls
+ */
+const startCyclePlayback = async (scriptItem: any) => {
+  if (!scriptItem) return
+
+  // Convert ScriptItem to Cycle
+  const cycle = scriptItemToCycle(scriptItem)
+  currentCycle.value = cycle
+
+  try {
+    // Play the cycle - this handles all 4 phases internally
+    await playCycle(cycle, getAudioBlob)
+
+    // When cycle completes, trigger the cycle_completed event
+    // This maintains compatibility with existing event handling
+    handleCycleEvent({ type: 'cycle_completed', data: { item: scriptItem } })
+  } catch (err) {
+    console.error('[startCyclePlayback] Cycle playback error:', err)
+    // On error, still trigger completion to move to next item
+    handleCycleEvent({ type: 'cycle_completed', data: { item: scriptItem } })
+  }
+}
 
 // Map core CyclePhase to UI phases (for backward compatibility)
 const Phase = {
@@ -1156,18 +1224,28 @@ const Phase = {
   VOICE_2: 'voice_2',    // Maps to CyclePhase.VOICE_2
 }
 
-// Map core phases to UI phases
-const corePhaseToUiPhase = (corePhase) => {
-  switch (corePhase) {
-    case CyclePhase.PROMPT: return Phase.PROMPT
-    case CyclePhase.PAUSE: return Phase.SPEAK
-    case CyclePhase.VOICE_1: return Phase.VOICE_1
-    case CyclePhase.VOICE_2: return Phase.VOICE_2
-    case CyclePhase.IDLE: return Phase.PROMPT
-    case CyclePhase.TRANSITION: return Phase.PROMPT  // Hide target text during item transition
+// Map cycle playback phases to UI phases
+const cyclePhaseToUiPhase = (phase: string) => {
+  switch (phase) {
+    case 'PROMPT': return Phase.PROMPT
+    case 'PAUSE': return Phase.SPEAK
+    case 'VOICE_1': return Phase.VOICE_1
+    case 'VOICE_2': return Phase.VOICE_2
+    case 'IDLE': return Phase.PROMPT
     default: return Phase.PROMPT
   }
 }
+
+// Watch cycle playback state and update UI phase
+watch(() => cyclePlaybackState.value.phase, (phase) => {
+  currentPhase.value = cyclePhaseToUiPhase(phase)
+})
+
+watch(() => cyclePlaybackState.value.isPlaying, (playing) => {
+  if (!playing && !isSkipInProgress.value && !isSkippingBelt.value) {
+    isPlaying.value = false
+  }
+})
 
 // State
 const currentPhase = ref(Phase.PROMPT)
@@ -2168,7 +2246,7 @@ const handleCycleEvent = (event) => {
             console.log('[LearningPlayer] Stale callback detected (generation mismatch), skipping')
             return
           }
-          if (!isPlaying.value || !orchestrator.value) return
+          if (!isPlaying.value ) return
 
           // Ensure previous audio is fully stopped
           if (audioController.value) {
@@ -2209,11 +2287,7 @@ const handleCycleEvent = (event) => {
                   }
                   if (followingPlayable) {
                     currentPlayableItem.value = followingPlayable
-                    if (followingPlayable.audioDurations) {
-                      const pauseMs = getPauseDuration(Math.round(followingPlayable.audioDurations.target1 * 1000))
-                      orchestrator.value.updateConfig({ pause_duration_ms: pauseMs })
-                    }
-                    orchestrator.value.startItem(followingPlayable)
+                    await startCyclePlayback(followingItem)
                   }
                 }
               }
@@ -2227,14 +2301,9 @@ const handleCycleEvent = (event) => {
               return
             }
             if (nextPlayable) {
-              // Update pause duration: 1.5s boot up + target1 duration
-              if (nextPlayable.audioDurations) {
-                const pauseMs = getPauseDuration(Math.round(nextPlayable.audioDurations.target1 * 1000))
-                orchestrator.value.updateConfig({ pause_duration_ms: pauseMs })
-              }
               // Store for currentItem computed
               currentPlayableItem.value = nextPlayable
-              orchestrator.value.startItem(nextPlayable)
+              await startCyclePlayback(nextScriptItem)
             }
         }, 350)
       } else {
@@ -2262,13 +2331,6 @@ const handleCycleEvent = (event) => {
         }
         currentItemIndex.value = nextIndex
 
-        // Update pause duration: 1.5s boot up + target1 duration
-        // Unless turbo mode is active
-        if (nextItem?.audioDurations) {
-          const pauseMs = getPauseDuration(Math.round(nextItem.audioDurations.target1 * 1000))
-          orchestrator.value?.updateConfig({ pause_duration_ms: pauseMs })
-        }
-
         // Capture generation for stale callback detection
         const genAtStart = playbackGeneration.value
 
@@ -2280,16 +2342,14 @@ const handleCycleEvent = (event) => {
             console.log('[LearningPlayer] Stale session callback (generation mismatch), skipping')
             return
           }
-          if (isPlaying.value && orchestrator.value) {
-            // Ensure previous audio is fully stopped
-            if (audioController.value) {
-              audioController.value.stop()
-            }
+          if (isPlaying.value) {
+            // Stop any previous audio
+            stopCycle()
             // Check if next LEGO needs an introduction first
             await playIntroductionIfNeeded(nextItem)
             // Then start the practice cycles
             if (isPlaying.value) {
-              orchestrator.value.startItem(nextItem)
+              await startCyclePlayback(nextItem)
             }
           }
         }, 350)
@@ -2359,9 +2419,9 @@ const handlePause = () => {
     skipWelcome()
   }
 
-  if (orchestrator.value) {
-    orchestrator.value.stop()
-  }
+  // Stop cycle playback
+  stopCycle()
+
   if (ringAnimationFrame) {
     cancelAnimationFrame(ringAnimationFrame)
   }
@@ -2969,7 +3029,7 @@ const startPlayback = async () => {
   // ============================================
   // ROUND-BASED PLAYBACK
   // ============================================
-  if (useRoundBasedPlayback.value && orchestrator.value) {
+  if (useRoundBasedPlayback.value) {
     // Get the first item from the current round
     const scriptItem = currentRound.value?.items[currentItemInRound.value]
     if (!scriptItem) {
@@ -3010,9 +3070,8 @@ const startPlayback = async () => {
             currentPlayableItem.value = nextPlayable
             if (nextPlayable.audioDurations) {
               const pauseMs = getPauseDuration(Math.round(nextPlayable.audioDurations.target1 * 1000))
-              orchestrator.value.updateConfig({ pause_duration_ms: pauseMs })
             }
-            orchestrator.value.startItem(nextPlayable)
+            await startCyclePlayback(nextPlayable)
           }
         }
       }
@@ -3032,26 +3091,24 @@ const startPlayback = async () => {
     // Set pause duration: 1.5s boot up + target1 duration
     if (playableItem.audioDurations) {
       const pauseMs = getPauseDuration(Math.round(playableItem.audioDurations.target1 * 1000))
-      orchestrator.value.updateConfig({ pause_duration_ms: pauseMs })
     }
 
-    orchestrator.value.startItem(playableItem)
+    await startCyclePlayback(playableItem)
     return
   }
 
   // ============================================
   // FALLBACK: SESSION-BASED PLAYBACK (demo mode)
   // ============================================
-  if (orchestrator.value && currentItem.value) {
+  if (currentItem.value) {
     // Check if this LEGO needs an introduction first
     await playIntroductionIfNeeded(currentItem.value)
 
     // Set pause duration: 1.5s boot up + target1 duration
     if (currentItem.value.audioDurations) {
       const pauseMs = getPauseDuration(Math.round(currentItem.value.audioDurations.target1 * 1000))
-      orchestrator.value.updateConfig({ pause_duration_ms: pauseMs })
     }
-    orchestrator.value.startItem(currentItem.value)
+    await startCyclePlayback(currentItem.value)
   }
 }
 
@@ -3084,7 +3141,7 @@ const handleSkip = async () => {
 
   // 2. HALT ORCHESTRATOR FIRST - prevents it from starting new audio
   if (orchestrator.value) {
-    orchestrator.value.stop()
+    stopCycle()
     console.log('[LearningPlayer] Skip: Orchestrator stopped')
   }
 
@@ -3198,28 +3255,27 @@ const handleSkip = async () => {
         console.log('[LearningPlayer] Skip → advancing to item:', currentItemInRound.value, nextItem?.type)
         if (nextItem && isPlaying.value) {
           const nextPlayable = await scriptItemToPlayableItem(nextItem)
-          if (nextPlayable && orchestrator.value) {
+          if (nextPlayable) {
             currentPlayableItem.value = nextPlayable
             // Set pause duration for new item
             if (nextPlayable.audioDurations) {
               const pauseMs = getPauseDuration(Math.round(nextPlayable.audioDurations.target1 * 1000))
-              orchestrator.value.updateConfig({ pause_duration_ms: pauseMs })
             }
-            orchestrator.value.startItem(nextPlayable)
+            await startCyclePlayback(nextPlayable)
           }
         }
       } else {
         console.log('[LearningPlayer] Skip → firstItem NOT intro, starting directly')
         // Non-intro item: start directly via orchestrator
         if (orchestrator.value) {
-          orchestrator.value.startItem(currentPlayableItem.value)
+          await startCyclePlayback(currentPlayableItem.value)
         }
       }
     }
   } else {
     // Fallback: skip current phase in demo mode
     if (orchestrator.value) {
-      orchestrator.value.skipPhase()
+      
     }
   }
 
@@ -3262,7 +3318,7 @@ const handleRevisit = async () => {
 
   // 2. HALT ORCHESTRATOR FIRST - prevents it from starting new audio
   if (orchestrator.value) {
-    orchestrator.value.stop()
+    stopCycle()
     console.log('[LearningPlayer] Revisit: Orchestrator stopped')
   }
 
@@ -3356,24 +3412,24 @@ const handleRevisit = async () => {
         console.log('[LearningPlayer] Revisit → advancing to item:', currentItemInRound.value, nextItem?.type)
         if (nextItem && isPlaying.value) {
           const nextPlayable = await scriptItemToPlayableItem(nextItem)
-          if (nextPlayable && orchestrator.value) {
+          if (nextPlayable) {
             currentPlayableItem.value = nextPlayable
-            orchestrator.value.startItem(nextPlayable)
+            await startCyclePlayback(nextPlayable)
           }
         }
       } else {
         console.log('[LearningPlayer] Revisit → firstItem NOT intro, starting directly')
         // Non-intro item: start directly via orchestrator
         if (orchestrator.value) {
-          orchestrator.value.startItem(currentPlayableItem.value)
+          await startCyclePlayback(currentPlayableItem.value)
         }
       }
     }
   } else {
     // Fallback: restart current item in demo mode
     ringProgressRaw.value = 0
-    if (orchestrator.value && currentItem.value) {
-      orchestrator.value.startItem(currentItem.value)
+    if (currentItem.value) {
+      await startCyclePlayback(currentItem.value)
     }
   }
 
@@ -3428,7 +3484,7 @@ const jumpToRound = async (roundIndex) => {
 
   // 2. HALT ORCHESTRATOR FIRST - prevents it from starting new audio
   if (orchestrator.value) {
-    orchestrator.value.stop()
+    stopCycle()
     console.log('[LearningPlayer] Jump: Orchestrator stopped')
   }
 
@@ -3514,16 +3570,16 @@ const jumpToRound = async (roundIndex) => {
       console.log('[LearningPlayer] Jump → advancing to item:', currentItemInRound.value, nextItem?.type)
       if (nextItem && isPlaying.value) {
         const nextPlayable = await scriptItemToPlayableItem(nextItem)
-        if (nextPlayable && orchestrator.value) {
+        if (nextPlayable) {
           currentPlayableItem.value = nextPlayable
-          orchestrator.value.startItem(nextPlayable)
+          await startCyclePlayback(nextPlayable)
         }
       }
     } else {
       console.log('[LearningPlayer] Jump → firstItem NOT intro, starting directly')
       // Non-intro item: start directly via orchestrator
       if (orchestrator.value) {
-        orchestrator.value.startItem(currentPlayableItem.value)
+        await startCyclePlayback(currentPlayableItem.value)
       }
     }
   }
@@ -3614,7 +3670,7 @@ const handleGoBackBelt = async () => {
       // Need to reload script from the target position
       if (courseDataProvider.value) {
         // Stop current playback
-        if (orchestrator.value) orchestrator.value.stop()
+        if (orchestrator.value) stopCycle()
         if (audioController.value) audioController.value.stop()
         clearPathAnimation()
 
@@ -3692,7 +3748,7 @@ const handleSkipToBeltFromModal = async (belt) => {
     // Backward skip: may need to reload script from earlier position
     if (targetSeed < scriptBaseOffset.value && courseDataProvider.value) {
       console.log(`[LearningPlayer] Reloading script from seed ${targetSeed}...`)
-      if (orchestrator.value) orchestrator.value.stop()
+      if (orchestrator.value) stopCycle()
       if (audioController.value) audioController.value.stop()
       clearPathAnimation()
 
@@ -3952,7 +4008,6 @@ const applyTurboConfig = () => {
 
     // Calculate pause using the config formula
     const pauseMs = calculatePause(targetDurationMs, turboActive.value)
-    orchestrator.value.updateConfig({ pauseDuration: pauseMs })
     console.log(`[Turbo] ${turboActive.value ? 'ON' : 'OFF'} - pause: ${pauseMs}ms`)
   }
 }
@@ -3969,7 +4024,7 @@ const toggleTurbo = () => {
 const showPausedSummary = () => {
   // Stop playback and show summary
   if (orchestrator.value) {
-    orchestrator.value.stop()
+    stopCycle()
   }
   isPlaying.value = false
   showSessionComplete.value = true
@@ -4011,11 +4066,11 @@ const handleResumeLearning = async () => {
     beltProgress.value.startSession()
   }
 
-  if (orchestrator.value && currentItem.value) {
+  if (currentItem.value) {
     // Check for introduction before starting
     await playIntroductionIfNeeded(currentItem.value)
     if (isPlaying.value) {
-      orchestrator.value.startItem(currentItem.value)
+      await startCyclePlayback(currentItem.value)
     }
   }
 }
@@ -4023,7 +4078,7 @@ const handleResumeLearning = async () => {
 const handleExit = () => {
   // Stop playback and exit the player
   if (orchestrator.value) {
-    orchestrator.value.stop()
+    stopCycle()
   }
   isPlaying.value = false
 
@@ -5123,51 +5178,7 @@ onMounted(async () => {
     }
   }
 
-  // ============================================
-  // ORCHESTRATOR INITIALIZATION (async, non-blocking)
-  // ============================================
-  const initOrchestrator = async () => {
-    if (sessionItems.value.length === 0) return
-
-    // Calculate default pause duration from first item (1.5s boot up + target1)
-    const defaultPauseDuration = 1500 + Math.round(sessionItems.value[0].audioDurations.target1 * 1000)
-
-    // Create CycleOrchestrator with dynamic pause duration
-    const demoConfig = {
-      ...DEFAULT_CONFIG.cycle,
-      pause_duration_ms: defaultPauseDuration,
-      transition_gap_ms: 100, // Short gap - text fade already started 500ms before audio ended
-    }
-    orchestrator.value = new CycleOrchestrator(
-      audioController.value,
-      demoConfig
-    )
-
-    // Subscribe to events
-    orchestrator.value.addEventListener(handleCycleEvent)
-
-    // Preload first few items (fire and forget - don't wait)
-    for (const item of sessionItems.value.slice(0, 3)) {
-      if (item?.phrase?.audioRefs) {
-        audioController.value.preload(item.phrase.audioRefs.known)
-        audioController.value.preload(item.phrase.audioRefs.target?.voice1)
-        audioController.value.preload(item.phrase.audioRefs.target?.voice2)
-      }
-    }
-  }
-
-  // Initialize orchestrator when items become available
-  if (sessionItems.value.length > 0) {
-    await initOrchestrator()
-  } else {
-    // Watch for items to load
-    const unwatch = watch(sessionItems, async () => {
-      if (sessionItems.value.length > 0) {
-        await initOrchestrator()
-        unwatch()
-      }
-    })
-  }
+  // No orchestrator initialization needed - using useCyclePlayback composable
 
   // Start session timer
   sessionTimerInterval = setInterval(() => {
@@ -5206,10 +5217,8 @@ onUnmounted(() => {
     skipWelcome()
   }
 
-  if (orchestrator.value) {
-    orchestrator.value.removeEventListener(handleCycleEvent)
-    orchestrator.value.stop()
-  }
+  // Stop cycle playback
+  stopCycle()
   if (ringAnimationFrame) cancelAnimationFrame(ringAnimationFrame)
   if (sessionTimerInterval) clearInterval(sessionTimerInterval)
   if (vadStatusInterval) clearInterval(vadStatusInterval)
@@ -5303,7 +5312,7 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
   if (isPlayingIntroduction.value) skipIntroduction()
   if (isPlayingWelcome.value) skipWelcome()
   if (orchestrator.value) {
-    orchestrator.value.stop()
+    stopCycle()
   }
 
   // 2. Reset all state
