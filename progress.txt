@@ -114,7 +114,11 @@ Use the NEW lightweight Three.js brain visualization:
   - handleResume() restarts playback normally
   - ListeningOverlay integration maintained
   - All 22 tests passing
-- [ ] p3-6: Remove old CycleOrchestrator usage
+- [x] p3-6: Remove old CycleOrchestrator usage - COMPLETE
+  - Removed all orchestrator.value conditional checks (13 occurrences)
+  - CycleOrchestrator no longer used in LearningPlayer
+  - @ssi/core package still exports it for backwards compatibility
+  - All 22 tests passing
 
 ### Ralph Loop Ready
 - PRD: ralph-prd-phase3.json (6 tasks)

@@ -49,7 +49,7 @@
     "category": "cleanup",
     "description": "Remove old CycleOrchestrator usage",
     "details": "Once p3-1 through p3-5 pass, remove CycleOrchestrator import from LearningPlayer. The @ssi/core CycleOrchestrator is now unused in player-vue. Keep the core package export for backwards compatibility but add deprecation comment.",
-    "passes": false,
+    "passes": true,
     "risk": "low",
     "verification": "LearningPlayer no longer imports CycleOrchestrator, all tests pass"
   }

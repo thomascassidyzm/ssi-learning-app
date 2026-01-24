@@ -3169,7 +3169,7 @@ const handleSkip = async () => {
   }
 
   // 2. HALT ORCHESTRATOR FIRST - prevents it from starting new audio
-  if (orchestrator.value) {
+  {
     stopCycle()
     console.log('[LearningPlayer] Skip: Orchestrator stopped')
   }
@@ -3296,14 +3296,14 @@ const handleSkip = async () => {
       } else {
         console.log('[LearningPlayer] Skip → firstItem NOT intro, starting directly')
         // Non-intro item: start directly via orchestrator
-        if (orchestrator.value) {
+        {
           await startCyclePlayback(currentPlayableItem.value)
         }
       }
     }
   } else {
     // Fallback: skip current phase in demo mode
-    if (orchestrator.value) {
+    {
       
     }
   }
@@ -3346,7 +3346,7 @@ const handleRevisit = async () => {
   }
 
   // 2. HALT ORCHESTRATOR FIRST - prevents it from starting new audio
-  if (orchestrator.value) {
+  {
     stopCycle()
     console.log('[LearningPlayer] Revisit: Orchestrator stopped')
   }
@@ -3449,7 +3449,7 @@ const handleRevisit = async () => {
       } else {
         console.log('[LearningPlayer] Revisit → firstItem NOT intro, starting directly')
         // Non-intro item: start directly via orchestrator
-        if (orchestrator.value) {
+        {
           await startCyclePlayback(currentPlayableItem.value)
         }
       }
@@ -3512,7 +3512,7 @@ const jumpToRound = async (roundIndex) => {
   }
 
   // 2. HALT ORCHESTRATOR FIRST - prevents it from starting new audio
-  if (orchestrator.value) {
+  {
     stopCycle()
     console.log('[LearningPlayer] Jump: Orchestrator stopped')
   }
@@ -3607,7 +3607,7 @@ const jumpToRound = async (roundIndex) => {
     } else {
       console.log('[LearningPlayer] Jump → firstItem NOT intro, starting directly')
       // Non-intro item: start directly via orchestrator
-      if (orchestrator.value) {
+      {
         await startCyclePlayback(currentPlayableItem.value)
       }
     }
@@ -3699,7 +3699,7 @@ const handleGoBackBelt = async () => {
       // Need to reload script from the target position
       if (courseDataProvider.value) {
         // Stop current playback
-        if (orchestrator.value) stopCycle()
+        stopCycle()
         if (audioController.value) audioController.value.stop()
         clearPathAnimation()
 
@@ -4028,7 +4028,7 @@ const closeTurboPopup = () => {
 
 // Apply turbo config to orchestrator
 const applyTurboConfig = () => {
-  if (orchestrator.value) {
+  {
     const config = turboActive.value ? turboConfig.value : normalConfig.value
     const item = currentItem.value
     const targetDurationMs = item?.audioDurations
@@ -4052,7 +4052,7 @@ const toggleTurbo = () => {
 
 const showPausedSummary = () => {
   // Stop playback and show summary
-  if (orchestrator.value) {
+  {
     stopCycle()
   }
   isPlaying.value = false
@@ -4106,7 +4106,7 @@ const handleResumeLearning = async () => {
 
 const handleExit = () => {
   // Stop playback and exit the player
-  if (orchestrator.value) {
+  {
     stopCycle()
   }
   isPlaying.value = false
@@ -5340,7 +5340,7 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
   handlePause()
   if (isPlayingIntroduction.value) skipIntroduction()
   if (isPlayingWelcome.value) skipWelcome()
-  if (orchestrator.value) {
+  {
     stopCycle()
   }
 
