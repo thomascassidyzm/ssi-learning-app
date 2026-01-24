@@ -22,7 +22,7 @@
     "category": "integrate",
     "description": "Wire fire-path event to Brain3DView",
     "details": "When a cycle plays, emit fire-path event with the LEGO IDs in the phrase. LearningPlayer already has network visualization. Add: on cycle start, get legoIds from Cycle.legoId (single) or from phrase decomposition, emit to Brain3DView which calls useBrainFirePath.playFirePath({ nodeIds, durationMs }).",
-    "passes": false,
+    "passes": true,
     "risk": "medium",
     "verification": "Brain nodes light up in sequence when cycles play"
   },

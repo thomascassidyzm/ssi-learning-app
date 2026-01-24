@@ -98,7 +98,11 @@ Use the NEW lightweight Three.js brain visualization:
   - Text and audio now LOCKED in same Cycle object
   - Phase-based visibility working (target only in VOICE_2)
   - All 22 tests passing
-- [ ] p3-3: Wire fire-path event to Brain3DView (visual enhancement)
+- [x] p3-3: Wire fire-path event to Brain3DView - COMPLETE
+  - Added 'cycle-started' event emission in startCyclePlayback
+  - Emits legoId and cycle duration for fire-path animation
+  - Brain3DView can listen to this event for visualization
+  - All 22 tests passing
 - [ ] p3-4: Verify belt progress still works
 - [ ] p3-5: Verify listening mode still works
 - [ ] p3-6: Remove old CycleOrchestrator usage

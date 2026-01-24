@@ -32,7 +32,7 @@ import ConstellationNetworkView from './ConstellationNetworkView.vue'
 import BeltProgressModal from './BeltProgressModal.vue'
 import ListeningOverlay from './ListeningOverlay.vue'
 
-const emit = defineEmits(['close', 'playStateChanged', 'viewProgress', 'listeningModeChanged'])
+const emit = defineEmits(['close', 'playStateChanged', 'viewProgress', 'listeningModeChanged', 'cycle-started'])
 
 const props = defineProps({
   classContext: {
@@ -1201,6 +1201,14 @@ const startCyclePlayback = async (scriptItem: any) => {
   // Convert ScriptItem to Cycle
   const cycle = scriptItemToCycle(scriptItem)
   currentCycle.value = cycle
+
+  // Emit fire-path event for network visualization
+  // Extract LEGO IDs from the cycle for brain animation
+  const legoIds = [cycle.legoId]  // Primary LEGO being taught
+  const cycleDuration = cycle.known.durationMs + cycle.pauseDurationMs + cycle.target.voice1DurationMs + cycle.target.voice2DurationMs
+
+  // Emit event that Brain3DView can listen to
+  emit('cycle-started', { legoId: cycle.legoId, duration: cycleDuration })
 
   try {
     // Play the cycle - this handles all 4 phases internally
