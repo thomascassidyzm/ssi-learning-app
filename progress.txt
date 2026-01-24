@@ -92,8 +92,13 @@ Use the NEW lightweight Three.js brain visualization:
   - Replaced orchestrator.stop with stopCycle
   - Added phase mapping watchers
   - All 22 tests passing
-- [ ] p3-2: Update phase rendering to use Cycle data
-- [ ] p3-3: Wire fire-path event to Brain3DView
+- [x] p3-2: Update phase rendering to use Cycle data - COMPLETE
+  - Updated currentPhrase to read from currentCycle.known/target.text
+  - Updated visibleTexts to read from currentCycle
+  - Text and audio now LOCKED in same Cycle object
+  - Phase-based visibility working (target only in VOICE_2)
+  - All 22 tests passing
+- [ ] p3-3: Wire fire-path event to Brain3DView (visual enhancement)
 - [ ] p3-4: Verify belt progress still works
 - [ ] p3-5: Verify listening mode still works
 - [ ] p3-6: Remove old CycleOrchestrator usage
