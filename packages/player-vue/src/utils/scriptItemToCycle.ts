@@ -51,14 +51,16 @@ export function scriptItemToCycle(item: ScriptItem): Cycle {
     type: cycleType,
     known: {
       text: item.knownText,
-      audioId: item.audioRefs.known.id,
+      // Use URL directly - getAudioBlob will fetch it
+      audioId: item.audioRefs.known.url || item.audioRefs.known.id,
       durationMs: item.audioDurations ? item.audioDurations.source * 1000 : 2000
     },
     target: {
       text: item.targetText,
-      voice1AudioId: item.audioRefs.target.voice1.id,
+      // Use URLs directly for target voices
+      voice1AudioId: item.audioRefs.target.voice1.url || item.audioRefs.target.voice1.id,
       voice1DurationMs: target1DurationMs,
-      voice2AudioId: item.audioRefs.target.voice2.id,
+      voice2AudioId: item.audioRefs.target.voice2.url || item.audioRefs.target.voice2.id,
       voice2DurationMs: item.audioDurations
         ? item.audioDurations.target2 * 1000
         : 2000

@@ -1156,6 +1156,10 @@ const { initAudioSource, cache: offlineCache, cacheStats, refreshCacheStats } = 
 /**
  * Get audio blob from cache or fetch from URL
  * Used by useCyclePlayback to load audio
+ *
+ * audioId can be either:
+ * - A full URL (https://...) - fetch directly
+ * - A UUID - try to resolve via audioSource
  */
 const getAudioBlob = async (audioId: string): Promise<Blob | null> => {
   try {
@@ -1167,8 +1171,23 @@ const getAudioBlob = async (audioId: string): Promise<Blob | null> => {
       }
     }
 
-    // Fall back to fetching from URL via audioController's audioSource
-    if (audioController.value?.audioSource) {
+    // If audioId is already a URL, fetch it directly
+    if (audioId.startsWith('http://') || audioId.startsWith('https://')) {
+      const response = await fetch(audioId)
+      if (response.ok) {
+        const blob = await response.blob()
+        // Cache it for next time
+        if (offlineCache) {
+          await offlineCache.cacheAudio(audioId, blob)
+        }
+        return blob
+      }
+      console.warn('[getAudioBlob] Failed to fetch URL:', audioId, response.status)
+      return null
+    }
+
+    // Fall back to resolving UUID via audioController's audioSource
+    if (audioController.value?.audioSource?.resolveUrl) {
       const url = await audioController.value.audioSource.resolveUrl(audioId)
       if (url) {
         const response = await fetch(url)
