@@ -1542,6 +1542,14 @@ const currentPhrase = computed(() => {
       target: '',
     }
   }
+  // Read from currentCycle to ensure text/audio are locked together
+  if (currentCycle.value) {
+    return {
+      known: currentCycle.value.known.text || '',
+      target: currentCycle.value.target.text || '',
+    }
+  }
+  // Fallback to currentItem for backwards compatibility
   return {
     known: currentItem.value?.phrase?.phrase?.known || '',
     target: currentItem.value?.phrase?.phrase?.target || '',
@@ -1721,10 +1729,20 @@ const introMessage = computed(() => {
 })
 
 // Visible texts for QA reporting - always shows both for context
-const visibleTexts = computed(() => ({
-  known: currentItem.value?.phrase?.phrase?.known || '',
-  target: currentItem.value?.phrase?.phrase?.target || '',
-}))
+// Read from currentCycle to ensure text/audio are locked together
+const visibleTexts = computed(() => {
+  if (currentCycle.value) {
+    return {
+      known: currentCycle.value.known.text || '',
+      target: currentCycle.value.target.text || '',
+    }
+  }
+  // Fallback to currentItem for backwards compatibility during transition
+  return {
+    known: currentItem.value?.phrase?.phrase?.known || '',
+    target: currentItem.value?.phrase?.phrase?.target || '',
+  }
+})
 
 // Phase symbols/icons - CORRECT ORDER
 const phaseInfo = computed(() => {
