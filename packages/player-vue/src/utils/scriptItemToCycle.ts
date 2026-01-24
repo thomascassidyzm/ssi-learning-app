@@ -51,16 +51,14 @@ export function scriptItemToCycle(item: ScriptItem): Cycle {
     type: cycleType,
     known: {
       text: item.knownText,
-      // Use URL directly - getAudioBlob will fetch it
-      audioId: item.audioRefs.known.url || item.audioRefs.known.id,
+      audioId: item.audioRefs.known.id,
       durationMs: item.audioDurations ? item.audioDurations.source * 1000 : 2000
     },
     target: {
       text: item.targetText,
-      // Use URLs directly for target voices
-      voice1AudioId: item.audioRefs.target.voice1.url || item.audioRefs.target.voice1.id,
+      voice1AudioId: item.audioRefs.target.voice1.id,
       voice1DurationMs: target1DurationMs,
-      voice2AudioId: item.audioRefs.target.voice2.url || item.audioRefs.target.voice2.id,
+      voice2AudioId: item.audioRefs.target.voice2.id,
       voice2DurationMs: item.audioDurations
         ? item.audioDurations.target2 * 1000
         : 2000
@@ -74,4 +72,43 @@ export function scriptItemToCycle(item: ScriptItem): Cycle {
  */
 export function scriptItemsToCycles(items: ScriptItem[]): Cycle[] {
   return items.map(scriptItemToCycle)
+}
+
+/**
+ * Audio URL registry - maps UUID to URL for resolution at playback time
+ * This preserves the Cycle design (UUID references) while providing URL resolution
+ */
+const audioUrlRegistry = new Map<string, string>()
+
+/**
+ * Register audio URLs from a ScriptItem for later resolution
+ * Call this when converting ScriptItem to Cycle
+ */
+export function registerAudioUrls(item: ScriptItem): void {
+  if (item.audioRefs.known?.id && item.audioRefs.known?.url) {
+    audioUrlRegistry.set(item.audioRefs.known.id, item.audioRefs.known.url)
+  }
+  if (item.audioRefs.target?.voice1?.id && item.audioRefs.target?.voice1?.url) {
+    audioUrlRegistry.set(item.audioRefs.target.voice1.id, item.audioRefs.target.voice1.url)
+  }
+  if (item.audioRefs.target?.voice2?.id && item.audioRefs.target?.voice2?.url) {
+    audioUrlRegistry.set(item.audioRefs.target.voice2.id, item.audioRefs.target.voice2.url)
+  }
+}
+
+/**
+ * Resolve an audio UUID to its URL
+ * Returns undefined if not registered
+ */
+export function resolveAudioUrl(audioId: string): string | undefined {
+  return audioUrlRegistry.get(audioId)
+}
+
+/**
+ * Convert ScriptItem to Cycle AND register its audio URLs
+ * This is the preferred method - ensures URLs are available for playback
+ */
+export function scriptItemToCycleWithUrls(item: ScriptItem): Cycle {
+  registerAudioUrls(item)
+  return scriptItemToCycle(item)
 }

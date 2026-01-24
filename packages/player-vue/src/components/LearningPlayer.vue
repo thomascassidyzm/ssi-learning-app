@@ -9,7 +9,7 @@ import {
   createSpeechTimingAnalyzer,
 } from '@ssi/core'
 import { useCyclePlayback } from '../composables/useCyclePlayback'
-import { scriptItemToCycle } from '../utils/scriptItemToCycle'
+import { scriptItemToCycleWithUrls, resolveAudioUrl } from '../utils/scriptItemToCycle'
 import type { Cycle } from '../types/Cycle'
 import SessionComplete from './SessionComplete.vue'
 // OnboardingTooltips removed - deprecated
@@ -1157,13 +1157,12 @@ const { initAudioSource, cache: offlineCache, cacheStats, refreshCacheStats } = 
  * Get audio blob from cache or fetch from URL
  * Used by useCyclePlayback to load audio
  *
- * audioId can be either:
- * - A full URL (https://...) - fetch directly
- * - A UUID - try to resolve via audioSource
+ * audioId is a UUID that gets resolved to URL via the audio registry
+ * (populated when ScriptItem is converted to Cycle)
  */
 const getAudioBlob = async (audioId: string): Promise<Blob | null> => {
   try {
-    // Try IndexedDB cache first
+    // Try IndexedDB cache first (by UUID for consistency)
     if (offlineCache) {
       const cached = await offlineCache.getCachedAudio(audioId)
       if (cached) {
@@ -1171,38 +1170,36 @@ const getAudioBlob = async (audioId: string): Promise<Blob | null> => {
       }
     }
 
-    // If audioId is already a URL, fetch it directly
-    if (audioId.startsWith('http://') || audioId.startsWith('https://')) {
-      const response = await fetch(audioId)
-      if (response.ok) {
-        const blob = await response.blob()
-        // Cache it for next time
-        if (offlineCache) {
-          await offlineCache.cacheAudio(audioId, blob)
-        }
-        return blob
-      }
-      console.warn('[getAudioBlob] Failed to fetch URL:', audioId, response.status)
+    // Resolve UUID to URL via the registry (populated by scriptItemToCycleWithUrls)
+    let url = resolveAudioUrl(audioId)
+
+    // If not in registry, check if audioId is already a URL (backwards compatibility)
+    if (!url && (audioId.startsWith('http://') || audioId.startsWith('https://'))) {
+      url = audioId
+    }
+
+    // Fall back to audioController's audioSource if available
+    if (!url && audioController.value?.audioSource?.resolveUrl) {
+      url = await audioController.value.audioSource.resolveUrl(audioId)
+    }
+
+    if (!url) {
+      console.warn('[getAudioBlob] Failed to resolve audio UUID:', audioId)
       return null
     }
 
-    // Fall back to resolving UUID via audioController's audioSource
-    if (audioController.value?.audioSource?.resolveUrl) {
-      const url = await audioController.value.audioSource.resolveUrl(audioId)
-      if (url) {
-        const response = await fetch(url)
-        if (response.ok) {
-          const blob = await response.blob()
-          // Cache it for next time
-          if (offlineCache) {
-            await offlineCache.cacheAudio(audioId, blob)
-          }
-          return blob
-        }
+    // Fetch the audio
+    const response = await fetch(url)
+    if (response.ok) {
+      const blob = await response.blob()
+      // Cache by UUID (not URL) for consistent cache keys
+      if (offlineCache) {
+        await offlineCache.cacheAudio(audioId, blob)
       }
+      return blob
     }
 
-    console.warn('[getAudioBlob] Failed to resolve audio:', audioId)
+    console.warn('[getAudioBlob] Failed to fetch:', audioId, response.status)
     return null
   } catch (err) {
     console.error('[getAudioBlob] Error fetching audio:', audioId, err)
@@ -1222,8 +1219,8 @@ const startCyclePlayback = async (itemOrPlayable: any) => {
   // Extract ScriptItem - either directly or from playable._scriptItem
   const scriptItem = itemOrPlayable._scriptItem || itemOrPlayable
 
-  // Convert ScriptItem to Cycle
-  const cycle = scriptItemToCycle(scriptItem)
+  // Convert ScriptItem to Cycle AND register audio URLs for resolution
+  const cycle = scriptItemToCycleWithUrls(scriptItem)
   currentCycle.value = cycle
 
   // Emit fire-path event for network visualization
