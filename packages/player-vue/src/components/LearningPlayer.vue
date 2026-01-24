@@ -1192,10 +1192,9 @@ const getAudioBlob = async (audioId: string): Promise<Blob | null> => {
     const response = await fetch(url)
     if (response.ok) {
       const blob = await response.blob()
-      // Cache by UUID (not URL) for consistent cache keys
-      if (offlineCache) {
-        await offlineCache.cacheAudio(audioId, blob)
-      }
+      // Note: OfflineCache.cacheAudio expects (AudioRef, courseId) and fetches itself.
+      // For now, skip caching here - use DownloadManager for course pre-downloads.
+      // The blob is returned for immediate playback.
       return blob
     }
 
