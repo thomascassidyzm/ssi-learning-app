@@ -31,7 +31,7 @@
     "category": "test",
     "description": "Verify belt progress still works",
     "details": "Belt progress tracking should still work after the playback swap. On cycle complete, useBeltProgress.recordCycleComplete() should be called. Verify Supabase sync still functions. No code changes expected - just verification that existing integration wasn't broken.",
-    "passes": false,
+    "passes": true,
     "risk": "low",
     "verification": "Belt progress increments and syncs to Supabase"
   },

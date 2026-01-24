@@ -2173,6 +2173,9 @@ const handleCycleEvent = (event) => {
       startRingAnimation(event.data?.duration)
       break
 
+    case 'cycle_completed':
+      // Handle cycle completion from new playback system
+      // Falls through to item_completed logic
     case 'item_completed':
       itemsPracticed.value++
       learningHintPromptsShown.value++ // Track for auto-hiding learning hints
