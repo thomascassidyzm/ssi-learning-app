@@ -40,7 +40,7 @@
     "category": "test",
     "description": "Verify listening mode still works",
     "details": "Listening mode overlay should still function. When activated, main playback pauses. When exited, playback resumes. The new useCyclePlayback has pause/resume methods. Verify ListeningOverlay integration wasn't broken.",
-    "passes": false,
+    "passes": true,
     "risk": "low",
     "verification": "Listening mode pauses/resumes correctly"
   },

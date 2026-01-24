@@ -108,7 +108,12 @@ Use the NEW lightweight Three.js brain visualization:
   - learningSession.recordCycleComplete() called on cycle completion
   - Belt progress tracking maintained after playback swap
   - All 22 tests passing
-- [ ] p3-5: Verify listening mode still works
+- [x] p3-5: Verify listening mode still works - COMPLETE
+  - Listening mode uses handlePause() which calls stopCycle()
+  - stopCycle() from useCyclePlayback stops audio and clears state
+  - handleResume() restarts playback normally
+  - ListeningOverlay integration maintained
+  - All 22 tests passing
 - [ ] p3-6: Remove old CycleOrchestrator usage
 
 ### Ralph Loop Ready
