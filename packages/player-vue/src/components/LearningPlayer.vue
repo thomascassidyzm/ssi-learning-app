@@ -1194,9 +1194,14 @@ const getAudioBlob = async (audioId: string): Promise<Blob | null> => {
 /**
  * Start playing a cycle using the new useCyclePlayback system
  * Replaces orchestrator.startItem() calls
+ *
+ * Accepts either a ScriptItem or a playable item (which has _scriptItem attached)
  */
-const startCyclePlayback = async (scriptItem: any) => {
-  if (!scriptItem) return
+const startCyclePlayback = async (itemOrPlayable: any) => {
+  if (!itemOrPlayable) return
+
+  // Extract ScriptItem - either directly or from playable._scriptItem
+  const scriptItem = itemOrPlayable._scriptItem || itemOrPlayable
 
   // Convert ScriptItem to Cycle
   const cycle = scriptItemToCycle(scriptItem)
