@@ -9,14 +9,23 @@ export interface CyclePlaybackState {
   error: string | null
 }
 
-export type GetAudioBlobFn = (audioId: string) => Promise<Blob | null>
+/**
+ * Audio source - either a cached blob or a URL for direct playback
+ */
+export type AudioSource = { type: 'blob'; blob: Blob } | { type: 'url'; url: string }
+
+/**
+ * Function to resolve an audio ID to either a cached blob or a URL
+ * Returns blob if cached (for offline), otherwise URL for direct playback
+ */
+export type GetAudioSourceFn = (audioId: string) => Promise<AudioSource | null>
 
 /**
  * Composable for playing a single Cycle through its 4 phases.
  *
  * Usage:
  * const { state, playCycle, stop } = useCyclePlayback()
- * await playCycle(cycle, getAudioBlob)
+ * await playCycle(cycle, getAudioSource)
  */
 export function useCyclePlayback() {
   const state = ref<CyclePlaybackState>({
@@ -29,6 +38,7 @@ export function useCyclePlayback() {
   let currentTimeout: ReturnType<typeof setTimeout> | null = null
   let audioEndedHandler: (() => void) | null = null
   let playbackAborted = false
+  let currentBlobUrl: string | null = null
 
   /**
    * Creates and reuses a single Audio element for all playback.
@@ -43,9 +53,19 @@ export function useCyclePlayback() {
   }
 
   /**
-   * Plays an audio blob and returns when it completes.
+   * Clean up any blob URL from previous playback
    */
-  function playAudio(blob: Blob): Promise<void> {
+  function cleanupBlobUrl(): void {
+    if (currentBlobUrl) {
+      URL.revokeObjectURL(currentBlobUrl)
+      currentBlobUrl = null
+    }
+  }
+
+  /**
+   * Plays audio from either a blob or URL and returns when it completes.
+   */
+  function playAudio(source: AudioSource): Promise<void> {
     return new Promise((resolve, reject) => {
       if (playbackAborted) {
         reject(new Error('Playback aborted'))
@@ -53,7 +73,18 @@ export function useCyclePlayback() {
       }
 
       const audioEl = getAudioElement()
-      const blobUrl = URL.createObjectURL(blob)
+
+      // Clean up previous blob URL if any
+      cleanupBlobUrl()
+
+      // Get the URL to play
+      let srcUrl: string
+      if (source.type === 'blob') {
+        srcUrl = URL.createObjectURL(source.blob)
+        currentBlobUrl = srcUrl  // Track for cleanup
+      } else {
+        srcUrl = source.url
+      }
 
       // Clean up previous handler
       if (audioEndedHandler) {
@@ -62,7 +93,7 @@ export function useCyclePlayback() {
 
       // Set up completion handler
       audioEndedHandler = () => {
-        URL.revokeObjectURL(blobUrl)
+        cleanupBlobUrl()
         if (!playbackAborted) {
           resolve()
         }
@@ -71,14 +102,14 @@ export function useCyclePlayback() {
       audioEl.addEventListener('ended', audioEndedHandler, { once: true })
 
       // Handle errors
-      const errorHandler = (e: ErrorEvent) => {
-        URL.revokeObjectURL(blobUrl)
-        reject(new Error(`Audio playback error: ${e.message}`))
+      const errorHandler = (e: Event) => {
+        cleanupBlobUrl()
+        reject(new Error(`Audio playback error`))
       }
       audioEl.addEventListener('error', errorHandler, { once: true })
 
       // Start playback
-      audioEl.src = blobUrl
+      audioEl.src = srcUrl
       audioEl.load()
       audioEl.play().catch(reject)
     })
@@ -109,7 +140,7 @@ export function useCyclePlayback() {
    */
   async function playCycle(
     cycle: Cycle,
-    getAudioBlob: GetAudioBlobFn
+    getAudioSource: GetAudioSourceFn
   ): Promise<void> {
     playbackAborted = false
     state.value.isPlaying = true
@@ -118,11 +149,11 @@ export function useCyclePlayback() {
     try {
       // Phase 1: PROMPT - Play known language audio
       state.value.phase = 'PROMPT'
-      const knownBlob = await getAudioBlob(cycle.known.audioId)
-      if (!knownBlob) {
+      const knownSource = await getAudioSource(cycle.known.audioId)
+      if (!knownSource) {
         throw new Error(`Known audio not found: ${cycle.known.audioId}`)
       }
-      await playAudio(knownBlob)
+      await playAudio(knownSource)
 
       // Phase 2: PAUSE - Silent gap for learner to attempt response
       state.value.phase = 'PAUSE'
@@ -130,19 +161,19 @@ export function useCyclePlayback() {
 
       // Phase 3: VOICE_1 - Play target language audio (voice 1)
       state.value.phase = 'VOICE_1'
-      const target1Blob = await getAudioBlob(cycle.target.voice1AudioId)
-      if (!target1Blob) {
+      const target1Source = await getAudioSource(cycle.target.voice1AudioId)
+      if (!target1Source) {
         throw new Error(`Target voice 1 audio not found: ${cycle.target.voice1AudioId}`)
       }
-      await playAudio(target1Blob)
+      await playAudio(target1Source)
 
       // Phase 4: VOICE_2 - Play target language audio (voice 2)
       state.value.phase = 'VOICE_2'
-      const target2Blob = await getAudioBlob(cycle.target.voice2AudioId)
-      if (!target2Blob) {
+      const target2Source = await getAudioSource(cycle.target.voice2AudioId)
+      if (!target2Source) {
         throw new Error(`Target voice 2 audio not found: ${cycle.target.voice2AudioId}`)
       }
-      await playAudio(target2Blob)
+      await playAudio(target2Source)
 
       // Cycle complete
       state.value.phase = 'IDLE'

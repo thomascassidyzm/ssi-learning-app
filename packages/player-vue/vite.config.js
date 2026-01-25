@@ -27,7 +27,7 @@ export default defineConfig({
         // With registerType: 'prompt', vite-plugin-pwa handles skipWaiting
         // based on user approval via updateServiceWorker(true)
 
-        // Runtime caching for fonts/CDN
+        // Runtime caching for fonts/CDN/audio
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -43,6 +43,23 @@ export default defineConfig({
             options: {
               cacheName: 'gstatic-fonts-cache',
               expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
+            },
+          },
+          // S3 audio - service worker intercepts, caches, and returns
+          // This enables fetch() to work (bypasses CORS at SW level)
+          // Also provides automatic browser-level caching for audio
+          {
+            urlPattern: /^https:\/\/ssi-audio.*\.s3\..*\.amazonaws\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'ssi-audio-cache',
+              expiration: {
+                maxEntries: 500,  // ~500 audio files = ~12MB
+                maxAgeSeconds: 60 * 60 * 24 * 30,  // 30 days
+              },
+              cacheableResponse: {
+                statuses: [0, 200],  // Cache opaque responses too
+              },
             },
           },
         ],

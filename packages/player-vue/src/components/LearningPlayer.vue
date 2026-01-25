@@ -9,7 +9,7 @@ import {
   createSpeechTimingAnalyzer,
 } from '@ssi/core'
 import { useCyclePlayback } from '../composables/useCyclePlayback'
-import { scriptItemToCycleWithUrls, resolveAudioUrl } from '../utils/scriptItemToCycle'
+import { scriptItemToCycle, collectAllAudioRefs } from '../utils/scriptItemToCycle'
 import type { Cycle } from '../types/Cycle'
 import SessionComplete from './SessionComplete.vue'
 // OnboardingTooltips removed - deprecated
@@ -1154,56 +1154,91 @@ const currentCycle = ref<Cycle | null>(null)
 const { initAudioSource, cache: offlineCache, cacheStats, refreshCacheStats } = useOfflineCache()
 
 /**
- * Get audio blob from cache or fetch from URL
- * Used by useCyclePlayback to load audio
- *
- * audioId is a UUID that gets resolved to URL via the audio registry
- * (populated when ScriptItem is converted to Cycle)
+ * Build an audio URL map from a ScriptItem
+ * Maps audioId to URL for all audio in the item
  */
-const getAudioBlob = async (audioId: string): Promise<Blob | null> => {
-  try {
-    // Try IndexedDB cache first (by UUID for consistency)
+const buildAudioUrlMap = (scriptItem: any): Map<string, string> => {
+  const map = new Map<string, string>()
+
+  if (scriptItem?.audioRefs?.known?.id && scriptItem?.audioRefs?.known?.url) {
+    map.set(scriptItem.audioRefs.known.id, scriptItem.audioRefs.known.url)
+  }
+  if (scriptItem?.audioRefs?.target?.voice1?.id && scriptItem?.audioRefs?.target?.voice1?.url) {
+    map.set(scriptItem.audioRefs.target.voice1.id, scriptItem.audioRefs.target.voice1.url)
+  }
+  if (scriptItem?.audioRefs?.target?.voice2?.id && scriptItem?.audioRefs?.target?.voice2?.url) {
+    map.set(scriptItem.audioRefs.target.voice2.id, scriptItem.audioRefs.target.voice2.url)
+  }
+  if (scriptItem?.presentationAudio?.id && scriptItem?.presentationAudio?.url) {
+    map.set(scriptItem.presentationAudio.id, scriptItem.presentationAudio.url)
+  }
+
+  return map
+}
+
+/**
+ * Create a getAudioSource function for a specific ScriptItem
+ * Returns cached blob if available, otherwise falls back to URL for direct playback
+ */
+const createGetAudioSource = (scriptItem: any) => {
+  const urlMap = buildAudioUrlMap(scriptItem)
+
+  return async (audioId: string): Promise<{ type: 'blob'; blob: Blob } | { type: 'url'; url: string } | null> => {
+    // Try IndexedDB cache first (for offline support)
     if (offlineCache) {
       const cached = await offlineCache.getCachedAudio(audioId)
       if (cached) {
-        return cached
+        return { type: 'blob', blob: cached }
       }
     }
 
-    // Resolve UUID to URL via the registry (populated by scriptItemToCycleWithUrls)
-    let url = resolveAudioUrl(audioId)
-
-    // If not in registry, check if audioId is already a URL (backwards compatibility)
-    if (!url && (audioId.startsWith('http://') || audioId.startsWith('https://'))) {
-      url = audioId
+    // Fall back to URL for direct playback (works online, bypasses CORS)
+    const url = urlMap.get(audioId)
+    if (url) {
+      return { type: 'url', url }
     }
 
-    // Fall back to audioController's audioSource if available
-    if (!url && audioController.value?.audioSource?.resolveUrl) {
-      url = await audioController.value.audioSource.resolveUrl(audioId)
-    }
-
-    if (!url) {
-      console.warn('[getAudioBlob] Failed to resolve audio UUID:', audioId)
-      return null
-    }
-
-    // Fetch the audio
-    const response = await fetch(url)
-    if (response.ok) {
-      const blob = await response.blob()
-      // Note: OfflineCache.cacheAudio expects (AudioRef, courseId) and fetches itself.
-      // For now, skip caching here - use DownloadManager for course pre-downloads.
-      // The blob is returned for immediate playback.
-      return blob
-    }
-
-    console.warn('[getAudioBlob] Failed to fetch:', audioId, response.status)
-    return null
-  } catch (err) {
-    console.error('[getAudioBlob] Error fetching audio:', audioId, err)
+    console.error('[getAudioSource] No URL found for audioId:', audioId)
     return null
   }
+}
+
+/**
+ * Prefetch all audio for a round's items
+ * Downloads audio files by URL and caches them by audioId
+ *
+ * Call this BEFORE starting playback to ensure all audio is ready
+ * Returns true if all audio was cached successfully, false if any failed
+ */
+const prefetchRoundAudio = async (items: any[], courseId: string): Promise<boolean> => {
+  if (!offlineCache) {
+    console.warn('[prefetchRoundAudio] No offline cache available')
+    return false
+  }
+
+  const audioRefs = collectAllAudioRefs(items)
+  const uncached = audioRefs.filter(ref => !offlineCache.isAudioCached(ref.id))
+
+  if (uncached.length === 0) {
+    // All audio already cached
+    return true
+  }
+
+  console.log(`[prefetchRoundAudio] Caching ${uncached.length} audio files...`)
+
+  // Fetch all uncached audio in parallel
+  const results = await Promise.allSettled(
+    uncached.map(ref => offlineCache.cacheAudio({ id: ref.id, url: ref.url }, courseId))
+  )
+
+  const failed = results.filter(r => r.status === 'rejected')
+  if (failed.length > 0) {
+    console.error(`[prefetchRoundAudio] ${failed.length}/${uncached.length} audio files failed to cache`)
+    return false
+  }
+
+  console.log(`[prefetchRoundAudio] Successfully cached ${uncached.length} audio files`)
+  return true
 }
 
 /**
@@ -1218,9 +1253,13 @@ const startCyclePlayback = async (itemOrPlayable: any) => {
   // Extract ScriptItem - either directly or from playable._scriptItem
   const scriptItem = itemOrPlayable._scriptItem || itemOrPlayable
 
-  // Convert ScriptItem to Cycle AND register audio URLs for resolution
-  const cycle = scriptItemToCycleWithUrls(scriptItem)
+  // Convert ScriptItem to Cycle
+  const cycle = scriptItemToCycle(scriptItem)
   currentCycle.value = cycle
+
+  // Create audio source resolver for this ScriptItem
+  // Uses cached blobs if available, falls back to direct URL playback
+  const getAudioSource = createGetAudioSource(scriptItem)
 
   // Emit fire-path event for network visualization
   // Extract LEGO IDs from the cycle for brain animation
@@ -1232,7 +1271,7 @@ const startCyclePlayback = async (itemOrPlayable: any) => {
 
   try {
     // Play the cycle - this handles all 4 phases internally
-    await playCycle(cycle, getAudioBlob)
+    await playCycle(cycle, getAudioSource)
 
     // When cycle completes, trigger the cycle_completed event
     // This maintains compatibility with existing event handling
@@ -2275,6 +2314,18 @@ const handleCycleEvent = (event) => {
           }
 
           console.log('[LearningPlayer] Starting round', currentRoundIndex.value, 'LEGO:', cachedRounds.value[currentRoundIndex.value].legoId)
+
+          // Prefetch audio for new round (fire-and-forget - will complete during setTimeout delay)
+          const newRound = cachedRounds.value[currentRoundIndex.value]
+          if (newRound?.items && courseCode.value) {
+            prefetchRoundAudio(newRound.items, courseCode.value).then(() => {
+              // Also prefetch next round after current finishes
+              const nextRound = cachedRounds.value[currentRoundIndex.value + 1]
+              if (nextRound?.items) {
+                prefetchRoundAudio(nextRound.items, courseCode.value)
+              }
+            })
+          }
         }
 
         // Get next script item and convert to playable
@@ -3079,6 +3130,17 @@ const startPlayback = async () => {
   // ROUND-BASED PLAYBACK
   // ============================================
   if (useRoundBasedPlayback.value) {
+    // Prefetch audio for current round before starting
+    if (currentRound.value?.items && courseCode.value) {
+      await prefetchRoundAudio(currentRound.value.items, courseCode.value)
+
+      // Also prefetch next round in background (don't await)
+      const nextRound = cachedRounds.value[currentRoundIndex.value + 1]
+      if (nextRound?.items) {
+        prefetchRoundAudio(nextRound.items, courseCode.value)
+      }
+    }
+
     // Get the first item from the current round
     const scriptItem = currentRound.value?.items[currentItemInRound.value]
     if (!scriptItem) {
