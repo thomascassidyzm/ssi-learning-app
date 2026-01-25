@@ -23,8 +23,8 @@ if (!supabaseUrl) {
   throw new Error('Missing SUPABASE_URL environment variable')
 }
 
-interface AudioSample {
-  uuid: string
+interface AudioRecord {
+  id: string
   s3_key: string
   duration_ms: number
 }
@@ -96,20 +96,51 @@ export default async function handler(
       supabaseServiceKey || process.env.VITE_SUPABASE_ANON_KEY || ''
     )
 
-    // Query for the audio sample's S3 key
-    const { data: audioSample, error: queryError } = await supabase
-      .from('audio_samples')
-      .select('uuid, s3_key, duration_ms')
-      .eq('uuid', audioId)
-      .single()
+    // Get courseId from query params for filtering
+    const courseId = req.query.courseId as string | undefined
 
-    if (queryError || !audioSample) {
-      console.error('[AudioProxy] Audio not found:', audioId, queryError)
-      res.status(404).json({ error: 'Audio not found' })
-      return
+    // Query course_audio table for the audio's S3 key
+    // Use courseId filter if provided for better specificity
+    let query = supabase
+      .from('course_audio')
+      .select('id, s3_key, duration_ms')
+      .eq('id', audioId)
+
+    if (courseId) {
+      query = query.eq('course_code', courseId)
     }
 
-    const sample = audioSample as AudioSample
+    const { data: audioRecord, error: queryError } = await query.single()
+
+    let sample: AudioRecord | null = audioRecord as AudioRecord | null
+
+    if (queryError || !audioRecord) {
+      // Fallback: try audio_samples table (legacy support)
+      const { data: legacyRecord, error: legacyError } = await supabase
+        .from('audio_samples')
+        .select('uuid, s3_key, duration_ms')
+        .eq('uuid', audioId)
+        .single()
+
+      if (legacyError || !legacyRecord) {
+        console.error('[AudioProxy] Audio not found in course_audio or audio_samples:', audioId, queryError)
+        res.status(404).json({ error: 'Audio not found' })
+        return
+      }
+
+      // Use legacy record - map uuid to id
+      sample = {
+        id: (legacyRecord as any).uuid,
+        s3_key: (legacyRecord as any).s3_key,
+        duration_ms: (legacyRecord as any).duration_ms,
+      }
+    }
+
+    if (!sample || !sample.s3_key) {
+      console.error('[AudioProxy] No s3_key found for audio:', audioId)
+      res.status(404).json({ error: 'Audio storage key not found' })
+      return
+    }
 
     // Build S3 URL
     const s3Url = s3BaseUrl

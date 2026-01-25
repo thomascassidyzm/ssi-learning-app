@@ -158,17 +158,17 @@ export class CourseDataProvider {
   /**
    * Transform database records to LearningItem format
    * Maps lego_cycles view fields to LearningItem structure
-   * v13.1: Uses s3_key fields for URLs (known_s3_key, target1_s3_key, target2_s3_key)
+   * v2.2: Uses proxy URLs via /api/audio/{audioId} for CORS bypass
    */
   private transformToLearningItems(records: any[]): LearningItem[] {
     return records.map((record) => {
       const legoId = record.lego_id
       const seedId = `S${String(record.seed_number).padStart(4, '0')}`
 
-      // v13.1: Resolve audio URLs from s3_keys (not UUIDs)
-      const knownAudioUrl = this.resolveAudioUrl(record.known_s3_key)
-      const target1AudioUrl = this.resolveAudioUrl(record.target1_s3_key)
-      const target2AudioUrl = this.resolveAudioUrl(record.target2_s3_key)
+      // v2.2: Build proxy URLs from audio UUIDs (bypasses CORS)
+      const knownAudioUrl = this.buildProxyUrl(record.known_audio_uuid)
+      const target1AudioUrl = this.buildProxyUrl(record.target1_audio_uuid)
+      const target2AudioUrl = this.buildProxyUrl(record.target2_audio_uuid)
 
       return {
         lego: {
@@ -242,7 +242,16 @@ export class CourseDataProvider {
   }
 
   /**
-   * Resolve S3 key to full URL
+   * Build proxy URL from audio UUID
+   * v2.2: Routes through /api/audio/{audioId} for CORS bypass and analytics
+   */
+  private buildProxyUrl(audioId: string): string {
+    if (!audioId) return ''
+    return `/api/audio/${audioId}?courseId=${encodeURIComponent(this.courseId)}`
+  }
+
+  /**
+   * Resolve S3 key to full URL (fallback for direct S3 access)
    * v13: s3_key IS the actual S3 object key. Use it as-is.
    * No normalization - the database stores the actual path.
    */
@@ -1175,7 +1184,13 @@ async function loadAllPracticePhrasesGrouped(
 
   if (!supabase) return { debutMap, eternalMap }
 
-  // Helper to resolve audio URL - s3_key is the actual S3 object key
+  // Helper to build proxy URL from audio UUID (v2.2 - CORS bypass)
+  const buildProxyUrl = (audioId: string | null): string => {
+    if (!audioId) return ''
+    return `/api/audio/${audioId}?courseId=${encodeURIComponent(courseId)}`
+  }
+
+  // Helper to resolve S3 URL directly (fallback/deprecated)
   const resolveAudioUrl = (s3Key: string | null): string => {
     if (!s3Key) return ''
     let baseUrl = audioBaseUrl
@@ -1192,6 +1207,7 @@ async function loadAllPracticePhrasesGrouped(
     //   'eternal_eligible' - Phrases eligible for spaced rep / consolidation
 
     // Helper to transform row to EternalPhrase
+    // v2.2: Use proxy URLs for CORS bypass
     const toPhrase = (row: any): EternalPhrase => ({
       knownText: row.known_text,
       targetText: row.target_text,
@@ -1199,16 +1215,16 @@ async function loadAllPracticePhrasesGrouped(
       audioRefs: {
         known: {
           id: row.known_audio_uuid || '',
-          url: resolveAudioUrl(row.known_s3_key)
+          url: buildProxyUrl(row.known_audio_uuid)
         },
         target: {
           voice1: {
             id: row.target1_audio_uuid || '',
-            url: resolveAudioUrl(row.target1_s3_key)
+            url: buildProxyUrl(row.target1_audio_uuid)
           },
           voice2: {
             id: row.target2_audio_uuid || '',
-            url: resolveAudioUrl(row.target2_s3_key)
+            url: buildProxyUrl(row.target2_audio_uuid)
           }
         }
       }
@@ -1428,26 +1444,24 @@ export async function generateLearningScript(
           }
         }
 
+        // v2.2: Use proxy URLs for CORS bypass
         for (const intro of v13Entries) {
-          const s3Key = s3KeyMap.get(intro.presentation_audio_id)
-          if (s3Key) {
-            let baseUrl = audioBaseUrl
-            if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1)
+          if (intro.presentation_audio_id) {
             introAudioMap.set(intro.lego_id, {
               id: intro.presentation_audio_id,
-              url: `${baseUrl}/${s3Key}`
+              url: buildProxyUrl(intro.presentation_audio_id)
             })
           }
         }
       }
 
-      // Legacy: use audio_uuid directly → mastered/{UUID}.mp3
+      // Legacy: use audio_uuid directly with proxy URL
       for (const intro of legacyEntries) {
-        let baseUrl = audioBaseUrl
-        if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1)
+        const audioUuid = intro.audio_uuid
+        // v2.2: Use proxy URL regardless of audio_uuid format
         introAudioMap.set(intro.lego_id, {
-          id: intro.audio_uuid,
-          url: `${baseUrl}/mastered/${intro.audio_uuid.toUpperCase()}.mp3`
+          id: audioUuid,
+          url: buildProxyUrl(audioUuid)
         })
       }
 
@@ -1473,14 +1487,12 @@ export async function generateLearningScript(
           .in('lego_id', batchLegoIds)
 
         if (presentationAudio && presentationAudio.length > 0) {
-          let baseUrl = audioBaseUrl
-          if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1)
-
           for (const audio of presentationAudio) {
-            if (audio.lego_id && audio.s3_key && !introAudioMap.has(audio.lego_id)) {
+            if (audio.lego_id && audio.id && !introAudioMap.has(audio.lego_id)) {
+              // v2.2: Use proxy URL for CORS bypass
               introAudioMap.set(audio.lego_id, {
                 id: audio.id,
-                url: `${baseUrl}/${audio.s3_key}`
+                url: buildProxyUrl(audio.id)
               })
             }
           }
