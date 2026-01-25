@@ -4,7 +4,7 @@
 
 app SSiLearningApp:
   title: "SSI Learning App"
-  version: "2.1.0"
+  version: "2.2.0"
   apml_version: "2.0.0"
 
   description: |
@@ -13,11 +13,12 @@ app SSiLearningApp:
     an immersive 4-phase prompt-response learning experience with
     constellation network visualization.
 
+    v2.2.0: Best-in-class audio caching with backend proxy, 30-min prefetch, graceful degradation.
     v2.1.0: Belt-aware progressive loading, cross-device sync, offline play.
 
   compilation_method: "forward-compilation"
-  generated_from: "Working v2.1.0 codebase (2026-01-18)"
-  last_updated: "2026-01-18"
+  generated_from: "Working v2.2.0 codebase (2026-01-25)"
+  last_updated: "2026-01-25"
 
   ## ==========================================================================
   ## RELATIONSHIP TO DASHBOARD
@@ -168,6 +169,27 @@ app SSiLearningApp:
     date: "2025-12-03"
     source: "packages/core/src/persistence/SessionStore.ts"
     coverage: "Session state snapshots, resume capability"
+
+  ## ==========================================================================
+  ## CACHE SPECIFICATIONS
+  ## ==========================================================================
+
+  import cache/audio-architecture:
+    status: "implemented"
+    date: "2026-01-25"
+    source: "Multiple files - see apml/cache/audio-architecture.apml"
+    coverage: |
+      Backend proxy for audio (/api/audio/:audioId),
+      30-minute rolling prefetch buffer,
+      graceful degradation to infinite play,
+      resumable downloads up to 10 hours,
+      analytics tracking for all audio plays
+    new_files:
+      - "api/audio/[audioId].ts - Vercel serverless proxy"
+      - "packages/player-vue/src/composables/usePrefetchManager.ts"
+      - "packages/player-vue/src/config/audioConfig.ts"
+      - "supabase/migrations/20260125000000_audio_plays.sql"
+    key_principle: "Never show connection errors - always keep playing"
 
   ## ==========================================================================
   ## INTERFACE SPECIFICATIONS

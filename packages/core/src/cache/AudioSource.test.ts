@@ -72,7 +72,9 @@ describe('AudioSource', () => {
     global.URL.revokeObjectURL = mockRevokeObjectURL;
 
     mockCache = createMockCache();
-    audioSource = new AudioSource(mockCache, 'course-001');
+    // Disable proxy by default in tests to test core caching behavior
+    // Proxy functionality is tested separately
+    audioSource = new AudioSource(mockCache, 'course-001', { useProxy: false });
   });
 
   afterEach(() => {
@@ -331,8 +333,53 @@ describe('AudioSource', () => {
 
   describe('Factory Function', () => {
     it('should create AudioSource instance', () => {
+      const factorySource = createAudioSource(mockCache, 'course-001', { useProxy: false });
+      expect(factorySource).toBeInstanceOf(AudioSource);
+    });
+
+    it('should create AudioSource with proxy enabled by default', () => {
       const factorySource = createAudioSource(mockCache, 'course-001');
       expect(factorySource).toBeInstanceOf(AudioSource);
+    });
+  });
+
+  // ============================================
+  // PROXY FUNCTIONALITY
+  // ============================================
+
+  describe('Proxy Functionality', () => {
+    it('should return proxy URL when useProxy is true', async () => {
+      const proxySource = new AudioSource(mockCache, 'course-001', { useProxy: true });
+      vi.mocked(mockCache.isAudioCached).mockReturnValue(false);
+
+      const url = await proxySource.getAudioUrl(mockAudioRef);
+
+      expect(url).toBe('/api/audio/audio-001?courseId=course-001');
+    });
+
+    it('should include analytics context in proxy URL', async () => {
+      const proxySource = new AudioSource(mockCache, 'course-001', {
+        useProxy: true,
+        analyticsContext: { seedId: 'seed-001', role: 'known' }
+      });
+      vi.mocked(mockCache.isAudioCached).mockReturnValue(false);
+
+      const url = await proxySource.getAudioUrl(mockAudioRef);
+
+      expect(url).toContain('courseId=course-001');
+      expect(url).toContain('seedId=seed-001');
+      expect(url).toContain('role=known');
+    });
+
+    it('should update analytics context', async () => {
+      const proxySource = new AudioSource(mockCache, 'course-001', { useProxy: true });
+      proxySource.setAnalyticsContext({ seedId: 'seed-002', role: 'target1' });
+      vi.mocked(mockCache.isAudioCached).mockReturnValue(false);
+
+      const url = await proxySource.getAudioUrl(mockAudioRef);
+
+      expect(url).toContain('seedId=seed-002');
+      expect(url).toContain('role=target1');
     });
   });
 

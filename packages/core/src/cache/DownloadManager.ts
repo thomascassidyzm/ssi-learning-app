@@ -5,7 +5,14 @@
  * - Download X hours of content
  * - Progress reporting
  * - Pause/resume/cancel
+ * - Resumable downloads across app restarts
  * - Graceful error handling
+ *
+ * Download Options:
+ * - Current belt remainder (~30 min)
+ * - Next 2 hours
+ * - Next 5 hours
+ * - Entire course (up to 10 hours)
  */
 
 import type { AudioRef, CourseManifest } from '../data/types';
@@ -16,6 +23,20 @@ import type {
   DownloadProgressCallback,
 } from './types';
 
+/**
+ * Persisted download task for resume across app restarts
+ */
+interface PersistedDownloadTask {
+  courseId: string;
+  hours: number;
+  pendingAudioIds: string[];  // Just IDs, we'll look up URLs from manifest
+  completedCount: number;
+  totalCount: number;
+  savedAt: Date;
+}
+
+const DOWNLOAD_TASK_KEY = 'ssi-download-task';
+
 export class DownloadManager implements IDownloadManager {
   private cache: IOfflineCache;
   private progress: DownloadProgress;
@@ -24,10 +45,185 @@ export class DownloadManager implements IDownloadManager {
   private isPaused: boolean = false;
   private pendingAudioRefs: AudioRef[] = [];
   private currentCourseId: string | null = null;
+  private currentHours: number = 0;
 
   constructor(cache: IOfflineCache) {
     this.cache = cache;
     this.progress = this.createInitialProgress();
+  }
+
+  // ============================================
+  // PERSISTENCE (for resume across restarts)
+  // ============================================
+
+  /**
+   * Save download task to localStorage for resume
+   */
+  private saveDownloadTask(): void {
+    if (!this.currentCourseId || this.pendingAudioRefs.length === 0) {
+      return;
+    }
+
+    const task: PersistedDownloadTask = {
+      courseId: this.currentCourseId,
+      hours: this.currentHours,
+      pendingAudioIds: this.pendingAudioRefs.map(ref => ref.id),
+      completedCount: this.progress.downloaded,
+      totalCount: this.progress.total,
+      savedAt: new Date(),
+    };
+
+    try {
+      localStorage.setItem(DOWNLOAD_TASK_KEY, JSON.stringify(task));
+    } catch (err) {
+      console.warn('[DownloadManager] Failed to save download task:', err);
+    }
+  }
+
+  /**
+   * Load persisted download task
+   */
+  private loadDownloadTask(): PersistedDownloadTask | null {
+    try {
+      const stored = localStorage.getItem(DOWNLOAD_TASK_KEY);
+      if (!stored) return null;
+
+      const task = JSON.parse(stored) as PersistedDownloadTask;
+
+      // Check if task is still valid (less than 24 hours old)
+      const savedAt = new Date(task.savedAt);
+      const hoursSinceSave = (Date.now() - savedAt.getTime()) / (1000 * 60 * 60);
+      if (hoursSinceSave > 24) {
+        this.clearPersistedTask();
+        return null;
+      }
+
+      return task;
+    } catch (err) {
+      console.warn('[DownloadManager] Failed to load download task:', err);
+      return null;
+    }
+  }
+
+  /**
+   * Clear persisted download task
+   */
+  private clearPersistedTask(): void {
+    try {
+      localStorage.removeItem(DOWNLOAD_TASK_KEY);
+    } catch (err) {
+      // Ignore
+    }
+  }
+
+  /**
+   * Check if there's a resumable download
+   */
+  hasResumableDownload(): boolean {
+    const task = this.loadDownloadTask();
+    return task !== null && task.pendingAudioIds.length > 0;
+  }
+
+  /**
+   * Get info about resumable download
+   */
+  getResumableDownloadInfo(): { courseId: string; completed: number; total: number } | null {
+    const task = this.loadDownloadTask();
+    if (!task) return null;
+
+    return {
+      courseId: task.courseId,
+      completed: task.completedCount,
+      total: task.totalCount,
+    };
+  }
+
+  /**
+   * Resume a previously interrupted download (cross-session)
+   * Use this after app restart to continue an interrupted download.
+   */
+  async resumePreviousDownload(onProgress?: DownloadProgressCallback): Promise<void> {
+    const task = this.loadDownloadTask();
+    if (!task) {
+      throw new Error('No download to resume');
+    }
+
+    // Get manifest to look up audio URLs
+    const manifest = await this.cache.getCachedManifest(task.courseId);
+    if (!manifest) {
+      this.clearPersistedTask();
+      throw new Error(`No manifest for course ${task.courseId}`);
+    }
+
+    // Build audio ref lookup
+    const audioRefMap = this.buildAudioRefMap(manifest);
+
+    // Filter to only pending audio that still needs downloading
+    const pendingRefs = task.pendingAudioIds
+      .filter(id => !this.cache.isAudioCached(id))
+      .map(id => audioRefMap.get(id))
+      .filter((ref): ref is AudioRef => ref !== undefined);
+
+    if (pendingRefs.length === 0) {
+      this.clearPersistedTask();
+      this.progress = {
+        ...this.createInitialProgress(),
+        state: 'complete',
+        total: task.totalCount,
+        downloaded: task.totalCount,
+      };
+      if (onProgress) onProgress(this.progress);
+      return;
+    }
+
+    // Set up for resume
+    this.currentCourseId = task.courseId;
+    this.currentHours = task.hours;
+    this.pendingAudioRefs = pendingRefs;
+    this.onProgressCallback = onProgress ?? null;
+    this.abortController = new AbortController();
+    this.isPaused = false;
+
+    this.progress = {
+      total: task.totalCount,
+      downloaded: task.completedCount,
+      currentFile: null,
+      bytesDownloaded: 0,
+      totalBytes: null,
+      state: 'downloading',
+    };
+    this.notifyProgress();
+
+    try {
+      await this.processDownloadQueue();
+      this.clearPersistedTask();
+      this.progress.state = 'complete';
+      this.notifyProgress();
+    } catch (error) {
+      if ((error as Error).name !== 'AbortError') {
+        this.progress.state = 'error';
+        this.progress.error = (error as Error).message;
+        this.notifyProgress();
+        throw error;
+      }
+    }
+  }
+
+  /**
+   * Build a map of audioId -> AudioRef for quick lookup
+   */
+  private buildAudioRefMap(manifest: CourseManifest): Map<string, AudioRef> {
+    const map = new Map<string, AudioRef>();
+
+    for (const seed of manifest.seeds) {
+      for (const lego of seed.legos) {
+        map.set(lego.audioRefs.known.id, lego.audioRefs.known);
+        map.set(lego.audioRefs.target.voice1.id, lego.audioRefs.target.voice1);
+        map.set(lego.audioRefs.target.voice2.id, lego.audioRefs.target.voice2);
+      }
+    }
+
+    return map;
   }
 
   private createInitialProgress(): DownloadProgress {
@@ -56,6 +252,7 @@ export class DownloadManager implements IDownloadManager {
 
     this.onProgressCallback = onProgress ?? null;
     this.currentCourseId = courseId;
+    this.currentHours = hours;
     this.abortController = new AbortController();
     this.isPaused = false;
 
@@ -80,6 +277,7 @@ export class DownloadManager implements IDownloadManager {
           downloaded: audioRefs.length,
         };
         this.notifyProgress();
+        this.clearPersistedTask();
         return;
       }
 
@@ -94,21 +292,28 @@ export class DownloadManager implements IDownloadManager {
       };
       this.notifyProgress();
 
+      // Save task for potential resume
+      this.saveDownloadTask();
+
       // Download each file
       await this.processDownloadQueue();
 
       // Complete
+      this.clearPersistedTask();
       this.progress.state = 'complete';
       this.notifyProgress();
     } catch (error) {
       if ((error as Error).name === 'AbortError') {
-        // Cancelled - don't update state, it's already set
+        // Cancelled - save state for potential resume
+        this.saveDownloadTask();
         return;
       }
 
       this.progress.state = 'error';
       this.progress.error = (error as Error).message;
       this.notifyProgress();
+      // Save for resume on error too
+      this.saveDownloadTask();
       throw error;
     } finally {
       this.abortController = null;
@@ -123,6 +328,8 @@ export class DownloadManager implements IDownloadManager {
       this.isPaused = true;
       this.progress.state = 'paused';
       this.notifyProgress();
+      // Save for resume
+      this.saveDownloadTask();
     }
   }
 
@@ -160,6 +367,8 @@ export class DownloadManager implements IDownloadManager {
     this.pendingAudioRefs = [];
     this.progress = this.createInitialProgress();
     this.notifyProgress();
+    // Clear persisted task on cancel
+    this.clearPersistedTask();
   }
 
   /**

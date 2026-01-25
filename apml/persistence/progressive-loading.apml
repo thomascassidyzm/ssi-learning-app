@@ -521,6 +521,53 @@ OFFLINE_DOWNLOAD_UI:
     └─────────────────────────────────────────┘
 
 ## ============================================================================
+## v2.2.0: BEST-IN-CLASS AUDIO CACHING (2026-01-25)
+## ============================================================================
+
+AUDIO_CACHING_V2:
+  version: "2.2.0"
+  date: "2026-01-25"
+  description: |
+    Enhanced audio caching with backend proxy, smart prefetching,
+    and graceful degradation. Core principle: never fail.
+
+  backend_proxy:
+    endpoint: "/api/audio/:audioId"
+    purpose:
+      - "Entitlement verification"
+      - "Analytics tracking"
+      - "Future CDN flexibility"
+      - "CORS bypass"
+    see: "apml/cache/audio-architecture.apml"
+
+  prefetch_buffer:
+    target: "30 minutes cached ahead"
+    trigger: "After each cycle completes"
+    batch_size: "20 cycles"
+    composable: "usePrefetchManager.ts"
+
+  graceful_degradation:
+    hierarchy:
+      1: "Normal: Play scheduled cycle"
+      2: "Belt-only: Play any cached cycle"
+      3: "USE phrases: Play mastered content"
+      4: "Repeat: Loop last successful cycle"
+    guarantee: "Audio NEVER stops - user never sees error"
+    composable: "useOfflinePlay.ts"
+
+  resumable_downloads:
+    persistence: "localStorage"
+    expiry: "24 hours"
+    resume_after: "App restart or pause"
+
+  files_added:
+    - "api/audio/[audioId].ts"
+    - "packages/player-vue/src/composables/usePrefetchManager.ts"
+    - "packages/player-vue/src/config/audioConfig.ts"
+    - "supabase/migrations/20260125000000_audio_plays.sql"
+    - "apml/cache/audio-architecture.apml"
+
+## ============================================================================
 ## DESIGN DECISIONS
 ## ============================================================================
 

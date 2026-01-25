@@ -711,6 +711,58 @@ pnpm --filter player-vue lint       # Must pass
 
 ---
 
+## Audio Caching Architecture (v2.2.0)
+
+Best-in-class audio system with backend proxy and graceful degradation. **Core principle: audio must NEVER stop - user never sees connection errors.**
+
+### Backend Proxy
+- **Endpoint**: `GET /api/audio/:audioId`
+- **File**: `api/audio/[audioId].ts`
+- **Purpose**: Entitlement verification, analytics, CORS bypass, future CDN flexibility
+- **Response**: Streams audio from S3 with 1-year cache headers
+
+### Two-Layer Caching
+1. **IndexedDB (OfflineCache)**: App-controlled, readable blobs for offline play
+2. **Service Worker (Workbox)**: Browser-controlled, CacheFirst strategy for `/api/audio/*`
+
+### Prefetch Manager
+- **File**: `packages/player-vue/src/composables/usePrefetchManager.ts`
+- **Target**: 30 minutes cached ahead during active play
+- **Trigger**: After each cycle completes
+- **Silent**: Never interrupts playback on prefetch errors
+
+### Graceful Degradation
+- **File**: `packages/player-vue/src/composables/useOfflinePlay.ts`
+- **Hierarchy**:
+  1. Normal: Play scheduled cycle
+  2. Belt-only: Play any cached cycle
+  3. USE phrases: Play mastered content
+  4. Repeat: Loop last successful cycle
+
+### Resumable Downloads
+- Downloads persist across app restarts (localStorage)
+- Resume within 24 hours of interruption
+- Options: Current belt, 2 hours, 5 hours, entire course (up to 10 hours)
+
+### Analytics (audio_plays table)
+Every audio request is tracked:
+- user_id, audio_id, course_id, seed_id
+- audio_role (known/target1/target2)
+- device_type, is_offline, ip_country
+
+### Key Files
+| File | Purpose |
+|------|---------|
+| `api/audio/[audioId].ts` | Vercel serverless proxy |
+| `packages/player-vue/src/composables/usePrefetchManager.ts` | 30-min buffer |
+| `packages/player-vue/src/composables/useOfflinePlay.ts` | Graceful degradation |
+| `packages/player-vue/src/config/audioConfig.ts` | URL builder & config |
+| `packages/core/src/cache/AudioSource.ts` | Proxy URL support |
+| `packages/core/src/cache/DownloadManager.ts` | Resumable downloads |
+| `apml/cache/audio-architecture.apml` | Full architecture spec |
+
+---
+
 ## Ralph Loop Methodology
 
 We use Ralph loops for autonomous, overnight coding tasks.
@@ -748,5 +800,5 @@ First run (2026-01-22): Completed 7 items in ~4 minutes, 10 tests passing, clean
 
 ---
 
-*Last updated: 2026-01-22*
-*Status: Cycle refactor complete, integration pending*
+*Last updated: 2026-01-25*
+*Status: v2.2.0 - Audio caching architecture implemented*

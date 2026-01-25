@@ -45,16 +45,31 @@ export default defineConfig({
               expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
             },
           },
-          // S3 audio - service worker intercepts, caches, and returns
-          // This enables fetch() to work (bypasses CORS at SW level)
-          // Also provides automatic browser-level caching for audio
+          // Audio proxy - primary path for audio delivery
+          // Benefits: analytics, entitlements, CORS, future CDN flexibility
           {
-            urlPattern: /^https:\/\/ssi-audio.*\.s3\..*\.amazonaws\.com\/.*/i,
+            urlPattern: /\/api\/audio\/.*/i,
             handler: 'CacheFirst',
             options: {
               cacheName: 'ssi-audio-cache',
               expiration: {
-                maxEntries: 500,  // ~500 audio files = ~12MB
+                maxEntries: 1000,  // ~1000 audio files = ~25MB
+                maxAgeSeconds: 60 * 60 * 24 * 30,  // 30 days
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
+          // S3 audio direct - fallback for offline scenarios
+          // When proxy is unreachable, SW can still serve cached S3 audio
+          {
+            urlPattern: /^https:\/\/ssi-audio.*\.s3\..*\.amazonaws\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'ssi-audio-cache',  // Same cache as proxy
+              expiration: {
+                maxEntries: 1000,  // ~1000 audio files = ~25MB
                 maxAgeSeconds: 60 * 60 * 24 * 30,  // 30 days
               },
               cacheableResponse: {

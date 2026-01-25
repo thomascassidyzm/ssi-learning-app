@@ -95,6 +95,7 @@ export interface UseOfflineCacheReturn {
   // Computed
   isDownloading: ComputedRef<boolean>
   downloadPercent: ComputedRef<number>
+  hasResumableDownload: ComputedRef<boolean>
 
   // Actions
   initAudioSource: (courseId: string) => AudioSource
@@ -105,6 +106,9 @@ export interface UseOfflineCacheReturn {
   cancelDownload: () => void
   clearCache: (courseId?: string) => Promise<void>
   isOfflineReady: (courseId: string, minutes: number) => Promise<boolean>
+  // Cross-session resume
+  getResumableDownloadInfo: () => { courseId: string; completed: number; total: number } | null
+  resumePreviousDownload: () => Promise<void>
 }
 
 export function useOfflineCache(): UseOfflineCacheReturn {
@@ -120,6 +124,10 @@ export function useOfflineCache(): UseOfflineCacheReturn {
   const downloadPercent = computed(() => {
     if (downloadProgress.value.total === 0) return 0
     return Math.round((downloadProgress.value.downloaded / downloadProgress.value.total) * 100)
+  })
+
+  const hasResumableDownload = computed(() => {
+    return downloadManager.hasResumableDownload()
   })
 
   // ============================================================================
@@ -226,6 +234,38 @@ export function useOfflineCache(): UseOfflineCacheReturn {
     return offlineCache.isOfflineReady(courseId, minutes)
   }
 
+  /**
+   * Get info about resumable download from previous session
+   */
+  function getResumableDownloadInfo(): { courseId: string; completed: number; total: number } | null {
+    return downloadManager.getResumableDownloadInfo()
+  }
+
+  /**
+   * Resume a download that was interrupted (e.g., app was closed)
+   */
+  async function resumePreviousDownload(): Promise<void> {
+    downloadProgress.value = {
+      ...downloadProgress.value,
+      state: 'downloading',
+    }
+
+    try {
+      await downloadManager.resumePreviousDownload((progress) => {
+        downloadProgress.value = { ...progress }
+      })
+
+      // Refresh stats after download
+      const courseId = downloadManager.getResumableDownloadInfo()?.courseId
+      if (courseId) {
+        await refreshCacheStats(courseId)
+      }
+    } catch (error) {
+      // Progress state already updated by callback
+      throw error
+    }
+  }
+
   // ============================================================================
   // RETURN
   // ============================================================================
@@ -245,6 +285,7 @@ export function useOfflineCache(): UseOfflineCacheReturn {
     // Computed
     isDownloading,
     downloadPercent,
+    hasResumableDownload,
 
     // Actions
     initAudioSource,
@@ -255,6 +296,8 @@ export function useOfflineCache(): UseOfflineCacheReturn {
     cancelDownload,
     clearCache,
     isOfflineReady,
+    getResumableDownloadInfo,
+    resumePreviousDownload,
   }
 }
 

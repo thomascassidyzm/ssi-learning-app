@@ -148,7 +148,7 @@ export interface IDownloadManager {
   /** Pause current download */
   pauseDownload(): void;
 
-  /** Resume paused download */
+  /** Resume paused download (in-session) */
   resumeDownload(): void;
 
   /** Cancel current download */
@@ -159,6 +159,15 @@ export interface IDownloadManager {
 
   /** Check if a download is in progress */
   isDownloading(): boolean;
+
+  /** Check if there's a resumable download from previous session */
+  hasResumableDownload(): boolean;
+
+  /** Get info about resumable download */
+  getResumableDownloadInfo(): { courseId: string; completed: number; total: number } | null;
+
+  /** Resume a previously interrupted download (cross-session) */
+  resumePreviousDownload(onProgress?: DownloadProgressCallback): Promise<void>;
 }
 
 // ============================================

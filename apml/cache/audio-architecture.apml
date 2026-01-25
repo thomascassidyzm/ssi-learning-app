@@ -1,0 +1,267 @@
+# APML v2.0.0 - Audio Caching Architecture
+# SSI Learning App
+# Last Updated: 2026-01-25
+
+spec audio_caching_architecture:
+  version: "1.0.0"
+  status: "implemented"
+  date: "2026-01-25"
+
+  description: |
+    Best-in-class audio caching system with backend proxy for entitlement control,
+    smart prefetching, and graceful degradation. Core principle: audio and text must
+    be atomically bound - a Cycle is complete or it doesn't play.
+
+    Never show connection errors - always keep playing.
+
+  ## ==========================================================================
+  ## BACKEND PROXY
+  ## ==========================================================================
+
+  backend_proxy:
+    endpoint: "/api/audio/:audioId"
+    file: "api/audio/[audioId].ts"
+
+    purpose:
+      - "Entitlement verification (paid vs free)"
+      - "Analytics tracking (which audio, when, who)"
+      - "Future CDN flexibility (swap S3 without app update)"
+      - "CORS bypass (proper headers from our domain)"
+
+    request_flow:
+      1: "Receive audioId (UUID)"
+      2: "Query Supabase for S3 key"
+      3: "Log analytics event (non-blocking)"
+      4: "Proxy audio from S3 with caching headers"
+      5: "Return audio stream"
+
+    response_headers:
+      Content-Type: "audio/mpeg"
+      Cache-Control: "public, max-age=31536000, immutable"
+      Access-Control-Allow-Origin: "*"
+
+    analytics_captured:
+      - user_id
+      - audio_id
+      - course_id
+      - seed_id
+      - audio_role     # known, target1, target2
+      - device_type    # mobile, tablet, desktop
+      - is_offline     # from cache?
+      - ip_country     # geo from Vercel headers
+
+  ## ==========================================================================
+  ## TWO-LAYER CACHING
+  ## ==========================================================================
+
+  caching_layers:
+    layer_1_indexeddb:
+      name: "OfflineCache"
+      file: "packages/core/src/cache/OfflineCache.ts"
+      purpose: "App-controlled, readable blobs for offline play"
+      features:
+        - "Stores audio as Blobs in IndexedDB"
+        - "In-memory index for O(1) cache checks"
+        - "Course-scoped audio storage"
+        - "Progress persistence for offline sync"
+
+    layer_2_service_worker:
+      name: "Workbox CacheFirst"
+      file: "packages/player-vue/vite.config.js"
+      purpose: "Browser-controlled, automatic network optimization"
+      features:
+        - "CacheFirst strategy for audio URLs"
+        - "Proxy pattern: /api/audio/*"
+        - "S3 fallback pattern: ssi-audio*.s3.*.amazonaws.com"
+        - "Shared cache name: ssi-audio-cache"
+        - "30-day expiration, 1000 entry limit"
+
+  ## ==========================================================================
+  ## AUDIO SOURCE
+  ## ==========================================================================
+
+  audio_source:
+    file: "packages/core/src/cache/AudioSource.ts"
+    purpose: "Cache-first audio URL resolution"
+
+    priority_order:
+      1: "In-memory blob URL (instant)"
+      2: "IndexedDB cache (fast)"
+      3: "Proxy URL (preferred - analytics, entitlements)"
+      4: "Direct S3 URL (fallback)"
+
+    proxy_integration:
+      enabled_by_default: true
+      configurable: true
+      analytics_context:
+        - seedId
+        - role (known/target1/target2)
+
+  ## ==========================================================================
+  ## PREFETCH MANAGER
+  ## ==========================================================================
+
+  prefetch_manager:
+    file: "packages/player-vue/src/composables/usePrefetchManager.ts"
+    purpose: "Maintain 30-minute rolling buffer during active learning"
+
+    strategy:
+      target_buffer: "30 minutes"
+      batch_size: "20 cycles"
+      trigger: "After each cycle completes"
+      priority: "known -> target1 -> target2"
+      error_handling: "Silent - never interrupt playback"
+
+    state:
+      buffer_minutes: "Current buffer ahead"
+      is_prefetching: "Currently downloading"
+      total_prefetched: "Session statistics"
+
+    computed:
+      is_buffer_healthy: ">= 20 minutes (67% of target)"
+      is_buffer_critical: "< 5 minutes"
+
+  ## ==========================================================================
+  ## DOWNLOAD MANAGER
+  ## ==========================================================================
+
+  download_manager:
+    file: "packages/core/src/cache/DownloadManager.ts"
+    purpose: "Explicit course download for extended offline use"
+
+    download_options:
+      - label: "Current belt"
+        hours: 0.5
+      - label: "Next 2 hours"
+        hours: 2
+      - label: "Next 5 hours"
+        hours: 5
+      - label: "Entire course"
+        hours: 10
+
+    features:
+      pause_resume: true
+      cancel: true
+      progress_tracking: true
+      resumable_across_restarts: true
+
+    persistence:
+      storage: "localStorage"
+      key: "ssi-download-task"
+      expiry: "24 hours"
+      data:
+        - courseId
+        - pendingAudioIds
+        - completedCount
+        - totalCount
+
+  ## ==========================================================================
+  ## GRACEFUL DEGRADATION (INFINITE PLAY)
+  ## ==========================================================================
+
+  graceful_degradation:
+    file: "packages/player-vue/src/composables/useOfflinePlay.ts"
+    purpose: "Never-fail playback - always keep playing"
+
+    degradation_hierarchy:
+      level_1_normal:
+        condition: "Scheduled cycle is cached or online"
+        action: "Play scheduled cycle"
+
+      level_2_belt_only:
+        condition: "Scheduled unavailable, other cycles cached"
+        action: "Play random cached cycle (avoiding recent)"
+        message: "Playing from your offline library"
+
+      level_3_use_phrases:
+        condition: "Limited cache, only mastered content"
+        action: "Play mastered USE phrases"
+        message: "Reviewing mastered content while offline"
+
+      level_4_repeat:
+        condition: "Minimal cache"
+        action: "Repeat last successfully played cycle"
+        message: "Repeating last lesson - go online to continue"
+
+    guarantee: "User NEVER sees connection error - audio keeps playing"
+
+  ## ==========================================================================
+  ## DATA FLOW
+  ## ==========================================================================
+
+  data_flow:
+    playback:
+      description: "How audio gets to the user"
+      flow: |
+        Cycle.audioId
+          → AudioSource.getAudioUrl()
+          → Check in-memory blob URL
+          → Check IndexedDB cache
+          → If miss: fetch via proxy (/api/audio/:id)
+          → Proxy: query Supabase → stream from S3
+          → Cache in IndexedDB for future
+          → Return blob URL for playback
+
+    prefetch:
+      description: "How buffer is maintained"
+      flow: |
+        Cycle completes
+          → usePrefetchManager.ensureBuffer()
+          → Calculate buffer from current position
+          → If buffer < 30 min: prefetch batch
+          → For each cycle in batch:
+              → Cache all 3 audio files (known, target1, target2)
+          → Update buffer calculation
+
+    offline_play:
+      description: "How playback continues offline"
+      flow: |
+        Request next cycle
+          → Check if scheduled cycle playable
+          → If yes: play normally
+          → If no: degrade to next level
+          → Get cycle from cached pool
+          → Play (user unaware of degradation)
+
+  ## ==========================================================================
+  ## FILES SUMMARY
+  ## ==========================================================================
+
+  files:
+    new:
+      - path: "api/audio/[audioId].ts"
+        purpose: "Vercel serverless proxy"
+      - path: "supabase/migrations/20260125000000_audio_plays.sql"
+        purpose: "Analytics table"
+      - path: "packages/player-vue/src/composables/usePrefetchManager.ts"
+        purpose: "30-min buffer management"
+      - path: "packages/player-vue/src/config/audioConfig.ts"
+        purpose: "Audio URL builder and config"
+
+    modified:
+      - path: "vercel.json"
+        changes: "API function config, cache headers"
+      - path: "packages/player-vue/vite.config.js"
+        changes: "SW caching for proxy URLs"
+      - path: "packages/core/src/cache/AudioSource.ts"
+        changes: "Proxy URL support, analytics context"
+      - path: "packages/core/src/cache/DownloadManager.ts"
+        changes: "Resumable downloads across restarts"
+      - path: "packages/core/src/cache/types.ts"
+        changes: "New interface methods"
+      - path: "packages/player-vue/src/composables/useOfflinePlay.ts"
+        changes: "Graceful degradation hierarchy"
+      - path: "packages/player-vue/src/composables/useOfflineCache.ts"
+        changes: "Resume download methods"
+
+  ## ==========================================================================
+  ## QUALITY METRICS
+  ## ==========================================================================
+
+  quality_targets:
+    never_fail: "Audio must ALWAYS play, regardless of network"
+    atomic_binding: "Text and audio ALWAYS match (Cycle ensures this)"
+    buffer_target: "30 minutes cached ahead during active play"
+    offline_capability: "Up to 10 hours downloadable"
+    analytics_coverage: "Every audio request tracked"
+    cache_duration: "30 days retention"

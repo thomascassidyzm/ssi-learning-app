@@ -1,22 +1,32 @@
 /**
- * useOfflinePlay - Infinite play mode for offline resilience
+ * useOfflinePlay - Graceful degradation for never-fail playback
  *
- * When offline, seamlessly cycles through all cached content indefinitely.
- * No blocking, no waiting - degradation is invisible to the user.
+ * When network fails or buffer depletes, seamlessly switches to infinite play
+ * from cached content. User never sees an error - audio keeps playing.
+ *
+ * Degradation Hierarchy:
+ * 1. Normal: Play next scheduled cycle
+ * 2. Belt-only: Play any cached cycle from current belt
+ * 3. USE phrases: Play any cached USE phrase (already mastered)
+ * 4. Repeat: Keep repeating last successfully played cycle
  *
  * Features:
  * - Automatic online/offline detection
- * - Shuffled playback from cached items
+ * - Graceful degradation through hierarchy
  * - Recent item avoidance (don't repeat last 10)
  * - Seamless transition when coming back online
+ * - Never shows connection errors - always keeps playing
  */
 
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import type { ScriptItem } from './useScriptCache'
+import type { Cycle } from '../types/Cycle'
 
 // ============================================================================
 // TYPES
 // ============================================================================
+
+export type DegradationLevel = 'normal' | 'belt-only' | 'use-phrases' | 'repeat'
 
 export interface OfflinePlayState {
   /** Is the device currently offline */
@@ -27,11 +37,19 @@ export interface OfflinePlayState {
   cachedItemCount: number
   /** Recently played items (to avoid immediate repeats) */
   recentItemIds: string[]
+  /** Current degradation level */
+  degradationLevel: DegradationLevel
+  /** Last successfully played cycle (for repeat fallback) */
+  lastPlayedCycle: Cycle | null
 }
 
 export interface OfflinePlayConfig {
   /** Function to get all cached items from belt loader */
   getCachedItems: () => ScriptItem[]
+  /** Function to get all cached cycles (for Cycle-based playback) */
+  getCachedCycles?: () => Cycle[]
+  /** Function to check if a cycle is fully cached */
+  isCycleCached?: (cycle: Cycle) => boolean
   /** How many recent items to avoid repeating (default: 10) */
   recentAvoidCount?: number
   /** Force infinite play mode regardless of online status */
@@ -45,6 +63,8 @@ export interface OfflinePlayConfig {
 export function useOfflinePlay(config: OfflinePlayConfig) {
   const {
     getCachedItems,
+    getCachedCycles,
+    isCycleCached,
     recentAvoidCount = 10,
   } = config
 
@@ -52,6 +72,9 @@ export function useOfflinePlay(config: OfflinePlayConfig) {
   const isOnline = ref(navigator.onLine)
   const forceInfinitePlay = ref(false)
   const recentItemIds = ref<string[]>([])
+  const degradationLevel = ref<DegradationLevel>('normal')
+  const lastPlayedCycle = ref<Cycle | null>(null)
+  const cachedCyclePool = ref<Cycle[]>([])
 
   // ============================================================================
   // ONLINE/OFFLINE DETECTION
@@ -174,6 +197,112 @@ export function useOfflinePlay(config: OfflinePlayConfig) {
   }
 
   // ============================================================================
+  // GRACEFUL DEGRADATION (Cycle-based)
+  // ============================================================================
+
+  /**
+   * Refresh the pool of cached cycles available for fallback playback
+   */
+  function refreshCachedPool(): void {
+    if (!getCachedCycles || !isCycleCached) {
+      cachedCyclePool.value = []
+      return
+    }
+
+    const allCycles = getCachedCycles()
+    cachedCyclePool.value = allCycles.filter(cycle => isCycleCached(cycle))
+    console.log(`[OfflinePlay] Refreshed cached pool: ${cachedCyclePool.value.length} cycles available`)
+  }
+
+  /**
+   * Mark a cycle as successfully played (for last-resort repeat fallback)
+   */
+  function markCycleAsPlayed(cycle: Cycle): void {
+    lastPlayedCycle.value = cycle
+    recentItemIds.value.push(cycle.id)
+
+    if (recentItemIds.value.length > recentAvoidCount) {
+      recentItemIds.value = recentItemIds.value.slice(-recentAvoidCount)
+    }
+
+    // Reset degradation level on successful play
+    degradationLevel.value = 'normal'
+  }
+
+  /**
+   * Get next playable cycle using graceful degradation
+   * NEVER returns null - always finds something to play
+   *
+   * Priority:
+   * 1. scheduledCycle if provided and cached
+   * 2. Any cached cycle from the pool (avoiding recent)
+   * 3. Last successfully played cycle (repeat mode)
+   */
+  function getNextPlayableCycle(scheduledCycle?: Cycle): Cycle | null {
+    // Level 1: Try scheduled cycle
+    if (scheduledCycle && isCycleCached?.(scheduledCycle)) {
+      degradationLevel.value = 'normal'
+      return scheduledCycle
+    }
+
+    // Level 2: Try any cached cycle (belt-only mode)
+    if (cachedCyclePool.value.length > 0) {
+      const recentSet = new Set(recentItemIds.value)
+      const available = cachedCyclePool.value.filter(c => !recentSet.has(c.id))
+
+      // If all are recent, use any
+      const pool = available.length > 0 ? available : cachedCyclePool.value
+
+      if (pool.length > 0) {
+        const randomIndex = Math.floor(Math.random() * pool.length)
+        degradationLevel.value = 'belt-only'
+        console.log(`[OfflinePlay] Degraded to belt-only mode, ${pool.length} cycles available`)
+        return pool[randomIndex]
+      }
+    }
+
+    // Level 3: Repeat last played cycle
+    if (lastPlayedCycle.value) {
+      degradationLevel.value = 'repeat'
+      console.log('[OfflinePlay] Degraded to repeat mode - playing last successful cycle')
+      return lastPlayedCycle.value
+    }
+
+    // No fallback available (should be rare - only on first play offline with no cache)
+    console.warn('[OfflinePlay] No cached cycles available for fallback')
+    return null
+  }
+
+  /**
+   * Check if we can play a specific cycle
+   * Returns true if cached or online
+   */
+  function canPlayCycle(cycle: Cycle): boolean {
+    if (isCycleCached?.(cycle)) {
+      return true
+    }
+    return isOnline.value
+  }
+
+  /**
+   * Get degradation status message for UI feedback
+   */
+  function getDegradationMessage(): string | null {
+    switch (degradationLevel.value) {
+      case 'normal':
+        return null
+      case 'belt-only':
+        return 'Playing from your offline library'
+      case 'use-phrases':
+        return 'Reviewing mastered content while offline'
+      case 'repeat':
+        return 'Repeating last lesson - go online to continue'
+      default:
+        return null
+    }
+  }
+
+  // ============================================================================
   // STATE
   // ============================================================================
 
@@ -182,6 +311,8 @@ export function useOfflinePlay(config: OfflinePlayConfig) {
     isInfinitePlay: isInfinitePlay.value,
     cachedItemCount: cachedItemCount.value,
     recentItemIds: recentItemIds.value,
+    degradationLevel: degradationLevel.value,
+    lastPlayedCycle: lastPlayedCycle.value,
   }))
 
   return {
@@ -192,14 +323,23 @@ export function useOfflinePlay(config: OfflinePlayConfig) {
     forceInfinitePlay,
     cachedItemCount,
     recentItemIds,
+    degradationLevel,
+    lastPlayedCycle,
 
-    // Actions
+    // Actions (legacy ScriptItem-based)
     getNextItemInfinite,
     enableInfinitePlay,
     disableInfinitePlay,
     toggleInfinitePlay,
     clearRecentHistory,
     markAsPlayed,
+
+    // Actions (Cycle-based graceful degradation)
+    refreshCachedPool,
+    markCycleAsPlayed,
+    getNextPlayableCycle,
+    canPlayCycle,
+    getDegradationMessage,
   }
 }
 
