@@ -1393,6 +1393,12 @@ export async function generateLearningScript(
     audioBaseUrl
   )
 
+  // Helper to build proxy URL from audio UUID (v2.2 - CORS bypass)
+  const buildProxyUrl = (audioId: string | null): string => {
+    if (!audioId) return ''
+    return `/api/audio/${audioId}?courseId=${encodeURIComponent(courseId)}`
+  }
+
   // Load ALL intro/presentation audio for all LEGOs
   // This goes into the script so no separate queries during playback
   // Batch queries to avoid URL length limits (Supabase returns 400 for very long URLs)
