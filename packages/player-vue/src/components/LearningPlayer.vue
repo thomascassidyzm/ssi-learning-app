@@ -1332,7 +1332,7 @@ watch(() => cyclePlaybackState.value.phase, (phase) => {
 })
 
 watch(() => cyclePlaybackState.value.isPlaying, (playing) => {
-  if (!playing && !isSkipInProgress.value && !isSkippingBelt.value) {
+  if (!playing && !isSkipInProgress.value && !isSkippingBelt.value && !isCycleTransitioning.value) {
     isPlaying.value = false
   }
 })
@@ -1342,6 +1342,7 @@ const currentPhase = ref(Phase.PROMPT)
 const currentItemIndex = ref(0)
 const isPlaying = ref(false) // Start paused until engine ready
 const isSkipInProgress = ref(false) // Flag to prevent cycle_stopped from resetting isPlaying during skip
+const isCycleTransitioning = ref(false) // Flag to prevent watcher from resetting isPlaying between cycles
 const isPreparingToPlay = ref(false) // True when play pressed but audio hasn't started yet
 const preparingMessage = ref('') // Current "preparing" message being displayed
 
@@ -2363,16 +2364,20 @@ const handleCycleEvent = (event) => {
 
         // Start next item after delay (ensure text transitions complete)
         // CSS transition is 300ms, so wait 350ms to be safe
+        // Set transition flag to prevent watcher from setting isPlaying = false
+        isCycleTransitioning.value = true
         console.log('[LearningPlayer] Scheduling next item, nextScriptItem:', nextScriptItem?.type, nextScriptItem?.legoId)
         setTimeout(async () => {
           console.log('[LearningPlayer] setTimeout fired, isPlaying:', isPlaying.value, 'generation:', playbackGeneration.value, '===', generationAtStart)
           // CRITICAL: Check if we've jumped since this callback was queued
           if (playbackGeneration.value !== generationAtStart) {
             console.log('[LearningPlayer] Stale callback detected (generation mismatch), skipping')
+            isCycleTransitioning.value = false
             return
           }
           if (!isPlaying.value) {
             console.log('[LearningPlayer] Not playing, aborting next item')
+            isCycleTransitioning.value = false
             return
           }
 
@@ -2384,6 +2389,8 @@ const handleCycleEvent = (event) => {
           // INTRO items: play introduction audio directly, then advance
           if (nextScriptItem.type === 'intro') {
               console.log('[LearningPlayer] Playing INTRO item for:', nextScriptItem.legoId)
+              // Clear transition flag for intro playback
+              isCycleTransitioning.value = false
               const introPlayable = await scriptItemToPlayableItem(nextScriptItem)
               // CRITICAL: Check generation after async - user may have skipped during conversion
               if (playbackGeneration.value !== generationAtStart) {
@@ -2427,15 +2434,19 @@ const handleCycleEvent = (event) => {
             // CRITICAL: Check generation after async - user may have skipped during conversion
             if (playbackGeneration.value !== generationAtStart) {
               console.log('[LearningPlayer] Stale after nextPlayable conversion, aborting')
+              isCycleTransitioning.value = false
               return
             }
             if (nextPlayable) {
               // Store for currentItem computed
               currentPlayableItem.value = nextPlayable
               console.log('[LearningPlayer] Starting next cycle playback')
+              // Clear transition flag - cycle is starting
+              isCycleTransitioning.value = false
               await startCyclePlayback(nextScriptItem)
             } else {
               console.warn('[LearningPlayer] nextPlayable is null - cannot start next cycle')
+              isCycleTransitioning.value = false
             }
         }, 350)
       } else {
