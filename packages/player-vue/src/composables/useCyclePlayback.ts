@@ -102,9 +102,27 @@ export function useCyclePlayback() {
       audioEl.addEventListener('ended', audioEndedHandler, { once: true })
 
       // Handle errors
-      const errorHandler = (e: Event) => {
+      const errorHandler = () => {
         cleanupBlobUrl()
-        reject(new Error(`Audio playback error`))
+        // Get error details from audio element
+        const audioError = audioEl.error
+        let errorMessage = 'Audio playback error'
+        if (audioError) {
+          const errorCodes: Record<number, string> = {
+            1: 'ABORTED',
+            2: 'NETWORK',
+            3: 'DECODE',
+            4: 'SRC_NOT_SUPPORTED'
+          }
+          const codeName = errorCodes[audioError.code] || 'UNKNOWN'
+          errorMessage = `Audio playback error: ${codeName} (code ${audioError.code})`
+          if (audioError.message) {
+            errorMessage += ` - ${audioError.message}`
+          }
+        }
+        // Also log the URL that failed for debugging
+        console.error(`[CyclePlayer] ${errorMessage}`, { src: audioEl.src })
+        reject(new Error(errorMessage))
       }
       audioEl.addEventListener('error', errorHandler, { once: true })
 

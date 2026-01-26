@@ -55,7 +55,9 @@
 import { ref, computed, onMounted } from 'vue'
 import LearningSession from '../components/LearningSession.vue'
 import { CourseDataProvider } from '../providers/CourseDataProvider'
-import { generateLearningScript } from '../providers/CourseDataProvider'
+// TODO: generateLearningScript is deprecated and returns empty data
+// This test page needs to be migrated to use SessionController or useSessionPlayback
+// import { generateLearningScript } from '../providers/CourseDataProvider'
 import type { ScriptItem } from '../providers/CourseDataProvider'
 import type { Cycle } from '../types/Cycle'
 
@@ -109,7 +111,13 @@ onMounted(async () => {
       courseId: 'demo'
     })
 
-    // Generate learning script (demo mode - uses embedded data)
+    // TODO: generateLearningScript is deprecated and returns empty data
+    // This test page needs to be migrated to use SessionController or useSessionPlayback
+    // For now, throw an error to indicate migration is needed
+    console.warn('[SessionTestPage] generateLearningScript is deprecated - this test page needs migration to SessionController')
+    throw new Error('SessionTestPage needs migration: generateLearningScript is deprecated. Use SessionController or useSessionPlayback instead.')
+
+    /* Original deprecated code:
     const result = await generateLearningScript(
       undefined, // No Supabase client - demo mode
       provider.getCourseId(),
@@ -120,6 +128,8 @@ onMounted(async () => {
     if (!result.rounds || result.rounds.length === 0) {
       throw new Error('No rounds generated')
     }
+    */
+    const result = { rounds: [], allItems: [] } // Placeholder to satisfy TypeScript
 
     // Flatten rounds into script items
     const items = result.rounds.flatMap(round => round.items)

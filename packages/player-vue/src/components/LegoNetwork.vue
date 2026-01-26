@@ -21,6 +21,8 @@
 import { ref, computed, inject, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import * as d3 from 'd3'
 import { useLegoNetwork } from '../composables/useLegoNetwork'
+// NOTE: generateLearningScript is deprecated and returns empty data
+// Replay mode (startWatchItGrow) will not work until migrated to SessionController
 import { generateLearningScript } from '../providers/CourseDataProvider'
 import { getCachedScript } from '../composables/useScriptCache'
 
@@ -1326,9 +1328,10 @@ const startWatchItGrow = async () => {
         return
       }
 
-      // Generate learning script using the correct provider API
-      // Provider now contains all config - single source of truth
-      console.log('[LegoNetwork] Generating script for Replay mode')
+      // NOTE: generateLearningScript is deprecated and returns empty data
+      // Replay mode will not work properly until migrated to SessionController
+      console.warn('[LegoNetwork] generateLearningScript is deprecated - Replay mode returns empty data')
+      console.log('[LegoNetwork] Generating script for Replay mode (DEPRECATED)')
       const script = await generateLearningScript(
         courseDataProvider.value,
         9999 // Load ALL LEGOs for full visualization
@@ -1346,6 +1349,14 @@ const startWatchItGrow = async () => {
       }
 
       playbackQueue.value = flatItems
+
+      // Warn if empty due to deprecated function
+      if (flatItems.length === 0) {
+        console.warn('[LegoNetwork] Replay mode has no items - generateLearningScript returns empty data. TODO: Migrate to SessionController.')
+        isWatchMode.value = false
+        return
+      }
+
       console.log('[LegoNetwork] Replay mode loaded', playbackQueue.value.length, 'items')
     } catch (err) {
       console.error('[LegoNetwork] Failed to load for Replay mode:', err)

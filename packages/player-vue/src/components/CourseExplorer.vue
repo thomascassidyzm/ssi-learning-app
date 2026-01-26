@@ -2,6 +2,9 @@
 import { ref, computed, inject, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useVirtualList } from '@vueuse/core'
 import { CyclePhase } from '@ssi/core'
+// NOTE: generateLearningScript is deprecated and returns empty data
+// CourseExplorer now uses useFullCourseScript for initial load
+// The loadMoreRounds pagination function is deprecated (returns empty)
 import { generateLearningScript } from '../providers/CourseDataProvider'
 import { loadIntroAudio } from '../composables/useScriptCache'
 import { useFullCourseScript } from '../composables/useFullCourseScript'
@@ -491,7 +494,17 @@ const loadScript = async (forceRefresh = false) => {
 }
 
 // Load more rounds (pagination)
+// DEPRECATED: generateLearningScript returns empty data
+// CourseExplorer now loads full script via useFullCourseScript on initial load
+// This function is kept for backwards compatibility but will not load additional rounds
 const loadMoreRounds = async () => {
+  // DEPRECATED: generateLearningScript returns empty data
+  // Full script is now loaded on initial mount via useFullCourseScript
+  console.warn('[CourseExplorer] loadMoreRounds is deprecated - generateLearningScript returns empty data. Full script loaded on mount.')
+  hasMoreRounds.value = false
+  return
+
+  /* Original deprecated code:
   if (!courseDataProvider?.value || isLoadingMore.value || !hasMoreRounds.value) {
     return
   }
@@ -543,6 +556,7 @@ const loadMoreRounds = async () => {
   } finally {
     isLoadingMore.value = false
   }
+  */
 }
 
 // Flatten rounds into single item list with round markers

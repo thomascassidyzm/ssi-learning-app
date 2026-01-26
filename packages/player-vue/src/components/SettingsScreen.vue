@@ -279,6 +279,10 @@ const startOfflineDownload = async () => {
     console.log(`[Settings] Downloading seeds ${startSeed}-${endSeed} (${totalSeeds} seeds)`)
 
     // Phase 1: Generate scripts and collect audio URLs (50% of progress)
+    // NOTE: courseDataProvider.generateLearningScript is deprecated and returns empty data
+    // This offline download feature will not work until migrated to use SessionController
+    console.warn('[Settings] Offline download uses deprecated generateLearningScript - this feature needs migration to SessionController')
+
     const allAudioUrls = []
     const chunkSize = 20
 
@@ -291,9 +295,11 @@ const startOfflineDownload = async () => {
       const count = Math.min(chunkSize, endSeed - seed + 1)
 
       try {
+        // DEPRECATED: generateLearningScript returns empty data
+        // TODO: Migrate to use SessionController or RoundBuilder for audio URL collection
         const script = await courseDataProvider.value.generateLearningScript(seed, count)
 
-        // Extract audio URLs from script
+        // Extract audio URLs from script (will be empty due to deprecated function)
         for (const round of script.rounds || []) {
           for (const item of round.items || []) {
             if (item.audioRefs) {
@@ -310,6 +316,13 @@ const startOfflineDownload = async () => {
       // Update progress (0-50% for scripts)
       const scriptsProgress = Math.round(((seed - startSeed + count) / totalSeeds) * 50)
       downloadProgress.value = scriptsProgress
+    }
+
+    // Warn if no URLs collected (expected due to deprecated function)
+    if (allAudioUrls.length === 0) {
+      console.warn('[Settings] No audio URLs collected - generateLearningScript is deprecated and returns empty data')
+      downloadError.value = 'Offline download temporarily unavailable. This feature is being migrated to the new architecture.'
+      return
     }
 
     console.log(`[Settings] Collected ${allAudioUrls.length} audio URLs, starting download`)

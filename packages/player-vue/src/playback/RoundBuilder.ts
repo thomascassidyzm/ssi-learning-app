@@ -172,6 +172,11 @@ function createIntroItem(options: {
 }): ScriptItem {
   const { lego, seed, legoIndex, roundNumber, introAudio, buildAudioUrl } = options
 
+  // Validate lego has required audio refs
+  if (!lego.audioRefs?.known?.id || !lego.audioRefs?.target?.voice1?.id || !lego.audioRefs?.target?.voice2?.id) {
+    console.warn('[RoundBuilder] Lego missing audio refs in createIntroItem:', lego.id || 'unknown')
+  }
+
   return {
     type: 'intro',
     roundNumber,
@@ -181,10 +186,10 @@ function createIntroItem(options: {
     knownText: lego.lego.known,
     targetText: lego.lego.target,
     audioRefs: {
-      known: { id: lego.audioRefs.known.id, url: buildAudioUrl(lego.audioRefs.known.id) },
+      known: { id: lego.audioRefs?.known?.id || '', url: buildAudioUrl(lego.audioRefs?.known?.id || '') },
       target: {
-        voice1: { id: lego.audioRefs.target.voice1.id, url: buildAudioUrl(lego.audioRefs.target.voice1.id) },
-        voice2: { id: lego.audioRefs.target.voice2.id, url: buildAudioUrl(lego.audioRefs.target.voice2.id) },
+        voice1: { id: lego.audioRefs?.target?.voice1?.id || '', url: buildAudioUrl(lego.audioRefs?.target?.voice1?.id || '') },
+        voice2: { id: lego.audioRefs?.target?.voice2?.id || '', url: buildAudioUrl(lego.audioRefs?.target?.voice2?.id || '') },
       },
     },
     presentationAudio: {
@@ -213,6 +218,11 @@ function createPracticeItem(options: {
 }): ScriptItem {
   const { type, phrase, lego, seed, legoIndex, roundNumber, buildAudioUrl, reviewOf, fibonacciPosition } = options
 
+  // Validate phrase has required audio refs
+  if (!phrase.audioRefs?.known?.id || !phrase.audioRefs?.target?.voice1?.id || !phrase.audioRefs?.target?.voice2?.id) {
+    console.warn('[RoundBuilder] Phrase missing audio refs:', phrase.id || 'unknown')
+  }
+
   return {
     type,
     roundNumber,
@@ -222,10 +232,10 @@ function createPracticeItem(options: {
     knownText: phrase.phrase.known,
     targetText: phrase.phrase.target,
     audioRefs: {
-      known: { id: phrase.audioRefs.known.id, url: buildAudioUrl(phrase.audioRefs.known.id) },
+      known: { id: phrase.audioRefs?.known?.id || '', url: buildAudioUrl(phrase.audioRefs?.known?.id || '') },
       target: {
-        voice1: { id: phrase.audioRefs.target.voice1.id, url: buildAudioUrl(phrase.audioRefs.target.voice1.id) },
-        voice2: { id: phrase.audioRefs.target.voice2.id, url: buildAudioUrl(phrase.audioRefs.target.voice2.id) },
+        voice1: { id: phrase.audioRefs?.target?.voice1?.id || '', url: buildAudioUrl(phrase.audioRefs?.target?.voice1?.id || '') },
+        voice2: { id: phrase.audioRefs?.target?.voice2?.id || '', url: buildAudioUrl(phrase.audioRefs?.target?.voice2?.id || '') },
       },
     },
     audioDurations: phrase.audioRefs.known.duration_ms ? {
@@ -253,6 +263,11 @@ function createLegoItem(options: {
 }): ScriptItem {
   const { type, lego, seed, legoIndex, roundNumber, buildAudioUrl, reviewOf, fibonacciPosition } = options
 
+  // Validate lego has required audio refs
+  if (!lego.audioRefs?.known?.id || !lego.audioRefs?.target?.voice1?.id || !lego.audioRefs?.target?.voice2?.id) {
+    console.warn('[RoundBuilder] Lego missing audio refs:', lego.id || 'unknown')
+  }
+
   return {
     type,
     roundNumber,
@@ -262,10 +277,10 @@ function createLegoItem(options: {
     knownText: lego.lego.known,
     targetText: lego.lego.target,
     audioRefs: {
-      known: { id: lego.audioRefs.known.id, url: buildAudioUrl(lego.audioRefs.known.id) },
+      known: { id: lego.audioRefs?.known?.id || '', url: buildAudioUrl(lego.audioRefs?.known?.id || '') },
       target: {
-        voice1: { id: lego.audioRefs.target.voice1.id, url: buildAudioUrl(lego.audioRefs.target.voice1.id) },
-        voice2: { id: lego.audioRefs.target.voice2.id, url: buildAudioUrl(lego.audioRefs.target.voice2.id) },
+        voice1: { id: lego.audioRefs?.target?.voice1?.id || '', url: buildAudioUrl(lego.audioRefs?.target?.voice1?.id || '') },
+        voice2: { id: lego.audioRefs?.target?.voice2?.id || '', url: buildAudioUrl(lego.audioRefs?.target?.voice2?.id || '') },
       },
     },
     audioDurations: lego.audioRefs.known.duration_ms ? {

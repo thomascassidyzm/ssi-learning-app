@@ -246,7 +246,10 @@ export class CourseDataProvider {
    * v2.2: Routes through /api/audio/{audioId} for CORS bypass and analytics
    */
   private buildProxyUrl(audioId: string): string {
-    if (!audioId) return ''
+    if (!audioId || audioId === 'undefined' || audioId === 'null') {
+      console.warn('[CourseDataProvider] Invalid audioId for proxy URL:', audioId)
+      return ''  // Return empty but log the issue
+    }
     return `/api/audio/${audioId}?courseId=${encodeURIComponent(this.courseId)}`
   }
 
@@ -313,11 +316,11 @@ export class CourseDataProvider {
         .limit(1)
         .maybeSingle()
 
-      if (error || !data || !data.s3_key) return null
+      if (error || !data || !data.id) return null
 
       return {
         id: data.id,
-        url: this.resolveAudioUrl(data.s3_key),
+        url: this.buildProxyUrl(data.id),  // v2.2: use proxy for CORS bypass
         duration_ms: data.duration_ms || null,
         text: data.text || null,
       }
@@ -505,10 +508,10 @@ export class CourseDataProvider {
         return null
       }
 
-      if (data?.s3_key) {
+      if (data?.id) {
         return {
           id: data.id,
-          url: this.resolveAudioUrl(data.s3_key),
+          url: this.buildProxyUrl(data.id),  // v2.2: use proxy for CORS bypass
           duration_ms: data.duration_ms,
           origin: data.origin || 'tts',
         }
@@ -547,7 +550,7 @@ export class CourseDataProvider {
 
       return data.map((row, index) => ({
         id: row.id,
-        url: this.resolveAudioUrl(row.s3_key),
+        url: this.buildProxyUrl(row.id),  // v2.2: use proxy for CORS bypass
         duration_ms: row.duration_ms,
         text: row.text,
         position: index, // 0-based position in sequence
@@ -582,7 +585,7 @@ export class CourseDataProvider {
 
       return data.map(row => ({
         id: row.id,
-        url: this.resolveAudioUrl(row.s3_key),
+        url: this.buildProxyUrl(row.id),  // v2.2: use proxy for CORS bypass
         duration_ms: row.duration_ms,
         text: row.text,
       }))
@@ -635,10 +638,10 @@ export class CourseDataProvider {
         .eq('role', role)
         .maybeSingle()
 
-      if (!audioError && audio && audio.s3_key) {
+      if (!audioError && audio && audio.id) {
         return {
           id: audio.id,
-          url: this.resolveAudioUrl(audio.s3_key),  // v13.1: use s3_key for URL
+          url: this.buildProxyUrl(audio.id),  // v2.2: use proxy for CORS bypass
           duration_ms: audio.duration_ms,
         }
       }
@@ -702,7 +705,7 @@ export class CourseDataProvider {
             const key = `${audio.text_normalized}:${role}`
             results.set(key, {
               id: audio.id,
-              url: this.resolveAudioUrl(audio.s3_key),  // v13.1: use s3_key for URL
+              url: this.buildProxyUrl(audio.id),  // v2.2: use proxy for CORS bypass
               duration_ms: audio.duration_ms,
             })
           }
@@ -747,18 +750,18 @@ export class CourseDataProvider {
         audioRefs: {
           known: {
             id: record.known_audio_uuid,
-            url: this.resolveAudioUrl(record.known_s3_key),  // v13.1: use s3_key
+            url: this.buildProxyUrl(record.known_audio_uuid),  // v2.2: use proxy for CORS bypass
             duration_ms: record.known_duration_ms,
           },
           target: {
             voice1: {
               id: record.target1_audio_uuid,
-              url: this.resolveAudioUrl(record.target1_s3_key),  // v13.1: use s3_key
+              url: this.buildProxyUrl(record.target1_audio_uuid),  // v2.2: use proxy for CORS bypass
               duration_ms: record.target1_duration_ms,
             },
             voice2: {
               id: record.target2_audio_uuid,
-              url: this.resolveAudioUrl(record.target2_s3_key),  // v13.1: use s3_key
+              url: this.buildProxyUrl(record.target2_audio_uuid),  // v2.2: use proxy for CORS bypass
               duration_ms: record.target2_duration_ms,
             },
           },
@@ -872,9 +875,9 @@ export class CourseDataProvider {
         const legoId = record.lego_id
         const seedId = `S${String(record.seed_number).padStart(4, '0')}`
 
-        const knownAudioUrl = this.resolveAudioUrl(record.known_s3_key)
-        const target1AudioUrl = this.resolveAudioUrl(record.target1_s3_key)
-        const target2AudioUrl = this.resolveAudioUrl(record.target2_s3_key)
+        const knownAudioUrl = this.buildProxyUrl(record.known_audio_uuid)
+        const target1AudioUrl = this.buildProxyUrl(record.target1_audio_uuid)
+        const target2AudioUrl = this.buildProxyUrl(record.target2_audio_uuid)
 
         return {
           lego: {

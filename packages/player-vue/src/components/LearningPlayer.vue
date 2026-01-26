@@ -22,6 +22,9 @@ import { useSharedBeltProgress, type BeltProgressSyncConfig } from '../composabl
 import { useBeltLoader, getBeltForSeed, BELT_RANGES, type BeltLoaderConfig } from '../composables/useBeltLoader'
 import { useOfflinePlay } from '../composables/useOfflinePlay'
 import { useOfflineCache } from '../composables/useOfflineCache'
+// NOTE: generateLearningScript is deprecated and returns empty data
+// LearningPlayer now uses SessionController via useSessionPlayback (USE_SESSION_CONTROLLER=true)
+// Legacy code paths using generateLearningScript are kept as fallback only
 import { generateLearningScript } from '../providers/CourseDataProvider'
 // Prebuilt network: positions pre-calculated, pans to hero via CSS
 import { usePrebuiltNetworkIntegration } from '../composables/usePrebuiltNetworkIntegration'
@@ -1055,8 +1058,12 @@ const initializeBeltLoader = async () => {
   console.log('[LearningPlayer] Initializing belt loader...')
 
   // Create script chunk generator that uses generateLearningScript
+  // NOTE: generateLearningScript is deprecated and returns empty data
+  // Belt loader will not work properly until migrated to SessionController
   const generateScriptChunk = async (startSeed: number, count: number) => {
-    // Generate script from startSeed position
+    // DEPRECATED: generateLearningScript returns empty data
+    // TODO: Migrate belt loader to use SessionController
+    console.warn('[BeltLoader] generateScriptChunk uses deprecated generateLearningScript - returns empty data')
     const result = await generateLearningScript(
       supabase?.value,
       courseCode.value,
@@ -4034,8 +4041,11 @@ const handleSkipToNextBelt = async () => {
     const absoluteEnd = scriptBaseOffset.value + cachedRounds.value.length
 
     // Expand script if we need more rounds to reach target
+    // NOTE: generateLearningScript is deprecated and returns empty data
+    // Belt skip will not expand properly until migrated to SessionController
     if (targetSeed >= absoluteEnd && courseDataProvider.value) {
       console.log(`[LearningPlayer] Expanding script to reach seed ${targetSeed} (currently at ${absoluteEnd})...`)
+      console.warn('[LearningPlayer] handleSkipBelt uses deprecated generateLearningScript - expansion returns empty')
       const neededRounds = targetSeed - absoluteEnd + 10 // How many more we need
       const { rounds: moreRounds } = await generateLearningScript(
         courseDataProvider.value,
@@ -4045,6 +4055,8 @@ const handleSkipToNextBelt = async () => {
       if (moreRounds.length > 0) {
         cachedRounds.value = [...cachedRounds.value, ...moreRounds]
         console.log(`[LearningPlayer] Expanded to ${cachedRounds.value.length} rounds (base offset: ${scriptBaseOffset.value})`)
+      } else {
+        console.warn('[LearningPlayer] No rounds returned - generateLearningScript is deprecated')
       }
     }
 
@@ -4096,6 +4108,9 @@ const handleGoBackBelt = async () => {
         // Update base offset and reload
         scriptBaseOffset.value = targetSeed
 
+        // NOTE: generateLearningScript is deprecated and returns empty data
+        // handleGoBackBelt will not work properly until migrated to SessionController
+        console.warn('[LearningPlayer] handleGoBackBelt uses deprecated generateLearningScript - reload returns empty')
         const { rounds, allItems } = await generateLearningScript(
           courseDataProvider.value,
           ROUNDS_TO_FETCH,
@@ -4114,6 +4129,8 @@ const handleGoBackBelt = async () => {
           await jumpToRound(0)
           console.log(`[LearningPlayer] Reloaded script from seed ${targetSeed}, now at round 0, isPlaying=${isPlaying.value}`)
           return
+        } else {
+          console.warn('[LearningPlayer] handleGoBackBelt: No rounds returned - generateLearningScript is deprecated')
         }
       }
     }
@@ -4151,8 +4168,10 @@ const handleSkipToBeltFromModal = async (belt) => {
     const absoluteEnd = scriptBaseOffset.value + cachedRounds.value.length
 
     // Forward skip: may need to expand script
+    // NOTE: generateLearningScript is deprecated and returns empty data
     if (targetSeed >= scriptBaseOffset.value && targetSeed >= absoluteEnd && courseDataProvider.value) {
       console.log(`[LearningPlayer] Expanding script to reach seed ${targetSeed}...`)
+      console.warn('[LearningPlayer] handleSkipToBeltFromModal uses deprecated generateLearningScript')
       const neededRounds = targetSeed - absoluteEnd + 10
       const { rounds: moreRounds } = await generateLearningScript(
         courseDataProvider.value,
@@ -4161,12 +4180,16 @@ const handleSkipToBeltFromModal = async (belt) => {
       )
       if (moreRounds.length > 0) {
         cachedRounds.value = [...cachedRounds.value, ...moreRounds]
+      } else {
+        console.warn('[LearningPlayer] Forward skip: No rounds returned - generateLearningScript is deprecated')
       }
     }
 
     // Backward skip: may need to reload script from earlier position
+    // NOTE: generateLearningScript is deprecated and returns empty data
     if (targetSeed < scriptBaseOffset.value && courseDataProvider.value) {
       console.log(`[LearningPlayer] Reloading script from seed ${targetSeed}...`)
+      console.warn('[LearningPlayer] handleSkipToBeltFromModal backward uses deprecated generateLearningScript')
       if (orchestrator.value) stopCycle()
       if (audioController.value) audioController.value.stop()
       clearPathAnimation()
@@ -4184,6 +4207,8 @@ const handleSkipToBeltFromModal = async (belt) => {
         populateNetworkFromRounds(rounds, 0, networkConnections.value, targetSeed)
         await jumpToRound(0)
         return
+      } else {
+        console.warn('[LearningPlayer] Backward skip: No rounds returned - generateLearningScript is deprecated')
       }
     }
 
@@ -4696,9 +4721,16 @@ const populateNetworkUpToRound = (targetRoundIndex: number) => {
 // PROGRESSIVE SCRIPT EXPANSION
 // Fetches more rounds as learner approaches end of cached content
 // ============================================
+// DEPRECATED: expandScript uses generateLearningScript which returns empty data
+// This function is kept for backwards compatibility but will not expand the script
+// When USE_SESSION_CONTROLLER is true (default), SessionController manages rounds
 const expandScript = async () => {
   if (isExpandingScript.value) return
   if (!courseDataProvider.value) return
+
+  // NOTE: generateLearningScript is deprecated and returns empty data
+  // Script expansion will not work until migrated to SessionController
+  console.warn('[LearningPlayer] expandScript uses deprecated generateLearningScript - expansion returns empty data')
 
   isExpandingScript.value = true
   const currentCount = cachedRounds.value.length
@@ -5209,6 +5241,7 @@ onMounted(async () => {
         // Task: Load FULL network (all course rounds) in background
         // This runs in parallel - network will be ready by the time user starts learning
         // Once loaded, network positions never recalculate - just reveal/hide nodes
+        // NOTE: generateLearningScript is deprecated - this is legacy fallback code
         const fullNetworkTask = (async () => {
           try {
             // Wait for connections first (needed for edge data)
@@ -5219,6 +5252,9 @@ onMounted(async () => {
               return
             }
 
+            // DEPRECATED: generateLearningScript returns empty data
+            // Full network loading in legacy cached path will not work
+            console.warn('[LearningPlayer] Legacy cached path: generateLearningScript is deprecated - full network will be empty')
             console.log('[LearningPlayer] Loading FULL network (all course rounds)...')
             const MAX_ROUNDS = 1000 // Full course
             const { rounds: allRounds } = await generateLearningScript(
@@ -5414,11 +5450,15 @@ onMounted(async () => {
 
         // Load FULL network in background (all course rounds)
         // This runs in parallel - positions calculated once, never recalculated
+        // NOTE: generateLearningScript is deprecated - this is legacy fallback code
         ;(async () => {
           try {
             await networkConnectionsReady
             if (!courseDataProvider.value) return
 
+            // DEPRECATED: generateLearningScript returns empty data
+            // Full network loading in legacy path will not work
+            console.warn('[LearningPlayer] Legacy fresh gen: generateLearningScript is deprecated - full network will be empty')
             console.log('[LearningPlayer] Fresh gen: Loading FULL network...')
             const MAX_ROUNDS = 1000
             const { rounds: allRounds } = await generateLearningScript(
@@ -5450,6 +5490,9 @@ onMounted(async () => {
           console.log('[LearningPlayer] Generating script with offset:', startOffset,
             savedPosition ? `(from saved position, LEGO ${savedPosition.legoId})` : '(from belt progress)')
 
+          // DEPRECATED: generateLearningScript returns empty data
+          // This is legacy fallback code - SessionController path should be used instead
+          console.warn('[LearningPlayer] Legacy path: generateLearningScript is deprecated - will return empty rounds')
           const { rounds, allItems } = await generateLearningScript(
             courseDataProvider.value,
             INITIAL_ROUNDS, // Start small, expand as learner progresses
@@ -5586,8 +5629,10 @@ onMounted(async () => {
       const absoluteEnd = scriptBaseOffset.value + cachedRounds.value.length
 
       // Expand script if preview index exceeds cached rounds
+      // NOTE: generateLearningScript is deprecated and returns empty data
       if (targetIndex >= absoluteEnd && courseDataProvider.value) {
         console.log(`[LearningPlayer] Preview ${targetIndex} exceeds cached ${absoluteEnd}, expanding...`)
+        console.warn('[LearningPlayer] Preview expansion uses deprecated generateLearningScript - will return empty')
         const neededRounds = targetIndex - absoluteEnd + 10 // How many more we need
         const { rounds: moreRounds } = await generateLearningScript(
           courseDataProvider.value,
@@ -5597,6 +5642,8 @@ onMounted(async () => {
         if (moreRounds.length > 0) {
           cachedRounds.value = [...cachedRounds.value, ...moreRounds]
           console.log(`[LearningPlayer] Expanded to ${cachedRounds.value.length} rounds for preview (base offset: ${scriptBaseOffset.value})`)
+        } else {
+          console.warn('[LearningPlayer] Preview expansion returned empty - generateLearningScript is deprecated')
         }
       }
 
@@ -5846,9 +5893,11 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
   }
 
   // Generate initial rounds if no cache - but ONLY if courseDataProvider matches
+  // NOTE: generateLearningScript is deprecated and returns empty data
   const currentProviderCourseId = courseDataProvider.value?.getCourseId?.()
   if (cachedRounds.value.length === 0 && courseDataProvider.value && currentProviderCourseId === newCourseCode) {
     console.log('[LearningPlayer] No cache, generating fresh script for', newCourseCode)
+    console.warn('[LearningPlayer] Course change: generateLearningScript is deprecated - will return empty')
     const { rounds, allItems } = await generateLearningScript(
       courseDataProvider.value,
       10, // Initial chunk

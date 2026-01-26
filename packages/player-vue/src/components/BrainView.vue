@@ -18,6 +18,9 @@ import BrainStatsMobile from './BrainStatsMobile.vue'
 import { usePrebuiltNetwork, type ExternalConnection, type ExternalNode, type ConstellationNode } from '../composables/usePrebuiltNetwork'
 import { useLegoNetwork, type PhraseWithPath } from '../composables/useLegoNetwork'
 import { useCompletedContent } from '../composables/useCompletedContent'
+// NOTE: generateLearningScript is deprecated and returns empty data
+// BrainView uses database nodes (externalNodes) as primary source now
+// The rounds from generateLearningScript are only used for backwards compat
 import { generateLearningScript } from '../providers/CourseDataProvider'
 import { getLanguageName } from '../composables/useI18n'
 import { BELTS } from '../composables/useBeltProgress'
@@ -1001,7 +1004,10 @@ async function loadData() {
 
     console.log(`[BrainView] Converted ${externalNodes.length} database nodes for network`)
 
-    // Load learning script (for backwards compat and round-based visibility)
+    // NOTE: generateLearningScript is deprecated and returns empty data
+    // BrainView now uses externalNodes as the primary data source
+    // The rounds were previously used for backwards compat but are now empty
+    // Keeping the call for structure but it returns [] now
     const MAX_ROUNDS = 1000
     const { rounds } = await generateLearningScript(
       courseDataProvider.value,
@@ -1010,7 +1016,13 @@ async function loadData() {
     )
 
     allRounds.value = rounds
-    console.log(`[BrainView] Loaded ${rounds.length} rounds from script`)
+    // Since generateLearningScript is deprecated, rounds will be empty
+    // The network now uses externalNodes directly
+    if (rounds.length === 0) {
+      console.log(`[BrainView] generateLearningScript returned empty (deprecated) - using ${externalNodes.length} database nodes directly`)
+    } else {
+      console.log(`[BrainView] Loaded ${rounds.length} rounds from script`)
+    }
 
     // Update canvas size based on container
     if (containerRef.value) {
