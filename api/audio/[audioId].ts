@@ -199,9 +199,18 @@ export default async function handler(
         return
       }
 
-      // Convert to buffer using transformToByteArray (AWS SDK v3)
-      const buffer = await bodyStream.transformToByteArray()
-      res.send(Buffer.from(buffer))
+      // Convert stream to buffer
+      const chunks: Buffer[] = []
+      const readable = bodyStream as NodeJS.ReadableStream
+
+      await new Promise<void>((resolve, reject) => {
+        readable.on('data', (chunk: Buffer) => chunks.push(chunk))
+        readable.on('end', () => resolve())
+        readable.on('error', reject)
+      })
+
+      const buffer = Buffer.concat(chunks)
+      res.send(buffer)
 
     } catch (s3Error: any) {
       console.error('[AudioProxy] S3 fetch failed:', {
