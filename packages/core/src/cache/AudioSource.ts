@@ -112,11 +112,11 @@ export class AudioSource implements IAudioSource {
           ? this.buildProxyUrl(audioRef.id)
           : audioRef.url;
 
-        // Cache it for future use (non-blocking)
+        // Cache it for future use (non-blocking, silent failure)
         // Note: cacheAudio uses audioRef.url which may be S3 direct
         // This is intentional - we cache from the original source
-        this.cache.cacheAudio(audioRef, this.courseId).catch(err => {
-          console.warn(`Failed to cache audio ${audioRef.id}:`, err);
+        this.cache.cacheAudio(audioRef, this.courseId).catch(() => {
+          // Silent - cache failures are non-critical
         });
 
         // Return proxy URL for immediate playback (benefits: analytics, CORS)

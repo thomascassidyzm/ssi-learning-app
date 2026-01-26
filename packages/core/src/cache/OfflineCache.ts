@@ -122,7 +122,7 @@ export class OfflineCache implements IOfflineCache {
       await this.db.put('audio', cachedAudio);
       this.audioCache.add(audioRef.id);
     } catch (error) {
-      console.error(`Failed to cache audio ${audioRef.id}:`, error);
+      // Silent - cache failures are non-critical, caller handles gracefully
       throw error;
     }
   }

@@ -52,3 +52,14 @@ export {
   createSessionController,
   useSessionController,
 } from './SessionController'
+
+// PriorityRoundLoader
+export {
+  type Belt,
+  type LoaderConfig,
+  type LoaderProgress,
+  PriorityRoundLoader,
+  createPriorityRoundLoader,
+  BELT_THRESHOLDS,
+  BELT_NAMES,
+} from './PriorityRoundLoader'

@@ -15,6 +15,7 @@ import type { LegoPair, SeedPair, ClassifiedBasket } from '@ssi/core'
 import type { LearningItem, CourseDataProvider } from '../providers/CourseDataProvider'
 import {
   createSessionController,
+  createPriorityRoundLoader,
   type SessionController,
   type SessionState,
   type SessionEventHandler,
@@ -24,8 +25,15 @@ import {
   type GetAudioSourceFn,
   type ResumePoint,
   type PlaybackConfig,
+  type Belt,
+  type LoaderProgress,
+  PriorityRoundLoader,
+  BELT_THRESHOLDS,
 } from '../playback'
 import type { Cycle } from '../types/Cycle'
+import { buildRound } from '../playback/RoundBuilder'
+import { scriptItemToCycle } from '../utils/scriptItemToCycle'
+import { applyConfig, type RoundItem } from '../playback/types'
 
 // ============================================
 // Types for LearningPlayer compatibility
@@ -100,9 +108,16 @@ export function useSessionPlayback(options: SessionPlaybackOptions) {
   const seeds = ref<SeedPair[]>([])
   const baskets = ref<Map<string, ClassifiedBasket>>(new Map())
 
+  // Background loader
+  let priorityLoader: PriorityRoundLoader | null = null
+  const loaderProgress = ref<LoaderProgress | null>(null)
+  const isBackgroundLoading = ref(false)
+
   // Event handlers
   const cycleEventHandlers = new Set<CycleEventHandler>()
   const sessionEventHandlers = new Set<SessionEventHandlerFn>()
+  const roundReadyHandlers = new Set<(index: number, round: RoundTemplate) => void>()
+  const beltReadyHandlers = new Set<(belt: Belt) => void>()
 
   // ============================================
   // Computed state for LearningPlayer compatibility
@@ -278,6 +293,9 @@ export function useSessionPlayback(options: SessionPlaybackOptions) {
 
   /**
    * Initialize the session with course data
+   *
+   * FAST PATH: Loads only the first round for instant startup (<2s)
+   * BACKGROUND: PriorityRoundLoader loads remaining rounds based on user intent
    */
   async function initialize(
     courseCode: string,
@@ -288,48 +306,60 @@ export function useSessionPlayback(options: SessionPlaybackOptions) {
       throw new Error('No course data provider available')
     }
 
+    const startTime = performance.now()
     courseId.value = courseCode
 
     try {
-      // 1. Load all LEGOs from the course
-      console.log('[useSessionPlayback] Loading LEGOs...')
-      const learningItems = await provider.loadAllUniqueLegos(1000, 0)
+      const startSeed = resumePoint?.seedNumber ?? resumePoint?.roundNumber ?? 1
+      console.log(`[useSessionPlayback] Fast init for seed ${startSeed}...`)
 
-      // 2. Extract LEGOs and Seeds from LearningItems
-      legos.value = extractLegosFromLearningItems(learningItems)
-      console.log(`[useSessionPlayback] Loaded ${legos.value.length} LEGOs`)
+      // ============================================
+      // FAST PATH: Load only what's needed for instant play
+      // ============================================
 
-      seeds.value = extractSeedsFromLearningItems(learningItems)
-      console.log(`[useSessionPlayback] Extracted ${seeds.value.length} seeds`)
-
-      // 3. Load baskets for each LEGO
-      console.log('[useSessionPlayback] Loading baskets...')
-      const basketMap = new Map<string, ClassifiedBasket>()
-      for (const lego of legos.value) {
-        const basket = await provider.getLegoBasket(lego.id, lego)
-        if (basket) {
-          basketMap.set(lego.id, basket)
-        }
+      // 1. Load the first LEGO (BLOCKING - this is the only blocking call)
+      const firstItem = await provider.loadLegoAtPosition(startSeed)
+      if (!firstItem) {
+        throw new Error(`No LEGO found at seed position ${startSeed}`)
       }
-      baskets.value = basketMap
-      console.log(`[useSessionPlayback] Loaded ${basketMap.size} baskets`)
 
-      // 4. Initialize SessionController
-      await sessionController.initialize(
-        legos.value,
-        seeds.value,
-        baskets.value,
-        courseCode,
-        resumePoint
-      )
+      // 2. Convert to LegoPair
+      const firstLego = convertToLegoPair(firstItem.lego)
+      legos.value = [firstLego]
 
-      // 5. Store rounds internally for cachedRounds computed
-      // We need to rebuild the rounds to access them
-      // (SessionController doesn't expose rounds array directly)
-      rebuildInternalRounds()
+      // 3. Create SeedPair
+      const firstSeed = createSeedPairFromItem(firstItem, firstLego)
+      seeds.value = [firstSeed]
 
+      // 4. Load basket for the first LEGO
+      const firstBasket = await provider.getLegoBasket(firstLego.id, firstLego)
+      baskets.value = new Map()
+      if (firstBasket) {
+        baskets.value.set(firstLego.id, firstBasket)
+      }
+
+      // 5. Build the first round
+      const firstRound = buildFirstRound(firstLego, firstSeed, firstBasket, startSeed)
+
+      // 6. Initialize SessionController with empty state
+      sessionController.initializeEmpty(courseCode, resumePoint)
+
+      // 7. Add the first round
+      sessionController.addRound(firstRound)
+
+      // Update internal rounds ref
+      internalRounds.value = sessionController.rounds.value
+
+      // READY TO PLAY!
       isInitialized.value = true
-      console.log('[useSessionPlayback] Initialization complete')
+      const initTime = performance.now() - startTime
+      console.log(`[useSessionPlayback] Ready to play in ${initTime.toFixed(0)}ms`)
+
+      // ============================================
+      // BACKGROUND: Start priority-based loading
+      // ============================================
+
+      startBackgroundLoading(courseCode, startSeed, provider)
 
     } catch (err) {
       console.error('[useSessionPlayback] Initialization error:', err)
@@ -338,22 +368,122 @@ export function useSessionPlayback(options: SessionPlaybackOptions) {
   }
 
   /**
+   * Build the first round for instant startup
+   */
+  function buildFirstRound(
+    lego: LegoPair,
+    seed: SeedPair,
+    basket: ClassifiedBasket | null,
+    seedNumber: number
+  ): RoundTemplate {
+    const buildAudioUrl = (audioId: string): string => `/api/audio/${audioId}`
+
+    const round = buildRound({
+      lego,
+      seed,
+      basket,
+      legoIndex: seedNumber,
+      roundNumber: seedNumber,
+      config: sessionController.config.value,
+      buildAudioUrl,
+      // No spaced rep for first round
+    })
+
+    // Convert Round to RoundTemplate
+    const roundTemplate: RoundTemplate = {
+      roundNumber: round.roundNumber,
+      legoId: round.legoId,
+      legoIndex: round.legoIndex,
+      seedId: round.seedId,
+      spacedRepReviews: round.spacedRepReviews,
+      items: round.items.map((item): RoundItem => ({
+        ...item,
+        cycle: item.type !== 'intro' ? scriptItemToCycle(item) : null,
+        playable: true,
+      })),
+    }
+
+    return applyConfig(roundTemplate, sessionController.config.value)
+  }
+
+  /**
+   * Create SeedPair from LearningItem
+   */
+  function createSeedPairFromItem(item: LearningItem, lego: LegoPair): SeedPair {
+    return {
+      seed_id: item.seed.seed_id,
+      seed_pair: item.seed.seed_pair,
+      legos: [lego],
+    }
+  }
+
+  /**
+   * Start background loading with priority queue
+   */
+  function startBackgroundLoading(
+    courseCode: string,
+    startSeed: number,
+    provider: CourseDataProvider
+  ): void {
+    // Clean up any existing loader
+    if (priorityLoader) {
+      priorityLoader.dispose()
+    }
+
+    // Create new loader
+    priorityLoader = createPriorityRoundLoader({
+      provider,
+      sessionController,
+      currentSeed: startSeed,
+      config: sessionController.config.value,
+      totalLegos: 1000,  // Will be refined as we learn course size
+    })
+
+    // Forward events
+    priorityLoader.onRoundReady((index, round) => {
+      loaderProgress.value = priorityLoader?.getProgress() ?? null
+      internalRounds.value = sessionController.rounds.value
+
+      // Forward to external handlers
+      for (const handler of roundReadyHandlers) {
+        try {
+          handler(index, round)
+        } catch (e) {
+          console.error('[useSessionPlayback] Round ready handler error:', e)
+        }
+      }
+    })
+
+    priorityLoader.onBeltReady((belt) => {
+      loaderProgress.value = priorityLoader?.getProgress() ?? null
+
+      // Forward to external handlers
+      for (const handler of beltReadyHandlers) {
+        try {
+          handler(belt)
+        } catch (e) {
+          console.error('[useSessionPlayback] Belt ready handler error:', e)
+        }
+      }
+    })
+
+    priorityLoader.onError((error, seedNumber) => {
+      console.error(`[useSessionPlayback] Error loading seed ${seedNumber}:`, error)
+      // Don't stop - continue loading other seeds
+    })
+
+    // Start loading
+    isBackgroundLoading.value = true
+    priorityLoader.start()
+
+    console.log('[useSessionPlayback] Background loading started')
+  }
+
+  /**
    * Rebuild internal rounds from SessionController state
    */
   function rebuildInternalRounds(): void {
-    // Access rounds through SessionController's internal state
-    // Since we can iterate currentRound, we build the list
-    const rounds: RoundTemplate[] = []
-    const totalRounds = sessionController.progress.value.totalRounds
-
-    // For now, we can only access currentRound
-    // This is a limitation - we may need to expose rounds from SessionController
-    const currentRoundValue = sessionController.currentRound.value
-    if (currentRoundValue) {
-      // Build rounds by advancing through them (this is a workaround)
-      // In production, SessionController should expose rounds directly
-      internalRounds.value = [currentRoundValue]
-    }
+    internalRounds.value = sessionController.rounds.value
   }
 
   /**
@@ -404,9 +534,47 @@ export function useSessionPlayback(options: SessionPlaybackOptions) {
 
   /**
    * Jump to a specific round
+   * Handles belt skip scenario where round may not be loaded yet
    */
-  function jumpToRound(roundNumber: number): void {
-    sessionController.jumpToRound(roundNumber)
+  async function jumpToRound(roundNumber: number): Promise<void> {
+    // Check if round is loaded
+    if (sessionController.hasRound(roundNumber)) {
+      sessionController.jumpToRound(roundNumber)
+      return
+    }
+
+    // Round not loaded - prioritize loading it
+    if (priorityLoader) {
+      console.log(`[useSessionPlayback] Round ${roundNumber + 1} not loaded, prioritizing...`)
+      const round = await priorityLoader.prioritize(roundNumber + 1)  // Convert to seed number
+      if (round) {
+        sessionController.jumpToRound(roundNumber)
+      }
+    }
+  }
+
+  /**
+   * Skip to the start of the next belt
+   * Used for belt skip functionality
+   */
+  async function skipToBelt(beltIndex: number): Promise<void> {
+    const targetSeed = BELT_THRESHOLDS[beltIndex] || BELT_THRESHOLDS[0]
+    const roundIndex = targetSeed - 1  // Convert to 0-based
+
+    // Check if round is loaded
+    if (sessionController.hasRound(roundIndex)) {
+      sessionController.jumpToRound(roundIndex)
+      return
+    }
+
+    // Round not loaded - prioritize loading it
+    if (priorityLoader) {
+      console.log(`[useSessionPlayback] Belt ${beltIndex} start not loaded, prioritizing...`)
+      const round = await priorityLoader.prioritize(targetSeed)
+      if (round) {
+        sessionController.jumpToRound(roundIndex)
+      }
+    }
   }
 
   /**
@@ -434,6 +602,22 @@ export function useSessionPlayback(options: SessionPlaybackOptions) {
   function onSessionEvent(handler: SessionEventHandlerFn): () => void {
     sessionEventHandlers.add(handler)
     return () => sessionEventHandlers.delete(handler)
+  }
+
+  /**
+   * Subscribe to round ready events (from background loading)
+   */
+  function onRoundReady(handler: (index: number, round: RoundTemplate) => void): () => void {
+    roundReadyHandlers.add(handler)
+    return () => roundReadyHandlers.delete(handler)
+  }
+
+  /**
+   * Subscribe to belt ready events (from background loading)
+   */
+  function onBeltReady(handler: (belt: Belt) => void): () => void {
+    beltReadyHandlers.add(handler)
+    return () => beltReadyHandlers.delete(handler)
   }
 
   /**
@@ -528,10 +712,19 @@ export function useSessionPlayback(options: SessionPlaybackOptions) {
   // ============================================
 
   function dispose(): void {
+    // Stop background loading
+    if (priorityLoader) {
+      priorityLoader.dispose()
+      priorityLoader = null
+    }
+    isBackgroundLoading.value = false
+
     sessionController.off(sessionEventHandler)
     sessionController.dispose()
     cycleEventHandlers.clear()
     sessionEventHandlers.clear()
+    roundReadyHandlers.clear()
+    beltReadyHandlers.clear()
   }
 
   onUnmounted(() => {
@@ -555,6 +748,10 @@ export function useSessionPlayback(options: SessionPlaybackOptions) {
     config,
     isInitialized: computed(() => isInitialized.value),
 
+    // Background loading state
+    loaderProgress,
+    isBackgroundLoading: computed(() => isBackgroundLoading.value),
+
     // Methods
     initialize,
     start,
@@ -564,11 +761,14 @@ export function useSessionPlayback(options: SessionPlaybackOptions) {
     skipCycle,
     skipRound,
     jumpToRound,
+    skipToBelt,
     setConfig,
 
     // Event subscriptions
     onCycleEvent,
     onSessionEvent,
+    onRoundReady,
+    onBeltReady,
 
     // Direct access for advanced usage
     sessionController,

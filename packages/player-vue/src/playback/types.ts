@@ -134,6 +134,8 @@ export type SessionEventType =
   | 'session:complete'
   | 'round:started'
   | 'round:completed'
+  | 'round:loaded'    // Round added via lazy loading
+  | 'round:loading'   // Waiting for round to load
   | 'item:started'
   | 'item:completed'
 
@@ -144,6 +146,8 @@ export interface SessionEventData {
   item?: ScriptItem
   itemIndex?: number
   progress?: SessionProgress
+  /** For round:loaded and round:loading events */
+  roundNumber?: number
 }
 
 export type SessionEventHandler = (event: SessionEventData) => void
@@ -172,6 +176,8 @@ export interface ResumePoint {
   courseId: string
   /** Round to resume from */
   roundNumber: number
+  /** Seed number to resume from (usually same as roundNumber for lazy loading) */
+  seedNumber?: number
   /** Thread state at resume point */
   threadState: SerializedThreadState
   /** Timestamp of last activity */

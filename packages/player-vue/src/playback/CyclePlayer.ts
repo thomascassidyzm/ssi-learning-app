@@ -104,7 +104,7 @@ export function createCyclePlayer(): CyclePlayer {
       try {
         handler(event)
       } catch (e) {
-        console.error('[CyclePlayer] Event handler error:', e)
+        // Event handler errors are non-critical
       }
     }
   }
@@ -165,8 +165,7 @@ export function createCyclePlayer(): CyclePlayer {
             errorMessage += ` - ${audioError.message}`
           }
         }
-        // Also log the URL that failed for debugging
-        console.error(`[CyclePlayer] ${errorMessage}`, { src: audioEl.src })
+        // Audio errors are handled gracefully - cycle continues
         reject(new Error(errorMessage))
       }
       audioEl.addEventListener('error', errorHandler, { once: true })

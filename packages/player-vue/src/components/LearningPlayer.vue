@@ -332,8 +332,6 @@ const effectiveItemInRound = computed(() =>
 sessionPlayback.onCycleEvent((event) => {
   if (!USE_SESSION_CONTROLLER.value) return
 
-  console.log('[SessionController Event]', event.type, event.data)
-
   switch (event.type) {
     case 'phase_changed':
       // Map phase to UI phase and update
@@ -407,8 +405,6 @@ sessionPlayback.onCycleEvent((event) => {
 // Subscribe to session events (round completion, session end)
 sessionPlayback.onSessionEvent((event) => {
   if (!USE_SESSION_CONTROLLER.value) return
-
-  console.log('[SessionController Session Event]', event.type, event.data)
 
   switch (event.type) {
     case 'round_completed':
@@ -2116,7 +2112,7 @@ class RealAudioController {
       try {
         url = await this.audioSource.getAudioUrl(audioRef)
       } catch (err) {
-        console.warn('[AudioController] Cache lookup failed, using direct URL:', err.message)
+        // Fall back to direct URL silently
         url = audioRef.url
       }
     }
@@ -2139,7 +2135,7 @@ class RealAudioController {
       }
 
       const onError = (e) => {
-        console.error('[AudioController] Error playing:', url, e)
+        // Audio errors are handled gracefully - cycle continues
         this.audio?.removeEventListener('ended', onEnded)
         this.audio?.removeEventListener('error', onError)
         this.currentCleanup = null
@@ -2178,15 +2174,9 @@ class RealAudioController {
       const playPromise = this.audio.play()
       if (playPromise) {
         playPromise.catch((e) => {
-          // NotAllowedError means autoplay blocked - this is expected on mobile
-          if (e.name === 'NotAllowedError') {
-            console.warn('[AudioController] Autoplay blocked, waiting for audio to be ready')
-            // Don't trigger error handler, just wait - user needs to interact
-            // For now, advance anyway to keep cycle moving
-            onError(e)
-          } else {
-            onError(e)
-          }
+          // NotAllowedError means autoplay blocked - expected on mobile
+          // All errors advance the cycle to keep playback moving
+          onError(e)
         })
       }
     })
@@ -2195,7 +2185,6 @@ class RealAudioController {
   _notifyEnded() {
     // Skip all notifications during skip operation
     if (this.suppressAllCallbacks) {
-      console.log('[AudioController] Callbacks suppressed during skip')
       return
     }
     // Skip notification if intro/welcome is playing (they handle their own ended events)
@@ -2352,8 +2341,6 @@ class RealAudioController {
 // ============================================
 
 const handleCycleEvent = (event) => {
-  console.log('[CycleEvent]', event.type, event.phase, event.data)
-
   switch (event.type) {
     case 'phase_changed':
       // Handle phase-specific logic
@@ -2425,9 +2412,6 @@ const handleCycleEvent = (event) => {
               // Find M-LEGOs with partial word overlap (resonance effect)
               const resonating = findResonatingNodes(currentItemForPath, legoIds)
               resonatingNodes.value = resonating
-              if (resonating.length > 0) {
-                console.log(`[Network] Resonating M-LEGOs (partial match):`, resonating)
-              }
             }
           }
           break
@@ -2689,15 +2673,12 @@ const handleCycleEvent = (event) => {
       // isSkipInProgress: used by skip/revisit/jumpToRound for single-item navigation
       // isSkippingBelt: used by belt skip functions that stop audio before calling jumpToRound
       if (!isSkipInProgress.value && !isSkippingBelt.value) {
-        console.log('[LearningPlayer] cycle_stopped → setting isPlaying = false')
         isPlaying.value = false
-      } else {
-        console.log('[LearningPlayer] cycle_stopped → preserving isPlaying (isSkipInProgress:', isSkipInProgress.value, ', isSkippingBelt:', isSkippingBelt.value, ')')
       }
       break
 
     case 'error':
-      console.error('[CycleOrchestrator Error]', event.data?.error)
+      // Errors are handled gracefully - playback continues
       break
   }
 }
@@ -4955,8 +4936,6 @@ const extractLegoIdsFromPhrase = (item) => {
     }
   })
 
-  // Debug: Show what we're searching for and what nodes are available
-  console.log(`[extractLegoIdsFromPhrase] Phrase: "${targetText.slice(0, 40)}...", ${legoMap.size} LEGOs available`)
 
   // Greedy decomposition - find longest matching LEGO at each position
   const normalized = targetText.toLowerCase().trim()
@@ -4995,7 +4974,6 @@ const extractLegoIdsFromPhrase = (item) => {
     }
   }
 
-  console.log(`[extractLegoIdsFromPhrase] Result: [${result.join(', ')}]`)
   return result
 }
 

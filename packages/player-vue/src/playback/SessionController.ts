@@ -40,10 +40,40 @@ export interface SessionController {
     resume?: ResumePoint
   ): Promise<void>
 
+  /**
+   * Initialize empty session ready for incremental round loading
+   * Used for fast startup - session can start playing as rounds are added
+   */
+  initializeEmpty(courseId: string, resume?: ResumePoint): void
+
   start(getAudioSource: GetAudioSourceFn): void
   pause(): void
   resume(): void
   stop(): void
+
+  // Incremental round loading
+  /**
+   * Add a single round to the session
+   * @param round - The round template to add
+   */
+  addRound(round: RoundTemplate): void
+
+  /**
+   * Add multiple rounds to the session
+   * @param rounds - Array of round templates to add
+   */
+  addRounds(rounds: RoundTemplate[]): void
+
+  /**
+   * Check if a round at the given index exists
+   * @param roundIndex - 0-based round index
+   */
+  hasRound(roundIndex: number): boolean
+
+  /**
+   * Get the current number of loaded rounds
+   */
+  getRoundCount(): number
 
   // Navigation
   skipCycle(): void
@@ -59,6 +89,7 @@ export interface SessionController {
   readonly currentItemIndex: Ref<number>  // SINGLE index
   readonly progress: ComputedRef<SessionProgress>
   readonly config: Ref<PlaybackConfig>
+  readonly rounds: Ref<RoundTemplate[]>  // Expose rounds for external access
 
   // Completed content (for BrainView and Listening components)
   readonly completedRounds: ComputedRef<RoundTemplate[]>
@@ -166,7 +197,7 @@ export function createSessionController(): SessionController {
       try {
         handler(event)
       } catch (e) {
-        console.error('[SessionController] Event handler error:', e)
+        // Event handler errors are non-critical
       }
     }
   }
@@ -200,6 +231,70 @@ export function createSessionController(): SessionController {
 
     currentItemIndex.value = 0
     state.value = 'idle'
+  }
+
+  /**
+   * Initialize empty session ready for incremental round loading
+   * Used for fast startup - session can start playing as rounds are added
+   */
+  function initializeEmpty(course: string, resume?: ResumePoint): void {
+    state.value = 'loading'
+    courseId = course
+    seeds = []
+    baskets = new Map()
+
+    // Clear existing rounds
+    rounds.value = []
+    currentRoundIndex.value = resume?.roundNumber ?? 0
+    currentItemIndex.value = 0
+    state.value = 'idle'
+
+    console.log('[SessionController] Initialized empty session for', course)
+  }
+
+  /**
+   * Add a single round to the session
+   */
+  function addRound(round: RoundTemplate): void {
+    // Apply config to set playable flags
+    const configuredRound = applyConfig(round, config.value)
+    rounds.value = [...rounds.value, configuredRound]
+    emit('round:loaded', { roundNumber: round.roundNumber })
+
+    // If we were waiting for this round, resume playback
+    if (isPlaybackActive && state.value === 'playing' && !currentRound.value) {
+      const newCurrentRound = rounds.value[currentRoundIndex.value]
+      if (newCurrentRound) {
+        console.log('[SessionController] Round', round.roundNumber, 'loaded, resuming playback')
+        playCurrentItem()
+      }
+    }
+  }
+
+  /**
+   * Add multiple rounds to the session
+   */
+  function addRounds(newRounds: RoundTemplate[]): void {
+    // Apply config to each round
+    const configuredRounds = newRounds.map(round => applyConfig(round, config.value))
+    rounds.value = [...rounds.value, ...configuredRounds]
+    for (const round of newRounds) {
+      emit('round:loaded', { roundNumber: round.roundNumber })
+    }
+  }
+
+  /**
+   * Check if a round at the given index exists
+   */
+  function hasRound(roundIndex: number): boolean {
+    return roundIndex >= 0 && roundIndex < rounds.value.length
+  }
+
+  /**
+   * Get the current number of loaded rounds
+   */
+  function getRoundCount(): number {
+    return rounds.value.length
   }
 
   /**
@@ -271,7 +366,16 @@ export function createSessionController(): SessionController {
 
     const round = currentRound.value
     if (!round) {
-      completeSession()
+      // Check if we're waiting for a round to load (lazy loading scenario)
+      if (currentRoundIndex.value < rounds.value.length) {
+        // Round should exist but doesn't - this is unexpected
+        completeSession()
+        return
+      }
+      // Round not yet loaded - emit loading event and wait
+      // The PriorityRoundLoader will add rounds as they load
+      emit('round:loading', { roundNumber: currentRoundIndex.value + 1 })
+      console.log('[SessionController] Waiting for round', currentRoundIndex.value + 1, 'to load')
       return
     }
 
@@ -297,8 +401,7 @@ export function createSessionController(): SessionController {
         await cyclePlayer.playCycle(item.cycle, getAudioSource, config.value)
         await handleItemComplete(item)
       } catch (err) {
-        console.error('[SessionController] Cycle playback error:', err)
-        // Continue to next item on error
+        // Audio errors are non-critical - continue to next item
         await handleItemComplete(item)
       }
     }
@@ -490,10 +593,17 @@ export function createSessionController(): SessionController {
   return {
     // Lifecycle
     initialize,
+    initializeEmpty,
     start,
     pause,
     resume: resumePlayback,
     stop,
+
+    // Incremental round loading
+    addRound,
+    addRounds,
+    hasRound,
+    getRoundCount,
 
     // Navigation
     skipCycle,
@@ -509,6 +619,7 @@ export function createSessionController(): SessionController {
     currentItemIndex: readonly(currentItemIndex) as Ref<number>,
     progress,
     config: readonly(config) as Ref<PlaybackConfig>,
+    rounds: readonly(rounds) as Ref<RoundTemplate[]>,
 
     // Completed content (for BrainView and Listening)
     completedRounds,

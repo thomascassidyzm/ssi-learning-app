@@ -120,8 +120,7 @@ export function useCyclePlayback() {
             errorMessage += ` - ${audioError.message}`
           }
         }
-        // Also log the URL that failed for debugging
-        console.error(`[CyclePlayer] ${errorMessage}`, { src: audioEl.src })
+        // Audio errors are handled gracefully - cycle continues
         reject(new Error(errorMessage))
       }
       audioEl.addEventListener('error', errorHandler, { once: true })

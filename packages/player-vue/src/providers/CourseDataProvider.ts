@@ -820,6 +820,175 @@ export class CourseDataProvider {
   }
 
   /**
+   * Load a single LEGO at a specific seed position
+   * Used for fast startup - loads only what's needed for immediate play
+   * @param seedNumber - The seed position (1-based)
+   * @returns LearningItem or null if not found
+   */
+  async loadLegoAtPosition(seedNumber: number): Promise<LearningItem | null> {
+    if (!this.client) {
+      console.warn('[CourseDataProvider] No Supabase client, cannot load LEGO at position')
+      return null
+    }
+
+    try {
+      const { data, error } = await this.client
+        .from('lego_cycles')
+        .select('*')
+        .eq('course_code', this.courseId)
+        .eq('seed_number', seedNumber)
+        .order('lego_index', { ascending: true })
+        .limit(1)
+        .maybeSingle()
+
+      if (error) {
+        console.error('[CourseDataProvider] Query error:', error)
+        return null
+      }
+
+      if (!data) {
+        console.warn('[CourseDataProvider] No LEGO found at seed position:', seedNumber)
+        return null
+      }
+
+      // Transform to LearningItem
+      const items = this.transformToLearningItems([data])
+      return items[0] ?? null
+    } catch (err) {
+      console.error('[CourseDataProvider] Failed to load LEGO at position:', err)
+      return null
+    }
+  }
+
+  /**
+   * Load a range of LEGOs by seed position
+   * Used for belt loading - loads multiple LEGOs efficiently
+   * @param startSeed - Start seed number (inclusive)
+   * @param endSeed - End seed number (inclusive)
+   * @returns Array of LearningItems
+   */
+  async loadLegoRange(startSeed: number, endSeed: number): Promise<LearningItem[]> {
+    if (!this.client) {
+      console.warn('[CourseDataProvider] No Supabase client, cannot load LEGO range')
+      return []
+    }
+
+    try {
+      const { data, error } = await this.client
+        .from('lego_cycles')
+        .select('*')
+        .eq('course_code', this.courseId)
+        .gte('seed_number', startSeed)
+        .lte('seed_number', endSeed)
+        .order('seed_number', { ascending: true })
+        .order('lego_index', { ascending: true })
+
+      if (error) {
+        console.error('[CourseDataProvider] Query error:', error)
+        return []
+      }
+
+      if (!data || data.length === 0) {
+        console.warn('[CourseDataProvider] No LEGOs found in range:', startSeed, '-', endSeed)
+        return []
+      }
+
+      // Deduplicate by seed_number (keep first LEGO per seed)
+      const seenSeeds = new Set<number>()
+      const uniqueRecords = data.filter(record => {
+        if (seenSeeds.has(record.seed_number)) {
+          return false
+        }
+        seenSeeds.add(record.seed_number)
+        return true
+      })
+
+      console.log(`[CourseDataProvider] Loaded ${uniqueRecords.length} LEGOs from range ${startSeed}-${endSeed}`)
+      return this.transformToLearningItems(uniqueRecords)
+    } catch (err) {
+      console.error('[CourseDataProvider] Failed to load LEGO range:', err)
+      return []
+    }
+  }
+
+  /**
+   * Batch load baskets for multiple LEGOs at once
+   * More efficient than individual getLegoBasket calls (one query instead of N)
+   * @param legoIds - Array of LEGO IDs to load baskets for
+   * @param legos - Optional map of LEGO data for creating debut phrases
+   * @returns Map of legoId -> ClassifiedBasket
+   */
+  async getBasketsBatch(
+    legoIds: string[],
+    legos?: Map<string, LegoPair>
+  ): Promise<Map<string, ClassifiedBasket>> {
+    const baskets = new Map<string, ClassifiedBasket>()
+
+    if (!this.client || legoIds.length === 0) return baskets
+
+    try {
+      // Query practice_cycles for all LEGOs in one batch
+      // v13: Sort by target1_duration_ms for cognitive load
+      const { data, error } = await this.client
+        .from('practice_cycles')
+        .select('*')
+        .eq('course_code', this.courseId)
+        .in('lego_id', legoIds)
+        .order('lego_id', { ascending: true })
+        .order('target1_duration_ms', { ascending: true, nullsFirst: false })
+
+      if (error) {
+        console.error('[CourseDataProvider] Batch basket query error:', error)
+        // Fall back to individual loading for failed batch
+        for (const legoId of legoIds) {
+          const basket = await this.getLegoBasket(legoId, legos?.get(legoId))
+          if (basket) baskets.set(legoId, basket)
+        }
+        return baskets
+      }
+
+      if (!data || data.length === 0) {
+        console.warn('[CourseDataProvider] No practice phrases found for LEGOs:', legoIds)
+        // Create empty baskets for each LEGO
+        for (const legoId of legoIds) {
+          baskets.set(legoId, this.createEmptyBasket(legoId, legos?.get(legoId)))
+        }
+        return baskets
+      }
+
+      // Group by lego_id
+      const grouped = new Map<string, any[]>()
+      for (const row of data) {
+        const legoId = row.lego_id
+        if (!grouped.has(legoId)) {
+          grouped.set(legoId, [])
+        }
+        grouped.get(legoId)!.push(row)
+      }
+
+      // Transform each group to a basket
+      for (const legoId of legoIds) {
+        const rows = grouped.get(legoId)
+        if (rows && rows.length > 0) {
+          const basket = this.transformToBasket(legoId, rows, legos?.get(legoId))
+          if (basket) {
+            baskets.set(legoId, basket)
+          }
+        } else {
+          // No phrases found - create empty basket
+          baskets.set(legoId, this.createEmptyBasket(legoId, legos?.get(legoId)))
+        }
+      }
+
+      console.log(`[CourseDataProvider] Batch loaded ${baskets.size} baskets for ${legoIds.length} LEGOs`)
+      return baskets
+    } catch (err) {
+      console.error('[CourseDataProvider] Batch basket loading error:', err)
+      return baskets
+    }
+  }
+
+  /**
    * Load all unique LEGOs for a course (without spaced repetition cycles)
    * Used by Course Explorer for QA script view
    */
