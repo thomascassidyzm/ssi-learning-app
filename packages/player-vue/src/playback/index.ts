@@ -41,9 +41,9 @@ export {
 // RoundBuilder
 export {
   buildRound,
-  buildSimpleRound,
-  applyConfig,
-  getPlayableItems,
+  buildRounds,
+  calculateSpacedRepReviews,
+  type BuildRoundOptions,
 } from './RoundBuilder'
 
 // SessionController

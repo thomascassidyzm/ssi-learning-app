@@ -65,47 +65,55 @@ export interface SerializedThreadState {
 }
 
 // ============================================
-// ROUND SYSTEM - Immutable Templates
+// SCRIPT ITEMS - Direct LearningPlayer format
 // ============================================
 
-export type RoundItemType =
-  | 'intro'          // "The Spanish for X is..."
-  | 'debut'          // First practice of the LEGO itself
-  | 'practice'       // BUILD phase: drilling the new LEGO
-  | 'spaced_rep'     // REVIEW phase: items from other threads
-  | 'consolidation'  // Final reinforcement
+/**
+ * ScriptItem - exactly what LearningPlayer expects
+ * No bridge needed, this IS the output format
+ */
+export type ScriptItemType = 'intro' | 'debut' | 'debut_phrase' | 'spaced_rep' | 'consolidation'
 
-export interface RoundItem {
-  /** Unique identifier for this item */
-  id: string
-  /** Type of item in the round */
-  type: RoundItemType
-  /** Whether this item should be played (config-driven) */
-  playable: boolean
-  /** The cycle to play (null for intro which is audio-only) */
-  cycle: Cycle | null
-  /** For M-type intro: component pairs to display */
-  components?: ComponentPair[]
-  /** Original phrase data for tracking */
-  phrase?: PracticePhrase
-}
-
-export interface ComponentPair {
-  known: string
-  target: string
-}
-
-export interface RoundTemplate {
-  /** Round number in the session */
+export interface ScriptItem {
+  type: ScriptItemType
   roundNumber: number
-  /** LEGO being introduced/practiced */
   legoId: string
-  /** Thread this round belongs to */
-  thread: ThreadId
-  /** Ordered list of items in the round */
-  items: RoundItem[]
-  /** Total playable items (after config applied) */
-  playableCount: number
+  legoIndex: number  // 1-based position in course
+  seedId: string
+  knownText: string
+  targetText: string
+  audioRefs: {
+    known: { id: string; url: string }
+    target: {
+      voice1: { id: string; url: string }
+      voice2: { id: string; url: string }
+    }
+  }
+  audioDurations?: {
+    source: number
+    target1: number
+    target2: number
+  }
+  /** For spaced_rep: which LEGO is being reviewed (1-based index) */
+  reviewOf?: number
+  /** For spaced_rep: which Fibonacci position triggered this */
+  fibonacciPosition?: number
+  /** For INTRO items: presentation audio ("The Welsh for X is...") */
+  presentationAudio?: { id: string; url: string }
+  /** For INTRO items on M-type LEGOs: visual component breakdown */
+  components?: Array<{ known: string; target: string }>
+}
+
+/**
+ * Round - exactly what LearningPlayer expects
+ */
+export interface Round {
+  roundNumber: number
+  legoId: string
+  legoIndex: number
+  seedId: string
+  items: ScriptItem[]
+  spacedRepReviews: number[]  // LEGO indices being reviewed
 }
 
 // ============================================
@@ -132,8 +140,8 @@ export type SessionEventType =
 export interface SessionEventData {
   type: SessionEventType
   timestamp: number
-  round?: RoundTemplate
-  item?: RoundItem
+  round?: Round
+  item?: ScriptItem
   itemIndex?: number
   progress?: SessionProgress
 }

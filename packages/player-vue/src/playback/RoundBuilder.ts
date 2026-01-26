@@ -1,260 +1,363 @@
 /**
- * RoundBuilder - Builds immutable round templates
+ * RoundBuilder - Builds rounds in LearningPlayer's exact format
  *
- * Templates built once. Config changes flip `playable` flags, don't rebuild.
+ * Output goes directly to LearningPlayer's cachedRounds - no bridge needed.
  *
- * Round structure: INTRO → DEBUT → BUILD (×7) → REVIEW (×3) → CONSOLIDATE (×2)
+ * Round structure: INTRO → DEBUT → BUILD (×7) → REVIEW (×N) → CONSOLIDATE (×2)
  */
 
-import type { LegoPair, SeedPair, ClassifiedBasket, PracticePhrase } from '@ssi/core'
-import type { Cycle } from '../types/Cycle'
-import type {
-  ThreadId,
-  RoundTemplate,
-  RoundItem,
-  RoundItemType,
-  ComponentPair,
-} from './types'
+import type { LegoPair, SeedPair, ClassifiedBasket, PracticePhrase, AudioRef } from '@ssi/core'
+import type { Round, ScriptItem, ScriptItemType, ThreadId } from './types'
 import type { PlaybackConfig } from './PlaybackConfig'
 import type { ThreadManager } from './ThreadManager'
 
-/**
- * Build a complete round template for a LEGO
- */
-export function buildRound(
-  lego: LegoPair,
-  seed: SeedPair,
-  basket: ClassifiedBasket,
-  thread: ThreadId,
-  roundNumber: number,
-  threadManager: ThreadManager,
+// Fibonacci sequence for spaced rep scheduling
+const FIBONACCI = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
+
+export interface BuildRoundOptions {
+  lego: LegoPair
+  seed: SeedPair
+  basket: ClassifiedBasket | null
+  legoIndex: number  // 1-based position in course
+  roundNumber: number
   config: PlaybackConfig
-): RoundTemplate {
-  const items: RoundItem[] = []
-  let itemIndex = 0
-
-  // 1. INTRO phase - "The Spanish for X is..."
-  if (basket.introduction_audio) {
-    const introItem: RoundItem = {
-      id: `${lego.id}-intro`,
-      type: 'intro',
-      playable: !config.skipIntros && !config.turboMode,
-      cycle: null, // Intro is audio-only, not a 4-phase cycle
-      components: lego.type === 'M' && lego.components
-        ? lego.components.map(c => ({ known: c.known, target: c.target }))
-        : undefined,
-    }
-    items.push(introItem)
-  }
-
-  // 2. DEBUT phase - Practice the LEGO phrase itself
-  if (basket.debut) {
-    const debutCycle = phraseToCycle(basket.debut, lego, seed, 'debut', itemIndex++)
-    items.push({
-      id: `${lego.id}-debut`,
-      type: 'debut',
-      playable: true,
-      cycle: debutCycle,
-      phrase: basket.debut,
-    })
-  }
-
-  // 3. BUILD phase - Up to maxBuildPhrases practice phrases
-  const buildPhrases = basket.debut_phrases.slice(0, config.maxBuildPhrases)
-  for (let i = 0; i < buildPhrases.length; i++) {
-    const phrase = buildPhrases[i]
-    const cycle = phraseToCycle(phrase, lego, seed, 'practice', itemIndex++)
-    items.push({
-      id: `${lego.id}-build-${i}`,
-      type: 'practice',
-      playable: true,
-      cycle,
-      phrase,
-    })
-  }
-
-  // 4. REVIEW phase - Spaced rep items from OTHER threads
-  const otherThreads = getOtherThreads(thread)
-  let spacedRepAdded = 0
-
-  for (const otherThread of otherThreads) {
-    if (spacedRepAdded >= config.spacedRepCount) break
-
-    const spacedRepLegos = threadManager.getSpacedRepItems(
-      otherThread,
-      config.spacedRepCount - spacedRepAdded
-    )
-
-    for (const srLego of spacedRepLegos) {
-      // Get a phrase for this spaced rep LEGO
-      // In production, this would use the basket's eternal_phrases
-      const srCycle = legoToCycle(srLego, seed, 'review', itemIndex++)
-      items.push({
-        id: `${lego.id}-sr-${spacedRepAdded}`,
-        type: 'spaced_rep',
-        playable: true,
-        cycle: srCycle,
-      })
-      spacedRepAdded++
-    }
-  }
-
-  // 5. CONSOLIDATION phase - Final reinforcement
-  const consolidationPhrases = basket.eternal_phrases.slice(0, config.consolidationCount)
-  for (let i = 0; i < consolidationPhrases.length; i++) {
-    const phrase = consolidationPhrases[i]
-    const cycle = phraseToCycle(phrase, lego, seed, 'practice', itemIndex++)
-    items.push({
-      id: `${lego.id}-consolidate-${i}`,
-      type: 'consolidation',
-      playable: true,
-      cycle,
-      phrase,
-    })
-  }
-
-  // Calculate playable count
-  const playableCount = items.filter(item => item.playable).length
-
-  return {
-    roundNumber,
-    legoId: lego.id,
-    thread,
-    items,
-    playableCount,
-  }
+  /** Function to build audio URLs from IDs */
+  buildAudioUrl: (audioId: string) => string
+  /** For spaced rep: get LEGOs from other threads */
+  getSpacedRepLegos?: (excludeThread: ThreadId, count: number) => Array<{
+    lego: LegoPair
+    seed: SeedPair
+    basket: ClassifiedBasket | null
+    legoIndex: number
+    fibonacciPosition: number
+  }>
 }
 
 /**
- * Apply config changes to a round template (flips playable flags)
+ * Build a complete round in LearningPlayer's exact format
  */
-export function applyConfig(round: RoundTemplate, config: PlaybackConfig): RoundTemplate {
-  const updatedItems = round.items.map(item => {
-    // Skip intros based on config
-    if (item.type === 'intro') {
-      return {
-        ...item,
-        playable: !config.skipIntros && !config.turboMode,
+export function buildRound(options: BuildRoundOptions): Round {
+  const {
+    lego,
+    seed,
+    basket,
+    legoIndex,
+    roundNumber,
+    config,
+    buildAudioUrl,
+    getSpacedRepLegos,
+  } = options
+
+  const items: ScriptItem[] = []
+  const spacedRepReviews: number[] = []
+
+  // 1. INTRO - "The Spanish for X is..."
+  if (basket?.introduction_audio && !config.skipIntros && !config.turboMode) {
+    items.push(createIntroItem({
+      lego,
+      seed,
+      legoIndex,
+      roundNumber,
+      introAudio: basket.introduction_audio,
+      buildAudioUrl,
+    }))
+  }
+
+  // 2. DEBUT - Practice the LEGO itself
+  if (basket?.debut) {
+    items.push(createPracticeItem({
+      type: 'debut',
+      phrase: basket.debut,
+      lego,
+      seed,
+      legoIndex,
+      roundNumber,
+      buildAudioUrl,
+    }))
+  } else {
+    // Fallback: use LEGO directly as debut
+    items.push(createLegoItem({
+      type: 'debut',
+      lego,
+      seed,
+      legoIndex,
+      roundNumber,
+      buildAudioUrl,
+    }))
+  }
+
+  // 3. BUILD - Up to maxBuildPhrases practice phrases
+  const buildPhrases = basket?.debut_phrases?.slice(0, config.maxBuildPhrases) ?? []
+  for (const phrase of buildPhrases) {
+    items.push(createPracticeItem({
+      type: 'debut_phrase',
+      phrase,
+      lego,
+      seed,
+      legoIndex,
+      roundNumber,
+      buildAudioUrl,
+    }))
+  }
+
+  // 4. REVIEW - Spaced rep items from other threads
+  if (getSpacedRepLegos && roundNumber > 1) {
+    const srItems = getSpacedRepLegos('A', config.spacedRepCount) // Thread is ignored for now
+    for (const sr of srItems) {
+      spacedRepReviews.push(sr.legoIndex)
+
+      // Use eternal phrase if available, otherwise LEGO itself
+      const phrase = sr.basket?.eternal_phrases?.[0]
+      if (phrase) {
+        items.push(createPracticeItem({
+          type: 'spaced_rep',
+          phrase,
+          lego: sr.lego,
+          seed: sr.seed,
+          legoIndex: sr.legoIndex,
+          roundNumber,
+          buildAudioUrl,
+          reviewOf: sr.legoIndex,
+          fibonacciPosition: sr.fibonacciPosition,
+        }))
+      } else {
+        items.push(createLegoItem({
+          type: 'spaced_rep',
+          lego: sr.lego,
+          seed: sr.seed,
+          legoIndex: sr.legoIndex,
+          roundNumber,
+          buildAudioUrl,
+          reviewOf: sr.legoIndex,
+          fibonacciPosition: sr.fibonacciPosition,
+        }))
       }
     }
-    return item
-  })
-
-  const playableCount = updatedItems.filter(item => item.playable).length
-
-  return {
-    ...round,
-    items: updatedItems,
-    playableCount,
   }
-}
 
-/**
- * Get playable items from a round
- */
-export function getPlayableItems(round: RoundTemplate): RoundItem[] {
-  return round.items.filter(item => item.playable)
-}
-
-/**
- * Convert a PracticePhrase to a Cycle
- */
-function phraseToCycle(
-  phrase: PracticePhrase,
-  lego: LegoPair,
-  seed: SeedPair,
-  type: 'debut' | 'practice' | 'review',
-  index: number
-): Cycle {
-  // Calculate pause duration (2x target1 duration, default 4s if not available)
-  const target1Duration = phrase.audioRefs.target.voice1.duration_ms ?? 2000
-  const pauseDurationMs = target1Duration * 2
-
-  return {
-    id: `${lego.id}-${type}-${index}`,
-    seedId: seed.seed_id,
-    legoId: lego.id,
-    type,
-    known: {
-      text: phrase.phrase.known,
-      audioId: phrase.audioRefs.known.id,
-      durationMs: phrase.audioRefs.known.duration_ms ?? 2000,
-    },
-    target: {
-      text: phrase.phrase.target,
-      voice1AudioId: phrase.audioRefs.target.voice1.id,
-      voice1DurationMs: phrase.audioRefs.target.voice1.duration_ms ?? 2000,
-      voice2AudioId: phrase.audioRefs.target.voice2.id,
-      voice2DurationMs: phrase.audioRefs.target.voice2.duration_ms ?? 2000,
-    },
-    pauseDurationMs,
+  // 5. CONSOLIDATION - Final reinforcement
+  const consolidationPhrases = basket?.eternal_phrases?.slice(0, config.consolidationCount) ?? []
+  for (const phrase of consolidationPhrases) {
+    items.push(createPracticeItem({
+      type: 'consolidation',
+      phrase,
+      lego,
+      seed,
+      legoIndex,
+      roundNumber,
+      buildAudioUrl,
+    }))
   }
-}
-
-/**
- * Convert a LegoPair directly to a Cycle (for spaced rep when basket not available)
- */
-function legoToCycle(
-  lego: LegoPair,
-  seed: SeedPair,
-  type: 'review',
-  index: number
-): Cycle {
-  const target1Duration = lego.audioRefs.target.voice1.duration_ms ?? 2000
-  const pauseDurationMs = target1Duration * 2
-
-  return {
-    id: `${lego.id}-${type}-${index}`,
-    seedId: seed.seed_id,
-    legoId: lego.id,
-    type,
-    known: {
-      text: lego.lego.known,
-      audioId: lego.audioRefs.known.id,
-      durationMs: lego.audioRefs.known.duration_ms ?? 2000,
-    },
-    target: {
-      text: lego.lego.target,
-      voice1AudioId: lego.audioRefs.target.voice1.id,
-      voice1DurationMs: lego.audioRefs.target.voice1.duration_ms ?? 2000,
-      voice2AudioId: lego.audioRefs.target.voice2.id,
-      voice2DurationMs: lego.audioRefs.target.voice2.duration_ms ?? 2000,
-    },
-    pauseDurationMs,
-  }
-}
-
-/**
- * Get other threads (for spaced rep interleaving)
- */
-function getOtherThreads(current: ThreadId): ThreadId[] {
-  const all: ThreadId[] = ['A', 'B', 'C']
-  return all.filter(t => t !== current)
-}
-
-/**
- * Build a simple round from just a LEGO (when basket not available)
- */
-export function buildSimpleRound(
-  lego: LegoPair,
-  seed: SeedPair,
-  thread: ThreadId,
-  roundNumber: number
-): RoundTemplate {
-  const cycle = legoToCycle(lego, seed, 'review', 0)
 
   return {
     roundNumber,
     legoId: lego.id,
-    thread,
-    items: [
-      {
-        id: `${lego.id}-simple`,
-        type: 'debut',
-        playable: true,
-        cycle,
-      },
-    ],
-    playableCount: 1,
+    legoIndex,
+    seedId: seed.seed_id,
+    items,
+    spacedRepReviews,
   }
+}
+
+/**
+ * Create an INTRO item (presentation audio only)
+ */
+function createIntroItem(options: {
+  lego: LegoPair
+  seed: SeedPair
+  legoIndex: number
+  roundNumber: number
+  introAudio: AudioRef
+  buildAudioUrl: (id: string) => string
+}): ScriptItem {
+  const { lego, seed, legoIndex, roundNumber, introAudio, buildAudioUrl } = options
+
+  return {
+    type: 'intro',
+    roundNumber,
+    legoId: lego.id,
+    legoIndex,
+    seedId: seed.seed_id,
+    knownText: lego.lego.known,
+    targetText: lego.lego.target,
+    audioRefs: {
+      known: { id: lego.audioRefs.known.id, url: buildAudioUrl(lego.audioRefs.known.id) },
+      target: {
+        voice1: { id: lego.audioRefs.target.voice1.id, url: buildAudioUrl(lego.audioRefs.target.voice1.id) },
+        voice2: { id: lego.audioRefs.target.voice2.id, url: buildAudioUrl(lego.audioRefs.target.voice2.id) },
+      },
+    },
+    presentationAudio: {
+      id: introAudio.id,
+      url: buildAudioUrl(introAudio.id),
+    },
+    components: lego.type === 'M' && lego.components
+      ? lego.components.map(c => ({ known: c.known, target: c.target }))
+      : undefined,
+  }
+}
+
+/**
+ * Create a practice item from a PracticePhrase
+ */
+function createPracticeItem(options: {
+  type: ScriptItemType
+  phrase: PracticePhrase
+  lego: LegoPair
+  seed: SeedPair
+  legoIndex: number
+  roundNumber: number
+  buildAudioUrl: (id: string) => string
+  reviewOf?: number
+  fibonacciPosition?: number
+}): ScriptItem {
+  const { type, phrase, lego, seed, legoIndex, roundNumber, buildAudioUrl, reviewOf, fibonacciPosition } = options
+
+  return {
+    type,
+    roundNumber,
+    legoId: lego.id,
+    legoIndex,
+    seedId: seed.seed_id,
+    knownText: phrase.phrase.known,
+    targetText: phrase.phrase.target,
+    audioRefs: {
+      known: { id: phrase.audioRefs.known.id, url: buildAudioUrl(phrase.audioRefs.known.id) },
+      target: {
+        voice1: { id: phrase.audioRefs.target.voice1.id, url: buildAudioUrl(phrase.audioRefs.target.voice1.id) },
+        voice2: { id: phrase.audioRefs.target.voice2.id, url: buildAudioUrl(phrase.audioRefs.target.voice2.id) },
+      },
+    },
+    audioDurations: phrase.audioRefs.known.duration_ms ? {
+      source: phrase.audioRefs.known.duration_ms / 1000,
+      target1: (phrase.audioRefs.target.voice1.duration_ms ?? 2000) / 1000,
+      target2: (phrase.audioRefs.target.voice2.duration_ms ?? 2000) / 1000,
+    } : undefined,
+    reviewOf,
+    fibonacciPosition,
+  }
+}
+
+/**
+ * Create a practice item directly from a LegoPair (fallback when no phrase available)
+ */
+function createLegoItem(options: {
+  type: ScriptItemType
+  lego: LegoPair
+  seed: SeedPair
+  legoIndex: number
+  roundNumber: number
+  buildAudioUrl: (id: string) => string
+  reviewOf?: number
+  fibonacciPosition?: number
+}): ScriptItem {
+  const { type, lego, seed, legoIndex, roundNumber, buildAudioUrl, reviewOf, fibonacciPosition } = options
+
+  return {
+    type,
+    roundNumber,
+    legoId: lego.id,
+    legoIndex,
+    seedId: seed.seed_id,
+    knownText: lego.lego.known,
+    targetText: lego.lego.target,
+    audioRefs: {
+      known: { id: lego.audioRefs.known.id, url: buildAudioUrl(lego.audioRefs.known.id) },
+      target: {
+        voice1: { id: lego.audioRefs.target.voice1.id, url: buildAudioUrl(lego.audioRefs.target.voice1.id) },
+        voice2: { id: lego.audioRefs.target.voice2.id, url: buildAudioUrl(lego.audioRefs.target.voice2.id) },
+      },
+    },
+    audioDurations: lego.audioRefs.known.duration_ms ? {
+      source: lego.audioRefs.known.duration_ms / 1000,
+      target1: (lego.audioRefs.target.voice1.duration_ms ?? 2000) / 1000,
+      target2: (lego.audioRefs.target.voice2.duration_ms ?? 2000) / 1000,
+    } : undefined,
+    reviewOf,
+    fibonacciPosition,
+  }
+}
+
+/**
+ * Calculate which previous LEGOs to review during this round
+ * Based on Fibonacci: review LEGO at position (roundNumber - fib[i])
+ */
+export function calculateSpacedRepReviews(roundNumber: number): Array<{ legoIndex: number; fibPosition: number }> {
+  const reviews: Array<{ legoIndex: number; fibPosition: number }> = []
+  const seen = new Set<number>()
+
+  for (let i = 0; i < FIBONACCI.length; i++) {
+    const skip = FIBONACCI[i]
+    const reviewLego = roundNumber - skip
+
+    if (reviewLego < 1) break
+    if (seen.has(reviewLego)) continue
+
+    seen.add(reviewLego)
+    reviews.push({ legoIndex: reviewLego, fibPosition: i })
+  }
+
+  return reviews
+}
+
+/**
+ * Build multiple rounds at once
+ */
+export function buildRounds(
+  legos: LegoPair[],
+  seeds: SeedPair[],
+  baskets: Map<string, ClassifiedBasket>,
+  config: PlaybackConfig,
+  buildAudioUrl: (audioId: string) => string,
+  startRound: number = 1
+): Round[] {
+  const rounds: Round[] = []
+
+  // Create a seed lookup
+  const seedForLego = new Map<string, SeedPair>()
+  for (const seed of seeds) {
+    for (const l of seed.legos) {
+      seedForLego.set(l.id, seed)
+    }
+  }
+
+  for (let i = 0; i < legos.length; i++) {
+    const lego = legos[i]
+    const seed = seedForLego.get(lego.id) ?? seeds[0]
+    const basket = baskets.get(lego.id) ?? null
+    const legoIndex = i + 1  // 1-based
+    const roundNumber = startRound + i
+
+    // Spaced rep callback: get previous LEGOs for review
+    const getSpacedRepLegos = (excludeThread: ThreadId, count: number) => {
+      const reviews = calculateSpacedRepReviews(roundNumber)
+      return reviews
+        .map(r => {
+          const srLego = legos[r.legoIndex - 1]  // Convert to 0-based
+          if (!srLego) return null  // LEGO doesn't exist
+          return {
+            lego: srLego,
+            seed: seedForLego.get(srLego.id) ?? seeds[0],
+            basket: baskets.get(srLego.id) ?? null,
+            legoIndex: r.legoIndex,
+            fibonacciPosition: r.fibPosition,
+          }
+        })
+        .filter((sr): sr is NonNullable<typeof sr> => sr !== null)
+        .slice(0, count)
+    }
+
+    rounds.push(buildRound({
+      lego,
+      seed,
+      basket,
+      legoIndex,
+      roundNumber,
+      config,
+      buildAudioUrl,
+      getSpacedRepLegos,
+    }))
+  }
+
+  return rounds
 }
