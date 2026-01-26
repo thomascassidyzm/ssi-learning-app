@@ -12,11 +12,22 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
+import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 // Initialize Supabase client
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-const s3BaseUrl = process.env.VITE_S3_AUDIO_BASE_URL || process.env.S3_AUDIO_BASE_URL
+
+// Initialize S3 client
+const s3Client = new S3Client({
+  region: process.env.AWS_REGION || 'eu-west-1',
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+  },
+})
+const s3Bucket = process.env.S3_AUDIO_BUCKET || 'ssi-audio-stage'
 
 // Validate required env vars
 if (!supabaseUrl) {
@@ -142,11 +153,6 @@ export default async function handler(
       return
     }
 
-    // Build S3 URL
-    const s3Url = s3BaseUrl
-      ? `${s3BaseUrl}/${sample.s3_key}`
-      : `https://ssi-audio-stage.s3.eu-west-1.amazonaws.com/${sample.s3_key}`
-
     // Log analytics (fire and forget)
     const analyticsEvent: AudioPlayEvent = {
       user_id: req.headers['x-user-id'] as string | null,
@@ -162,49 +168,49 @@ export default async function handler(
     // Non-blocking analytics insert
     logAudioPlay(supabase, analyticsEvent).catch(() => {})
 
-    // Fetch audio from S3
-    const audioResponse = await fetch(s3Url, {
-      headers: {
-        'Accept': 'audio/*',
-      },
+    // Fetch audio from S3 using AWS SDK
+    const command = new GetObjectCommand({
+      Bucket: s3Bucket,
+      Key: sample.s3_key,
     })
 
-    if (!audioResponse.ok) {
-      console.error('[AudioProxy] S3 fetch failed:', s3Url, audioResponse.status)
+    try {
+      const s3Response = await s3Client.send(command)
+
+      if (!s3Response.Body) {
+        console.error('[AudioProxy] S3 returned empty body for:', sample.s3_key)
+        res.status(502).json({ error: 'Empty response from storage' })
+        return
+      }
+
+      // Get content type and length
+      const contentType = s3Response.ContentType || 'audio/mpeg'
+      const contentLength = s3Response.ContentLength
+
+      // Set response headers for caching and CORS
+      res.setHeader('Content-Type', contentType)
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+      res.setHeader('Access-Control-Allow-Origin', '*')
+      res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+
+      if (contentLength) {
+        res.setHeader('Content-Length', contentLength.toString())
+      }
+
+      // Stream the audio data
+      const chunks: Uint8Array[] = []
+      for await (const chunk of s3Response.Body as AsyncIterable<Uint8Array>) {
+        chunks.push(chunk)
+      }
+      const buffer = Buffer.concat(chunks)
+      res.send(buffer)
+
+    } catch (s3Error: any) {
+      console.error('[AudioProxy] S3 fetch failed:', sample.s3_key, s3Error.message)
       res.status(502).json({ error: 'Failed to fetch audio from storage' })
       return
     }
-
-    // Get content type and length
-    const contentType = audioResponse.headers.get('content-type') || 'audio/mpeg'
-    const contentLength = audioResponse.headers.get('content-length')
-
-    // Set response headers for caching and CORS
-    res.setHeader('Content-Type', contentType)
-    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
-    res.setHeader('Access-Control-Allow-Origin', '*')
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
-
-    if (contentLength) {
-      res.setHeader('Content-Length', contentLength)
-    }
-
-    // Handle range requests for seeking
-    const rangeHeader = req.headers.range
-    if (rangeHeader && contentLength) {
-      const [start, end] = rangeHeader.replace(/bytes=/, '').split('-')
-      const startByte = parseInt(start, 10)
-      const endByte = end ? parseInt(end, 10) : parseInt(contentLength, 10) - 1
-
-      res.status(206)
-      res.setHeader('Content-Range', `bytes ${startByte}-${endByte}/${contentLength}`)
-      res.setHeader('Accept-Ranges', 'bytes')
-    }
-
-    // Stream the audio data
-    const buffer = await audioResponse.arrayBuffer()
-    res.send(Buffer.from(buffer))
 
   } catch (error) {
     console.error('[AudioProxy] Error:', error)
