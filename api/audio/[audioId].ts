@@ -177,12 +177,6 @@ export default async function handler(
     try {
       const s3Response = await s3Client.send(command)
 
-      if (!s3Response.Body) {
-        console.error('[AudioProxy] S3 returned empty body for:', sample.s3_key)
-        res.status(502).json({ error: 'Empty response from storage' })
-        return
-      }
-
       // Get content type and length
       const contentType = s3Response.ContentType || 'audio/mpeg'
       const contentLength = s3Response.ContentLength
@@ -199,12 +193,15 @@ export default async function handler(
       }
 
       // Stream the audio data
-      const chunks: Uint8Array[] = []
-      for await (const chunk of s3Response.Body as AsyncIterable<Uint8Array>) {
-        chunks.push(chunk)
+      const bodyStream = s3Response.Body
+      if (!bodyStream) {
+        res.status(502).json({ error: 'Empty body from S3' })
+        return
       }
-      const buffer = Buffer.concat(chunks)
-      res.send(buffer)
+
+      // Convert to buffer using transformToByteArray (AWS SDK v3)
+      const buffer = await bodyStream.transformToByteArray()
+      res.send(Buffer.from(buffer))
 
     } catch (s3Error: any) {
       console.error('[AudioProxy] S3 fetch failed:', {
