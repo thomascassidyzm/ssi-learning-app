@@ -5128,6 +5128,29 @@ onMounted(async () => {
       // ============================================
       // SessionController initialization path
       // ============================================
+      // Wait for courseDataProvider to be set (App.vue sets it in onMounted, which runs after children mount)
+      if (USE_SESSION_CONTROLLER.value && !courseDataProvider.value) {
+        console.log('[LearningPlayer] Waiting for courseDataProvider...')
+        await new Promise<void>((resolve) => {
+          const unwatch = watch(
+            () => courseDataProvider.value,
+            (provider) => {
+              if (provider) {
+                unwatch()
+                resolve()
+              }
+            },
+            { immediate: true }
+          )
+          // Timeout after 5 seconds to avoid hanging forever
+          setTimeout(() => {
+            unwatch()
+            resolve()
+          }, 5000)
+        })
+        console.log('[LearningPlayer] courseDataProvider ready:', !!courseDataProvider.value)
+      }
+
       if (USE_SESSION_CONTROLLER.value && courseDataProvider.value) {
         console.log('[LearningPlayer] Initializing SessionController...')
         try {
