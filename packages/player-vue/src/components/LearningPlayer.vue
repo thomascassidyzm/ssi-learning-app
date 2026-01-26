@@ -1519,11 +1519,17 @@ const preparingMessage = ref('') // Current "preparing" message being displayed
 
 // Messages shown while preparing to play (after pressing play button)
 const PREPARING_MESSAGES = [
+  'firing up the engines...',
+  'your brain called ahead...',
+  'getting the ducks lined up...',
   'firing up the neurons...',
   'getting your phrases ready...',
   'connecting the pathways...',
   'tuning into your frequency...',
   'warming up the synapses...',
+  'rounding up the vocabulary...',
+  'polishing your words...',
+  'queuing up the good stuff...',
 ]
 
 // Start the "preparing to play" state with typewriter effect
@@ -2771,6 +2777,8 @@ const startSessionPlayback = async () => {
   // Wait for SessionController to be fully initialized (baskets may still be loading)
   if (!sessionPlayback.isInitialized.value) {
     console.log('[LearningPlayer] Waiting for SessionController initialization...')
+    // Show encouraging message while we wait
+    startPreparingState()
     await new Promise<void>((resolve) => {
       const unwatch = watch(
         () => sessionPlayback.isInitialized.value,
