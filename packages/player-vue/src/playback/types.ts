@@ -187,3 +187,56 @@ export type AudioSource =
   | { type: 'url'; url: string }
 
 export type GetAudioSourceFn = (audioId: string) => Promise<AudioSource | null>
+
+// ============================================
+// ROUND TEMPLATES - SessionController format
+// ============================================
+
+/**
+ * RoundItem - A playable item within a round
+ * Extends ScriptItem with optional Cycle for 4-phase playback
+ */
+export interface RoundItem extends ScriptItem {
+  /** The Cycle to play (null for intro items that only have presentation audio) */
+  cycle?: Cycle | null
+  /** Whether this item should be played (can be toggled by config) */
+  playable?: boolean
+}
+
+/**
+ * RoundTemplate - A round with playable items
+ * Used by SessionController for playback orchestration
+ */
+export interface RoundTemplate {
+  roundNumber: number
+  legoId: string
+  legoIndex: number
+  seedId: string
+  /** Items with optional cycle data for playback */
+  items: RoundItem[]
+  spacedRepReviews: number[]
+}
+
+/**
+ * Get playable items from a round template
+ * Filters out items where playable is explicitly false
+ */
+export function getPlayableItems(round: RoundTemplate): RoundItem[] {
+  return round.items.filter(item => item.playable !== false)
+}
+
+/**
+ * Apply config to a round template
+ * Sets playable flags based on configuration
+ */
+export function applyConfig(round: RoundTemplate, config: { skipIntros?: boolean; turboMode?: boolean }): RoundTemplate {
+  return {
+    ...round,
+    items: round.items.map(item => ({
+      ...item,
+      playable: item.type === 'intro'
+        ? !(config.skipIntros || config.turboMode)
+        : item.playable !== false,
+    })),
+  }
+}

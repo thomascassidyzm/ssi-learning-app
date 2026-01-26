@@ -28,6 +28,7 @@ import { usePrebuiltNetworkIntegration } from '../composables/usePrebuiltNetwork
 import { useLegoNetwork } from '../composables/useLegoNetwork'
 import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
 import { useAuthModal } from '../composables/useAuthModal'
+import { useSessionPlayback } from '../composables/useSessionPlayback'
 import ConstellationNetworkView from './ConstellationNetworkView.vue'
 import BeltProgressModal from './BeltProgressModal.vue'
 import ListeningOverlay from './ListeningOverlay.vue'
@@ -290,12 +291,34 @@ const {
   getAudioUrl: getAudioUrlFromCache,
 } = useScriptCache()
 
-// Script-based learning state
+// ============================================
+// NEW PLAYBACK ARCHITECTURE - SessionController integration
+// Feature flag to enable incremental migration
+// ============================================
+const USE_SESSION_CONTROLLER = ref(false) // Set to true to use new architecture
+
+// Initialize the SessionPlayback composable
+const sessionPlayback = useSessionPlayback({
+  courseDataProvider: courseDataProvider as any,
+})
+
+// Script-based learning state (legacy - will be replaced by sessionPlayback)
 const cachedRounds = ref([])
 const currentRoundIndex = ref(0)
 const currentItemInRound = ref(0)
 const scriptBaseOffset = ref(0) // Tracks where the script started (completedSeeds at load time)
 const playbackGeneration = ref(0) // Increments on every jump - invalidates stale callbacks
+
+// Bridge: Use composable state when enabled, otherwise use legacy refs
+const effectiveRounds = computed(() =>
+  USE_SESSION_CONTROLLER.value ? sessionPlayback.cachedRounds.value : cachedRounds.value
+)
+const effectiveRoundIndex = computed(() =>
+  USE_SESSION_CONTROLLER.value ? sessionPlayback.currentRoundIndex.value : currentRoundIndex.value
+)
+const effectiveItemInRound = computed(() =>
+  USE_SESSION_CONTROLLER.value ? sessionPlayback.currentItemInRound.value : currentItemInRound.value
+)
 
 // ============================================
 // PROGRESSIVE LOADING - Start small, expand as learner progresses

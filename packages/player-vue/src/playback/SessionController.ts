@@ -20,11 +20,15 @@ import type {
   ResumePoint,
   GetAudioSourceFn,
   CycleEventData,
+  ScriptItem,
+  Round,
 } from './types'
+import { getPlayableItems, applyConfig } from './types'
 import { createCyclePlayer, type CyclePlayer } from './CyclePlayer'
 import { createThreadManager, type ThreadManager } from './ThreadManager'
-import { buildRound, buildSimpleRound, getPlayableItems, applyConfig } from './RoundBuilder'
+import { buildRounds } from './RoundBuilder'
 import { createPlaybackConfig, type PlaybackConfig, DEFAULT_PLAYBACK_CONFIG } from './PlaybackConfig'
+import { scriptItemToCycle } from '../utils/scriptItemToCycle'
 
 export interface SessionController {
   // Lifecycle
@@ -172,29 +176,37 @@ export function createSessionController(): SessionController {
 
   /**
    * Build round templates for all LEGOs
+   * Converts Round output from RoundBuilder to RoundTemplate with Cycles
    */
   function buildAllRounds(legos: LegoPair[]): void {
-    rounds.value = []
-    let roundNum = 0
-
-    // Build rounds following thread manager's LEGO order
-    for (const lego of legos) {
-      const seed = findSeedForLego(lego.id)
-      if (!seed) continue
-
-      const basket = baskets.get(lego.id)
-      const thread = threadManager.getActiveThread()
-
-      const round = basket
-        ? buildRound(lego, seed, basket, thread, roundNum, threadManager, config.value)
-        : buildSimpleRound(lego, seed, thread, roundNum)
-
-      rounds.value.push(round)
-      roundNum++
-
-      // Advance thread for next round
-      threadManager.advanceThread()
+    // Build audio URL (SessionController doesn't have direct URL access - items have URLs)
+    const buildAudioUrl = (audioId: string): string => {
+      // URL will be resolved at playback time via getAudioSource
+      // Return a placeholder that can be matched by audio ID
+      return `/api/audio/${audioId}`
     }
+
+    // Build rounds using RoundBuilder
+    const builtRounds = buildRounds(legos, seeds, baskets, config.value, buildAudioUrl)
+
+    // Convert Round[] to RoundTemplate[] by adding Cycle to each item
+    rounds.value = builtRounds.map((round): RoundTemplate => ({
+      roundNumber: round.roundNumber,
+      legoId: round.legoId,
+      legoIndex: round.legoIndex,
+      seedId: round.seedId,
+      spacedRepReviews: round.spacedRepReviews,
+      items: round.items.map((item): RoundItem => ({
+        ...item,
+        // Convert ScriptItem to Cycle for playback (null for intro items)
+        cycle: item.type !== 'intro' ? scriptItemToCycle(item) : null,
+        // All items playable by default (config can toggle)
+        playable: true,
+      })),
+    }))
+
+    // Apply config to set playable flags correctly
+    rounds.value = rounds.value.map(round => applyConfig(round, config.value))
   }
 
   /**
