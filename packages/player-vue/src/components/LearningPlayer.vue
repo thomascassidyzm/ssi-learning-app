@@ -2768,6 +2768,24 @@ const handleResume = () => {
 const startSessionPlayback = async () => {
   console.log('[LearningPlayer] Starting SessionController playback...')
 
+  // Wait for SessionController to be fully initialized (baskets may still be loading)
+  if (!sessionPlayback.isInitialized.value) {
+    console.log('[LearningPlayer] Waiting for SessionController initialization...')
+    await new Promise<void>((resolve) => {
+      const unwatch = watch(
+        () => sessionPlayback.isInitialized.value,
+        (initialized) => {
+          if (initialized) {
+            unwatch()
+            resolve()
+          }
+        },
+        { immediate: true }
+      )
+    })
+    console.log('[LearningPlayer] SessionController now initialized')
+  }
+
   hasEverStarted.value = true
   isPlaying.value = true
 
