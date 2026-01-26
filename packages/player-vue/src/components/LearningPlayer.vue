@@ -295,7 +295,7 @@ const {
 // NEW PLAYBACK ARCHITECTURE - SessionController integration
 // Feature flag to enable incremental migration
 // ============================================
-const USE_SESSION_CONTROLLER = ref(false) // Set to true to use new architecture
+const USE_SESSION_CONTROLLER = ref(true) // Enable new SessionController architecture
 
 // Initialize the SessionPlayback composable
 const sessionPlayback = useSessionPlayback({
@@ -319,6 +319,119 @@ const effectiveRoundIndex = computed(() =>
 const effectiveItemInRound = computed(() =>
   USE_SESSION_CONTROLLER.value ? sessionPlayback.currentItemInRound.value : currentItemInRound.value
 )
+
+// ============================================
+// SESSION CONTROLLER EVENT SUBSCRIPTIONS
+// Forward events to existing UI handlers
+// ============================================
+
+// Subscribe to cycle events (phase changes, cycle completion)
+sessionPlayback.onCycleEvent((event) => {
+  if (!USE_SESSION_CONTROLLER.value) return
+
+  console.log('[SessionController Event]', event.type, event.data)
+
+  switch (event.type) {
+    case 'phase_changed':
+      // Map phase to UI phase and update
+      const phaseMap: Record<string, any> = {
+        'IDLE': CyclePhase.IDLE,
+        'PROMPT': CyclePhase.PROMPT,
+        'PAUSE': CyclePhase.PAUSE,
+        'VOICE_1': CyclePhase.VOICE_1,
+        'VOICE_2': CyclePhase.VOICE_2,
+      }
+      const mappedPhase = phaseMap[event.data.phase] ?? CyclePhase.IDLE
+      currentPhase.value = mappedPhase
+
+      // Handle phase-specific UI updates
+      if (event.data.phase === 'PROMPT') {
+        // Clear transition state on new cycle
+        isTransitioningItem.value = false
+        clearPreparingState()
+      } else if (event.data.phase === 'VOICE_1') {
+        // Trigger network animation for VOICE_1 (nodes light up)
+        const currentItem = sessionPlayback.currentRound.value?.items[sessionPlayback.currentItemInRound.value]
+        if (currentItem) {
+          const legoIds = extractLegoIdsFromPhrase(currentItem)
+          if (legoIds.length > 0) {
+            const audioDurationMs = currentItem.audioDurations?.target1 ? currentItem.audioDurations.target1 * 1000 : 2000
+            distinctionNetwork.animateNodesForVoice1(legoIds, audioDurationMs)
+          }
+        }
+      } else if (event.data.phase === 'VOICE_2') {
+        // Trigger network animation for VOICE_2 (full path with edges)
+        const currentItem = sessionPlayback.currentRound.value?.items[sessionPlayback.currentItemInRound.value]
+        if (currentItem) {
+          const legoIds = extractLegoIdsFromPhrase(currentItem)
+          if (legoIds.length > 0) {
+            const audioDurationMs = currentItem.audioDurations?.target2 ? currentItem.audioDurations.target2 * 1000 : 2000
+            distinctionNetwork.animatePathForVoice2(legoIds, audioDurationMs)
+          }
+        }
+      }
+      break
+
+    case 'cycle_started':
+      // Emit event for external listeners
+      emit('cycle-started', event.data)
+      break
+
+    case 'cycle_completed':
+      // Increment counters and trigger reward animation
+      itemsPracticed.value++
+      learningHintPromptsShown.value++
+
+      // Clear path highlights
+      distinctionNetwork.clearPathAnimation()
+      resonatingNodes.value = []
+
+      // Trigger reward animation
+      const { points, bonusLevel } = calculateCyclePoints()
+      const multipliedPoints = Math.round(points * sessionMultiplier.value)
+      sessionPoints.value += multipliedPoints
+      triggerRewardAnimation(multipliedPoints, bonusLevel)
+
+      // Track turbo usage
+      totalCycles.value++
+      if (turboActive.value) {
+        turboCycles.value++
+      }
+      break
+  }
+})
+
+// Subscribe to session events (round completion, session end)
+sessionPlayback.onSessionEvent((event) => {
+  if (!USE_SESSION_CONTROLLER.value) return
+
+  console.log('[SessionController Session Event]', event.type, event.data)
+
+  switch (event.type) {
+    case 'round_completed':
+      // Call existing round boundary handler
+      const completedRoundIndex = sessionPlayback.currentRoundIndex.value
+      const completedLegoId = sessionPlayback.currentRound.value?.legoId
+      if (completedLegoId) {
+        saveRoundProgress(completedLegoId, completedRoundIndex)
+        handleRoundBoundary(completedRoundIndex, completedLegoId)
+      }
+      break
+
+    case 'session_complete':
+      // Show session summary
+      showPausedSummary()
+      break
+
+    case 'session_paused':
+      isPlaying.value = false
+      break
+
+    case 'session_resumed':
+      isPlaying.value = true
+      break
+  }
+})
 
 // ============================================
 // PROGRESSIVE LOADING - Start small, expand as learner progresses
@@ -432,12 +545,23 @@ const clearPositionFromLocalStorage = () => {
 const cachedCourseWelcome = ref(null)
 
 // Are we using round-based playback?
-const useRoundBasedPlayback = computed(() => cachedRounds.value.length > 0)
+const useRoundBasedPlayback = computed(() => {
+  // SessionController is always round-based when initialized
+  if (USE_SESSION_CONTROLLER.value && sessionPlayback.isInitialized.value) {
+    return true
+  }
+  return cachedRounds.value.length > 0
+})
 
 // Current round
-const currentRound = computed(() =>
-  useRoundBasedPlayback.value ? cachedRounds.value[currentRoundIndex.value] : null
-)
+const currentRound = computed(() => {
+  // Use SessionController's currentRound when enabled
+  if (USE_SESSION_CONTROLLER.value) {
+    return sessionPlayback.currentRound.value
+  }
+  // Legacy: use local refs
+  return useRoundBasedPlayback.value ? cachedRounds.value[currentRoundIndex.value] : null
+})
 
 // Flag to track if initial position has been loaded (prevents saving during initialization)
 const positionInitialized = ref(false)
@@ -1224,6 +1348,30 @@ const createGetAudioSource = (scriptItem: any) => {
     console.error('[getAudioSource] No URL found for audioId:', audioId)
     return null
   }
+}
+
+/**
+ * Generic getAudioSource function for SessionController
+ * Used when USE_SESSION_CONTROLLER is enabled
+ * Resolves any audioId to either a cached blob or proxy URL
+ */
+const getAudioSourceForSession = async (audioId: string): Promise<{ type: 'blob'; blob: Blob } | { type: 'url'; url: string } | null> => {
+  if (!audioId || audioId === 'undefined' || audioId === 'null') {
+    console.error('[getAudioSourceForSession] Invalid audioId:', audioId)
+    return null
+  }
+
+  // Try IndexedDB cache first (for offline support)
+  if (offlineCache) {
+    const cached = await offlineCache.getCachedAudio(audioId)
+    if (cached) {
+      return { type: 'blob', blob: cached }
+    }
+  }
+
+  // Fall back to proxy URL for direct playback
+  const proxyUrl = `/api/audio/${audioId}?courseId=${encodeURIComponent(courseCode.value)}`
+  return { type: 'url', url: proxyUrl }
 }
 
 /**
@@ -2585,8 +2733,13 @@ const handlePause = () => {
     skipWelcome()
   }
 
-  // Stop cycle playback
-  stopCycle()
+  // Use SessionController when enabled
+  if (USE_SESSION_CONTROLLER.value) {
+    sessionPlayback.pause()
+  } else {
+    // Legacy: Stop cycle playback
+    stopCycle()
+  }
 
   if (ringAnimationFrame) {
     cancelAnimationFrame(ringAnimationFrame)
@@ -2601,7 +2754,33 @@ const handleResume = () => {
     return // Don't start until consent is resolved
   }
 
-  startPlayback()
+  // Use SessionController when enabled
+  if (USE_SESSION_CONTROLLER.value) {
+    startSessionPlayback()
+  } else {
+    startPlayback()
+  }
+}
+
+/**
+ * Start playback using the new SessionController architecture
+ */
+const startSessionPlayback = async () => {
+  console.log('[LearningPlayer] Starting SessionController playback...')
+
+  hasEverStarted.value = true
+  isPlaying.value = true
+
+  // Start belt progress session for time tracking
+  if (beltProgress.value) {
+    beltProgress.value.startSession()
+  }
+
+  // Check if welcome audio needs to play first (only on first ever play)
+  await playWelcomeIfNeeded()
+
+  // Start the session with our audio source resolver
+  sessionPlayback.start(getAudioSourceForSession)
 }
 
 /**
@@ -3303,6 +3482,24 @@ const handleSkip = async () => {
 
   console.log('[LearningPlayer] ========== SKIP REQUESTED ==========')
 
+  // Use SessionController when enabled
+  if (USE_SESSION_CONTROLLER.value) {
+    console.log('[LearningPlayer] Using SessionController skipRound')
+    isSkipInProgress.value = true
+    try {
+      // Skip any intro/welcome audio
+      if (isPlayingIntroduction.value) skipIntroduction()
+      if (isPlayingWelcome.value) skipWelcome()
+      // Clear path animations
+      clearPathAnimation()
+      // Skip to next round via SessionController
+      sessionPlayback.skipRound()
+    } finally {
+      isSkipInProgress.value = false
+    }
+    return
+  }
+
   // Mark that we're in a skip operation (prevents cycle_stopped from resetting isPlaying)
   const wasPlaying = isPlaying.value
   isSkipInProgress.value = true
@@ -3627,8 +3824,27 @@ const handleRevisit = async () => {
  * IMPORTANT: Must fully halt all audio before jumping
  */
 const jumpToRound = async (roundIndex) => {
-  if (!useRoundBasedPlayback.value || !cachedRounds.value.length) {
+  if (!useRoundBasedPlayback.value) {
     console.log('[LearningPlayer] Jump not available - not in round mode')
+    return false
+  }
+
+  // Use SessionController when enabled
+  if (USE_SESSION_CONTROLLER.value) {
+    console.log('[LearningPlayer] Using SessionController jumpToRound:', roundIndex)
+    // Skip any intro/welcome audio
+    if (isPlayingIntroduction.value) skipIntroduction()
+    if (isPlayingWelcome.value) skipWelcome()
+    // Clear path animations
+    clearPathAnimation()
+    // Jump via SessionController (0-based index)
+    sessionPlayback.jumpToRound(roundIndex)
+    return true
+  }
+
+  // Legacy validation
+  if (!cachedRounds.value.length) {
+    console.log('[LearningPlayer] Jump not available - no cached rounds')
     return false
   }
 
@@ -4850,6 +5066,52 @@ onMounted(async () => {
       loadAlgorithmConfigs().catch(err => {
         console.warn('[LearningPlayer] Failed to load algorithm configs, using defaults:', err)
       })
+
+      // ============================================
+      // SessionController initialization path
+      // ============================================
+      if (USE_SESSION_CONTROLLER.value && courseDataProvider.value) {
+        console.log('[LearningPlayer] Initializing SessionController...')
+        try {
+          await sessionPlayback.initialize(courseCode.value)
+          console.log('[LearningPlayer] SessionController initialized successfully')
+
+          // Load network connections in background (still needed for visualization)
+          if (supabase?.value) {
+            loadLegoNetworkData(courseCode.value).then(networkData => {
+              if (networkData?.connections) {
+                networkConnections.value = networkData.connections
+                console.log(`[LearningPlayer] Loaded ${networkData.connections.length} network connections`)
+              }
+              if (networkData?.nodes) {
+                dbNetworkNodes.value = networkData.nodes.map(n => ({
+                  id: n.id,
+                  targetText: n.targetText,
+                  knownText: n.knownText,
+                  seedId: n.seedId,
+                  legoIndex: n.legoIndex,
+                  belt: n.birthBelt,
+                  isComponent: n.isComponent,
+                  parentLegoIds: n.parentLegoIds,
+                }))
+              }
+            }).catch(err => {
+              console.warn('[LearningPlayer] Failed to load network connections:', err)
+            })
+          }
+
+          // Mark data as ready
+          dataReady = true
+          return
+        } catch (err) {
+          console.error('[LearningPlayer] SessionController initialization failed, falling back to legacy:', err)
+          // Fall through to legacy path
+        }
+      }
+
+      // ============================================
+      // Legacy initialization path
+      // ============================================
 
       // Load cache first (needed for other operations)
       cachedScript = await getCachedScript(courseCode.value)
