@@ -207,8 +207,17 @@ export default async function handler(
       res.send(buffer)
 
     } catch (s3Error: any) {
-      console.error('[AudioProxy] S3 fetch failed:', sample.s3_key, s3Error.message)
-      res.status(502).json({ error: 'Failed to fetch audio from storage' })
+      console.error('[AudioProxy] S3 fetch failed:', {
+        key: sample.s3_key,
+        bucket: s3Bucket,
+        error: s3Error.message,
+        code: s3Error.Code || s3Error.name,
+      })
+      res.status(502).json({
+        error: 'Failed to fetch audio from storage',
+        details: s3Error.Code || s3Error.name || s3Error.message,
+        key: sample.s3_key,
+      })
       return
     }
 
