@@ -4,6 +4,7 @@ import { useVirtualList } from '@vueuse/core'
 import { CyclePhase } from '@ssi/core'
 import { generateLearningScript } from '../providers/CourseDataProvider'
 import { loadIntroAudio } from '../composables/useScriptCache'
+import { useFullCourseScript } from '../composables/useFullCourseScript'
 
 // ============================================================================
 // Simple audio controller for script preview playback
@@ -118,6 +119,10 @@ const ROUNDS_PER_PAGE = 50
 const loadedRoundsCount = ref(0)
 const hasMoreRounds = ref(true)
 const isLoadingMore = ref(false)
+
+// Full course script generation (uses RoundBuilder - same logic as player)
+const fullCourseScript = useFullCourseScript()
+const useRoundBuilder = ref(true) // Use the new RoundBuilder by default for admin/QA
 
 // Audio map for resolving text -> audio UUIDs
 const audioMap = ref(new Map())
@@ -402,9 +407,9 @@ const loadSummary = async () => {
   }
 }
 
-// Load script data PAGINATED (50 rounds at a time)
+// Load script data - uses RoundBuilder for complete course generation
 const loadScript = async (forceRefresh = false) => {
-  console.log('[CourseExplorer] loadScript called, forceRefresh:', forceRefresh)
+  console.log('[CourseExplorer] loadScript called, forceRefresh:', forceRefresh, 'useRoundBuilder:', useRoundBuilder.value)
 
   if (scriptLoaded.value && !forceRefresh) {
     console.log('[CourseExplorer] Script already loaded')
@@ -423,12 +428,12 @@ const loadScript = async (forceRefresh = false) => {
 
   const courseId = props.course?.course_code || 'demo'
 
-  // Reset pagination state on fresh load
+  // Reset state on fresh load
   if (forceRefresh) {
     rounds.value = []
     allItems.value = []
     loadedRoundsCount.value = 0
-    hasMoreRounds.value = true
+    hasMoreRounds.value = false
   }
 
   try {
@@ -436,36 +441,46 @@ const loadScript = async (forceRefresh = false) => {
     if (forceRefresh) isRefreshing.value = true
     error.value = null
 
-    // Generate FIRST PAGE of script (50 rounds)
-    console.log('[CourseExplorer] Generating script page 1 for:', courseId, '(first', ROUNDS_PER_PAGE, 'LEGOs)')
-    const script = await generateLearningScript(
+    // Use the new RoundBuilder for complete course generation
+    console.log('[CourseExplorer] Generating FULL course script using RoundBuilder for:', courseId)
+    const result = await fullCourseScript.generateScript(
       courseDataProvider.value,
-      ROUNDS_PER_PAGE // Load only first 50 rounds
+      courseId
     )
-    console.log('[CourseExplorer] Script page 1 generated:', script?.rounds?.length, 'rounds')
+    console.log('[CourseExplorer] Full script generated:', result.rounds.length, 'rounds')
 
-    rounds.value = script.rounds
-    loadedRoundsCount.value = script.rounds.length
-    hasMoreRounds.value = script.rounds.length >= ROUNDS_PER_PAGE && script.rounds.length < (totalLegos.value || 0)
+    // Convert Round[] to the format expected by CourseExplorer
+    rounds.value = result.rounds.map(round => ({
+      roundNumber: round.roundNumber,
+      legoId: round.legoId,
+      seedId: round.seedId,
+      legoIndex: round.legoIndex,
+      spacedRepReviews: round.spacedRepReviews || [],
+      items: round.items.map(item => ({
+        type: item.type,
+        legoId: item.legoId,
+        seedId: item.seedId,
+        legoIndex: item.legoIndex,
+        knownText: item.known?.text || '',
+        targetText: item.target?.text || '',
+        known: item.known,
+        target: item.target,
+        // Audio URLs are already built into the items
+      })),
+    }))
+
+    loadedRoundsCount.value = rounds.value.length
+    hasMoreRounds.value = false // Full course loaded - no more pagination
+    totalLegos.value = result.totalLegos
+    totalSeeds.value = result.totalSeeds
     flattenItems()
-
-    // Load intro audio for this page
-    const legoIds = new Set()
-    for (const item of script.allItems) {
-      if (item.type === 'intro' && item.legoId) {
-        legoIds.add(item.legoId)
-      }
-    }
-    if (supabase?.value) {
-      await loadIntroAudio(supabase.value, courseId, legoIds, audioMap.value)
-    }
 
     scriptLoaded.value = true
     restorePositionFromLocalStorage()
     loadedFromCache.value = false
     cachedAt.value = Date.now()
 
-    console.log('[CourseExplorer] Loaded page 1:', script.rounds.length, 'rounds,', allItems.value.length, 'items. hasMore:', hasMoreRounds.value)
+    console.log('[CourseExplorer] Loaded FULL script:', rounds.value.length, 'rounds,', allItems.value.length, 'items')
   } catch (err) {
     console.error('[CourseExplorer] Script load error:', err)
     error.value = 'Failed to load script'
@@ -697,8 +712,23 @@ const getAudioUrlAsync = async (text, role, item = null) => {
 /**
  * Get audio URL (sync - from cache only)
  * Handles both legacy UUIDs and v13 s3_keys
+ * Also checks for pre-built audio URLs from RoundBuilder
  */
 const getAudioUrl = (text, role, item = null) => {
+  // First check if the item has pre-built audio URLs (from RoundBuilder)
+  if (item) {
+    if (role === 'known' && item.known?.audioRef?.url) {
+      return item.known.audioRef.url
+    }
+    if (role === 'target1' && item.target?.audioRefs?.voice1?.url) {
+      return item.target.audioRefs.voice1.url
+    }
+    if (role === 'target2' && item.target?.audioRefs?.voice2?.url) {
+      return item.target.audioRefs.voice2.url
+    }
+  }
+
+  // Fallback: intro audio lookup
   if (role === 'intro' && item?.legoId) {
     const introEntry = audioMap.value.get(`intro:${item.legoId}`)
     if (introEntry?.intro) {
@@ -711,6 +741,7 @@ const getAudioUrl = (text, role, item = null) => {
     return null
   }
 
+  // Fallback: text-based lookup from audioMap
   const audioEntry = audioMap.value.get(text)
   if (!audioEntry) return null
   const audioKey = audioEntry[role]
@@ -1070,9 +1101,22 @@ onUnmounted(() => {
     </nav>
 
     <!-- Loading State -->
-    <div v-if="isLoading" class="loading">
+    <div v-if="isLoading || fullCourseScript.isLoading.value" class="loading">
       <div class="loading-spinner"></div>
-      <p>Loading course...</p>
+      <p v-if="fullCourseScript.isLoading.value && fullCourseScript.progress.value">
+        {{ fullCourseScript.progress.value.message }}
+      </p>
+      <p v-else>Loading course...</p>
+      <!-- Progress bar for full course loading -->
+      <div
+        v-if="fullCourseScript.isLoading.value && fullCourseScript.progress.value.total > 0"
+        class="loading-progress"
+      >
+        <div
+          class="loading-progress-bar"
+          :style="{ width: (fullCourseScript.progress.value.current / fullCourseScript.progress.value.total * 100) + '%' }"
+        ></div>
+      </div>
     </div>
 
     <!-- Summary View -->
@@ -1115,7 +1159,20 @@ onUnmounted(() => {
       <!-- Loading state -->
       <div v-if="isLoadingScript" class="script-loading">
         <div class="loading-spinner"></div>
-        <p>Loading script (first {{ ROUNDS_PER_PAGE }} rounds)...</p>
+        <p v-if="fullCourseScript.progress.value.message">
+          {{ fullCourseScript.progress.value.message }}
+        </p>
+        <p v-else>Generating full course script...</p>
+        <!-- Progress bar -->
+        <div
+          v-if="fullCourseScript.progress.value.total > 0"
+          class="loading-progress"
+        >
+          <div
+            class="loading-progress-bar"
+            :style="{ width: (fullCourseScript.progress.value.current / fullCourseScript.progress.value.total * 100) + '%' }"
+          ></div>
+        </div>
       </div>
 
       <template v-else>
@@ -1430,6 +1487,21 @@ onUnmounted(() => {
   border-top-color: var(--gold);
   border-radius: 50%;
   animation: spin 1s linear infinite;
+}
+
+.loading-progress {
+  width: 200px;
+  height: 4px;
+  background: var(--border-subtle);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 0.5rem;
+}
+
+.loading-progress-bar {
+  height: 100%;
+  background: var(--gold);
+  transition: width 0.3s ease;
 }
 
 /* Summary View */

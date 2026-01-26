@@ -6207,6 +6207,7 @@ defineExpose({
         v-if="showListeningOverlay"
         :course-code="activeCourseCode"
         :belt-color="currentBelt.color"
+        :session-controller="USE_SESSION_CONTROLLER ? sessionPlayback.sessionController : null"
         @close="handleCloseListening"
       />
     </Transition>

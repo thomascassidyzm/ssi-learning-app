@@ -60,6 +60,10 @@ export interface SessionController {
   readonly progress: ComputedRef<SessionProgress>
   readonly config: Ref<PlaybackConfig>
 
+  // Completed content (for BrainView and Listening components)
+  readonly completedRounds: ComputedRef<RoundTemplate[]>
+  readonly completedLegoIds: ComputedRef<Set<string>>
+
   // Events
   on(handler: SessionEventHandler): void
   off(handler: SessionEventHandler): void
@@ -119,6 +123,30 @@ export function createSessionController(): SessionController {
       totalRounds: rounds.value.length,
       legosMastered: 0, // TODO: track from threadManager
     }
+  })
+
+  /**
+   * Completed rounds (all rounds before current)
+   * Used by BrainView and Listening to know which content is available
+   */
+  const completedRounds = computed<RoundTemplate[]>(() => {
+    return rounds.value.slice(0, currentRoundIndex.value)
+  })
+
+  /**
+   * Set of LEGO IDs from completed rounds
+   * Used by BrainView to show only completed nodes
+   * Used by Listening to filter available phrases
+   */
+  const completedLegoIds = computed<Set<string>>(() => {
+    const ids = new Set<string>()
+    for (let i = 0; i < currentRoundIndex.value; i++) {
+      const round = rounds.value[i]
+      if (round?.legoId) {
+        ids.add(round.legoId)
+      }
+    }
+    return ids
   })
 
   /**
@@ -481,6 +509,10 @@ export function createSessionController(): SessionController {
     currentItemIndex: readonly(currentItemIndex) as Ref<number>,
     progress,
     config: readonly(config) as Ref<PlaybackConfig>,
+
+    // Completed content (for BrainView and Listening)
+    completedRounds,
+    completedLegoIds,
 
     // Events
     on,

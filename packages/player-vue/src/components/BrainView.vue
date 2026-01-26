@@ -10,16 +10,18 @@
  * Future: Will animate a fast-forward replay of how the brain grew.
  */
 
-import { ref, computed, inject, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, inject, onMounted, onUnmounted, watch, type PropType } from 'vue'
 import CanvasNetworkView from './CanvasNetworkView.vue'
 import UsageStats from './UsageStats.vue'
 import Brain3DView from './Brain3DView.vue'
 import BrainStatsMobile from './BrainStatsMobile.vue'
 import { usePrebuiltNetwork, type ExternalConnection, type ExternalNode, type ConstellationNode } from '../composables/usePrebuiltNetwork'
 import { useLegoNetwork, type PhraseWithPath } from '../composables/useLegoNetwork'
+import { useCompletedContent } from '../composables/useCompletedContent'
 import { generateLearningScript } from '../providers/CourseDataProvider'
 import { getLanguageName } from '../composables/useI18n'
 import { BELTS } from '../composables/useBeltProgress'
+import type { SessionController } from '../playback/SessionController'
 
 // ============================================================================
 // AUDIO CONTROLLER (target language only)
@@ -81,6 +83,15 @@ const props = defineProps({
   completedSeeds: {
     type: Number,
     default: 0
+  },
+  /**
+   * When provided, BrainView uses completedLegoIds from the session
+   * to determine which nodes are visible (session mode).
+   * When null, uses the slider for visibility (standalone mode).
+   */
+  sessionController: {
+    type: Object as PropType<SessionController | null>,
+    default: null
   }
 })
 
@@ -122,6 +133,37 @@ const sliderMax = computed(() => allRounds.value.length || 100)
 
 // Admin/Testing mode - show all nodes regardless of progress
 const showAllForTesting = ref(false)
+
+// ============================================================================
+// SESSION MODE - Use completedLegoIds from SessionController when provided
+// ============================================================================
+
+/**
+ * Whether we're in session mode (showing only completed LEGOs)
+ * vs standalone mode (using slider for visibility)
+ */
+const isSessionMode = computed(() => props.sessionController !== null)
+
+/**
+ * Completed content from session controller (when in session mode)
+ */
+const completedContent = computed(() => {
+  if (!props.sessionController) return null
+  return useCompletedContent(props.sessionController)
+})
+
+/**
+ * Visible node IDs based on mode:
+ * - Session mode: completed LEGOs from SessionController
+ * - Standalone mode: LEGOs up to slider value (existing behavior)
+ */
+const sessionVisibleNodeIds = computed<Set<string>>(() => {
+  if (completedContent.value) {
+    return completedContent.value.completedLegoIds.value
+  }
+  // Fallback: slider-based visibility (handled by updateVisibility)
+  return new Set<string>()
+})
 
 // Admin mode - check URL param (?admin=true) or localStorage
 const isAdmin = computed(() => {
@@ -309,7 +351,12 @@ const beltColors: Record<string, string> = {
 const accentColor = computed(() => beltColors[props.beltLevel] || beltColors.white)
 
 // Nodes to show based on slider (or all if testing mode)
+// In session mode, this is ignored since we use sessionVisibleNodeIds directly
 const visibleCount = computed(() => {
+  // In session mode, count is determined by completed LEGOs
+  if (isSessionMode.value && completedContent.value) {
+    return completedContent.value.completedLegoIds.value.size
+  }
   if (showAllForTesting.value) {
     return allRounds.value.length
   }
@@ -382,10 +429,22 @@ const searchResults = computed(() => {
 // ============================================================================
 
 /**
- * Update network visibility when slider changes
+ * Update network visibility when slider changes or session state updates
  * NOTE: No hero panning - stays centered on network core
+ *
+ * @param count - Number of LEGOs to show (ignored in session mode)
  */
 function updateVisibility(count: number) {
+  // In session mode, use completedLegoIds from SessionController
+  if (isSessionMode.value && completedContent.value) {
+    prebuiltNetwork.revealedNodeIds.value = completedContent.value.completedLegoIds.value
+    // NO hero panning - keep centered on network core
+    prebuiltNetwork.heroNodeId.value = null
+    prebuiltNetwork.panOffset.value = { x: 0, y: 0 }
+    return
+  }
+
+  // Standalone mode: use slider-based visibility
   if (!allRounds.value.length) return
 
   // Build new Set first, then assign to trigger Vue reactivity
@@ -990,8 +1049,23 @@ async function loadData() {
 // ============================================================================
 
 watch(sliderValue, (newVal) => {
-  updateVisibility(newVal)
+  // Only update from slider in standalone mode
+  if (!isSessionMode.value) {
+    updateVisibility(newVal)
+  }
 })
+
+// Watch for session mode completedLegoIds changes
+// This triggers when a new round is completed during an active session
+watch(
+  () => completedContent.value?.completedLegoIds.value,
+  (newIds) => {
+    if (isSessionMode.value && newIds) {
+      updateVisibility(newIds.size)
+    }
+  },
+  { deep: false }
+)
 
 // ============================================================================
 // LIFECYCLE

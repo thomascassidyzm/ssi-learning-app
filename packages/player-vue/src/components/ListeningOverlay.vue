@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, inject, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { useCompletedContent } from '../composables/useCompletedContent'
 
 // ============================================================================
 // Listening Overlay - Teleprompter style overlay for passive listening
@@ -72,6 +73,14 @@ const props = defineProps({
   beltColor: {
     type: String,
     default: '#d4a853' // Default gold for backwards compatibility
+  },
+  /**
+   * When provided, filters phrases to only show those whose LEGO is completed.
+   * When null, shows all eternal_eligible phrases (standalone mode).
+   */
+  sessionController: {
+    type: Object,
+    default: null
   }
 })
 
@@ -109,9 +118,43 @@ const audioBaseUrl = 'https://ssi-audio-stage.s3.eu-west-1.amazonaws.com'
 
 let playbackId = 0
 
+// ============================================================================
+// Session Mode - Filter phrases by completed LEGOs
+// ============================================================================
+
+/**
+ * Whether we're in session mode (showing only completed LEGOs)
+ * vs standalone mode (showing all eternal_eligible phrases)
+ */
+const isSessionMode = computed(() => props.sessionController !== null)
+
+/**
+ * Completed content from session controller (when in session mode)
+ */
+const completedContent = computed(() => {
+  if (!props.sessionController) return null
+  return useCompletedContent(props.sessionController)
+})
+
+/**
+ * Available phrases based on mode:
+ * - Session mode: only phrases whose LEGO is completed
+ * - Standalone mode: all loaded phrases
+ */
+const availablePhrases = computed(() => {
+  if (!isSessionMode.value || !completedContent.value) {
+    return allPhrases.value // Standalone mode = all phrases
+  }
+
+  // Filter to phrases whose LEGO is in completed set
+  return allPhrases.value.filter(phrase =>
+    completedContent.value.completedLegoIds.value.has(phrase.legoId)
+  )
+})
+
 const progressPercent = computed(() => {
-  if (allPhrases.value.length === 0) return 0
-  return Math.round(((currentIndex.value + 1) / allPhrases.value.length) * 100)
+  if (availablePhrases.value.length === 0) return 0
+  return Math.round(((currentIndex.value + 1) / availablePhrases.value.length) * 100)
 })
 
 // ============================================================================
@@ -145,7 +188,7 @@ const loadPhrases = async (offset = 0) => {
 
     const { data, error: fetchError } = await supabase.value
       .from('course_practice_phrases')
-      .select('seed_number, lego_index, known_text, target_text, position')
+      .select('seed_number, lego_index, lego_id, known_text, target_text, position')
       .eq('course_code', props.courseCode)
       .eq('phrase_type', 'eternal_eligible')
       .order('seed_number', { ascending: true })
@@ -160,6 +203,7 @@ const loadPhrases = async (offset = 0) => {
         id: `${p.seed_number}-${p.lego_index}-${p.position || i}`,
         seedNumber: p.seed_number,
         legoIndex: p.lego_index,
+        legoId: p.lego_id,  // For session mode filtering
         knownText: p.known_text,
         targetText: p.target_text,
         position: p.position
@@ -209,12 +253,13 @@ const shufflePhrases = () => {
 }
 
 const updateVisibleWindow = () => {
+  const phrases = availablePhrases.value
   const center = Math.max(0, currentIndex.value)
   const halfWindow = Math.floor(VISIBLE_WINDOW / 2)
   const start = Math.max(0, center - halfWindow)
-  const end = Math.min(allPhrases.value.length, start + VISIBLE_WINDOW)
+  const end = Math.min(phrases.length, start + VISIBLE_WINDOW)
 
-  visiblePhrases.value = allPhrases.value.slice(start, end).map((p, i) => ({
+  visiblePhrases.value = phrases.slice(start, end).map((p, i) => ({
     ...p,
     displayIndex: start + i,
     isCurrent: start + i === currentIndex.value,
@@ -260,7 +305,7 @@ const getRandomVoice = () => Math.random() < 0.5 ? 'target1' : 'target2'
 // ============================================================================
 
 const playFromIndex = async (index) => {
-  if (index < 0 || index >= allPhrases.value.length) return
+  if (index < 0 || index >= availablePhrases.value.length) return
 
   const myPlaybackId = ++playbackId
   currentIndex.value = index
@@ -276,7 +321,7 @@ const playFromIndex = async (index) => {
 const playCurrentPhrase = async (myPlaybackId) => {
   if (myPlaybackId !== playbackId || !isPlaying.value) return
 
-  const phrase = allPhrases.value[currentIndex.value]
+  const phrase = availablePhrases.value[currentIndex.value]
   if (!phrase) {
     await handleEndOfList(myPlaybackId)
     return
@@ -309,10 +354,10 @@ const advanceToNext = async (myPlaybackId) => {
 
   const nextIndex = currentIndex.value + 1
 
-  if (nextIndex >= allPhrases.value.length) {
+  if (nextIndex >= availablePhrases.value.length) {
     if (hasMore.value) {
       await loadMoreIfNeeded()
-      if (allPhrases.value.length > nextIndex) {
+      if (availablePhrases.value.length > nextIndex) {
         currentIndex.value = nextIndex
         updateVisibleWindow()
         await nextTick()
