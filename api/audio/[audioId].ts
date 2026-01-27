@@ -14,7 +14,6 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
-import { Readable } from 'stream'
 
 // Initialize Supabase client
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
@@ -200,25 +199,26 @@ export default async function handler(
         return
       }
 
-      // AWS SDK v3 returns a special stream type - convert to Node.js Readable
+      // AWS SDK v3 returns a special stream type - use transformToByteArray
       let buffer: Buffer
 
-      // Check if it has transformToByteArray (AWS SDK v3 SdkStreamMixin)
+      // AWS SDK v3 SdkStreamMixin has transformToByteArray
       if (typeof (bodyStream as any).transformToByteArray === 'function') {
         const byteArray = await (bodyStream as any).transformToByteArray()
         buffer = Buffer.from(byteArray)
       }
-      // Fallback: treat as Node.js Readable
-      else if (bodyStream instanceof Readable) {
+      // Fallback: try arrayBuffer
+      else if (typeof (bodyStream as any).arrayBuffer === 'function') {
+        const arrayBuf = await (bodyStream as any).arrayBuffer()
+        buffer = Buffer.from(arrayBuf)
+      }
+      // Last resort: iterate as async iterable
+      else {
         const chunks: Buffer[] = []
-        for await (const chunk of bodyStream) {
+        for await (const chunk of bodyStream as any) {
           chunks.push(Buffer.from(chunk))
         }
         buffer = Buffer.concat(chunks)
-      }
-      // Last resort: try to convert directly
-      else {
-        buffer = Buffer.from(await (bodyStream as any).arrayBuffer?.() || bodyStream)
       }
 
       res.send(buffer)
