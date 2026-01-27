@@ -227,12 +227,15 @@ export default async function handler(
       console.error('[AudioProxy] S3 fetch failed:', {
         key: sample.s3_key,
         bucket: s3Bucket,
-        error: s3Error.message,
-        code: s3Error.Code || s3Error.name,
+        error: s3Error?.message,
+        code: s3Error?.Code,
+        name: s3Error?.name,
+        stack: s3Error?.stack,
+        full: JSON.stringify(s3Error, Object.getOwnPropertyNames(s3Error || {})),
       })
       res.status(502).json({
         error: 'Failed to fetch audio from storage',
-        details: s3Error.Code || s3Error.name || s3Error.message,
+        details: s3Error?.message || s3Error?.Code || s3Error?.name || 'Unknown error',
         key: sample.s3_key,
       })
       return
