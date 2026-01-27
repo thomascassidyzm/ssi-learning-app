@@ -4,7 +4,7 @@
 
 app SSiLearningApp:
   title: "SSI Learning App"
-  version: "2.2.0"
+  version: "2.3.0"
   apml_version: "2.0.0"
 
   description: |
@@ -13,12 +13,13 @@ app SSiLearningApp:
     an immersive 4-phase prompt-response learning experience with
     constellation network visualization.
 
+    v2.3.0: Lazy loading for instant startup (< 2s). PriorityRoundLoader with belt-aware loading.
     v2.2.0: Best-in-class audio caching with backend proxy, 30-min prefetch, graceful degradation.
     v2.1.0: Belt-aware progressive loading, cross-device sync, offline play.
 
   compilation_method: "forward-compilation"
-  generated_from: "Working v2.2.0 codebase (2026-01-25)"
-  last_updated: "2026-01-25"
+  generated_from: "Working v2.3.0 codebase (2026-01-27)"
+  last_updated: "2026-01-27"
 
   ## ==========================================================================
   ## RELATIONSHIP TO DASHBOARD
@@ -190,6 +191,26 @@ app SSiLearningApp:
       - "packages/player-vue/src/config/audioConfig.ts"
       - "supabase/migrations/20260125000000_audio_plays.sql"
     key_principle: "Never show connection errors - always keep playing"
+
+  ## ==========================================================================
+  ## PLAYBACK SPECIFICATIONS
+  ## ==========================================================================
+
+  import playback/lazy-loading:
+    status: "implemented"
+    date: "2026-01-27"
+    source: "Multiple files - see apml/playback/lazy-loading.apml"
+    coverage: |
+      Lazy loading for instant startup (< 2s to first play),
+      PriorityRoundLoader with belt-aware priority queue,
+      Course end detection (no spam logging),
+      Incremental SessionController methods
+    new_files:
+      - "packages/player-vue/src/playback/PriorityRoundLoader.ts"
+    modified_files:
+      - "packages/player-vue/src/playback/SessionController.ts - addRound(), hasRound()"
+      - "packages/player-vue/src/providers/CourseDataProvider.ts - loadLegoAtPosition()"
+    key_principle: "First play in < 2 seconds - load what user needs, background the rest"
 
   ## ==========================================================================
   ## INTERFACE SPECIFICATIONS

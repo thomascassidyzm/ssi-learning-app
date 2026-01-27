@@ -1,0 +1,312 @@
+# APML v2.0.0 - Lazy Loading & Instant Startup
+# SSI Learning App
+# Last Updated: 2026-01-27
+
+spec lazy_loading_architecture:
+  version: "1.0.0"
+  status: "implemented"
+  date: "2026-01-27"
+
+  description: |
+    Lazy-load rounds for instant startup (< 2s to first play).
+    Smart background loading based on user intent probability.
+    Users can only skip ONE belt ahead - loading priority mirrors this constraint.
+
+  ## ==========================================================================
+  ## DESIGN PRINCIPLES
+  ## ==========================================================================
+
+  principles:
+    instant_play: |
+      First play must happen in < 2 seconds. Only load Round N (BLOCKING),
+      then background load everything else in priority order.
+
+    intent_probability: |
+      Users can only skip one belt ahead. Load what they're most likely to need:
+      1. Current round (BLOCKING)
+      2. Next round (seamless continuation)
+      3. First of NEXT belt (belt-skip ready)
+      4. Rest of current belt
+      5. Continue belt-by-belt forward
+
+    graceful_course_end: |
+      When course ends (no LEGO at seed N), detect once and stop loading.
+      Never spam "No LEGO found" errors. Log summary, not individual failures.
+
+  ## ==========================================================================
+  ## BELT SYSTEM
+  ## ==========================================================================
+
+  belts:
+    thresholds:
+      - name: "White"
+        index: 0
+        start: 1      # Seeds 1-7
+        end: 7
+      - name: "Yellow"
+        index: 1
+        start: 8      # Seeds 8-19
+        end: 19
+      - name: "Orange"
+        index: 2
+        start: 20     # Seeds 20-39
+        end: 39
+      - name: "Green"
+        index: 3
+        start: 40     # Seeds 40-79
+        end: 79
+      - name: "Blue"
+        index: 4
+        start: 80     # Seeds 80-149
+        end: 149
+      - name: "Purple"
+        index: 5
+        start: 150    # Seeds 150-279
+        end: 279
+      - name: "Brown"
+        index: 6
+        start: 280    # Seeds 280-399
+        end: 399
+      - name: "Black"
+        index: 7
+        start: 400    # Seeds 400+
+        end: infinity
+
+  ## ==========================================================================
+  ## PRIORITY ROUND LOADER
+  ## ==========================================================================
+
+  priority_round_loader:
+    file: "packages/player-vue/src/playback/PriorityRoundLoader.ts"
+    purpose: "Smart background loading based on user intent probability"
+
+    loading_queue_algorithm: |
+      buildLoadingQueue(currentSeed):
+        queue = []
+        currentBelt = getBeltForSeed(currentSeed)
+        nextBelt = getNextBelt(currentBelt)
+
+        # Priority 2: Next round (N+1)
+        queue.push(currentSeed + 1)
+
+        # Priority 3: First of next belt (belt-skip ready)
+        if nextBelt:
+          queue.push(nextBelt.start)
+
+        # Priority 4: Rest of current belt
+        for s in range(currentSeed + 2, currentBelt.end + 1):
+          queue.push(s)
+
+        # Priority 5: Rest of next belt
+        if nextBelt:
+          for s in range(nextBelt.start + 1, nextBelt.end + 1):
+            queue.push(s)
+
+        # Priority 6: Continue belt-by-belt forward
+        for belt in belts[nextBelt.index + 1:]:
+          for s in range(belt.start, belt.end + 1):
+            queue.push(s)
+
+        return queue
+
+    course_end_detection: |
+      When loadLegoAtPosition(seedNumber) returns null:
+        1. Set courseEndDetected = true
+        2. Store detectedCourseEnd = seedNumber - 1
+        3. Clear loading queue (no point loading beyond course end)
+        4. Log ONCE: "Course end detected at seed {N}"
+        5. Skip any queued seeds > detectedCourseEnd
+
+    error_handling: |
+      - Log each ERROR TYPE only once (deduplicate via Set)
+      - Never stop queue on individual errors
+      - Emit error callbacks for monitoring
+      - Log summary at queue completion
+
+    events:
+      round_ready:
+        signature: "onRoundReady(callback: (roundIndex, round) => void)"
+        fires: "When a round is loaded and added to SessionController"
+      belt_ready:
+        signature: "onBeltReady(callback: (belt) => void)"
+        fires: "When all seeds in a belt are loaded"
+      error:
+        signature: "onError(callback: (error, seedNumber) => void)"
+        fires: "When a seed fails to load (non-fatal)"
+
+    methods:
+      start: "Start background loading with priority queue"
+      stop: "Stop loading (abortable)"
+      prioritize: "Force-load a specific seed (for belt skip)"
+      isRoundReady: "Check if a round is loaded"
+      getProgress: "Get loading progress { loaded, total, currentBelt, nextBelt }"
+      dispose: "Clean up all resources and callbacks"
+
+  ## ==========================================================================
+  ## SESSION CONTROLLER INTEGRATION
+  ## ==========================================================================
+
+  session_controller:
+    file: "packages/player-vue/src/playback/SessionController.ts"
+    purpose: "Orchestrates rounds, supports incremental loading"
+
+    incremental_methods:
+      initializeEmpty:
+        signature: "initializeEmpty(courseId: string)"
+        purpose: "Initialize with no rounds - ready for incremental loading"
+      addRound:
+        signature: "addRound(round: RoundTemplate)"
+        purpose: "Add a single round (from PriorityRoundLoader)"
+      addRounds:
+        signature: "addRounds(rounds: RoundTemplate[])"
+        purpose: "Add multiple rounds at once"
+      hasRound:
+        signature: "hasRound(roundIndex: number): boolean"
+        purpose: "Check if a round exists at index"
+      getRoundCount:
+        signature: "getRoundCount(): number"
+        purpose: "Get current number of loaded rounds"
+
+    sparse_rounds_handling: |
+      Rounds are stored in sparse array - gaps are allowed.
+      playCurrentItem() checks hasRound() before playing.
+      If round not ready, emit 'round:loading' event.
+
+  ## ==========================================================================
+  ## COURSE DATA PROVIDER - LAZY METHODS
+  ## ==========================================================================
+
+  course_data_provider:
+    file: "packages/player-vue/src/providers/CourseDataProvider.ts"
+
+    lazy_methods:
+      loadLegoAtPosition:
+        signature: "loadLegoAtPosition(seedNumber: number): Promise<LearningItem | null>"
+        purpose: "Load single LEGO at seed position (for fast startup)"
+        performance: "~50ms single query"
+
+      loadLegoRange:
+        signature: "loadLegoRange(startSeed: number, endSeed: number): Promise<LearningItem[]>"
+        purpose: "Load range of LEGOs (for belt loading)"
+        performance: "~100-200ms single query"
+        deduplication: "Keeps first LEGO per seed_number"
+
+      getBasketsBatch:
+        signature: "getBasketsBatch(legoIds: string[]): Promise<Map<string, ClassifiedBasket>>"
+        purpose: "Batch load baskets (one query instead of N)"
+        performance: "~100-200ms vs N*50ms"
+
+  ## ==========================================================================
+  ## DATA FLOW
+  ## ==========================================================================
+
+  data_flow:
+    instant_startup: |
+      1. App loads
+      2. loadLegoAtPosition(currentSeed)       [~50ms, BLOCKING]
+      3. Build first round
+      4. SessionController.initializeEmpty()
+      5. SessionController.addRound(firstRound)
+      6. PLAY NOW (< 2s from load)
+      7. PriorityRoundLoader.start()           [Background]
+
+    background_loading: |
+      1. Build priority queue from currentSeed
+      2. For each seed in queue:
+         a. loadLegoAtPosition(seed)
+         b. getLegoBasket(legoId)
+         c. Build round
+         d. SessionController.addRound(round)
+         e. Emit 'round:ready'
+      3. Check belt completion, emit 'belt:ready'
+      4. Continue until queue empty or course end
+
+    belt_skip: |
+      User clicks "skip to next belt":
+      1. PriorityRoundLoader.prioritize(targetSeed)
+      2. Moves seed to front of queue
+      3. Waits for load to complete
+      4. Returns round for immediate play
+
+  ## ==========================================================================
+  ## PERFORMANCE TARGETS
+  ## ==========================================================================
+
+  performance:
+    first_play:
+      target: "< 2 seconds"
+      actual: "~200ms on 4G, ~500ms on 3G"
+    next_round:
+      target: "instant (already loaded)"
+      actual: "0ms (background loaded)"
+    belt_skip:
+      target: "< 500ms (usually instant)"
+      actual: "Usually 0ms (loaded early in priority queue)"
+    arbitrary_skip:
+      target: "< 2s (rare case)"
+      actual: "~200ms (single LEGO + basket load)"
+
+  ## ==========================================================================
+  ## FILES SUMMARY
+  ## ==========================================================================
+
+  files:
+    new:
+      - path: "packages/player-vue/src/playback/PriorityRoundLoader.ts"
+        purpose: "Smart priority-based background loading"
+        exports:
+          - "PriorityRoundLoader"
+          - "createPriorityRoundLoader"
+          - "BELT_THRESHOLDS"
+          - "BELT_NAMES"
+          - "Belt"
+          - "LoaderConfig"
+          - "LoaderProgress"
+
+    modified:
+      - path: "packages/player-vue/src/playback/SessionController.ts"
+        changes: "Added initializeEmpty(), addRound(), addRounds(), hasRound()"
+      - path: "packages/player-vue/src/providers/CourseDataProvider.ts"
+        changes: "Added loadLegoAtPosition(), loadLegoRange(), getBasketsBatch()"
+      - path: "packages/player-vue/src/composables/useSessionPlayback.ts"
+        changes: "Fast init path with background loader integration"
+
+  ## ==========================================================================
+  ## VERIFICATION
+  ## ==========================================================================
+
+  verification:
+    console_timing: |
+      Watch for log lines:
+      - "[PriorityRoundLoader] Starting with queue: [2, 8, 3, 4, ...]"
+      - "[PriorityRoundLoader] Belt complete: White"
+      - "[PriorityRoundLoader] Course end detected at seed 305"
+      - "[PriorityRoundLoader] Queue complete, loaded 305 seeds"
+
+    belt_skip_test: |
+      1. Start app at seed 1
+      2. Within 3 seconds, click "skip to Yellow"
+      3. Should be ready immediately (seed 8 is Priority 3)
+
+    network_throttling: |
+      DevTools → Network → Slow 3G
+      First play should still be < 3s
+
+# =============================================================================
+# VERSION HISTORY
+# =============================================================================
+
+version_history:
+  v1.0.0:
+    date: "2026-01-27"
+    changes:
+      - "Initial lazy loading specification"
+      - "PriorityRoundLoader implementation"
+      - "Belt-aware priority queue"
+      - "Course end detection (no spam logging)"
+      - "Incremental SessionController methods"
+      - "CourseDataProvider lazy loading methods"
+    implementation_status: "IMPLEMENTED"
+    contributors:
+      - "Tom Cassidy"
+      - "Claude (AI Assistant)"

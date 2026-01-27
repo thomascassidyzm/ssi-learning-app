@@ -553,27 +553,31 @@ pnpm --filter @ssi/web dev
 - [x] CycleOrchestrator state machine
 - [x] 4-phase learning cycle
 - [x] RealAudioController (mobile-compatible)
-- [x] Vue player with Moonlit Dojo design
+- [x] Vue player with Deep Space Constellation design
 - [x] Belt progression system
 - [x] Session summary screen
 - [x] Dynamic pause duration (2x target audio)
 - [x] Real Italian/Spanish course audio integration
+- [x] Database-first architecture (Supabase data provider)
+- [x] IndexedDB cache layer
+- [x] Audio caching with backend proxy (v2.2.0)
+- [x] Lazy loading for instant startup (v2.3.0)
+- [x] PriorityRoundLoader with belt-aware loading
+- [x] Recovery mode (`?reset=1`)
+- [x] PWA with service worker caching
 
 ### In Progress
-- [ ] Database-first architecture (Dashboard done, App pending)
-- [ ] Supabase data provider for app
-- [ ] IndexedDB cache layer
+- [ ] Schools dashboard integration testing
+- [ ] Course Explorer QA mode refinements
 
 ### Next Up
-- [ ] `apps/web` PWA implementation
-- [ ] Service worker for offline
-- [ ] Supabase sync for learner progress
 - [ ] `apps/schools-dashboard` for classroom use
+- [ ] Triple Helix thread switching implementation
+- [ ] A/B testing framework integration
 
 ### Future
 - [ ] Speech recognition during PAUSE phase
-- [ ] Triple Helix thread switching
-- [ ] A/B testing framework integration
+- [ ] Adaptive difficulty based on response latency
 
 ---
 
@@ -636,7 +640,13 @@ pnpm --filter @ssi/web dev
 | `packages/player-vue/src/composables/useScriptCache.ts` | Script caching |
 | `packages/player-vue/src/composables/useMetaCommentary.ts` | Intro messages |
 | `packages/player-vue/src/composables/useBeltProgress.ts` | Belt progression tracking |
+| `packages/player-vue/src/playback/PriorityRoundLoader.ts` | Lazy loading with priority queue |
+| `packages/player-vue/src/playback/SessionController.ts` | Round management & playback control |
+| `packages/player-vue/src/playback/CyclePlayer.ts` | 4-phase cycle playback engine |
+| `packages/player-vue/src/types/Cycle.ts` | Atomic Cycle type definition |
 | `apml/ssi-learning-app-master.apml` | Full APML specification |
+| `apml/playback/lazy-loading.apml` | Lazy loading architecture spec |
+| `apml/cache/audio-architecture.apml` | Audio caching spec |
 | `apml/interfaces/constellation-network.apml` | Network visualization spec |
 | `apml/interfaces/learning-player.apml` | Player UI spec |
 | `new_vision/LEARNING_APP_DATA_FLOW.md` (in Dashboard) | Database-first architecture |
@@ -720,6 +730,7 @@ Best-in-class audio system with backend proxy and graceful degradation. **Core p
 - **File**: `api/audio/[audioId].ts`
 - **Purpose**: Entitlement verification, analytics, CORS bypass, future CDN flexibility
 - **Response**: Streams audio from S3 with 1-year cache headers
+- **IMPORTANT**: All AWS env vars use `.trim()` to handle trailing newlines from copy-paste
 
 ### Two-Layer Caching
 1. **IndexedDB (OfflineCache)**: App-controlled, readable blobs for offline play
@@ -763,6 +774,99 @@ Every audio request is tracked:
 
 ---
 
+## Lazy Loading Architecture (v2.3.0)
+
+Instant startup with smart background loading based on user intent probability. **Core principle: first play in < 2 seconds.**
+
+### The Problem (Before)
+```
+App starts → Load ALL LEGOs (1000) → Build ALL rounds → PLAY
+              └── 5-7 seconds of waiting
+```
+
+### The Solution (After)
+```
+App starts → Load Round N → PLAY     Background: load rest by priority
+              └── < 2 seconds        └── seamless continuation
+```
+
+### PriorityRoundLoader
+- **File**: `packages/player-vue/src/playback/PriorityRoundLoader.ts`
+- **Purpose**: Smart background loading based on user intent
+
+**Loading Priority:**
+1. Round N (BLOCKING - what user will play first)
+2. Round N+1 (seamless continuation)
+3. First of NEXT belt (belt-skip ready)
+4. Rest of current belt
+5. Rest of next belt
+6. Continue belt-by-belt forward
+
+### Belt Thresholds
+```
+White (1-7) → Yellow (8-19) → Orange (20-39) → Green (40-79) →
+Blue (80-149) → Purple (150-279) → Brown (280-399) → Black (400+)
+```
+
+### CourseDataProvider Lazy Methods
+```typescript
+// Single item load (~50ms)
+loadLegoAtPosition(seedNumber: number): Promise<LearningItem | null>
+
+// Range load (~100-200ms for 10 items)
+loadLegoRange(startSeed: number, endSeed: number): Promise<LearningItem[]>
+
+// Batch basket load (one query instead of N)
+getBasketsBatch(legoIds: string[]): Promise<Map<string, ClassifiedBasket>>
+```
+
+### SessionController Incremental Methods
+```typescript
+initializeEmpty(courseId: string)  // Start with no rounds
+addRound(round: RoundTemplate)      // Add single round
+hasRound(roundIndex: number)        // Check if round exists
+```
+
+### Course End Detection
+When `loadLegoAtPosition(seed)` returns null:
+1. Detect course end once
+2. Clear loading queue
+3. Log summary: "Course end detected at seed 305"
+4. No spam logging for seeds beyond course end
+
+### Key Files
+| File | Purpose |
+|------|---------|
+| `packages/player-vue/src/playback/PriorityRoundLoader.ts` | Priority-based background loading |
+| `packages/player-vue/src/playback/SessionController.ts` | Incremental round management |
+| `packages/player-vue/src/providers/CourseDataProvider.ts` | Lazy loading methods |
+| `apml/playback/lazy-loading.apml` | Full architecture spec |
+
+---
+
+## Recovery Mode
+
+For users stuck in broken states (corrupted cache, infinite loops, etc.).
+
+### URL Parameter: `?reset=1`
+Navigate to `https://app.saysomethingin.com?reset=1` to:
+- Clear localStorage
+- Clear sessionStorage
+- Clear IndexedDB
+- Unregister all service workers
+- Clear all caches
+- Reload clean
+
+**File**: `packages/player-vue/src/App.vue` (lines 12-42)
+
+### When to Use
+- App won't load or shows blank page
+- Audio won't play despite being online
+- PWA update stuck
+- "Google new tab" behavior reported
+
+---
+
 ## Ralph Loop Methodology
 
 We use Ralph loops for autonomous, overnight coding tasks.
@@ -800,5 +904,5 @@ First run (2026-01-22): Completed 7 items in ~4 minutes, 10 tests passing, clean
 
 ---
 
-*Last updated: 2026-01-25*
-*Status: v2.2.0 - Audio caching architecture implemented*
+*Last updated: 2026-01-27*
+*Status: v2.3.0 - Lazy loading for instant startup*
