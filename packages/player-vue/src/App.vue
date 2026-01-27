@@ -5,9 +5,41 @@ import { createProgressStore, createSessionStore } from '@ssi/core'
 import { createCourseDataProvider } from './providers/CourseDataProvider'
 import { loadConfig, isSupabaseConfigured, isClerkConfigured } from './config/env'
 import { useAuth } from './composables/useAuth'
-import { checkKillSwitch } from './composables/useServiceWorkerSafety'
+import { checkKillSwitch, unregisterAllServiceWorkers, clearAllCaches } from './composables/useServiceWorkerSafety'
 import { useTheme } from './composables/useTheme'
 import PwaUpdatePrompt from './components/PwaUpdatePrompt.vue'
+
+// RECOVERY MODE: If ?reset=1 in URL, clear everything and reload
+// This helps users stuck in broken states
+if (window.location.search.includes('reset=1')) {
+  console.log('[App] Recovery mode - clearing all data...')
+
+  // Clear localStorage
+  localStorage.clear()
+
+  // Clear sessionStorage
+  sessionStorage.clear()
+
+  // Clear IndexedDB (async but don't wait)
+  if (window.indexedDB) {
+    indexedDB.databases?.().then(dbs => {
+      dbs.forEach(db => {
+        if (db.name) indexedDB.deleteDatabase(db.name)
+      })
+    }).catch(() => {})
+  }
+
+  // Unregister service workers and clear caches
+  Promise.all([
+    unregisterAllServiceWorkers().catch(() => {}),
+    clearAllCaches().catch(() => {})
+  ]).finally(() => {
+    // Reload without the reset param
+    const url = new URL(window.location.href)
+    url.searchParams.delete('reset')
+    window.location.href = url.toString()
+  })
+}
 
 // Initialize theme (reads from localStorage, applies to document)
 const { theme, toggleTheme, setTheme } = useTheme()
