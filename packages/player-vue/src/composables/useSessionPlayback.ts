@@ -338,7 +338,17 @@ export function useSessionPlayback(options: SessionPlaybackOptions) {
         baskets.value.set(firstLego.id, firstBasket)
       }
 
-      // 5. Build the first round
+      // 5. Load introduction audio for the first LEGO
+      const introAudio = await provider.getIntroductionAudio(firstLego.id)
+      if (introAudio && firstBasket) {
+        firstBasket.introduction_audio = {
+          id: introAudio.id,
+          url: introAudio.url,
+          duration_ms: introAudio.duration_ms,
+        }
+      }
+
+      // 6. Build the first round
       const firstRound = buildFirstRound(firstLego, firstSeed, firstBasket, startSeed)
 
       // 6. Initialize SessionController with empty state
@@ -468,8 +478,8 @@ export function useSessionPlayback(options: SessionPlaybackOptions) {
     })
 
     priorityLoader.onError((error, seedNumber) => {
-      console.error(`[useSessionPlayback] Error loading seed ${seedNumber}:`, error)
-      // Don't stop - continue loading other seeds
+      // Errors are logged and deduplicated by PriorityRoundLoader
+      // Don't re-log here - just continue loading other seeds
     })
 
     // Start loading

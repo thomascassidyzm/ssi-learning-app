@@ -69,6 +69,13 @@ export class PriorityRoundLoader {
   private isRunning = false
   private abortController: AbortController | null = null
 
+  // Course end detection
+  private courseEndDetected = false
+  private detectedCourseEnd: number | null = null
+
+  // Log deduplication - track logged error types
+  private loggedErrors = new Set<string>()
+
   // Cached data for round building
   private legoMap = new Map<string, LegoPair>()
   private seedMap = new Map<string, SeedPair>()
@@ -207,6 +214,8 @@ export class PriorityRoundLoader {
    * Process the loading queue
    */
   private async processQueue(): Promise<void> {
+    let errorCount = 0
+
     while (this.isRunning && this.loadingQueue.length > 0) {
       const seedNumber = this.loadingQueue.shift()!
 
@@ -215,10 +224,21 @@ export class PriorityRoundLoader {
         continue
       }
 
+      // Skip if we've detected course end and this seed is beyond it
+      if (this.courseEndDetected && this.detectedCourseEnd !== null && seedNumber > this.detectedCourseEnd) {
+        continue
+      }
+
       try {
         await this.loadSeed(seedNumber)
       } catch (err) {
-        console.error('[PriorityRoundLoader] Error loading seed', seedNumber, err)
+        errorCount++
+        // Only log the first error of each type
+        const errorKey = err instanceof Error ? err.message : String(err)
+        if (!this.loggedErrors.has(errorKey)) {
+          this.loggedErrors.add(errorKey)
+          console.error('[PriorityRoundLoader] Error loading seed:', errorKey)
+        }
         this.emitError(err instanceof Error ? err : new Error(String(err)), seedNumber)
         // Continue with next seed - don't stop the queue
       }
@@ -229,7 +249,9 @@ export class PriorityRoundLoader {
       }
     }
 
-    console.log('[PriorityRoundLoader] Queue complete, loaded', this.loadedSeeds.size, 'seeds')
+    // Log summary at the end
+    const courseEndMsg = this.courseEndDetected ? ` (course ends at seed ${this.detectedCourseEnd})` : ''
+    console.log(`[PriorityRoundLoader] Queue complete, loaded ${this.loadedSeeds.size} seeds${courseEndMsg}${errorCount > 0 ? `, ${errorCount} errors` : ''}`)
     this.isRunning = false
   }
 
@@ -243,8 +265,14 @@ export class PriorityRoundLoader {
       // 1. Load LEGO at this position
       const learningItem = await this.provider.loadLegoAtPosition(seedNumber)
       if (!learningItem) {
-        console.warn('[PriorityRoundLoader] No LEGO found at seed', seedNumber)
-        this.loadedSeeds.add(seedNumber)
+        // Detect end of course - log ONCE then stop the queue
+        if (!this.courseEndDetected) {
+          this.courseEndDetected = true
+          this.detectedCourseEnd = seedNumber - 1
+          console.log(`[PriorityRoundLoader] Course end detected at seed ${seedNumber - 1} (no LEGO at seed ${seedNumber})`)
+          // Clear the queue - no point trying to load seeds beyond course end
+          this.loadingQueue = []
+        }
         this.loadingSeeds.delete(seedNumber)
         return
       }
@@ -569,6 +597,9 @@ export class PriorityRoundLoader {
     this.basketMap.clear()
     this.seedToLegoId.clear()
     this.completedBelts.clear()
+    this.loggedErrors.clear()
+    this.courseEndDetected = false
+    this.detectedCourseEnd = null
   }
 }
 
