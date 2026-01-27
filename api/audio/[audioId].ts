@@ -19,15 +19,16 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-// Initialize S3 client
+// Initialize S3 client - use VITE_ versions as fallback (they're cleaner)
+const s3Region = (process.env.AWS_REGION || process.env.VITE_S3_REGION || 'eu-west-1').trim()
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION || 'eu-west-1',
+  region: s3Region,
   credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+    accessKeyId: (process.env.AWS_ACCESS_KEY_ID || '').trim(),
+    secretAccessKey: (process.env.AWS_SECRET_ACCESS_KEY || '').trim(),
   },
 })
-const s3Bucket = process.env.S3_AUDIO_BUCKET || 'ssi-audio-stage'
+const s3Bucket = (process.env.S3_AUDIO_BUCKET || process.env.VITE_S3_AUDIO_BUCKET || 'ssi-audio-stage').trim()
 
 // Validate required env vars
 if (!supabaseUrl) {
