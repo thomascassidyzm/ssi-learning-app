@@ -1261,9 +1261,9 @@ export async function generateLearningScript(
   _offset: number = 0
 ): Promise<{ rounds: RoundData[]; allItems: ScriptItem[] }> {
   // console.warn(
-    '[DEPRECATED] generateLearningScript is deprecated. ' +
-    'Use buildRounds from @/playback/RoundBuilder instead.'
-  )
+  //   '[DEPRECATED] generateLearningScript is deprecated. ' +
+  //   'Use buildRounds from @/playback/RoundBuilder instead.'
+  // )
   // Return empty data - callers need to migrate to new playback architecture
   return { rounds: [], allItems: [] }
 }
