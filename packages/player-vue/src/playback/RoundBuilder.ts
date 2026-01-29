@@ -86,9 +86,22 @@ export function buildRound(options: BuildRoundOptions): Round {
     }))
   }
 
-  // 3. BUILD - Up to maxBuildPhrases practice phrases
-  const buildPhrases = basket?.debut_phrases?.slice(0, config.maxBuildPhrases) ?? []
-  for (const phrase of buildPhrases) {
+  // Track phrases used in this round to avoid duplicates
+  // Normalize target text for comparison (lowercase, trim)
+  const normalizeText = (text: string) => text?.toLowerCase().trim() || ''
+  const usedInRound = new Set<string>()
+
+  // Mark LEGO itself as used
+  usedInRound.add(normalizeText(lego.lego.target))
+
+  // 3. BUILD - Up to maxBuildPhrases practice phrases (no duplicates within round)
+  const allBuildPhrases = basket?.debut_phrases ?? []
+  let buildCount = 0
+  for (const phrase of allBuildPhrases) {
+    if (buildCount >= config.maxBuildPhrases) break
+    const normalized = normalizeText(phrase.phrase.target)
+    if (usedInRound.has(normalized)) continue
+
     items.push(createPracticeItem({
       type: 'debut_phrase',
       phrase,
@@ -98,17 +111,22 @@ export function buildRound(options: BuildRoundOptions): Round {
       roundNumber,
       buildAudioUrl,
     }))
+    usedInRound.add(normalized)
+    buildCount++
   }
 
-  // 4. REVIEW - Spaced rep items from other threads
+  // 4. REVIEW - Spaced rep items from other threads (no duplicates within round)
   if (getSpacedRepLegos && roundNumber > 1) {
     const srItems = getSpacedRepLegos('A', config.spacedRepCount) // Thread is ignored for now
     for (const sr of srItems) {
-      spacedRepReviews.push(sr.legoIndex)
-
       // Use eternal phrase if available, otherwise LEGO itself
       const phrase = sr.basket?.eternal_phrases?.[0]
+
       if (phrase) {
+        const normalized = normalizeText(phrase.phrase.target)
+        if (usedInRound.has(normalized)) continue
+
+        spacedRepReviews.push(sr.legoIndex)
         items.push(createPracticeItem({
           type: 'spaced_rep',
           phrase,
@@ -120,7 +138,12 @@ export function buildRound(options: BuildRoundOptions): Round {
           reviewOf: sr.legoIndex,
           fibonacciPosition: sr.fibonacciPosition,
         }))
+        usedInRound.add(normalized)
       } else {
+        const normalized = normalizeText(sr.lego.lego.target)
+        if (usedInRound.has(normalized)) continue
+
+        spacedRepReviews.push(sr.legoIndex)
         items.push(createLegoItem({
           type: 'spaced_rep',
           lego: sr.lego,
@@ -131,13 +154,24 @@ export function buildRound(options: BuildRoundOptions): Round {
           reviewOf: sr.legoIndex,
           fibonacciPosition: sr.fibonacciPosition,
         }))
+        usedInRound.add(normalized)
       }
     }
   }
 
   // 5. CONSOLIDATION - Final reinforcement
-  const consolidationPhrases = basket?.eternal_phrases?.slice(0, config.consolidationCount) ?? []
-  for (const phrase of consolidationPhrases) {
+  // CAN reuse BUILD phrases (REVIEW gap provides separation)
+  // Only avoid: LEGO itself and duplicates within CONSOLIDATE
+  const usedInConsolidate = new Set<string>()
+  usedInConsolidate.add(normalizeText(lego.lego.target)) // Avoid LEGO itself
+
+  const allEternalPhrases = basket?.eternal_phrases ?? []
+  let consolidateCount = 0
+  for (const phrase of allEternalPhrases) {
+    if (consolidateCount >= config.consolidationCount) break
+    const normalized = normalizeText(phrase.phrase.target)
+    if (usedInConsolidate.has(normalized)) continue
+
     items.push(createPracticeItem({
       type: 'consolidation',
       phrase,
@@ -147,6 +181,8 @@ export function buildRound(options: BuildRoundOptions): Round {
       roundNumber,
       buildAudioUrl,
     }))
+    usedInConsolidate.add(normalized)
+    consolidateCount++
   }
 
   return {
