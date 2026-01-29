@@ -736,13 +736,15 @@ export class CourseDataProvider {
     lego?: LegoPair
   ): ClassifiedBasket {
     const components: PracticePhrase[] = []
-    const practicePhrases: PracticePhrase[] = []
+    const buildPhrases: PracticePhrase[] = []
+    const usePhrases: PracticePhrase[] = []
 
-    // Build phrase objects and separate components from practice phrases
+    // Build phrase objects and classify by phrase_role
+    // This matches the dashboard's learning-script-generator logic
     for (const record of records) {
       const phrase: PracticePhrase = {
         id: record.phrase_id || `${legoId}_P${record.position}`,
-        phraseType: record.position === 0 ? 'component' : 'practice',
+        phraseType: record.phrase_role === 'component' ? 'component' : 'practice',
         phrase: {
           known: record.known_text,
           target: record.target_text,
@@ -770,17 +772,42 @@ export class CourseDataProvider {
         containsLegos: [legoId],
       }
 
-      if (record.position === 0) {
+      // Classify by phrase_role (matching dashboard logic)
+      const role = record.phrase_role
+      if (role === 'component') {
         components.push(phrase)
-      } else {
-        // Position >= 1 are practice phrases (already sorted by syllable count)
-        practicePhrases.push(phrase)
+      } else if (role === 'build' || role === 'practice') {
+        // 'build' is current naming, 'practice' is legacy - both are BUILD phrases
+        buildPhrases.push(phrase)
+      } else if (role === 'use') {
+        // USE phrases for eternal/spaced rep/consolidation
+        usePhrases.push(phrase)
       }
     }
 
-    // Split practice phrases: shortest 7 = debut, longest 5 = eternal
-    const debutPhrases = practicePhrases.slice(0, 7)
-    const eternalPhrases = practicePhrases.slice(-5).reverse() // Longest first
+    // BUILD phase: up to 7 phrases - BUILD first, then USE to fill
+    // Sort by duration (shortest first for easier cognitive load)
+    const sortedBuild = [...buildPhrases].sort((a, b) =>
+      (a.audioRefs?.target?.voice1?.duration_ms || 0) - (b.audioRefs?.target?.voice1?.duration_ms || 0)
+    )
+    const sortedUse = [...usePhrases].sort((a, b) =>
+      (a.audioRefs?.target?.voice1?.duration_ms || 0) - (b.audioRefs?.target?.voice1?.duration_ms || 0)
+    )
+
+    // Take BUILD phrases first, then top up with USE phrases to reach 7
+    const debutPhrases: PracticePhrase[] = []
+    for (const phrase of sortedBuild) {
+      if (debutPhrases.length >= 7) break
+      debutPhrases.push(phrase)
+    }
+    for (const phrase of sortedUse) {
+      if (debutPhrases.length >= 7) break
+      debutPhrases.push(phrase)
+    }
+
+    // ETERNAL phrases: USE phrases only (for REVIEW and CONSOLIDATE)
+    // These are the phrases eligible for spaced repetition
+    const eternalPhrases = sortedUse
 
     // Create debut from lego if provided
     let debut: PracticePhrase | null = null
