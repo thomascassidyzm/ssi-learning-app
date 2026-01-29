@@ -116,7 +116,9 @@ const handleVerify = async () => {
     })
 
     if (result.status === 'complete') {
-      await setActive({ session: result.createdSessionId })
+      if (setActive.value) {
+        await setActive.value({ session: result.createdSessionId })
+      }
       emit('success')
       emit('close')
     } else {

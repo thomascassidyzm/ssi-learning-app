@@ -83,6 +83,7 @@ export class CourseDataProvider {
   private client?: SupabaseClient
   private audioBaseUrl: string
   private courseId: string
+  private warnedOnce = new Set<string>()  // Prevent console spam
 
   constructor(config: CourseDataProviderConfig) {
     this.client = config.supabaseClient
@@ -247,8 +248,13 @@ export class CourseDataProvider {
    */
   private buildProxyUrl(audioId: string): string {
     if (!audioId || audioId === 'undefined' || audioId === 'null') {
-      console.warn('[CourseDataProvider] Invalid audioId for proxy URL:', audioId)
-      return ''  // Return empty but log the issue
+      // Only warn once per type to prevent console spam
+      const warnKey = `invalid-audioId-${audioId}`
+      if (!this.warnedOnce.has(warnKey)) {
+        this.warnedOnce.add(warnKey)
+        console.warn('[CourseDataProvider] Invalid audioId for proxy URL:', audioId, '(further occurrences suppressed)')
+      }
+      return ''
     }
     return `/api/audio/${audioId}?courseId=${encodeURIComponent(this.courseId)}`
   }
@@ -409,7 +415,12 @@ export class CourseDataProvider {
       }
 
       if (!data || data.length === 0) {
-        console.warn('[CourseDataProvider] No phrases found for LEGO:', legoId)
+        // Only warn once per LEGO to prevent console spam
+        const warnKey = `no-phrases-${legoId}`
+        if (!this.warnedOnce.has(warnKey)) {
+          this.warnedOnce.add(warnKey)
+          console.warn('[CourseDataProvider] No phrases found for LEGO:', legoId)
+        }
         return this.createEmptyBasket(legoId, lego)
       }
 
@@ -646,7 +657,12 @@ export class CourseDataProvider {
         }
       }
 
-      console.warn('[CourseDataProvider] No audio found for', role, ':', text)
+      // Only warn once per text+role to prevent console spam
+      const warnKey = `no-audio-${role}-${text?.slice(0, 30)}`
+      if (!this.warnedOnce.has(warnKey)) {
+        this.warnedOnce.add(warnKey)
+        console.warn('[CourseDataProvider] No audio found for', role, ':', text)
+      }
       return null
     } catch (err) {
       console.error('[CourseDataProvider] Error in lookupAudioByText:', err)

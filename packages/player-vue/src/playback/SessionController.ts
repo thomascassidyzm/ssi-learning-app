@@ -29,6 +29,7 @@ import { createThreadManager, type ThreadManager } from './ThreadManager'
 import { buildRounds } from './RoundBuilder'
 import { createPlaybackConfig, type PlaybackConfig, DEFAULT_PLAYBACK_CONFIG } from './PlaybackConfig'
 import { scriptItemToCycle } from '../utils/scriptItemToCycle'
+import type { Cycle } from '../types/Cycle'
 
 export interface SessionController {
   // Lifecycle
@@ -79,6 +80,34 @@ export interface SessionController {
   skipCycle(): void
   skipRound(): void
   jumpToRound(roundNumber: number): void
+
+  // ============================================
+  // DRIVING MODE SUPPORT
+  // ============================================
+
+  /**
+   * Get all Cycles for a specific round (for Driving Mode concatenation)
+   */
+  getCyclesForRound(roundIndex: number): Cycle[]
+
+  /**
+   * Get cycles for multiple rounds (for batch concatenation)
+   */
+  getCyclesForRoundRange(startRound: number, count: number): Cycle[]
+
+  /**
+   * Jump to a specific position within a round
+   */
+  jumpToPosition(roundIndex: number, itemIndex: number): void
+
+  /**
+   * Get the audio source function
+   */
+  getAudioSourceFn(): GetAudioSourceFn | null
+
+  // Expose for driving mode
+  readonly currentRoundIndex: Ref<number>
+  readonly totalRounds: ComputedRef<number>
 
   // Configuration
   setConfig(config: Partial<PlaybackConfig>): void
@@ -179,6 +208,72 @@ export function createSessionController(): SessionController {
     }
     return ids
   })
+
+  /**
+   * Computed: total number of rounds
+   */
+  const totalRounds = computed<number>(() => rounds.value.length)
+
+  /**
+   * Get all playable Cycles for a specific round
+   * Used by Driving Mode to concatenate audio
+   */
+  function getCyclesForRound(roundIndex: number): Cycle[] {
+    if (roundIndex < 0 || roundIndex >= rounds.value.length) {
+      return []
+    }
+
+    const round = rounds.value[roundIndex]
+    const playableItems = getPlayableItems(round)
+
+    return playableItems
+      .map(item => item.cycle)
+      .filter((cycle): cycle is Cycle => cycle != null)
+  }
+
+  /**
+   * Get cycles for multiple rounds (for batch concatenation)
+   */
+  function getCyclesForRoundRange(startRound: number, count: number): Cycle[] {
+    const cycles: Cycle[] = []
+    const endRound = Math.min(startRound + count, rounds.value.length)
+
+    for (let i = startRound; i < endRound; i++) {
+      cycles.push(...getCyclesForRound(i))
+    }
+
+    return cycles
+  }
+
+  /**
+   * Jump to a specific position within a round
+   * Used when exiting Driving Mode to resume at correct position
+   */
+  function jumpToPosition(roundIndex: number, itemIndex: number): void {
+    if (roundIndex < 0 || roundIndex >= rounds.value.length) {
+      console.warn(`[SessionController] Invalid round index: ${roundIndex}`)
+      return
+    }
+
+    cyclePlayer.stop()
+    currentRoundIndex.value = roundIndex
+
+    const round = rounds.value[roundIndex]
+    const playableItems = getPlayableItems(round)
+    currentItemIndex.value = Math.min(Math.max(0, itemIndex), playableItems.length - 1)
+
+    if (state.value === 'playing' && isPlaybackActive) {
+      emit('round:started')
+      playCurrentItem()
+    }
+  }
+
+  /**
+   * Get the audio source function
+   */
+  function getAudioSourceFn(): GetAudioSourceFn | null {
+    return getAudioSource
+  }
 
   /**
    * Emit session event
@@ -609,6 +704,14 @@ export function createSessionController(): SessionController {
     skipCycle,
     skipRound,
     jumpToRound,
+
+    // Driving Mode Support
+    getCyclesForRound,
+    getCyclesForRoundRange,
+    jumpToPosition,
+    getAudioSourceFn,
+    currentRoundIndex: readonly(currentRoundIndex) as Ref<number>,
+    totalRounds,
 
     // Configuration
     setConfig,

@@ -176,7 +176,7 @@ const demoItems = [
 const progressStore = inject('progressStore', { value: null })
 const sessionStore = inject('sessionStore', { value: null })
 const courseDataProvider = inject('courseDataProvider', { value: null })
-const supabase = inject('supabase', { value: null })
+const supabase = inject('supabase', ref(null))
 const auth = inject('auth', null)
 const themeContext = inject('theme', null)
 
@@ -438,7 +438,12 @@ sessionPlayback.onSessionEvent((event) => {
 const INITIAL_ROUNDS = 20           // Fast initial load
 const EXPANSION_THRESHOLD = 5       // Expand when within 5 rounds of end
 const MAX_EXPANSION_BATCH = 200     // Cap each expansion batch
+const ROUNDS_TO_FETCH = 50          // Legacy: rounds to fetch in skip operations (deprecated code)
 const isExpandingScript = ref(false)
+const allPlayableItems = ref<any[]>([])  // Legacy: all items from deprecated generateLearningScript
+const totalSeedsPlayed = ref(0)     // Legacy: total seeds played in current session
+const isInitialized = ref(false)    // Legacy: whether component is fully initialized
+const prebuiltNetwork = { clear: () => {} }  // Legacy: stub for network operations
 
 // ============================================
 // LOCAL STORAGE PERSISTENCE - Works for all users (guests + logged-in)
@@ -1053,24 +1058,19 @@ const initializeBeltLoader = async () => {
 
   console.log('[LearningPlayer] Initializing belt loader...')
 
-  // Create script chunk generator that uses generateLearningScript
+  // Create script chunk generator
   // NOTE: generateLearningScript is deprecated and returns empty data
   // Belt loader will not work properly until migrated to SessionController
   const generateScriptChunk = async (startSeed: number, count: number) => {
     // DEPRECATED: generateLearningScript returns empty data
     // TODO: Migrate belt loader to use SessionController
     console.warn('[BeltLoader] generateScriptChunk uses deprecated generateLearningScript - returns empty data')
-    const result = await generateLearningScript(
-      supabase?.value,
-      courseCode.value,
-      startSeed,
-      count,
-      AUDIO_S3_BASE_URL
-    )
 
+    // Return empty data since generateLearningScript is deprecated
+    // This matches what generateLearningScript returns anyway
     return {
-      rounds: result.rounds || [],
-      nextSeed: startSeed + (result.rounds?.length || 0),
+      rounds: [] as import('../composables/useScriptCache').Round[],
+      nextSeed: startSeed,
       hasMore: (startSeed + count) < 668, // Assuming 668 total seeds
     }
   }
@@ -2073,6 +2073,20 @@ class RealAudioController {
   // Maximum number of preloaded URLs to keep (prevents memory leak in long sessions)
   static MAX_PRELOAD_CACHE_SIZE = 50
 
+  // TypeScript property declarations
+  endedCallbacks: Set<() => void>
+  audio: HTMLAudioElement
+  currentCleanup: (() => void) | null
+  preloadedUrls: Set<string>
+  preloadOrder: string[]
+  preloadedAudioElements: Map<string, HTMLAudioElement>
+  skipNextNotify: boolean
+  suppressAllCallbacks: boolean
+  playGeneration: number
+  audioSource: any
+  _lastEndedHandler: (() => void) | null
+  _lastErrorHandler: ((e: any) => void) | null
+
   constructor() {
     this.endedCallbacks = new Set()
     // Create audio element immediately for mobile compatibility
@@ -2086,6 +2100,8 @@ class RealAudioController {
     this.suppressAllCallbacks = false  // Set true during skip to prevent any audio callbacks
     this.playGeneration = 0  // Incremented on stop() to invalidate pending callbacks
     this.audioSource = null  // Optional AudioSource for IndexedDB caching
+    this._lastEndedHandler = null
+    this._lastErrorHandler = null
   }
 
   /**
@@ -2120,7 +2136,7 @@ class RealAudioController {
     // Capture generation at start of this play - if it changes, this play was cancelled
     const playGen = this.playGeneration || 0
 
-    return new Promise((resolve) => {
+    return new Promise<void>((resolve) => {
       // Audio element is created in constructor for mobile compatibility
 
       const onEnded = () => {
@@ -2416,7 +2432,7 @@ const handleCycleEvent = (event) => {
           }
           break
       }
-      currentPhase.value = corePhaseToUiPhase(event.phase)
+      currentPhase.value = cyclePhaseToUiPhase(event.phase)
       break
 
     case 'pause_started':
@@ -2694,24 +2710,18 @@ const handleRingTap = () => {
 
 // Zoom controls for network view
 const handleZoomIn = () => {
-  if (networkViewRef.value?.currentZoom) {
-    const current = networkViewRef.value.currentZoom.value || 1
-    const newZoom = Math.min(current * 1.3, 4)
-    networkViewRef.value?.zoomTo(newZoom)
-  }
+  // Use the component's exposed zoomIn method
+  ;(networkViewRef.value as any)?.zoomIn?.()
 }
 
 const handleZoomOut = () => {
-  if (networkViewRef.value?.currentZoom) {
-    const current = networkViewRef.value.currentZoom.value || 1
-    const newZoom = Math.max(current / 1.3, 0.3)
-    networkViewRef.value?.zoomTo(newZoom)
-  }
+  // Use the component's exposed zoomOut method
+  ;(networkViewRef.value as any)?.zoomOut?.()
 }
 
 const handleZoomReset = () => {
-  networkViewRef.value?.zoomTo(1)
-  networkViewRef.value?.centerView(true)
+  // Use the component's exposed resetZoomPan method
+  ;(networkViewRef.value as any)?.resetZoomPan?.()
 }
 
 const handlePause = () => {
@@ -2973,7 +2983,7 @@ const playIntroductionAudioDirectly = async (scriptItem) => {
       supabase.value,
       '', // text not used for intro
       'intro',
-      { legoId }
+      { legoId } as import('../composables/useScriptCache').ScriptItem
     )
   }
 
@@ -3071,7 +3081,7 @@ const playIntroductionAudioDirectly = async (scriptItem) => {
   }
 
   // Helper to pause for a duration (with cancellation support)
-  const pause = (ms) => new Promise(resolve => {
+  const pause = (ms: number) => new Promise<void>(resolve => {
     // Check if already aborted (null OR aborted signal)
     if (!introAbortController || introAbortController.signal.aborted) {
       resolve()
@@ -4171,7 +4181,7 @@ const handleSkipToBeltFromModal = async (belt) => {
     if (targetSeed < scriptBaseOffset.value && courseDataProvider.value) {
       console.log(`[LearningPlayer] Reloading script from seed ${targetSeed}...`)
       console.warn('[LearningPlayer] handleSkipToBeltFromModal backward uses deprecated generateLearningScript')
-      if (orchestrator.value) stopCycle()
+      stopCycle()
       if (audioController.value) audioController.value.stop()
       clearPathAnimation()
 
@@ -4432,7 +4442,7 @@ const applyTurboConfig = () => {
       : 2000 // Fallback
 
     // Calculate pause using the config formula
-    const pauseMs = calculatePause(targetDurationMs, turboActive.value)
+    const pauseMs = calculatePause(config, targetDurationMs)
     console.log(`[Turbo] ${turboActive.value ? 'ON' : 'OFF'} - pause: ${pauseMs}ms`)
   }
 }
@@ -5541,7 +5551,7 @@ onMounted(async () => {
             const estimatedMinutes = Math.round(totalCycles * 0.2) // ~12s per cycle
 
             await setCachedScript(courseCode.value, {
-              rounds,
+              rounds: rounds as import('../composables/useScriptCache').Round[],
               totalSeeds: rounds.length,
               totalLegos: rounds.length,
               totalCycles,
@@ -5831,10 +5841,11 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
   // 2. Reset all state
   currentRoundIndex.value = 0
   currentItemInRound.value = 0
-  sessionItems.value = []
+  // Legacy items array for deprecated code paths
+  allPlayableItems.value = []
   cachedRounds.value = []
   cachedCourseWelcome.value = null
-  completedSeeds.value = 0
+  // completedSeeds is computed from beltProgress, which is managed separately
   totalSeedsPlayed.value = 0
   sessionSeconds.value = 0
   welcomeChecked.value = false
@@ -5905,18 +5916,17 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
       0
     )
     cachedRounds.value = rounds
-    sessionItems.value = allItems
+    // Legacy: store items for deprecated code paths
+    allPlayableItems.value = allItems
   } else if (cachedRounds.value.length > 0) {
-    // Flatten cached rounds into session items
-    sessionItems.value = cachedRounds.value.flatMap(r => r.items || [])
+    // Flatten cached rounds into items for deprecated code paths
+    allPlayableItems.value = cachedRounds.value.flatMap(r => r.items || [])
   } else {
     console.warn('[LearningPlayer] No cache and courseDataProvider mismatch - player may need refresh')
   }
 
-  // Initialize orchestrator with new items
-  if (sessionItems.value.length > 0) {
-    await initOrchestrator()
-  }
+  // Initialize for new course - legacy initOrchestrator removed
+  // The SessionController path handles this automatically
 
   // Mark as ready
   setLoadingStage('ready')

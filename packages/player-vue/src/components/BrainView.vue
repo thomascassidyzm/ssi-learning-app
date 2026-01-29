@@ -229,6 +229,13 @@ const brain3DRef = ref<InstanceType<typeof Brain3DView> | null>(null)
 const searchQuery = ref('')
 const isSearchFocused = ref(false)
 
+// Handler for search blur event - delays focus loss to allow result clicks
+function handleSearchBlur(): void {
+  window.setTimeout(() => {
+    isSearchFocused.value = false
+  }, 200)
+}
+
 // Tab state: 'brain' | 'belts' | 'usage'
 // Default to 'belts' so brain loads in background while user views simpler content
 const activeTab = ref<'brain' | 'belts' | 'usage'>('belts')
@@ -1172,7 +1179,7 @@ onUnmounted(() => {
           v-model="searchQuery"
           placeholder="Search your words..."
           @focus="isSearchFocused = true"
-          @blur="setTimeout(() => isSearchFocused = false, 200)"
+          @blur="handleSearchBlur"
         />
         <button
           v-if="searchQuery"

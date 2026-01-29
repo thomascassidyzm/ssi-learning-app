@@ -25,7 +25,7 @@
 
 <script setup lang="ts">
 import { computed, watch, onMounted } from 'vue'
-import { useCyclePlayback } from '../composables/useCyclePlayback'
+import { useCyclePlayback, type AudioSource } from '../composables/useCyclePlayback'
 import type { Cycle } from '../types/Cycle'
 
 interface Props {
@@ -52,11 +52,12 @@ const showTargetText = computed(() => {
 })
 
 /**
- * Gets audio blob from cache by ID.
+ * Gets audio source from cache by ID.
+ * Returns an AudioSource object for compatibility with useCyclePlayback.
  */
-async function getAudioBlob(audioId: string): Promise<Blob | null> {
+async function getAudioSource(audioId: string): Promise<AudioSource | null> {
   const cached = props.audioCache.get(audioId)
-  return cached ? cached.blob : null
+  return cached ? { type: 'blob', blob: cached.blob } : null
 }
 
 /**
@@ -64,7 +65,7 @@ async function getAudioBlob(audioId: string): Promise<Blob | null> {
  */
 onMounted(async () => {
   try {
-    await playCycle(props.cycle, getAudioBlob)
+    await playCycle(props.cycle, getAudioSource)
     emit('cycle-complete')
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
@@ -78,7 +79,7 @@ onMounted(async () => {
 watch(() => props.cycle, async (newCycle) => {
   stop()
   try {
-    await playCycle(newCycle, getAudioBlob)
+    await playCycle(newCycle, getAudioSource)
     emit('cycle-complete')
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
