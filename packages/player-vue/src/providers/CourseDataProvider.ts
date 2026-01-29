@@ -87,6 +87,7 @@ export class CourseDataProvider {
   private audioBaseUrl: string
   private courseId: string
   private loggedOnce = new Set<string>()  // Prevent console spam
+  private warnedOnce = new Set<string>()  // Prevent warning spam
 
   constructor(config: CourseDataProviderConfig) {
     this.client = config.supabaseClient

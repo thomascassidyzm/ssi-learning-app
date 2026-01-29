@@ -369,11 +369,14 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
     try {
       const endTime = new Date()
       await sessionStore.endSession(sessionId.value, {
+        session_id: sessionId.value,
         started_at: sessionStartTime.value,
         ended_at: endTime,
         items_practiced: itemsPracticed.value,
         spikes_detected: 0, // TODO: Wire up spike detection
         final_rolling_average: 0, // TODO: Wire up metrics
+        metrics: [], // TODO: Wire up response metrics
+        spikes: [], // TODO: Wire up spike events
       })
 
       console.log('[useLearningSession] Session ended:', sessionId.value)

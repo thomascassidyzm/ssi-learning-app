@@ -348,7 +348,7 @@ export function useBeltLoader(config: BeltLoaderConfig) {
       loadedSeedRanges.value.add(rangeKey)
 
     } catch (error) {
-      const warnKey = `task-${task.belt}-${task.startSeed}`
+      const warnKey = `task-${task.belt}-${task.seedRange[0]}`
       if (!warnedOnce.has(warnKey)) {
         warnedOnce.add(warnKey)
         console.warn(`[BeltLoader] Task failed:`, task, error)

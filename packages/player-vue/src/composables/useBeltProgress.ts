@@ -121,9 +121,11 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
    */
   const getLearnerId = (): string | null => {
     if (!syncConfig?.learnerId) return null
-    return 'value' in syncConfig.learnerId
-      ? syncConfig.learnerId.value
-      : syncConfig.learnerId
+    // Check if it's a Ref (has .value property)
+    if (typeof syncConfig.learnerId === 'object' && syncConfig.learnerId !== null && 'value' in syncConfig.learnerId) {
+      return syncConfig.learnerId.value
+    }
+    return syncConfig.learnerId as string
   }
 
   /**

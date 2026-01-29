@@ -22,16 +22,17 @@ import { useSharedBeltProgress, type BeltProgressSyncConfig } from '../composabl
 import { useBeltLoader, getBeltForSeed, BELT_RANGES, type BeltLoaderConfig } from '../composables/useBeltLoader'
 import { useOfflinePlay } from '../composables/useOfflinePlay'
 import { useOfflineCache } from '../composables/useOfflineCache'
-// NOTE: generateLearningScript is deprecated and returns empty data
-// LearningPlayer now uses SessionController via useSessionPlayback (USE_SESSION_CONTROLLER=true)
-// Legacy code paths using generateLearningScript are kept as fallback only
+// SimplePlayer - clean playback engine
+import { useSimplePlayer } from '../composables/useSimplePlayer'
+import { adaptRoundsForPlayer } from '../playback/roundAdapter'
+import type { Round as SimpleRound } from '../playback/SimplePlayer'
+// Legacy generateLearningScript (deprecated - returns empty data)
 import { generateLearningScript } from '../providers/CourseDataProvider'
 // Prebuilt network: positions pre-calculated, pans to hero via CSS
 import { usePrebuiltNetworkIntegration } from '../composables/usePrebuiltNetworkIntegration'
 import { useLegoNetwork } from '../composables/useLegoNetwork'
 import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
 import { useAuthModal } from '../composables/useAuthModal'
-import { useSessionPlayback } from '../composables/useSessionPlayback'
 import ConstellationNetworkView from './ConstellationNetworkView.vue'
 import BeltProgressModal from './BeltProgressModal.vue'
 import ListeningOverlay from './ListeningOverlay.vue'
@@ -295,142 +296,116 @@ const {
 } = useScriptCache()
 
 // ============================================
-// NEW PLAYBACK ARCHITECTURE - SessionController integration
-// Feature flag to enable incremental migration
+// SIMPLE PLAYER - Clean playback architecture
 // ============================================
-const USE_SESSION_CONTROLLER = ref(true) // Enable new SessionController architecture
+const simplePlayer = useSimplePlayer()
 
-// Initialize the SessionPlayback composable
-const sessionPlayback = useSessionPlayback({
-  courseDataProvider: courseDataProvider as any,
-})
+// Rounds storage (loaded from database, adapted for SimplePlayer)
+// Using any[] to allow mixed format: SimpleRound (cycles) + legacy ScriptItem (items)
+const loadedRounds = ref<any[]>([])
 
-// Script-based learning state (legacy - will be replaced by sessionPlayback)
-const cachedRounds = ref([])
+// Expose reactive state for UI - writable refs that sync with simplePlayer
+// We need writable refs because legacy code assigns to these directly
 const currentRoundIndex = ref(0)
 const currentItemInRound = ref(0)
-const scriptBaseOffset = ref(0) // Tracks where the script started (completedSeeds at load time)
-const playbackGeneration = ref(0) // Increments on every jump - invalidates stale callbacks
+const isPlaying = ref(false)
 
-// Bridge: Use composable state when enabled, otherwise use legacy refs
-const effectiveRounds = computed(() =>
-  USE_SESSION_CONTROLLER.value ? sessionPlayback.cachedRounds.value : cachedRounds.value
-)
-const effectiveRoundIndex = computed(() =>
-  USE_SESSION_CONTROLLER.value ? sessionPlayback.currentRoundIndex.value : currentRoundIndex.value
-)
-const effectiveItemInRound = computed(() =>
-  USE_SESSION_CONTROLLER.value ? sessionPlayback.currentItemInRound.value : currentItemInRound.value
-)
+// Sync state with simplePlayer
+watch(() => simplePlayer.roundIndex.value, (idx) => { currentRoundIndex.value = idx })
+watch(() => simplePlayer.cycleIndex.value, (idx) => { currentItemInRound.value = idx })
+watch(() => simplePlayer.isPlaying.value, (playing) => { isPlaying.value = playing })
+
+// Backwards compatibility aliases
+const effectiveRounds = loadedRounds
+const cachedRounds = loadedRounds  // Legacy alias
+const effectiveRoundIndex = currentRoundIndex
+const effectiveItemInRound = currentItemInRound
+
+// Legacy configuration flags
+const USE_SESSION_CONTROLLER = ref(true)  // Enable new SimplePlayer path
+const playbackGeneration = ref(0)  // Counter for playback generation tracking
+const scriptBaseOffset = ref(0)  // Base offset for script loading
 
 // ============================================
-// SESSION CONTROLLER EVENT SUBSCRIPTIONS
-// Forward events to existing UI handlers
+// SIMPLE PLAYER EVENT SUBSCRIPTIONS
 // ============================================
 
-// Subscribe to cycle events (phase changes, cycle completion)
-sessionPlayback.onCycleEvent((event) => {
-  if (!USE_SESSION_CONTROLLER.value) return
+// Phase changes - update UI and trigger animations
+// Note: Phase mapping happens AFTER the local Phase constant is defined (around line 1429)
+// So we store phases here and apply them later in a watcher
+const pendingPhase = ref<string>('idle')
+simplePlayer.onPhaseChanged((phase) => {
+  pendingPhase.value = phase
 
-  switch (event.type) {
-    case 'phase_changed':
-      // Map phase to UI phase and update
-      const phaseMap: Record<string, any> = {
-        'IDLE': CyclePhase.IDLE,
-        'PROMPT': CyclePhase.PROMPT,
-        'PAUSE': CyclePhase.PAUSE,
-        'VOICE_1': CyclePhase.VOICE_1,
-        'VOICE_2': CyclePhase.VOICE_2,
-      }
-      const mappedPhase = phaseMap[event.data.phase] ?? CyclePhase.IDLE
-      currentPhase.value = mappedPhase
-
-      // Handle phase-specific UI updates
-      if (event.data.phase === 'PROMPT') {
-        // Clear transition state on new cycle
-        isTransitioningItem.value = false
-        clearPreparingState()
-      } else if (event.data.phase === 'VOICE_1') {
-        // Trigger network animation for VOICE_1 (nodes light up)
-        const currentItem = sessionPlayback.currentRound.value?.items[sessionPlayback.currentItemInRound.value]
-        if (currentItem) {
-          const legoIds = extractLegoIdsFromPhrase(currentItem)
-          if (legoIds.length > 0) {
-            const audioDurationMs = currentItem.audioDurations?.target1 ? currentItem.audioDurations.target1 * 1000 : 2000
-            distinctionNetwork.animateNodesForVoice1(legoIds, audioDurationMs)
-          }
-        }
-      } else if (event.data.phase === 'VOICE_2') {
-        // Trigger network animation for VOICE_2 (full path with edges)
-        const currentItem = sessionPlayback.currentRound.value?.items[sessionPlayback.currentItemInRound.value]
-        if (currentItem) {
-          const legoIds = extractLegoIdsFromPhrase(currentItem)
-          if (legoIds.length > 0) {
-            const audioDurationMs = currentItem.audioDurations?.target2 ? currentItem.audioDurations.target2 * 1000 : 2000
-            distinctionNetwork.animatePathForVoice2(legoIds, audioDurationMs)
-          }
-        }
-      }
-      break
-
-    case 'cycle_started':
-      // Emit event for external listeners
-      emit('cycle-started', event.data)
-      break
-
-    case 'cycle_completed':
-      // Increment counters and trigger reward animation
-      itemsPracticed.value++
-      learningHintPromptsShown.value++
-
-      // Clear path highlights
-      distinctionNetwork.clearPathAnimation()
-      resonatingNodes.value = []
-
-      // Trigger reward animation
-      const { points, bonusLevel } = calculateCyclePoints()
-      const multipliedPoints = Math.round(points * sessionMultiplier.value)
-      sessionPoints.value += multipliedPoints
-      triggerRewardAnimation(multipliedPoints, bonusLevel)
-
-      // Track turbo usage
-      totalCycles.value++
-      if (turboActive.value) {
-        turboCycles.value++
-      }
-      break
+  // Handle phase-specific UI updates
+  if (phase === 'prompt') {
+    isTransitioningItem.value = false
+    clearPreparingState()
   }
 })
 
-// Subscribe to session events (round completion, session end)
-sessionPlayback.onSessionEvent((event) => {
-  if (!USE_SESSION_CONTROLLER.value) return
+// Cycle completed - update counters and animations
+simplePlayer.onCycleCompleted((cycle) => {
+  itemsPracticed.value++
+  learningHintPromptsShown.value++
 
-  switch (event.type) {
-    case 'round_completed':
-      // Call existing round boundary handler
-      const completedRoundIndex = sessionPlayback.currentRoundIndex.value
-      const completedLegoId = sessionPlayback.currentRound.value?.legoId
-      if (completedLegoId) {
-        saveRoundProgress(completedLegoId, completedRoundIndex)
-        handleRoundBoundary(completedRoundIndex, completedLegoId)
-      }
-      break
+  // Clear path highlights
+  distinctionNetwork.clearPathAnimation()
+  resonatingNodes.value = []
 
-    case 'session_complete':
-      // Show session summary
-      showPausedSummary()
-      break
+  // Trigger reward animation
+  const { points, bonusLevel } = calculateCyclePoints()
+  const multipliedPoints = Math.round(points * sessionMultiplier.value)
+  sessionPoints.value += multipliedPoints
+  triggerRewardAnimation(multipliedPoints, bonusLevel)
 
-    case 'session_paused':
-      isPlaying.value = false
-      break
-
-    case 'session_resumed':
-      isPlaying.value = true
-      break
+  // Track turbo usage
+  totalCycles.value++
+  if (turboActive.value) {
+    turboCycles.value++
   }
 })
+
+// Round completed - save progress
+simplePlayer.onRoundCompleted((round) => {
+  const completedRoundIndex = simplePlayer.roundIndex.value
+  if (round.legoId) {
+    saveRoundProgress(round.legoId, completedRoundIndex)
+    handleRoundBoundary(completedRoundIndex, round.legoId)
+  }
+})
+
+// Session complete - show summary
+simplePlayer.onSessionComplete(() => {
+  showPausedSummary()
+})
+
+// Sync simplePlayer's current cycle to local currentCycle ref for text display
+// This watcher runs after currentCycle ref is defined (around line 1240)
+watch(() => simplePlayer.currentCycle.value, (simpleCycle) => {
+  if (!simpleCycle) return
+  // Map SimpleCycle format to legacy Cycle format for currentPhrase computed
+  // Only the text fields are needed for display
+  currentCycle.value = {
+    id: simpleCycle.id,
+    seedId: '',
+    legoId: simpleCycle.id.split('-')[0] || '',
+    type: 'practice',
+    known: {
+      text: simpleCycle.known.text,
+      audioId: '',
+      durationMs: 0,
+    },
+    target: {
+      text: simpleCycle.target.text,
+      voice1AudioId: '',
+      voice1DurationMs: 0,
+      voice2AudioId: '',
+      voice2DurationMs: 0,
+    },
+    pauseDurationMs: simpleCycle.pauseDuration || 4000,
+  } as any
+}, { immediate: true })
 
 // ============================================
 // PROGRESSIVE LOADING - Start small, expand as learner progresses
@@ -550,21 +525,12 @@ const cachedCourseWelcome = ref(null)
 
 // Are we using round-based playback?
 const useRoundBasedPlayback = computed(() => {
-  // SessionController is always round-based when initialized
-  if (USE_SESSION_CONTROLLER.value && sessionPlayback.isInitialized.value) {
-    return true
-  }
-  return cachedRounds.value.length > 0
+  return loadedRounds.value.length > 0
 })
 
-// Current round
+// Current round (from loadedRounds which has both cycles and items for compatibility)
 const currentRound = computed(() => {
-  // Use SessionController's currentRound when enabled
-  if (USE_SESSION_CONTROLLER.value) {
-    return sessionPlayback.currentRound.value
-  }
-  // Legacy: use local refs
-  return useRoundBasedPlayback.value ? cachedRounds.value[currentRoundIndex.value] : null
+  return loadedRounds.value[currentRoundIndex.value] ?? null
 })
 
 // Flag to track if initial position has been loaded (prevents saving during initialization)
@@ -1505,6 +1471,27 @@ watch(() => cyclePlaybackState.value.phase, (phase) => {
   currentPhase.value = cyclePhaseToUiPhase(phase)
 })
 
+// Watch SimplePlayer phase and map to UI phase (using local Phase constant)
+watch(pendingPhase, (phase) => {
+  const phaseMap: Record<string, string> = {
+    'idle': Phase.PROMPT,
+    'intro': Phase.PROMPT,  // Intro uses prompt styling
+    'prompt': Phase.PROMPT,
+    'pause': Phase.SPEAK,
+    'voice1': Phase.VOICE_1,
+    'voice2': Phase.VOICE_2,
+  }
+  currentPhase.value = phaseMap[phase] ?? Phase.PROMPT
+
+  // Start ring animation when entering pause phase
+  if (phase === 'pause') {
+    // Get pause duration from current cycle
+    const cycle = simplePlayer.currentCycle.value
+    const duration = cycle?.pauseDuration || 4000
+    startRingAnimation(duration)
+  }
+})
+
 watch(() => cyclePlaybackState.value.isPlaying, (playing) => {
   if (!playing && !isSkipInProgress.value && !isSkippingBelt.value && !isCycleTransitioning.value) {
     isPlaying.value = false
@@ -1514,7 +1501,7 @@ watch(() => cyclePlaybackState.value.isPlaying, (playing) => {
 // State
 const currentPhase = ref(Phase.PROMPT)
 const currentItemIndex = ref(0)
-const isPlaying = ref(false) // Start paused until engine ready
+// Note: isPlaying is now a computed from simplePlayer (defined above)
 const isSkipInProgress = ref(false) // Flag to prevent cycle_stopped from resetting isPlaying during skip
 const isCycleTransitioning = ref(false) // Flag to prevent watcher from resetting isPlaying between cycles
 const isPreparingToPlay = ref(false) // True when play pressed but audio hasn't started yet
@@ -2725,8 +2712,6 @@ const handleZoomReset = () => {
 }
 
 const handlePause = () => {
-  isPlaying.value = false
-
   // Stop introduction audio if playing
   if (isPlayingIntroduction.value) {
     skipIntroduction()
@@ -2737,13 +2722,8 @@ const handlePause = () => {
     skipWelcome()
   }
 
-  // Use SessionController when enabled
-  if (USE_SESSION_CONTROLLER.value) {
-    sessionPlayback.pause()
-  } else {
-    // Legacy: Stop cycle playback
-    stopCycle()
-  }
+  // Use SimplePlayer
+  simplePlayer.pause()
 
   if (ringAnimationFrame) {
     cancelAnimationFrame(ringAnimationFrame)
@@ -2758,30 +2738,25 @@ const handleResume = () => {
     return // Don't start until consent is resolved
   }
 
-  // Use SessionController when enabled
-  if (USE_SESSION_CONTROLLER.value) {
-    startSessionPlayback()
-  } else {
-    startPlayback()
-  }
+  // Use SimplePlayer
+  simplePlayer.play()
 }
 
 /**
- * Start playback using the new SessionController architecture
+ * Start playback using SimplePlayer
  */
-const startSessionPlayback = async () => {
-  console.log('[LearningPlayer] Starting SessionController playback...')
+const startSimplePlayback = async () => {
+  console.log('[LearningPlayer] Starting SimplePlayer playback...')
 
-  // Wait for SessionController to be fully initialized (baskets may still be loading)
-  if (!sessionPlayback.isInitialized.value) {
-    console.log('[LearningPlayer] Waiting for SessionController initialization...')
-    // Show encouraging message while we wait
+  // Wait for rounds to be loaded
+  if (loadedRounds.value.length === 0) {
+    console.log('[LearningPlayer] Waiting for rounds to load...')
     startPreparingState()
     await new Promise<void>((resolve) => {
       const unwatch = watch(
-        () => sessionPlayback.isInitialized.value,
-        (initialized) => {
-          if (initialized) {
+        () => loadedRounds.value.length > 0,
+        (hasRounds) => {
+          if (hasRounds) {
             unwatch()
             resolve()
           }
@@ -2789,11 +2764,10 @@ const startSessionPlayback = async () => {
         { immediate: true }
       )
     })
-    console.log('[LearningPlayer] SessionController now initialized')
+    console.log('[LearningPlayer] Rounds loaded')
   }
 
   hasEverStarted.value = true
-  isPlaying.value = true
 
   // Start belt progress session for time tracking
   if (beltProgress.value) {
@@ -2803,8 +2777,8 @@ const startSessionPlayback = async () => {
   // Check if welcome audio needs to play first (only on first ever play)
   await playWelcomeIfNeeded()
 
-  // Start the session with our audio source resolver
-  sessionPlayback.start(getAudioSourceForSession)
+  // Start playback
+  simplePlayer.play()
 }
 
 /**
@@ -3506,23 +3480,21 @@ const handleSkip = async () => {
 
   console.log('[LearningPlayer] ========== SKIP REQUESTED ==========')
 
-  // Use SessionController when enabled
-  if (USE_SESSION_CONTROLLER.value) {
-    console.log('[LearningPlayer] Using SessionController skipRound')
-    isSkipInProgress.value = true
-    try {
-      // Skip any intro/welcome audio
-      if (isPlayingIntroduction.value) skipIntroduction()
-      if (isPlayingWelcome.value) skipWelcome()
-      // Clear path animations
-      clearPathAnimation()
-      // Skip to next round via SessionController
-      sessionPlayback.skipRound()
-    } finally {
-      isSkipInProgress.value = false
-    }
-    return
+  // Use SimplePlayer
+  console.log('[LearningPlayer] Using SimplePlayer skipRound')
+  isSkipInProgress.value = true
+  try {
+    // Skip any intro/welcome audio
+    if (isPlayingIntroduction.value) skipIntroduction()
+    if (isPlayingWelcome.value) skipWelcome()
+    // Clear path animations
+    clearPathAnimation()
+    // Skip to next round
+    simplePlayer.skipRound()
+  } finally {
+    isSkipInProgress.value = false
   }
+  return
 
   // Mark that we're in a skip operation (prevents cycle_stopped from resetting isPlaying)
   const wasPlaying = isPlaying.value
@@ -3853,18 +3825,15 @@ const jumpToRound = async (roundIndex) => {
     return false
   }
 
-  // Use SessionController when enabled
-  if (USE_SESSION_CONTROLLER.value) {
-    console.log('[LearningPlayer] Using SessionController jumpToRound:', roundIndex)
-    // Skip any intro/welcome audio
-    if (isPlayingIntroduction.value) skipIntroduction()
-    if (isPlayingWelcome.value) skipWelcome()
-    // Clear path animations
-    clearPathAnimation()
-    // Jump via SessionController (0-based index)
-    sessionPlayback.jumpToRound(roundIndex)
-    return true
-  }
+  console.log('[LearningPlayer] Using SimplePlayer jumpToRound:', roundIndex)
+  // Skip any intro/welcome audio
+  if (isPlayingIntroduction.value) skipIntroduction()
+  if (isPlayingWelcome.value) skipWelcome()
+  // Clear path animations
+  clearPathAnimation()
+  // Jump via SimplePlayer (0-based index)
+  simplePlayer.jumpToRound(roundIndex)
+  return true
 
   // Legacy validation
   if (!cachedRounds.value.length) {
@@ -4028,8 +3997,8 @@ const handleSkipToNextBelt = async () => {
     const targetSeed = nextBelt.value.seedsRequired
     console.log(`[LearningPlayer] Skipping to ${nextBelt.value.name} belt (seed ${targetSeed})`)
 
-    // Use SessionController's jumpToSeed which handles lazy loading
-    await sessionPlayback.jumpToSeed(targetSeed)
+    // Use simplePlayer to jump to round (0-indexed, so targetSeed - 1)
+    simplePlayer.jumpToRound(Math.max(0, targetSeed - 1))
 
     // Update belt progress to match (uses absolute seed number)
     if (beltProgress.value) {
@@ -4059,9 +4028,9 @@ const handleGoBackBelt = async () => {
     const targetSeed = beltProgress.value.goBackToBeltStart()
     console.log(`[LearningPlayer] Going back to seed ${targetSeed}`)
 
-    // Use SessionController's jumpToSeed which handles lazy loading
-    // Math.max(1, ...) ensures we don't try to go to seed 0 (White belt edge case)
-    await sessionPlayback.jumpToSeed(Math.max(1, targetSeed))
+    // Use simplePlayer to jump to round (0-indexed, so targetSeed - 1)
+    // Math.max(0, ...) ensures we don't go negative (White belt edge case)
+    simplePlayer.jumpToRound(Math.max(0, targetSeed - 1))
 
     console.log(`[LearningPlayer] handleGoBackBelt: complete, now at seed ${targetSeed}`)
   } finally {
@@ -4087,9 +4056,9 @@ const handleSkipToBeltFromModal = async (belt) => {
 
   isSkippingBelt.value = true
   try {
-    // Use SessionController's jumpToSeed which handles lazy loading for any direction
-    // Math.max(1, ...) ensures we don't try to go to seed 0 (White belt edge case)
-    await sessionPlayback.jumpToSeed(Math.max(1, targetSeed))
+    // Use simplePlayer to jump to round (0-indexed, so targetSeed - 1)
+    // Math.max(0, ...) ensures we don't go negative (White belt edge case)
+    simplePlayer.jumpToRound(Math.max(0, targetSeed - 1))
 
     // Update belt progress to match
     if (beltProgress.value) {
@@ -4973,10 +4942,55 @@ onMounted(async () => {
       }
 
       if (USE_SESSION_CONTROLLER.value && courseDataProvider.value) {
-        console.log('[LearningPlayer] Initializing SessionController...')
+        console.log('[LearningPlayer] Initializing SimplePlayer...')
         try {
-          await sessionPlayback.initialize(courseCode.value)
-          console.log('[LearningPlayer] SessionController initialized successfully')
+          // Load learning items from database
+          const items = await courseDataProvider.value.loadSessionItems(1, 300)
+          console.log('[LearningPlayer] Loaded', items.length, 'items from database')
+
+          if (items.length > 0) {
+            // Convert LearningItems to rounds with both cycles (for SimplePlayer) and items (for legacy code)
+            // This is a simplified version - full RoundBuilder integration comes later
+            const simpleRounds = items.map((item, index) => {
+              const cycle = {
+                id: `${item.lego.id}-debut`,
+                known: {
+                  text: item.phrase.phrase.known,
+                  audioUrl: item.phrase.audioRefs.known.url
+                },
+                target: {
+                  text: item.phrase.phrase.target,
+                  voice1Url: item.phrase.audioRefs.target.voice1.url,
+                  voice2Url: item.phrase.audioRefs.target.voice2.url
+                },
+                pauseDuration: ((item.audioDurations?.target1 ?? 2) + (item.audioDurations?.target2 ?? 2)) * 1000,
+              }
+              // Legacy ScriptItem format for backwards compatibility
+              const legacyItem = {
+                type: 'debut' as const,
+                roundNumber: index + 1,
+                legoId: item.lego.id,
+                legoIndex: index + 1,
+                seedId: item.seed.seed_id,
+                knownText: item.phrase.phrase.known,
+                targetText: item.phrase.phrase.target,
+                audioRefs: item.phrase.audioRefs,
+                audioDurations: item.audioDurations,
+              }
+              return {
+                roundNumber: index + 1,
+                legoId: item.lego.id,
+                seedId: item.seed.seed_id,
+                cycles: [cycle],
+                items: [legacyItem], // Legacy compatibility
+              }
+            })
+
+            loadedRounds.value = simpleRounds as any // Type cast for mixed format
+            simplePlayer.initialize(simpleRounds as any)
+            console.log('[LearningPlayer] SimplePlayer initialized with', simpleRounds.length, 'rounds')
+          }
+          console.log('[LearningPlayer] SimplePlayer initialized successfully')
 
           // Load network connections and nodes from database
           // Then initialize the full network visualization
@@ -6144,7 +6158,7 @@ defineExpose({
         v-if="showListeningOverlay"
         :course-code="activeCourseCode"
         :belt-color="currentBelt.color"
-        :session-controller="USE_SESSION_CONTROLLER ? sessionPlayback.sessionController : null"
+        :session-controller="null"
         @close="handleCloseListening"
       />
     </Transition>
