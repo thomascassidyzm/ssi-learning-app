@@ -251,7 +251,7 @@ export function createSessionController(): SessionController {
    */
   function jumpToPosition(roundIndex: number, itemIndex: number): void {
     if (roundIndex < 0 || roundIndex >= rounds.value.length) {
-      console.warn(`[SessionController] Invalid round index: ${roundIndex}`)
+      // console.warn(`[SessionController] Invalid round index: ${roundIndex}`)
       return
     }
 
@@ -344,7 +344,7 @@ export function createSessionController(): SessionController {
     currentItemIndex.value = 0
     state.value = 'idle'
 
-    console.log('[SessionController] Initialized empty session for', course)
+    // console.log('[SessionController] Initialized empty session for', course)
   }
 
   /**
@@ -360,7 +360,7 @@ export function createSessionController(): SessionController {
     if (isPlaybackActive && state.value === 'playing' && !currentRound.value) {
       const newCurrentRound = rounds.value[currentRoundIndex.value]
       if (newCurrentRound) {
-        console.log('[SessionController] Round', round.roundNumber, 'loaded, resuming playback')
+        // console.log('[SessionController] Round', round.roundNumber, 'loaded, resuming playback')
         playCurrentItem()
       }
     }
@@ -470,7 +470,7 @@ export function createSessionController(): SessionController {
       // Round not yet loaded - emit loading event and wait
       // The PriorityRoundLoader will add rounds as they load
       emit('round:loading', { roundNumber: currentRoundIndex.value + 1 })
-      console.log('[SessionController] Waiting for round', currentRoundIndex.value + 1, 'to load')
+      // console.log('[SessionController] Waiting for round', currentRoundIndex.value + 1, 'to load')
       return
     }
 

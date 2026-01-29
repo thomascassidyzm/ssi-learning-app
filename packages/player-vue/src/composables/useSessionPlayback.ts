@@ -311,7 +311,7 @@ export function useSessionPlayback(options: SessionPlaybackOptions) {
 
     try {
       const startSeed = resumePoint?.seedNumber ?? resumePoint?.roundNumber ?? 1
-      console.log(`[useSessionPlayback] Fast init for seed ${startSeed}...`)
+      // console.log(`[useSessionPlayback] Fast init for seed ${startSeed}...`)
 
       // ============================================
       // FAST PATH: Load only what's needed for instant play
@@ -363,7 +363,7 @@ export function useSessionPlayback(options: SessionPlaybackOptions) {
       // READY TO PLAY!
       isInitialized.value = true
       const initTime = performance.now() - startTime
-      console.log(`[useSessionPlayback] Ready to play in ${initTime.toFixed(0)}ms`)
+      // console.log(`[useSessionPlayback] Ready to play in ${initTime.toFixed(0)}ms`)
 
       // ============================================
       // BACKGROUND: Start priority-based loading
@@ -372,7 +372,7 @@ export function useSessionPlayback(options: SessionPlaybackOptions) {
       startBackgroundLoading(courseCode, startSeed, provider)
 
     } catch (err) {
-      console.error('[useSessionPlayback] Initialization error:', err)
+      // console.error('[useSessionPlayback] Initialization error:', err)
       throw err
     }
   }
@@ -459,7 +459,7 @@ export function useSessionPlayback(options: SessionPlaybackOptions) {
         try {
           handler(index, round)
         } catch (e) {
-          console.error('[useSessionPlayback] Round ready handler error:', e)
+          // console.error('[useSessionPlayback] Round ready handler error:', e)
         }
       }
     })
@@ -472,7 +472,7 @@ export function useSessionPlayback(options: SessionPlaybackOptions) {
         try {
           handler(belt)
         } catch (e) {
-          console.error('[useSessionPlayback] Belt ready handler error:', e)
+          // console.error('[useSessionPlayback] Belt ready handler error:', e)
         }
       }
     })
@@ -486,7 +486,7 @@ export function useSessionPlayback(options: SessionPlaybackOptions) {
     isBackgroundLoading.value = true
     priorityLoader.start()
 
-    console.log('[useSessionPlayback] Background loading started')
+    // console.log('[useSessionPlayback] Background loading started')
   }
 
   /**
@@ -501,7 +501,7 @@ export function useSessionPlayback(options: SessionPlaybackOptions) {
    */
   function start(getAudioSource: GetAudioSourceFn): void {
     if (!isInitialized.value) {
-      console.warn('[useSessionPlayback] Cannot start - not initialized')
+      // console.warn('[useSessionPlayback] Cannot start - not initialized')
       return
     }
     sessionController.start(getAudioSource)
@@ -555,7 +555,7 @@ export function useSessionPlayback(options: SessionPlaybackOptions) {
 
     // Round not loaded - prioritize loading it
     if (priorityLoader) {
-      console.log(`[useSessionPlayback] Round ${roundNumber + 1} not loaded, prioritizing...`)
+      // console.log(`[useSessionPlayback] Round ${roundNumber + 1} not loaded, prioritizing...`)
       const round = await priorityLoader.prioritize(roundNumber + 1)  // Convert to seed number
       if (round) {
         sessionController.jumpToRound(roundNumber)
@@ -579,7 +579,7 @@ export function useSessionPlayback(options: SessionPlaybackOptions) {
 
     // Round not loaded - prioritize loading it
     if (priorityLoader) {
-      console.log(`[useSessionPlayback] Belt ${beltIndex} start not loaded, prioritizing...`)
+      // console.log(`[useSessionPlayback] Belt ${beltIndex} start not loaded, prioritizing...`)
       const round = await priorityLoader.prioritize(targetSeed)
       if (round) {
         sessionController.jumpToRound(roundIndex)
@@ -644,7 +644,7 @@ export function useSessionPlayback(options: SessionPlaybackOptions) {
       try {
         handler(mappedEvent)
       } catch (err) {
-        console.error('[useSessionPlayback] Session event handler error:', err)
+        // console.error('[useSessionPlayback] Session event handler error:', err)
       }
     }
 
@@ -682,7 +682,7 @@ export function useSessionPlayback(options: SessionPlaybackOptions) {
       try {
         handler(event)
       } catch (err) {
-        console.error('[useSessionPlayback] Cycle event handler error:', err)
+        // console.error('[useSessionPlayback] Cycle event handler error:', err)
       }
     }
   }

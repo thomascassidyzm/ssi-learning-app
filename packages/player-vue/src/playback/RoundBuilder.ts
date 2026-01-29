@@ -216,7 +216,7 @@ function createIntroItem(options: {
     const warnKey = `lego-intro-${lego.id}`
     if (!warnedOnce.has(warnKey)) {
       warnedOnce.add(warnKey)
-      console.warn('[RoundBuilder] Lego missing audio refs in createIntroItem:', lego.id || 'unknown')
+      // console.warn('[RoundBuilder] Lego missing audio refs in createIntroItem:', lego.id || 'unknown')
     }
   }
 
@@ -266,7 +266,7 @@ function createPracticeItem(options: {
     const warnKey = `phrase-${phrase.id}`
     if (!warnedOnce.has(warnKey)) {
       warnedOnce.add(warnKey)
-      console.warn('[RoundBuilder] Phrase missing audio refs:', phrase.id || 'unknown')
+      // console.warn('[RoundBuilder] Phrase missing audio refs:', phrase.id || 'unknown')
     }
   }
 
@@ -315,7 +315,7 @@ function createLegoItem(options: {
     const warnKey = `lego-${lego.id}`
     if (!warnedOnce.has(warnKey)) {
       warnedOnce.add(warnKey)
-      console.warn('[RoundBuilder] Lego missing audio refs:', lego.id || 'unknown')
+      // console.warn('[RoundBuilder] Lego missing audio refs:', lego.id || 'unknown')
     }
   }
 

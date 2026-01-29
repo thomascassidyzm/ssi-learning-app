@@ -108,7 +108,7 @@ export class PriorityRoundLoader {
     this.abortController = new AbortController()
     this.loadingQueue = this.buildLoadingQueue(this.currentSeed)
 
-    console.log('[PriorityRoundLoader] Starting with queue:', this.loadingQueue.slice(0, 10), '...')
+    // console.log('[PriorityRoundLoader] Starting with queue:', this.loadingQueue.slice(0, 10), '...')
     this.processQueue()
   }
 
@@ -119,7 +119,7 @@ export class PriorityRoundLoader {
     this.isRunning = false
     this.abortController?.abort()
     this.abortController = null
-    console.log('[PriorityRoundLoader] Stopped')
+    // console.log('[PriorityRoundLoader] Stopped')
   }
 
   /**
@@ -237,7 +237,7 @@ export class PriorityRoundLoader {
         const errorKey = err instanceof Error ? err.message : String(err)
         if (!this.loggedErrors.has(errorKey)) {
           this.loggedErrors.add(errorKey)
-          console.error('[PriorityRoundLoader] Error loading seed:', errorKey)
+          // console.error('[PriorityRoundLoader] Error loading seed:', errorKey)
         }
         this.emitError(err instanceof Error ? err : new Error(String(err)), seedNumber)
         // Continue with next seed - don't stop the queue
@@ -251,7 +251,7 @@ export class PriorityRoundLoader {
 
     // Log summary at the end
     const courseEndMsg = this.courseEndDetected ? ` (course ends at seed ${this.detectedCourseEnd})` : ''
-    console.log(`[PriorityRoundLoader] Queue complete, loaded ${this.loadedSeeds.size} seeds${courseEndMsg}${errorCount > 0 ? `, ${errorCount} errors` : ''}`)
+    // console.log(`[PriorityRoundLoader] Queue complete, loaded ${this.loadedSeeds.size} seeds${courseEndMsg}${errorCount > 0 ? `, ${errorCount} errors` : ''}`)
     this.isRunning = false
   }
 
@@ -269,7 +269,7 @@ export class PriorityRoundLoader {
         if (!this.courseEndDetected) {
           this.courseEndDetected = true
           this.detectedCourseEnd = seedNumber - 1
-          console.log(`[PriorityRoundLoader] Course end detected at seed ${seedNumber - 1} (no LEGO at seed ${seedNumber})`)
+          // console.log(`[PriorityRoundLoader] Course end detected at seed ${seedNumber - 1} (no LEGO at seed ${seedNumber})`)
           // Clear the queue - no point trying to load seeds beyond course end
           this.loadingQueue = []
         }
@@ -553,18 +553,18 @@ export class PriorityRoundLoader {
       try {
         cb(roundIndex, round)
       } catch (e) {
-        console.error('[PriorityRoundLoader] Round ready callback error:', e)
+        // console.error('[PriorityRoundLoader] Round ready callback error:', e)
       }
     }
   }
 
   private emitBeltReady(belt: Belt): void {
-    console.log('[PriorityRoundLoader] Belt complete:', belt.name)
+    // console.log('[PriorityRoundLoader] Belt complete:', belt.name)
     for (const cb of this.beltReadyCallbacks) {
       try {
         cb(belt)
       } catch (e) {
-        console.error('[PriorityRoundLoader] Belt ready callback error:', e)
+        // console.error('[PriorityRoundLoader] Belt ready callback error:', e)
       }
     }
   }
@@ -574,7 +574,7 @@ export class PriorityRoundLoader {
       try {
         cb(error, seedNumber)
       } catch (e) {
-        console.error('[PriorityRoundLoader] Error callback error:', e)
+        // console.error('[PriorityRoundLoader] Error callback error:', e)
       }
     }
   }

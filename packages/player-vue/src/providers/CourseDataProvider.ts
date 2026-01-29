@@ -79,16 +79,27 @@ export interface CourseDataProviderConfig {
   courseId?: string
 }
 
+// Set to true to enable verbose logging (for debugging only)
+const DEBUG_LOGGING = false
+
 export class CourseDataProvider {
   private client?: SupabaseClient
   private audioBaseUrl: string
   private courseId: string
-  private warnedOnce = new Set<string>()  // Prevent console spam
+  private loggedOnce = new Set<string>()  // Prevent console spam
 
   constructor(config: CourseDataProviderConfig) {
     this.client = config.supabaseClient
     this.audioBaseUrl = config.audioBaseUrl
     this.courseId = config.courseId || 'demo'
+  }
+
+  /** Log once per unique key - prevents spam. Respects DEBUG_LOGGING flag. */
+  private logOnce(key: string, level: 'log' | 'warn' | 'error', ...args: any[]): void {
+    if (!DEBUG_LOGGING) return  // Silent mode
+    if (this.loggedOnce.has(key)) return
+    this.loggedOnce.add(key)
+    console[level](...args)
   }
 
   /**
@@ -120,7 +131,7 @@ export class CourseDataProvider {
   async loadSessionItems(startSeed: number = 1, count: number = 30): Promise<LearningItem[]> {
     // If no Supabase client, return empty array (caller will use demo fallback)
     if (!this.client) {
-      console.warn('[CourseDataProvider] No Supabase client configured, using demo mode')
+      // console.warn('[CourseDataProvider] No Supabase client configured, using demo mode')
       return []
     }
 
@@ -137,21 +148,21 @@ export class CourseDataProvider {
         .order('lego_index', { ascending: true })
 
       if (error) {
-        console.error('[CourseDataProvider] Query error:', error)
+        // console.error('[CourseDataProvider] Query error:', error)
         return []
       }
 
       if (!data || data.length === 0) {
-        console.warn('[CourseDataProvider] No data found for course:', this.courseId)
+        // console.warn('[CourseDataProvider] No data found for course:', this.courseId)
         return []
       }
 
-      console.log('[CourseDataProvider] Loaded', data.length, 'items for', this.courseId)
+      // console.log('[CourseDataProvider] Loaded', data.length, 'items for', this.courseId)
 
       // Transform database records to LearningItem format
       return this.transformToLearningItems(data)
     } catch (err) {
-      console.error('[CourseDataProvider] Failed to load items:', err)
+      // console.error('[CourseDataProvider] Failed to load items:', err)
       return []
     }
   }
@@ -252,7 +263,7 @@ export class CourseDataProvider {
       const warnKey = `invalid-audioId-${audioId}`
       if (!this.warnedOnce.has(warnKey)) {
         this.warnedOnce.add(warnKey)
-        console.warn('[CourseDataProvider] Invalid audioId for proxy URL:', audioId, '(further occurrences suppressed)')
+        // console.warn('[CourseDataProvider] Invalid audioId for proxy URL:', audioId, '(further occurrences suppressed)')
       }
       return ''
     }
@@ -294,13 +305,13 @@ export class CourseDataProvider {
         .single()
 
       if (error) {
-        console.error('[CourseDataProvider] Failed to get course metadata:', error)
+        // console.error('[CourseDataProvider] Failed to get course metadata:', error)
         return null
       }
 
       return data
     } catch (err) {
-      console.error('[CourseDataProvider] Error fetching metadata:', err)
+      // console.error('[CourseDataProvider] Error fetching metadata:', err)
       return null
     }
   }
@@ -331,7 +342,7 @@ export class CourseDataProvider {
         text: data.text || null,
       }
     } catch (err) {
-      console.error('[CourseDataProvider] Error loading welcome audio:', err)
+      // console.error('[CourseDataProvider] Error loading welcome audio:', err)
       return null
     }
   }
@@ -361,7 +372,7 @@ export class CourseDataProvider {
       if (error || !data) return false // Not enrolled = hasn't played
       return data.welcome_played === true
     } catch (err) {
-      console.error('[CourseDataProvider] Error checking welcome status:', err)
+      // console.error('[CourseDataProvider] Error checking welcome status:', err)
       return true // Assume played on error
     }
   }
@@ -381,10 +392,10 @@ export class CourseDataProvider {
         .eq('course_id', this.courseId)
 
       if (error) {
-        console.error('[CourseDataProvider] Error marking welcome played:', error)
+        // console.error('[CourseDataProvider] Error marking welcome played:', error)
       }
     } catch (err) {
-      console.error('[CourseDataProvider] Error updating welcome status:', err)
+      // console.error('[CourseDataProvider] Error updating welcome status:', err)
     }
   }
 
@@ -395,7 +406,7 @@ export class CourseDataProvider {
    */
   async getLegoBasket(legoId: string, lego?: LegoPair): Promise<ClassifiedBasket | null> {
     if (!this.client) {
-      console.warn('[CourseDataProvider] No Supabase client, returning empty basket')
+      // console.warn('[CourseDataProvider] No Supabase client, returning empty basket')
       return this.createEmptyBasket(legoId, lego)
     }
 
@@ -410,7 +421,7 @@ export class CourseDataProvider {
         .order('target1_duration_ms', { ascending: true, nullsFirst: false })
 
       if (error) {
-        console.error('[CourseDataProvider] Failed to load basket:', error)
+        // console.error('[CourseDataProvider] Failed to load basket:', error)
         return this.createEmptyBasket(legoId, lego)
       }
 
@@ -419,7 +430,7 @@ export class CourseDataProvider {
         const warnKey = `no-phrases-${legoId}`
         if (!this.warnedOnce.has(warnKey)) {
           this.warnedOnce.add(warnKey)
-          console.warn('[CourseDataProvider] No phrases found for LEGO:', legoId)
+          // console.warn('[CourseDataProvider] No phrases found for LEGO:', legoId)
         }
         return this.createEmptyBasket(legoId, lego)
       }
@@ -427,7 +438,7 @@ export class CourseDataProvider {
       // Transform to ClassifiedBasket
       return this.transformToBasket(legoId, data, lego)
     } catch (err) {
-      console.error('[CourseDataProvider] Error loading basket:', err)
+      // console.error('[CourseDataProvider] Error loading basket:', err)
       return this.createEmptyBasket(legoId, lego)
     }
   }
@@ -445,7 +456,7 @@ export class CourseDataProvider {
       // Convert seed_id (e.g., "S0001") to seed_number (e.g., 1)
       const seedNumber = parseInt(seedId.replace(/^S0*/, ''), 10)
       if (isNaN(seedNumber)) {
-        console.warn('[CourseDataProvider] Invalid seed_id format:', seedId)
+        // console.warn('[CourseDataProvider] Invalid seed_id format:', seedId)
         return baskets
       }
 
@@ -460,7 +471,7 @@ export class CourseDataProvider {
         .order('target1_duration_ms', { ascending: true, nullsFirst: false })
 
       if (error) {
-        console.error('[CourseDataProvider] Failed to load seed baskets:', error)
+        // console.error('[CourseDataProvider] Failed to load seed baskets:', error)
         return baskets
       }
 
@@ -484,10 +495,11 @@ export class CourseDataProvider {
         }
       }
 
-      console.log('[CourseDataProvider] Loaded baskets for', baskets.size, 'LEGOs')
+      // Suppress frequent progress logs during loading
+      // this.logOnce('baskets-loaded', 'log', '[CourseDataProvider] Loaded baskets for', baskets.size, 'LEGOs')
       return baskets
     } catch (err) {
-      console.error('[CourseDataProvider] Error loading seed baskets:', err)
+      // console.error('[CourseDataProvider] Error loading seed baskets:', err)
       return baskets
     }
   }
@@ -515,7 +527,7 @@ export class CourseDataProvider {
         .maybeSingle()
 
       if (error) {
-        console.warn('[CourseDataProvider] Presentation audio query error:', error.message)
+        // console.warn('[CourseDataProvider] Presentation audio query error:', error.message)
         return null
       }
 
@@ -530,7 +542,7 @@ export class CourseDataProvider {
 
       return null
     } catch (err) {
-      console.error('[CourseDataProvider] Error loading intro audio:', err)
+      // console.error('[CourseDataProvider] Error loading intro audio:', err)
       return null
     }
   }
@@ -555,7 +567,7 @@ export class CourseDataProvider {
         .order('id', { ascending: true })
 
       if (error || !data) {
-        console.warn('[CourseDataProvider] No instructions found:', error?.message)
+        // console.warn('[CourseDataProvider] No instructions found:', error?.message)
         return []
       }
 
@@ -567,7 +579,7 @@ export class CourseDataProvider {
         position: index, // 0-based position in sequence
       }))
     } catch (err) {
-      console.error('[CourseDataProvider] Error loading instructions:', err)
+      // console.error('[CourseDataProvider] Error loading instructions:', err)
       return []
     }
   }
@@ -590,7 +602,7 @@ export class CourseDataProvider {
         .eq('role', 'encouragement')
 
       if (error || !data) {
-        console.warn('[CourseDataProvider] No encouragements found:', error?.message)
+        // console.warn('[CourseDataProvider] No encouragements found:', error?.message)
         return []
       }
 
@@ -601,7 +613,7 @@ export class CourseDataProvider {
         text: row.text,
       }))
     } catch (err) {
-      console.error('[CourseDataProvider] Error loading encouragements:', err)
+      // console.error('[CourseDataProvider] Error loading encouragements:', err)
       return []
     }
   }
@@ -632,7 +644,7 @@ export class CourseDataProvider {
         .single()
 
       if (courseError || !course) {
-        console.warn('[CourseDataProvider] Course not found for audio lookup:', this.courseId)
+        // console.warn('[CourseDataProvider] Course not found for audio lookup:', this.courseId)
         return null
       }
 
@@ -661,11 +673,11 @@ export class CourseDataProvider {
       const warnKey = `no-audio-${role}-${text?.slice(0, 30)}`
       if (!this.warnedOnce.has(warnKey)) {
         this.warnedOnce.add(warnKey)
-        console.warn('[CourseDataProvider] No audio found for', role, ':', text)
+        // console.warn('[CourseDataProvider] No audio found for', role, ':', text)
       }
       return null
     } catch (err) {
-      console.error('[CourseDataProvider] Error in lookupAudioByText:', err)
+      // console.error('[CourseDataProvider] Error in lookupAudioByText:', err)
       return null
     }
   }
@@ -730,7 +742,7 @@ export class CourseDataProvider {
 
       return results
     } catch (err) {
-      console.error('[CourseDataProvider] Error in batchLookupAudio:', err)
+      // console.error('[CourseDataProvider] Error in batchLookupAudio:', err)
       return results
     }
   }
@@ -870,7 +882,7 @@ export class CourseDataProvider {
    */
   async loadLegoAtPosition(seedNumber: number): Promise<LearningItem | null> {
     if (!this.client) {
-      console.warn('[CourseDataProvider] No Supabase client, cannot load LEGO at position')
+      // console.warn('[CourseDataProvider] No Supabase client, cannot load LEGO at position')
       return null
     }
 
@@ -885,12 +897,12 @@ export class CourseDataProvider {
         .maybeSingle()
 
       if (error) {
-        console.error('[CourseDataProvider] Query error:', error)
+        // console.error('[CourseDataProvider] Query error:', error)
         return null
       }
 
       if (!data) {
-        console.warn('[CourseDataProvider] No LEGO found at seed position:', seedNumber)
+        // console.warn('[CourseDataProvider] No LEGO found at seed position:', seedNumber)
         return null
       }
 
@@ -898,7 +910,7 @@ export class CourseDataProvider {
       const items = this.transformToLearningItems([data])
       return items[0] ?? null
     } catch (err) {
-      console.error('[CourseDataProvider] Failed to load LEGO at position:', err)
+      // console.error('[CourseDataProvider] Failed to load LEGO at position:', err)
       return null
     }
   }
@@ -912,7 +924,7 @@ export class CourseDataProvider {
    */
   async loadLegoRange(startSeed: number, endSeed: number): Promise<LearningItem[]> {
     if (!this.client) {
-      console.warn('[CourseDataProvider] No Supabase client, cannot load LEGO range')
+      // console.warn('[CourseDataProvider] No Supabase client, cannot load LEGO range')
       return []
     }
 
@@ -927,12 +939,12 @@ export class CourseDataProvider {
         .order('lego_index', { ascending: true })
 
       if (error) {
-        console.error('[CourseDataProvider] Query error:', error)
+        // console.error('[CourseDataProvider] Query error:', error)
         return []
       }
 
       if (!data || data.length === 0) {
-        console.warn('[CourseDataProvider] No LEGOs found in range:', startSeed, '-', endSeed)
+        // console.warn('[CourseDataProvider] No LEGOs found in range:', startSeed, '-', endSeed)
         return []
       }
 
@@ -946,10 +958,10 @@ export class CourseDataProvider {
         return true
       })
 
-      console.log(`[CourseDataProvider] Loaded ${uniqueRecords.length} LEGOs from range ${startSeed}-${endSeed}`)
+      // console.log(`[CourseDataProvider] Loaded ${uniqueRecords.length} LEGOs from range ${startSeed}-${endSeed}`)
       return this.transformToLearningItems(uniqueRecords)
     } catch (err) {
-      console.error('[CourseDataProvider] Failed to load LEGO range:', err)
+      // console.error('[CourseDataProvider] Failed to load LEGO range:', err)
       return []
     }
   }
@@ -981,7 +993,7 @@ export class CourseDataProvider {
         .order('target1_duration_ms', { ascending: true, nullsFirst: false })
 
       if (error) {
-        console.error('[CourseDataProvider] Batch basket query error:', error)
+        // console.error('[CourseDataProvider] Batch basket query error:', error)
         // Fall back to individual loading for failed batch
         for (const legoId of legoIds) {
           const basket = await this.getLegoBasket(legoId, legos?.get(legoId))
@@ -991,7 +1003,7 @@ export class CourseDataProvider {
       }
 
       if (!data || data.length === 0) {
-        console.warn('[CourseDataProvider] No practice phrases found for LEGOs:', legoIds)
+        // console.warn('[CourseDataProvider] No practice phrases found for LEGOs:', legoIds)
         // Create empty baskets for each LEGO
         for (const legoId of legoIds) {
           baskets.set(legoId, this.createEmptyBasket(legoId, legos?.get(legoId)))
@@ -1023,10 +1035,10 @@ export class CourseDataProvider {
         }
       }
 
-      console.log(`[CourseDataProvider] Batch loaded ${baskets.size} baskets for ${legoIds.length} LEGOs`)
+      // console.log(`[CourseDataProvider] Batch loaded ${baskets.size} baskets for ${legoIds.length} LEGOs`)
       return baskets
     } catch (err) {
-      console.error('[CourseDataProvider] Batch basket loading error:', err)
+      // console.error('[CourseDataProvider] Batch basket loading error:', err)
       return baskets
     }
   }
@@ -1037,7 +1049,7 @@ export class CourseDataProvider {
    */
   async loadAllUniqueLegos(limit: number = 1000, offset: number = 0): Promise<LearningItem[]> {
     if (!this.client) {
-      console.warn('[CourseDataProvider] No Supabase client, returning empty array')
+      // console.warn('[CourseDataProvider] No Supabase client, returning empty array')
       return []
     }
 
@@ -1060,12 +1072,12 @@ export class CourseDataProvider {
         .order('lego_index', { ascending: true })
 
       if (error) {
-        console.error('[CourseDataProvider] Query error:', error)
+        // console.error('[CourseDataProvider] Query error:', error)
         return []
       }
 
       if (!data || data.length === 0) {
-        console.warn('[CourseDataProvider] No LEGOs found for course:', this.courseId, 'from seed', offset)
+        // console.warn('[CourseDataProvider] No LEGOs found for course:', this.courseId, 'from seed', offset)
         return []
       }
 
@@ -1079,7 +1091,7 @@ export class CourseDataProvider {
         return true
       })
 
-      console.log('[CourseDataProvider] Loaded', uniqueRecords.length, 'unique LEGOs for', this.courseId, 'from seed', offset)
+      // console.log('[CourseDataProvider] Loaded', uniqueRecords.length, 'unique LEGOs for', this.courseId, 'from seed', offset)
 
       // Transform to LearningItem format (apply limit for pagination)
       // v13.1: Use s3_key fields for URLs
@@ -1161,7 +1173,7 @@ export class CourseDataProvider {
         }
       })
     } catch (err) {
-      console.error('[CourseDataProvider] Failed to load unique LEGOs:', err)
+      // console.error('[CourseDataProvider] Failed to load unique LEGOs:', err)
       return []
     }
   }
@@ -1248,7 +1260,7 @@ export async function generateLearningScript(
   _maxLegos: number = 50,
   _offset: number = 0
 ): Promise<{ rounds: RoundData[]; allItems: ScriptItem[] }> {
-  console.warn(
+  // console.warn(
     '[DEPRECATED] generateLearningScript is deprecated. ' +
     'Use buildRounds from @/playback/RoundBuilder instead.'
   )
@@ -1378,7 +1390,7 @@ async function loadAllPracticePhrasesGrouped(
         .range(debutOffset, debutOffset + pageSize - 1)
 
       if (error) {
-        console.error('[loadAllPracticePhrasesGrouped] Query error (debut):', error)
+        // console.error('[loadAllPracticePhrasesGrouped] Query error (debut):', error)
         break
       }
       if (!page || page.length === 0) break
@@ -1408,7 +1420,7 @@ async function loadAllPracticePhrasesGrouped(
         .range(eternalOffset, eternalOffset + pageSize - 1)
 
       if (error) {
-        console.error('[loadAllPracticePhrasesGrouped] Query error (eternal):', error)
+        // console.error('[loadAllPracticePhrasesGrouped] Query error (eternal):', error)
         break
       }
       if (!page || page.length === 0) break
@@ -1426,10 +1438,10 @@ async function loadAllPracticePhrasesGrouped(
 
     // v2.0: NO COMPONENTS - removed entirely from learning flow
 
-    console.log(`[loadAllPracticePhrasesGrouped] Loaded ${debutMap.size} LEGOs with debut, ${eternalMap.size} with eternal`)
+    // console.log(`[loadAllPracticePhrasesGrouped] Loaded ${debutMap.size} LEGOs with debut, ${eternalMap.size} with eternal`)
     return { debutMap, eternalMap }
   } catch (err) {
-    console.error('[loadAllPracticePhrasesGrouped] Error:', err)
+    // console.error('[loadAllPracticePhrasesGrouped] Error:', err)
     return { debutMap, eternalMap }
   }
 }
