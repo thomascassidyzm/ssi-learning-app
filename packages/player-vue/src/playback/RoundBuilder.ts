@@ -14,6 +14,9 @@ import type { ThreadManager } from './ThreadManager'
 // Fibonacci sequence for spaced rep scheduling
 const FIBONACCI = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
 
+// Prevent console spam - warn once per unique issue
+const warnedOnce = new Set<string>()
+
 export interface BuildRoundOptions {
   lego: LegoPair
   seed: SeedPair
@@ -210,7 +213,11 @@ function createIntroItem(options: {
 
   // Validate lego has required audio refs
   if (!lego.audioRefs?.known?.id || !lego.audioRefs?.target?.voice1?.id || !lego.audioRefs?.target?.voice2?.id) {
-    console.warn('[RoundBuilder] Lego missing audio refs in createIntroItem:', lego.id || 'unknown')
+    const warnKey = `lego-intro-${lego.id}`
+    if (!warnedOnce.has(warnKey)) {
+      warnedOnce.add(warnKey)
+      console.warn('[RoundBuilder] Lego missing audio refs in createIntroItem:', lego.id || 'unknown')
+    }
   }
 
   return {
@@ -256,7 +263,11 @@ function createPracticeItem(options: {
 
   // Validate phrase has required audio refs
   if (!phrase.audioRefs?.known?.id || !phrase.audioRefs?.target?.voice1?.id || !phrase.audioRefs?.target?.voice2?.id) {
-    console.warn('[RoundBuilder] Phrase missing audio refs:', phrase.id || 'unknown')
+    const warnKey = `phrase-${phrase.id}`
+    if (!warnedOnce.has(warnKey)) {
+      warnedOnce.add(warnKey)
+      console.warn('[RoundBuilder] Phrase missing audio refs:', phrase.id || 'unknown')
+    }
   }
 
   return {
@@ -301,7 +312,11 @@ function createLegoItem(options: {
 
   // Validate lego has required audio refs
   if (!lego.audioRefs?.known?.id || !lego.audioRefs?.target?.voice1?.id || !lego.audioRefs?.target?.voice2?.id) {
-    console.warn('[RoundBuilder] Lego missing audio refs:', lego.id || 'unknown')
+    const warnKey = `lego-${lego.id}`
+    if (!warnedOnce.has(warnKey)) {
+      warnedOnce.add(warnKey)
+      console.warn('[RoundBuilder] Lego missing audio refs:', lego.id || 'unknown')
+    }
   }
 
   return {
