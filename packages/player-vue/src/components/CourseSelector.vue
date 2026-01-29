@@ -129,7 +129,7 @@ const fetchCourses = async () => {
     const { data, error: fetchError } = await props.supabase
       .from('courses')
       .select('*')
-      .neq('status', 'draft')  // Show beta and released courses, hide drafts
+      .in('new_app_status', ['released', 'beta'])  // Only show released and beta courses
       .order('display_name')
 
     if (fetchError) throw fetchError
@@ -148,21 +148,12 @@ const fetchCourses = async () => {
 
 // Mock courses for development/fallback (matches dashboard schema)
 const getMockCourses = () => [
-  { course_code: 'spa_for_eng', known_lang: 'eng', target_lang: 'spa', display_name: 'Spanish for English Speakers', status: 'active' },
-  { course_code: 'ita_for_eng', known_lang: 'eng', target_lang: 'ita', display_name: 'Italian for English Speakers', status: 'active' },
-  { course_code: 'fra_for_eng', known_lang: 'eng', target_lang: 'fra', display_name: 'French for English Speakers', status: 'active' },
-  { course_code: 'deu_for_eng', known_lang: 'eng', target_lang: 'deu', display_name: 'German for English Speakers', status: 'active' },
-  { course_code: 'cym_n_for_eng', known_lang: 'eng', target_lang: 'cym_n', display_name: 'Welsh (North) for English Speakers', status: 'active' },
-  { course_code: 'cym_s_for_eng', known_lang: 'eng', target_lang: 'cym_s', display_name: 'Welsh (South) for English Speakers', status: 'active' },
-  { course_code: 'por_for_eng', known_lang: 'eng', target_lang: 'por', display_name: 'Portuguese for English Speakers', status: 'active' },
-  { course_code: 'jpn_for_eng', known_lang: 'eng', target_lang: 'jpn', display_name: 'Japanese for English Speakers', status: 'draft' },
-  { course_code: 'zho_for_eng', known_lang: 'eng', target_lang: 'zho', display_name: 'Chinese for English Speakers', status: 'draft' },
-  // Language chaining from Spanish
-  { course_code: 'ita_for_spa', known_lang: 'spa', target_lang: 'ita', display_name: 'Italian para hispanohablantes', status: 'draft' },
-  { course_code: 'fra_for_spa', known_lang: 'spa', target_lang: 'fra', display_name: 'French para hispanohablantes', status: 'draft' },
-  { course_code: 'eng_for_spa', known_lang: 'spa', target_lang: 'eng', display_name: 'English para hispanohablantes', status: 'draft' },
-  // From German
-  { course_code: 'spa_for_deu', known_lang: 'deu', target_lang: 'spa', display_name: 'Spanish for German Speakers', status: 'draft' },
+  { course_code: 'spa_for_eng', known_lang: 'eng', target_lang: 'spa', display_name: 'Spanish for English Speakers', new_app_status: 'released' },
+  { course_code: 'ita_for_eng', known_lang: 'eng', target_lang: 'ita', display_name: 'Italian for English Speakers', new_app_status: 'released' },
+  { course_code: 'fra_for_eng', known_lang: 'eng', target_lang: 'fra', display_name: 'French for English Speakers', new_app_status: 'beta' },
+  { course_code: 'deu_for_eng', known_lang: 'eng', target_lang: 'deu', display_name: 'German for English Speakers', new_app_status: 'beta' },
+  { course_code: 'cym_n_for_eng', known_lang: 'eng', target_lang: 'cym_n', display_name: 'Welsh (North) for English Speakers', new_app_status: 'released' },
+  { course_code: 'cym_s_for_eng', known_lang: 'eng', target_lang: 'cym_s', display_name: 'Welsh (South) for English Speakers', new_app_status: 'released' },
 ]
 
 // Handle course selection
@@ -264,7 +255,7 @@ onMounted(() => {
                 </div>
 
                 <!-- Beta badge for beta courses -->
-                <div v-else-if="course.status === 'beta'" class="beta-badge">BETA</div>
+                <div v-else-if="course.new_app_status === 'beta'" class="beta-badge">β</div>
 
                 <!-- NEW badge for unenrolled released courses -->
                 <div v-else-if="!isEnrolled(course.course_code)" class="new-badge">{{ t('courseSelector.new') }}</div>
@@ -277,7 +268,7 @@ onMounted(() => {
                     {{ getProgress(course.course_code) }}%
                   </template>
                   <template v-else>
-                    {{ course.status === 'active' ? t('courseSelector.ready') : t('courseSelector.comingSoon') }}
+                    {{ t('courseSelector.ready') }}
                   </template>
                 </span>
               </button>
@@ -572,16 +563,17 @@ onMounted(() => {
 
 .beta-badge {
   position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-  padding: 0.125rem 0.375rem;
-  background: linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%);
-  border-radius: 4px;
-  font-family: 'DM Sans', -apple-system, sans-serif;
-  font-size: 0.5625rem;
-  font-weight: 700;
-  color: white;
-  letter-spacing: 0.03em;
+  top: 0.375rem;
+  right: 0.375rem;
+  padding: 0.0625rem 0.25rem;
+  background: rgba(139, 92, 246, 0.25);
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  border-radius: 3px;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.5rem;
+  font-weight: 400;
+  color: rgba(167, 139, 250, 0.8);
+  letter-spacing: 0.05em;
 }
 
 .target-name {

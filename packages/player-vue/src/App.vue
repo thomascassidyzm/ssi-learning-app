@@ -154,11 +154,12 @@ const fetchEnrolledCourses = async () => {
   console.log('[App] fetchEnrolledCourses: Fetching from courses table...')
 
   try {
-    // For now, we don't have a learner_id, so just get all courses
-    // In production, this would filter by learner enrollment
+    // Get courses available for this app (released or beta)
+    // In production, this would also filter by learner enrollment
     const { data, error } = await supabaseClient.value
       .from('courses')
       .select('*')
+      .in('new_app_status', ['released', 'beta'])
       .order('display_name')
 
     console.log('[App] fetchEnrolledCourses result:', { data: data?.length || 0, error })

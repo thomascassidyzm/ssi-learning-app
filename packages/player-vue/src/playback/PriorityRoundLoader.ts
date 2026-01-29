@@ -289,6 +289,11 @@ export class PriorityRoundLoader {
       // 4. Load basket for this LEGO
       const basket = await this.provider.getLegoBasket(legoPair.id, legoPair)
       if (basket) {
+        // 4b. Load introduction audio ("The Spanish for X is...")
+        const introAudio = await this.provider.getIntroductionAudio(legoPair.id)
+        if (introAudio) {
+          basket.introduction_audio = introAudio
+        }
         this.basketMap.set(legoPair.id, basket)
       }
 

@@ -187,11 +187,16 @@ export function useFullCourseScript() {
         message: `Loading practice phrases... (${i}/${total})`,
       }
 
-      // Load batch in parallel
+      // Load batch in parallel (basket + intro audio)
       const promises = batch.map(async (lego) => {
         try {
           const basket = await provider.getLegoBasket(lego.id, lego)
           if (basket) {
+            // Also load introduction audio ("The Spanish for X is...")
+            const introAudio = await provider.getIntroductionAudio(lego.id)
+            if (introAudio) {
+              basket.introduction_audio = introAudio
+            }
             basketMap.set(lego.id, basket)
           }
         } catch (err) {
