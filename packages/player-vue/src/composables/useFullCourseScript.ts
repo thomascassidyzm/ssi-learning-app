@@ -18,6 +18,9 @@ import { buildRounds } from '../playback/RoundBuilder'
 import { DEFAULT_PLAYBACK_CONFIG } from '../playback/PlaybackConfig'
 import type { Round, ScriptItem } from '../playback/types'
 
+// Prevent console spam
+const warnedOnce = new Set<string>()
+
 export interface FullCourseScriptResult {
   rounds: Round[]
   allItems: FlatScriptItem[]
@@ -200,7 +203,11 @@ export function useFullCourseScript() {
             basketMap.set(lego.id, basket)
           }
         } catch (err) {
-          console.warn(`[useFullCourseScript] Failed to load basket for ${lego.id}:`, err)
+          const warnKey = `basket-${lego.id}`
+          if (!warnedOnce.has(warnKey)) {
+            warnedOnce.add(warnKey)
+            console.warn(`[useFullCourseScript] Failed to load basket for ${lego.id}:`, err)
+          }
         }
       })
 

@@ -17,6 +17,9 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { preloadAudioBatch, cacheAudio, getAudioCacheStats } from './useScriptCache'
 import type { Round, ScriptItem, CachedScript } from './useScriptCache'
 
+// Prevent console spam
+const warnedOnce = new Set<string>()
+
 // ============================================================================
 // BELT CONFIGURATION
 // ============================================================================
@@ -345,7 +348,11 @@ export function useBeltLoader(config: BeltLoaderConfig) {
       loadedSeedRanges.value.add(rangeKey)
 
     } catch (error) {
-      console.warn(`[BeltLoader] Task failed:`, task, error)
+      const warnKey = `task-${task.belt}-${task.startSeed}`
+      if (!warnedOnce.has(warnKey)) {
+        warnedOnce.add(warnKey)
+        console.warn(`[BeltLoader] Task failed:`, task, error)
+      }
       task.status = 'error'
     }
   }
