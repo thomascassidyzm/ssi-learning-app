@@ -4015,7 +4015,7 @@ const jumpToRound = async (roundIndex) => {
 
 /**
  * Jump to start of next belt
- * Expands script if needed, then navigates to the belt boundary
+ * Uses SessionController's lazy loading to load the target round on demand
  */
 const handleSkipToNextBelt = async () => {
   if (!beltProgress.value || !nextBelt.value) {
@@ -4028,34 +4028,8 @@ const handleSkipToNextBelt = async () => {
     const targetSeed = nextBelt.value.seedsRequired
     console.log(`[LearningPlayer] Skipping to ${nextBelt.value.name} belt (seed ${targetSeed})`)
 
-    // Calculate absolute position of currently loaded rounds
-    const absoluteEnd = scriptBaseOffset.value + cachedRounds.value.length
-
-    // Expand script if we need more rounds to reach target
-    // NOTE: generateLearningScript is deprecated and returns empty data
-    // Belt skip will not expand properly until migrated to SessionController
-    if (targetSeed >= absoluteEnd && courseDataProvider.value) {
-      console.log(`[LearningPlayer] Expanding script to reach seed ${targetSeed} (currently at ${absoluteEnd})...`)
-      console.warn('[LearningPlayer] handleSkipBelt uses deprecated generateLearningScript - expansion returns empty')
-      const neededRounds = targetSeed - absoluteEnd + 10 // How many more we need
-      const { rounds: moreRounds } = await generateLearningScript(
-        courseDataProvider.value,
-        neededRounds,
-        absoluteEnd  // Expansion offset = base + loaded count
-      )
-      if (moreRounds.length > 0) {
-        cachedRounds.value = [...cachedRounds.value, ...moreRounds]
-        console.log(`[LearningPlayer] Expanded to ${cachedRounds.value.length} rounds (base offset: ${scriptBaseOffset.value})`)
-      } else {
-        console.warn('[LearningPlayer] No rounds returned - generateLearningScript is deprecated')
-      }
-    }
-
-    // Convert absolute target to relative round index
-    const targetRound = Math.min(targetSeed - scriptBaseOffset.value, cachedRounds.value.length - 1)
-
-    // Jump to the target round
-    await jumpToRound(targetRound)
+    // Use SessionController's jumpToSeed which handles lazy loading
+    await sessionPlayback.jumpToSeed(targetSeed)
 
     // Update belt progress to match (uses absolute seed number)
     if (beltProgress.value) {
@@ -4069,7 +4043,7 @@ const handleSkipToNextBelt = async () => {
 /**
  * Jump back to start of current or previous belt
  * If close to current belt start, goes to previous belt
- * If target is before loaded script, reloads from that position
+ * Uses SessionController's lazy loading to handle any seed position
  */
 const handleGoBackBelt = async () => {
   if (!beltProgress.value) {
@@ -4078,68 +4052,26 @@ const handleGoBackBelt = async () => {
   }
 
   isSkippingBelt.value = true
-  const wasPlayingBeforeSkip = isPlaying.value
-  console.log(`[LearningPlayer] handleGoBackBelt: started, isPlaying=${wasPlayingBeforeSkip}, isSkippingBelt=true`)
+  console.log(`[LearningPlayer] handleGoBackBelt: started, isPlaying=${isPlaying.value}`)
 
   try {
+    // goBackToBeltStart updates belt progress and returns target seed
     const targetSeed = beltProgress.value.goBackToBeltStart()
-    console.log(`[LearningPlayer] Going back to seed ${targetSeed}, current base offset: ${scriptBaseOffset.value}`)
+    console.log(`[LearningPlayer] Going back to seed ${targetSeed}`)
 
-    // Check if target is before our currently loaded script
-    if (targetSeed < scriptBaseOffset.value) {
-      console.log(`[LearningPlayer] Target seed ${targetSeed} is before loaded range (${scriptBaseOffset.value}), reloading script...`)
+    // Use SessionController's jumpToSeed which handles lazy loading
+    // Math.max(1, ...) ensures we don't try to go to seed 0 (White belt edge case)
+    await sessionPlayback.jumpToSeed(Math.max(1, targetSeed))
 
-      // Need to reload script from the target position
-      if (courseDataProvider.value) {
-        // Stop current playback
-        stopCycle()
-        if (audioController.value) audioController.value.stop()
-        clearPathAnimation()
-
-        // Update base offset and reload
-        scriptBaseOffset.value = targetSeed
-
-        // NOTE: generateLearningScript is deprecated and returns empty data
-        // handleGoBackBelt will not work properly until migrated to SessionController
-        console.warn('[LearningPlayer] handleGoBackBelt uses deprecated generateLearningScript - reload returns empty')
-        const { rounds, allItems } = await generateLearningScript(
-          courseDataProvider.value,
-          ROUNDS_TO_FETCH,
-          targetSeed
-        )
-
-        if (rounds.length > 0) {
-          cachedRounds.value = rounds
-          allPlayableItems.value = allItems
-
-          // Populate network for reloaded rounds (pass targetSeed as offset for correct belt colors)
-          populateNetworkFromRounds(rounds, 0, networkConnections.value, targetSeed)
-
-          // Jump to first round (which is now at targetSeed)
-          console.log(`[LearningPlayer] handleGoBackBelt: before jumpToRound(0), isPlaying=${isPlaying.value}`)
-          await jumpToRound(0)
-          console.log(`[LearningPlayer] Reloaded script from seed ${targetSeed}, now at round 0, isPlaying=${isPlaying.value}`)
-          return
-        } else {
-          console.warn('[LearningPlayer] handleGoBackBelt: No rounds returned - generateLearningScript is deprecated')
-        }
-      }
-    }
-
-    // Target is within loaded range - simple jump
-    const targetRound = Math.max(0, Math.min(targetSeed - scriptBaseOffset.value, cachedRounds.value.length - 1))
-    console.log(`[LearningPlayer] Jumping to round ${targetRound} (seed ${targetSeed}), isPlaying=${isPlaying.value}`)
-    await jumpToRound(targetRound)
-    console.log(`[LearningPlayer] handleGoBackBelt: after jumpToRound, isPlaying=${isPlaying.value}`)
+    console.log(`[LearningPlayer] handleGoBackBelt: complete, now at seed ${targetSeed}`)
   } finally {
     isSkippingBelt.value = false
-    console.log(`[LearningPlayer] handleGoBackBelt: finally, isSkippingBelt=false, isPlaying=${isPlaying.value}`)
   }
 }
 
 /**
  * Jump to a specific belt from the modal
- * Handles both forward and backward jumps
+ * Handles both forward and backward jumps via SessionController's lazy loading
  */
 const handleSkipToBeltFromModal = async (belt) => {
   if (!belt || !beltProgress.value) {
@@ -4155,61 +4087,14 @@ const handleSkipToBeltFromModal = async (belt) => {
 
   isSkippingBelt.value = true
   try {
-    // Calculate absolute position
-    const absoluteEnd = scriptBaseOffset.value + cachedRounds.value.length
+    // Use SessionController's jumpToSeed which handles lazy loading for any direction
+    // Math.max(1, ...) ensures we don't try to go to seed 0 (White belt edge case)
+    await sessionPlayback.jumpToSeed(Math.max(1, targetSeed))
 
-    // Forward skip: may need to expand script
-    // NOTE: generateLearningScript is deprecated and returns empty data
-    if (targetSeed >= scriptBaseOffset.value && targetSeed >= absoluteEnd && courseDataProvider.value) {
-      console.log(`[LearningPlayer] Expanding script to reach seed ${targetSeed}...`)
-      console.warn('[LearningPlayer] handleSkipToBeltFromModal uses deprecated generateLearningScript')
-      const neededRounds = targetSeed - absoluteEnd + 10
-      const { rounds: moreRounds } = await generateLearningScript(
-        courseDataProvider.value,
-        neededRounds,
-        absoluteEnd
-      )
-      if (moreRounds.length > 0) {
-        cachedRounds.value = [...cachedRounds.value, ...moreRounds]
-      } else {
-        console.warn('[LearningPlayer] Forward skip: No rounds returned - generateLearningScript is deprecated')
-      }
+    // Update belt progress to match
+    if (beltProgress.value) {
+      beltProgress.value.setSeeds(targetSeed)
     }
-
-    // Backward skip: may need to reload script from earlier position
-    // NOTE: generateLearningScript is deprecated and returns empty data
-    if (targetSeed < scriptBaseOffset.value && courseDataProvider.value) {
-      console.log(`[LearningPlayer] Reloading script from seed ${targetSeed}...`)
-      console.warn('[LearningPlayer] handleSkipToBeltFromModal backward uses deprecated generateLearningScript')
-      stopCycle()
-      if (audioController.value) audioController.value.stop()
-      clearPathAnimation()
-
-      scriptBaseOffset.value = targetSeed
-      const { rounds, allItems } = await generateLearningScript(
-        courseDataProvider.value,
-        ROUNDS_TO_FETCH,
-        targetSeed
-      )
-
-      if (rounds.length > 0) {
-        cachedRounds.value = rounds
-        allPlayableItems.value = allItems
-        populateNetworkFromRounds(rounds, 0, networkConnections.value, targetSeed)
-        await jumpToRound(0)
-        return
-      } else {
-        console.warn('[LearningPlayer] Backward skip: No rounds returned - generateLearningScript is deprecated')
-      }
-    }
-
-    // Normal case: target is within current script range
-    const targetRound = Math.min(
-      Math.max(0, targetSeed - scriptBaseOffset.value),
-      cachedRounds.value.length - 1
-    )
-    await jumpToRound(targetRound)
-
   } finally {
     isSkippingBelt.value = false
   }
@@ -4710,66 +4595,14 @@ const populateNetworkUpToRound = (targetRoundIndex: number) => {
 
 // ============================================
 // PROGRESSIVE SCRIPT EXPANSION
-// Fetches more rounds as learner approaches end of cached content
+// Now handled by PriorityRoundLoader in the background
+// This function is kept as a no-op stub for backwards compatibility
 // ============================================
-// DEPRECATED: expandScript uses generateLearningScript which returns empty data
-// This function is kept for backwards compatibility but will not expand the script
-// When USE_SESSION_CONTROLLER is true (default), SessionController manages rounds
 const expandScript = async () => {
-  if (isExpandingScript.value) return
-  if (!courseDataProvider.value) return
-
-  // NOTE: generateLearningScript is deprecated and returns empty data
-  // Script expansion will not work until migrated to SessionController
-  console.warn('[LearningPlayer] expandScript uses deprecated generateLearningScript - expansion returns empty data')
-
-  isExpandingScript.value = true
-  const currentCount = cachedRounds.value.length
-  const absoluteOffset = scriptBaseOffset.value + currentCount // Expansion offset = base + loaded count
-
-  try {
-    // Double each time, capped at MAX_EXPANSION_BATCH
-    // 20 → 40 → 80 → 160 → 200 → 200...
-    const fetchCount = Math.min(currentCount, MAX_EXPANSION_BATCH)
-
-    console.log(`[LearningPlayer] Expanding script: fetching ${fetchCount} more rounds (offset: ${absoluteOffset}, base: ${scriptBaseOffset.value})`)
-
-    const { rounds: newRounds } = await generateLearningScript(
-      courseDataProvider.value,
-      fetchCount,
-      absoluteOffset  // Expansion offset = base + loaded count
-    )
-
-    if (newRounds.length > 0) {
-      // Append new rounds
-      cachedRounds.value = [...cachedRounds.value, ...newRounds]
-
-      // Preload intro audio for new LEGOs
-      const newLegoIds = new Set(newRounds.map(r => r.legoId).filter(Boolean))
-      if (newLegoIds.size > 0 && supabase.value) {
-        loadIntroAudio(supabase.value, courseCode.value, newLegoIds, audioMap.value)
-      }
-
-      // Update cache with expanded script (include offset for validation on reload)
-      await setCachedScript(courseCode.value, {
-        rounds: cachedRounds.value,
-        totalSeeds: cachedRounds.value.length,
-        totalLegos: cachedRounds.value.length,
-        totalCycles: cachedRounds.value.reduce((sum, r) => sum + (r.items?.length || 0), 0),
-        audioMapObj: {},
-        scriptOffset: scriptBaseOffset.value,
-      })
-
-      console.log(`[LearningPlayer] Expanded to ${cachedRounds.value.length} rounds`)
-    } else {
-      console.log('[LearningPlayer] No more rounds available - reached end of course')
-    }
-  } catch (err) {
-    console.warn('[LearningPlayer] Script expansion failed:', err)
-    // Graceful fail - user can still use cached rounds
-  } finally {
-    isExpandingScript.value = false
-  }
+  // PriorityRoundLoader handles script expansion automatically in the background
+  // This function is a no-op stub - the background loader should have already
+  // loaded rounds before they're needed
+  console.log('[LearningPlayer] expandScript called - handled by PriorityRoundLoader')
 }
 
 // Highlight a specific LEGO node (glow effect, not centering)
@@ -5145,7 +4978,8 @@ onMounted(async () => {
           await sessionPlayback.initialize(courseCode.value)
           console.log('[LearningPlayer] SessionController initialized successfully')
 
-          // Load network connections in background (still needed for visualization)
+          // Load network connections and nodes from database
+          // Then initialize the full network visualization
           if (supabase?.value) {
             loadLegoNetworkData(courseCode.value).then(networkData => {
               if (networkData?.connections) {
@@ -5153,7 +4987,8 @@ onMounted(async () => {
                 console.log(`[LearningPlayer] Loaded ${networkData.connections.length} network connections`)
               }
               if (networkData?.nodes) {
-                dbNetworkNodes.value = networkData.nodes.map(n => ({
+                // Store nodes for later use
+                const nodes = networkData.nodes.map(n => ({
                   id: n.id,
                   targetText: n.targetText,
                   knownText: n.knownText,
@@ -5163,6 +4998,22 @@ onMounted(async () => {
                   isComponent: n.isComponent,
                   parentLegoIds: n.parentLegoIds,
                 }))
+                dbNetworkNodes.value = nodes
+
+                // Create synthetic rounds from database nodes for network visualization
+                // Sort by legoIndex to maintain proper course order
+                const sortedNodes = [...nodes].sort((a, b) => (a.legoIndex || 0) - (b.legoIndex || 0))
+                const syntheticRounds = sortedNodes.map(node => ({
+                  legoId: node.id,
+                  targetText: node.targetText,
+                  knownText: node.knownText,
+                }))
+
+                // Initialize full network with database data
+                // Reveal nodes up to learner's TOTAL progress (completedSeeds)
+                const revealUpTo = Math.max(completedSeeds.value, currentRoundIndex.value)
+                initializeFullNetwork(syntheticRounds, networkConnections.value, revealUpTo, nodes)
+                console.log(`[LearningPlayer] Full network initialized: ${syntheticRounds.length} nodes, revealed up to ${revealUpTo}`)
               }
             }).catch(err => {
               console.warn('[LearningPlayer] Failed to load network connections:', err)

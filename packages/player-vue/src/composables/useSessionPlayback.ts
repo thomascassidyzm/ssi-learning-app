@@ -564,12 +564,16 @@ export function useSessionPlayback(options: SessionPlaybackOptions) {
   }
 
   /**
-   * Skip to the start of the next belt
-   * Used for belt skip functionality
+   * Jump to a specific seed number (1-based)
+   * Handles lazy loading - if round not ready, loads it first
+   * Used by belt skip, go back, and modal skip operations
    */
-  async function skipToBelt(beltIndex: number): Promise<void> {
-    const targetSeed = BELT_THRESHOLDS[beltIndex] || BELT_THRESHOLDS[0]
-    const roundIndex = targetSeed - 1  // Convert to 0-based
+  async function jumpToSeed(seedNumber: number): Promise<void> {
+    // Clamp to valid range (seeds are 1-based)
+    const targetSeed = Math.max(1, seedNumber)
+    const roundIndex = targetSeed - 1  // Convert to 0-based array index
+
+    console.log(`[useSessionPlayback] jumpToSeed(${seedNumber}) → roundIndex ${roundIndex}`)
 
     // Check if round is loaded
     if (sessionController.hasRound(roundIndex)) {
@@ -579,12 +583,23 @@ export function useSessionPlayback(options: SessionPlaybackOptions) {
 
     // Round not loaded - prioritize loading it
     if (priorityLoader) {
-      // console.log(`[useSessionPlayback] Belt ${beltIndex} start not loaded, prioritizing...`)
+      console.log(`[useSessionPlayback] Seed ${targetSeed} not loaded, prioritizing...`)
       const round = await priorityLoader.prioritize(targetSeed)
       if (round) {
         sessionController.jumpToRound(roundIndex)
+      } else {
+        console.warn(`[useSessionPlayback] Failed to load seed ${targetSeed}`)
       }
     }
+  }
+
+  /**
+   * Skip to the start of the next belt
+   * Used for belt skip functionality
+   */
+  async function skipToBelt(beltIndex: number): Promise<void> {
+    const targetSeed = BELT_THRESHOLDS[beltIndex] || BELT_THRESHOLDS[0]
+    await jumpToSeed(Math.max(1, targetSeed))  // Ensure at least seed 1
   }
 
   /**
@@ -771,6 +786,7 @@ export function useSessionPlayback(options: SessionPlaybackOptions) {
     skipCycle,
     skipRound,
     jumpToRound,
+    jumpToSeed,
     skipToBelt,
     setConfig,
 
