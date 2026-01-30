@@ -1254,7 +1254,7 @@ onUnmounted(() => {
                   <template v-if="item.type === 'intro'">INTRO</template>
                   <template v-else-if="item.type === 'debut'">LEGO</template>
                   <template v-else-if="item.type === 'debut_phrase'">BUILD-{{ getDebutPhraseIndex(item) }}</template>
-                  <template v-else-if="item.type === 'spaced_rep'">REVIEW-{{ item.reviewOf }}</template>
+                  <template v-else-if="item.type === 'spaced_rep'">REVIEW-R{{ item.reviewOf }}</template>
                   <template v-else-if="item.type === 'consolidation'">CONSOLIDATE-{{ getConsolidationIndex(item) }}</template>
                 </div>
 
