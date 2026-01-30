@@ -845,14 +845,15 @@ export class CourseDataProvider {
       }
 
       // Classify by phrase_role (matching dashboard logic)
+      // Database constraint: ('component', 'practice', 'eternal_eligible')
       const role = record.phrase_role
       if (role === 'component') {
         components.push(phrase)
       } else if (role === 'build' || role === 'practice') {
-        // 'build' is current naming, 'practice' is legacy - both are BUILD phrases
+        // 'practice' = BUILD phrases (played once in BUILD section)
         buildPhrases.push(phrase)
-      } else if (role === 'use') {
-        // USE phrases for eternal/spaced rep/consolidation
+      } else if (role === 'use' || role === 'eternal_eligible') {
+        // 'eternal_eligible' = USE phrases (eligible for BUILD fill, REVIEW, CONSOLIDATE)
         usePhrases.push(phrase)
       }
     }
