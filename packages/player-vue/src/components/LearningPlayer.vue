@@ -1715,7 +1715,7 @@ const {
   loadMinimalConstellation,
   stats: networkStats,
   reset: resetNetwork,  // Reset network on belt skip
-  prebuiltNetwork,      // Direct access for clearing revealed nodes
+  prebuiltNetwork: networkState,  // Direct access for clearing revealed nodes
 } = distinctionNetwork
 
 // Backwards compatibility aliases
@@ -4022,8 +4022,8 @@ const handleSkipToNextBelt = async () => {
 
     // Reset the brain network for fresh start at new belt
     // This keeps the network lightweight during belt skipping
-    if (prebuiltNetwork?.revealedNodeIds) {
-      prebuiltNetwork.revealedNodeIds.value = new Set<string>()
+    if (networkState?.revealedNodeIds) {
+      networkState.revealedNodeIds.value = new Set<string>()
       console.log('[LearningPlayer] Reset brain network for belt skip')
     }
 
@@ -4063,6 +4063,13 @@ const handleGoBackBelt = async () => {
     const targetSeed = beltProgress.value.goBackToBeltStart()
     console.log(`[LearningPlayer] Going back to seed ${targetSeed}`)
 
+    // Reset the brain network for fresh start at new belt
+    // This keeps the network lightweight during belt skipping
+    if (networkState?.revealedNodeIds) {
+      networkState.revealedNodeIds.value = new Set<string>()
+      console.log('[LearningPlayer] Reset brain network for belt skip')
+    }
+
     // Use jumpToSeed to correctly map seed number to round index
     // Handle edge case: seed 0 (white belt) means go to round 0
     if (targetSeed === 0) {
@@ -4095,6 +4102,13 @@ const handleSkipToBeltFromModal = async (belt) => {
 
   isSkippingBelt.value = true
   try {
+    // Reset the brain network for fresh start at new belt
+    // This keeps the network lightweight during belt skipping
+    if (networkState?.revealedNodeIds) {
+      networkState.revealedNodeIds.value = new Set<string>()
+      console.log('[LearningPlayer] Reset brain network for modal belt skip')
+    }
+
     // Use jumpToSeed to correctly map seed number to round index
     // Handle edge case: seed 0 (white belt) means go to round 0
     if (targetSeed === 0) {
