@@ -392,6 +392,7 @@ simplePlayer.onSessionComplete(() => {
 // Sync simplePlayer's current cycle to local currentCycle ref for text display
 // This watcher runs after currentCycle ref is defined (around line 1240)
 watch(() => simplePlayer.currentCycle.value, (simpleCycle) => {
+  console.log('[LearningPlayer] Cycle watcher triggered:', simpleCycle ? `"${simpleCycle.known?.text}" → "${simpleCycle.target?.text}"` : 'null')
   if (!simpleCycle) return
   // Map SimpleCycle format to legacy Cycle format for currentPhrase computed
   // Only the text fields are needed for display

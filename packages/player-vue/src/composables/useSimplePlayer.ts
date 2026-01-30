@@ -57,6 +57,16 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
       player.stop()
     }
 
+    // Debug: log what we're initializing with
+    console.log('[useSimplePlayer] Initializing with', rounds.length, 'rounds')
+    if (rounds.length > 0) {
+      const r = rounds[0]
+      console.log('[useSimplePlayer] First round:', r.roundNumber, r.legoId, 'cycles:', r.cycles?.length)
+      if (r.cycles?.length > 0) {
+        console.log('[useSimplePlayer] First cycle:', r.cycles[0].known?.text, '→', r.cycles[0].target?.text)
+      }
+    }
+
     roundsRef.value = rounds
     player = new SimplePlayer(rounds)
 
