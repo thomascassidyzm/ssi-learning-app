@@ -4990,6 +4990,16 @@ onMounted(async () => {
               simplePlayer.initialize(simpleRounds as any)
               console.log('[LearningPlayer] SimplePlayer initialized with simple script')
 
+              // Restore position based on belt progress (completedSeeds)
+              const startingRound = beltProgress.value?.completedSeeds.value ?? 0
+              if (startingRound > 0 && startingRound < simpleRounds.length) {
+                console.log(`[LearningPlayer] Restoring position: jumping to round ${startingRound} (${startingRound} seeds completed)`)
+                simplePlayer.jumpToRound(startingRound)
+              } else if (startingRound >= simpleRounds.length) {
+                console.log(`[LearningPlayer] Progress (${startingRound}) exceeds loaded rounds (${simpleRounds.length}) - starting at last round`)
+                simplePlayer.jumpToRound(simpleRounds.length - 1)
+              }
+
               // Store for legacy code
               loadedRounds.value = simpleRounds as any
             } else {
@@ -5113,6 +5123,17 @@ onMounted(async () => {
             loadedRounds.value = builderRounds as any
             simplePlayer.initialize(simpleRounds as any)
             console.log('[LearningPlayer] SimplePlayer initialized with', simpleRounds.length, 'rounds')
+
+            // Restore position based on belt progress (completedSeeds)
+            // If learner has completed N seeds, they should start at round N (0-indexed: N)
+            const startingRound = beltProgress.value?.completedSeeds.value ?? 0
+            if (startingRound > 0 && startingRound < simpleRounds.length) {
+              console.log(`[LearningPlayer] Restoring position: jumping to round ${startingRound} (${startingRound} seeds completed)`)
+              simplePlayer.jumpToRound(startingRound)
+            } else if (startingRound >= simpleRounds.length) {
+              console.log(`[LearningPlayer] Progress (${startingRound}) exceeds loaded rounds (${simpleRounds.length}) - starting at last round`)
+              simplePlayer.jumpToRound(simpleRounds.length - 1)
+            }
 
             // Build LEGO map for network visualization
             const legoMapFromRounds = new Map<string, { targetText: string; knownText: string }>()
@@ -6030,7 +6051,9 @@ defineExpose({
     <div class="space-nebula"></div>
     <div class="bg-noise"></div>
 
-    <!-- Brain Network Visualization Layer - Prebuilt Constellation -->
+    <!-- Brain Network Visualization Layer - DISABLED pending PlayerBrain.vue integration -->
+    <!-- TODO: Replace with PlayerBrain.vue (lightweight Three.js version) -->
+    <!--
     <ConstellationNetworkView
       ref="networkViewRef"
       v-bind="networkViewProps"
@@ -6041,6 +6064,7 @@ defineExpose({
       @node-tap="handleNetworkNodeTap"
       @node-hover="handleNetworkNodeHover"
     />
+    -->
 
     <!-- Hero-Centric Text Labels - Floating above/below the hero node -->
     <div class="hero-text-pane" :class="[currentPhase, { 'is-intro': isIntroPhase, 'has-hint': showLearningHint && !isIntroPhase }]">
