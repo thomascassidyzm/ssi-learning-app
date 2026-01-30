@@ -16,7 +16,7 @@ const props = defineProps({
   // Belt progress (overall, not session-specific)
   currentBelt: { type: Object, required: true },
   beltProgress: { type: Number, default: 0 },
-  completedSeeds: { type: Number, default: 0 },
+  completedRounds: { type: Number, default: 0 },
   nextBelt: { type: Object, default: null },
 
   // Time estimate (from useBeltProgress composable)
@@ -39,7 +39,7 @@ const formattedTime = computed(() => {
 // Calculate seeds until next belt
 const seedsToNextBelt = computed(() => {
   if (!props.nextBelt) return 0
-  return props.nextBelt.seedsRequired - props.completedSeeds
+  return props.nextBelt.seedsRequired - props.completedRounds
 })
 
 // Progress percentage within current belt tier

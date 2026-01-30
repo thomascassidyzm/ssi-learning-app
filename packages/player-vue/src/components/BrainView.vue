@@ -83,7 +83,7 @@ const props = defineProps({
     type: String,
     default: 'white'
   },
-  completedSeeds: {
+  completedRounds: {
     type: Number,
     default: 0
   },
@@ -130,8 +130,8 @@ const { loadNetworkData, networkData, getEternalPhrasesForLego, getLegoConnectio
 // All rounds loaded from script
 const allRounds = ref<any[]>([])
 
-// Slider state - defaults to learner's progress (completedSeeds approximates LEGOs encountered)
-const sliderValue = ref(props.completedSeeds || 100)
+// Slider state - defaults to learner's progress (completedRounds approximates LEGOs encountered)
+const sliderValue = ref(props.completedRounds || 100)
 const sliderMax = computed(() => allRounds.value.length || 100)
 
 // Admin/Testing mode - show all nodes regardless of progress
@@ -294,16 +294,16 @@ const beltProgressData = computed(() => {
   const nextBelt = currentBeltIndex < BELTS.length - 1 ? BELTS[currentBeltIndex + 1] : null
 
   if (!currentBelt || !nextBelt) {
-    return { current: props.completedSeeds, target: currentBelt?.seedsRequired || 0, percentage: 100, ratio: 1 }
+    return { current: props.completedRounds, target: currentBelt?.seedsRequired || 0, percentage: 100, ratio: 1 }
   }
 
-  const progressInBelt = props.completedSeeds - currentBelt.seedsRequired
+  const progressInBelt = props.completedRounds - currentBelt.seedsRequired
   const beltRange = nextBelt.seedsRequired - currentBelt.seedsRequired
   const percentage = Math.min(100, Math.round((progressInBelt / beltRange) * 100))
   const ratio = Math.min(1, progressInBelt / beltRange)
 
   return {
-    current: props.completedSeeds,
+    current: props.completedRounds,
     target: nextBelt.seedsRequired,
     percentage,
     ratio
@@ -318,7 +318,7 @@ const seedsToNextBelt = computed(() => {
   const currentBeltIndex = BELTS.findIndex(b => b.name === props.beltLevel)
   const nextBelt = currentBeltIndex < BELTS.length - 1 ? BELTS[currentBeltIndex + 1] : null
   if (!nextBelt) return 0
-  return Math.max(0, nextBelt.seedsRequired - props.completedSeeds)
+  return Math.max(0, nextBelt.seedsRequired - props.completedRounds)
 })
 
 // TODO: This should come from Supabase user_sessions table
@@ -333,7 +333,7 @@ const weekActivity = computed(() => {
 // For now, provide placeholder values
 const totalMinutes = computed(() => {
   // Estimate: ~2.5 minutes per seed completed
-  return Math.round(props.completedSeeds * 2.5)
+  return Math.round(props.completedRounds * 2.5)
 })
 
 const currentStreak = computed(() => {
@@ -410,7 +410,7 @@ const selectedNodePhraseCount = computed(() => {
 const beltsList = computed(() => BELTS)
 const currentBeltIndex = computed(() => {
   for (let i = BELTS.length - 1; i >= 0; i--) {
-    if (props.completedSeeds >= BELTS[i].seedsRequired) {
+    if (props.completedRounds >= BELTS[i].seedsRequired) {
       return i
     }
   }

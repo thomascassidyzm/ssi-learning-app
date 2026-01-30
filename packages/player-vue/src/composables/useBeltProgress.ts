@@ -2,7 +2,7 @@
  * useBeltProgress - Belt progression system with localStorage + Supabase sync
  *
  * Tracks:
- * - completedSeeds per course (persisted locally + synced to Supabase)
+ * - completedRounds per course (persisted locally + synced to Supabase)
  * - Session history for learning rate calculation
  * - Rolling average for time-to-next-belt estimates
  *
@@ -54,14 +54,14 @@ const PROGRESS_KEY_PREFIX = 'ssi_belt_progress_'
 const SESSION_HISTORY_KEY_PREFIX = 'ssi_session_history_'
 
 // Note: Cache invalidation (position, scripts) is handled by App.vue using BUILD_VERSION
-// Belt PROGRESS (completedSeeds) persists across builds - it's real user progress
+// Belt PROGRESS (completedRounds) persists across builds - it's real user progress
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
 interface StoredProgress {
-  completedSeeds: number
+  completedRounds: number
   lastUpdated: number
 }
 
@@ -92,7 +92,7 @@ export interface BeltProgressSyncConfig {
 
 export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyncConfig) {
   // Core state
-  const completedSeeds = ref(0)
+  const completedRounds = ref(0)
   const sessionHistory = ref<SessionRecord[]>([])
   const isLoaded = ref(false)
   const isSyncing = ref(false)
@@ -232,7 +232,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
    * This ensures progress never goes backward across devices
    */
   const mergeProgress = async (): Promise<number> => {
-    const localSeeds = completedSeeds.value
+    const localSeeds = completedRounds.value
     const remoteSeeds = await fetchRemoteProgress()
 
     if (remoteSeeds === null) {
@@ -244,7 +244,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
 
     if (mergedSeeds !== localSeeds) {
       console.log('[BeltProgress] Merged progress: local', localSeeds, '+ remote', remoteSeeds, '=', mergedSeeds)
-      completedSeeds.value = mergedSeeds
+      completedRounds.value = mergedSeeds
       saveProgressLocal() // Persist merged value locally
     }
 
@@ -269,15 +269,15 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
       const stored = localStorage.getItem(key)
       if (stored) {
         const data: StoredProgress = JSON.parse(stored)
-        completedSeeds.value = data.completedSeeds || 0
-        console.log(`[BeltProgress] Loaded ${completedSeeds.value} seeds from localStorage for ${courseCode}`)
+        completedRounds.value = data.completedRounds || 0
+        console.log(`[BeltProgress] Loaded ${completedRounds.value} seeds from localStorage for ${courseCode}`)
       } else {
-        completedSeeds.value = 0
+        completedRounds.value = 0
         console.log(`[BeltProgress] No saved progress for ${courseCode}, starting at 0`)
       }
     } catch (err) {
       console.warn('[BeltProgress] Failed to load progress:', err)
-      completedSeeds.value = 0
+      completedRounds.value = 0
     }
   }
 
@@ -288,7 +288,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
     try {
       const key = `${PROGRESS_KEY_PREFIX}${courseCode}`
       const data: StoredProgress = {
-        completedSeeds: completedSeeds.value,
+        completedRounds: completedRounds.value,
         lastUpdated: Date.now(),
       }
       localStorage.setItem(key, JSON.stringify(data))
@@ -307,7 +307,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
 
     // Sync to remote in background (non-blocking)
     if (canSync()) {
-      syncToRemote(completedSeeds.value)
+      syncToRemote(completedRounds.value)
     }
   }
 
@@ -359,7 +359,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
 
   const currentBelt = computed((): Belt => {
     for (let i = BELTS.length - 1; i >= 0; i--) {
-      if (completedSeeds.value >= BELTS[i].seedsRequired) {
+      if (completedRounds.value >= BELTS[i].seedsRequired) {
         return { ...BELTS[i], index: i }
       }
     }
@@ -376,17 +376,17 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
     if (!nextBelt.value) return 100 // At black belt
     const current = currentBelt.value.seedsRequired
     const next = nextBelt.value.seedsRequired
-    const progress = (completedSeeds.value - current) / (next - current)
+    const progress = (completedRounds.value - current) / (next - current)
     return Math.min(Math.max(progress * 100, 0), 100)
   })
 
   const seedsToNextBelt = computed(() => {
     if (!nextBelt.value) return 0
-    return nextBelt.value.seedsRequired - completedSeeds.value
+    return nextBelt.value.seedsRequired - completedRounds.value
   })
 
   const courseProgress = computed(() => {
-    return Math.min((completedSeeds.value / TOTAL_SEEDS) * 100, 100)
+    return Math.min((completedRounds.value / TOTAL_SEEDS) * 100, 100)
   })
 
   // ============================================================================
@@ -461,7 +461,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
    */
   const startSession = () => {
     sessionStartTime.value = Date.now()
-    sessionStartSeeds.value = completedSeeds.value
+    sessionStartSeeds.value = completedRounds.value
     console.log('[BeltProgress] Session started at', sessionStartSeeds.value, 'seeds')
   }
 
@@ -471,7 +471,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   const endSession = () => {
     if (sessionStartTime.value === null) return
 
-    const seedsLearned = completedSeeds.value - sessionStartSeeds.value
+    const seedsLearned = completedRounds.value - sessionStartSeeds.value
     const durationMs = Date.now() - sessionStartTime.value
 
     // Only record if meaningful progress was made
@@ -500,7 +500,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
    */
   const addSeeds = (count: number = 1): Belt | null => {
     const previousBelt = currentBelt.value
-    completedSeeds.value = Math.min(completedSeeds.value + count, TOTAL_SEEDS)
+    completedRounds.value = Math.min(completedRounds.value + count, TOTAL_SEEDS)
     saveProgress()
 
     // Check for belt promotion
@@ -516,7 +516,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
    * Set seeds directly (for sync from server, etc.)
    */
   const setSeeds = (count: number) => {
-    completedSeeds.value = Math.min(Math.max(count, 0), TOTAL_SEEDS)
+    completedRounds.value = Math.min(Math.max(count, 0), TOTAL_SEEDS)
     saveProgress()
   }
 
@@ -524,7 +524,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
    * Reset progress (for testing/demo)
    */
   const resetProgress = () => {
-    completedSeeds.value = 0
+    completedRounds.value = 0
     sessionHistory.value = []
     saveProgress()
     saveSessionHistory()
@@ -560,7 +560,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   const skipToNextBelt = (): number | null => {
     if (!nextBelt.value) return null
     const newSeeds = nextBelt.value.seedsRequired
-    completedSeeds.value = newSeeds
+    completedRounds.value = newSeeds
     saveProgress()
     console.log(`[BeltProgress] Skipped to ${nextBelt.value.name} belt (seed ${newSeeds})`)
     return newSeeds
@@ -574,14 +574,14 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
     const currentStart = currentBelt.value.seedsRequired
     // If we're more than a few seeds into the current belt, go to its start
     // Otherwise, go to the previous belt's start
-    if (completedSeeds.value > currentStart + 2 || !previousBelt.value) {
-      completedSeeds.value = currentStart
+    if (completedRounds.value > currentStart + 2 || !previousBelt.value) {
+      completedRounds.value = currentStart
       saveProgress()
       console.log(`[BeltProgress] Went back to start of ${currentBelt.value.name} belt (seed ${currentStart})`)
       return currentStart
     } else {
       const prevStart = previousBelt.value.seedsRequired
-      completedSeeds.value = prevStart
+      completedRounds.value = prevStart
       saveProgress()
       console.log(`[BeltProgress] Went back to ${previousBelt.value.name} belt (seed ${prevStart})`)
       return prevStart
@@ -594,7 +594,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
    */
   const jumpToBelt = (beltIndex: number): number => {
     const targetSeeds = getBeltStartSeed(beltIndex)
-    completedSeeds.value = Math.min(targetSeeds, TOTAL_SEEDS)
+    completedRounds.value = Math.min(targetSeeds, TOTAL_SEEDS)
     saveProgress()
     console.log(`[BeltProgress] Jumped to ${BELTS[beltIndex]?.name || 'unknown'} belt (seed ${targetSeeds})`)
     return targetSeeds
@@ -609,7 +609,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
    */
   const beltJourney = computed(() => {
     return BELTS.map((belt, index) => {
-      const isComplete = completedSeeds.value >= belt.seedsRequired
+      const isComplete = completedRounds.value >= belt.seedsRequired
       const isCurrent = currentBelt.value.index === index
       const isNext = nextBelt.value?.index === index
 
@@ -618,7 +618,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
       if (isCurrent && index < BELTS.length - 1) {
         const beltStart = belt.seedsRequired
         const beltEnd = BELTS[index + 1].seedsRequired
-        progressInBelt = ((completedSeeds.value - beltStart) / (beltEnd - beltStart)) * 100
+        progressInBelt = ((completedRounds.value - beltStart) / (beltEnd - beltStart)) * 100
       } else if (isComplete) {
         progressInBelt = 100
       }
@@ -683,13 +683,13 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   }
 
   // Auto-save on changes (both local and remote)
-  watch(completedSeeds, () => {
+  watch(completedRounds, () => {
     if (isLoaded.value) saveProgress()
   })
 
   return {
     // State
-    completedSeeds,
+    completedRounds,
     isLoaded,
     isSyncing,
     lastSyncError,

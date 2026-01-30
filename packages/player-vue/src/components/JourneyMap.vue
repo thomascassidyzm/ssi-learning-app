@@ -16,7 +16,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 
 const props = defineProps({
-  completedSeeds: { type: Number, default: 42 },
+  completedRounds: { type: Number, default: 42 },
   totalSeeds: { type: Number, default: 668 },
   learningVelocity: { type: Number, default: 1.2 },
 })
@@ -37,7 +37,7 @@ const BELTS = [
 
 const currentBelt = computed(() => {
   for (let i = BELTS.length - 1; i >= 0; i--) {
-    if (props.completedSeeds >= BELTS[i].seeds) return { ...BELTS[i], index: i }
+    if (props.completedRounds >= BELTS[i].seeds) return { ...BELTS[i], index: i }
   }
   return { ...BELTS[0], index: 0 }
 })
@@ -47,7 +47,7 @@ const generateMockLegos = () => {
   const legos = []
   const seedFamilies = ['Greetings', 'Numbers', 'Colors', 'Food', 'Travel', 'Family', 'Time', 'Weather']
 
-  for (let i = 0; i < props.completedSeeds; i++) {
+  for (let i = 0; i < props.completedRounds; i++) {
     const familyIndex = i % seedFamilies.length
     legos.push({
       id: `lego-${i}`,
@@ -479,7 +479,7 @@ onUnmounted(() => {
 })
 
 // Watch for prop changes
-watch(() => props.completedSeeds, () => {
+watch(() => props.completedRounds, () => {
   initNetwork()
 })
 </script>
@@ -639,7 +639,7 @@ watch(() => props.completedSeeds, () => {
     <!-- Stats Panel -->
     <div class="stats-panel">
       <div class="stat">
-        <span class="stat-value">{{ completedSeeds }}</span>
+        <span class="stat-value">{{ completedRounds }}</span>
         <span class="stat-label">Seeds</span>
       </div>
       <div class="stat-divider"></div>

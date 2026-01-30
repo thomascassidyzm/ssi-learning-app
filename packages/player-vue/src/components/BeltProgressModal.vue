@@ -28,7 +28,7 @@ const props = defineProps({
     default: null
     // Shape: { name, color, seedsRequired, glow } or null if at black belt
   },
-  completedSeeds: {
+  completedRounds: {
     type: Number,
     default: 0
   },
@@ -70,7 +70,7 @@ const progressToNextBelt = computed(() => {
   if (!props.nextBelt) return 100
   const currentRequired = props.currentBelt.seedsRequired || 0
   const nextRequired = props.nextBelt.seedsRequired
-  const progressInTier = props.completedSeeds - currentRequired
+  const progressInTier = props.completedRounds - currentRequired
   const tierSize = nextRequired - currentRequired
   return Math.min(100, Math.max(0, (progressInTier / tierSize) * 100))
 })
@@ -80,7 +80,7 @@ const seedsProgressText = computed(() => {
   if (!props.nextBelt) {
     return 'Black belt achieved!'
   }
-  return `${props.completedSeeds} / ${props.nextBelt.seedsRequired} seeds to ${props.nextBelt.name} belt`
+  return `${props.completedRounds} / ${props.nextBelt.seedsRequired} seeds to ${props.nextBelt.name} belt`
 })
 
 // CSS variables for belt colors

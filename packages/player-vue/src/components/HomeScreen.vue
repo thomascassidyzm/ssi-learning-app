@@ -73,7 +73,7 @@ const activeCourseData = computed(() => {
     subtitle: course.subtitle || `for ${knownMeta.name} Speakers`,
     target_flag: course.target_flag || targetMeta.flag,
     // Progress fields (from learner data or defaults)
-    completedSeeds: course.completedSeeds || course.completed_seeds || 0,
+    completedRounds: course.completedRounds || course.completed_seeds || 0,
     totalSeeds: course.totalSeeds || course.total_seeds || 668,
     progress: course.progress || 0,
   }
@@ -103,7 +103,7 @@ const getCurrentBelt = (seeds) => {
   return belts[0]
 }
 
-const activeBelt = computed(() => getCurrentBelt(activeCourseData.value?.completedSeeds || 0))
+const activeBelt = computed(() => getCurrentBelt(activeCourseData.value?.completedRounds || 0))
 
 // Greeting based on time
 const greeting = computed(() => {
@@ -139,8 +139,8 @@ const openCourseSelector = () => {
 // Stats data - would come from database in production
 const usageStats = computed(() => ({
   totalMinutes: activeCourseData.value?.totalMinutes || 47,
-  totalWordsIntroduced: activeCourseData.value?.completedSeeds || 0,
-  totalPhrasesSpoken: (activeCourseData.value?.completedSeeds || 0) * 5,
+  totalWordsIntroduced: activeCourseData.value?.completedRounds || 0,
+  totalPhrasesSpoken: (activeCourseData.value?.completedRounds || 0) * 5,
 }))
 
 // Format total time as hours and minutes
@@ -206,7 +206,7 @@ const formattedTotalTime = computed(() => {
                 <div class="belt-swatch" :style="{ background: activeBelt.color }"></div>
                 <span class="belt-label">{{ activeBelt.label }}</span>
               </div>
-              <span class="progress-text">{{ activeCourseData.completedSeeds || 0 }} / {{ activeCourseData.totalSeeds || activeCourseData.total_seeds || 668 }} seeds</span>
+              <span class="progress-text">{{ activeCourseData.completedRounds || 0 }} / {{ activeCourseData.totalSeeds || activeCourseData.total_seeds || 668 }} seeds</span>
             </div>
             <div class="progress-bar">
               <div class="progress-fill" :style="{ width: (activeCourseData.progress || 0) + '%' }"></div>

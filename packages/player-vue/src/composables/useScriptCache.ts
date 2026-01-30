@@ -58,7 +58,7 @@ export interface CachedScript {
   cachedAt: number
   courseWelcome?: CourseWelcome
   loadedLegos?: number // For CourseExplorer pagination
-  scriptOffset?: number // Track the starting offset (completedSeeds at generation time)
+  scriptOffset?: number // Track the starting offset (completedRounds at generation time)
 }
 
 // ============================================================================

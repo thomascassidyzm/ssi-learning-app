@@ -229,7 +229,7 @@ const fetchEnrolledCourses = async () => {
       if (defaultCourse && !activeCourse.value) {
         activeCourse.value = {
           ...defaultCourse,
-          completedSeeds: 0,
+          completedRounds: 0,
           progress: 0,
           lastSession: null,
         }

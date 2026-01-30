@@ -151,14 +151,14 @@ const handleViewProgress = () => {
 
 // Learner data (would come from database in production)
 const learnerStats = ref({
-  completedSeeds: 42,
+  completedRounds: 42,
   totalSeeds: 668,
   learningVelocity: 1.2,
 })
 
-// Current belt based on completedSeeds
+// Current belt based on completedRounds
 const currentBeltName = computed(() => {
-  const seeds = learnerStats.value.completedSeeds
+  const seeds = learnerStats.value.completedRounds
   for (let i = BELTS.length - 1; i >= 0; i--) {
     if (seeds >= BELTS[i].seedsRequired) {
       return BELTS[i].name
@@ -273,7 +273,7 @@ onMounted(() => {
     <Transition name="slide-up" mode="out-in">
       <JourneyMap
         v-if="currentScreen === 'journey'"
-        :completedSeeds="learnerStats.completedSeeds"
+        :completedRounds="learnerStats.completedRounds"
         :totalSeeds="learnerStats.totalSeeds"
         :learningVelocity="learnerStats.learningVelocity"
         @close="goHome"
@@ -307,7 +307,7 @@ onMounted(() => {
         v-if="currentScreen === 'network'"
         :course="activeCourse"
         :belt-level="currentBeltName"
-        :completed-seeds="learnerStats.completedSeeds"
+        :completed-seeds="learnerStats.completedRounds"
         @close="goHome"
       />
     </Transition>

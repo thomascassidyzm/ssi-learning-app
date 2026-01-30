@@ -970,7 +970,7 @@ const useBeltLoaderPlayback = ref(false)
 const isOnline = ref(navigator.onLine)
 
 // Computed properties that delegate to the composable (with fallbacks for initial load)
-const completedSeeds = computed(() => beltProgress.value?.completedSeeds.value ?? 0)
+const completedRounds = computed(() => beltProgress.value?.completedRounds.value ?? 0)
 const currentBelt = computed(() => beltProgress.value?.currentBelt.value ?? { name: 'white', seedsRequired: 0, color: '#f5f5f5', colorDark: '#e0e0e0', glow: 'rgba(245, 245, 245, 0.3)', index: 0 })
 const nextBelt = computed(() => beltProgress.value?.nextBelt.value ?? null)
 const previousBelt = computed(() => beltProgress.value?.previousBelt.value ?? null)
@@ -980,7 +980,7 @@ const previousBelt = computed(() => beltProgress.value?.previousBelt.value ?? nu
 const backTargetBelt = computed(() => {
   const currentStart = currentBelt.value.seedsRequired
   // If we're more than 2 seeds into current belt, target is current belt start
-  if (completedSeeds.value > currentStart + 2 || !previousBelt.value) {
+  if (completedRounds.value > currentStart + 2 || !previousBelt.value) {
     return currentBelt.value
   }
   // Otherwise, target is previous belt
@@ -1022,7 +1022,7 @@ const initializeBeltProgress = async () => {
       await beltProgress.value.initialize()
     }
 
-    console.log('[LearningPlayer] Belt progress initialized for', courseCode.value, '- seeds:', beltProgress.value.completedSeeds.value)
+    console.log('[LearningPlayer] Belt progress initialized for', courseCode.value, '- seeds:', beltProgress.value.completedRounds.value)
   }
 }
 
@@ -1063,7 +1063,7 @@ const initializeBeltLoader = async () => {
   beltLoader.value = useBeltLoader(loaderConfig)
 
   // Initialize from current progress position
-  const startSeed = beltProgress.value.completedSeeds.value + 1
+  const startSeed = beltProgress.value.completedRounds.value + 1
   await beltLoader.value.initializeFromSeed(startSeed)
 
   console.log('[LearningPlayer] Belt loader ready, starting from seed', startSeed)
@@ -1177,7 +1177,7 @@ const updateBeltForPosition = (roundIndex, showCelebration = true) => {
   if (!beltProgress.value) return
 
   const previousBelt = beltProgress.value.currentBelt.value
-  const previousSeeds = beltProgress.value.completedSeeds.value
+  const previousSeeds = beltProgress.value.completedRounds.value
 
   // Set seeds to match current position (1 seed ≈ 1 round/LEGO)
   // Convert relative round index to absolute seed number using base offset
@@ -3184,8 +3184,8 @@ const playWelcomeIfNeeded = async () => {
 
     // If learner has any progress (seeds > 0), they've already done a session
     // This covers guests who can't persist welcome_played to database
-    if (completedSeeds.value > 0) {
-      console.log('[LearningPlayer] Learner has progress (', completedSeeds.value, 'seeds) - skipping welcome')
+    if (completedRounds.value > 0) {
+      console.log('[LearningPlayer] Learner has progress (', completedRounds.value, 'seeds) - skipping welcome')
       return false
     }
 
@@ -4991,8 +4991,8 @@ onMounted(async () => {
               simplePlayer.initialize(simpleRounds as any)
               console.log('[LearningPlayer] SimplePlayer initialized with simple script')
 
-              // Restore position based on belt progress (completedSeeds)
-              const startingRound = beltProgress.value?.completedSeeds.value ?? 0
+              // Restore position based on belt progress (completedRounds)
+              const startingRound = beltProgress.value?.completedRounds.value ?? 0
               if (startingRound > 0 && startingRound < simpleRounds.length) {
                 console.log(`[LearningPlayer] Restoring position: jumping to round ${startingRound} (${startingRound} seeds completed)`)
                 simplePlayer.jumpToRound(startingRound)
@@ -5125,9 +5125,9 @@ onMounted(async () => {
             simplePlayer.initialize(simpleRounds as any)
             console.log('[LearningPlayer] SimplePlayer initialized with', simpleRounds.length, 'rounds')
 
-            // Restore position based on belt progress (completedSeeds)
+            // Restore position based on belt progress (completedRounds)
             // If learner has completed N seeds, they should start at round N (0-indexed: N)
-            const startingRound = beltProgress.value?.completedSeeds.value ?? 0
+            const startingRound = beltProgress.value?.completedRounds.value ?? 0
             if (startingRound > 0 && startingRound < simpleRounds.length) {
               console.log(`[LearningPlayer] Restoring position: jumping to round ${startingRound} (${startingRound} seeds completed)`)
               simplePlayer.jumpToRound(startingRound)
@@ -5184,8 +5184,8 @@ onMounted(async () => {
                 }))
 
                 // Initialize full network with database data
-                // Reveal nodes up to learner's TOTAL progress (completedSeeds)
-                const revealUpTo = Math.max(completedSeeds.value, currentRoundIndex.value)
+                // Reveal nodes up to learner's TOTAL progress (completedRounds)
+                const revealUpTo = Math.max(completedRounds.value, currentRoundIndex.value)
                 initializeFullNetwork(syntheticRounds, networkConnections.value, revealUpTo, nodes)
                 console.log(`[LearningPlayer] Full network initialized: ${syntheticRounds.length} nodes, revealed up to ${revealUpTo}`)
               }
@@ -5300,11 +5300,11 @@ onMounted(async () => {
             )
 
             if (allRounds.length > 0) {
-              // Reveal nodes up to learner's TOTAL progress (completedSeeds), not just current session
+              // Reveal nodes up to learner's TOTAL progress (completedRounds), not just current session
               // This ensures previously learned LEGOs are visible so new ones can connect to them
-              const revealUpTo = Math.max(completedSeeds.value, currentRoundIndex.value)
+              const revealUpTo = Math.max(completedRounds.value, currentRoundIndex.value)
               initializeFullNetwork(allRounds, networkConnections.value, revealUpTo, dbNetworkNodes.value)
-              console.log(`[LearningPlayer] Full network ready: ${allRounds.length} nodes, revealed up to ${revealUpTo} (completedSeeds: ${completedSeeds.value}, currentRound: ${currentRoundIndex.value})`)
+              console.log(`[LearningPlayer] Full network ready: ${allRounds.length} nodes, revealed up to ${revealUpTo} (completedRounds: ${completedRounds.value}, currentRound: ${currentRoundIndex.value})`)
             }
           } catch (err) {
             console.warn('[LearningPlayer] Failed to load full network:', err)
@@ -5395,7 +5395,7 @@ onMounted(async () => {
                 const playable = await scriptItemToPlayableItem(firstItem)
                 if (playable) {
                   currentPlayableItem.value = playable
-                  console.log('[LearningPlayer] Fresh start: round 0 (belt level:', beltProgress.value?.completedSeeds.value ?? 0, 'seeds)')
+                  console.log('[LearningPlayer] Fresh start: round 0 (belt level:', beltProgress.value?.completedRounds.value ?? 0, 'seeds)')
                 }
               }
             }
@@ -5504,11 +5504,11 @@ onMounted(async () => {
             )
 
             if (allRounds.length > 0) {
-              // Reveal nodes up to learner's TOTAL progress (completedSeeds), not just current session
+              // Reveal nodes up to learner's TOTAL progress (completedRounds), not just current session
               // This ensures previously learned LEGOs are visible so new ones can connect to them
-              const revealUpTo = Math.max(completedSeeds.value, currentRoundIndex.value)
+              const revealUpTo = Math.max(completedRounds.value, currentRoundIndex.value)
               initializeFullNetwork(allRounds, networkConnections.value, revealUpTo, dbNetworkNodes.value)
-              console.log(`[LearningPlayer] Fresh gen: Full network ready: ${allRounds.length} nodes, revealed up to ${revealUpTo} (completedSeeds: ${completedSeeds.value}, currentRound: ${currentRoundIndex.value})`)
+              console.log(`[LearningPlayer] Fresh gen: Full network ready: ${allRounds.length} nodes, revealed up to ${revealUpTo} (completedRounds: ${completedRounds.value}, currentRound: ${currentRoundIndex.value})`)
             }
           } catch (err) {
             console.warn('[LearningPlayer] Fresh gen: Failed to load full network:', err)
@@ -5521,7 +5521,7 @@ onMounted(async () => {
           const savedPosition = loadPositionFromLocalStorage()
 
           // Use saved seed position if available, otherwise use current belt progress
-          const startOffset = savedPosition?.seedNumber ?? beltProgress.value?.completedSeeds.value ?? 0
+          const startOffset = savedPosition?.seedNumber ?? beltProgress.value?.completedRounds.value ?? 0
           scriptBaseOffset.value = startOffset // Track for expansion calculations
           console.log('[LearningPlayer] Generating script with offset:', startOffset,
             savedPosition ? `(from saved position, LEGO ${savedPosition.legoId})` : '(from belt progress)')
@@ -5870,7 +5870,7 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
   allPlayableItems.value = []
   cachedRounds.value = []
   cachedCourseWelcome.value = null
-  // completedSeeds is computed from beltProgress, which is managed separately
+  // completedRounds is computed from beltProgress, which is managed separately
   totalSeedsPlayed.value = 0
   sessionSeconds.value = 0
   welcomeChecked.value = false
@@ -5991,7 +5991,7 @@ defineExpose({
       :time-spent-seconds="sessionSeconds"
       :current-belt="currentBelt"
       :belt-progress="beltProgressPercent"
-      :completed-seeds="completedSeeds"
+      :completed-seeds="completedRounds"
       :next-belt="nextBelt"
       :time-to-next-belt="timeToNextBelt"
       :belt-journey="beltJourney"
@@ -6236,7 +6236,7 @@ defineExpose({
             class="belt-header-skip belt-header-skip--back"
             :class="{ 'is-skipping': isSkippingBelt }"
             @click="handleGoBackBelt"
-            :disabled="!previousBelt && currentBelt.seedsRequired === completedSeeds"
+            :disabled="!previousBelt && currentBelt.seedsRequired === completedRounds"
             :title="`Back to ${backTargetBelt.name} belt`"
             :style="{ '--skip-belt-color': backTargetBelt.color }"
           >
@@ -6281,7 +6281,7 @@ defineExpose({
       :is-open="showBeltProgressModal"
       :current-belt="currentBelt"
       :next-belt="nextBelt"
-      :completed-seeds="completedSeeds"
+      :completed-seeds="completedRounds"
       :session-seconds="sessionSeconds"
       :lifetime-learning-minutes="lifetimeLearningMinutes"
       :is-skipping="isSkippingBelt"
@@ -6536,7 +6536,7 @@ defineExpose({
           class="belt-nav-btn belt-nav-btn--back"
           :class="{ 'is-skipping': isSkippingBelt }"
           @click="handleGoBackBelt"
-          :disabled="!previousBelt && currentBelt.seedsRequired === completedSeeds"
+          :disabled="!previousBelt && currentBelt.seedsRequired === completedRounds"
           :title="`Back to ${backTargetBelt.name} belt`"
           :style="{ '--back-belt-color': backTargetBelt.color }"
         >

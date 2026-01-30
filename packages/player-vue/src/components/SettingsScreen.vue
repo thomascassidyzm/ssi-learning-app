@@ -20,7 +20,7 @@ const courseDataProvider = inject('courseDataProvider', null)
 
 // Get belt progress for current seed position
 const courseCode = computed(() => props.course?.course_code || 'demo')
-const { completedSeeds } = useBeltProgress(courseCode.value)
+const { completedRounds } = useBeltProgress(courseCode.value)
 
 // Reset progress state
 const showResetConfirm = ref(false)
@@ -250,7 +250,7 @@ const startOfflineDownload = async () => {
 
   try {
     // Calculate seed range based on option
-    const currentSeed = completedSeeds.value + 1 // Start from next seed
+    const currentSeed = completedRounds.value + 1 // Start from next seed
     let startSeed, endSeed
 
     switch (offlineDownloadOption.value) {

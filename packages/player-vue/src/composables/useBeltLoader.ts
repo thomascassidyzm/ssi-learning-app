@@ -89,7 +89,7 @@ export interface DownloadProgress {
   /** Total seeds to download */
   totalSeeds: number
   /** Seeds completed */
-  completedSeeds: number
+  completedRounds: number
   /** Total audio files to download */
   totalAudio: number
   /** Audio files downloaded */
@@ -569,7 +569,7 @@ export function useBeltLoader(config: BeltLoaderConfig) {
 
     const progress: DownloadProgress = {
       totalSeeds,
-      completedSeeds: 0,
+      completedRounds: 0,
       totalAudio: 0,
       completedAudio: 0,
       phase: 'scripts',
@@ -578,7 +578,7 @@ export function useBeltLoader(config: BeltLoaderConfig) {
 
     const updateProgress = () => {
       if (progress.phase === 'scripts') {
-        progress.percent = Math.round((progress.completedSeeds / progress.totalSeeds) * 50)
+        progress.percent = Math.round((progress.completedRounds / progress.totalSeeds) * 50)
       } else if (progress.phase === 'audio') {
         progress.percent = 50 + Math.round((progress.completedAudio / progress.totalAudio) * 50)
       }
@@ -606,7 +606,7 @@ export function useBeltLoader(config: BeltLoaderConfig) {
           readyRounds.value.set(round.roundNumber, round)
         }
 
-        progress.completedSeeds += count
+        progress.completedRounds += count
         updateProgress()
       }
 
