@@ -91,20 +91,60 @@ export function buildRound(options: BuildRoundOptions): Round {
   }
 
   // Track phrases used in this round to avoid duplicates
-  // Normalize target text for comparison (lowercase, trim)
-  const normalizeText = (text: string) => text?.toLowerCase().trim() || ''
-  const usedInRound = new Set<string>()
+  // Normalize text for comparison: lowercase, strip punctuation, trim
+  // This ensures "I want" and "I want." are treated as identical
+  const normalizeText = (text: string) =>
+    text?.toLowerCase().replace(/[^\w\s]/g, '').trim() || ''
 
-  // Mark LEGO itself as used
-  usedInRound.add(normalizeText(lego.lego.target))
+  // Track audio fingerprints (known|target pairs) to prevent identical consecutive audio
+  // Two cycles are "audio identical" if both known AND target normalize to the same text
+  const usedAudioFingerprints = new Set<string>()
+
+  // Track known→target mappings to detect ZUT violations
+  // A ZUT violation is when the same known text maps to different targets
+  const knownToTarget = new Map<string, string>()
+
+  // Helper to create audio fingerprint
+  const getAudioFingerprint = (known: string, target: string) =>
+    `${normalizeText(known)}|${normalizeText(target)}`
+
+  // Helper to check and add phrase, returns false if duplicate or ZUT violation
+  const canAddPhrase = (known: string, target: string, context: string): boolean => {
+    const normalizedKnown = normalizeText(known)
+    const normalizedTarget = normalizeText(target)
+    const fingerprint = `${normalizedKnown}|${normalizedTarget}`
+
+    // Check for ZUT violation: same known, different target
+    const existingTarget = knownToTarget.get(normalizedKnown)
+    if (existingTarget && existingTarget !== normalizedTarget) {
+      console.warn(`[RoundBuilder] ZUT VIOLATION in ${context}: "${known}" maps to both "${existingTarget}" and "${normalizedTarget}"`)
+      return false
+    }
+
+    // Check for audio duplicate
+    if (usedAudioFingerprints.has(fingerprint)) {
+      return false
+    }
+
+    // Track this phrase
+    knownToTarget.set(normalizedKnown, normalizedTarget)
+    usedAudioFingerprints.add(fingerprint)
+    return true
+  }
+
+  // Mark LEGO itself as used (both known and target)
+  canAddPhrase(lego.lego.known, lego.lego.target, 'LEGO debut')
 
   // 3. BUILD - Up to maxBuildPhrases practice phrases (no duplicates within round)
   const allBuildPhrases = basket?.debut_phrases ?? []
   let buildCount = 0
   for (const phrase of allBuildPhrases) {
     if (buildCount >= config.maxBuildPhrases) break
-    const normalized = normalizeText(phrase.phrase.target)
-    if (usedInRound.has(normalized)) continue
+
+    // Check both known AND target to prevent audio-identical cycles
+    if (!canAddPhrase(phrase.phrase.known, phrase.phrase.target, `BUILD-${buildCount + 1}`)) {
+      continue
+    }
 
     items.push(createPracticeItem({
       type: 'debut_phrase',
@@ -115,7 +155,6 @@ export function buildRound(options: BuildRoundOptions): Round {
       roundNumber,
       buildAudioUrl,
     }))
-    usedInRound.add(normalized)
     buildCount++
   }
 
@@ -133,8 +172,10 @@ export function buildRound(options: BuildRoundOptions): Round {
       for (const phrase of eternalPhrases) {
         if (phrasesAdded >= sr.phraseCount) break
 
-        const normalized = normalizeText(phrase.phrase.target)
-        if (usedInRound.has(normalized)) continue
+        // Check both known AND target to prevent audio-identical cycles
+        if (!canAddPhrase(phrase.phrase.known, phrase.phrase.target, `REVIEW-R${sr.legoIndex}`)) {
+          continue
+        }
 
         if (!addedForThisLego) {
           spacedRepReviews.push(sr.legoIndex)
@@ -151,14 +192,15 @@ export function buildRound(options: BuildRoundOptions): Round {
           reviewOf: sr.legoIndex,
           fibonacciPosition: sr.fibonacciPosition,
         }))
-        usedInRound.add(normalized)
         phrasesAdded++
       }
 
       // Fallback: if no USE phrases available, use LEGO itself (max 1)
       if (phrasesAdded === 0) {
-        const normalized = normalizeText(sr.lego.lego.target)
-        if (usedInRound.has(normalized)) continue
+        // Check both known AND target
+        if (!canAddPhrase(sr.lego.lego.known, sr.lego.lego.target, `REVIEW-R${sr.legoIndex} fallback`)) {
+          continue
+        }
 
         spacedRepReviews.push(sr.legoIndex)
         items.push(createLegoItem({
@@ -171,23 +213,33 @@ export function buildRound(options: BuildRoundOptions): Round {
           reviewOf: sr.legoIndex,
           fibonacciPosition: sr.fibonacciPosition,
         }))
-        usedInRound.add(normalized)
       }
     }
   }
 
   // 5. CONSOLIDATION - Final reinforcement
   // CAN reuse BUILD phrases (REVIEW gap provides separation)
-  // Only avoid: LEGO itself and duplicates within CONSOLIDATE
+  // But still check for ZUT violations and consecutive audio duplicates
   const usedInConsolidate = new Set<string>()
-  usedInConsolidate.add(normalizeText(lego.lego.target)) // Avoid LEGO itself
+  // Track LEGO's audio fingerprint to avoid it in consolidation
+  usedInConsolidate.add(getAudioFingerprint(lego.lego.known, lego.lego.target))
 
   const allEternalPhrases = basket?.eternal_phrases ?? []
   let consolidateCount = 0
   for (const phrase of allEternalPhrases) {
     if (consolidateCount >= config.consolidationCount) break
-    const normalized = normalizeText(phrase.phrase.target)
-    if (usedInConsolidate.has(normalized)) continue
+
+    const fingerprint = getAudioFingerprint(phrase.phrase.known, phrase.phrase.target)
+    if (usedInConsolidate.has(fingerprint)) continue
+
+    // Still check for ZUT violations (same known, different target)
+    const normalizedKnown = normalizeText(phrase.phrase.known)
+    const normalizedTarget = normalizeText(phrase.phrase.target)
+    const existingTarget = knownToTarget.get(normalizedKnown)
+    if (existingTarget && existingTarget !== normalizedTarget) {
+      console.warn(`[RoundBuilder] ZUT VIOLATION in CONSOLIDATE: "${phrase.phrase.known}" maps to both "${existingTarget}" and "${normalizedTarget}"`)
+      continue
+    }
 
     items.push(createPracticeItem({
       type: 'consolidation',
@@ -198,7 +250,7 @@ export function buildRound(options: BuildRoundOptions): Round {
       roundNumber,
       buildAudioUrl,
     }))
-    usedInConsolidate.add(normalized)
+    usedInConsolidate.add(fingerprint)
     consolidateCount++
   }
 

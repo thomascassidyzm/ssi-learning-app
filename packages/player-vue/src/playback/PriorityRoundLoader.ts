@@ -340,6 +340,7 @@ export class PriorityRoundLoader {
         basket: ClassifiedBasket | null
         legoIndex: number
         fibonacciPosition: number
+        phraseCount: number
       }> = []
 
       // Fibonacci: review at positions (roundNumber - fib[i])
@@ -369,6 +370,8 @@ export class PriorityRoundLoader {
           basket: this.basketMap.get(reviewLegoId) ?? null,
           legoIndex: reviewSeed,
           fibonacciPosition: i,
+          // N-1 (fib[0]=1) gets 3 phrases, all others get 1
+          phraseCount: FIBONACCI[i] === 1 ? 3 : 1,
         })
 
         if (reviews.length >= this.config.spacedRepCount) break
