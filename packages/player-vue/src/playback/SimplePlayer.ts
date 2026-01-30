@@ -140,7 +140,8 @@ export class SimplePlayer {
     this.clearPauseTimer()
     this.audio.pause()
     const wasPlaying = this.state.isPlaying
-    this.updateState({ roundIndex: index, cycleIndex: 0, phase: 'idle', inIntroSequence: false })
+    // Must set isPlaying: false so play() doesn't early-return
+    this.updateState({ roundIndex: index, cycleIndex: 0, phase: 'idle', isPlaying: false, inIntroSequence: false })
     if (wasPlaying) this.play()
   }
 

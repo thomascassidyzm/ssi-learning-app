@@ -2748,6 +2748,9 @@ const handleResume = () => {
     return // Don't start until consent is resolved
   }
 
+  // Mark as started so displayPhrases shows cycle text instead of "ready when you are"
+  hasEverStarted.value = true
+
   // Use SimplePlayer
   simplePlayer.play()
 }
