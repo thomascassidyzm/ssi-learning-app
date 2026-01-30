@@ -136,12 +136,17 @@ export class SimplePlayer {
   }
 
   jumpToRound(index: number): void {
-    if (index < 0 || index >= this.rounds.length) return
+    console.log(`[SimplePlayer] jumpToRound(${index}) - rounds.length=${this.rounds.length}, isPlaying=${this.state.isPlaying}`)
+    if (index < 0 || index >= this.rounds.length) {
+      console.warn(`[SimplePlayer] jumpToRound(${index}) OUT OF BOUNDS - only ${this.rounds.length} rounds loaded`)
+      return
+    }
     this.clearPauseTimer()
     this.audio.pause()
     const wasPlaying = this.state.isPlaying
     // Must set isPlaying: false so play() doesn't early-return
     this.updateState({ roundIndex: index, cycleIndex: 0, phase: 'idle', isPlaying: false, inIntroSequence: false })
+    console.log(`[SimplePlayer] jumpToRound: wasPlaying=${wasPlaying}, calling play()`)
     if (wasPlaying) this.play()
   }
 
