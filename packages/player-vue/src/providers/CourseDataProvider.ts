@@ -139,6 +139,7 @@ export class CourseDataProvider {
     try {
       // Query lego_cycles view for the session range
       // This view contains LEGOs with their audio UUIDs
+      // Note: Supabase JS client defaults to 1000 rows - we set explicit limit for large courses
       const { data, error } = await this.client
         .from('lego_cycles')
         .select('*')
@@ -147,18 +148,19 @@ export class CourseDataProvider {
         .lt('seed_number', startSeed + count)
         .order('seed_number', { ascending: true })
         .order('lego_index', { ascending: true })
+        .limit(10000)  // Override default 1000 row limit
 
       if (error) {
-        // console.error('[CourseDataProvider] Query error:', error)
+        console.error('[CourseDataProvider] Query error:', error)
         return []
       }
 
       if (!data || data.length === 0) {
-        // console.warn('[CourseDataProvider] No data found for course:', this.courseId)
+        console.warn('[CourseDataProvider] No data found for course:', this.courseId)
         return []
       }
 
-      // console.log('[CourseDataProvider] Loaded', data.length, 'items for', this.courseId)
+      console.log(`[CourseDataProvider] Loaded ${data.length} LEGOs for seeds ${startSeed}-${startSeed + count - 1}`)
 
       // Transform database records to LearningItem format
       return this.transformToLearningItems(data)
