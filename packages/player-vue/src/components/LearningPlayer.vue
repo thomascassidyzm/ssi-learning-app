@@ -4000,6 +4000,13 @@ const jumpToRound = async (roundIndex) => {
  * Uses SessionController's lazy loading to load the target round on demand
  */
 const handleSkipToNextBelt = async () => {
+  console.log('[LearningPlayer] handleSkipToNextBelt called', {
+    hasBeltProgress: !!beltProgress.value,
+    hasNextBelt: !!nextBelt.value,
+    nextBeltName: nextBelt.value?.name,
+    isPlaying: simplePlayer.isPlaying.value,
+  })
+
   if (!beltProgress.value || !nextBelt.value) {
     console.log('[LearningPlayer] Cannot skip - no next belt')
     return
@@ -4008,10 +4015,11 @@ const handleSkipToNextBelt = async () => {
   isSkippingBelt.value = true
   try {
     const targetSeed = nextBelt.value.seedsRequired
-    console.log(`[LearningPlayer] Skipping to ${nextBelt.value.name} belt (seed ${targetSeed})`)
+    const targetIndex = Math.max(0, targetSeed - 1)
+    console.log(`[LearningPlayer] Skipping to ${nextBelt.value.name} belt - seed ${targetSeed}, roundIndex ${targetIndex}`)
 
     // Use simplePlayer to jump to round (0-indexed, so targetSeed - 1)
-    simplePlayer.jumpToRound(Math.max(0, targetSeed - 1))
+    simplePlayer.jumpToRound(targetIndex)
 
     // Update belt progress to match (uses absolute seed number)
     if (beltProgress.value) {
@@ -4028,22 +4036,27 @@ const handleSkipToNextBelt = async () => {
  * Uses SessionController's lazy loading to handle any seed position
  */
 const handleGoBackBelt = async () => {
+  console.log('[LearningPlayer] handleGoBackBelt called', {
+    hasBeltProgress: !!beltProgress.value,
+    isPlaying: simplePlayer.isPlaying.value,
+  })
+
   if (!beltProgress.value) {
     console.log('[LearningPlayer] Cannot go back - no belt progress')
     return
   }
 
   isSkippingBelt.value = true
-  console.log(`[LearningPlayer] handleGoBackBelt: started, isPlaying=${isPlaying.value}`)
 
   try {
     // goBackToBeltStart updates belt progress and returns target seed
     const targetSeed = beltProgress.value.goBackToBeltStart()
-    console.log(`[LearningPlayer] Going back to seed ${targetSeed}`)
+    const targetIndex = Math.max(0, targetSeed - 1)
+    console.log(`[LearningPlayer] Going back - seed ${targetSeed}, roundIndex ${targetIndex}`)
 
     // Use simplePlayer to jump to round (0-indexed, so targetSeed - 1)
     // Math.max(0, ...) ensures we don't go negative (White belt edge case)
-    simplePlayer.jumpToRound(Math.max(0, targetSeed - 1))
+    simplePlayer.jumpToRound(targetIndex)
 
     console.log(`[LearningPlayer] handleGoBackBelt: complete, now at seed ${targetSeed}`)
   } finally {
