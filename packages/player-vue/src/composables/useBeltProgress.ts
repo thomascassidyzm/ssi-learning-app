@@ -1,16 +1,17 @@
 /**
  * useBeltProgress - Belt progression system with localStorage + Supabase sync
  *
- * Tracks:
- * - completedRounds per course (persisted locally + synced to Supabase)
- * - Session history for learning rate calculation
- * - Rolling average for time-to-next-belt estimates
+ * Simple model - tracks only TWO things:
+ * 1. highestBeltIndex (0-7) - Achievement level, only ever increases
+ * 2. lastLegoId - Resume position, e.g., "S0045L03"
+ *
+ * Current playing position is read from the player at runtime, not stored here.
  *
  * Sync Strategy:
  * - localStorage is primary (instant, works offline)
  * - Supabase is background sync (cross-device)
- * - On load: merge local + remote, take highest
- * - Progress never goes backward (max wins)
+ * - On load: merge local + remote, take highest belt
+ * - Belt never goes backward (max wins)
  *
  * Belt System (from APML):
  * - 8 belts: White → Yellow → Orange → Green → Blue → Purple → Brown → Black
@@ -41,28 +42,25 @@ export const BELTS: Omit<Belt, 'index'>[] = [
   { name: 'blue',   seedsRequired: 80,  color: '#60a5fa', colorDark: '#2563eb', glow: 'rgba(96, 165, 250, 0.4)' },
   { name: 'purple', seedsRequired: 150, color: '#a78bfa', colorDark: '#7c3aed', glow: 'rgba(167, 139, 250, 0.4)' },
   { name: 'brown',  seedsRequired: 280, color: '#a8856c', colorDark: '#78350f', glow: 'rgba(168, 133, 108, 0.4)' },
-  { name: 'black',  seedsRequired: 400, color: '#d4a853', colorDark: '#b8860b', glow: 'rgba(212, 168, 83, 0.4)' },  // Gold accent - black doesn't show on dark UI
+  { name: 'black',  seedsRequired: 400, color: '#d4a853', colorDark: '#b8860b', glow: 'rgba(212, 168, 83, 0.4)' },  // Gold accent
 ]
 
 export const TOTAL_SEEDS = 668 // Total seeds in a typical course
 
 // ============================================================================
-// STORAGE KEYS & VERSION
+// STORAGE KEYS
 // ============================================================================
 
 const PROGRESS_KEY_PREFIX = 'ssi_belt_progress_'
 const SESSION_HISTORY_KEY_PREFIX = 'ssi_session_history_'
-
-// Note: Cache invalidation (position, scripts) is handled by App.vue using BUILD_VERSION
-// Belt PROGRESS (completedRounds) persists across builds - it's real user progress
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
 interface StoredProgress {
-  completedRounds: number
-  currentLegoId: string | null  // e.g., "S0045L03" - precise position tracking
+  highestBeltIndex: number  // 0-7, the belt ACHIEVED
+  lastLegoId: string | null // Resume position, e.g., "S0045L03"
   lastUpdated: number
 }
 
@@ -88,29 +86,54 @@ export interface BeltProgressSyncConfig {
 }
 
 // ============================================================================
+// HELPER: Parse seed from LEGO ID
+// ============================================================================
+
+/**
+ * Parse seed number from LEGO ID
+ * "S0045L03" → 45
+ */
+export function getSeedFromLegoId(legoId: string | null): number | null {
+  if (!legoId) return null
+  const match = legoId.match(/^S(\d{4})L/)
+  return match ? parseInt(match[1], 10) : null
+}
+
+/**
+ * Get belt index for a seed number
+ */
+export function getBeltIndexForSeed(seedNumber: number): number {
+  for (let i = BELTS.length - 1; i >= 0; i--) {
+    if (seedNumber >= BELTS[i].seedsRequired) {
+      return i
+    }
+  }
+  return 0
+}
+
+// ============================================================================
 // COMPOSABLE
 // ============================================================================
 
 export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyncConfig) {
-  // Core state
-  const completedRounds = ref(0)
-  const currentLegoId = ref<string | null>(null)  // e.g., "S0045L03" - current position
+  // Core state - SIMPLE: just two values
+  const highestBeltIndex = ref(0)  // 0-7, only ever increases
+  const lastLegoId = ref<string | null>(null)  // Resume position
+
+  // Session history for learning rate calculations
   const sessionHistory = ref<SessionRecord[]>([])
   const isLoaded = ref(false)
   const isSyncing = ref(false)
   const lastSyncError = ref<string | null>(null)
 
-  // Current session tracking
+  // Current session tracking (for learning rate)
   const sessionStartTime = ref<number | null>(null)
-  const sessionStartSeeds = ref(0)
+  const sessionStartSeed = ref(0)
 
   // ============================================================================
   // SYNC HELPERS
   // ============================================================================
 
-  /**
-   * Get Supabase client from config (handles both ref and direct value)
-   */
   const getSupabase = (): SupabaseClient | null => {
     if (!syncConfig?.supabase) return null
     return 'value' in syncConfig.supabase
@@ -118,21 +141,14 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
       : syncConfig.supabase
   }
 
-  /**
-   * Get learner ID from config (handles both ref and direct value)
-   */
   const getLearnerId = (): string | null => {
     if (!syncConfig?.learnerId) return null
-    // Check if it's a Ref (has .value property)
     if (typeof syncConfig.learnerId === 'object' && syncConfig.learnerId !== null && 'value' in syncConfig.learnerId) {
       return syncConfig.learnerId.value
     }
     return syncConfig.learnerId as string
   }
 
-  /**
-   * Check if sync is available
-   */
   const canSync = (): boolean => {
     const supabase = getSupabase()
     const learnerId = getLearnerId()
@@ -143,10 +159,6 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   // SUPABASE SYNC
   // ============================================================================
 
-  /**
-   * Fetch highest_completed_seed from Supabase
-   * Returns null if not found or error
-   */
   const fetchRemoteProgress = async (): Promise<number | null> => {
     const supabase = getSupabase()
     const learnerId = getLearnerId()
@@ -166,18 +178,17 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
         return null
       }
 
-      return data?.highest_completed_seed ?? null
+      // Convert seed to belt index
+      const remoteSeed = data?.highest_completed_seed ?? null
+      if (remoteSeed === null) return null
+      return getBeltIndexForSeed(remoteSeed)
     } catch (err) {
       console.warn('[BeltProgress] Remote fetch failed:', err)
       return null
     }
   }
 
-  /**
-   * Sync progress to Supabase (background, non-blocking)
-   * Updates highest_completed_seed if local value is higher
-   */
-  const syncToRemote = async (seeds: number): Promise<void> => {
+  const syncToRemote = async (beltIndex: number): Promise<void> => {
     if (!canSync()) return
 
     const supabase = getSupabase()
@@ -188,25 +199,26 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
     isSyncing.value = true
     lastSyncError.value = null
 
+    // Convert belt index to seed threshold for storage
+    const seedsForBelt = BELTS[beltIndex]?.seedsRequired ?? 0
+
     try {
-      // Upsert: create enrollment if doesn't exist, update if it does
       const { error } = await supabase
         .from('course_enrollments')
         .upsert({
           learner_id: learnerId,
           course_id: courseCode,
-          highest_completed_seed: seeds,
+          highest_completed_seed: seedsForBelt,
           last_practiced_at: new Date().toISOString(),
         }, {
           onConflict: 'learner_id,course_id',
         })
 
       if (error) {
-        // If upsert fails, try update only (enrollment might exist without highest_completed_seed)
         const { error: updateError } = await supabase
           .from('course_enrollments')
           .update({
-            highest_completed_seed: seeds,
+            highest_completed_seed: seedsForBelt,
             last_practiced_at: new Date().toISOString(),
           })
           .eq('learner_id', learnerId)
@@ -216,10 +228,10 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
           console.warn('[BeltProgress] Remote sync failed:', updateError.message)
           lastSyncError.value = updateError.message
         } else {
-          console.log('[BeltProgress] Synced to remote:', seeds, 'seeds')
+          console.log('[BeltProgress] Synced to remote: belt', beltIndex, `(${BELTS[beltIndex]?.name})`)
         }
       } else {
-        console.log('[BeltProgress] Synced to remote:', seeds, 'seeds')
+        console.log('[BeltProgress] Synced to remote: belt', beltIndex, `(${BELTS[beltIndex]?.name})`)
       }
     } catch (err) {
       console.warn('[BeltProgress] Remote sync error:', err)
@@ -229,72 +241,72 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
     }
   }
 
-  /**
-   * Merge local and remote progress, taking the highest value
-   * This ensures progress never goes backward across devices
-   */
   const mergeProgress = async (): Promise<number> => {
-    const localSeeds = completedRounds.value
-    const remoteSeeds = await fetchRemoteProgress()
+    const localBelt = highestBeltIndex.value
+    const remoteBelt = await fetchRemoteProgress()
 
-    if (remoteSeeds === null) {
-      console.log('[BeltProgress] No remote progress, using local:', localSeeds)
-      return localSeeds
+    if (remoteBelt === null) {
+      console.log('[BeltProgress] No remote progress, using local belt:', localBelt)
+      return localBelt
     }
 
-    const mergedSeeds = Math.max(localSeeds, remoteSeeds)
+    const mergedBelt = Math.max(localBelt, remoteBelt)
 
-    if (mergedSeeds !== localSeeds) {
-      console.log('[BeltProgress] Merged progress: local', localSeeds, '+ remote', remoteSeeds, '=', mergedSeeds)
-      completedRounds.value = mergedSeeds
-      saveProgressLocal() // Persist merged value locally
+    if (mergedBelt !== localBelt) {
+      console.log('[BeltProgress] Merged: local belt', localBelt, '+ remote belt', remoteBelt, '=', mergedBelt)
+      highestBeltIndex.value = mergedBelt
+      saveProgressLocal()
     }
 
-    if (mergedSeeds > remoteSeeds) {
-      // Local is ahead, sync to remote
-      syncToRemote(mergedSeeds) // Fire and forget
+    if (mergedBelt > remoteBelt) {
+      syncToRemote(mergedBelt)
     }
 
-    return mergedSeeds
+    return mergedBelt
   }
 
   // ============================================================================
   // PERSISTENCE (localStorage)
   // ============================================================================
 
-  /**
-   * Load progress from localStorage only
-   */
   const loadProgressLocal = () => {
     try {
       const key = `${PROGRESS_KEY_PREFIX}${courseCode}`
       const stored = localStorage.getItem(key)
       if (stored) {
-        const data: StoredProgress = JSON.parse(stored)
-        completedRounds.value = data.completedRounds || 0
-        currentLegoId.value = data.currentLegoId || null
-        console.log(`[BeltProgress] Loaded progress: ${completedRounds.value} rounds, current LEGO: ${currentLegoId.value || 'none'}`)
+        const data = JSON.parse(stored)
+
+        // Handle migration from old format (completedRounds) to new format (highestBeltIndex)
+        if ('completedRounds' in data && !('highestBeltIndex' in data)) {
+          // Migrate: convert completedRounds (seed count) to belt index
+          highestBeltIndex.value = getBeltIndexForSeed(data.completedRounds || 0)
+          lastLegoId.value = data.currentLegoId || null
+          console.log(`[BeltProgress] Migrated from completedRounds ${data.completedRounds} to belt ${highestBeltIndex.value}`)
+          saveProgressLocal() // Save in new format
+        } else {
+          highestBeltIndex.value = data.highestBeltIndex ?? 0
+          lastLegoId.value = data.lastLegoId || null
+        }
+
+        console.log(`[BeltProgress] Loaded: belt ${highestBeltIndex.value} (${BELTS[highestBeltIndex.value]?.name}), resume: ${lastLegoId.value || 'start'}`)
       } else {
-        completedRounds.value = 0
-        currentLegoId.value = null
-        console.log(`[BeltProgress] No saved progress for ${courseCode}, starting at 0`)
+        highestBeltIndex.value = 0
+        lastLegoId.value = null
+        console.log(`[BeltProgress] No saved progress for ${courseCode}, starting at white belt`)
       }
     } catch (err) {
       console.warn('[BeltProgress] Failed to load progress:', err)
-      completedRounds.value = 0
-      currentLegoId.value = null
+      highestBeltIndex.value = 0
+      lastLegoId.value = null
     }
   }
 
-  /**
-   * Save progress to localStorage only
-   */
   const saveProgressLocal = () => {
     try {
       const key = `${PROGRESS_KEY_PREFIX}${courseCode}`
       const data: StoredProgress = {
-        completedRounds: completedRounds.value,
-        currentLegoId: currentLegoId.value,
+        highestBeltIndex: highestBeltIndex.value,
+        lastLegoId: lastLegoId.value,
         lastUpdated: Date.now(),
       }
       localStorage.setItem(key, JSON.stringify(data))
@@ -303,31 +315,10 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
     }
   }
 
-  /**
-   * Save progress to both localStorage and Supabase
-   * localStorage is synchronous (instant), Supabase is background
-   */
   const saveProgress = () => {
-    // Always save locally first (instant)
     saveProgressLocal()
-
-    // Sync to remote in background (non-blocking)
     if (canSync()) {
-      syncToRemote(completedRounds.value)
-    }
-  }
-
-  /**
-   * Load progress from both localStorage and Supabase, taking highest
-   * Called on initialization to merge cross-device progress
-   */
-  const loadProgress = async (): Promise<void> => {
-    // Load local first (instant)
-    loadProgressLocal()
-
-    // Then merge with remote (async)
-    if (canSync()) {
-      await mergeProgress()
+      syncToRemote(highestBeltIndex.value)
     }
   }
 
@@ -337,7 +328,6 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
       const stored = localStorage.getItem(key)
       if (stored) {
         const data: StoredSessionHistory = JSON.parse(stored)
-        // Keep only last 30 days of sessions
         const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000
         sessionHistory.value = (data.sessions || []).filter(s => s.timestamp > thirtyDaysAgo)
       }
@@ -360,48 +350,46 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   }
 
   // ============================================================================
-  // BELT CALCULATIONS
+  // BELT INFO (computed from highestBeltIndex)
   // ============================================================================
 
   const currentBelt = computed((): Belt => {
-    for (let i = BELTS.length - 1; i >= 0; i--) {
-      if (completedRounds.value >= BELTS[i].seedsRequired) {
-        return { ...BELTS[i], index: i }
-      }
-    }
-    return { ...BELTS[0], index: 0 }
+    const idx = Math.min(Math.max(highestBeltIndex.value, 0), BELTS.length - 1)
+    return { ...BELTS[idx], index: idx }
   })
 
   const nextBelt = computed((): Belt | null => {
-    const nextIndex = currentBelt.value.index + 1
+    const nextIndex = highestBeltIndex.value + 1
     if (nextIndex >= BELTS.length) return null
     return { ...BELTS[nextIndex], index: nextIndex }
   })
 
-  const beltProgress = computed(() => {
-    if (!nextBelt.value) return 100 // At black belt
-    const current = currentBelt.value.seedsRequired
-    const next = nextBelt.value.seedsRequired
-    const progress = (completedRounds.value - current) / (next - current)
-    return Math.min(Math.max(progress * 100, 0), 100)
+  const previousBelt = computed((): Belt | null => {
+    const prevIndex = highestBeltIndex.value - 1
+    if (prevIndex < 0) return null
+    return { ...BELTS[prevIndex], index: prevIndex }
   })
 
+  // ============================================================================
+  // PROGRESS CALCULATIONS (for display)
+  // ============================================================================
+
+  // Seeds needed to reach next belt (from current belt's threshold)
   const seedsToNextBelt = computed(() => {
     if (!nextBelt.value) return 0
-    return nextBelt.value.seedsRequired - completedRounds.value
+    return nextBelt.value.seedsRequired - currentBelt.value.seedsRequired
   })
 
+  // Course progress based on highest belt achieved
   const courseProgress = computed(() => {
-    return Math.min((completedRounds.value / TOTAL_SEEDS) * 100, 100)
+    const beltSeed = currentBelt.value.seedsRequired
+    return Math.min((beltSeed / TOTAL_SEEDS) * 100, 100)
   })
 
   // ============================================================================
   // LEARNING RATE & TIME ESTIMATES
   // ============================================================================
 
-  /**
-   * Calculate rolling average seeds per session (last 10 sessions)
-   */
   const averageSeedsPerSession = computed(() => {
     const recent = sessionHistory.value.slice(-10)
     if (recent.length === 0) return 0
@@ -409,51 +397,27 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
     return total / recent.length
   })
 
-  /**
-   * Calculate average session duration in minutes
-   */
   const averageSessionDuration = computed(() => {
     const recent = sessionHistory.value.slice(-10)
-    if (recent.length === 0) return 30 // Default assumption: 30 min sessions
+    if (recent.length === 0) return 30
     const total = recent.reduce((sum, s) => sum + s.durationMs, 0)
-    return (total / recent.length) / 60000 // Convert to minutes
+    return (total / recent.length) / 60000
   })
 
-  /**
-   * Estimate sessions until next belt
-   */
   const sessionsToNextBelt = computed(() => {
     if (!nextBelt.value) return 0
-    if (averageSeedsPerSession.value <= 0) return null // No data yet
+    if (averageSeedsPerSession.value <= 0) return null
     return Math.ceil(seedsToNextBelt.value / averageSeedsPerSession.value)
   })
 
-  /**
-   * Estimate time to next belt as human-readable string
-   * Based on rolling average of recent sessions
-   */
   const timeToNextBelt = computed(() => {
     if (!nextBelt.value) return 'Complete!'
     if (sessionsToNextBelt.value === null) return 'Keep learning to see estimate'
 
     const sessions = sessionsToNextBelt.value
-    const avgDuration = averageSessionDuration.value
-
-    // If less than 1 session worth of seeds
-    if (sessions <= 1) {
-      const seedsNeeded = seedsToNextBelt.value
-      const seedsPerMinute = averageSeedsPerSession.value / avgDuration
-      if (seedsPerMinute > 0) {
-        const minutes = Math.ceil(seedsNeeded / seedsPerMinute)
-        if (minutes < 60) return `~${minutes} mins`
-        return `~${Math.round(minutes / 60)} hr`
-      }
-      return 'Almost there!'
-    }
-
-    // Multiple sessions needed
+    if (sessions <= 1) return 'Almost there!'
     if (sessions <= 3) return `~${sessions} sessions`
-    if (sessions <= 7) return `~${Math.ceil(sessions / 2)} days (2 sessions/day)`
+    if (sessions <= 7) return `~${Math.ceil(sessions / 2)} days`
     if (sessions <= 14) return `~${Math.ceil(sessions / 7)} week${sessions > 7 ? 's' : ''}`
     return `~${Math.ceil(sessions / 30)} month${sessions > 30 ? 's' : ''}`
   })
@@ -462,26 +426,19 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   // SESSION TRACKING
   // ============================================================================
 
-  /**
-   * Call when a learning session starts
-   */
-  const startSession = () => {
+  const startSession = (currentSeed: number = 0) => {
     sessionStartTime.value = Date.now()
-    sessionStartSeeds.value = completedRounds.value
-    console.log('[BeltProgress] Session started at', sessionStartSeeds.value, 'seeds')
+    sessionStartSeed.value = currentSeed
+    console.log('[BeltProgress] Session started at seed', currentSeed)
   }
 
-  /**
-   * Call when a learning session ends
-   */
-  const endSession = () => {
+  const endSession = (currentSeed: number = 0) => {
     if (sessionStartTime.value === null) return
 
-    const seedsLearned = completedRounds.value - sessionStartSeeds.value
+    const seedsLearned = currentSeed - sessionStartSeed.value
     const durationMs = Date.now() - sessionStartTime.value
 
-    // Only record if meaningful progress was made
-    if (seedsLearned > 0 && durationMs > 60000) { // At least 1 minute
+    if (seedsLearned > 0 && durationMs > 60000) {
       const record: SessionRecord = {
         timestamp: Date.now(),
         seedsLearned,
@@ -493,7 +450,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
     }
 
     sessionStartTime.value = null
-    sessionStartSeeds.value = 0
+    sessionStartSeed.value = 0
   }
 
   // ============================================================================
@@ -501,160 +458,73 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   // ============================================================================
 
   /**
-   * Add seeds to progress (call when learner completes content)
-   * Returns the previous belt if a promotion just happened
+   * Check if a seed number warrants a belt promotion
+   * Only updates if the seed crosses into a higher belt than current
+   * Returns the previous belt if promotion happened, null otherwise
    */
-  const addSeeds = (count: number = 1): Belt | null => {
-    const previousBelt = currentBelt.value
-    completedRounds.value = Math.min(completedRounds.value + count, TOTAL_SEEDS)
-    saveProgress()
+  const checkBeltPromotion = (seedNumber: number): Belt | null => {
+    const beltForSeed = getBeltIndexForSeed(seedNumber)
 
-    // Check for belt promotion
-    const newBelt = currentBelt.value
-    if (newBelt.index > previousBelt.index) {
-      console.log(`[BeltProgress] 🎉 Belt promotion: ${previousBelt.name} → ${newBelt.name}`)
-      return previousBelt
+    if (beltForSeed > highestBeltIndex.value) {
+      const previousBeltValue = currentBelt.value
+      highestBeltIndex.value = beltForSeed
+      saveProgress()
+      console.log(`[BeltProgress] 🎉 Belt promotion: ${previousBeltValue.name} → ${BELTS[beltForSeed].name}`)
+      return previousBeltValue
     }
     return null
   }
 
   /**
-   * Set seeds directly (for sync from server, etc.)
+   * Update resume position (call when player moves to a new LEGO)
    */
-  const setSeeds = (count: number) => {
-    completedRounds.value = Math.min(Math.max(count, 0), TOTAL_SEEDS)
-    saveProgress()
-  }
+  const setLastLegoId = (legoId: string | null) => {
+    lastLegoId.value = legoId
+    saveProgressLocal() // Just save locally, no remote sync for position
 
-  /**
-   * Set current LEGO ID (for precise position tracking)
-   * LEGO ID format: "S0045L03" = 3rd LEGO in seed 45
-   */
-  const setCurrentLegoId = (legoId: string | null) => {
-    currentLegoId.value = legoId
-    saveProgress()
+    // Check for belt promotion based on the LEGO's seed
+    if (legoId) {
+      const seed = getSeedFromLegoId(legoId)
+      if (seed !== null) {
+        checkBeltPromotion(seed)
+      }
+    }
   }
-
-  /**
-   * Parse seed number from LEGO ID
-   * "S0045L03" → 45
-   */
-  const getSeedFromLegoId = (legoId: string | null): number | null => {
-    if (!legoId) return null
-    const match = legoId.match(/^S(\d{4})L/)
-    return match ? parseInt(match[1], 10) : null
-  }
-
-  /**
-   * Get the seed number for the current position
-   */
-  const currentSeedNumber = computed((): number | null => {
-    return getSeedFromLegoId(currentLegoId.value)
-  })
 
   /**
    * Reset progress (for testing/demo)
    */
   const resetProgress = () => {
-    completedRounds.value = 0
-    currentLegoId.value = null
+    highestBeltIndex.value = 0
+    lastLegoId.value = null
     sessionHistory.value = []
     saveProgress()
     saveSessionHistory()
-    console.log('[BeltProgress] Progress reset to 0')
+    console.log('[BeltProgress] Progress reset to white belt')
   }
 
   // ============================================================================
-  // BELT NAVIGATION
+  // BELT NAVIGATION HELPERS (for skip buttons in UI)
   // ============================================================================
 
   /**
    * Get the seed number where a specific belt starts
    */
   const getBeltStartSeed = (beltIndex: number): number => {
-    if (beltIndex < 0 || beltIndex >= BELTS.length) return 0
-    return BELTS[beltIndex].seedsRequired
-  }
-
-  /**
-   * Get the previous belt's start position (for "go back")
-   * Returns null if already at white belt
-   */
-  const previousBelt = computed((): Belt | null => {
-    const prevIndex = currentBelt.value.index - 1
-    if (prevIndex < 0) return null
-    return { ...BELTS[prevIndex], index: prevIndex }
-  })
-
-  /**
-   * Skip to the start of the next belt
-   * Returns the new seed position, or null if already at black belt
-   */
-  const skipToNextBelt = (): number | null => {
-    if (!nextBelt.value) return null
-    const newSeeds = nextBelt.value.seedsRequired
-    completedRounds.value = newSeeds
-    saveProgress()
-    console.log(`[BeltProgress] Skipped to ${nextBelt.value.name} belt (seed ${newSeeds})`)
-    return newSeeds
-  }
-
-  /**
-   * Go back to the start of the current belt (or previous if at start)
-   * Returns the new seed position
-   */
-  const goBackToBeltStart = (): number => {
-    const currentStart = currentBelt.value.seedsRequired
-    // If we're more than a few seeds into the current belt, go to its start
-    // Otherwise, go to the previous belt's start
-    if (completedRounds.value > currentStart + 2 || !previousBelt.value) {
-      completedRounds.value = currentStart
-      saveProgress()
-      console.log(`[BeltProgress] Went back to start of ${currentBelt.value.name} belt (seed ${currentStart})`)
-      return currentStart
-    } else {
-      const prevStart = previousBelt.value.seedsRequired
-      completedRounds.value = prevStart
-      saveProgress()
-      console.log(`[BeltProgress] Went back to ${previousBelt.value.name} belt (seed ${prevStart})`)
-      return prevStart
-    }
-  }
-
-  /**
-   * Jump to a specific belt by index
-   * Returns the new seed position
-   */
-  const jumpToBelt = (beltIndex: number): number => {
-    const targetSeeds = getBeltStartSeed(beltIndex)
-    completedRounds.value = Math.min(targetSeeds, TOTAL_SEEDS)
-    saveProgress()
-    console.log(`[BeltProgress] Jumped to ${BELTS[beltIndex]?.name || 'unknown'} belt (seed ${targetSeeds})`)
-    return targetSeeds
+    if (beltIndex < 0 || beltIndex >= BELTS.length) return 1
+    const threshold = BELTS[beltIndex].seedsRequired
+    return threshold === 0 ? 1 : threshold
   }
 
   // ============================================================================
-  // BELT JOURNEY DATA
+  // BELT JOURNEY DATA (for progress visualization)
   // ============================================================================
 
-  /**
-   * Get data for displaying the full belt journey
-   */
   const beltJourney = computed(() => {
     return BELTS.map((belt, index) => {
-      const isComplete = completedRounds.value >= belt.seedsRequired
-      const isCurrent = currentBelt.value.index === index
-      const isNext = nextBelt.value?.index === index
-
-      // Progress within this belt (if current)
-      let progressInBelt = 0
-      if (isCurrent && index < BELTS.length - 1) {
-        const beltStart = belt.seedsRequired
-        const beltEnd = BELTS[index + 1].seedsRequired
-        progressInBelt = ((completedRounds.value - beltStart) / (beltEnd - beltStart)) * 100
-      } else if (isComplete) {
-        progressInBelt = 100
-      }
+      const isComplete = highestBeltIndex.value >= index
+      const isCurrent = highestBeltIndex.value === index
+      const isNext = highestBeltIndex.value + 1 === index
 
       return {
         ...belt,
@@ -662,7 +532,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
         isComplete,
         isCurrent,
         isNext,
-        progressInBelt,
+        progressInBelt: isComplete ? 100 : 0, // Simplified: belt is achieved or not
       }
     })
   })
@@ -681,33 +551,22 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   // INITIALIZATION
   // ============================================================================
 
-  /**
-   * Initialize belt progress - loads from localStorage immediately,
-   * then merges with Supabase in background
-   */
   const initialize = async (): Promise<void> => {
     if (isLoaded.value) return
 
-    // Load local progress first (sync, instant)
     loadProgressLocal()
     loadSessionHistory()
     isLoaded.value = true
 
-    // Merge with remote in background (async)
     if (canSync()) {
       try {
         await mergeProgress()
       } catch (err) {
         console.warn('[BeltProgress] Remote merge failed:', err)
-        // Continue with local progress - offline is fine
       }
     }
   }
 
-  /**
-   * Initialize synchronously (for backwards compatibility)
-   * Use initialize() for full sync support
-   */
   const initializeSync = () => {
     if (isLoaded.value) return
     loadProgressLocal()
@@ -715,16 +574,36 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
     isLoaded.value = true
   }
 
-  // Auto-save on changes (both local and remote)
-  watch(completedRounds, () => {
-    if (isLoaded.value) saveProgress()
-  })
+  // ============================================================================
+  // BACKWARDS COMPATIBILITY
+  // ============================================================================
+
+  // These provide compatibility with existing code that uses the old API
+  const completedRounds = computed(() => currentBelt.value.seedsRequired)
+
+  const setSeeds = (count: number) => {
+    // Convert seed count to belt and update
+    const beltIndex = getBeltIndexForSeed(count)
+    if (beltIndex > highestBeltIndex.value) {
+      highestBeltIndex.value = beltIndex
+      saveProgress()
+    }
+  }
+
+  const addSeeds = (count: number = 1): Belt | null => {
+    // This is now handled by checkBeltPromotion via setLastLegoId
+    // Kept for backwards compatibility but does nothing meaningful
+    return null
+  }
+
+  // Legacy aliases
+  const currentLegoId = lastLegoId
+  const setCurrentLegoId = setLastLegoId
 
   return {
-    // State
-    completedRounds,
-    currentLegoId,
-    currentSeedNumber,
+    // Core state (new simple model)
+    highestBeltIndex,
+    lastLegoId,
     isLoaded,
     isSyncing,
     lastSyncError,
@@ -733,11 +612,12 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
     currentBelt,
     nextBelt,
     previousBelt,
-    beltProgress,
-    seedsToNextBelt,
-    courseProgress,
     beltJourney,
     beltCssVars,
+
+    // Progress info
+    seedsToNextBelt,
+    courseProgress,
 
     // Learning rate
     averageSeedsPerSession,
@@ -750,45 +630,51 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
     endSession,
 
     // Actions
-    addSeeds,
-    setSeeds,
-    setCurrentLegoId,
-    getSeedFromLegoId,
+    setLastLegoId,
+    checkBeltPromotion,
     resetProgress,
     initialize,
     initializeSync,
 
-    // Sync actions
+    // Sync
     syncToRemote,
     mergeProgress,
     canSync,
 
-    // Belt navigation
+    // Helpers
     getBeltStartSeed,
-    skipToNextBelt,
-    goBackToBeltStart,
-    jumpToBelt,
 
     // Constants
     TOTAL_SEEDS,
     BELTS,
+
+    // Backwards compatibility (deprecated, will be removed)
+    completedRounds,
+    currentLegoId,
+    setCurrentLegoId,
+    setSeeds,
+    addSeeds,
+    currentSeedNumber: computed(() => getSeedFromLegoId(lastLegoId.value)),
+    getSeedFromLegoId: (id: string | null) => getSeedFromLegoId(id),
+    beltProgress: computed(() => 100), // Always 100% - belt is achieved or not
+    skipToNextBelt: () => null, // No longer managed here - handled by player
+    goBackToBeltStart: () => 0, // No longer managed here - handled by player
+    jumpToBelt: () => 0, // No longer managed here - handled by player
   }
 }
 
-// Export singleton-style for sharing across components
+// ============================================================================
+// SHARED INSTANCE
+// ============================================================================
+
 let sharedInstance: ReturnType<typeof useBeltProgress> | null = null
 let sharedCourseCode: string | null = null
 let sharedSyncConfig: BeltProgressSyncConfig | null = null
 
-/**
- * Shared belt progress instance for cross-component state
- * Supports optional Supabase sync when syncConfig is provided
- */
 export function useSharedBeltProgress(
   courseCode: string,
   syncConfig?: BeltProgressSyncConfig
 ): ReturnType<typeof useBeltProgress> {
-  // Return existing instance if course code and sync config match
   if (
     sharedInstance &&
     sharedCourseCode === courseCode &&
@@ -797,22 +683,14 @@ export function useSharedBeltProgress(
     return sharedInstance
   }
 
-  // Create new instance
   sharedInstance = useBeltProgress(courseCode, syncConfig)
   sharedCourseCode = courseCode
   sharedSyncConfig = syncConfig ?? null
-
-  // Initialize (use sync version for backwards compatibility)
-  // Caller can await initialize() separately for full sync support
   sharedInstance.initializeSync()
 
   return sharedInstance
 }
 
-/**
- * Get the shared instance without creating a new one
- * Returns null if not initialized
- */
 export function getSharedBeltProgress(): ReturnType<typeof useBeltProgress> | null {
   return sharedInstance
 }
