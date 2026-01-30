@@ -36,6 +36,7 @@ export function adaptRoundsForPlayer(builderRounds: BuilderRound[]): SimpleRound
 function adaptRound(round: BuilderRound): SimpleRound {
   let introAudioUrl: string | undefined
   const cycles: SimpleCycle[] = []
+  const skipped: string[] = []
 
   for (const item of round.items) {
     if (item.type === 'intro') {
@@ -47,9 +48,13 @@ function adaptRound(round: BuilderRound): SimpleRound {
       const cycle = adaptScriptItemToCycle(item)
       if (cycle) {
         cycles.push(cycle)
+      } else {
+        skipped.push(`${item.type}: "${item.targetText?.slice(0, 30)}..."`)
       }
     }
   }
+
+  console.log(`[roundAdapter] Round ${round.roundNumber}: ${cycles.length} cycles from ${round.items.length} items${skipped.length ? ` (skipped: ${skipped.join(', ')})` : ''}`)
 
   return {
     roundNumber: round.roundNumber,
@@ -73,6 +78,11 @@ function adaptScriptItemToCycle(item: ScriptItem): SimpleCycle | null {
   const voice2Url = audioRefs?.target?.voice2?.url
 
   if (!knownUrl || !voice1Url || !voice2Url) {
+    const missing = []
+    if (!knownUrl) missing.push('known')
+    if (!voice1Url) missing.push('voice1')
+    if (!voice2Url) missing.push('voice2')
+    console.warn(`[roundAdapter] Skipping ${item.type} "${targetText?.slice(0, 25)}..." - missing: ${missing.join(', ')}`)
     return null
   }
 

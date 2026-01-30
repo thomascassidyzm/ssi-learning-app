@@ -90,6 +90,10 @@ export class SimplePlayer {
   // Controls
   play(): void {
     if (this.state.isPlaying) return
+    const round = this.currentRound
+    if (round) {
+      console.log(`[SimplePlayer] Starting Round ${round.roundNumber} (${round.legoId}): ${round.cycles.length} cycles`)
+    }
     this.updateState({ isPlaying: true })
     this.startPhase(this.shouldPlayIntro() ? 'intro' : 'prompt')
   }
@@ -156,6 +160,16 @@ export class SimplePlayer {
       this.updateState({ phase, inIntroSequence: false })
     } else {
       this.updateState({ phase })
+    }
+
+    // Log what's playing
+    const cycle = this.currentCycle
+    const round = this.currentRound
+    if (phase === 'intro' && round) {
+      console.log(`%c[Round ${round.roundNumber}] ${round.legoId} - ${round.cycles.length} cycles`, 'color: #4CAF50; font-weight: bold')
+    }
+    if (phase === 'prompt' && cycle) {
+      console.log(`  [${this.state.cycleIndex + 1}/${round?.cycles.length}] "${cycle.known.text}" → "${cycle.target.text}"`)
     }
 
     this.emit('phase_changed', { phase, cycle: this.currentCycle, round: this.currentRound })
@@ -251,8 +265,13 @@ export class SimplePlayer {
 
     if (this.state.roundIndex < this.rounds.length - 1) {
       this.updateState({ roundIndex: this.state.roundIndex + 1, cycleIndex: 0, inIntroSequence: false })
+      const round = this.currentRound
+      if (round) {
+        console.log(`[SimplePlayer] Starting Round ${round.roundNumber} (${round.legoId}): ${round.cycles.length} cycles`)
+      }
       this.startPhase(this.shouldPlayIntro() ? 'intro' : 'prompt')
     } else {
+      console.log('[SimplePlayer] Session complete')
       this.updateState({ phase: 'idle', isPlaying: false, inIntroSequence: false })
       this.emit('session_complete')
     }
