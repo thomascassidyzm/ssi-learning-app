@@ -1253,11 +1253,9 @@ onUnmounted(() => {
                 <div class="item-type" :class="item.type">
                   <template v-if="item.type === 'intro'">INTRO</template>
                   <template v-else-if="item.type === 'debut'">LEGO</template>
-                  <template v-else-if="item.type === 'debut_phrase'">DEBUT-{{ getDebutPhraseIndex(item) }}</template>
-                  <template v-else-if="item.type === 'spaced_rep'">
-                    REP #{{ item.reviewOf }}{{ isN1Review(item) ? '-' + getSpacedRepOccurrence(item) : '' }}
-                  </template>
-                  <template v-else-if="item.type === 'consolidation'">ETERNAL-{{ getConsolidationIndex(item) }}</template>
+                  <template v-else-if="item.type === 'debut_phrase'">BUILD-{{ getDebutPhraseIndex(item) }}</template>
+                  <template v-else-if="item.type === 'spaced_rep'">REVIEW</template>
+                  <template v-else-if="item.type === 'consolidation'">USE-{{ getConsolidationIndex(item) }}</template>
                 </div>
 
                 <div class="item-known">{{ item.knownText }}</div>

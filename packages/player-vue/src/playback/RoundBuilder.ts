@@ -33,6 +33,7 @@ export interface BuildRoundOptions {
     basket: ClassifiedBasket | null
     legoIndex: number
     fibonacciPosition: number
+    phraseCount: number  // 3 for N-1, 1 for others
   }>
 }
 
@@ -118,18 +119,27 @@ export function buildRound(options: BuildRoundOptions): Round {
     buildCount++
   }
 
-  // 4. REVIEW - Spaced rep items from other threads (no duplicates within round)
+  // 4. REVIEW - Spaced rep items (Fibonacci pattern: 3x N-1, 1x for others)
+  // Pattern: N-1, N-2, N-3, N-5, N-8, N-13, N-21, N-34, N-55, N-89 (max)
   if (getSpacedRepLegos && roundNumber > 1) {
-    const srItems = getSpacedRepLegos('A', config.spacedRepCount) // Thread is ignored for now
+    const srItems = getSpacedRepLegos('A', 0) // Get all scheduled reviews (count ignored)
     for (const sr of srItems) {
-      // Use eternal phrase if available, otherwise LEGO itself
-      const phrase = sr.basket?.eternal_phrases?.[0]
+      // Get USE phrases from the reviewed LEGO's basket
+      const eternalPhrases = sr.basket?.eternal_phrases ?? []
+      let addedForThisLego = false
 
-      if (phrase) {
+      // Add phraseCount phrases for this LEGO (3 for N-1, 1 for others)
+      let phrasesAdded = 0
+      for (const phrase of eternalPhrases) {
+        if (phrasesAdded >= sr.phraseCount) break
+
         const normalized = normalizeText(phrase.phrase.target)
         if (usedInRound.has(normalized)) continue
 
-        spacedRepReviews.push(sr.legoIndex)
+        if (!addedForThisLego) {
+          spacedRepReviews.push(sr.legoIndex)
+          addedForThisLego = true
+        }
         items.push(createPracticeItem({
           type: 'spaced_rep',
           phrase,
@@ -142,7 +152,11 @@ export function buildRound(options: BuildRoundOptions): Round {
           fibonacciPosition: sr.fibonacciPosition,
         }))
         usedInRound.add(normalized)
-      } else {
+        phrasesAdded++
+      }
+
+      // Fallback: if no USE phrases available, use LEGO itself (max 1)
+      if (phrasesAdded === 0) {
         const normalized = normalizeText(sr.lego.lego.target)
         if (usedInRound.has(normalized)) continue
 
@@ -346,10 +360,15 @@ function createLegoItem(options: {
 
 /**
  * Calculate which previous LEGOs to review during this round
- * Based on Fibonacci: review LEGO at position (roundNumber - fib[i])
+ * Based on Fibonacci offsets: N-1, N-2, N-3, N-5, N-8, N-13, N-21, N-34, N-55, N-89
+ *
+ * Pattern:
+ * - 3x N-1 (three USE phrases from the LEGO one round ago)
+ * - 1x for all others (N-2, N-3, N-5, etc.)
+ * - Max offset is N-89 (stops there to avoid always reviewing early LEGOs)
  */
-export function calculateSpacedRepReviews(roundNumber: number): Array<{ legoIndex: number; fibPosition: number }> {
-  const reviews: Array<{ legoIndex: number; fibPosition: number }> = []
+export function calculateSpacedRepReviews(roundNumber: number): Array<{ legoIndex: number; fibPosition: number; phraseCount: number }> {
+  const reviews: Array<{ legoIndex: number; fibPosition: number; phraseCount: number }> = []
   const seen = new Set<number>()
 
   for (let i = 0; i < FIBONACCI.length; i++) {
@@ -360,7 +379,9 @@ export function calculateSpacedRepReviews(roundNumber: number): Array<{ legoInde
     if (seen.has(reviewLego)) continue
 
     seen.add(reviewLego)
-    reviews.push({ legoIndex: reviewLego, fibPosition: i })
+    // N-1 gets 3 phrases, all others get 1
+    const phraseCount = skip === 1 ? 3 : 1
+    reviews.push({ legoIndex: reviewLego, fibPosition: i, phraseCount })
   }
 
   return reviews
@@ -395,6 +416,7 @@ export function buildRounds(
     const roundNumber = startRound + i
 
     // Spaced rep callback: get previous LEGOs for review
+    // Returns Fibonacci-scheduled LEGOs with phraseCount (3 for N-1, 1 for others)
     const getSpacedRepLegos = (excludeThread: ThreadId, count: number) => {
       const reviews = calculateSpacedRepReviews(roundNumber)
       return reviews
@@ -407,10 +429,10 @@ export function buildRounds(
             basket: baskets.get(srLego.id) ?? null,
             legoIndex: r.legoIndex,
             fibonacciPosition: r.fibPosition,
+            phraseCount: r.phraseCount,  // 3 for N-1, 1 for others
           }
         })
         .filter((sr): sr is NonNullable<typeof sr> => sr !== null)
-        .slice(0, count)
     }
 
     rounds.push(buildRound({
