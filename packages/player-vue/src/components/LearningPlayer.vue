@@ -4009,22 +4009,45 @@ const jumpToRound = async (roundIndex) => {
  * Uses SessionController's lazy loading to load the target round on demand
  */
 const handleSkipToNextBelt = async () => {
+  // Get current playing position's seed (not stored progress)
+  const currentRound = simplePlayer.currentRound.value
+  const currentSeedId = currentRound?.seedId || 'S0001'
+  const currentSeedNumber = parseInt(currentSeedId.substring(1, 5), 10) || 1
+
+  // Calculate next belt based on CURRENT playing position
+  const BELT_THRESHOLDS = [0, 8, 20, 40, 80, 150, 280, 400]
+  const BELT_NAMES = ['White', 'Yellow', 'Orange', 'Green', 'Blue', 'Purple', 'Brown', 'Black']
+
+  let currentBeltIndex = 0
+  for (let i = BELT_THRESHOLDS.length - 1; i >= 0; i--) {
+    if (currentSeedNumber >= BELT_THRESHOLDS[i]) {
+      currentBeltIndex = i
+      break
+    }
+  }
+
+  const nextBeltIndex = currentBeltIndex + 1
+  const nextBeltThreshold = BELT_THRESHOLDS[nextBeltIndex]
+  const nextBeltNameFromPosition = BELT_NAMES[nextBeltIndex]
+
   console.log('[LearningPlayer] handleSkipToNextBelt called', {
-    hasBeltProgress: !!beltProgress.value,
-    hasNextBelt: !!nextBelt.value,
-    nextBeltName: nextBelt.value?.name,
+    currentSeedId,
+    currentSeedNumber,
+    currentBeltName: BELT_NAMES[currentBeltIndex],
+    nextBeltName: nextBeltNameFromPosition,
+    nextBeltThreshold,
     isPlaying: simplePlayer.isPlaying.value,
   })
 
-  if (!beltProgress.value || !nextBelt.value) {
-    console.log('[LearningPlayer] Cannot skip - no next belt')
+  if (nextBeltIndex >= BELT_THRESHOLDS.length || !nextBeltThreshold) {
+    console.log('[LearningPlayer] Cannot skip - already at highest belt')
     return
   }
 
   isSkippingBelt.value = true
   try {
-    const targetSeed = nextBelt.value.seedsRequired
-    console.log(`[LearningPlayer] Skipping to ${nextBelt.value.name} belt - seed ${targetSeed}`)
+    const targetSeed = nextBeltThreshold
+    console.log(`[LearningPlayer] Skipping to ${nextBeltNameFromPosition} belt - seed ${targetSeed}`)
 
     // Reset the brain network for fresh start at new belt
     // This keeps the network lightweight during belt skipping
@@ -4072,21 +4095,46 @@ const handleSkipToNextBelt = async () => {
  * Uses SessionController's lazy loading to handle any seed position
  */
 const handleGoBackBelt = async () => {
+  // Get current playing position's seed (not stored progress)
+  const currentRound = simplePlayer.currentRound.value
+  const currentSeedId = currentRound?.seedId || 'S0001'
+  const currentSeedNumber = parseInt(currentSeedId.substring(1, 5), 10) || 1
+
+  // Calculate current belt based on CURRENT playing position
+  const BELT_THRESHOLDS = [0, 8, 20, 40, 80, 150, 280, 400]
+  const BELT_NAMES = ['White', 'Yellow', 'Orange', 'Green', 'Blue', 'Purple', 'Brown', 'Black']
+
+  let currentBeltIndex = 0
+  for (let i = BELT_THRESHOLDS.length - 1; i >= 0; i--) {
+    if (currentSeedNumber >= BELT_THRESHOLDS[i]) {
+      currentBeltIndex = i
+      break
+    }
+  }
+
+  // Calculate target: start of current belt, or previous belt if near the start
+  const currentBeltStart = BELT_THRESHOLDS[currentBeltIndex] === 0 ? 1 : BELT_THRESHOLDS[currentBeltIndex]
+  const prevBeltIndex = currentBeltIndex > 0 ? currentBeltIndex - 1 : 0
+  const prevBeltStart = BELT_THRESHOLDS[prevBeltIndex] === 0 ? 1 : BELT_THRESHOLDS[prevBeltIndex]
+
+  // If we're more than 2 seeds into current belt, go to its start
+  // Otherwise, go to previous belt's start
+  const targetSeed = (currentSeedNumber > currentBeltStart + 2 && currentBeltIndex > 0)
+    ? currentBeltStart
+    : prevBeltStart
+
   console.log('[LearningPlayer] handleGoBackBelt called', {
-    hasBeltProgress: !!beltProgress.value,
+    currentSeedId,
+    currentSeedNumber,
+    currentBeltName: BELT_NAMES[currentBeltIndex],
+    targetSeed,
+    targetBeltName: BELT_NAMES[targetSeed >= currentBeltStart ? currentBeltIndex : prevBeltIndex],
     isPlaying: simplePlayer.isPlaying.value,
   })
-
-  if (!beltProgress.value) {
-    console.log('[LearningPlayer] Cannot go back - no belt progress')
-    return
-  }
 
   isSkippingBelt.value = true
 
   try {
-    // goBackToBeltStart updates belt progress and returns target seed
-    const targetSeed = beltProgress.value.goBackToBeltStart()
     console.log(`[LearningPlayer] Going back to seed ${targetSeed}`)
 
     // Reset the brain network for fresh start at new belt
@@ -4121,6 +4169,11 @@ const handleGoBackBelt = async () => {
       }
 
       simplePlayer.jumpToSeed(targetSeed)
+    }
+
+    // Update belt progress to match
+    if (beltProgress.value) {
+      beltProgress.value.setSeeds(targetSeed)
     }
 
     console.log(`[LearningPlayer] handleGoBackBelt: complete, now at seed ${targetSeed}`)
