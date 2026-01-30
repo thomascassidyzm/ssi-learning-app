@@ -73,11 +73,11 @@ export async function generateLearningScript(
     return vowelClusters ? vowelClusters.length : 1
   }
 
-  // Query all data in parallel - query course_audio directly, not broken views
-  const [legosResult, phrasesResult, audioResult] = await Promise.all([
+  // Query all data in parallel - audio IDs now directly on tables
+  const [legosResult, phrasesResult, introsResult] = await Promise.all([
     supabase
       .from('course_legos')
-      .select('seed_number, lego_index, known_text, target_text, type, is_new')
+      .select('seed_number, lego_index, known_text, target_text, type, is_new, known_audio_id, target1_audio_id, target2_audio_id')
       .eq('course_code', courseCode)
       .gte('seed_number', startSeed)
       .lte('seed_number', endSeed)
@@ -85,7 +85,7 @@ export async function generateLearningScript(
       .order('lego_index', { ascending: true }),
     supabase
       .from('course_practice_phrases')
-      .select('seed_number, lego_index, known_text, target_text, phrase_role, target_syllable_count, position')
+      .select('seed_number, lego_index, known_text, target_text, phrase_role, target_syllable_count, position, known_audio_id, target1_audio_id, target2_audio_id')
       .eq('course_code', courseCode)
       .gte('seed_number', startSeed)
       .lte('seed_number', endSeed)
@@ -94,53 +94,20 @@ export async function generateLearningScript(
       .order('position', { ascending: true }),
     supabase
       .from('course_audio')
-      .select('id, text_normalized, role, lego_id, s3_key')
+      .select('id, lego_id')
       .eq('course_code', courseCode)
+      .eq('role', 'presentation')
+      .not('lego_id', 'is', null)
   ])
 
   if (legosResult.error) throw new Error('Failed to query LEGOs: ' + legosResult.error.message)
   if (phrasesResult.error) throw new Error('Failed to query phrases: ' + phrasesResult.error.message)
-  if (audioResult.error) throw new Error('Failed to query audio: ' + audioResult.error.message)
 
-  // Build audio lookup maps from course_audio directly
-  // Map: text_normalized -> { known: id, target1: id, target2: id }
-  const audioByText = new Map<string, { known?: string; target1?: string; target2?: string }>()
+  // Build intro audio map from presentation audio
   const introAudioMap = new Map<string, string>()
-
-  for (const audio of (audioResult.data || [])) {
-    const text = audio.text_normalized
-    if (!text) continue
-
-    // Handle presentation audio (intros)
-    if (audio.role === 'presentation' && audio.lego_id) {
-      introAudioMap.set(audio.lego_id, audio.id)
-      continue
-    }
-
-    // Build text -> audio ID map
-    if (!audioByText.has(text)) {
-      audioByText.set(text, {})
-    }
-    const entry = audioByText.get(text)!
-    if (audio.role === 'known' || audio.role === 'source') {
-      entry.known = audio.id
-    } else if (audio.role === 'target1') {
-      entry.target1 = audio.id
-    } else if (audio.role === 'target2') {
-      entry.target2 = audio.id
-    }
-  }
-
-  // Helper to get audio for a text pair
-  const getAudioForText = (knownText: string, targetText: string) => {
-    const knownNorm = normalizeText(knownText)
-    const targetNorm = normalizeText(targetText)
-    const knownAudio = audioByText.get(knownNorm)
-    const targetAudio = audioByText.get(targetNorm)
-    return {
-      known_audio_uuid: knownAudio?.known,
-      target1_audio_uuid: targetAudio?.target1,
-      target2_audio_uuid: targetAudio?.target2
+  for (const intro of (introsResult.data || [])) {
+    if (intro.lego_id && intro.id) {
+      introAudioMap.set(intro.lego_id, intro.id)
     }
   }
 
@@ -153,6 +120,9 @@ export async function generateLearningScript(
     phrase_role: string
     target_syllable_count?: number
     position?: number
+    known_audio_id?: string
+    target1_audio_id?: string
+    target2_audio_id?: string
   }
   const phrasesByLego = new Map<string, { build: Phrase[]; use: Phrase[] }>()
   for (const phrase of (phrasesResult.data || []) as Phrase[]) {
@@ -172,10 +142,6 @@ export async function generateLearningScript(
     )
   }
 
-  const getAudioForPhrase = (_seedNum: number, _legoIdx: number, knownText: string, targetText: string) => {
-    return getAudioForText(knownText, targetText)
-  }
-
   // Organize LEGOs by seed
   interface Lego {
     seed_number: number
@@ -184,6 +150,9 @@ export async function generateLearningScript(
     target_text: string
     type: string
     is_new: boolean
+    known_audio_id?: string
+    target1_audio_id?: string
+    target2_audio_id?: string
   }
   const legosBySeed = new Map<number, Lego[]>()
   for (const lego of (legosResult.data || []) as Lego[]) {
@@ -216,7 +185,6 @@ export async function generateLearningScript(
       const legoNum = String(lego.lego_index).padStart(2, '0')
       const phraseKey = `${seedNum}:${lego.lego_index}`
       const phrases = phrasesByLego.get(phraseKey) || { build: [], use: [] }
-      const legoAudio = getAudioForText(lego.known_text, lego.target_text)
       const presentationAudioId = introAudioMap.get(legoKey)
 
       const usedPhrasesThisRound = new Set<string>()
@@ -244,10 +212,10 @@ export async function generateLearningScript(
         type: 'debut',
         knownText: lego.known_text,
         targetText: lego.target_text,
-        sourceId: legoAudio.known_audio_uuid,
-        target1Id: legoAudio.target1_audio_uuid,
-        target2Id: legoAudio.target2_audio_uuid,
-        hasAudio: !!(legoAudio.known_audio_uuid && legoAudio.target1_audio_uuid),
+        sourceId: lego.known_audio_id,
+        target1Id: lego.target1_audio_id,
+        target2Id: lego.target2_audio_id,
+        hasAudio: !!(lego.known_audio_id && lego.target1_audio_id),
         isNew: true
       })
 
@@ -261,7 +229,6 @@ export async function generateLearningScript(
         practiceCount++
         const phraseId = getPhraseId(phrase.known_text, phrase.target_text)
         usedPhrasesThisRound.add(phraseId)
-        const audio = getAudioForPhrase(seedNum, lego.lego_index, phrase.known_text, phrase.target_text)
         items.push({
           uuid: `${legoKey}_build_${cycleNum}`,
           cycleNum, roundNumber, seedId, legoKey,
@@ -269,10 +236,10 @@ export async function generateLearningScript(
           type: 'build',
           knownText: phrase.known_text,
           targetText: phrase.target_text,
-          sourceId: audio.known_audio_uuid,
-          target1Id: audio.target1_audio_uuid,
-          target2Id: audio.target2_audio_uuid,
-          hasAudio: !!(audio.known_audio_uuid && audio.target1_audio_uuid),
+          sourceId: phrase.known_audio_id,
+          target1Id: phrase.target1_audio_id,
+          target2Id: phrase.target2_audio_id,
+          hasAudio: !!(phrase.known_audio_id && phrase.target1_audio_id),
           isNew: true,
           syllableCount: phrase.target_syllable_count || countTargetSyllables(phrase.target_text)
         })
@@ -292,7 +259,6 @@ export async function generateLearningScript(
         practiceCount++
         usedPhrasesThisRound.add(phraseId)
         usedForPractice.add(phraseId)
-        const audio = getAudioForPhrase(seedNum, lego.lego_index, phrase.known_text, phrase.target_text)
         items.push({
           uuid: `${legoKey}_build_${cycleNum}`,
           cycleNum, roundNumber, seedId, legoKey,
@@ -300,10 +266,10 @@ export async function generateLearningScript(
           type: 'build',
           knownText: phrase.known_text,
           targetText: phrase.target_text,
-          sourceId: audio.known_audio_uuid,
-          target1Id: audio.target1_audio_uuid,
-          target2Id: audio.target2_audio_uuid,
-          hasAudio: !!(audio.known_audio_uuid && audio.target1_audio_uuid),
+          sourceId: phrase.known_audio_id,
+          target1Id: phrase.target1_audio_id,
+          target2Id: phrase.target2_audio_id,
+          hasAudio: !!(phrase.known_audio_id && phrase.target1_audio_id),
           isNew: true,
           syllableCount: phrase.target_syllable_count || countTargetSyllables(phrase.target_text)
         })
@@ -356,7 +322,6 @@ export async function generateLearningScript(
 
           cycleNum++
           spacedRepCount++
-          const audio = getAudioForPhrase(state.seedNum, state.legoIndex, phrase.known_text, phrase.target_text)
           items.push({
             uuid: `${reviewKey}_spaced_rep_${cycleNum}`,
             cycleNum, roundNumber, seedId: reviewSeedId, legoKey: reviewKey,
@@ -364,10 +329,10 @@ export async function generateLearningScript(
             type: 'spaced_rep',
             knownText: phrase.known_text,
             targetText: phrase.target_text,
-            sourceId: audio.known_audio_uuid,
-            target1Id: audio.target1_audio_uuid,
-            target2Id: audio.target2_audio_uuid,
-            hasAudio: !!(audio.known_audio_uuid && audio.target1_audio_uuid),
+            sourceId: phrase.known_audio_id,
+            target1Id: phrase.target1_audio_id,
+            target2Id: phrase.target2_audio_id,
+            hasAudio: !!(phrase.known_audio_id && phrase.target1_audio_id),
             isNew: false,
             fibPosition,
             reviewOf: state.lastRound
@@ -386,7 +351,6 @@ export async function generateLearningScript(
         usedPhrasesThisRound.add(phraseId)
 
         cycleNum++
-        const audio = getAudioForPhrase(seedNum, lego.lego_index, phrase.known_text, phrase.target_text)
         items.push({
           uuid: `${legoKey}_use_${cycleNum}`,
           cycleNum, roundNumber, seedId, legoKey,
@@ -394,10 +358,10 @@ export async function generateLearningScript(
           type: 'use',
           knownText: phrase.known_text,
           targetText: phrase.target_text,
-          sourceId: audio.known_audio_uuid,
-          target1Id: audio.target1_audio_uuid,
-          target2Id: audio.target2_audio_uuid,
-          hasAudio: !!(audio.known_audio_uuid && audio.target1_audio_uuid),
+          sourceId: phrase.known_audio_id,
+          target1Id: phrase.target1_audio_id,
+          target2Id: phrase.target2_audio_id,
+          hasAudio: !!(phrase.known_audio_id && phrase.target1_audio_id),
           isNew: true
         })
       }
