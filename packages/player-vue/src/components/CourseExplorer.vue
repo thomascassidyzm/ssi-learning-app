@@ -464,11 +464,11 @@ const loadScript = async (forceRefresh = false) => {
         legoId: item.legoId,
         seedId: item.seedId,
         legoIndex: item.legoIndex,
-        knownText: item.known?.text || '',
-        targetText: item.target?.text || '',
-        known: item.known,
-        target: item.target,
-        // Audio URLs are already built into the items
+        knownText: item.knownText || '',
+        targetText: item.targetText || '',
+        audioRefs: item.audioRefs,
+        reviewOf: item.reviewOf,
+        fibonacciPosition: item.fibonacciPosition,
       })),
     }))
 
@@ -730,15 +730,15 @@ const getAudioUrlAsync = async (text, role, item = null) => {
  */
 const getAudioUrl = (text, role, item = null) => {
   // First check if the item has pre-built audio URLs (from RoundBuilder)
-  if (item) {
-    if (role === 'known' && item.known?.audioRef?.url) {
-      return item.known.audioRef.url
+  if (item?.audioRefs) {
+    if (role === 'known' && item.audioRefs.known?.url) {
+      return item.audioRefs.known.url
     }
-    if (role === 'target1' && item.target?.audioRefs?.voice1?.url) {
-      return item.target.audioRefs.voice1.url
+    if (role === 'target1' && item.audioRefs.target?.voice1?.url) {
+      return item.audioRefs.target.voice1.url
     }
-    if (role === 'target2' && item.target?.audioRefs?.voice2?.url) {
-      return item.target.audioRefs.voice2.url
+    if (role === 'target2' && item.audioRefs.target?.voice2?.url) {
+      return item.audioRefs.target.voice2.url
     }
   }
 
