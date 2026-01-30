@@ -4033,8 +4033,28 @@ const handleSkipToNextBelt = async () => {
       console.log('[LearningPlayer] Reset brain network for belt skip')
     }
 
-    // Use jumpToSeed to correctly map seed number to round index
-    // (1 seed can have multiple LEGOs/rounds)
+    // Check if target seed is already loaded
+    const targetSeedId = `S${String(targetSeed).padStart(4, '0')}`
+    const existingRoundIndex = simplePlayer.findRoundIndexForSeed(targetSeed)
+
+    if (existingRoundIndex < 0 && courseDataProvider.value) {
+      // Target seed not loaded - load it now (blocking)
+      console.log(`[LearningPlayer] Target seed ${targetSeed} not loaded, loading now...`)
+      const batchResult = await loadSeedBatch({
+        provider: courseDataProvider.value,
+        startSeed: targetSeed,
+        endSeed: targetSeed + 5,  // Load a few seeds for seamless playback
+        startRoundNumber: simplePlayer.roundCount.value + 1,
+        config: DEFAULT_PLAYBACK_CONFIG,
+      })
+
+      if (batchResult && batchResult.simpleRounds.length > 0) {
+        simplePlayer.addRounds(batchResult.simpleRounds as any)
+        console.log(`[LearningPlayer] Added ${batchResult.simpleRounds.length} rounds for belt skip`)
+      }
+    }
+
+    // Now jump to the seed
     simplePlayer.jumpToSeed(targetSeed)
 
     // Update belt progress to match (uses absolute seed number)
@@ -4076,11 +4096,30 @@ const handleGoBackBelt = async () => {
       console.log('[LearningPlayer] Reset brain network for belt skip')
     }
 
-    // Use jumpToSeed to correctly map seed number to round index
     // Handle edge case: seed 0 (white belt) means go to round 0
     if (targetSeed === 0) {
       simplePlayer.jumpToRound(0)
     } else {
+      // Check if target seed is already loaded
+      const existingRoundIndex = simplePlayer.findRoundIndexForSeed(targetSeed)
+
+      if (existingRoundIndex < 0 && courseDataProvider.value) {
+        // Target seed not loaded - load it now (blocking)
+        console.log(`[LearningPlayer] Target seed ${targetSeed} not loaded, loading now...`)
+        const batchResult = await loadSeedBatch({
+          provider: courseDataProvider.value,
+          startSeed: targetSeed,
+          endSeed: targetSeed + 5,
+          startRoundNumber: simplePlayer.roundCount.value + 1,
+          config: DEFAULT_PLAYBACK_CONFIG,
+        })
+
+        if (batchResult && batchResult.simpleRounds.length > 0) {
+          simplePlayer.addRounds(batchResult.simpleRounds as any)
+          console.log(`[LearningPlayer] Added ${batchResult.simpleRounds.length} rounds for belt skip`)
+        }
+      }
+
       simplePlayer.jumpToSeed(targetSeed)
     }
 
@@ -4115,11 +4154,30 @@ const handleSkipToBeltFromModal = async (belt) => {
       console.log('[LearningPlayer] Reset brain network for modal belt skip')
     }
 
-    // Use jumpToSeed to correctly map seed number to round index
     // Handle edge case: seed 0 (white belt) means go to round 0
     if (targetSeed === 0) {
       simplePlayer.jumpToRound(0)
     } else {
+      // Check if target seed is already loaded
+      const existingRoundIndex = simplePlayer.findRoundIndexForSeed(targetSeed)
+
+      if (existingRoundIndex < 0 && courseDataProvider.value) {
+        // Target seed not loaded - load it now (blocking)
+        console.log(`[LearningPlayer] Target seed ${targetSeed} not loaded, loading now...`)
+        const batchResult = await loadSeedBatch({
+          provider: courseDataProvider.value,
+          startSeed: targetSeed,
+          endSeed: targetSeed + 5,
+          startRoundNumber: simplePlayer.roundCount.value + 1,
+          config: DEFAULT_PLAYBACK_CONFIG,
+        })
+
+        if (batchResult && batchResult.simpleRounds.length > 0) {
+          simplePlayer.addRounds(batchResult.simpleRounds as any)
+          console.log(`[LearningPlayer] Added ${batchResult.simpleRounds.length} rounds for modal belt skip`)
+        }
+      }
+
       simplePlayer.jumpToSeed(targetSeed)
     }
 
