@@ -31,6 +31,8 @@ import { buildRounds, calculateSpacedRepReviews } from '../playback/RoundBuilder
 import { DEFAULT_PLAYBACK_CONFIG } from '../playback/PlaybackConfig'
 import type { Round as BuilderRound } from '../playback/types'
 import type { LegoPair, SeedPair, ClassifiedBasket } from '@ssi/core'
+// Priority loading - load seeds in batches for fast startup
+import { loadSeedBatch, buildPriorityQueue } from '../playback/loadSeedBatch'
 // New simple script generation - direct database queries
 import { generateLearningScript as generateSimpleScript } from '../providers/generateLearningScript'
 import { toSimpleRounds } from '../providers/toSimpleRounds'
@@ -376,12 +378,16 @@ simplePlayer.onCycleCompleted((cycle) => {
   }
 })
 
-// Round completed - save progress
+// Round completed - save progress and update current LEGO ID
 simplePlayer.onRoundCompleted((round) => {
   const completedRoundIndex = simplePlayer.roundIndex.value
   if (round.legoId) {
     saveRoundProgress(round.legoId, completedRoundIndex)
     handleRoundBoundary(completedRoundIndex, round.legoId)
+    // Update currentLegoId in belt progress for precise position tracking
+    if (beltProgress.value?.setCurrentLegoId) {
+      beltProgress.value.setCurrentLegoId(round.legoId)
+    }
   }
 })
 
@@ -5044,151 +5050,136 @@ onMounted(async () => {
             }
           } else {
             // ============================================
-            // LEGACY PATH: loadSessionItems → RoundBuilder → adaptRoundsForPlayer
+            // PRIORITY LOADING PATH: Fast startup with background loading
             // ============================================
-            // Load learning items from database
-            const items = await courseDataProvider.value.loadSessionItems(1, 1000)
-            console.log('[LearningPlayer] Loaded', items.length, 'items from database')
+            // 1. Determine starting position from saved progress
+            // Use currentLegoId for precise seed lookup (e.g., "S0045L03" → seed 45)
+            // Fall back to estimation if no LEGO ID saved
+            const currentLegoId = beltProgress.value?.currentLegoId.value
+            const currentSeedFromLegoId = beltProgress.value?.currentSeedNumber.value
+            const completedRoundsCount = beltProgress.value?.completedRounds.value ?? 0
 
-            if (items.length > 0) {
-              // ============================================
-              // FULL ROUND BUILDING - INTRO, DEBUT, BUILD, REVIEW, CONSOLIDATE
-              // ============================================
-
-              // 1. Convert LearningItems to LegoPair[] and SeedPair[]
-              const legoMap = new Map<string, LegoPair>()
-              const seedMap = new Map<string, SeedPair>()
-
-            for (const item of items) {
-              // Convert to LegoPair format
-              if (!legoMap.has(item.lego.id)) {
-                legoMap.set(item.lego.id, {
-                  id: item.lego.id,
-                  type: item.lego.type as 'A' | 'M',
-                  new: item.lego.new,
-                  lego: item.lego.lego,
-                  audioRefs: {
-                    known: { id: item.lego.audioRefs.known.id, url: item.lego.audioRefs.known.url },
-                    target: {
-                      voice1: { id: item.lego.audioRefs.target.voice1.id, url: item.lego.audioRefs.target.voice1.url },
-                      voice2: { id: item.lego.audioRefs.target.voice2.id, url: item.lego.audioRefs.target.voice2.url },
-                    },
-                  },
-                })
-              }
-
-              // Convert to SeedPair format
-              if (!seedMap.has(item.seed.seed_id)) {
-                seedMap.set(item.seed.seed_id, {
-                  seed_id: item.seed.seed_id,
-                  seed_pair: item.seed.seed_pair,
-                  legos: [], // Will be populated below
-                })
-              }
+            let startingSeed: number
+            if (currentSeedFromLegoId) {
+              // Precise: we know exactly which seed the learner is in
+              startingSeed = currentSeedFromLegoId
+              console.log(`[LearningPlayer] Priority loading: LEGO ${currentLegoId} → seed ${startingSeed} (precise)`)
+            } else if (completedRoundsCount > 0) {
+              // Fallback: estimate seed from round count (~3 LEGOs per seed)
+              const estimatedSeed = Math.max(1, Math.ceil((completedRoundsCount + 1) / 3))
+              startingSeed = Math.max(1, estimatedSeed - 1)
+              console.log(`[LearningPlayer] Priority loading: ~${completedRoundsCount} rounds → estimated seed ${startingSeed}`)
+            } else {
+              // New learner: start from seed 1
+              startingSeed = 1
+              console.log(`[LearningPlayer] Priority loading: new learner, starting from seed 1`)
             }
 
-            // Link LEGOs to seeds
-            for (const item of items) {
-              const seed = seedMap.get(item.seed.seed_id)
-              const lego = legoMap.get(item.lego.id)
-              if (seed && lego && !seed.legos.find((l: any) => l.id === lego.id)) {
-                seed.legos.push(lego as any)
-              }
-            }
+            // 2. Build priority queue - starting seed first, then belt-aware order
+            const priorityBatches = buildPriorityQueue(startingSeed, 700)  // ~700 seeds in course
+            console.log(`[LearningPlayer] Priority queue: ${priorityBatches.length} batches, first batch: seeds ${priorityBatches[0]?.[0]}-${priorityBatches[0]?.[priorityBatches[0].length - 1]}`)
 
-            const legos = Array.from(legoMap.values())
-            const seeds = Array.from(seedMap.values())
-            console.log('[LearningPlayer] Extracted', legos.length, 'LEGOs and', seeds.length, 'seeds')
+            // 3. Load initial batch (BLOCKING - fast startup)
+            const initialBatch = priorityBatches[0] || [1, 2, 3, 4, 5, 6]
+            const initialStartSeed = Math.min(...initialBatch)
+            const initialEndSeed = Math.max(...initialBatch)
 
-            // 2. Load baskets for all LEGOs (for practice phrases)
-            const legoIds = legos.map(l => l.id)
-            let baskets = new Map<string, ClassifiedBasket>()
-            try {
-              baskets = await courseDataProvider.value.getBasketsBatch(legoIds, legoMap)
-              console.log('[LearningPlayer] Loaded baskets for', baskets.size, 'LEGOs')
-            } catch (err) {
-              console.warn('[LearningPlayer] Failed to load baskets:', err)
-            }
-
-            // 2b. Load introduction audio for all LEGOs
-            try {
-              const introAudioMap = await courseDataProvider.value.getIntroductionAudioBatch(legoIds)
-              console.log('[LearningPlayer] Loaded intro audio for', introAudioMap.size, 'LEGOs')
-
-              // Attach intro audio to baskets
-              for (const [legoId, introAudio] of introAudioMap) {
-                const basket = baskets.get(legoId)
-                if (basket) {
-                  basket.introduction_audio = {
-                    id: introAudio.id,
-                    url: introAudio.url,
-                    duration_ms: introAudio.duration_ms,
-                  }
-                }
-              }
-            } catch (err) {
-              console.warn('[LearningPlayer] Failed to load intro audio:', err)
-            }
-
-            // 3. Build audio URL helper
-            const buildAudioUrl = (audioId: string): string => {
-              if (!audioId) return ''
-              // Use the audio API endpoint
-              return `/api/audio/${audioId}`
-            }
-
-            // 4. Build rounds using RoundBuilder
-            const builderRounds = buildRounds(
-              legos,
-              seeds,
-              baskets,
-              DEFAULT_PLAYBACK_CONFIG,
-              buildAudioUrl,
-              1 // Start from round 1
-            )
-            console.log('[LearningPlayer] Built', builderRounds.length, 'rounds with RoundBuilder')
-
-            // Debug: show items in first 3 rounds
-            builderRounds.slice(0, 3).forEach((r, i) => {
-              console.log(`[LearningPlayer] Round ${i + 1}: ${r.items.length} items [${r.items.map(it => it.type).join(', ')}]`)
+            console.log(`[LearningPlayer] Loading initial batch: seeds ${initialStartSeed}-${initialEndSeed}`)
+            const initialResult = await loadSeedBatch({
+              provider: courseDataProvider.value,
+              startSeed: initialStartSeed,
+              endSeed: initialEndSeed,
+              startRoundNumber: 1,
+              config: DEFAULT_PLAYBACK_CONFIG,
             })
 
-            // 5. Adapt for SimplePlayer (convert to Cycle format)
-            const simpleRounds = adaptRoundsForPlayer(builderRounds)
+            if (initialResult && initialResult.simpleRounds.length > 0) {
+              // 4. Initialize SimplePlayer with initial rounds
+              loadedRounds.value = initialResult.builderRounds as any
+              simplePlayer.initialize(initialResult.simpleRounds as any)
+              console.log(`[LearningPlayer] SimplePlayer initialized with ${initialResult.simpleRounds.length} rounds (fast startup)`)
 
-            // Also store builder rounds for legacy code that expects items
-            loadedRounds.value = builderRounds as any
-            simplePlayer.initialize(simpleRounds as any)
-            console.log('[LearningPlayer] SimplePlayer initialized with', simpleRounds.length, 'rounds')
-
-            // Restore position based on belt progress (completedRounds = completed seeds)
-            // If learner completed N seeds, they should start at seed N+1
-            const completedSeeds = beltProgress.value?.completedRounds.value ?? 0
-            if (completedSeeds > 0) {
-              const nextSeed = completedSeeds + 1
-              const roundIndex = simplePlayer.findRoundIndexForSeed(nextSeed)
-              if (roundIndex >= 0) {
-                console.log(`[LearningPlayer] Restoring position: ${completedSeeds} seeds completed → starting at seed ${nextSeed} (round ${roundIndex})`)
-                simplePlayer.jumpToRound(roundIndex)
-              } else {
-                // Seed not found - might be past end of course, start at last round
-                console.log(`[LearningPlayer] Seed ${nextSeed} not found - starting at last round`)
-                simplePlayer.jumpToRound(simpleRounds.length - 1)
+              // 5. Jump to correct position if needed
+              // Find by LEGO ID (precise) or fall back to first round
+              if (currentLegoId) {
+                // Find the round with the saved LEGO ID, then go to the NEXT one
+                const savedRoundIndex = initialResult.simpleRounds.findIndex(
+                  (r: SimpleRound) => r.legoId === currentLegoId
+                )
+                if (savedRoundIndex >= 0 && savedRoundIndex + 1 < initialResult.simpleRounds.length) {
+                  // Jump to the next round after the saved one
+                  console.log(`[LearningPlayer] Restoring: LEGO ${currentLegoId} found at index ${savedRoundIndex}, jumping to ${savedRoundIndex + 1}`)
+                  simplePlayer.jumpToRound(savedRoundIndex + 1)
+                } else if (savedRoundIndex >= 0) {
+                  // Saved LEGO is the last one loaded, stay at it
+                  console.log(`[LearningPlayer] Restoring: LEGO ${currentLegoId} is last loaded, staying at index ${savedRoundIndex}`)
+                  simplePlayer.jumpToRound(savedRoundIndex)
+                } else {
+                  // LEGO not in initial batch - start at first loaded round
+                  console.log(`[LearningPlayer] LEGO ${currentLegoId} not in initial batch, starting at first loaded round`)
+                }
+              } else if (completedRoundsCount > 0) {
+                // No LEGO ID saved - this shouldn't happen for returning users, but handle it
+                console.log(`[LearningPlayer] No LEGO ID saved, starting at first loaded round`)
               }
-            }
 
-            // Build LEGO map for network visualization
-            const legoMapFromRounds = new Map<string, { targetText: string; knownText: string }>()
-            for (const round of builderRounds) {
-              const debutItem = round.items.find(it => it.type === 'debut')
-              if (debutItem) {
-                legoMapFromRounds.set(round.legoId, {
-                  targetText: debutItem.targetText,
-                  knownText: debutItem.knownText,
-                })
+              // 6. Start background loading of remaining batches
+              const remainingBatches = priorityBatches.slice(1)
+              if (remainingBatches.length > 0) {
+                console.log(`[LearningPlayer] Starting background loading: ${remainingBatches.length} batches remaining`)
+
+                // Track accumulated data for spaced rep
+                let accumulatedLegoMap = initialResult.legoMap
+                let accumulatedSeedMap = initialResult.seedMap
+                let accumulatedBaskets = initialResult.baskets
+                let nextRoundNumber = initialResult.simpleRounds.length + 1
+
+                // Load remaining batches in background (non-blocking)
+                ;(async () => {
+                  for (let i = 0; i < remainingBatches.length; i++) {
+                    const batch = remainingBatches[i]
+                    const batchStartSeed = Math.min(...batch)
+                    const batchEndSeed = Math.max(...batch)
+
+                    try {
+                      const batchResult = await loadSeedBatch({
+                        provider: courseDataProvider.value,
+                        startSeed: batchStartSeed,
+                        endSeed: batchEndSeed,
+                        startRoundNumber: nextRoundNumber,
+                        config: DEFAULT_PLAYBACK_CONFIG,
+                        existingLegoMap: accumulatedLegoMap,
+                        existingSeedMap: accumulatedSeedMap,
+                        existingBaskets: accumulatedBaskets,
+                      })
+
+                      if (batchResult && batchResult.simpleRounds.length > 0) {
+                        // Add rounds to SimplePlayer
+                        simplePlayer.addRounds(batchResult.simpleRounds as any)
+
+                        // Update accumulated data
+                        accumulatedLegoMap = batchResult.legoMap
+                        accumulatedSeedMap = batchResult.seedMap
+                        accumulatedBaskets = batchResult.baskets
+                        nextRoundNumber += batchResult.simpleRounds.length
+
+                        // Merge builder rounds for legacy code
+                        loadedRounds.value = [...(loadedRounds.value || []), ...batchResult.builderRounds] as any
+
+                        console.log(`[LearningPlayer] Background batch ${i + 1}/${remainingBatches.length}: added ${batchResult.simpleRounds.length} rounds (total: ${simplePlayer.roundCount.value})`)
+                      }
+                    } catch (err) {
+                      console.warn(`[LearningPlayer] Background batch ${i + 1} failed:`, err)
+                    }
+
+                    // Small delay between batches to avoid overwhelming the database
+                    await new Promise(resolve => setTimeout(resolve, 100))
+                  }
+                  console.log(`[LearningPlayer] Background loading complete: ${simplePlayer.roundCount.value} total rounds`)
+                })()
               }
-            }
-            console.log('[LearningPlayer] Built LEGO map from rounds:', legoMapFromRounds.size, 'LEGOs')
+            } else {
+              console.warn('[LearningPlayer] No rounds loaded from initial batch')
             }
           }
           console.log('[LearningPlayer] SimplePlayer initialized successfully')

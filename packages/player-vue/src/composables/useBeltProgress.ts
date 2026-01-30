@@ -62,6 +62,7 @@ const SESSION_HISTORY_KEY_PREFIX = 'ssi_session_history_'
 
 interface StoredProgress {
   completedRounds: number
+  currentLegoId: string | null  // e.g., "S0045L03" - precise position tracking
   lastUpdated: number
 }
 
@@ -93,6 +94,7 @@ export interface BeltProgressSyncConfig {
 export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyncConfig) {
   // Core state
   const completedRounds = ref(0)
+  const currentLegoId = ref<string | null>(null)  // e.g., "S0045L03" - current position
   const sessionHistory = ref<SessionRecord[]>([])
   const isLoaded = ref(false)
   const isSyncing = ref(false)
@@ -270,14 +272,17 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
       if (stored) {
         const data: StoredProgress = JSON.parse(stored)
         completedRounds.value = data.completedRounds || 0
-        console.log(`[BeltProgress] Loaded ${completedRounds.value} seeds from localStorage for ${courseCode}`)
+        currentLegoId.value = data.currentLegoId || null
+        console.log(`[BeltProgress] Loaded progress: ${completedRounds.value} rounds, current LEGO: ${currentLegoId.value || 'none'}`)
       } else {
         completedRounds.value = 0
+        currentLegoId.value = null
         console.log(`[BeltProgress] No saved progress for ${courseCode}, starting at 0`)
       }
     } catch (err) {
       console.warn('[BeltProgress] Failed to load progress:', err)
       completedRounds.value = 0
+      currentLegoId.value = null
     }
   }
 
@@ -289,6 +294,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
       const key = `${PROGRESS_KEY_PREFIX}${courseCode}`
       const data: StoredProgress = {
         completedRounds: completedRounds.value,
+        currentLegoId: currentLegoId.value,
         lastUpdated: Date.now(),
       }
       localStorage.setItem(key, JSON.stringify(data))
@@ -521,10 +527,37 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   }
 
   /**
+   * Set current LEGO ID (for precise position tracking)
+   * LEGO ID format: "S0045L03" = 3rd LEGO in seed 45
+   */
+  const setCurrentLegoId = (legoId: string | null) => {
+    currentLegoId.value = legoId
+    saveProgress()
+  }
+
+  /**
+   * Parse seed number from LEGO ID
+   * "S0045L03" → 45
+   */
+  const getSeedFromLegoId = (legoId: string | null): number | null => {
+    if (!legoId) return null
+    const match = legoId.match(/^S(\d{4})L/)
+    return match ? parseInt(match[1], 10) : null
+  }
+
+  /**
+   * Get the seed number for the current position
+   */
+  const currentSeedNumber = computed((): number | null => {
+    return getSeedFromLegoId(currentLegoId.value)
+  })
+
+  /**
    * Reset progress (for testing/demo)
    */
   const resetProgress = () => {
     completedRounds.value = 0
+    currentLegoId.value = null
     sessionHistory.value = []
     saveProgress()
     saveSessionHistory()
@@ -690,6 +723,8 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   return {
     // State
     completedRounds,
+    currentLegoId,
+    currentSeedNumber,
     isLoaded,
     isSyncing,
     lastSyncError,
@@ -717,6 +752,8 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
     // Actions
     addSeeds,
     setSeeds,
+    setCurrentLegoId,
+    getSeedFromLegoId,
     resetProgress,
     initialize,
     initializeSync,
