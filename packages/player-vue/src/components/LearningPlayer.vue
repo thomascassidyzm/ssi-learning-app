@@ -5011,7 +5011,7 @@ onMounted(async () => {
             // LEGACY PATH: loadSessionItems → RoundBuilder → adaptRoundsForPlayer
             // ============================================
             // Load learning items from database
-            const items = await courseDataProvider.value.loadSessionItems(1, 300)
+            const items = await courseDataProvider.value.loadSessionItems(1, 1000)
             console.log('[LearningPlayer] Loaded', items.length, 'items from database')
 
             if (items.length > 0) {
