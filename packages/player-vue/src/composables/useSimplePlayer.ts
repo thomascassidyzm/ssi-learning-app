@@ -32,6 +32,8 @@ export interface UseSimplePlayerReturn {
   skipCycle: () => void
   skipRound: () => void
   jumpToRound: (index: number) => void
+  jumpToSeed: (seedNumber: number) => void
+  findRoundIndexForSeed: (seedNumber: number) => number
   onPhaseChanged: (callback: (phase: Phase) => void) => void
   onCycleCompleted: (callback: (cycle: Cycle) => void) => void
   onRoundCompleted: (callback: (round: Round) => void) => void
@@ -131,6 +133,34 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   const skipRound = () => player?.skipRound()
   const jumpToRound = (index: number) => player?.jumpToRound(index)
 
+  /**
+   * Find the first round index that belongs to a given seed number.
+   * Seed IDs are formatted as "S0001", "S0082", etc.
+   * Returns -1 if no round found for that seed.
+   */
+  const findRoundIndexForSeed = (seedNumber: number): number => {
+    const targetSeedId = `S${String(seedNumber).padStart(4, '0')}`
+    const index = roundsRef.value.findIndex(r => r.seedId === targetSeedId)
+    if (index === -1) {
+      console.warn(`[useSimplePlayer] No round found for seed ${seedNumber} (${targetSeedId})`)
+    }
+    return index
+  }
+
+  /**
+   * Jump to the first round of a given seed number.
+   * This maps seed numbers (used by belt system) to round indices (used by player).
+   */
+  const jumpToSeed = (seedNumber: number) => {
+    const roundIndex = findRoundIndexForSeed(seedNumber)
+    if (roundIndex >= 0) {
+      console.log(`[useSimplePlayer] Jumping to seed ${seedNumber} → round index ${roundIndex}`)
+      player?.jumpToRound(roundIndex)
+    } else {
+      console.warn(`[useSimplePlayer] Cannot jump to seed ${seedNumber} - not found in loaded rounds`)
+    }
+  }
+
   // Event hooks
   const onPhaseChanged = (callback: (phase: Phase) => void) => { phaseCallbacks.push(callback) }
   const onCycleCompleted = (callback: (cycle: Cycle) => void) => { cycleCallbacks.push(callback) }
@@ -167,6 +197,8 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     skipCycle,
     skipRound,
     jumpToRound,
+    jumpToSeed,
+    findRoundIndexForSeed,
     onPhaseChanged,
     onCycleCompleted,
     onRoundCompleted,

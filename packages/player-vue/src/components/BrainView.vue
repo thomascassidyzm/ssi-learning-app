@@ -454,11 +454,40 @@ function updateVisibility(count: number) {
     return
   }
 
-  // Standalone mode: use slider-based visibility
-  if (!allRounds.value.length) return
+  // Standalone mode: use completedRounds to determine which seeds to show
+  // Since generateLearningScript is deprecated, we use seedId from nodes
+  if (!allRounds.value.length) {
+    // Build set from nodes where seed number <= completedRounds
+    const completedSeeds = props.completedRounds || 0
+    const newSet = new Set<string>()
 
+    // Get nodes from prebuiltNetwork (they have seedId like "S0001")
+    for (const node of prebuiltNetwork.nodes.value) {
+      // Parse seed number from seedId (e.g., "S0001" → 1, "COMP" → skip)
+      const seedMatch = node.seedId?.match(/^S(\d+)$/)
+      if (seedMatch) {
+        const seedNum = parseInt(seedMatch[1], 10)
+        if (seedNum <= completedSeeds) {
+          newSet.add(node.id)
+        }
+      } else if (node.isComponent) {
+        // Components: show if any parent LEGO is revealed
+        // For now, show all components (they're extracted from M-type LEGOs)
+        // TODO: Could filter based on parent LEGO visibility
+        newSet.add(node.id)
+      }
+    }
+
+    prebuiltNetwork.revealedNodeIds.value = newSet
+    prebuiltNetwork.heroNodeId.value = null
+    prebuiltNetwork.panOffset.value = { x: 0, y: 0 }
+
+    console.log(`[BrainView] Standalone mode: showing ${newSet.size} nodes for ${completedSeeds} completed seeds`)
+    return
+  }
+
+  // Legacy: slider-based visibility (if allRounds exists)
   // Build new Set first, then assign to trigger Vue reactivity
-  // (Set mutations like .add() don't trigger reactive updates)
   const newSet = new Set<string>()
   for (let i = 0; i < count && i < allRounds.value.length; i++) {
     const legoId = allRounds.value[i]?.legoId
@@ -466,7 +495,7 @@ function updateVisibility(count: number) {
       newSet.add(legoId)
     }
   }
-  prebuiltNetwork.revealedNodeIds.value = newSet  // Triggers reactivity
+  prebuiltNetwork.revealedNodeIds.value = newSet
 
   // NO hero panning - keep centered on network core
   // Clear hero to keep view centered

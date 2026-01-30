@@ -1,0 +1,380 @@
+# APML v2.0.0 - Driving Mode (Background Audio Playback)
+# SSI Learning App
+# Last Updated: 2026-01-29
+
+spec driving_mode:
+  version: "1.0.0"
+  status: "planned"
+  date: "2026-01-29"
+
+  description: |
+    Background audio playback for hands-free learning while driving, walking, or
+    doing other activities. Solves the iOS Safari limitation where changing
+    audio.src while backgrounded is blocked.
+
+    Core insight: SSi is radio, not Duolingo. The screen is theater for the sale;
+    the ears do the work. Users MUST be able to learn while looking at their satnav.
+
+    Solution: Concatenate rounds into single audio files. Each round becomes a "song"
+    that plays continuously. Use the "silent audio placeholder" trick to maintain
+    iOS audio session between rounds.
+
+  ## ==========================================================================
+  ## THE iOS PROBLEM
+  ## ==========================================================================
+
+  ios_problem:
+    issue: |
+      iOS Safari blocks audio.src changes when the page is backgrounded.
+      The Audio element that's playing continues, but starting NEW audio fails.
+      This breaks atomic file playback where each phrase is a separate file.
+
+    failed_approaches:
+      - "Web Audio API - suspended when backgrounded"
+      - "Multiple Audio elements - src change still blocked"
+      - "Media Source Extensions - limited iOS support"
+      - "Service Worker audio - no DOM/AudioContext access"
+
+    solution: |
+      1. Concatenate all audio for a round into a single file (audio sprite)
+      2. Play single file - no src changes needed during round
+      3. Use "silent audio placeholder" trick between rounds
+      4. Media Session API provides lock screen and car controls
+
+  ## ==========================================================================
+  ## SILENT AUDIO PLACEHOLDER TRICK
+  ## ==========================================================================
+
+  silent_audio_trick:
+    purpose: "Keep iOS audio session alive between rounds"
+
+    how_it_works: |
+      iOS revokes audio permissions when playback STOPS.
+      By playing silent audio just before the main track ends,
+      the audio session never terminates, so the page retains
+      playback privileges for the next track.
+
+    implementation:
+      timing: "Start silent audio ~1 second before main audio ends"
+      file: "1 second of silence (generated via Web Audio API, ~2KB)"
+      element: "Separate Audio element with loop=true"
+
+    sequence:
+      1: "mainAudio playing round N..."
+      2: "timeRemaining < 1 second"
+      3: "silentAudio.play() - keeps session alive"
+      4: "mainAudio 'ended' event fires"
+      5: "mainAudio.src = round N+1 blob URL"
+      6: "mainAudio.play() - WORKS because session active"
+      7: "silentAudio.pause()"
+      8: "Repeat for next round"
+
+    source: "Battle-tested by SoundWheel and other production audio apps"
+
+  ## ==========================================================================
+  ## ROUND AS SONG METAPHOR
+  ## ==========================================================================
+
+  round_as_song:
+    description: |
+      Each round (~5 minutes, ~21 cycles) is treated as a single "song".
+      Users see familiar music player controls on lock screen and car dashboard.
+
+    user_experience:
+      lock_screen:
+        title: "Round 3 of 12"
+        artist: "SSi Spanish"
+        album: "Driving Mode"
+        controls: ["previous", "play/pause", "next", "scrubber"]
+
+      car_bluetooth:
+        steering_wheel_buttons: "Skip to next/previous round"
+        dashboard_display: "Basic metadata (varies by car)"
+        carplay: "NOT SUPPORTED - requires native app"
+
+    why_5_minutes: |
+      ~21 cycles × ~12 seconds = ~4-5 minutes per round
+      Long enough to be meaningful, short enough to feel like progress
+      Natural break points for user-initiated skipping
+
+  ## ==========================================================================
+  ## AUDIO CONCATENATION
+  ## ==========================================================================
+
+  audio_concatenation:
+    purpose: "Create single audio file per round for uninterrupted playback"
+    file: "packages/player-vue/src/utils/audioConcatenator.ts"
+
+    process:
+      1: "Fetch all audio files for round (via getAudioSource)"
+      2: "Decode to AudioBuffers using AudioContext.decodeAudioData()"
+      3: "Create silence buffers for PAUSE phases (4 seconds)"
+      4: "Concatenate in cycle order: KNOWN → PAUSE → VOICE1 → VOICE2"
+      5: "Add small gaps (200ms) between audio files"
+      6: "Encode to WAV blob (16-bit PCM, 44.1kHz)"
+      7: "Return blob URL + segment timestamps"
+
+    output:
+      blob: "WAV audio blob (~15MB for 5 minutes)"
+      blobUrl: "Object URL for playback"
+      segments: "Array of {id, phase, startTime, endTime, cycleIndex}"
+      totalDuration: "Total length in seconds"
+
+    performance:
+      fetch_30_files: "200-500ms on mobile"
+      decode: "500-1500ms on mobile"
+      concatenate: "50-100ms"
+      encode_wav: "100-200ms"
+      total: "1-3 seconds on mobile"
+      memory_peak: "~50MB during processing"
+
+    why_wav_not_mp3: |
+      - Simpler encoding (no lamejs dependency)
+      - Reliable seeking (no VBR issues)
+      - Size acceptable (~15MB for 5 min, temporary blob)
+      - Faster encoding than MP3
+
+  ## ==========================================================================
+  ## SEGMENT TRACKING
+  ## ==========================================================================
+
+  segment_tracking:
+    purpose: "Map currentTime to cycle/phase for position tracking and resume"
+
+    segment_structure:
+      id: "Audio ID or generated ID for silence"
+      phase: "'known' | 'pause' | 'voice1' | 'voice2'"
+      startTime: "Seconds from start of concatenated audio"
+      endTime: "Seconds from start of concatenated audio"
+      cycleIndex: "0-based index of cycle within round"
+
+    usage:
+      during_playback: |
+        Track mainAudio.currentTime
+        Find segment where startTime <= currentTime < endTime
+        Update Media Session metadata based on phase
+        Notify position callbacks
+
+      on_exit: |
+        Map current segment to {roundIndex, cycleIndex, phase}
+        Return position for normal mode resume
+        SessionController.jumpToPosition(roundIndex, cycleIndex)
+
+  ## ==========================================================================
+  ## CHAIN LOADING
+  ## ==========================================================================
+
+  chain_loading:
+    purpose: "Seamless round-to-round transitions without upfront wait"
+
+    strategy: |
+      While playing round N, concatenate round N+1 in background.
+      When round N ends, immediately switch to round N+1.
+      Start concatenating round N+2.
+      Repeat until session complete or user exits.
+
+    state_machine:
+      preparing: "Concatenating first round (user sees progress)"
+      playing: "Playing current round"
+      loading_next: "Playing AND concatenating next round"
+      paused: "Playback paused by user"
+      inactive: "Not in driving mode"
+
+    memory_management: |
+      Only keep current + next round in memory
+      Call URL.revokeObjectURL() after switching rounds
+      Peak memory: ~30MB (2 × 15MB blobs)
+
+  ## ==========================================================================
+  ## MEDIA SESSION API
+  ## ==========================================================================
+
+  media_session:
+    purpose: "Lock screen and car bluetooth controls"
+    file: "Integrated in useDrivingMode.ts"
+
+    metadata:
+      title: "Round {N} of {total}"
+      artist: "SSi Learning"
+      album: "Driving Mode"
+      artwork: "Belt-colored icon (192px, 512px)"
+
+    action_handlers:
+      play: "Resume playback"
+      pause: "Pause playback"
+      nexttrack: "Skip to next round (loads if needed)"
+      previoustrack: "Restart current or go to previous round"
+      seekbackward: "Seek back 10 seconds"
+      seekforward: "Seek forward 10 seconds"
+      seekto: "Direct seek (scrubber)"
+
+    position_state:
+      duration: "Round total duration"
+      playbackRate: "1.0"
+      position: "Current time in round"
+      update_frequency: "Every animation frame during playback"
+
+    user_gesture_note: |
+      Media Session action handlers ARE treated as user gestures on iOS
+      (fixed in WebKit May 2021, bug #225875).
+      This means nexttrack/previoustrack CAN change audio.src.
+
+  ## ==========================================================================
+  ## SESSION CONTROLLER INTEGRATION
+  ## ==========================================================================
+
+  session_controller_additions:
+    file: "packages/player-vue/src/playback/SessionController.ts"
+
+    new_methods:
+      getCyclesForRound:
+        signature: "(roundIndex: number) => Cycle[]"
+        purpose: "Get all playable cycles for a round (for concatenation)"
+
+      getCyclesForRoundRange:
+        signature: "(startRound: number, count: number) => Cycle[]"
+        purpose: "Get cycles for multiple rounds (batch concatenation)"
+
+      jumpToPosition:
+        signature: "(roundIndex: number, itemIndex: number) => void"
+        purpose: "Resume normal mode at specific position"
+
+      getAudioSourceFn:
+        signature: "() => GetAudioSourceFn | null"
+        purpose: "Expose audio source for driving mode to use"
+
+    new_computed:
+      currentRoundIndex: "Expose internal round index"
+      totalRounds: "Total number of loaded rounds"
+
+  ## ==========================================================================
+  ## DATA FLOW
+  ## ==========================================================================
+
+  data_flow:
+    enter_driving_mode:
+      flow: |
+        User taps "Driving Mode" button
+          → state = 'preparing'
+          → getCyclesForRound(currentRoundIndex)
+          → concatenateRound(cycles, getAudioSource)
+          → ~2-3 seconds processing
+          → mainAudio.src = blobUrl
+          → mainAudio.play()
+          → setupMediaSession()
+          → state = 'playing'
+          → Background: concatenate next round
+
+    during_playback:
+      flow: |
+        mainAudio playing...
+          → trackPosition() via requestAnimationFrame
+          → Map currentTime to segment
+          → Update Media Session position state
+          → When timeRemaining < 1s: silentAudio.play()
+          → When 'ended': switchToNextRound()
+
+    switch_round:
+      flow: |
+        mainAudio 'ended' fires
+          → silentAudio already playing (session alive)
+          → revokeObjectURL(currentRound.blobUrl)
+          → mainAudio.src = nextRound.blobUrl
+          → mainAudio.play()
+          → silentAudio.pause()
+          → updateMediaSessionMetadata()
+          → Background: concatenate round after next
+
+    exit_driving_mode:
+      flow: |
+        User taps "Exit" or session complete
+          → position = {roundIndex, cycleIndex, phase}
+          → cleanup() - stop audio, revoke URLs, clear handlers
+          → state = 'inactive'
+          → Return position to parent
+          → SessionController.jumpToPosition(round, cycle)
+          → Normal mode resumes
+
+  ## ==========================================================================
+  ## FILES
+  ## ==========================================================================
+
+  files:
+    new:
+      - path: "packages/player-vue/src/utils/silentAudio.ts"
+        purpose: "Generate silent WAV blob via Web Audio API"
+        exports: ["getSilentAudioUrl()"]
+
+      - path: "packages/player-vue/src/utils/audioConcatenator.ts"
+        purpose: "Concatenate audio files into single WAV blob"
+        exports: ["concatenateRound()", "AudioSegment", "ConcatenatedAudio"]
+
+      - path: "packages/player-vue/src/composables/useDrivingMode.ts"
+        purpose: "Main driving mode orchestrator"
+        exports: ["useDrivingMode()", "DrivingModeState", "DrivingModePosition"]
+
+      - path: "packages/player-vue/src/components/DrivingModeToggle.vue"
+        purpose: "UI component for entering/exiting driving mode"
+
+    modified:
+      - path: "packages/player-vue/src/playback/SessionController.ts"
+        changes: |
+          Add getCyclesForRound(), getCyclesForRoundRange(),
+          jumpToPosition(), getAudioSourceFn(),
+          Expose currentRoundIndex and totalRounds
+
+      - path: "packages/player-vue/src/components/LearningPlayer.vue"
+        changes: "Add DrivingModeToggle component"
+
+  ## ==========================================================================
+  ## QUALITY REQUIREMENTS
+  ## ==========================================================================
+
+  quality_requirements:
+    must_have:
+      - "Background audio continues on iOS Safari when app backgrounded"
+      - "Lock screen controls work (play/pause/skip)"
+      - "Car bluetooth controls work (steering wheel buttons)"
+      - "Seamless round-to-round transitions (< 500ms gap)"
+      - "Correct position tracking for resume"
+      - "Memory cleanup (no blob URL leaks)"
+
+    should_have:
+      - "< 3 second preparation time for first round"
+      - "Visual feedback during preparation"
+      - "Graceful handling if next round not ready"
+
+    wont_have_v1:
+      - "CarPlay integration (requires native app)"
+      - "Android Auto integration (requires native app)"
+      - "Text display updates while backgrounded"
+      - "Playback speed adjustment"
+
+  ## ==========================================================================
+  ## TESTING CHECKLIST
+  ## ==========================================================================
+
+  testing_checklist:
+    ios_safari:
+      - "Background audio continues when switching apps"
+      - "Background audio continues when locking screen"
+      - "Lock screen controls visible and functional"
+      - "Round transitions work while backgrounded"
+      - "Skip next/previous works from lock screen"
+      - "Returning to app shows correct position"
+
+    android_chrome:
+      - "Background audio continues"
+      - "Notification controls visible"
+      - "Bluetooth controls work"
+
+    desktop:
+      - "Media keys work (if applicable)"
+      - "Tab can be backgrounded"
+
+    edge_cases:
+      - "Enter driving mode mid-round"
+      - "Exit driving mode mid-cycle"
+      - "Last round completes"
+      - "Skip when next round not loaded yet"
+      - "Low memory conditions"

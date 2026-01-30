@@ -1714,6 +1714,8 @@ const {
   isFullNetworkLoaded,
   loadMinimalConstellation,
   stats: networkStats,
+  reset: resetNetwork,  // Reset network on belt skip
+  prebuiltNetwork,      // Direct access for clearing revealed nodes
 } = distinctionNetwork
 
 // Backwards compatibility aliases
@@ -4016,11 +4018,18 @@ const handleSkipToNextBelt = async () => {
   isSkippingBelt.value = true
   try {
     const targetSeed = nextBelt.value.seedsRequired
-    const targetIndex = Math.max(0, targetSeed - 1)
-    console.log(`[LearningPlayer] Skipping to ${nextBelt.value.name} belt - seed ${targetSeed}, roundIndex ${targetIndex}`)
+    console.log(`[LearningPlayer] Skipping to ${nextBelt.value.name} belt - seed ${targetSeed}`)
 
-    // Use simplePlayer to jump to round (0-indexed, so targetSeed - 1)
-    simplePlayer.jumpToRound(targetIndex)
+    // Reset the brain network for fresh start at new belt
+    // This keeps the network lightweight during belt skipping
+    if (prebuiltNetwork?.revealedNodeIds) {
+      prebuiltNetwork.revealedNodeIds.value = new Set<string>()
+      console.log('[LearningPlayer] Reset brain network for belt skip')
+    }
+
+    // Use jumpToSeed to correctly map seed number to round index
+    // (1 seed can have multiple LEGOs/rounds)
+    simplePlayer.jumpToSeed(targetSeed)
 
     // Update belt progress to match (uses absolute seed number)
     if (beltProgress.value) {
@@ -4052,12 +4061,15 @@ const handleGoBackBelt = async () => {
   try {
     // goBackToBeltStart updates belt progress and returns target seed
     const targetSeed = beltProgress.value.goBackToBeltStart()
-    const targetIndex = Math.max(0, targetSeed - 1)
-    console.log(`[LearningPlayer] Going back - seed ${targetSeed}, roundIndex ${targetIndex}`)
+    console.log(`[LearningPlayer] Going back to seed ${targetSeed}`)
 
-    // Use simplePlayer to jump to round (0-indexed, so targetSeed - 1)
-    // Math.max(0, ...) ensures we don't go negative (White belt edge case)
-    simplePlayer.jumpToRound(targetIndex)
+    // Use jumpToSeed to correctly map seed number to round index
+    // Handle edge case: seed 0 (white belt) means go to round 0
+    if (targetSeed === 0) {
+      simplePlayer.jumpToRound(0)
+    } else {
+      simplePlayer.jumpToSeed(targetSeed)
+    }
 
     console.log(`[LearningPlayer] handleGoBackBelt: complete, now at seed ${targetSeed}`)
   } finally {
@@ -4083,9 +4095,13 @@ const handleSkipToBeltFromModal = async (belt) => {
 
   isSkippingBelt.value = true
   try {
-    // Use simplePlayer to jump to round (0-indexed, so targetSeed - 1)
-    // Math.max(0, ...) ensures we don't go negative (White belt edge case)
-    simplePlayer.jumpToRound(Math.max(0, targetSeed - 1))
+    // Use jumpToSeed to correctly map seed number to round index
+    // Handle edge case: seed 0 (white belt) means go to round 0
+    if (targetSeed === 0) {
+      simplePlayer.jumpToRound(0)
+    } else {
+      simplePlayer.jumpToSeed(targetSeed)
+    }
 
     // Update belt progress to match
     if (beltProgress.value) {
@@ -4991,14 +5007,20 @@ onMounted(async () => {
               simplePlayer.initialize(simpleRounds as any)
               console.log('[LearningPlayer] SimplePlayer initialized with simple script')
 
-              // Restore position based on belt progress (completedRounds)
-              const startingRound = beltProgress.value?.completedRounds.value ?? 0
-              if (startingRound > 0 && startingRound < simpleRounds.length) {
-                console.log(`[LearningPlayer] Restoring position: jumping to round ${startingRound} (${startingRound} seeds completed)`)
-                simplePlayer.jumpToRound(startingRound)
-              } else if (startingRound >= simpleRounds.length) {
-                console.log(`[LearningPlayer] Progress (${startingRound}) exceeds loaded rounds (${simpleRounds.length}) - starting at last round`)
-                simplePlayer.jumpToRound(simpleRounds.length - 1)
+              // Restore position based on belt progress (completedRounds = completed seeds)
+              // If learner completed N seeds, they should start at seed N+1
+              const completedSeeds = beltProgress.value?.completedRounds.value ?? 0
+              if (completedSeeds > 0) {
+                const nextSeed = completedSeeds + 1
+                const roundIndex = simplePlayer.findRoundIndexForSeed(nextSeed)
+                if (roundIndex >= 0) {
+                  console.log(`[LearningPlayer] Restoring position: ${completedSeeds} seeds completed → starting at seed ${nextSeed} (round ${roundIndex})`)
+                  simplePlayer.jumpToRound(roundIndex)
+                } else {
+                  // Seed not found - might be past end of course, start at last round
+                  console.log(`[LearningPlayer] Seed ${nextSeed} not found - starting at last round`)
+                  simplePlayer.jumpToRound(simpleRounds.length - 1)
+                }
               }
 
               // Store for legacy code
@@ -5125,15 +5147,20 @@ onMounted(async () => {
             simplePlayer.initialize(simpleRounds as any)
             console.log('[LearningPlayer] SimplePlayer initialized with', simpleRounds.length, 'rounds')
 
-            // Restore position based on belt progress (completedRounds)
-            // If learner has completed N seeds, they should start at round N (0-indexed: N)
-            const startingRound = beltProgress.value?.completedRounds.value ?? 0
-            if (startingRound > 0 && startingRound < simpleRounds.length) {
-              console.log(`[LearningPlayer] Restoring position: jumping to round ${startingRound} (${startingRound} seeds completed)`)
-              simplePlayer.jumpToRound(startingRound)
-            } else if (startingRound >= simpleRounds.length) {
-              console.log(`[LearningPlayer] Progress (${startingRound}) exceeds loaded rounds (${simpleRounds.length}) - starting at last round`)
-              simplePlayer.jumpToRound(simpleRounds.length - 1)
+            // Restore position based on belt progress (completedRounds = completed seeds)
+            // If learner completed N seeds, they should start at seed N+1
+            const completedSeeds = beltProgress.value?.completedRounds.value ?? 0
+            if (completedSeeds > 0) {
+              const nextSeed = completedSeeds + 1
+              const roundIndex = simplePlayer.findRoundIndexForSeed(nextSeed)
+              if (roundIndex >= 0) {
+                console.log(`[LearningPlayer] Restoring position: ${completedSeeds} seeds completed → starting at seed ${nextSeed} (round ${roundIndex})`)
+                simplePlayer.jumpToRound(roundIndex)
+              } else {
+                // Seed not found - might be past end of course, start at last round
+                console.log(`[LearningPlayer] Seed ${nextSeed} not found - starting at last round`)
+                simplePlayer.jumpToRound(simpleRounds.length - 1)
+              }
             }
 
             // Build LEGO map for network visualization
