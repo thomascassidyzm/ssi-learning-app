@@ -3,6 +3,7 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 // Lazy-loaded views
 const PlayerContainer = () => import('@/containers/PlayerContainer.vue')
 const SchoolsContainer = () => import('@/containers/SchoolsContainer.vue')
+const SimpleSessionTest = () => import('@/components/SimpleSessionTest.vue')
 
 // Schools views (lazy-loaded)
 const DashboardView = () => import('@/views/schools/DashboardView.vue')
@@ -92,6 +93,15 @@ const routes: RouteRecordRaw[] = [
         },
       },
     ],
+  },
+  // Test route for simple session flow
+  {
+    path: '/test/simple-session',
+    name: 'simple-session-test',
+    component: SimpleSessionTest,
+    meta: {
+      title: 'Simple Session Test',
+    },
   },
   // Catch-all redirect to player
   {

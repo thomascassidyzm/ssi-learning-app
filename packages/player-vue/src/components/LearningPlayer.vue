@@ -31,6 +31,9 @@ import { buildRounds, calculateSpacedRepReviews } from '../playback/RoundBuilder
 import { DEFAULT_PLAYBACK_CONFIG } from '../playback/PlaybackConfig'
 import type { Round as BuilderRound } from '../playback/types'
 import type { LegoPair, SeedPair, ClassifiedBasket } from '@ssi/core'
+// New simple script generation - direct database queries
+import { generateLearningScript as generateSimpleScript } from '../providers/generateLearningScript'
+import { toSimpleRounds } from '../providers/toSimpleRounds'
 // Legacy generateLearningScript (deprecated - returns empty data)
 import { generateLearningScript } from '../providers/CourseDataProvider'
 // Prebuilt network: positions pre-calculated, pans to hero via CSS
@@ -328,6 +331,7 @@ const effectiveItemInRound = currentItemInRound
 
 // Legacy configuration flags
 const USE_SESSION_CONTROLLER = ref(true)  // Enable new SimplePlayer path
+const USE_SIMPLE_SCRIPT = ref(true)  // Use new generateLearningScript → toSimpleRounds flow
 const playbackGeneration = ref(0)  // Counter for playback generation tracking
 const scriptBaseOffset = ref(0)  // Base offset for script loading
 
@@ -4949,18 +4953,47 @@ onMounted(async () => {
       if (USE_SESSION_CONTROLLER.value && courseDataProvider.value) {
         console.log('[LearningPlayer] Initializing SimplePlayer...')
         try {
-          // Load learning items from database
-          const items = await courseDataProvider.value.loadSessionItems(1, 300)
-          console.log('[LearningPlayer] Loaded', items.length, 'items from database')
+          // ============================================
+          // NEW SIMPLE PATH: generateLearningScript → toSimpleRounds
+          // ============================================
+          if (USE_SIMPLE_SCRIPT.value && supabase?.value) {
+            console.log('[LearningPlayer] Using simple script generation...')
+            const result = await generateSimpleScript(supabase.value, courseCode.value, 1, 30)
+            console.log(`[LearningPlayer] Generated ${result.items.length} script items (${result.roundCount} rounds)`)
 
-          if (items.length > 0) {
-            // ============================================
-            // FULL ROUND BUILDING - INTRO, DEBUT, BUILD, REVIEW, CONSOLIDATE
-            // ============================================
+            if (result.items.length > 0) {
+              const simpleRounds = toSimpleRounds(result.items)
+              console.log(`[LearningPlayer] Converted to ${simpleRounds.length} SimplePlayer rounds`)
 
-            // 1. Convert LearningItems to LegoPair[] and SeedPair[]
-            const legoMap = new Map<string, LegoPair>()
-            const seedMap = new Map<string, SeedPair>()
+              // Debug: show first 3 rounds
+              simpleRounds.slice(0, 3).forEach((r, i) => {
+                console.log(`[LearningPlayer] Round ${i + 1}: ${r.cycles.length} cycles, legoId=${r.legoId}`)
+              })
+
+              simplePlayer.initialize(simpleRounds as any)
+              console.log('[LearningPlayer] SimplePlayer initialized with simple script')
+
+              // Store for legacy code
+              loadedRounds.value = simpleRounds as any
+            } else {
+              console.warn('[LearningPlayer] No script items generated')
+            }
+          } else {
+            // ============================================
+            // LEGACY PATH: loadSessionItems → RoundBuilder → adaptRoundsForPlayer
+            // ============================================
+            // Load learning items from database
+            const items = await courseDataProvider.value.loadSessionItems(1, 300)
+            console.log('[LearningPlayer] Loaded', items.length, 'items from database')
+
+            if (items.length > 0) {
+              // ============================================
+              // FULL ROUND BUILDING - INTRO, DEBUT, BUILD, REVIEW, CONSOLIDATE
+              // ============================================
+
+              // 1. Convert LearningItems to LegoPair[] and SeedPair[]
+              const legoMap = new Map<string, LegoPair>()
+              const seedMap = new Map<string, SeedPair>()
 
             for (const item of items) {
               // Convert to LegoPair format
@@ -5076,6 +5109,7 @@ onMounted(async () => {
               }
             }
             console.log('[LearningPlayer] Built LEGO map from rounds:', legoMapFromRounds.size, 'LEGOs')
+            }
           }
           console.log('[LearningPlayer] SimplePlayer initialized successfully')
 
