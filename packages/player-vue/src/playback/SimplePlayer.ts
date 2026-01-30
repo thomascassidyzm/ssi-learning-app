@@ -87,6 +87,59 @@ export class SimplePlayer {
     }
   }
 
+  get roundCount(): number {
+    return this.rounds.length
+  }
+
+  // Dynamic round management (for priority loading)
+
+  /**
+   * Add rounds to the player. Rounds are inserted at the correct position
+   * based on their roundNumber to maintain order.
+   */
+  addRounds(newRounds: Round[]): void {
+    if (newRounds.length === 0) return
+
+    // Insert each round at the correct position based on roundNumber
+    for (const round of newRounds) {
+      // Find insertion point (maintain ascending roundNumber order)
+      const insertIndex = this.rounds.findIndex(r => r.roundNumber > round.roundNumber)
+      if (insertIndex === -1) {
+        // Append to end
+        this.rounds.push(round)
+      } else {
+        // Check if round already exists at this position
+        if (this.rounds[insertIndex - 1]?.roundNumber === round.roundNumber) {
+          continue // Skip duplicate
+        }
+        this.rounds.splice(insertIndex, 0, round)
+      }
+    }
+
+    console.log(`[SimplePlayer] Added ${newRounds.length} rounds, total now: ${this.rounds.length}`)
+  }
+
+  /**
+   * Check if a round exists by its roundNumber
+   */
+  hasRound(roundNumber: number): boolean {
+    return this.rounds.some(r => r.roundNumber === roundNumber)
+  }
+
+  /**
+   * Get round by roundNumber (not index)
+   */
+  getRoundByNumber(roundNumber: number): Round | undefined {
+    return this.rounds.find(r => r.roundNumber === roundNumber)
+  }
+
+  /**
+   * Find the index of a round by its roundNumber
+   */
+  findRoundIndex(roundNumber: number): number {
+    return this.rounds.findIndex(r => r.roundNumber === roundNumber)
+  }
+
   // Controls
   play(): void {
     if (this.state.isPlaying) return

@@ -24,6 +24,7 @@ export interface UseSimplePlayerReturn {
   targetText: ComputedRef<string>
   showTargetText: ComputedRef<boolean>
   progress: ComputedRef<{ round: number; total: number; percent: number }>
+  roundCount: ComputedRef<number>
   initialize: (rounds: Round[]) => void
   play: () => void
   pause: () => void
@@ -34,6 +35,8 @@ export interface UseSimplePlayerReturn {
   jumpToRound: (index: number) => void
   jumpToSeed: (seedNumber: number) => void
   findRoundIndexForSeed: (seedNumber: number) => number
+  addRounds: (rounds: Round[]) => void
+  hasRound: (roundNumber: number) => boolean
   onPhaseChanged: (callback: (phase: Phase) => void) => void
   onCycleCompleted: (callback: (cycle: Cycle) => void) => void
   onRoundCompleted: (callback: (round: Round) => void) => void
@@ -124,6 +127,9 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     return { round, total, percent }
   })
 
+  // Round count (for priority loading progress)
+  const roundCount = computed(() => roundsRef.value.length)
+
   // Methods (passthrough to player)
   const play = () => player?.play()
   const pause = () => player?.pause()
@@ -161,6 +167,24 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     }
   }
 
+  /**
+   * Add rounds dynamically (for priority loading).
+   * Also updates roundsRef for reactive UI updates.
+   */
+  const addRounds = (newRounds: Round[]) => {
+    if (!player || newRounds.length === 0) return
+    player.addRounds(newRounds)
+    // Update reactive ref to trigger UI updates
+    roundsRef.value = [...roundsRef.value, ...newRounds].sort((a, b) => a.roundNumber - b.roundNumber)
+  }
+
+  /**
+   * Check if a round exists by roundNumber
+   */
+  const hasRound = (roundNumber: number): boolean => {
+    return player?.hasRound(roundNumber) ?? false
+  }
+
   // Event hooks
   const onPhaseChanged = (callback: (phase: Phase) => void) => { phaseCallbacks.push(callback) }
   const onCycleCompleted = (callback: (cycle: Cycle) => void) => { cycleCallbacks.push(callback) }
@@ -189,6 +213,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     targetText,
     showTargetText,
     progress,
+    roundCount,
     initialize,
     play,
     pause,
@@ -199,6 +224,8 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     jumpToRound,
     jumpToSeed,
     findRoundIndexForSeed,
+    addRounds,
+    hasRound,
     onPhaseChanged,
     onCycleCompleted,
     onRoundCompleted,
