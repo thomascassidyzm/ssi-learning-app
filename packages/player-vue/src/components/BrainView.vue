@@ -32,10 +32,46 @@ import type { SessionController } from '../playback/SessionController'
 
 class TargetAudioController {
   private audio: HTMLAudioElement | null = null
+  private isUnlocked = false
+
+  constructor() {
+    // Create audio element immediately for mobile compatibility
+    this.audio = new Audio()
+    // Enable cross-origin for S3 audio
+    this.audio.crossOrigin = 'anonymous'
+  }
+
+  /**
+   * Unlock audio on iOS/Safari - must be called from user gesture
+   * Returns immediately if already unlocked
+   */
+  async unlock(): Promise<void> {
+    if (this.isUnlocked || !this.audio) return
+
+    try {
+      // Play silent audio to unlock the audio context
+      // This must happen in response to a user gesture
+      this.audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'
+      this.audio.volume = 0
+      await this.audio.play()
+      this.audio.pause()
+      this.audio.volume = 1
+      this.isUnlocked = true
+      console.log('[TargetAudioController] Audio unlocked for mobile')
+    } catch (err) {
+      console.warn('[TargetAudioController] Failed to unlock audio:', err)
+    }
+  }
 
   async play(url: string, speed: number = 1): Promise<void> {
     if (!this.audio) {
       this.audio = new Audio()
+      this.audio.crossOrigin = 'anonymous'
+    }
+
+    // Try to unlock if not already (may fail if not user gesture)
+    if (!this.isUnlocked) {
+      await this.unlock()
     }
 
     this.audio.src = url
@@ -51,6 +87,7 @@ class TargetAudioController {
       const onError = (e: Event) => {
         this.audio?.removeEventListener('ended', onEnded)
         this.audio?.removeEventListener('error', onError)
+        console.error('[TargetAudioController] Playback error:', e)
         reject(e)
       }
 
@@ -58,7 +95,10 @@ class TargetAudioController {
       this.audio!.addEventListener('error', onError)
 
       this.audio!.playbackRate = speed
-      this.audio!.play().catch(onError)
+      this.audio!.play().catch((err) => {
+        console.error('[TargetAudioController] Play failed:', err)
+        onError(err)
+      })
     })
   }
 
@@ -417,6 +457,21 @@ const currentBeltIndex = computed(() => {
   return 0
 })
 
+// Loading message - friendly text while brain builds
+const loadingMessages = [
+  'Building your brain...',
+  'Getting your neural network ready...',
+  'Connecting the neurons...',
+]
+const loadingMessage = computed(() => {
+  const lang = languageName.value
+  if (lang) {
+    return `Building your brain for ${lang}...`
+  }
+  // Random message if no language yet
+  return loadingMessages[Math.floor(Math.random() * loadingMessages.length)]
+})
+
 // Search results - filter nodes by target or known text
 const searchResults = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
@@ -509,6 +564,12 @@ function updateVisibility(count: number) {
  * Mobile: Show subtitle overlay (keeps brain visible for fire path animation)
  */
 async function handleNodeTap(node: ConstellationNode) {
+  // Unlock audio on first interaction (required for iOS/Safari)
+  if (!audioController.value) {
+    audioController.value = new TargetAudioController()
+  }
+  await audioController.value.unlock()
+
   selectedNode.value = node
   currentPhraseIndex.value = 0
   isPracticingPhrases.value = false
@@ -891,14 +952,31 @@ async function playPhrase(phrase: PhraseWithPath) {
     }
 
     if (phraseData) {
-      // Prefer target2 (reveal voice), fallback to target1
-      const s3Key = phraseData.target2_s3_key || phraseData.target1_s3_key
+      // Randomly pick between target1 and target2 for variety
+      // If only one exists, use that one
+      let s3Key: string | null = null
+      let audioDuration = 2000
+
+      const hasTarget1 = !!phraseData.target1_s3_key
+      const hasTarget2 = !!phraseData.target2_s3_key
+
+      if (hasTarget1 && hasTarget2) {
+        // Both available - pick randomly
+        const useTarget1 = Math.random() < 0.5
+        s3Key = useTarget1 ? phraseData.target1_s3_key : phraseData.target2_s3_key
+        audioDuration = useTarget1
+          ? (phraseData.target1_duration_ms || 2000)
+          : (phraseData.target2_duration_ms || 2000)
+        console.log('[BrainView] Using', useTarget1 ? 'target1' : 'target2', 'voice')
+      } else {
+        // Only one available - use whichever exists
+        s3Key = phraseData.target2_s3_key || phraseData.target1_s3_key
+        audioDuration = phraseData.target2_duration_ms || phraseData.target1_duration_ms || 2000
+      }
+
       if (s3Key) {
         const audioUrl = `${AUDIO_S3_BASE_URL}/${s3Key}`
         console.log('[BrainView] Playing phrase:', phrase.targetText, audioUrl)
-
-        // Get audio duration from database (prefer target2, fallback to target1, default 2000ms)
-        const audioDuration = phraseData.target2_duration_ms || phraseData.target1_duration_ms || 2000
 
         // Start fire path animation synchronized with audio
         animateFirePath(phrase.legoPath, audioDuration)
@@ -1247,7 +1325,7 @@ onUnmounted(() => {
       <!-- Loading state -->
       <div v-if="isLoading" class="loading-state">
         <div class="loading-spinner"></div>
-        <p>Loading neural network...</p>
+        <p class="loading-message">{{ loadingMessage }}</p>
       </div>
 
       <!-- Error state -->

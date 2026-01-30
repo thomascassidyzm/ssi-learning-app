@@ -398,11 +398,12 @@ const loadSummary = async () => {
         .from('course_legos')
         .select('lego_id', { count: 'exact', head: true })
         .eq('course_code', courseId)
+        .eq('is_new', true)  // Only count NEW LEGOs (= ROUNDs)
     ])
 
     totalSeeds.value = seedResult.count || 0
     totalLegos.value = legoResult.count || 0
-    console.log('[CourseExplorer] Summary loaded:', totalSeeds.value, 'seeds,', totalLegos.value, 'LEGOs')
+    console.log('[CourseExplorer] Summary loaded:', totalSeeds.value, 'seeds,', totalLegos.value, 'new LEGOs (rounds)')
   } catch (err) {
     console.warn('[CourseExplorer] Summary load error:', err)
   } finally {

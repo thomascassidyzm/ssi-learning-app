@@ -274,7 +274,8 @@ export function useFullCourseScript() {
       // 2. Extract LEGOs and Seeds
       const legos = extractLegosFromLearningItems(learningItems)
       const seeds = extractSeedsFromLearningItems(learningItems)
-      console.log(`[useFullCourseScript] Extracted ${legos.length} LEGOs, ${seeds.length} seeds`)
+      const newLegos = legos.filter(l => l.new)
+      console.log(`[useFullCourseScript] Extracted ${newLegos.length} new LEGOs (rounds), ${seeds.length} seeds`)
 
       // 3. Load baskets for each LEGO
       console.log('[useFullCourseScript] Loading baskets...')
@@ -320,7 +321,7 @@ export function useFullCourseScript() {
       return {
         rounds,
         allItems,
-        totalLegos: legos.length,
+        totalLegos: newLegos.length,  // Only count NEW LEGOs (= ROUNDs)
         totalSeeds: seeds.length,
       }
 

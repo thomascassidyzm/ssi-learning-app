@@ -82,7 +82,7 @@ const DEFAULT_CONFIG: Required<BrainSceneConfig> = {
   antialias: true,
   autoRotateSpeed: 0.1,
   autoRotate: false,     // Off by default - user can enable via toggle
-  minDistance: 200,      // Can get closer for detail
+  minDistance: 50,       // Can get very close for precise node selection
   maxDistance: 1500,     // Can zoom way out
   cameraDistance: 600,   // Start far enough to see entire brain (radius ~200-400)
   fov: 60,
