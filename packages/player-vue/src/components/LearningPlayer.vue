@@ -42,6 +42,7 @@ import { useLegoNetwork } from '../composables/useLegoNetwork'
 import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
 import { useAuthModal } from '../composables/useAuthModal'
 import ConstellationNetworkView from './ConstellationNetworkView.vue'
+import PlayerBrain from './PlayerBrain.vue'
 import BeltProgressModal from './BeltProgressModal.vue'
 import ListeningOverlay from './ListeningOverlay.vue'
 
@@ -1720,7 +1721,7 @@ const networkNodes = network.nodes
 const networkLinks = network.edges
 const heroNodeId = network.heroNodeId
 const introducedLegoIds = computed(() => {
-  const ids = new Set()
+  const ids = new Set<string>()
   network.nodes.value.forEach(n => ids.add(n.id))
   return ids
 })
@@ -6051,20 +6052,18 @@ defineExpose({
     <div class="space-nebula"></div>
     <div class="bg-noise"></div>
 
-    <!-- Brain Network Visualization Layer - DISABLED pending PlayerBrain.vue integration -->
-    <!-- TODO: Replace with PlayerBrain.vue (lightweight Three.js version) -->
-    <!--
-    <ConstellationNetworkView
-      ref="networkViewRef"
-      v-bind="networkViewProps"
-      :resonating-node-ids="resonatingNodes"
-      :show-path-labels="showTargetText"
+    <!-- Brain Network Visualization Layer - PlayerBrain (lightweight Three.js) -->
+    <PlayerBrain
+      v-if="networkViewProps.nodes.length > 0"
+      :nodes="networkViewProps.nodes"
+      :edges="networkViewProps.edges"
+      :revealed-node-ids="introducedLegoIds"
+      :current-path="networkViewProps.currentPath"
+      :belt-level="currentBelt.name"
       class="brain-network-container"
       :class="{ 'network-faded': isIntroPhase }"
       @node-tap="handleNetworkNodeTap"
-      @node-hover="handleNetworkNodeHover"
     />
-    -->
 
     <!-- Hero-Centric Text Labels - Floating above/below the hero node -->
     <div class="hero-text-pane" :class="[currentPhase, { 'is-intro': isIntroPhase, 'has-hint': showLearningHint && !isIntroPhase }]">
