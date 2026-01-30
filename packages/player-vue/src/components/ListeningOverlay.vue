@@ -76,7 +76,7 @@ const props = defineProps({
   },
   /**
    * When provided, filters phrases to only show those whose LEGO is completed.
-   * When null, shows all eternal_eligible phrases (standalone mode).
+   * When null, shows all USE phrases (standalone mode).
    */
   sessionController: {
     type: Object,
@@ -124,7 +124,7 @@ let playbackId = 0
 
 /**
  * Whether we're in session mode (showing only completed LEGOs)
- * vs standalone mode (showing all eternal_eligible phrases)
+ * vs standalone mode (showing all USE phrases)
  */
 const isSessionMode = computed(() => props.sessionController !== null)
 
@@ -181,16 +181,16 @@ const loadPhrases = async (offset = 0) => {
         .from('course_practice_phrases')
         .select('*', { count: 'exact', head: true })
         .eq('course_code', props.courseCode)
-        .eq('phrase_type', 'eternal_eligible')
+        .eq('phrase_role', 'use')
 
       totalCount.value = count || 0
     }
 
     const { data, error: fetchError } = await supabase.value
       .from('course_practice_phrases')
-      .select('seed_number, lego_index, lego_id, known_text, target_text, position')
+      .select('seed_number, lego_index, known_text, target_text, position')
       .eq('course_code', props.courseCode)
-      .eq('phrase_type', 'eternal_eligible')
+      .eq('phrase_role', 'use')
       .order('seed_number', { ascending: true })
       .order('lego_index', { ascending: true })
       .order('position', { ascending: true })
@@ -199,11 +199,12 @@ const loadPhrases = async (offset = 0) => {
     if (fetchError) throw fetchError
 
     if (data && data.length > 0) {
+      // Construct legoId from seed_number and lego_index
       const newPhrases = data.map((p, i) => ({
         id: `${p.seed_number}-${p.lego_index}-${p.position || i}`,
         seedNumber: p.seed_number,
         legoIndex: p.lego_index,
-        legoId: p.lego_id,  // For session mode filtering
+        legoId: `S${String(p.seed_number).padStart(4, '0')}L${String(p.lego_index).padStart(2, '0')}`,
         knownText: p.known_text,
         targetText: p.target_text,
         position: p.position

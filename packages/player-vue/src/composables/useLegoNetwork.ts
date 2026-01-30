@@ -390,7 +390,7 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
 
       const { data: phrases, error: err } = await supabase.value
         .from('practice_cycles')
-        .select('id, target_text, target1_duration_ms, lego_id')
+        .select('id, target_text, target1_duration_ms')
         .eq('course_code', currentCourseCode.value)
         .ilike('target_text', searchTerm)
         .order('target1_duration_ms', { ascending: false, nullsFirst: false })
