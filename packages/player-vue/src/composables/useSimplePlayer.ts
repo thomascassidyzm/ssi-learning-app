@@ -17,6 +17,7 @@ export interface UseSimplePlayerReturn {
   currentCycle: ComputedRef<Cycle | null>
   phase: ComputedRef<Phase>
   isPlaying: ComputedRef<boolean>
+  inIntroSequence: ComputedRef<boolean>
   roundIndex: ComputedRef<number>
   cycleIndex: ComputedRef<number>
   knownText: ComputedRef<string>
@@ -40,7 +41,7 @@ export interface UseSimplePlayerReturn {
 export function useSimplePlayer(): UseSimplePlayerReturn {
   // Internal state
   let player: SimplePlayer | null = null
-  const internalState = ref<PlaybackState>({ roundIndex: 0, cycleIndex: 0, phase: 'idle', isPlaying: false })
+  const internalState = ref<PlaybackState>({ roundIndex: 0, cycleIndex: 0, phase: 'idle', isPlaying: false, inIntroSequence: false })
   const roundsRef = ref<Round[]>([])
 
   // Event callback storage
@@ -83,6 +84,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   const state = computed(() => internalState.value)
   const phase = computed(() => internalState.value.phase)
   const isPlaying = computed(() => internalState.value.isPlaying)
+  const inIntroSequence = computed(() => internalState.value.inIntroSequence)
   const roundIndex = computed(() => internalState.value.roundIndex)
   const cycleIndex = computed(() => internalState.value.cycleIndex)
 
@@ -140,6 +142,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     currentCycle,
     phase,
     isPlaying,
+    inIntroSequence,
     roundIndex,
     cycleIndex,
     knownText,

@@ -19,7 +19,7 @@ export interface SimpleRound {
   roundNumber: number
   legoId: string
   seedId: string
-  introAudioUrl?: string
+  introAudioUrl?: string  // "The Spanish for X is..." - voice1/voice2 come from cycles[0]
   cycles: SimpleCycle[]
 }
 
@@ -39,7 +39,8 @@ function adaptRound(round: BuilderRound): SimpleRound {
 
   for (const item of round.items) {
     if (item.type === 'intro') {
-      // Extract intro audio URL
+      // Extract presentation audio URL only
+      // voice1/voice2 for intro come from cycles[0] (the LEGO debut)
       introAudioUrl = item.presentationAudio?.url
     } else {
       // Convert to cycle
@@ -75,10 +76,11 @@ function adaptScriptItemToCycle(item: ScriptItem): SimpleCycle | null {
     return null
   }
 
-  // Calculate pause duration: 2x target audio length, or default 4s
+  // Calculate pause duration: 2x target audio length, or default 4000ms
+  // audioDurations are in seconds, SimplePlayer expects milliseconds
   const pauseDuration = audioDurations
-    ? (audioDurations.target1 + audioDurations.target2)
-    : 4
+    ? Math.round((audioDurations.target1 + audioDurations.target2) * 1000)
+    : 4000
 
   return {
     id: `${item.legoId}-${item.type}-${item.roundNumber}`,

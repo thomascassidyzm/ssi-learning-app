@@ -549,6 +549,49 @@ export class CourseDataProvider {
   }
 
   /**
+   * Batch load introduction audio for multiple LEGOs
+   * More efficient than individual getIntroductionAudio calls (one query instead of N)
+   * @param legoIds - Array of LEGO IDs to load intro audio for
+   * @returns Map of legoId -> intro audio ref
+   */
+  async getIntroductionAudioBatch(legoIds: string[]): Promise<Map<string, {
+    id: string
+    url: string
+    duration_ms?: number
+  }>> {
+    const result = new Map<string, { id: string; url: string; duration_ms?: number }>()
+
+    if (!this.client || legoIds.length === 0) return result
+
+    try {
+      const { data, error } = await this.client
+        .from('course_audio')
+        .select('id, s3_key, duration_ms, lego_id')
+        .eq('course_code', this.courseId)
+        .eq('role', 'presentation')
+        .in('lego_id', legoIds)
+
+      if (error || !data) {
+        return result
+      }
+
+      for (const row of data) {
+        if (row.lego_id && row.id) {
+          result.set(row.lego_id, {
+            id: row.id,
+            url: this.buildProxyUrl(row.id),
+            duration_ms: row.duration_ms,
+          })
+        }
+      }
+
+      return result
+    } catch (err) {
+      return result
+    }
+  }
+
+  /**
    * Get all instruction audio for the course (played in sequence)
    * v13.1: Instructions are meta-cognitive content about the learning journey
    * These are copied from shared_audio at import time

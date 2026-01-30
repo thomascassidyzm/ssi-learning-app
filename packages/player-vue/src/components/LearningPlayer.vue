@@ -26,6 +26,11 @@ import { useOfflineCache } from '../composables/useOfflineCache'
 import { useSimplePlayer } from '../composables/useSimplePlayer'
 import { adaptRoundsForPlayer } from '../playback/roundAdapter'
 import type { Round as SimpleRound } from '../playback/SimplePlayer'
+// RoundBuilder - builds full rounds with INTRO, DEBUT, BUILD, REVIEW, CONSOLIDATE
+import { buildRounds, calculateSpacedRepReviews } from '../playback/RoundBuilder'
+import { DEFAULT_PLAYBACK_CONFIG } from '../playback/PlaybackConfig'
+import type { Round as BuilderRound } from '../playback/types'
+import type { LegoPair, SeedPair, ClassifiedBasket } from '@ssi/core'
 // Legacy generateLearningScript (deprecated - returns empty data)
 import { generateLearningScript } from '../providers/CourseDataProvider'
 // Prebuilt network: positions pre-calculated, pans to hero via CSS
@@ -4949,46 +4954,128 @@ onMounted(async () => {
           console.log('[LearningPlayer] Loaded', items.length, 'items from database')
 
           if (items.length > 0) {
-            // Convert LearningItems to rounds with both cycles (for SimplePlayer) and items (for legacy code)
-            // This is a simplified version - full RoundBuilder integration comes later
-            const simpleRounds = items.map((item, index) => {
-              const cycle = {
-                id: `${item.lego.id}-debut`,
-                known: {
-                  text: item.phrase.phrase.known,
-                  audioUrl: item.phrase.audioRefs.known.url
-                },
-                target: {
-                  text: item.phrase.phrase.target,
-                  voice1Url: item.phrase.audioRefs.target.voice1.url,
-                  voice2Url: item.phrase.audioRefs.target.voice2.url
-                },
-                pauseDuration: ((item.audioDurations?.target1 ?? 2) + (item.audioDurations?.target2 ?? 2)) * 1000,
+            // ============================================
+            // FULL ROUND BUILDING - INTRO, DEBUT, BUILD, REVIEW, CONSOLIDATE
+            // ============================================
+
+            // 1. Convert LearningItems to LegoPair[] and SeedPair[]
+            const legoMap = new Map<string, LegoPair>()
+            const seedMap = new Map<string, SeedPair>()
+
+            for (const item of items) {
+              // Convert to LegoPair format
+              if (!legoMap.has(item.lego.id)) {
+                legoMap.set(item.lego.id, {
+                  id: item.lego.id,
+                  type: item.lego.type as 'A' | 'M',
+                  new: item.lego.new,
+                  lego: item.lego.lego,
+                  audioRefs: {
+                    known: { id: item.lego.audioRefs.known.id, url: item.lego.audioRefs.known.url },
+                    target: {
+                      voice1: { id: item.lego.audioRefs.target.voice1.id, url: item.lego.audioRefs.target.voice1.url },
+                      voice2: { id: item.lego.audioRefs.target.voice2.id, url: item.lego.audioRefs.target.voice2.url },
+                    },
+                  },
+                })
               }
-              // Legacy ScriptItem format for backwards compatibility
-              const legacyItem = {
-                type: 'debut' as const,
-                roundNumber: index + 1,
-                legoId: item.lego.id,
-                legoIndex: index + 1,
-                seedId: item.seed.seed_id,
-                knownText: item.phrase.phrase.known,
-                targetText: item.phrase.phrase.target,
-                audioRefs: item.phrase.audioRefs,
-                audioDurations: item.audioDurations,
+
+              // Convert to SeedPair format
+              if (!seedMap.has(item.seed.seed_id)) {
+                seedMap.set(item.seed.seed_id, {
+                  seed_id: item.seed.seed_id,
+                  seed_pair: item.seed.seed_pair,
+                  legos: [], // Will be populated below
+                })
               }
-              return {
-                roundNumber: index + 1,
-                legoId: item.lego.id,
-                seedId: item.seed.seed_id,
-                cycles: [cycle],
-                items: [legacyItem], // Legacy compatibility
+            }
+
+            // Link LEGOs to seeds
+            for (const item of items) {
+              const seed = seedMap.get(item.seed.seed_id)
+              const lego = legoMap.get(item.lego.id)
+              if (seed && lego && !seed.legos.find((l: any) => l.id === lego.id)) {
+                seed.legos.push(lego as any)
               }
+            }
+
+            const legos = Array.from(legoMap.values())
+            const seeds = Array.from(seedMap.values())
+            console.log('[LearningPlayer] Extracted', legos.length, 'LEGOs and', seeds.length, 'seeds')
+
+            // 2. Load baskets for all LEGOs (for practice phrases)
+            const legoIds = legos.map(l => l.id)
+            let baskets = new Map<string, ClassifiedBasket>()
+            try {
+              baskets = await courseDataProvider.value.getBasketsBatch(legoIds, legoMap)
+              console.log('[LearningPlayer] Loaded baskets for', baskets.size, 'LEGOs')
+            } catch (err) {
+              console.warn('[LearningPlayer] Failed to load baskets:', err)
+            }
+
+            // 2b. Load introduction audio for all LEGOs
+            try {
+              const introAudioMap = await courseDataProvider.value.getIntroductionAudioBatch(legoIds)
+              console.log('[LearningPlayer] Loaded intro audio for', introAudioMap.size, 'LEGOs')
+
+              // Attach intro audio to baskets
+              for (const [legoId, introAudio] of introAudioMap) {
+                const basket = baskets.get(legoId)
+                if (basket) {
+                  basket.introduction_audio = {
+                    id: introAudio.id,
+                    url: introAudio.url,
+                    duration_ms: introAudio.duration_ms,
+                  }
+                }
+              }
+            } catch (err) {
+              console.warn('[LearningPlayer] Failed to load intro audio:', err)
+            }
+
+            // 3. Build audio URL helper
+            const buildAudioUrl = (audioId: string): string => {
+              if (!audioId) return ''
+              // Use the audio API endpoint
+              return `/api/audio/${audioId}`
+            }
+
+            // 4. Build rounds using RoundBuilder
+            const builderRounds = buildRounds(
+              legos,
+              seeds,
+              baskets,
+              DEFAULT_PLAYBACK_CONFIG,
+              buildAudioUrl,
+              1 // Start from round 1
+            )
+            console.log('[LearningPlayer] Built', builderRounds.length, 'rounds with RoundBuilder')
+
+            // Debug: show items in first 3 rounds
+            builderRounds.slice(0, 3).forEach((r, i) => {
+              console.log(`[LearningPlayer] Round ${i + 1}: ${r.items.length} items [${r.items.map(it => it.type).join(', ')}]`)
             })
 
-            loadedRounds.value = simpleRounds as any // Type cast for mixed format
+            // 5. Adapt for SimplePlayer (convert to Cycle format)
+            const simpleRounds = adaptRoundsForPlayer(builderRounds)
+
+            // Also store builder rounds for legacy code that expects items
+            loadedRounds.value = builderRounds as any
             simplePlayer.initialize(simpleRounds as any)
             console.log('[LearningPlayer] SimplePlayer initialized with', simpleRounds.length, 'rounds')
+
+            // Build LEGO map for network visualization
+            const legoMapFromRounds = new Map<string, { targetText: string; knownText: string }>()
+            for (const round of builderRounds) {
+              const debutItem = round.items.find(it => it.type === 'debut')
+              if (debutItem) {
+                legoMapFromRounds.set(round.legoId, {
+                  targetText: debutItem.targetText,
+                  knownText: debutItem.knownText,
+                })
+              }
+            }
+            console.log('[LearningPlayer] Built LEGO map from rounds:', legoMapFromRounds.size, 'LEGOs')
           }
           console.log('[LearningPlayer] SimplePlayer initialized successfully')
 
