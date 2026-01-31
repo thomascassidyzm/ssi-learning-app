@@ -126,6 +126,37 @@ export class CourseDataProvider {
   }
 
   /**
+   * Get the maximum seed number in the course (i.e., how many seeds have content).
+   * Used to determine course length for priority loading and end-of-course detection.
+   * Returns null if unable to determine.
+   */
+  async getMaxSeedNumber(): Promise<number | null> {
+    if (!this.client) return null
+
+    try {
+      // Query for the highest seed_number in lego_cycles for this course
+      const { data, error } = await this.client
+        .from('lego_cycles')
+        .select('seed_number')
+        .eq('course_code', this.courseId)
+        .order('seed_number', { ascending: false })
+        .limit(1)
+        .single()
+
+      if (error || !data) {
+        console.warn('[CourseDataProvider] Could not determine max seed:', error?.message)
+        return null
+      }
+
+      console.log(`[CourseDataProvider] Course ${this.courseId} max seed: ${data.seed_number}`)
+      return data.seed_number
+    } catch (err) {
+      console.warn('[CourseDataProvider] Error getting max seed:', err)
+      return null
+    }
+  }
+
+  /**
    * Load learning items for a session
    * Tries database first, falls back to demo items if not available
    */

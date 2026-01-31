@@ -5163,6 +5163,12 @@ onMounted(async () => {
             // ============================================
             // PRIORITY LOADING PATH: Fast startup with background loading
             // ============================================
+
+            // 0. Get actual course length from database (not hardcoded)
+            const maxSeed = await courseDataProvider.value.getMaxSeedNumber()
+            const totalSeeds = maxSeed ?? 700  // Fallback to 700 if query fails
+            console.log(`[LearningPlayer] Course has ${totalSeeds} seeds (${maxSeed ? 'from database' : 'fallback'})`)
+
             // 1. Determine starting position from saved progress
             // Use currentLegoId for precise seed lookup (e.g., "S0045L03" → seed 45)
             // Fall back to estimation if no LEGO ID saved
@@ -5173,12 +5179,16 @@ onMounted(async () => {
             let startingSeed: number
             if (currentSeedFromLegoId) {
               // Precise: we know exactly which seed the learner is in
-              startingSeed = currentSeedFromLegoId
+              // But clamp to course length to handle "past end of course" case
+              startingSeed = Math.min(currentSeedFromLegoId, totalSeeds)
+              if (currentSeedFromLegoId > totalSeeds) {
+                console.log(`[LearningPlayer] Saved position (seed ${currentSeedFromLegoId}) is past course end (${totalSeeds}), clamping`)
+              }
               console.log(`[LearningPlayer] Priority loading: LEGO ${currentLegoId} → seed ${startingSeed} (precise)`)
             } else if (completedRoundsCount > 0) {
               // Fallback: estimate seed from round count (~3 LEGOs per seed)
               const estimatedSeed = Math.max(1, Math.ceil((completedRoundsCount + 1) / 3))
-              startingSeed = Math.max(1, estimatedSeed - 1)
+              startingSeed = Math.min(Math.max(1, estimatedSeed - 1), totalSeeds)
               console.log(`[LearningPlayer] Priority loading: ~${completedRoundsCount} rounds → estimated seed ${startingSeed}`)
             } else {
               // New learner: start from seed 1
@@ -5187,7 +5197,7 @@ onMounted(async () => {
             }
 
             // 2. Build priority queue - starting seed first, then belt-aware order
-            const priorityBatches = buildPriorityQueue(startingSeed, 700)  // ~700 seeds in course
+            const priorityBatches = buildPriorityQueue(startingSeed, totalSeeds)
             console.log(`[LearningPlayer] Priority queue: ${priorityBatches.length} batches, first batch: seeds ${priorityBatches[0]?.[0]}-${priorityBatches[0]?.[priorityBatches[0].length - 1]}`)
 
             // 3. Load initial batch (BLOCKING - fast startup)
@@ -5290,7 +5300,36 @@ onMounted(async () => {
                 })()
               }
             } else {
-              console.warn('[LearningPlayer] No rounds loaded from initial batch')
+              // No rounds from initial batch - could be end of course or starting position issue
+              console.warn(`[LearningPlayer] No rounds loaded from initial batch (seeds ${initialStartSeed}-${initialEndSeed})`)
+
+              // If we were trying to load past the end of course, try loading from seed 1
+              if (startingSeed > 1) {
+                console.log('[LearningPlayer] Falling back to loading from seed 1')
+                const fallbackResult = await loadSeedBatch({
+                  provider: courseDataProvider.value,
+                  startSeed: 1,
+                  endSeed: Math.min(6, totalSeeds),
+                  startRoundNumber: 1,
+                  config: DEFAULT_PLAYBACK_CONFIG,
+                })
+
+                if (fallbackResult && fallbackResult.simpleRounds.length > 0) {
+                  loadedRounds.value = fallbackResult.builderRounds as any
+                  simplePlayer.initialize(fallbackResult.simpleRounds as any)
+                  console.log(`[LearningPlayer] Fallback: loaded ${fallbackResult.simpleRounds.length} rounds from start`)
+
+                  // Show course complete message if learner was at end
+                  if (startingSeed >= totalSeeds) {
+                    console.log('[LearningPlayer] Learner has completed the course!')
+                    showSessionComplete.value = true
+                  }
+                } else {
+                  console.error('[LearningPlayer] Could not load any rounds - course may be empty')
+                }
+              } else {
+                console.error('[LearningPlayer] Could not load initial rounds from seed 1 - course may be empty')
+              }
             }
           }
           console.log('[LearningPlayer] SimplePlayer initialized successfully')
