@@ -197,6 +197,9 @@ const tooltipPosition = ref({ top: '0px', left: '0px' })
 // Track if scene base infrastructure is initialized (vs nodes/edges)
 const sceneInitialized = ref(false)
 
+// Track previously revealed node IDs to detect newly revealed nodes
+const previouslyRevealedIds = ref<Set<string>>(new Set())
+
 // =============================================================================
 // NODE/EDGE FILTERING
 // =============================================================================
@@ -211,8 +214,42 @@ function getRevealedSet(): Set<string> | null {
 }
 
 /**
+ * Check if a node should be visible.
+ * Handles both regular nodes (check revealedNodeIds) and component nodes
+ * (auto-visible if any parent is revealed).
+ */
+function isNodeVisible(node: ConstellationNode, revealed: Set<string>): boolean {
+  // Regular nodes: check if explicitly revealed
+  if (!node.isComponent) {
+    return revealed.has(node.id)
+  }
+  // Component nodes: visible if ANY parent LEGO is revealed
+  if (node.parentLegoIds && node.parentLegoIds.length > 0) {
+    return node.parentLegoIds.some(parentId => revealed.has(parentId))
+  }
+  return false
+}
+
+/**
+ * Check if a node ID is visible (for edge filtering).
+ * Uses the same logic as isNodeVisible but works with just an ID.
+ */
+function isNodeIdVisible(nodeId: string, revealed: Set<string>): boolean {
+  // First check if directly revealed
+  if (revealed.has(nodeId)) return true
+
+  // Check if it's a component node with a revealed parent
+  const node = props.nodes.find(n => n.id === nodeId)
+  if (node?.isComponent && node.parentLegoIds) {
+    return node.parentLegoIds.some(parentId => revealed.has(parentId))
+  }
+  return false
+}
+
+/**
  * Filter nodes to only include revealed nodes.
  * If revealedNodeIds is null (testing mode), show all nodes.
+ * Component nodes are auto-included if any of their parents are revealed.
  */
 function getFilteredNodes(): ConstellationNode[] {
   const revealed = getRevealedSet()
@@ -220,13 +257,14 @@ function getFilteredNodes(): ConstellationNode[] {
     // Testing mode: show all nodes
     return props.nodes
   }
-  // Filter to only revealed nodes
-  return props.nodes.filter(node => revealed.has(node.id))
+  // Filter using visibility logic that handles components
+  return props.nodes.filter(node => isNodeVisible(node, revealed))
 }
 
 /**
- * Filter edges to only include edges where BOTH source and target are revealed.
+ * Filter edges to only include edges where BOTH source and target are visible.
  * If revealedNodeIds is null (testing mode), show all edges.
+ * Uses the same visibility logic as nodes (component auto-reveal).
  */
 function getFilteredEdges(): ConstellationEdge[] {
   const revealed = getRevealedSet()
@@ -234,12 +272,12 @@ function getFilteredEdges(): ConstellationEdge[] {
     // Testing mode: show all edges
     return props.edges
   }
-  // Filter to only edges where both endpoints are revealed
-  // Handle both string IDs and object references for source/target
+  // Filter to only edges where both endpoints are visible
+  // Uses isNodeIdVisible which handles component auto-reveal
   return props.edges.filter(edge => {
     const sourceId = getEdgeNodeId(edge.source)
     const targetId = getEdgeNodeId(edge.target)
-    return revealed.has(sourceId) && revealed.has(targetId)
+    return isNodeIdVisible(sourceId, revealed) && isNodeIdVisible(targetId, revealed)
   })
 }
 
@@ -403,6 +441,8 @@ async function initScene(): Promise<void> {
     brainScene.onUpdate((deltaTime) => {
       // Update node pulse animations (for highlighted nodes)
       brainNodes.update(deltaTime)
+      // Update edge animations (new edge glow decay)
+      brainEdges.update(deltaTime)
 
       // Apply fire path animation states when playing
       if (brainFirePath.isPlaying.value) {
@@ -726,12 +766,29 @@ watch(() => props.currentPath, (path) => {
   console.log('[Brain3DView] Fire path updated:', path.nodeIds.length, 'nodes')
 }, { deep: true })
 
-// Watch for revealed nodes changes and rebuild nodes/edges
-watch(() => props.revealedNodeIds, (_revealed, _oldRevealed) => {
-  if (!sceneInitialized.value || !brainScene.scene.value || !containerRef.value) return
+// Watch for revealed nodes changes, rebuild nodes/edges, and animate new connections
+watch(() => props.revealedNodeIds, (newRevealed) => {
+  if (!sceneInitialized.value || !brainScene.scene.value || !containerRef.value || !newRevealed) return
+
+  // Find newly revealed node IDs (nodes in new set but not in previous)
+  const newNodeIds: string[] = []
+  for (const id of newRevealed) {
+    if (!previouslyRevealedIds.value.has(id)) {
+      newNodeIds.push(id)
+    }
+  }
 
   // Rebuild nodes and edges with new filtered set
   rebuildNodesAndEdges()
+
+  // Animate edges for newly revealed nodes
+  // This creates a "glow pulse" on edges that just became visible
+  for (const nodeId of newNodeIds) {
+    brainEdges.animateEdgesForNode(nodeId, 800)
+  }
+
+  // Update the tracking set for next comparison
+  previouslyRevealedIds.value = new Set(newRevealed)
 }, { deep: true })
 
 // Watch for belt level changes and update wireframe color (edges stay neutral)

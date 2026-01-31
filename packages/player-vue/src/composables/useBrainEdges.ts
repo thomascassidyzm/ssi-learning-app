@@ -277,6 +277,10 @@ export function useBrainEdges(options: EdgeRenderOptions = {}) {
   // For backwards compatibility - expose as lineSegments
   const lineSegments: ShallowRef<THREE.Group | null> = shallowRef(null)
 
+  // Animation state for new edge glow effect
+  // Maps edge ID to { startTime, duration } for decay animation
+  const animatingEdges: Ref<Map<string, { startTime: number; duration: number }>> = ref(new Map())
+
   // ============================================================================
   // GEOMETRY CREATION
   // ============================================================================
@@ -300,11 +304,27 @@ export function useBrainEdges(options: EdgeRenderOptions = {}) {
     const group = new THREE.Group()
     group.name = 'brain-edges'
 
+    // Track skipped edges for diagnostics
+    let createdCount = 0
+    let skippedCount = 0
+    const skippedReasons: string[] = []
+
     for (const edge of edges) {
       const sourcePos = getNodePosition(edge.source)
       const targetPos = getNodePosition(edge.target)
 
-      if (!sourcePos || !targetPos) continue
+      if (!sourcePos || !targetPos) {
+        skippedCount++
+        if (skippedReasons.length < 5) {
+          const reason = !sourcePos && !targetPos
+            ? `both missing: ${edge.source}, ${edge.target}`
+            : !sourcePos
+              ? `source missing: ${edge.source}`
+              : `target missing: ${edge.target}`
+          skippedReasons.push(reason)
+        }
+        continue
+      }
 
       // Calculate visual properties based on strength
       const opacity = calculateOpacity(edge.strength, opts)
@@ -372,6 +392,15 @@ export function useBrainEdges(options: EdgeRenderOptions = {}) {
         sourcePos: sourcePos.clone(),
         targetPos: targetPos.clone()
       })
+      createdCount++
+    }
+
+    // Log edge creation summary
+    if (edges.length > 0) {
+      console.log(`[useBrainEdges] Created ${createdCount}/${edges.length} edge meshes`)
+      if (skippedCount > 0) {
+        console.warn(`[useBrainEdges] Skipped ${skippedCount} edges (missing node positions):`, skippedReasons)
+      }
     }
 
     edgeGroup.value = group
@@ -543,6 +572,71 @@ export function useBrainEdges(options: EdgeRenderOptions = {}) {
   }
 
   // ============================================================================
+  // NEW EDGE ANIMATION (glow when edges first appear)
+  // ============================================================================
+
+  /**
+   * Animate edges connected to a newly revealed node.
+   * Creates a glow effect that decays over time, highlighting new connections.
+   * @param nodeId - The newly revealed node ID
+   * @param durationMs - How long the glow animation lasts (default 800ms)
+   */
+  function animateEdgesForNode(nodeId: string, durationMs: number = 800): void {
+    const now = performance.now()
+    const edgesForNode = getEdgesForNode(nodeId)
+
+    if (edgesForNode.length === 0) return
+
+    console.log(`[useBrainEdges] Animating ${edgesForNode.length} edges for new node: ${nodeId}`)
+
+    for (const edge of edgesForNode) {
+      // Start the animation
+      animatingEdges.value.set(edge.id, { startTime: now, duration: durationMs })
+      // Set initial high glow
+      setEdgeGlow(edge.id, 1.0)
+    }
+  }
+
+  /**
+   * Update edge animations (called each frame from scene update loop).
+   * Decays the glow on animating edges over time.
+   * @param _deltaTime - Time since last frame (unused, we use absolute time)
+   */
+  function update(_deltaTime: number): void {
+    if (animatingEdges.value.size === 0) return
+
+    const now = performance.now()
+    const toRemove: string[] = []
+
+    for (const [edgeId, { startTime, duration }] of animatingEdges.value) {
+      const elapsed = now - startTime
+      const progress = Math.min(1, elapsed / duration)
+
+      if (progress >= 1) {
+        // Animation complete, reset to normal opacity
+        setEdgeGlow(edgeId, 0)
+        toRemove.push(edgeId)
+      } else {
+        // Ease-out decay: starts bright, fades smoothly
+        // Using cubic ease-out for a natural feel
+        const easeOut = 1 - Math.pow(progress, 3)
+        setEdgeGlow(edgeId, easeOut)
+      }
+    }
+
+    for (const id of toRemove) {
+      animatingEdges.value.delete(id)
+    }
+  }
+
+  /**
+   * Check if any edges are currently animating
+   */
+  function isAnimating(): boolean {
+    return animatingEdges.value.size > 0
+  }
+
+  // ============================================================================
   // VISIBILITY / LOD
   // ============================================================================
 
@@ -678,6 +772,11 @@ export function useBrainEdges(options: EdgeRenderOptions = {}) {
     setVisible,
     shouldBeVisible,
     dispose,
+
+    // Animation (new edge glow)
+    animateEdgesForNode,
+    update,
+    isAnimating,
 
     // Utilities
     getEdgeData,

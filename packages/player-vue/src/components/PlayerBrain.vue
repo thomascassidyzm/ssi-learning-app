@@ -33,6 +33,7 @@ export interface ConstellationNode {
   y: number
   z?: number
   isComponent?: boolean
+  parentLegoIds?: string[]
 }
 
 export interface ConstellationEdge {
@@ -109,6 +110,9 @@ const isInitialized = ref(false)
 const hoveredNode = ref<ConstellationNode | null>(null)
 const tooltipPosition = ref({ top: '0px', left: '0px' })
 
+// Track previously revealed node IDs to detect newly revealed nodes
+const previouslyRevealedIds = ref<Set<string>>(new Set())
+
 // =============================================================================
 // COMPOSABLES
 // =============================================================================
@@ -123,10 +127,39 @@ const brainFirePath = useBrainFirePath()
 // HELPERS
 // =============================================================================
 
+/**
+ * Check if a node should be visible.
+ * Handles both regular nodes (check revealedNodeIds) and component nodes
+ * (auto-visible if any parent is revealed).
+ */
+function isNodeVisible(node: ConstellationNode, revealed: Set<string>): boolean {
+  // Regular nodes: check if explicitly revealed
+  if (!node.isComponent) {
+    return revealed.has(node.id)
+  }
+  // Component nodes: visible if ANY parent LEGO is revealed
+  if (node.parentLegoIds && node.parentLegoIds.length > 0) {
+    return node.parentLegoIds.some(parentId => revealed.has(parentId))
+  }
+  return false
+}
+
+/**
+ * Check if a node ID is visible (for edge filtering).
+ */
+function isNodeIdVisible(nodeId: string, revealed: Set<string>): boolean {
+  if (revealed.has(nodeId)) return true
+  const node = props.nodes.find(n => n.id === nodeId)
+  if (node?.isComponent && node.parentLegoIds) {
+    return node.parentLegoIds.some(parentId => revealed.has(parentId))
+  }
+  return false
+}
+
 function getFilteredNodes(): ConstellationNode[] {
   const revealed = props.revealedNodeIds
   if (revealed === null) return props.nodes
-  return props.nodes.filter(node => revealed.has(node.id))
+  return props.nodes.filter(node => isNodeVisible(node, revealed))
 }
 
 function getFilteredEdges(): ConstellationEdge[] {
@@ -135,7 +168,7 @@ function getFilteredEdges(): ConstellationEdge[] {
   return props.edges.filter(edge => {
     const sourceId = getEdgeNodeId(edge.source)
     const targetId = getEdgeNodeId(edge.target)
-    return revealed.has(sourceId) && revealed.has(targetId)
+    return isNodeIdVisible(sourceId, revealed) && isNodeIdVisible(targetId, revealed)
   })
 }
 
@@ -238,6 +271,7 @@ async function initScene(): Promise<void> {
     // Update loop for animations
     brainScene.onUpdate((deltaTime) => {
       brainNodes.update(deltaTime)
+      brainEdges.update(deltaTime)  // Update edge animations (new edge glow decay)
 
       if (brainFirePath.isPlaying.value) {
         for (const [nodeId, state] of brainFirePath.nodeStates.value) {
@@ -344,9 +378,29 @@ function rebuildNodesAndEdges(): void {
 // WATCHERS
 // =============================================================================
 
-// Rebuild when revealed nodes change
-watch(() => props.revealedNodeIds, () => {
-  if (isInitialized.value) rebuildNodesAndEdges()
+// Rebuild when revealed nodes change, and animate edges for newly revealed nodes
+watch(() => props.revealedNodeIds, (newRevealed) => {
+  if (!isInitialized.value || !newRevealed) return
+
+  // Find newly revealed node IDs (nodes in new set but not in previous)
+  const newNodeIds: string[] = []
+  for (const id of newRevealed) {
+    if (!previouslyRevealedIds.value.has(id)) {
+      newNodeIds.push(id)
+    }
+  }
+
+  // Rebuild the nodes and edges
+  rebuildNodesAndEdges()
+
+  // Animate edges for newly revealed nodes
+  // This creates a "glow pulse" on edges that just became visible
+  for (const nodeId of newNodeIds) {
+    brainEdges.animateEdgesForNode(nodeId, 800)
+  }
+
+  // Update the tracking set for next comparison
+  previouslyRevealedIds.value = new Set(newRevealed)
 }, { deep: true })
 
 // Fire path animation when currentPath changes
