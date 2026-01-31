@@ -112,9 +112,8 @@ const totalCount = ref(0)
 const hasMore = ref(true)
 const isLoadingMore = ref(false)
 
-// Audio
+// Audio - use /api/audio proxy for CORS bypass
 const audioMap = ref(new Map())
-const audioBaseUrl = 'https://ssi-audio-stage.s3.eu-west-1.amazonaws.com'
 
 let playbackId = 0
 
@@ -165,8 +164,11 @@ const loadPhrases = async (offset = 0) => {
   if (!supabase?.value || !props.courseCode) {
     error.value = 'Database not configured'
     isLoading.value = false
+    console.warn('[ListeningOverlay] No supabase or courseCode:', { supabase: !!supabase?.value, courseCode: props.courseCode })
     return
   }
+
+  console.log('[ListeningOverlay] Loading phrases for course:', props.courseCode, 'offset:', offset)
 
   try {
     if (offset === 0) {
@@ -176,19 +178,25 @@ const loadPhrases = async (offset = 0) => {
       isLoadingMore.value = true
     }
 
+    // Query from practice_cycles view which has audio UUIDs
+    // Use phrase_role = 'use' for USE phrases (consolidation/eternal)
     if (offset === 0) {
-      const { count } = await supabase.value
-        .from('course_practice_phrases')
+      const { count, error: countError } = await supabase.value
+        .from('practice_cycles')
         .select('*', { count: 'exact', head: true })
         .eq('course_code', props.courseCode)
         .eq('phrase_role', 'use')
 
+      if (countError) {
+        console.warn('[ListeningOverlay] Count query error:', countError.message)
+      }
       totalCount.value = count || 0
+      console.log('[ListeningOverlay] Total USE phrases found:', totalCount.value)
     }
 
     const { data, error: fetchError } = await supabase.value
-      .from('course_practice_phrases')
-      .select('seed_number, lego_index, known_text, target_text, position')
+      .from('practice_cycles')
+      .select('seed_number, lego_index, lego_id, known_text, target_text, position, target1_audio_uuid, target2_audio_uuid')
       .eq('course_code', props.courseCode)
       .eq('phrase_role', 'use')
       .order('seed_number', { ascending: true })
@@ -199,15 +207,19 @@ const loadPhrases = async (offset = 0) => {
     if (fetchError) throw fetchError
 
     if (data && data.length > 0) {
-      // Construct legoId from seed_number and lego_index
+      console.log('[ListeningOverlay] Loaded', data.length, 'phrases, first:', data[0])
+
+      // Use lego_id from view, include audio UUIDs
       const newPhrases = data.map((p, i) => ({
         id: `${p.seed_number}-${p.lego_index}-${p.position || i}`,
         seedNumber: p.seed_number,
         legoIndex: p.lego_index,
-        legoId: `S${String(p.seed_number).padStart(4, '0')}L${String(p.lego_index).padStart(2, '0')}`,
+        legoId: p.lego_id || `S${String(p.seed_number).padStart(4, '0')}L${String(p.lego_index).padStart(2, '0')}`,
         knownText: p.known_text,
         targetText: p.target_text,
-        position: p.position
+        position: p.position,
+        target1AudioId: p.target1_audio_uuid,
+        target2AudioId: p.target2_audio_uuid
       }))
 
       if (offset === 0) {
@@ -272,34 +284,15 @@ const updateVisibleWindow = () => {
 // Audio
 // ============================================================================
 
-const lookupAudio = async (text, role) => {
-  if (!supabase?.value || !props.courseCode) return null
-
-  const cacheKey = `${text}:${role}`
-  if (audioMap.value.has(cacheKey)) {
-    return audioMap.value.get(cacheKey)
-  }
-
-  try {
-    const { data, error } = await supabase.value
-      .from('course_audio')
-      .select('s3_key')
-      .eq('course_code', props.courseCode)
-      .eq('text_normalized', text.toLowerCase().trim())
-      .eq('role', role)
-      .maybeSingle()
-
-    if (error || !data?.s3_key) return null
-
-    const url = `${audioBaseUrl}/${data.s3_key}`
-    audioMap.value.set(cacheKey, url)
-    return url
-  } catch {
-    return null
-  }
+/**
+ * Get audio URL for a phrase using its audio IDs (no lookup needed)
+ * Uses /api/audio proxy for CORS bypass
+ */
+const getAudioUrl = (audioId) => {
+  if (!audioId) return null
+  return `/api/audio/${audioId}?courseId=${encodeURIComponent(props.courseCode)}`
 }
 
-const getRandomVoice = () => Math.random() < 0.5 ? 'target1' : 'target2'
 
 // ============================================================================
 // Playback
@@ -328,17 +321,30 @@ const playCurrentPhrase = async (myPlaybackId) => {
     return
   }
 
-  const voice = getRandomVoice()
-  const audioUrl = await lookupAudio(phrase.targetText, voice)
+  // Pick random voice (target1 or target2)
+  const useVoice1 = Math.random() < 0.5
+  const audioId = useVoice1 ? phrase.target1AudioId : phrase.target2AudioId
+  const audioUrl = getAudioUrl(audioId)
+
+  console.log('[ListeningOverlay] Playing phrase:', {
+    index: currentIndex.value,
+    text: phrase.targetText,
+    voice: useVoice1 ? 'target1' : 'target2',
+    audioId,
+    hasUrl: !!audioUrl
+  })
 
   if (myPlaybackId !== playbackId) return
 
   if (audioUrl) {
     try {
+      console.log('[ListeningOverlay] Playing audio:', audioUrl)
       await audioController.value.play(audioUrl)
-    } catch {
-      // Continue on error
+    } catch (err) {
+      console.error('[ListeningOverlay] Audio play failed:', err)
     }
+  } else {
+    console.warn('[ListeningOverlay] No audio ID for phrase, skipping:', phrase.targetText)
   }
 
   if (myPlaybackId !== playbackId) return

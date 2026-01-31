@@ -6855,9 +6855,9 @@ defineExpose({
   --ring-size: 180px;
   --ring-center-size: 110px;
   --ring-icon-size: 36px;
-  --text-zone-min-height: 80px;
-  --known-text-size: 1.75rem;
-  --target-text-size: 1.5rem;
+  --text-zone-min-height: 90px;  /* Increased for larger text */
+  --known-text-size: 2rem;       /* Larger for phone visibility */
+  --target-text-size: 1.75rem;   /* Larger for phone visibility */
 
   /* ============ THEME COLORS ============ */
   --accent: #c23a3a;
@@ -9782,9 +9782,9 @@ defineExpose({
     --ring-size: 220px;
     --ring-center-size: 130px;
     --ring-icon-size: 44px;
-    --text-zone-min-height: 90px;
-    --known-text-size: 1.875rem;
-    --target-text-size: 1.625rem;
+    --text-zone-min-height: 100px;
+    --known-text-size: 2.25rem;
+    --target-text-size: 2rem;
   }
 }
 
