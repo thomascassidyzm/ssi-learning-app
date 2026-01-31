@@ -144,9 +144,16 @@ export class SimplePlayer {
   play(): void {
     if (this.state.isPlaying) return
     const round = this.currentRound
-    if (round) {
-      console.log(`[SimplePlayer] Starting Round ${round.roundNumber} (${round.legoId}): ${round.cycles.length} cycles`)
+    if (!round) {
+      console.warn('[SimplePlayer] No rounds loaded, cannot play')
+      return
     }
+    if (!round.cycles || round.cycles.length === 0) {
+      console.warn(`[SimplePlayer] Round ${round.roundNumber} has no cycles, skipping`)
+      this.advanceRound()
+      return
+    }
+    console.log(`[SimplePlayer] Starting Round ${round.roundNumber} (${round.legoId}): ${round.cycles.length} cycles`)
     this.updateState({ isPlaying: true })
     this.startPhase(this.shouldPlayIntro() ? 'intro' : 'prompt')
   }
@@ -233,24 +240,48 @@ export class SimplePlayer {
 
     this.emit('phase_changed', { phase, cycle: this.currentCycle, round: this.currentRound })
 
+    // Safety check: ensure we have the required data before playing
+    const currentRound = this.currentRound
+    const currentCycle = this.currentCycle
+
     switch (phase) {
       case 'intro':
         // Presentation audio: "The Spanish for X is..."
-        this.playAudio(this.currentRound!.introAudioUrl!)
+        if (currentRound?.introAudioUrl) {
+          this.playAudio(currentRound.introAudioUrl)
+        } else {
+          console.warn('[SimplePlayer] No intro audio URL, skipping to next phase')
+          this.onAudioEnded()
+        }
         break
       case 'prompt':
-        this.playAudio(this.currentCycle!.known.audioUrl)
+        if (currentCycle?.known?.audioUrl) {
+          this.playAudio(currentCycle.known.audioUrl)
+        } else {
+          console.warn('[SimplePlayer] No prompt audio URL, skipping to next phase')
+          this.onAudioEnded()
+        }
         break
       case 'pause':
         this.startPausePhase()
         break
       case 'voice1':
         // Always use cycle's voice URLs (same audio for intro and debut)
-        this.playAudio(this.currentCycle!.target.voice1Url)
+        if (currentCycle?.target?.voice1Url) {
+          this.playAudio(currentCycle.target.voice1Url)
+        } else {
+          console.warn('[SimplePlayer] No voice1 audio URL, skipping to next phase')
+          this.onAudioEnded()
+        }
         break
       case 'voice2':
         // Always use cycle's voice URLs (same audio for intro and debut)
-        this.playAudio(this.currentCycle!.target.voice2Url)
+        if (currentCycle?.target?.voice2Url) {
+          this.playAudio(currentCycle.target.voice2Url)
+        } else {
+          console.warn('[SimplePlayer] No voice2 audio URL, skipping to next phase')
+          this.onAudioEnded()
+        }
         break
     }
   }
@@ -310,7 +341,12 @@ export class SimplePlayer {
   private advanceCycle(): void {
     this.emit('cycle_completed', { cycle: this.currentCycle, round: this.currentRound })
 
-    const round = this.currentRound!
+    const round = this.currentRound
+    if (!round || !round.cycles) {
+      console.warn('[SimplePlayer] No round or cycles in advanceCycle, advancing to next round')
+      this.advanceRound()
+      return
+    }
     if (this.state.cycleIndex < round.cycles.length - 1) {
       this.updateState({ cycleIndex: this.state.cycleIndex + 1 })
       this.startPhase('prompt')

@@ -25,9 +25,16 @@ export interface SimpleRound {
 
 /**
  * Convert RoundBuilder rounds to SimplePlayer format
+ * Filters out rounds that have no valid cycles (missing audio)
  */
 export function adaptRoundsForPlayer(builderRounds: BuilderRound[]): SimpleRound[] {
-  return builderRounds.map(adaptRound)
+  const adapted = builderRounds.map(adaptRound)
+  // Filter out rounds with no valid cycles to prevent playback crashes
+  const validRounds = adapted.filter(round => round.cycles.length > 0)
+  if (validRounds.length < adapted.length) {
+    console.warn(`[roundAdapter] Filtered out ${adapted.length - validRounds.length} rounds with no valid cycles`)
+  }
+  return validRounds
 }
 
 /**
