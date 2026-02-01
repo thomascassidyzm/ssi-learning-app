@@ -7208,18 +7208,23 @@ defineExpose({
    Warm dojo stone, sumi ink, shuriken particles, mountain silhouette
    ═══════════════════════════════════════════════════════════════ */
 
+/* --- Player wrapper background --- */
+:root[data-theme="mist"] .player {
+  background: #f0ebe3 !important;
+}
+
 /* --- Space / Background layers --- */
 :root[data-theme="mist"] .space-gradient {
   background:
     radial-gradient(ellipse 120% 80% at 20% 10%, rgba(210, 195, 170, 0.35) 0%, transparent 50%),
     radial-gradient(ellipse 100% 60% at 80% 90%, rgba(200, 185, 160, 0.25) 0%, transparent 40%),
-    radial-gradient(ellipse 80% 80% at 50% 50%, #f0ebe3 0%, #e8e2d8 100%);
+    radial-gradient(ellipse 80% 80% at 50% 50%, #f0ebe3 0%, #e8e2d8 100%) !important;
 }
 
 :root[data-theme="mist"] .space-nebula {
   background:
     linear-gradient(180deg, transparent 0%, rgba(200, 185, 160, 0.08) 30%, rgba(200, 185, 160, 0.12) 50%, transparent 70%),
-    linear-gradient(180deg, transparent 40%, rgba(200, 185, 160, 0.06) 60%, transparent 80%);
+    linear-gradient(180deg, transparent 40%, rgba(200, 185, 160, 0.06) 60%, transparent 80%) !important;
   animation: mist-drift 20s ease-in-out infinite;
 }
 
@@ -7229,9 +7234,9 @@ defineExpose({
 }
 
 :root[data-theme="mist"] .bg-noise {
-  opacity: 0.04;
-  filter: none;
-  mix-blend-mode: multiply;
+  opacity: 0.04 !important;
+  filter: none !important;
+  mix-blend-mode: multiply !important;
 }
 
 /* Bamboo shadow lines on bg-noise::after */
@@ -7291,8 +7296,8 @@ defineExpose({
       to top,
       rgba(var(--belt-color-r, 194), var(--belt-color-g, 58), var(--belt-color-b, 58), 0.06) 0%,
       transparent 25%
-    );
-  opacity: 0.5;
+    ) !important;
+  opacity: 0.5 !important;
 }
 
 /* --- Mountain silhouette --- */
