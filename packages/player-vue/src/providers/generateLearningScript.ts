@@ -57,7 +57,7 @@ export async function generateLearningScript(
 
   const normalizeText = (text: string | null | undefined): string => {
     if (!text) return ''
-    return text.toLowerCase().trim().replace(/[.!?。！？]+$/g, '')
+    return text.toLowerCase().trim().replace(/[.,!?;:¡¿'"]+/g, '')
   }
 
   const getPhraseId = (knownText: string, targetText: string): string => {
@@ -93,21 +93,20 @@ export async function generateLearningScript(
       .order('lego_index', { ascending: true })
       .order('position', { ascending: true }),
     supabase
-      .from('course_audio')
-      .select('id, lego_id')
+      .from('lego_introductions')
+      .select('lego_id, audio_uuid, presentation_audio_id')
       .eq('course_code', courseCode)
-      .eq('role', 'presentation')
-      .not('lego_id', 'is', null)
   ])
 
   if (legosResult.error) throw new Error('Failed to query LEGOs: ' + legosResult.error.message)
   if (phrasesResult.error) throw new Error('Failed to query phrases: ' + phrasesResult.error.message)
 
-  // Build intro audio map from presentation audio
+  // Build intro audio map - prefer presentation_audio_id (v13), fall back to audio_uuid (legacy)
   const introAudioMap = new Map<string, string>()
   for (const intro of (introsResult.data || [])) {
-    if (intro.lego_id && intro.id) {
-      introAudioMap.set(intro.lego_id, intro.id)
+    const audioId = intro.presentation_audio_id || intro.audio_uuid
+    if (intro.lego_id && audioId) {
+      introAudioMap.set(intro.lego_id, audioId)
     }
   }
 
@@ -368,6 +367,31 @@ export async function generateLearningScript(
     }
   }
 
-  console.log(`[generateLearningScript] Generated ${items.length} items for ${courseCode} seeds ${startSeed}-${endSeed}`)
-  return { items, cycleCount: cycleNum, roundCount: roundNumber }
+  // Remove consecutive duplicates (matching dashboard logic)
+  const dedupedItems: ScriptItem[] = []
+  let lastNonIntroItem: ScriptItem | null = null
+
+  for (const item of items) {
+    if (item.type === 'intro') {
+      dedupedItems.push(item)
+      continue
+    }
+
+    if (lastNonIntroItem) {
+      const sameKnown = normalizeText(item.knownText) === normalizeText(lastNonIntroItem.knownText)
+      const sameTarget = normalizeText(item.targetText) === normalizeText(lastNonIntroItem.targetText)
+      if (sameKnown && sameTarget) continue
+    }
+
+    dedupedItems.push(item)
+    lastNonIntroItem = item
+  }
+
+  const removedCount = items.length - dedupedItems.length
+  if (removedCount > 0) {
+    console.log(`[generateLearningScript] Removed ${removedCount} consecutive duplicate(s)`)
+  }
+
+  console.log(`[generateLearningScript] Generated ${dedupedItems.length} items for ${courseCode} seeds ${startSeed}-${endSeed}`)
+  return { items: dedupedItems, cycleCount: dedupedItems.length, roundCount: roundNumber }
 }
