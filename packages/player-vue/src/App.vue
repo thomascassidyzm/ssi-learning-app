@@ -376,49 +376,48 @@ onMounted(async () => {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   MIST THEME - Bright, clean light mode
-   Light backgrounds with dark text for daytime/bright environment use
+   MISTY DOJO THEME — Warm dojo stone with sumi ink
    ═══════════════════════════════════════════════════════════════ */
 [data-theme="mist"] {
-  /* Backgrounds - Bright, clean surfaces */
-  --bg-primary: #f5f5f7;
-  --bg-secondary: #ffffff;
-  --bg-card: rgba(255, 255, 255, 0.9);
-  --bg-elevated: rgba(255, 255, 255, 0.95);
-  --bg-overlay: rgba(0, 0, 0, 0.3);
+  /* Backgrounds - Dojo stone palette */
+  --bg-primary: #f0ebe3;
+  --bg-secondary: #f7f3ec;
+  --bg-card: rgba(247, 243, 236, 0.9);
+  --bg-elevated: rgba(232, 226, 216, 0.95);
+  --bg-overlay: rgba(44, 37, 32, 0.4);
 
-  /* Text - Dark on light for excellent readability */
-  --text-primary: #1a1a1a;
-  --text-secondary: rgba(26, 26, 26, 0.7);
-  --text-muted: rgba(26, 26, 26, 0.45);
-  --text-inverse: #ffffff;
+  /* Text - Sumi ink palette */
+  --text-primary: #2c2520;
+  --text-secondary: rgba(92, 84, 74, 0.85);
+  --text-muted: rgba(153, 143, 130, 0.8);
+  --text-inverse: #f7f3ec;
 
-  /* Borders - Subtle dark borders on light background */
-  --border-subtle: rgba(0, 0, 0, 0.08);
-  --border-medium: rgba(0, 0, 0, 0.15);
+  /* Borders - Earth tints */
+  --border-subtle: rgba(100, 80, 55, 0.1);
+  --border-medium: rgba(100, 80, 55, 0.18);
 
-  /* Accent colors - SSi red works well on light */
+  /* Accent colors */
   --accent: #c23a3a;
   --accent-light: #d94545;
   --accent-dark: #a83232;
-  --accent-glow: rgba(194, 58, 58, 0.2);
+  --accent-glow: rgba(194, 58, 58, 0.15);
   --gold: #d4a853;
-  --gold-glow: rgba(212, 168, 83, 0.25);
+  --gold-glow: rgba(212, 168, 83, 0.2);
 
-  /* Gradients - Light mode */
+  /* Gradients */
   --gradient-accent: linear-gradient(145deg, #d94545 0%, #a83232 100%);
-  --glow-accent: 0 4px 16px rgba(194, 58, 58, 0.2);
-  --glow-soft: rgba(0, 0, 0, 0.04);
+  --glow-accent: 0 4px 16px rgba(194, 58, 58, 0.15);
+  --glow-soft: rgba(60, 45, 30, 0.04);
 
-  /* Network visualization - Dark on light */
-  --network-bg: radial-gradient(ellipse at 50% 50%, rgba(200, 200, 220, 0.3) 0%, transparent 50%);
-  --network-node-fill: rgba(26, 26, 26, 0.8);
-  --network-node-stroke: rgba(26, 26, 26, 0.5);
-  --network-edge-stroke: rgba(26, 26, 26, 0.15);
-  --network-active-edge: #2563eb;
-  --network-label-fill: rgba(26, 26, 26, 0.85);
+  /* Network visualization - Ink on dojo */
+  --network-bg: radial-gradient(ellipse at 50% 50%, rgba(200, 185, 160, 0.2) 0%, transparent 50%);
+  --network-node-fill: rgba(44, 37, 32, 0.7);
+  --network-node-stroke: rgba(44, 37, 32, 0.4);
+  --network-edge-stroke: rgba(100, 80, 55, 0.12);
+  --network-active-edge: #8b5e3c;
+  --network-label-fill: rgba(44, 37, 32, 0.6);
 
-  /* Mountain opacity for schools - more visible on light */
+  /* Mountain opacity */
   --mountain-opacity: 0.25;
 
   /* Theme indicator */

@@ -3,6 +3,7 @@ import { ref, computed, inject, onMounted, onUnmounted } from 'vue'
 import { getAudioCacheStats, preloadAudioBatch } from '../composables/useScriptCache'
 import { BELT_RANGES, getBeltForSeed } from '../composables/useBeltLoader'
 import { useBeltProgress } from '../composables/useBeltProgress'
+import { useTheme } from '../composables/useTheme'
 
 const emit = defineEmits(['close', 'openExplorer', 'openNetwork', 'openListening', 'settingChanged'])
 
@@ -46,8 +47,9 @@ const showDebugOverlay = ref(false) // Show phase/round/LEGO info overlay
 const enableVerboseLogging = ref(false) // Detailed console logs
 const skipIntroAudio = ref(false) // Skip "The Spanish for X is..." intros
 
-// Theme settings
-const isDarkMode = ref(true) // Default to dark mode
+// Theme settings (uses shared composable)
+const { theme, toggleTheme: doToggleTheme, isDark } = useTheme()
+const isDarkMode = computed(() => isDark())
 
 // Account management state
 const showDeleteConfirm = ref(false)
@@ -168,14 +170,9 @@ const confirmDelete = async () => {
   }
 }
 
-// Toggle dark/light mode
+// Toggle dark/light mode — useTheme handles persistence and DOM update
 const toggleTheme = () => {
-  isDarkMode.value = !isDarkMode.value
-  const newTheme = isDarkMode.value ? 'dark' : 'light'
-  document.documentElement.setAttribute('data-theme', newTheme)
-  localStorage.setItem('ssi-theme', newTheme)
-  // Reload to ensure all cached pages render with new theme
-  window.location.reload()
+  doToggleTheme()
 }
 
 // ============================================

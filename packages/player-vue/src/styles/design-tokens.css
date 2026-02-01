@@ -203,47 +203,47 @@
 }
 
 /* ================================================================
- * LIGHT THEME
- * Warm, creamy surfaces inspired by SSi brand
+ * MIST THEME (Misty Dojo)
+ * Warm dojo stone surfaces with sumi ink text
  * ================================================================ */
-[data-theme="light"] {
-  /* Background hierarchy - warm cream tones */
-  --bg-primary: #f8f5f0;
-  --bg-secondary: #fffcf7;
-  --bg-card: #fffdf9;
-  --bg-card-hover: #fff8f0;
-  --bg-elevated: #f3efe8;
-  --bg-input: #fffdf9;
+[data-theme="mist"] {
+  /* Background hierarchy - dojo stone palette */
+  --bg-primary: #f0ebe3;
+  --bg-secondary: #f7f3ec;
+  --bg-card: #f7f3ec;
+  --bg-card-hover: #ede7dd;
+  --bg-elevated: #e8e2d8;
+  --bg-input: #f7f3ec;
 
-  /* Text hierarchy - warm darks */
-  --text-primary: #2d2926;
-  --text-secondary: #5c5550;
-  --text-muted: #8a837a;
-  --text-inverse: #fffcf7;
+  /* Text hierarchy - sumi ink palette */
+  --text-primary: #2c2520;
+  --text-secondary: #5c544a;
+  --text-muted: #998f82;
+  --text-inverse: #f7f3ec;
 
-  /* Borders - warm tints */
-  --border-subtle: rgba(139, 109, 76, 0.1);
-  --border-medium: rgba(139, 109, 76, 0.18);
-  --border-strong: rgba(139, 109, 76, 0.28);
+  /* Borders - earth tints */
+  --border-subtle: rgba(100, 80, 55, 0.1);
+  --border-medium: rgba(100, 80, 55, 0.18);
+  --border-strong: rgba(100, 80, 55, 0.3);
   --border-focus: var(--ssi-red);
 
   /* Shadows (warm tinted) */
-  --shadow-sm: 0 2px 8px rgba(139, 109, 76, 0.1);
-  --shadow-md: 0 4px 20px rgba(139, 109, 76, 0.14);
-  --shadow-lg: 0 8px 40px rgba(139, 109, 76, 0.18);
-  --shadow-xl: 0 12px 60px rgba(139, 109, 76, 0.22);
-  --shadow-glow: 0 0 30px rgba(194, 58, 58, 0.2);
-  --shadow-glow-gold: 0 0 30px rgba(212, 168, 83, 0.25);
+  --shadow-sm: 0 2px 8px rgba(60, 45, 30, 0.08);
+  --shadow-md: 0 4px 20px rgba(60, 45, 30, 0.12);
+  --shadow-lg: 0 8px 40px rgba(60, 45, 30, 0.16);
+  --shadow-xl: 0 12px 60px rgba(60, 45, 30, 0.2);
+  --shadow-glow: 0 0 30px rgba(194, 58, 58, 0.15);
+  --shadow-glow-gold: 0 0 30px rgba(212, 168, 83, 0.2);
 
   /* Special surfaces */
-  --nav-bg: rgba(255, 252, 247, 0.95);
-  --nav-bg-blur: rgba(255, 252, 247, 0.85);
-  --modal-backdrop: rgba(45, 41, 38, 0.5);
+  --nav-bg: rgba(255, 252, 245, 0.92);
+  --nav-bg-blur: rgba(255, 252, 245, 0.85);
+  --modal-backdrop: rgba(44, 37, 32, 0.5);
   --logo-bubble-bg: var(--bg-primary);
 
   /* Decorative */
   --mountain-opacity: 0.4;
-  --overlay-gradient: linear-gradient(180deg, rgba(248, 245, 240, 0) 0%, rgba(248, 245, 240, 0.85) 100%);
+  --overlay-gradient: linear-gradient(180deg, rgba(240, 235, 227, 0) 0%, rgba(240, 235, 227, 0.85) 100%);
 }
 
 /* ================================================================

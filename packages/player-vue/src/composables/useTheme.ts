@@ -24,7 +24,7 @@ function applyTheme(theme: Theme) {
   // Also update meta theme-color for browser chrome
   const metaThemeColor = document.querySelector('meta[name="theme-color"]')
   if (metaThemeColor) {
-    metaThemeColor.setAttribute('content', theme === 'cosmos' ? '#050508' : '#e4e7ed')
+    metaThemeColor.setAttribute('content', theme === 'cosmos' ? '#050508' : '#f0ebe3')
   }
 }
 

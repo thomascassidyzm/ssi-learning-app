@@ -734,4 +734,39 @@ const isVisible = computed(() => !props.isLearning)
     min-height: 2px;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   MISTY DOJO THEME — Bottom nav overrides
+   ═══════════════════════════════════════════════════════════════ */
+:root[data-theme="mist"] .nav-backdrop {
+  background: linear-gradient(
+    to top,
+    rgba(247, 243, 236, 0.92) 0%,
+    rgba(247, 243, 236, 0.92) 50%,
+    rgba(247, 243, 236, 0.8) 100%
+  );
+  border-top-color: rgba(100, 80, 55, 0.1);
+}
+
+:root[data-theme="mist"] .nav-backdrop::before {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(100, 80, 55, 0.08) 20%,
+    rgba(100, 80, 55, 0.08) 80%,
+    transparent
+  );
+}
+
+:root[data-theme="mist"] .nav-icon {
+  color: #998f82;
+}
+
+:root[data-theme="mist"] .nav-label {
+  color: #998f82;
+}
+
+:root[data-theme="mist"] .nav-item.active .nav-label {
+  color: #2c2520;
+}
 </style>

@@ -1426,9 +1426,9 @@ const prefetchRoundAudio = async (items: any[], courseId: string): Promise<boole
  * Warms the service worker's CacheFirst cache for /api/audio/* URLs.
  * Fire-and-forget: never blocks, silently ignores failures.
  */
-const preloadSimpleRoundAudio = (rounds: any[], maxRounds = 1) => {
+const preloadSimpleRoundAudio = (rounds: any[], maxRounds = 1, startIndex = 0) => {
   const urls = new Set<string>()
-  const slice = rounds.slice(0, maxRounds)
+  const slice = rounds.slice(startIndex, startIndex + maxRounds)
   for (const round of slice) {
     if (round.introAudioUrl) urls.add(round.introAudioUrl)
     for (const cycle of round.cycles || []) {
@@ -5112,8 +5112,6 @@ onMounted(async () => {
   }
   window.addEventListener('ssi-setting-changed', settingChangedHandler)
 
-  // Force dark mode - constellation network is designed for dark only
-  document.documentElement.setAttribute('data-theme', 'dark')
   audioController.value = new RealAudioController()
   currentCourseCode.value = courseCode.value
 
@@ -5220,10 +5218,11 @@ onMounted(async () => {
               // Store for legacy code
               loadedRounds.value = simpleRounds as any
 
-              // Return users: preload first round audio immediately so it's
-              // cached by the time they press play (no consent overlay delay)
+              // Preload audio for the round the user will actually play first.
+              // Return users skip consent, so audio must be cached before they press play.
               if (adaptationConsent.value !== null) {
-                preloadSimpleRoundAudio(simpleRounds, 1)
+                const currentRound = simplePlayer.roundIndex.value ?? 0
+                preloadSimpleRoundAudio(simpleRounds, 1, currentRound)
               }
             } else {
               console.warn('[LearningPlayer] No script items generated')
@@ -6449,6 +6448,47 @@ defineExpose({
     <!-- Subtle Nebula Glow - Belt colored -->
     <div class="nebula-glow"></div>
 
+    <!-- Mountain Silhouette - Visible only in mist theme -->
+    <div class="mountain-silhouette">
+      <svg viewBox="0 0 1200 400" preserveAspectRatio="xMidYMax slice" xmlns="http://www.w3.org/2000/svg">
+        <!-- Far peaks -->
+        <g opacity="0.3">
+          <path d="M0 400 L0 280 Q100 180 200 240 Q300 160 400 200 Q500 120 600 180 Q700 100 800 160 Q900 80 1000 200 Q1100 160 1200 220 L1200 400Z" fill="currentColor"/>
+        </g>
+        <!-- Mid range with torii + pagoda -->
+        <g opacity="0.5">
+          <path d="M0 400 L0 320 Q150 260 300 290 Q450 240 600 270 Q750 220 900 260 Q1050 230 1200 280 L1200 400Z" fill="currentColor"/>
+          <!-- Torii gate -->
+          <g transform="translate(350, 250)">
+            <rect x="-12" y="0" width="3" height="40" fill="currentColor"/>
+            <rect x="9" y="0" width="3" height="40" fill="currentColor"/>
+            <rect x="-16" y="0" width="32" height="3" rx="1" fill="currentColor"/>
+            <rect x="-14" y="8" width="28" height="2" fill="currentColor"/>
+          </g>
+          <!-- Pagoda -->
+          <g transform="translate(880, 228)">
+            <rect x="-8" y="20" width="16" height="32" fill="currentColor"/>
+            <path d="M-14 20 L0 10 L14 20Z" fill="currentColor"/>
+            <path d="M-12 10 L0 2 L12 10Z" fill="currentColor"/>
+          </g>
+        </g>
+        <!-- Near hills with pines -->
+        <g opacity="0.7">
+          <path d="M0 400 L0 350 Q100 320 200 340 Q350 300 500 330 Q650 310 800 340 Q950 320 1100 350 L1200 360 L1200 400Z" fill="currentColor"/>
+          <!-- Pine trees -->
+          <g transform="translate(150, 310)">
+            <path d="M0 0 L-6 20 L-3 18 L-8 32 L8 32 L3 18 L6 20Z" fill="currentColor"/>
+          </g>
+          <g transform="translate(700, 305)">
+            <path d="M0 0 L-7 22 L-3 20 L-9 36 L9 36 L3 20 L7 22Z" fill="currentColor"/>
+          </g>
+          <g transform="translate(1050, 315)">
+            <path d="M0 0 L-5 18 L-2 16 L-7 28 L7 28 L2 16 L5 18Z" fill="currentColor"/>
+          </g>
+        </g>
+      </svg>
+    </div>
+
     <!-- Class Context Banner (when launched from Schools) -->
     <div v-if="props.classContext" class="class-banner">
       <span class="class-icon">🏫</span>
@@ -7164,38 +7204,225 @@ defineExpose({
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   MIST THEME - Background overrides
-   Bright, clean light mode backgrounds
+   MISTY DOJO THEME — Full visual identity for data-theme="mist"
+   Warm dojo stone, sumi ink, shuriken particles, mountain silhouette
    ═══════════════════════════════════════════════════════════════ */
+
+/* --- Space / Background layers --- */
 :root[data-theme="mist"] .space-gradient {
   background:
-    radial-gradient(ellipse 120% 80% at 20% 10%, rgba(200, 210, 230, 0.4) 0%, transparent 50%),
-    radial-gradient(ellipse 100% 60% at 80% 90%, rgba(210, 200, 220, 0.3) 0%, transparent 40%),
-    radial-gradient(ellipse 80% 80% at 50% 50%, #f5f5f7 0%, #e8e8ec 100%);
+    radial-gradient(ellipse 120% 80% at 20% 10%, rgba(210, 195, 170, 0.35) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 60% at 80% 90%, rgba(200, 185, 160, 0.25) 0%, transparent 40%),
+    radial-gradient(ellipse 80% 80% at 50% 50%, #f0ebe3 0%, #e8e2d8 100%);
 }
 
 :root[data-theme="mist"] .space-nebula {
   background:
-    radial-gradient(ellipse 60% 40% at 30% 30%, rgba(180, 190, 210, 0.15) 0%, transparent 50%),
-    radial-gradient(ellipse 50% 30% at 70% 60%, rgba(200, 180, 200, 0.1) 0%, transparent 40%);
+    linear-gradient(180deg, transparent 0%, rgba(200, 185, 160, 0.08) 30%, rgba(200, 185, 160, 0.12) 50%, transparent 70%),
+    linear-gradient(180deg, transparent 40%, rgba(200, 185, 160, 0.06) 60%, transparent 80%);
+  animation: mist-drift 20s ease-in-out infinite;
+}
+
+@keyframes mist-drift {
+  0%, 100% { opacity: 1; transform: translateY(0); }
+  50% { opacity: 0.7; transform: translateY(-8px); }
 }
 
 :root[data-theme="mist"] .bg-noise {
-  opacity: 0.02;
-  filter: invert(1);
+  opacity: 0.04;
+  filter: none;
+  mix-blend-mode: multiply;
 }
 
-/* Stars controlled by belt progression (starFieldOpacity computed) */
-/* In light mode, stars are less visible - subtle decorative touches */
+/* Bamboo shadow lines on bg-noise::after */
+:root[data-theme="mist"] .bg-noise::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, transparent 18%, rgba(100, 80, 55, 0.02) 18.5%, transparent 19%),
+    linear-gradient(90deg, transparent 42%, rgba(100, 80, 55, 0.015) 42.3%, transparent 42.8%),
+    linear-gradient(90deg, transparent 71%, rgba(100, 80, 55, 0.02) 71.4%, transparent 72%),
+    linear-gradient(90deg, transparent 89%, rgba(100, 80, 55, 0.015) 89.3%, transparent 89.8%);
+  pointer-events: none;
+}
 
+/* --- Stars → Ink dots --- */
+:root[data-theme="mist"] .star-field .star {
+  background: rgba(44, 37, 32, 0.6) !important;
+  box-shadow: none !important;
+  opacity: 0.04 !important;
+  animation: ink-dot-breathe 6s ease-in-out infinite !important;
+}
+
+:root[data-theme="mist"] .star-field .star:nth-child(odd) {
+  opacity: 0.08 !important;
+  animation-delay: -3s !important;
+}
+
+@keyframes ink-dot-breathe {
+  0%, 100% { opacity: 0.04; transform: scale(1); }
+  50% { opacity: 0.08; transform: scale(1.2); }
+}
+
+/* --- Drift stars → Shuriken --- */
+:root[data-theme="mist"] .drift-star {
+  background: rgba(44, 37, 32, 0.12) !important;
+  box-shadow: none !important;
+  clip-path: polygon(50% 0%, 65% 35%, 100% 50%, 65% 65%, 50% 100%, 35% 65%, 0% 50%, 35% 35%) !important;
+  border-radius: 0 !important;
+  animation: shuriken-spin 12s linear infinite !important;
+}
+
+:root[data-theme="mist"] .drift-star:nth-child(even) {
+  animation-direction: reverse !important;
+  animation-duration: 16s !important;
+}
+
+@keyframes shuriken-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* --- Nebula glow → Warm floor glow --- */
 :root[data-theme="mist"] .nebula-glow {
   background:
     linear-gradient(
       to top,
-      rgba(194, 58, 58, 0.08) 0%,
-      transparent 20%
+      rgba(var(--belt-color-r, 194), var(--belt-color-g, 58), var(--belt-color-b, 58), 0.06) 0%,
+      transparent 25%
     );
-  opacity: 0.3;
+  opacity: 0.5;
+}
+
+/* --- Mountain silhouette --- */
+.mountain-silhouette {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 40vh;
+  pointer-events: none;
+  z-index: 1;
+  color: rgba(44, 37, 32, 0.06);
+}
+
+.mountain-silhouette svg {
+  width: 100%;
+  height: 100%;
+}
+
+:root[data-theme="mist"] .mountain-silhouette {
+  display: block;
+}
+
+/* --- Hero glass → Warm frosted paper --- */
+:root[data-theme="mist"] .hero-glass {
+  background: rgba(247, 243, 236, 0.75) !important;
+  border-color: rgba(100, 80, 55, 0.12) !important;
+  box-shadow: 0 4px 24px rgba(60, 45, 30, 0.08) !important;
+  backdrop-filter: blur(20px) saturate(120%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(120%) !important;
+}
+
+/* --- Hero text --- */
+:root[data-theme="mist"] .hero-known {
+  color: #2c2520 !important;
+}
+
+:root[data-theme="mist"] .hero-target {
+  color: #2c2520 !important;
+  text-shadow: 0 1px 3px rgba(60, 45, 30, 0.15) !important;
+}
+
+/* --- Control bar → Warm frosted paper --- */
+:root[data-theme="mist"] .control-bar {
+  background: rgba(247, 243, 236, 0.65) !important;
+  border-color: rgba(100, 80, 55, 0.1) !important;
+  backdrop-filter: blur(20px) saturate(120%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(120%) !important;
+}
+
+/* --- Mode / Transport buttons --- */
+:root[data-theme="mist"] .mode-btn,
+:root[data-theme="mist"] .transport-btn {
+  background: rgba(100, 80, 55, 0.06) !important;
+  border-color: rgba(100, 80, 55, 0.1) !important;
+  color: #5c544a !important;
+}
+
+:root[data-theme="mist"] .mode-btn:hover,
+:root[data-theme="mist"] .transport-btn:hover {
+  background: rgba(100, 80, 55, 0.1) !important;
+}
+
+:root[data-theme="mist"] .mode-btn.active {
+  background: rgba(100, 80, 55, 0.12) !important;
+  color: #2c2520 !important;
+}
+
+/* --- Brain Network overrides --- */
+:root[data-theme="mist"] .brain-network-container :deep(.network-link) {
+  stroke: rgba(100, 80, 55, 0.12);
+}
+
+:root[data-theme="mist"] .brain-network-container :deep(.network-label) {
+  fill: rgba(44, 37, 32, 0.6);
+}
+
+:root[data-theme="mist"] .brain-network-container :deep(.network-label.visible) {
+  fill: rgba(44, 37, 32, 0.7);
+}
+
+:root[data-theme="mist"] .brain-network-container :deep(.network-label.active) {
+  fill: #2c2520;
+  filter: none;
+  text-shadow: 0 1px 3px rgba(60, 45, 30, 0.2);
+}
+
+:root[data-theme="mist"] .brain-network-container :deep(.network-node.hero) {
+  animation: mist-node-pulse 2s ease-in-out infinite;
+}
+
+@keyframes mist-node-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 6px rgba(60, 45, 30, 0.3));
+    transform: scale(1);
+  }
+  50% {
+    filter: drop-shadow(0 0 14px rgba(60, 45, 30, 0.5));
+    transform: scale(1.1);
+  }
+}
+
+/* --- Belt celebration overlay --- */
+:root[data-theme="mist"] .belt-celebration-overlay {
+  background: rgba(44, 37, 32, 0.6) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+}
+
+/* --- Belt particles → Shuriken burst --- */
+:root[data-theme="mist"] .belt-particle {
+  clip-path: polygon(50% 0%, 65% 35%, 100% 50%, 65% 65%, 50% 100%, 35% 65%, 0% 50%, 35% 35%) !important;
+  border-radius: 0 !important;
+}
+
+/* --- Ink spirit rewards --- */
+:root[data-theme="mist"] .ink-spirit-reward {
+  text-shadow: 0 1px 4px rgba(60, 45, 30, 0.2) !important;
+}
+
+:root[data-theme="mist"] .ink-spirit-reward .ink-word {
+  color: #2c2520 !important;
+}
+
+/* --- Learning hint box --- */
+:root[data-theme="mist"] .learning-hint {
+  background: rgba(247, 243, 236, 0.8) !important;
+  border-color: rgba(100, 80, 55, 0.12) !important;
+  color: #5c544a !important;
 }
 
 /* ============ BRAIN NETWORK VISUALIZATION ============ */
