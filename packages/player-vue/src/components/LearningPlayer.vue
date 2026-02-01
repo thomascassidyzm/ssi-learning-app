@@ -4309,8 +4309,30 @@ const handleAdaptationConsent = async (granted) => {
     console.log('[LearningPlayer] Adaptation declined - learning continues normally')
   }
 
-  // Now start playback (consent resolved)
-  startPlayback()
+  // Wait for rounds to load if not yet available (first play may race with initialization)
+  if (loadedRounds.value.length === 0) {
+    console.log('[LearningPlayer] Waiting for rounds to load after consent...')
+    startPreparingState()
+    await new Promise<void>((resolve) => {
+      const unwatch = watch(
+        () => loadedRounds.value.length > 0,
+        (hasRounds) => {
+          if (hasRounds) {
+            unwatch()
+            resolve()
+          }
+        },
+        { immediate: true }
+      )
+    })
+    isPreparingToPlay.value = false
+  }
+
+  // Play welcome audio on first play if needed
+  await playWelcomeIfNeeded()
+
+  // Start playback via simple player path (consent now resolved)
+  handleResume()
 }
 
 // Initialize VAD (must be called from user gesture)
