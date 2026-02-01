@@ -1,16 +1,27 @@
 /**
- * useEntitlement - Check user entitlements for offline downloads
+ * useEntitlement - Course access and download entitlements
  *
- * Entitlement model:
- * - Free users: Auto-prefetch ~30 minutes ahead during learning (background, non-blocking)
- * - Paid users: Explicit "Download for offline" with full course download
+ * Two concerns handled here:
+ * 1. **Course Access**: Can user access course content (and how much)?
+ *    - Community/free courses: Full access
+ *    - Premium courses: Free through Yellow Belt, then requires subscription
  *
- * Entitlement is checked BEFORE caching, not at playback time.
- * Once cached, audio plays without online checks.
- * Entitlement re-checked on next sync when online.
+ * 2. **Download Entitlement**: Can user download for offline use?
+ *    - Free users: Auto-prefetch ~30 minutes ahead
+ *    - Paid users: Full course download
+ *
+ * Access is checked at playback; entitlement is checked before caching.
  */
 
 import { ref, computed, inject, type Ref, type ComputedRef } from 'vue'
+import { useSharedSubscription } from './useSubscription'
+import type { CoursePricingTier } from '@ssi/core'
+import {
+  checkCourseAccess,
+  inferPricingTier,
+  PREMIUM_PREVIEW_MAX_SEED,
+  type CourseAccessResult,
+} from '@ssi/core'
 
 // ============================================================================
 // TYPES
@@ -29,17 +40,32 @@ export interface EntitlementStatus {
   maxDownloadHours: number
 }
 
+export interface CourseInfo {
+  course_code: string
+  target_lang?: string
+  pricing_tier?: CoursePricingTier
+  is_community?: boolean
+}
+
 export interface UseEntitlementReturn {
-  /** Current entitlement status */
+  /** Current entitlement status (for downloads) */
   entitlement: Ref<EntitlementStatus>
   /** Whether user can download this course */
   canDownload: ComputedRef<boolean>
   /** Maximum download hours allowed */
   maxDownloadHours: ComputedRef<number>
-  /** Check entitlement for a course */
-  checkEntitlement: (courseId: string) => Promise<EntitlementStatus>
+  /** Check entitlement for a course (legacy - for downloads) */
+  checkEntitlement: (courseId: string, courseInfo?: CourseInfo) => Promise<EntitlementStatus>
   /** Refresh entitlement (e.g., after purchase) */
   refreshEntitlement: () => Promise<void>
+
+  // New access control methods
+  /** Check course access (for content gating) */
+  checkCourseAccess: (course: CourseInfo) => CourseAccessResult
+  /** Check if user can access a specific seed */
+  canAccessSeed: (course: CourseInfo, seedNumber: number) => boolean
+  /** Get preview limit for premium courses */
+  getPreviewLimit: () => number
 }
 
 // ============================================================================
@@ -63,6 +89,9 @@ export function useEntitlement(): UseEntitlementReturn {
   // Get auth from app context
   const auth = inject<{ isAuthenticated: Ref<boolean>; learnerId: Ref<string | null> } | null>('auth', null)
 
+  // Get subscription status
+  const { isSubscribed: hasActiveSubscription } = useSharedSubscription()
+
   // Entitlement state
   const entitlement = ref<EntitlementStatus>({
     canDownload: false,
@@ -74,6 +103,7 @@ export function useEntitlement(): UseEntitlementReturn {
 
   // Current course being checked
   const currentCourseId = ref<string | null>(null)
+  const currentCourseInfo = ref<CourseInfo | null>(null)
 
   // ============================================================================
   // COMPUTED
@@ -83,26 +113,112 @@ export function useEntitlement(): UseEntitlementReturn {
   const maxDownloadHours = computed(() => entitlement.value.maxDownloadHours)
 
   // ============================================================================
-  // METHODS
+  // SUBSCRIPTION HELPERS
   // ============================================================================
 
   /**
-   * Check entitlement for a specific course.
+   * Get subscription status for access checks
+   */
+  function getSubscriptionStatus() {
+    const isPaid = hasActiveSubscription.value || checkDevPaidStatus()
+    return {
+      isActive: isPaid,
+      tier: isPaid ? 'paid' as const : 'free' as const,
+    }
+  }
+
+  /**
+   * Check localStorage dev flag for testing
+   */
+  function checkDevPaidStatus(): boolean {
+    try {
+      return localStorage.getItem('ssi-dev-paid-user') === 'true'
+    } catch {
+      return false
+    }
+  }
+
+  // ============================================================================
+  // ACCESS CONTROL (new - database-driven)
+  // ============================================================================
+
+  /**
+   * Check course access using database pricing_tier or inferred tier
+   *
+   * @param course - Course with pricing info (from database or inferred)
+   * @returns CourseAccessResult with access level and reason
+   */
+  function checkAccess(course: CourseInfo): CourseAccessResult {
+    // Use database pricing_tier if available, otherwise infer from course code
+    const pricingTier = course.pricing_tier
+      ?? inferPricingTier(course.target_lang ?? '', course.course_code)
+
+    const isCommunity = course.is_community ?? course.course_code.startsWith('community_')
+
+    const courseWithPricing = {
+      pricing_tier: pricingTier,
+      is_community: isCommunity,
+    }
+
+    const subscription = getSubscriptionStatus()
+    return checkCourseAccess(courseWithPricing, subscription)
+  }
+
+  /**
+   * Check if user can access a specific seed
+   *
+   * @param course - Course info
+   * @param seedNumber - Seed number (1-based)
+   * @returns true if user can access this seed
+   */
+  function canAccessSeedCheck(course: CourseInfo, seedNumber: number): boolean {
+    const access = checkAccess(course)
+
+    // Full access
+    if (access.canAccess) {
+      return true
+    }
+
+    // Preview mode - check limit
+    if (access.canPreview && access.previewMaxSeed) {
+      return seedNumber <= access.previewMaxSeed
+    }
+
+    return false
+  }
+
+  /**
+   * Get the preview limit (max seed for free preview)
+   */
+  function getPreviewLimit(): number {
+    return PREMIUM_PREVIEW_MAX_SEED
+  }
+
+  // ============================================================================
+  // DOWNLOAD ENTITLEMENT (legacy interface - still needed for offline)
+  // ============================================================================
+
+  /**
+   * Check download entitlement for a specific course.
    *
    * Entitlement logic:
    * 1. Community courses: Always free to download
    * 2. Paid user: Full download access
    * 3. Free user: Limited prefetch only (no explicit download)
    */
-  async function checkEntitlement(courseId: string): Promise<EntitlementStatus> {
+  async function checkEntitlement(
+    courseId: string,
+    courseInfo?: CourseInfo
+  ): Promise<EntitlementStatus> {
     currentCourseId.value = courseId
+    currentCourseInfo.value = courseInfo ?? { course_code: courseId }
     const isAuthenticated = auth?.isAuthenticated.value ?? false
 
-    // Determine course type (in production, this would come from course metadata)
-    const courseEntitlement = determineCourseEntitlement(courseId)
+    // Use new access check to determine entitlement
+    const access = checkAccess(currentCourseInfo.value)
 
-    // Community courses are always free
-    if (courseEntitlement === 'community') {
+    // Map access result to entitlement
+    if (access.reason === 'community') {
       entitlement.value = {
         canDownload: true,
         isAuthenticated,
@@ -110,13 +226,17 @@ export function useEntitlement(): UseEntitlementReturn {
         courseEntitlement: 'community',
         maxDownloadHours: COMMUNITY_DOWNLOAD_HOURS,
       }
-      return entitlement.value
-    }
-
-    // Check paid status (in production, this would query Clerk/Stripe)
-    const isPaidUser = await checkPaidStatus()
-
-    if (isPaidUser) {
+    } else if (access.reason === 'free') {
+      // Free tier courses - full download access
+      entitlement.value = {
+        canDownload: true,
+        isAuthenticated,
+        isPaidUser: false,
+        courseEntitlement: 'free',
+        maxDownloadHours: COMMUNITY_DOWNLOAD_HOURS,
+      }
+    } else if (access.reason === 'subscribed') {
+      // Paid user - full access
       entitlement.value = {
         canDownload: true,
         isAuthenticated,
@@ -125,7 +245,7 @@ export function useEntitlement(): UseEntitlementReturn {
         maxDownloadHours: PAID_DOWNLOAD_HOURS,
       }
     } else {
-      // Free users can't explicitly download, but auto-prefetch happens during learning
+      // Preview only - no explicit download, just prefetch
       entitlement.value = {
         canDownload: false,
         isAuthenticated,
@@ -143,61 +263,8 @@ export function useEntitlement(): UseEntitlementReturn {
    */
   async function refreshEntitlement(): Promise<void> {
     if (currentCourseId.value) {
-      await checkEntitlement(currentCourseId.value)
+      await checkEntitlement(currentCourseId.value, currentCourseInfo.value ?? undefined)
     }
-  }
-
-  // ============================================================================
-  // HELPERS
-  // ============================================================================
-
-  /**
-   * Determine course entitlement type from course metadata.
-   *
-   * In production, this would check:
-   * - Course pricing tier from Supabase
-   * - Big 10 language pairs (paid)
-   * - Community flag (free)
-   */
-  function determineCourseEntitlement(courseId: string): 'free' | 'paid' | 'community' {
-    // Placeholder logic - in production, query course metadata
-    // Community courses have 'community_' prefix or are flagged in database
-    if (courseId.startsWith('community_')) {
-      return 'community'
-    }
-
-    // Big 10 language courses are paid
-    const bigTenPrefixes = ['spa_', 'fre_', 'ger_', 'ita_', 'por_', 'chi_', 'jap_', 'ara_', 'kor_', 'eng_']
-    if (bigTenPrefixes.some(prefix => courseId.startsWith(prefix))) {
-      return 'paid'
-    }
-
-    // Default to free for unknown courses
-    return 'free'
-  }
-
-  /**
-   * Check if user has paid subscription.
-   *
-   * In production, this would:
-   * 1. Check Clerk session metadata
-   * 2. Query Stripe subscription status
-   * 3. Check entitlement grants
-   */
-  async function checkPaidStatus(): Promise<boolean> {
-    // Placeholder - in production, integrate with Clerk/Stripe
-    // For now, check localStorage for development/testing
-    try {
-      const devPaidStatus = localStorage.getItem('ssi-dev-paid-user')
-      if (devPaidStatus === 'true') {
-        return true
-      }
-    } catch {
-      // Ignore localStorage errors
-    }
-
-    // In production: return await clerk.user?.publicMetadata?.isPaidSubscriber ?? false
-    return false
   }
 
   // ============================================================================
@@ -205,11 +272,17 @@ export function useEntitlement(): UseEntitlementReturn {
   // ============================================================================
 
   return {
+    // Download entitlement (legacy)
     entitlement,
     canDownload,
     maxDownloadHours,
     checkEntitlement,
     refreshEntitlement,
+
+    // Access control (new)
+    checkCourseAccess: checkAccess,
+    canAccessSeed: canAccessSeedCheck,
+    getPreviewLimit,
   }
 }
 

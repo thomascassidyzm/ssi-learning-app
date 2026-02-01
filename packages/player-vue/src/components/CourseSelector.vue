@@ -7,12 +7,25 @@
  * - "I want to learn" grid of target languages
  * - Shows progress for enrolled courses, "NEW" badge for unenrolled
  * - Queries Supabase for available courses (uses dashboard schema as SSoT)
+ * - Filters by visibility field (public | beta) - hidden courses not shown
+ * - Shows pricing_tier indicator for premium courses
  * - Localized UI based on selected known language
  */
 import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n, setLocale, getLanguageName } from '../composables/useI18n'
 
 const { t } = useI18n()
+
+// Check if course is premium (for "Free preview" indicator)
+const isPremiumCourse = (course) => {
+  return course.pricing_tier === 'premium'
+}
+
+// Check if course has beta visibility
+const isBetaCourse = (course) => {
+  // Prefer visibility field, fall back to new_app_status for backwards compat
+  return course.visibility === 'beta' || course.new_app_status === 'beta'
+}
 
 // Extract target language name from display_name or fall back to locale lookup
 // e.g., "Welsh (North) for English Speakers" → "Welsh (North)"
@@ -126,10 +139,13 @@ const fetchCourses = async () => {
   }
 
   try {
+    // Query courses with visibility filter
+    // Prefer visibility field (new), fall back to new_app_status (legacy)
     const { data, error: fetchError } = await props.supabase
       .from('courses')
       .select('*')
-      .in('new_app_status', ['released', 'beta'])  // Only show released and beta courses
+      .or('visibility.in.(public,beta),and(visibility.is.null,new_app_status.in.(released,beta))')
+      .order('featured_order', { ascending: true, nullsFirst: false })
       .order('display_name')
 
     if (fetchError) throw fetchError
@@ -146,14 +162,16 @@ const fetchCourses = async () => {
   }
 }
 
-// Mock courses for development/fallback (matches dashboard schema)
+// Mock courses for development/fallback (matches dashboard schema with new visibility fields)
 const getMockCourses = () => [
-  { course_code: 'spa_for_eng', known_lang: 'eng', target_lang: 'spa', display_name: 'Spanish for English Speakers', new_app_status: 'released' },
-  { course_code: 'ita_for_eng', known_lang: 'eng', target_lang: 'ita', display_name: 'Italian for English Speakers', new_app_status: 'released' },
-  { course_code: 'fra_for_eng', known_lang: 'eng', target_lang: 'fra', display_name: 'French for English Speakers', new_app_status: 'beta' },
-  { course_code: 'deu_for_eng', known_lang: 'eng', target_lang: 'deu', display_name: 'German for English Speakers', new_app_status: 'beta' },
-  { course_code: 'cym_n_for_eng', known_lang: 'eng', target_lang: 'cym_n', display_name: 'Welsh (North) for English Speakers', new_app_status: 'released' },
-  { course_code: 'cym_s_for_eng', known_lang: 'eng', target_lang: 'cym_s', display_name: 'Welsh (South) for English Speakers', new_app_status: 'released' },
+  // Community/free courses - visible at launch
+  { course_code: 'cym_n_for_eng', known_lang: 'eng', target_lang: 'cym_n', display_name: 'Welsh (North) for English Speakers', visibility: 'public', pricing_tier: 'free', is_community: false },
+  { course_code: 'cym_s_for_eng', known_lang: 'eng', target_lang: 'cym_s', display_name: 'Welsh (South) for English Speakers', visibility: 'public', pricing_tier: 'free', is_community: false },
+  // Premium courses - hidden at launch, shown here for testing
+  { course_code: 'spa_for_eng', known_lang: 'eng', target_lang: 'spa', display_name: 'Spanish for English Speakers', visibility: 'public', pricing_tier: 'premium', is_community: false },
+  { course_code: 'ita_for_eng', known_lang: 'eng', target_lang: 'ita', display_name: 'Italian for English Speakers', visibility: 'public', pricing_tier: 'premium', is_community: false },
+  { course_code: 'fra_for_eng', known_lang: 'eng', target_lang: 'fra', display_name: 'French for English Speakers', visibility: 'beta', pricing_tier: 'premium', is_community: false },
+  { course_code: 'deu_for_eng', known_lang: 'eng', target_lang: 'deu', display_name: 'German for English Speakers', visibility: 'beta', pricing_tier: 'premium', is_community: false },
 ]
 
 // Handle course selection
@@ -255,7 +273,7 @@ onMounted(() => {
                 </div>
 
                 <!-- Beta badge for beta courses -->
-                <div v-else-if="course.new_app_status === 'beta'" class="beta-badge">β</div>
+                <div v-else-if="isBetaCourse(course)" class="beta-badge">β</div>
 
                 <!-- NEW badge for unenrolled released courses -->
                 <div v-else-if="!isEnrolled(course.course_code)" class="new-badge">{{ t('courseSelector.new') }}</div>
@@ -266,6 +284,9 @@ onMounted(() => {
                 <span class="target-status">
                   <template v-if="isEnrolled(course.course_code)">
                     {{ getProgress(course.course_code) }}%
+                  </template>
+                  <template v-else-if="isPremiumCourse(course)">
+                    Free preview
                   </template>
                   <template v-else>
                     {{ t('courseSelector.ready') }}

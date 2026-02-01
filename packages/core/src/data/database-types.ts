@@ -250,6 +250,12 @@ export function computePhraseType(position: number): 'component' | 'debut' | 'pr
   return 'eternal';
 }
 
+// Import visibility and pricing types from pricing module (canonical location)
+import type { CourseVisibility, CoursePricingTier } from '../pricing/types';
+
+// Re-export for convenience
+export type { CourseVisibility, CoursePricingTier };
+
 /**
  * Course row from `courses` table (matches dashboard schema - SSoT)
  * Used for course catalog and selection UI
@@ -266,6 +272,13 @@ export interface CourseRow {
   status: 'draft' | 'active' | 'archived';
   created_at?: string;
   updated_at?: string;
+
+  // Visibility and pricing (added 2026-01-31)
+  visibility?: CourseVisibility;  // 'public' | 'hidden' | 'beta'
+  pricing_tier?: CoursePricingTier; // 'free' | 'premium' | 'community'
+  is_community?: boolean;        // Community-created course (always free)
+  released_at?: string | null;   // When course went public
+  featured_order?: number | null; // Display order in course selector
 }
 
 /**
