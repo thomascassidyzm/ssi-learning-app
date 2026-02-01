@@ -1422,6 +1422,34 @@ const prefetchRoundAudio = async (items: any[], courseId: string): Promise<boole
 }
 
 /**
+ * Preload audio for the first N SimpleRounds using fetch().
+ * Warms the service worker's CacheFirst cache for /api/audio/* URLs.
+ * Fire-and-forget: never blocks, silently ignores failures.
+ */
+const preloadSimpleRoundAudio = (rounds: any[], maxRounds = 1) => {
+  const urls = new Set<string>()
+  const slice = rounds.slice(0, maxRounds)
+  for (const round of slice) {
+    if (round.introAudioUrl) urls.add(round.introAudioUrl)
+    for (const cycle of round.cycles || []) {
+      if (cycle.known?.audioUrl) urls.add(cycle.known.audioUrl)
+      if (cycle.target?.voice1Url) urls.add(cycle.target.voice1Url)
+      if (cycle.target?.voice2Url) urls.add(cycle.target.voice2Url)
+    }
+  }
+
+  if (urls.size === 0) return
+
+  console.log(`[preloadSimpleRoundAudio] Preloading ${urls.size} audio URLs from ${slice.length} round(s)`)
+
+  for (const url of urls) {
+    fetch(url).catch(() => {
+      // Silent failure - caching is best-effort
+    })
+  }
+}
+
+/**
  * Start playing a cycle using the new useCyclePlayback system
  * Replaces orchestrator.startItem() calls
  *
@@ -4335,6 +4363,18 @@ const handleAdaptationConsent = async (granted) => {
   handleResume()
 }
 
+// Preload first round audio during consent overlay (first visit only).
+// When the consent overlay is showing AND rounds are available, fire-and-forget preload
+// so that audio is cached by the time the user finishes consent + welcome.
+watch(
+  [showAdaptationPrompt, loadedRounds],
+  ([showingConsent, rounds]) => {
+    if (showingConsent && rounds && rounds.length > 0) {
+      preloadSimpleRoundAudio(rounds, 1)
+    }
+  }
+)
+
 // Initialize VAD (must be called from user gesture)
 const initializeVad = async () => {
   if (vadInitialized.value || vadInitializing.value) return true
@@ -5031,7 +5071,8 @@ onMounted(async () => {
   // ============================================
 
   const startTime = Date.now()
-  const MINIMUM_ANIMATION_MS = 2800 // Let users enjoy the awakening
+  const isReturnUser = adaptationConsent.value !== null
+  const MINIMUM_ANIMATION_MS = isReturnUser ? 300 : 2800
 
   // Stage 1: Awakening (immediate)
   setLoadingStage('awakening')
@@ -5178,6 +5219,12 @@ onMounted(async () => {
 
               // Store for legacy code
               loadedRounds.value = simpleRounds as any
+
+              // Return users: preload first round audio immediately so it's
+              // cached by the time they press play (no consent overlay delay)
+              if (adaptationConsent.value !== null) {
+                preloadSimpleRoundAudio(simpleRounds, 1)
+              }
             } else {
               console.warn('[LearningPlayer] No script items generated')
             }
@@ -5828,6 +5875,16 @@ onMounted(async () => {
   // Stage transitions happen on fixed timing for visual consistency
   // ============================================
   const runAnimationTimeline = async () => {
+    if (isReturnUser) {
+      // Return users: skip cinematic timeline, go straight to preparing
+      setLoadingStage('preparing')
+      const elapsed = Date.now() - startTime
+      const remaining = Math.max(0, MINIMUM_ANIMATION_MS - elapsed)
+      if (remaining > 0) await new Promise(r => setTimeout(r, remaining))
+      return
+    }
+
+    // First visit: full cinematic timeline
     // Stage 1: awakening (already set)
     await new Promise(r => setTimeout(r, 800))
 
