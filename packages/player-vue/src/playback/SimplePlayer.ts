@@ -212,9 +212,9 @@ export class SimplePlayer {
 
   // Private methods
   private shouldPlayIntro(): boolean {
-    // Play intro only at start of round, if presentation audio exists
-    // voice1/voice2 for intro come from cycles[0] (the LEGO debut)
-    return this.state.cycleIndex === 0 && !!this.currentRound?.introAudioUrl
+    // Intro is now a regular cycle (first cycle with pauseDuration: 0)
+    // No special intro phase needed - just start with prompt
+    return false
   }
 
   private startPhase(phase: Phase): void {

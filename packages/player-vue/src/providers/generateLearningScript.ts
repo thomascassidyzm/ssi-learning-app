@@ -74,11 +74,11 @@ export async function generateLearningScript(
     return vowelClusters ? vowelClusters.length : 1
   }
 
-  // Query all data in parallel - audio IDs now directly on tables
-  const [legosResult, phrasesResult, introsResult] = await Promise.all([
+  // Query all data in parallel - ALL audio IDs directly on tables (including presentation_audio_id)
+  const [legosResult, phrasesResult] = await Promise.all([
     supabase
       .from('course_legos')
-      .select('seed_number, lego_index, known_text, target_text, type, is_new, known_audio_id, target1_audio_id, target2_audio_id')
+      .select('seed_number, lego_index, known_text, target_text, type, is_new, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id')
       .eq('course_code', courseCode)
       .gte('seed_number', startSeed)
       .lte('seed_number', endSeed)
@@ -92,27 +92,11 @@ export async function generateLearningScript(
       .lte('seed_number', endSeed)
       .order('seed_number', { ascending: true })
       .order('lego_index', { ascending: true })
-      .order('position', { ascending: true }),
-    supabase
-      .from('course_audio')
-      .select('lego_id, s3_key')
-      .eq('course_code', courseCode)
-      .eq('role', 'presentation')
-      .not('lego_id', 'is', null)
+      .order('position', { ascending: true })
   ])
 
   if (legosResult.error) throw new Error('Failed to query LEGOs: ' + legosResult.error.message)
   if (phrasesResult.error) throw new Error('Failed to query phrases: ' + phrasesResult.error.message)
-
-  // Build intro audio map from course_audio with role='presentation'
-  // s3_key is "{uuid}.mp3" - extract just the UUID
-  const introAudioMap = new Map<string, string>()
-  for (const intro of (introsResult.data || [])) {
-    const uuid = intro.s3_key?.replace('.mp3', '') || null
-    if (intro.lego_id && uuid) {
-      introAudioMap.set(intro.lego_id, uuid)
-    }
-  }
 
   // Group phrases by LEGO into BUILD and USE pools
   interface Phrase {
@@ -156,6 +140,7 @@ export async function generateLearningScript(
     known_audio_id?: string
     target1_audio_id?: string
     target2_audio_id?: string
+    presentation_audio_id?: string  // For intro cycle - same lookup pattern as other audio
   }
   const legosBySeed = new Map<number, Lego[]>()
   for (const lego of (legosResult.data || []) as Lego[]) {
@@ -197,11 +182,13 @@ export async function generateLearningScript(
       const legoNum = String(lego.lego_index).padStart(2, '0')
       const phraseKey = `${seedNum}:${lego.lego_index}`
       const phrases = phrasesByLego.get(phraseKey) || { build: [], use: [] }
-      const presentationAudioId = introAudioMap.get(legoKey)
+      // presentation_audio_id comes directly from course_legos - same pattern as other audio IDs
+      const presentationAudioId = lego.presentation_audio_id
 
       const usedPhrasesThisRound = new Set<string>()
 
-      // Phase 1: INTRO
+      // Phase 1: INTRO - uses presentation audio + same target1/target2 as debut
+      // Intro cycle: presentation_audio_id → target1_audio_id → target2_audio_id
       cycleNum++
       emitItem({
         uuid: `${legoKey}_intro_${cycleNum}`,
@@ -211,7 +198,10 @@ export async function generateLearningScript(
         knownText: lego.known_text,
         targetText: lego.target_text,
         presentationAudioId,
-        hasAudio: !!presentationAudioId,
+        sourceId: presentationAudioId,  // Intro uses presentation as "source"
+        target1Id: lego.target1_audio_id,
+        target2Id: lego.target2_audio_id,
+        hasAudio: !!(presentationAudioId && lego.target1_audio_id),
         isNew: true
       })
 

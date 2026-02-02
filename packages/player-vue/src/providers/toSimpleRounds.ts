@@ -29,11 +29,12 @@ export function toSimpleRounds(items: ScriptItem[]): Round[] {
   const rounds: Round[] = []
 
   for (const [legoKey, roundItems] of byLego.entries()) {
-    const intro = roundItems.find(i => i.type === 'intro')
-
-    // Build cycles from non-intro items with audio
+    // Build ALL cycles with audio (including intro as first cycle)
+    // Intro cycle: sourceId=presentation_audio, target1/target2 same as debut, NO PAUSE
+    // Debut/other cycles: sourceId=known_audio, target1/target2, 4s pause
+    // All use the same audio pattern: sourceId → target1 → target2
     const cycles: Cycle[] = roundItems
-      .filter(i => i.type !== 'intro' && i.hasAudio)
+      .filter(i => i.hasAudio)
       .map(i => ({
         id: i.uuid,
         known: {
@@ -45,7 +46,8 @@ export function toSimpleRounds(items: ScriptItem[]): Round[] {
           voice1Url: audioUrl(i.target1Id),
           voice2Url: audioUrl(i.target2Id)
         },
-        pauseDuration: 4000
+        // Intro has no pause (learner doesn't know it yet), other cycles have 4s pause
+        pauseDuration: i.type === 'intro' ? 0 : 4000
       }))
 
     // Extract seed number from legoKey for roundNumber (for backwards compat)
@@ -56,8 +58,7 @@ export function toSimpleRounds(items: ScriptItem[]): Round[] {
     rounds.push({
       roundNumber: seedNum, // Use seed number for backwards compat
       legoId: legoKey,
-      seedId: intro?.seedId || roundItems[0]?.seedId || '',
-      introAudioUrl: intro?.presentationAudioId ? audioUrl(intro.presentationAudioId) : undefined,
+      seedId: roundItems[0]?.seedId || '',
       cycles
     })
   }
