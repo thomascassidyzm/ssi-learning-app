@@ -176,18 +176,20 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     if (!player || newRounds.length === 0) return
     player.addRounds(newRounds)
     // Mirror SimplePlayer's insertion logic exactly to keep arrays in sync
-    // DO NOT use bulk sort - it creates different array order than SimplePlayer
+    // Uses legoId (not roundNumber) for ordering and deduplication
+    const existingLegoIds = new Set(roundsRef.value.map(r => r.legoId))
     const currentRounds = [...roundsRef.value]
     for (const round of newRounds) {
-      const insertIndex = currentRounds.findIndex(r => r.roundNumber > round.roundNumber)
+      if (existingLegoIds.has(round.legoId)) {
+        continue // Skip duplicate
+      }
+      const insertIndex = currentRounds.findIndex(r => r.legoId > round.legoId)
       if (insertIndex === -1) {
         currentRounds.push(round)
       } else {
-        if (currentRounds[insertIndex - 1]?.roundNumber === round.roundNumber) {
-          continue // Skip duplicate
-        }
         currentRounds.splice(insertIndex, 0, round)
       }
+      existingLegoIds.add(round.legoId)
     }
     roundsRef.value = currentRounds
   }
