@@ -29,6 +29,8 @@ export interface ScriptItem {
   sourceId?: string
   target1Id?: string
   target2Id?: string
+  target1DurationMs?: number
+  target2DurationMs?: number
   hasAudio: boolean
   isNew: boolean
   syllableCount?: number
@@ -74,11 +76,11 @@ export async function generateLearningScript(
     return vowelClusters ? vowelClusters.length : 1
   }
 
-  // Query all data in parallel - ALL audio IDs directly on tables (including presentation_audio_id)
+  // Query tables directly - audio IDs stored on each row, no joins needed
   const [legosResult, phrasesResult] = await Promise.all([
     supabase
       .from('course_legos')
-      .select('seed_number, lego_index, known_text, target_text, type, is_new, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id')
+      .select('seed_number, lego_index, known_text, target_text, type, is_new, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, target1_duration_ms, target2_duration_ms')
       .eq('course_code', courseCode)
       .gte('seed_number', startSeed)
       .lte('seed_number', endSeed)
@@ -86,7 +88,7 @@ export async function generateLearningScript(
       .order('lego_index', { ascending: true }),
     supabase
       .from('course_practice_phrases')
-      .select('seed_number, lego_index, known_text, target_text, phrase_role, target_syllable_count, position, known_audio_id, target1_audio_id, target2_audio_id')
+      .select('seed_number, lego_index, known_text, target_text, phrase_role, target_syllable_count, position, known_audio_id, target1_audio_id, target2_audio_id, target1_duration_ms, target2_duration_ms')
       .eq('course_code', courseCode)
       .gte('seed_number', startSeed)
       .lte('seed_number', endSeed)
@@ -110,6 +112,8 @@ export async function generateLearningScript(
     known_audio_id?: string
     target1_audio_id?: string
     target2_audio_id?: string
+    target1_duration_ms?: number
+    target2_duration_ms?: number
   }
   const phrasesByLego = new Map<string, { build: Phrase[]; use: Phrase[] }>()
   for (const phrase of (phrasesResult.data || []) as Phrase[]) {
@@ -140,7 +144,9 @@ export async function generateLearningScript(
     known_audio_id?: string
     target1_audio_id?: string
     target2_audio_id?: string
-    presentation_audio_id?: string  // For intro cycle - same lookup pattern as other audio
+    presentation_audio_id?: string
+    target1_duration_ms?: number
+    target2_duration_ms?: number
   }
   const legosBySeed = new Map<number, Lego[]>()
   for (const lego of (legosResult.data || []) as Lego[]) {
@@ -201,6 +207,8 @@ export async function generateLearningScript(
         sourceId: presentationAudioId,  // Intro uses presentation as "source"
         target1Id: lego.target1_audio_id,
         target2Id: lego.target2_audio_id,
+        target1DurationMs: lego.target1_duration_ms,
+        target2DurationMs: lego.target2_duration_ms,
         hasAudio: !!(presentationAudioId && lego.target1_audio_id),
         isNew: true
       })
@@ -217,6 +225,8 @@ export async function generateLearningScript(
         sourceId: lego.known_audio_id,
         target1Id: lego.target1_audio_id,
         target2Id: lego.target2_audio_id,
+        target1DurationMs: lego.target1_duration_ms,
+        target2DurationMs: lego.target2_duration_ms,
         hasAudio: !!(lego.known_audio_id && lego.target1_audio_id),
         isNew: true
       })
@@ -241,6 +251,8 @@ export async function generateLearningScript(
           sourceId: phrase.known_audio_id,
           target1Id: phrase.target1_audio_id,
           target2Id: phrase.target2_audio_id,
+          target1DurationMs: phrase.target1_duration_ms,
+          target2DurationMs: phrase.target2_duration_ms,
           hasAudio: !!(phrase.known_audio_id && phrase.target1_audio_id),
           isNew: true,
           syllableCount: phrase.target_syllable_count || countTargetSyllables(phrase.target_text)
@@ -271,6 +283,8 @@ export async function generateLearningScript(
           sourceId: phrase.known_audio_id,
           target1Id: phrase.target1_audio_id,
           target2Id: phrase.target2_audio_id,
+          target1DurationMs: phrase.target1_duration_ms,
+          target2DurationMs: phrase.target2_duration_ms,
           hasAudio: !!(phrase.known_audio_id && phrase.target1_audio_id),
           isNew: true,
           syllableCount: phrase.target_syllable_count || countTargetSyllables(phrase.target_text)
@@ -334,6 +348,8 @@ export async function generateLearningScript(
             sourceId: phrase.known_audio_id,
             target1Id: phrase.target1_audio_id,
             target2Id: phrase.target2_audio_id,
+            target1DurationMs: phrase.target1_duration_ms,
+            target2DurationMs: phrase.target2_duration_ms,
             hasAudio: !!(phrase.known_audio_id && phrase.target1_audio_id),
             isNew: false,
             fibPosition,
@@ -363,6 +379,8 @@ export async function generateLearningScript(
           sourceId: phrase.known_audio_id,
           target1Id: phrase.target1_audio_id,
           target2Id: phrase.target2_audio_id,
+          target1DurationMs: phrase.target1_duration_ms,
+          target2DurationMs: phrase.target2_duration_ms,
           hasAudio: !!(phrase.known_audio_id && phrase.target1_audio_id),
           isNew: true
         })

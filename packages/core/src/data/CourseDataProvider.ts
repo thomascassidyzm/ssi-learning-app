@@ -1,10 +1,10 @@
 /**
  * CourseDataProvider - Queries course data from Supabase
  *
- * Uses cycle views (lego_cycles, practice_cycles, seed_cycles) that
- * pre-join content with audio for single-query session loading.
+ * Queries course_legos and course_practice_phrases directly.
+ * Audio IDs stored on each row - no views or joins needed.
  *
- * Each "cycle" is a self-contained learning unit ready to play:
+ * Each row is a self-contained learning unit ready to play:
  * - Text pair (known + target)
  * - Audio refs (known, target1, target2)
  * - Metadata (type, status, etc.)
@@ -102,11 +102,11 @@ export class CourseDataProvider {
    */
   async getLegoCycles(startSeed: number, endSeed: number): Promise<LegoCycleRow[]> {
     if (this.debug) {
-      console.log(`[CourseDataProvider] Fetching lego_cycles for seeds ${startSeed}-${endSeed}`);
+      console.log(`[CourseDataProvider] Fetching course_legos for seeds ${startSeed}-${endSeed}`);
     }
 
     const { data, error } = await this.supabase
-      .from('lego_cycles')
+      .from('course_legos')
       .select('*')
       .eq('course_code', this.courseCode)
       .gte('seed_number', startSeed)
@@ -131,11 +131,11 @@ export class CourseDataProvider {
    */
   async getPracticeCycles(startSeed: number, endSeed: number): Promise<PracticeCycleRow[]> {
     if (this.debug) {
-      console.log(`[CourseDataProvider] Fetching practice_cycles for seeds ${startSeed}-${endSeed}`);
+      console.log(`[CourseDataProvider] Fetching course_practice_phrases for seeds ${startSeed}-${endSeed}`);
     }
 
     const { data, error } = await this.supabase
-      .from('practice_cycles')
+      .from('course_practice_phrases')
       .select('*')
       .eq('course_code', this.courseCode)
       .gte('seed_number', startSeed)
@@ -193,7 +193,7 @@ export class CourseDataProvider {
     }
 
     const { data, error } = await this.supabase
-      .from('lego_cycles')
+      .from('course_legos')
       .select('*')
       .eq('lego_id', legoId)
       .single();
@@ -321,7 +321,7 @@ export class CourseDataProvider {
 
     // Fetch practice cycles for this LEGO
     const { data: practiceCycles, error } = await this.supabase
-      .from('practice_cycles')
+      .from('course_practice_phrases')
       .select('*')
       .eq('lego_id', legoId)
       .order('position', { ascending: true });

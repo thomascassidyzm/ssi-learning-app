@@ -9,8 +9,8 @@
  * - S3 storage: s3_key contains full path (e.g., "uuid.mp3" or "mastered/ABC123.mp3")
  * - Learning app ONLY queries course_audio - shared_audio is an authoring concern
  *
- * The cycle views (lego_cycles, practice_cycles, seed_cycles) join with
- * course_audio directly. No more texts/audio_files indirection.
+ * Audio IDs stored directly on course_legos and course_practice_phrases.
+ * No views or text-based joins needed - simple, robust, can't desync.
  *
  * Roles: known, target1, target2, presentation, encouragement, instruction
  *
@@ -138,12 +138,12 @@ export class CourseDataProvider {
       // Query for the highest seed_number that has complete audio data
       // A LEGO is playable if it has known, target1, AND target2 audio
       const { data, error } = await this.client
-        .from('lego_cycles')
+        .from('course_legos')
         .select('seed_number')
         .eq('course_code', this.courseId)
-        .not('known_audio_uuid', 'is', null)
-        .not('target1_audio_uuid', 'is', null)
-        .not('target2_audio_uuid', 'is', null)
+        .not('known_audio_id', 'is', null)
+        .not('target1_audio_id', 'is', null)
+        .not('target2_audio_id', 'is', null)
         .order('seed_number', { ascending: false })
         .limit(1)
         .single()
@@ -173,11 +173,10 @@ export class CourseDataProvider {
     }
 
     try {
-      // Query lego_cycles view for the session range
-      // This view contains LEGOs with their audio UUIDs
+      // Query course_legos table directly - audio IDs stored on each row
       // Note: Supabase JS client defaults to 1000 rows - we set explicit limit for large courses
       const { data, error } = await this.client
-        .from('lego_cycles')
+        .from('course_legos')
         .select('*')
         .eq('course_code', this.courseId)
         .gte('seed_number', startSeed)
@@ -208,7 +207,7 @@ export class CourseDataProvider {
 
   /**
    * Transform database records to LearningItem format
-   * Maps lego_cycles view fields to LearningItem structure
+   * Maps course_legos fields to LearningItem structure
    * v2.2: Uses proxy URLs via /api/audio/{audioId} for CORS bypass
    */
   private transformToLearningItems(records: any[]): LearningItem[] {
@@ -216,10 +215,10 @@ export class CourseDataProvider {
       const legoId = record.lego_id
       const seedId = `S${String(record.seed_number).padStart(4, '0')}`
 
-      // v2.2: Build proxy URLs from audio UUIDs (bypasses CORS)
-      const knownAudioUrl = this.buildProxyUrl(record.known_audio_uuid)
-      const target1AudioUrl = this.buildProxyUrl(record.target1_audio_uuid)
-      const target2AudioUrl = this.buildProxyUrl(record.target2_audio_uuid)
+      // v2.2: Build proxy URLs from audio IDs (bypasses CORS)
+      const knownAudioUrl = this.buildProxyUrl(record.known_audio_id)
+      const target1AudioUrl = this.buildProxyUrl(record.target1_audio_id)
+      const target2AudioUrl = this.buildProxyUrl(record.target2_audio_id)
 
       return {
         lego: {
@@ -232,16 +231,16 @@ export class CourseDataProvider {
           },
           audioRefs: {
             known: {
-              id: record.known_audio_uuid,
+              id: record.known_audio_id,
               url: knownAudioUrl
             },
             target: {
               voice1: {
-                id: record.target1_audio_uuid,
+                id: record.target1_audio_id,
                 url: target1AudioUrl
               },
               voice2: {
-                id: record.target2_audio_uuid,
+                id: record.target2_audio_id,
                 url: target2AudioUrl
               },
             },
@@ -256,16 +255,16 @@ export class CourseDataProvider {
           },
           audioRefs: {
             known: {
-              id: record.known_audio_uuid,
+              id: record.known_audio_id,
               url: knownAudioUrl
             },
             target: {
               voice1: {
-                id: record.target1_audio_uuid,
+                id: record.target1_audio_id,
                 url: target1AudioUrl
               },
               voice2: {
-                id: record.target2_audio_uuid,
+                id: record.target2_audio_id,
                 url: target2AudioUrl
               },
             },
@@ -453,7 +452,7 @@ export class CourseDataProvider {
       // Query practice_cycles view for all phrases containing this LEGO
       // v13: Sort by target1_duration_ms for cognitive load (shortest audio = easiest)
       const { data, error } = await this.client
-        .from('practice_cycles')
+        .from('course_practice_phrases')
         .select('*')
         .eq('lego_id', legoId)
         .eq('course_code', this.courseId)
@@ -502,7 +501,7 @@ export class CourseDataProvider {
       // Query practice_cycles for all LEGOs in this seed
       // v13: Sort by target1_duration_ms for cognitive load (shortest audio = easiest)
       const { data, error } = await this.client
-        .from('practice_cycles')
+        .from('course_practice_phrases')
         .select('*')
         .eq('seed_number', seedNumber)
         .eq('course_code', this.courseId)
@@ -861,19 +860,19 @@ export class CourseDataProvider {
         },
         audioRefs: {
           known: {
-            id: record.known_audio_uuid,
-            url: this.buildProxyUrl(record.known_audio_uuid),  // v2.2: use proxy for CORS bypass
+            id: record.known_audio_id,
+            url: this.buildProxyUrl(record.known_audio_id),  // v2.2: use proxy for CORS bypass
             duration_ms: record.known_duration_ms,
           },
           target: {
             voice1: {
-              id: record.target1_audio_uuid,
-              url: this.buildProxyUrl(record.target1_audio_uuid),  // v2.2: use proxy for CORS bypass
+              id: record.target1_audio_id,
+              url: this.buildProxyUrl(record.target1_audio_id),  // v2.2: use proxy for CORS bypass
               duration_ms: record.target1_duration_ms,
             },
             voice2: {
-              id: record.target2_audio_uuid,
-              url: this.buildProxyUrl(record.target2_audio_uuid),  // v2.2: use proxy for CORS bypass
+              id: record.target2_audio_id,
+              url: this.buildProxyUrl(record.target2_audio_id),  // v2.2: use proxy for CORS bypass
               duration_ms: record.target2_duration_ms,
             },
           },
@@ -971,7 +970,7 @@ export class CourseDataProvider {
 
     try {
       const { data, error } = await this.client
-        .from('lego_cycles')
+        .from('course_legos')
         .select('*')
         .eq('course_code', this.courseId)
         .eq('seed_number', seedNumber)
@@ -1013,7 +1012,7 @@ export class CourseDataProvider {
 
     try {
       const { data, error } = await this.client
-        .from('lego_cycles')
+        .from('course_legos')
         .select('*')
         .eq('course_code', this.courseId)
         .gte('seed_number', startSeed)
@@ -1068,7 +1067,7 @@ export class CourseDataProvider {
       // Query practice_cycles for all LEGOs in one batch
       // v13: Sort by target1_duration_ms for cognitive load
       const { data, error } = await this.client
-        .from('practice_cycles')
+        .from('course_practice_phrases')
         .select('*')
         .eq('course_code', this.courseId)
         .in('lego_id', legoIds)
@@ -1141,7 +1140,7 @@ export class CourseDataProvider {
       // IMPORTANT: offset is a SEED NUMBER (absolute position), not array index
       // Filter by seed_number >= offset to start from the correct belt position
       let query = this.client
-        .from('lego_cycles')
+        .from('course_legos')
         .select('*')
         .eq('course_code', this.courseId)
 
@@ -1182,9 +1181,9 @@ export class CourseDataProvider {
         const legoId = record.lego_id
         const seedId = `S${String(record.seed_number).padStart(4, '0')}`
 
-        const knownAudioUrl = this.buildProxyUrl(record.known_audio_uuid)
-        const target1AudioUrl = this.buildProxyUrl(record.target1_audio_uuid)
-        const target2AudioUrl = this.buildProxyUrl(record.target2_audio_uuid)
+        const knownAudioUrl = this.buildProxyUrl(record.known_audio_id)
+        const target1AudioUrl = this.buildProxyUrl(record.target1_audio_id)
+        const target2AudioUrl = this.buildProxyUrl(record.target2_audio_id)
 
         return {
           lego: {
@@ -1197,16 +1196,16 @@ export class CourseDataProvider {
             },
             audioRefs: {
               known: {
-                id: record.known_audio_uuid,
+                id: record.known_audio_id,
                 url: knownAudioUrl
               },
               target: {
                 voice1: {
-                  id: record.target1_audio_uuid,
+                  id: record.target1_audio_id,
                   url: target1AudioUrl
                 },
                 voice2: {
-                  id: record.target2_audio_uuid,
+                  id: record.target2_audio_id,
                   url: target2AudioUrl
                 },
               },
@@ -1221,16 +1220,16 @@ export class CourseDataProvider {
             },
             audioRefs: {
               known: {
-                id: record.known_audio_uuid,
+                id: record.known_audio_id,
                 url: knownAudioUrl
               },
               target: {
                 voice1: {
-                  id: record.target1_audio_uuid,
+                  id: record.target1_audio_id,
                   url: target1AudioUrl
                 },
                 voice2: {
-                  id: record.target2_audio_uuid,
+                  id: record.target2_audio_id,
                   url: target2AudioUrl
                 },
               },
@@ -1441,17 +1440,17 @@ async function loadAllPracticePhrasesGrouped(
       syllableCount: row.target1_duration_ms || 0,
       audioRefs: {
         known: {
-          id: row.known_audio_uuid || '',
-          url: buildProxyUrl(row.known_audio_uuid)
+          id: row.known_audio_id || '',
+          url: buildProxyUrl(row.known_audio_id)
         },
         target: {
           voice1: {
-            id: row.target1_audio_uuid || '',
-            url: buildProxyUrl(row.target1_audio_uuid)
+            id: row.target1_audio_id || '',
+            url: buildProxyUrl(row.target1_audio_id)
           },
           voice2: {
-            id: row.target2_audio_uuid || '',
-            url: buildProxyUrl(row.target2_audio_uuid)
+            id: row.target2_audio_id || '',
+            url: buildProxyUrl(row.target2_audio_id)
           }
         }
       }
@@ -1464,7 +1463,7 @@ async function loadAllPracticePhrasesGrouped(
 
     while (true) {
       const { data: page, error } = await supabase
-        .from('practice_cycles')
+        .from('course_practice_phrases')
         .select('*')
         .eq('course_code', courseId)
         .eq('phrase_type', 'practice')
@@ -1494,7 +1493,7 @@ async function loadAllPracticePhrasesGrouped(
 
     while (true) {
       const { data: page, error } = await supabase
-        .from('practice_cycles')
+        .from('course_practice_phrases')
         .select('*')
         .eq('course_code', courseId)
         .eq('phrase_type', 'eternal_eligible')

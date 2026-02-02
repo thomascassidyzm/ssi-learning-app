@@ -7,11 +7,9 @@
  * - "I want to learn" grid of target languages
  * - Shows progress for enrolled courses, "NEW" badge for unenrolled
  * - Queries Supabase for available courses (uses dashboard schema as SSoT)
- * - Filters by new_app_status field (live | beta)
+ * - Filters by new_app_status field: draft (hidden), beta (visible with badge), live (visible)
  * - Shows pricing_tier indicator for premium courses
  * - Localized UI based on selected known language
- *
- * TODO: Switch to `visibility` column filter after Supabase migration adds it
  */
 import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n, setLocale, getLanguageName } from '../composables/useI18n'

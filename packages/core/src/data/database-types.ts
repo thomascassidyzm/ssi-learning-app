@@ -121,13 +121,13 @@ export interface PracticePhraseRow {
 }
 
 // ============================================
-// CYCLE VIEW TYPES (Self-contained learning units)
-// These come from database views that JOIN content with audio
+// CYCLE ROW TYPES (Self-contained learning units)
+// Audio IDs stored directly on rows - no views/joins needed
 // ============================================
 
 /**
  * LEGO Cycle - Self-contained LEGO learning item with audio
- * From `lego_cycles` view
+ * From `course_legos` table (audio IDs stored directly)
  */
 export interface LegoCycleRow {
   // Identity
@@ -149,11 +149,11 @@ export interface LegoCycleRow {
   target_text: string;
 
   // Audio refs (pre-joined from audio_samples)
-  known_audio_uuid: string | null;
+  known_audio_id: string | null;
   known_duration_ms: number | null;
-  target1_audio_uuid: string | null;
+  target1_audio_id: string | null;
   target1_duration_ms: number | null;
-  target2_audio_uuid: string | null;
+  target2_audio_id: string | null;
   target2_duration_ms: number | null;
 }
 
@@ -194,11 +194,11 @@ export interface PracticeCycleRow {
   target_text: string;
 
   // Audio refs (pre-joined from audio_samples)
-  known_audio_uuid: string | null;
+  known_audio_id: string | null;
   known_duration_ms: number | null;
-  target1_audio_uuid: string | null;
+  target1_audio_id: string | null;
   target1_duration_ms: number | null;
-  target2_audio_uuid: string | null;
+  target2_audio_id: string | null;
   target2_duration_ms: number | null;
 }
 
@@ -222,11 +222,11 @@ export interface SeedCycleRow {
   target_text: string;
 
   // Audio refs (pre-joined from audio_samples)
-  known_audio_uuid: string | null;
+  known_audio_id: string | null;
   known_duration_ms: number | null;
-  target1_audio_uuid: string | null;
+  target1_audio_id: string | null;
   target1_duration_ms: number | null;
-  target2_audio_uuid: string | null;
+  target2_audio_id: string | null;
   target2_duration_ms: number | null;
 }
 
@@ -532,10 +532,10 @@ export function convertLegoCycleToLegoPair(row: LegoCycleRow): LegoPair {
     },
     components: row.components,
     audioRefs: {
-      known: createAudioRef(row.known_audio_uuid, row.known_duration_ms ?? undefined),
+      known: createAudioRef(row.known_audio_id, row.known_duration_ms ?? undefined),
       target: {
-        voice1: createAudioRef(row.target1_audio_uuid, row.target1_duration_ms ?? undefined),
-        voice2: createAudioRef(row.target2_audio_uuid, row.target2_duration_ms ?? undefined),
+        voice1: createAudioRef(row.target1_audio_id, row.target1_duration_ms ?? undefined),
+        voice2: createAudioRef(row.target2_audio_id, row.target2_duration_ms ?? undefined),
       },
     },
   };
@@ -554,10 +554,10 @@ export function convertPracticeCycleToPracticePhrase(row: PracticeCycleRow): Pra
       target: row.target_text,
     },
     audioRefs: {
-      known: createAudioRef(row.known_audio_uuid, row.known_duration_ms ?? undefined),
+      known: createAudioRef(row.known_audio_id, row.known_duration_ms ?? undefined),
       target: {
-        voice1: createAudioRef(row.target1_audio_uuid, row.target1_duration_ms ?? undefined),
-        voice2: createAudioRef(row.target2_audio_uuid, row.target2_duration_ms ?? undefined),
+        voice1: createAudioRef(row.target1_audio_id, row.target1_duration_ms ?? undefined),
+        voice2: createAudioRef(row.target2_audio_id, row.target2_duration_ms ?? undefined),
       },
     },
     wordCount: row.word_count,
@@ -577,10 +577,10 @@ export function convertSeedCycleToSeedPair(row: SeedCycleRow): Omit<SeedPair, 'l
       target: row.target_text,
     },
     audioRefs: {
-      known: createAudioRef(row.known_audio_uuid, row.known_duration_ms ?? undefined),
+      known: createAudioRef(row.known_audio_id, row.known_duration_ms ?? undefined),
       target: {
-        voice1: createAudioRef(row.target1_audio_uuid, row.target1_duration_ms ?? undefined),
-        voice2: createAudioRef(row.target2_audio_uuid, row.target2_duration_ms ?? undefined),
+        voice1: createAudioRef(row.target1_audio_id, row.target1_duration_ms ?? undefined),
+        voice2: createAudioRef(row.target2_audio_id, row.target2_duration_ms ?? undefined),
       },
     },
   };

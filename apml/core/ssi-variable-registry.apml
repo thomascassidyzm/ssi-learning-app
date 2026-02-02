@@ -18,27 +18,36 @@
 # - TypeScript type generation
 
 registry SSiContent:
-  version: "1.7.0"
-  last_updated: "2025-12-28"
+  version: "1.8.0"
+  last_updated: "2026-02-02"
 
   # ============================================================================
   # ENUM DEFINITIONS
   # ============================================================================
 
   enum ContentStatus:
-    description: "Lifecycle status for content items"
+    description: "Lifecycle status for content items (stored in new_app_status column)"
+    database_column: "new_app_status"
     values:
       draft:
         description: "In development, not visible to learners"
         is_visible: false
 
-      released:
-        description: "Live, available to learners"
+      beta:
+        description: "Visible to testers with beta badge, for alpha/beta testing"
+        is_visible: true
+        badge: "β"
+
+      live:
+        description: "Fully released, available to all learners"
         is_visible: true
 
+    deprecated_values:
+      released:
+        migrated_to: "live"
+        note: "Converted to 'live' in migration 20260202000000"
       deprecated:
-        description: "Superseded, hidden from new learners but preserved"
-        is_visible: false
+        note: "No longer used - courses are either draft, beta, or live"
 
   enum LegoType:
     description: "Classification of LEGO building blocks"
@@ -187,10 +196,41 @@ registry SSiContent:
         required: false
         description: "Voice for presentation audio (defaults to known_voice)"
 
-      status:
+      new_app_status:
         type: ContentStatus
         required: true
         default: "draft"
+        description: "Course visibility status (draft/beta/live)"
+        note: "Replaces legacy 'status' column. RLS policies filter on this."
+
+      visibility:
+        type: enum [public, hidden, beta]
+        required: false
+        default: "hidden"
+        description: "Alternative visibility control (not currently used for filtering)"
+        note: "Exists but new_app_status is preferred for RLS filtering"
+
+      pricing_tier:
+        type: enum [free, premium, community]
+        required: true
+        default: "premium"
+        description: "Determines access rules - premium requires subscription after Yellow Belt"
+
+      is_community:
+        type: boolean
+        required: true
+        default: false
+        description: "Community-created courses are always free regardless of language"
+
+      released_at:
+        type: timestamp
+        required: false
+        description: "When course was made public"
+
+      featured_order:
+        type: integer
+        required: false
+        description: "Display order in course selector (lower = first)"
 
       created_at:
         type: timestamp
@@ -1997,6 +2037,30 @@ registry SSiContent:
 # ============================================================================
 
 version_history:
+  v1.8.0:
+    date: "2026-02-02"
+    changes:
+      - "BREAKING: Updated ContentStatus enum to match production: draft/beta/live"
+      - "Deprecated 'released' status (migrated to 'live' in 20260202 migration)"
+      - "Deprecated 'deprecated' status (no longer used)"
+      - "Added database_column annotation: new_app_status"
+      - "Added Course entity fields: new_app_status, visibility, pricing_tier, is_community, released_at, featured_order"
+      - "Aligned spec with actual database schema and RLS policies"
+    design_rationale: |
+      The production system evolved to use 'beta' for alpha/beta testing phases,
+      which the original spec didn't account for. 'live' replaced 'released' for
+      consistency. RLS policies filter on new_app_status IN ('live', 'beta').
+    breaking_changes:
+      - "ContentStatus values changed from draft/released/deprecated to draft/beta/live"
+      - "Course.status replaced by Course.new_app_status"
+    implementation_status:
+      CourseSelector: "Uses new_app_status filter ✓"
+      RLS_policies: "Filter on new_app_status ✓"
+      Migrations: "20260202000000 converts released→live ✓"
+    contributors:
+      - "Tom Cassidy"
+      - "Claude (AI Assistant)"
+
   v1.7.0:
     date: "2025-12-28"
     changes:
