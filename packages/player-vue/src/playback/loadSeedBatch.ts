@@ -1,4 +1,7 @@
 /**
+ * @deprecated Replaced by progressive loading via `generateLearningScript` with `emitFromRound`.
+ * Retained for backwards compatibility.
+ *
  * loadSeedBatch - Load a range of seeds and build rounds for SimplePlayer
  *
  * Used by priority loading to load seeds in batches.

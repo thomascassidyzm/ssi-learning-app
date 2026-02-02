@@ -1,4 +1,8 @@
 /**
+ * @deprecated Wrapper for PriorityRoundLoader, which is itself deprecated.
+ * Replaced by progressive loading directly in LearningPlayer.vue.
+ * Retained for backwards compatibility.
+ *
  * useSessionPlayback - Bridge composable for SessionController integration
  *
  * Wraps SessionController and exposes an interface compatible with

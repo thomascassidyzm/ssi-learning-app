@@ -1,4 +1,7 @@
 /**
+ * @deprecated Replaced by `generateLearningScript` + `toSimpleRounds` pipeline.
+ * Retained because CourseExplorer still uses RoundBuilder via useFullCourseScript.
+ *
  * RoundBuilder - Builds rounds in LearningPlayer's exact format
  *
  * Output goes directly to LearningPlayer's cachedRounds - no bridge needed.

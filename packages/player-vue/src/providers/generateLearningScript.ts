@@ -46,7 +46,8 @@ export async function generateLearningScript(
   supabase: SupabaseClient,
   courseCode: string,
   startSeed: number,
-  endSeed: number
+  endSeed: number,
+  emitFromRound: number = 1  // Only emit ScriptItems from this round onward
 ): Promise<LearningScriptResult> {
   // Constants
   const SPACED_REP_OFFSETS = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
@@ -173,6 +174,11 @@ export async function generateLearningScript(
   let cycleNum = 0
   let roundNumber = 0
 
+  // Helper: only emit items from emitFromRound onward
+  // Earlier rounds are still fully processed (legoState, spaced rep) but not emitted
+  const shouldEmit = () => roundNumber >= emitFromRound
+  const emitItem = (item: ScriptItem) => { if (shouldEmit()) items.push(item) }
+
   // Process each seed
   for (const seedNum of sortedSeedNums) {
     const seedLegos = legosBySeed.get(seedNum)!.sort((a, b) => a.lego_index - b.lego_index)
@@ -190,7 +196,7 @@ export async function generateLearningScript(
 
       // Phase 1: INTRO
       cycleNum++
-      items.push({
+      emitItem({
         uuid: `${legoKey}_intro_${cycleNum}`,
         cycleNum, roundNumber, seedId, legoKey,
         seedCode: seedId, legoCode: legoNum,
@@ -204,7 +210,7 @@ export async function generateLearningScript(
 
       // Phase 2: DEBUT
       cycleNum++
-      items.push({
+      emitItem({
         uuid: `${legoKey}_debut_${cycleNum}`,
         cycleNum, roundNumber, seedId, legoKey,
         seedCode: seedId, legoCode: legoNum,
@@ -228,7 +234,7 @@ export async function generateLearningScript(
         practiceCount++
         const phraseId = getPhraseId(phrase.known_text, phrase.target_text)
         usedPhrasesThisRound.add(phraseId)
-        items.push({
+        emitItem({
           uuid: `${legoKey}_build_${cycleNum}`,
           cycleNum, roundNumber, seedId, legoKey,
           seedCode: seedId, legoCode: legoNum,
@@ -258,7 +264,7 @@ export async function generateLearningScript(
         practiceCount++
         usedPhrasesThisRound.add(phraseId)
         usedForPractice.add(phraseId)
-        items.push({
+        emitItem({
           uuid: `${legoKey}_build_${cycleNum}`,
           cycleNum, roundNumber, seedId, legoKey,
           seedCode: seedId, legoCode: legoNum,
@@ -321,7 +327,7 @@ export async function generateLearningScript(
 
           cycleNum++
           spacedRepCount++
-          items.push({
+          emitItem({
             uuid: `${reviewKey}_spaced_rep_${cycleNum}`,
             cycleNum, roundNumber, seedId: reviewSeedId, legoKey: reviewKey,
             seedCode: reviewSeedId, legoCode: reviewLegoNum,
@@ -350,7 +356,7 @@ export async function generateLearningScript(
         usedPhrasesThisRound.add(phraseId)
 
         cycleNum++
-        items.push({
+        emitItem({
           uuid: `${legoKey}_use_${cycleNum}`,
           cycleNum, roundNumber, seedId, legoKey,
           seedCode: seedId, legoCode: legoNum,
@@ -392,6 +398,7 @@ export async function generateLearningScript(
     console.log(`[generateLearningScript] Removed ${removedCount} consecutive duplicate(s)`)
   }
 
-  console.log(`[generateLearningScript] Generated ${dedupedItems.length} items for ${courseCode} seeds ${startSeed}-${endSeed}`)
+  const skippedRounds = emitFromRound > 1 ? emitFromRound - 1 : 0
+  console.log(`[generateLearningScript] Generated ${dedupedItems.length} items for ${courseCode} seeds ${startSeed}-${endSeed}${skippedRounds > 0 ? ` (emitting from round ${emitFromRound}, ${skippedRounds} rounds processed silently)` : ''}`)
   return { items: dedupedItems, cycleCount: dedupedItems.length, roundCount: roundNumber }
 }

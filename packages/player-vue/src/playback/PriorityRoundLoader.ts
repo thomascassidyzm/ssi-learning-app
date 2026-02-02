@@ -1,4 +1,8 @@
 /**
+ * @deprecated Strategy adopted into progressive loading in LearningPlayer.vue.
+ * Implementation replaced by `generateLearningScript` with `emitFromRound` + background extension.
+ * Retained for backwards compatibility.
+ *
  * PriorityRoundLoader - Smart background loading based on user intent probability
  *
  * Users can only skip ONE belt ahead. Loading priority mirrors intent:

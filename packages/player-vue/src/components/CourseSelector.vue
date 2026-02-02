@@ -7,9 +7,11 @@
  * - "I want to learn" grid of target languages
  * - Shows progress for enrolled courses, "NEW" badge for unenrolled
  * - Queries Supabase for available courses (uses dashboard schema as SSoT)
- * - Filters by visibility field (public | beta) - hidden courses not shown
+ * - Filters by new_app_status field (released | beta)
  * - Shows pricing_tier indicator for premium courses
  * - Localized UI based on selected known language
+ *
+ * TODO: Switch to `visibility` column filter after Supabase migration adds it
  */
 import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n, setLocale, getLanguageName } from '../composables/useI18n'
@@ -21,10 +23,9 @@ const isPremiumCourse = (course) => {
   return course.pricing_tier === 'premium'
 }
 
-// Check if course has beta visibility
+// Check if course has beta status
 const isBetaCourse = (course) => {
-  // Prefer visibility field, fall back to new_app_status for backwards compat
-  return course.visibility === 'beta' || course.new_app_status === 'beta'
+  return course.new_app_status === 'beta'
 }
 
 // Extract target language name from display_name or fall back to locale lookup
@@ -139,12 +140,12 @@ const fetchCourses = async () => {
   }
 
   try {
-    // Query courses with visibility filter
-    // Prefer visibility field (new), fall back to new_app_status (legacy)
+    // Query courses filtered by new_app_status (released or beta)
+    // TODO: Switch to `visibility` column after Supabase migration adds it
     const { data, error: fetchError } = await props.supabase
       .from('courses')
       .select('*')
-      .or('visibility.in.(public,beta),and(visibility.is.null,new_app_status.in.(released,beta))')
+      .in('new_app_status', ['released', 'beta'])
       .order('featured_order', { ascending: true, nullsFirst: false })
       .order('display_name')
 

@@ -1,4 +1,7 @@
 /**
+ * @deprecated Replaced by `toSimpleRounds` which converts directly from `generateLearningScript` output.
+ * Retained for backwards compatibility.
+ *
  * Round Adapter - Converts RoundBuilder output to SimplePlayer format
  *
  * RoundBuilder produces detailed ScriptItems with full audio refs.

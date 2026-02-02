@@ -24,15 +24,6 @@ import { useOfflinePlay } from '../composables/useOfflinePlay'
 import { useOfflineCache } from '../composables/useOfflineCache'
 // SimplePlayer - clean playback engine
 import { useSimplePlayer } from '../composables/useSimplePlayer'
-import { adaptRoundsForPlayer } from '../playback/roundAdapter'
-import type { Round as SimpleRound } from '../playback/SimplePlayer'
-// RoundBuilder - builds full rounds with INTRO, DEBUT, BUILD, REVIEW, CONSOLIDATE
-import { buildRounds, calculateSpacedRepReviews } from '../playback/RoundBuilder'
-import { DEFAULT_PLAYBACK_CONFIG } from '../playback/PlaybackConfig'
-import type { Round as BuilderRound } from '../playback/types'
-import type { LegoPair, SeedPair, ClassifiedBasket } from '@ssi/core'
-// Priority loading - load seeds in batches for fast startup
-import { loadSeedBatch, buildPriorityQueue } from '../playback/loadSeedBatch'
 // New simple script generation - direct database queries
 import { generateLearningScript as generateSimpleScript } from '../providers/generateLearningScript'
 import { toSimpleRounds } from '../providers/toSimpleRounds'
@@ -332,9 +323,6 @@ const cachedRounds = loadedRounds  // Legacy alias
 const effectiveRoundIndex = currentRoundIndex
 const effectiveItemInRound = currentItemInRound
 
-// Legacy configuration flags
-const USE_SESSION_CONTROLLER = ref(true)  // Enable new SimplePlayer path
-const USE_SIMPLE_SCRIPT = ref(true)  // Use new generateLearningScript → toSimpleRounds flow
 const playbackGeneration = ref(0)  // Counter for playback generation tracking
 const scriptBaseOffset = ref(0)  // Base offset for script loading
 
@@ -993,6 +981,21 @@ const backTargetBelt = computed(() => {
   return previousBelt.value
 })
 
+// Belt skip loading state: true when target belt's first round is NOT yet loaded
+// Belt skip buttons flash until their target rounds are available
+const nextBeltLoading = computed(() => {
+  const nb = nextBelt.value
+  if (!nb) return false
+  return !simplePlayer.hasRound(nb.seedsRequired * 3 - 2) // ~3 LEGOs per seed estimate
+})
+
+const prevBeltLoading = computed(() => {
+  const bt = backTargetBelt.value
+  if (!bt) return false
+  const targetSeed = bt.seedsRequired === 0 ? 1 : bt.seedsRequired
+  return !simplePlayer.hasRound(targetSeed * 3 - 2)
+})
+
 const beltProgressPercent = computed(() => beltProgress.value?.beltProgress.value ?? 0)
 const seedsToNextBelt = computed(() => beltProgress.value?.seedsToNextBelt.value ?? 8)
 const timeToNextBelt = computed(() => beltProgress.value?.timeToNextBelt.value ?? 'Keep learning to see estimate')
@@ -1337,8 +1340,7 @@ const createGetAudioSource = (scriptItem: any) => {
 }
 
 /**
- * Generic getAudioSource function for SessionController
- * Used when USE_SESSION_CONTROLLER is enabled
+ * Generic getAudioSource function for SimplePlayer pipeline
  * Resolves any audioId to either a cached blob or proxy URL
  */
 const getAudioSourceForSession = async (audioId: string): Promise<{ type: 'blob'; blob: Blob } | { type: 'url'; url: string } | null> => {
@@ -4085,23 +4087,18 @@ const handleSkipToNextBelt = async () => {
     }
 
     // Check if target seed is already loaded
-    const targetSeedId = `S${String(targetSeed).padStart(4, '0')}`
     const existingRoundIndex = simplePlayer.findRoundIndexForSeed(targetSeed)
 
-    if (existingRoundIndex < 0 && courseDataProvider.value) {
-      // Target seed not loaded - load it now (blocking)
-      console.log(`[LearningPlayer] Target seed ${targetSeed} not loaded, loading now...`)
-      const batchResult = await loadSeedBatch({
-        provider: courseDataProvider.value,
-        startSeed: targetSeed,
-        endSeed: targetSeed + 5,  // Load a few seeds for seamless playback
-        startRoundNumber: simplePlayer.roundCount.value + 1,
-        config: DEFAULT_PLAYBACK_CONFIG,
-      })
+    if (existingRoundIndex < 0 && supabase?.value) {
+      // Target seed not loaded - load it via generateSimpleScript (blocking)
+      console.log(`[progressiveLoad] Belt skip: target seed ${targetSeed} not loaded, loading now...`)
+      const emitFrom = targetSeed * 3 - 2 // ~3 LEGOs per seed estimate
+      const skipResult = await generateSimpleScript(supabase.value, courseCode.value, 1, targetSeed + 5, emitFrom)
 
-      if (batchResult && batchResult.simpleRounds.length > 0) {
-        simplePlayer.addRounds(batchResult.simpleRounds as any)
-        console.log(`[LearningPlayer] Added ${batchResult.simpleRounds.length} rounds for belt skip`)
+      if (skipResult.items.length > 0) {
+        const newRounds = toSimpleRounds(skipResult.items)
+        simplePlayer.addRounds(newRounds as any)
+        console.log(`[progressiveLoad] Belt skip: added ${newRounds.length} rounds`)
       }
     }
 
@@ -4118,9 +4115,29 @@ const handleSkipToNextBelt = async () => {
 }
 
 /**
+ * Load rounds for a target seed if not already loaded.
+ * Shared helper for belt skip operations.
+ */
+const loadSeedIfNeeded = async (targetSeed: number) => {
+  const existingRoundIndex = simplePlayer.findRoundIndexForSeed(targetSeed)
+  if (existingRoundIndex >= 0) return // Already loaded
+
+  if (!supabase?.value) return
+
+  console.log(`[progressiveLoad] Belt skip: target seed ${targetSeed} not loaded, loading now...`)
+  const emitFrom = targetSeed * 3 - 2
+  const skipResult = await generateSimpleScript(supabase.value, courseCode.value, 1, targetSeed + 5, emitFrom)
+
+  if (skipResult.items.length > 0) {
+    const newRounds = toSimpleRounds(skipResult.items)
+    simplePlayer.addRounds(newRounds as any)
+    console.log(`[progressiveLoad] Belt skip: added ${newRounds.length} rounds`)
+  }
+}
+
+/**
  * Jump back to start of current or previous belt
  * If close to current belt start, goes to previous belt
- * Uses SessionController's lazy loading to handle any seed position
  */
 const handleGoBackBelt = async () => {
   // Get current playing position's seed (not stored progress)
@@ -4166,7 +4183,6 @@ const handleGoBackBelt = async () => {
     console.log(`[LearningPlayer] Going back to seed ${targetSeed}`)
 
     // Reset the brain network for fresh start at new belt
-    // This keeps the network lightweight during belt skipping
     if (networkState?.revealedNodeIds) {
       networkState.revealedNodeIds.value = new Set<string>()
       console.log('[LearningPlayer] Reset brain network for belt skip')
@@ -4176,26 +4192,7 @@ const handleGoBackBelt = async () => {
     if (targetSeed === 0) {
       simplePlayer.jumpToRound(0)
     } else {
-      // Check if target seed is already loaded
-      const existingRoundIndex = simplePlayer.findRoundIndexForSeed(targetSeed)
-
-      if (existingRoundIndex < 0 && courseDataProvider.value) {
-        // Target seed not loaded - load it now (blocking)
-        console.log(`[LearningPlayer] Target seed ${targetSeed} not loaded, loading now...`)
-        const batchResult = await loadSeedBatch({
-          provider: courseDataProvider.value,
-          startSeed: targetSeed,
-          endSeed: targetSeed + 5,
-          startRoundNumber: simplePlayer.roundCount.value + 1,
-          config: DEFAULT_PLAYBACK_CONFIG,
-        })
-
-        if (batchResult && batchResult.simpleRounds.length > 0) {
-          simplePlayer.addRounds(batchResult.simpleRounds as any)
-          console.log(`[LearningPlayer] Added ${batchResult.simpleRounds.length} rounds for belt skip`)
-        }
-      }
-
+      await loadSeedIfNeeded(targetSeed)
       simplePlayer.jumpToSeed(targetSeed)
     }
 
@@ -4212,7 +4209,7 @@ const handleGoBackBelt = async () => {
 
 /**
  * Jump to a specific belt from the modal
- * Handles both forward and backward jumps via SessionController's lazy loading
+ * Handles both forward and backward jumps
  */
 const handleSkipToBeltFromModal = async (belt) => {
   if (!belt || !beltProgress.value) {
@@ -4229,7 +4226,6 @@ const handleSkipToBeltFromModal = async (belt) => {
   isSkippingBelt.value = true
   try {
     // Reset the brain network for fresh start at new belt
-    // This keeps the network lightweight during belt skipping
     if (networkState?.revealedNodeIds) {
       networkState.revealedNodeIds.value = new Set<string>()
       console.log('[LearningPlayer] Reset brain network for modal belt skip')
@@ -4239,26 +4235,7 @@ const handleSkipToBeltFromModal = async (belt) => {
     if (targetSeed === 0) {
       simplePlayer.jumpToRound(0)
     } else {
-      // Check if target seed is already loaded
-      const existingRoundIndex = simplePlayer.findRoundIndexForSeed(targetSeed)
-
-      if (existingRoundIndex < 0 && courseDataProvider.value) {
-        // Target seed not loaded - load it now (blocking)
-        console.log(`[LearningPlayer] Target seed ${targetSeed} not loaded, loading now...`)
-        const batchResult = await loadSeedBatch({
-          provider: courseDataProvider.value,
-          startSeed: targetSeed,
-          endSeed: targetSeed + 5,
-          startRoundNumber: simplePlayer.roundCount.value + 1,
-          config: DEFAULT_PLAYBACK_CONFIG,
-        })
-
-        if (batchResult && batchResult.simpleRounds.length > 0) {
-          simplePlayer.addRounds(batchResult.simpleRounds as any)
-          console.log(`[LearningPlayer] Added ${batchResult.simpleRounds.length} rounds for modal belt skip`)
-        }
-      }
-
+      await loadSeedIfNeeded(targetSeed)
       simplePlayer.jumpToSeed(targetSeed)
     }
 
@@ -5154,7 +5131,7 @@ onMounted(async () => {
       // SessionController initialization path
       // ============================================
       // Wait for courseDataProvider to be set (App.vue sets it in onMounted, which runs after children mount)
-      if (USE_SESSION_CONTROLLER.value && !courseDataProvider.value) {
+      if (!courseDataProvider.value) {
         console.log('[LearningPlayer] Waiting for courseDataProvider...')
         await new Promise<void>((resolve) => {
           const unwatch = watch(
@@ -5176,228 +5153,153 @@ onMounted(async () => {
         console.log('[LearningPlayer] courseDataProvider ready:', !!courseDataProvider.value)
       }
 
-      if (USE_SESSION_CONTROLLER.value && courseDataProvider.value) {
+      if (courseDataProvider.value) {
         console.log('[LearningPlayer] Initializing SimplePlayer...')
         try {
           // ============================================
-          // NEW SIMPLE PATH: generateLearningScript → toSimpleRounds
+          // PROGRESSIVE LOADING: Position-aware, minimal blocking load
+          // Philosophy: load what user needs NOW, background fills the rest
           // ============================================
-          if (USE_SIMPLE_SCRIPT.value && supabase?.value) {
-            console.log('[LearningPlayer] Using simple script generation...')
-            const result = await generateSimpleScript(supabase.value, courseCode.value, 1, 30)
-            console.log(`[LearningPlayer] Generated ${result.items.length} script items (${result.roundCount} rounds)`)
+          if (supabase?.value) {
+            console.log('[LearningPlayer] Using progressive loading...')
+
+            // 1. Determine starting position from saved progress
+            const completedSeeds = beltProgress.value?.completedRounds.value ?? 0
+            const currentSeedFromLegoId = beltProgress.value?.currentSeedNumber.value ?? 0
+            const startingSeed = currentSeedFromLegoId > 0 ? currentSeedFromLegoId : (completedSeeds > 0 ? completedSeeds : 0)
+            const isReturningUser = startingSeed > 0
+
+            // Calculate initial load range
+            // New users: seeds 1-5 (~5 rounds, ~20 cycles)
+            // Returning users: seeds 1 to position+5, emitting only from current position
+            const initialEndSeed = isReturningUser ? startingSeed + 5 : 5
+            const emitFromRound = isReturningUser ? startingSeed * 3 - 2 : 1 // ~3 LEGOs per seed estimate
+
+            console.log(`[progressiveLoad] ${isReturningUser ? 'Returning' : 'New'} user: completedSeeds=${completedSeeds}, startingSeed=${startingSeed}, loading seeds 1-${initialEndSeed}, emitFromRound=${emitFromRound}`)
+
+            // 2. BLOCKING: Load initial batch (position-aware)
+            const result = await generateSimpleScript(supabase.value, courseCode.value, 1, initialEndSeed, emitFromRound)
+            console.log(`[progressiveLoad] Initial: ${result.items.length} script items (${result.roundCount} total rounds, emitted from round ${emitFromRound})`)
 
             if (result.items.length > 0) {
               const simpleRounds = toSimpleRounds(result.items)
-              console.log(`[LearningPlayer] Converted to ${simpleRounds.length} SimplePlayer rounds`)
+              console.log(`[progressiveLoad] Converted to ${simpleRounds.length} SimplePlayer rounds`)
 
               // Debug: show first 3 rounds
               simpleRounds.slice(0, 3).forEach((r, i) => {
-                console.log(`[LearningPlayer] Round ${i + 1}: ${r.cycles.length} cycles, legoId=${r.legoId}`)
+                console.log(`[progressiveLoad] Round ${i + 1}: ${r.cycles.length} cycles, legoId=${r.legoId}`)
               })
 
               simplePlayer.initialize(simpleRounds as any)
-              console.log('[LearningPlayer] SimplePlayer initialized with simple script')
+              console.log('[progressiveLoad] SimplePlayer initialized, player is interactive')
 
-              // Restore position based on belt progress (completedRounds = completed seeds)
-              // If learner completed N seeds, they should start at seed N+1
-              const completedSeeds = beltProgress.value?.completedRounds.value ?? 0
-              if (completedSeeds > 0) {
-                const nextSeed = completedSeeds + 1
+              // Restore position for returning users
+              if (isReturningUser) {
+                const nextSeed = startingSeed + 1
                 const roundIndex = simplePlayer.findRoundIndexForSeed(nextSeed)
                 if (roundIndex >= 0) {
-                  console.log(`[LearningPlayer] Restoring position: ${completedSeeds} seeds completed → starting at seed ${nextSeed} (round ${roundIndex})`)
+                  console.log(`[progressiveLoad] Restoring position: seed ${startingSeed} → starting at seed ${nextSeed} (round index ${roundIndex})`)
                   simplePlayer.jumpToRound(roundIndex)
                 } else {
-                  // Seed not found - might be past end of course, start at last round
-                  console.log(`[LearningPlayer] Seed ${nextSeed} not found - starting at last round`)
-                  simplePlayer.jumpToRound(simpleRounds.length - 1)
+                  // Seed not found in emitted range - start at first available round
+                  console.log(`[progressiveLoad] Seed ${nextSeed} not in emitted range, starting at first round`)
                 }
               }
 
               // Store for legacy code
               loadedRounds.value = simpleRounds as any
 
-              // Preload audio for the round the user will actually play first.
-              // Return users skip consent, so audio must be cached before they press play.
+              // Preload audio for the round the user will actually play first
               if (adaptationConsent.value !== null) {
-                const currentRound = simplePlayer.roundIndex.value ?? 0
-                preloadSimpleRoundAudio(simpleRounds, 1, currentRound)
+                const currentRoundIdx = simplePlayer.roundIndex.value ?? 0
+                preloadSimpleRoundAudio(simpleRounds, 1, currentRoundIdx)
               }
-            } else {
-              console.warn('[LearningPlayer] No script items generated')
-            }
-          } else {
-            // ============================================
-            // PRIORITY LOADING PATH: Fast startup with background loading
-            // ============================================
 
-            // 0. Get actual course length from database (not hardcoded)
-            const maxSeed = await courseDataProvider.value.getMaxSeedNumber()
-            const totalSeeds = maxSeed ?? 700  // Fallback to 700 if query fails
-            console.log(`[LearningPlayer] Course has ${totalSeeds} seeds (${maxSeed ? 'from database' : 'fallback'})`)
+              // 3. BACKGROUND: Extend content progressively after player is interactive
+              let lastLoadedEndSeed = initialEndSeed
+              const extendContent = async () => {
+                if (!supabase?.value) return
 
-            // 1. Determine starting position from saved progress
-            // Use currentLegoId for precise seed lookup (e.g., "S0045L03" → seed 45)
-            // Fall back to estimation if no LEGO ID saved
-            const currentLegoId = beltProgress.value?.currentLegoId.value
-            const currentSeedFromLegoId = beltProgress.value?.currentSeedNumber.value
-            const completedRoundsCount = beltProgress.value?.completedRounds.value ?? 0
+                // Priority order:
+                // 1. Next 5 seeds (seamless continuation)
+                // 2. First seed of next belt (belt-skip ready)
+                // 3. Rest of current belt
+                // 4. Next belt
+                // 5. Belt-by-belt forward
+                const BELT_THRESHOLDS = [0, 8, 20, 40, 80, 150, 280, 400]
 
-            let startingSeed: number
-            if (currentSeedFromLegoId) {
-              // Precise: we know exactly which seed the learner is in
-              // But clamp to course length to handle "past end of course" case
-              startingSeed = Math.min(currentSeedFromLegoId, totalSeeds)
-              if (currentSeedFromLegoId > totalSeeds) {
-                console.log(`[LearningPlayer] Saved position (seed ${currentSeedFromLegoId}) is past course end (${totalSeeds}), clamping`)
-              }
-              console.log(`[LearningPlayer] Priority loading: LEGO ${currentLegoId} → seed ${startingSeed} (precise)`)
-            } else if (completedRoundsCount > 0) {
-              // Fallback: estimate seed from round count (~3 LEGOs per seed)
-              const estimatedSeed = Math.max(1, Math.ceil((completedRoundsCount + 1) / 3))
-              startingSeed = Math.min(Math.max(1, estimatedSeed - 1), totalSeeds)
-              console.log(`[LearningPlayer] Priority loading: ~${completedRoundsCount} rounds → estimated seed ${startingSeed}`)
-            } else {
-              // New learner: start from seed 1
-              startingSeed = 1
-              console.log(`[LearningPlayer] Priority loading: new learner, starting from seed 1`)
-            }
-
-            // 2. Build priority queue - starting seed first, then belt-aware order
-            const priorityBatches = buildPriorityQueue(startingSeed, totalSeeds)
-            console.log(`[LearningPlayer] Priority queue: ${priorityBatches.length} batches, first batch: seeds ${priorityBatches[0]?.[0]}-${priorityBatches[0]?.[priorityBatches[0].length - 1]}`)
-
-            // 3. Load initial batch (BLOCKING - fast startup)
-            const initialBatch = priorityBatches[0] || [1, 2, 3, 4, 5, 6]
-            const initialStartSeed = Math.min(...initialBatch)
-            const initialEndSeed = Math.max(...initialBatch)
-
-            console.log(`[LearningPlayer] Loading initial batch: seeds ${initialStartSeed}-${initialEndSeed}`)
-            const initialResult = await loadSeedBatch({
-              provider: courseDataProvider.value,
-              startSeed: initialStartSeed,
-              endSeed: initialEndSeed,
-              startRoundNumber: 1,
-              config: DEFAULT_PLAYBACK_CONFIG,
-            })
-
-            if (initialResult && initialResult.simpleRounds.length > 0) {
-              // 4. Initialize SimplePlayer with initial rounds
-              loadedRounds.value = initialResult.builderRounds as any
-              simplePlayer.initialize(initialResult.simpleRounds as any)
-              console.log(`[LearningPlayer] SimplePlayer initialized with ${initialResult.simpleRounds.length} rounds (fast startup)`)
-
-              // 5. Jump to correct position if needed
-              // Find by LEGO ID (precise) or fall back to first round
-              if (currentLegoId) {
-                // Find the round with the saved LEGO ID, then go to the NEXT one
-                const savedRoundIndex = initialResult.simpleRounds.findIndex(
-                  (r: SimpleRound) => r.legoId === currentLegoId
+                const currentBeltIdx = BELT_THRESHOLDS.findIndex((t, i) =>
+                  i === BELT_THRESHOLDS.length - 1 || lastLoadedEndSeed < BELT_THRESHOLDS[i + 1]
                 )
-                if (savedRoundIndex >= 0 && savedRoundIndex + 1 < initialResult.simpleRounds.length) {
-                  // Jump to the next round after the saved one
-                  console.log(`[LearningPlayer] Restoring: LEGO ${currentLegoId} found at index ${savedRoundIndex}, jumping to ${savedRoundIndex + 1}`)
-                  simplePlayer.jumpToRound(savedRoundIndex + 1)
-                } else if (savedRoundIndex >= 0) {
-                  // Saved LEGO is the last one loaded, stay at it
-                  console.log(`[LearningPlayer] Restoring: LEGO ${currentLegoId} is last loaded, staying at index ${savedRoundIndex}`)
-                  simplePlayer.jumpToRound(savedRoundIndex)
-                } else {
-                  // LEGO not in initial batch - start at first loaded round
-                  console.log(`[LearningPlayer] LEGO ${currentLegoId} not in initial batch, starting at first loaded round`)
+                const currentBeltEnd = currentBeltIdx < BELT_THRESHOLDS.length - 1
+                  ? BELT_THRESHOLDS[currentBeltIdx + 1] - 1
+                  : 668
+                const nextBeltStart = currentBeltIdx < BELT_THRESHOLDS.length - 1
+                  ? BELT_THRESHOLDS[currentBeltIdx + 1]
+                  : null
+
+                // Build extension batches
+                const batches: Array<{ start: number; end: number; label: string }> = []
+
+                // Batch 1: Next 25 seeds (seamless continuation)
+                const contEnd = Math.min(lastLoadedEndSeed + 25, 668)
+                if (lastLoadedEndSeed < contEnd) {
+                  batches.push({ start: lastLoadedEndSeed + 1, end: contEnd, label: 'continuation' })
                 }
-              } else if (completedRoundsCount > 0) {
-                // No LEGO ID saved - this shouldn't happen for returning users, but handle it
-                console.log(`[LearningPlayer] No LEGO ID saved, starting at first loaded round`)
-              }
 
-              // 6. Start background loading of remaining batches
-              const remainingBatches = priorityBatches.slice(1)
-              if (remainingBatches.length > 0) {
-                console.log(`[LearningPlayer] Starting background loading: ${remainingBatches.length} batches remaining`)
+                // Batch 2: First seed of next belt (belt-skip ready)
+                if (nextBeltStart && nextBeltStart > contEnd) {
+                  batches.push({ start: nextBeltStart, end: Math.min(nextBeltStart + 5, 668), label: 'next-belt-start' })
+                }
 
-                // Track accumulated data for spaced rep
-                let accumulatedLegoMap = initialResult.legoMap
-                let accumulatedSeedMap = initialResult.seedMap
-                let accumulatedBaskets = initialResult.baskets
-                let nextRoundNumber = initialResult.simpleRounds.length + 1
+                // Batch 3: Rest of current belt
+                if (contEnd < currentBeltEnd) {
+                  batches.push({ start: contEnd + 1, end: currentBeltEnd, label: 'current-belt-fill' })
+                }
 
-                // Load remaining batches in background (non-blocking)
-                ;(async () => {
-                  for (let i = 0; i < remainingBatches.length; i++) {
-                    const batch = remainingBatches[i]
-                    const batchStartSeed = Math.min(...batch)
-                    const batchEndSeed = Math.max(...batch)
+                // Batch 4+: Belt-by-belt forward
+                for (let bi = currentBeltIdx + 1; bi < BELT_THRESHOLDS.length; bi++) {
+                  const bStart = BELT_THRESHOLDS[bi]
+                  const bEnd = bi < BELT_THRESHOLDS.length - 1 ? BELT_THRESHOLDS[bi + 1] - 1 : 668
+                  // Skip seeds we already loaded (next-belt-start batch)
+                  const actualStart = Math.max(bStart, lastLoadedEndSeed + 1)
+                  if (actualStart <= bEnd) {
+                    batches.push({ start: actualStart, end: bEnd, label: `belt-${bi}` })
+                  }
+                }
 
-                    try {
-                      const batchResult = await loadSeedBatch({
-                        provider: courseDataProvider.value,
-                        startSeed: batchStartSeed,
-                        endSeed: batchEndSeed,
-                        startRoundNumber: nextRoundNumber,
-                        config: DEFAULT_PLAYBACK_CONFIG,
-                        existingLegoMap: accumulatedLegoMap,
-                        existingSeedMap: accumulatedSeedMap,
-                        existingBaskets: accumulatedBaskets,
-                      })
+                for (const batch of batches) {
+                  if (!supabase?.value) break
+                  try {
+                    // Use emitFromRound to only get new rounds (legoState built from seed 1 internally)
+                    const batchEmitFrom = batch.start * 3 - 2 // ~3 LEGOs per seed estimate
+                    const batchResult = await generateSimpleScript(
+                      supabase.value, courseCode.value, 1, batch.end, batchEmitFrom
+                    )
 
-                      if (batchResult && batchResult.simpleRounds.length > 0) {
-                        // Add rounds to SimplePlayer
-                        simplePlayer.addRounds(batchResult.simpleRounds as any)
-
-                        // Update accumulated data
-                        accumulatedLegoMap = batchResult.legoMap
-                        accumulatedSeedMap = batchResult.seedMap
-                        accumulatedBaskets = batchResult.baskets
-                        nextRoundNumber += batchResult.simpleRounds.length
-
-                        // Merge builder rounds for legacy code
-                        loadedRounds.value = [...(loadedRounds.value || []), ...batchResult.builderRounds] as any
-
-                        console.log(`[LearningPlayer] Background batch ${i + 1}/${remainingBatches.length}: added ${batchResult.simpleRounds.length} rounds (total: ${simplePlayer.roundCount.value})`)
-                      }
-                    } catch (err) {
-                      console.warn(`[LearningPlayer] Background batch ${i + 1} failed:`, err)
+                    if (batchResult.items.length > 0) {
+                      const newRounds = toSimpleRounds(batchResult.items)
+                      simplePlayer.addRounds(newRounds as any)
+                      loadedRounds.value = [...(loadedRounds.value || []), ...newRounds] as any
+                      lastLoadedEndSeed = Math.max(lastLoadedEndSeed, batch.end)
+                      console.log(`[progressiveLoad] Extension (${batch.label}): adding ${newRounds.length} rounds, total: ${simplePlayer.roundCount.value}`)
                     }
-
-                    // Small delay between batches to avoid overwhelming the database
-                    await new Promise(resolve => setTimeout(resolve, 100))
+                  } catch (err) {
+                    console.warn(`[progressiveLoad] Extension batch (${batch.label}) failed:`, err)
                   }
-                  console.log(`[LearningPlayer] Background loading complete: ${simplePlayer.roundCount.value} total rounds`)
-                })()
-              }
-            } else {
-              // No rounds from initial batch - could be end of course or starting position issue
-              console.warn(`[LearningPlayer] No rounds loaded from initial batch (seeds ${initialStartSeed}-${initialEndSeed})`)
 
-              // If we were trying to load past the end of course, try loading from seed 1
-              if (startingSeed > 1) {
-                console.log('[LearningPlayer] Falling back to loading from seed 1')
-                const fallbackResult = await loadSeedBatch({
-                  provider: courseDataProvider.value,
-                  startSeed: 1,
-                  endSeed: Math.min(6, totalSeeds),
-                  startRoundNumber: 1,
-                  config: DEFAULT_PLAYBACK_CONFIG,
-                })
-
-                if (fallbackResult && fallbackResult.simpleRounds.length > 0) {
-                  loadedRounds.value = fallbackResult.builderRounds as any
-                  simplePlayer.initialize(fallbackResult.simpleRounds as any)
-                  console.log(`[LearningPlayer] Fallback: loaded ${fallbackResult.simpleRounds.length} rounds from start`)
-
-                  // Show course complete message if learner was at end
-                  if (startingSeed >= totalSeeds) {
-                    console.log('[LearningPlayer] Learner has completed the course!')
-                    showSessionComplete.value = true
-                  }
-                } else {
-                  console.error('[LearningPlayer] Could not load any rounds - course may be empty')
+                  // Small delay between batches to avoid overwhelming the database
+                  await new Promise(resolve => setTimeout(resolve, 200))
                 }
-              } else {
-                console.error('[LearningPlayer] Could not load initial rounds from seed 1 - course may be empty')
+
+                console.log(`[progressiveLoad] Background loading complete: ${simplePlayer.roundCount.value} total rounds`)
               }
+
+              // Fire background extension (non-blocking)
+              extendContent()
+
+            } else {
+              console.warn('[progressiveLoad] No script items generated')
             }
           }
           console.log('[LearningPlayer] SimplePlayer initialized successfully')
@@ -6535,7 +6437,7 @@ defineExpose({
           <!-- Skip back button -->
           <button
             class="belt-header-skip belt-header-skip--back"
-            :class="{ 'is-skipping': isSkippingBelt }"
+            :class="{ 'is-skipping': isSkippingBelt, 'is-loading-target': prevBeltLoading }"
             @click="handleGoBackBelt"
             :disabled="!previousBelt && currentBelt.seedsRequired === completedRounds"
             :title="`Back to ${backTargetBelt.name} belt`"
@@ -6562,7 +6464,7 @@ defineExpose({
           <!-- Skip forward button -->
           <button
             class="belt-header-skip belt-header-skip--forward"
-            :class="{ 'is-skipping': isSkippingBelt }"
+            :class="{ 'is-skipping': isSkippingBelt, 'is-loading-target': nextBeltLoading }"
             @click="handleSkipToNextBelt"
             :disabled="!nextBelt"
             :title="nextBelt ? `Skip to ${nextBelt.name} belt` : 'Black belt achieved!'"
@@ -7676,6 +7578,17 @@ defineExpose({
   animation: belt-skip-flash 0.6s ease-in-out infinite;
   pointer-events: none;
   opacity: 1;
+}
+
+/* Belt skip loading state: target rounds not yet loaded */
+.belt-header-skip.is-loading-target:not(.is-skipping) {
+  animation: belt-skip-pulse 1.5s ease-in-out infinite;
+  opacity: 0.5;
+}
+
+@keyframes belt-skip-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.2; }
 }
 
 /* ============ UNIFIED BELT + TIMER ============ */
