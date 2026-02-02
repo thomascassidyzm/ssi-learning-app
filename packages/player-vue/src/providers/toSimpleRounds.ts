@@ -31,6 +31,7 @@ export function toSimpleRounds(items: ScriptItem[]): Round[] {
   for (const [legoKey, roundItems] of byLego.entries()) {
     const intro = roundItems.find(i => i.type === 'intro')
 
+    // Build cycles from non-intro items with audio
     const cycles: Cycle[] = roundItems
       .filter(i => i.type !== 'intro' && i.hasAudio)
       .map(i => ({

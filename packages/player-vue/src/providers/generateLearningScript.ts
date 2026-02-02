@@ -94,20 +94,23 @@ export async function generateLearningScript(
       .order('lego_index', { ascending: true })
       .order('position', { ascending: true }),
     supabase
-      .from('lego_introductions')
-      .select('lego_id, audio_uuid, presentation_audio_id')
+      .from('course_audio')
+      .select('lego_id, s3_key')
       .eq('course_code', courseCode)
+      .eq('role', 'presentation')
+      .not('lego_id', 'is', null)
   ])
 
   if (legosResult.error) throw new Error('Failed to query LEGOs: ' + legosResult.error.message)
   if (phrasesResult.error) throw new Error('Failed to query phrases: ' + phrasesResult.error.message)
 
-  // Build intro audio map - prefer presentation_audio_id (v13), fall back to audio_uuid (legacy)
+  // Build intro audio map from course_audio with role='presentation'
+  // s3_key is "{uuid}.mp3" - extract just the UUID
   const introAudioMap = new Map<string, string>()
   for (const intro of (introsResult.data || [])) {
-    const audioId = intro.presentation_audio_id || intro.audio_uuid
-    if (intro.lego_id && audioId) {
-      introAudioMap.set(intro.lego_id, audioId)
+    const uuid = intro.s3_key?.replace('.mp3', '') || null
+    if (intro.lego_id && uuid) {
+      introAudioMap.set(intro.lego_id, uuid)
     }
   }
 
