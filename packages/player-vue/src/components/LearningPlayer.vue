@@ -7203,104 +7203,7 @@ defineExpose({
   opacity: 0.8;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   MISTY DOJO THEME — Full visual identity for data-theme="mist"
-   Warm dojo stone, sumi ink, shuriken particles, mountain silhouette
-   ═══════════════════════════════════════════════════════════════ */
-
-/* --- Player wrapper background --- */
-:root[data-theme="mist"] .player {
-  background: #f0ebe3 !important;
-}
-
-/* --- Space / Background layers --- */
-:root[data-theme="mist"] .space-gradient {
-  background:
-    radial-gradient(ellipse 120% 80% at 20% 10%, rgba(210, 195, 170, 0.35) 0%, transparent 50%),
-    radial-gradient(ellipse 100% 60% at 80% 90%, rgba(200, 185, 160, 0.25) 0%, transparent 40%),
-    radial-gradient(ellipse 80% 80% at 50% 50%, #f0ebe3 0%, #e8e2d8 100%) !important;
-}
-
-:root[data-theme="mist"] .space-nebula {
-  background:
-    linear-gradient(180deg, transparent 0%, rgba(200, 185, 160, 0.08) 30%, rgba(200, 185, 160, 0.12) 50%, transparent 70%),
-    linear-gradient(180deg, transparent 40%, rgba(200, 185, 160, 0.06) 60%, transparent 80%) !important;
-  animation: mist-drift 20s ease-in-out infinite;
-}
-
-@keyframes mist-drift {
-  0%, 100% { opacity: 1; transform: translateY(0); }
-  50% { opacity: 0.7; transform: translateY(-8px); }
-}
-
-:root[data-theme="mist"] .bg-noise {
-  opacity: 0.04 !important;
-  filter: none !important;
-  mix-blend-mode: multiply !important;
-}
-
-/* Bamboo shadow lines on bg-noise::after */
-:root[data-theme="mist"] .bg-noise::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(90deg, transparent 18%, rgba(100, 80, 55, 0.02) 18.5%, transparent 19%),
-    linear-gradient(90deg, transparent 42%, rgba(100, 80, 55, 0.015) 42.3%, transparent 42.8%),
-    linear-gradient(90deg, transparent 71%, rgba(100, 80, 55, 0.02) 71.4%, transparent 72%),
-    linear-gradient(90deg, transparent 89%, rgba(100, 80, 55, 0.015) 89.3%, transparent 89.8%);
-  pointer-events: none;
-}
-
-/* --- Stars → Ink dots --- */
-:root[data-theme="mist"] .star-field .star {
-  background: rgba(44, 37, 32, 0.6) !important;
-  box-shadow: none !important;
-  opacity: 0.04 !important;
-  animation: ink-dot-breathe 6s ease-in-out infinite !important;
-}
-
-:root[data-theme="mist"] .star-field .star:nth-child(odd) {
-  opacity: 0.08 !important;
-  animation-delay: -3s !important;
-}
-
-@keyframes ink-dot-breathe {
-  0%, 100% { opacity: 0.04; transform: scale(1); }
-  50% { opacity: 0.08; transform: scale(1.2); }
-}
-
-/* --- Drift stars → Shuriken --- */
-:root[data-theme="mist"] .drift-star {
-  background: rgba(44, 37, 32, 0.12) !important;
-  box-shadow: none !important;
-  clip-path: polygon(50% 0%, 65% 35%, 100% 50%, 65% 65%, 50% 100%, 35% 65%, 0% 50%, 35% 35%) !important;
-  border-radius: 0 !important;
-  animation: shuriken-spin 12s linear infinite !important;
-}
-
-:root[data-theme="mist"] .drift-star:nth-child(even) {
-  animation-direction: reverse !important;
-  animation-duration: 16s !important;
-}
-
-@keyframes shuriken-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-/* --- Nebula glow → Warm floor glow --- */
-:root[data-theme="mist"] .nebula-glow {
-  background:
-    linear-gradient(
-      to top,
-      rgba(var(--belt-color-r, 194), var(--belt-color-g, 58), var(--belt-color-b, 58), 0.06) 0%,
-      transparent 25%
-    ) !important;
-  opacity: 0.5 !important;
-}
-
-/* --- Mountain silhouette --- */
+/* Mountain silhouette - hidden by default (shown in mist theme via non-scoped style) */
 .mountain-silhouette {
   display: none;
   position: fixed;
@@ -7316,118 +7219,6 @@ defineExpose({
 .mountain-silhouette svg {
   width: 100%;
   height: 100%;
-}
-
-:root[data-theme="mist"] .mountain-silhouette {
-  display: block;
-}
-
-/* --- Hero glass → Warm frosted paper --- */
-:root[data-theme="mist"] .hero-glass {
-  background: rgba(247, 243, 236, 0.75) !important;
-  border-color: rgba(100, 80, 55, 0.12) !important;
-  box-shadow: 0 4px 24px rgba(60, 45, 30, 0.08) !important;
-  backdrop-filter: blur(20px) saturate(120%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(120%) !important;
-}
-
-/* --- Hero text --- */
-:root[data-theme="mist"] .hero-known {
-  color: #2c2520 !important;
-}
-
-:root[data-theme="mist"] .hero-target {
-  color: #2c2520 !important;
-  text-shadow: 0 1px 3px rgba(60, 45, 30, 0.15) !important;
-}
-
-/* --- Control bar → Warm frosted paper --- */
-:root[data-theme="mist"] .control-bar {
-  background: rgba(247, 243, 236, 0.65) !important;
-  border-color: rgba(100, 80, 55, 0.1) !important;
-  backdrop-filter: blur(20px) saturate(120%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(120%) !important;
-}
-
-/* --- Mode / Transport buttons --- */
-:root[data-theme="mist"] .mode-btn,
-:root[data-theme="mist"] .transport-btn {
-  background: rgba(100, 80, 55, 0.06) !important;
-  border-color: rgba(100, 80, 55, 0.1) !important;
-  color: #5c544a !important;
-}
-
-:root[data-theme="mist"] .mode-btn:hover,
-:root[data-theme="mist"] .transport-btn:hover {
-  background: rgba(100, 80, 55, 0.1) !important;
-}
-
-:root[data-theme="mist"] .mode-btn.active {
-  background: rgba(100, 80, 55, 0.12) !important;
-  color: #2c2520 !important;
-}
-
-/* --- Brain Network overrides --- */
-:root[data-theme="mist"] .brain-network-container :deep(.network-link) {
-  stroke: rgba(100, 80, 55, 0.12);
-}
-
-:root[data-theme="mist"] .brain-network-container :deep(.network-label) {
-  fill: rgba(44, 37, 32, 0.6);
-}
-
-:root[data-theme="mist"] .brain-network-container :deep(.network-label.visible) {
-  fill: rgba(44, 37, 32, 0.7);
-}
-
-:root[data-theme="mist"] .brain-network-container :deep(.network-label.active) {
-  fill: #2c2520;
-  filter: none;
-  text-shadow: 0 1px 3px rgba(60, 45, 30, 0.2);
-}
-
-:root[data-theme="mist"] .brain-network-container :deep(.network-node.hero) {
-  animation: mist-node-pulse 2s ease-in-out infinite;
-}
-
-@keyframes mist-node-pulse {
-  0%, 100% {
-    filter: drop-shadow(0 0 6px rgba(60, 45, 30, 0.3));
-    transform: scale(1);
-  }
-  50% {
-    filter: drop-shadow(0 0 14px rgba(60, 45, 30, 0.5));
-    transform: scale(1.1);
-  }
-}
-
-/* --- Belt celebration overlay --- */
-:root[data-theme="mist"] .belt-celebration-overlay {
-  background: rgba(44, 37, 32, 0.6) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
-}
-
-/* --- Belt particles → Shuriken burst --- */
-:root[data-theme="mist"] .belt-particle {
-  clip-path: polygon(50% 0%, 65% 35%, 100% 50%, 65% 65%, 50% 100%, 35% 65%, 0% 50%, 35% 35%) !important;
-  border-radius: 0 !important;
-}
-
-/* --- Ink spirit rewards --- */
-:root[data-theme="mist"] .ink-spirit-reward {
-  text-shadow: 0 1px 4px rgba(60, 45, 30, 0.2) !important;
-}
-
-:root[data-theme="mist"] .ink-spirit-reward .ink-word {
-  color: #2c2520 !important;
-}
-
-/* --- Learning hint box --- */
-:root[data-theme="mist"] .learning-hint {
-  background: rgba(247, 243, 236, 0.8) !important;
-  border-color: rgba(100, 80, 55, 0.12) !important;
-  color: #5c544a !important;
 }
 
 /* ============ BRAIN NETWORK VISUALIZATION ============ */
@@ -10462,5 +10253,218 @@ defineExpose({
   background: var(--gold-glow, rgba(212, 168, 83, 0.15));
   border-color: var(--gold, #d4a853);
   color: var(--gold, #d4a853);
+}
+</style>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     MISTY DOJO THEME — Non-scoped overrides
+     Must be non-scoped because Vue adds [data-v-xxx] to :root
+     selectors in scoped styles, making them unmatchable.
+     Scoped manually via .player parent class.
+     ═══════════════════════════════════════════════════════════════ -->
+<style>
+/* --- Player wrapper background --- */
+[data-theme="mist"] .player {
+  background: #f0ebe3;
+}
+
+/* --- Space / Background layers --- */
+[data-theme="mist"] .space-gradient {
+  background:
+    radial-gradient(ellipse 120% 80% at 20% 10%, rgba(210, 195, 170, 0.35) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 60% at 80% 90%, rgba(200, 185, 160, 0.25) 0%, transparent 40%),
+    radial-gradient(ellipse 80% 80% at 50% 50%, #f0ebe3 0%, #e8e2d8 100%);
+}
+
+[data-theme="mist"] .space-nebula {
+  background:
+    linear-gradient(180deg, transparent 0%, rgba(200, 185, 160, 0.08) 30%, rgba(200, 185, 160, 0.12) 50%, transparent 70%),
+    linear-gradient(180deg, transparent 40%, rgba(200, 185, 160, 0.06) 60%, transparent 80%);
+  animation: mist-drift 20s ease-in-out infinite;
+}
+
+@keyframes mist-drift {
+  0%, 100% { opacity: 1; transform: translateY(0); }
+  50% { opacity: 0.7; transform: translateY(-8px); }
+}
+
+[data-theme="mist"] .bg-noise {
+  opacity: 0.04;
+  filter: none;
+  mix-blend-mode: multiply;
+}
+
+/* Bamboo shadow lines */
+[data-theme="mist"] .bg-noise::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, transparent 18%, rgba(100, 80, 55, 0.02) 18.5%, transparent 19%),
+    linear-gradient(90deg, transparent 42%, rgba(100, 80, 55, 0.015) 42.3%, transparent 42.8%),
+    linear-gradient(90deg, transparent 71%, rgba(100, 80, 55, 0.02) 71.4%, transparent 72%),
+    linear-gradient(90deg, transparent 89%, rgba(100, 80, 55, 0.015) 89.3%, transparent 89.8%);
+  pointer-events: none;
+}
+
+/* --- Stars → Ink dots --- */
+[data-theme="mist"] .star-field .star {
+  background: rgba(44, 37, 32, 0.6);
+  box-shadow: none;
+  opacity: 0.04;
+  animation: ink-dot-breathe 6s ease-in-out infinite;
+}
+
+[data-theme="mist"] .star-field .star:nth-child(odd) {
+  opacity: 0.08;
+  animation-delay: -3s;
+}
+
+@keyframes ink-dot-breathe {
+  0%, 100% { opacity: 0.04; transform: scale(1); }
+  50% { opacity: 0.08; transform: scale(1.2); }
+}
+
+/* --- Drift stars → Shuriken --- */
+[data-theme="mist"] .drift-star {
+  background: rgba(44, 37, 32, 0.12);
+  box-shadow: none;
+  clip-path: polygon(50% 0%, 65% 35%, 100% 50%, 65% 65%, 50% 100%, 35% 65%, 0% 50%, 35% 35%);
+  border-radius: 0;
+  animation: shuriken-spin 12s linear infinite;
+}
+
+[data-theme="mist"] .drift-star:nth-child(even) {
+  animation-direction: reverse;
+  animation-duration: 16s;
+}
+
+@keyframes shuriken-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* --- Nebula glow → Warm floor glow --- */
+[data-theme="mist"] .nebula-glow {
+  background:
+    linear-gradient(
+      to top,
+      rgba(194, 58, 58, 0.06) 0%,
+      transparent 25%
+    );
+  opacity: 0.5;
+}
+
+/* --- Mountain silhouette (shown only in mist) --- */
+[data-theme="mist"] .mountain-silhouette {
+  display: block;
+}
+
+/* --- Hero glass → Warm frosted paper --- */
+[data-theme="mist"] .hero-glass {
+  background: rgba(247, 243, 236, 0.75);
+  border-color: rgba(100, 80, 55, 0.12);
+  box-shadow: 0 4px 24px rgba(60, 45, 30, 0.08);
+  backdrop-filter: blur(20px) saturate(120%);
+  -webkit-backdrop-filter: blur(20px) saturate(120%);
+}
+
+/* --- Hero text --- */
+[data-theme="mist"] .hero-known {
+  color: #2c2520;
+}
+
+[data-theme="mist"] .hero-target {
+  color: #2c2520;
+  text-shadow: 0 1px 3px rgba(60, 45, 30, 0.15);
+}
+
+/* --- Control bar → Warm frosted paper --- */
+[data-theme="mist"] .control-bar {
+  background: rgba(247, 243, 236, 0.65);
+  border-color: rgba(100, 80, 55, 0.1);
+  backdrop-filter: blur(20px) saturate(120%);
+  -webkit-backdrop-filter: blur(20px) saturate(120%);
+}
+
+/* --- Mode / Transport buttons --- */
+[data-theme="mist"] .mode-btn,
+[data-theme="mist"] .transport-btn {
+  background: rgba(100, 80, 55, 0.06);
+  border-color: rgba(100, 80, 55, 0.1);
+  color: #5c544a;
+}
+
+[data-theme="mist"] .mode-btn:hover,
+[data-theme="mist"] .transport-btn:hover {
+  background: rgba(100, 80, 55, 0.1);
+}
+
+[data-theme="mist"] .mode-btn.active {
+  background: rgba(100, 80, 55, 0.12);
+  color: #2c2520;
+}
+
+/* --- Brain Network overrides --- */
+[data-theme="mist"] .brain-network-container .network-link {
+  stroke: rgba(100, 80, 55, 0.12);
+}
+
+[data-theme="mist"] .brain-network-container .network-label {
+  fill: rgba(44, 37, 32, 0.6);
+}
+
+[data-theme="mist"] .brain-network-container .network-label.visible {
+  fill: rgba(44, 37, 32, 0.7);
+}
+
+[data-theme="mist"] .brain-network-container .network-label.active {
+  fill: #2c2520;
+  filter: none;
+  text-shadow: 0 1px 3px rgba(60, 45, 30, 0.2);
+}
+
+[data-theme="mist"] .brain-network-container .network-node.hero {
+  animation: mist-node-pulse 2s ease-in-out infinite;
+}
+
+@keyframes mist-node-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 6px rgba(60, 45, 30, 0.3));
+    transform: scale(1);
+  }
+  50% {
+    filter: drop-shadow(0 0 14px rgba(60, 45, 30, 0.5));
+    transform: scale(1.1);
+  }
+}
+
+/* --- Belt celebration overlay --- */
+[data-theme="mist"] .belt-celebration-overlay {
+  background: rgba(44, 37, 32, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* --- Belt particles → Shuriken burst --- */
+[data-theme="mist"] .belt-particle {
+  clip-path: polygon(50% 0%, 65% 35%, 100% 50%, 65% 65%, 50% 100%, 35% 65%, 0% 50%, 35% 35%);
+  border-radius: 0;
+}
+
+/* --- Ink spirit rewards --- */
+[data-theme="mist"] .ink-spirit-reward {
+  text-shadow: 0 1px 4px rgba(60, 45, 30, 0.2);
+}
+
+[data-theme="mist"] .ink-spirit-reward .ink-word {
+  color: #2c2520;
+}
+
+/* --- Learning hint box --- */
+[data-theme="mist"] .learning-hint {
+  background: rgba(247, 243, 236, 0.8);
+  border-color: rgba(100, 80, 55, 0.12);
+  color: #5c544a;
 }
 </style>
