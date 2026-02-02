@@ -100,20 +100,24 @@ export class SimplePlayer {
   addRounds(newRounds: Round[]): void {
     if (newRounds.length === 0) return
 
-    // Insert each round at the correct position based on roundNumber
+    // Build set of existing legoIds for fast duplicate detection
+    const existingLegoIds = new Set(this.rounds.map(r => r.legoId))
+
+    // Insert each round at the correct position based on legoId (which encodes seed + lego index)
     for (const round of newRounds) {
-      // Find insertion point (maintain ascending roundNumber order)
-      const insertIndex = this.rounds.findIndex(r => r.roundNumber > round.roundNumber)
+      // Skip if this exact LEGO already exists (by legoId, not roundNumber)
+      if (existingLegoIds.has(round.legoId)) {
+        continue
+      }
+
+      // Find insertion point (maintain legoId order - S0001L01 < S0001L02 < S0002L01)
+      const insertIndex = this.rounds.findIndex(r => r.legoId > round.legoId)
       if (insertIndex === -1) {
-        // Append to end
         this.rounds.push(round)
       } else {
-        // Check if round already exists at this position
-        if (this.rounds[insertIndex - 1]?.roundNumber === round.roundNumber) {
-          continue // Skip duplicate
-        }
         this.rounds.splice(insertIndex, 0, round)
       }
+      existingLegoIds.add(round.legoId)
     }
 
     console.log(`[SimplePlayer] Added ${newRounds.length} rounds, total now: ${this.rounds.length}`)
