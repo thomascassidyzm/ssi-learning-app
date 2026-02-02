@@ -11,15 +11,10 @@ ON course_legos (presentation_audio_id)
 WHERE presentation_audio_id IS NOT NULL;
 
 -- Migrate existing presentation audio from course_audio table
--- course_audio has lego_id and role='presentation' with s3_key containing the UUID
+-- Use course_audio.id (NOT the UUID from s3_key!) for consistent lookups
 UPDATE course_legos cl
 SET presentation_audio_id = (
-  SELECT
-    -- Extract UUID from s3_key (handles both "mastered/{uuid}.mp3" and "{uuid}.mp3")
-    REGEXP_REPLACE(
-      REGEXP_REPLACE(ca.s3_key, '^mastered/', ''),
-      '\.mp3$', ''
-    )
+  SELECT ca.id  -- Use the actual course_audio.id, not the s3_key UUID
   FROM course_audio ca
   WHERE ca.course_code = cl.course_code
     AND ca.lego_id = CONCAT('S', LPAD(cl.seed_number::text, 4, '0'), 'L', LPAD(cl.lego_index::text, 2, '0'))
