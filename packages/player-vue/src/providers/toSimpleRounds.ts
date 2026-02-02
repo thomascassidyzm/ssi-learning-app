@@ -15,18 +15,20 @@ const audioUrl = (uuid: string | undefined): string => {
 }
 
 export function toSimpleRounds(items: ScriptItem[]): Round[] {
-  // Group by roundNumber
-  const byRound = new Map<number, ScriptItem[]>()
+  // Group by legoKey - this is the true round identifier (e.g., S0045L02)
+  // LEGO IDs encode seed and lego index, so sorting them gives correct order
+  const byLego = new Map<string, ScriptItem[]>()
   for (const item of items) {
-    if (!byRound.has(item.roundNumber)) {
-      byRound.set(item.roundNumber, [])
+    const key = item.legoKey
+    if (!byLego.has(key)) {
+      byLego.set(key, [])
     }
-    byRound.get(item.roundNumber)!.push(item)
+    byLego.get(key)!.push(item)
   }
 
   const rounds: Round[] = []
 
-  for (const [roundNum, roundItems] of byRound.entries()) {
+  for (const [legoKey, roundItems] of byLego.entries()) {
     const intro = roundItems.find(i => i.type === 'intro')
 
     const cycles: Cycle[] = roundItems
@@ -45,17 +47,23 @@ export function toSimpleRounds(items: ScriptItem[]): Round[] {
         pauseDuration: 4000
       }))
 
+    // Extract seed number from legoKey for roundNumber (for backwards compat)
+    // S0045L02 → 45
+    const seedMatch = legoKey.match(/S(\d+)/)
+    const seedNum = seedMatch ? parseInt(seedMatch[1], 10) : 0
+
     rounds.push({
-      roundNumber: roundNum,
-      legoId: intro?.legoKey || roundItems[0]?.legoKey || '',
+      roundNumber: seedNum, // Use seed number for backwards compat
+      legoId: legoKey,
       seedId: intro?.seedId || roundItems[0]?.seedId || '',
       introAudioUrl: intro?.presentationAudioId ? audioUrl(intro.presentationAudioId) : undefined,
       cycles
     })
   }
 
-  // Sort by round number
-  rounds.sort((a, b) => a.roundNumber - b.roundNumber)
+  // Sort by legoId string - zero-padded so string sort is correct
+  // S0001L01 < S0001L02 < S0002L01 etc.
+  rounds.sort((a, b) => a.legoId.localeCompare(b.legoId))
 
   return rounds
 }

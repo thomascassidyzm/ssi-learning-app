@@ -181,7 +181,11 @@ export async function generateLearningScript(
 
   // Process each seed
   for (const seedNum of sortedSeedNums) {
-    const seedLegos = legosBySeed.get(seedNum)!.sort((a, b) => a.lego_index - b.lego_index)
+    // Only process LEGOs that are NEW (is_new = true)
+    // LEGOs with is_new = false were already introduced in earlier seeds
+    const seedLegos = legosBySeed.get(seedNum)!
+      .filter(l => l.is_new)
+      .sort((a, b) => a.lego_index - b.lego_index)
 
     for (const lego of seedLegos) {
       roundNumber++
