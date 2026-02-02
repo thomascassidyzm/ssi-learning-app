@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, inject, onMounted, onUnmounted } from 'vue'
 import { getAudioCacheStats, preloadAudioBatch } from '../composables/useScriptCache'
+import { unregisterAllServiceWorkers, clearAllCaches } from '../composables/useServiceWorkerSafety'
 import { BELT_RANGES, getBeltForSeed } from '../composables/useBeltLoader'
 import { useBeltProgress } from '../composables/useBeltProgress'
 import { useTheme } from '../composables/useTheme'
@@ -409,6 +410,37 @@ const toggleSkipIntroAudio = () => {
   skipIntroAudio.value = !skipIntroAudio.value
   localStorage.setItem('ssi-skip-intro-audio', skipIntroAudio.value ? 'true' : 'false')
   dispatchSettingChanged('skipIntroAudio', skipIntroAudio.value)
+}
+
+// Clear all caches and reload (same as ?reset=1 but accessible from PWA)
+const isClearingCache = ref(false)
+const handleClearCacheAndReload = async () => {
+  isClearingCache.value = true
+  console.log('[Settings] Clearing all caches and reloading...')
+
+  try {
+    // Clear localStorage
+    localStorage.clear()
+    // Clear sessionStorage
+    sessionStorage.clear()
+    // Clear IndexedDB
+    if (window.indexedDB && indexedDB.databases) {
+      const dbs = await indexedDB.databases()
+      for (const db of dbs) {
+        if (db.name) indexedDB.deleteDatabase(db.name)
+      }
+    }
+    // Unregister service workers and clear caches
+    await Promise.all([
+      unregisterAllServiceWorkers().catch(() => {}),
+      clearAllCaches().catch(() => {})
+    ])
+  } catch (err) {
+    console.warn('[Settings] Error during cache clear:', err)
+  }
+
+  // Reload clean
+  window.location.reload()
 }
 
 // Helper to dispatch setting change events
@@ -912,6 +944,19 @@ const confirmReset = async () => {
                 <div class="toggle-thumb"></div>
               </div>
             </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- Clear Cache & Reload -->
+          <div class="setting-row clickable danger" @click="handleClearCacheAndReload">
+            <div class="setting-info">
+              <span class="setting-label">{{ isClearingCache ? 'Clearing...' : 'Clear Cache & Reload' }}</span>
+              <span class="setting-desc">Clear all local data, service workers, and reload</span>
+            </div>
+            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
           </div>
         </div>
       </section>
