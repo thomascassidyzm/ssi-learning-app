@@ -30,6 +30,7 @@ function applyTheme(theme: Theme) {
 
 /**
  * Initialize theme from localStorage or system preference
+ * Also registers the watch handler (only once)
  */
 function initTheme() {
   if (isInitialized.value) return
@@ -50,19 +51,8 @@ function initTheme() {
   // }
 
   applyTheme(currentTheme.value)
-  isInitialized.value = true
-}
 
-/**
- * Theme composable - provides theme state and toggle
- */
-export function useTheme() {
-  // Initialize on first use
-  if (!isInitialized.value) {
-    initTheme()
-  }
-
-  // Watch for changes and persist
+  // Register watch ONCE during initialization (not per-component)
   watch(currentTheme, (theme) => {
     applyTheme(theme)
     try {
@@ -71,6 +61,18 @@ export function useTheme() {
       console.warn('[useTheme] Failed to persist theme:', e)
     }
   })
+
+  isInitialized.value = true
+}
+
+/**
+ * Theme composable - provides theme state and toggle
+ */
+export function useTheme() {
+  // Initialize on first use (registers watch only once)
+  if (!isInitialized.value) {
+    initTheme()
+  }
 
   /**
    * Set theme directly

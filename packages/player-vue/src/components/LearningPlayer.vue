@@ -10182,14 +10182,14 @@ defineExpose({
 }
 
 /* --- Space / Background layers --- */
-[data-theme="mist"] .space-gradient {
+[data-theme="mist"] .player .space-gradient {
   background:
     radial-gradient(ellipse 120% 80% at 20% 10%, rgba(210, 195, 170, 0.35) 0%, transparent 50%),
     radial-gradient(ellipse 100% 60% at 80% 90%, rgba(200, 185, 160, 0.25) 0%, transparent 40%),
     radial-gradient(ellipse 80% 80% at 50% 50%, #f0ebe3 0%, #e8e2d8 100%);
 }
 
-[data-theme="mist"] .space-nebula {
+[data-theme="mist"] .player .space-nebula {
   background:
     linear-gradient(180deg, transparent 0%, rgba(200, 185, 160, 0.08) 30%, rgba(200, 185, 160, 0.12) 50%, transparent 70%),
     linear-gradient(180deg, transparent 40%, rgba(200, 185, 160, 0.06) 60%, transparent 80%);
@@ -10201,14 +10201,14 @@ defineExpose({
   50% { opacity: 0.7; transform: translateY(-8px); }
 }
 
-[data-theme="mist"] .bg-noise {
+[data-theme="mist"] .player .bg-noise {
   opacity: 0.04;
   filter: none;
   mix-blend-mode: multiply;
 }
 
 /* Bamboo shadow lines */
-[data-theme="mist"] .bg-noise::after {
+[data-theme="mist"] .player .bg-noise::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -10221,14 +10221,14 @@ defineExpose({
 }
 
 /* --- Stars → Ink dots --- */
-[data-theme="mist"] .star-field .star {
+[data-theme="mist"] .player .star-field .star {
   background: rgba(44, 37, 32, 0.6);
   box-shadow: none;
   opacity: 0.04;
   animation: ink-dot-breathe 6s ease-in-out infinite;
 }
 
-[data-theme="mist"] .star-field .star:nth-child(odd) {
+[data-theme="mist"] .player .star-field .star:nth-child(odd) {
   opacity: 0.08;
   animation-delay: -3s;
 }
@@ -10239,7 +10239,7 @@ defineExpose({
 }
 
 /* --- Drift stars → Shuriken --- */
-[data-theme="mist"] .drift-star {
+[data-theme="mist"] .player .drift-star {
   background: rgba(44, 37, 32, 0.12);
   box-shadow: none;
   clip-path: polygon(50% 0%, 65% 35%, 100% 50%, 65% 65%, 50% 100%, 35% 65%, 0% 50%, 35% 35%);
@@ -10247,7 +10247,7 @@ defineExpose({
   animation: shuriken-spin 12s linear infinite;
 }
 
-[data-theme="mist"] .drift-star:nth-child(even) {
+[data-theme="mist"] .player .drift-star:nth-child(even) {
   animation-direction: reverse;
   animation-duration: 16s;
 }
@@ -10258,7 +10258,7 @@ defineExpose({
 }
 
 /* --- Nebula glow → Warm floor glow --- */
-[data-theme="mist"] .nebula-glow {
+[data-theme="mist"] .player .nebula-glow {
   background:
     linear-gradient(
       to top,
@@ -10269,12 +10269,12 @@ defineExpose({
 }
 
 /* --- Mountain silhouette (shown only in mist) --- */
-[data-theme="mist"] .mountain-silhouette {
+[data-theme="mist"] .player .mountain-silhouette {
   display: block;
 }
 
 /* --- Hero glass → Warm frosted paper --- */
-[data-theme="mist"] .hero-glass {
+[data-theme="mist"] .player .hero-glass {
   background: rgba(247, 243, 236, 0.75);
   border-color: rgba(100, 80, 55, 0.12);
   box-shadow: 0 4px 24px rgba(60, 45, 30, 0.08);
@@ -10283,17 +10283,17 @@ defineExpose({
 }
 
 /* --- Hero text --- */
-[data-theme="mist"] .hero-known {
+[data-theme="mist"] .player .hero-known {
   color: #2c2520;
 }
 
-[data-theme="mist"] .hero-target {
+[data-theme="mist"] .player .hero-target {
   color: #2c2520;
   text-shadow: 0 1px 3px rgba(60, 45, 30, 0.15);
 }
 
 /* --- Control bar → Warm frosted paper --- */
-[data-theme="mist"] .control-bar {
+[data-theme="mist"] .player .control-bar {
   background: rgba(247, 243, 236, 0.65);
   border-color: rgba(100, 80, 55, 0.1);
   backdrop-filter: blur(20px) saturate(120%);
@@ -10301,43 +10301,43 @@ defineExpose({
 }
 
 /* --- Mode / Transport buttons --- */
-[data-theme="mist"] .mode-btn,
-[data-theme="mist"] .transport-btn {
+[data-theme="mist"] .player .mode-btn,
+[data-theme="mist"] .player .transport-btn {
   background: rgba(100, 80, 55, 0.06);
   border-color: rgba(100, 80, 55, 0.1);
   color: #5c544a;
 }
 
-[data-theme="mist"] .mode-btn:hover,
-[data-theme="mist"] .transport-btn:hover {
+[data-theme="mist"] .player .mode-btn:hover,
+[data-theme="mist"] .player .transport-btn:hover {
   background: rgba(100, 80, 55, 0.1);
 }
 
-[data-theme="mist"] .mode-btn.active {
+[data-theme="mist"] .player .mode-btn.active {
   background: rgba(100, 80, 55, 0.12);
   color: #2c2520;
 }
 
 /* --- Brain Network overrides --- */
-[data-theme="mist"] .brain-network-container .network-link {
+[data-theme="mist"] .player .brain-network-container .network-link {
   stroke: rgba(100, 80, 55, 0.12);
 }
 
-[data-theme="mist"] .brain-network-container .network-label {
+[data-theme="mist"] .player .brain-network-container .network-label {
   fill: rgba(44, 37, 32, 0.6);
 }
 
-[data-theme="mist"] .brain-network-container .network-label.visible {
+[data-theme="mist"] .player .brain-network-container .network-label.visible {
   fill: rgba(44, 37, 32, 0.7);
 }
 
-[data-theme="mist"] .brain-network-container .network-label.active {
+[data-theme="mist"] .player .brain-network-container .network-label.active {
   fill: #2c2520;
   filter: none;
   text-shadow: 0 1px 3px rgba(60, 45, 30, 0.2);
 }
 
-[data-theme="mist"] .brain-network-container .network-node.hero {
+[data-theme="mist"] .player .brain-network-container .network-node.hero {
   animation: mist-node-pulse 2s ease-in-out infinite;
 }
 
@@ -10353,29 +10353,29 @@ defineExpose({
 }
 
 /* --- Belt celebration overlay --- */
-[data-theme="mist"] .belt-celebration-overlay {
+[data-theme="mist"] .player .belt-celebration-overlay {
   background: rgba(44, 37, 32, 0.6);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
 
 /* --- Belt particles → Shuriken burst --- */
-[data-theme="mist"] .belt-particle {
+[data-theme="mist"] .player .belt-particle {
   clip-path: polygon(50% 0%, 65% 35%, 100% 50%, 65% 65%, 50% 100%, 35% 65%, 0% 50%, 35% 35%);
   border-radius: 0;
 }
 
 /* --- Ink spirit rewards --- */
-[data-theme="mist"] .ink-spirit-reward {
+[data-theme="mist"] .player .ink-spirit-reward {
   text-shadow: 0 1px 4px rgba(60, 45, 30, 0.2);
 }
 
-[data-theme="mist"] .ink-spirit-reward .ink-word {
+[data-theme="mist"] .player .ink-spirit-reward .ink-word {
   color: #2c2520;
 }
 
 /* --- Learning hint box --- */
-[data-theme="mist"] .learning-hint {
+[data-theme="mist"] .player .learning-hint {
   background: rgba(247, 243, 236, 0.8);
   border-color: rgba(100, 80, 55, 0.12);
   color: #5c544a;

@@ -154,12 +154,12 @@ const fetchEnrolledCourses = async () => {
   console.log('[App] fetchEnrolledCourses: Fetching from courses table...')
 
   try {
-    // Get courses available for this app (released or beta)
-    // In production, this would also filter by learner enrollment
+    // Get courses available for this app (live or beta)
+    // Status options: draft (hidden), beta (visible with badge), live (fully visible)
     const { data, error } = await supabaseClient.value
       .from('courses')
       .select('*')
-      .in('new_app_status', ['released', 'beta'])
+      .in('new_app_status', ['live', 'beta'])
       .order('display_name')
 
     console.log('[App] fetchEnrolledCourses result:', { data: data?.length || 0, error })

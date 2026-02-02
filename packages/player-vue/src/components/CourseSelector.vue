@@ -7,7 +7,7 @@
  * - "I want to learn" grid of target languages
  * - Shows progress for enrolled courses, "NEW" badge for unenrolled
  * - Queries Supabase for available courses (uses dashboard schema as SSoT)
- * - Filters by new_app_status field (released | beta)
+ * - Filters by new_app_status field (live | beta)
  * - Shows pricing_tier indicator for premium courses
  * - Localized UI based on selected known language
  *
@@ -140,12 +140,12 @@ const fetchCourses = async () => {
   }
 
   try {
-    // Query courses filtered by new_app_status (released or beta)
-    // TODO: Switch to `visibility` column after Supabase migration adds it
+    // Query courses filtered by new_app_status (live or beta)
+    // Status options: draft (hidden), beta (visible with badge), live (fully visible)
     const { data, error: fetchError } = await props.supabase
       .from('courses')
       .select('*')
-      .in('new_app_status', ['released', 'beta'])
+      .in('new_app_status', ['live', 'beta'])
       .order('featured_order', { ascending: true, nullsFirst: false })
       .order('display_name')
 
