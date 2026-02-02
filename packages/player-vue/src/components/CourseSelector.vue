@@ -146,7 +146,6 @@ const fetchCourses = async () => {
       .from('courses')
       .select('*')
       .in('new_app_status', ['live', 'beta'])
-      .order('featured_order', { ascending: true, nullsFirst: false })
       .order('display_name')
 
     if (fetchError) throw fetchError
