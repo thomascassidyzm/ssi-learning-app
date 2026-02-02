@@ -986,14 +986,16 @@ const backTargetBelt = computed(() => {
 const nextBeltLoading = computed(() => {
   const nb = nextBelt.value
   if (!nb) return false
-  return !simplePlayer.hasRound(nb.seedsRequired * 3 - 2) // ~3 LEGOs per seed estimate
+  // Use findRoundIndexForSeed to check if target seed's rounds are loaded
+  return simplePlayer.findRoundIndexForSeed(nb.seedsRequired) < 0
 })
 
 const prevBeltLoading = computed(() => {
   const bt = backTargetBelt.value
   if (!bt) return false
   const targetSeed = bt.seedsRequired === 0 ? 1 : bt.seedsRequired
-  return !simplePlayer.hasRound(targetSeed * 3 - 2)
+  // Use findRoundIndexForSeed to check if target seed's rounds are loaded
+  return simplePlayer.findRoundIndexForSeed(targetSeed) < 0
 })
 
 const beltProgressPercent = computed(() => beltProgress.value?.beltProgress.value ?? 0)
@@ -4091,9 +4093,9 @@ const handleSkipToNextBelt = async () => {
 
     if (existingRoundIndex < 0 && supabase?.value) {
       // Target seed not loaded - load it via generateSimpleScript (blocking)
+      // Always emit from round 1 to ensure correct round building (including intros)
       console.log(`[progressiveLoad] Belt skip: target seed ${targetSeed} not loaded, loading now...`)
-      const emitFrom = targetSeed * 3 - 2 // ~3 LEGOs per seed estimate
-      const skipResult = await generateSimpleScript(supabase.value, courseCode.value, 1, targetSeed + 5, emitFrom)
+      const skipResult = await generateSimpleScript(supabase.value, courseCode.value, 1, targetSeed + 5, 1)
 
       if (skipResult.items.length > 0) {
         const newRounds = toSimpleRounds(skipResult.items)
@@ -4124,9 +4126,9 @@ const loadSeedIfNeeded = async (targetSeed: number) => {
 
   if (!supabase?.value) return
 
+  // Always emit from round 1 to ensure correct round building (including intros)
   console.log(`[progressiveLoad] Belt skip: target seed ${targetSeed} not loaded, loading now...`)
-  const emitFrom = targetSeed * 3 - 2
-  const skipResult = await generateSimpleScript(supabase.value, courseCode.value, 1, targetSeed + 5, emitFrom)
+  const skipResult = await generateSimpleScript(supabase.value, courseCode.value, 1, targetSeed + 5, 1)
 
   if (skipResult.items.length > 0) {
     const newRounds = toSimpleRounds(skipResult.items)
@@ -5171,15 +5173,15 @@ onMounted(async () => {
 
             // Calculate initial load range
             // New users: seeds 1-5 (~5 rounds, ~20 cycles)
-            // Returning users: seeds 1 to position+5, emitting only from current position
+            // Returning users: seeds 1 to position+5
+            // Always emit from round 1 to ensure correct round building (including intros)
             const initialEndSeed = isReturningUser ? startingSeed + 5 : 5
-            const emitFromRound = isReturningUser ? startingSeed * 3 - 2 : 1 // ~3 LEGOs per seed estimate
 
-            console.log(`[progressiveLoad] ${isReturningUser ? 'Returning' : 'New'} user: completedSeeds=${completedSeeds}, startingSeed=${startingSeed}, loading seeds 1-${initialEndSeed}, emitFromRound=${emitFromRound}`)
+            console.log(`[progressiveLoad] ${isReturningUser ? 'Returning' : 'New'} user: completedSeeds=${completedSeeds}, startingSeed=${startingSeed}, loading seeds 1-${initialEndSeed}`)
 
-            // 2. BLOCKING: Load initial batch (position-aware)
-            const result = await generateSimpleScript(supabase.value, courseCode.value, 1, initialEndSeed, emitFromRound)
-            console.log(`[progressiveLoad] Initial: ${result.items.length} script items (${result.roundCount} total rounds, emitted from round ${emitFromRound})`)
+            // 2. BLOCKING: Load initial batch (always from round 1 for correct intros)
+            const result = await generateSimpleScript(supabase.value, courseCode.value, 1, initialEndSeed, 1)
+            console.log(`[progressiveLoad] Initial: ${result.items.length} script items (${result.roundCount} total rounds)`)
 
             if (result.items.length > 0) {
               const simpleRounds = toSimpleRounds(result.items)
@@ -5271,10 +5273,10 @@ onMounted(async () => {
                 for (const batch of batches) {
                   if (!supabase?.value) break
                   try {
-                    // Use emitFromRound to only get new rounds (legoState built from seed 1 internally)
-                    const batchEmitFrom = batch.start * 3 - 2 // ~3 LEGOs per seed estimate
+                    // Always emit from round 1 to ensure correct round building (including intros)
+                    // SimplePlayer.addRounds handles duplicates
                     const batchResult = await generateSimpleScript(
-                      supabase.value, courseCode.value, 1, batch.end, batchEmitFrom
+                      supabase.value, courseCode.value, 1, batch.end, 1
                     )
 
                     if (batchResult.items.length > 0) {
