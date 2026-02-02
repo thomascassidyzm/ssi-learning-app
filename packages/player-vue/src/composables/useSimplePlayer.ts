@@ -170,12 +170,26 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   /**
    * Add rounds dynamically (for priority loading).
    * Also updates roundsRef for reactive UI updates.
+   * IMPORTANT: Must use same insertion logic as SimplePlayer to keep arrays in sync!
    */
   const addRounds = (newRounds: Round[]) => {
     if (!player || newRounds.length === 0) return
     player.addRounds(newRounds)
-    // Update reactive ref to trigger UI updates
-    roundsRef.value = [...roundsRef.value, ...newRounds].sort((a, b) => a.roundNumber - b.roundNumber)
+    // Mirror SimplePlayer's insertion logic exactly to keep arrays in sync
+    // DO NOT use bulk sort - it creates different array order than SimplePlayer
+    const currentRounds = [...roundsRef.value]
+    for (const round of newRounds) {
+      const insertIndex = currentRounds.findIndex(r => r.roundNumber > round.roundNumber)
+      if (insertIndex === -1) {
+        currentRounds.push(round)
+      } else {
+        if (currentRounds[insertIndex - 1]?.roundNumber === round.roundNumber) {
+          continue // Skip duplicate
+        }
+        currentRounds.splice(insertIndex, 0, round)
+      }
+    }
+    roundsRef.value = currentRounds
   }
 
   /**
