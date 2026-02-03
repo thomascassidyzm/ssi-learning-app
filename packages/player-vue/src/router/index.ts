@@ -4,6 +4,7 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 const PlayerContainer = () => import('@/containers/PlayerContainer.vue')
 const SchoolsContainer = () => import('@/containers/SchoolsContainer.vue')
 const SimpleSessionTest = () => import('@/components/SimpleSessionTest.vue')
+const SSOCallback = () => import('@/views/SSOCallback.vue')
 
 // Schools views (lazy-loaded)
 const DashboardView = () => import('@/views/schools/DashboardView.vue')
@@ -101,6 +102,15 @@ const routes: RouteRecordRaw[] = [
     component: SimpleSessionTest,
     meta: {
       title: 'Simple Session Test',
+    },
+  },
+  // OAuth SSO callback handler
+  {
+    path: '/sso-callback',
+    name: 'sso-callback',
+    component: SSOCallback,
+    meta: {
+      title: 'Signing in...',
     },
   },
   // Catch-all redirect to player
