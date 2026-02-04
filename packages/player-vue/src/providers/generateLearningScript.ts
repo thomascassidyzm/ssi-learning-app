@@ -109,6 +109,21 @@ export async function generateLearningScript(
     console.log(`  target2_audio_id: ${firstLego.target2_audio_id ?? 'NULL'}`)
     console.log(`  presentation_audio_id: ${firstLego.presentation_audio_id ?? 'NULL'}`)
   }
+
+  // FLAG: LEGOs with bracket explanations (these shouldn't exist in production)
+  const bracketPattern = /\[.*?\]/
+  const legosWithBrackets = (legosResult.data || []).filter(
+    (l: any) => bracketPattern.test(l.known_text) || bracketPattern.test(l.target_text)
+  )
+  if (legosWithBrackets.length > 0) {
+    console.warn(`[generateLearningScript] ⚠️ Found ${legosWithBrackets.length} LEGOs with bracket explanations (should be removed):`)
+    legosWithBrackets.slice(0, 5).forEach((l: any) => {
+      console.warn(`  S${String(l.seed_number).padStart(4, '0')}L${String(l.lego_index).padStart(2, '0')}: "${l.known_text}" → "${l.target_text}"`)
+    })
+    if (legosWithBrackets.length > 5) {
+      console.warn(`  ... and ${legosWithBrackets.length - 5} more`)
+    }
+  }
   const firstPhrase = phrasesResult.data?.[0]
   if (firstPhrase) {
     console.log(`[generateLearningScript] First phrase: "${firstPhrase.known_text}" → "${firstPhrase.target_text}"`)
