@@ -53,20 +53,42 @@ export function toSimpleRounds(
   items: ScriptItem[],
   pauseConfig: PauseConfig = DEFAULT_PAUSE_CONFIG
 ): Round[] {
-  // Group by legoKey - this is the true round identifier (e.g., S0045L02)
-  // LEGO IDs encode seed and lego index, so sorting them gives correct order
-  const byLego = new Map<string, ScriptItem[]>()
+  // Group by roundNumber - each round is a complete learning unit
+  // Items within a round share the same roundNumber, but may have different legoKeys
+  // (e.g., spaced_rep items review older LEGOs but belong to the current round)
+  const byRound = new Map<number, ScriptItem[]>()
   for (const item of items) {
-    const key = item.legoKey
-    if (!byLego.has(key)) {
-      byLego.set(key, [])
+    const key = item.roundNumber
+    if (!byRound.has(key)) {
+      byRound.set(key, [])
     }
-    byLego.get(key)!.push(item)
+    byRound.get(key)!.push(item)
+  }
+
+  // DEBUG: Check for text mismatches between intro and debut in first few rounds
+  for (const [roundNum, roundItems] of byRound.entries()) {
+    if (roundNum > 3) break // Only check first 3 rounds
+    const intro = roundItems.find(i => i.type === 'intro')
+    const debut = roundItems.find(i => i.type === 'debut')
+    if (intro && debut) {
+      if (intro.knownText !== debut.knownText || intro.targetText !== debut.targetText) {
+        console.error(`[toSimpleRounds] TEXT MISMATCH in round ${roundNum}:`)
+        console.error(`  INTRO: "${intro.knownText}" → "${intro.targetText}" (legoKey: ${intro.legoKey})`)
+        console.error(`  DEBUT: "${debut.knownText}" → "${debut.targetText}" (legoKey: ${debut.legoKey})`)
+      } else {
+        console.log(`[toSimpleRounds] Round ${roundNum} OK: "${intro.knownText}" → "${intro.targetText}"`)
+      }
+    }
   }
 
   const rounds: Round[] = []
 
-  for (const [legoKey, roundItems] of byLego.entries()) {
+  for (const [roundNum, roundItems] of byRound.entries()) {
+    // Find the intro item to get the primary LEGO for this round
+    const introItem = roundItems.find(i => i.type === 'intro')
+    const primaryLegoKey = introItem?.legoKey || roundItems[0]?.legoKey || ''
+    const primarySeedId = introItem?.seedId || roundItems[0]?.seedId || ''
+
     // Build ALL cycles with audio (including intro as first cycle)
     // Intro cycle: sourceId=presentation_audio, target1/target2 same as debut, NO PAUSE
     // Debut/other cycles: sourceId=known_audio, target1/target2, dynamic pause
@@ -92,22 +114,16 @@ export function toSimpleRounds(
           : calculatePauseDuration(i.target1DurationMs, i.target2DurationMs, pauseConfig)
       }))
 
-    // Extract seed number from legoKey for roundNumber (for backwards compat)
-    // S0045L02 → 45
-    const seedMatch = legoKey.match(/S(\d+)/)
-    const seedNum = seedMatch ? parseInt(seedMatch[1], 10) : 0
-
     rounds.push({
-      roundNumber: seedNum, // Use seed number for backwards compat
-      legoId: legoKey,
-      seedId: roundItems[0]?.seedId || '',
+      roundNumber: roundNum,
+      legoId: primaryLegoKey,
+      seedId: primarySeedId,
       cycles
     })
   }
 
-  // Sort by legoId string - zero-padded so string sort is correct
-  // S0001L01 < S0001L02 < S0002L01 etc.
-  rounds.sort((a, b) => a.legoId.localeCompare(b.legoId))
+  // Sort by roundNumber to maintain learning sequence
+  rounds.sort((a, b) => a.roundNumber - b.roundNumber)
 
   return rounds
 }
