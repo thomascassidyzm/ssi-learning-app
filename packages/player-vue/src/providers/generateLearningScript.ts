@@ -103,28 +103,18 @@ export async function generateLearningScript(
   // DEBUG: Log first LEGO's audio IDs to diagnose missing audio
   const firstLego = legosResult.data?.[0]
   if (firstLego) {
-    console.log('[generateLearningScript] First LEGO audio IDs:', {
-      seed: firstLego.seed_number,
-      lego: firstLego.lego_index,
-      known_text: firstLego.known_text,
-      target_text: firstLego.target_text,
-      known_audio_id: firstLego.known_audio_id ?? 'NULL',
-      target1_audio_id: firstLego.target1_audio_id ?? 'NULL',
-      target2_audio_id: firstLego.target2_audio_id ?? 'NULL',
-      presentation_audio_id: firstLego.presentation_audio_id ?? 'NULL',
-    })
+    console.log(`[generateLearningScript] First LEGO: "${firstLego.known_text}" → "${firstLego.target_text}"`)
+    console.log(`  known_audio_id: ${firstLego.known_audio_id ?? 'NULL'}`)
+    console.log(`  target1_audio_id: ${firstLego.target1_audio_id ?? 'NULL'}`)
+    console.log(`  target2_audio_id: ${firstLego.target2_audio_id ?? 'NULL'}`)
+    console.log(`  presentation_audio_id: ${firstLego.presentation_audio_id ?? 'NULL'}`)
   }
   const firstPhrase = phrasesResult.data?.[0]
   if (firstPhrase) {
-    console.log('[generateLearningScript] First phrase audio IDs:', {
-      seed: firstPhrase.seed_number,
-      lego: firstPhrase.lego_index,
-      known_text: firstPhrase.known_text,
-      target_text: firstPhrase.target_text,
-      known_audio_id: firstPhrase.known_audio_id ?? 'NULL',
-      target1_audio_id: firstPhrase.target1_audio_id ?? 'NULL',
-      target2_audio_id: firstPhrase.target2_audio_id ?? 'NULL',
-    })
+    console.log(`[generateLearningScript] First phrase: "${firstPhrase.known_text}" → "${firstPhrase.target_text}"`)
+    console.log(`  known_audio_id: ${firstPhrase.known_audio_id ?? 'NULL'}`)
+    console.log(`  target1_audio_id: ${firstPhrase.target1_audio_id ?? 'NULL'}`)
+    console.log(`  target2_audio_id: ${firstPhrase.target2_audio_id ?? 'NULL'}`)
   }
 
   // Group phrases by LEGO into BUILD and USE pools
