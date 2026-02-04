@@ -65,18 +65,36 @@ export function toSimpleRounds(
     byRound.get(key)!.push(item)
   }
 
-  // DEBUG: Check for text mismatches between intro and debut in first few rounds
+  // DEBUG: Check for text mismatches between intro and debut
+  // Check first 3 rounds AND any round that starts a new seed (L01)
+  let checkedCount = 0
   for (const [roundNum, roundItems] of byRound.entries()) {
-    if (roundNum > 3) break // Only check first 3 rounds
     const intro = roundItems.find(i => i.type === 'intro')
     const debut = roundItems.find(i => i.type === 'debut')
-    if (intro && debut) {
-      if (intro.knownText !== debut.knownText || intro.targetText !== debut.targetText) {
-        console.error(`[toSimpleRounds] TEXT MISMATCH in round ${roundNum}:`)
-        console.error(`  INTRO: "${intro.knownText}" → "${intro.targetText}" (legoKey: ${intro.legoKey})`)
-        console.error(`  DEBUT: "${debut.knownText}" → "${debut.targetText}" (legoKey: ${debut.legoKey})`)
-      } else {
-        console.log(`[toSimpleRounds] Round ${roundNum} OK: "${intro.knownText}" → "${intro.targetText}"`)
+
+    // Check first 3 rounds, plus any belt-start rounds (seeds 8, 20, 40, 80, 150, 280)
+    const beltStarts = [8, 20, 40, 80, 150, 280]
+    const seedNum = intro ? parseInt(intro.seedId?.replace('S', '') || '0') : 0
+    const isBeltStart = beltStarts.includes(seedNum)
+
+    if (checkedCount < 3 || isBeltStart) {
+      if (intro && debut) {
+        if (intro.knownText !== debut.knownText || intro.targetText !== debut.targetText) {
+          console.error(`[toSimpleRounds] TEXT MISMATCH in round ${roundNum} (seed ${seedNum}):`)
+          console.error(`  INTRO: "${intro.knownText}" → "${intro.targetText}" (legoKey: ${intro.legoKey})`)
+          console.error(`  DEBUT: "${debut.knownText}" → "${debut.targetText}" (legoKey: ${debut.legoKey})`)
+        } else {
+          console.log(`[toSimpleRounds] Round ${roundNum} (seed ${seedNum}) OK: "${intro.knownText}" → "${intro.targetText}"`)
+        }
+        checkedCount++
+      }
+
+      // Also log the cycle order for belt-start rounds
+      if (isBeltStart) {
+        console.log(`[toSimpleRounds] Round ${roundNum} cycle order:`)
+        roundItems.slice(0, 3).forEach((item, idx) => {
+          console.log(`  [${idx}] ${item.type}: "${item.knownText}" → "${item.targetText}"`)
+        })
       }
     }
   }
