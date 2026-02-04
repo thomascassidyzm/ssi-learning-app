@@ -96,23 +96,9 @@ describe('RoundBuilder', () => {
       expect(introItem?.presentationAudio?.url).toBe('/api/audio/intro-audio')
     })
 
-    it('should skip intro when skipIntros is true', () => {
-      const config = createPlaybackConfig({ skipIntros: true })
-      const round = buildRound({
-        lego: mockLego,
-        seed: mockSeed,
-        basket: mockBasket,
-        legoIndex: 1,
-        roundNumber: 1,
-        config,
-        buildAudioUrl,
-      })
-
-      const introItem = round.items.find(item => item.type === 'intro')
-      expect(introItem).toBeUndefined()
-    })
-
-    it('should skip intro when turboMode is true', () => {
+    it('should always include intro even in turboMode (intros cannot be skipped independently)', () => {
+      // LEGO intros are the entry point to a round - you can skip the whole round
+      // but not skip the intro and go straight to phrases
       const config = createPlaybackConfig({ turboMode: true })
       const round = buildRound({
         lego: mockLego,
@@ -125,7 +111,8 @@ describe('RoundBuilder', () => {
       })
 
       const introItem = round.items.find(item => item.type === 'intro')
-      expect(introItem).toBeUndefined()
+      expect(introItem).toBeDefined()
+      expect(introItem?.presentationAudio?.url).toBe('/api/audio/intro-audio')
     })
 
     it('should include debut item', () => {

@@ -71,8 +71,9 @@ export function toSimpleRounds(
     // Intro cycle: sourceId=presentation_audio, target1/target2 same as debut, NO PAUSE
     // Debut/other cycles: sourceId=known_audio, target1/target2, dynamic pause
     // All use the same audio pattern: sourceId → target1 → target2
+    // Include ALL items - don't filter by hasAudio
+    // Content structure must be correct first, audio validation happens at playback
     const cycles: Cycle[] = roundItems
-      .filter(i => i.hasAudio)
       .map(i => ({
         id: i.uuid,
         known: {

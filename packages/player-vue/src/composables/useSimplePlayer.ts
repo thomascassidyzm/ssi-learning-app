@@ -30,7 +30,7 @@ export interface UseSimplePlayerReturn {
   pause: () => void
   resume: () => void
   stop: () => void
-  skipCycle: () => void
+  // NOTE: No skipCycle - a ROUND is the atomic learning unit
   skipRound: () => void
   jumpToRound: (index: number) => void
   jumpToSeed: (seedNumber: number) => void
@@ -135,7 +135,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   const pause = () => player?.pause()
   const resume = () => player?.resume()
   const stop = () => player?.stop()
-  const skipCycle = () => player?.skipCycle()
+  // NOTE: No skipCycle - a ROUND is the atomic learning unit
   const skipRound = () => player?.skipRound()
   const jumpToRound = (index: number) => player?.jumpToRound(index)
 
@@ -235,7 +235,6 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     pause,
     resume,
     stop,
-    skipCycle,
     skipRound,
     jumpToRound,
     jumpToSeed,

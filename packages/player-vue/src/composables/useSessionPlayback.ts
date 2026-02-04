@@ -532,12 +532,7 @@ export function useSessionPlayback(options: SessionPlaybackOptions) {
     sessionController.stop()
   }
 
-  /**
-   * Skip current cycle
-   */
-  function skipCycle(): void {
-    sessionController.skipCycle()
-  }
+  // NOTE: No skipCycle - a ROUND is the atomic learning unit
 
   /**
    * Skip current round
@@ -787,7 +782,6 @@ export function useSessionPlayback(options: SessionPlaybackOptions) {
     pause,
     resume,
     stop,
-    skipCycle,
     skipRound,
     jumpToRound,
     jumpToSeed,

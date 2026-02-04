@@ -77,7 +77,7 @@ export interface SessionController {
   getRoundCount(): number
 
   // Navigation
-  skipCycle(): void
+  // NOTE: No skipCycle - a ROUND is the atomic learning unit
   skipRound(): void
   jumpToRound(roundNumber: number): void
 
@@ -597,26 +597,7 @@ export function createSessionController(): SessionController {
     isPlaybackActive = false
   }
 
-  /**
-   * Skip current cycle
-   */
-  function skipCycle(): void {
-    if (state.value !== 'playing') return
-
-    cyclePlayer.stop()
-
-    const round = currentRound.value
-    if (!round) return
-
-    const playableItems = getPlayableItems(round)
-    currentItemIndex.value++
-
-    if (currentItemIndex.value >= playableItems.length) {
-      completeRound()
-    } else {
-      playCurrentItem()
-    }
-  }
+  // NOTE: No skipCycle - a ROUND is the atomic learning unit
 
   /**
    * Skip current round
@@ -701,7 +682,6 @@ export function createSessionController(): SessionController {
     getRoundCount,
 
     // Navigation
-    skipCycle,
     skipRound,
     jumpToRound,
 

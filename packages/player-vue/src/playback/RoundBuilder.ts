@@ -59,7 +59,9 @@ export function buildRound(options: BuildRoundOptions): Round {
   const spacedRepReviews: number[] = []
 
   // 1. INTRO - "The Spanish for X is..."
-  if (basket?.introduction_audio && !config.skipIntros && !config.turboMode) {
+  // LEGO intros ALWAYS play when you land on a round - they cannot be skipped independently
+  // (you can skip the whole round, but not skip the intro and go to phrases)
+  if (basket?.introduction_audio) {
     items.push(createIntroItem({
       lego,
       seed,

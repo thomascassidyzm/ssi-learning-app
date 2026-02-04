@@ -298,7 +298,6 @@ export function useFullCourseScript() {
         {
           ...DEFAULT_PLAYBACK_CONFIG,
           // For QA view, include everything
-          skipIntros: false,
           turboMode: false,
           maxBuildPhrases: 7, // Show all build phrases
           consolidationCount: 2, // Show consolidation

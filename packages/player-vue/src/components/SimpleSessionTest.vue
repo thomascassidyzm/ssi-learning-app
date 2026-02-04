@@ -77,9 +77,7 @@ function handlePlay() {
   }
 }
 
-function handleSkipCycle() {
-  player.skipCycle()
-}
+// NOTE: No skipCycle - a ROUND is the atomic learning unit
 
 function handleSkipRound() {
   player.skipRound()
@@ -129,9 +127,6 @@ function handleReset() {
       <div class="controls">
         <button @click="handlePlay" class="btn primary">
           {{ player.isPlaying.value ? 'Pause' : 'Play' }}
-        </button>
-        <button @click="handleSkipCycle" class="btn">
-          Skip Cycle
         </button>
         <button @click="handleSkipRound" class="btn">
           Skip Round

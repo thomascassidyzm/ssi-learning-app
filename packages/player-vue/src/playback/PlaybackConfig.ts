@@ -5,10 +5,7 @@
  */
 
 export interface PlaybackConfig {
-  /** Skip intro audio for returning learners */
-  skipIntros: boolean
-
-  /** Turbo mode: skip all intros, faster transitions */
+  /** Turbo mode: faster transitions (shorter pauses) */
   turboMode: boolean
 
   /** Pause duration multiplier: 0.5 (fast) to 2.0 (slow) */
@@ -28,7 +25,6 @@ export interface PlaybackConfig {
 }
 
 export const DEFAULT_PLAYBACK_CONFIG: PlaybackConfig = {
-  skipIntros: false,
   turboMode: false,
   pauseMultiplier: 1.0,
   adaptivePause: true,
@@ -41,7 +37,6 @@ export const DEFAULT_PLAYBACK_CONFIG: PlaybackConfig = {
  * Turbo mode preset: for experienced learners who want fast drilling
  */
 export const TURBO_CONFIG: Partial<PlaybackConfig> = {
-  skipIntros: true,
   turboMode: true,
   pauseMultiplier: 0.75,
   adaptivePause: false,
@@ -51,7 +46,6 @@ export const TURBO_CONFIG: Partial<PlaybackConfig> = {
  * Beginner mode preset: slower pace, full intros
  */
 export const BEGINNER_CONFIG: Partial<PlaybackConfig> = {
-  skipIntros: false,
   turboMode: false,
   pauseMultiplier: 1.25,
   adaptivePause: true,

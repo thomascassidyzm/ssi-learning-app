@@ -187,11 +187,8 @@ export class SimplePlayer {
     this.updateState({ roundIndex: 0, cycleIndex: 0, phase: 'idle', isPlaying: false, inIntroSequence: false })
   }
 
-  skipCycle(): void {
-    this.clearPauseTimer()
-    this.audio.pause()
-    this.advanceCycle()
-  }
+  // NOTE: No skipCycle() - a ROUND is the atomic learning unit
+  // Users can skip entire rounds, but not individual cycles within a round
 
   skipRound(): void {
     this.clearPauseTimer()

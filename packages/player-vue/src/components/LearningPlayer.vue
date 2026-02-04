@@ -236,7 +236,6 @@ const showFragileProgressWarning = ref(true)
 const enableQaMode = ref(false)
 const showDebugOverlay = ref(false)
 const enableVerboseLogging = ref(false)
-const skipIntroAudio = ref(false)
 
 // Computed properties for conditional rendering
 const shouldShowProgressWarning = computed(() => isGuestLearner.value && showFragileProgressWarning.value)
@@ -5064,7 +5063,6 @@ onMounted(async () => {
   enableQaMode.value = localStorage.getItem('ssi-enable-qa-mode') === 'true'
   showDebugOverlay.value = localStorage.getItem('ssi-show-debug-overlay') === 'true'
   enableVerboseLogging.value = localStorage.getItem('ssi-verbose-logging') === 'true'
-  skipIntroAudio.value = localStorage.getItem('ssi-skip-intro-audio') === 'true'
 
   // Listen for developer settings changes (from Settings screen)
   settingChangedHandler = (e: Event) => {
@@ -5083,9 +5081,6 @@ onMounted(async () => {
         break
       case 'enableVerboseLogging':
         enableVerboseLogging.value = detail.value
-        break
-      case 'skipIntroAudio':
-        skipIntroAudio.value = detail.value
         break
     }
   }

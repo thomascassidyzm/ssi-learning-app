@@ -46,7 +46,6 @@ const showFragileProgressWarning = ref(true) // Default: show the warning to gue
 const enableQaMode = ref(false) // Show Report Issue button
 const showDebugOverlay = ref(false) // Show phase/round/LEGO info overlay
 const enableVerboseLogging = ref(false) // Detailed console logs
-const skipIntroAudio = ref(false) // Skip "The Spanish for X is..." intros
 
 // Theme settings (uses shared composable)
 const { theme, toggleTheme: doToggleTheme, isDark } = useTheme()
@@ -211,7 +210,6 @@ onMounted(async () => {
   enableQaMode.value = localStorage.getItem('ssi-enable-qa-mode') === 'true'
   showDebugOverlay.value = localStorage.getItem('ssi-show-debug-overlay') === 'true'
   enableVerboseLogging.value = localStorage.getItem('ssi-verbose-logging') === 'true'
-  skipIntroAudio.value = localStorage.getItem('ssi-skip-intro-audio') === 'true'
 
   // Load cache stats
   try {
@@ -404,12 +402,6 @@ const toggleVerboseLogging = () => {
   enableVerboseLogging.value = !enableVerboseLogging.value
   localStorage.setItem('ssi-verbose-logging', enableVerboseLogging.value ? 'true' : 'false')
   dispatchSettingChanged('enableVerboseLogging', enableVerboseLogging.value)
-}
-
-const toggleSkipIntroAudio = () => {
-  skipIntroAudio.value = !skipIntroAudio.value
-  localStorage.setItem('ssi-skip-intro-audio', skipIntroAudio.value ? 'true' : 'false')
-  dispatchSettingChanged('skipIntroAudio', skipIntroAudio.value)
 }
 
 // Clear all caches and reload (same as ?reset=1 but accessible from PWA)
@@ -911,20 +903,6 @@ const confirmReset = async () => {
               <span class="setting-desc">Enable detailed console logs</span>
             </div>
             <div class="toggle-switch" :class="{ 'is-on': enableVerboseLogging }">
-              <div class="toggle-track">
-                <div class="toggle-thumb"></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="setting-row clickable" @click="toggleSkipIntroAudio">
-            <div class="setting-info">
-              <span class="setting-label">Skip Intro Audio</span>
-              <span class="setting-desc">Skip "The Spanish for X is..." presentations</span>
-            </div>
-            <div class="toggle-switch" :class="{ 'is-on': skipIntroAudio }">
               <div class="toggle-track">
                 <div class="toggle-thumb"></div>
               </div>

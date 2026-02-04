@@ -449,7 +449,7 @@ export class CourseDataProvider {
     }
 
     try {
-      // Query practice_cycles view for all phrases containing this LEGO
+      // Query course_practice_phrases by lego_id (format: SXXXXLYY)
       // v13: Sort by target1_duration_ms for cognitive load (shortest audio = easiest)
       const { data, error } = await this.client
         .from('course_practice_phrases')
@@ -1064,7 +1064,7 @@ export class CourseDataProvider {
     if (!this.client || legoIds.length === 0) return baskets
 
     try {
-      // Query practice_cycles for all LEGOs in one batch
+      // Query course_practice_phrases by lego_id (format: SXXXXLYY)
       // v13: Sort by target1_duration_ms for cognitive load
       const { data, error } = await this.client
         .from('course_practice_phrases')

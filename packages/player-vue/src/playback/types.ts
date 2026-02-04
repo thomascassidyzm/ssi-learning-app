@@ -233,16 +233,17 @@ export function getPlayableItems(round: RoundTemplate): RoundItem[] {
 
 /**
  * Apply config to a round template
- * Sets playable flags based on configuration
+ * LEGO intros are ALWAYS playable - they're the entry point to a round.
+ * (You can skip the whole round, but not skip the intro to go straight to phrases)
  */
-export function applyConfig(round: RoundTemplate, config: { skipIntros?: boolean; turboMode?: boolean }): RoundTemplate {
+export function applyConfig(round: RoundTemplate, config: { turboMode?: boolean }): RoundTemplate {
+  // Currently just preserves playable flags - intro items are always included
+  // when present in the round (RoundBuilder decides whether to include them)
   return {
     ...round,
     items: round.items.map(item => ({
       ...item,
-      playable: item.type === 'intro'
-        ? !(config.skipIntros || config.turboMode)
-        : item.playable !== false,
+      playable: item.playable !== false,
     })),
   }
 }
