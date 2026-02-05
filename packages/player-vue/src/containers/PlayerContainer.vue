@@ -17,7 +17,7 @@ import { SignInModal, SignUpModal } from '@/components/auth'
 
 // Global auth modal state (shared singleton)
 import { useAuthModal } from '@/composables/useAuthModal'
-import { BELTS } from '@/composables/useBeltProgress'
+import { BELTS, getSharedBeltProgress, getSeedFromLegoId } from '@/composables/useBeltProgress'
 
 // Clerk components (conditionally imported)
 import { SignedIn, SignedOut, UserButton } from '@clerk/vue'
@@ -149,23 +149,32 @@ const handleViewProgress = () => {
   navigate('network')
 }
 
-// Learner data (would come from database in production)
-const learnerStats = ref({
-  completedRounds: 42,
-  totalSeeds: 668,
-  learningVelocity: 1.2,
+// Real learner progress from shared belt progress (created by LearningPlayer)
+const beltProgress = computed(() => getSharedBeltProgress())
+
+// Seed count derived from highestLegoId (LEGO-granular high-water mark)
+const completedSeeds = computed(() => {
+  const bp = beltProgress.value
+  if (!bp) return 0
+  const seed = getSeedFromLegoId(bp.highestLegoId.value)
+  return seed ?? 0
 })
 
-// Current belt based on completedRounds
+// Current belt name from real progress
 const currentBeltName = computed(() => {
-  const seeds = learnerStats.value.completedRounds
-  for (let i = BELTS.length - 1; i >= 0; i--) {
-    if (seeds >= BELTS[i].seedsRequired) {
-      return BELTS[i].name
-    }
-  }
-  return 'white'
+  const bp = beltProgress.value
+  if (!bp) return 'white'
+  return bp.currentBelt.value.name
 })
+
+// Total seeds in course
+const totalSeeds = computed(() => {
+  const bp = beltProgress.value
+  return bp?.TOTAL_SEEDS ?? 668
+})
+
+// Usage stats from session history
+const totalLearningMinutes = computed(() => beltProgress.value?.totalLearningMinutes.value ?? 0)
 
 // Handle auth success (close modals, refresh state if needed)
 const handleAuthSuccess = () => {
@@ -273,9 +282,9 @@ onMounted(() => {
     <Transition name="slide-up" mode="out-in">
       <JourneyMap
         v-if="currentScreen === 'journey'"
-        :completedRounds="learnerStats.completedRounds"
-        :totalSeeds="learnerStats.totalSeeds"
-        :learningVelocity="learnerStats.learningVelocity"
+        :completedRounds="completedSeeds"
+        :totalSeeds="totalSeeds"
+        :learningVelocity="1.0"
         @close="goHome"
         @startLearning="handleStartLearning"
       />
@@ -307,7 +316,7 @@ onMounted(() => {
         v-if="currentScreen === 'network'"
         :course="activeCourse"
         :belt-level="currentBeltName"
-        :completed-seeds="learnerStats.completedRounds"
+        :completed-seeds="completedSeeds"
         @close="goHome"
       />
     </Transition>
@@ -316,9 +325,9 @@ onMounted(() => {
     <Transition name="slide-right" mode="out-in">
       <UsageStats
         v-if="currentScreen === 'stats'"
-        :total-minutes="learnerStats.lifetimeLearningMinutes || 127"
-        :total-words-introduced="learnerStats.totalWordsIntroduced || 142"
-        :total-phrases-spoken="learnerStats.totalPhrasesSpoken || 847"
+        :total-minutes="totalLearningMinutes"
+        :total-words-introduced="completedSeeds"
+        :total-phrases-spoken="0"
         @close="goHome"
       />
     </Transition>

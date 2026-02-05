@@ -395,6 +395,16 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   })
 
   // ============================================================================
+  // AGGREGATE STATS (for UsageStats display)
+  // ============================================================================
+
+  const totalLearningMinutes = computed(() => {
+    return Math.round(sessionHistory.value.reduce((sum, s) => sum + s.durationMs, 0) / 60000)
+  })
+
+  const totalSessionCount = computed(() => sessionHistory.value.length)
+
+  // ============================================================================
   // LEARNING RATE & TIME ESTIMATES
   // ============================================================================
 
@@ -635,6 +645,11 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
     // Progress info
     seedsToNextBelt,
     courseProgress,
+
+    // Aggregate stats
+    totalLearningMinutes,
+    totalSessionCount,
+    sessionHistory,
 
     // Learning rate
     averageSeedsPerSession,

@@ -358,8 +358,8 @@ watch(() => props.dailyData, drawCharts, { deep: true })
               <line x1="8" y1="11" x2="14" y2="11"/>
             </svg>
           </div>
-          <div class="stat-value">{{ totalWordsIntroduced || 142 }}</div>
-          <div class="stat-label">Words Introduced</div>
+          <div class="stat-value">{{ totalWordsIntroduced }}</div>
+          <div class="stat-label">Seeds Learned</div>
         </div>
 
         <div class="stat-card">
@@ -371,7 +371,7 @@ watch(() => props.dailyData, drawCharts, { deep: true })
               <line x1="8" y1="23" x2="16" y2="23"/>
             </svg>
           </div>
-          <div class="stat-value">{{ totalPhrasesSpoken || 847 }}</div>
+          <div class="stat-value">{{ totalPhrasesSpoken }}</div>
           <div class="stat-label">Phrases Spoken</div>
         </div>
       </section>
