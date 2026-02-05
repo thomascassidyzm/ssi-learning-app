@@ -140,14 +140,28 @@ export async function generateLearningScript(
     target1_duration_ms?: number
     target2_duration_ms?: number
   }
-  const phrasesByLego = new Map<string, { build: Phrase[]; use: Phrase[] }>()
+  const phrasesByLego = new Map<string, { build: Phrase[]; use: Phrase[]; practice: Phrase[] }>()
   for (const phrase of (phrasesResult.data || []) as Phrase[]) {
     const key = `${phrase.seed_number}:${phrase.lego_index}`
-    if (!phrasesByLego.has(key)) phrasesByLego.set(key, { build: [], use: [] })
+    if (!phrasesByLego.has(key)) phrasesByLego.set(key, { build: [], use: [], practice: [] })
     const group = phrasesByLego.get(key)!
     if (phrase.phrase_role === 'component') continue
     if (phrase.phrase_role === 'build') group.build.push(phrase)
     else if (phrase.phrase_role === 'use') group.use.push(phrase)
+    else if (phrase.phrase_role === 'practice') group.practice.push(phrase)
+  }
+
+  // Classify legacy 'practice' phrases per LEGO:
+  // - If the LEGO already has explicit USE phrases, practice → BUILD (fragments, drill once)
+  // - If the LEGO has NO USE phrases, practice → USE (so it has spaced rep material)
+  for (const [, group] of phrasesByLego.entries()) {
+    if (group.practice.length === 0) continue
+    if (group.use.length > 0) {
+      group.build.push(...group.practice)
+    } else {
+      group.use.push(...group.practice)
+    }
+    group.practice = []
   }
 
   // Sort BUILD phrases by syllable count
@@ -218,8 +232,12 @@ export async function generateLearningScript(
 
       const usedPhrasesThisRound = new Set<string>()
 
-      // Phase 1: INTRO - uses presentation audio + same target1/target2 as debut
-      // Intro cycle: presentation_audio_id → target1_audio_id → target2_audio_id
+      // Phase 1: INTRO - presentation audio introduces the new LEGO
+      // Welsh courses (cym_*): presentation audio already contains the target
+      //   pronunciation, so we play presentation only (no target1/target2).
+      // All other courses: presentation is just the prompt ("The German for X is..."),
+      //   followed by target1/target2.
+      const isWelsh = courseCode.startsWith('cym_')
       cycleNum++
       emitItem({
         uuid: `${legoKey}_intro_${cycleNum}`,
@@ -230,11 +248,11 @@ export async function generateLearningScript(
         targetText: lego.target_text,
         presentationAudioId,
         sourceId: presentationAudioId,  // Intro uses presentation as "source"
-        target1Id: lego.target1_audio_id,
-        target2Id: lego.target2_audio_id,
-        target1DurationMs: lego.target1_duration_ms,
-        target2DurationMs: lego.target2_duration_ms,
-        hasAudio: !!(presentationAudioId && lego.target1_audio_id && lego.target2_audio_id),
+        target1Id: isWelsh ? undefined : lego.target1_audio_id,
+        target2Id: isWelsh ? undefined : lego.target2_audio_id,
+        target1DurationMs: isWelsh ? undefined : lego.target1_duration_ms,
+        target2DurationMs: isWelsh ? undefined : lego.target2_duration_ms,
+        hasAudio: !!presentationAudioId,
         isNew: true
       })
 
