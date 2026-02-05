@@ -65,40 +65,6 @@ export function toSimpleRounds(
     byRound.get(key)!.push(item)
   }
 
-  // DEBUG: Check for text mismatches between intro and debut
-  // Check first 3 rounds AND any round that starts a new seed (L01)
-  let checkedCount = 0
-  for (const [roundNum, roundItems] of byRound.entries()) {
-    const intro = roundItems.find(i => i.type === 'intro')
-    const debut = roundItems.find(i => i.type === 'debut')
-
-    // Check first 3 rounds, plus any belt-start rounds (seeds 8, 20, 40, 80, 150, 280)
-    const beltStarts = [8, 20, 40, 80, 150, 280]
-    const seedNum = intro ? parseInt(intro.seedId?.replace('S', '') || '0') : 0
-    const isBeltStart = beltStarts.includes(seedNum)
-
-    if (checkedCount < 3 || isBeltStart) {
-      if (intro && debut) {
-        if (intro.knownText !== debut.knownText || intro.targetText !== debut.targetText) {
-          console.error(`[toSimpleRounds] TEXT MISMATCH in round ${roundNum} (seed ${seedNum}):`)
-          console.error(`  INTRO: "${intro.knownText}" → "${intro.targetText}" (legoKey: ${intro.legoKey})`)
-          console.error(`  DEBUT: "${debut.knownText}" → "${debut.targetText}" (legoKey: ${debut.legoKey})`)
-        } else {
-          console.log(`[toSimpleRounds] Round ${roundNum} (seed ${seedNum}) OK: "${intro.knownText}" → "${intro.targetText}"`)
-        }
-        checkedCount++
-      }
-
-      // Also log the cycle order for belt-start rounds
-      if (isBeltStart) {
-        console.log(`[toSimpleRounds] Round ${roundNum} cycle order:`)
-        roundItems.slice(0, 3).forEach((item, idx) => {
-          console.log(`  [${idx}] ${item.type}: "${item.knownText}" → "${item.targetText}"`)
-        })
-      }
-    }
-  }
-
   const rounds: Round[] = []
 
   for (const [roundNum, roundItems] of byRound.entries()) {
@@ -107,14 +73,39 @@ export function toSimpleRounds(
     const primaryLegoKey = introItem?.legoKey || roundItems[0]?.legoKey || ''
     const primarySeedId = introItem?.seedId || roundItems[0]?.seedId || ''
 
-    // Build ALL cycles with audio (including intro as first cycle)
-    // Intro cycle: sourceId=presentation_audio, target1/target2 same as debut, NO PAUSE
-    // Debut/other cycles: sourceId=known_audio, target1/target2, dynamic pause
-    // All use the same audio pattern: sourceId → target1 → target2
-    // Include ALL items - don't filter by hasAudio
-    // Content structure must be correct first, audio validation happens at playback
-    const cycles: Cycle[] = roundItems
-      .map(i => ({
+    // Build cycles, filtering out items missing critical audio
+    // Intro/debut items: structural, always included (SimplePlayer skips broken phases gracefully)
+    // Intro items: must have target1Id (voice1)
+    // Other items: must have sourceId AND target1Id
+    const cycles: Cycle[] = []
+    for (const i of roundItems) {
+      const isStructural = i.type === 'intro' || i.type === 'debut'
+
+      if (i.type === 'intro') {
+        // Intro: target1Id is critical
+        if (!i.target1Id) {
+          console.error(`[toSimpleRounds] Intro missing target1Id (voice1) in round ${roundNum}: "${i.knownText}" → "${i.targetText}"`)
+        }
+        if (!i.presentationAudioId) {
+          console.warn(`[toSimpleRounds] Intro missing presentationAudioId in round ${roundNum}: "${i.knownText}" → "${i.targetText}"`)
+        }
+        if (!i.target2Id) {
+          console.warn(`[toSimpleRounds] Intro missing target2Id (voice2) in round ${roundNum}: "${i.knownText}" → "${i.targetText}"`)
+        }
+      } else {
+        // All other items: sourceId AND target1Id are critical
+        if (!i.sourceId || !i.target1Id) {
+          console.error(`[toSimpleRounds] ${i.type} missing critical audio in round ${roundNum}: sourceId=${i.sourceId || 'MISSING'}, target1Id=${i.target1Id || 'MISSING'} — "${i.knownText}" → "${i.targetText}"`)
+          if (!isStructural) {
+            continue // Skip non-structural items missing critical audio
+          }
+        }
+        if (!i.target2Id) {
+          console.warn(`[toSimpleRounds] ${i.type} missing target2Id (voice2) in round ${roundNum}: "${i.knownText}" → "${i.targetText}"`)
+        }
+      }
+
+      cycles.push({
         id: i.uuid,
         known: {
           text: i.knownText,
@@ -130,7 +121,25 @@ export function toSimpleRounds(
         pauseDuration: i.type === 'intro'
           ? 0
           : calculatePauseDuration(i.target1DurationMs, i.target2DurationMs, pauseConfig)
-      }))
+      })
+    }
+
+    // Round-level validation: check structural integrity
+    const firstCycle = roundItems[0]
+    const secondCycle = roundItems[1]
+    if (!firstCycle || firstCycle.type !== 'intro') {
+      console.error(`[toSimpleRounds] Round ${roundNum} missing intro as first item (got ${firstCycle?.type || 'nothing'})`)
+    }
+    if (!secondCycle || secondCycle.type !== 'debut') {
+      console.error(`[toSimpleRounds] Round ${roundNum} missing debut as second item (got ${secondCycle?.type || 'nothing'})`)
+    }
+    if (firstCycle?.type === 'intro' && secondCycle?.type === 'debut') {
+      if (firstCycle.knownText !== secondCycle.knownText || firstCycle.targetText !== secondCycle.targetText) {
+        console.error(`[toSimpleRounds] Round ${roundNum} intro/debut text mismatch:`)
+        console.error(`  INTRO: "${firstCycle.knownText}" → "${firstCycle.targetText}" (legoKey: ${firstCycle.legoKey})`)
+        console.error(`  DEBUT: "${secondCycle.knownText}" → "${secondCycle.targetText}" (legoKey: ${secondCycle.legoKey})`)
+      }
+    }
 
     rounds.push({
       roundNumber: roundNum,

@@ -22,7 +22,6 @@ export interface SimpleRound {
   roundNumber: number
   legoId: string
   seedId: string
-  introAudioUrl?: string  // "The Spanish for X is..." - voice1/voice2 come from cycles[0]
   cycles: SimpleCycle[]
 }
 
@@ -44,23 +43,20 @@ export function adaptRoundsForPlayer(builderRounds: BuilderRound[]): SimpleRound
  * Convert a single BuilderRound to SimpleRound
  */
 function adaptRound(round: BuilderRound): SimpleRound {
-  let introAudioUrl: string | undefined
   const cycles: SimpleCycle[] = []
   const skipped: string[] = []
 
   for (const item of round.items) {
     if (item.type === 'intro') {
-      // Extract presentation audio URL only
-      // voice1/voice2 for intro come from cycles[0] (the LEGO debut)
-      introAudioUrl = item.presentationAudio?.url
+      // Intro is now handled as a regular cycle - skip here
+      continue
+    }
+    // Convert to cycle
+    const cycle = adaptScriptItemToCycle(item)
+    if (cycle) {
+      cycles.push(cycle)
     } else {
-      // Convert to cycle
-      const cycle = adaptScriptItemToCycle(item)
-      if (cycle) {
-        cycles.push(cycle)
-      } else {
-        skipped.push(`${item.type}: "${item.targetText?.slice(0, 30)}..."`)
-      }
+      skipped.push(`${item.type}: "${item.targetText?.slice(0, 30)}..."`)
     }
   }
 
@@ -70,7 +66,6 @@ function adaptRound(round: BuilderRound): SimpleRound {
     roundNumber: round.roundNumber,
     legoId: round.legoId,
     seedId: round.seedId,
-    introAudioUrl,
     cycles,
   }
 }

@@ -1433,7 +1433,6 @@ const preloadSimpleRoundAudio = (rounds: any[], maxRounds = 1, startIndex = 0) =
   const urls = new Set<string>()
   const slice = rounds.slice(startIndex, startIndex + maxRounds)
   for (const round of slice) {
-    if (round.introAudioUrl) urls.add(round.introAudioUrl)
     for (const cycle of round.cycles || []) {
       if (cycle.known?.audioUrl) urls.add(cycle.known.audioUrl)
       if (cycle.target?.voice1Url) urls.add(cycle.target.voice1Url)

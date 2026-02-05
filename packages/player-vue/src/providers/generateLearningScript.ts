@@ -13,6 +13,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { validateLearningScript } from './validateLearningScript'
 
 export interface ScriptItem {
   uuid: string
@@ -100,14 +101,9 @@ export async function generateLearningScript(
   if (legosResult.error) throw new Error('Failed to query LEGOs: ' + legosResult.error.message)
   if (phrasesResult.error) throw new Error('Failed to query phrases: ' + phrasesResult.error.message)
 
-  // DEBUG: Log first LEGO's audio IDs to diagnose missing audio
   const firstLego = legosResult.data?.[0]
   if (firstLego) {
-    console.log(`[generateLearningScript] First LEGO: "${firstLego.known_text}" → "${firstLego.target_text}"`)
-    console.log(`  known_audio_id: ${firstLego.known_audio_id ?? 'NULL'}`)
-    console.log(`  target1_audio_id: ${firstLego.target1_audio_id ?? 'NULL'}`)
-    console.log(`  target2_audio_id: ${firstLego.target2_audio_id ?? 'NULL'}`)
-    console.log(`  presentation_audio_id: ${firstLego.presentation_audio_id ?? 'NULL'}`)
+    console.log(`[generateLearningScript] First LEGO: "${firstLego.known_text}" → "${firstLego.target_text}" (audio: known=${!!firstLego.known_audio_id}, t1=${!!firstLego.target1_audio_id}, t2=${!!firstLego.target2_audio_id}, pres=${!!firstLego.presentation_audio_id})`)
   }
 
   // FLAG: LEGOs with bracket explanations (these shouldn't exist in production)
@@ -126,10 +122,7 @@ export async function generateLearningScript(
   }
   const firstPhrase = phrasesResult.data?.[0]
   if (firstPhrase) {
-    console.log(`[generateLearningScript] First phrase: "${firstPhrase.known_text}" → "${firstPhrase.target_text}"`)
-    console.log(`  known_audio_id: ${firstPhrase.known_audio_id ?? 'NULL'}`)
-    console.log(`  target1_audio_id: ${firstPhrase.target1_audio_id ?? 'NULL'}`)
-    console.log(`  target2_audio_id: ${firstPhrase.target2_audio_id ?? 'NULL'}`)
+    console.log(`[generateLearningScript] First phrase: "${firstPhrase.known_text}" → "${firstPhrase.target_text}" (audio: known=${!!firstPhrase.known_audio_id}, t1=${!!firstPhrase.target1_audio_id}, t2=${!!firstPhrase.target2_audio_id})`)
   }
 
   // Group phrases by LEGO into BUILD and USE pools
@@ -241,7 +234,7 @@ export async function generateLearningScript(
         target2Id: lego.target2_audio_id,
         target1DurationMs: lego.target1_duration_ms,
         target2DurationMs: lego.target2_duration_ms,
-        hasAudio: !!(presentationAudioId && lego.target1_audio_id),
+        hasAudio: !!(presentationAudioId && lego.target1_audio_id && lego.target2_audio_id),
         isNew: true
       })
 
@@ -259,7 +252,7 @@ export async function generateLearningScript(
         target2Id: lego.target2_audio_id,
         target1DurationMs: lego.target1_duration_ms,
         target2DurationMs: lego.target2_duration_ms,
-        hasAudio: !!(lego.known_audio_id && lego.target1_audio_id),
+        hasAudio: !!(lego.known_audio_id && lego.target1_audio_id && lego.target2_audio_id),
         isNew: true
       })
 
@@ -285,21 +278,34 @@ export async function generateLearningScript(
           target2Id: phrase.target2_audio_id,
           target1DurationMs: phrase.target1_duration_ms,
           target2DurationMs: phrase.target2_duration_ms,
-          hasAudio: !!(phrase.known_audio_id && phrase.target1_audio_id),
+          hasAudio: !!(phrase.known_audio_id && phrase.target1_audio_id && phrase.target2_audio_id),
           isNew: true,
           syllableCount: phrase.target_syllable_count || countTargetSyllables(phrase.target_text)
         })
       }
 
-      // Fill remaining practice slots with USE phrases
+      // Reserve USE phrases for consolidation BEFORE using them for BUILD padding
+      // This prevents BUILD from consuming all USE phrases, leaving nothing for CONSOLIDATE
       const sortedUsePhrases = [...phrases.use].sort((a, b) =>
         (a.target_syllable_count || countTargetSyllables(a.target_text)) -
         (b.target_syllable_count || countTargetSyllables(b.target_text))
       )
+      const reservedForConsolidation = new Set<string>()
+      let reservedCount = 0
+      for (const phrase of sortedUsePhrases) {
+        if (reservedCount >= USE_CONSOLIDATION_COUNT) break
+        const phraseId = getPhraseId(phrase.known_text, phrase.target_text)
+        if (usedPhrasesThisRound.has(phraseId)) continue
+        reservedForConsolidation.add(phraseId)
+        reservedCount++
+      }
+
+      // Fill remaining practice slots with USE phrases (excluding reserved ones)
       for (const phrase of sortedUsePhrases) {
         if (practiceCount >= MAX_BUILD_PHRASES) break
         const phraseId = getPhraseId(phrase.known_text, phrase.target_text)
         if (usedPhrasesThisRound.has(phraseId)) continue
+        if (reservedForConsolidation.has(phraseId)) continue
 
         cycleNum++
         practiceCount++
@@ -317,7 +323,7 @@ export async function generateLearningScript(
           target2Id: phrase.target2_audio_id,
           target1DurationMs: phrase.target1_duration_ms,
           target2DurationMs: phrase.target2_duration_ms,
-          hasAudio: !!(phrase.known_audio_id && phrase.target1_audio_id),
+          hasAudio: !!(phrase.known_audio_id && phrase.target1_audio_id && phrase.target2_audio_id),
           isNew: true,
           syllableCount: phrase.target_syllable_count || countTargetSyllables(phrase.target_text)
         })
@@ -382,7 +388,7 @@ export async function generateLearningScript(
             target2Id: phrase.target2_audio_id,
             target1DurationMs: phrase.target1_duration_ms,
             target2DurationMs: phrase.target2_duration_ms,
-            hasAudio: !!(phrase.known_audio_id && phrase.target1_audio_id),
+            hasAudio: !!(phrase.known_audio_id && phrase.target1_audio_id && phrase.target2_audio_id),
             isNew: false,
             fibPosition,
             reviewOf: state.lastRound
@@ -390,13 +396,13 @@ export async function generateLearningScript(
         }
       }
 
-      // Phase 5: CONSOLIDATE ×2
+      // Phase 5: CONSOLIDATE ×2 - use the reserved phrases
       let consolidateCount = 0
-      for (const phrase of phrases.use) {
+      for (const phrase of sortedUsePhrases) {
         if (consolidateCount >= USE_CONSOLIDATION_COUNT) break
         const phraseId = getPhraseId(phrase.known_text, phrase.target_text)
+        if (!reservedForConsolidation.has(phraseId)) continue
         if (usedPhrasesThisRound.has(phraseId)) continue
-        if (usedForPractice.has(phraseId)) continue
         consolidateCount++
         usedPhrasesThisRound.add(phraseId)
 
@@ -413,7 +419,7 @@ export async function generateLearningScript(
           target2Id: phrase.target2_audio_id,
           target1DurationMs: phrase.target1_duration_ms,
           target2DurationMs: phrase.target2_duration_ms,
-          hasAudio: !!(phrase.known_audio_id && phrase.target1_audio_id),
+          hasAudio: !!(phrase.known_audio_id && phrase.target1_audio_id && phrase.target2_audio_id),
           isNew: true
         })
       }
@@ -443,6 +449,22 @@ export async function generateLearningScript(
   const removedCount = items.length - dedupedItems.length
   if (removedCount > 0) {
     console.log(`[generateLearningScript] Removed ${removedCount} consecutive duplicate(s)`)
+  }
+
+  // Validate generated script integrity
+  const validationReport = validateLearningScript(dedupedItems)
+  if (!validationReport.valid) {
+    console.error(`[generateLearningScript] VALIDATION FAILED: ${validationReport.summary}`)
+    for (const round of validationReport.rounds) {
+      if (!round.valid) {
+        for (const error of round.errors) {
+          console.error(`  [Round ${round.roundNumber}] ${error.message}`)
+        }
+      }
+    }
+  }
+  if (validationReport.cyclesWithWarnings > 0) {
+    console.warn(`[generateLearningScript] ${validationReport.cyclesWithWarnings} cycles with warnings`)
   }
 
   const skippedRounds = emitFromRound > 1 ? emitFromRound - 1 : 0

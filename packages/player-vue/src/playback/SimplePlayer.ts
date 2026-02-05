@@ -11,19 +11,17 @@ export interface Round {
   roundNumber: number
   legoId: string
   seedId: string
-  introAudioUrl?: string  // "The Spanish for X is..." - voice1/voice2 come from cycles[0]
   cycles: Cycle[]
 }
 
-// Phases: intro plays presentation then voice1/voice2, regular cycles play prompt → pause → voice1 → voice2
-export type Phase = 'idle' | 'intro' | 'prompt' | 'pause' | 'voice1' | 'voice2'
+// Phases: prompt → pause → voice1 → voice2
+export type Phase = 'idle' | 'prompt' | 'pause' | 'voice1' | 'voice2'
 
 export interface PlaybackState {
   roundIndex: number
   cycleIndex: number
   phase: Phase
   isPlaying: boolean
-  inIntroSequence: boolean  // True when playing intro's voice1/voice2 (before prompt)
 }
 
 type EventName = 'state_changed' | 'phase_changed' | 'cycle_completed' | 'round_completed' | 'session_complete'
@@ -41,7 +39,7 @@ export class SimplePlayer {
   constructor(rounds: Round[]) {
     this.rounds = rounds
     this.audio = new Audio()
-    this.state = { roundIndex: 0, cycleIndex: 0, phase: 'idle', isPlaying: false, inIntroSequence: false }
+    this.state = { roundIndex: 0, cycleIndex: 0, phase: 'idle', isPlaying: false }
 
     this.audio.addEventListener('ended', () => this.onAudioEnded())
     this.audio.addEventListener('error', (e) => {
@@ -159,7 +157,7 @@ export class SimplePlayer {
     }
     console.log(`[SimplePlayer] Starting Round ${round.roundNumber} (${round.legoId}): ${round.cycles.length} cycles`)
     this.updateState({ isPlaying: true })
-    this.startPhase(this.shouldPlayIntro() ? 'intro' : 'prompt')
+    this.startPhase('prompt')
   }
 
   pause(): void {
@@ -184,7 +182,7 @@ export class SimplePlayer {
     this.audio.pause()
     this.audio.src = ''
     this.clearPauseTimer()
-    this.updateState({ roundIndex: 0, cycleIndex: 0, phase: 'idle', isPlaying: false, inIntroSequence: false })
+    this.updateState({ roundIndex: 0, cycleIndex: 0, phase: 'idle', isPlaying: false })
   }
 
   // NOTE: No skipCycle() - a ROUND is the atomic learning unit
@@ -206,35 +204,18 @@ export class SimplePlayer {
     this.audio.pause()
     const wasPlaying = this.state.isPlaying
     // Must set isPlaying: false so play() doesn't early-return
-    this.updateState({ roundIndex: index, cycleIndex: 0, phase: 'idle', isPlaying: false, inIntroSequence: false })
+    this.updateState({ roundIndex: index, cycleIndex: 0, phase: 'idle', isPlaying: false })
     console.log(`[SimplePlayer] jumpToRound: wasPlaying=${wasPlaying}, calling play()`)
     if (wasPlaying) this.play()
   }
 
   // Private methods
-  private shouldPlayIntro(): boolean {
-    // Intro is now a regular cycle (first cycle with pauseDuration: 0)
-    // No special intro phase needed - just start with prompt
-    return false
-  }
-
   private startPhase(phase: Phase): void {
-    // Track intro sequence state
-    if (phase === 'intro') {
-      this.updateState({ phase, inIntroSequence: true })
-    } else if (phase === 'prompt') {
-      // Exiting intro sequence when we hit prompt
-      this.updateState({ phase, inIntroSequence: false })
-    } else {
-      this.updateState({ phase })
-    }
+    this.updateState({ phase })
 
     // Log what's playing
     const cycle = this.currentCycle
     const round = this.currentRound
-    if (phase === 'intro' && round) {
-      console.log(`%c[Round ${round.roundNumber}] ${round.legoId} - ${round.cycles.length} cycles`, 'color: #4CAF50; font-weight: bold')
-    }
     if (phase === 'prompt' && cycle) {
       console.log(`  [${this.state.cycleIndex + 1}/${round?.cycles.length}] "${cycle.known.text}" → "${cycle.target.text}"`)
     }
@@ -242,24 +223,14 @@ export class SimplePlayer {
     this.emit('phase_changed', { phase, cycle: this.currentCycle, round: this.currentRound })
 
     // Safety check: ensure we have the required data before playing
-    const currentRound = this.currentRound
     const currentCycle = this.currentCycle
 
     switch (phase) {
-      case 'intro':
-        // Presentation audio: "The Spanish for X is..."
-        if (currentRound?.introAudioUrl) {
-          this.playAudio(currentRound.introAudioUrl)
-        } else {
-          console.warn('[SimplePlayer] No intro audio URL, skipping to next phase')
-          this.onAudioEnded()
-        }
-        break
       case 'prompt':
         if (currentCycle?.known?.audioUrl) {
           this.playAudio(currentCycle.known.audioUrl)
         } else {
-          console.warn('[SimplePlayer] No prompt audio URL, skipping to next phase')
+          console.warn(`[SimplePlayer] No prompt audio for "${currentCycle?.known?.text}" → "${currentCycle?.target?.text}", skipping`)
           this.onAudioEnded()
         }
         break
@@ -267,20 +238,18 @@ export class SimplePlayer {
         this.startPausePhase()
         break
       case 'voice1':
-        // Always use cycle's voice URLs (same audio for intro and debut)
         if (currentCycle?.target?.voice1Url) {
           this.playAudio(currentCycle.target.voice1Url)
         } else {
-          console.warn('[SimplePlayer] No voice1 audio URL, skipping to next phase')
+          console.warn(`[SimplePlayer] No voice1 audio for "${currentCycle?.known?.text}" → "${currentCycle?.target?.text}", skipping`)
           this.onAudioEnded()
         }
         break
       case 'voice2':
-        // Always use cycle's voice URLs (same audio for intro and debut)
         if (currentCycle?.target?.voice2Url) {
           this.playAudio(currentCycle.target.voice2Url)
         } else {
-          console.warn('[SimplePlayer] No voice2 audio URL, skipping to next phase')
+          console.warn(`[SimplePlayer] No voice2 audio for "${currentCycle?.known?.text}" → "${currentCycle?.target?.text}", skipping`)
           this.onAudioEnded()
         }
         break
@@ -318,19 +287,9 @@ export class SimplePlayer {
   }
 
   private getNextPhase(): Phase | null {
-    // Intro sequence: intro → voice1 → voice2 → prompt (then regular cycle continues)
-    // Regular cycle: prompt → pause → voice1 → voice2 → (next cycle)
-    if (this.state.phase === 'intro') {
-      return 'voice1'
-    }
-    if (this.state.phase === 'voice2' && this.state.inIntroSequence) {
-      // After intro's voice2, go to prompt for the debut practice
-      return 'prompt'
-    }
-
+    // Simple transitions: prompt → pause → voice1 → voice2 → (next cycle)
     const transitions: Record<Phase, Phase | null> = {
       idle: null,
-      intro: 'voice1',  // Handled above but included for completeness
       prompt: 'pause',
       pause: 'voice1',
       voice1: 'voice2',
@@ -360,15 +319,15 @@ export class SimplePlayer {
     this.emit('round_completed', { round: this.currentRound })
 
     if (this.state.roundIndex < this.rounds.length - 1) {
-      this.updateState({ roundIndex: this.state.roundIndex + 1, cycleIndex: 0, inIntroSequence: false })
+      this.updateState({ roundIndex: this.state.roundIndex + 1, cycleIndex: 0 })
       const round = this.currentRound
       if (round) {
         console.log(`[SimplePlayer] Starting Round ${round.roundNumber} (${round.legoId}): ${round.cycles.length} cycles`)
       }
-      this.startPhase(this.shouldPlayIntro() ? 'intro' : 'prompt')
+      this.startPhase('prompt')
     } else {
       console.log('[SimplePlayer] Session complete')
-      this.updateState({ phase: 'idle', isPlaying: false, inIntroSequence: false })
+      this.updateState({ phase: 'idle', isPlaying: false })
       this.emit('session_complete')
     }
   }
