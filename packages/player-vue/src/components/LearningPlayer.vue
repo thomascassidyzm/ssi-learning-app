@@ -5034,6 +5034,27 @@ const findResonatingNodes = (item, exactMatches) => {
 }
 
 // ============================================
+// NETWORK REVEAL HELPER
+// ============================================
+
+/**
+ * Calculate how many nodes to reveal based on highestLegoId (LEGO-granular high-water mark).
+ * Falls back to belt-granular completedRounds if highestLegoId not available.
+ */
+const getRevealUpTo = (rounds: Array<{ legoId: string }>): number => {
+  const highestLego = beltProgress.value?.highestLegoId?.value
+  if (highestLego && rounds.length > 0) {
+    const idx = rounds.findIndex(r => r.legoId === highestLego)
+    if (idx >= 0) return Math.max(idx, currentRoundIndex.value)
+    // If exact match not found, find last node that sorts before highestLego
+    const lastBefore = rounds.reduce((best, r, i) => r.legoId <= highestLego ? i : best, -1)
+    if (lastBefore >= 0) return Math.max(lastBefore, currentRoundIndex.value)
+  }
+  // Fallback: belt-granular
+  return Math.max(completedRounds.value, currentRoundIndex.value)
+}
+
+// ============================================
 // LIFECYCLE
 // ============================================
 
@@ -5332,8 +5353,8 @@ onMounted(async () => {
                 }))
 
                 // Initialize full network with database data
-                // Reveal nodes up to learner's TOTAL progress (completedRounds)
-                const revealUpTo = Math.max(completedRounds.value, currentRoundIndex.value)
+                // Reveal nodes up to learner's highest achieved LEGO
+                const revealUpTo = getRevealUpTo(syntheticRounds)
                 initializeFullNetwork(syntheticRounds, networkConnections.value, revealUpTo, nodes)
                 console.log(`[LearningPlayer] Full network initialized: ${syntheticRounds.length} nodes, revealed up to ${revealUpTo}`)
               }
@@ -5448,11 +5469,10 @@ onMounted(async () => {
             )
 
             if (allRounds.length > 0) {
-              // Reveal nodes up to learner's TOTAL progress (completedRounds), not just current session
-              // This ensures previously learned LEGOs are visible so new ones can connect to them
-              const revealUpTo = Math.max(completedRounds.value, currentRoundIndex.value)
+              // Reveal nodes up to learner's highest achieved LEGO
+              const revealUpTo = getRevealUpTo(allRounds)
               initializeFullNetwork(allRounds, networkConnections.value, revealUpTo, dbNetworkNodes.value)
-              console.log(`[LearningPlayer] Full network ready: ${allRounds.length} nodes, revealed up to ${revealUpTo} (completedRounds: ${completedRounds.value}, currentRound: ${currentRoundIndex.value})`)
+              console.log(`[LearningPlayer] Full network ready: ${allRounds.length} nodes, revealed up to ${revealUpTo}`)
             }
           } catch (err) {
             console.warn('[LearningPlayer] Failed to load full network:', err)
@@ -5652,11 +5672,10 @@ onMounted(async () => {
             )
 
             if (allRounds.length > 0) {
-              // Reveal nodes up to learner's TOTAL progress (completedRounds), not just current session
-              // This ensures previously learned LEGOs are visible so new ones can connect to them
-              const revealUpTo = Math.max(completedRounds.value, currentRoundIndex.value)
+              // Reveal nodes up to learner's highest achieved LEGO
+              const revealUpTo = getRevealUpTo(allRounds)
               initializeFullNetwork(allRounds, networkConnections.value, revealUpTo, dbNetworkNodes.value)
-              console.log(`[LearningPlayer] Fresh gen: Full network ready: ${allRounds.length} nodes, revealed up to ${revealUpTo} (completedRounds: ${completedRounds.value}, currentRound: ${currentRoundIndex.value})`)
+              console.log(`[LearningPlayer] Fresh gen: Full network ready: ${allRounds.length} nodes, revealed up to ${revealUpTo}`)
             }
           } catch (err) {
             console.warn('[LearningPlayer] Fresh gen: Failed to load full network:', err)

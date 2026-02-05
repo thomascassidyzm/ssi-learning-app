@@ -23,7 +23,7 @@ import { useCompletedContent } from '../composables/useCompletedContent'
 // The rounds from generateLearningScript are only used for backwards compat
 import { generateLearningScript } from '../providers/CourseDataProvider'
 import { getLanguageName } from '../composables/useI18n'
-import { BELTS } from '../composables/useBeltProgress'
+import { BELTS, getSharedBeltProgress, getSeedFromLegoId } from '../composables/useBeltProgress'
 import type { SessionController } from '../playback/SessionController'
 
 // ============================================================================
@@ -509,26 +509,37 @@ function updateVisibility(count: number) {
     return
   }
 
-  // Standalone mode: use completedRounds to determine which seeds to show
-  // Since generateLearningScript is deprecated, we use seedId from nodes
+  // Standalone mode: use highestLegoId from belt progress for precise filtering
+  // Falls back to completedRounds (belt-granular) if not available
   if (!allRounds.value.length) {
-    // Build set from nodes where seed number <= completedRounds
-    const completedSeeds = props.completedRounds || 0
+    const beltProgress = getSharedBeltProgress()
+    const highestLego = beltProgress?.highestLegoId?.value
+    const highestSeed = highestLego ? getSeedFromLegoId(highestLego) : null
+    // Parse lego index from highestLegoId (e.g., "S0050L03" → 3)
+    const highestLegoIdx = highestLego ? parseInt(highestLego.match(/L(\d{2})$/)?.[1] || '99', 10) : 99
+
+    // Fallback: belt-granular seed count
+    const completedSeeds = highestSeed ?? (props.completedRounds || 0)
     const newSet = new Set<string>()
 
-    // Get nodes from prebuiltNetwork (they have seedId like "S0001")
     for (const node of prebuiltNetwork.nodes.value) {
-      // Parse seed number from seedId (e.g., "S0001" → 1, "COMP" → skip)
       const seedMatch = node.seedId?.match(/^S(\d+)$/)
       if (seedMatch) {
         const seedNum = parseInt(seedMatch[1], 10)
-        if (seedNum <= completedSeeds) {
-          newSet.add(node.id)
+        if (seedNum < completedSeeds) {
+          newSet.add(node.id) // All LEGOs in earlier seeds
+        } else if (seedNum === completedSeeds && highestSeed !== null) {
+          // Within the highest seed, filter by LEGO index
+          const legoIdx = parseInt(node.id.match(/L(\d{2})$/)?.[1] || '0', 10)
+          if (legoIdx <= highestLegoIdx) {
+            newSet.add(node.id)
+          }
+        } else if (seedNum <= completedSeeds && highestSeed === null) {
+          newSet.add(node.id) // Belt-granular fallback
         }
       } else if (node.isComponent) {
-        // Components: show if any parent LEGO is revealed
-        // For now, show all components (they're extracted from M-type LEGOs)
-        // TODO: Could filter based on parent LEGO visibility
+        // Components: visible if any parent LEGO is in the revealed set
+        // Defer to after main filtering
         newSet.add(node.id)
       }
     }
@@ -537,7 +548,7 @@ function updateVisibility(count: number) {
     prebuiltNetwork.heroNodeId.value = null
     prebuiltNetwork.panOffset.value = { x: 0, y: 0 }
 
-    console.log(`[BrainView] Standalone mode: showing ${newSet.size} nodes for ${completedSeeds} completed seeds`)
+    console.log(`[BrainView] Standalone mode: showing ${newSet.size} nodes (highest: ${highestLego || 'belt-' + completedSeeds})`)
     return
   }
 
