@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, inject, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { useCompletedContent } from '../composables/useCompletedContent'
+import { getSeedFromLegoId } from '../composables/useBeltProgress'
 
 // ============================================================================
 // Listening Overlay - Teleprompter style overlay for passive listening
@@ -75,11 +75,12 @@ const props = defineProps({
     default: '#d4a853' // Default gold for backwards compatibility
   },
   /**
-   * When provided, filters phrases to only show those whose LEGO is completed.
-   * When null, shows all USE phrases (standalone mode).
+   * High-water mark LEGO ID (e.g., "S0050L03").
+   * Filters phrases to only those the learner has reached.
+   * When null, shows all USE phrases (no filtering).
    */
-  sessionController: {
-    type: Object,
+  highestLegoId: {
+    type: String,
     default: null
   }
 })
@@ -118,36 +119,38 @@ const audioMap = ref(new Map())
 let playbackId = 0
 
 // ============================================================================
-// Session Mode - Filter phrases by completed LEGOs
+// Progress Filtering - Filter phrases by highest achieved LEGO
 // ============================================================================
 
 /**
- * Whether we're in session mode (showing only completed LEGOs)
- * vs standalone mode (showing all USE phrases)
+ * Parse the highestLegoId into seed and lego index for filtering
  */
-const isSessionMode = computed(() => props.sessionController !== null)
+const highestSeed = computed(() => {
+  if (!props.highestLegoId) return null
+  return getSeedFromLegoId(props.highestLegoId)
+})
 
-/**
- * Completed content from session controller (when in session mode)
- */
-const completedContent = computed(() => {
-  if (!props.sessionController) return null
-  return useCompletedContent(props.sessionController)
+const highestLegoIndex = computed(() => {
+  if (!props.highestLegoId) return null
+  const match = props.highestLegoId.match(/L(\d{2})$/)
+  return match ? parseInt(match[1], 10) : null
 })
 
 /**
- * Available phrases based on mode:
- * - Session mode: only phrases whose LEGO is completed
- * - Standalone mode: all loaded phrases
+ * Available phrases filtered by progress.
+ * DB query already filters by seed_number, this does LEGO-level precision
+ * within the highest seed.
  */
 const availablePhrases = computed(() => {
-  if (!isSessionMode.value || !completedContent.value) {
-    return allPhrases.value // Standalone mode = all phrases
+  if (!props.highestLegoId || highestSeed.value === null) {
+    return allPhrases.value // No filtering
   }
 
-  // Filter to phrases whose LEGO is in completed set
+  // DB query already filtered seed_number <= highestSeed
+  // Just trim LEGOs within the highest seed that haven't been reached
   return allPhrases.value.filter(phrase =>
-    completedContent.value.completedLegoIds.value.has(phrase.legoId)
+    phrase.seedNumber < highestSeed.value ||
+    (phrase.seedNumber === highestSeed.value && phrase.legoIndex <= highestLegoIndex.value)
   )
 })
 
@@ -180,25 +183,38 @@ const loadPhrases = async (offset = 0) => {
 
     // Query from practice_cycles view which has audio UUIDs
     // Use phrase_role = 'use' for USE phrases (consolidation/eternal)
+    // Filter by highestSeed when progress tracking is active
     if (offset === 0) {
-      const { count, error: countError } = await supabase.value
+      let countQuery = supabase.value
         .from('practice_cycles')
         .select('*', { count: 'exact', head: true })
         .eq('course_code', props.courseCode)
         .eq('phrase_role', 'use')
 
+      if (highestSeed.value !== null) {
+        countQuery = countQuery.lte('seed_number', highestSeed.value)
+      }
+
+      const { count, error: countError } = await countQuery
+
       if (countError) {
         console.warn('[ListeningOverlay] Count query error:', countError.message)
       }
       totalCount.value = count || 0
-      console.log('[ListeningOverlay] Total USE phrases found:', totalCount.value)
+      console.log('[ListeningOverlay] USE phrases available:', totalCount.value, highestSeed.value !== null ? `(up to seed ${highestSeed.value})` : '(all)')
     }
 
-    const { data, error: fetchError } = await supabase.value
+    let dataQuery = supabase.value
       .from('practice_cycles')
       .select('seed_number, lego_index, lego_id, known_text, target_text, position, target1_audio_uuid, target2_audio_uuid')
       .eq('course_code', props.courseCode)
       .eq('phrase_role', 'use')
+
+    if (highestSeed.value !== null) {
+      dataQuery = dataQuery.lte('seed_number', highestSeed.value)
+    }
+
+    const { data, error: fetchError } = await dataQuery
       .order('seed_number', { ascending: true })
       .order('lego_index', { ascending: true })
       .order('position', { ascending: true })

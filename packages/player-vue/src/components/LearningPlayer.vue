@@ -6518,7 +6518,7 @@ defineExpose({
         v-if="showListeningOverlay"
         :course-code="activeCourseCode"
         :belt-color="currentBelt.color"
-        :session-controller="null"
+        :highest-lego-id="beltProgress?.highestLegoId?.value ?? null"
         @close="handleCloseListening"
       />
     </Transition>

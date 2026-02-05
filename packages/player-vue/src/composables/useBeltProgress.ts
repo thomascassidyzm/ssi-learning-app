@@ -61,6 +61,7 @@ const SESSION_HISTORY_KEY_PREFIX = 'ssi_session_history_'
 interface StoredProgress {
   highestBeltIndex: number  // 0-7, the belt ACHIEVED
   lastLegoId: string | null // Resume position, e.g., "S0045L03"
+  highestLegoId: string | null // High-water mark, only goes forward
   lastUpdated: number
 }
 
@@ -116,9 +117,10 @@ export function getBeltIndexForSeed(seedNumber: number): number {
 // ============================================================================
 
 export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyncConfig) {
-  // Core state - SIMPLE: just two values
+  // Core state
   const highestBeltIndex = ref(0)  // 0-7, only ever increases
   const lastLegoId = ref<string | null>(null)  // Resume position
+  const highestLegoId = ref<string | null>(null)  // High-water mark, only goes forward
 
   // Session history for learning rate calculations
   const sessionHistory = ref<SessionRecord[]>([])
@@ -281,23 +283,28 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
           // Migrate: convert completedRounds (seed count) to belt index
           highestBeltIndex.value = getBeltIndexForSeed(data.completedRounds || 0)
           lastLegoId.value = data.currentLegoId || null
+          highestLegoId.value = data.currentLegoId || null
           console.log(`[BeltProgress] Migrated from completedRounds ${data.completedRounds} to belt ${highestBeltIndex.value}`)
           saveProgressLocal() // Save in new format
         } else {
           highestBeltIndex.value = data.highestBeltIndex ?? 0
           lastLegoId.value = data.lastLegoId || null
+          // Migrate: if no highestLegoId stored yet, seed from lastLegoId
+          highestLegoId.value = data.highestLegoId ?? data.lastLegoId ?? null
         }
 
-        console.log(`[BeltProgress] Loaded: belt ${highestBeltIndex.value} (${BELTS[highestBeltIndex.value]?.name}), resume: ${lastLegoId.value || 'start'}`)
+        console.log(`[BeltProgress] Loaded: belt ${highestBeltIndex.value} (${BELTS[highestBeltIndex.value]?.name}), resume: ${lastLegoId.value || 'start'}, highest: ${highestLegoId.value || 'none'}`)
       } else {
         highestBeltIndex.value = 0
         lastLegoId.value = null
+        highestLegoId.value = null
         console.log(`[BeltProgress] No saved progress for ${courseCode}, starting at white belt`)
       }
     } catch (err) {
       console.warn('[BeltProgress] Failed to load progress:', err)
       highestBeltIndex.value = 0
       lastLegoId.value = null
+      highestLegoId.value = null
     }
   }
 
@@ -307,6 +314,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
       const data: StoredProgress = {
         highestBeltIndex: highestBeltIndex.value,
         lastLegoId: lastLegoId.value,
+        highestLegoId: highestLegoId.value,
         lastUpdated: Date.now(),
       }
       localStorage.setItem(key, JSON.stringify(data))
@@ -477,9 +485,16 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
 
   /**
    * Update resume position (call when player moves to a new LEGO)
+   * Also updates highestLegoId if this is further than we've ever been
    */
   const setLastLegoId = (legoId: string | null) => {
     lastLegoId.value = legoId
+
+    // Update high-water mark (only goes forward)
+    if (legoId && (!highestLegoId.value || legoId > highestLegoId.value)) {
+      highestLegoId.value = legoId
+    }
+
     saveProgressLocal() // Just save locally, no remote sync for position
 
     // Check for belt promotion based on the LEGO's seed
@@ -497,6 +512,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   const resetProgress = () => {
     highestBeltIndex.value = 0
     lastLegoId.value = null
+    highestLegoId.value = null
     sessionHistory.value = []
     saveProgress()
     saveSessionHistory()
@@ -601,9 +617,10 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   const setCurrentLegoId = setLastLegoId
 
   return {
-    // Core state (new simple model)
+    // Core state
     highestBeltIndex,
     lastLegoId,
+    highestLegoId,
     isLoaded,
     isSyncing,
     lastSyncError,
