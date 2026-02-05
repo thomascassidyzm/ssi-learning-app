@@ -175,6 +175,7 @@ const totalSeeds = computed(() => {
 
 // Usage stats from session history
 const totalLearningMinutes = computed(() => beltProgress.value?.totalLearningMinutes.value ?? 0)
+const totalPhrasesSpoken = computed(() => beltProgress.value?.totalPhrasesSpoken.value ?? 0)
 
 // Handle auth success (close modals, refresh state if needed)
 const handleAuthSuccess = () => {
@@ -327,7 +328,7 @@ onMounted(() => {
         v-if="currentScreen === 'stats'"
         :total-minutes="totalLearningMinutes"
         :total-words-introduced="completedSeeds"
-        :total-phrases-spoken="0"
+        :total-phrases-spoken="totalPhrasesSpoken"
         @close="goHome"
       />
     </Transition>

@@ -69,6 +69,7 @@ interface SessionRecord {
   timestamp: number
   seedsLearned: number
   durationMs: number
+  phrasesSpoken?: number // Cycles where VAD detected speech
 }
 
 interface StoredSessionHistory {
@@ -402,6 +403,10 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
     return Math.round(sessionHistory.value.reduce((sum, s) => sum + s.durationMs, 0) / 60000)
   })
 
+  const totalPhrasesSpoken = computed(() => {
+    return sessionHistory.value.reduce((sum, s) => sum + (s.phrasesSpoken ?? 0), 0)
+  })
+
   const totalSessionCount = computed(() => sessionHistory.value.length)
 
   // ============================================================================
@@ -450,7 +455,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
     console.log('[BeltProgress] Session started at seed', currentSeed)
   }
 
-  const endSession = (currentSeed: number = 0) => {
+  const endSession = (currentSeed: number = 0, phrasesSpoken: number = 0) => {
     if (sessionStartTime.value === null) return
 
     const seedsLearned = currentSeed - sessionStartSeed.value
@@ -461,10 +466,11 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
         timestamp: Date.now(),
         seedsLearned,
         durationMs,
+        phrasesSpoken,
       }
       sessionHistory.value.push(record)
       saveSessionHistory()
-      console.log('[BeltProgress] Session ended:', seedsLearned, 'seeds in', Math.round(durationMs / 60000), 'mins')
+      console.log('[BeltProgress] Session ended:', seedsLearned, 'seeds,', phrasesSpoken, 'phrases spoken in', Math.round(durationMs / 60000), 'mins')
     }
 
     sessionStartTime.value = null
@@ -648,6 +654,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
 
     // Aggregate stats
     totalLearningMinutes,
+    totalPhrasesSpoken,
     totalSessionCount,
     sessionHistory,
 

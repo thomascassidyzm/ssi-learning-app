@@ -844,6 +844,7 @@ const calculateCyclePoints = () => {
 
   // Check timing results if available
   if (lastTimingResult.value?.speech_detected) {
+    phrasesSpokenCount.value++
     points += 1 // Bonus for detected speech
 
     const latency = lastTimingResult.value.response_latency_ms
@@ -1616,6 +1617,7 @@ function cycleLayoutMode() {
   layoutMode.value = layoutModes[nextIndex]
 }
 const itemsPracticed = ref(0)
+const phrasesSpokenCount = ref(0) // Cycles where VAD detected learner speech
 const showSessionComplete = ref(false)
 const showBeltProgressModal = ref(false)
 
@@ -2823,7 +2825,7 @@ const startSimplePlayback = async () => {
 
   // Start belt progress session for time tracking
   if (beltProgress.value) {
-    beltProgress.value.startSession()
+    beltProgress.value.startSession(beltProgress.value.currentSeedNumber.value ?? 0)
   }
 
   // Check if welcome audio needs to play first (only on first ever play)
@@ -3415,7 +3417,7 @@ const startPlayback = async () => {
 
   // Start belt progress session for time tracking
   if (beltProgress.value) {
-    beltProgress.value.startSession()
+    beltProgress.value.startSession(beltProgress.value.currentSeedNumber.value ?? 0)
   }
 
   // Check if welcome audio needs to play first (only on first ever play)
@@ -4533,7 +4535,7 @@ const showPausedSummary = () => {
 
   // End belt progress session (saves session history for time estimates)
   if (beltProgress.value) {
-    beltProgress.value.endSession()
+    beltProgress.value.endSession(beltProgress.value.currentSeedNumber.value ?? 0, phrasesSpokenCount.value)
   }
 
   // Increment session count for guests (triggers signup prompt)
@@ -4565,7 +4567,7 @@ const handleResumeLearning = async () => {
 
   // Start new belt progress session for time tracking
   if (beltProgress.value) {
-    beltProgress.value.startSession()
+    beltProgress.value.startSession(beltProgress.value.currentSeedNumber.value ?? 0)
   }
 
   if (currentItem.value) {
@@ -4586,7 +4588,7 @@ const handleExit = () => {
 
   // End belt progress session (saves session history)
   if (beltProgress.value) {
-    beltProgress.value.endSession()
+    beltProgress.value.endSession(beltProgress.value.currentSeedNumber.value ?? 0, phrasesSpokenCount.value)
   }
 
   emit('close')
