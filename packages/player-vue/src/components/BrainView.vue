@@ -37,8 +37,7 @@ class TargetAudioController {
   constructor() {
     // Create audio element immediately for mobile compatibility
     this.audio = new Audio()
-    // Enable cross-origin for S3 audio
-    this.audio.crossOrigin = 'anonymous'
+    // No crossOrigin needed — using same-origin /api/audio proxy
   }
 
   /**
@@ -151,8 +150,11 @@ const courseDataProvider = inject<{ value: any }>('courseDataProvider', { value:
 // CONSTANTS
 // ============================================================================
 
-// S3 base URL (s3_key contains the full path like "mastered/UUID.mp3")
-const AUDIO_S3_BASE_URL = 'https://ssi-audio-stage.s3.eu-west-1.amazonaws.com'
+// Audio proxy URL builder (consistent with rest of app)
+const buildAudioUrl = (audioId: string): string => {
+  if (!audioId) return ''
+  return `/api/audio/${audioId}?courseId=${encodeURIComponent(courseCode.value)}`
+}
 
 // ============================================================================
 // STATE
@@ -599,13 +601,9 @@ async function handleNodeTap(node: ConstellationNode) {
   // Load connection data (what precedes/follows this LEGO)
   selectedNodeConnections.value = getLegoConnections(node.id)
 
-  // Load eternal phrases for this LEGO (async database query)
-  // These are phrases containing this LEGO - like the Brain Network does
-  console.log('[BrainView] Loading eternal phrases for:', node.targetText)
-  const phrases = await getEternalPhrasesForLego(node.id, node.targetText)
-
-  // Don't filter phrases - show all eternal phrases for this LEGO
-  // Fire path animation will only animate nodes that are visible in the brain
+  // Load USE phrases for this LEGO (queries by lego_id, cached after first load)
+  console.log('[BrainView] Loading USE phrases for:', node.id)
+  const phrases = await getEternalPhrasesForLego(node.id)
   selectedNodePhrases.value = phrases
   console.log('[BrainView] Found', phrases.length, 'eternal phrases for', node.targetText)
 }
@@ -933,7 +931,7 @@ async function downloadBrainImage() {
  * Play target audio for a phrase with fire path animation
  */
 async function playPhrase(phrase: PhraseWithPath) {
-  if (!phrase || !supabase?.value || !courseCode.value) return
+  if (!phrase) return
 
   currentPracticingPhrase.value = phrase
   isPlayingAudio.value = true
@@ -947,54 +945,34 @@ async function playPhrase(phrase: PhraseWithPath) {
       audioController.value = new TargetAudioController()
     }
 
-    // Query practice_cycles to get audio s3_key and duration for this phrase
-    // Use target2 (Voice 2) as that's the "reveal" voice in the learning cycle
-    const { data: phraseData, error: err } = await supabase.value
-      .from('practice_cycles')
-      .select('target1_s3_key, target2_s3_key, target1_duration_ms, target2_duration_ms')
-      .eq('course_code', courseCode.value)
-      .eq('target_text', phrase.targetText)
-      .limit(1)
-      .single()
+    // Audio UUIDs are already on the phrase (loaded once by getEternalPhrasesForLego)
+    // Randomly pick between target1 and target2 for variety
+    let audioId: string | undefined
+    let audioDuration = 2000
 
-    if (err) {
-      console.warn('[BrainView] Phrase audio lookup failed:', err.message)
-      return
+    const hasTarget1 = !!phrase.target1AudioId
+    const hasTarget2 = !!phrase.target2AudioId
+
+    if (hasTarget1 && hasTarget2) {
+      const useTarget1 = Math.random() < 0.5
+      audioId = useTarget1 ? phrase.target1AudioId : phrase.target2AudioId
+      audioDuration = (useTarget1 ? phrase.target1DurationMs : phrase.target2DurationMs) || 2000
+    } else {
+      audioId = phrase.target1AudioId || phrase.target2AudioId
+      audioDuration = phrase.target1DurationMs || phrase.target2DurationMs || 2000
     }
 
-    if (phraseData) {
-      // Randomly pick between target1 and target2 for variety
-      // If only one exists, use that one
-      let s3Key: string | null = null
-      let audioDuration = 2000
+    if (audioId) {
+      const audioUrl = buildAudioUrl(audioId)
+      console.log('[BrainView] Playing phrase:', phrase.targetText)
 
-      const hasTarget1 = !!phraseData.target1_s3_key
-      const hasTarget2 = !!phraseData.target2_s3_key
+      // Start fire path animation synchronized with audio
+      animateFirePath(phrase.legoPath, audioDuration)
 
-      if (hasTarget1 && hasTarget2) {
-        // Both available - pick randomly
-        const useTarget1 = Math.random() < 0.5
-        s3Key = useTarget1 ? phraseData.target1_s3_key : phraseData.target2_s3_key
-        audioDuration = useTarget1
-          ? (phraseData.target1_duration_ms || 2000)
-          : (phraseData.target2_duration_ms || 2000)
-        console.log('[BrainView] Using', useTarget1 ? 'target1' : 'target2', 'voice')
-      } else {
-        // Only one available - use whichever exists
-        s3Key = phraseData.target2_s3_key || phraseData.target1_s3_key
-        audioDuration = phraseData.target2_duration_ms || phraseData.target1_duration_ms || 2000
-      }
-
-      if (s3Key) {
-        const audioUrl = `${AUDIO_S3_BASE_URL}/${s3Key}`
-        console.log('[BrainView] Playing phrase:', phrase.targetText, audioUrl)
-
-        // Start fire path animation synchronized with audio
-        animateFirePath(phrase.legoPath, audioDuration)
-
-        // Play the audio at user's selected speed
-        await audioController.value.play(audioUrl, playbackSpeed.value)
-      }
+      // Play the audio at user's selected speed
+      await audioController.value.play(audioUrl, playbackSpeed.value)
+    } else {
+      console.warn('[BrainView] No audio available for phrase:', phrase.targetText)
     }
   } catch (err) {
     console.warn('[BrainView] Phrase audio playback error:', err)

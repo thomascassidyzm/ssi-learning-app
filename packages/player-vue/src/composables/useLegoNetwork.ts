@@ -38,6 +38,10 @@ export interface PhraseWithPath {
   targetText: string
   legoPath: string[] // Ordered list of LEGO IDs that compose this phrase
   durationMs?: number // Audio duration for sorting eternal/debut phrases
+  target1AudioId?: string // Direct audio UUID for /api/audio proxy
+  target2AudioId?: string
+  target1DurationMs?: number
+  target2DurationMs?: number
 }
 
 export interface NetworkData {
@@ -370,51 +374,75 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
       .slice(0, limit)
   }
 
+  // Cache: lego_id → decomposed phrases (lazy, computed once per LEGO)
+  const phraseCache = new Map<string, PhraseWithPath[]>()
+
   /**
-   * Get eternal phrases for a LEGO - searches database on-demand
-   * Returns phrases containing the LEGO's text, sorted by duration (longest first)
-   *
-   * @param legoId - The LEGO ID to look up
-   * @param targetText - The LEGO's target text for substring matching
+   * Parse a LEGO ID like "S0045L03" into { seedNumber: 45, legoIndex: 3 }
    */
-  async function getEternalPhrasesForLego(legoId: string, targetText?: string): Promise<PhraseWithPath[]> {
-    if (!supabase.value || !currentCourseCode.value || !targetText) {
-      console.warn('[useLegoNetwork] getEternalPhrasesForLego: missing supabase, courseCode, or targetText')
+  function parseLegoId(legoId: string): { seedNumber: number; legoIndex: number } | null {
+    const match = legoId.match(/^S(\d{4})L(\d{2})$/)
+    if (!match) return null
+    return { seedNumber: parseInt(match[1], 10), legoIndex: parseInt(match[2], 10) }
+  }
+
+  /**
+   * Get USE phrases for a LEGO — queries by lego_id, caches result with decomposition.
+   * Returns phrases with audio UUIDs ready for /api/audio proxy playback.
+   */
+  async function getEternalPhrasesForLego(legoId: string): Promise<PhraseWithPath[]> {
+    if (!supabase.value || !currentCourseCode.value) {
+      console.warn('[useLegoNetwork] getEternalPhrasesForLego: missing supabase or courseCode')
+      return []
+    }
+
+    // Return cached result if available
+    const cached = phraseCache.get(legoId)
+    if (cached) {
+      console.log(`[useLegoNetwork] Cache hit for ${legoId}: ${cached.length} phrases`)
+      return cached
+    }
+
+    const parsed = parseLegoId(legoId)
+    if (!parsed) {
+      console.warn(`[useLegoNetwork] Cannot parse lego_id: ${legoId}`)
       return []
     }
 
     try {
-      // Search for phrases containing this LEGO's text using ILIKE
-      // This is a targeted query - much faster than loading all phrases
-      const searchTerm = `%${targetText}%`
-
+      // Query course_practice_phrases directly by seed_number + lego_index
+      // Table has direct audio UUIDs (from 20260202 migration)
       const { data: phrases, error: err } = await supabase.value
-        .from('practice_cycles')
-        .select('id, target_text, target1_duration_ms')
+        .from('course_practice_phrases')
+        .select('id, target_text, phrase_role, connected_lego_ids, target1_audio_id, target2_audio_id, target1_duration_ms, target2_duration_ms')
         .eq('course_code', currentCourseCode.value)
-        .ilike('target_text', searchTerm)
+        .eq('seed_number', parsed.seedNumber)
+        .eq('lego_index', parsed.legoIndex)
+        .eq('phrase_role', 'eternal_eligible')
         .order('target1_duration_ms', { ascending: false, nullsFirst: false })
         .limit(10)
 
       if (err) {
-        console.error('[useLegoNetwork] Phrase search failed:', err.message)
+        console.error('[useLegoNetwork] Phrase query failed:', err.message)
         return []
       }
 
       if (!phrases || phrases.length === 0) {
-        console.log(`[useLegoNetwork] No phrases found containing "${targetText}"`)
+        console.log(`[useLegoNetwork] No eternal phrases for ${legoId}`)
+        phraseCache.set(legoId, [])
         return []
       }
 
-      console.log(`[useLegoNetwork] Found ${phrases.length} phrases containing "${targetText}"`)
+      console.log(`[useLegoNetwork] Found ${phrases.length} eternal phrases for ${legoId}`)
 
-      // Convert to PhraseWithPath format
-      // Use legoMap to decompose each phrase into its constituent LEGOs for fire path animation
       const legoMap = networkData.value?.legoMap
       const results: PhraseWithPath[] = phrases.map(p => {
-        // Decompose phrase into LEGO path if we have the map
-        let path: string[] = [legoId]  // Fallback to single LEGO
-        if (legoMap && legoMap.size > 0) {
+        // Use connected_lego_ids from DB if populated, else decompose with legoMap
+        let path: string[] = [legoId]
+        if (p.connected_lego_ids && p.connected_lego_ids.length > 0) {
+          // DB has pre-computed decomposition — include the primary LEGO + connected ones
+          path = [legoId, ...p.connected_lego_ids.filter((id: string) => id !== legoId)]
+        } else if (legoMap && legoMap.size > 0) {
           const decomposed = decomposePhrase(p.target_text, legoMap)
           if (decomposed.length > 0) {
             path = decomposed
@@ -425,12 +453,18 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
           targetText: p.target_text,
           legoPath: path,
           durationMs: p.target1_duration_ms || undefined,
+          target1AudioId: p.target1_audio_id || undefined,
+          target2AudioId: p.target2_audio_id || undefined,
+          target1DurationMs: p.target1_duration_ms || undefined,
+          target2DurationMs: p.target2_duration_ms || undefined,
         }
       })
 
-      return results.slice(0, 5)  // Return top 5
+      // Cache and return
+      phraseCache.set(legoId, results)
+      return results
     } catch (err) {
-      console.error('[useLegoNetwork] Error searching phrases:', err)
+      console.error('[useLegoNetwork] Error loading phrases:', err)
       return []
     }
   }
