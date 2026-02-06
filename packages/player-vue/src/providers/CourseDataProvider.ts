@@ -1320,35 +1320,9 @@ export interface ScriptItem {
   components?: Array<{ known: string; target: string }>
 }
 
-/**
- * RoundData - one ROUND in the learning journey
- */
-export interface RoundData {
-  roundNumber: number
-  legoId: string
-  legoIndex: number
-  seedId: string
-  items: ScriptItem[]
-  spacedRepReviews: number[] // LEGO indices being reviewed
-}
-
-/**
- * @deprecated Use buildRounds from '@/playback/RoundBuilder' instead.
- * This function has been replaced by the new playback architecture.
- * Migration required: see packages/player-vue/src/playback/RoundBuilder.ts
- */
-export async function generateLearningScript(
-  _provider: CourseDataProvider,
-  _maxLegos: number = 50,
-  _offset: number = 0
-): Promise<{ rounds: RoundData[]; allItems: ScriptItem[] }> {
-  // console.warn(
-  //   '[DEPRECATED] generateLearningScript is deprecated. ' +
-  //   'Use buildRounds from @/playback/RoundBuilder instead.'
-  // )
-  // Return empty data - callers need to migrate to new playback architecture
-  return { rounds: [], allItems: [] }
-}
+// NOTE: generateLearningScript was removed from CourseDataProvider.
+// The ONLY generateLearningScript lives in ./generateLearningScript.ts
+// Import it from there: import { generateLearningScript } from '../providers/generateLearningScript'
 
 /**
  * Factory function

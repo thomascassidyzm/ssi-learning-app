@@ -410,9 +410,9 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
     }
 
     try {
-      // Query course_practice_phrases directly by seed_number + lego_index
-      // Table has direct audio UUIDs (from 20260202 migration)
-      const { data: phrases, error: err } = await supabase.value
+      // Query course_practice_phrases by seed_number + lego_index
+      // Try eternal_eligible first, fall back to all phrases if not populated
+      let { data: phrases, error: err } = await supabase.value
         .from('course_practice_phrases')
         .select('id, target_text, phrase_role, connected_lego_ids, target1_audio_id, target2_audio_id, target1_duration_ms, target2_duration_ms')
         .eq('course_code', currentCourseCode.value)
@@ -427,20 +427,62 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
         return []
       }
 
+      // Fallback: if no eternal_eligible phrases (older courses), get all phrases for this LEGO
       if (!phrases || phrases.length === 0) {
-        console.log(`[useLegoNetwork] No eternal phrases for ${legoId}`)
+        console.log(`[useLegoNetwork] No eternal_eligible for ${legoId}, trying all phrases`)
+        const fallback = await supabase.value
+          .from('course_practice_phrases')
+          .select('id, target_text, phrase_role, connected_lego_ids, target1_audio_id, target2_audio_id, target1_duration_ms, target2_duration_ms')
+          .eq('course_code', currentCourseCode.value)
+          .eq('seed_number', parsed.seedNumber)
+          .eq('lego_index', parsed.legoIndex)
+          .order('target1_duration_ms', { ascending: false, nullsFirst: false })
+          .limit(10)
+        phrases = fallback.data
+        if (fallback.error) {
+          console.error('[useLegoNetwork] Fallback query failed:', fallback.error.message)
+        }
+      }
+
+      if (!phrases || phrases.length === 0) {
+        console.log(`[useLegoNetwork] No phrases at all for ${legoId}`)
         phraseCache.set(legoId, [])
         return []
       }
 
-      console.log(`[useLegoNetwork] Found ${phrases.length} eternal phrases for ${legoId}`)
+      console.log(`[useLegoNetwork] Found ${phrases.length} phrases for ${legoId}`)
+
+      // If direct audio IDs are missing, look them up from course_audio by text
+      const needsAudioLookup = phrases.some(p => !p.target1_audio_id && !p.target2_audio_id)
+      let audioByText = new Map<string, { t1Id: string; t2Id: string; t1Ms: number; t2Ms: number }>()
+
+      if (needsAudioLookup) {
+        const texts = [...new Set(phrases.filter(p => !p.target1_audio_id).map(p => p.target_text.toLowerCase().trim()))]
+        if (texts.length > 0) {
+          const { data: audioRows } = await supabase.value
+            .from('course_audio')
+            .select('id, text_normalized, role, duration_ms')
+            .eq('course_code', currentCourseCode.value)
+            .in('text_normalized', texts)
+            .in('role', ['target1', 'target2'])
+          if (audioRows) {
+            for (const row of audioRows) {
+              const key = row.text_normalized
+              const existing = audioByText.get(key) || { t1Id: '', t2Id: '', t1Ms: 0, t2Ms: 0 }
+              if (row.role === 'target1') { existing.t1Id = row.id; existing.t1Ms = row.duration_ms || 0 }
+              if (row.role === 'target2') { existing.t2Id = row.id; existing.t2Ms = row.duration_ms || 0 }
+              audioByText.set(key, existing)
+            }
+            console.log(`[useLegoNetwork] Looked up audio for ${audioByText.size} phrase texts`)
+          }
+        }
+      }
 
       const legoMap = networkData.value?.legoMap
       const results: PhraseWithPath[] = phrases.map(p => {
         // Use connected_lego_ids from DB if populated, else decompose with legoMap
         let path: string[] = [legoId]
         if (p.connected_lego_ids && p.connected_lego_ids.length > 0) {
-          // DB has pre-computed decomposition — include the primary LEGO + connected ones
           path = [legoId, ...p.connected_lego_ids.filter((id: string) => id !== legoId)]
         } else if (legoMap && legoMap.size > 0) {
           const decomposed = decomposePhrase(p.target_text, legoMap)
@@ -448,15 +490,31 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
             path = decomposed
           }
         }
+
+        // Use direct audio IDs if available, else fall back to text-based lookup
+        let t1Id = p.target1_audio_id || undefined
+        let t2Id = p.target2_audio_id || undefined
+        let t1Ms = p.target1_duration_ms || undefined
+        let t2Ms = p.target2_duration_ms || undefined
+        if (!t1Id && !t2Id) {
+          const lookup = audioByText.get(p.target_text.toLowerCase().trim())
+          if (lookup) {
+            t1Id = lookup.t1Id || undefined
+            t2Id = lookup.t2Id || undefined
+            t1Ms = lookup.t1Ms || undefined
+            t2Ms = lookup.t2Ms || undefined
+          }
+        }
+
         return {
           id: p.id,
           targetText: p.target_text,
           legoPath: path,
-          durationMs: p.target1_duration_ms || undefined,
-          target1AudioId: p.target1_audio_id || undefined,
-          target2AudioId: p.target2_audio_id || undefined,
-          target1DurationMs: p.target1_duration_ms || undefined,
-          target2DurationMs: p.target2_duration_ms || undefined,
+          durationMs: t1Ms,
+          target1AudioId: t1Id,
+          target2AudioId: t2Id,
+          target1DurationMs: t1Ms,
+          target2DurationMs: t2Ms,
         }
       })
 

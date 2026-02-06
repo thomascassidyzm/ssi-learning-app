@@ -2,10 +2,6 @@
 import { ref, computed, inject, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useVirtualList } from '@vueuse/core'
 import { CyclePhase } from '@ssi/core'
-// NOTE: generateLearningScript is deprecated and returns empty data
-// CourseExplorer now uses useFullCourseScript for initial load
-// The loadMoreRounds pagination function is deprecated (returns empty)
-import { generateLearningScript } from '../providers/CourseDataProvider'
 import { loadIntroAudio } from '../composables/useScriptCache'
 import { useFullCourseScript } from '../composables/useFullCourseScript'
 
@@ -494,70 +490,9 @@ const loadScript = async (forceRefresh = false) => {
   }
 }
 
-// Load more rounds (pagination)
-// DEPRECATED: generateLearningScript returns empty data
-// CourseExplorer now loads full script via useFullCourseScript on initial load
-// This function is kept for backwards compatibility but will not load additional rounds
+// Load more rounds (no-op — full script is loaded on mount via useFullCourseScript)
 const loadMoreRounds = async () => {
-  // DEPRECATED: generateLearningScript returns empty data
-  // Full script is now loaded on initial mount via useFullCourseScript
-  console.warn('[CourseExplorer] loadMoreRounds is deprecated - generateLearningScript returns empty data. Full script loaded on mount.')
   hasMoreRounds.value = false
-  return
-
-  /* Original deprecated code:
-  if (!courseDataProvider?.value || isLoadingMore.value || !hasMoreRounds.value) {
-    return
-  }
-
-  const courseId = props.course?.course_code || 'demo'
-  const startFrom = loadedRoundsCount.value
-
-  try {
-    isLoadingMore.value = true
-    console.log('[CourseExplorer] Loading more rounds starting from:', startFrom)
-
-    // Generate next page of script
-    const script = await generateLearningScript(
-      courseDataProvider.value,
-      startFrom + ROUNDS_PER_PAGE // Load up to this many total LEGOs
-    )
-
-    // Extract only the NEW rounds (skip already loaded)
-    const newRounds = script.rounds.slice(startFrom)
-    console.log('[CourseExplorer] Got', newRounds.length, 'new rounds')
-
-    if (newRounds.length === 0) {
-      hasMoreRounds.value = false
-      return
-    }
-
-    // Append new rounds
-    rounds.value = [...rounds.value, ...newRounds]
-    loadedRoundsCount.value = rounds.value.length
-    hasMoreRounds.value = newRounds.length >= ROUNDS_PER_PAGE && rounds.value.length < (totalLegos.value || 0)
-    flattenItems()
-
-    // Load intro audio for new rounds
-    const legoIds = new Set()
-    for (const round of newRounds) {
-      for (const item of round.items || []) {
-        if (item.type === 'intro' && item.legoId) {
-          legoIds.add(item.legoId)
-        }
-      }
-    }
-    if (legoIds.size > 0 && supabase?.value) {
-      await loadIntroAudio(supabase.value, courseId, legoIds, audioMap.value)
-    }
-
-    console.log('[CourseExplorer] Now have', rounds.value.length, 'rounds total. hasMore:', hasMoreRounds.value)
-  } catch (err) {
-    console.error('[CourseExplorer] Load more error:', err)
-  } finally {
-    isLoadingMore.value = false
-  }
-  */
 }
 
 // Flatten rounds into single item list with round markers

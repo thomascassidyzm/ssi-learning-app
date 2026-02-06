@@ -18,10 +18,6 @@ import BrainStatsMobile from './BrainStatsMobile.vue'
 import { usePrebuiltNetwork, type ExternalConnection, type ExternalNode, type ConstellationNode } from '../composables/usePrebuiltNetwork'
 import { useLegoNetwork, type PhraseWithPath } from '../composables/useLegoNetwork'
 import { useCompletedContent } from '../composables/useCompletedContent'
-// NOTE: generateLearningScript is deprecated and returns empty data
-// BrainView uses database nodes (externalNodes) as primary source now
-// The rounds from generateLearningScript are only used for backwards compat
-import { generateLearningScript } from '../providers/CourseDataProvider'
 import { getLanguageName } from '../composables/useI18n'
 import { BELTS, getSharedBeltProgress, getSeedFromLegoId } from '../composables/useBeltProgress'
 import type { SessionController } from '../playback/SessionController'
@@ -1107,25 +1103,9 @@ async function loadData() {
 
     console.log(`[BrainView] Converted ${externalNodes.length} database nodes for network`)
 
-    // NOTE: generateLearningScript is deprecated and returns empty data
-    // BrainView now uses externalNodes as the primary data source
-    // The rounds were previously used for backwards compat but are now empty
-    // Keeping the call for structure but it returns [] now
-    const MAX_ROUNDS = 1000
-    const { rounds } = await generateLearningScript(
-      courseDataProvider.value,
-      MAX_ROUNDS,
-      0
-    )
-
-    allRounds.value = rounds
-    // Since generateLearningScript is deprecated, rounds will be empty
-    // The network now uses externalNodes directly
-    if (rounds.length === 0) {
-      console.log(`[BrainView] generateLearningScript returned empty (deprecated) - using ${externalNodes.length} database nodes directly`)
-    } else {
-      console.log(`[BrainView] Loaded ${rounds.length} rounds from script`)
-    }
+    // Network uses externalNodes from database directly — no script generation needed
+    allRounds.value = []
+    console.log(`[BrainView] Using ${externalNodes.length} database nodes directly`)
 
     // Update canvas size based on container
     if (containerRef.value) {
@@ -1139,7 +1119,7 @@ async function loadData() {
     // Pre-calculate all positions with brain boundary based on belt level
     // Use database nodes as the primary source to ensure all LEGOs have nodes
     // The network will be constrained within a "growing brain" shape
-    prebuiltNetwork.loadFromRounds(rounds, canvasSize.value, connections, 0, props.beltLevel, externalNodes)
+    prebuiltNetwork.loadFromRounds(allRounds.value, canvasSize.value, connections, 0, props.beltLevel, externalNodes)
 
     // Set center for panning (centered on network, not hero)
     prebuiltNetwork.setCenter(canvasSize.value.width / 2, canvasSize.value.height / 2)

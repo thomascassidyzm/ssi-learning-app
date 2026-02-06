@@ -27,14 +27,11 @@ import { useSimplePlayer } from '../composables/useSimplePlayer'
 // New simple script generation - direct database queries
 import { generateLearningScript as generateSimpleScript } from '../providers/generateLearningScript'
 import { toSimpleRounds } from '../providers/toSimpleRounds'
-// Legacy generateLearningScript (deprecated - returns empty data)
-import { generateLearningScript } from '../providers/CourseDataProvider'
 // Prebuilt network: positions pre-calculated, pans to hero via CSS
 import { usePrebuiltNetworkIntegration } from '../composables/usePrebuiltNetworkIntegration'
 import { useLegoNetwork } from '../composables/useLegoNetwork'
 import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
 import { useAuthModal } from '../composables/useAuthModal'
-import ConstellationNetworkView from './ConstellationNetworkView.vue'
 import PlayerBrain from './PlayerBrain.vue'
 import BeltProgressModal from './BeltProgressModal.vue'
 import ListeningOverlay from './ListeningOverlay.vue'
@@ -419,7 +416,7 @@ const EXPANSION_THRESHOLD = 5       // Expand when within 5 rounds of end
 const MAX_EXPANSION_BATCH = 200     // Cap each expansion batch
 const ROUNDS_TO_FETCH = 50          // Legacy: rounds to fetch in skip operations (deprecated code)
 const isExpandingScript = ref(false)
-const allPlayableItems = ref<any[]>([])  // Legacy: all items from deprecated generateLearningScript
+const allPlayableItems = ref<any[]>([])  // Legacy: all script items for backwards compat
 const totalSeedsPlayed = ref(0)     // Legacy: total seeds played in current session
 const isInitialized = ref(false)    // Legacy: whether component is fully initialized
 const prebuiltNetwork = { clear: () => {} }  // Legacy: stub for network operations
@@ -1046,20 +1043,16 @@ const initializeBeltLoader = async () => {
 
   console.log('[LearningPlayer] Initializing belt loader...')
 
-  // Create script chunk generator
-  // NOTE: generateLearningScript is deprecated and returns empty data
-  // Belt loader will not work properly until migrated to SessionController
+  // Script chunk generator (uses real generateLearningScript + toSimpleRounds)
   const generateScriptChunk = async (startSeed: number, count: number) => {
-    // DEPRECATED: generateLearningScript returns empty data
-    // TODO: Migrate belt loader to use SessionController
-    console.warn('[BeltLoader] generateScriptChunk uses deprecated generateLearningScript - returns empty data')
-
-    // Return empty data since generateLearningScript is deprecated
-    // This matches what generateLearningScript returns anyway
+    if (!supabase?.value) return { rounds: [] as any[], nextSeed: startSeed, hasMore: false }
+    const endSeed = startSeed + count
+    const result = await generateSimpleScript(supabase.value, courseCode.value, startSeed, endSeed, 1)
+    const rounds = toSimpleRounds(result.items)
     return {
-      rounds: [] as import('../composables/useScriptCache').Round[],
-      nextSeed: startSeed,
-      hasMore: (startSeed + count) < 668, // Assuming 668 total seeds
+      rounds: rounds as any[],
+      nextSeed: endSeed + 1,
+      hasMore: endSeed < 668,
     }
   }
 
@@ -5445,40 +5438,19 @@ onMounted(async () => {
         parallelTasks.push(connectionsTask)
         networkConnectionsReady = connectionsTask
 
-        // Task: Load FULL network (all course rounds) in background
-        // This runs in parallel - network will be ready by the time user starts learning
-        // Once loaded, network positions never recalculate - just reveal/hide nodes
-        // NOTE: generateLearningScript is deprecated - this is legacy fallback code
+        // Task: Initialize full network from database nodes (after connections load)
         const fullNetworkTask = (async () => {
           try {
-            // Wait for connections first (needed for edge data)
             await connectionsTask
-
-            if (!courseDataProvider.value) {
-              console.warn('[LearningPlayer] No courseDataProvider - skipping full network load')
-              return
-            }
-
-            // DEPRECATED: generateLearningScript returns empty data
-            // Full network loading in legacy cached path will not work
-            console.warn('[LearningPlayer] Legacy cached path: generateLearningScript is deprecated - full network will be empty')
-            console.log('[LearningPlayer] Loading FULL network (all course rounds)...')
-            const MAX_ROUNDS = 1000 // Full course
-            const { rounds: allRounds } = await generateLearningScript(
-              courseDataProvider.value,
-              MAX_ROUNDS,
-              0 // Always start from beginning for full network
-            )
-
-            if (allRounds.length > 0) {
-              // Reveal nodes up to learner's highest achieved LEGO
-              const revealUpTo = getRevealUpTo(allRounds)
-              initializeFullNetwork(allRounds, networkConnections.value, revealUpTo, dbNetworkNodes.value)
-              console.log(`[LearningPlayer] Full network ready: ${allRounds.length} nodes, revealed up to ${revealUpTo}`)
+            if (dbNetworkNodes.value.length > 0) {
+              const sortedNodes = [...dbNetworkNodes.value].sort((a, b) => (a.legoIndex || 0) - (b.legoIndex || 0))
+              const syntheticRounds = sortedNodes.map(node => ({ legoId: node.id, targetText: node.targetText, knownText: node.knownText }))
+              const revealUpTo = getRevealUpTo(syntheticRounds)
+              initializeFullNetwork(syntheticRounds, networkConnections.value, revealUpTo, dbNetworkNodes.value)
+              console.log(`[LearningPlayer] Full network initialized: ${syntheticRounds.length} nodes, revealed up to ${revealUpTo}`)
             }
           } catch (err) {
             console.warn('[LearningPlayer] Failed to load full network:', err)
-            // Not fatal - will fall back to legacy chunk-based calculation
           }
         })()
         parallelTasks.push(fullNetworkTask)
@@ -5654,30 +5626,16 @@ onMounted(async () => {
           }
         })()
 
-        // Load FULL network in background (all course rounds)
-        // This runs in parallel - positions calculated once, never recalculated
-        // NOTE: generateLearningScript is deprecated - this is legacy fallback code
+        // Initialize full network from database nodes (after connections load)
         ;(async () => {
           try {
             await networkConnectionsReady
-            if (!courseDataProvider.value) return
-
-            // DEPRECATED: generateLearningScript returns empty data
-            // Full network loading in legacy path will not work
-            console.warn('[LearningPlayer] Legacy fresh gen: generateLearningScript is deprecated - full network will be empty')
-            console.log('[LearningPlayer] Fresh gen: Loading FULL network...')
-            const MAX_ROUNDS = 1000
-            const { rounds: allRounds } = await generateLearningScript(
-              courseDataProvider.value,
-              MAX_ROUNDS,
-              0
-            )
-
-            if (allRounds.length > 0) {
-              // Reveal nodes up to learner's highest achieved LEGO
-              const revealUpTo = getRevealUpTo(allRounds)
-              initializeFullNetwork(allRounds, networkConnections.value, revealUpTo, dbNetworkNodes.value)
-              console.log(`[LearningPlayer] Fresh gen: Full network ready: ${allRounds.length} nodes, revealed up to ${revealUpTo}`)
+            if (dbNetworkNodes.value.length > 0) {
+              const sortedNodes = [...dbNetworkNodes.value].sort((a, b) => (a.legoIndex || 0) - (b.legoIndex || 0))
+              const syntheticRounds = sortedNodes.map(node => ({ legoId: node.id, targetText: node.targetText, knownText: node.knownText }))
+              const revealUpTo = getRevealUpTo(syntheticRounds)
+              initializeFullNetwork(syntheticRounds, networkConnections.value, revealUpTo, dbNetworkNodes.value)
+              console.log(`[LearningPlayer] Fresh gen: Full network initialized: ${syntheticRounds.length} nodes, revealed up to ${revealUpTo}`)
             }
           } catch (err) {
             console.warn('[LearningPlayer] Fresh gen: Failed to load full network:', err)
@@ -5695,79 +5653,38 @@ onMounted(async () => {
           console.log('[LearningPlayer] Generating script with offset:', startOffset,
             savedPosition ? `(from saved position, LEGO ${savedPosition.legoId})` : '(from belt progress)')
 
-          // DEPRECATED: generateLearningScript returns empty data
-          // This is legacy fallback code - SessionController path should be used instead
-          console.warn('[LearningPlayer] Legacy path: generateLearningScript is deprecated - will return empty rounds')
-          const { rounds, allItems } = await generateLearningScript(
-            courseDataProvider.value,
-            INITIAL_ROUNDS, // Start small, expand as learner progresses
-            startOffset     // Resume from saved position or belt progress
-          )
+          // Use real generateLearningScript + toSimpleRounds for legacy fallback
+          const endSeed = startOffset + INITIAL_ROUNDS
+          const result = await generateSimpleScript(supabase.value, courseCode.value, 1, endSeed, 1)
+          const simpleRounds = toSimpleRounds(result.items)
 
-          if (rounds.length > 0) {
-            console.log('[LearningPlayer] Generated script with', rounds.length, 'rounds')
-            // Debug: show items per round for first few rounds
-            rounds.slice(0, 3).forEach((r, i) => {
-              console.log(`[LearningPlayer] Round ${i} has ${r.items?.length} items:`, r.items?.map(it => it.type).join(', '))
-            })
-            cachedRounds.value = rounds
+          if (simpleRounds.length > 0) {
+            console.log('[LearningPlayer] Legacy fallback: generated', simpleRounds.length, 'rounds')
+            cachedRounds.value = simpleRounds as any
 
-            // Restore position by finding the saved LEGO ID in the generated rounds
+            // Restore position
             if (savedPosition?.legoId) {
-              const resumeRoundIndex = rounds.findIndex(r => r.legoId === savedPosition.legoId)
+              const resumeRoundIndex = simpleRounds.findIndex(r => r.legoId === savedPosition.legoId)
               if (resumeRoundIndex >= 0) {
                 currentRoundIndex.value = resumeRoundIndex
                 currentItemInRound.value = savedPosition.itemInRound ?? 0
-                // Clamp item index to valid range
-                const maxItem = rounds[resumeRoundIndex]?.items?.length ?? 1
+                const maxItem = simpleRounds[resumeRoundIndex]?.cycles?.length ?? 1
                 if (currentItemInRound.value >= maxItem) {
                   currentItemInRound.value = 0
                 }
-                console.log('[LearningPlayer] Resumed at LEGO', savedPosition.legoId, '→ round', resumeRoundIndex, 'item', currentItemInRound.value)
+                console.log('[LearningPlayer] Resumed at LEGO', savedPosition.legoId, '→ round', resumeRoundIndex)
               } else {
-                console.log('[LearningPlayer] Saved LEGO', savedPosition.legoId, 'not in generated rounds, starting at round 0')
                 currentRoundIndex.value = 0
                 currentItemInRound.value = 0
               }
             } else {
-              // No saved position - start at round 0 (which is the correct belt level)
               currentRoundIndex.value = 0
               currentItemInRound.value = 0
-              console.log('[LearningPlayer] No saved position, starting at round 0 (seed', startOffset, ')')
             }
 
-            // Mark position as initialized
             positionInitialized.value = true
-
-            // Cache for next time
-            const audioMapObj = Object.fromEntries(audioMap.value)
-            const totalCycles = allItems.length
-            const estimatedMinutes = Math.round(totalCycles * 0.2) // ~12s per cycle
-
-            await setCachedScript(courseCode.value, {
-              rounds: rounds as import('../composables/useScriptCache').Round[],
-              totalSeeds: rounds.length,
-              totalLegos: rounds.length,
-              totalCycles,
-              estimatedMinutes,
-              audioMapObj,
-              scriptOffset: startOffset,
-            })
-
-            console.log('[LearningPlayer] Cached script for future use')
-
-            // Preload intro audio for ALL LEGOs
-            const legoIds = new Set(
-              rounds.map(r => r.legoId).filter(Boolean)
-            )
-            if (legoIds.size > 0) {
-              await loadIntroAudio(supabase.value, courseCode.value, legoIds, audioMap.value)
-            }
           } else {
-            // No valid rounds generated - course is missing audio data
             console.error('[LearningPlayer] No valid rounds generated! Course cannot play.')
-            console.error('[LearningPlayer] This typically means audio data is missing from the database.')
-            console.error('[LearningPlayer] Check: course_audio, lego_introductions, lego_cycles tables.')
             positionInitialized.value = true
           }
         } catch (genErr) {
@@ -5844,21 +5761,14 @@ onMounted(async () => {
       const absoluteEnd = scriptBaseOffset.value + cachedRounds.value.length
 
       // Expand script if preview index exceeds cached rounds
-      // NOTE: generateLearningScript is deprecated and returns empty data
-      if (targetIndex >= absoluteEnd && courseDataProvider.value) {
+      if (targetIndex >= absoluteEnd && supabase?.value) {
         console.log(`[LearningPlayer] Preview ${targetIndex} exceeds cached ${absoluteEnd}, expanding...`)
-        console.warn('[LearningPlayer] Preview expansion uses deprecated generateLearningScript - will return empty')
-        const neededRounds = targetIndex - absoluteEnd + 10 // How many more we need
-        const { rounds: moreRounds } = await generateLearningScript(
-          courseDataProvider.value,
-          neededRounds,
-          absoluteEnd  // Expansion offset = base + loaded count
-        )
-        if (moreRounds.length > 0) {
-          cachedRounds.value = [...cachedRounds.value, ...moreRounds]
-          console.log(`[LearningPlayer] Expanded to ${cachedRounds.value.length} rounds for preview (base offset: ${scriptBaseOffset.value})`)
-        } else {
-          console.warn('[LearningPlayer] Preview expansion returned empty - generateLearningScript is deprecated')
+        const neededEnd = absoluteEnd + (targetIndex - absoluteEnd) + 10
+        const expandResult = await generateSimpleScript(supabase.value, courseCode.value, 1, neededEnd, 1)
+        const expandedRounds = toSimpleRounds(expandResult.items)
+        if (expandedRounds.length > cachedRounds.value.length) {
+          cachedRounds.value = expandedRounds as any
+          console.log(`[LearningPlayer] Expanded to ${cachedRounds.value.length} rounds for preview`)
         }
       }
 
@@ -6108,25 +6018,12 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
     }
   }
 
-  // Generate initial rounds if no cache - but ONLY if courseDataProvider matches
-  // NOTE: generateLearningScript is deprecated and returns empty data
-  const currentProviderCourseId = courseDataProvider.value?.getCourseId?.()
-  if (cachedRounds.value.length === 0 && courseDataProvider.value && currentProviderCourseId === newCourseCode) {
+  // Generate initial rounds if no cache
+  if (cachedRounds.value.length === 0 && supabase?.value) {
     console.log('[LearningPlayer] No cache, generating fresh script for', newCourseCode)
-    console.warn('[LearningPlayer] Course change: generateLearningScript is deprecated - will return empty')
-    const { rounds, allItems } = await generateLearningScript(
-      courseDataProvider.value,
-      10, // Initial chunk
-      0
-    )
-    cachedRounds.value = rounds
-    // Legacy: store items for deprecated code paths
-    allPlayableItems.value = allItems
-  } else if (cachedRounds.value.length > 0) {
-    // Flatten cached rounds into items for deprecated code paths
-    allPlayableItems.value = cachedRounds.value.flatMap(r => r.items || [])
-  } else {
-    console.warn('[LearningPlayer] No cache and courseDataProvider mismatch - player may need refresh')
+    const freshResult = await generateSimpleScript(supabase.value, newCourseCode, 1, 10, 1)
+    const freshRounds = toSimpleRounds(freshResult.items)
+    cachedRounds.value = freshRounds as any
   }
 
   // Initialize for new course - legacy initOrchestrator removed
