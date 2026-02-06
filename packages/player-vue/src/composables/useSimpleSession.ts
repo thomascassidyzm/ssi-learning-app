@@ -32,7 +32,7 @@ export function useSimpleSession(options: UseSimpleSessionOptions) {
   // Stats
   const totalRounds = computed(() => rounds.value.length)
   const totalItems = computed(() => scriptItems.value.length)
-  const itemsWithAudio = computed(() => scriptItems.value.filter(i => i.hasAudio).length)
+  const itemsWithAudio = computed(() => scriptItems.value.length)
 
   // Storage key for resume
   const STORAGE_KEY = `ssi_session_${courseCode}`

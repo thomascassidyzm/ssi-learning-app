@@ -26,13 +26,13 @@ function makeItem(overrides: Partial<ScriptItem> = {}): ScriptItem {
     type,
     knownText: 'I want',
     targetText: 'Quiero',
-    sourceId: type === 'intro' ? undefined : 'audio-source-1',
+    knownAudioId: type === 'intro' ? undefined : 'audio-source-1',
     presentationAudioId: type === 'intro' ? 'audio-pres-1' : undefined,
     target1Id: 'audio-t1-1',
     target2Id: 'audio-t2-1',
     target1DurationMs: 1500,
     target2DurationMs: 1600,
-    hasAudio: true,
+
     isNew: true,
   }
   return { ...base, ...overrides }
@@ -50,11 +50,11 @@ function makeValidRound(
 ): ScriptItem[] {
   const shared = { roundNumber, legoKey, knownText, targetText }
   return [
-    makeItem({ ...shared, type: 'intro', presentationAudioId: 'audio-pres-1', sourceId: undefined }),
-    makeItem({ ...shared, type: 'debut', sourceId: 'audio-source-1', presentationAudioId: undefined }),
-    makeItem({ ...shared, type: 'build', sourceId: 'audio-source-1', presentationAudioId: undefined, knownText: 'I want to learn', targetText: 'Quiero aprender' }),
-    makeItem({ ...shared, type: 'build', sourceId: 'audio-source-1', presentationAudioId: undefined, knownText: 'I want more', targetText: 'Quiero mas' }),
-    makeItem({ ...shared, type: 'use', sourceId: 'audio-source-1', presentationAudioId: undefined, knownText: 'I want food', targetText: 'Quiero comida' }),
+    makeItem({ ...shared, type: 'intro', presentationAudioId: 'audio-pres-1', knownAudioId: undefined }),
+    makeItem({ ...shared, type: 'debut', knownAudioId: 'audio-source-1', presentationAudioId: undefined }),
+    makeItem({ ...shared, type: 'build', knownAudioId: 'audio-source-1', presentationAudioId: undefined, knownText: 'I want to learn', targetText: 'Quiero aprender' }),
+    makeItem({ ...shared, type: 'build', knownAudioId: 'audio-source-1', presentationAudioId: undefined, knownText: 'I want more', targetText: 'Quiero mas' }),
+    makeItem({ ...shared, type: 'use', knownAudioId: 'audio-source-1', presentationAudioId: undefined, knownText: 'I want food', targetText: 'Quiero comida' }),
   ]
 }
 
@@ -68,7 +68,7 @@ describe('validateScriptItem', () => {
     const item = makeItem({
       type: 'intro',
       presentationAudioId: 'audio-pres-1',
-      sourceId: undefined,
+      knownAudioId: undefined,
       target1Id: 'audio-t1-1',
       target2Id: 'audio-t2-1',
     })
@@ -80,7 +80,7 @@ describe('validateScriptItem', () => {
   it('returns no errors for a complete debut item with all audio', () => {
     const item = makeItem({
       type: 'debut',
-      sourceId: 'audio-source-1',
+      knownAudioId: 'audio-source-1',
       target1Id: 'audio-t1-1',
       target2Id: 'audio-t2-1',
     })
@@ -92,7 +92,7 @@ describe('validateScriptItem', () => {
   it('returns no errors for a complete build item with all audio', () => {
     const item = makeItem({
       type: 'build',
-      sourceId: 'audio-source-1',
+      knownAudioId: 'audio-source-1',
       target1Id: 'audio-t1-1',
       target2Id: 'audio-t2-1',
     })
@@ -160,25 +160,25 @@ describe('validateScriptItem', () => {
     expect(t2Errors).toHaveLength(0)
   })
 
-  // 9. Debut missing sourceId -> error
-  it('returns an error when debut is missing sourceId', () => {
+  // 9. Debut missing knownAudioId -> error
+  it('returns an error when debut is missing knownAudioId', () => {
     const item = makeItem({
       type: 'debut',
-      sourceId: undefined,
+      knownAudioId: undefined,
       target1Id: 'audio-t1-1',
       target2Id: 'audio-t2-1',
     })
     const results = validateScriptItem(item)
-    const srcErrors = results.filter(r => r.field === 'sourceId' && r.severity === 'error')
+    const srcErrors = results.filter(r => r.field === 'knownAudioId' && r.severity === 'error')
     expect(srcErrors).toHaveLength(1)
-    expect(srcErrors[0].message).toContain('sourceId')
+    expect(srcErrors[0].message).toContain('knownAudioId')
   })
 
   // 10. Debut missing target1Id -> error
   it('returns an error when debut is missing target1Id', () => {
     const item = makeItem({
       type: 'debut',
-      sourceId: 'audio-source-1',
+      knownAudioId: 'audio-source-1',
       target1Id: undefined,
       target2Id: 'audio-t2-1',
     })
@@ -191,7 +191,7 @@ describe('validateScriptItem', () => {
   it('returns a warning (not error) when debut is missing target2Id', () => {
     const item = makeItem({
       type: 'debut',
-      sourceId: 'audio-source-1',
+      knownAudioId: 'audio-source-1',
       target1Id: 'audio-t1-1',
       target2Id: undefined,
     })
@@ -261,7 +261,7 @@ describe('validateRoundStructure', () => {
       ...items[1],
       type: 'debut',
       knownText: 'Something different',
-      sourceId: 'audio-source-1',
+      knownAudioId: 'audio-source-1',
       presentationAudioId: undefined,
     })
     const result = validateRoundStructure(1, items)
@@ -279,7 +279,7 @@ describe('validateRoundStructure', () => {
       ...items[1],
       type: 'debut',
       targetText: 'Algo diferente',
-      sourceId: 'audio-source-1',
+      knownAudioId: 'audio-source-1',
       presentationAudioId: undefined,
     })
     const result = validateRoundStructure(1, items)
@@ -297,7 +297,7 @@ describe('validateRoundStructure', () => {
       ...items[1],
       type: 'debut',
       legoKey: 'S0002L01',
-      sourceId: 'audio-source-1',
+      knownAudioId: 'audio-source-1',
       presentationAudioId: undefined,
     })
     const result = validateRoundStructure(1, items)
@@ -311,9 +311,9 @@ describe('validateRoundStructure', () => {
   // 19. Round with no build cycles -> warning
   it('returns a warning when the round has no build cycles', () => {
     const items = [
-      makeItem({ roundNumber: 1, type: 'intro', presentationAudioId: 'audio-pres-1', sourceId: undefined }),
-      makeItem({ roundNumber: 1, type: 'debut', sourceId: 'audio-source-1', presentationAudioId: undefined }),
-      makeItem({ roundNumber: 1, type: 'use', sourceId: 'audio-source-1', presentationAudioId: undefined }),
+      makeItem({ roundNumber: 1, type: 'intro', presentationAudioId: 'audio-pres-1', knownAudioId: undefined }),
+      makeItem({ roundNumber: 1, type: 'debut', knownAudioId: 'audio-source-1', presentationAudioId: undefined }),
+      makeItem({ roundNumber: 1, type: 'use', knownAudioId: 'audio-source-1', presentationAudioId: undefined }),
     ]
     const result = validateRoundStructure(1, items)
     // Should still be valid (warnings don't make it invalid)
@@ -327,9 +327,9 @@ describe('validateRoundStructure', () => {
   // 20. Round with no consolidation cycles -> warning
   it('returns a warning when the round has no consolidation (use) cycles', () => {
     const items = [
-      makeItem({ roundNumber: 1, type: 'intro', presentationAudioId: 'audio-pres-1', sourceId: undefined }),
-      makeItem({ roundNumber: 1, type: 'debut', sourceId: 'audio-source-1', presentationAudioId: undefined }),
-      makeItem({ roundNumber: 1, type: 'build', sourceId: 'audio-source-1', presentationAudioId: undefined }),
+      makeItem({ roundNumber: 1, type: 'intro', presentationAudioId: 'audio-pres-1', knownAudioId: undefined }),
+      makeItem({ roundNumber: 1, type: 'debut', knownAudioId: 'audio-source-1', presentationAudioId: undefined }),
+      makeItem({ roundNumber: 1, type: 'build', knownAudioId: 'audio-source-1', presentationAudioId: undefined }),
     ]
     const result = validateRoundStructure(1, items)
     expect(result.valid).toBe(true)
@@ -342,10 +342,10 @@ describe('validateRoundStructure', () => {
   // 21. Out-of-order types (use before build) -> warning
   it('returns a warning when cycle types are out of order (use before build)', () => {
     const items = [
-      makeItem({ roundNumber: 1, type: 'intro', presentationAudioId: 'audio-pres-1', sourceId: undefined }),
-      makeItem({ roundNumber: 1, type: 'debut', sourceId: 'audio-source-1', presentationAudioId: undefined }),
-      makeItem({ roundNumber: 1, type: 'use', sourceId: 'audio-source-1', presentationAudioId: undefined }),
-      makeItem({ roundNumber: 1, type: 'build', sourceId: 'audio-source-1', presentationAudioId: undefined }),
+      makeItem({ roundNumber: 1, type: 'intro', presentationAudioId: 'audio-pres-1', knownAudioId: undefined }),
+      makeItem({ roundNumber: 1, type: 'debut', knownAudioId: 'audio-source-1', presentationAudioId: undefined }),
+      makeItem({ roundNumber: 1, type: 'use', knownAudioId: 'audio-source-1', presentationAudioId: undefined }),
+      makeItem({ roundNumber: 1, type: 'build', knownAudioId: 'audio-source-1', presentationAudioId: undefined }),
     ]
     const result = validateRoundStructure(1, items)
     // Out-of-order is a warning, not an error, so round can still be valid
@@ -382,8 +382,8 @@ describe('validateLearningScript', () => {
     const validRound = makeValidRound(1, 'S0001L01', 'I want', 'Quiero')
     // Invalid round: missing intro
     const invalidRound = [
-      makeItem({ roundNumber: 2, legoKey: 'S0002L01', type: 'debut', sourceId: 'audio-source-1', presentationAudioId: undefined }),
-      makeItem({ roundNumber: 2, legoKey: 'S0002L01', type: 'build', sourceId: 'audio-source-1', presentationAudioId: undefined }),
+      makeItem({ roundNumber: 2, legoKey: 'S0002L01', type: 'debut', knownAudioId: 'audio-source-1', presentationAudioId: undefined }),
+      makeItem({ roundNumber: 2, legoKey: 'S0002L01', type: 'build', knownAudioId: 'audio-source-1', presentationAudioId: undefined }),
     ]
     const allItems = [...validRound, ...invalidRound]
 
@@ -397,10 +397,10 @@ describe('validateLearningScript', () => {
   // 24. Summary includes details of first invalid rounds
   it('includes details of first invalid rounds in summary', () => {
     const invalidRound1 = [
-      makeItem({ roundNumber: 1, legoKey: 'S0001L01', type: 'debut', sourceId: 'audio-source-1', presentationAudioId: undefined }),
+      makeItem({ roundNumber: 1, legoKey: 'S0001L01', type: 'debut', knownAudioId: 'audio-source-1', presentationAudioId: undefined }),
     ]
     const invalidRound2 = [
-      makeItem({ roundNumber: 2, legoKey: 'S0002L01', type: 'debut', sourceId: 'audio-source-2', presentationAudioId: undefined }),
+      makeItem({ roundNumber: 2, legoKey: 'S0002L01', type: 'debut', knownAudioId: 'audio-source-2', presentationAudioId: undefined }),
     ]
     const allItems = [...invalidRound1, ...invalidRound2]
 

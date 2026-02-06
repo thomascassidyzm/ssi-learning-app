@@ -27,12 +27,11 @@ export interface ScriptItem {
   knownText: string
   targetText: string
   presentationAudioId?: string
-  sourceId?: string
+  knownAudioId?: string
   target1Id?: string
   target2Id?: string
   target1DurationMs?: number
   target2DurationMs?: number
-  hasAudio: boolean
   isNew: boolean
   syllableCount?: number
   fibPosition?: number
@@ -195,7 +194,16 @@ export async function generateLearningScript(
   // Helper: only emit items from emitFromRound onward
   // Earlier rounds are still fully processed (legoState, spaced rep) but not emitted
   const shouldEmit = () => roundNumber >= emitFromRound
-  const emitItem = (item: ScriptItem) => { if (shouldEmit()) items.push(item) }
+  const emitItem = (item: ScriptItem) => {
+    if (!shouldEmit()) return
+    // Filter out items missing required audio — they'll be picked up after regeneration
+    if (item.type === 'intro') {
+      if (!item.knownAudioId) return  // presentationAudioId used as knownAudioId for intro
+    } else {
+      if (!item.knownAudioId || !item.target1Id || !item.target2Id) return
+    }
+    items.push(item)
+  }
 
   // Process each seed
   for (const seedNum of sortedSeedNums) {
@@ -232,12 +240,11 @@ export async function generateLearningScript(
         knownText: lego.known_text,
         targetText: lego.target_text,
         presentationAudioId,
-        sourceId: presentationAudioId,  // Intro uses presentation as "source"
+        knownAudioId: presentationAudioId,  // Intro uses presentation as known audio
         target1Id: isWelsh ? undefined : lego.target1_audio_id,
         target2Id: isWelsh ? undefined : lego.target2_audio_id,
         target1DurationMs: isWelsh ? undefined : lego.target1_duration_ms,
         target2DurationMs: isWelsh ? undefined : lego.target2_duration_ms,
-        hasAudio: !!presentationAudioId,
         isNew: true
       })
 
@@ -250,12 +257,11 @@ export async function generateLearningScript(
         type: 'debut',
         knownText: lego.known_text,
         targetText: lego.target_text,
-        sourceId: lego.known_audio_id,
+        knownAudioId: lego.known_audio_id,
         target1Id: lego.target1_audio_id,
         target2Id: lego.target2_audio_id,
         target1DurationMs: lego.target1_duration_ms,
         target2DurationMs: lego.target2_duration_ms,
-        hasAudio: !!(lego.known_audio_id && lego.target1_audio_id && lego.target2_audio_id),
         isNew: true
       })
 
@@ -276,12 +282,11 @@ export async function generateLearningScript(
           type: 'build',
           knownText: phrase.known_text,
           targetText: phrase.target_text,
-          sourceId: phrase.known_audio_id,
+          knownAudioId: phrase.known_audio_id,
           target1Id: phrase.target1_audio_id,
           target2Id: phrase.target2_audio_id,
           target1DurationMs: phrase.target1_duration_ms,
           target2DurationMs: phrase.target2_duration_ms,
-          hasAudio: !!(phrase.known_audio_id && phrase.target1_audio_id && phrase.target2_audio_id),
           isNew: true,
           syllableCount: phrase.target_syllable_count || countTargetSyllables(phrase.target_text)
         })
@@ -321,12 +326,11 @@ export async function generateLearningScript(
           type: 'build',
           knownText: phrase.known_text,
           targetText: phrase.target_text,
-          sourceId: phrase.known_audio_id,
+          knownAudioId: phrase.known_audio_id,
           target1Id: phrase.target1_audio_id,
           target2Id: phrase.target2_audio_id,
           target1DurationMs: phrase.target1_duration_ms,
           target2DurationMs: phrase.target2_duration_ms,
-          hasAudio: !!(phrase.known_audio_id && phrase.target1_audio_id && phrase.target2_audio_id),
           isNew: true,
           syllableCount: phrase.target_syllable_count || countTargetSyllables(phrase.target_text)
         })
@@ -386,12 +390,11 @@ export async function generateLearningScript(
             type: 'spaced_rep',
             knownText: phrase.known_text,
             targetText: phrase.target_text,
-            sourceId: phrase.known_audio_id,
+            knownAudioId: phrase.known_audio_id,
             target1Id: phrase.target1_audio_id,
             target2Id: phrase.target2_audio_id,
             target1DurationMs: phrase.target1_duration_ms,
             target2DurationMs: phrase.target2_duration_ms,
-            hasAudio: !!(phrase.known_audio_id && phrase.target1_audio_id && phrase.target2_audio_id),
             isNew: false,
             fibPosition,
             reviewOf: state.lastRound
@@ -417,12 +420,11 @@ export async function generateLearningScript(
           type: 'use',
           knownText: phrase.known_text,
           targetText: phrase.target_text,
-          sourceId: phrase.known_audio_id,
+          knownAudioId: phrase.known_audio_id,
           target1Id: phrase.target1_audio_id,
           target2Id: phrase.target2_audio_id,
           target1DurationMs: phrase.target1_duration_ms,
           target2DurationMs: phrase.target2_duration_ms,
-          hasAudio: !!(phrase.known_audio_id && phrase.target1_audio_id && phrase.target2_audio_id),
           isNew: true
         })
       }

@@ -106,7 +106,7 @@ export function validateScriptItem(item: ScriptItem): CycleValidationError[] {
   // -- Audio fields --
 
   if (item.type === 'intro') {
-    // Intro requires presentationAudioId instead of sourceId
+    // Intro requires presentationAudioId instead of knownAudioId
     if (!isNonEmpty(item.presentationAudioId)) {
       results.push(makeError(item, 'presentationAudioId', 'intro cycle missing presentationAudioId', 'error'))
     }
@@ -117,9 +117,9 @@ export function validateScriptItem(item: ScriptItem): CycleValidationError[] {
       results.push(makeError(item, 'target2Id', 'intro cycle missing target2Id (second voice)', 'warning'))
     }
   } else {
-    // debut, build, spaced_rep, use — all require sourceId + target IDs
-    if (!isNonEmpty(item.sourceId)) {
-      results.push(makeError(item, 'sourceId', `${item.type} cycle missing sourceId (known audio)`, 'error'))
+    // debut, build, spaced_rep, use — all require knownAudioId + target IDs
+    if (!isNonEmpty(item.knownAudioId)) {
+      results.push(makeError(item, 'knownAudioId', `${item.type} cycle missing knownAudioId (known audio)`, 'error'))
     }
     if (!isNonEmpty(item.target1Id)) {
       results.push(makeError(item, 'target1Id', `${item.type} cycle missing target1Id`, 'error'))
