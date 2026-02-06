@@ -48,6 +48,7 @@ export class SyncService implements ISyncService {
 
   private onCompleteCallbacks: SyncCompleteCallback[] = [];
   private onErrorCallbacks: SyncErrorCallback[] = [];
+  private syncErrorsLogged = new Set<string>();
 
   constructor(config: SyncServiceConfig) {
     this.client = config.client;
@@ -117,13 +118,20 @@ export class SyncService implements ISyncService {
           item.error = error instanceof Error ? error.message : String(error);
 
           if (item.attempts >= this.maxRetries) {
-            // Move to dead letter queue or log
-            console.error(`Sync item ${item.id} exceeded max retries:`, error);
+            const errorKey = `max-retries-${item.entity}`;
+            if (!this.syncErrorsLogged.has(errorKey)) {
+              this.syncErrorsLogged.add(errorKey);
+              console.error(`[SyncService] Sync item ${item.id} (${item.entity}) exceeded max retries:`, error);
+            }
             this.removeFromQueue(item.id);
           } else {
             // Exponential backoff - don't process again this cycle
             const delay = this.baseDelayMs * Math.pow(2, item.attempts - 1);
-            console.warn(`Sync item ${item.id} failed, retry in ${delay}ms`);
+            const warnKey = `retry-${item.entity}`;
+            if (!this.syncErrorsLogged.has(warnKey)) {
+              this.syncErrorsLogged.add(warnKey);
+              console.warn(`[SyncService] Sync item ${item.id} (${item.entity}) failed, retry in ${delay}ms`);
+            }
           }
         }
       }
@@ -177,7 +185,10 @@ export class SyncService implements ISyncService {
 
     this.autoSyncTimer = setInterval(() => {
       this.processQueue().catch((error) => {
-        console.error('Auto-sync error:', error);
+        if (!this.syncErrorsLogged.has('auto-sync')) {
+          this.syncErrorsLogged.add('auto-sync');
+          console.error('[SyncService] Auto-sync error:', error);
+        }
       });
     }, interval);
 
@@ -221,7 +232,10 @@ export class SyncService implements ISyncService {
   private handleOnline = (): void => {
     // Sync when coming back online
     this.processQueue().catch((error) => {
-      console.error('Online sync error:', error);
+      if (!this.syncErrorsLogged.has('online-sync')) {
+        this.syncErrorsLogged.add('online-sync');
+        console.error('[SyncService] Online sync error:', error);
+      }
     });
   };
 
@@ -308,7 +322,10 @@ export class SyncService implements ISyncService {
         await store.add(item);
       }
     } catch (error) {
-      console.error('Failed to persist sync queue:', error);
+      if (!this.syncErrorsLogged.has('persist-queue')) {
+        this.syncErrorsLogged.add('persist-queue');
+        console.error('[SyncService] Failed to persist sync queue:', error);
+      }
     }
   }
 
@@ -327,7 +344,10 @@ export class SyncService implements ISyncService {
           : null,
       }));
     } catch (error) {
-      console.error('Failed to load sync queue:', error);
+      if (!this.syncErrorsLogged.has('load-queue')) {
+        this.syncErrorsLogged.add('load-queue');
+        console.error('[SyncService] Failed to load sync queue:', error);
+      }
     }
   }
 

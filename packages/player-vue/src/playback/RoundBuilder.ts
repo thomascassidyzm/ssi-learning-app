@@ -122,7 +122,11 @@ export function buildRound(options: BuildRoundOptions): Round {
     // Check for ZUT violation: same known, different target
     const existingTarget = knownToTarget.get(normalizedKnown)
     if (existingTarget && existingTarget !== normalizedTarget) {
-      console.warn(`[RoundBuilder] ZUT VIOLATION in ${context}: "${known}" maps to both "${existingTarget}" and "${normalizedTarget}"`)
+      const warnKey = `zut-${normalizedKnown}`
+      if (!warnedOnce.has(warnKey)) {
+        warnedOnce.add(warnKey)
+        console.warn(`[RoundBuilder] ZUT VIOLATION in ${context}: "${known}" maps to both "${existingTarget}" and "${normalizedTarget}"`)
+      }
       return false
     }
 
@@ -242,7 +246,11 @@ export function buildRound(options: BuildRoundOptions): Round {
     const normalizedTarget = normalizeText(phrase.phrase.target)
     const existingTarget = knownToTarget.get(normalizedKnown)
     if (existingTarget && existingTarget !== normalizedTarget) {
-      console.warn(`[RoundBuilder] ZUT VIOLATION in CONSOLIDATE: "${phrase.phrase.known}" maps to both "${existingTarget}" and "${normalizedTarget}"`)
+      const warnKey = `zut-consolidate-${normalizedKnown}`
+      if (!warnedOnce.has(warnKey)) {
+        warnedOnce.add(warnKey)
+        console.warn(`[RoundBuilder] ZUT VIOLATION in CONSOLIDATE: "${phrase.phrase.known}" maps to both "${existingTarget}" and "${normalizedTarget}"`)
+      }
       continue
     }
 

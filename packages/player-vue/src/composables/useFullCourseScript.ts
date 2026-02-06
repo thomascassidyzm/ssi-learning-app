@@ -267,20 +267,15 @@ export function useFullCourseScript() {
 
     try {
       // 1. Load all LEGOs
-      console.log('[useFullCourseScript] Loading all LEGOs...')
       const learningItems = await loadAllLegos(provider)
-      console.log(`[useFullCourseScript] Loaded ${learningItems.length} learning items`)
 
       // 2. Extract LEGOs and Seeds
       const legos = extractLegosFromLearningItems(learningItems)
       const seeds = extractSeedsFromLearningItems(learningItems)
       const newLegos = legos.filter(l => l.new)
-      console.log(`[useFullCourseScript] Extracted ${newLegos.length} new LEGOs (rounds), ${seeds.length} seeds`)
 
       // 3. Load baskets for each LEGO
-      console.log('[useFullCourseScript] Loading baskets...')
       const baskets = await loadAllBaskets(provider, legos)
-      console.log(`[useFullCourseScript] Loaded ${baskets.size} baskets`)
 
       // 4. Build rounds using the player's exact logic
       progress.value = {
@@ -290,7 +285,6 @@ export function useFullCourseScript() {
         message: 'Building rounds...',
       }
 
-      console.log('[useFullCourseScript] Building rounds...')
       const rounds = buildRounds(
         legos,
         seeds,
@@ -305,7 +299,7 @@ export function useFullCourseScript() {
         (audioId) => buildAudioUrl(audioId, courseCode),
         1 // Start from round 1
       )
-      console.log(`[useFullCourseScript] Built ${rounds.length} rounds`)
+      console.log(`[useFullCourseScript] ${rounds.length} rounds, ${newLegos.length} LEGOs, ${seeds.length} seeds`)
 
       // 5. Flatten for display
       const allItems = flattenRounds(rounds)

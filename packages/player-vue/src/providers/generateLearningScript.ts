@@ -101,28 +101,13 @@ export async function generateLearningScript(
   if (legosResult.error) throw new Error('Failed to query LEGOs: ' + legosResult.error.message)
   if (phrasesResult.error) throw new Error('Failed to query phrases: ' + phrasesResult.error.message)
 
-  const firstLego = legosResult.data?.[0]
-  if (firstLego) {
-    console.log(`[generateLearningScript] First LEGO: "${firstLego.known_text}" → "${firstLego.target_text}" (audio: known=${!!firstLego.known_audio_id}, t1=${!!firstLego.target1_audio_id}, t2=${!!firstLego.target2_audio_id}, pres=${!!firstLego.presentation_audio_id})`)
-  }
-
   // FLAG: LEGOs with bracket explanations (these shouldn't exist in production)
   const bracketPattern = /\[.*?\]/
   const legosWithBrackets = (legosResult.data || []).filter(
     (l: any) => bracketPattern.test(l.known_text) || bracketPattern.test(l.target_text)
   )
   if (legosWithBrackets.length > 0) {
-    console.warn(`[generateLearningScript] ⚠️ Found ${legosWithBrackets.length} LEGOs with bracket explanations (should be removed):`)
-    legosWithBrackets.slice(0, 5).forEach((l: any) => {
-      console.warn(`  S${String(l.seed_number).padStart(4, '0')}L${String(l.lego_index).padStart(2, '0')}: "${l.known_text}" → "${l.target_text}"`)
-    })
-    if (legosWithBrackets.length > 5) {
-      console.warn(`  ... and ${legosWithBrackets.length - 5} more`)
-    }
-  }
-  const firstPhrase = phrasesResult.data?.[0]
-  if (firstPhrase) {
-    console.log(`[generateLearningScript] First phrase: "${firstPhrase.known_text}" → "${firstPhrase.target_text}" (audio: known=${!!firstPhrase.known_audio_id}, t1=${!!firstPhrase.target1_audio_id}, t2=${!!firstPhrase.target2_audio_id})`)
+    console.warn(`[generateLearningScript] ${legosWithBrackets.length} LEGOs with bracket explanations`)
   }
 
   // Group phrases by LEGO into BUILD and USE pools
@@ -465,27 +450,25 @@ export async function generateLearningScript(
   }
 
   const removedCount = items.length - dedupedItems.length
-  if (removedCount > 0) {
-    console.log(`[generateLearningScript] Removed ${removedCount} consecutive duplicate(s)`)
-  }
 
   // Validate generated script integrity
   const validationReport = validateLearningScript(dedupedItems)
   if (!validationReport.valid) {
     console.error(`[generateLearningScript] VALIDATION FAILED: ${validationReport.summary}`)
+    // Log first 5 round errors only
+    let errorCount = 0
     for (const round of validationReport.rounds) {
-      if (!round.valid) {
-        for (const error of round.errors) {
-          console.error(`  [Round ${round.roundNumber}] ${error.message}`)
-        }
+      if (!round.valid && errorCount < 5) {
+        console.error(`  [Round ${round.roundNumber}] ${round.errors[0]?.message}`)
+        errorCount++
       }
     }
-  }
-  if (validationReport.cyclesWithWarnings > 0) {
-    console.warn(`[generateLearningScript] ${validationReport.cyclesWithWarnings} cycles with warnings`)
+    if (errorCount < validationReport.rounds.filter(r => !r.valid).length) {
+      console.error(`  ... and ${validationReport.rounds.filter(r => !r.valid).length - errorCount} more rounds with errors`)
+    }
   }
 
   const skippedRounds = emitFromRound > 1 ? emitFromRound - 1 : 0
-  console.log(`[generateLearningScript] Generated ${dedupedItems.length} items for ${courseCode} seeds ${startSeed}-${endSeed}${skippedRounds > 0 ? ` (emitting from round ${emitFromRound}, ${skippedRounds} rounds processed silently)` : ''}`)
+  console.log(`[generateLearningScript] ${dedupedItems.length} items, ${roundNumber} rounds for ${courseCode} S${startSeed}-${endSeed}${removedCount > 0 ? `, ${removedCount} deduped` : ''}${skippedRounds > 0 ? `, from R${emitFromRound}` : ''}`)
   return { items: dedupedItems, cycleCount: dedupedItems.length, roundCount: roundNumber }
 }

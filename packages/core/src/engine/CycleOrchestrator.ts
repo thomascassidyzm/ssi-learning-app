@@ -26,6 +26,7 @@ export class CycleOrchestrator implements ICycleOrchestrator {
   private config: CycleConfig;
   private audioController: IAudioController;
   private listeners: Set<CycleEventListener> = new Set();
+  private listenerErrorLogged = false;
   private pauseTimer: ReturnType<typeof setTimeout> | null = null;
   private transitionTimer: ReturnType<typeof setTimeout> | null = null;
   private audioEndedHandler: (() => void) | null = null;
@@ -386,7 +387,10 @@ export class CycleOrchestrator implements ICycleOrchestrator {
       try {
         listener(event);
       } catch (error) {
-        console.error('Error in cycle event listener:', error);
+        if (!this.listenerErrorLogged) {
+          console.error('Error in cycle event listener:', error);
+          this.listenerErrorLogged = true;
+        }
       }
     }
   }

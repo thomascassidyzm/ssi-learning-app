@@ -149,11 +149,10 @@ export class CourseDataProvider {
         .single()
 
       if (error || !data) {
-        console.warn('[CourseDataProvider] Could not determine max playable seed:', error?.message)
+        // Could not determine max playable seed
         return null
       }
 
-      console.log(`[CourseDataProvider] Course ${this.courseId} max playable seed: ${data.seed_number}`)
       return data.seed_number
     } catch (err) {
       console.warn('[CourseDataProvider] Error getting max seed:', err)
@@ -191,11 +190,8 @@ export class CourseDataProvider {
       }
 
       if (!data || data.length === 0) {
-        console.warn('[CourseDataProvider] No data found for course:', this.courseId)
         return []
       }
-
-      console.log(`[CourseDataProvider] Loaded ${data.length} LEGOs for seeds ${startSeed}-${startSeed + count - 1}`)
 
       // Transform database records to LearningItem format
       return this.transformToLearningItems(data)

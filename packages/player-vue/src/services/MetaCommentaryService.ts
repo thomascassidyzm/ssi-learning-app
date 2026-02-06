@@ -134,13 +134,7 @@ export class MetaCommentaryService {
 
     this.initialized = true
 
-    console.log('[MetaCommentaryService] Initialized:', {
-      instructions: instructions.length,
-      encouragements: encouragements.length,
-      hasWelcome: !!welcome,
-      globalState: this.globalState,
-      nextCommentaryCycle: this.nextCommentaryCycle,
-    })
+    console.log(`[MetaCommentary] ${instructions.length} instructions, ${encouragements.length} encouragements${welcome ? ', welcome' : ''}`)
   }
 
   /**
@@ -152,7 +146,7 @@ export class MetaCommentaryService {
     // Shuffle the urn for random order
     this.shuffleArray(this.globalState.encouragementUrn)
     this.globalState.encouragementUrnCycle++
-    console.log('[MetaCommentaryService] Refilled encouragement URN, cycle:', this.globalState.encouragementUrnCycle)
+    // Encouragement URN refilled
   }
 
   /**
@@ -246,7 +240,7 @@ export class MetaCommentaryService {
         // Check if all instructions are now complete
         if (this.globalState.instructionIndex >= this.instructions.length) {
           this.globalState.instructionsComplete = true
-          console.log('[MetaCommentaryService] 🎓 All instructions complete! Switching to encouragements.')
+          console.log('[MetaCommentary] Instructions complete, switching to encouragements')
         }
       }
       // Note: encouragement URN is already updated in getNextCommentary()
@@ -298,7 +292,7 @@ export class MetaCommentaryService {
       return null
     }
 
-    console.log('[MetaCommentaryService] Playing encouragement from URN, remaining:', this.globalState.encouragementUrn.length)
+    // Encouragement selected from URN
 
     return {
       ...encouragement,
@@ -321,14 +315,13 @@ export class MetaCommentaryService {
       const isDoingWell = this.assessPerformance(performance)
       if (isDoingWell) {
         interval = Math.floor(interval * PERFORMANCE_MULTIPLIER_GOOD)
-        console.log('[MetaCommentaryService] Good performance - increasing interval to', interval, 'cycles')
+        // Good performance - increasing commentary interval
       }
     }
 
     this.nextCommentaryCycle = this.sessionState.totalCyclesCompleted + interval
 
-    console.log('[MetaCommentaryService] Next commentary at cycle', this.nextCommentaryCycle,
-      `(~${Math.round(interval * 11 / 60)} mins from now)`)
+    // Next commentary scheduled
   }
 
   /**
@@ -415,7 +408,7 @@ export class MetaCommentaryService {
       if (saved) {
         const parsed = JSON.parse(saved)
         this.globalState = { ...this.getDefaultGlobalState(), ...parsed }
-        console.log('[MetaCommentaryService] Loaded global state:', this.globalState)
+        // Global commentary state loaded
       }
     } catch (err) {
       console.warn('[MetaCommentaryService] Failed to load global state:', err)

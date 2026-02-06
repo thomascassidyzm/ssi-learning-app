@@ -57,11 +57,8 @@ export async function loadSeedBatch(options: BatchLoadOptions): Promise<BatchLoa
   const items = await provider.loadLegoRange(startSeed, endSeed)
 
   if (!items || items.length === 0) {
-    console.log(`[loadSeedBatch] No items found for seeds ${startSeed}-${endSeed}`)
     return null
   }
-
-  console.log(`[loadSeedBatch] Loaded ${items.length} items for seeds ${startSeed}-${endSeed}`)
 
   // 2. Convert to LegoPair[] and SeedPair[], merging with existing data
   const legoMap = new Map(existingLegoMap)
@@ -110,7 +107,7 @@ export async function loadSeedBatch(options: BatchLoadOptions): Promise<BatchLoa
   const newSeedIds = new Set(items.map(i => i.seed.seed_id))
   const newSeeds = Array.from(seedMap.values()).filter(s => newSeedIds.has(s.seed_id))
 
-  console.log(`[loadSeedBatch] Extracted ${newLegos.length} LEGOs and ${newSeeds.length} seeds from batch`)
+  // Extracted newLegos and newSeeds from batch
 
   // 3. Load baskets for new LEGOs
   const baskets = new Map(existingBaskets)
@@ -122,7 +119,7 @@ export async function loadSeedBatch(options: BatchLoadOptions): Promise<BatchLoa
       for (const [id, basket] of newBaskets) {
         baskets.set(id, basket)
       }
-      console.log(`[loadSeedBatch] Loaded baskets for ${newBaskets.size} LEGOs`)
+      // Baskets loaded
     } catch (err) {
       console.warn('[loadSeedBatch] Failed to load baskets:', err)
     }
@@ -141,7 +138,7 @@ export async function loadSeedBatch(options: BatchLoadOptions): Promise<BatchLoa
         }
       }
     }
-    console.log(`[loadSeedBatch] Loaded intro audio for ${introAudioMap.size} LEGOs`)
+    // Intro audio loaded
   } catch (err) {
     console.warn('[loadSeedBatch] Failed to load intro audio:', err)
   }
@@ -162,7 +159,7 @@ export async function loadSeedBatch(options: BatchLoadOptions): Promise<BatchLoa
     buildAudioUrl,
     startRoundNumber
   )
-  console.log(`[loadSeedBatch] Built ${builderRounds.length} rounds`)
+  // Rounds built
 
   // 7. Adapt for SimplePlayer
   const simpleRounds = adaptRoundsForPlayer(builderRounds)

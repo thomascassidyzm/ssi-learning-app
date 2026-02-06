@@ -58,8 +58,6 @@ const invalidateStaleCaches = () => {
   const storedVersion = localStorage.getItem(CACHE_VERSION_KEY)
 
   if (storedVersion !== BUILD_VERSION) {
-    console.log(`[App] Build changed: ${storedVersion} → ${BUILD_VERSION}, clearing caches`)
-
     // Collect all keys to remove first (can't modify during iteration)
     const keysToRemove = []
     for (let i = 0; i < localStorage.length; i++) {
@@ -89,9 +87,7 @@ const invalidateStaleCaches = () => {
 
     // Store new version
     localStorage.setItem(CACHE_VERSION_KEY, BUILD_VERSION)
-    console.log(`[App] Cleared ${keysToRemove.length} cached items (scripts, positions)`)
-  } else {
-    console.log(`[App] Build ${BUILD_VERSION} - caches valid`)
+    console.log(`[App] Build ${storedVersion} → ${BUILD_VERSION}, cleared ${keysToRemove.length} cached items`)
   }
 }
 
@@ -118,7 +114,6 @@ const LAST_COURSE_KEY = 'ssi-last-course'
 // Handle course selection from CourseSelector
 const handleCourseSelect = async (course) => {
   const courseCode = course.course_code || course.id
-  console.log('[App] Course selected:', courseCode)
 
   // IMPORTANT: Update courseDataProvider BEFORE activeCourse
   // This ensures LearningPlayer has the correct provider when it remounts
@@ -129,7 +124,6 @@ const handleCourseSelect = async (course) => {
       audioBaseUrl: config.s3.audioBaseUrl,
       courseId: courseCode,
     })
-    console.log('[App] courseDataProvider updated for:', courseCode)
   }
 
   // NOW update activeCourse (triggers LearningPlayer remount via :key)
@@ -138,7 +132,6 @@ const handleCourseSelect = async (course) => {
   // Persist course selection
   try {
     localStorage.setItem(LAST_COURSE_KEY, courseCode)
-    console.log('[App] Course persisted to localStorage:', courseCode)
   } catch (e) {
     console.warn('[App] Failed to persist course selection:', e)
   }
@@ -147,11 +140,8 @@ const handleCourseSelect = async (course) => {
 // Fetch enrolled courses from Supabase
 const fetchEnrolledCourses = async () => {
   if (!supabaseClient.value) {
-    console.log('[App] fetchEnrolledCourses: No Supabase client')
     return
   }
-
-  console.log('[App] fetchEnrolledCourses: Fetching from courses table...')
 
   try {
     // Get courses available for this app (live or beta)
@@ -161,8 +151,6 @@ const fetchEnrolledCourses = async () => {
       .select('*')
       .in('new_app_status', ['live', 'beta'])
       .order('display_name')
-
-    console.log('[App] fetchEnrolledCourses result:', { data: data?.length || 0, error })
 
     if (error) {
       console.error('[App] Failed to fetch courses:', error)
@@ -179,9 +167,7 @@ const fetchEnrolledCourses = async () => {
       try {
         const urlParams = new URLSearchParams(window.location.search)
         urlCourseCode = urlParams.get('course')
-        if (urlCourseCode) {
-          console.log('[App] Course from URL param:', urlCourseCode)
-        }
+        // urlCourseCode read from URL params
       } catch (e) {
         console.warn('[App] Failed to read URL params:', e)
       }
@@ -201,26 +187,17 @@ const fetchEnrolledCourses = async () => {
       if (urlCourseCode) {
         defaultCourse = data.find(c => c.course_code === urlCourseCode)
         if (defaultCourse) {
-          console.log('[App] Using course from URL:', urlCourseCode)
-          // Also save to localStorage for future visits
           try {
             localStorage.setItem(LAST_COURSE_KEY, urlCourseCode)
           } catch (e) {
-            console.warn('[App] Failed to save course to localStorage:', e)
+            // ignore
           }
-        } else {
-          console.log('[App] Course from URL not found:', urlCourseCode, '- trying localStorage')
         }
       }
 
       // Then try localStorage
       if (!defaultCourse && savedCourseCode) {
         defaultCourse = data.find(c => c.course_code === savedCourseCode)
-        if (defaultCourse) {
-          console.log('[App] Restored saved course:', savedCourseCode)
-        } else {
-          console.log('[App] Saved course not found:', savedCourseCode, '- using first available')
-        }
       }
       if (!defaultCourse) {
         defaultCourse = data[0]
@@ -245,7 +222,7 @@ const fetchEnrolledCourses = async () => {
         } catch (e) {
           // Ignore localStorage errors
         }
-        console.log('[App] Active course set:', defaultCourse.course_code)
+        console.log('[App] Course:', defaultCourse.course_code)
       }
     }
   } catch (err) {
@@ -279,7 +256,6 @@ onMounted(async () => {
   // Only initialize Supabase if configured and feature flag is enabled
   if (config.features.useDatabase && isSupabaseConfigured(config)) {
     try {
-      console.log('[App] Initializing Supabase client...')
       supabaseClient.value = createClient(
         config.supabase.url,
         config.supabase.anonKey,
@@ -298,12 +274,7 @@ onMounted(async () => {
       // Initialize auth with Supabase client (for learner management)
       if (auth) {
         await auth.initialize(supabaseClient.value)
-        console.log('[App] Auth initialized, learnerId:', auth.learnerId.value)
       }
-
-      // courseDataProvider will be created when a course is selected
-      // For now, don't create with default - let course selection handle it
-      console.log('[App] Database stores initialized')
 
       // Fetch enrolled courses
       await fetchEnrolledCourses()
@@ -311,7 +282,7 @@ onMounted(async () => {
       console.error('[App] Failed to initialize Supabase:', err)
     }
   } else {
-    console.log('[App] Running in demo mode (database not configured or disabled)')
+    // Running in demo mode (database not configured or disabled)
   }
 })
 </script>

@@ -46,6 +46,7 @@ export class DownloadManager implements IDownloadManager {
   private pendingAudioRefs: AudioRef[] = [];
   private currentCourseId: string | null = null;
   private currentHours: number = 0;
+  private downloadFailCount: number = 0;
 
   constructor(cache: IOfflineCache) {
     this.cache = cache;
@@ -441,8 +442,12 @@ export class DownloadManager implements IDownloadManager {
             this.progress.downloaded++;
             this.notifyProgress();
           } catch (error) {
-            console.warn(`Failed to download ${ref.id}:`, error);
-            // Continue with other files
+            this.downloadFailCount++;
+            if (this.downloadFailCount === 1) {
+              console.warn(`[DownloadManager] Failed to download ${ref.id}:`, error);
+            } else if (this.downloadFailCount % 50 === 0) {
+              console.warn(`[DownloadManager] ${this.downloadFailCount} downloads failed so far`);
+            }
           }
         })
       );

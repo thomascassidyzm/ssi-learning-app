@@ -14,6 +14,7 @@ export class AudioController implements IAudioController {
   private audio: HTMLAudioElement | null = null;
   private preloadCache: Map<string, HTMLAudioElement> = new Map();
   private endedCallbacks: Set<() => void> = new Set();
+  private callbackErrorLogged = false;
 
   constructor() {
     // Create reusable audio element
@@ -187,7 +188,10 @@ export class AudioController implements IAudioController {
       try {
         callback();
       } catch (error) {
-        console.error('Error in audio ended callback:', error);
+        if (!this.callbackErrorLogged) {
+          console.error('Error in audio ended callback:', error);
+          this.callbackErrorLogged = true;
+        }
       }
     }
   }

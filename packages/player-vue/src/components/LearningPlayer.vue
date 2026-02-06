@@ -4764,9 +4764,14 @@ const loadConstellationForRound = (roundIndex: number) => {
   )
 }
 
-// Legacy function - kept for backwards compatibility
-// Now just calls loadConstellationForRound for the specified round
+// Reveal network nodes up to a given round
+// If full network is loaded, just reveal nodes (no recalculation)
+// Otherwise fall back to minimal constellation for the current round
 const populateNetworkUpToRound = (targetRoundIndex: number) => {
+  if (isFullNetworkLoaded.value) {
+    revealNodesUpToIndex(targetRoundIndex)
+    return
+  }
   loadConstellationForRound(targetRoundIndex)
 }
 
