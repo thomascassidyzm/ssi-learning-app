@@ -6,7 +6,7 @@ import { BELT_RANGES, getBeltForSeed } from '../composables/useBeltLoader'
 import { useBeltProgress } from '../composables/useBeltProgress'
 import { useTheme } from '../composables/useTheme'
 
-const emit = defineEmits(['close', 'openExplorer', 'openNetwork', 'openListening', 'settingChanged'])
+const emit = defineEmits(['close', 'openExplorer', 'openListening', 'settingChanged'])
 
 const props = defineProps({
   course: {
@@ -550,26 +550,6 @@ const confirmReset = async () => {
               </svg>
             </div>
           </template>
-
-          <div class="divider"></div>
-
-          <div class="setting-row clickable" @click="emit('openNetwork')">
-            <div class="setting-info">
-              <span class="setting-label">Brain Network</span>
-              <span class="setting-desc">Visualize your vocabulary connections</span>
-            </div>
-            <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="3"/>
-              <circle cx="19" cy="5" r="2"/>
-              <circle cx="5" cy="19" r="2"/>
-              <circle cx="5" cy="5" r="2"/>
-              <circle cx="19" cy="19" r="2"/>
-              <line x1="14" y1="10" x2="17" y2="7"/>
-              <line x1="10" y1="14" x2="7" y2="17"/>
-              <line x1="10" y1="10" x2="7" y2="7"/>
-              <line x1="14" y1="14" x2="17" y2="17"/>
-            </svg>
-          </div>
         </div>
       </section>
 
@@ -894,7 +874,7 @@ const confirmReset = async () => {
 </template>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+/* Fonts loaded globally in style.css */
 
 .settings-screen {
   min-height: 100vh;

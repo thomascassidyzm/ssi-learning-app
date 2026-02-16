@@ -176,9 +176,9 @@ const selectSeed = (seedNumber: number) => {
 .course-browser {
   min-height: 100vh;
   min-height: 100dvh;
-  background: var(--bg-primary, #0a0a0f);
-  color: #fff;
-  padding-bottom: 100px; /* Space for bottom nav */
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
 }
 
 .browser-header {
@@ -187,7 +187,7 @@ const selectSeed = (seedNumber: number) => {
   gap: 12px;
   padding: 16px;
   padding-top: calc(16px + env(safe-area-inset-top, 0px));
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .browser-header h2 {
@@ -214,10 +214,10 @@ const selectSeed = (seedNumber: number) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--bg-elevated);
   border: none;
   border-radius: 8px;
-  color: #fff;
+  color: var(--text-primary);
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -240,10 +240,10 @@ const selectSeed = (seedNumber: number) => {
   align-items: center;
   gap: 12px;
   padding: 14px 12px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
   border-radius: 12px;
-  color: #fff;
+  color: var(--text-primary);
   font-family: inherit;
   text-align: left;
   cursor: pointer;
@@ -251,11 +251,11 @@ const selectSeed = (seedNumber: number) => {
   width: 100%;
 }
 
-.belt-row:hover { background: rgba(255, 255, 255, 0.07); }
+.belt-row:hover { background: var(--bg-card-hover); }
 
 .belt-row.current {
-  border-color: var(--belt-color, rgba(255, 255, 255, 0.15));
-  box-shadow: 0 0 20px var(--belt-glow, rgba(255, 255, 255, 0.05));
+  border-color: var(--border-medium);
+  box-shadow: var(--shadow-sm);
 }
 
 .belt-row.future { opacity: 0.5; }
@@ -288,7 +288,7 @@ const selectSeed = (seedNumber: number) => {
 
 .belt-range {
   font-size: 12px;
-  color: #888;
+  color: var(--text-muted);
   margin-top: 2px;
 }
 
@@ -299,7 +299,7 @@ const selectSeed = (seedNumber: number) => {
 
 .belt-progress-bar {
   height: 4px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--bg-elevated);
   border-radius: 2px;
   overflow: hidden;
 }
@@ -312,7 +312,7 @@ const selectSeed = (seedNumber: number) => {
 
 .belt-count {
   font-size: 11px;
-  color: #777;
+  color: var(--text-muted);
   text-align: right;
   margin-top: 4px;
 }
@@ -320,7 +320,7 @@ const selectSeed = (seedNumber: number) => {
 .chevron {
   width: 16px;
   height: 16px;
-  color: #555;
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 
@@ -342,25 +342,25 @@ const selectSeed = (seedNumber: number) => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
   border-radius: 10px;
-  color: #fff;
+  color: var(--text-primary);
   font-family: inherit;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.seed-cell:hover { background: rgba(255, 255, 255, 0.08); }
+.seed-cell:hover { background: var(--bg-card-hover); }
 
 .seed-cell.completed {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.12);
+  background: var(--bg-elevated);
+  border-color: var(--border-medium);
 }
 
 .seed-cell.current {
-  border-color: var(--belt-color, #c23a3a);
-  box-shadow: 0 0 12px var(--belt-glow, rgba(194, 58, 58, 0.3));
+  border-color: var(--ssi-red, #c23a3a);
+  box-shadow: 0 0 12px var(--ssi-red-soft, rgba(194, 58, 58, 0.3));
 }
 
 .seed-cell.future {
@@ -375,7 +375,7 @@ const selectSeed = (seedNumber: number) => {
 .seed-check {
   width: 14px;
   height: 14px;
-  color: #4ade80;
+  color: var(--success);
   position: absolute;
   top: 4px;
   right: 4px;
@@ -385,7 +385,7 @@ const selectSeed = (seedNumber: number) => {
   position: absolute;
   inset: -2px;
   border-radius: 12px;
-  border: 2px solid var(--belt-color, #c23a3a);
+  border: 2px solid var(--ssi-red, #c23a3a);
   animation: pulse 2s ease-in-out infinite;
   pointer-events: none;
 }
@@ -393,23 +393,5 @@ const selectSeed = (seedNumber: number) => {
 @keyframes pulse {
   0%, 100% { opacity: 0.4; transform: scale(1); }
   50% { opacity: 0.8; transform: scale(1.04); }
-}
-
-/* Mist theme */
-:root[data-theme="mist"] .course-browser {
-  background: var(--bg-primary, #f7f3ec);
-  color: #2c2520;
-}
-
-:root[data-theme="mist"] .belt-row {
-  background: rgba(0, 0, 0, 0.03);
-  border-color: rgba(0, 0, 0, 0.06);
-  color: #2c2520;
-}
-
-:root[data-theme="mist"] .seed-cell {
-  background: rgba(0, 0, 0, 0.03);
-  border-color: rgba(0, 0, 0, 0.06);
-  color: #2c2520;
 }
 </style>

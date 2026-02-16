@@ -230,7 +230,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&family=Noto+Sans+JP:wght@300;400&display=swap');
+/* Fonts loaded globally in style.css */
 
 .awakening {
   position: fixed;

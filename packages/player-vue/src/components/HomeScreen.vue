@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import CourseSelector from './CourseSelector.vue'
+import { BELTS } from '@/composables/useBeltProgress'
 
 // Language metadata mapping (3-letter codes to display info)
 const LANGUAGE_META = {
@@ -79,28 +80,14 @@ const activeCourseData = computed(() => {
   }
 })
 
-// Belt for display
-const BELT_CONFIG = {
-  belts: [
-    { name: 'white',   seedsRequired: 0,   color: '#f5f5f5', label: 'Beginner' },
-    { name: 'yellow',  seedsRequired: 8,   color: '#fcd34d', label: 'Explorer' },
-    { name: 'orange',  seedsRequired: 20,  color: '#fb923c', label: 'Apprentice' },
-    { name: 'green',   seedsRequired: 40,  color: '#4ade80', label: 'Practitioner' },
-    { name: 'blue',    seedsRequired: 80,  color: '#60a5fa', label: 'Adept' },
-    { name: 'purple',  seedsRequired: 150, color: '#a78bfa', label: 'Master' },
-    { name: 'brown',   seedsRequired: 280, color: '#a8856c', label: 'Expert' },
-    { name: 'black',   seedsRequired: 400, color: '#1f1f1f', label: 'Sensei' },
-  ]
-}
-
+// Belt for display — uses shared BELTS from useBeltProgress
 const getCurrentBelt = (seeds) => {
-  const belts = BELT_CONFIG.belts
-  for (let i = belts.length - 1; i >= 0; i--) {
-    if (seeds >= belts[i].seedsRequired) {
-      return belts[i]
+  for (let i = BELTS.length - 1; i >= 0; i--) {
+    if (seeds >= BELTS[i].seedsRequired) {
+      return BELTS[i]
     }
   }
-  return belts[0]
+  return BELTS[0]
 }
 
 const activeBelt = computed(() => getCurrentBelt(activeCourseData.value?.completedRounds || 0))
@@ -394,8 +381,6 @@ const brainPath = computed(() => {
 </template>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
-
 .home-screen {
   min-height: 100vh;
   min-height: 100dvh;
@@ -711,20 +696,6 @@ const brainPath = computed(() => {
 
 .btn-ghost:active {
   transform: scale(0.98);
-}
-
-/* Courses Section */
-.courses-section {
-  margin-bottom: 2rem;
-}
-
-.section-title {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 0 0 1rem 0;
 }
 
 .course-list {

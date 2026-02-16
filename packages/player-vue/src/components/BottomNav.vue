@@ -308,7 +308,7 @@ const isVisible = computed(() => !props.isLearning)
 </template>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+/* Fonts loaded globally in style.css */
 
 .bottom-nav {
   position: fixed;
@@ -438,7 +438,7 @@ const isVisible = computed(() => !props.isLearning)
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: linear-gradient(145deg, #c23a3a 0%, #9a2e2e 100%);
+  background: linear-gradient(145deg, var(--ssi-red) 0%, var(--ssi-red-dark) 100%);
   color: var(--text-on-accent);
   font-size: 11px;
   font-weight: 600;
@@ -516,7 +516,7 @@ const isVisible = computed(() => !props.isLearning)
   height: 56px;
   border-radius: 50%;
   border: none;
-  background: linear-gradient(145deg, #d44545 0%, #b83232 100%);
+  background: linear-gradient(145deg, var(--ssi-red-light) 0%, var(--ssi-red) 100%);
   cursor: pointer;
   transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   box-shadow:

@@ -7011,7 +7011,7 @@ defineExpose({
    Refined minimalism, premium feel
    ============================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500&family=Space+Mono:wght@400;700&family=Noto+Serif+SC:wght@600&family=Noto+Serif:wght@500&display=swap');
+/* Fonts loaded globally in style.css */
 
 /* Root wrapper - enables v-show to work correctly from parent component */
 /* When parent uses v-show="currentScreen === 'player'", this div receives display:none */

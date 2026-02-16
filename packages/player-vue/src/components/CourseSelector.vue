@@ -300,7 +300,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+/* Fonts loaded globally in style.css */
 
 .course-selector-overlay {
   position: fixed;

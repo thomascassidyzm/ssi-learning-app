@@ -1253,7 +1253,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600;700&display=swap');
+/* Fonts loaded globally in style.css */
 
 .explorer {
   min-height: 100vh;

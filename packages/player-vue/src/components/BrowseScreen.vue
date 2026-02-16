@@ -685,32 +685,9 @@ onMounted(() => {
 }
 </style>
 
-<!-- Non-scoped mist theme overrides -->
+<!-- Belt pip future needs !important to override inline style attribute -->
 <style>
-:root[data-theme="mist"] .browse-screen {
-  background: var(--bg-primary, #f7f3ec);
-  color: #2c2520;
-}
-
-:root[data-theme="mist"] .browse-screen .progress-card,
-:root[data-theme="mist"] .browse-screen .brain-card,
-:root[data-theme="mist"] .browse-screen .stat-card,
-:root[data-theme="mist"] .browse-screen .course-card {
-  background: rgba(247, 243, 236, 0.9);
-  border-color: rgba(100, 80, 55, 0.1);
-}
-
-:root[data-theme="mist"] .browse-screen .progress-card:hover,
-:root[data-theme="mist"] .browse-screen .brain-card:hover,
-:root[data-theme="mist"] .browse-screen .course-card:hover {
-  background: rgba(240, 235, 225, 0.95);
-}
-
-:root[data-theme="mist"] .browse-screen .section-label {
-  color: #5c544a;
-}
-
 :root[data-theme="mist"] .browse-screen .belt-pip.future {
-  background: rgba(0, 0, 0, 0.06) !important;
+  background: var(--bg-elevated) !important;
 }
 </style>

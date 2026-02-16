@@ -5,11 +5,9 @@ import { useRouter } from 'vue-router'
 // Screen components
 import HomeScreen from '@/components/HomeScreen.vue'
 import LearningPlayer from '@/components/LearningPlayer.vue'
-import JourneyMap from '@/components/JourneyMap.vue'
 import SettingsScreen from '@/components/SettingsScreen.vue'
 import CourseExplorer from '@/components/CourseExplorer.vue'
 import BrainView from '@/components/BrainView.vue'
-import UsageStats from '@/components/UsageStats.vue'
 import CourseBrowser from '@/components/CourseBrowser.vue'
 import BrowseScreen from '@/components/BrowseScreen.vue'
 import BottomNav from '@/components/BottomNav.vue'
@@ -48,11 +46,8 @@ const {
   switchToSignUp,
 } = useAuthModal()
 
-// Feature flags
-const USE_NEW_SESSION = ref(false) // Toggle to use LearningSession instead of LearningPlayer
-
 // Navigation state
-// Screens: 'home' | 'player' | 'journey' | 'settings' | 'explorer' | 'network' | 'stats' | 'browse' | 'belt-browser'
+// Screens: 'home' | 'player' | 'settings' | 'explorer' | 'network' | 'browse' | 'belt-browser'
 const currentScreen = ref('home')
 const selectedCourse = ref(null)
 const isLearning = ref(false)
@@ -63,9 +58,6 @@ const learningPlayerRef = ref(null)
 
 // Listening mode overlay state (overlay is inside LearningPlayer, but we track it for BottomNav)
 const isListeningMode = ref(false)
-
-// Component refs
-const legoNetworkRef = ref(null)
 
 // Class context (when launched from Schools)
 const classContext = ref(null)
@@ -108,11 +100,7 @@ const navigate = (screen, data = null) => {
 
 const goHome = () => navigate('home')
 const startLearning = (course) => navigate('player', course)
-const handleViewJourney = () => navigate('stats')
 const openSettings = () => navigate('settings')
-const openExplorer = () => navigate('explorer')
-const openNetwork = () => navigate('network')
-const openStats = () => navigate('stats')
 
 // Handle nav events
 const handleNavigation = (screen) => {
@@ -245,7 +233,7 @@ onMounted(() => {
   // Check URL params for direct navigation (e.g., ?screen=project)
   const urlParams = new URLSearchParams(window.location.search)
   const screenParam = urlParams.get('screen')
-  if (screenParam && ['project', 'explorer', 'network', 'settings', 'stats'].includes(screenParam)) {
+  if (screenParam && ['project', 'explorer', 'network', 'settings', 'browse'].includes(screenParam)) {
     currentScreen.value = screenParam
   }
 
@@ -270,10 +258,9 @@ onMounted(() => {
         :activeCourse="activeCourse"
         :enrolledCourses="enrolledCourses"
         @startLearning="startLearning"
-        @viewJourney="handleViewJourney"
+        @viewJourney="navigate('browse')"
         @openSettings="openSettings"
         @selectCourse="handleCourseSelect"
-        @openExplorer="openExplorer"
         @viewBrainMap="navigate('network')"
       />
     </Transition>
@@ -296,26 +283,13 @@ onMounted(() => {
       @listeningModeChanged="handleListeningModeChanged"
     />
 
-    <!-- Journey Map -->
-    <Transition name="slide-up" mode="out-in">
-      <JourneyMap
-        v-if="currentScreen === 'journey'"
-        :completedRounds="completedSeeds"
-        :totalSeeds="totalSeeds"
-        :learningVelocity="1.0"
-        @close="goHome"
-        @startLearning="handleStartLearning"
-      />
-    </Transition>
-
     <!-- Settings Screen -->
     <Transition name="slide-right" mode="out-in">
       <SettingsScreen
         v-if="currentScreen === 'settings'"
         :course="activeCourse"
         @close="goHome"
-        @openExplorer="openExplorer"
-        @openNetwork="openNetwork"
+        @openExplorer="navigate('explorer')"
       />
     </Transition>
 
@@ -334,19 +308,8 @@ onMounted(() => {
         v-if="currentScreen === 'network'"
         :course="activeCourse"
         :belt-level="currentBeltName"
-        :completed-seeds="completedSeeds"
-        @close="goHome"
-      />
-    </Transition>
-
-    <!-- Usage Stats -->
-    <Transition name="slide-right" mode="out-in">
-      <UsageStats
-        v-if="currentScreen === 'stats'"
-        :total-minutes="totalLearningMinutes"
-        :total-words-introduced="completedSeeds"
-        :total-phrases-spoken="totalPhrasesSpoken"
-        @close="goHome"
+        :completed-rounds="completedSeeds"
+        @close="navigate('browse')"
       />
     </Transition>
 
@@ -443,25 +406,6 @@ onMounted(() => {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
-}
-
-/* Slide up transition */
-.slide-up-enter-active {
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.slide-up-leave-active {
-  transition: all 0.3s ease-in;
-}
-
-.slide-up-enter-from {
-  opacity: 0;
-  transform: translateY(20px);
-}
-
-.slide-up-leave-to {
-  opacity: 0;
-  transform: translateY(-10px);
 }
 
 /* Slide right transition */
