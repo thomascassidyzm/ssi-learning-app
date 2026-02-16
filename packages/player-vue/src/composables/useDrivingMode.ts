@@ -59,6 +59,8 @@ export interface DrivingModeOptions {
   onPositionUpdate?: (position: DrivingModePosition) => void
   /** Called when round changes */
   onRoundChange?: (roundIndex: number) => void
+  /** Called when all rounds are complete */
+  onSessionComplete?: () => void
 }
 
 interface DrivingModeReturn {
@@ -69,7 +71,7 @@ interface DrivingModeReturn {
   preparationProgress: ComputedRef<number>
   isActive: ComputedRef<boolean>
 
-  // Aliases for backwards compatibility with DrivingModeToggle.vue
+  // Aliases for convenience
   currentRound: ComputedRef<number>
   prepProgress: ComputedRef<number>
 
@@ -220,6 +222,9 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
 
     // Check if session is complete
     if (nextIndex >= totalRounds) {
+      // Save progress for the final round
+      options.onRoundChange?.(roundIndex.value)
+      options.onSessionComplete?.()
       await exitDrivingMode()
       return
     }
@@ -833,7 +838,7 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
     preparationProgress,
     isActive,
 
-    // Aliases for backwards compatibility with DrivingModeToggle.vue
+    // Aliases for convenience
     currentRound: currentRoundIndex,
     prepProgress: preparationProgress,
 

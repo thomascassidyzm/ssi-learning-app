@@ -35,6 +35,9 @@ import { useAuthModal } from '../composables/useAuthModal'
 import PlayerBrain from './PlayerBrain.vue'
 import BeltProgressModal from './BeltProgressModal.vue'
 import ListeningOverlay from './ListeningOverlay.vue'
+import DrivingModeOverlay from './DrivingModeOverlay.vue'
+import { useDrivingMode } from '../composables/useDrivingMode'
+import { simpleRoundToTypedCycles } from '../utils/drivingModeAdapter'
 
 const emit = defineEmits(['close', 'playStateChanged', 'viewProgress', 'listeningModeChanged', 'cycle-started'])
 
@@ -1189,11 +1192,12 @@ const updateBeltForPosition = (roundIndex, showCelebration = true) => {
   beltProgress.value.setSeeds(newSeeds)
 
   // Check for belt promotion (only celebrate if moving forward)
-  if (showCelebration && newSeeds > previousSeeds) {
+  // During driving mode, skip celebration — queue for display on exit
+  if (showCelebration && newSeeds > previousSeeds && !isDrivingModeActive.value) {
     const newBelt = beltProgress.value.currentBelt.value
     if (newBelt.index > previousBelt.index) {
       beltJustEarned.value = newBelt
-      console.log('[LearningPlayer] 🥋 Belt promotion!', previousBelt.name, '→', newBelt.name)
+      console.log('[LearningPlayer] Belt promotion!', previousBelt.name, '->', newBelt.name)
       triggerRewardAnimation(100, 5)
       setTimeout(() => {
         beltJustEarned.value = null
@@ -4242,6 +4246,64 @@ const handleSkipToBeltFromModal = async (belt) => {
 const turboActive = ref(false)
 const turboPopupShownThisSession = ref(false)
 const showListeningOverlay = ref(false) // Show listening mode overlay
+const isDrivingModeActive = ref(false)
+let drivingModeInitialRound: number | null = null
+
+// Driving mode composable
+const drivingMode = useDrivingMode({
+  getCyclesForRound: (roundIndex: number) => {
+    const rounds = cachedRounds.value
+    if (!rounds || roundIndex < 0 || roundIndex >= rounds.length) return []
+    return simpleRoundToTypedCycles(rounds[roundIndex].cycles)
+  },
+  getTotalRounds: () => cachedRounds.value?.length ?? 0,
+  getAudioSource: getAudioSourceForSession,
+  onRoundChange: (newRoundIndex: number) => {
+    if (drivingModeInitialRound === null) {
+      drivingModeInitialRound = newRoundIndex
+      return // first call = initial round, nothing completed yet
+    }
+    // Previous round just completed — save progress
+    const completedIdx = newRoundIndex - 1
+    if (completedIdx >= 0 && cachedRounds.value && completedIdx < cachedRounds.value.length) {
+      const round = cachedRounds.value[completedIdx]
+      if (round?.legoId && beltProgress.value?.setCurrentLegoId) {
+        beltProgress.value.setCurrentLegoId(round.legoId)
+      }
+    }
+  },
+  onSessionComplete: () => {
+    isDrivingModeActive.value = false
+    drivingModeInitialRound = null
+  },
+})
+
+// Driving mode text tracking
+const drivingModeKnownText = computed(() => {
+  const seg = drivingMode.currentSegment.value
+  if (!seg || !cachedRounds.value) return ''
+  const round = cachedRounds.value[drivingMode.currentRoundIndex.value]
+  const cycle = round?.cycles?.[seg.cycleIndex]
+  return cycle?.known?.text ?? ''
+})
+
+const drivingModeTargetText = computed(() => {
+  const seg = drivingMode.currentSegment.value
+  if (!seg || !cachedRounds.value) return ''
+  const round = cachedRounds.value[drivingMode.currentRoundIndex.value]
+  const cycle = round?.cycles?.[seg.cycleIndex]
+  return cycle?.target?.text ?? ''
+})
+
+const drivingModeShowTarget = computed(() => {
+  return drivingMode.currentSegment.value?.phase === 'voice2'
+})
+
+const drivingModeCycleCount = computed(() => {
+  if (!cachedRounds.value) return 0
+  const round = cachedRounds.value[drivingMode.currentRoundIndex.value]
+  return round?.cycles?.length ?? 0
+})
 
 // Mode explanation popups
 const showTurboPopup = ref(false)
@@ -4458,6 +4520,51 @@ const exitListeningMode = () => {
     emit('listeningModeChanged', false)
   }
   // Stop all audio immediately
+  handlePause()
+}
+
+// ============================================
+// DRIVING MODE
+// ============================================
+
+const handleEnterDrivingMode = async () => {
+  handlePause() // stop SimplePlayer
+  if (isPlayingIntroduction.value) skipIntroduction()
+  if (isPlayingWelcome.value) skipWelcome()
+
+  isDrivingModeActive.value = true
+  drivingModeInitialRound = null
+
+  try {
+    await drivingMode.enter(simplePlayer.roundIndex.value)
+  } catch (err) {
+    console.error('[LearningPlayer] Failed to enter driving mode:', err)
+    isDrivingModeActive.value = false
+  }
+}
+
+const handleExitDrivingMode = () => {
+  const position = drivingMode.exit()
+  isDrivingModeActive.value = false
+  drivingModeInitialRound = null
+
+  if (position && position.roundIndex >= 0) {
+    simplePlayer.jumpToRound(position.roundIndex)
+  }
+  // Don't auto-resume — user taps play when ready
+}
+
+// Exit all overlays — called when navigating away via bottom nav
+const exitAllModes = () => {
+  if (isDrivingModeActive.value) {
+    drivingMode.exit()
+    isDrivingModeActive.value = false
+    drivingModeInitialRound = null
+  }
+  if (showListeningOverlay.value) {
+    showListeningOverlay.value = false
+    emit('listeningModeChanged', false)
+  }
   handlePause()
 }
 
@@ -6073,6 +6180,7 @@ defineExpose({
   handlePause,
   handleResume,
   exitListeningMode,
+  exitAllModes,
 })
 </script>
 
@@ -6462,6 +6570,29 @@ defineExpose({
       />
     </Transition>
 
+    <!-- Driving Mode Overlay -->
+    <Transition name="driving-overlay">
+      <DrivingModeOverlay
+        v-if="isDrivingModeActive"
+        :state="drivingMode.state.value"
+        :current-round-index="drivingMode.currentRoundIndex.value"
+        :total-rounds="cachedRounds?.length ?? 0"
+        :prep-progress="drivingMode.preparationProgress.value"
+        :current-segment="drivingMode.currentSegment.value"
+        :current-known-text="drivingModeKnownText"
+        :current-target-text="drivingModeTargetText"
+        :show-target-text="drivingModeShowTarget"
+        :cycle-count="drivingModeCycleCount"
+        :current-cycle-index="drivingMode.currentSegment.value?.cycleIndex ?? 0"
+        :belt-color="currentBelt.color"
+        :belt-name="currentBelt.name"
+        @exit="handleExitDrivingMode"
+        @toggle-play-pause="drivingMode.togglePlayPause"
+        @skip-next="drivingMode.skipToNextRound"
+        @skip-prev="drivingMode.skipToPreviousRound"
+      />
+    </Transition>
+
     <!-- SPLIT-STAGE LAYOUT: Network Theater (top) + Control Pane (bottom) -->
 
     <!-- NETWORK THEATER - The brain visualization fills this space -->
@@ -6656,17 +6787,20 @@ defineExpose({
 
     <!-- Control Bar - Always visible, 3+3 balanced layout around nav bar play button -->
     <div class="control-bar">
-      <!-- Left side: Listening | Belt Back | Revisit -->
+      <!-- Left side: Driving | Belt Back | Revisit -->
       <div class="control-group control-group--left">
         <button
-          class="mode-btn mode-btn--listening"
-          :class="{ active: showListeningOverlay }"
-          @click="handleListeningMode"
-          title="Listening Mode"
+          class="mode-btn mode-btn--driving"
+          :class="{ active: isDrivingModeActive }"
+          @click="handleEnterDrivingMode"
+          :disabled="isDrivingModeActive"
+          title="Driving Mode"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
-            <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0ZM15 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z"/>
+            <path d="M5 17H3v-6l2-5h10l4 5h2v6h-2"/>
+            <path d="M5 11h14"/>
+            <path d="M9 17h6"/>
           </svg>
         </button>
 
@@ -6674,7 +6808,7 @@ defineExpose({
           class="belt-nav-btn belt-nav-btn--back"
           :class="{ 'is-skipping': isSkippingBelt }"
           @click="handleGoBackBelt"
-          :disabled="!previousBelt && currentBelt.seedsRequired === completedRounds"
+          :disabled="isDrivingModeActive || (!previousBelt && currentBelt.seedsRequired === completedRounds)"
           :title="`Back to ${backTargetBelt.name} belt`"
           :style="{ '--back-belt-color': backTargetBelt.color }"
         >
@@ -6684,7 +6818,7 @@ defineExpose({
           </svg>
         </button>
 
-        <button class="transport-btn" @click="handleRevisit" title="Revisit">
+        <button class="transport-btn" @click="handleRevisit" :disabled="isDrivingModeActive" title="Revisit">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="15 18 9 12 15 6"/>
           </svg>
@@ -6693,7 +6827,7 @@ defineExpose({
 
       <!-- Right side: Skip | Belt Forward | Turbo -->
       <div class="control-group control-group--right">
-        <button class="transport-btn" @click="handleSkip" title="Skip">
+        <button class="transport-btn" @click="handleSkip" :disabled="isDrivingModeActive" title="Skip">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="9 18 15 12 9 6"/>
           </svg>
@@ -6703,7 +6837,7 @@ defineExpose({
           class="belt-nav-btn belt-nav-btn--forward"
           :class="{ 'is-skipping': isSkippingBelt }"
           @click="handleSkipToNextBelt"
-          :disabled="!nextBelt"
+          :disabled="isDrivingModeActive || !nextBelt"
           :title="nextBelt ? `Skip to ${nextBelt.name} belt` : 'Black belt achieved!'"
           :style="nextBelt ? { '--next-belt-color': nextBelt.color, '--next-belt-glow': nextBelt.glow } : {}"
         >
@@ -6717,6 +6851,7 @@ defineExpose({
           class="mode-btn mode-btn--turbo"
           :class="{ active: turboActive }"
           @click="handleTurboClick"
+          :disabled="isDrivingModeActive"
           title="Turbo Boost"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -10102,6 +10237,27 @@ defineExpose({
   background: var(--gold-glow, rgba(212, 168, 83, 0.15));
   border-color: var(--gold, #d4a853);
   color: var(--gold, #d4a853);
+}
+
+/* Driving overlay transition */
+.driving-overlay-enter-active {
+  transition: opacity 0.3s ease;
+}
+
+.driving-overlay-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.driving-overlay-enter-from,
+.driving-overlay-leave-to {
+  opacity: 0;
+}
+
+/* Driving mode button active state */
+.mode-btn--driving.active {
+  background: rgba(96, 165, 250, 0.15);
+  border-color: #60a5fa;
+  color: #60a5fa;
 }
 </style>
 
