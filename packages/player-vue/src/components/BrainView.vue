@@ -61,7 +61,6 @@ class TargetAudioController {
   async play(url: string, speed: number = 1): Promise<void> {
     if (!this.audio) {
       this.audio = new Audio()
-      this.audio.crossOrigin = 'anonymous'
     }
 
     // Try to unlock if not already (may fail if not user gesture)
@@ -73,21 +72,54 @@ class TargetAudioController {
     this.audio.load()
 
     return new Promise((resolve, reject) => {
-      const onEnded = () => {
+      let settled = false
+      let safetyTimer: ReturnType<typeof setTimeout> | null = null
+      let stallCheck: ReturnType<typeof setInterval> | null = null
+
+      const cleanup = () => {
+        if (safetyTimer) { clearTimeout(safetyTimer); safetyTimer = null }
+        if (stallCheck) { clearInterval(stallCheck); stallCheck = null }
         this.audio?.removeEventListener('ended', onEnded)
         this.audio?.removeEventListener('error', onError)
+      }
+
+      const onEnded = () => {
+        if (settled) return
+        settled = true
+        cleanup()
         resolve()
       }
 
       const onError = (e: Event) => {
-        this.audio?.removeEventListener('ended', onEnded)
-        this.audio?.removeEventListener('error', onError)
+        if (settled) return
+        settled = true
+        cleanup()
         console.error('[TargetAudioController] Playback error:', e)
         reject(e)
       }
 
       this.audio!.addEventListener('ended', onEnded)
       this.audio!.addEventListener('error', onError)
+
+      // Stall detection: resolve if currentTime stops advancing for 3s
+      let lastTime = -1
+      stallCheck = setInterval(() => {
+        if (settled) { cleanup(); return }
+        const ct = this.audio?.currentTime || 0
+        if (ct > 0 && ct === lastTime && !this.audio?.paused) {
+          console.warn('[TargetAudioController] Audio stalled, skipping')
+          onEnded()
+        }
+        lastTime = ct
+      }, 1500)
+
+      // Safety timeout: no clip should take more than 15s
+      safetyTimer = setTimeout(() => {
+        if (!settled) {
+          console.warn('[TargetAudioController] Safety timeout, skipping')
+          onEnded()
+        }
+      }, 15000)
 
       this.audio!.playbackRate = speed
       this.audio!.play().catch((err) => {

@@ -34,20 +34,53 @@ class ListeningAudioController {
     this.audio.load()
 
     return new Promise((resolve, reject) => {
-      const onEnded = () => {
+      let settled = false
+      let safetyTimer = null
+      let stallCheck = null
+
+      const cleanup = () => {
+        if (safetyTimer) { clearTimeout(safetyTimer); safetyTimer = null }
+        if (stallCheck) { clearInterval(stallCheck); stallCheck = null }
         this.audio.removeEventListener('ended', onEnded)
         this.audio.removeEventListener('error', onError)
+      }
+
+      const onEnded = () => {
+        if (settled) return
+        settled = true
+        cleanup()
         resolve()
       }
 
       const onError = (e) => {
-        this.audio.removeEventListener('ended', onEnded)
-        this.audio.removeEventListener('error', onError)
+        if (settled) return
+        settled = true
+        cleanup()
         reject(e)
       }
 
       this.audio.addEventListener('ended', onEnded)
       this.audio.addEventListener('error', onError)
+
+      // Stall detection: resolve if currentTime stops advancing for 3s
+      let lastTime = -1
+      stallCheck = setInterval(() => {
+        if (settled) { cleanup(); return }
+        const ct = this.audio?.currentTime || 0
+        if (ct > 0 && ct === lastTime && !this.audio?.paused) {
+          console.warn('[ListeningAudio] Audio stalled, skipping')
+          onEnded()
+        }
+        lastTime = ct
+      }, 1500)
+
+      // Safety timeout: no clip should take more than 15s
+      safetyTimer = setTimeout(() => {
+        if (!settled) {
+          console.warn('[ListeningAudio] Safety timeout, skipping')
+          onEnded()
+        }
+      }, 15000)
 
       // Set playbackRate right before play() - some browsers reset it after load()
       this.audio.playbackRate = this.playbackRate
