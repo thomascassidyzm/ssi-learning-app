@@ -225,7 +225,7 @@ const loadPhrases = async (offset = 0) => {
     // Fetch batch of phrases
     const { data, error: fetchError } = await supabase.value
       .from('course_practice_phrases')
-      .select('seed_number, lego_index, lego_id, known_text, target_text, position')
+      .select('seed_number, lego_index, known_text, target_text, position, target1_audio_id, target2_audio_id')
       .eq('course_code', courseCode.value)
       .in('phrase_role', ['use', 'eternal_eligible'])
       .order('seed_number', { ascending: true })

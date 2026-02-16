@@ -181,12 +181,11 @@ const loadPhrases = async (offset = 0) => {
       isLoadingMore.value = true
     }
 
-    // Query from practice_cycles view which has audio UUIDs
-    // Use phrase_role = 'use' for USE phrases (consolidation/eternal)
-    // Filter by highestSeed when progress tracking is active
+    // Query course_practice_phrases directly — audio IDs are on the table,
+    // no need for the practice_cycles view (which JOINs course_audio and can multiply rows)
     if (offset === 0) {
       let countQuery = supabase.value
-        .from('practice_cycles')
+        .from('course_practice_phrases')
         .select('*', { count: 'exact', head: true })
         .eq('course_code', props.courseCode)
         .in('phrase_role', ['use', 'eternal_eligible'])
@@ -205,8 +204,8 @@ const loadPhrases = async (offset = 0) => {
     }
 
     let dataQuery = supabase.value
-      .from('practice_cycles')
-      .select('seed_number, lego_index, lego_id, known_text, target_text, position, target1_audio_uuid, target2_audio_uuid')
+      .from('course_practice_phrases')
+      .select('seed_number, lego_index, known_text, target_text, position, target1_audio_id, target2_audio_id')
       .eq('course_code', props.courseCode)
       .in('phrase_role', ['use', 'eternal_eligible'])
 
@@ -225,26 +224,17 @@ const loadPhrases = async (offset = 0) => {
     if (data && data.length > 0) {
       console.log('[ListeningOverlay] Loaded', data.length, 'phrases, first:', data[0])
 
-      // Use lego_id from view, include audio UUIDs
-      // Deduplicate: the practice_cycles view JOINs to course_audio and can
-      // produce multiple rows per phrase if there are multiple audio matches
-      const seen = new Set(allPhrases.value.map(p => p.targetText))
-      const newPhrases = []
-      for (const p of data) {
-        if (seen.has(p.target_text)) continue
-        seen.add(p.target_text)
-        newPhrases.push({
-          id: `${p.seed_number}-${p.lego_index}-${p.position || 0}`,
-          seedNumber: p.seed_number,
-          legoIndex: p.lego_index,
-          legoId: p.lego_id || `S${String(p.seed_number).padStart(4, '0')}L${String(p.lego_index).padStart(2, '0')}`,
-          knownText: p.known_text,
-          targetText: p.target_text,
-          position: p.position,
-          target1AudioId: p.target1_audio_uuid,
-          target2AudioId: p.target2_audio_uuid
-        })
-      }
+      const newPhrases = data.map((p, i) => ({
+        id: `${p.seed_number}-${p.lego_index}-${p.position || i}`,
+        seedNumber: p.seed_number,
+        legoIndex: p.lego_index,
+        legoId: `S${String(p.seed_number).padStart(4, '0')}L${String(p.lego_index).padStart(2, '0')}`,
+        knownText: p.known_text,
+        targetText: p.target_text,
+        position: p.position,
+        target1AudioId: p.target1_audio_id,
+        target2AudioId: p.target2_audio_id
+      }))
 
       if (offset === 0) {
         allPhrases.value = newPhrases
