@@ -4529,6 +4529,10 @@ const exitListeningMode = () => {
 
 // Mode picker popover
 const showModePicker = ref(false)
+const showListeningExplainer = ref(false)
+const showDrivingExplainer = ref(false)
+const listeningExplainerShownThisSession = ref(false)
+const drivingExplainerShownThisSession = ref(false)
 
 const handleModeButtonClick = () => {
   if (isDrivingModeActive.value) {
@@ -4544,12 +4548,42 @@ const handleModeButtonClick = () => {
 
 const handlePickListening = () => {
   showModePicker.value = false
+  if (listeningExplainerShownThisSession.value) {
+    handleListeningMode()
+  } else {
+    showListeningExplainer.value = true
+  }
+}
+
+const confirmListeningMode = () => {
+  showListeningExplainer.value = false
+  listeningExplainerShownThisSession.value = true
   handleListeningMode()
+}
+
+const cancelListeningExplainer = () => {
+  showListeningExplainer.value = false
+  listeningExplainerShownThisSession.value = true
 }
 
 const handlePickDriving = () => {
   showModePicker.value = false
+  if (drivingExplainerShownThisSession.value) {
+    handleEnterDrivingMode()
+  } else {
+    showDrivingExplainer.value = true
+  }
+}
+
+const confirmDrivingMode = () => {
+  showDrivingExplainer.value = false
+  drivingExplainerShownThisSession.value = true
   handleEnterDrivingMode()
+}
+
+const cancelDrivingExplainer = () => {
+  showDrivingExplainer.value = false
+  drivingExplainerShownThisSession.value = true
 }
 
 const handleEnterDrivingMode = async () => {
@@ -6604,6 +6638,57 @@ defineExpose({
             </svg>
             <span>Driving</span>
           </button>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Listening Mode Explanation Popup -->
+    <Transition name="fade">
+      <div v-if="showListeningExplainer" class="mode-popup-overlay" @click.self="cancelListeningExplainer">
+        <div class="mode-popup">
+          <div class="mode-popup-icon mode-popup-icon--listening">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+              <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+            </svg>
+          </div>
+          <h3 class="mode-popup-title">Listening Mode</h3>
+          <p class="mode-popup-desc">
+            Just listen and absorb — no need to speak.
+            Perfect for when you're in public or just want to take it easy.
+            This will take a few moments to prepare.
+          </p>
+          <p class="mode-popup-hint">Tap the mode button again to exit.</p>
+          <div class="mode-popup-actions">
+            <button class="mode-popup-btn mode-popup-btn--cancel" @click="cancelListeningExplainer">Cancel</button>
+            <button class="mode-popup-btn mode-popup-btn--confirm" @click="confirmListeningMode">Start Listening</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Driving Mode Explanation Popup -->
+    <Transition name="fade">
+      <div v-if="showDrivingExplainer" class="mode-popup-overlay" @click.self="cancelDrivingExplainer">
+        <div class="mode-popup">
+          <div class="mode-popup-icon mode-popup-icon--driving">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0ZM15 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z"/>
+              <path d="M5 17H3v-6l2-5h10l4 5h2v6h-2"/>
+              <path d="M5 11h14"/>
+              <path d="M9 17h6"/>
+            </svg>
+          </div>
+          <h3 class="mode-popup-title">Driving Mode</h3>
+          <p class="mode-popup-desc">
+            Audio plays continuously — switch to Maps and learn while you drive.
+            This will take a minute or two to prepare the audio.
+          </p>
+          <p class="mode-popup-hint">Use the X button or lock screen controls to exit.</p>
+          <div class="mode-popup-actions">
+            <button class="mode-popup-btn mode-popup-btn--cancel" @click="cancelDrivingExplainer">Cancel</button>
+            <button class="mode-popup-btn mode-popup-btn--confirm" @click="confirmDrivingMode">Start Driving</button>
+          </div>
         </div>
       </div>
     </Transition>
@@ -9689,6 +9774,18 @@ defineExpose({
 .mode-popup-icon--listening {
   background: rgba(96, 165, 250, 0.15);
   color: #60a5fa;
+}
+
+.mode-popup-icon--driving {
+  background: rgba(96, 165, 250, 0.15);
+  color: #60a5fa;
+}
+
+.mode-popup-hint {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  margin: -0.5rem 0 1.25rem;
+  font-style: italic;
 }
 
 .mode-popup-title {
