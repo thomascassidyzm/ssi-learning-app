@@ -501,7 +501,7 @@ onUnmounted(() => {
 }
 
 .title {
-  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-family: var(--font-body);
   font-size: 1.125rem;
   font-weight: 600;
   color: var(--text-primary);

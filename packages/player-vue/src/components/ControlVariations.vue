@@ -363,7 +363,7 @@ const toggleListening = () => listeningMode.value = !listeningMode.value
   font-family: 'Noto Sans JP', sans-serif;
   font-size: 0.75rem;
   font-weight: 700;
-  color: #c23a3a;
+  color: var(--ssi-red);
   letter-spacing: 0.1em;
   margin-bottom: 0.5rem;
 }
@@ -435,8 +435,8 @@ const toggleListening = () => listeningMode.value = !listeningMode.value
 
 .zen-secondary.active {
   background: rgba(212, 168, 83, 0.2);
-  border-color: #d4a853;
-  color: #d4a853;
+  border-color: var(--ssi-gold);
+  color: var(--ssi-gold);
 }
 
 .zen-secondary svg {
@@ -468,7 +468,7 @@ const toggleListening = () => listeningMode.value = !listeningMode.value
 }
 
 .zen-progress {
-  stroke: #c23a3a;
+  stroke: var(--ssi-red);
   stroke-linecap: round;
 }
 
@@ -492,7 +492,7 @@ const toggleListening = () => listeningMode.value = !listeningMode.value
 }
 
 .zen-ring.playing .zen-icon {
-  color: #c23a3a;
+  color: var(--ssi-red);
 }
 
 /* ============ VARIATION 2: Dock Bar ============ */
@@ -540,7 +540,7 @@ const toggleListening = () => listeningMode.value = !listeningMode.value
 }
 
 .dock-item--primary {
-  background: #c23a3a;
+  background: var(--ssi-red);
   color: white;
   border-radius: 14px;
 }
@@ -559,7 +559,7 @@ const toggleListening = () => listeningMode.value = !listeningMode.value
 .dock-item--turbo:hover,
 .dock-item--turbo.active {
   background: rgba(212, 168, 83, 0.2);
-  color: #d4a853;
+  color: var(--ssi-gold);
 }
 
 .dock-item--listening:hover,
@@ -614,7 +614,7 @@ const toggleListening = () => listeningMode.value = !listeningMode.value
 .split-btn--main {
   width: 56px;
   height: 56px;
-  background: #c23a3a;
+  background: var(--ssi-red);
   color: white;
   border-radius: 14px;
 }
@@ -660,8 +660,8 @@ const toggleListening = () => listeningMode.value = !listeningMode.value
 
 .mode-toggle.active {
   background: rgba(212, 168, 83, 0.15);
-  border-color: #d4a853;
-  color: #d4a853;
+  border-color: var(--ssi-gold);
+  color: var(--ssi-gold);
 }
 
 /* ============ VARIATION 4: Pill Segments ============ */
@@ -697,8 +697,8 @@ const toggleListening = () => listeningMode.value = !listeningMode.value
 
 .pill-mode.active {
   background: rgba(212, 168, 83, 0.2);
-  border-color: #d4a853;
-  color: #d4a853;
+  border-color: var(--ssi-gold);
+  color: var(--ssi-gold);
 }
 
 .pill-mode--listen.active {
@@ -743,7 +743,7 @@ const toggleListening = () => listeningMode.value = !listeningMode.value
 .pill-btn--center {
   width: 52px;
   height: 52px;
-  background: #c23a3a;
+  background: var(--ssi-red);
   color: white;
   margin: 0 4px;
   border-radius: 14px;
@@ -803,7 +803,7 @@ const toggleListening = () => listeningMode.value = !listeningMode.value
 .card-btn--main {
   width: 60px;
   height: 60px;
-  background: linear-gradient(135deg, #c23a3a, #9a2e2e);
+  background: linear-gradient(135deg, var(--ssi-red), var(--ssi-red-dark));
   color: white;
   border-radius: 16px;
   box-shadow: 0 4px 20px rgba(194, 58, 58, 0.35);
@@ -850,8 +850,8 @@ const toggleListening = () => listeningMode.value = !listeningMode.value
 
 .mode-card.active {
   background: rgba(212, 168, 83, 0.15);
-  border-color: #d4a853;
-  color: #d4a853;
+  border-color: var(--ssi-gold);
+  color: var(--ssi-gold);
 }
 
 .mode-card--listen.active {
@@ -894,7 +894,7 @@ const toggleListening = () => listeningMode.value = !listeningMode.value
   left: 0;
   right: 0;
   height: 2px;
-  background: #c23a3a;
+  background: var(--ssi-red);
   transform: scaleX(0);
   transition: transform 0.2s ease;
 }
@@ -910,11 +910,11 @@ const toggleListening = () => listeningMode.value = !listeningMode.value
 .text-btn--main {
   font-size: 1.5rem;
   font-weight: 700;
-  color: #c23a3a;
+  color: var(--ssi-red);
 }
 
 .text-btn--main:hover {
-  color: #e54545;
+  color: var(--ssi-red-light);
 }
 
 .text-sep {
@@ -952,6 +952,6 @@ const toggleListening = () => listeningMode.value = !listeningMode.value
 }
 
 .text-mode.active {
-  color: #d4a853;
+  color: var(--ssi-gold);
 }
 </style>

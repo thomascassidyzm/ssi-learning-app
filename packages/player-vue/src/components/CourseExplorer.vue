@@ -1261,7 +1261,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   background: var(--bg-primary);
-  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-family: var(--font-body);
   position: relative;
 }
 

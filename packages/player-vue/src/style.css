@@ -1,81 +1,14 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=JetBrains+Mono:wght@300;400;500;600&family=Noto+Sans+JP:wght@300;400;500;700;900&family=Noto+Serif+SC:wght@600&family=Noto+Serif:wght@500&family=Source+Sans+3:wght@300;400;600;700&display=swap');
+/**
+ * SSi Learning App — Base Styles
+ *
+ * Font imports and CSS reset only.
+ * All design tokens live in styles/design-tokens.css.
+ */
 
-:root {
-  /* SSi Brand Colors - Matching SSi Schools */
-  --ssi-red: #c23a3a;
-  --ssi-red-dark: #9a2e2e;
-  --ssi-red-light: #e54545;
-  --ssi-red-soft: rgba(194, 58, 58, 0.15);
-  --ssi-gold: #d4a853;
-  --ssi-gold-dark: #b8923d;
+/* Font imports — DM Sans (body), Noto Sans JP (display/CJK), JetBrains Mono (code) */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&family=Noto+Sans+JP:wght@300;400;500;700;900&family=Space+Mono:wght@400;700&display=swap');
 
-  /* Status Colors */
-  --success: #4ade80;
-  --warning: #fbbf24;
-  --error: #ef4444;
-
-  /* Typography */
-  --font-display: 'Noto Sans JP', sans-serif;
-  --font-body: 'Source Sans 3', sans-serif;
-
-  /* Timing */
-  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-/* Dark Theme (default) - Matching SSi Schools */
-:root, [data-theme="dark"] {
-  --bg-primary: #121212;
-  --bg-secondary: #1a1a1a;
-  --bg-card: #242424;
-  --bg-card-hover: #2d2d2d;
-  --bg-elevated: #333333;
-  --text-primary: #ffffff;
-  --text-secondary: #b0b0b0;
-  --text-muted: #707070;
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-medium: rgba(255, 255, 255, 0.15);
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 0 30px rgba(194, 58, 58, 0.3);
-}
-
-/* Light Theme - Warm, creamy surfaces inspired by SSi brand */
-[data-theme="light"] {
-  /* Background hierarchy - warm cream tones */
-  --bg-primary: #f8f5f0;
-  --bg-secondary: #fffcf7;
-  --bg-card: #fffdf9;
-  --bg-card-hover: #fff8f0;
-  --bg-elevated: #f3efe8;
-  --bg-input: #fffdf9;
-
-  /* Text hierarchy - warm dark text for contrast */
-  --text-primary: #2d2926;
-  --text-secondary: #5c5550;
-  --text-muted: #8a837a;
-  --text-inverse: #fffcf7;
-
-  /* Borders - warm tinted */
-  --border-subtle: rgba(139, 109, 76, 0.1);
-  --border-medium: rgba(139, 109, 76, 0.18);
-  --border-strong: rgba(139, 109, 76, 0.28);
-  --border-focus: var(--ssi-red);
-
-  /* Shadows - warm tinted */
-  --shadow-sm: 0 2px 8px rgba(139, 109, 76, 0.1);
-  --shadow-md: 0 4px 20px rgba(139, 109, 76, 0.14);
-  --shadow-lg: 0 8px 40px rgba(139, 109, 76, 0.18);
-  --shadow-xl: 0 12px 60px rgba(139, 109, 76, 0.22);
-  --shadow-glow: 0 0 30px rgba(194, 58, 58, 0.2);
-
-  /* Special surfaces */
-  --nav-bg: rgba(255, 252, 247, 0.95);
-  --nav-bg-blur: rgba(255, 252, 247, 0.85);
-  --modal-backdrop: rgba(45, 41, 38, 0.5);
-}
-
+/* CSS Reset */
 * {
   margin: 0;
   padding: 0;
@@ -93,4 +26,27 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.4s ease, color 0.4s ease;
+  overscroll-behavior: none;
+}
+
+/* PWA standalone mode */
+@media (display-mode: standalone) {
+  body {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .text-zone, .known-text, .target-text {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}
+
+button {
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  scroll-behavior: smooth;
 }

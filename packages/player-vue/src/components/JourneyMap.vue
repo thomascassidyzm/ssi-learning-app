@@ -715,7 +715,7 @@ watch(() => props.completedRounds, () => {
   background: var(--bg-primary);
   display: flex;
   flex-direction: column;
-  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-family: var(--font-body);
   overflow: hidden;
   user-select: none;
 }

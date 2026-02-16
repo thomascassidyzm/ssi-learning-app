@@ -882,7 +882,7 @@ const confirmReset = async () => {
   display: flex;
   flex-direction: column;
   background: var(--bg-primary);
-  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-family: var(--font-body);
   position: relative;
   padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
 }
@@ -1083,7 +1083,7 @@ const confirmReset = async () => {
 }
 
 .brand {
-  font-family: 'DM Sans', sans-serif;
+  font-family: var(--font-body);
   font-weight: 700;
   font-size: 1rem;
   letter-spacing: -0.02em;

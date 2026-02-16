@@ -408,7 +408,7 @@ function getUserId() {
 
 .submit-btn {
   padding: 8px 20px;
-  background: linear-gradient(135deg, #c23a3a, #a32e2e);
+  background: linear-gradient(135deg, var(--ssi-red), var(--ssi-red-dark));
   border: none;
   border-radius: 8px;
   color: #fff;

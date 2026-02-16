@@ -178,7 +178,7 @@ const handlePersona = (persona: typeof PERSONAS[0]) => {
   gap: 6px;
   padding: 10px 14px;
   background: linear-gradient(135deg, #1a1a2e, #16213e);
-  border: 2px solid #c23a3a;
+  border: 2px solid var(--ssi-red);
   border-radius: 8px;
   color: #fff;
   font-size: 12px;
@@ -231,7 +231,7 @@ const handlePersona = (persona: typeof PERSONAS[0]) => {
   font-size: 10px;
   padding: 4px 8px;
   background: rgba(194, 58, 58, 0.2);
-  color: #c23a3a;
+  color: var(--ssi-red);
   border-radius: 4px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -249,7 +249,7 @@ const handlePersona = (persona: typeof PERSONAS[0]) => {
 .user-avatar {
   width: 40px;
   height: 40px;
-  background: linear-gradient(135deg, #c23a3a, #d4a853);
+  background: linear-gradient(135deg, var(--ssi-red), #d4a853);
   border-radius: 8px;
   display: flex;
   align-items: center;
@@ -310,7 +310,7 @@ const handlePersona = (persona: typeof PERSONAS[0]) => {
 
 .role-icon { font-size: 18px; }
 .role-label { flex: 1; }
-.check-icon { color: #c23a3a; font-weight: bold; }
+.check-icon { color: var(--ssi-red); font-weight: bold; }
 
 /* Tiers */
 .tier-options { display: flex; gap: 6px; }
@@ -331,7 +331,7 @@ const handlePersona = (persona: typeof PERSONAS[0]) => {
 }
 
 .tier-option:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
-.tier-option.active { background: rgba(194, 58, 58, 0.2); border-color: #c23a3a; color: #fff; }
+.tier-option.active { background: rgba(194, 58, 58, 0.2); border-color: var(--ssi-red); color: #fff; }
 
 /* Seed Jump */
 .seed-jump { display: flex; align-items: center; gap: 8px; }
@@ -348,7 +348,7 @@ const handlePersona = (persona: typeof PERSONAS[0]) => {
   outline: none;
 }
 
-.seed-input:focus { border-color: #c23a3a; }
+.seed-input:focus { border-color: var(--ssi-red); }
 .seed-input::placeholder { color: #555; }
 
 /* Hide number input spinners */
@@ -367,7 +367,7 @@ const handlePersona = (persona: typeof PERSONAS[0]) => {
 
 .jump-btn {
   padding: 8px 14px;
-  background: #c23a3a;
+  background: var(--ssi-red);
   border: none;
   border-radius: 6px;
   color: #fff;

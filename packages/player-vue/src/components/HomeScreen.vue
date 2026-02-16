@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import CourseSelector from './CourseSelector.vue'
 import { BELTS } from '@/composables/useBeltProgress'
 
@@ -50,6 +51,13 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['startLearning', 'viewJourney', 'selectCourse', 'viewBrainMap'])
+
+const router = useRouter()
+
+// Schools access — god mode for now, later checks user_tags for teacher/admin role
+const hasSchoolsAccess = computed(() => {
+  try { return !!localStorage.getItem('ssi-dev-role') } catch { return false }
+})
 
 // Course selector state
 const showCourseSelector = ref(false)
@@ -362,6 +370,26 @@ const brainPath = computed(() => {
 
       </section>
 
+      <!-- Schools Dashboard Link (for teachers/admins) -->
+      <section v-if="hasSchoolsAccess" class="schools-section">
+        <button class="browse-btn" @click="router.push('/schools')">
+          <div class="schools-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M2 10l10-7 10 7"/>
+              <path d="M4 10v10a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V10"/>
+              <path d="M10 21V14h4v7"/>
+            </svg>
+          </div>
+          <div class="browse-content">
+            <span class="browse-title">My School</span>
+            <span class="browse-subtitle">Classes, students and progress</span>
+          </div>
+          <svg class="browse-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 18l6-6-6-6"/>
+          </svg>
+        </button>
+      </section>
+
     </main>
 
     <!-- Bottom Safe Area -->
@@ -387,7 +415,7 @@ const brainPath = computed(() => {
   display: flex;
   flex-direction: column;
   background: var(--bg-primary);
-  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-family: var(--font-body);
   position: relative;
   overflow-x: hidden;
   padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
@@ -442,7 +470,7 @@ const brainPath = computed(() => {
 }
 
 .brand {
-  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-family: var(--font-body);
   font-weight: 700;
   font-size: 1.0625rem;
   letter-spacing: -0.02em;
@@ -580,7 +608,7 @@ const brainPath = computed(() => {
   padding: 0.2rem 0.5rem;
   background: linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%);
   border-radius: 4px;
-  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-family: var(--font-body);
   font-size: 0.625rem;
   font-weight: 700;
   color: var(--text-inverse);
@@ -654,7 +682,7 @@ const brainPath = computed(() => {
   gap: 0.5rem;
   padding: 0.75rem 1.25rem;
   border-radius: 12px;
-  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-family: var(--font-body);
   font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
@@ -847,6 +875,28 @@ const brainPath = computed(() => {
   height: 20px;
   color: var(--text-muted);
   flex-shrink: 0;
+}
+
+/* Schools Section */
+.schools-section {
+  margin-bottom: 1.5rem;
+}
+
+.schools-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: rgba(139, 92, 246, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.schools-icon svg {
+  width: 22px;
+  height: 22px;
+  color: #a78bfa;
 }
 
 /* Safe Area */

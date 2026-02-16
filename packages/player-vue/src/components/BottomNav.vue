@@ -138,20 +138,6 @@ const handleAccountTap = () => {
   }
 }
 
-// God mode active = show Schools link
-const isGodMode = computed(() => {
-  try { return !!localStorage.getItem('ssi-dev-role') } catch { return false }
-})
-
-// Navigate to schools dashboard (cross-boundary via router)
-const handleSchoolsTap = () => {
-  tappedItem.value = 'schools'
-  setTimeout(() => { tappedItem.value = null }, 150)
-  if (navigator.vibrate) navigator.vibrate(10)
-  if (props.isListeningMode) emit('exitListeningMode')
-  router.push('/schools')
-}
-
 // Hide nav when learning
 const isVisible = computed(() => !props.isLearning)
 </script>
@@ -231,22 +217,6 @@ const isVisible = computed(() => !props.isLearning)
 
         <!-- Right nav items -->
         <div class="nav-group nav-group--right">
-          <!-- Schools link (god mode only) -->
-          <button
-            v-if="isGodMode"
-            class="nav-item"
-            :class="{ tapped: tappedItem === 'schools' }"
-            @click="handleSchoolsTap"
-          >
-            <div class="nav-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-                <path d="M9 22V12h6v10"/>
-              </svg>
-            </div>
-            <span class="nav-label">Schools</span>
-          </button>
-
           <!-- Account button (dynamic based on auth state) -->
           <button
             class="nav-item"
@@ -448,7 +418,7 @@ const isVisible = computed(() => !props.isLearning)
 }
 
 .nav-label {
-  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-family: var(--font-body);
   font-size: 10px;
   font-weight: 500;
   color: var(--text-muted);
@@ -459,7 +429,7 @@ const isVisible = computed(() => !props.isLearning)
 
 /* Active state - uses belt color when available, falls back to brand red */
 .nav-item.active .nav-icon {
-  color: var(--belt-color, #c23a3a);
+  color: var(--belt-color, var(--ssi-red));
   transform: translateY(-1px) scale(1.05);
 }
 
@@ -474,7 +444,7 @@ const isVisible = computed(() => !props.isLearning)
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: var(--belt-color, #c23a3a);
+  background: var(--belt-color, var(--ssi-red));
   opacity: 0;
   transform: scale(0) translateY(4px);
   transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -604,7 +574,7 @@ const isVisible = computed(() => !props.isLearning)
 }
 
 .play-label {
-  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-family: var(--font-body);
   font-size: 10px;
   font-weight: 600;
   color: var(--text-secondary);
@@ -793,14 +763,14 @@ const isVisible = computed(() => !props.isLearning)
 }
 
 :root[data-theme="mist"] .nav-icon {
-  color: #998f82;
+  color: var(--text-muted);
 }
 
 :root[data-theme="mist"] .nav-label {
-  color: #998f82;
+  color: var(--text-muted);
 }
 
 :root[data-theme="mist"] .nav-item.active .nav-label {
-  color: #2c2520;
+  color: var(--text-primary);
 }
 </style>

@@ -178,7 +178,7 @@ const getActivityIcon = (type) => {
   display: flex;
   flex-direction: column;
   background: var(--bg-primary);
-  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-family: var(--font-body);
   position: relative;
   padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
 }

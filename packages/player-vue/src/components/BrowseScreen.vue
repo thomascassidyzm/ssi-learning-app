@@ -319,7 +319,7 @@ onMounted(() => {
   min-height: 100dvh;
   background: var(--bg-primary);
   color: var(--text-primary);
-  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-family: var(--font-body);
   overflow-y: auto;
   padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
 }

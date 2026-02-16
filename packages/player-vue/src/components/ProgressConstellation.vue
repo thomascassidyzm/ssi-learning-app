@@ -648,7 +648,7 @@ function getEdgeOpacity(edge: { from: string; to: string }): number {
 }
 
 .node-label {
-  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-family: var(--font-body);
   font-size: 11px;
   font-weight: 500;
   pointer-events: none;

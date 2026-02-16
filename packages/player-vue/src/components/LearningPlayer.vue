@@ -7108,10 +7108,10 @@ defineExpose({
   --target-text-size: 1.75rem;   /* Larger for phone visibility */
 
   /* ============ THEME COLORS ============ */
-  --accent: #c23a3a;
+  --accent: var(--ssi-red);
   --accent-soft: rgba(194, 58, 58, 0.15);
   --accent-glow: rgba(194, 58, 58, 0.4);
-  --gold: #d4a853;
+  --gold: var(--ssi-gold);
   --gold-soft: rgba(212, 168, 83, 0.15);
   --success: #22c55e;
 
@@ -7122,7 +7122,7 @@ defineExpose({
   min-height: 100vh;
   min-height: 100dvh;
   background: var(--bg-primary);
-  font-family: 'DM Sans', sans-serif;
+  font-family: var(--font-body);
   overflow: hidden;
 }
 
@@ -7379,7 +7379,7 @@ defineExpose({
 
 /* Node labels */
 .brain-network-container :deep(.network-label) {
-  font-family: 'DM Sans', sans-serif;
+  font-family: var(--font-body);
   font-size: 11px;
   fill: rgba(255, 255, 255, 0.8);
   text-anchor: middle;
@@ -7514,7 +7514,7 @@ defineExpose({
 
 /* Brand/logo - centered in stack */
 .brand {
-  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-family: var(--font-body);
   font-weight: 700;
   font-size: 1.5rem; /* Fixed size - don't scale */
   letter-spacing: -0.02em;
@@ -8989,7 +8989,7 @@ defineExpose({
 }
 
 .session-points-value {
-  font-family: 'DM Sans', sans-serif;
+  font-family: var(--font-body);
   font-size: 1.25rem;
   font-weight: 700;
   color: var(--belt-color, var(--gold));
@@ -8997,7 +8997,7 @@ defineExpose({
 }
 
 .session-points-label {
-  font-family: 'DM Sans', sans-serif;
+  font-family: var(--font-body);
   font-size: 0.7rem;
   font-weight: 500;
   color: var(--text-muted);
@@ -9507,7 +9507,7 @@ defineExpose({
 }
 
 .ink-points {
-  font-family: 'DM Sans', sans-serif;
+  font-family: var(--font-body);
   font-size: 0.75rem;
   font-weight: 500;
   color: var(--text-tertiary);

@@ -728,7 +728,7 @@ defineExpose({
   --space-lg: clamp(16px, 3vmin, 32px);
 
   /* Theme colors - belt color is set dynamically via inline style */
-  --accent: #c23a3a;
+  --accent: var(--ssi-red);
   /* --belt-color is set dynamically from beltColor prop */
   --belt-glow: color-mix(in srgb, var(--belt-color) 15%, transparent);
 
@@ -738,7 +738,7 @@ defineExpose({
   display: flex;
   flex-direction: column;
   background: var(--bg-primary);
-  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-family: var(--font-body);
   overflow: hidden;
   /* Bottom padding for nav bar */
   padding-bottom: var(--nav-total);
@@ -860,7 +860,7 @@ defineExpose({
 }
 
 .brand {
-  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-family: var(--font-body);
   font-weight: 700;
   font-size: clamp(1.3125rem, 3vw, 1.6rem);
   letter-spacing: -0.02em;

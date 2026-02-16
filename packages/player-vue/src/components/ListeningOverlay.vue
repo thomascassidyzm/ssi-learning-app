@@ -659,7 +659,7 @@ watch(playbackSpeed, (newSpeed) => {
   flex-direction: column;
   background: rgba(8, 8, 12, 0.97);
   backdrop-filter: blur(20px);
-  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-family: var(--font-body);
   padding: env(safe-area-inset-top, 20px) 0 calc(env(safe-area-inset-bottom, 20px) + 100px) 0;
   cursor: pointer;
 }

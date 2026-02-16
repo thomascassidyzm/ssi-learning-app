@@ -359,7 +359,7 @@ onMounted(() => {
 }
 
 .sheet-title {
-  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-family: var(--font-body);
   font-size: 1.25rem;
   font-weight: 700;
   color: var(--text-primary, #f5f5f5);
@@ -400,7 +400,7 @@ onMounted(() => {
   padding: 3rem 1.5rem;
   gap: 1rem;
   color: var(--text-muted, rgba(255, 255, 255, 0.45));
-  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-family: var(--font-body);
 }
 
 .loading-spinner {
@@ -440,7 +440,7 @@ onMounted(() => {
 }
 
 .section-label {
-  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-family: var(--font-body);
   font-size: 0.6875rem;
   font-weight: 600;
   color: var(--text-muted, rgba(255, 255, 255, 0.45));
@@ -493,7 +493,7 @@ onMounted(() => {
 }
 
 .pill-name {
-  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-family: var(--font-body);
   font-size: 0.875rem;
   font-weight: 500;
   color: var(--text-secondary, rgba(255, 255, 255, 0.7));
@@ -573,7 +573,7 @@ onMounted(() => {
   padding: 0.125rem 0.375rem;
   background: linear-gradient(135deg, #ff9500 0%, #ffb340 100%);
   border-radius: 4px;
-  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-family: var(--font-body);
   font-size: 0.5625rem;
   font-weight: 700;
   color: white;
@@ -596,7 +596,7 @@ onMounted(() => {
 }
 
 .target-name {
-  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-family: var(--font-body);
   font-size: 1rem;
   font-weight: 600;
   color: var(--text-primary, #f5f5f5);

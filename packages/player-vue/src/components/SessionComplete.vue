@@ -188,16 +188,13 @@ const handleDismiss = () => {
 
 <style scoped>
 .session-summary {
-  --accent: #c23a3a;
-  --gold: #d4a853;
-
   position: fixed;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--bg-primary);
-  font-family: 'DM Sans', sans-serif;
+  font-family: var(--font-body);
   z-index: 100;
 }
 
@@ -280,7 +277,7 @@ const handleDismiss = () => {
 }
 
 .belt-progress-text--mastery {
-  color: var(--gold);
+  color: var(--ssi-gold);
 }
 
 /* Time Estimate */
@@ -541,7 +538,7 @@ const handleDismiss = () => {
    MISTY DOJO THEME — Session complete overrides
    ═══════════════════════════════════════════════════════════════ */
 :root[data-theme="mist"] .session-summary {
-  background: #f0ebe3;
+  background: var(--bg-primary);
 }
 
 :root[data-theme="mist"] .bg-gradient {
@@ -549,7 +546,7 @@ const handleDismiss = () => {
 }
 
 :root[data-theme="mist"] .belt-name {
-  color: #2c2520;
+  color: var(--text-primary);
 }
 
 :root[data-theme="mist"] .time-to-next {
@@ -558,12 +555,12 @@ const handleDismiss = () => {
 }
 
 :root[data-theme="mist"] .time-estimate-label {
-  color: #5c544a;
+  color: var(--text-secondary);
 }
 
 :root[data-theme="mist"] .journey-dot {
-  background: #e8e2d8;
-  border-color: rgba(100, 80, 55, 0.2);
+  background: var(--bg-elevated);
+  border-color: var(--border-medium);
 }
 
 :root[data-theme="mist"] .journey-dot-inner {
@@ -571,7 +568,7 @@ const handleDismiss = () => {
 }
 
 :root[data-theme="mist"] .quick-stats {
-  color: #998f82;
+  color: var(--text-muted);
 }
 
 :root[data-theme="mist"] .progress-ring-svg {

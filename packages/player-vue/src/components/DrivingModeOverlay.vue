@@ -189,11 +189,11 @@ const phaseLabel = computed(() => {
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: #0a0a0f;
+  background: var(--bg-secondary);
   display: flex;
   flex-direction: column;
-  color: #fff;
-  font-family: 'DM Sans', sans-serif;
+  color: var(--text-primary);
+  font-family: var(--font-body);
   user-select: none;
   -webkit-user-select: none;
 }
@@ -214,17 +214,17 @@ const phaseLabel = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--bg-elevated);
   border: none;
-  border-radius: 12px;
-  color: rgba(255, 255, 255, 0.7);
+  border-radius: var(--radius-lg);
+  color: var(--text-secondary);
   cursor: pointer;
   transition: background 0.2s, color 0.2s;
 }
 
 .driving-exit-btn:active {
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
+  background: var(--border-medium);
+  color: var(--text-primary);
 }
 
 .driving-exit-btn svg {
@@ -234,7 +234,7 @@ const phaseLabel = computed(() => {
 
 .driving-round-counter {
   font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -279,12 +279,12 @@ const phaseLabel = computed(() => {
   justify-content: center;
   font-size: 1rem;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text-secondary);
 }
 
 .driving-prep-label {
   font-size: 1rem;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted);
   margin: 0;
 }
 
@@ -306,14 +306,14 @@ const phaseLabel = computed(() => {
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--text-muted);
   margin: 0;
   min-height: 1.2em;
   transition: color 0.3s;
 }
 
 .driving-phase--pause {
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--text-secondary);
 }
 
 /* ── Text Display ── */
@@ -356,12 +356,12 @@ const phaseLabel = computed(() => {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--border-medium);
   transition: all 0.3s ease;
 }
 
 .driving-dot--completed {
-  background: rgba(255, 255, 255, 0.5);
+  background: var(--text-muted);
 }
 
 .driving-dot--current {
@@ -385,16 +385,16 @@ const phaseLabel = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--bg-elevated);
   border: none;
   border-radius: 50%;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-secondary);
   cursor: pointer;
   transition: background 0.2s, transform 0.1s;
 }
 
 .driving-transport-btn:active {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--border-medium);
   transform: scale(0.95);
 }
 
@@ -406,12 +406,12 @@ const phaseLabel = computed(() => {
 .driving-transport-btn--play {
   width: 72px;
   height: 72px;
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: var(--border-medium);
+  color: var(--text-primary);
 }
 
 .driving-transport-btn--play:active {
-  background: rgba(255, 255, 255, 0.18);
+  background: var(--border-strong);
 }
 
 .driving-transport-btn--play svg {
@@ -438,7 +438,7 @@ const phaseLabel = computed(() => {
 
 .driving-belt-label {
   font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   white-space: nowrap;
@@ -448,9 +448,9 @@ const phaseLabel = computed(() => {
 
 .driving-maps-hint {
   font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--text-muted);
   margin: 0;
-  padding-top: 8px;
+  padding-top: 0.5rem;
 }
 
 /* ── Text Reveal Transition ── */

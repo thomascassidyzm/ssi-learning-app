@@ -2,15 +2,16 @@
 import { computed, watch, onMounted, onUnmounted, ref } from 'vue'
 
 // All belt levels in order
+// Belt colors must match useBeltProgress.ts BELTS array (single source of truth)
 const ALL_BELTS = [
-  { name: 'white', color: '#e5e7eb', seedsRequired: 0, glow: 'rgba(229, 231, 235, 0.3)' },
-  { name: 'yellow', color: '#fbbf24', seedsRequired: 8, glow: 'rgba(251, 191, 36, 0.3)' },
-  { name: 'orange', color: '#f97316', seedsRequired: 20, glow: 'rgba(249, 115, 22, 0.3)' },
-  { name: 'green', color: '#22c55e', seedsRequired: 40, glow: 'rgba(34, 197, 94, 0.3)' },
-  { name: 'blue', color: '#3b82f6', seedsRequired: 80, glow: 'rgba(59, 130, 246, 0.3)' },
-  { name: 'purple', color: '#8b5cf6', seedsRequired: 150, glow: 'rgba(139, 92, 246, 0.3)' },
-  { name: 'brown', color: '#a87848', seedsRequired: 280, glow: 'rgba(168, 120, 72, 0.3)' },
-  { name: 'black', color: '#d4a853', seedsRequired: 400, glow: 'rgba(212, 168, 83, 0.3)' },
+  { name: 'white', color: '#f5f5f5', seedsRequired: 0, glow: 'rgba(245, 245, 245, 0.3)' },
+  { name: 'yellow', color: '#fcd34d', seedsRequired: 8, glow: 'rgba(252, 211, 77, 0.4)' },
+  { name: 'orange', color: '#fb923c', seedsRequired: 20, glow: 'rgba(251, 146, 60, 0.4)' },
+  { name: 'green', color: '#4ade80', seedsRequired: 40, glow: 'rgba(74, 222, 128, 0.4)' },
+  { name: 'blue', color: '#60a5fa', seedsRequired: 80, glow: 'rgba(96, 165, 250, 0.4)' },
+  { name: 'purple', color: '#a78bfa', seedsRequired: 150, glow: 'rgba(167, 139, 250, 0.4)' },
+  { name: 'brown', color: '#a8856c', seedsRequired: 280, glow: 'rgba(168, 133, 108, 0.4)' },
+  { name: 'black', color: '#d4a853', seedsRequired: 400, glow: 'rgba(212, 168, 83, 0.4)' },
 ]
 
 const props = defineProps({
@@ -262,18 +263,14 @@ onUnmounted(() => {
   position: relative;
   width: 100%;
   max-width: 380px;
-  background: var(--bg-elevated, linear-gradient(
-    145deg,
-    rgba(30, 30, 35, 0.95) 0%,
-    rgba(20, 20, 25, 0.98) 100%
-  ));
-  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.1));
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-medium);
   border-radius: 24px;
   overflow: hidden;
   box-shadow:
-    0 0 0 1px var(--border-subtle, rgba(255, 255, 255, 0.05)),
+    0 0 0 1px var(--border-subtle),
     0 25px 80px rgba(0, 0, 0, 0.5),
-    0 0 60px var(--belt-glow, rgba(194, 58, 58, 0.15));
+    0 0 60px var(--belt-glow);
 }
 
 /* Header */
@@ -282,14 +279,14 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .modal-title {
-  font-family: 'DM Sans', sans-serif;
+  font-family: var(--font-body);
   font-size: 1.125rem;
   font-weight: 600;
-  color: var(--text-primary, #ffffff);
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -297,8 +294,8 @@ onUnmounted(() => {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: var(--bg-interactive, rgba(255, 255, 255, 0.05));
-  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.1));
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-medium);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -309,17 +306,17 @@ onUnmounted(() => {
 .modal-close svg {
   width: 18px;
   height: 18px;
-  color: var(--text-muted, #707070);
+  color: var(--text-muted);
   transition: color 0.2s ease;
 }
 
 .modal-close:hover {
-  background: var(--bg-interactive-hover, rgba(255, 255, 255, 0.1));
-  border-color: var(--border-hover, rgba(255, 255, 255, 0.2));
+  background: var(--bg-card-hover);
+  border-color: var(--border-strong);
 }
 
 .modal-close:hover svg {
-  color: var(--text-primary, #ffffff);
+  color: var(--text-primary);
 }
 
 /* Content */
@@ -336,10 +333,10 @@ onUnmounted(() => {
 }
 
 .time-display {
-  font-family: 'DM Sans', monospace;
+  font-family: var(--font-body);
   font-size: 3rem;
   font-weight: 700;
-  color: var(--text-primary, #ffffff);
+  color: var(--text-primary);
   line-height: 1;
   letter-spacing: -0.02em;
   text-shadow: 0 0 30px var(--belt-glow);
@@ -347,7 +344,7 @@ onUnmounted(() => {
 
 .time-label {
   font-size: 0.875rem;
-  color: var(--text-muted, #707070);
+  color: var(--text-muted);
   margin-top: 0.5rem;
 }
 
@@ -374,7 +371,7 @@ onUnmounted(() => {
 .belt-name {
   font-size: 1rem;
   font-weight: 600;
-  color: var(--text-primary, #ffffff);
+  color: var(--text-primary);
 }
 
 .progress-bar-container {
@@ -399,11 +396,11 @@ onUnmounted(() => {
 
 .progress-text {
   font-size: 0.875rem;
-  color: var(--text-secondary, #b0b0b0);
+  color: var(--text-secondary);
 }
 
 .progress-text--complete {
-  color: var(--ssi-gold, #d4a853);
+  color: var(--ssi-gold);
   font-weight: 500;
 }
 
@@ -416,7 +413,7 @@ onUnmounted(() => {
 
 .belt-jump-label {
   font-size: 0.8125rem;
-  color: var(--text-muted, #707070);
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -433,15 +430,15 @@ onUnmounted(() => {
   align-items: center;
   gap: 0.25rem;
   padding: 0.5rem 0.25rem;
-  background: var(--bg-card, rgba(255, 255, 255, 0.04));
-  border: 1px solid var(--border-default, rgba(255, 255, 255, 0.1));
+  background: var(--bg-card);
+  border: 1px solid var(--border-medium);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .belt-chip:hover:not(:disabled) {
-  background: var(--bg-interactive-hover, rgba(255, 255, 255, 0.08));
+  background: var(--bg-card-hover);
   border-color: var(--chip-color);
   box-shadow: 0 0 12px var(--chip-glow);
   transform: translateY(-1px);
@@ -452,7 +449,7 @@ onUnmounted(() => {
 }
 
 .belt-chip--current {
-  background: var(--bg-interactive-hover, rgba(255, 255, 255, 0.08));
+  background: var(--bg-card-hover);
   border-color: var(--chip-color);
   box-shadow: 0 0 8px var(--chip-glow);
 }
@@ -485,13 +482,13 @@ onUnmounted(() => {
 
 .belt-chip-name {
   font-size: 0.6875rem;
-  color: var(--text-secondary, #b0b0b0);
+  color: var(--text-secondary);
   text-transform: capitalize;
   font-weight: 500;
 }
 
 .belt-chip--current .belt-chip-name {
-  color: var(--text-primary, #ffffff);
+  color: var(--text-primary);
 }
 
 /* Lifetime Stats */
@@ -501,11 +498,11 @@ onUnmounted(() => {
   justify-content: center;
   gap: 0.5rem;
   padding: 0.75rem 1rem;
-  background: var(--bg-interactive, rgba(255, 255, 255, 0.05));
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
   border-radius: 12px;
   font-size: 0.9375rem;
-  color: var(--text-secondary, #b0b0b0);
+  color: var(--text-secondary);
 }
 
 .stats-icon {
@@ -529,10 +526,10 @@ onUnmounted(() => {
   background: var(--belt-color);
   border: none;
   border-radius: 12px;
-  font-family: 'DM Sans', sans-serif;
+  font-family: var(--font-body);
   font-size: 1rem;
   font-weight: 600;
-  color: var(--text-on-accent, white);
+  color: white;
   cursor: pointer;
   transition: all 0.2s ease;
   box-shadow: 0 4px 20px var(--belt-glow);
