@@ -226,17 +226,25 @@ const loadPhrases = async (offset = 0) => {
       console.log('[ListeningOverlay] Loaded', data.length, 'phrases, first:', data[0])
 
       // Use lego_id from view, include audio UUIDs
-      const newPhrases = data.map((p, i) => ({
-        id: `${p.seed_number}-${p.lego_index}-${p.position || i}`,
-        seedNumber: p.seed_number,
-        legoIndex: p.lego_index,
-        legoId: p.lego_id || `S${String(p.seed_number).padStart(4, '0')}L${String(p.lego_index).padStart(2, '0')}`,
-        knownText: p.known_text,
-        targetText: p.target_text,
-        position: p.position,
-        target1AudioId: p.target1_audio_uuid,
-        target2AudioId: p.target2_audio_uuid
-      }))
+      // Deduplicate: the practice_cycles view JOINs to course_audio and can
+      // produce multiple rows per phrase if there are multiple audio matches
+      const seen = new Set(allPhrases.value.map(p => p.targetText))
+      const newPhrases = []
+      for (const p of data) {
+        if (seen.has(p.target_text)) continue
+        seen.add(p.target_text)
+        newPhrases.push({
+          id: `${p.seed_number}-${p.lego_index}-${p.position || 0}`,
+          seedNumber: p.seed_number,
+          legoIndex: p.lego_index,
+          legoId: p.lego_id || `S${String(p.seed_number).padStart(4, '0')}L${String(p.lego_index).padStart(2, '0')}`,
+          knownText: p.known_text,
+          targetText: p.target_text,
+          position: p.position,
+          target1AudioId: p.target1_audio_uuid,
+          target2AudioId: p.target2_audio_uuid
+        })
+      }
 
       if (offset === 0) {
         allPhrases.value = newPhrases
