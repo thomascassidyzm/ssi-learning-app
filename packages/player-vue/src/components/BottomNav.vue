@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, inject } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthModal } from '@/composables/useAuthModal'
 
 const props = defineProps({
@@ -24,6 +25,8 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'exitListeningMode'])
+
+const router = useRouter()
 
 // Auth state from injected auth provider
 const auth = inject('auth', null)
@@ -135,6 +138,20 @@ const handleAccountTap = () => {
   }
 }
 
+// God mode active = show Schools link
+const isGodMode = computed(() => {
+  try { return !!localStorage.getItem('ssi-dev-role') } catch { return false }
+})
+
+// Navigate to schools dashboard (cross-boundary via router)
+const handleSchoolsTap = () => {
+  tappedItem.value = 'schools'
+  setTimeout(() => { tappedItem.value = null }, 150)
+  if (navigator.vibrate) navigator.vibrate(10)
+  if (props.isListeningMode) emit('exitListeningMode')
+  router.push('/schools')
+}
+
 // Hide nav when learning
 const isVisible = computed(() => !props.isLearning)
 </script>
@@ -214,6 +231,22 @@ const isVisible = computed(() => !props.isLearning)
 
         <!-- Right nav items -->
         <div class="nav-group nav-group--right">
+          <!-- Schools link (god mode only) -->
+          <button
+            v-if="isGodMode"
+            class="nav-item"
+            :class="{ tapped: tappedItem === 'schools' }"
+            @click="handleSchoolsTap"
+          >
+            <div class="nav-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                <path d="M9 22V12h6v10"/>
+              </svg>
+            </div>
+            <span class="nav-label">Schools</span>
+          </button>
+
           <!-- Account button (dynamic based on auth state) -->
           <button
             class="nav-item"

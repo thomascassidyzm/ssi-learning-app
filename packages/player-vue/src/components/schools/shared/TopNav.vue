@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useUser, useClerk } from '@clerk/vue'
 
 interface NavTab {
@@ -15,6 +15,7 @@ const emit = defineEmits<{
 }>()
 
 const route = useRoute()
+const router = useRouter()
 const { isLoaded, isSignedIn, user } = useUser()
 const clerk = useClerk()
 
@@ -109,6 +110,14 @@ const handleSignOut = async () => {
 
     <!-- Right Section -->
     <div class="nav-right">
+      <!-- Learn Button (back to player) -->
+      <button class="learn-btn" @click="router.push('/')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <polygon points="6 3 20 12 6 21 6 3"/>
+        </svg>
+        Learn
+      </button>
+
       <!-- Theme Toggle (always visible) -->
       <button
         class="theme-toggle"
@@ -300,6 +309,31 @@ const handleSignOut = async () => {
   display: flex;
   align-items: center;
   gap: var(--space-4);
+}
+
+/* Learn Button */
+.learn-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background: linear-gradient(135deg, var(--ssi-red), var(--ssi-red-dark, #9a2e2e));
+  border: none;
+  border-radius: var(--radius-lg);
+  color: white;
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.learn-btn:hover {
+  box-shadow: 0 4px 15px rgba(194, 58, 58, 0.4);
+  transform: translateY(-1px);
+}
+
+.learn-btn svg {
+  flex-shrink: 0;
 }
 
 /* School Badge */

@@ -109,8 +109,8 @@ const handlePlayClass = (classData) => {
   }
   localStorage.setItem('ssi-active-class', JSON.stringify(activeClass))
 
-  // Navigate to player with class context
-  window.location.href = `/play?mode=class&class_id=${classData.id}`
+  // Navigate to player with class context (in-app, no reload)
+  router.push({ path: '/', query: { class: classData.id } })
 }
 
 const handleViewRoster = (classData) => {

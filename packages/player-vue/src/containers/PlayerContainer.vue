@@ -1,5 +1,6 @@
 <script setup>
 import { ref, provide, onMounted, computed, inject, watch } from 'vue'
+import { useRouter } from 'vue-router'
 
 // Screen components
 import HomeScreen from '@/components/HomeScreen.vue'
@@ -32,6 +33,7 @@ const courseDataProvider = inject('courseDataProvider')
 const auth = inject('auth')
 const config = inject('config')
 const clerkEnabled = inject('clerkEnabled')
+const router = useRouter()
 
 // Global auth modal (shared with BottomNav and other components)
 const {
@@ -231,8 +233,9 @@ const clearClassContext = () => {
 // Handle going home from player
 const handleGoHome = () => {
   if (classContext.value) {
-    // If came from Schools, go back to Schools
-    window.location.href = '/schools/classes'
+    // If came from Schools, go back to Schools (in-app, no reload)
+    clearClassContext()
+    router.push('/schools/classes')
   } else {
     goHome()
   }

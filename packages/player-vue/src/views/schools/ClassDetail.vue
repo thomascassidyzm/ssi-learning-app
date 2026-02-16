@@ -134,7 +134,7 @@ const handlePlay = () => {
     timestamp: new Date().toISOString()
   }
   localStorage.setItem('ssi-active-class', JSON.stringify(activeClass))
-  window.location.href = `/play?mode=class&class_id=${classData.value.id}`
+  router.push({ path: '/', query: { class: classData.value.id } })
 }
 
 const copyJoinCode = async () => {
