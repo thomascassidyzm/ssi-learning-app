@@ -6788,9 +6788,9 @@ defineExpose({
   --text-xs: 0.6875rem;   /* 11px */
   --text-sm: 0.8125rem;   /* 13px */
   --text-base: 1rem;      /* 16px */
-  --text-lg: 1.125rem;    /* 18px */
-  --text-xl: 1.25rem;     /* 20px */
-  --text-2xl: 1.5rem;     /* 24px */
+  --text-lg: 1.375rem;    /* 22px */
+  --text-xl: 1.625rem;    /* 26px */
+  --text-2xl: 1.875rem;   /* 30px */
 
   /* ============ BUTTON SIZES ============ */
   /* Touch target: always 44px min for accessibility */
