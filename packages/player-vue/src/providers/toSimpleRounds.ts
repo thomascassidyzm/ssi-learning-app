@@ -73,13 +73,11 @@ export function toSimpleRounds(
     const primaryLegoKey = introItem?.legoKey || roundItems[0]?.legoKey || ''
     const primarySeedId = introItem?.seedId || roundItems[0]?.seedId || ''
 
-    // Build cycles — items missing critical audio are silently skipped
-    // (generateLearningScript already filters, this is belt-and-suspenders)
+    // Build cycles — intros always included (define round structure),
+    // non-intro items need all three audio IDs
     const cycles: Cycle[] = []
     for (const i of roundItems) {
-      if (i.type === 'intro') {
-        if (!i.knownAudioId) continue
-      } else {
+      if (i.type !== 'intro') {
         if (!i.knownAudioId || !i.target1Id || !i.target2Id) continue
       }
 

@@ -171,8 +171,55 @@ export async function generateLearningScript(
     target1_duration_ms?: number
     target2_duration_ms?: number
   }
+  const allLegos = (legosResult.data || []) as Lego[]
+
+  // Backfill missing presentation_audio_id from course_audio / lego_introductions
+  // Some courses have presentation audio generated but not yet linked to course_legos
+  const legosMissingPresentation = allLegos.filter(l => l.is_new && !l.presentation_audio_id)
+  if (legosMissingPresentation.length > 0) {
+    const missingLegoIds = legosMissingPresentation.map(l =>
+      `S${String(l.seed_number).padStart(4, '0')}L${String(l.lego_index).padStart(2, '0')}`
+    )
+
+    // Try course_audio first (authoritative), then lego_introductions (legacy)
+    const [courseAudioResult, introResult] = await Promise.all([
+      supabase
+        .from('course_audio')
+        .select('id, lego_id')
+        .eq('course_code', courseCode)
+        .eq('role', 'presentation')
+        .in('lego_id', missingLegoIds),
+      supabase
+        .from('lego_introductions')
+        .select('lego_id, presentation_audio_id, audio_uuid')
+        .eq('course_code', courseCode)
+        .in('lego_id', missingLegoIds)
+    ])
+
+    // Build lookup: lego_id → audio ID (prefer course_audio.id, fallback to lego_introductions)
+    const presLookup = new Map<string, string>()
+    for (const row of (introResult.data || []) as any[]) {
+      const audioId = row.presentation_audio_id || row.audio_uuid
+      if (audioId) presLookup.set(row.lego_id, String(audioId))
+    }
+    for (const row of (courseAudioResult.data || []) as any[]) {
+      if (row.id && row.lego_id) presLookup.set(row.lego_id, row.id)  // overwrites legacy
+    }
+
+    if (presLookup.size > 0) {
+      console.log(`[generateLearningScript] Backfilled ${presLookup.size}/${legosMissingPresentation.length} missing presentation audio IDs`)
+      for (const lego of legosMissingPresentation) {
+        const legoId = `S${String(lego.seed_number).padStart(4, '0')}L${String(lego.lego_index).padStart(2, '0')}`
+        const audioId = presLookup.get(legoId)
+        if (audioId) lego.presentation_audio_id = audioId
+      }
+    } else if (legosMissingPresentation.length > 0) {
+      console.warn(`[generateLearningScript] ${legosMissingPresentation.length} LEGOs missing presentation audio (not in course_audio or lego_introductions)`)
+    }
+  }
+
   const legosBySeed = new Map<number, Lego[]>()
-  for (const lego of (legosResult.data || []) as Lego[]) {
+  for (const lego of allLegos) {
     if (!legosBySeed.has(lego.seed_number)) legosBySeed.set(lego.seed_number, [])
     legosBySeed.get(lego.seed_number)!.push(lego)
   }
@@ -196,10 +243,15 @@ export async function generateLearningScript(
   const shouldEmit = () => roundNumber >= emitFromRound
   const emitItem = (item: ScriptItem) => {
     if (!shouldEmit()) return
-    // Filter out items missing required audio — they'll be picked up after regeneration
     if (item.type === 'intro') {
-      if (!item.knownAudioId) return  // presentationAudioId used as knownAudioId for intro
+      // Intros ALWAYS pass — they define the round structure.
+      // Missing presentation audio is handled by SimplePlayer (skips empty prompt phase).
+      // Target voice1/voice2 still play to introduce the LEGO pronunciation.
+      if (!item.knownAudioId) {
+        console.warn(`[generateLearningScript] Intro for ${item.legoKey} missing presentation audio — will play target audio only`)
+      }
     } else {
+      // Non-intro items need all three audio IDs to be useful
       if (!item.knownAudioId || !item.target1Id || !item.target2Id) return
     }
     items.push(item)
@@ -220,8 +272,12 @@ export async function generateLearningScript(
       const legoNum = String(lego.lego_index).padStart(2, '0')
       const phraseKey = `${seedNum}:${lego.lego_index}`
       const phrases = phrasesByLego.get(phraseKey) || { build: [], use: [] }
-      // presentation_audio_id comes directly from course_legos - same pattern as other audio IDs
+      // presentation_audio_id comes directly from course_legos (or backfilled above)
       const presentationAudioId = lego.presentation_audio_id
+      // Fallback: if no presentation audio, use known_audio_id so the intro still plays
+      // the LEGO itself (known → target1 → target2, no pause) — learner hears it passively
+      // before the debut asks them to produce it.
+      const introAudioId = presentationAudioId || lego.known_audio_id
 
       const usedPhrasesThisRound = new Set<string>()
 
@@ -229,7 +285,8 @@ export async function generateLearningScript(
       // Welsh courses (cym_*): presentation audio already contains the target
       //   pronunciation, so we play presentation only (no target1/target2).
       // All other courses: presentation is just the prompt ("The German for X is..."),
-      //   followed by target1/target2.
+      //   followed by target1/target2. If presentation is missing, falls back to
+      //   known audio — effectively playing the LEGO twice (once passive, once active).
       const isWelsh = courseCode.startsWith('cym_')
       cycleNum++
       emitItem({
@@ -240,7 +297,7 @@ export async function generateLearningScript(
         knownText: lego.known_text,
         targetText: lego.target_text,
         presentationAudioId,
-        knownAudioId: presentationAudioId,  // Intro uses presentation as known audio
+        knownAudioId: introAudioId,  // Presentation audio, or known audio as fallback
         target1Id: isWelsh ? undefined : lego.target1_audio_id,
         target2Id: isWelsh ? undefined : lego.target2_audio_id,
         target1DurationMs: isWelsh ? undefined : lego.target1_duration_ms,
