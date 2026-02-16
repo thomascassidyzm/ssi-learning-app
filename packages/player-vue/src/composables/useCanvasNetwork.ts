@@ -15,7 +15,7 @@
  *   renderNetwork(canvas, nodes, edges, revealedNodeIds, { hideUnrevealed: false })
  */
 
-import type { ConstellationNode, ConstellationEdge } from './usePrebuiltNetwork'
+import type { NetworkNode, NetworkEdge } from './usePrebuiltNetwork'
 
 // ============================================================================
 // BELT COLOR PALETTES
@@ -72,7 +72,7 @@ function getPalette(belt: string): { glow: string; core: string; inner: string; 
 /**
  * Get node size based on whether it's a component and its active state
  */
-function getNodeSize(node: ConstellationNode, isActive: boolean): NodeSizes {
+function getNodeSize(node: NetworkNode, isActive: boolean): NodeSizes {
   // Component nodes are 60% the size of regular nodes
   const scale = node.isComponent ? 0.6 : 1
 
@@ -94,7 +94,7 @@ function getNodeSize(node: ConstellationNode, isActive: boolean): NodeSizes {
  * Get node opacity based on revealed state
  */
 function getNodeOpacity(
-  node: ConstellationNode,
+  node: NetworkNode,
   revealedNodeIds: Set<string>,
   options: CanvasNetworkOptions
 ): number {
@@ -117,9 +117,9 @@ function getNodeOpacity(
  * Get edge opacity based on endpoint visibility and strength
  */
 function getEdgeOpacity(
-  edge: ConstellationEdge,
+  edge: NetworkEdge,
   revealedNodeIds: Set<string>,
-  nodeMap: Map<string, ConstellationNode>,
+  nodeMap: Map<string, NetworkNode>,
   options: CanvasNetworkOptions
 ): number {
   const sourceId = getEdgeNodeId(edge.source)
@@ -144,7 +144,7 @@ function getEdgeOpacity(
 /**
  * Get edge stroke width based on strength
  */
-function getEdgeWidth(edge: ConstellationEdge): number {
+function getEdgeWidth(edge: NetworkEdge): number {
   // Background edges: visible, Hebbian strength increases width slightly
   // Range: ~0.8 to ~2.0 for better visibility
   return Math.min(2.0, 0.8 + Math.sqrt(edge.strength) * 0.1)
@@ -154,7 +154,7 @@ function getEdgeWidth(edge: ConstellationEdge): number {
  * Helper to extract ID from edge source/target
  * D3's forceLink mutates edges, replacing string IDs with node object references
  */
-function getEdgeNodeId(ref: string | { id: string } | ConstellationNode): string {
+function getEdgeNodeId(ref: string | { id: string } | NetworkNode): string {
   if (typeof ref === 'string') return ref
   return (ref as { id: string }).id
 }
@@ -167,7 +167,7 @@ function getEdgeNodeId(ref: string | { id: string } | ConstellationNode): string
 function isNodeEffectivelyRevealed(
   nodeId: string,
   revealedNodeIds: Set<string>,
-  nodeMap: Map<string, ConstellationNode>
+  nodeMap: Map<string, NetworkNode>
 ): boolean {
   if (revealedNodeIds.has(nodeId)) return true
 
@@ -245,8 +245,8 @@ function hexToRgba(hex: string, alpha: number): string {
  */
 function drawEdge(
   ctx: CanvasRenderingContext2D,
-  edge: ConstellationEdge,
-  nodeMap: Map<string, ConstellationNode>,
+  edge: NetworkEdge,
+  nodeMap: Map<string, NetworkNode>,
   revealedNodeIds: Set<string>,
   options: CanvasNetworkOptions
 ): void {
@@ -280,7 +280,7 @@ function drawEdge(
  */
 function drawNode(
   ctx: CanvasRenderingContext2D,
-  node: ConstellationNode,
+  node: NetworkNode,
   revealedNodeIds: Set<string>,
   options: CanvasNetworkOptions
 ): void {
@@ -346,8 +346,8 @@ export function clear(canvas: HTMLCanvasElement): void {
  */
 export function renderNetwork(
   canvas: HTMLCanvasElement,
-  nodes: ConstellationNode[],
-  edges: ConstellationEdge[],
+  nodes: NetworkNode[],
+  edges: NetworkEdge[],
   revealedNodeIds: Set<string>,
   options: CanvasNetworkOptions = {}
 ): void {
@@ -375,7 +375,7 @@ export function renderNetwork(
   ctx.clearRect(0, 0, rect.width, rect.height)
 
   // Build node map for quick lookup
-  const nodeMap = new Map<string, ConstellationNode>()
+  const nodeMap = new Map<string, NetworkNode>()
   for (const node of nodes) {
     nodeMap.set(node.id, node)
   }

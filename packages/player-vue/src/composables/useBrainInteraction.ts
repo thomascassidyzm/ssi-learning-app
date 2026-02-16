@@ -26,7 +26,7 @@ import * as THREE from 'three'
 
 /**
  * Brain node data structure
- * Matches the ConstellationNode from usePrebuiltNetwork but extended for 3D
+ * Matches the NetworkNode from usePrebuiltNetwork but extended for 3D
  */
 export interface BrainNode {
   id: string

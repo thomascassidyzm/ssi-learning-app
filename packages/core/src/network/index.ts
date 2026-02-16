@@ -23,7 +23,7 @@ import * as d3 from 'd3'
 // TYPES
 // ============================================================================
 
-export interface ConstellationNode {
+export interface NetworkNode {
   id: string
   targetText: string
   knownText: string
@@ -34,10 +34,10 @@ export interface ConstellationNode {
   parentLegoIds?: string[]  // For components: which M-types contain this word
 }
 
-export interface ConstellationEdge {
+export interface NetworkEdge {
   id: string
-  source: string | ConstellationNode
-  target: string | ConstellationNode
+  source: string | NetworkNode
+  target: string | NetworkNode
   strength: number
 }
 
@@ -61,8 +61,8 @@ export interface ExternalConnection {
 }
 
 export interface NetworkCalculationResult {
-  nodes: ConstellationNode[]
-  edges: ConstellationEdge[]
+  nodes: NetworkNode[]
+  edges: NetworkEdge[]
 }
 
 export interface CanvasSize {
@@ -116,8 +116,8 @@ export function calculateNetworkPositions(
   const center = { x: canvasSize.width / 2, y: canvasSize.height / 2 }
 
   // Build nodes from rounds
-  const nodes: ConstellationNode[] = []
-  const nodeMap = new Map<string, ConstellationNode>()
+  const nodes: NetworkNode[] = []
+  const nodeMap = new Map<string, NetworkNode>()
   const legoTexts = new Map<string, string>()
 
   for (let i = 0; i < rounds.length; i++) {
@@ -132,7 +132,7 @@ export function calculateNetworkPositions(
 
     legoTexts.set(round.legoId, targetText.toLowerCase())
 
-    const node: ConstellationNode = {
+    const node: NetworkNode = {
       id: round.legoId,
       targetText,
       knownText,
@@ -152,8 +152,8 @@ export function calculateNetworkPositions(
   // This enriches the network by creating bridges between related phrases
   // ============================================================================
 
-  const componentNodes = new Map<string, ConstellationNode>()
-  const componentEdges: ConstellationEdge[] = []
+  const componentNodes = new Map<string, NetworkNode>()
+  const componentEdges: NetworkEdge[] = []
 
   for (const node of nodes) {
     const words = node.targetText.trim().split(/\s+/)
@@ -210,8 +210,8 @@ export function calculateNetworkPositions(
   }
 
   // Build edges - either from external connections (database) or infer from items
-  const edges: ConstellationEdge[] = []
-  const edgeMap = new Map<string, ConstellationEdge>()
+  const edges: NetworkEdge[] = []
+  const edgeMap = new Map<string, NetworkEdge>()
   let roundsWithItems = 0
   let phrasesChecked = 0
 
@@ -222,7 +222,7 @@ export function calculateNetworkPositions(
       if (!nodeMap.has(conn.source) || !nodeMap.has(conn.target)) continue
 
       const edgeId = `${conn.source}->${conn.target}`
-      const edge: ConstellationEdge = {
+      const edge: NetworkEdge = {
         id: edgeId,
         source: conn.source,
         target: conn.target,
@@ -293,7 +293,7 @@ export function calculateNetworkPositions(
       if (sourceId && targetId && nodeMap.has(sourceId) && nodeMap.has(targetId)) {
         const edgeId = `${sourceId}->${targetId}`
         if (!edgeMap.has(edgeId)) {
-          const edge: ConstellationEdge = { id: edgeId, source: sourceId, target: targetId, strength: 1 }
+          const edge: NetworkEdge = { id: edgeId, source: sourceId, target: targetId, strength: 1 }
           edges.push(edge)
           edgeMap.set(edgeId, edge)
         }
@@ -356,7 +356,7 @@ export function calculateNetworkPositions(
       .force('link', d3.forceLink(edges as any)
         .id((d: any) => d.id)
         .distance((d: any) => {
-          const edge = d as ConstellationEdge
+          const edge = d as NetworkEdge
           const strength = edge.strength || 1
           // Component edges should be shorter to keep components close to parents
           const isComponentEdge = edge.source.toString().startsWith('_c_') ||
@@ -367,7 +367,7 @@ export function calculateNetworkPositions(
           return Math.max(minDistance, baseDistance / scaleFactor)
         })
         .strength((d: any) => {
-          const edge = d as ConstellationEdge
+          const edge = d as NetworkEdge
           const strength = edge.strength || 1
           // Stronger pull for component edges to keep them close
           const isComponentEdge = edge.source.toString().startsWith('_c_') ||
@@ -377,12 +377,12 @@ export function calculateNetworkPositions(
       )
       // Stronger repulsion to spread nodes apart (less for components)
       .force('charge', d3.forceManyBody()
-        .strength((d: any) => (d as ConstellationNode).isComponent ? -200 : -500)
+        .strength((d: any) => (d as NetworkNode).isComponent ? -200 : -500)
         .distanceMax(600))
       .force('center', d3.forceCenter(center.x, center.y))
       // Smaller collision radius for component nodes
       .force('collide', d3.forceCollide()
-        .radius((d: any) => (d as ConstellationNode).isComponent ? 25 : 45)
+        .radius((d: any) => (d as NetworkNode).isComponent ? 25 : 45)
         .strength(0.9))
       .stop()
 
@@ -410,10 +410,10 @@ export function calculateNetworkPositions(
  * Useful for course creation where you want to see the network evolve.
  */
 export class NetworkBuilder {
-  private nodes: ConstellationNode[] = []
-  private edges: ConstellationEdge[] = []
-  private nodeMap = new Map<string, ConstellationNode>()
-  private edgeMap = new Map<string, ConstellationEdge>()
+  private nodes: NetworkNode[] = []
+  private edges: NetworkEdge[] = []
+  private nodeMap = new Map<string, NetworkNode>()
+  private edgeMap = new Map<string, NetworkEdge>()
   private canvasSize: CanvasSize
 
   constructor(canvasSize: CanvasSize = { width: 800, height: 800 }) {
@@ -424,7 +424,7 @@ export class NetworkBuilder {
    * Add a LEGO to the network
    * @returns The created node
    */
-  addLego(legoId: string, targetText: string, knownText: string = ''): ConstellationNode {
+  addLego(legoId: string, targetText: string, knownText: string = ''): NetworkNode {
     if (this.nodeMap.has(legoId)) {
       return this.nodeMap.get(legoId)!
     }
@@ -432,7 +432,7 @@ export class NetworkBuilder {
     const center = { x: this.canvasSize.width / 2, y: this.canvasSize.height / 2 }
     const position = this.nodes.length
 
-    const node: ConstellationNode = {
+    const node: NetworkNode = {
       id: legoId,
       targetText,
       knownText,
@@ -452,8 +452,8 @@ export class NetworkBuilder {
    * @param legoIds - Array of LEGO IDs in phrase order
    * @returns Created/strengthened edges
    */
-  connectPhrase(legoIds: string[]): ConstellationEdge[] {
-    const affectedEdges: ConstellationEdge[] = []
+  connectPhrase(legoIds: string[]): NetworkEdge[] {
+    const affectedEdges: NetworkEdge[] = []
 
     for (let i = 0; i < legoIds.length - 1; i++) {
       const sourceId = legoIds[i]
@@ -549,14 +549,14 @@ export class NetworkBuilder {
   /**
    * Get a node by ID
    */
-  getNode(legoId: string): ConstellationNode | undefined {
+  getNode(legoId: string): NetworkNode | undefined {
     return this.nodeMap.get(legoId)
   }
 
   /**
    * Get edges for a specific node
    */
-  getNodeEdges(legoId: string): ConstellationEdge[] {
+  getNodeEdges(legoId: string): NetworkEdge[] {
     return this.edges.filter(e => {
       const sourceId = typeof e.source === 'string' ? e.source : (e.source as any).id
       const targetId = typeof e.target === 'string' ? e.target : (e.target as any).id
@@ -567,7 +567,7 @@ export class NetworkBuilder {
   /**
    * Find isolated nodes (nodes with no connections)
    */
-  getIsolatedNodes(): ConstellationNode[] {
+  getIsolatedNodes(): NetworkNode[] {
     const connectedIds = new Set<string>()
     for (const edge of this.edges) {
       const sourceId = typeof edge.source === 'string' ? edge.source : (edge.source as any).id

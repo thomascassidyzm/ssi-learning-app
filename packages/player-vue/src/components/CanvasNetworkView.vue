@@ -12,7 +12,7 @@
  */
 
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, type PropType } from 'vue'
-import type { ConstellationNode, ConstellationEdge, PathHighlight } from '../composables/usePrebuiltNetwork'
+import type { NetworkNode, NetworkEdge, PathHighlight } from '../composables/usePrebuiltNetwork'
 import { renderNetwork, clear, setupCanvasForRetina } from '../composables/useCanvasNetwork'
 import NetworkInteractiveOverlay from './NetworkInteractiveOverlay.vue'
 
@@ -22,11 +22,11 @@ import NetworkInteractiveOverlay from './NetworkInteractiveOverlay.vue'
 
 const props = defineProps({
   nodes: {
-    type: Array as PropType<ConstellationNode[]>,
+    type: Array as PropType<NetworkNode[]>,
     required: true,
   },
   edges: {
-    type: Array as PropType<ConstellationEdge[]>,
+    type: Array as PropType<NetworkEdge[]>,
     required: true,
   },
   heroNodeId: {
@@ -64,8 +64,8 @@ const props = defineProps({
 })
 
 const emit = defineEmits<{
-  (e: 'node-tap', node: ConstellationNode): void
-  (e: 'node-hover', node: ConstellationNode | null): void
+  (e: 'node-tap', node: NetworkNode): void
+  (e: 'node-hover', node: NetworkNode | null): void
 }>()
 
 // ============================================================================
@@ -245,7 +245,7 @@ function renderBrainBoundary(
 /**
  * Check if a node should be visible (for hit area pointer-events)
  */
-function getNodeOpacity(node: ConstellationNode): number {
+function getNodeOpacity(node: NetworkNode): number {
   const isRevealed = !props.revealedNodeIds || props.revealedNodeIds.has(node.id)
   if (!isRevealed) {
     return props.hideUnrevealedNodes ? 0 : 0.15
@@ -489,12 +489,12 @@ function handleKeyDown(e: KeyboardEvent) {
 // NODE INTERACTION HANDLERS
 // ============================================================================
 
-function handleNodeTap(node: ConstellationNode) {
+function handleNodeTap(node: NetworkNode) {
   internalSelectedId.value = node.id
   emit('node-tap', node)
 }
 
-function handleNodeHover(node: ConstellationNode | null) {
+function handleNodeHover(node: NetworkNode | null) {
   emit('node-hover', node)
 }
 

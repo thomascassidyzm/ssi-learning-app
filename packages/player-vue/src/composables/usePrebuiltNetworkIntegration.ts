@@ -12,7 +12,7 @@
  */
 
 import { ref, computed, watch, type Ref, type ComponentPublicInstance } from 'vue'
-import { usePrebuiltNetwork, preCalculatePositions, type ConstellationNode, type ConstellationEdge, type PathHighlight, type ExternalConnection } from './usePrebuiltNetwork'
+import { usePrebuiltNetwork, preCalculatePositions, type NetworkNode, type NetworkEdge, type PathHighlight, type ExternalConnection } from './usePrebuiltNetwork'
 
 // ============================================================================
 // TYPES

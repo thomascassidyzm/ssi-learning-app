@@ -24,30 +24,7 @@ import { useBrainFirePath } from '../composables/useBrainFirePath'
 // TYPE DEFINITIONS
 // =============================================================================
 
-export interface ConstellationNode {
-  id: string
-  targetText: string
-  knownText: string
-  belt: string
-  x: number
-  y: number
-  z?: number
-  isComponent?: boolean
-  parentLegoIds?: string[]
-}
-
-export interface ConstellationEdge {
-  id: string
-  source: string | { id: string }
-  target: string | { id: string }
-  strength: number
-}
-
-export interface PathHighlight {
-  nodeIds: string[]
-  edgeIds: string[]
-  activeIndex: number
-}
+import type { NetworkNode, NetworkEdge, PathHighlight } from '../composables/usePrebuiltNetwork'
 
 function getEdgeNodeId(nodeRef: string | { id: string }): string {
   return typeof nodeRef === 'string' ? nodeRef : nodeRef.id
@@ -59,11 +36,11 @@ function getEdgeNodeId(nodeRef: string | { id: string }): string {
 
 const props = defineProps({
   nodes: {
-    type: Array as PropType<ConstellationNode[]>,
+    type: Array as PropType<NetworkNode[]>,
     required: true,
   },
   edges: {
-    type: Array as PropType<ConstellationEdge[]>,
+    type: Array as PropType<NetworkEdge[]>,
     required: true,
   },
   revealedNodeIds: {
@@ -81,7 +58,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits<{
-  (e: 'node-tap', node: ConstellationNode): void
+  (e: 'node-tap', node: NetworkNode): void
 }>()
 
 // =============================================================================
@@ -107,7 +84,7 @@ const accentColor = computed(() => BELT_COLORS[props.beltLevel] || BELT_COLORS.w
 
 const containerRef = ref<HTMLElement | null>(null)
 const isInitialized = ref(false)
-const hoveredNode = ref<ConstellationNode | null>(null)
+const hoveredNode = ref<NetworkNode | null>(null)
 const tooltipPosition = ref({ top: '0px', left: '0px' })
 
 // Track previously revealed node IDs to detect newly revealed nodes
@@ -132,7 +109,7 @@ const brainFirePath = useBrainFirePath()
  * Handles both regular nodes (check revealedNodeIds) and component nodes
  * (auto-visible if any parent is revealed).
  */
-function isNodeVisible(node: ConstellationNode, revealed: Set<string>): boolean {
+function isNodeVisible(node: NetworkNode, revealed: Set<string>): boolean {
   // Regular nodes: check if explicitly revealed
   if (!node.isComponent) {
     return revealed.has(node.id)
@@ -156,13 +133,13 @@ function isNodeIdVisible(nodeId: string, revealed: Set<string>): boolean {
   return false
 }
 
-function getFilteredNodes(): ConstellationNode[] {
+function getFilteredNodes(): NetworkNode[] {
   const revealed = props.revealedNodeIds
   if (revealed === null) return props.nodes
   return props.nodes.filter(node => isNodeVisible(node, revealed))
 }
 
-function getFilteredEdges(): ConstellationEdge[] {
+function getFilteredEdges(): NetworkEdge[] {
   const revealed = props.revealedNodeIds
   if (revealed === null) return props.edges
   return props.edges.filter(edge => {
@@ -172,7 +149,7 @@ function getFilteredEdges(): ConstellationEdge[] {
   })
 }
 
-function toBrainNode(node: ConstellationNode): BrainNode {
+function toBrainNode(node: NetworkNode): BrainNode {
   return {
     id: node.id,
     x: node.x,
@@ -185,7 +162,7 @@ function toBrainNode(node: ConstellationNode): BrainNode {
   }
 }
 
-function toBrainEdge(edge: ConstellationEdge): BrainEdge {
+function toBrainEdge(edge: NetworkEdge): BrainEdge {
   return {
     id: edge.id,
     source: getEdgeNodeId(edge.source),

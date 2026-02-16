@@ -21,23 +21,24 @@ import * as d3 from 'd3'
 // TYPES
 // ============================================================================
 
-export interface ConstellationNode {
+export interface NetworkNode {
   id: string
   targetText: string
   knownText: string
   belt: string
   x: number  // Pre-calculated, fixed position
   y: number  // Pre-calculated, fixed position
+  z?: number  // Optional Z for 3D positioning
   seedId?: string  // Seed this node belongs to (e.g., "S0001")
   legoIndex?: number  // Index within course
   isComponent?: boolean  // True for inferred component nodes (smaller, derived from M-type splits)
   parentLegoIds?: string[]  // For components: which M-types contain this word
 }
 
-export interface ConstellationEdge {
+export interface NetworkEdge {
   id: string
-  source: string
-  target: string
+  source: string | { id: string }
+  target: string | { id: string }
   strength: number
 }
 
@@ -334,7 +335,7 @@ export function preCalculatePositions(
   startOffset: number = 0,
   currentBelt: string = 'black',  // Default to full brain for backwards compat
   externalNodes?: ExternalNode[]
-): { nodes: ConstellationNode[], edges: ConstellationEdge[], brainBoundary: BrainBoundary } {
+): { nodes: NetworkNode[], edges: NetworkEdge[], brainBoundary: BrainBoundary } {
   const center = { x: canvasSize.width / 2, y: canvasSize.height / 2 }
   // Calculate max radius early - needed for initial node positioning
   const maxRadius = Math.min(canvasSize.width, canvasSize.height) * 0.42
@@ -353,8 +354,8 @@ export function preCalculatePositions(
 
   // Build nodes - prefer external nodes (from database) if provided
   // This ensures all LEGOs referenced in connections have corresponding nodes
-  const nodes: ConstellationNode[] = []
-  const nodeMap = new Map<string, ConstellationNode>()
+  const nodes: NetworkNode[] = []
+  const nodeMap = new Map<string, NetworkNode>()
   const legoTexts = new Map<string, string>()
 
   if (externalNodes && externalNodes.length > 0) {
@@ -372,13 +373,15 @@ export function preCalculatePositions(
       const angle = i * goldenAngle
       const radius = Math.sqrt(i / Math.max(externalNodes.length, 1)) * maxRadius * 0.8
 
-      const node: ConstellationNode = {
+      const node: NetworkNode = {
         id: extNode.id,
         targetText: extNode.targetText || extNode.id,
         knownText: extNode.knownText || '',
         belt: extNode.belt || getBeltForPosition(startOffset + i),
         x: center.x + Math.cos(angle) * radius + (Math.random() - 0.5) * 20,
         y: center.y + Math.sin(angle) * radius + (Math.random() - 0.5) * 20,
+        seedId: extNode.seedId,
+        legoIndex: extNode.legoIndex,
         isComponent: extNode.isComponent,
         parentLegoIds: extNode.parentLegoIds,
       }
@@ -405,7 +408,7 @@ export function preCalculatePositions(
       const angle = i * goldenAngle
       const radius = Math.sqrt(i / Math.max(rounds.length, 1)) * maxRadius * 0.8
 
-      const node: ConstellationNode = {
+      const node: NetworkNode = {
         id: round.legoId,
         targetText,
         knownText,
@@ -427,8 +430,8 @@ export function preCalculatePositions(
   // This enriches the network by creating bridges between related phrases
   // ============================================================================
 
-  const componentNodes = new Map<string, ConstellationNode>()  // word -> node
-  const componentEdges: ConstellationEdge[] = []
+  const componentNodes = new Map<string, NetworkNode>()  // word -> node
+  const componentEdges: NetworkEdge[] = []
 
   for (const node of nodes) {
     const words = node.targetText.trim().split(/\s+/)
@@ -490,8 +493,8 @@ export function preCalculatePositions(
   console.log(`[PrebuiltNetwork] Created ${componentArray.length} inferred component nodes from M-type LEGOs`)
 
   // Build edges - either from external connections (database) or infer from items
-  const edges: ConstellationEdge[] = []
-  const edgeMap = new Map<string, ConstellationEdge>()
+  const edges: NetworkEdge[] = []
+  const edgeMap = new Map<string, NetworkEdge>()
   let roundsWithItems = 0
   let phrasesChecked = 0
 
@@ -525,7 +528,7 @@ export function preCalculatePositions(
       }
 
       const edgeId = `${conn.source}->${conn.target}`
-      const edge: ConstellationEdge = {
+      const edge: NetworkEdge = {
         id: edgeId,
         source: conn.source,
         target: conn.target,
@@ -607,7 +610,7 @@ export function preCalculatePositions(
       if (sourceId && targetId && nodeMap.has(sourceId) && nodeMap.has(targetId)) {
         const edgeId = `${sourceId}->${targetId}`
         if (!edgeMap.has(edgeId)) {
-          const edge: ConstellationEdge = { id: edgeId, source: sourceId, target: targetId, strength: 1 }
+          const edge: NetworkEdge = { id: edgeId, source: sourceId, target: targetId, strength: 1 }
           edges.push(edge)
           edgeMap.set(edgeId, edge)
         }
@@ -698,7 +701,7 @@ export function preCalculatePositions(
       .force('link', d3.forceLink(edges as any)
         .id((d: any) => d.id)
         .distance((d: any) => {
-          const edge = d as ConstellationEdge
+          const edge = d as NetworkEdge
           const strength = edge.strength || 1
           // Component edges should be shorter to keep components close to parents
           const isComponentEdge = edge.source.toString().startsWith('_c_') ||
@@ -712,7 +715,7 @@ export function preCalculatePositions(
           return Math.max(minDistance, baseDistance / distanceScale)
         })
         .strength((d: any) => {
-          const edge = d as ConstellationEdge
+          const edge = d as NetworkEdge
           const strength = edge.strength || 1
           // FIXED: MUCH weaker link strength - let repulsion spread nodes out
           // Links should suggest connections, not pull nodes into a blob
@@ -725,7 +728,7 @@ export function preCalculatePositions(
       // Increased strength to overcome link force and spread nodes
       .force('charge', d3.forceManyBody()
         .strength((d: any) => {
-          const baseStrength = (d as ConstellationNode).isComponent ? -300 : -800
+          const baseStrength = (d as NetworkNode).isComponent ? -300 : -800
           return baseStrength * densityFactor  // More repulsion for smaller/denser brains
         })
         .distanceMax(effectiveRadius * 2.5))
@@ -733,7 +736,7 @@ export function preCalculatePositions(
       // Collision radius - prevent overlap
       .force('collide', d3.forceCollide()
         .radius((d: any) => {
-          const baseRadius = (d as ConstellationNode).isComponent ? 18 : 35
+          const baseRadius = (d as NetworkNode).isComponent ? 18 : 35
           return baseRadius
         })
         .strength(0.9))
@@ -817,8 +820,8 @@ export function preCalculatePositions(
 
 export function usePrebuiltNetwork() {
   // Pre-calculated data (set once on load)
-  const nodes: Ref<ConstellationNode[]> = ref([])
-  const edges: Ref<ConstellationEdge[]> = ref([])
+  const nodes: Ref<NetworkNode[]> = ref([])
+  const edges: Ref<NetworkEdge[]> = ref([])
 
   // Brain boundary state (grows with belt level)
   const brainBoundary: Ref<BrainBoundary> = ref(BRAIN_BOUNDARIES[0])  // Default to white belt
@@ -1126,7 +1129,7 @@ export function usePrebuiltNetwork() {
     const legoList = Array.from(uniqueIds)
 
     // Create nodes - hero in center, others in a circle around it
-    const newNodes: ConstellationNode[] = []
+    const newNodes: NetworkNode[] = []
     const heroIndex = legoList.indexOf(heroId)
 
     legoList.forEach((id, i) => {
@@ -1163,7 +1166,7 @@ export function usePrebuiltNetwork() {
     })
 
     // Create edges between hero and each phrase LEGO
-    const newEdges: ConstellationEdge[] = []
+    const newEdges: NetworkEdge[] = []
     phraseLegoIds.forEach(phraseId => {
       if (phraseId !== heroId) {
         const edgeId = `${heroId}->${phraseId}`

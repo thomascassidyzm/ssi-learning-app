@@ -33,35 +33,11 @@ import { useBrainWireframe } from '../composables/useBrainWireframe'
 // TYPE DEFINITIONS
 // =============================================================================
 
-// These types match the existing usePrebuiltNetwork types for compatibility
-export interface ConstellationNode {
-  id: string
-  targetText: string
-  knownText: string
-  belt: string
-  x: number
-  y: number
-  z?: number  // Optional Z for 3D positioning
-  isComponent?: boolean
-  parentLegoIds?: string[]
-}
-
-export interface ConstellationEdge {
-  id: string
-  source: string | { id: string }  // Can be string ID or object with id
-  target: string | { id: string }  // Can be string ID or object with id
-  strength: number
-}
+import type { NetworkNode, NetworkEdge, PathHighlight } from '../composables/usePrebuiltNetwork'
 
 // Helper to extract ID from source/target (handles both string and object formats)
 function getEdgeNodeId(nodeRef: string | { id: string }): string {
   return typeof nodeRef === 'string' ? nodeRef : nodeRef.id
-}
-
-export interface PathHighlight {
-  nodeIds: string[]
-  edgeIds: string[]
-  activeIndex: number
 }
 
 // =============================================================================
@@ -73,14 +49,14 @@ const props = defineProps({
    * All constellation nodes with pre-calculated positions
    */
   nodes: {
-    type: Array as PropType<ConstellationNode[]>,
+    type: Array as PropType<NetworkNode[]>,
     required: true,
   },
   /**
    * All constellation edges with strength values
    */
   edges: {
-    type: Array as PropType<ConstellationEdge[]>,
+    type: Array as PropType<NetworkEdge[]>,
     required: true,
   },
   /**
@@ -126,11 +102,11 @@ const emit = defineEmits<{
   /**
    * Emitted when a node is clicked/tapped
    */
-  (e: 'node-tap', node: ConstellationNode): void
+  (e: 'node-tap', node: NetworkNode): void
   /**
    * Emitted when a node is hovered (or null when hover ends)
    */
-  (e: 'node-hover', node: ConstellationNode | null): void
+  (e: 'node-hover', node: NetworkNode | null): void
 }>()
 
 // =============================================================================
@@ -191,7 +167,7 @@ const autoRotate = computed(() => brainScene.isAutoRotating.value)
 // const replaySpeed = computed(() => brainReplay.currentSpeed.value)
 
 // Interaction state
-const hoveredNode = ref<ConstellationNode | null>(null)
+const hoveredNode = ref<NetworkNode | null>(null)
 const tooltipPosition = ref({ top: '0px', left: '0px' })
 
 // Track if scene base infrastructure is initialized (vs nodes/edges)
@@ -218,7 +194,7 @@ function getRevealedSet(): Set<string> | null {
  * Handles both regular nodes (check revealedNodeIds) and component nodes
  * (auto-visible if any parent is revealed).
  */
-function isNodeVisible(node: ConstellationNode, revealed: Set<string>): boolean {
+function isNodeVisible(node: NetworkNode, revealed: Set<string>): boolean {
   // Regular nodes: check if explicitly revealed
   if (!node.isComponent) {
     return revealed.has(node.id)
@@ -251,7 +227,7 @@ function isNodeIdVisible(nodeId: string, revealed: Set<string>): boolean {
  * If revealedNodeIds is null (testing mode), show all nodes.
  * Component nodes are auto-included if any of their parents are revealed.
  */
-function getFilteredNodes(): ConstellationNode[] {
+function getFilteredNodes(): NetworkNode[] {
   const revealed = getRevealedSet()
   if (revealed === null) {
     // Testing mode: show all nodes
@@ -266,7 +242,7 @@ function getFilteredNodes(): ConstellationNode[] {
  * If revealedNodeIds is null (testing mode), show all edges.
  * Uses the same visibility logic as nodes (component auto-reveal).
  */
-function getFilteredEdges(): ConstellationEdge[] {
+function getFilteredEdges(): NetworkEdge[] {
   const revealed = getRevealedSet()
   if (revealed === null) {
     // Testing mode: show all edges
@@ -286,9 +262,9 @@ function getFilteredEdges(): ConstellationEdge[] {
 // =============================================================================
 
 /**
- * Convert ConstellationNode to BrainNode format
+ * Convert NetworkNode to BrainNode format
  */
-function toBrainNode(node: ConstellationNode): BrainNode {
+function toBrainNode(node: NetworkNode): BrainNode {
   return {
     id: node.id,
     x: node.x,
@@ -302,10 +278,10 @@ function toBrainNode(node: ConstellationNode): BrainNode {
 }
 
 /**
- * Convert ConstellationEdge to BrainEdge format
+ * Convert NetworkEdge to BrainEdge format
  * Handles source/target being either string IDs or objects with id property
  */
-function toBrainEdge(edge: ConstellationEdge): BrainEdge {
+function toBrainEdge(edge: NetworkEdge): BrainEdge {
   return {
     id: edge.id,
     source: getEdgeNodeId(edge.source),
@@ -380,7 +356,7 @@ async function initScene(): Promise<void> {
     // 7. Wire up interaction event handlers
     brainInteraction.onNodeHover((event) => {
       if (event.node) {
-        // Convert back to ConstellationNode format for emit
+        // Convert back to NetworkNode format for emit
         const constellationNode = props.nodes.find(n => n.id === event.node!.id)
         hoveredNode.value = constellationNode ?? null
 

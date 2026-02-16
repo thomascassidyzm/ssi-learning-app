@@ -22,7 +22,7 @@
  */
 
 import { computed, type PropType } from 'vue'
-import type { ConstellationNode, PathHighlight } from '../composables/usePrebuiltNetwork'
+import type { NetworkNode, PathHighlight } from '../composables/usePrebuiltNetwork'
 
 // ============================================================================
 // BELT GLOW COLORS (for highlight rings only - nodes are rendered on canvas)
@@ -45,7 +45,7 @@ const BELT_GLOW_COLORS: Record<string, string> = {
 
 const props = defineProps({
   nodes: {
-    type: Array as PropType<ConstellationNode[]>,
+    type: Array as PropType<NetworkNode[]>,
     required: true,
   },
   selectedNodeId: {
@@ -71,7 +71,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits<{
-  (e: 'node-tap', node: ConstellationNode): void
+  (e: 'node-tap', node: NetworkNode): void
   (e: 'background-tap'): void
 }>()
 
@@ -144,7 +144,7 @@ function getGlowColor(belt: string): string {
  * The canvas renders nodes at approximately 12-14px radius for core
  * We want the ring to sit AROUND that, so we use a larger radius
  */
-function getHighlightRingRadius(node: ConstellationNode): number {
+function getHighlightRingRadius(node: NetworkNode): number {
   // Component nodes are 60% the size of regular nodes
   const scale = node.isComponent ? 0.6 : 1
   // Ring sits outside the node (node core is ~12-14px, we want ring at ~20-22px)
@@ -154,7 +154,7 @@ function getHighlightRingRadius(node: ConstellationNode): number {
 /**
  * Hit area radius - larger than visible node for easy tapping
  */
-function getHitAreaRadius(node: ConstellationNode): number {
+function getHitAreaRadius(node: NetworkNode): number {
   const baseRadius = node.isComponent ? 20 : 30
   return baseRadius
 }
@@ -174,7 +174,7 @@ const contentTransform = computed(() => {
 // EVENT HANDLERS
 // ============================================================================
 
-function handleNodeTap(node: ConstellationNode, event: MouseEvent | TouchEvent): void {
+function handleNodeTap(node: NetworkNode, event: MouseEvent | TouchEvent): void {
   event.stopPropagation()
   emit('node-tap', node)
 }

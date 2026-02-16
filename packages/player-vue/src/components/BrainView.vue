@@ -15,7 +15,7 @@ import CanvasNetworkView from './CanvasNetworkView.vue'
 import UsageStats from './UsageStats.vue'
 import Brain3DView from './Brain3DView.vue'
 import BrainStatsMobile from './BrainStatsMobile.vue'
-import { usePrebuiltNetwork, type ExternalConnection, type ExternalNode, type ConstellationNode } from '../composables/usePrebuiltNetwork'
+import { usePrebuiltNetwork, type ExternalConnection, type ExternalNode, type NetworkNode } from '../composables/usePrebuiltNetwork'
 import { useLegoNetwork, type PhraseWithPath } from '../composables/useLegoNetwork'
 import { useCompletedContent } from '../composables/useCompletedContent'
 import { getLanguageName } from '../composables/useI18n'
@@ -259,7 +259,7 @@ const containerRef = ref<HTMLElement | null>(null)
 const canvasSize = ref({ width: 800, height: 800 })
 
 // Node selection state
-const selectedNode = ref<ConstellationNode | null>(null)
+const selectedNode = ref<NetworkNode | null>(null)
 const isPanelOpen = ref(false)
 
 // Phrase playback state
@@ -604,7 +604,7 @@ function updateVisibility(count: number) {
  * Desktop: Open full side panel
  * Mobile: Show subtitle overlay (keeps brain visible for fire path animation)
  */
-async function handleNodeTap(node: ConstellationNode) {
+async function handleNodeTap(node: NetworkNode) {
   // Unlock audio on first interaction (required for iOS/Safari)
   if (!audioController.value) {
     audioController.value = new TargetAudioController()
@@ -641,7 +641,7 @@ async function handleNodeTap(node: ConstellationNode) {
  * Desktop: Fly to node in 3D view, then open detail panel
  * Mobile: Open detail panel directly (or show "view on desktop" message)
  */
-function selectSearchResult(node: ConstellationNode) {
+function selectSearchResult(node: NetworkNode) {
   // Clear search
   searchQuery.value = ''
   isSearchFocused.value = false
