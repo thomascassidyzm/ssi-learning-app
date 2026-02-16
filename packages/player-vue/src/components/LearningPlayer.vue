@@ -4527,6 +4527,31 @@ const exitListeningMode = () => {
 // DRIVING MODE
 // ============================================
 
+// Mode picker popover
+const showModePicker = ref(false)
+
+const handleModeButtonClick = () => {
+  if (isDrivingModeActive.value) {
+    handleExitDrivingMode()
+    return
+  }
+  if (showListeningOverlay.value) {
+    handleCloseListening()
+    return
+  }
+  showModePicker.value = true
+}
+
+const handlePickListening = () => {
+  showModePicker.value = false
+  handleListeningMode()
+}
+
+const handlePickDriving = () => {
+  showModePicker.value = false
+  handleEnterDrivingMode()
+}
+
 const handleEnterDrivingMode = async () => {
   handlePause() // stop SimplePlayer
   if (isPlayingIntroduction.value) skipIntroduction()
@@ -6559,6 +6584,30 @@ defineExpose({
       </div>
     </Transition>
 
+    <!-- Mode Picker Popover -->
+    <Transition name="fade">
+      <div v-if="showModePicker" class="mode-picker-overlay" @click.self="showModePicker = false">
+        <div class="mode-picker">
+          <button class="mode-picker-option" @click="handlePickListening">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+              <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+            </svg>
+            <span>Listening</span>
+          </button>
+          <button class="mode-picker-option" @click="handlePickDriving">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0ZM15 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z"/>
+              <path d="M5 17H3v-6l2-5h10l4 5h2v6h-2"/>
+              <path d="M5 11h14"/>
+              <path d="M9 17h6"/>
+            </svg>
+            <span>Driving</span>
+          </button>
+        </div>
+      </div>
+    </Transition>
+
     <!-- Listening Mode Overlay -->
     <Transition name="listening-overlay">
       <ListeningOverlay
@@ -6785,49 +6834,34 @@ defineExpose({
       </div>
     </Transition>
 
-    <!-- Control Bar - Always visible, 3+3 balanced layout around nav bar play button -->
+    <!-- Control Bar - 2+2 balanced layout around nav bar play button -->
     <div class="control-bar">
-      <!-- Left side: Listening | Driving | Belt Back | Revisit -->
+      <!-- Left side: Mode | Revisit -->
       <div class="control-group control-group--left">
         <button
-          class="mode-btn mode-btn--listening"
-          :class="{ active: showListeningOverlay }"
-          @click="handleListeningMode"
-          :disabled="isDrivingModeActive"
-          title="Listening Mode"
+          class="mode-btn mode-btn--modes"
+          :class="{
+            'active active--listening': showListeningOverlay,
+            'active active--driving': isDrivingModeActive,
+          }"
+          @click="handleModeButtonClick"
+          title="Learning Modes"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
-            <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
-          </svg>
-        </button>
-
-        <button
-          class="mode-btn mode-btn--driving"
-          :class="{ active: isDrivingModeActive }"
-          @click="handleEnterDrivingMode"
-          :disabled="isDrivingModeActive"
-          title="Driving Mode"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <svg v-if="isDrivingModeActive" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0ZM15 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z"/>
             <path d="M5 17H3v-6l2-5h10l4 5h2v6h-2"/>
             <path d="M5 11h14"/>
             <path d="M9 17h6"/>
           </svg>
-        </button>
-
-        <button
-          class="belt-nav-btn belt-nav-btn--back"
-          :class="{ 'is-skipping': isSkippingBelt }"
-          @click="handleGoBackBelt"
-          :disabled="isDrivingModeActive || (!previousBelt && currentBelt.seedsRequired === completedRounds)"
-          :title="`Back to ${backTargetBelt.name} belt`"
-          :style="{ '--back-belt-color': backTargetBelt.color }"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="11 17 6 12 11 7"/>
-            <polyline points="18 17 13 12 18 7"/>
+          <svg v-else-if="showListeningOverlay" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+            <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+          </svg>
+          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 20v-6M6 20v-4M18 20v-2"/>
+            <circle cx="12" cy="10" r="2"/>
+            <path d="M8 12a4 4 0 0 1 8 0"/>
+            <path d="M5 14a7 7 0 0 1 14 0"/>
           </svg>
         </button>
 
@@ -6838,25 +6872,11 @@ defineExpose({
         </button>
       </div>
 
-      <!-- Right side: Skip | Belt Forward | Turbo -->
+      <!-- Right side: Skip | Turbo -->
       <div class="control-group control-group--right">
         <button class="transport-btn" @click="handleSkip" :disabled="isDrivingModeActive" title="Skip">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="9 18 15 12 9 6"/>
-          </svg>
-        </button>
-
-        <button
-          class="belt-nav-btn belt-nav-btn--forward"
-          :class="{ 'is-skipping': isSkippingBelt }"
-          @click="handleSkipToNextBelt"
-          :disabled="isDrivingModeActive || !nextBelt"
-          :title="nextBelt ? `Skip to ${nextBelt.name} belt` : 'Black belt achieved!'"
-          :style="nextBelt ? { '--next-belt-color': nextBelt.color, '--next-belt-glow': nextBelt.glow } : {}"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="13 17 18 12 13 7"/>
-            <polyline points="6 17 11 12 6 7"/>
           </svg>
         </button>
 
@@ -9576,6 +9596,54 @@ defineExpose({
   box-shadow: 0 0 16px rgba(212, 168, 83, 0.4);
 }
 
+/* Mode Picker - compact two-option popover above control bar */
+.mode-picker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+  padding-bottom: calc(80px + env(safe-area-inset-bottom));
+}
+
+.mode-picker {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(20, 20, 30, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  backdrop-filter: blur(20px);
+}
+
+.mode-picker-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 28px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.85rem;
+}
+
+.mode-picker-option:active {
+  background: rgba(255, 255, 255, 0.12);
+  transform: scale(0.97);
+}
+
+.mode-picker-option svg {
+  width: 28px;
+  height: 28px;
+}
+
 /* Mode Explanation Popups */
 .mode-popup-overlay {
   position: fixed;
@@ -10245,11 +10313,17 @@ defineExpose({
   transform: translateY(20px);
 }
 
-/* Listening mode button active state */
-.mode-btn--listening.active {
+/* Mode button active states */
+.mode-btn--modes.active--listening {
   background: var(--gold-glow, rgba(212, 168, 83, 0.15));
   border-color: var(--gold, #d4a853);
   color: var(--gold, #d4a853);
+}
+
+.mode-btn--modes.active--driving {
+  background: rgba(96, 165, 250, 0.15);
+  border-color: #60a5fa;
+  color: #60a5fa;
 }
 
 /* Driving overlay transition */
@@ -10266,12 +10340,6 @@ defineExpose({
   opacity: 0;
 }
 
-/* Driving mode button active state */
-.mode-btn--driving.active {
-  background: rgba(96, 165, 250, 0.15);
-  border-color: #60a5fa;
-  color: #60a5fa;
-}
 </style>
 
 <!-- ═══════════════════════════════════════════════════════════════
@@ -10420,6 +10488,17 @@ defineExpose({
 
 [data-theme="mist"] .player .mode-btn.active {
   background: rgba(100, 80, 55, 0.12);
+  color: #2c2520;
+}
+
+[data-theme="mist"] .player .mode-picker {
+  background: rgba(247, 243, 236, 0.9);
+  border-color: rgba(100, 80, 55, 0.1);
+}
+
+[data-theme="mist"] .player .mode-picker-option {
+  background: rgba(100, 80, 55, 0.06);
+  border-color: rgba(100, 80, 55, 0.1);
   color: #2c2520;
 }
 
