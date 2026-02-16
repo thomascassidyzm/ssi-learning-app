@@ -1945,21 +1945,16 @@ watch([() => isTransitioningItem.value, () => currentPhrase.value.known], ([tran
   }
 }, { immediate: true })
 
-// Stable target text - updates when hidden (prevents flash) OR when underlying phrase changes
+// Stable target text - only updates when hidden (prevents flash of new target between cycles)
 const displayedTargetText = ref('')
-const lastTargetPhrase = ref('') // Track what phrase we've displayed
 watch([showTargetText, () => currentPhrase.value.target], ([showing, newTarget]) => {
-  // CRITICAL FIX: Always update if the underlying phrase changed (item transitioned)
-  // This prevents showing old target text while new audio plays
-  const phraseChanged = newTarget !== lastTargetPhrase.value
-
-  // Update displayed text when:
-  // 1. Text is hidden (safe to change without flash)
-  // 2. OR when first showing (text was empty)
-  // 3. OR when the underlying phrase changed (item transitioned, MUST update)
-  if (!showing || !displayedTargetText.value || phraseChanged) {
+  // Only update when target text is NOT visible or on first render.
+  // When a new cycle loads, the phase briefly stays VOICE_2 from the previous cycle
+  // before switching to PROMPT. If we updated here, the new target would flash visibly.
+  // Instead, we wait until showTargetText becomes false (PROMPT phase), update then,
+  // and the correct text is ready by the time VOICE_2 arrives.
+  if (!showing || !displayedTargetText.value) {
     displayedTargetText.value = newTarget
-    lastTargetPhrase.value = newTarget
   }
 }, { immediate: true })
 
@@ -9706,15 +9701,16 @@ defineExpose({
 }
 
 /* Target text - always rendered for stable sizing, opacity controlled */
+/* transition only on .is-visible so hide is instant (prevents flash of new text during fade-out) */
 .hero-text-target,
 .pane-text-target {
   opacity: 0;
-  transition: opacity 0.3s ease;
 }
 
 .hero-text-target.is-visible,
 .pane-text-target.is-visible {
   opacity: 1;
+  transition: opacity 0.3s ease;
 }
 
 /* ============ PAUSED STATE ============ */

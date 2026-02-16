@@ -39,6 +39,8 @@ export function useCyclePlayback() {
   let audioEndedHandler: (() => void) | null = null
   let playbackAborted = false
   let currentBlobUrl: string | null = null
+  let safetyTimer: ReturnType<typeof setTimeout> | null = null
+  let stallCheck: ReturnType<typeof setInterval> | null = null
 
   /**
    * Creates and reuses a single Audio element for all playback.
@@ -63,7 +65,16 @@ export function useCyclePlayback() {
   }
 
   /**
+   * Clean up stall detection and safety timers
+   */
+  function clearWatchdogs(): void {
+    if (safetyTimer) { clearTimeout(safetyTimer); safetyTimer = null }
+    if (stallCheck) { clearInterval(stallCheck); stallCheck = null }
+  }
+
+  /**
    * Plays audio from either a blob or URL and returns when it completes.
+   * Includes stall detection (3s no progress) and absolute safety timeout (15s).
    */
   function playAudio(source: AudioSource): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -76,6 +87,7 @@ export function useCyclePlayback() {
 
       // Clean up previous blob URL if any
       cleanupBlobUrl()
+      clearWatchdogs()
 
       // Get the URL to play
       let srcUrl: string
@@ -91,20 +103,30 @@ export function useCyclePlayback() {
         audioEl.removeEventListener('ended', audioEndedHandler)
       }
 
-      // Set up completion handler
-      audioEndedHandler = () => {
+      let settled = false
+
+      function settleResolve(): void {
+        if (settled) return
+        settled = true
+        clearWatchdogs()
         cleanupBlobUrl()
-        if (!playbackAborted) {
-          resolve()
-        }
+        if (!playbackAborted) resolve()
       }
 
+      function settleReject(err: Error): void {
+        if (settled) return
+        settled = true
+        clearWatchdogs()
+        cleanupBlobUrl()
+        reject(err)
+      }
+
+      // Set up completion handler
+      audioEndedHandler = () => settleResolve()
       audioEl.addEventListener('ended', audioEndedHandler, { once: true })
 
       // Handle errors
       const errorHandler = () => {
-        cleanupBlobUrl()
-        // Get error details from audio element
         const audioError = audioEl.error
         let errorMessage = 'Audio playback error'
         if (audioError) {
@@ -120,15 +142,38 @@ export function useCyclePlayback() {
             errorMessage += ` - ${audioError.message}`
           }
         }
-        // Audio errors are handled gracefully - cycle continues
-        reject(new Error(errorMessage))
+        settleReject(new Error(errorMessage))
       }
       audioEl.addEventListener('error', errorHandler, { once: true })
+
+      // Stall detection: if currentTime stops advancing for 3s, skip forward
+      let lastTime = -1
+      stallCheck = setInterval(() => {
+        if (settled || playbackAborted) { clearWatchdogs(); return }
+        const ct = audioEl.currentTime
+        if (ct > 0 && ct === lastTime && !audioEl.paused) {
+          console.warn('[useCyclePlayback] Audio stalled, skipping forward')
+          audioEl.removeEventListener('ended', audioEndedHandler!)
+          audioEl.removeEventListener('error', errorHandler)
+          settleResolve()
+        }
+        lastTime = ct
+      }, 1500)
+
+      // Absolute safety: no single audio clip should take more than 15s
+      safetyTimer = setTimeout(() => {
+        if (!settled && !playbackAborted) {
+          console.warn('[useCyclePlayback] Safety timeout, skipping forward')
+          audioEl.removeEventListener('ended', audioEndedHandler!)
+          audioEl.removeEventListener('error', errorHandler)
+          settleResolve()
+        }
+      }, 15000)
 
       // Start playback
       audioEl.src = srcUrl
       audioEl.load()
-      audioEl.play().catch(reject)
+      audioEl.play().catch(settleReject)
     })
   }
 
@@ -210,6 +255,8 @@ export function useCyclePlayback() {
    */
   function stop(): void {
     playbackAborted = true
+
+    clearWatchdogs()
 
     if (audio) {
       audio.pause()
