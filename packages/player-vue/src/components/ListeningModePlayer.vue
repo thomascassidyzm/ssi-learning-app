@@ -216,7 +216,7 @@ const loadPhrases = async (offset = 0) => {
         .from('course_practice_phrases')
         .select('*', { count: 'exact', head: true })
         .eq('course_code', courseCode.value)
-        .eq('phrase_type', 'eternal_eligible')
+        .in('phrase_role', ['use', 'eternal_eligible'])
 
       totalCount.value = count || 0
       console.log('[ListeningMode] Total eternal phrases:', totalCount.value)
@@ -227,7 +227,7 @@ const loadPhrases = async (offset = 0) => {
       .from('course_practice_phrases')
       .select('seed_number, lego_index, lego_id, known_text, target_text, position')
       .eq('course_code', courseCode.value)
-      .eq('phrase_type', 'eternal_eligible')
+      .in('phrase_role', ['use', 'eternal_eligible'])
       .order('seed_number', { ascending: true })
       .order('lego_index', { ascending: true })
       .order('position', { ascending: true })

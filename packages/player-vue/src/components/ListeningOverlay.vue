@@ -189,7 +189,7 @@ const loadPhrases = async (offset = 0) => {
         .from('practice_cycles')
         .select('*', { count: 'exact', head: true })
         .eq('course_code', props.courseCode)
-        .eq('phrase_role', 'use')
+        .in('phrase_role', ['use', 'eternal_eligible'])
 
       if (highestSeed.value !== null) {
         countQuery = countQuery.lte('seed_number', highestSeed.value)
@@ -208,7 +208,7 @@ const loadPhrases = async (offset = 0) => {
       .from('practice_cycles')
       .select('seed_number, lego_index, lego_id, known_text, target_text, position, target1_audio_uuid, target2_audio_uuid')
       .eq('course_code', props.courseCode)
-      .eq('phrase_role', 'use')
+      .in('phrase_role', ['use', 'eternal_eligible'])
 
     if (highestSeed.value !== null) {
       dataQuery = dataQuery.lte('seed_number', highestSeed.value)

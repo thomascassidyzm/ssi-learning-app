@@ -418,7 +418,7 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
         .eq('course_code', currentCourseCode.value)
         .eq('seed_number', parsed.seedNumber)
         .eq('lego_index', parsed.legoIndex)
-        .eq('phrase_role', 'eternal_eligible')
+        .in('phrase_role', ['use', 'eternal_eligible'])
         .order('target1_duration_ms', { ascending: false, nullsFirst: false })
         .limit(10)
 
@@ -429,7 +429,7 @@ export function useLegoNetwork(supabase: Ref<SupabaseClient | null>) {
 
       // Fallback: if no eternal_eligible phrases (older courses), get all phrases for this LEGO
       if (!phrases || phrases.length === 0) {
-        console.log(`[useLegoNetwork] No eternal_eligible for ${legoId}, trying all phrases`)
+        console.log(`[useLegoNetwork] No USE phrases for ${legoId}, trying all phrases`)
         const fallback = await supabase.value
           .from('course_practice_phrases')
           .select('id, target_text, phrase_role, connected_lego_ids, target1_audio_id, target2_audio_id, target1_duration_ms, target2_duration_ms')

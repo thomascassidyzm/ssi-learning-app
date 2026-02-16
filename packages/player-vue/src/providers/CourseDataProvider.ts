@@ -82,6 +82,16 @@ export interface CourseDataProviderConfig {
 // Set to true to enable verbose logging (for debugging only)
 const DEBUG_LOGGING = false
 
+/**
+ * Parse legoId (SXXXXLYY) into seed_number and lego_index
+ * Returns null if format is invalid
+ */
+function parseLegoId(legoId: string): { seedNumber: number; legoIndex: number } | null {
+  const match = legoId.match(/^S(\d+)L(\d+)$/)
+  if (!match) return null
+  return { seedNumber: parseInt(match[1], 10), legoIndex: parseInt(match[2], 10) }
+}
+
 export class CourseDataProvider {
   private client?: SupabaseClient
   private audioBaseUrl: string
@@ -445,12 +455,19 @@ export class CourseDataProvider {
     }
 
     try {
-      // Query course_practice_phrases by lego_id (format: SXXXXLYY)
+      // Parse legoId (SXXXXLYY) into seed_number + lego_index
+      // course_practice_phrases table has no lego_id column — query by seed_number + lego_index
+      const parsed = parseLegoId(legoId)
+      if (!parsed) {
+        return this.createEmptyBasket(legoId, lego)
+      }
+
       // v13: Sort by target1_duration_ms for cognitive load (shortest audio = easiest)
       const { data, error } = await this.client
         .from('course_practice_phrases')
         .select('*')
-        .eq('lego_id', legoId)
+        .eq('seed_number', parsed.seedNumber)
+        .eq('lego_index', parsed.legoIndex)
         .eq('course_code', this.courseId)
         .order('target1_duration_ms', { ascending: true, nullsFirst: false })
 
@@ -501,7 +518,7 @@ export class CourseDataProvider {
         .select('*')
         .eq('seed_number', seedNumber)
         .eq('course_code', this.courseId)
-        .order('lego_id', { ascending: true })
+        .order('lego_index', { ascending: true })
         .order('target1_duration_ms', { ascending: true, nullsFirst: false })
 
       if (error) {
@@ -511,10 +528,10 @@ export class CourseDataProvider {
 
       if (!data || data.length === 0) return baskets
 
-      // Group by lego_id
+      // Group by constructed lego_id (table has seed_number + lego_index, not lego_id)
       const grouped = new Map<string, any[]>()
       for (const row of data) {
-        const legoId = row.lego_id
+        const legoId = `S${String(row.seed_number).padStart(4, '0')}L${String(row.lego_index).padStart(2, '0')}`
         if (!grouped.has(legoId)) {
           grouped.set(legoId, [])
         }
@@ -1060,14 +1077,27 @@ export class CourseDataProvider {
     if (!this.client || legoIds.length === 0) return baskets
 
     try {
-      // Query course_practice_phrases by lego_id (format: SXXXXLYY)
+      // Parse legoIds into seed_number/lego_index pairs for query
+      // course_practice_phrases table has no lego_id column
+      const parsedIds = legoIds.map(id => parseLegoId(id)).filter((p): p is NonNullable<typeof p> => p !== null)
+      if (parsedIds.length === 0) {
+        for (const legoId of legoIds) {
+          baskets.set(legoId, this.createEmptyBasket(legoId, legos?.get(legoId)))
+        }
+        return baskets
+      }
+
+      // Build OR filter for (seed_number, lego_index) pairs
+      const seedNumbers = [...new Set(parsedIds.map(p => p.seedNumber))]
+
       // v13: Sort by target1_duration_ms for cognitive load
       const { data, error } = await this.client
         .from('course_practice_phrases')
         .select('*')
         .eq('course_code', this.courseId)
-        .in('lego_id', legoIds)
-        .order('lego_id', { ascending: true })
+        .in('seed_number', seedNumbers)
+        .order('seed_number', { ascending: true })
+        .order('lego_index', { ascending: true })
         .order('target1_duration_ms', { ascending: true, nullsFirst: false })
 
       if (error) {
@@ -1089,14 +1119,14 @@ export class CourseDataProvider {
         return baskets
       }
 
-      // Group by lego_id
+      // Group by constructed lego_id (table has seed_number + lego_index, not lego_id)
       const grouped = new Map<string, any[]>()
       for (const row of data) {
-        const legoId = row.lego_id
-        if (!grouped.has(legoId)) {
-          grouped.set(legoId, [])
+        const constructedLegoId = `S${String(row.seed_number).padStart(4, '0')}L${String(row.lego_index).padStart(2, '0')}`
+        if (!grouped.has(constructedLegoId)) {
+          grouped.set(constructedLegoId, [])
         }
-        grouped.get(legoId)!.push(row)
+        grouped.get(constructedLegoId)!.push(row)
       }
 
       // Transform each group to a basket
@@ -1436,7 +1466,7 @@ async function loadAllPracticePhrasesGrouped(
         .from('course_practice_phrases')
         .select('*')
         .eq('course_code', courseId)
-        .eq('phrase_type', 'practice')
+        .eq('phrase_role', 'build')
         .order('lego_id', { ascending: true })
         .order('target1_duration_ms', { ascending: true, nullsFirst: false })
         .range(debutOffset, debutOffset + pageSize - 1)
@@ -1466,7 +1496,7 @@ async function loadAllPracticePhrasesGrouped(
         .from('course_practice_phrases')
         .select('*')
         .eq('course_code', courseId)
-        .eq('phrase_type', 'eternal_eligible')
+        .in('phrase_role', ['use', 'eternal_eligible'])
         .order('lego_id', { ascending: true })
         .order('target1_duration_ms', { ascending: true, nullsFirst: false })
         .range(eternalOffset, eternalOffset + pageSize - 1)
