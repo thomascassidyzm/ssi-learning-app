@@ -48,7 +48,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['startLearning', 'viewJourney', 'selectCourse'])
+const emit = defineEmits(['startLearning', 'viewJourney', 'selectCourse', 'viewBrainMap'])
 
 // Course selector state
 const showCourseSelector = ref(false)
@@ -152,6 +152,43 @@ const formattedTotalTime = computed(() => {
   }
   return `${hours}h ${mins % 60}m`
 })
+
+// ============================================
+// MINI BRAIN VISUALIZATION
+// ============================================
+
+// Seeded random for deterministic dot placement
+const seededRandom = (seed) => {
+  let x = Math.sin(seed * 127.1 + 311.7) * 43758.5453
+  return x - Math.floor(x)
+}
+
+// Generate dots inside a brain-shaped boundary
+const brainDots = computed(() => {
+  const count = Math.min(activeCourseData.value?.completedRounds || 0, 120)
+  const dots = []
+  const cx = 60  // center x
+  const cy = 50  // center y
+  const rx = 45  // horizontal radius
+  const ry = 38  // vertical radius
+
+  for (let i = 0; i < count; i++) {
+    // Deterministic placement using seeded random
+    const angle = seededRandom(i * 2) * Math.PI * 2
+    const dist = Math.sqrt(seededRandom(i * 2 + 1)) * 0.85 // sqrt for uniform distribution
+    const x = cx + Math.cos(angle) * rx * dist
+    const y = cy + Math.sin(angle) * ry * dist
+    const r = 1.2 + seededRandom(i * 3) * 1.0 // radius 1.2-2.2
+    const opacity = 0.3 + seededRandom(i * 3 + 1) * 0.5 // opacity 0.3-0.8
+    dots.push({ x, y, r, opacity })
+  }
+  return dots
+})
+
+// Brain boundary path (elliptical with slight lobes)
+const brainPath = computed(() => {
+  return 'M60,12 C82,12 104,28 104,50 C104,72 82,88 60,88 C38,88 16,72 16,50 C16,28 38,12 60,12 Z'
+})
 </script>
 
 <template>
@@ -175,6 +212,50 @@ const formattedTotalTime = computed(() => {
         <h1 class="greeting">{{ greeting }}</h1>
         <p class="subtitle">Ready to continue your journey?</p>
       </section>
+
+      <!-- Mini Brain Visualization -->
+      <div v-if="activeCourseData" class="mini-brain" @click="emit('viewBrainMap')">
+        <svg viewBox="0 0 120 100" class="brain-svg">
+          <!-- Brain outline with belt-colored glow -->
+          <path
+            :d="brainPath"
+            fill="none"
+            :stroke="activeBelt.color"
+            stroke-width="1.5"
+            :opacity="0.5"
+          />
+          <!-- Glow filter -->
+          <defs>
+            <filter id="brain-glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="3" result="blur"/>
+              <feMerge>
+                <feMergeNode in="blur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+          </defs>
+          <!-- Glowing boundary -->
+          <path
+            :d="brainPath"
+            fill="none"
+            :stroke="activeBelt.color"
+            stroke-width="0.8"
+            :opacity="0.25"
+            filter="url(#brain-glow)"
+          />
+          <!-- Dots inside brain (LEGOs learned) -->
+          <circle
+            v-for="(dot, i) in brainDots"
+            :key="i"
+            :cx="dot.x"
+            :cy="dot.y"
+            :r="dot.r"
+            :fill="activeBelt.color"
+            :opacity="dot.opacity"
+          />
+        </svg>
+        <span class="brain-label">{{ activeCourseData.completedRounds || 0 }} words learned</span>
+      </div>
 
       <!-- Active Course Hero (only render when course loaded) -->
       <section class="hero-card" v-if="activeCourseData">
@@ -867,6 +948,35 @@ const formattedTotalTime = computed(() => {
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.02em;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MINI BRAIN VISUALIZATION
+   ═══════════════════════════════════════════════════════════════ */
+
+.mini-brain {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 1rem;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.2s ease;
+}
+
+.mini-brain:active {
+  transform: scale(0.97);
+}
+
+.brain-svg {
+  width: 120px;
+  height: 100px;
+}
+
+.brain-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
 }
 
 /* ═══════════════════════════════════════════════════════════════

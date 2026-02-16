@@ -10,6 +10,7 @@ import CourseExplorer from '@/components/CourseExplorer.vue'
 import BrainView from '@/components/BrainView.vue'
 import UsageStats from '@/components/UsageStats.vue'
 import CourseBrowser from '@/components/CourseBrowser.vue'
+import BrowseScreen from '@/components/BrowseScreen.vue'
 import BottomNav from '@/components/BottomNav.vue'
 import BuildBadge from '@/components/BuildBadge.vue'
 
@@ -49,7 +50,7 @@ const {
 const USE_NEW_SESSION = ref(false) // Toggle to use LearningSession instead of LearningPlayer
 
 // Navigation state
-// Screens: 'home' | 'player' | 'journey' | 'settings' | 'explorer' | 'network' | 'stats' | 'browse'
+// Screens: 'home' | 'player' | 'journey' | 'settings' | 'explorer' | 'network' | 'stats' | 'browse' | 'belt-browser'
 const currentScreen = ref('home')
 const selectedCourse = ref(null)
 const isLearning = ref(false)
@@ -270,6 +271,7 @@ onMounted(() => {
         @openSettings="openSettings"
         @selectCourse="handleCourseSelect"
         @openExplorer="openExplorer"
+        @viewBrainMap="navigate('network')"
       />
     </Transition>
 
@@ -345,12 +347,30 @@ onMounted(() => {
       />
     </Transition>
 
-    <!-- Course Browser -->
+    <!-- Browse Screen (hub) -->
+    <Transition name="slide-right" mode="out-in">
+      <BrowseScreen
+        v-if="currentScreen === 'browse'"
+        :active-course="activeCourse"
+        :enrolled-courses="enrolledCourses"
+        :completed-seeds="completedSeeds"
+        :total-seeds="totalSeeds"
+        :current-belt-name="currentBeltName"
+        :total-learning-minutes="totalLearningMinutes"
+        :total-phrases-spoken="totalPhrasesSpoken"
+        @open-belts="navigate('belt-browser')"
+        @open-brain="navigate('network')"
+        @select-course="handleCourseSelect"
+        @close="goHome"
+      />
+    </Transition>
+
+    <!-- Belt Browser (drill-down from Browse) -->
     <Transition name="slide-right" mode="out-in">
       <CourseBrowser
-        v-if="currentScreen === 'browse'"
+        v-if="currentScreen === 'belt-browser'"
         @start-seed="handleStartAtSeed"
-        @close="goHome"
+        @close="navigate('browse')"
       />
     </Transition>
 
