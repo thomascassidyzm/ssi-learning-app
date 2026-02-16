@@ -1,29 +1,36 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, inject } from 'vue'
 import StatsCard from '@/components/schools/StatsCard.vue'
+import type { useSchoolsData } from '@/composables/useSchoolsData'
 
 type TimePeriod = '7d' | '30d' | '90d' | 'year'
+
+// Injected from SchoolsContainer
+const schoolsData = inject<ReturnType<typeof useSchoolsData>>('schoolsData')!
 
 // State
 const selectedPeriod = ref<TimePeriod>('30d')
 
-// Mock Data
+// Data — loaded from school_summary view, with fallback defaults
 const metrics = ref({
-  phrasesLearned: {
-    value: 12847,
-    trend: '+23%'
-  },
-  hoursLearned: {
-    value: 847,
-    trend: '+18%'
-  },
-  activeRate: {
-    value: '92%',
-    trend: '+5%'
-  },
-  beltPromotions: {
-    value: 47,
-    trend: '+12'
+  phrasesLearned: { value: 0, trend: null as string | null },
+  hoursLearned: { value: 0, trend: null as string | null },
+  activeRate: { value: '0%', trend: null as string | null },
+  beltPromotions: { value: 0, trend: null as string | null },
+})
+
+onMounted(async () => {
+  const school = await schoolsData.getSchoolForUser('admin-001')
+  if (!school) return
+
+  const summary = await schoolsData.getSchoolSummary(school.id)
+  if (summary) {
+    metrics.value = {
+      phrasesLearned: { value: Math.round(summary.total_practice_hours * 60), trend: null },
+      hoursLearned: { value: Math.round(summary.total_practice_hours), trend: null },
+      activeRate: { value: summary.student_count > 0 ? '—' : '0%', trend: null },
+      beltPromotions: { value: 0, trend: null },
+    }
   }
 })
 

@@ -128,10 +128,13 @@ export function useEntitlement(): UseEntitlementReturn {
   }
 
   /**
-   * Check localStorage dev flag for testing
+   * Check localStorage dev flags for testing.
+   * Checks both legacy ssi-dev-paid-user and new ssi-dev-tier.
    */
   function checkDevPaidStatus(): boolean {
     try {
+      const tier = localStorage.getItem('ssi-dev-tier')
+      if (tier === 'paid') return true
       return localStorage.getItem('ssi-dev-paid-user') === 'true'
     } catch {
       return false

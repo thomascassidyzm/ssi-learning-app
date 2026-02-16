@@ -464,6 +464,8 @@ const loadScript = async (forceRefresh = false) => {
         knownText: item.knownText || '',
         targetText: item.targetText || '',
         audioRefs: item.audioRefs,
+        presentationAudio: item.presentationAudio,
+        components: item.components,
         reviewOf: item.reviewOf,
         fibonacciPosition: item.fibonacciPosition,
       })),
@@ -627,6 +629,11 @@ const lookupAudioLazy = async (text, role, isKnown = false) => {
  * Handles both legacy UUIDs and v13 s3_keys
  */
 const getAudioUrlAsync = async (text, role, item = null) => {
+  // Check presentationAudio from RoundBuilder first (for intro items)
+  if (role === 'intro' && item?.presentationAudio?.url) {
+    return item.presentationAudio.url
+  }
+
   if (role === 'intro' && item?.legoId) {
     const introEntry = audioMap.value.get(`intro:${item.legoId}`)
     if (introEntry?.intro) {
@@ -678,7 +685,12 @@ const getAudioUrl = (text, role, item = null) => {
     }
   }
 
-  // Fallback: intro audio lookup
+  // Check presentationAudio from RoundBuilder (for intro items)
+  if (role === 'intro' && item?.presentationAudio?.url) {
+    return item.presentationAudio.url
+  }
+
+  // Fallback: intro audio lookup from audioMap
   if (role === 'intro' && item?.legoId) {
     const introEntry = audioMap.value.get(`intro:${item.legoId}`)
     if (introEntry?.intro) {

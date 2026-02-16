@@ -1,8 +1,32 @@
 <script setup lang="ts">
+import { ref, provide, inject, onMounted } from 'vue'
 import TopNav from '@/components/schools/shared/TopNav.vue'
 import DevRoleSwitcher from '@/components/schools/DevRoleSwitcher.vue'
 import { SignInModal, SignUpModal } from '@/components/auth'
 import { useAuthModal } from '@/composables/useAuthModal'
+import { useSchoolsData } from '@/composables/useSchoolsData'
+import { useDevRole } from '@/composables/useDevRole'
+
+// Supabase client from App
+const supabase = inject('supabase', ref(null)) as any
+
+// Schools data composable — provided to all child views
+const schoolsData = useSchoolsData(supabase)
+provide('schoolsData', schoolsData)
+
+// Dev role for god mode context
+const { currentUser } = useDevRole()
+provide('devUser', currentUser)
+
+// On mount: ensure dev school exists for god mode
+onMounted(async () => {
+  if (supabase.value) {
+    const school = await schoolsData.getOrCreateDevSchool()
+    if (school) {
+      provide('devSchool', ref(school))
+    }
+  }
+})
 
 // Global auth modal (shared singleton - same state as PlayerContainer)
 const {

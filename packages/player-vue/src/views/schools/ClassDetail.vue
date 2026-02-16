@@ -1,11 +1,23 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, inject } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 
 const router = useRouter()
 const route = useRoute()
 
-// Class data - would come from Supabase in production
+// Injected from SchoolsContainer
+const schoolsData = inject('schoolsData')
+
+const avatarColors = [
+  'linear-gradient(135deg, #1f2937, #111827)',
+  'linear-gradient(135deg, #22c55e, #16a34a)',
+  'linear-gradient(135deg, #3b82f6, #2563eb)',
+  'linear-gradient(135deg, #f97316, #ea580c)',
+  'linear-gradient(135deg, #fbbf24, #d97706)',
+  'linear-gradient(135deg, #a78bfa, #7c3aed)',
+]
+
+// Class data
 const classData = ref({
   id: '',
   class_name: '',
@@ -15,8 +27,37 @@ const classData = ref({
   student_join_code: ''
 })
 
+// Student data
+const students = ref([])
+
 // Load class data on mount
-onMounted(() => {
+onMounted(async () => {
+  const classId = route.params.id
+
+  // Try Supabase first
+  if (classId && schoolsData) {
+    const detail = await schoolsData.getClassDetail(classId)
+    if (detail) {
+      classData.value = detail
+
+      // Load student progress from reporting view
+      const progress = await schoolsData.getClassStudentProgress(classId)
+      students.value = progress.map((p, i) => ({
+        id: p.student_user_id,
+        name: p.student_name || `Student ${i + 1}`,
+        email: '',
+        initials: (p.student_name || `S${i + 1}`).split(' ').map(n => n[0]).join(''),
+        avatarColor: avatarColors[i % avatarColors.length],
+        joined_at: p.joined_class_at ?? '',
+        joined_display: p.joined_class_at ? new Date(p.joined_class_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '',
+        seeds_completed: p.seeds_completed ?? 0,
+        total_practice_seconds: p.total_practice_seconds ?? 0,
+      }))
+      return
+    }
+  }
+
+  // Fallback to sessionStorage
   const stored = sessionStorage.getItem('ssi-class-detail')
   if (stored) {
     try {
@@ -26,91 +67,12 @@ onMounted(() => {
       router.push({ name: 'classes' })
     }
   } else {
-    // In production, would fetch from Supabase using route.params.id
-    console.warn('No class data found, redirecting...')
     router.push({ name: 'classes' })
   }
 })
 
 // Copy state for join code
 const copySuccess = ref(false)
-
-// Demo student data - would come from Supabase in production
-const students = ref([
-  {
-    id: '1',
-    name: 'Angharad Roberts',
-    email: 'angharad.r@student.edu',
-    initials: 'AR',
-    avatarColor: 'linear-gradient(135deg, #1f2937, #111827)',
-    joined_at: '2025-09-02T00:00:00Z',
-    joined_display: '2 Sep 2025'
-  },
-  {
-    id: '2',
-    name: 'Catrin Edwards',
-    email: 'catrin.e@student.edu',
-    initials: 'CE',
-    avatarColor: 'linear-gradient(135deg, #22c55e, #16a34a)',
-    joined_at: '2025-09-03T00:00:00Z',
-    joined_display: '3 Sep 2025'
-  },
-  {
-    id: '3',
-    name: 'Dafydd Hughes',
-    email: 'dafydd.h@student.edu',
-    initials: 'DH',
-    avatarColor: 'linear-gradient(135deg, #3b82f6, #2563eb)',
-    joined_at: '2025-09-04T00:00:00Z',
-    joined_display: '4 Sep 2025'
-  },
-  {
-    id: '4',
-    name: 'Elin Morgan',
-    email: 'elin.m@student.edu',
-    initials: 'EM',
-    avatarColor: 'linear-gradient(135deg, #f97316, #ea580c)',
-    joined_at: '2025-09-05T00:00:00Z',
-    joined_display: '5 Sep 2025'
-  },
-  {
-    id: '5',
-    name: 'Gareth Llywelyn',
-    email: 'gareth.l@student.edu',
-    initials: 'GL',
-    avatarColor: 'linear-gradient(135deg, #fbbf24, #d97706)',
-    joined_at: '2025-09-06T00:00:00Z',
-    joined_display: '6 Sep 2025'
-  },
-  {
-    id: '6',
-    name: 'Megan Davies',
-    email: 'megan.d@student.edu',
-    initials: 'MD',
-    avatarColor: 'linear-gradient(135deg, #3b82f6, #2563eb)',
-    joined_at: '2025-09-08T00:00:00Z',
-    joined_display: '8 Sep 2025'
-  },
-  {
-    id: '7',
-    name: 'Owen Price',
-    email: 'owen.p@student.edu',
-    initials: 'OP',
-    avatarColor: 'linear-gradient(135deg, #f5f5f5, #e0e0e0)',
-    textColor: '#333',
-    joined_at: '2025-09-10T00:00:00Z',
-    joined_display: '10 Sep 2025'
-  },
-  {
-    id: '8',
-    name: 'Tomos Hughes',
-    email: 'tomos.h@student.edu',
-    initials: 'TH',
-    avatarColor: 'linear-gradient(135deg, #f97316, #ea580c)',
-    joined_at: '2025-09-12T00:00:00Z',
-    joined_display: '12 Sep 2025'
-  }
-])
 
 // Search students
 const searchQuery = ref('')

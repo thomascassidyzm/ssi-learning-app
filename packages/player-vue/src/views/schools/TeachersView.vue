@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, inject } from 'vue'
 import JoinCodeBanner from '@/components/schools/JoinCodeBanner.vue'
+import type { useSchoolsData } from '@/composables/useSchoolsData'
 
 interface Teacher {
   id: number
@@ -17,99 +18,39 @@ interface Teacher {
   joinDate: string
 }
 
-// Mock data
-const teacherJoinCode = ref('CYM-247')
+// Injected from SchoolsContainer
+const schoolsData = inject<ReturnType<typeof useSchoolsData>>('schoolsData')!
+
+const teacherJoinCode = ref('')
 const searchQuery = ref('')
 const selectedCourse = ref('all')
 const selectedBelt = ref('all')
 const showAddModal = ref(false)
 
-const teachers = ref<Teacher[]>([
-  {
-    id: 1,
-    name: 'Sian Morgan',
-    initials: 'SM',
-    email: 'sian.morgan@ysgolcymraeg.edu',
-    course: 'Welsh (Northern)',
-    belt: 'black',
-    status: 'active',
-    classCount: 3,
-    studentCount: 67,
-    phrasesLearned: 2450,
-    engagementRate: 92,
-    joinDate: '2024-09-15'
-  },
-  {
-    id: 2,
-    name: 'Rhys Jones',
-    initials: 'RJ',
-    email: 'rhys.jones@ysgolcymraeg.edu',
-    course: 'Welsh (Southern)',
-    belt: 'blue',
-    status: 'active',
-    classCount: 2,
-    studentCount: 48,
-    phrasesLearned: 1820,
-    engagementRate: 87,
-    joinDate: '2024-10-02'
-  },
-  {
-    id: 3,
-    name: 'Elen Williams',
-    initials: 'EW',
-    email: 'elen.williams@ysgolcymraeg.edu',
-    course: 'Welsh (Northern)',
-    belt: 'yellow',
-    status: 'active',
-    classCount: 2,
-    studentCount: 52,
-    phrasesLearned: 980,
-    engagementRate: 78,
-    joinDate: '2024-11-20'
-  },
-  {
-    id: 4,
-    name: 'Dewi Pritchard',
-    initials: 'DP',
-    email: 'dewi.pritchard@ysgolcymraeg.edu',
-    course: 'Welsh (Southern)',
-    belt: 'green',
-    status: 'inactive',
-    classCount: 2,
-    studentCount: 38,
-    phrasesLearned: 1240,
-    engagementRate: 65,
-    joinDate: '2024-08-10'
-  },
-  {
-    id: 5,
-    name: 'Maria Garcia',
-    initials: 'MG',
-    email: 'maria.garcia@ysgolcymraeg.edu',
-    course: 'Spanish (Latin Am)',
-    belt: 'orange',
-    status: 'active',
-    classCount: 3,
-    studentCount: 79,
-    phrasesLearned: 1650,
-    engagementRate: 88,
-    joinDate: '2024-10-15'
-  },
-  {
-    id: 6,
-    name: 'Carys Thomas',
-    initials: 'CT',
-    email: 'carys.thomas@ysgolcymraeg.edu',
-    course: 'Welsh (Northern)',
+const teachers = ref<Teacher[]>([])
+
+onMounted(async () => {
+  const school = await schoolsData.getSchoolForUser('admin-001')
+  if (!school) return
+
+  teacherJoinCode.value = school.teacher_join_code
+
+  const teacherList = await schoolsData.getTeachers(school.id)
+  teachers.value = teacherList.map((t, i) => ({
+    id: i + 1,
+    name: t.name === t.user_id ? `Teacher ${i + 1}` : t.name,
+    initials: t.name === t.user_id ? `T${i + 1}` : t.name.split(' ').map((n: string) => n[0]).join(''),
+    email: t.email || `teacher${i + 1}@school.edu`,
+    course: 'Welsh',
     belt: 'white',
-    status: 'active',
-    classCount: 1,
-    studentCount: 18,
-    phrasesLearned: 156,
-    engagementRate: 95,
-    joinDate: '2025-01-05'
-  }
-])
+    status: 'active' as const,
+    classCount: 0,
+    studentCount: 0,
+    phrasesLearned: 0,
+    engagementRate: 0,
+    joinDate: t.added_at ? new Date(t.added_at).toISOString().split('T')[0] : '',
+  }))
+})
 
 const courses = ['Welsh (Northern)', 'Welsh (Southern)', 'Spanish (Latin Am)']
 const belts = ['white', 'yellow', 'orange', 'green', 'blue', 'brown', 'black']

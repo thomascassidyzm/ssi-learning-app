@@ -5053,8 +5053,9 @@ const getRevealUpTo = (rounds: Array<{ legoId: string }>): number => {
 // LIFECYCLE
 // ============================================
 
-// Event handler reference for cleanup
+// Event handler references for cleanup
 let settingChangedHandler: ((e: Event) => void) | null = null
+let jumpToSeedHandler: ((e: Event) => void) | null = null
 
 onMounted(async () => {
   // ============================================
@@ -5100,6 +5101,23 @@ onMounted(async () => {
     }
   }
   window.addEventListener('ssi-setting-changed', settingChangedHandler)
+
+  // Listen for external jump-to-seed events (from DevRoleSwitcher, CourseBrowser)
+  jumpToSeedHandler = async (e: Event) => {
+    const seedNumber = (e as CustomEvent).detail?.seedNumber
+    if (typeof seedNumber !== 'number' || seedNumber < 1) return
+    console.log('[LearningPlayer] Jump to seed requested:', seedNumber)
+    try {
+      await loadSeedIfNeeded(seedNumber)
+      simplePlayer.jumpToSeed(seedNumber)
+      // Update belt progress to match the jumped position
+      const legoId = `S${String(seedNumber).padStart(4, '0')}L01`
+      beltProgress.value?.setLastLegoId(legoId)
+    } catch (err) {
+      console.warn('[LearningPlayer] Jump to seed failed:', err)
+    }
+  }
+  window.addEventListener('ssi-jump-to-seed', jumpToSeedHandler)
 
   audioController.value = new RealAudioController()
   currentCourseCode.value = courseCode.value
@@ -5876,10 +5894,13 @@ onUnmounted(() => {
   if (beltLoader.value) {
     beltLoader.value.clearCache()
   }
-  // Cleanup settings event listener
+  // Cleanup event listeners
   if (settingChangedHandler) {
     window.removeEventListener('ssi-setting-changed', settingChangedHandler)
     settingChangedHandler = null
+  }
+  if (jumpToSeedHandler) {
+    window.removeEventListener('ssi-jump-to-seed', jumpToSeedHandler)
   }
 
   // Safety cleanup: directly stop any audio elements that might still exist

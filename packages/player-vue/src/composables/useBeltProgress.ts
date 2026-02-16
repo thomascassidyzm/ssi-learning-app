@@ -162,7 +162,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   // SUPABASE SYNC
   // ============================================================================
 
-  const fetchRemoteProgress = async (): Promise<number | null> => {
+  const fetchRemoteProgress = async (): Promise<{ beltIndex: number; lastLegoId: string | null } | null> => {
     const supabase = getSupabase()
     const learnerId = getLearnerId()
 
@@ -171,7 +171,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
     try {
       const { data, error } = await supabase
         .from('course_enrollments')
-        .select('highest_completed_seed')
+        .select('highest_completed_seed, last_completed_lego_id')
         .eq('learner_id', learnerId)
         .eq('course_id', courseCode)
         .maybeSingle()
@@ -184,7 +184,10 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
       // Convert seed to belt index
       const remoteSeed = data?.highest_completed_seed ?? null
       if (remoteSeed === null) return null
-      return getBeltIndexForSeed(remoteSeed)
+      return {
+        beltIndex: getBeltIndexForSeed(remoteSeed),
+        lastLegoId: data?.last_completed_lego_id ?? null,
+      }
     } catch (err) {
       console.warn('[BeltProgress] Remote fetch failed:', err)
       return null
@@ -212,6 +215,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
           learner_id: learnerId,
           course_id: courseCode,
           highest_completed_seed: seedsForBelt,
+          last_completed_lego_id: highestLegoId.value,
           last_practiced_at: new Date().toISOString(),
         }, {
           onConflict: 'learner_id,course_id',
@@ -222,6 +226,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
           .from('course_enrollments')
           .update({
             highest_completed_seed: seedsForBelt,
+            last_completed_lego_id: highestLegoId.value,
             last_practiced_at: new Date().toISOString(),
           })
           .eq('learner_id', learnerId)
@@ -246,22 +251,40 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
 
   const mergeProgress = async (): Promise<number> => {
     const localBelt = highestBeltIndex.value
-    const remoteBelt = await fetchRemoteProgress()
+    const remoteData = await fetchRemoteProgress()
 
-    if (remoteBelt === null) {
+    if (remoteData === null) {
       console.log('[BeltProgress] No remote progress, using local belt:', localBelt)
       return localBelt
     }
 
+    const remoteBelt = remoteData.beltIndex
+    const remoteLegoId = remoteData.lastLegoId
     const mergedBelt = Math.max(localBelt, remoteBelt)
+    let changed = false
+
+    // Merge lastLegoId — take whichever is further (lexicographic: "S0045L03" > "S0020L01")
+    if (remoteLegoId && (!highestLegoId.value || remoteLegoId > highestLegoId.value)) {
+      highestLegoId.value = remoteLegoId
+      lastLegoId.value = remoteLegoId
+      changed = true
+      console.log('[BeltProgress] Remote resume position is ahead:', remoteLegoId)
+    }
 
     if (mergedBelt !== localBelt) {
       console.log('[BeltProgress] Merged: local belt', localBelt, '+ remote belt', remoteBelt, '=', mergedBelt)
       highestBeltIndex.value = mergedBelt
+      changed = true
+    }
+
+    if (changed) {
       saveProgressLocal()
     }
 
-    if (mergedBelt > remoteBelt) {
+    // Push local state to remote if local is ahead
+    const localAhead = mergedBelt > remoteBelt ||
+      (highestLegoId.value && (!remoteLegoId || highestLegoId.value > remoteLegoId))
+    if (localAhead) {
       syncToRemote(mergedBelt)
     }
 
@@ -473,6 +496,15 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
       console.log('[BeltProgress] Session ended:', seedsLearned, 'seeds,', phrasesSpoken, 'phrases spoken in', Math.round(durationMs / 60000), 'mins')
     }
 
+    // Flush any pending debounced position sync immediately
+    if (positionSyncTimer) {
+      clearTimeout(positionSyncTimer)
+      positionSyncTimer = null
+      if (canSync()) {
+        syncToRemote(highestBeltIndex.value)
+      }
+    }
+
     sessionStartTime.value = null
     sessionStartSeed.value = 0
   }
@@ -499,6 +531,18 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
     return null
   }
 
+  // Debounced remote sync for position updates (every 30s max)
+  let positionSyncTimer: ReturnType<typeof setTimeout> | null = null
+
+  const debouncedPositionSync = () => {
+    if (!canSync()) return
+    if (positionSyncTimer) return // Already scheduled
+    positionSyncTimer = setTimeout(() => {
+      positionSyncTimer = null
+      syncToRemote(highestBeltIndex.value)
+    }, 30000)
+  }
+
   /**
    * Update resume position (call when player moves to a new LEGO)
    * Also updates highestLegoId if this is further than we've ever been
@@ -511,7 +555,10 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
       highestLegoId.value = legoId
     }
 
-    saveProgressLocal() // Just save locally, no remote sync for position
+    saveProgressLocal()
+
+    // Debounced sync of position to Supabase for cross-device resume
+    debouncedPositionSync()
 
     // Check for belt promotion based on the LEGO's seed
     if (legoId) {

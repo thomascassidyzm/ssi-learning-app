@@ -1,61 +1,63 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, inject } from 'vue'
 import JoinCodeBanner from '@/components/schools/JoinCodeBanner.vue'
 import StatsCard from '@/components/schools/StatsCard.vue'
+import type { useSchoolsData } from '@/composables/useSchoolsData'
 
-// Mock data - would come from Supabase in production
-const schoolName = ref('Ysgol Cymraeg Caerdydd')
-const adminName = ref('Dafydd')
-const teacherJoinCode = ref('CYM-247')
+// Injected from SchoolsContainer
+const schoolsData = inject<ReturnType<typeof useSchoolsData>>('schoolsData')!
+const devUser = inject<any>('devUser')
+
+// Live data
+const schoolName = ref('Loading...')
+const adminName = ref('')
+const teacherJoinCode = ref('')
 
 const stats = ref({
-  teachers: {
-    count: 12,
-    trend: '+2 this month'
-  },
-  students: {
-    count: 284,
-    trend: '+47 this month'
-  },
-  classes: {
-    count: 18,
-    trend: null
-  },
-  phrasesThisWeek: {
-    count: 1247,
-    trend: '+15%'
-  }
+  teachers: { count: 0, trend: null as string | null },
+  students: { count: 0, trend: null as string | null },
+  classes: { count: 0, trend: null as string | null },
+  phrasesThisWeek: { count: 0, trend: null as string | null },
 })
 
-const teachers = ref([
-  {
-    id: 1,
-    name: 'Sian Morgan',
-    initials: 'SM',
-    course: 'Welsh (Northern)',
-    belt: 'black',
-    classCount: 3,
-    studentCount: 67
-  },
-  {
-    id: 2,
-    name: 'Rhys Jones',
-    initials: 'RJ',
-    course: 'Welsh (Southern)',
-    belt: 'blue',
-    classCount: 2,
-    studentCount: 48
-  },
-  {
-    id: 3,
-    name: 'Elen Williams',
-    initials: 'EW',
-    course: 'Welsh (Northern)',
-    belt: 'yellow',
-    classCount: 2,
-    studentCount: 52
+const teachers = ref<any[]>([])
+
+// Load data from Supabase
+onMounted(async () => {
+  const userId = devUser?.value?.id ?? 'admin-001'
+  const school = await schoolsData.getSchoolForUser(userId)
+  if (!school) {
+    schoolName.value = 'No school found'
+    return
   }
-])
+
+  schoolName.value = school.school_name
+  teacherJoinCode.value = school.teacher_join_code
+  adminName.value = devUser?.value?.name?.split(' ')[0] ?? 'Admin'
+
+  // Fetch summary
+  const summary = await schoolsData.getSchoolSummary(school.id)
+  if (summary) {
+    stats.value = {
+      teachers: { count: summary.teacher_count, trend: null },
+      students: { count: summary.student_count, trend: null },
+      classes: { count: summary.class_count, trend: null },
+      phrasesThisWeek: { count: Math.round(summary.total_practice_hours * 60), trend: null },
+    }
+  }
+
+  // Fetch teacher list
+  const teacherList = await schoolsData.getTeachers(school.id)
+  teachers.value = teacherList.map((t, i) => ({
+    id: i + 1,
+    name: t.name === t.user_id ? `Teacher ${i + 1}` : t.name,
+    initials: t.name === t.user_id ? `T${i + 1}` : t.name.split(' ').map((n: string) => n[0]).join(''),
+    course: 'Welsh',
+    belt: 'white',
+    classCount: 0,
+    studentCount: 0,
+  }))
+})
 
 const recentActivity = ref([
   {

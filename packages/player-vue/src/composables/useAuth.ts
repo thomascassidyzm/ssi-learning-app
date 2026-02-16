@@ -97,12 +97,15 @@ export function useAuth(): AuthState & AuthActions {
     localStorage.getItem(SIGNUP_PROMPT_SEEN_KEY) === 'true'
   )
 
-  // Computed state
-  const isAuthenticated = computed(() => !!clerkUser.value)
-  const isGuest = computed(() => !clerkUser.value && !!guestId.value)
+  // Computed state (accounts for god mode where learner is set without Clerk)
+  const isAuthenticated = computed(() => !!clerkUser.value || !!learner.value)
+  const isGuest = computed(() => !clerkUser.value && !learner.value && !!guestId.value)
   const learnerId = computed(() => {
     if (clerkUser.value) {
       return clerkUser.value.id
+    }
+    if (learner.value) {
+      return learner.value.user_id
     }
     return guestId.value
   })
@@ -188,11 +191,32 @@ export function useAuth(): AuthState & AuthActions {
   }
 
   /**
-   * Initialize auth state
+   * Initialize auth state.
+   * In god mode (ssi-dev-role set), skips Clerk entirely and uses mock user IDs.
    */
   async function initialize(supabaseClient: SupabaseClient): Promise<void> {
     supabase.value = supabaseClient
     isLoading.value = true
+
+    // God mode bypass: skip Clerk entirely when dev role is set
+    const devRole = localStorage.getItem('ssi-dev-role')
+    if (devRole) {
+      const { useDevRole } = await import('./useDevRole')
+      const { currentUser } = useDevRole()
+      // Set learner to mock user, skip Clerk
+      guestId.value = null
+      learner.value = {
+        id: currentUser.value.id,
+        user_id: currentUser.value.id,
+        display_name: currentUser.value.name,
+        created_at: new Date(),
+        updated_at: new Date(),
+        preferences: defaultPreferences(),
+      } as any
+      isLoading.value = false
+      console.log('[useAuth] God mode active, using mock user:', currentUser.value.id)
+      return
+    }
 
     // Initialize guest ID
     guestId.value = getOrCreateGuestId()
@@ -380,6 +404,27 @@ export function useAuth(): AuthState & AuthActions {
         }
 
         console.log(`[useAuth] Migrated progress for ${progress.courseId}`)
+      }
+
+      // Migrate belt progress from localStorage to Supabase enrollment
+      try {
+        for (const progress of guestProgress) {
+          const beltKey = `ssi_belt_progress_${progress.courseId}`
+          const beltData = localStorage.getItem(beltKey)
+          if (beltData) {
+            const parsed = JSON.parse(beltData)
+            if (parsed.highestLegoId) {
+              await supabase.value
+                .from('course_enrollments')
+                .update({ last_completed_lego_id: parsed.highestLegoId })
+                .eq('learner_id', learner.value!.id)
+                .eq('course_id', progress.courseId)
+              console.log(`[useAuth] Migrated belt progress for ${progress.courseId}: ${parsed.highestLegoId}`)
+            }
+          }
+        }
+      } catch (beltErr) {
+        console.warn('[useAuth] Belt progress migration failed (non-critical):', beltErr)
       }
 
       // Clear guest data from IndexedDB

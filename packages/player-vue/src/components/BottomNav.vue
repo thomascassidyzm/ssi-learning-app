@@ -47,7 +47,7 @@ const userImageUrl = computed(() => auth?.user?.value?.imageUrl || null)
 // Navigation items (left side only - account handled separately)
 const leftNavItems = [
   { id: 'home', label: 'Home', icon: 'home' },
-  { id: 'network', label: 'Progress', icon: 'network' },
+  { id: 'browse', label: 'Browse', icon: 'browse' },
 ]
 
 // Settings nav item
@@ -165,11 +165,12 @@ const isVisible = computed(() => !props.isLearning)
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
                 <polyline points="9 22 9 12 15 12 15 22"/>
               </svg>
-              <!-- Bar chart icon for Progress -->
-              <svg v-else-if="item.icon === 'network'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M18 20V10"/>
-                <path d="M12 20V4"/>
-                <path d="M6 20v-6"/>
+              <!-- Grid/Browse icon -->
+              <svg v-else-if="item.icon === 'browse'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7" rx="1"/>
+                <rect x="14" y="3" width="7" height="7" rx="1"/>
+                <rect x="3" y="14" width="7" height="7" rx="1"/>
+                <rect x="14" y="14" width="7" height="7" rx="1"/>
               </svg>
             </div>
             <span class="nav-label">{{ item.label }}</span>

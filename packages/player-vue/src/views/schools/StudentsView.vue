@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, inject } from 'vue'
 import SearchBox from '@/components/schools/shared/SearchBox.vue'
 import FilterDropdown from '@/components/schools/shared/FilterDropdown.vue'
 import Badge from '@/components/schools/shared/Badge.vue'
 import Button from '@/components/schools/shared/Button.vue'
+import { getBeltIndexForSeed, BELTS } from '@/composables/useBeltProgress'
+import type { useSchoolsData } from '@/composables/useSchoolsData'
 
 interface Student {
   id: number
@@ -18,25 +20,15 @@ interface Student {
   progress: number
 }
 
-// Mock data
+// Injected from SchoolsContainer
+const schoolsData = inject<ReturnType<typeof useSchoolsData>>('schoolsData')!
+
 const searchQuery = ref('')
 const selectedClass = ref<string | null>(null)
 const selectedBelt = ref<string | null>(null)
 
-const students = ref<Student[]>([
-  { id: 1, name: 'Angharad Roberts', initials: 'AR', email: 'angharad.r@school.edu', class: 'Year 7 Welsh', belt: 'blue', phrasesLearned: 1247, sessionsCompleted: 47, lastActive: '2 hours ago', progress: 78 },
-  { id: 2, name: 'Megan Davies', initials: 'MD', email: 'megan.d@school.edu', class: 'Year 7 Welsh', belt: 'green', phrasesLearned: 892, sessionsCompleted: 38, lastActive: '1 day ago', progress: 65 },
-  { id: 3, name: 'Catrin Edwards', initials: 'CE', email: 'catrin.e@school.edu', class: 'Year 8 Advanced', belt: 'yellow', phrasesLearned: 756, sessionsCompleted: 32, lastActive: '3 hours ago', progress: 52 },
-  { id: 4, name: 'Gareth Llywelyn', initials: 'GL', email: 'gareth.l@school.edu', class: 'Year 8 Advanced', belt: 'orange', phrasesLearned: 623, sessionsCompleted: 28, lastActive: '5 days ago', progress: 45 },
-  { id: 5, name: 'Tomos Hughes', initials: 'TH', email: 'tomos.h@school.edu', class: 'Year 9 Beginners', belt: 'white', phrasesLearned: 412, sessionsCompleted: 18, lastActive: '1 week ago', progress: 28 },
-  { id: 6, name: 'Owen Price', initials: 'OP', email: 'owen.p@school.edu', class: 'Year 9 Beginners', belt: 'white', phrasesLearned: 189, sessionsCompleted: 12, lastActive: 'Today', progress: 15 },
-])
-
-const classOptions = [
-  { value: 'Year 7 Welsh', label: 'Year 7 Welsh' },
-  { value: 'Year 8 Advanced', label: 'Year 8 Advanced' },
-  { value: 'Year 9 Beginners', label: 'Year 9 Beginners' },
-]
+const students = ref<Student[]>([])
+const classOptions = ref<{ value: string; label: string }[]>([])
 
 const beltOptions = [
   { value: 'white', label: 'White Belt' },
@@ -47,6 +39,52 @@ const beltOptions = [
   { value: 'brown', label: 'Brown Belt' },
   { value: 'black', label: 'Black Belt' },
 ]
+
+onMounted(async () => {
+  const school = await schoolsData.getSchoolForUser('admin-001')
+  if (!school) return
+
+  // Build class options from actual classes
+  const classes = await schoolsData.getClasses(school.id)
+  classOptions.value = classes.map(c => ({ value: c.class_name, label: c.class_name }))
+
+  // Get student progress from all classes
+  const allStudents: Student[] = []
+  let idCounter = 1
+
+  for (const cls of classes) {
+    const progress = await schoolsData.getClassStudentProgress(cls.id)
+    for (const p of progress) {
+      const beltIdx = getBeltIndexForSeed(p.seeds_completed ?? 0)
+      const beltName = BELTS[beltIdx].name as Student['belt']
+      const name = p.student_name || `Student ${idCounter}`
+      allStudents.push({
+        id: idCounter++,
+        name,
+        initials: name.split(' ').map((n: string) => n[0]).join(''),
+        email: '',
+        class: cls.class_name,
+        belt: beltName,
+        phrasesLearned: p.seeds_completed ?? 0,
+        sessionsCompleted: Math.round((p.total_practice_seconds ?? 0) / 1800), // ~30 min sessions
+        lastActive: p.last_active_at ? formatRelativeTime(p.last_active_at) : 'Never',
+        progress: Math.min(100, Math.round(((p.seeds_completed ?? 0) / 668) * 100)),
+      })
+    }
+  }
+
+  students.value = allStudents
+})
+
+function formatRelativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const hours = Math.floor(diff / 3600000)
+  if (hours < 1) return 'Just now'
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `${days}d ago`
+  return `${Math.floor(days / 7)}w ago`
+}
 
 const filteredStudents = computed(() => {
   return students.value.filter(student => {

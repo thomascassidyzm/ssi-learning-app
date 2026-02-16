@@ -1,10 +1,14 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, inject, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import ClassCard from '@/components/schools/ClassCard.vue'
 import CreateClassModal from '@/components/schools/CreateClassModal.vue'
 
 const router = useRouter()
+
+// Injected from SchoolsContainer
+const schoolsData = inject('schoolsData')
+const devUser = inject('devUser')
 
 // Modal state
 const isCreateModalOpen = ref(false)
@@ -12,61 +16,31 @@ const isCreateModalOpen = ref(false)
 // Search and filter state
 const searchQuery = ref('')
 
-// Demo data - would come from Supabase in production
-const classes = ref([
-  {
-    id: '1',
-    class_name: 'Year 7 Welsh',
-    course_code: 'cym_for_eng_north',
-    student_count: 28,
-    current_seed: 47,
-    sessions: 23,
-    total_time: '12h',
-    student_join_code: 'CYM-247',
-    last_played: '2 hours ago',
-    last_played_recently: true,
-    created_at: '2025-09-01T00:00:00Z'
-  },
-  {
-    id: '2',
-    class_name: 'Year 8 Advanced',
-    course_code: 'cym_for_eng_north',
-    student_count: 24,
-    current_seed: 156,
-    sessions: 45,
-    total_time: '28h',
-    student_join_code: 'ADV-892',
-    last_played: 'Yesterday',
-    last_played_recently: false,
-    created_at: '2025-09-01T00:00:00Z'
-  },
-  {
-    id: '3',
-    class_name: 'Year 9 Beginners',
-    course_code: 'cym_for_eng_south',
-    student_count: 31,
-    current_seed: 12,
-    sessions: 8,
-    total_time: '4h',
-    student_join_code: 'BEG-103',
-    last_played: '3 days ago',
-    last_played_recently: false,
-    created_at: '2025-10-15T00:00:00Z'
-  },
-  {
-    id: '4',
-    class_name: 'Staff Spanish Club',
-    course_code: 'spa_for_eng',
-    student_count: 12,
-    current_seed: 34,
-    sessions: 15,
-    total_time: '8h',
-    student_join_code: 'SPA-456',
-    last_played: '1 week ago',
-    last_played_recently: false,
-    created_at: '2025-11-01T00:00:00Z'
+// Live data - loaded from Supabase
+const classes = ref([])
+
+onMounted(async () => {
+  const userId = devUser?.value?.id ?? 'teacher-001'
+
+  // First try to load classes for this teacher
+  let classData = await schoolsData.getClassesForTeacher(userId)
+
+  // If teacher has no classes, fall back to school's classes (for admin viewing as teacher)
+  if (classData.length === 0) {
+    const school = await schoolsData.getSchoolForUser('admin-001')
+    if (school) {
+      classData = await schoolsData.getClasses(school.id)
+    }
   }
-])
+
+  classes.value = classData.map(cls => ({
+    ...cls,
+    sessions: 0,
+    total_time: '0h',
+    last_played: 'Not started',
+    last_played_recently: false,
+  }))
+})
 
 // Filtered classes based on search
 const filteredClasses = computed(() => {
@@ -93,7 +67,29 @@ const closeCreateModal = () => {
   isCreateModalOpen.value = false
 }
 
-const handleCreateClass = (newClass) => {
+const handleCreateClass = async (newClass) => {
+  // Try to create in Supabase
+  const school = await schoolsData.getSchoolForUser('admin-001')
+  if (school && schoolsData) {
+    const created = await schoolsData.createClass(
+      school.id,
+      devUser?.value?.id ?? 'teacher-001',
+      newClass.class_name,
+      newClass.course_code,
+    )
+    if (created) {
+      classes.value.unshift({
+        ...created,
+        sessions: 0,
+        total_time: '0h',
+        last_played: 'Never played',
+        last_played_recently: false,
+      })
+      closeCreateModal()
+      return
+    }
+  }
+  // Fallback: just add to local state
   classes.value.unshift({
     ...newClass,
     last_played: 'Never played',

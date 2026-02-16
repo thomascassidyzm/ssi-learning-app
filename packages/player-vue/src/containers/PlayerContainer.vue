@@ -9,6 +9,7 @@ import SettingsScreen from '@/components/SettingsScreen.vue'
 import CourseExplorer from '@/components/CourseExplorer.vue'
 import BrainView from '@/components/BrainView.vue'
 import UsageStats from '@/components/UsageStats.vue'
+import CourseBrowser from '@/components/CourseBrowser.vue'
 import BottomNav from '@/components/BottomNav.vue'
 import BuildBadge from '@/components/BuildBadge.vue'
 
@@ -48,7 +49,7 @@ const {
 const USE_NEW_SESSION = ref(false) // Toggle to use LearningSession instead of LearningPlayer
 
 // Navigation state
-// Screens: 'home' | 'player' | 'journey' | 'settings' | 'explorer' | 'network' | 'stats'
+// Screens: 'home' | 'player' | 'journey' | 'settings' | 'explorer' | 'network' | 'stats' | 'browse'
 const currentScreen = ref('home')
 const selectedCourse = ref(null)
 const isLearning = ref(false)
@@ -147,6 +148,17 @@ const handleExitListeningMode = () => {
 // Handle view progress from LearningPlayer (belt modal)
 const handleViewProgress = () => {
   navigate('network')
+}
+
+// Handle starting at a specific seed from CourseBrowser
+const handleStartAtSeed = (seedNumber) => {
+  navigate('player')
+  // Use nextTick via setTimeout to ensure player is visible before dispatching
+  setTimeout(() => {
+    window.dispatchEvent(new CustomEvent('ssi-jump-to-seed', {
+      detail: { seedNumber },
+    }))
+  }, 100)
 }
 
 // Real learner progress from shared belt progress (created by LearningPlayer)
@@ -329,6 +341,15 @@ onMounted(() => {
         :total-minutes="totalLearningMinutes"
         :total-words-introduced="completedSeeds"
         :total-phrases-spoken="totalPhrasesSpoken"
+        @close="goHome"
+      />
+    </Transition>
+
+    <!-- Course Browser -->
+    <Transition name="slide-right" mode="out-in">
+      <CourseBrowser
+        v-if="currentScreen === 'browse'"
+        @start-seed="handleStartAtSeed"
         @close="goHome"
       />
     </Transition>
