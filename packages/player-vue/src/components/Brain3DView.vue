@@ -195,12 +195,10 @@ function getRevealedSet(): Set<string> | null {
  * (auto-visible if any parent is revealed).
  */
 function isNodeVisible(node: NetworkNode, revealed: Set<string>): boolean {
-  // Regular nodes: check if explicitly revealed
-  if (!node.isComponent) {
-    return revealed.has(node.id)
-  }
-  // Component nodes: visible if ANY parent LEGO is revealed
-  if (node.parentLegoIds && node.parentLegoIds.length > 0) {
+  // Check if explicitly in the revealed set (works for all node types)
+  if (revealed.has(node.id)) return true
+  // Component nodes: also visible if ANY parent LEGO is revealed
+  if (node.isComponent && node.parentLegoIds && node.parentLegoIds.length > 0) {
     return node.parentLegoIds.some(parentId => revealed.has(parentId))
   }
   return false

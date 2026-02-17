@@ -19,7 +19,7 @@ import { usePrebuiltNetwork, type ExternalConnection, type ExternalNode, type Ne
 import { useLegoNetwork, type PhraseWithPath } from '../composables/useLegoNetwork'
 import { useCompletedContent } from '../composables/useCompletedContent'
 import { getLanguageName } from '../composables/useI18n'
-import { BELTS, getSharedBeltProgress, getSeedFromLegoId } from '../composables/useBeltProgress'
+import { BELTS, getSharedBeltProgress } from '../composables/useBeltProgress'
 import type { SessionController } from '../playback/SessionController'
 
 // ============================================================================
@@ -539,38 +539,29 @@ function updateVisibility(count: number) {
     return
   }
 
-  // Standalone mode: use highestLegoId from belt progress for precise filtering
-  // Falls back to completedRounds (belt-granular) if not available
+  // Standalone mode: reveal every LEGO node up to highestLegoId
+  // Each node IS a LEGO, so LEGO-level granularity is correct (not seed-level)
+  // IDs are zero-padded S####L## so string comparison gives correct order
   if (!allRounds.value.length) {
     const beltProgress = getSharedBeltProgress()
     const highestLego = beltProgress?.highestLegoId?.value
-    const highestSeed = highestLego ? getSeedFromLegoId(highestLego) : null
-    // Parse lego index from highestLegoId (e.g., "S0050L03" → 3)
-    const highestLegoIdx = highestLego ? parseInt(highestLego.match(/L(\d{2})$/)?.[1] || '99', 10) : 99
-
-    // Fallback: belt-granular seed count
-    const completedSeeds = highestSeed ?? (props.completedRounds || 0)
     const newSet = new Set<string>()
+    const deferredComponents: NetworkNode[] = []
 
-    for (const node of prebuiltNetwork.nodes.value) {
-      const seedMatch = node.seedId?.match(/^S(\d+)$/)
-      if (seedMatch) {
-        const seedNum = parseInt(seedMatch[1], 10)
-        if (seedNum < completedSeeds) {
-          newSet.add(node.id) // All LEGOs in earlier seeds
-        } else if (seedNum === completedSeeds && highestSeed !== null) {
-          // Within the highest seed, filter by LEGO index
-          const legoIdx = parseInt(node.id.match(/L(\d{2})$/)?.[1] || '0', 10)
-          if (legoIdx <= highestLegoIdx) {
-            newSet.add(node.id)
-          }
-        } else if (seedNum <= completedSeeds && highestSeed === null) {
-          newSet.add(node.id) // Belt-granular fallback
+    if (highestLego) {
+      for (const node of prebuiltNetwork.nodes.value) {
+        if (node.isComponent) {
+          deferredComponents.push(node)
+        } else if (node.id <= highestLego) {
+          newSet.add(node.id)
         }
-      } else if (node.isComponent) {
-        // Components: visible if any parent LEGO is in the revealed set
-        // Defer to after main filtering
-        newSet.add(node.id)
+      }
+    }
+
+    // Add components whose parent LEGOs are revealed
+    for (const comp of deferredComponents) {
+      if (comp.parentLegoIds?.some(pid => newSet.has(pid))) {
+        newSet.add(comp.id)
       }
     }
 
@@ -578,7 +569,7 @@ function updateVisibility(count: number) {
     prebuiltNetwork.heroNodeId.value = null
     prebuiltNetwork.panOffset.value = { x: 0, y: 0 }
 
-    console.log(`[BrainView] Standalone mode: showing ${newSet.size} nodes (highest: ${highestLego || 'belt-' + completedSeeds})`)
+    console.log(`[BrainView] Standalone mode: showing ${newSet.size} nodes (highest: ${highestLego || 'none'})`)
     return
   }
 
