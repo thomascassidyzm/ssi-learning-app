@@ -132,6 +132,37 @@ function isNodeSelected(nodeId: string): boolean {
 }
 
 // ============================================================================
+// COMPUTED: ACTIVE FIRE PATH EDGES
+// ============================================================================
+
+/**
+ * Pairs of consecutive nodes in the fire path that are both active.
+ * Used to render animated "neural signal" connections between firing nodes.
+ */
+const activePathEdges = computed(() => {
+  if (!props.currentPath || props.currentPath.activeIndex < 1) return []
+
+  const { nodeIds, activeIndex } = props.currentPath
+  const nodeMap = new Map<string, NetworkNode>()
+  for (const n of props.nodes) nodeMap.set(n.id, n)
+
+  const edges: { id: string; x1: number; y1: number; x2: number; y2: number; delay: number }[] = []
+  for (let i = 0; i < activeIndex && i < nodeIds.length - 1; i++) {
+    const src = nodeMap.get(nodeIds[i])
+    const tgt = nodeMap.get(nodeIds[i + 1])
+    if (src && tgt) {
+      edges.push({
+        id: `${src.id}-${tgt.id}`,
+        x1: src.x, y1: src.y,
+        x2: tgt.x, y2: tgt.y,
+        delay: i * 0.15,
+      })
+    }
+  }
+  return edges
+})
+
+// ============================================================================
 // HELPERS
 // ============================================================================
 
@@ -251,6 +282,16 @@ function handleBackgroundTap(event: MouseEvent | TouchEvent): void {
           filter="url(#overlay-glow)"
         />
 
+        <!-- Fire path edges - animated neural signal between active nodes -->
+        <line
+          v-for="edge in activePathEdges"
+          :key="`fire-edge-${edge.id}`"
+          class="fire-edge"
+          :x1="edge.x1" :y1="edge.y1" :x2="edge.x2" :y2="edge.y2"
+          :style="{ animationDelay: `${edge.delay}s` }"
+          filter="url(#overlay-highlight-glow)"
+        />
+
         <!-- Path nodes ring - blue pulsing halo for fire path -->
         <circle
           v-for="node in interactiveNodes.filter(n => isNodeInPath(n.id) && !isNodeSelected(n.id))"
@@ -326,6 +367,25 @@ function handleBackgroundTap(event: MouseEvent | TouchEvent): void {
   to {
     opacity: 1;
     stroke-width: 4;
+  }
+}
+
+/* Fire path edges - neural signal between active nodes */
+.fire-edge {
+  stroke: rgba(96, 165, 250, 0.7);
+  stroke-width: 2;
+  stroke-linecap: round;
+  animation: fire-edge-pulse 1s ease-in-out infinite alternate;
+}
+
+@keyframes fire-edge-pulse {
+  from {
+    stroke: rgba(96, 165, 250, 0.3);
+    stroke-width: 1.5;
+  }
+  to {
+    stroke: rgba(140, 200, 255, 0.9);
+    stroke-width: 3;
   }
 }
 

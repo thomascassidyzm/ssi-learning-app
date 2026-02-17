@@ -6233,6 +6233,22 @@ const togglePlayback = () => {
   }
 }
 
+// Safari requires audio.play() within a user gesture to unlock the audio element.
+// Call this synchronously from the tap handler BEFORE any setTimeout/async delay.
+const unlockAudio = () => {
+  if (!audioController.value?.audio) return
+  const audio = audioController.value.audio
+  // Minimal silent WAV (44 bytes header + 0 samples)
+  audio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA='
+  audio.play().then(() => {
+    audio.pause()
+    audio.src = ''
+    console.log('[LearningPlayer] Audio element unlocked for Safari')
+  }).catch(() => {
+    // Not in user gesture context — no-op, Chrome doesn't need this
+  })
+}
+
 defineExpose({
   isPlaying,
   togglePlayback,
@@ -6240,6 +6256,7 @@ defineExpose({
   handleResume,
   exitListeningMode,
   exitAllModes,
+  unlockAudio,
 })
 </script>
 

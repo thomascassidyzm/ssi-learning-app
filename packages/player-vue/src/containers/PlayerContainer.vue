@@ -90,6 +90,14 @@ const navigate = (screen, data = null) => {
     }
   }
 
+  // CRITICAL: Unlock audio element synchronously within user gesture context.
+  // Safari requires audio.play() in the same call stack as the tap — any setTimeout
+  // or async delay loses the gesture token. The actual playback starts later via
+  // the visibility watcher, but the audio element is already unlocked by then.
+  if (screen === 'player' && learningPlayerRef.value?.unlockAudio) {
+    learningPlayerRef.value.unlockAudio()
+  }
+
   if (data) {
     selectedCourse.value = data
   }
