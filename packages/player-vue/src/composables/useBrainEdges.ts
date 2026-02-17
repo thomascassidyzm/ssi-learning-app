@@ -481,7 +481,13 @@ export function useBrainEdges(options: EdgeRenderOptions = {}) {
    */
   function highlightPath(edgeIds: string[]): void {
     for (const edgeId of edgeIds) {
-      highlightedEdgeIds.value.add(edgeId)
+      // Try both directions since fire path edge order may differ from graph edge order
+      const reverseId = edgeId.includes('->')
+        ? edgeId.split('->').reverse().join('->')
+        : edgeId
+      const matchId = edgeMeshMap.value.has(edgeId) ? edgeId :
+                      edgeMeshMap.value.has(reverseId) ? reverseId : edgeId
+      highlightedEdgeIds.value.add(matchId)
     }
     updateEdgeColors()
   }
@@ -501,10 +507,17 @@ export function useBrainEdges(options: EdgeRenderOptions = {}) {
    * @param intensity - Glow intensity (0.0 to 1.0)
    */
   function setEdgeGlow(edgeId: string, intensity: number): void {
+    // Try both directions since fire path edge order may differ from graph edge order
+    const reverseId = edgeId.includes('->')
+      ? edgeId.split('->').reverse().join('->')
+      : edgeId
+    const matchId = edgeMeshMap.value.has(edgeId) ? edgeId :
+                    edgeMeshMap.value.has(reverseId) ? reverseId : edgeId
+
     if (intensity <= 0) {
-      glowEdgeIntensities.value.delete(edgeId)
+      glowEdgeIntensities.value.delete(matchId)
     } else {
-      glowEdgeIntensities.value.set(edgeId, Math.min(1, intensity))
+      glowEdgeIntensities.value.set(matchId, Math.min(1, intensity))
     }
     updateEdgeColors()
   }
