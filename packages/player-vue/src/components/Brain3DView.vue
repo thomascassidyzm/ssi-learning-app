@@ -418,25 +418,8 @@ async function initScene(): Promise<void> {
       // Update edge animations (new edge glow decay)
       brainEdges.update(deltaTime)
 
-      // Apply fire path animation states when playing
-      if (brainFirePath.isPlaying.value) {
-        // Apply node brightness from fire path states
-        // Only update for nodes that are actively firing - others stay dimmed
-        for (const [nodeId, state] of brainFirePath.nodeStates.value) {
-          if (state.isFiring) {
-            // Node is actively firing - apply the bright glow
-            brainNodes.updateNodeBrightness(nodeId, state.brightness)
-          } else if (state.brightness <= 1.0) {
-            // Node has finished firing - return to dimmed state
-            brainNodes.updateNodeBrightness(nodeId, 0.50)
-          }
-        }
-
-        // Apply edge glow from fire path states
-        for (const [edgeId, state] of brainFirePath.edgeStates.value) {
-          brainEdges.setEdgeGlow(edgeId, state.glowIntensity)
-        }
-      }
+      // Fire path render loop removed — phrase nodes now light up simultaneously
+      // via the currentPath watcher (no per-frame animation needed)
     })
 
     // 11. Mark scene as initialized and start the render loop
@@ -706,38 +689,23 @@ watch(() => props.currentPath, (path) => {
     return
   }
 
-  // Ensure nodes are dimmed for fire path, but exclude selected node
-  console.log('[Brain3DView] Setting up fire path animation')
-  console.log('[Brain3DView] Checking if path nodes exist in 3D scene...')
-  const existingNodes = path.nodeIds.filter(id => brainNodes.hasNode(id))
-  const missingNodes = path.nodeIds.filter(id => !brainNodes.hasNode(id))
-  console.log('[Brain3DView] Path nodes in scene:', existingNodes.length, '/', path.nodeIds.length)
-  if (missingNodes.length > 0) {
-    console.log('[Brain3DView] Missing nodes (not revealed?):', missingNodes)
+  // Simple phrase highlight: dim everything, brighten phrase nodes simultaneously
+  const phraseNodeIds = new Set(path.nodeIds.filter(id => brainNodes.hasNode(id)))
+
+  // Keep selected node bright too
+  if (props.selectedNodeId) phraseNodeIds.add(props.selectedNodeId)
+
+  // Dim all, then brighten phrase nodes
+  brainNodes.setAllNodesBrightness(0.50, phraseNodeIds)
+  for (const nodeId of phraseNodeIds) {
+    brainNodes.updateNodeBrightness(nodeId, 2.5)
   }
 
-  // Dim ALL nodes - fire path animation will brighten them one at a time as they fire
-  console.log('[Brain3DView] Dimming all nodes for fire path animation')
-  brainNodes.setAllNodesBrightness(0.50)
+  // Highlight connecting edges
   brainEdges.setDimmed(true)
-
-  // Calculate animation duration based on number of nodes
-  // Roughly 200ms per node for a natural pace
-  const duration = Math.max(1000, path.nodeIds.length * 200)
-
-  // Highlight the path edges
   brainEdges.highlightPath(path.edgeIds)
 
-  // Play the fire path animation
-  brainFirePath.playFirePath({
-    nodeIds: path.nodeIds,
-    duration,
-  }).then(() => {
-    // Animation complete - keep path nodes visible but dimmed
-    console.log('[Brain3DView] Fire path animation complete')
-  })
-
-  console.log('[Brain3DView] Fire path updated:', path.nodeIds.length, 'nodes')
+  console.log('[Brain3DView] Phrase highlight:', phraseNodeIds.size, 'nodes lit')
 }, { deep: true })
 
 // Watch for revealed nodes changes, rebuild nodes/edges, and animate new connections

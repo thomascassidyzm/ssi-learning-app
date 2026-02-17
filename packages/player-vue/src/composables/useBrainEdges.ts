@@ -73,15 +73,15 @@ interface EdgeMeshData {
 // ============================================================================
 
 const DEFAULT_OPTIONS: Required<EdgeRenderOptions> = {
-  baseOpacity: 0.15,     // Very subtle - nodes should dominate
-  maxOpacity: 0.25,      // Slightly more visible for strong connections
-  baseWidth: 0.4,        // Hair-thin lines
-  maxWidth: 0.8,         // Still thin even for strong connections
-  highlightOpacity: 0.6, // Brighter when highlighted (phrase playback)
+  baseOpacity: 0.12,     // Faint for weak connections
+  maxOpacity: 0.55,      // Strong connections clearly visible (Hebbian)
+  baseWidth: 0.6,        // Thin but visible baseline
+  maxWidth: 3.0,         // Thick for strong connections — "wired together"
+  highlightOpacity: 0.7, // Brighter when highlighted (phrase playback)
   glowOpacity: 0.9,      // Strong glow during fire path
-  curveSegments: 16,     // Smooth enough curves
-  tubeSegments: 4,       // Minimal for thin lines
-  curveBend: 0.15,       // Subtle curve deviation
+  curveSegments: 20,     // Smoother organic curves
+  tubeSegments: 5,       // Slightly rounder tubes
+  curveBend: 0.35,       // More organic curve deviation — slime mold feel
   lowPowerMode: false,   // Auto-detected based on device
 }
 
@@ -111,8 +111,8 @@ function calculateOpacity(strength: number, options: Required<EdgeRenderOptions>
 function calculateRadius(strength: number, options: Required<EdgeRenderOptions>): number {
   const normalizedStrength = Math.min(100, Math.max(1, strength)) / 100
   const widthRange = options.maxWidth - options.baseWidth
-  // Scale down for tube radius (width values are now tube diameter-ish)
-  return (options.baseWidth + Math.sqrt(normalizedStrength) * widthRange) * 0.1
+  // Cube root scaling: strong connections are visibly thicker (Hebbian "wire together")
+  return (options.baseWidth + Math.cbrt(normalizedStrength) * widthRange) * 0.1
 }
 
 /**
@@ -273,6 +273,10 @@ export function useBrainEdges(options: EdgeRenderOptions = {}) {
 
   // Visibility flag
   const isVisible: Ref<boolean> = ref(true)
+
+  // Dimmed state — when true, updateEdgeColors respects dim unless edge is highlighted/glowing
+  let dimmed = false
+  let dimFactor = 0.1
 
   // For backwards compatibility - expose as lineSegments
   const lineSegments: ShallowRef<THREE.Group | null> = shallowRef(null)
@@ -541,6 +545,10 @@ export function useBrainEdges(options: EdgeRenderOptions = {}) {
         // Simple highlight
         color = colors.highlighted.clone()
         opacity = opts.highlightOpacity
+      } else if (dimmed) {
+        // Dimmed state — very faint unless highlighted/glowing
+        color = colors.default.clone()
+        opacity = dimFactor * 0.3
       } else {
         // Normal state
         color = colors.default.clone()
@@ -569,19 +577,10 @@ export function useBrainEdges(options: EdgeRenderOptions = {}) {
    * @param dimmed - Whether to dim edges
    * @param dimFactor - How much to dim (0.1 = very dim, 1.0 = normal)
    */
-  function setDimmed(dimmed: boolean, dimFactor: number = 0.1): void {
-    for (const [, meshData] of edgeMeshMap.value) {
-      const opacity = dimmed ? dimFactor * 0.3 : calculateOpacity(meshData.edge.strength, opts)
-
-      const coreMat = meshData.coreMesh.material as THREE.MeshBasicMaterial
-      coreMat.opacity = opacity
-
-      const glowMat = meshData.glowMesh.material as THREE.MeshBasicMaterial
-      glowMat.opacity = opacity * 0.4
-
-      const outerGlowMat = meshData.outerGlowMesh.material as THREE.MeshBasicMaterial
-      outerGlowMat.opacity = opacity * 0.15
-    }
+  function setDimmed(isDimmed: boolean, factor: number = 0.1): void {
+    dimmed = isDimmed
+    dimFactor = factor
+    updateEdgeColors()
   }
 
   // ============================================================================

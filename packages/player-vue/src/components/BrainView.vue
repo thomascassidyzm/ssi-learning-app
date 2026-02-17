@@ -713,43 +713,21 @@ function clearPathAnimation() {
  * Animate the fire path - stepping through nodes synchronized with audio
  * Only animates nodes that are visible in the brain (revealed)
  */
-function animateFirePath(legoIds: string[], audioDurationMs: number) {
+function animateFirePath(legoIds: string[], _audioDurationMs: number) {
   clearPathAnimation()
 
-  console.log('[BrainView] animateFirePath called with', legoIds?.length || 0, 'LEGOs:', legoIds)
+  if (!legoIds || legoIds.length === 0) return
 
-  if (!legoIds || legoIds.length === 0) {
-    console.log('[BrainView] No LEGOs in path, skipping animation')
-    return
-  }
-
-  // Filter to only animate nodes that are visible in the brain
-  // This allows phrases to play even when some LEGOs aren't revealed yet
+  // Filter to only visible nodes in the brain
   const revealedIds = prebuiltNetwork.revealedNodeIds.value
   const visiblePath = legoIds.filter(id => revealedIds.has(id))
 
-  console.log('[BrainView] Fire path: full path has', legoIds.length, 'LEGOs,', visiblePath.length, 'visible in brain')
+  if (visiblePath.length === 0) return
 
-  if (visiblePath.length === 0) {
-    console.log('[BrainView] No visible LEGOs in path, skipping animation (audio still plays)')
-    return
-  }
-
-  // Set up the path with only visible nodes (starts with activeIndex -1)
-  console.log('[BrainView] Setting highlight path for visible LEGOs:', visiblePath)
+  // Light up all phrase nodes simultaneously (no sequential animation)
   prebuiltNetwork.setHighlightPath(visiblePath)
-  console.log('[BrainView] currentPath is now:', prebuiltNetwork.currentPath.value)
-
-  // Calculate step duration - spread visible nodes across audio
-  const stepDuration = Math.max(150, audioDurationMs / visiblePath.length)
-
-  // Animate through each visible node
-  for (let i = 0; i < visiblePath.length; i++) {
-    const timer = setTimeout(() => {
-      prebuiltNetwork.setPathActiveIndex(i)
-    }, i * stepDuration)
-    pathAnimationTimers.push(timer)
-  }
+  // Set activeIndex to last node so all nodes are "active"
+  prebuiltNetwork.setPathActiveIndex(visiblePath.length - 1)
 }
 
 /**

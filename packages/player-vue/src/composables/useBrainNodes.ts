@@ -90,15 +90,16 @@ const BELT_DEPTH: Record<Belt, number> = {
   black: 1.0,
 }
 
-// Particle sizes - larger for organic neuron clusters and easier clicking
-const BASE_PARTICLE_SIZE = 55.0  // Large base size for visibility and clickability
-const MAX_PARTICLE_SIZE = 85.0  // Max size for high-frequency nodes
-const COMPONENT_SIZE_MULTIPLIER = 0.7  // Components are slightly smaller
+// Particle sizes — A/M-LEGOs are primary, components are satellite
+const BASE_PARTICLE_SIZE = 55.0  // Large base for A/M-LEGOs
+const MAX_PARTICLE_SIZE = 85.0  // Max size for high-frequency A/M-LEGOs
+const COMPONENT_SIZE_MULTIPLIER = 0.45  // Components much smaller — satellite nodes
 const SIZE_LOG_SCALE = 0.15  // Logarithmic scaling factor for usage-based sizing
 
-// Brightness range based on usage
-const MIN_BRIGHTNESS = 0.85  // Much brighter baseline - nodes must be visible!
-const MAX_BRIGHTNESS = 3.0   // Allow bright glow for fire path animation (peak is 2.5)
+// Brightness — components are dimmer, A/M-LEGOs dominate visually
+const MIN_BRIGHTNESS = 0.85  // Bright baseline for A/M-LEGOs
+const MAX_BRIGHTNESS = 3.0   // Allow bright glow for phrase highlight (peak is 2.5)
+const COMPONENT_BRIGHTNESS_MULTIPLIER = 0.55  // Components rendered dimmer
 const USAGE_SCALE_FACTOR = 0.02  // Subtle increase with usage
 
 // Highlight animation
@@ -144,31 +145,43 @@ const FRAGMENT_SHADER = `
   varying float vBrightness;
   varying float vHighlighted;
 
+  // Simple hash-based noise for organic edge irregularity
+  float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+  }
+
   void main() {
     // Distance from center of point (0 at center, 1 at edge)
     vec2 center = gl_PointCoord - vec2(0.5);
     float dist = length(center) * 2.0;
 
-    // Crisp node with subtle glow - "bright stars" not "fuzzy blobs"
-    // Larger solid core with sharper edge, thin glow halo
-    float coreRadius = 0.5;   // Solid core extends further
-    float edgeSharpness = 0.1;  // Sharp transition at edge
-    float glowStart = 0.6;   // Glow starts at edge of core
+    // Organic edge: perturb the radius with angular noise
+    // This makes nodes look like cell bodies rather than perfect circles
+    float angle = atan(center.y, center.x);
+    float noiseFreq = 5.0;  // Number of bumps around the edge
+    float noiseSeed = hash(vColor.xy * 100.0);  // Per-node variation
+    float edgeNoise = hash(vec2(angle * noiseFreq + noiseSeed, noiseSeed)) * 0.12;
+    float organicDist = dist + edgeNoise * smoothstep(0.2, 0.5, dist);
+
+    // Soft organic core with irregular edge
+    float coreRadius = 0.5;
+    float edgeSharpness = 0.15;  // Softer edge for organic feel
+    float glowStart = 0.55;
     float glowEnd = 1.0;
 
-    // Sharp-edged core with slight anti-aliasing
-    float core = 1.0 - smoothstep(coreRadius - edgeSharpness, coreRadius, dist);
+    // Organic-edged core
+    float core = 1.0 - smoothstep(coreRadius - edgeSharpness, coreRadius, organicDist);
 
-    // Subtle outer glow - thin halo effect
+    // Subtle outer glow - thin halo effect (uses smooth dist for glow)
     float glow = 1.0 - smoothstep(glowStart, glowEnd, dist);
-    glow *= 0.4;  // Reduce glow intensity
+    glow *= 0.4;
 
-    // Combine: solid core with subtle glow halo
+    // Combine: organic core with smooth glow halo
     float alpha = core * 1.0 + glow * 0.4;
     alpha *= vBrightness;
     alpha = clamp(alpha, 0.0, 1.0);
 
-    // Add extra glow when highlighted (still subtle)
+    // Add extra glow when highlighted
     float highlightGlow = vHighlighted * glow * 0.4;
     alpha += highlightGlow;
 
@@ -686,8 +699,11 @@ export function useBrainNodes() {
       // Get pre-calculated organic 3D position
       const pos3d = organicPositions.get(node.id) || new THREE.Vector3(0, 0, 0)
 
-      // Calculate brightness from usage
-      const baseBrightness = calculateBrightness(node.usageCount)
+      // Calculate brightness from usage — components are dimmer
+      const rawBrightness = calculateBrightness(node.usageCount)
+      const baseBrightness = node.isComponent
+        ? rawBrightness * COMPONENT_BRIGHTNESS_MULTIPLIER
+        : rawBrightness
 
       // Get belt color
       const color = hexToColor(BELT_COLORS[node.belt])
