@@ -32,7 +32,7 @@ import { usePrebuiltNetworkIntegration } from '../composables/usePrebuiltNetwork
 import { useLegoNetwork } from '../composables/useLegoNetwork'
 import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
 import { useAuthModal } from '../composables/useAuthModal'
-import PlayerBrain from './PlayerBrain.vue'
+import LegoTextNetwork from './LegoTextNetwork.vue'
 import BeltProgressModal from './BeltProgressModal.vue'
 import ListeningOverlay from './ListeningOverlay.vue'
 import DrivingModeOverlay from './DrivingModeOverlay.vue'
@@ -6333,8 +6333,8 @@ defineExpose({
     <div class="space-nebula"></div>
     <div class="bg-noise"></div>
 
-    <!-- Brain Network Visualization Layer - PlayerBrain (lightweight Three.js) -->
-    <PlayerBrain
+    <!-- Text Network Visualization Layer - LEGO text fragments float and connect -->
+    <LegoTextNetwork
       v-if="networkViewProps.nodes.length > 0"
       :nodes="networkViewProps.nodes"
       :edges="networkViewProps.edges"
