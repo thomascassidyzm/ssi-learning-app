@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, inject } from 'vue'
 import { BELTS, getSharedBeltProgress, getSeedFromLegoId } from '@/composables/useBeltProgress'
 import { getLanguageName } from '@/composables/useI18n'
+import CourseBrowser from '@/components/CourseBrowser.vue'
 
 const props = defineProps({
   activeCourse: {
@@ -34,7 +35,10 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['open-belts', 'open-brain', 'select-course', 'close'])
+const emit = defineEmits(['open-belts', 'open-brain', 'select-course', 'close', 'start-seed'])
+
+// Inline belt browser toggle
+const showBeltBrowser = ref(false)
 
 // Supabase for course fetching
 const supabaseClient = inject('supabase')
@@ -141,14 +145,14 @@ onMounted(() => {
   <div class="browse-screen">
     <!-- Header -->
     <div class="browse-header">
-      <h1 class="browse-title">Browse</h1>
+      <h1 class="browse-title">Library</h1>
     </div>
 
     <div class="browse-content">
       <!-- ── Section 1: Progress Strip ── -->
       <section class="section">
         <h3 class="section-label">Your Progress</h3>
-        <div class="progress-card" @click="emit('open-belts')">
+        <div class="progress-card" @click="showBeltBrowser = !showBeltBrowser">
           <!-- Belt strip: 8 colored dots -->
           <div class="belt-strip">
             <div
@@ -191,6 +195,16 @@ onMounted(() => {
           </div>
         </div>
       </section>
+
+      <!-- Inline Belt Browser (expanded below progress card) -->
+      <Transition name="expand">
+        <div v-if="showBeltBrowser" class="belt-browser-inline">
+          <CourseBrowser
+            @start-seed="(s) => emit('start-seed', s)"
+            @close="showBeltBrowser = false"
+          />
+        </div>
+      </Transition>
 
       <!-- ── Section 2: Brain Map ── -->
       <section class="section">
@@ -663,6 +677,30 @@ onMounted(() => {
 .course-status {
   font-size: 0.75rem;
   color: var(--text-muted);
+}
+
+/* ── Inline Belt Browser ── */
+.belt-browser-inline {
+  margin-bottom: 1.5rem;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+}
+
+/* Expand transition */
+.expand-enter-active {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.expand-leave-active {
+  transition: all 0.2s ease-in;
+}
+
+.expand-enter-from,
+.expand-leave-to {
+  opacity: 0;
+  max-height: 0;
+  margin-bottom: 0;
 }
 
 /* Safe area */

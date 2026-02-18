@@ -3,7 +3,6 @@ import { ref, provide, onMounted, computed, inject, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 // Screen components
-import HomeScreen from '@/components/HomeScreen.vue'
 import LearningPlayer from '@/components/LearningPlayer.vue'
 import SettingsScreen from '@/components/SettingsScreen.vue'
 import CourseExplorer from '@/components/CourseExplorer.vue'
@@ -12,6 +11,7 @@ import CourseBrowser from '@/components/CourseBrowser.vue'
 import BrowseScreen from '@/components/BrowseScreen.vue'
 import BottomNav from '@/components/BottomNav.vue'
 import BuildBadge from '@/components/BuildBadge.vue'
+import PlayerRestingState from '@/components/PlayerRestingState.vue'
 
 // Custom auth modals
 import { SignInModal, SignUpModal } from '@/components/auth'
@@ -46,11 +46,15 @@ const {
   switchToSignUp,
 } = useAuthModal()
 
-// Navigation state
-// Screens: 'home' | 'player' | 'settings' | 'explorer' | 'network' | 'browse' | 'belt-browser'
-const currentScreen = ref('home')
+// Navigation state — 3 panes only
+// Screens: 'progress' | 'player' | 'library'
+const currentScreen = ref('player')
 const selectedCourse = ref(null)
 const isLearning = ref(false)
+
+// Overlay state (not screens)
+const showSettings = ref(false)
+const showExplorer = ref(false)
 
 // Player state - shared with nav bar for play/stop button
 const isPlaying = ref(false)
@@ -81,8 +85,6 @@ const navigate = (screen, data = null) => {
   closeAuthModals()
 
   // CRITICAL: Pause the player when navigating AWAY from it
-  // This prevents audio conflicts with BrainView, etc.
-  // The player stays mounted (v-show) so state is preserved
   if (currentScreen.value === 'player' && screen !== 'player') {
     if (learningPlayerRef.value?.handlePause) {
       learningPlayerRef.value.handlePause()
@@ -91,9 +93,6 @@ const navigate = (screen, data = null) => {
   }
 
   // CRITICAL: Unlock audio element synchronously within user gesture context.
-  // Safari requires audio.play() in the same call stack as the tap — any setTimeout
-  // or async delay loses the gesture token. The actual playback starts later via
-  // the visibility watcher, but the audio element is already unlocked by then.
   if (screen === 'player' && learningPlayerRef.value?.unlockAudio) {
     learningPlayerRef.value.unlockAudio()
   }
@@ -102,13 +101,11 @@ const navigate = (screen, data = null) => {
     selectedCourse.value = data
   }
   currentScreen.value = screen
-  // Nav bar stays visible on all screens including player
   isLearning.value = false
 }
 
-const goHome = () => navigate('home')
+const goHome = () => navigate('player')
 const startLearning = (course) => navigate('player', course)
-const openSettings = () => navigate('settings')
 
 // Handle nav events
 const handleNavigation = (screen) => {
@@ -116,7 +113,6 @@ const handleNavigation = (screen) => {
 }
 
 const handleStartLearning = () => {
-  // Navigate to player from any screen
   startLearning(activeCourse.value || selectedCourse.value)
 }
 
@@ -146,13 +142,12 @@ const handleExitListeningMode = () => {
 
 // Handle view progress from LearningPlayer (belt modal)
 const handleViewProgress = () => {
-  navigate('network')
+  navigate('progress')
 }
 
 // Handle starting at a specific seed from CourseBrowser
 const handleStartAtSeed = (seedNumber) => {
   navigate('player')
-  // Use nextTick via setTimeout to ensure player is visible before dispatching
   setTimeout(() => {
     window.dispatchEvent(new CustomEvent('ssi-jump-to-seed', {
       detail: { seedNumber },
@@ -160,10 +155,33 @@ const handleStartAtSeed = (seedNumber) => {
   }, 100)
 }
 
+// Settings overlay
+const toggleSettings = () => {
+  if (!showSettings.value) {
+    // Pause player when opening settings
+    if (learningPlayerRef.value?.handlePause) {
+      learningPlayerRef.value.handlePause()
+    }
+  }
+  showSettings.value = !showSettings.value
+}
+
+const closeSettings = () => {
+  showSettings.value = false
+}
+
+const openExplorerOverlay = () => {
+  showExplorer.value = true
+}
+
+const closeExplorerOverlay = () => {
+  showExplorer.value = false
+}
+
 // Real learner progress from shared belt progress (created by LearningPlayer)
 const beltProgress = computed(() => getSharedBeltProgress())
 
-// Seed count derived from highestLegoId (LEGO-granular high-water mark)
+// Seed count derived from highestLegoId
 const completedSeeds = computed(() => {
   const bp = beltProgress.value
   if (!bp) return 0
@@ -188,7 +206,7 @@ const totalSeeds = computed(() => {
 const totalLearningMinutes = computed(() => beltProgress.value?.totalLearningMinutes.value ?? 0)
 const totalPhrasesSpoken = computed(() => beltProgress.value?.totalPhrasesSpoken.value ?? 0)
 
-// Handle auth success (close modals, refresh state if needed)
+// Handle auth success
 const handleAuthSuccess = () => {
   console.log('[PlayerContainer] Auth successful!')
   closeSignIn()
@@ -201,7 +219,6 @@ const checkClassContext = () => {
   const classId = params.get('class')
 
   if (classId) {
-    // Read class details from localStorage (set by Schools)
     const stored = localStorage.getItem('ssi-active-class')
     if (stored) {
       try {
@@ -216,11 +233,10 @@ const checkClassContext = () => {
   return false
 }
 
-// Clear class context (when exiting player back to home)
+// Clear class context
 const clearClassContext = () => {
   classContext.value = null
   localStorage.removeItem('ssi-active-class')
-  // Remove query param from URL without reload
   const url = new URL(window.location.href)
   url.searchParams.delete('class')
   window.history.replaceState({}, '', url)
@@ -229,7 +245,6 @@ const clearClassContext = () => {
 // Handle going home from player
 const handleGoHome = () => {
   if (classContext.value) {
-    // If came from Schools, go back to Schools (in-app, no reload)
     clearClassContext()
     router.push('/schools/classes')
   } else {
@@ -237,20 +252,35 @@ const handleGoHome = () => {
   }
 }
 
+// Map old screen param values to new panes
+const screenParamMap = {
+  'home': 'player',
+  'project': 'player',
+  'browse': 'library',
+  'network': 'progress',
+  'belt-browser': 'library',
+  'settings': 'player', // settings is now an overlay
+  'explorer': 'player',
+  'progress': 'progress',
+  'player': 'player',
+  'library': 'library',
+}
+
 onMounted(() => {
-  // Check URL params for direct navigation (e.g., ?screen=project)
   const urlParams = new URLSearchParams(window.location.search)
   const screenParam = urlParams.get('screen')
-  if (screenParam && ['project', 'explorer', 'network', 'settings', 'browse'].includes(screenParam)) {
-    currentScreen.value = screenParam
+  if (screenParam) {
+    const mapped = screenParamMap[screenParam] || 'player'
+    currentScreen.value = mapped
+    // If old URL was settings or explorer, open as overlay
+    if (screenParam === 'settings') showSettings.value = true
+    if (screenParam === 'explorer') showExplorer.value = true
   }
 
   // Check if launched from Schools with class context
   const hasClassContext = checkClassContext()
   if (hasClassContext) {
-    // Auto-start player when coming from Schools
     currentScreen.value = 'player'
-    // Nav stays visible even when learning
     isLearning.value = false
   }
 })
@@ -258,24 +288,18 @@ onMounted(() => {
 
 <template>
   <div class="player-container" :class="{ 'has-nav': !isLearning }">
-    <!-- Home Screen -->
-    <Transition name="fade" mode="out-in">
-      <HomeScreen
-        v-if="currentScreen === 'home'"
-        :supabase="supabaseClient"
-        :activeCourse="activeCourse"
-        :enrolledCourses="enrolledCourses"
-        @startLearning="startLearning"
-        @viewJourney="navigate('browse')"
-        @openSettings="openSettings"
-        @selectCourse="handleCourseSelect"
-        @viewBrainMap="navigate('network')"
+    <!-- Progress pane (Brain View) -->
+    <Transition name="slide-right" mode="out-in">
+      <BrainView
+        v-if="currentScreen === 'progress'"
+        :course="activeCourse"
+        :belt-level="currentBeltName"
+        :completed-rounds="completedSeeds"
+        @close="navigate('player')"
       />
     </Transition>
 
     <!-- Learning Player - use v-show to keep it mounted when navigating away -->
-    <!-- This preserves playback state when viewing BrainView, Settings, etc. -->
-    <!-- :key forces full remount when course changes (cache invalidation) -->
     <LearningPlayer
       v-if="activeCourse"
       v-show="currentScreen === 'player'"
@@ -291,40 +315,20 @@ onMounted(() => {
       @listeningModeChanged="handleListeningModeChanged"
     />
 
-    <!-- Settings Screen -->
-    <Transition name="slide-right" mode="out-in">
-      <SettingsScreen
-        v-if="currentScreen === 'settings'"
-        :course="activeCourse"
-        @close="goHome"
-        @openExplorer="navigate('explorer')"
-      />
-    </Transition>
+    <!-- Player resting state overlay (when player is visible but paused) -->
+    <PlayerRestingState
+      v-if="currentScreen === 'player' && !isPlaying && !isListeningMode"
+      :course="activeCourse"
+      :completed-seeds="completedSeeds"
+      :total-seeds="totalSeeds"
+      :current-belt-name="currentBeltName"
+      @start="handleTogglePlayback"
+    />
 
-    <!-- Course Explorer (QA Script Preview) -->
-    <Transition name="slide-right" mode="out-in">
-      <CourseExplorer
-        v-if="currentScreen === 'explorer'"
-        :course="activeCourse"
-        @close="goHome"
-      />
-    </Transition>
-
-    <!-- Brain View (growing brain network visualization) -->
-    <Transition name="slide-right" mode="out-in">
-      <BrainView
-        v-if="currentScreen === 'network'"
-        :course="activeCourse"
-        :belt-level="currentBeltName"
-        :completed-rounds="completedSeeds"
-        @close="navigate('browse')"
-      />
-    </Transition>
-
-    <!-- Browse Screen (hub) -->
+    <!-- Library pane (Browse + inline belt browser) -->
     <Transition name="slide-right" mode="out-in">
       <BrowseScreen
-        v-if="currentScreen === 'browse'"
+        v-if="currentScreen === 'library'"
         :active-course="activeCourse"
         :enrolled-courses="enrolledCourses"
         :completed-seeds="completedSeeds"
@@ -332,19 +336,11 @@ onMounted(() => {
         :current-belt-name="currentBeltName"
         :total-learning-minutes="totalLearningMinutes"
         :total-phrases-spoken="totalPhrasesSpoken"
-        @open-belts="navigate('belt-browser')"
-        @open-brain="navigate('network')"
+        @open-belts="navigate('library')"
+        @open-brain="navigate('progress')"
         @select-course="handleCourseSelect"
-        @close="goHome"
-      />
-    </Transition>
-
-    <!-- Belt Browser (drill-down from Browse) -->
-    <Transition name="slide-right" mode="out-in">
-      <CourseBrowser
-        v-if="currentScreen === 'belt-browser'"
+        @close="navigate('player')"
         @start-seed="handleStartAtSeed"
-        @close="navigate('browse')"
       />
     </Transition>
 
@@ -360,22 +356,46 @@ onMounted(() => {
       @exitListeningMode="handleExitListeningMode"
     />
 
+    <!-- Gear icon for settings (visible on all panes when not learning) -->
+    <button
+      v-if="!isLearning"
+      class="settings-gear"
+      @click="toggleSettings"
+      aria-label="Settings"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </button>
+
     <!-- Build Badge (dev/staging visibility) -->
     <BuildBadge v-if="!isLearning" />
 
-    <!-- Clerk User Button (only shown when signed in - sign-in is in bottom nav) -->
-    <SignedIn v-if="clerkEnabled && !isLearning">
-      <div class="user-button-container">
-        <UserButton
-          :appearance="{
-            elements: {
-              avatarBox: 'w-10 h-10',
-              userButtonTrigger: 'focus:shadow-none'
-            }
-          }"
-        />
+    <!-- Settings overlay (slide-up modal) -->
+    <Transition name="slide-up">
+      <div v-if="showSettings" class="settings-overlay" @click.self="closeSettings">
+        <div class="settings-panel">
+          <SettingsScreen
+            :course="activeCourse"
+            @close="closeSettings"
+            @openExplorer="openExplorerOverlay"
+          />
+        </div>
       </div>
-    </SignedIn>
+    </Transition>
+
+    <!-- Course Explorer overlay (nested inside settings flow) -->
+    <Transition name="slide-up">
+      <div v-if="showExplorer" class="settings-overlay" @click.self="closeExplorerOverlay">
+        <div class="settings-panel">
+          <CourseExplorer
+            :course="activeCourse"
+            @close="closeExplorerOverlay"
+          />
+        </div>
+      </div>
+    </Transition>
 
     <!-- Custom Auth Modals (shared state with BottomNav) -->
     <SignInModal
@@ -435,12 +455,79 @@ onMounted(() => {
   transform: translateX(-10px);
 }
 
-/* Clerk User Button positioning */
-.user-button-container {
+/* Slide up transition for overlays */
+.slide-up-enter-active {
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.slide-up-leave-active {
+  transition: all 0.25s ease-in;
+}
+
+.slide-up-enter-from {
+  opacity: 0;
+  transform: translateY(100%);
+}
+
+.slide-up-leave-to {
+  opacity: 0;
+  transform: translateY(100%);
+}
+
+/* Settings gear icon */
+.settings-gear {
   position: fixed;
-  /* Account for iOS safe area (status bar) */
   top: calc(0.75rem + env(safe-area-inset-top, 0px));
   right: 1rem;
   z-index: 100;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: color-mix(in srgb, var(--bg-elevated) 80%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.settings-gear:hover {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--bg-elevated) 95%, transparent);
+}
+
+.settings-gear:active {
+  transform: scale(0.9);
+}
+
+.settings-gear svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Settings overlay */
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.settings-panel {
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: var(--bg-primary);
+  border-radius: 16px 16px 0 0;
+  overscroll-behavior: contain;
 }
 </style>

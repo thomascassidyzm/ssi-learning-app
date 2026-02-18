@@ -1,23 +1,19 @@
 <script setup>
-import { ref, computed, inject } from 'vue'
-import { useRouter } from 'vue-router'
-import { useAuthModal } from '@/composables/useAuthModal'
+import { ref, computed } from 'vue'
 
 const props = defineProps({
   currentScreen: {
     type: String,
-    default: 'home'
+    default: 'player'
   },
   isLearning: {
     type: Boolean,
     default: false
   },
-  // When on player screen, show play/stop based on this
   isPlaying: {
     type: Boolean,
     default: false
   },
-  // When listening overlay is open, disable the play button
   isListeningMode: {
     type: Boolean,
     default: false
@@ -26,52 +22,20 @@ const props = defineProps({
 
 const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'exitListeningMode'])
 
-const router = useRouter()
-
-// Auth state from injected auth provider
-const auth = inject('auth', null)
-
-// Global auth modal (shared singleton)
-const { openSignIn } = useAuthModal()
-
-// Check if user is signed in
-const isSignedIn = computed(() => auth?.user?.value != null)
-const isGuest = computed(() => auth?.isGuest?.value === true)
-
-// Get user display info
-const userInitial = computed(() => {
-  const user = auth?.user?.value
-  if (!user) return null
-  return (user.firstName?.[0] || user.username?.[0] || 'U').toUpperCase()
-})
-
-const userImageUrl = computed(() => auth?.user?.value?.imageUrl || null)
-
-// Navigation items (left side only - account handled separately)
-const leftNavItems = [
-  { id: 'home', label: 'Home', icon: 'home' },
-  { id: 'browse', label: 'Browse', icon: 'browse' },
-]
-
-// Settings nav item
-const settingsItem = { id: 'settings', label: 'Settings', icon: 'settings' }
-
 // Tap feedback state
 const tappedItem = ref(null)
 const playButtonPressed = ref(false)
 
 // Handle navigation tap with haptic feedback
 const handleNavTap = (itemId) => {
-  // Visual feedback
   tappedItem.value = itemId
   setTimeout(() => { tappedItem.value = null }, 150)
 
-  // Haptic feedback (if available)
   if (navigator.vibrate) {
     navigator.vibrate(10)
   }
 
-  // If listening mode is active, exit it first (stops audio, closes overlay)
+  // If listening mode is active, exit it first
   if (props.isListeningMode) {
     emit('exitListeningMode')
   }
@@ -82,10 +46,8 @@ const handleNavTap = (itemId) => {
 // Check if we're on the player screen
 const isOnPlayerScreen = computed(() => props.currentScreen === 'player')
 
-// Handle play button - either start learning or toggle playback
-// Disabled when listening mode overlay is open
+// Handle play button
 const handlePlayTap = () => {
-  // Don't respond when listening mode is active
   if (props.isListeningMode) return
 
   playButtonPressed.value = true
@@ -96,47 +58,18 @@ const handlePlayTap = () => {
   }
 
   if (isOnPlayerScreen.value) {
-    // On player screen - toggle play/pause
     emit('togglePlayback')
   } else {
-    // Not on player - start learning
     emit('startLearning')
   }
 }
 
-// Button label and icon based on state
+// Button label based on state
 const playButtonLabel = computed(() => {
-  if (props.isListeningMode) {
-    return 'Listening'
-  }
-  if (isOnPlayerScreen.value) {
-    return props.isPlaying ? 'Stop' : 'Play'
-  }
+  if (props.isListeningMode) return 'Listening'
+  if (isOnPlayerScreen.value) return props.isPlaying ? 'Stop' : 'Play'
   return 'Learn'
 })
-
-// Handle account button tap
-const handleAccountTap = () => {
-  tappedItem.value = 'account'
-  setTimeout(() => { tappedItem.value = null }, 150)
-
-  if (navigator.vibrate) {
-    navigator.vibrate(10)
-  }
-
-  // If listening mode is active, exit it first (stops audio, closes overlay)
-  if (props.isListeningMode) {
-    emit('exitListeningMode')
-  }
-
-  if (isGuest.value) {
-    // Guest - open sign in modal (uses global auth modal)
-    openSignIn()
-  } else {
-    // Signed in - go to settings (account section)
-    emit('navigate', 'settings')
-  }
-}
 
 // Hide nav when learning
 const isVisible = computed(() => !props.isLearning)
@@ -150,35 +83,25 @@ const isVisible = computed(() => !props.isLearning)
 
       <!-- Navigation content -->
       <div class="nav-content">
-        <!-- Left nav items -->
+        <!-- Left: Progress -->
         <div class="nav-group nav-group--left">
           <button
-            v-for="item in leftNavItems"
-            :key="item.id"
             class="nav-item"
             :class="{
-              active: currentScreen === item.id,
-              tapped: tappedItem === item.id
+              active: currentScreen === 'progress',
+              tapped: tappedItem === 'progress'
             }"
-            @click="handleNavTap(item.id)"
+            @click="handleNavTap('progress')"
           >
             <div class="nav-icon">
-              <!-- Home icon -->
-              <svg v-if="item.icon === 'home'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-                <polyline points="9 22 9 12 15 12 15 22"/>
-              </svg>
-              <!-- Grid/Browse icon -->
-              <svg v-else-if="item.icon === 'browse'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="3" width="7" height="7" rx="1"/>
-                <rect x="14" y="3" width="7" height="7" rx="1"/>
-                <rect x="3" y="14" width="7" height="7" rx="1"/>
-                <rect x="14" y="14" width="7" height="7" rx="1"/>
+              <!-- Brain icon -->
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M12 2C9.5 2 7.5 3.5 7 5.5C5.5 5.5 4 7 4 9c0 1.5.8 2.8 2 3.5-.2.5-.3 1-.3 1.5 0 2 1.5 3.5 3.3 3.8.5 1.3 1.8 2.2 3 2.2s2.5-.9 3-2.2c1.8-.3 3.3-1.8 3.3-3.8 0-.5-.1-1-.3-1.5 1.2-.7 2-2 2-3.5 0-2-1.5-3.5-3-3.5C16.5 3.5 14.5 2 12 2z"/>
+                <path d="M12 2v18" opacity="0.3"/>
+                <path d="M7 9h10" opacity="0.3"/>
               </svg>
             </div>
-            <span class="nav-label">{{ item.label }}</span>
-
-            <!-- Active indicator dot -->
+            <span class="nav-label">Progress</span>
             <div class="active-indicator"></div>
           </button>
         </div>
@@ -215,57 +138,26 @@ const isVisible = computed(() => !props.isLearning)
           <span class="play-label">{{ playButtonLabel }}</span>
         </div>
 
-        <!-- Right nav items -->
+        <!-- Right: Library -->
         <div class="nav-group nav-group--right">
-          <!-- Account button (dynamic based on auth state) -->
-          <button
-            class="nav-item"
-            :class="{ tapped: tappedItem === 'account' }"
-            @click="handleAccountTap"
-          >
-            <div class="nav-icon account-icon">
-              <!-- Guest: Sign In icon -->
-              <template v-if="isGuest">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
-                  <polyline points="10 17 15 12 10 7"/>
-                  <line x1="15" y1="12" x2="3" y2="12"/>
-                </svg>
-              </template>
-              <!-- Signed in: Avatar or initial -->
-              <template v-else-if="isSignedIn">
-                <img v-if="userImageUrl" :src="userImageUrl" alt="" class="account-avatar" />
-                <span v-else class="account-initial">{{ userInitial }}</span>
-              </template>
-              <!-- Loading/default: User icon -->
-              <template v-else>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                  <circle cx="12" cy="7" r="4"/>
-                </svg>
-              </template>
-            </div>
-            <span class="nav-label">{{ isGuest ? 'Sign In' : 'Account' }}</span>
-          </button>
-
-          <!-- Settings -->
           <button
             class="nav-item"
             :class="{
-              active: currentScreen === 'settings',
-              tapped: tappedItem === 'settings'
+              active: currentScreen === 'library',
+              tapped: tappedItem === 'library'
             }"
-            @click="handleNavTap('settings')"
+            @click="handleNavTap('library')"
           >
             <div class="nav-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="3"/>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              <!-- Browse/grid icon -->
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <rect x="3" y="3" width="7" height="7" rx="1"/>
+                <rect x="14" y="3" width="7" height="7" rx="1"/>
+                <rect x="3" y="14" width="7" height="7" rx="1"/>
+                <rect x="14" y="14" width="7" height="7" rx="1"/>
               </svg>
             </div>
-            <span class="nav-label">Settings</span>
-
-            <!-- Active indicator dot -->
+            <span class="nav-label">Library</span>
             <div class="active-indicator"></div>
           </button>
         </div>
@@ -278,8 +170,6 @@ const isVisible = computed(() => !props.isLearning)
 </template>
 
 <style scoped>
-/* Fonts loaded globally in style.css */
-
 .bottom-nav {
   position: fixed;
   bottom: 0;
@@ -300,11 +190,9 @@ const isVisible = computed(() => !props.isLearning)
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   border-top: 1px solid var(--border-subtle);
-  /* Below control-bar so transport controls are visible */
   z-index: 100;
 }
 
-/* Subtle top edge highlight */
 .nav-backdrop::before {
   content: '';
   position: absolute;
@@ -326,31 +214,27 @@ const isVisible = computed(() => !props.isLearning)
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  /* Fixed phone-like width - matches transport bar */
   padding: 0 8px;
   width: 100%;
   max-width: 400px;
   margin: 0 auto;
   height: 68px;
-  /* No z-index - let children control their own stacking relative to root */
 }
 
 .nav-group {
   display: flex;
   flex: 1;
-  /* Let groups fill available space naturally */
-  max-width: 140px;
-  /* Above backdrop (z:100) but below control-bar (z:105) */
+  max-width: 100px;
   position: relative;
   z-index: 102;
 }
 
 .nav-group--left {
-  justify-content: space-around;
+  justify-content: center;
 }
 
 .nav-group--right {
-  justify-content: space-around;
+  justify-content: center;
 }
 
 /* Nav Item */
@@ -366,8 +250,8 @@ const isVisible = computed(() => !props.isLearning)
   cursor: pointer;
   position: relative;
   transition: all 0.2s ease;
-  min-width: 44px; /* Touch-friendly minimum */
-  min-height: 44px; /* Touch-friendly minimum */
+  min-width: 44px;
+  min-height: 44px;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -386,35 +270,6 @@ const isVisible = computed(() => !props.isLearning)
 .nav-icon svg {
   width: 100%;
   height: 100%;
-  stroke-width: 1.8;
-}
-
-/* Account icon styles */
-.account-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.account-avatar {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 1.5px solid var(--border-default);
-}
-
-.account-initial {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: linear-gradient(145deg, var(--ssi-red) 0%, var(--ssi-red-dark) 100%);
-  color: var(--text-on-accent);
-  font-size: 11px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .nav-label {
@@ -424,10 +279,10 @@ const isVisible = computed(() => !props.isLearning)
   color: var(--text-muted);
   transition: all 0.25s ease;
   letter-spacing: 0.01em;
-  white-space: nowrap; /* Prevent text wrapping (e.g., "Sign In") */
+  white-space: nowrap;
 }
 
-/* Active state - uses belt color when available, falls back to brand red */
+/* Active state */
 .nav-item.active .nav-icon {
   color: var(--belt-color, var(--ssi-red));
   transform: translateY(-1px) scale(1.05);
@@ -475,13 +330,11 @@ const isVisible = computed(() => !props.isLearning)
   margin: 0 12px;
   position: relative;
   top: -18px;
-  /* Above LearningPlayer control-bar (z:105) */
   z-index: 110;
 }
 
 .play-button {
   position: relative;
-  /* Fixed size for mobile - comfortable tap target */
   width: 56px;
   height: 56px;
   border-radius: 50%;
@@ -539,16 +392,15 @@ const isVisible = computed(() => !props.isLearning)
 .play-button-inner svg {
   width: 22px;
   height: 22px;
-  margin-left: 2px; /* Optical centering for play icon */
+  margin-left: 2px;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
 }
 
-/* Stop icon doesn't need the optical centering offset */
 .play-button.is-playing .play-button-inner svg {
   margin-left: 0;
 }
 
-/* Disabled state - when listening overlay is open */
+/* Disabled state - listening mode */
 .play-button.is-disabled {
   background: linear-gradient(145deg, var(--bg-interactive-disabled) 0%, var(--bg-interactive-disabled) 100%);
   box-shadow:
@@ -604,11 +456,9 @@ const isVisible = computed(() => !props.isLearning)
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   RESPONSIVE - Simple breakpoints with fixed values
-   Mobile (default, <768px) | Tablet (768-1279px) | Desktop (1280px+)
+   RESPONSIVE
    ═══════════════════════════════════════════════════════════════ */
 
-/* Tablet and Desktop - same fixed width as mobile */
 @media (min-width: 768px) {
   .nav-content {
     max-width: 400px;
@@ -616,7 +466,7 @@ const isVisible = computed(() => !props.isLearning)
   }
 
   .nav-group {
-    max-width: 180px;
+    max-width: 120px;
   }
 
   .nav-item {
@@ -632,16 +482,6 @@ const isVisible = computed(() => !props.isLearning)
 
   .nav-label {
     font-size: 11px;
-  }
-
-  .account-avatar,
-  .account-initial {
-    width: 26px;
-    height: 26px;
-  }
-
-  .account-initial {
-    font-size: 12px;
   }
 
   .play-button-container {
@@ -674,7 +514,6 @@ const isVisible = computed(() => !props.isLearning)
   }
 }
 
-/* Desktop (1280px+) - same as mobile, fixed phone-like width */
 @media (min-width: 1280px) {
   .nav-content {
     max-width: 400px;
@@ -682,11 +521,11 @@ const isVisible = computed(() => !props.isLearning)
   }
 
   .nav-group {
-    max-width: 140px;
+    max-width: 100px;
   }
 }
 
-/* Landscape orientation - compact bottom nav (keeps min touch targets) */
+/* Landscape compact */
 @media (orientation: landscape) and (max-height: 500px) {
   .nav-content {
     height: 56px;
@@ -695,7 +534,7 @@ const isVisible = computed(() => !props.isLearning)
   }
 
   .nav-group {
-    max-width: 100px;
+    max-width: 80px;
   }
 
   .nav-item {
@@ -740,7 +579,7 @@ const isVisible = computed(() => !props.isLearning)
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   MISTY DOJO THEME — Bottom nav overrides
+   MISTY DOJO THEME
    ═══════════════════════════════════════════════════════════════ */
 :root[data-theme="mist"] .nav-backdrop {
   background: linear-gradient(
