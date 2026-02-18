@@ -29,6 +29,8 @@ import type { SessionController } from '../playback/SessionController'
 class TargetAudioController {
   private audio: HTMLAudioElement | null = null
   private isUnlocked = false
+  private aborted = false
+  private currentCleanup: (() => void) | null = null
 
   constructor() {
     // Create audio element immediately for mobile compatibility
@@ -58,7 +60,26 @@ class TargetAudioController {
     }
   }
 
+  /**
+   * Cancel any in-flight playback. Safe to call multiple times.
+   */
+  cancel(): void {
+    this.aborted = true
+    if (this.currentCleanup) {
+      this.currentCleanup()
+      this.currentCleanup = null
+    }
+    if (this.audio) {
+      this.audio.pause()
+      this.audio.currentTime = 0
+    }
+  }
+
   async play(url: string, speed: number = 1): Promise<void> {
+    // Cancel any in-flight playback before starting new
+    this.cancel()
+    this.aborted = false
+
     if (!this.audio) {
       this.audio = new Audio()
     }
@@ -81,21 +102,40 @@ class TargetAudioController {
         if (stallCheck) { clearInterval(stallCheck); stallCheck = null }
         this.audio?.removeEventListener('ended', onEnded)
         this.audio?.removeEventListener('error', onError)
+        this.currentCleanup = null
       }
+
+      // Store cleanup so cancel() can invoke it
+      this.currentCleanup = cleanup
 
       const onEnded = () => {
         if (settled) return
         settled = true
         cleanup()
-        resolve()
+        if (this.aborted) {
+          resolve() // Silently resolve — caller doesn't need to know
+        } else {
+          resolve()
+        }
       }
 
       const onError = (e: Event) => {
         if (settled) return
         settled = true
         cleanup()
-        console.error('[TargetAudioController] Playback error:', e)
-        reject(e)
+        if (this.aborted) {
+          resolve() // Cancelled — don't propagate error
+        } else {
+          console.error('[TargetAudioController] Playback error:', e)
+          reject(e)
+        }
+      }
+
+      // If already aborted (race between cancel and promise setup), bail
+      if (this.aborted) {
+        settled = true
+        resolve()
+        return
       }
 
       this.audio!.addEventListener('ended', onEnded)
@@ -123,17 +163,18 @@ class TargetAudioController {
 
       this.audio!.playbackRate = speed
       this.audio!.play().catch((err) => {
-        console.error('[TargetAudioController] Play failed:', err)
-        onError(err)
+        if (this.aborted) {
+          if (!settled) { settled = true; cleanup(); resolve() }
+        } else {
+          console.error('[TargetAudioController] Play failed:', err)
+          onError(err)
+        }
       })
     })
   }
 
   stop(): void {
-    if (this.audio) {
-      this.audio.pause()
-      this.audio.currentTime = 0
-    }
+    this.cancel()
   }
 }
 
@@ -596,6 +637,10 @@ function updateVisibility(count: number) {
  * Mobile: Show subtitle overlay (keeps brain visible for fire path animation)
  */
 async function handleNodeTap(node: NetworkNode) {
+  // Cancel any in-flight audio/practice before switching nodes
+  stopPhrasePractice()
+  audioController.value?.stop()
+
   // Unlock audio on first interaction (required for iOS/Safari)
   if (!audioController.value) {
     audioController.value = new TargetAudioController()
@@ -930,6 +975,9 @@ async function downloadBrainImage() {
 async function playPhrase(phrase: PhraseWithPath) {
   if (!phrase) return
 
+  // Cancel any in-flight audio before starting new phrase
+  audioController.value?.stop()
+
   currentPracticingPhrase.value = phrase
   isPlayingAudio.value = true
 
@@ -1012,9 +1060,10 @@ async function playNextPhraseInPractice() {
   }
 
   // Schedule next phrase regardless of success/failure
-  // Short delay between phrases for natural rhythm
+  // Gap proportional to audio duration — brief breath between phrases
   if (isPracticingPhrases.value) {
-    const delay = 1500  // 1.5 second gap between phrases
+    const phraseDuration = phrase.target1DurationMs || phrase.target2DurationMs || 2000
+    const delay = Math.max(800, phraseDuration * 0.3)
     phrasePracticeTimer = setTimeout(() => {
       currentPhraseIndex.value++
       playNextPhraseInPractice()
