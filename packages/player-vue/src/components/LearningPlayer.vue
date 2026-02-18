@@ -4388,8 +4388,8 @@ const handleAdaptationConsent = async (granted) => {
   // Play welcome audio on first play if needed
   await playWelcomeIfNeeded()
 
-  // Start playback via simple player path (consent now resolved)
-  handleResume()
+  // Let the learner tap to start — don't auto-play after consent
+  isPlaying.value = false
 }
 
 // Preload first round audio during consent overlay (first visit only).
@@ -5750,18 +5750,6 @@ onMounted(async () => {
           })()
         )
 
-        // Task: Preload intro audio for ALL LEGOs
-        if (supabase?.value) {
-          const legoIds = new Set(
-            cachedRounds.value.map(r => r.legoId).filter(Boolean)
-          )
-          if (legoIds.size > 0) {
-            parallelTasks.push(
-              loadIntroAudio(supabase.value, courseCode.value, legoIds, audioMap.value)
-            )
-          }
-        }
-
         // Task: Initialize VAD if previously consented
         if (adaptationConsent.value === true) {
           parallelTasks.push(initializeVad().catch(() => {}))
@@ -5769,6 +5757,16 @@ onMounted(async () => {
 
         // Wait for all parallel tasks
         await Promise.all(parallelTasks)
+
+        // Block on intro audio AFTER parallel tasks — must be ready before first playback
+        if (supabase?.value) {
+          const legoIds = new Set(
+            cachedRounds.value.map(r => r.legoId).filter(Boolean)
+          )
+          if (legoIds.size > 0) {
+            await loadIntroAudio(supabase.value, courseCode.value, legoIds, audioMap.value)
+          }
+        }
       } else if (courseDataProvider.value) {
         // ============================================
         // GENERATE NEW SCRIPT (cache was empty)
@@ -7173,6 +7171,34 @@ defineExpose({
   opacity: 0.03;
   pointer-events: none;
   z-index: 0;
+}
+
+/* Belt-aware background: brighter, warmer for early belts */
+.belt-white .space-gradient,
+.belt-yellow .space-gradient {
+  background:
+    radial-gradient(ellipse 120% 80% at 20% 10%, rgba(50, 35, 70, 0.8) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 60% at 80% 90%, rgba(40, 35, 60, 0.6) 0%, transparent 40%),
+    radial-gradient(ellipse 80% 80% at 50% 50%, rgba(18, 15, 30, 1) 0%, #0e0c14 100%);
+}
+
+.belt-white .space-nebula,
+.belt-yellow .space-nebula {
+  background:
+    radial-gradient(ellipse 60% 40% at 30% 30%, rgba(140, 100, 180, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 30% at 70% 60%, rgba(120, 100, 160, 0.09) 0%, transparent 40%),
+    radial-gradient(ellipse 70% 50% at 50% 80%, rgba(160, 120, 100, 0.06) 0%, transparent 50%);
+}
+
+.belt-white .star-field .star,
+.belt-yellow .star-field .star {
+  opacity: 0.7;
+}
+
+.belt-orange .space-nebula {
+  background:
+    radial-gradient(ellipse 60% 40% at 30% 30%, rgba(120, 90, 160, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 30% at 70% 60%, rgba(100, 90, 150, 0.06) 0%, transparent 40%);
 }
 
 /* ============ STATIC STAR FIELD ============ */

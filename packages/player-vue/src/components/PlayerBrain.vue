@@ -73,7 +73,7 @@ const BELT_COLORS: Record<string, string> = {
   blue: '#3b82f6',
   purple: '#8b5cf6',
   brown: '#a87848',
-  black: '#d4a853',
+  black: '#1a1a1a',
 }
 
 const accentColor = computed(() => BELT_COLORS[props.beltLevel] || BELT_COLORS.white)

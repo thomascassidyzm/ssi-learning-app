@@ -37,6 +37,12 @@ const courseName = computed(() => {
   return getLangMeta(props.course.target_lang).name
 })
 
+const courseSubtitle = computed(() => {
+  if (!props.course?.known_lang) return ''
+  const knownMeta = getLangMeta(props.course.known_lang)
+  return `for ${knownMeta.name} Speakers`
+})
+
 const courseFlag = computed(() => {
   if (!props.course) return '🌐'
   return getLangMeta(props.course.target_lang).flag
@@ -60,8 +66,7 @@ const greeting = computed(() => {
   return 'Nearly there'
 })
 
-const handleChangeCourse = (e) => {
-  e.stopPropagation()
+const handleChangeCourse = () => {
   emit('change-course')
 }
 </script>
@@ -71,15 +76,13 @@ const handleChangeCourse = (e) => {
     <div class="resting-content">
       <!-- Course identity -->
       <div class="course-flag">{{ courseFlag }}</div>
-      <h2 class="course-name">{{ courseName }}</h2>
-
-      <!-- Course switcher pill -->
-      <button class="course-switcher" @click="handleChangeCourse">
-        <span>Change course</span>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <h2 class="course-name course-name--tappable" @click.stop="handleChangeCourse">
+        {{ courseName }}
+        <svg class="course-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <polyline points="6 9 12 15 18 9"/>
         </svg>
-      </button>
+      </h2>
+      <p v-if="courseSubtitle" class="course-subtitle">{{ courseSubtitle }}</p>
 
       <!-- Belt badge -->
       <div class="belt-badge" :style="{ '--belt-accent': belt.color }">
@@ -154,28 +157,31 @@ const handleChangeCourse = (e) => {
   letter-spacing: -0.01em;
 }
 
-.course-switcher {
-  display: flex;
+.course-name--tappable {
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 12px;
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  font-family: var(--font-body);
-  font-size: 12px;
+  gap: 6px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: color 0.2s ease;
 }
 
-.course-switcher:hover {
+.course-name--tappable:hover {
   color: var(--text-secondary);
 }
 
-.course-switcher svg {
-  width: 14px;
-  height: 14px;
+.course-chevron {
+  width: 16px;
+  height: 16px;
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.course-subtitle {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: -4px 0 0;
 }
 
 .belt-badge {

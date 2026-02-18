@@ -11,7 +11,7 @@ const ALL_BELTS = [
   { name: 'blue', color: '#60a5fa', seedsRequired: 80, glow: 'rgba(96, 165, 250, 0.4)' },
   { name: 'purple', color: '#a78bfa', seedsRequired: 150, glow: 'rgba(167, 139, 250, 0.4)' },
   { name: 'brown', color: '#a8856c', seedsRequired: 280, glow: 'rgba(168, 133, 108, 0.4)' },
-  { name: 'black', color: '#d4a853', seedsRequired: 400, glow: 'rgba(212, 168, 83, 0.4)' },
+  { name: 'black', color: '#1a1a1a', seedsRequired: 400, glow: 'rgba(255, 255, 255, 0.3)' },
 ]
 
 const props = defineProps({

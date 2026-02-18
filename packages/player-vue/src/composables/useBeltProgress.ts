@@ -42,7 +42,7 @@ export const BELTS: Omit<Belt, 'index'>[] = [
   { name: 'blue',   seedsRequired: 80,  color: '#60a5fa', colorDark: '#2563eb', glow: 'rgba(96, 165, 250, 0.4)' },
   { name: 'purple', seedsRequired: 150, color: '#a78bfa', colorDark: '#7c3aed', glow: 'rgba(167, 139, 250, 0.4)' },
   { name: 'brown',  seedsRequired: 280, color: '#a8856c', colorDark: '#78350f', glow: 'rgba(168, 133, 108, 0.4)' },
-  { name: 'black',  seedsRequired: 400, color: '#d4a853', colorDark: '#b8860b', glow: 'rgba(212, 168, 83, 0.4)' },  // Gold accent
+  { name: 'black',  seedsRequired: 400, color: '#1a1a1a', colorDark: '#000000', glow: 'rgba(255, 255, 255, 0.3)' },
 ]
 
 export const TOTAL_SEEDS = 668 // Total seeds in a typical course

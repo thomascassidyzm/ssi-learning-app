@@ -121,7 +121,7 @@ const BELT_COLORS: Record<string, string> = {
   blue: '#3b82f6',
   purple: '#8b5cf6',
   brown: '#a87848',
-  black: '#d4a853',
+  black: '#1a1a1a',
 }
 
 const accentColor = computed(() => BELT_COLORS[props.beltLevel] || BELT_COLORS.white)
@@ -653,10 +653,16 @@ watch(() => props.selectedNodeId, (nodeId, oldNodeId) => {
     return
   }
 
+  // Clear old selection highlight first, then apply new
+  if (oldNodeId) {
+    brainNodes.updateNodeBrightness(oldNodeId, 0.50)
+  }
+
   // Node selected - dim all OTHER nodes, keep selected node bright
   console.log('[Brain3DView] Node selected:', nodeId, '- dimming other nodes')
   const excludeIds = new Set([nodeId])
   brainNodes.setAllNodesBrightness(0.50, excludeIds)
+  brainNodes.updateNodeBrightness(nodeId, 2.5)
   brainEdges.setDimmed(true)
 })
 

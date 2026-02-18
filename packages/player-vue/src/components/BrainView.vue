@@ -960,8 +960,11 @@ async function playPhrase(phrase: PhraseWithPath) {
     }
 
     if (audioId) {
+      // Ensure audio controller is unlocked (may have been created but not unlocked)
+      await audioController.value.unlock()
+
       const audioUrl = buildAudioUrl(audioId)
-      console.log('[BrainView] Playing phrase:', phrase.targetText)
+      console.log('[BrainView] Playing phrase:', phrase.targetText, 'audioId:', audioId)
 
       // Start fire path animation synchronized with audio
       animateFirePath(phrase.legoPath, audioDuration)
@@ -969,7 +972,7 @@ async function playPhrase(phrase: PhraseWithPath) {
       // Play the audio at user's selected speed
       await audioController.value.play(audioUrl, playbackSpeed.value)
     } else {
-      console.warn('[BrainView] No audio available for phrase:', phrase.targetText)
+      console.warn('[BrainView] No audio available for phrase:', phrase.targetText, 'target1AudioId:', phrase.target1AudioId, 'target2AudioId:', phrase.target2AudioId)
     }
   } catch (err) {
     console.warn('[BrainView] Phrase audio playback error:', err)
@@ -1390,7 +1393,10 @@ onUnmounted(() => {
           :class="{ current: belt.name === beltLevel, completed: index < currentBeltIndex }"
           :style="{ '--belt-color': belt.color }"
         >
-          <div class="belt-indicator" :style="{ backgroundColor: belt.color }"></div>
+          <div class="belt-indicator" :class="{ 'belt-indicator--black': belt.name === 'black' }" :style="{ backgroundColor: belt.color }">
+            <div class="belt-stripe" :style="{ backgroundColor: belt.color }"></div>
+            <div class="belt-knot" :style="{ backgroundColor: belt.color }"></div>
+          </div>
           <div class="belt-info">
             <span class="belt-name">{{ belt.name.charAt(0).toUpperCase() + belt.name.slice(1) }} Belt</span>
             <span class="belt-threshold">{{ belt.seedsRequired }} seeds</span>
@@ -1557,7 +1563,8 @@ onUnmounted(() => {
               @click="playSpecificPhrase(phrase)"
             >
               <span class="phrase-text">{{ phrase.targetText }}</span>
-              <span class="phrase-legos">{{ phrase.legoPath.length }} LEGOs</span>
+              <span v-if="!phrase.target1AudioId && !phrase.target2AudioId" class="phrase-no-audio">No audio</span>
+              <span v-else class="phrase-legos">{{ phrase.legoPath.length }} LEGOs</span>
             </div>
           </div>
         </div>
@@ -1762,10 +1769,42 @@ onUnmounted(() => {
 }
 
 .belt-indicator {
-  width: 48px;
-  height: 12px;
-  border-radius: 6px;
+  width: 56px;
+  height: 16px;
+  border-radius: 3px;
   flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+  background-image:
+    linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.15) 100%);
+}
+
+.belt-stripe {
+  position: absolute;
+  top: 6px;
+  left: 0;
+  right: 0;
+  height: 4px;
+  filter: brightness(1.3);
+  opacity: 0.4;
+  border-radius: 1px;
+}
+
+.belt-knot {
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 8px;
+  height: 12px;
+  border-radius: 2px;
+  filter: brightness(0.85);
+  box-shadow: inset 0 0 2px rgba(0,0,0,0.3);
+}
+
+.belt-indicator--black {
+  outline: 1.5px solid rgba(255,255,255,0.35);
+  outline-offset: 0px;
 }
 
 .belt-info {
@@ -2462,6 +2501,13 @@ onUnmounted(() => {
   display: block;
   color: var(--text-muted);
   font-size: 0.7rem;
+}
+
+.phrase-no-audio {
+  display: block;
+  color: #997755;
+  font-size: 0.7rem;
+  font-style: italic;
 }
 
 .no-phrases {
