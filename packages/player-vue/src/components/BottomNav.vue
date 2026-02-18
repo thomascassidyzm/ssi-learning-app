@@ -17,10 +17,14 @@ const props = defineProps({
   isListeningMode: {
     type: Boolean,
     default: false
+  },
+  activeCourse: {
+    type: Object,
+    default: null
   }
 })
 
-const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'exitListeningMode'])
+const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'exitListeningMode', 'change-course'])
 
 // Tap feedback state
 const tappedItem = ref(null)
@@ -105,6 +109,19 @@ const isVisible = computed(() => !props.isLearning)
             <div class="active-indicator"></div>
           </button>
         </div>
+
+        <!-- Course switcher (left of play button) -->
+        <button
+          v-if="activeCourse"
+          class="course-switcher"
+          @click="emit('change-course')"
+          title="Switch course"
+        >
+          <span class="course-switcher-label">{{ activeCourse.target_language_name || 'Course' }}</span>
+          <svg class="course-switcher-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
 
         <!-- Central Play/Stop Button -->
         <div class="play-button-container">
@@ -320,6 +337,45 @@ const isVisible = computed(() => !props.isLearning)
   .nav-item:hover:not(.active) .nav-label {
     color: var(--text-secondary);
   }
+}
+
+/* Course Switcher */
+.course-switcher {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px;
+  margin-bottom: 12px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  position: relative;
+  z-index: 102;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.2s ease;
+}
+
+.course-switcher:active {
+  opacity: 0.6;
+}
+
+.course-switcher-label {
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  max-width: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.course-switcher-chevron {
+  width: 10px;
+  height: 10px;
+  color: var(--text-muted);
+  flex-shrink: 0;
 }
 
 /* Central Play Button */

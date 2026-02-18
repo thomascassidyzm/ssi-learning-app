@@ -4087,7 +4087,7 @@ const handleSkipToNextBelt = async () => {
       // Target seed not loaded - load it via generateSimpleScript (blocking)
       // Always emit from round 1 to ensure correct round building (including intros)
       console.debug(`[progressiveLoad] Belt skip: target seed ${targetSeed} not loaded, loading now...`)
-      const skipResult = await generateSimpleScript(supabase.value, courseCode.value, 1, targetSeed + 5, 1)
+      const skipResult = await generateSimpleScript(supabase.value, courseCode.value, targetSeed, targetSeed + 5, 1)
 
       if (skipResult.items.length > 0) {
         const newRounds = toSimpleRounds(skipResult.items)
@@ -4120,7 +4120,7 @@ const loadSeedIfNeeded = async (targetSeed: number) => {
 
   // Always emit from round 1 to ensure correct round building (including intros)
   console.debug(`[progressiveLoad] Belt skip: target seed ${targetSeed} not loaded, loading now...`)
-  const skipResult = await generateSimpleScript(supabase.value, courseCode.value, 1, targetSeed + 5, 1)
+  const skipResult = await generateSimpleScript(supabase.value, courseCode.value, targetSeed, targetSeed + 5, 1)
 
   if (skipResult.items.length > 0) {
     const newRounds = toSimpleRounds(skipResult.items)
@@ -5470,7 +5470,7 @@ onMounted(async () => {
                     // Always emit from round 1 to ensure correct round building (including intros)
                     // SimplePlayer.addRounds handles duplicates
                     const batchResult = await generateSimpleScript(
-                      supabase.value, courseCode.value, 1, batch.end, 1
+                      supabase.value, courseCode.value, batch.start, batch.end, 1
                     )
 
                     if (batchResult.items.length > 0) {
@@ -6262,6 +6262,14 @@ defineExpose({
   <!-- Single root wrapper - required for v-show from parent to work correctly -->
   <div class="learning-player-root">
 
+  <!-- Belt Skip Loading Overlay -->
+  <Transition name="fade">
+    <div v-if="isSkippingBelt" class="belt-skip-overlay">
+      <div class="belt-skip-spinner"></div>
+      <span class="belt-skip-label">Jumping to {{ nextBelt?.name || 'next' }} belt...</span>
+    </div>
+  </Transition>
+
   <!-- Paused Summary Overlay -->
   <Transition name="session-complete">
     <SessionComplete
@@ -7027,6 +7035,42 @@ defineExpose({
    ============================================ */
 
 /* Fonts loaded globally in style.css */
+
+/* Belt Skip Loading Overlay */
+.belt-skip-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.belt-skip-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--belt-color, var(--ssi-red));
+  border-radius: 50%;
+  animation: belt-skip-spin 0.8s linear infinite;
+}
+
+@keyframes belt-skip-spin {
+  to { transform: rotate(360deg); }
+}
+
+.belt-skip-label {
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-primary);
+  letter-spacing: 0.02em;
+}
 
 /* Root wrapper - enables v-show to work correctly from parent component */
 /* When parent uses v-show="currentScreen === 'player'", this div receives display:none */

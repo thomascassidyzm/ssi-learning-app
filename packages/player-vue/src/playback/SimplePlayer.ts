@@ -288,6 +288,10 @@ export class SimplePlayer {
 
   private getNextPhase(): Phase | null {
     // Simple transitions: prompt → pause → voice1 → voice2 → (next cycle)
+    // Skip pause entirely for intro cycles (pauseDuration === 0) to avoid event-loop gap
+    if (this.state.phase === 'prompt' && this.currentCycle?.pauseDuration === 0) {
+      return 'voice1'
+    }
     const transitions: Record<Phase, Phase | null> = {
       idle: null,
       prompt: 'pause',
