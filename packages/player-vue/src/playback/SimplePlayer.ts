@@ -118,7 +118,7 @@ export class SimplePlayer {
       existingLegoIds.add(round.legoId)
     }
 
-    console.log(`[SimplePlayer] Added ${newRounds.length} rounds, total now: ${this.rounds.length}`)
+    console.debug(`[SimplePlayer] Added ${newRounds.length} rounds, total now: ${this.rounds.length}`)
   }
 
   /**
@@ -155,7 +155,7 @@ export class SimplePlayer {
       this.advanceRound()
       return
     }
-    console.log(`[SimplePlayer] Starting Round ${round.roundNumber} (${round.legoId}): ${round.cycles.length} cycles`)
+    console.debug(`[SimplePlayer] Starting Round ${round.roundNumber} (${round.legoId}): ${round.cycles.length} cycles`)
     this.updateState({ isPlaying: true })
     this.startPhase('prompt')
   }
@@ -195,7 +195,7 @@ export class SimplePlayer {
   }
 
   jumpToRound(index: number): void {
-    console.log(`[SimplePlayer] jumpToRound(${index}) - rounds.length=${this.rounds.length}, isPlaying=${this.state.isPlaying}`)
+    console.debug(`[SimplePlayer] jumpToRound(${index}) - rounds.length=${this.rounds.length}, isPlaying=${this.state.isPlaying}`)
     if (index < 0 || index >= this.rounds.length) {
       console.warn(`[SimplePlayer] jumpToRound(${index}) OUT OF BOUNDS - only ${this.rounds.length} rounds loaded`)
       return
@@ -205,7 +205,7 @@ export class SimplePlayer {
     const wasPlaying = this.state.isPlaying
     // Must set isPlaying: false so play() doesn't early-return
     this.updateState({ roundIndex: index, cycleIndex: 0, phase: 'idle', isPlaying: false })
-    console.log(`[SimplePlayer] jumpToRound: wasPlaying=${wasPlaying}, calling play()`)
+    console.debug(`[SimplePlayer] jumpToRound: wasPlaying=${wasPlaying}, calling play()`)
     if (wasPlaying) this.play()
   }
 
@@ -322,7 +322,7 @@ export class SimplePlayer {
       this.updateState({ roundIndex: this.state.roundIndex + 1, cycleIndex: 0 })
       const round = this.currentRound
       if (round) {
-        console.log(`[SimplePlayer] Starting Round ${round.roundNumber} (${round.legoId}): ${round.cycles.length} cycles`)
+        console.debug(`[SimplePlayer] Starting Round ${round.roundNumber} (${round.legoId}): ${round.cycles.length} cycles`)
       }
       this.startPhase('prompt')
     } else {

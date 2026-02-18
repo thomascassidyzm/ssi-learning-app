@@ -4086,13 +4086,13 @@ const handleSkipToNextBelt = async () => {
     if (existingRoundIndex < 0 && supabase?.value) {
       // Target seed not loaded - load it via generateSimpleScript (blocking)
       // Always emit from round 1 to ensure correct round building (including intros)
-      console.log(`[progressiveLoad] Belt skip: target seed ${targetSeed} not loaded, loading now...`)
+      console.debug(`[progressiveLoad] Belt skip: target seed ${targetSeed} not loaded, loading now...`)
       const skipResult = await generateSimpleScript(supabase.value, courseCode.value, 1, targetSeed + 5, 1)
 
       if (skipResult.items.length > 0) {
         const newRounds = toSimpleRounds(skipResult.items)
         simplePlayer.addRounds(newRounds as any)
-        console.log(`[progressiveLoad] Belt skip: added ${newRounds.length} rounds`)
+        console.debug(`[progressiveLoad] Belt skip: added ${newRounds.length} rounds`)
       }
     }
 
@@ -4119,13 +4119,13 @@ const loadSeedIfNeeded = async (targetSeed: number) => {
   if (!supabase?.value) return
 
   // Always emit from round 1 to ensure correct round building (including intros)
-  console.log(`[progressiveLoad] Belt skip: target seed ${targetSeed} not loaded, loading now...`)
+  console.debug(`[progressiveLoad] Belt skip: target seed ${targetSeed} not loaded, loading now...`)
   const skipResult = await generateSimpleScript(supabase.value, courseCode.value, 1, targetSeed + 5, 1)
 
   if (skipResult.items.length > 0) {
     const newRounds = toSimpleRounds(skipResult.items)
     simplePlayer.addRounds(newRounds as any)
-    console.log(`[progressiveLoad] Belt skip: added ${newRounds.length} rounds`)
+    console.debug(`[progressiveLoad] Belt skip: added ${newRounds.length} rounds`)
   }
 }
 
@@ -4968,7 +4968,7 @@ const strengthenPhrasePath = (legoIds) => {
 
 // Handle tap on a network node - play all practice phrases for this LEGO
 const handleNetworkNodeTap = async (node) => {
-  console.log('[Network] Node tapped:', node.id, node.targetText)
+  console.debug('[Network] Node tapped:', node.id, node.targetText)
 
   // If already playing phrases for a node, stop it
   if (isPlayingNodePhrases.value) {
@@ -5371,34 +5371,34 @@ onMounted(async () => {
             // Always emit from round 1 to ensure correct round building (including intros)
             const initialEndSeed = isReturningUser ? startingSeed + 5 : 5
 
-            console.log(`[progressiveLoad] ${isReturningUser ? 'Returning' : 'New'} user: completedSeeds=${completedSeeds}, startingSeed=${startingSeed}, loading seeds 1-${initialEndSeed}`)
+            console.debug(`[progressiveLoad] ${isReturningUser ? 'Returning' : 'New'} user: completedSeeds=${completedSeeds}, startingSeed=${startingSeed}, loading seeds 1-${initialEndSeed}`)
 
             // 2. BLOCKING: Load initial batch (always from round 1 for correct intros)
             const result = await generateSimpleScript(supabase.value, courseCode.value, 1, initialEndSeed, 1)
-            console.log(`[progressiveLoad] Initial: ${result.items.length} script items (${result.roundCount} total rounds)`)
+            console.debug(`[progressiveLoad] Initial: ${result.items.length} script items (${result.roundCount} total rounds)`)
 
             if (result.items.length > 0) {
               const simpleRounds = toSimpleRounds(result.items)
-              console.log(`[progressiveLoad] Converted to ${simpleRounds.length} SimplePlayer rounds`)
+              console.debug(`[progressiveLoad] Converted to ${simpleRounds.length} SimplePlayer rounds`)
 
               // Debug: show first 3 rounds
               simpleRounds.slice(0, 3).forEach((r, i) => {
-                console.log(`[progressiveLoad] Round ${i + 1}: ${r.cycles.length} cycles, legoId=${r.legoId}`)
+                console.debug(`[progressiveLoad] Round ${i + 1}: ${r.cycles.length} cycles, legoId=${r.legoId}`)
               })
 
               simplePlayer.initialize(simpleRounds as any)
-              console.log('[progressiveLoad] SimplePlayer initialized, player is interactive')
+              console.debug('[progressiveLoad] SimplePlayer initialized, player is interactive')
 
               // Restore position for returning users
               if (isReturningUser) {
                 const nextSeed = startingSeed + 1
                 const roundIndex = simplePlayer.findRoundIndexForSeed(nextSeed)
                 if (roundIndex >= 0) {
-                  console.log(`[progressiveLoad] Restoring position: seed ${startingSeed} → starting at seed ${nextSeed} (round index ${roundIndex})`)
+                  console.debug(`[progressiveLoad] Restoring position: seed ${startingSeed} → starting at seed ${nextSeed} (round index ${roundIndex})`)
                   simplePlayer.jumpToRound(roundIndex)
                 } else {
                   // Seed not found in emitted range - start at first available round
-                  console.log(`[progressiveLoad] Seed ${nextSeed} not in emitted range, starting at first round`)
+                  console.debug(`[progressiveLoad] Seed ${nextSeed} not in emitted range, starting at first round`)
                 }
               }
 
@@ -5478,7 +5478,7 @@ onMounted(async () => {
                       simplePlayer.addRounds(newRounds as any)
                       loadedRounds.value = [...(loadedRounds.value || []), ...newRounds] as any
                       lastLoadedEndSeed = Math.max(lastLoadedEndSeed, batch.end)
-                      console.log(`[progressiveLoad] Extension (${batch.label}): adding ${newRounds.length} rounds, total: ${simplePlayer.roundCount.value}`)
+                      console.debug(`[progressiveLoad] Extension (${batch.label}): adding ${newRounds.length} rounds, total: ${simplePlayer.roundCount.value}`)
                     }
                   } catch (err) {
                     console.warn(`[progressiveLoad] Extension batch (${batch.label}) failed:`, err)
@@ -5488,7 +5488,7 @@ onMounted(async () => {
                   await new Promise(resolve => setTimeout(resolve, 200))
                 }
 
-                console.log(`[progressiveLoad] Background loading complete: ${simplePlayer.roundCount.value} total rounds`)
+                console.debug(`[progressiveLoad] Background loading complete: ${simplePlayer.roundCount.value} total rounds`)
               }
 
               // Fire background extension (non-blocking)
@@ -6937,7 +6937,7 @@ defineExpose({
     </Transition>
 
     <!-- Control Bar - 2+2 balanced layout around nav bar play button -->
-    <div class="control-bar">
+    <div class="control-bar" :class="{ 'control-bar--hidden': !isPlaying && !showListeningOverlay && !isDrivingModeActive }">
       <!-- Left side: Mode | Revisit -->
       <div class="control-group control-group--left">
         <button
@@ -9634,11 +9634,17 @@ defineExpose({
   /* Subtle belt glow on bottom edge */
   box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.3),
               0 0 20px color-mix(in srgb, var(--belt-glow) 10%, transparent);
-  /* Always visible */
-  opacity: 1;
   /* Fixed phone-like width - matches other content */
   width: calc(100% - 2rem);
   max-width: 400px;
+  transition: opacity 0.3s ease;
+}
+
+/* Hide control bar when player is resting (not playing) */
+.control-bar--hidden {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
 }
 
 /* Control groups for 3+3 layout */

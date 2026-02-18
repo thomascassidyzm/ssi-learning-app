@@ -12,6 +12,7 @@ import BrowseScreen from '@/components/BrowseScreen.vue'
 import BottomNav from '@/components/BottomNav.vue'
 import BuildBadge from '@/components/BuildBadge.vue'
 import PlayerRestingState from '@/components/PlayerRestingState.vue'
+import CourseSelector from '@/components/CourseSelector.vue'
 
 // Custom auth modals
 import { SignInModal, SignUpModal } from '@/components/auth'
@@ -55,6 +56,7 @@ const isLearning = ref(false)
 // Overlay state (not screens)
 const showSettings = ref(false)
 const showExplorer = ref(false)
+const showCourseSelector = ref(false)
 
 // Player state - shared with nav bar for play/stop button
 const isPlaying = ref(false)
@@ -88,7 +90,7 @@ const navigate = (screen, data = null) => {
   if (currentScreen.value === 'player' && screen !== 'player') {
     if (learningPlayerRef.value?.handlePause) {
       learningPlayerRef.value.handlePause()
-      console.log('[PlayerContainer] Paused player before navigating to', screen)
+      console.debug('[PlayerContainer] Paused player before navigating to', screen)
     }
   }
 
@@ -208,7 +210,7 @@ const totalPhrasesSpoken = computed(() => beltProgress.value?.totalPhrasesSpoken
 
 // Handle auth success
 const handleAuthSuccess = () => {
-  console.log('[PlayerContainer] Auth successful!')
+  console.debug('[PlayerContainer] Auth successful!')
   closeSignIn()
   closeSignUp()
 }
@@ -223,7 +225,7 @@ const checkClassContext = () => {
     if (stored) {
       try {
         classContext.value = JSON.parse(stored)
-        console.log('[PlayerContainer] Class context loaded:', classContext.value)
+        console.debug('[PlayerContainer] Class context loaded:', classContext.value)
       } catch (e) {
         console.error('[PlayerContainer] Failed to parse class context:', e)
       }
@@ -323,6 +325,7 @@ onMounted(() => {
       :total-seeds="totalSeeds"
       :current-belt-name="currentBeltName"
       @start="handleTogglePlayback"
+      @change-course="showCourseSelector = true"
     />
 
     <!-- Library pane (Browse + inline belt browser) -->
@@ -396,6 +399,16 @@ onMounted(() => {
         </div>
       </div>
     </Transition>
+
+    <!-- Course Selector (triggered from resting state) -->
+    <CourseSelector
+      :is-open="showCourseSelector"
+      :supabase="supabaseClient"
+      :enrolled-courses="enrolledCourses"
+      :active-course-id="activeCourse?.course_code"
+      @selectCourse="(c) => { showCourseSelector = false; handleCourseSelect(c) }"
+      @close="showCourseSelector = false"
+    />
 
     <!-- Custom Auth Modals (shared state with BottomNav) -->
     <SignInModal

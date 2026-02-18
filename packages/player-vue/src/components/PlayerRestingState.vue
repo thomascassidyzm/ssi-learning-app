@@ -27,7 +27,7 @@ const props = defineProps({
   currentBeltName: { type: String, default: 'white' },
 })
 
-const emit = defineEmits(['start'])
+const emit = defineEmits(['start', 'change-course'])
 
 const courseName = computed(() => {
   if (!props.course) return 'Loading...'
@@ -59,6 +59,11 @@ const greeting = computed(() => {
   if (props.completedSeeds < 300) return 'Impressive progress'
   return 'Nearly there'
 })
+
+const handleChangeCourse = (e) => {
+  e.stopPropagation()
+  emit('change-course')
+}
 </script>
 
 <template>
@@ -67,6 +72,14 @@ const greeting = computed(() => {
       <!-- Course identity -->
       <div class="course-flag">{{ courseFlag }}</div>
       <h2 class="course-name">{{ courseName }}</h2>
+
+      <!-- Course switcher pill -->
+      <button class="course-switcher" @click="handleChangeCourse">
+        <span>Change course</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
 
       <!-- Belt badge -->
       <div class="belt-badge" :style="{ '--belt-accent': belt.color }">
@@ -103,9 +116,12 @@ const greeting = computed(() => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  background: color-mix(in srgb, var(--bg-primary) 85%, transparent);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  /* Translucent — let constellation/particles show through */
+  background: radial-gradient(
+    ellipse at center 60%,
+    color-mix(in srgb, var(--bg-primary) 70%, transparent) 0%,
+    color-mix(in srgb, var(--bg-primary) 40%, transparent) 100%
+  );
   -webkit-tap-highlight-color: transparent;
   animation: resting-fade-in 0.4s ease;
 }
@@ -136,6 +152,30 @@ const greeting = computed(() => {
   color: var(--text-primary);
   margin: 0;
   letter-spacing: -0.01em;
+}
+
+.course-switcher {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 12px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.2s ease;
+}
+
+.course-switcher:hover {
+  color: var(--text-secondary);
+}
+
+.course-switcher svg {
+  width: 14px;
+  height: 14px;
 }
 
 .belt-badge {

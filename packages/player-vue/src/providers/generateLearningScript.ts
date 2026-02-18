@@ -207,7 +207,7 @@ export async function generateLearningScript(
     }
 
     if (presLookup.size > 0) {
-      console.log(`[generateLearningScript] Backfilled ${presLookup.size}/${legosMissingPresentation.length} missing presentation audio IDs`)
+      console.debug(`[generateLearningScript] Backfilled ${presLookup.size}/${legosMissingPresentation.length} missing presentation audio IDs`)
       for (const lego of legosMissingPresentation) {
         const legoId = `S${String(lego.seed_number).padStart(4, '0')}L${String(lego.lego_index).padStart(2, '0')}`
         const audioId = presLookup.get(legoId)
@@ -528,6 +528,6 @@ export async function generateLearningScript(
   }
 
   const skippedRounds = emitFromRound > 1 ? emitFromRound - 1 : 0
-  console.log(`[generateLearningScript] ${dedupedItems.length} items, ${roundNumber} rounds for ${courseCode} S${startSeed}-${endSeed}${removedCount > 0 ? `, ${removedCount} deduped` : ''}${skippedRounds > 0 ? `, from R${emitFromRound}` : ''}`)
+  console.debug(`[generateLearningScript] ${dedupedItems.length} items, ${roundNumber} rounds for ${courseCode} S${startSeed}-${endSeed}${removedCount > 0 ? `, ${removedCount} deduped` : ''}${skippedRounds > 0 ? `, from R${emitFromRound}` : ''}`)
   return { items: dedupedItems, cycleCount: dedupedItems.length, roundCount: roundNumber }
 }

@@ -401,7 +401,7 @@ export function useBrainEdges(options: EdgeRenderOptions = {}) {
 
     // Log edge creation summary
     if (edges.length > 0) {
-      console.log(`[useBrainEdges] Created ${createdCount}/${edges.length} edge meshes`)
+      console.debug(`[useBrainEdges] Created ${createdCount}/${edges.length} edge meshes`)
       if (skippedCount > 0) {
         console.warn(`[useBrainEdges] Skipped ${skippedCount} edges (missing node positions):`, skippedReasons)
       }
@@ -599,7 +599,7 @@ export function useBrainEdges(options: EdgeRenderOptions = {}) {
 
     if (edgesForNode.length === 0) return
 
-    console.log(`[useBrainEdges] Animating ${edgesForNode.length} edges for new node: ${nodeId}`)
+    console.debug(`[useBrainEdges] Animating ${edgesForNode.length} edges for new node: ${nodeId}`)
 
     for (const edge of edgesForNode) {
       // Start the animation

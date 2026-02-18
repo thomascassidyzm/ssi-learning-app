@@ -134,7 +134,7 @@ export class MetaCommentaryService {
 
     this.initialized = true
 
-    console.log(`[MetaCommentary] ${instructions.length} instructions, ${encouragements.length} encouragements${welcome ? ', welcome' : ''}`)
+    console.debug(`[MetaCommentary] ${instructions.length} instructions, ${encouragements.length} encouragements${welcome ? ', welcome' : ''}`)
   }
 
   /**
@@ -240,7 +240,7 @@ export class MetaCommentaryService {
         // Check if all instructions are now complete
         if (this.globalState.instructionIndex >= this.instructions.length) {
           this.globalState.instructionsComplete = true
-          console.log('[MetaCommentary] Instructions complete, switching to encouragements')
+          console.debug('[MetaCommentary] Instructions complete, switching to encouragements')
         }
       }
       // Note: encouragement URN is already updated in getNextCommentary()

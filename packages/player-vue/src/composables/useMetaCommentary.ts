@@ -55,7 +55,7 @@ export function useMetaCommentary(options: UseMetaCommentaryOptions) {
       await svc.initialize()
       service.value = svc
       isInitialized.value = true
-      console.log('[useMetaCommentary] Initialized')
+      console.debug('[useMetaCommentary] Initialized')
     } catch (err) {
       console.error('[useMetaCommentary] Failed to initialize:', err)
     }
@@ -117,7 +117,7 @@ export function useMetaCommentary(options: UseMetaCommentaryOptions) {
 
     if (commentary) {
       pendingCommentary.value = commentary
-      console.log('[useMetaCommentary] Commentary ready:', commentary.type, commentary.text?.substring(0, 50))
+      console.debug('[useMetaCommentary] Commentary ready:', commentary.type, commentary.text?.substring(0, 50))
     }
 
     return commentary

@@ -202,7 +202,7 @@ export function usePrebuiltNetworkIntegration(
    * For pre-built network, this is a no-op - actual init happens in populateFromRounds
    */
   function initialize(): void {
-    console.log('[PrebuiltNetworkIntegration] Initialize called - waiting for populateFromRounds')
+    console.debug('[PrebuiltNetworkIntegration] Initialize called - waiting for populateFromRounds')
   }
 
   /**
@@ -259,7 +259,7 @@ export function usePrebuiltNetworkIntegration(
     }>
   ): void {
     if (isFullNetworkLoaded.value) {
-      console.log('[PrebuiltNetworkIntegration] Full network already loaded, skipping')
+      console.debug('[PrebuiltNetworkIntegration] Full network already loaded, skipping')
       return
     }
 
@@ -267,12 +267,12 @@ export function usePrebuiltNetworkIntegration(
 
     // Debug: Check if rounds have valid legoIds
     const validRounds = allRounds.filter(r => r?.legoId)
-    console.log(`%c[PrebuiltNetworkIntegration] ===== initializeFullNetwork =====`, 'background: #00f; color: #fff; font-weight: bold')
-    console.log(`  Total rounds: ${allRounds.length}`)
-    console.log(`  Valid rounds (with legoId): ${validRounds.length}`)
-    console.log(`  External connections: ${externalConnections?.length || 0}`)
-    console.log(`  External nodes: ${externalNodes?.length || 0}`)
-    console.log(`  Current round index: ${currentRoundIndex}`)
+    console.debug(`%c[PrebuiltNetworkIntegration] ===== initializeFullNetwork =====`, 'background: #00f; color: #fff; font-weight: bold')
+    console.debug(`  Total rounds: ${allRounds.length}`)
+    console.debug(`  Valid rounds (with legoId): ${validRounds.length}`)
+    console.debug(`  External connections: ${externalConnections?.length || 0}`)
+    console.debug(`  External nodes: ${externalNodes?.length || 0}`)
+    console.debug(`  Current round index: ${currentRoundIndex}`)
     if (validRounds.length !== allRounds.length) {
       console.warn(`  ⚠️ ${allRounds.length - validRounds.length} rounds missing legoId!`)
     }
@@ -286,20 +286,20 @@ export function usePrebuiltNetworkIntegration(
     const calculatedNodes = prebuiltNetwork.nodes.value
     if (calculatedNodes.length > 0) {
       const samplePositions = calculatedNodes.slice(0, 3).map(n => ({ id: n.id, x: Math.round(n.x), y: Math.round(n.y) }))
-      console.log(`[PrebuiltNetworkIntegration] Sample node positions:`, samplePositions)
+      console.debug(`[PrebuiltNetworkIntegration] Sample node positions:`, samplePositions)
     }
 
     // Reveal nodes up to the current playback position
     // This is critical - loadFromRounds clears revealed nodes, so we must re-reveal
     if (currentRoundIndex >= 0) {
       prebuiltNetwork.revealUpToRound(currentRoundIndex, allRounds)
-      console.log(`[PrebuiltNetworkIntegration] Revealed ${currentRoundIndex + 1} nodes after full network load`)
+      console.debug(`[PrebuiltNetworkIntegration] Revealed ${currentRoundIndex + 1} nodes after full network load`)
     }
 
     isFullNetworkLoaded.value = true
     isInitialized.value = true
 
-    console.log(`[PrebuiltNetworkIntegration] FULL network initialized: ${prebuiltNetwork.nodes.value.length} nodes with positions`)
+    console.debug(`[PrebuiltNetworkIntegration] FULL network initialized: ${prebuiltNetwork.nodes.value.length} nodes with positions`)
   }
 
   /**
@@ -315,7 +315,7 @@ export function usePrebuiltNetworkIntegration(
     }
 
     prebuiltNetwork.revealUpToRound(upToRoundIndex, fullNetworkRounds)
-    console.log(`[PrebuiltNetworkIntegration] Revealed nodes up to round ${upToRoundIndex}`)
+    console.debug(`[PrebuiltNetworkIntegration] Revealed nodes up to round ${upToRoundIndex}`)
   }
 
   /**
@@ -360,7 +360,7 @@ export function usePrebuiltNetworkIntegration(
     // Debug: Check positions after calculation
     if (prebuiltNetwork.nodes.value.length > 0) {
       const sample = prebuiltNetwork.nodes.value.slice(0, 3).map(n => ({ id: n.id, x: Math.round(n.x), y: Math.round(n.y) }))
-      console.log(`[PrebuiltNetworkIntegration] Sample positions:`, sample)
+      console.debug(`[PrebuiltNetworkIntegration] Sample positions:`, sample)
     }
 
     // Reveal nodes up to the current round
@@ -368,7 +368,7 @@ export function usePrebuiltNetworkIntegration(
 
     isInitialized.value = true
 
-    console.log(`[PrebuiltNetworkIntegration] Pre-calculated ${prebuiltNetwork.nodes.value.length} positions (offset: ${startOffset}), revealed ${upToIndex + 1} nodes, connections: ${externalConnections ? 'database' : 'items'}`)
+    console.debug(`[PrebuiltNetworkIntegration] Pre-calculated ${prebuiltNetwork.nodes.value.length} positions (offset: ${startOffset}), revealed ${upToIndex + 1} nodes, connections: ${externalConnections ? 'database' : 'items'}`)
   }
 
   /**
@@ -454,11 +454,11 @@ export function usePrebuiltNetworkIntegration(
     if (allNodes.length > 0 && nodes.length === 0) {
       console.warn(`[PrebuiltNetworkIntegration] viewProps: 0 visible of ${allNodes.length} total nodes! Revealed IDs: ${revealedCount}`)
       if (revealedCount > 0) {
-        console.log('[PrebuiltNetworkIntegration] Revealed IDs sample:', Array.from(prebuiltNetwork.revealedNodeIds.value).slice(0, 5))
-        console.log('[PrebuiltNetworkIntegration] Node IDs sample:', allNodes.slice(0, 5).map(n => n.id))
+        console.debug('[PrebuiltNetworkIntegration] Revealed IDs sample:', Array.from(prebuiltNetwork.revealedNodeIds.value).slice(0, 5))
+        console.debug('[PrebuiltNetworkIntegration] Node IDs sample:', allNodes.slice(0, 5).map(n => n.id))
       }
     } else if (nodes.length > 0) {
-      console.log(`[PrebuiltNetworkIntegration] viewProps: ${nodes.length} nodes, ${edges.length} edges`)
+      console.debug(`[PrebuiltNetworkIntegration] viewProps: ${nodes.length} nodes, ${edges.length} edges`)
     }
 
     return {
@@ -494,7 +494,7 @@ export function usePrebuiltNetworkIntegration(
       config.canvasSize
     )
     isInitialized.value = true
-    console.log(`[PrebuiltNetworkIntegration] Loaded minimal constellation for ${heroId}`)
+    console.debug(`[PrebuiltNetworkIntegration] Loaded minimal constellation for ${heroId}`)
   }
 
   // ============================================================================
