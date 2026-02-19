@@ -116,8 +116,9 @@ const handleChangeCourse = () => {
   inset: 0;
   z-index: 50;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
+  padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px));
   cursor: pointer;
   /* Translucent — let constellation/particles show through */
   background: radial-gradient(
