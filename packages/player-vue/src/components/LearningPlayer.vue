@@ -1821,6 +1821,7 @@ const welcomeText = ref('') // Text to display during welcome audio
 
 // Initial state - before user has ever tapped play
 const hasEverStarted = ref(false) // True after first play tap (even if welcome plays first)
+const networkInitialized = ref(false) // True after initializeNetwork() has been called once
 
 // Smooth ring progress (0-100) - continuous animation
 const ringProgressRaw = ref(0)
@@ -2804,6 +2805,19 @@ const handleResume = async () => {
   // Mark as started so displayPhrases shows cycle text instead of "ready when you are"
   hasEverStarted.value = true
 
+  // Lazily initialize network on first play (deferred from startup)
+  if (!networkInitialized.value) {
+    nextTick(() => {
+      ensureNetworkInitialized()
+      const roundIdx = simplePlayer.roundIndex.value ?? 0
+      if (roundIdx > 0) {
+        populateNetworkUpToRound(roundIdx)
+      } else if (loadedRounds.value.length > 0) {
+        populateNetworkUpToRound(0)
+      }
+    })
+  }
+
   // Use SimplePlayer
   simplePlayer.play()
 }
@@ -3426,6 +3440,19 @@ const startPlayback = async () => {
 
   hasEverStarted.value = true
   isPlaying.value = true
+
+  // Lazily initialize network on first play (deferred from startup)
+  if (!networkInitialized.value) {
+    nextTick(() => {
+      ensureNetworkInitialized()
+      // Populate network up to current position
+      if (currentRoundIndex.value > 0) {
+        populateNetworkUpToRound(currentRoundIndex.value)
+      } else if (cachedRounds.value.length > 0) {
+        populateNetworkUpToRound(0)
+      }
+    })
+  }
 
   // Start belt progress session for time tracking
   if (beltProgress.value) {
@@ -4729,6 +4756,14 @@ const closeBeltProgressModal = () => {
 
 const handleViewFullProgress = () => {
   closeBeltProgressModal()
+  // Lazily initialize network if not yet done (e.g. user opens Progress before first play)
+  ensureNetworkInitialized()
+  // Populate network up to current position
+  if (currentRoundIndex.value > 0) {
+    populateNetworkUpToRound(currentRoundIndex.value)
+  } else if (cachedRounds.value.length > 0) {
+    populateNetworkUpToRound(0)
+  }
   // Lazily load full network data before navigating to Brain View
   ensureNetworkLoaded()
   // Emit to parent to navigate to Brain View / Progress screen
@@ -4848,6 +4883,13 @@ const initializeNetwork = () => {
   setNetworkBelt(currentBelt.value?.name || 'white')
 
   console.log('[LearningPlayer] Distinction network initialized (organic growth mode)')
+}
+
+// Lazily initialize the network on first play or when Progress screen is opened
+const ensureNetworkInitialized = () => {
+  if (networkInitialized.value) return
+  networkInitialized.value = true
+  initializeNetwork()
 }
 
 // Add a new LEGO node to the network - no longer hero-centered, just adds to network
@@ -5363,16 +5405,12 @@ onMounted(async () => {
   // Initialize offline play composable (sets up online/offline listeners)
   offlinePlayCleanup = initializeOfflinePlay()
 
-  // Initialize brain network visualization (after DOM is ready)
-  nextTick(() => {
-    initializeNetwork()
-  })
+  // Network initialization deferred to first play or Progress screen open
 
   // Track data loading state
   let dataReady = false
   let cachedScript = null
-  // Promise that resolves when network connections are loaded (from either path)
-  let networkConnectionsReady: Promise<void> = Promise.resolve()
+
 
   // ============================================
   // PARALLEL TASK 1: Load all data
@@ -5624,8 +5662,6 @@ onMounted(async () => {
         // Now run remaining tasks in parallel
         const parallelTasks = []
 
-        // Network data is loaded lazily via ensureNetworkLoaded() when Progress screen is opened
-        const networkConnectionsReady = Promise.resolve()
 
         // Task: Load saved progress (localStorage first, then database for logged-in users)
         parallelTasks.push(
@@ -5870,14 +5906,10 @@ onMounted(async () => {
   // ============================================
   setLoadingStage('ready')
 
-  // Populate network with all LEGOs up to target position
-  // Priority: previewLegoIndex prop > restored position > nothing
+  // Preview mode: set position at startup (but defer network population to first play)
   nextTick(async () => {
-    // Wait for network connections to load before populating (fixes edge timing issue)
-    await networkConnectionsReady
-
     if (props.previewLegoIndex > 0) {
-      // Preview mode: expand script if needed, then show network up to specified LEGO index
+      // Preview mode: expand script if needed, then set position
       let targetIndex = props.previewLegoIndex
       const absoluteEnd = scriptBaseOffset.value + cachedRounds.value.length
 
@@ -5895,8 +5927,6 @@ onMounted(async () => {
 
       // Cap to actual available rounds
       targetIndex = Math.min(targetIndex, cachedRounds.value.length - 1)
-      console.log(`[LearningPlayer] Preview mode: populating network up to LEGO ${targetIndex}`)
-      populateNetworkUpToRound(targetIndex)
 
       // Set playback position so hitting play continues from here
       currentRoundIndex.value = targetIndex
@@ -5913,13 +5943,8 @@ onMounted(async () => {
           currentPlayableItem.value = playable
         }
       }
-    } else if (currentRoundIndex.value > 0) {
-      // Resuming: show network up to restored position
-      populateNetworkUpToRound(currentRoundIndex.value)
-    } else if (cachedRounds.value.length > 0) {
-      // Fresh start: show first LEGO as the starting point
-      populateNetworkUpToRound(0)
     }
+    // Network population deferred to first play via ensureNetworkInitialized()
   })
 
   // ============================================
