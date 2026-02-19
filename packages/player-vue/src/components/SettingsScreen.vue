@@ -514,7 +514,9 @@ const confirmReset = async () => {
 
     <!-- Header -->
     <header class="header">
+      <div class="header-spacer" />
       <h1 class="title">Settings</h1>
+      <button class="close-btn" @click="emit('close')" aria-label="Close settings">✕</button>
     </header>
 
     <!-- Main Content -->
@@ -912,12 +914,36 @@ const confirmReset = async () => {
   z-index: 100;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   padding: 1rem 1.5rem;
   background: linear-gradient(to bottom, var(--bg-primary) 0%, transparent 100%);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   border-bottom: 1px solid var(--border-subtle);
+}
+
+.header-spacer {
+  width: 2rem;
+}
+
+.close-btn {
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: color 0.2s, background 0.2s;
+}
+
+.close-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-secondary, rgba(255,255,255,0.08));
 }
 
 .title {
