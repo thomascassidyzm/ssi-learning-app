@@ -175,7 +175,7 @@ const isVisible = computed(() => !props.isLearning)
   bottom: 0;
   left: 0;
   right: 0;
-  z-index: 1000;
+  z-index: 3000;
 }
 
 .nav-backdrop {
