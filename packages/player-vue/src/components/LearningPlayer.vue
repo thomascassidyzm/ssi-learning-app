@@ -4414,7 +4414,7 @@ watch(
   [showAdaptationPrompt, loadedRounds],
   ([showingConsent, rounds]) => {
     if (showingConsent && rounds && rounds.length > 0) {
-      preloadSimpleRoundAudio(rounds, 1)
+      preloadSimpleRoundAudio(rounds, 2)
     }
   }
 )
@@ -5533,6 +5533,17 @@ onMounted(async () => {
                       loadedRounds.value = [...(loadedRounds.value || []), ...newRounds] as any
                       lastLoadedEndSeed = Math.max(lastLoadedEndSeed, batch.end)
                       console.debug(`[progressiveLoad] Extension (${batch.label}): adding ${newRounds.length} rounds, total: ${simplePlayer.roundCount.value}`)
+
+                      // Preload audio for first 2 rounds of each batch (best-effort background)
+                      // Find where these new rounds landed in loadedRounds
+                      const currentIdx = simplePlayer.roundIndex.value ?? 0
+                      // Prioritize: if these rounds are near where user is playing, preload immediately
+                      for (const nr of newRounds) {
+                        const idx = loadedRounds.value.findIndex((r: any) => r.legoId === nr.legoId)
+                        if (idx >= 0 && idx <= currentIdx + 3) {
+                          preloadSimpleRoundAudio(loadedRounds.value, 1, idx)
+                        }
+                      }
                     }
                   } catch (err) {
                     console.warn(`[progressiveLoad] Extension batch (${batch.label}) failed:`, err)
