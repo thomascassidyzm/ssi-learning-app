@@ -101,11 +101,6 @@ const handleChangeCourse = () => {
         <span class="progress-label">{{ completedSeeds }} / {{ totalSeeds }} seeds</span>
       </div>
 
-      <!-- Greeting -->
-      <p class="greeting">{{ greeting }}</p>
-
-      <!-- Tap hint -->
-      <p class="tap-hint">Tap anywhere or press play</p>
     </div>
   </div>
 </template>
