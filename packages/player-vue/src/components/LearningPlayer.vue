@@ -1439,7 +1439,7 @@ const audioPreloadedRounds = new Set<number>()
  * Fire-and-forget: never blocks, silently ignores failures.
  * Tracks preloaded rounds to avoid duplicate fetches.
  */
-const preloadSimpleRoundAudio = (rounds: any[], maxRounds = 1, startIndex = 0) => {
+const preloadSimpleRoundAudio = (rounds: any[], maxRounds = 1, startIndex = 0): Promise<void> => {
   const urls = new Set<string>()
   const end = Math.min(startIndex + maxRounds, rounds.length)
   for (let i = startIndex; i < end; i++) {
@@ -1453,15 +1453,12 @@ const preloadSimpleRoundAudio = (rounds: any[], maxRounds = 1, startIndex = 0) =
     }
   }
 
-  if (urls.size === 0) return
+  if (urls.size === 0) return Promise.resolve()
 
   console.log(`[preloadSimpleRoundAudio] Preloading ${urls.size} audio URLs for rounds ${startIndex}-${end - 1}`)
 
-  for (const url of urls) {
-    fetch(url).catch(() => {
-      // Silent failure - caching is best-effort
-    })
-  }
+  const fetches = Array.from(urls).map(url => fetch(url).catch(() => {}))
+  return Promise.all(fetches).then(() => {})
 }
 
 /**
@@ -2788,12 +2785,20 @@ const handlePause = () => {
   }
 }
 
-const handleResume = () => {
+const handleResume = async () => {
   // On first play, ask for adaptation consent (user gesture context)
   // Wait for response before starting playback
   if (adaptationConsent.value === null) {
     showAdaptationPrompt.value = true
     return // Don't start until consent is resolved
+  }
+
+  // On first play, ensure audio for first 2 rounds is fully cached before starting
+  // Better to wait 1-2s at startup than stall mid-playback
+  if (!hasEverStarted.value && loadedRounds.value.length > 0) {
+    startPreparingState()
+    const currentIdx = simplePlayer.roundIndex.value ?? 0
+    await preloadSimpleRoundAudio(loadedRounds.value, 2, currentIdx)
   }
 
   // Mark as started so displayPhrases shows cycle text instead of "ready when you are"
