@@ -5499,8 +5499,8 @@ onMounted(async () => {
               const currentRoundIdx = simplePlayer.roundIndex.value ?? 0
               const networkRounds = simpleRounds.map(r => ({
                 legoId: r.legoId,
-                targetText: r.cycles[0]?.target?.text || '',
-                knownText: r.cycles[0]?.known?.text || '',
+                targetText: r.cycles[0]?.target?.text,
+                knownText: r.cycles[0]?.known?.text,
               }))
               populateNetworkFromRounds(networkRounds, currentRoundIdx)
 
