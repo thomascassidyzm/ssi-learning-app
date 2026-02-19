@@ -353,12 +353,10 @@ onMounted(() => {
       :isLearning="isLearning"
       :isPlaying="isPlaying"
       :isListeningMode="isListeningMode"
-      :activeCourse="activeCourse"
       @navigate="handleNavigation"
       @startLearning="handleStartLearning"
       @togglePlayback="handleTogglePlayback"
       @exitListeningMode="handleExitListeningMode"
-      @change-course="showCourseSelector = true"
     />
 
     <!-- Gear icon for settings (visible on all panes when not learning) -->

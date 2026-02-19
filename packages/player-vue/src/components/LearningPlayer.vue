@@ -4709,9 +4709,50 @@ const closeBeltProgressModal = () => {
 
 const handleViewFullProgress = () => {
   closeBeltProgressModal()
+  // Lazily load full network data before navigating to Brain View
+  ensureNetworkLoaded()
   // Emit to parent to navigate to Brain View / Progress screen
   emit('viewProgress')
-  // The parent (PlayerContainer) will handle navigation to the network/progress view
+}
+
+/**
+ * Lazily load network data from database (deferred from init to avoid blocking startup)
+ */
+const ensureNetworkLoaded = () => {
+  if (isFullNetworkLoaded.value || !supabase?.value) return
+
+  loadLegoNetworkData(courseCode.value).then(networkData => {
+    if (networkData?.connections) {
+      networkConnections.value = networkData.connections
+      console.log(`[LearningPlayer] Loaded ${networkData.connections.length} network connections`)
+    }
+    if (networkData?.nodes) {
+      const nodes = networkData.nodes.map(n => ({
+        id: n.id,
+        targetText: n.targetText,
+        knownText: n.knownText,
+        seedId: n.seedId,
+        legoIndex: n.legoIndex,
+        belt: n.birthBelt,
+        isComponent: n.isComponent,
+        parentLegoIds: n.parentLegoIds,
+      }))
+      dbNetworkNodes.value = nodes
+
+      const sortedNodes = [...nodes].sort((a, b) => (a.legoIndex || 0) - (b.legoIndex || 0))
+      const syntheticRounds = sortedNodes.map(node => ({
+        legoId: node.id,
+        targetText: node.targetText,
+        knownText: node.knownText,
+      }))
+
+      const revealUpTo = getRevealUpTo(syntheticRounds)
+      initializeFullNetwork(syntheticRounds, networkConnections.value, revealUpTo, nodes)
+      console.log(`[LearningPlayer] Full network initialized: ${syntheticRounds.length} nodes, revealed up to ${revealUpTo}`)
+    }
+  }).catch(err => {
+    console.warn('[LearningPlayer] Failed to load network connections:', err)
+  })
 }
 
 const handleResumeLearning = async () => {
@@ -5500,47 +5541,8 @@ onMounted(async () => {
           }
           console.log('[LearningPlayer] SimplePlayer initialized successfully')
 
-          // Load network connections and nodes from database
-          // Then initialize the full network visualization
-          if (supabase?.value) {
-            loadLegoNetworkData(courseCode.value).then(networkData => {
-              if (networkData?.connections) {
-                networkConnections.value = networkData.connections
-                console.log(`[LearningPlayer] Loaded ${networkData.connections.length} network connections`)
-              }
-              if (networkData?.nodes) {
-                // Store nodes for later use
-                const nodes = networkData.nodes.map(n => ({
-                  id: n.id,
-                  targetText: n.targetText,
-                  knownText: n.knownText,
-                  seedId: n.seedId,
-                  legoIndex: n.legoIndex,
-                  belt: n.birthBelt,
-                  isComponent: n.isComponent,
-                  parentLegoIds: n.parentLegoIds,
-                }))
-                dbNetworkNodes.value = nodes
-
-                // Create synthetic rounds from database nodes for network visualization
-                // Sort by legoIndex to maintain proper course order
-                const sortedNodes = [...nodes].sort((a, b) => (a.legoIndex || 0) - (b.legoIndex || 0))
-                const syntheticRounds = sortedNodes.map(node => ({
-                  legoId: node.id,
-                  targetText: node.targetText,
-                  knownText: node.knownText,
-                }))
-
-                // Initialize full network with database data
-                // Reveal nodes up to learner's highest achieved LEGO
-                const revealUpTo = getRevealUpTo(syntheticRounds)
-                initializeFullNetwork(syntheticRounds, networkConnections.value, revealUpTo, nodes)
-                console.log(`[LearningPlayer] Full network initialized: ${syntheticRounds.length} nodes, revealed up to ${revealUpTo}`)
-              }
-            }).catch(err => {
-              console.warn('[LearningPlayer] Failed to load network connections:', err)
-            })
-          }
+          // Network data is loaded lazily when the user navigates to the Progress screen
+          // This avoids blocking startup for courses with many LEGOs (1000+)
 
           // Mark data as ready
           dataReady = true
@@ -5583,61 +5585,8 @@ onMounted(async () => {
         // Now run remaining tasks in parallel
         const parallelTasks = []
 
-        // Task: Load network connections from database (like brain view)
-        // This gives us dense edges for the network visualization
-        const connectionsTask = (async () => {
-          console.log('[LearningPlayer] Starting network connections load, supabase:', !!supabase?.value)
-          try {
-            if (!supabase?.value) {
-              console.warn('[LearningPlayer] No supabase client - skipping network connections')
-              return
-            }
-            console.log('[LearningPlayer] Loading network data from database...')
-            const networkData = await loadLegoNetworkData(courseCode.value)
-            if (networkData?.connections) {
-              networkConnections.value = networkData.connections
-              console.log(`[LearningPlayer] Loaded ${networkData.connections.length} network connections`)
-            } else {
-              console.warn('[LearningPlayer] No connections returned from loadLegoNetworkData')
-            }
-            // Store nodes for full network initialization (ensures all LEGOs in connections have nodes)
-            if (networkData?.nodes) {
-              dbNetworkNodes.value = networkData.nodes.map(n => ({
-                id: n.id,
-                targetText: n.targetText,
-                knownText: n.knownText,
-                seedId: n.seedId,
-                legoIndex: n.legoIndex,
-                belt: n.birthBelt,
-                isComponent: n.isComponent,
-                parentLegoIds: n.parentLegoIds,
-              }))
-              console.log(`[LearningPlayer] Loaded ${dbNetworkNodes.value.length} network nodes`)
-            }
-          } catch (err) {
-            console.warn('[LearningPlayer] Failed to load network connections:', err)
-            // Not fatal - network will use fallback edge inference
-          }
-        })()
-        parallelTasks.push(connectionsTask)
-        networkConnectionsReady = connectionsTask
-
-        // Task: Initialize full network from database nodes (after connections load)
-        const fullNetworkTask = (async () => {
-          try {
-            await connectionsTask
-            if (dbNetworkNodes.value.length > 0) {
-              const sortedNodes = [...dbNetworkNodes.value].sort((a, b) => (a.legoIndex || 0) - (b.legoIndex || 0))
-              const syntheticRounds = sortedNodes.map(node => ({ legoId: node.id, targetText: node.targetText, knownText: node.knownText }))
-              const revealUpTo = getRevealUpTo(syntheticRounds)
-              initializeFullNetwork(syntheticRounds, networkConnections.value, revealUpTo, dbNetworkNodes.value)
-              console.log(`[LearningPlayer] Full network initialized: ${syntheticRounds.length} nodes, revealed up to ${revealUpTo}`)
-            }
-          } catch (err) {
-            console.warn('[LearningPlayer] Failed to load full network:', err)
-          }
-        })()
-        parallelTasks.push(fullNetworkTask)
+        // Network data is loaded lazily via ensureNetworkLoaded() when Progress screen is opened
+        const networkConnectionsReady = Promise.resolve()
 
         // Task: Load saved progress (localStorage first, then database for logged-in users)
         parallelTasks.push(
@@ -5773,56 +5722,7 @@ onMounted(async () => {
         // ============================================
         console.log('[LearningPlayer] No cached script, generating new one...')
 
-        // Load network connections in parallel with script generation
-        // Store the promise so we can await it later (before populating network)
-        console.log('[LearningPlayer] Fresh gen: starting network connections load, supabase:', !!supabase?.value)
-        networkConnectionsReady = (async () => {
-          if (!supabase?.value) {
-            console.warn('[LearningPlayer] Fresh gen: No supabase client - skipping network connections')
-            return
-          }
-          try {
-            const networkData = await loadLegoNetworkData(courseCode.value)
-            if (networkData?.connections) {
-              networkConnections.value = networkData.connections
-              console.log(`[LearningPlayer] Loaded ${networkData.connections.length} network connections (fresh generation)`)
-            } else {
-              console.warn('[LearningPlayer] Fresh gen: No connections returned')
-            }
-            // Store nodes for full network initialization (ensures all LEGOs in connections have nodes)
-            if (networkData?.nodes) {
-              dbNetworkNodes.value = networkData.nodes.map(n => ({
-                id: n.id,
-                targetText: n.targetText,
-                knownText: n.knownText,
-                seedId: n.seedId,
-                legoIndex: n.legoIndex,
-                belt: n.birthBelt,
-                isComponent: n.isComponent,
-                parentLegoIds: n.parentLegoIds,
-              }))
-              console.log(`[LearningPlayer] Fresh gen: Loaded ${dbNetworkNodes.value.length} network nodes`)
-            }
-          } catch (err) {
-            console.warn('[LearningPlayer] Failed to load network connections:', err)
-          }
-        })()
-
-        // Initialize full network from database nodes (after connections load)
-        ;(async () => {
-          try {
-            await networkConnectionsReady
-            if (dbNetworkNodes.value.length > 0) {
-              const sortedNodes = [...dbNetworkNodes.value].sort((a, b) => (a.legoIndex || 0) - (b.legoIndex || 0))
-              const syntheticRounds = sortedNodes.map(node => ({ legoId: node.id, targetText: node.targetText, knownText: node.knownText }))
-              const revealUpTo = getRevealUpTo(syntheticRounds)
-              initializeFullNetwork(syntheticRounds, networkConnections.value, revealUpTo, dbNetworkNodes.value)
-              console.log(`[LearningPlayer] Fresh gen: Full network initialized: ${syntheticRounds.length} nodes, revealed up to ${revealUpTo}`)
-            }
-          } catch (err) {
-            console.warn('[LearningPlayer] Fresh gen: Failed to load full network:', err)
-          }
-        })()
+        // Network data is loaded lazily via ensureNetworkLoaded() when Progress screen is opened
 
         try {
           // Check for saved position FIRST to determine script generation offset
@@ -6191,17 +6091,7 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
     }
   }
 
-  // Load network connections for new course
-  if (supabase?.value) {
-    try {
-      const networkData = await loadLegoNetworkData(newCourseCode)
-      if (networkData?.connections) {
-        networkConnections.value = networkData.connections
-      }
-    } catch (err) {
-      console.warn('[LearningPlayer] Failed to load network connections for new course:', err)
-    }
-  }
+  // Network data loaded lazily when Progress screen is opened
 
   // Generate initial rounds if no cache
   if (cachedRounds.value.length === 0 && supabase?.value) {
@@ -6348,7 +6238,7 @@ defineExpose({
       :current-path="networkViewProps.currentPath"
       :belt-level="currentBelt.name"
       class="brain-network-container"
-      :class="{ 'network-faded': isIntroPhase }"
+      :class="{ 'network-faded': isIntroPhase, 'network-hidden-text': currentPhase === 'speak' || currentPhase === 'prompt' }"
       @node-tap="handleNetworkNodeTap"
     />
 
@@ -8590,6 +8480,16 @@ defineExpose({
 /* Network fades during intro/debut phases - hero text takes focus */
 .brain-network-container.network-faded {
   opacity: 0.3;
+}
+
+/* Hide network text during prompt/pause so learner recalls without reading answers */
+.brain-network-container.network-hidden-text :deep(.target-text) {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.brain-network-container:not(.network-hidden-text) :deep(.target-text) {
+  transition: opacity 0.3s ease;
 }
 
 /* ============ HERO-CENTRIC TEXT PANE ============ */
