@@ -43,6 +43,6 @@ export function simpleRoundToTypedCycles(cycles: SimpleCycle[]): TypedCycle[] {
       voice1DurationMs: 0,
       voice2DurationMs: 0,
     },
-    pauseDurationMs: c.pauseDuration ?? 4000,
+    pauseDurationMs: c.pauseDuration ?? 6500,
   }))
 }

@@ -4,7 +4,7 @@ export interface Cycle {
   id: string
   known: { text: string; audioUrl: string }
   target: { text: string; voice1Url: string; voice2Url: string }
-  pauseDuration?: number // ms, default 4000
+  pauseDuration?: number // ms — set by toSimpleRounds formula
 }
 
 export interface Round {
@@ -27,7 +27,8 @@ export interface PlaybackState {
 type EventName = 'state_changed' | 'phase_changed' | 'cycle_completed' | 'round_completed' | 'session_complete'
 type EventCallback = (data?: unknown) => void
 
-const DEFAULT_PAUSE_DURATION = 4000
+// Fallback: bootUpTime(2000) + scaleFactor(0.75) × estimatedTarget(6000) = 6500ms
+const DEFAULT_PAUSE_DURATION = 6500
 
 export class SimplePlayer {
   private rounds: Round[]

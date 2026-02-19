@@ -38,11 +38,13 @@ function mapScriptItemTypeToCycleType(type: ScriptItem['type']): CycleType {
 export function scriptItemToCycle(item: ScriptItem): Cycle {
   const cycleType = mapScriptItemTypeToCycleType(item.type)
 
-  // Calculate pause duration from target audio (2x target1 duration)
-  const target1DurationMs = item.audioDurations
-    ? item.audioDurations.target1 * 1000
-    : 2000
-  const pauseDurationMs = target1DurationMs * 2
+  // Pause formula: bootUpTime(2000) + scaleFactor(0.75) × (voice1 + voice2)
+  const target1DurationMs = item.audioDurations ? item.audioDurations.target1 * 1000 : 0
+  const target2DurationMs = item.audioDurations ? item.audioDurations.target2 * 1000 : 0
+  const totalTargetMs = target1DurationMs + target2DurationMs
+  const pauseDurationMs = totalTargetMs > 0
+    ? Math.round(2000 + 0.75 * totalTargetMs)
+    : 6500 // fallback: 2000 + 0.75 × 6000
 
   return {
     id: `${item.legoId}-${item.type}-${item.roundNumber}`,

@@ -376,6 +376,11 @@ simplePlayer.onRoundCompleted((round) => {
       beltProgress.value.setCurrentLegoId(round.legoId)
     }
   }
+  // Preload audio for the NEXT round (N+1) so it's cached before the user gets there
+  const nextRoundIndex = completedRoundIndex + 1
+  if (nextRoundIndex < loadedRounds.value.length) {
+    preloadSimpleRoundAudio(loadedRounds.value, 2, nextRoundIndex)
+  }
 })
 
 // Session complete - show summary
@@ -407,7 +412,7 @@ watch(() => simplePlayer.currentCycle.value, (simpleCycle) => {
       voice2AudioId: '',
       voice2DurationMs: 0,
     },
-    pauseDurationMs: simpleCycle.pauseDuration || 4000,
+    pauseDurationMs: simpleCycle.pauseDuration || 6500,
   } as any
 }, { immediate: true })
 
@@ -1423,14 +1428,24 @@ const prefetchRoundAudio = async (items: any[], courseId: string): Promise<boole
 }
 
 /**
+ * Track which round indices have already had their audio preloaded.
+ * Prevents duplicate fetch() calls for the same round.
+ */
+const audioPreloadedRounds = new Set<number>()
+
+/**
  * Preload audio for the first N SimpleRounds using fetch().
  * Warms the service worker's CacheFirst cache for /api/audio/* URLs.
  * Fire-and-forget: never blocks, silently ignores failures.
+ * Tracks preloaded rounds to avoid duplicate fetches.
  */
 const preloadSimpleRoundAudio = (rounds: any[], maxRounds = 1, startIndex = 0) => {
   const urls = new Set<string>()
-  const slice = rounds.slice(startIndex, startIndex + maxRounds)
-  for (const round of slice) {
+  const end = Math.min(startIndex + maxRounds, rounds.length)
+  for (let i = startIndex; i < end; i++) {
+    if (audioPreloadedRounds.has(i)) continue
+    audioPreloadedRounds.add(i)
+    const round = rounds[i]
     for (const cycle of round.cycles || []) {
       if (cycle.known?.audioUrl) urls.add(cycle.known.audioUrl)
       if (cycle.target?.voice1Url) urls.add(cycle.target.voice1Url)
@@ -1440,7 +1455,7 @@ const preloadSimpleRoundAudio = (rounds: any[], maxRounds = 1, startIndex = 0) =
 
   if (urls.size === 0) return
 
-  console.log(`[preloadSimpleRoundAudio] Preloading ${urls.size} audio URLs from ${slice.length} round(s)`)
+  console.log(`[preloadSimpleRoundAudio] Preloading ${urls.size} audio URLs for rounds ${startIndex}-${end - 1}`)
 
   for (const url of urls) {
     fetch(url).catch(() => {
@@ -1532,7 +1547,7 @@ watch(pendingPhase, (phase) => {
   if (phase === 'pause') {
     // Get pause duration from current cycle
     const cycle = simplePlayer.currentCycle.value
-    const duration = cycle?.pauseDuration || 4000
+    const duration = cycle?.pauseDuration || 6500
     startRingAnimation(duration)
   }
 })
@@ -5446,11 +5461,9 @@ onMounted(async () => {
               // Store for legacy code
               loadedRounds.value = simpleRounds as any
 
-              // Preload audio for the round the user will actually play first
-              if (adaptationConsent.value !== null) {
-                const currentRoundIdx = simplePlayer.roundIndex.value ?? 0
-                preloadSimpleRoundAudio(simpleRounds, 1, currentRoundIdx)
-              }
+              // Preload audio for the first 2 rounds (current + next) immediately
+              const currentRoundIdx = simplePlayer.roundIndex.value ?? 0
+              preloadSimpleRoundAudio(simpleRounds, 2, currentRoundIdx)
 
               // 3. BACKGROUND: Extend content progressively after player is interactive
               let lastLoadedEndSeed = initialEndSeed
