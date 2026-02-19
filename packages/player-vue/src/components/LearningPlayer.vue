@@ -182,6 +182,7 @@ const courseDataProvider = inject('courseDataProvider', { value: null })
 const supabase = inject('supabase', ref(null))
 const auth = inject('auth', null)
 const themeContext = inject('theme', null)
+const eagerScript = inject<any>('eagerScript', null)
 
 // Algorithm config - admin-tweakable parameters (Turbo Boost, pause timing, etc.)
 const {
@@ -5452,60 +5453,49 @@ onMounted(async () => {
         console.log('[LearningPlayer] Initializing SimplePlayer...')
         try {
           // ============================================
-          // PROGRESSIVE LOADING: Position-aware, minimal blocking load
-          // Philosophy: load what user needs NOW, background fills the rest
+          // EAGER LOADING: Await preloaded full script from App.vue
+          // The script was fired as soon as the course was known (~300ms)
+          // By now it's likely already resolved
           // ============================================
           if (supabase?.value) {
-            console.log('[LearningPlayer] Using progressive loading...')
-
-            // 1. Determine starting position from saved progress
+            // Determine starting position from saved progress
             const completedSeeds = beltProgress.value?.completedRounds.value ?? 0
             const currentSeedFromLegoId = beltProgress.value?.currentSeedNumber.value ?? 0
             const startingSeed = currentSeedFromLegoId > 0 ? currentSeedFromLegoId : (completedSeeds > 0 ? completedSeeds : 0)
             const isReturningUser = startingSeed > 0
 
-            // Calculate initial load range
-            // New users: seeds 1-5 (~5 rounds, ~20 cycles)
-            // Returning users: seeds 1 to position+5
-            // Always emit from round 1 to ensure correct round building (including intros)
-            const initialEndSeed = isReturningUser ? startingSeed + 5 : 5
-
-            console.debug(`[progressiveLoad] ${isReturningUser ? 'Returning' : 'New'} user: completedSeeds=${completedSeeds}, startingSeed=${startingSeed}, loading seeds 1-${initialEndSeed}`)
-
-            // 2. BLOCKING: Load initial batch (always from round 1 for correct intros)
-            const result = await generateSimpleScript(supabase.value, courseCode.value, 1, initialEndSeed, 1)
-            console.debug(`[progressiveLoad] Initial: ${result.items.length} script items (${result.roundCount} total rounds)`)
+            // Await eager script (preloaded from App.vue) or fall back to direct call
+            let result
+            if (eagerScript?.scriptPromise?.value && eagerScript.courseCode.value === courseCode.value) {
+              console.log('[LearningPlayer] Awaiting eager script preload...')
+              result = await eagerScript.scriptPromise.value
+              console.log(`[LearningPlayer] Eager script ready: ${result.items.length} items, ${result.roundCount} rounds`)
+            } else {
+              console.log('[LearningPlayer] No eager preload available, loading directly...')
+              result = await generateSimpleScript(supabase.value, courseCode.value, 1, 668, 1)
+              console.log(`[LearningPlayer] Direct load: ${result.items.length} items, ${result.roundCount} rounds`)
+            }
 
             if (result.items.length > 0) {
               const simpleRounds = toSimpleRounds(result.items)
-              console.debug(`[progressiveLoad] Converted to ${simpleRounds.length} SimplePlayer rounds`)
-
-              // Debug: show first 3 rounds
-              simpleRounds.slice(0, 3).forEach((r, i) => {
-                console.debug(`[progressiveLoad] Round ${i + 1}: ${r.cycles.length} cycles, legoId=${r.legoId}`)
-              })
+              console.debug(`[eagerLoad] ${simpleRounds.length} SimplePlayer rounds built`)
 
               simplePlayer.initialize(simpleRounds as any)
-              console.debug('[progressiveLoad] SimplePlayer initialized, player is interactive')
 
               // Restore position for returning users
               if (isReturningUser) {
                 const nextSeed = startingSeed + 1
                 const roundIndex = simplePlayer.findRoundIndexForSeed(nextSeed)
                 if (roundIndex >= 0) {
-                  console.debug(`[progressiveLoad] Restoring position: seed ${startingSeed} → starting at seed ${nextSeed} (round index ${roundIndex})`)
+                  console.debug(`[eagerLoad] Restoring: seed ${startingSeed} → starting at seed ${nextSeed} (round ${roundIndex})`)
                   simplePlayer.jumpToRound(roundIndex)
-                } else {
-                  // Seed not found in emitted range - start at first available round
-                  console.debug(`[progressiveLoad] Seed ${nextSeed} not in emitted range, starting at first round`)
                 }
               }
 
               // Store for legacy code
               loadedRounds.value = simpleRounds as any
 
-              // Populate background text network with all loaded rounds
-              // This ensures returning users see previously-learned LEGOs
+              // Populate network with all loaded rounds
               const currentRoundIdx = simplePlayer.roundIndex.value ?? 0
               const networkRounds = simpleRounds.map(r => ({
                 legoId: r.legoId,
@@ -5513,107 +5503,12 @@ onMounted(async () => {
                 knownText: r.cycles[0]?.known?.text || '',
               }))
               populateNetworkFromRounds(networkRounds, currentRoundIdx)
-              console.debug(`[progressiveLoad] Network populated with ${networkRounds.length} rounds, revealed up to ${currentRoundIdx}`)
 
-              // Preload audio for the first 2 rounds (current + next) immediately
+              // Preload audio for the first 2 rounds immediately
               preloadSimpleRoundAudio(simpleRounds, 2, currentRoundIdx)
 
-              // 3. BACKGROUND: Extend content progressively after player is interactive
-              let lastLoadedEndSeed = initialEndSeed
-              const extendContent = async () => {
-                if (!supabase?.value) return
-
-                // Priority order:
-                // 1. Next 5 seeds (seamless continuation)
-                // 2. First seed of next belt (belt-skip ready)
-                // 3. Rest of current belt
-                // 4. Next belt
-                // 5. Belt-by-belt forward
-                const BELT_THRESHOLDS = [0, 8, 20, 40, 80, 150, 280, 400]
-
-                const currentBeltIdx = BELT_THRESHOLDS.findIndex((t, i) =>
-                  i === BELT_THRESHOLDS.length - 1 || lastLoadedEndSeed < BELT_THRESHOLDS[i + 1]
-                )
-                const currentBeltEnd = currentBeltIdx < BELT_THRESHOLDS.length - 1
-                  ? BELT_THRESHOLDS[currentBeltIdx + 1] - 1
-                  : 668
-                const nextBeltStart = currentBeltIdx < BELT_THRESHOLDS.length - 1
-                  ? BELT_THRESHOLDS[currentBeltIdx + 1]
-                  : null
-
-                // Build extension batches
-                const batches: Array<{ start: number; end: number; label: string }> = []
-
-                // Batch 1: Next 25 seeds (seamless continuation)
-                const contEnd = Math.min(lastLoadedEndSeed + 25, 668)
-                if (lastLoadedEndSeed < contEnd) {
-                  batches.push({ start: lastLoadedEndSeed + 1, end: contEnd, label: 'continuation' })
-                }
-
-                // Batch 2: First seed of next belt (belt-skip ready)
-                if (nextBeltStart && nextBeltStart > contEnd) {
-                  batches.push({ start: nextBeltStart, end: Math.min(nextBeltStart + 5, 668), label: 'next-belt-start' })
-                }
-
-                // Batch 3: Rest of current belt
-                if (contEnd < currentBeltEnd) {
-                  batches.push({ start: contEnd + 1, end: currentBeltEnd, label: 'current-belt-fill' })
-                }
-
-                // Batch 4+: Belt-by-belt forward
-                for (let bi = currentBeltIdx + 1; bi < BELT_THRESHOLDS.length; bi++) {
-                  const bStart = BELT_THRESHOLDS[bi]
-                  const bEnd = bi < BELT_THRESHOLDS.length - 1 ? BELT_THRESHOLDS[bi + 1] - 1 : 668
-                  // Skip seeds we already loaded (next-belt-start batch)
-                  const actualStart = Math.max(bStart, lastLoadedEndSeed + 1)
-                  if (actualStart <= bEnd) {
-                    batches.push({ start: actualStart, end: bEnd, label: `belt-${bi}` })
-                  }
-                }
-
-                for (const batch of batches) {
-                  if (!supabase?.value) break
-                  try {
-                    // Always emit from round 1 to ensure correct round building (including intros)
-                    // SimplePlayer.addRounds handles duplicates
-                    const batchResult = await generateSimpleScript(
-                      supabase.value, courseCode.value, batch.start, batch.end, 1
-                    )
-
-                    if (batchResult.items.length > 0) {
-                      const newRounds = toSimpleRounds(batchResult.items)
-                      simplePlayer.addRounds(newRounds as any)
-                      loadedRounds.value = [...(loadedRounds.value || []), ...newRounds] as any
-                      lastLoadedEndSeed = Math.max(lastLoadedEndSeed, batch.end)
-                      console.debug(`[progressiveLoad] Extension (${batch.label}): adding ${newRounds.length} rounds, total: ${simplePlayer.roundCount.value}`)
-
-                      // Preload audio for first 2 rounds of each batch (best-effort background)
-                      // Find where these new rounds landed in loadedRounds
-                      const currentIdx = simplePlayer.roundIndex.value ?? 0
-                      // Prioritize: if these rounds are near where user is playing, preload immediately
-                      for (const nr of newRounds) {
-                        const idx = loadedRounds.value.findIndex((r: any) => r.legoId === nr.legoId)
-                        if (idx >= 0 && idx <= currentIdx + 3) {
-                          preloadSimpleRoundAudio(loadedRounds.value, 1, idx)
-                        }
-                      }
-                    }
-                  } catch (err) {
-                    console.warn(`[progressiveLoad] Extension batch (${batch.label}) failed:`, err)
-                  }
-
-                  // Small delay between batches to avoid overwhelming the database
-                  await new Promise(resolve => setTimeout(resolve, 200))
-                }
-
-                console.debug(`[progressiveLoad] Background loading complete: ${simplePlayer.roundCount.value} total rounds`)
-              }
-
-              // Fire background extension (non-blocking)
-              extendContent()
-
             } else {
-              console.warn('[progressiveLoad] No script items generated')
+              console.warn('[eagerLoad] No script items generated')
             }
           }
           console.log('[LearningPlayer] SimplePlayer initialized successfully')
@@ -6157,10 +6052,16 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
 
   // Network data loaded lazily when Progress screen is opened
 
-  // Generate initial rounds if no cache
+  // Generate rounds if no cache - prefer eager preload
   if (cachedRounds.value.length === 0 && supabase?.value) {
-    console.log('[LearningPlayer] No cache, generating fresh script for', newCourseCode)
-    const freshResult = await generateSimpleScript(supabase.value, newCourseCode, 1, 10, 1)
+    let freshResult
+    if (eagerScript?.scriptPromise?.value && eagerScript.courseCode.value === newCourseCode) {
+      console.log('[LearningPlayer] Awaiting eager preload for course switch:', newCourseCode)
+      freshResult = await eagerScript.scriptPromise.value
+    } else {
+      console.log('[LearningPlayer] No eager preload, generating full script for', newCourseCode)
+      freshResult = await generateSimpleScript(supabase.value, newCourseCode, 1, 668, 1)
+    }
     const freshRounds = toSimpleRounds(freshResult.items)
     cachedRounds.value = freshRounds as any
   }

@@ -7,6 +7,7 @@ import { loadConfig, isSupabaseConfigured, isClerkConfigured } from './config/en
 import { useAuth } from './composables/useAuth'
 import { checkKillSwitch, unregisterAllServiceWorkers, clearAllCaches } from './composables/useServiceWorkerSafety'
 import { useTheme } from './composables/useTheme'
+import { useEagerScriptPreload } from './composables/useEagerScriptPreload'
 import PwaUpdatePrompt from './components/PwaUpdatePrompt.vue'
 
 // RECOVERY MODE: If ?reset=1 in URL, clear everything and reload
@@ -104,6 +105,9 @@ const sessionStore = ref(null)
 const courseDataProvider = ref(null)
 const supabaseClient = ref(null)
 
+// Eager script preload - fires as soon as course is known
+const eagerScript = useEagerScriptPreload()
+
 // Active course and enrolled courses state
 const activeCourse = ref(null)
 const enrolledCourses = ref([])
@@ -124,6 +128,11 @@ const handleCourseSelect = async (course) => {
       audioBaseUrl: config.s3.audioBaseUrl,
       courseId: courseCode,
     })
+  }
+
+  // Fire eager script preload for new course
+  if (supabaseClient.value) {
+    eagerScript.preload(supabaseClient.value, courseCode)
   }
 
   // NOW update activeCourse (triggers LearningPlayer remount via :key)
@@ -223,6 +232,9 @@ const fetchEnrolledCourses = async () => {
           // Ignore localStorage errors
         }
         console.log('[App] Course:', defaultCourse.course_code)
+
+        // Fire eager script preload immediately (fire-and-forget)
+        eagerScript.preload(supabaseClient.value, defaultCourse.course_code)
       }
     }
   } catch (err) {
@@ -242,6 +254,7 @@ provide('activeCourse', activeCourse)
 provide('enrolledCourses', enrolledCourses)
 provide('handleCourseSelect', handleCourseSelect)
 provide('theme', { theme, toggleTheme, setTheme })
+provide('eagerScript', eagerScript)
 
 onMounted(async () => {
   // Clear stale caches on new deploy
