@@ -12,12 +12,27 @@ class ListeningAudioController {
     this.audio = null
     this.endedCallbacks = new Set()
     this.playbackRate = 1
+    this.currentBlobUrl = null
+    this.safetyTimer = null
+    this.stallCheck = null
   }
 
   setPlaybackRate(rate) {
     this.playbackRate = rate
     if (this.audio) {
       this.audio.playbackRate = rate
+    }
+  }
+
+  clearWatchdogs() {
+    if (this.safetyTimer) { clearTimeout(this.safetyTimer); this.safetyTimer = null }
+    if (this.stallCheck) { clearInterval(this.stallCheck); this.stallCheck = null }
+  }
+
+  cleanupBlobUrl() {
+    if (this.currentBlobUrl) {
+      URL.revokeObjectURL(this.currentBlobUrl)
+      this.currentBlobUrl = null
     }
   }
 
@@ -32,38 +47,78 @@ class ListeningAudioController {
       this.audio = new Audio()
     }
 
+    // Clean up previous blob URL and watchdogs
+    this.cleanupBlobUrl()
+    this.clearWatchdogs()
+
+    // Track blob URLs for cleanup
+    if (url.startsWith('blob:')) {
+      this.currentBlobUrl = url
+    }
+
     this.audio.src = url
     this.audio.load()
 
     return new Promise((resolve, reject) => {
-      const onEnded = () => {
+      let settled = false
+
+      const settle = (fn) => {
+        if (settled) return
+        settled = true
+        this.clearWatchdogs()
+        this.cleanupBlobUrl()
         this.audio.removeEventListener('ended', onEnded)
         this.audio.removeEventListener('error', onError)
         this.notifyEnded()
-        resolve()
+        fn()
       }
 
+      const onEnded = () => settle(resolve)
+
       const onError = (e) => {
-        console.error('[ListeningAudioController] Playback error:', e)
-        this.audio.removeEventListener('ended', onEnded)
-        this.audio.removeEventListener('error', onError)
-        this.notifyEnded()
-        reject(e)
+        const audioError = this.audio.error
+        const msg = audioError
+          ? `Audio error: code ${audioError.code}${audioError.message ? ' - ' + audioError.message : ''}`
+          : 'Audio playback error'
+        console.error('[ListeningAudioController]', msg)
+        settle(() => reject(new Error(msg)))
       }
 
       this.audio.addEventListener('ended', onEnded)
       this.audio.addEventListener('error', onError)
 
+      // Stall detection: if currentTime stops advancing for 3s, skip
+      let lastTime = -1
+      this.stallCheck = setInterval(() => {
+        if (settled) { this.clearWatchdogs(); return }
+        const ct = this.audio.currentTime
+        if (ct > 0 && ct === lastTime && !this.audio.paused) {
+          console.warn('[ListeningAudioController] Audio stalled, skipping')
+          settle(resolve)
+        }
+        lastTime = ct
+      }, 1500)
+
+      // Safety timeout: no clip should take more than 15s
+      this.safetyTimer = setTimeout(() => {
+        if (!settled) {
+          console.warn('[ListeningAudioController] Safety timeout (15s), skipping')
+          settle(resolve)
+        }
+      }, 15000)
+
       // Set playbackRate right before play() - some browsers reset it after load()
       this.audio.playbackRate = this.playbackRate
       this.audio.play().catch((e) => {
         console.error('[ListeningAudioController] Play failed:', e)
-        onError(e)
+        settle(() => reject(e))
       })
     })
   }
 
   stop() {
+    this.clearWatchdogs()
+    this.cleanupBlobUrl()
     if (this.audio) {
       this.audio.pause()
       this.audio.currentTime = 0
@@ -391,7 +446,8 @@ const playCurrentPhrase = async (myPlaybackId) => {
     try {
       await audioController.value.play(audioUrl)
     } catch (err) {
-      console.warn('[ListeningMode] Playback error, advancing:', err)
+      // Error already logged by controller — skip to next phrase
+      console.warn('[ListeningMode] Skipping phrase after error:', err?.message || err)
     }
   }
 

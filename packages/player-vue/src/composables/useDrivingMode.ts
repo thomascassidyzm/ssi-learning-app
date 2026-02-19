@@ -88,10 +88,19 @@ interface DrivingModeReturn {
 // ============================================================================
 
 /** Time remaining (seconds) when we start silent audio to bridge gap */
-const SILENT_AUDIO_BRIDGE_THRESHOLD = 1.0
+const SILENT_BRIDGE_THRESHOLD_SECS = 2.0
 
 /** Position update interval (ms) for animation frame updates */
 const POSITION_UPDATE_INTERVAL = 250
+
+/** Seconds of no progress before we consider audio stalled */
+const STALL_DETECTION_TIMEOUT_SECS = 5
+
+/** Delay (ms) before retrying a failed play() call */
+const PLAY_RETRY_DELAY_MS = 1000
+
+/** Maximum number of play() retries before giving up */
+const PLAY_MAX_RETRIES = 2
 
 // ============================================================================
 // Composable Implementation
@@ -121,6 +130,13 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
   let isSilentPlaying = false
   let positionUpdateFrame: number | null = null
   let lastPositionUpdateTime = 0
+
+  // Preload generation counter — incremented on skip to abort stale preloads
+  let preloadGeneration = 0
+
+  // Stall detection
+  let lastKnownCurrentTime = -1
+  let stallCheckTimer: ReturnType<typeof setInterval> | null = null
 
   // Event listener cleanup
   const cleanupFns: Array<() => void> = []
@@ -206,7 +222,7 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
     }
 
     // Start silent audio bridge near end of round
-    if (timeRemaining < SILENT_AUDIO_BRIDGE_THRESHOLD && !isSilentPlaying && nextRoundAudio) {
+    if (timeRemaining < SILENT_BRIDGE_THRESHOLD_SECS && !isSilentPlaying && nextRoundAudio) {
       startSilentBridge()
     }
   }
@@ -323,19 +339,32 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
       return
     }
 
+    const generation = preloadGeneration
+
     isLoadingNext = true
     if (internalState.value === 'playing') {
       internalState.value = 'loading-next'
     }
 
     try {
-      nextRoundAudio = await loadRound(nextIndex)
+      const result = await loadRound(nextIndex)
+
+      // If a skip happened while we were loading, discard the stale result
+      if (generation !== preloadGeneration) {
+        if (result) releaseConcatenatedAudio(result)
+        return
+      }
+
+      nextRoundAudio = result
     } catch (err) {
       console.error('[useDrivingMode] Failed to preload next round:', err)
     } finally {
-      isLoadingNext = false
-      if (internalState.value === 'loading-next') {
-        internalState.value = 'playing'
+      // Only update loading state if this preload is still current
+      if (generation === preloadGeneration) {
+        isLoadingNext = false
+        if (internalState.value === 'loading-next') {
+          internalState.value = 'playing'
+        }
       }
     }
   }
@@ -378,15 +407,11 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
     mainAudio.src = currentRoundAudio.blobUrl
     mainAudio.load()
 
-    try {
-      await mainAudio.play()
-      stopSilentBridge()
+    await playWithRetry()
+    stopSilentBridge()
 
-      // Start preloading next round
-      preloadNextRound()
-    } catch (err) {
-      console.error('[useDrivingMode] Failed to play next round:', err)
-    }
+    // Start preloading next round
+    preloadNextRound()
   }
 
   // ----------------------------------------
@@ -438,6 +463,92 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
     if (positionUpdateFrame !== null) {
       cancelAnimationFrame(positionUpdateFrame)
       positionUpdateFrame = null
+    }
+  }
+
+  // ----------------------------------------
+  // Stall Detection
+  // ----------------------------------------
+
+  /**
+   * Start watching for audio stalls (currentTime stops advancing while playing)
+   */
+  function startStallDetection(): void {
+    if (stallCheckTimer !== null) return
+
+    lastKnownCurrentTime = -1
+
+    stallCheckTimer = setInterval(() => {
+      if (!mainAudio || mainAudio.paused || internalState.value === 'inactive') {
+        lastKnownCurrentTime = -1
+        return
+      }
+
+      const current = mainAudio.currentTime
+      if (lastKnownCurrentTime >= 0 && current === lastKnownCurrentTime) {
+        // Audio hasn't advanced — attempt recovery
+        console.warn('[useDrivingMode] Stall detected, attempting recovery')
+        recoverFromStall()
+      }
+      lastKnownCurrentTime = current
+    }, STALL_DETECTION_TIMEOUT_SECS * 1000)
+  }
+
+  /**
+   * Stop stall detection
+   */
+  function stopStallDetection(): void {
+    if (stallCheckTimer !== null) {
+      clearInterval(stallCheckTimer)
+      stallCheckTimer = null
+    }
+  }
+
+  /**
+   * Attempt to recover from a stalled audio element
+   */
+  async function recoverFromStall(): Promise<void> {
+    if (!mainAudio) return
+
+    // Try re-seeking first
+    try {
+      const pos = mainAudio.currentTime
+      mainAudio.currentTime = pos + 0.1
+      await mainAudio.play()
+      console.info('[useDrivingMode] Recovered from stall via re-seek')
+      return
+    } catch {
+      // Re-seek failed, transition to next round
+    }
+
+    console.warn('[useDrivingMode] Re-seek failed, transitioning to next round')
+    await handleMainAudioEnded()
+  }
+
+  // ----------------------------------------
+  // Play with Retry
+  // ----------------------------------------
+
+  /**
+   * Attempt to play mainAudio with retry on failure (e.g. iOS interruption)
+   */
+  async function playWithRetry(retries = PLAY_MAX_RETRIES): Promise<void> {
+    if (!mainAudio) return
+
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        await mainAudio.play()
+        return
+      } catch (err) {
+        console.warn(`[useDrivingMode] play() failed (attempt ${attempt + 1}/${retries + 1}):`, err)
+        if (attempt < retries) {
+          await new Promise(resolve => setTimeout(resolve, PLAY_RETRY_DELAY_MS))
+        } else {
+          console.error('[useDrivingMode] play() failed after all retries, transitioning')
+          // Surface error but don't crash — try next round
+          await handleMainAudioEnded()
+        }
+      }
     }
   }
 
@@ -603,13 +714,14 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
       mainAudio.src = currentRoundAudio.blobUrl
       mainAudio.load()
 
-      await mainAudio.play()
+      await playWithRetry()
 
       internalState.value = 'playing'
       prepProgress.value = 1
 
-      // Start position tracking
+      // Start position tracking and stall detection
       startPositionTracking()
+      startStallDetection()
 
       // Start preloading next round
       preloadNextRound()
@@ -659,6 +771,16 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
       return
     }
 
+    // Abort any in-flight preload
+    preloadGeneration++
+
+    // Discard stale preloaded audio if it's for the wrong round
+    if (nextRoundAudio) {
+      releaseConcatenatedAudio(nextRoundAudio)
+      nextRoundAudio = null
+    }
+    isLoadingNext = false
+
     await transitionToNextRound()
   }
 
@@ -667,6 +789,10 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
    */
   async function skipToPreviousRound(): Promise<void> {
     if (internalState.value === 'inactive' || !mainAudio) return
+
+    // Abort any in-flight preload
+    preloadGeneration++
+    isLoadingNext = false
 
     // If more than 3 seconds in, restart current round
     if (mainAudio.currentTime > 3) {
@@ -714,13 +840,9 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
     mainAudio.src = currentRoundAudio.blobUrl
     mainAudio.load()
 
-    try {
-      await mainAudio.play()
-      stopSilentBridge()
-      preloadNextRound()
-    } catch (err) {
-      console.error('[useDrivingMode] Failed to play previous round:', err)
-    }
+    await playWithRetry()
+    stopSilentBridge()
+    preloadNextRound()
   }
 
   /**
@@ -755,8 +877,9 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
    * Full cleanup when exiting driving mode
    */
   function cleanup(): void {
-    // Stop position tracking
+    // Stop position tracking and stall detection
     stopPositionTracking()
+    stopStallDetection()
 
     // Stop and cleanup audio elements
     if (mainAudio) {
@@ -809,6 +932,8 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
     prepProgress.value = 0
     isLoadingNext = false
     isSilentPlaying = false
+    preloadGeneration = 0
+    lastKnownCurrentTime = -1
   }
 
   /**

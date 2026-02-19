@@ -20,163 +20,8 @@ import { useLegoNetwork, type PhraseWithPath } from '../composables/useLegoNetwo
 import { useCompletedContent } from '../composables/useCompletedContent'
 import { getLanguageName } from '../composables/useI18n'
 import { BELTS, getSharedBeltProgress } from '../composables/useBeltProgress'
+import { RobustAudioController } from '@ssi/core'
 import type { SessionController } from '../playback/SessionController'
-
-// ============================================================================
-// AUDIO CONTROLLER (target language only)
-// ============================================================================
-
-class TargetAudioController {
-  private audio: HTMLAudioElement | null = null
-  private isUnlocked = false
-  private aborted = false
-  private currentCleanup: (() => void) | null = null
-
-  constructor() {
-    // Create audio element immediately for mobile compatibility
-    this.audio = new Audio()
-    // No crossOrigin needed — using same-origin /api/audio proxy
-  }
-
-  /**
-   * Unlock audio on iOS/Safari - must be called from user gesture
-   * Returns immediately if already unlocked
-   */
-  async unlock(): Promise<void> {
-    if (this.isUnlocked || !this.audio) return
-
-    try {
-      // Play silent audio to unlock the audio context
-      // This must happen in response to a user gesture
-      this.audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'
-      this.audio.volume = 0
-      await this.audio.play()
-      this.audio.pause()
-      this.audio.volume = 1
-      this.isUnlocked = true
-      console.log('[TargetAudioController] Audio unlocked for mobile')
-    } catch (err) {
-      console.warn('[TargetAudioController] Failed to unlock audio:', err)
-    }
-  }
-
-  /**
-   * Cancel any in-flight playback. Safe to call multiple times.
-   */
-  cancel(): void {
-    this.aborted = true
-    if (this.currentCleanup) {
-      this.currentCleanup()
-      this.currentCleanup = null
-    }
-    if (this.audio) {
-      this.audio.pause()
-      this.audio.currentTime = 0
-    }
-  }
-
-  async play(url: string, speed: number = 1): Promise<void> {
-    // Cancel any in-flight playback before starting new
-    this.cancel()
-    this.aborted = false
-
-    if (!this.audio) {
-      this.audio = new Audio()
-    }
-
-    // Try to unlock if not already (may fail if not user gesture)
-    if (!this.isUnlocked) {
-      await this.unlock()
-    }
-
-    this.audio.src = url
-    this.audio.load()
-
-    return new Promise((resolve, reject) => {
-      let settled = false
-      let safetyTimer: ReturnType<typeof setTimeout> | null = null
-      let stallCheck: ReturnType<typeof setInterval> | null = null
-
-      const cleanup = () => {
-        if (safetyTimer) { clearTimeout(safetyTimer); safetyTimer = null }
-        if (stallCheck) { clearInterval(stallCheck); stallCheck = null }
-        this.audio?.removeEventListener('ended', onEnded)
-        this.audio?.removeEventListener('error', onError)
-        this.currentCleanup = null
-      }
-
-      // Store cleanup so cancel() can invoke it
-      this.currentCleanup = cleanup
-
-      const onEnded = () => {
-        if (settled) return
-        settled = true
-        cleanup()
-        if (this.aborted) {
-          resolve() // Silently resolve — caller doesn't need to know
-        } else {
-          resolve()
-        }
-      }
-
-      const onError = (e: Event) => {
-        if (settled) return
-        settled = true
-        cleanup()
-        if (this.aborted) {
-          resolve() // Cancelled — don't propagate error
-        } else {
-          console.error('[TargetAudioController] Playback error:', e)
-          reject(e)
-        }
-      }
-
-      // If already aborted (race between cancel and promise setup), bail
-      if (this.aborted) {
-        settled = true
-        resolve()
-        return
-      }
-
-      this.audio!.addEventListener('ended', onEnded)
-      this.audio!.addEventListener('error', onError)
-
-      // Stall detection: resolve if currentTime stops advancing for 3s
-      let lastTime = -1
-      stallCheck = setInterval(() => {
-        if (settled) { cleanup(); return }
-        const ct = this.audio?.currentTime || 0
-        if (ct > 0 && ct === lastTime && !this.audio?.paused) {
-          console.warn('[TargetAudioController] Audio stalled, skipping')
-          onEnded()
-        }
-        lastTime = ct
-      }, 1500)
-
-      // Safety timeout: no clip should take more than 15s
-      safetyTimer = setTimeout(() => {
-        if (!settled) {
-          console.warn('[TargetAudioController] Safety timeout, skipping')
-          onEnded()
-        }
-      }, 15000)
-
-      this.audio!.playbackRate = speed
-      this.audio!.play().catch((err) => {
-        if (this.aborted) {
-          if (!settled) { settled = true; cleanup(); resolve() }
-        } else {
-          console.error('[TargetAudioController] Play failed:', err)
-          onError(err)
-        }
-      })
-    })
-  }
-
-  stop(): void {
-    this.cancel()
-  }
-}
 
 // ============================================================================
 // PROPS & EMITS
@@ -321,7 +166,7 @@ const showSubtitleOverlay = ref(false)
 const selectedNodeConnections = ref<{ followsFrom: { legoId: string; count: number }[]; leadsTo: { legoId: string; count: number }[] }>({ followsFrom: [], leadsTo: [] })
 
 // Audio
-const audioController = ref<TargetAudioController | null>(null)
+const audioController = ref<RobustAudioController | null>(null)
 let phrasePracticeTimer: ReturnType<typeof setTimeout> | null = null
 
 // Path animation timers
@@ -643,7 +488,7 @@ async function handleNodeTap(node: NetworkNode) {
 
   // Unlock audio on first interaction (required for iOS/Safari)
   if (!audioController.value) {
-    audioController.value = new TargetAudioController()
+    audioController.value = new RobustAudioController()
   }
   await audioController.value.unlock()
 
@@ -987,7 +832,7 @@ async function playPhrase(phrase: PhraseWithPath) {
   try {
     // Initialize audio controller if needed
     if (!audioController.value) {
-      audioController.value = new TargetAudioController()
+      audioController.value = new RobustAudioController()
     }
 
     // Audio UUIDs are already on the phrase (loaded once by getEternalPhrasesForLego)
