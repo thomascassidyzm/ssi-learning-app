@@ -58,10 +58,10 @@ const props = defineProps({
     default: 0  // 0 = normal mode, >0 = preview mode
   },
   // Auto-start playback when component mounts (after loading)
-  // Default true so play button launches directly into learning
+  // Default false — user must tap play or press the BottomNav play button
   autoStart: {
     type: Boolean,
-    default: true
+    default: false
   },
   // Whether the player is currently visible/selected
   // When false, prevents any audio from playing until explicitly navigated to
