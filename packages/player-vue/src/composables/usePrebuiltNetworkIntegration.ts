@@ -106,6 +106,28 @@ export function usePrebuiltNetworkIntegration(
       return false
     }
 
+    // If node doesn't exist in pre-calculated network (e.g. from later-loaded rounds),
+    // dynamically add it so it can be revealed
+    const existingNode = prebuiltNetwork.nodes.value.find(n => n.id === legoId)
+    if (!existingNode && targetText) {
+      const nodeCount = prebuiltNetwork.nodes.value.length
+      const goldenAngle = 137.508 * Math.PI / 180
+      const angle = nodeCount * goldenAngle
+      const maxRadius = 38
+      const r = Math.min(maxRadius, 8 + Math.sqrt(nodeCount) * 7)
+      const cx = center.value.x + Math.cos(angle) * r * 3
+      const cy = center.value.y + Math.sin(angle) * r * 3
+      prebuiltNetwork.nodes.value = [...prebuiltNetwork.nodes.value, {
+        id: legoId,
+        targetText,
+        knownText,
+        belt: currentBelt.value,
+        x: cx,
+        y: cy,
+      }]
+      console.debug(`[PrebuiltNetworkIntegration] Dynamically added node ${legoId} (${targetText})`)
+    }
+
     prebuiltNetwork.revealNode(legoId, makeHero)
     return true
   }

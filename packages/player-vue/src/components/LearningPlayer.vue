@@ -5466,8 +5466,18 @@ onMounted(async () => {
               // Store for legacy code
               loadedRounds.value = simpleRounds as any
 
-              // Preload audio for the first 2 rounds (current + next) immediately
+              // Populate background text network with all loaded rounds
+              // This ensures returning users see previously-learned LEGOs
               const currentRoundIdx = simplePlayer.roundIndex.value ?? 0
+              const networkRounds = simpleRounds.map(r => ({
+                legoId: r.legoId,
+                targetText: r.cycles[0]?.target?.text || '',
+                knownText: r.cycles[0]?.known?.text || '',
+              }))
+              populateNetworkFromRounds(networkRounds, currentRoundIdx)
+              console.debug(`[progressiveLoad] Network populated with ${networkRounds.length} rounds, revealed up to ${currentRoundIdx}`)
+
+              // Preload audio for the first 2 rounds (current + next) immediately
               preloadSimpleRoundAudio(simpleRounds, 2, currentRoundIdx)
 
               // 3. BACKGROUND: Extend content progressively after player is interactive

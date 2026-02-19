@@ -398,8 +398,10 @@ export function preCalculatePositions(
       const introItem = round.items?.find(item =>
         item.type === 'intro' || item.type === 'debut'
       )
-      const targetText = introItem?.targetText || round.targetText || round.legoId
-      const knownText = introItem?.knownText || round.knownText || ''
+      // Support both legacy rounds (.items with .targetText) and SimplePlayer rounds (.cycles with .target.text)
+      const firstCycle = (round as any).cycles?.[0]
+      const targetText = introItem?.targetText || round.targetText || firstCycle?.target?.text || round.legoId
+      const knownText = introItem?.knownText || round.knownText || firstCycle?.known?.text || ''
 
       legoTexts.set(round.legoId, targetText.toLowerCase())
 
