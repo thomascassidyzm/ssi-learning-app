@@ -249,8 +249,42 @@ export async function generateLearningScript(
   }
 
   // Greedy longest-match decomposition of a phrase into component LEGO IDs
+  // Supports both space-separated languages and CJK (no spaces)
+  const cjkRegex = /[\u3000-\u9fff\uac00-\ud7af\uff00-\uffef]/
+  const isCJK = (text: string) => cjkRegex.test(text)
+
   const decomposePhrase = (targetText: string): string[] => {
     const normalized = normalizeText(targetText)
+    if (!normalized) return []
+
+    // CJK: character-level sliding window (no spaces to split on)
+    if (isCJK(normalized)) {
+      const chars = [...normalized] // proper Unicode split
+      const result: string[] = []
+      let i = 0
+      while (i < chars.length) {
+        let longestMatch: string | null = null
+        let longestLength = 0
+        for (let len = chars.length - i; len > 0; len--) {
+          const candidate = chars.slice(i, i + len).join('')
+          const legoId = legoTextMap.get(candidate)
+          if (legoId) {
+            longestMatch = legoId
+            longestLength = len
+            break
+          }
+        }
+        if (longestMatch) {
+          result.push(longestMatch)
+          i += longestLength
+        } else {
+          i++
+        }
+      }
+      return result
+    }
+
+    // Space-separated languages: word-level sliding window
     const words = normalized.split(/\s+/).filter(w => w.length > 0)
     const result: string[] = []
     let i = 0
@@ -270,7 +304,7 @@ export async function generateLearningScript(
         result.push(longestMatch)
         i += longestLength
       } else {
-        i++ // skip unmatched word
+        i++
       }
     }
     return result
@@ -527,11 +561,16 @@ export async function generateLearningScript(
   }
 
   // Decompose phrases into component LEGO IDs
+  let decomposedCount = 0
   for (const item of items) {
     if (item.type === 'intro' || item.type === 'debut') continue
     const components = decomposePhrase(item.targetText)
-    if (components.length > 0) item.componentLegoIds = components
+    if (components.length > 0) {
+      item.componentLegoIds = components
+      decomposedCount++
+    }
   }
+  console.debug(`[generateLearningScript] Decomposed ${decomposedCount}/${items.filter(i => i.type !== 'intro' && i.type !== 'debut').length} phrases into LEGO components (${legoTextMap.size} LEGOs in map)`)
 
   // Remove consecutive duplicates (matching dashboard logic)
   const dedupedItems: ScriptItem[] = []
