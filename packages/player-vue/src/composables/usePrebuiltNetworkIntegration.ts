@@ -126,6 +126,10 @@ export function usePrebuiltNetworkIntegration(
         y: cy,
       }]
       console.debug(`[PrebuiltNetworkIntegration] Dynamically added node ${legoId} (${targetText})`)
+    } else if (existingNode && targetText && existingNode.targetText === existingNode.id) {
+      // Node exists but has LEGO ID as placeholder text — update with real text
+      existingNode.targetText = targetText
+      if (knownText) existingNode.knownText = knownText
     }
 
     prebuiltNetwork.revealNode(legoId, makeHero)
