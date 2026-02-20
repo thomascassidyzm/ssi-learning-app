@@ -33,6 +33,8 @@ import { useLegoNetwork } from '../composables/useLegoNetwork'
 import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
 import { useAuthModal } from '../composables/useAuthModal'
 import LegoTextNetwork from './LegoTextNetwork.vue'
+import LegoAssembly from './LegoAssembly.vue'
+import type { LegoBlock } from './LegoAssembly.vue'
 import BeltProgressModal from './BeltProgressModal.vue'
 import ListeningOverlay from './ListeningOverlay.vue'
 import DrivingModeOverlay from './DrivingModeOverlay.vue'
@@ -416,6 +418,43 @@ watch(() => simplePlayer.currentCycle.value, (simpleCycle) => {
     pauseDurationMs: simpleCycle.pauseDuration || 6500,
   } as any
 }, { immediate: true })
+
+// ============================================
+// LEGO ASSEMBLY VISUALISATION - magnetic block assembly during playback
+// ============================================
+
+// Build lookup: LEGO ID → target text from all loaded rounds
+// Each round's first cycle (intro/debut) has the LEGO's own target text
+const legoTargetTextMap = computed<Map<string, string>>(() => {
+  const map = new Map<string, string>()
+  for (const round of (loadedRounds.value || [])) {
+    if (round.legoId && round.cycles?.[0]?.target?.text) {
+      map.set(round.legoId, round.cycles[0].target.text)
+    }
+  }
+  return map
+})
+
+// Current phrase's LEGO blocks for the assembly view
+const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
+  const cycle = simplePlayer.currentCycle.value as any
+  if (!cycle?.componentLegoIds?.length) return []
+  const textMap = legoTargetTextMap.value
+  return cycle.componentLegoIds
+    .map((id: string) => {
+      const targetText = textMap.get(id)
+      if (!targetText) return null
+      return { id, targetText }
+    })
+    .filter((b: LegoBlock | null): b is LegoBlock => b !== null)
+})
+
+// Voice1 duration for assembly timing
+const currentVoice1DurationMs = computed(() => {
+  const cycle = simplePlayer.currentCycle.value as any
+  // Duration not on SimplePlayer Cycle — use a reasonable default
+  return 2000
+})
 
 // ============================================
 // PROGRESSIVE LOADING - Start small, expand as learner progresses
@@ -6194,16 +6233,25 @@ defineExpose({
     <div class="space-nebula"></div>
     <div class="bg-noise"></div>
 
-    <!-- Text Network Visualization Layer - LEGO text fragments float and connect -->
+    <!-- LEGO Assembly Visualization - blocks assemble during phrase playback -->
+    <LegoAssembly
+      v-if="currentPhraseLegoBlocks.length > 0"
+      :blocks="currentPhraseLegoBlocks"
+      :phase="currentPhase"
+      :belt-color="beltCssVars['--belt-color'] || '#f5f5f5'"
+      :belt-glow="beltCssVars['--belt-glow'] || 'rgba(245, 245, 245, 0.3)'"
+      :voice1-duration-ms="currentVoice1DurationMs"
+    />
+
+    <!-- Text Network Visualization Layer - kept for Brain View / Progress screen -->
     <LegoTextNetwork
-      v-if="networkViewProps.nodes.length > 0"
+      v-if="networkViewProps.nodes.length > 0 && showSessionComplete"
       :nodes="networkViewProps.nodes"
       :edges="networkViewProps.edges"
       :revealed-node-ids="introducedLegoIds"
       :current-path="networkViewProps.currentPath"
       :belt-level="currentBelt.name"
       class="brain-network-container"
-      :class="{ 'network-faded': isIntroPhase, 'network-hidden-text': currentPhase === 'speak' || currentPhase === 'prompt' }"
       @node-tap="handleNetworkNodeTap"
     />
 

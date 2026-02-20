@@ -98,7 +98,8 @@ export function toSimpleRounds(
         // Other cycles: dynamic pause based on target audio lengths
         pauseDuration: i.type === 'intro'
           ? 0
-          : calculatePauseDuration(i.target1DurationMs, i.target2DurationMs, pauseConfig)
+          : calculatePauseDuration(i.target1DurationMs, i.target2DurationMs, pauseConfig),
+        ...(i.componentLegoIds ? { componentLegoIds: i.componentLegoIds } : {})
       })
     }
 

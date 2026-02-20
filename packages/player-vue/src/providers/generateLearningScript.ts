@@ -36,6 +36,7 @@ export interface ScriptItem {
   syllableCount?: number
   fibPosition?: number
   reviewOf?: number
+  componentLegoIds?: string[]
 }
 
 export interface LearningScriptResult {
@@ -237,6 +238,43 @@ export async function generateLearningScript(
   const items: ScriptItem[] = []
   let cycleNum = 0
   let roundNumber = 0
+
+  // Build LEGO text map for phrase decomposition (normalised target text → LEGO key)
+  // Uses ALL LEGOs (not just is_new) since reused LEGOs are still valid vocabulary
+  const legoTextMap = new Map<string, string>()
+  for (const lego of allLegos) {
+    const legoKey = `S${String(lego.seed_number).padStart(4, '0')}L${String(lego.lego_index).padStart(2, '0')}`
+    const normalized = normalizeText(lego.target_text)
+    if (normalized) legoTextMap.set(normalized, legoKey)
+  }
+
+  // Greedy longest-match decomposition of a phrase into component LEGO IDs
+  const decomposePhrase = (targetText: string): string[] => {
+    const normalized = normalizeText(targetText)
+    const words = normalized.split(/\s+/).filter(w => w.length > 0)
+    const result: string[] = []
+    let i = 0
+    while (i < words.length) {
+      let longestMatch: string | null = null
+      let longestLength = 0
+      for (let len = words.length - i; len > 0; len--) {
+        const candidate = words.slice(i, i + len).join(' ')
+        const legoId = legoTextMap.get(candidate)
+        if (legoId) {
+          longestMatch = legoId
+          longestLength = len
+          break
+        }
+      }
+      if (longestMatch) {
+        result.push(longestMatch)
+        i += longestLength
+      } else {
+        i++ // skip unmatched word
+      }
+    }
+    return result
+  }
 
   // Helper: only emit items from emitFromRound onward
   // Earlier rounds are still fully processed (legoState, spaced rep) but not emitted
@@ -486,6 +524,13 @@ export async function generateLearningScript(
         })
       }
     }
+  }
+
+  // Decompose phrases into component LEGO IDs
+  for (const item of items) {
+    if (item.type === 'intro' || item.type === 'debut') continue
+    const components = decomposePhrase(item.targetText)
+    if (components.length > 0) item.componentLegoIds = components
   }
 
   // Remove consecutive duplicates (matching dashboard logic)
