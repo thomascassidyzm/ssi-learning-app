@@ -6315,8 +6315,8 @@ defineExpose({
         </template>
       </div>
 
-      <!-- Pause countdown bar - always visible during speak phase -->
-      <div v-if="currentPhase === 'speak' && !isIntroPhase" class="pause-timer-bar">
+      <!-- Pause countdown bar - only shows after hint box auto-hides -->
+      <div v-if="currentPhase === 'speak' && !isIntroPhase && !showLearningHint" class="pause-timer-bar">
         <div class="pause-timer-fill" :style="{ width: ringProgress + '%' }"></div>
       </div>
     </div>
