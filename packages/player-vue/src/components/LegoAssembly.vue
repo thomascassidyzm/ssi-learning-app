@@ -45,7 +45,7 @@ const assemblyPhase = computed<AssemblyPhase>(() => {
       return 'hidden'
     case 'voice1':
     case 'voice_1':
-      return 'assembling'
+      return 'hidden'
     case 'voice2':
     case 'voice_2':
       return 'assembled'
@@ -155,11 +155,11 @@ const staggerDelay = (index: number): string => {
   animation: snap-arrive var(--assemble-duration, 1.5s) var(--stagger-delay, 0s) both;
 }
 
-/* --- ASSEMBLED (gentle pulse) --- */
+/* --- ASSEMBLED (fade in with gentle pulse) --- */
 .lego-block.assembled {
   opacity: 1;
   transform: translate(0, 0) rotate(0deg);
-  transition-duration: 0.3s;
+  transition-duration: 0.6s;
   border-color: var(--belt-accent, rgba(255,255,255,0.2));
   box-shadow:
     0 0 12px 2px var(--belt-glow, rgba(255,255,255,0.15)),
@@ -168,10 +168,12 @@ const staggerDelay = (index: number): string => {
   animation: assembled-pulse 2.5s ease-in-out infinite;
 }
 
-/* --- SALIENT LEGO (newly introduced — stands out) --- */
+/* --- SALIENT LEGO (newly introduced — stands out, 50% bigger) --- */
 .lego-block.salient {
   background: rgba(255, 255, 255, 0.15);
   border-color: var(--belt-accent, rgba(255,255,255,0.3));
+  border-width: 2px;
+  padding: 0.65em 1.3em;
   box-shadow:
     0 0 14px 3px var(--belt-glow, rgba(255,255,255,0.2)),
     inset 0 1px 0 rgba(255, 255, 255, 0.12);
@@ -179,6 +181,7 @@ const staggerDelay = (index: number): string => {
 .lego-block.salient .block-text {
   color: rgba(255, 255, 255, 1);
   font-weight: 700;
+  font-size: 1.6rem;
 }
 .lego-block.salient.assembled {
   background: rgba(255, 255, 255, 0.18);
@@ -268,6 +271,12 @@ const staggerDelay = (index: number): string => {
   }
   .lego-block {
     padding: 0.35em 0.7em;
+  }
+  .lego-block.salient {
+    padding: 0.5em 1em;
+  }
+  .lego-block.salient .block-text {
+    font-size: 1.3rem;
   }
 }
 </style>

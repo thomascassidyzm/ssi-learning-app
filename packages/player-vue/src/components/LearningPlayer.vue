@@ -1985,8 +1985,9 @@ const getEstimatedDuration = (item: any, audioType: 'target1' | 'target2'): numb
 const showAllText = computed(() => !isTransitioningItem.value)
 
 // Target text only visible during VOICE_2 (and not transitioning)
+// Hide when LEGO assembly tiles are showing (they replace the target text)
 const showTargetText = computed(() =>
-  currentPhase.value === Phase.VOICE_2 && !isTransitioningItem.value
+  currentPhase.value === Phase.VOICE_2 && !isTransitioningItem.value && currentPhraseLegoBlocks.value.length === 0
 )
 
 // Stable known text - updates when not transitioning (prevents flash) OR when phrase changes

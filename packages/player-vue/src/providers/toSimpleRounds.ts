@@ -22,7 +22,7 @@ export interface PauseConfig {
 
 export const DEFAULT_PAUSE_CONFIG: PauseConfig = {
   bootUpTimeMs: 2000,
-  scaleFactor: 0.75
+  scaleFactor: 1.5
 }
 
 const audioUrl = (uuid: string | undefined): string => {
@@ -40,15 +40,14 @@ function calculatePauseDuration(
   config: PauseConfig
 ): number {
   const t1 = target1DurationMs || 0
-  const t2 = target2DurationMs || 0
-  const totalTargetDuration = t1 + t2
 
-  // If no duration data, estimate 3s per voice (6s total target)
-  if (totalTargetDuration === 0) {
-    return Math.round(config.bootUpTimeMs + config.scaleFactor * 6000)
+  // If no duration data, estimate 2s for target1
+  if (t1 === 0) {
+    return Math.round(config.bootUpTimeMs + config.scaleFactor * 2000)
   }
 
-  return Math.round(config.bootUpTimeMs + config.scaleFactor * totalTargetDuration)
+  // bootUp (2s) + 1.5x target1 duration
+  return Math.round(config.bootUpTimeMs + config.scaleFactor * t1)
 }
 
 export function toSimpleRounds(

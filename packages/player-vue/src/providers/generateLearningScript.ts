@@ -62,7 +62,7 @@ export async function generateLearningScript(
 
   const normalizeText = (text: string | null | undefined): string => {
     if (!text) return ''
-    return text.toLowerCase().trim().replace(/[.,!?;:¡¿'"]+/g, '')
+    return text.toLowerCase().trim().replace(/[.,!?;:¡¿'"\u3000-\u303f\uff00-\uff0f\uff1a-\uff20\uff3b-\uff40\uff5b-\uff65]+/g, '')
   }
 
   const getPhraseId = (knownText: string, targetText: string): string => {
@@ -261,6 +261,19 @@ export async function generateLearningScript(
   const cjkRegex = /[\u3000-\u9fff\uac00-\ud7af\uff00-\uffef]/
   const isCJK = (text: string) => cjkRegex.test(text)
 
+  // Track synthetic (on-the-fly) LEGOs for unmatched text
+  let syntheticCounter = 0
+  const syntheticLegoMap = new Map<string, string>() // normalized text → synthetic ID
+
+  const getOrCreateSyntheticLego = (text: string): string => {
+    const existing = syntheticLegoMap.get(text)
+    if (existing) return existing
+    const id = `_SYN${String(++syntheticCounter).padStart(4, '0')}`
+    syntheticLegoMap.set(text, id)
+    legoIdToText.set(id, text)
+    return id
+  }
+
   const decomposePhrase = (targetText: string): string[] => {
     const normalized = normalizeText(targetText)
     if (!normalized) return []
@@ -286,6 +299,9 @@ export async function generateLearningScript(
           result.push(longestMatch)
           i += longestLength
         } else {
+          // Create synthetic LEGO for this character
+          const char = chars[i]
+          result.push(getOrCreateSyntheticLego(char))
           i++
         }
       }
@@ -312,6 +328,8 @@ export async function generateLearningScript(
         result.push(longestMatch)
         i += longestLength
       } else {
+        // Create synthetic LEGO for this word
+        result.push(getOrCreateSyntheticLego(words[i]))
         i++
       }
     }
