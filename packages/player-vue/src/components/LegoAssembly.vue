@@ -43,8 +43,10 @@ const assemblyPhase = computed<AssemblyPhase>(() => {
     case 'speak': // pause phase
       return 'hidden'
     case 'voice1':
+    case 'voice_1':
       return 'assembling'
     case 'voice2':
+    case 'voice_2':
       return 'assembled'
     default:
       return 'hidden'
