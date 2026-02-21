@@ -438,8 +438,12 @@ const legoTargetTextMap = computed<Map<string, string>>(() => {
 // Current phrase's LEGO blocks for the assembly view
 const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
   const cycle = simplePlayer.currentCycle.value as any
-  if (!cycle?.componentLegoIds?.length) return []
+  if (!cycle?.componentLegoIds?.length) {
+    if (cycle) console.log('[LegoAssembly] No componentLegoIds on cycle:', cycle.id, cycle.target?.text)
+    return []
+  }
   const textMap = legoTargetTextMap.value
+  console.log('[LegoAssembly] Cycle has componentLegoIds:', cycle.componentLegoIds, 'textMap size:', textMap.size)
   return cycle.componentLegoIds
     .map((id: string) => {
       const targetText = textMap.get(id)
