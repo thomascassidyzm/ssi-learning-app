@@ -99,7 +99,8 @@ export function toSimpleRounds(
         pauseDuration: i.type === 'intro'
           ? 0
           : calculatePauseDuration(i.target1DurationMs, i.target2DurationMs, pauseConfig),
-        ...(i.componentLegoIds ? { componentLegoIds: i.componentLegoIds } : {})
+        ...(i.componentLegoIds ? { componentLegoIds: i.componentLegoIds } : {}),
+        ...(i.componentLegoTexts ? { componentLegoTexts: i.componentLegoTexts } : {})
       })
     }
 

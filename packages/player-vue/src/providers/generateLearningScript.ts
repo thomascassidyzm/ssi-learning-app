@@ -37,6 +37,7 @@ export interface ScriptItem {
   fibPosition?: number
   reviewOf?: number
   componentLegoIds?: string[]
+  componentLegoTexts?: string[]
 }
 
 export interface LearningScriptResult {
@@ -246,6 +247,13 @@ export async function generateLearningScript(
     const legoKey = `S${String(lego.seed_number).padStart(4, '0')}L${String(lego.lego_index).padStart(2, '0')}`
     const normalized = normalizeText(lego.target_text)
     if (normalized) legoTextMap.set(normalized, legoKey)
+  }
+
+  // Reverse map: LEGO key → original target text (for assembly display)
+  const legoIdToText = new Map<string, string>()
+  for (const lego of allLegos) {
+    const legoKey = `S${String(lego.seed_number).padStart(4, '0')}L${String(lego.lego_index).padStart(2, '0')}`
+    if (lego.target_text) legoIdToText.set(legoKey, lego.target_text)
   }
 
   // Greedy longest-match decomposition of a phrase into component LEGO IDs
@@ -567,6 +575,7 @@ export async function generateLearningScript(
     const components = decomposePhrase(item.targetText)
     if (components.length > 0) {
       item.componentLegoIds = components
+      item.componentLegoTexts = components.map(id => legoIdToText.get(id) || '')
       decomposedCount++
     }
   }

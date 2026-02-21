@@ -4,6 +4,7 @@ import { computed, ref, watch, onMounted } from 'vue'
 export interface LegoBlock {
   id: string
   targetText: string
+  isSalient?: boolean
 }
 
 type AssemblyPhase = 'hidden' | 'scattered' | 'assembling' | 'assembled' | 'dissolving'
@@ -75,7 +76,7 @@ const staggerDelay = (index: number): string => {
         v-for="(block, index) in blocks"
         :key="block.id"
         class="lego-block"
-        :class="assemblyPhase"
+        :class="[assemblyPhase, { salient: block.isSalient }]"
         :style="{
           '--scatter-x': `${scatterPositions[index]?.x ?? 0}%`,
           '--scatter-y': `${scatterPositions[index]?.y ?? 0}%`,
@@ -167,6 +168,26 @@ const staggerDelay = (index: number): string => {
   animation: assembled-pulse 2.5s ease-in-out infinite;
 }
 
+/* --- SALIENT LEGO (newly introduced — stands out) --- */
+.lego-block.salient {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: var(--belt-accent, rgba(255,255,255,0.3));
+  box-shadow:
+    0 0 14px 3px var(--belt-glow, rgba(255,255,255,0.2)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.lego-block.salient .block-text {
+  color: rgba(255, 255, 255, 1);
+  font-weight: 700;
+}
+.lego-block.salient.assembled {
+  background: rgba(255, 255, 255, 0.18);
+  box-shadow:
+    0 0 20px 5px var(--belt-glow, rgba(255,255,255,0.25)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  animation: salient-pulse 2.5s ease-in-out infinite;
+}
+
 /* --- HIDDEN --- */
 .lego-block.hidden {
   opacity: 0;
@@ -224,6 +245,19 @@ const staggerDelay = (index: number): string => {
     box-shadow:
       0 0 18px 4px var(--belt-glow, rgba(255,255,255,0.2)),
       inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  }
+}
+
+@keyframes salient-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 20px 5px var(--belt-glow, rgba(255,255,255,0.25)),
+      inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  }
+  50% {
+    box-shadow:
+      0 0 28px 8px var(--belt-glow, rgba(255,255,255,0.35)),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
   }
 }
 

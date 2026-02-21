@@ -6,6 +6,7 @@ export interface Cycle {
   target: { text: string; voice1Url: string; voice2Url: string }
   pauseDuration?: number // ms — set by toSimpleRounds formula
   componentLegoIds?: string[]
+  componentLegoTexts?: string[]
 }
 
 export interface Round {
