@@ -45,7 +45,7 @@ const assemblyPhase = computed<AssemblyPhase>(() => {
       return 'hidden'
     case 'voice1':
     case 'voice_1':
-      return 'hidden'
+      return 'assembling'
     case 'voice2':
     case 'voice_2':
       return 'assembled'
@@ -173,7 +173,7 @@ const staggerDelay = (index: number): string => {
   background: rgba(255, 255, 255, 0.15);
   border-color: var(--belt-accent, rgba(255,255,255,0.3));
   border-width: 2px;
-  padding: 0.65em 1.3em;
+  padding: 0.55em 1.1em;
   box-shadow:
     0 0 14px 3px var(--belt-glow, rgba(255,255,255,0.2)),
     inset 0 1px 0 rgba(255, 255, 255, 0.12);
@@ -181,7 +181,7 @@ const staggerDelay = (index: number): string => {
 .lego-block.salient .block-text {
   color: rgba(255, 255, 255, 1);
   font-weight: 700;
-  font-size: 1.6rem;
+  font-size: 1.35rem;
 }
 .lego-block.salient.assembled {
   background: rgba(255, 255, 255, 0.18);
@@ -273,10 +273,10 @@ const staggerDelay = (index: number): string => {
     padding: 0.35em 0.7em;
   }
   .lego-block.salient {
-    padding: 0.5em 1em;
+    padding: 0.45em 0.85em;
   }
   .lego-block.salient .block-text {
-    font-size: 1.3rem;
+    font-size: 1.1rem;
   }
 }
 </style>
