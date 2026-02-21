@@ -15,6 +15,8 @@
 import type { ScriptItem } from './generateLearningScript'
 import type { Round, Cycle } from '../playback/SimplePlayer'
 
+const CJK_REGEX = /[\u3000-\u9fff\uac00-\ud7af\uff00-\uffef]/
+
 export interface PauseConfig {
   bootUpTimeMs: number    // Cognitive boot-up time (default: 2000ms)
   scaleFactor: number     // Scale factor for target audio duration (default: 0.75)
@@ -31,20 +33,30 @@ const audioUrl = (uuid: string | undefined): string => {
 }
 
 /**
- * Calculate pause duration based on target audio lengths
- * Formula: bootUpTime + scaleFactor * (target1Duration + target2Duration)
+ * Estimate speech duration from text when DB duration is missing.
+ * CJK: ~300ms per character. Other: ~250ms per word.
+ */
+function estimateDurationMs(targetText: string): number {
+  if (!targetText) return 2000
+  if (CJK_REGEX.test(targetText)) {
+    const chars = [...targetText].filter(c => CJK_REGEX.test(c)).length
+    return Math.max(800, chars * 300)
+  }
+  const words = targetText.trim().split(/\s+/).length
+  return Math.max(800, words * 250)
+}
+
+/**
+ * Calculate pause duration based on target audio length
+ * Formula: bootUpTime + scaleFactor * target1Duration
  */
 function calculatePauseDuration(
   target1DurationMs: number | undefined,
   target2DurationMs: number | undefined,
-  config: PauseConfig
+  config: PauseConfig,
+  targetText?: string
 ): number {
-  const t1 = target1DurationMs || 0
-
-  // If no duration data, estimate 2s for target1
-  if (t1 === 0) {
-    return Math.round(config.bootUpTimeMs + config.scaleFactor * 2000)
-  }
+  const t1 = target1DurationMs || estimateDurationMs(targetText || '')
 
   // bootUp (2s) + 1.5x target1 duration
   return Math.round(config.bootUpTimeMs + config.scaleFactor * t1)
@@ -97,7 +109,7 @@ export function toSimpleRounds(
         // Other cycles: dynamic pause based on target audio lengths
         pauseDuration: i.type === 'intro'
           ? 0
-          : calculatePauseDuration(i.target1DurationMs, i.target2DurationMs, pauseConfig),
+          : calculatePauseDuration(i.target1DurationMs, i.target2DurationMs, pauseConfig, i.targetText),
         ...(i.componentLegoIds ? { componentLegoIds: i.componentLegoIds } : {}),
         ...(i.componentLegoTexts ? { componentLegoTexts: i.componentLegoTexts } : {})
       })
