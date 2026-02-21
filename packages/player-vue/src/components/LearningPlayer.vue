@@ -439,7 +439,8 @@ const legoTargetTextMap = computed<Map<string, string>>(() => {
 const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
   const cycle = simplePlayer.currentCycle.value as any
   if (!cycle?.componentLegoIds?.length) return []
-  const salientLegoId = currentRound.value?.legoId || ''
+  // Use the cycle's own legoId (the LEGO this phrase practises), not the round's
+  const salientLegoId = cycle.legoId || currentRound.value?.legoId || ''
   const texts: string[] = cycle.componentLegoTexts || []
   const textMap = legoTargetTextMap.value
   return cycle.componentLegoIds
@@ -6313,6 +6314,11 @@ defineExpose({
           </div>
         </template>
       </div>
+
+      <!-- Pause countdown bar - always visible during speak phase -->
+      <div v-if="currentPhase === 'speak' && !isIntroPhase" class="pause-timer-bar">
+        <div class="pause-timer-fill" :style="{ width: ringProgress + '%' }"></div>
+      </div>
     </div>
 
     <!-- Node Hover Tooltip -->
@@ -8810,6 +8816,24 @@ defineExpose({
 }
 
 .hint-timer-fill {
+  height: 100%;
+  background: #dc2626;
+  border-radius: 2px;
+  transition: width 0.1s linear;
+  box-shadow: 0 0 8px rgba(220, 38, 38, 0.6);
+}
+
+/* Standalone pause countdown bar - always visible during speak phase */
+.pause-timer-bar {
+  width: 80%;
+  max-width: 500px;
+  height: 4px;
+  margin: 12px auto 0;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.pause-timer-fill {
   height: 100%;
   background: #dc2626;
   border-radius: 2px;

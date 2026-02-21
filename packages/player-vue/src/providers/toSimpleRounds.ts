@@ -96,6 +96,7 @@ export function toSimpleRounds(
 
       cycles.push({
         id: i.uuid,
+        legoId: i.legoKey,
         known: {
           text: i.knownText,
           audioUrl: audioUrl(i.knownAudioId)

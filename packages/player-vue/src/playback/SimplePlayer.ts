@@ -5,6 +5,7 @@ export interface Cycle {
   known: { text: string; audioUrl: string }
   target: { text: string; voice1Url: string; voice2Url: string }
   pauseDuration?: number // ms — set by toSimpleRounds formula
+  legoId?: string // The LEGO this cycle is practising
   componentLegoIds?: string[]
   componentLegoTexts?: string[]
 }
