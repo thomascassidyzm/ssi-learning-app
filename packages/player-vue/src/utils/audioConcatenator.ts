@@ -328,8 +328,12 @@ export async function concatenateRound(
     completedSteps++
     reportProgress()
 
-    // Phase 2: PAUSE (use cycle's pause duration or default to 4 seconds)
-    const pauseDurationSec = (cycle.pauseDurationMs || 6500) / 1000
+    // Phase 2: PAUSE
+    // Intro cycles (pauseDurationMs === 0) get a short 1s reveal pause
+    // Practice cycles use their calculated duration, fallback to 6.5s
+    const pauseDurationSec = cycle.pauseDurationMs === 0
+      ? 1.0
+      : (cycle.pauseDurationMs || 6500) / 1000
     const pauseBuffer = createSilence(audioContext, pauseDurationSec)
     segments.push({
       id: `cycle-${cycleIndex}-pause`,

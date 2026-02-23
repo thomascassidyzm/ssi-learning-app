@@ -30,7 +30,7 @@ export function simpleRoundToTypedCycles(cycles: SimpleCycle[]): TypedCycle[] {
     id: c.id || `cycle-${i}`,
     seedId: '',
     legoId: '',
-    type: 'practice' as const,
+    type: (c.pauseDuration === 0 ? 'intro' : 'practice') as any,
     known: {
       text: c.known.text,
       audioId: extractAudioId(c.known.audioUrl),
