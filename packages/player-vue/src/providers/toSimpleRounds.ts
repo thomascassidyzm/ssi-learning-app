@@ -23,7 +23,7 @@ export interface PauseConfig {
 }
 
 export const DEFAULT_PAUSE_CONFIG: PauseConfig = {
-  bootUpTimeMs: 2000,
+  bootUpTimeMs: 1000,
   scaleFactor: 1.5
 }
 
