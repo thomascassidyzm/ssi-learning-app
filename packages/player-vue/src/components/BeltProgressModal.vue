@@ -620,3 +620,17 @@ onUnmounted(() => {
   }
 }
 </style>
+
+<!-- Mist theme: paper surfaces instead of glass -->
+<style>
+:root[data-theme="mist"] .modal-backdrop {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(44, 37, 32, 0.65);
+}
+
+:root[data-theme="mist"] .modal {
+  background: #ffffff;
+  box-shadow: 0 2px 4px rgba(60, 45, 30, 0.08), 0 8px 32px rgba(60, 45, 30, 0.06);
+}
+</style>

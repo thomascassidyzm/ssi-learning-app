@@ -238,9 +238,9 @@
   /* Background hierarchy — dojo stone palette */
   --bg-primary: #f0ebe3;
   --bg-secondary: #f7f3ec;
-  --bg-card: rgba(247, 243, 236, 0.9);
-  --bg-card-hover: #ede7dd;
-  --bg-elevated: rgba(232, 226, 216, 0.95);
+  --bg-card: #ffffff;
+  --bg-card-hover: #fafaf7;
+  --bg-elevated: #ffffff;
   --bg-input: #f7f3ec;
   --bg-overlay: rgba(44, 37, 32, 0.4);
 
@@ -256,11 +256,11 @@
   --border-strong: rgba(100, 80, 55, 0.3);
   --border-focus: var(--ssi-red);
 
-  /* Shadows — warm tinted */
-  --shadow-sm: 0 2px 8px rgba(60, 45, 30, 0.08);
-  --shadow-md: 0 4px 20px rgba(60, 45, 30, 0.12);
-  --shadow-lg: 0 8px 40px rgba(60, 45, 30, 0.16);
-  --shadow-xl: 0 12px 60px rgba(60, 45, 30, 0.2);
+  /* Shadows — layered paper depth */
+  --shadow-sm: 0 1px 2px rgba(60, 45, 30, 0.06), 0 2px 8px rgba(60, 45, 30, 0.04);
+  --shadow-md: 0 1px 3px rgba(60, 45, 30, 0.08), 0 4px 16px rgba(60, 45, 30, 0.05);
+  --shadow-lg: 0 2px 4px rgba(60, 45, 30, 0.08), 0 8px 32px rgba(60, 45, 30, 0.06);
+  --shadow-xl: 0 2px 6px rgba(60, 45, 30, 0.1), 0 12px 48px rgba(60, 45, 30, 0.08);
   --shadow-glow: 0 0 30px rgba(194, 58, 58, 0.15);
   --shadow-glow-gold: 0 0 30px rgba(212, 168, 83, 0.2);
 
@@ -274,8 +274,14 @@
   --glow-soft: rgba(60, 45, 30, 0.04);
 
   /* Special surfaces */
-  --nav-bg: rgba(255, 252, 245, 0.92);
-  --nav-bg-blur: rgba(255, 252, 245, 0.85);
+  --nav-bg: #fffcf5;
+  --nav-bg-blur: #fffcf5;
+
+  /* Paper card styling */
+  --card-shadow: 0 1px 2px rgba(60, 45, 30, 0.06), 0 4px 16px rgba(60, 45, 30, 0.04);
+  --card-border: 1px solid rgba(100, 80, 55, 0.1);
+  --chip-bg: #ffffff;
+  --chip-border: 1px solid rgba(100, 80, 55, 0.12);
   --modal-backdrop: rgba(44, 37, 32, 0.5);
 
   /* Network visualization — ink on dojo */

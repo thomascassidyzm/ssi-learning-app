@@ -662,5 +662,17 @@ onMounted(() => {
     grid-template-columns: repeat(4, 1fr);
   }
 }
+</style>
 
+<!-- Mist theme: paper surfaces instead of glass -->
+<style>
+:root[data-theme="mist"] .course-selector .selector-backdrop {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+:root[data-theme="mist"] .course-selector .selector-content {
+  background: #ffffff;
+  box-shadow: 0 2px 4px rgba(60, 45, 30, 0.08), 0 8px 32px rgba(60, 45, 30, 0.06);
+}
 </style>

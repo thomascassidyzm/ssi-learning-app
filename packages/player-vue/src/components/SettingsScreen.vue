@@ -1523,3 +1523,24 @@ const confirmReset = async () => {
   }
 }
 </style>
+
+<!-- Mist theme: paper surfaces instead of glass -->
+<style>
+:root[data-theme="mist"] .settings-screen .header {
+  background: #ffffff;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom: 1px solid rgba(100, 80, 55, 0.1);
+  box-shadow: 0 1px 2px rgba(60, 45, 30, 0.06);
+}
+
+:root[data-theme="mist"] .settings-screen .reset-overlay {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+:root[data-theme="mist"] .settings-screen .reset-dialog {
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(60, 45, 30, 0.08), 0 8px 32px rgba(60, 45, 30, 0.06);
+}
+</style>

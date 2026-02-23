@@ -1876,3 +1876,13 @@ onUnmounted(() => {
   .item-type { min-width: 40px; font-size: 0.4375rem; }
 }
 </style>
+
+<!-- Mist theme: paper surfaces instead of glass -->
+<style>
+:root[data-theme="mist"] .explorer .explorer-header {
+  background: #ffffff;
+  backdrop-filter: none;
+  border-bottom: 1px solid rgba(100, 80, 55, 0.1);
+  box-shadow: 0 1px 2px rgba(60, 45, 30, 0.06);
+}
+</style>

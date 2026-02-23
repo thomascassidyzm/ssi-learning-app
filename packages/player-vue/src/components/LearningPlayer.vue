@@ -10581,13 +10581,13 @@ defineExpose({
   display: block;
 }
 
-/* --- Hero glass → Warm frosted paper --- */
+/* --- Hero glass → Paper card --- */
 [data-theme="mist"] .player .hero-glass {
-  background: rgba(247, 243, 236, 0.75);
-  border-color: rgba(100, 80, 55, 0.12);
-  box-shadow: 0 4px 24px rgba(60, 45, 30, 0.08);
-  backdrop-filter: blur(20px) saturate(120%);
-  -webkit-backdrop-filter: blur(20px) saturate(120%);
+  background: #ffffff;
+  border: 1px solid rgba(100, 80, 55, 0.1);
+  box-shadow: 0 1px 3px rgba(60, 45, 30, 0.06), 0 4px 16px rgba(60, 45, 30, 0.04);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 /* --- Hero text --- */
@@ -10600,12 +10600,13 @@ defineExpose({
   text-shadow: 0 1px 3px rgba(60, 45, 30, 0.15);
 }
 
-/* --- Control bar → Warm frosted paper --- */
+/* --- Control bar → Paper card --- */
 [data-theme="mist"] .player .control-bar {
-  background: rgba(247, 243, 236, 0.65);
-  border-color: rgba(100, 80, 55, 0.1);
-  backdrop-filter: blur(20px) saturate(120%);
-  -webkit-backdrop-filter: blur(20px) saturate(120%);
+  background: #ffffff;
+  border: 1px solid rgba(100, 80, 55, 0.1);
+  box-shadow: 0 1px 2px rgba(60, 45, 30, 0.06), 0 4px 12px rgba(60, 45, 30, 0.04);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 /* --- Mode / Transport buttons --- */
@@ -10627,8 +10628,9 @@ defineExpose({
 }
 
 [data-theme="mist"] .player .mode-picker {
-  background: rgba(247, 243, 236, 0.9);
-  border-color: rgba(100, 80, 55, 0.1);
+  background: #ffffff;
+  border: 1px solid rgba(100, 80, 55, 0.1);
+  box-shadow: 0 1px 3px rgba(60, 45, 30, 0.06), 0 4px 16px rgba(60, 45, 30, 0.04);
 }
 
 [data-theme="mist"] .player .mode-picker-option {
@@ -10673,9 +10675,9 @@ defineExpose({
 
 /* --- Belt celebration overlay --- */
 [data-theme="mist"] .player .belt-celebration-overlay {
-  background: rgba(44, 37, 32, 0.6);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(44, 37, 32, 0.65);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 /* --- Belt particles → Shuriken burst --- */
@@ -10695,8 +10697,9 @@ defineExpose({
 
 /* --- Learning hint box --- */
 [data-theme="mist"] .player .learning-hint {
-  background: rgba(247, 243, 236, 0.8);
-  border-color: rgba(100, 80, 55, 0.12);
+  background: #ffffff;
+  border: 1px solid rgba(100, 80, 55, 0.1);
+  box-shadow: 0 1px 2px rgba(60, 45, 30, 0.06), 0 4px 12px rgba(60, 45, 30, 0.04);
   color: #5c544a;
 }
 </style>
