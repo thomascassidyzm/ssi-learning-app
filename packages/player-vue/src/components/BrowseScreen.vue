@@ -92,7 +92,6 @@ const fetchCourses = async () => {
     const { data, error } = await supabaseClient
       .from('courses')
       .select('*')
-      .in('new_app_status', ['live', 'beta'])
       .order('display_name')
 
     if (error) throw error
@@ -104,11 +103,8 @@ const fetchCourses = async () => {
   }
 }
 
-// Filter courses for current known language
-const coursesForKnownLang = computed(() => {
-  const knownLang = props.activeCourse?.known_lang || 'eng'
-  return allCourses.value.filter(c => c.known_lang === knownLang)
-})
+// All courses — no filtering by known language (supports language chaining)
+const displayedCourses = computed(() => allCourses.value)
 
 // Check if course is enrolled
 const isEnrolled = (courseCode) => {
@@ -289,7 +285,7 @@ onMounted(() => {
         <!-- Course grid -->
         <div v-else class="course-grid">
           <button
-            v-for="course in coursesForKnownLang"
+            v-for="course in displayedCourses"
             :key="course.course_code"
             class="course-card"
             :class="{ active: isActiveCourse(course.course_code) }"
@@ -304,14 +300,11 @@ onMounted(() => {
             <div v-else-if="course.new_app_status === 'beta'" class="course-badge beta-badge">B</div>
             <div v-else-if="!isEnrolled(course.course_code)" class="course-badge new-badge">NEW</div>
 
-            <span class="course-name">{{ getTargetDisplayName(course) }}</span>
+            <span class="course-name">{{ course.display_name || getTargetDisplayName(course) }}</span>
 
             <span class="course-status">
               <template v-if="isEnrolled(course.course_code)">
                 {{ getProgress(course.course_code) }}%
-              </template>
-              <template v-else-if="course.pricing_tier === 'premium'">
-                Free preview
               </template>
               <template v-else>
                 Start
