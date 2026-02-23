@@ -207,7 +207,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
 
   // Cleanup on unmount
   onUnmounted(() => {
-    player?.stop()
+    player?.dispose()
     phaseCallbacks.length = 0
     cycleCallbacks.length = 0
     roundCallbacks.length = 0

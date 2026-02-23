@@ -141,13 +141,16 @@ export class PriorityRoundLoader {
     this.loadingQueue = this.loadingQueue.filter(s => s !== seedNumber)
     this.loadingQueue.unshift(seedNumber)
 
-    // Wait for it to load
+    // Wait for it to load (with 30s timeout)
     return new Promise((resolve) => {
+      const deadline = Date.now() + 30_000
       const checkLoaded = () => {
         if (this.loadedSeeds.has(seedNumber)) {
           const roundIndex = seedNumber - 1
           const round = this.sessionController.rounds.value[roundIndex]
           resolve(round ?? null)
+        } else if (Date.now() > deadline || this.courseEndDetected) {
+          resolve(null)
         } else {
           setTimeout(checkLoaded, 50)
         }

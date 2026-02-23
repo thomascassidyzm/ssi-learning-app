@@ -2876,10 +2876,16 @@ const startSimplePlayback = async () => {
     console.log('[LearningPlayer] Waiting for rounds to load...')
     startPreparingState()
     await new Promise<void>((resolve) => {
+      const timeout = setTimeout(() => {
+        unwatch()
+        console.error('[LearningPlayer] Timed out waiting for rounds to load (30s)')
+        resolve()
+      }, 30_000)
       const unwatch = watch(
         () => loadedRounds.value.length > 0,
         (hasRounds) => {
           if (hasRounds) {
+            clearTimeout(timeout)
             unwatch()
             resolve()
           }

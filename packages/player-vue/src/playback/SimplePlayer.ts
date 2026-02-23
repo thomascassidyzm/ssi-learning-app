@@ -38,18 +38,28 @@ export class SimplePlayer {
   private audio: HTMLAudioElement
   private state: PlaybackState
   private pauseTimer: ReturnType<typeof setTimeout> | null = null
+  private safetyTimer: ReturnType<typeof setTimeout> | null = null
   private listeners: Map<EventName, Set<EventCallback>> = new Map()
+
+  // Named handlers for cleanup in dispose()
+  private onEndedHandler: () => void
+  private onErrorHandler: (e: Event) => void
 
   constructor(rounds: Round[]) {
     this.rounds = rounds
     this.audio = new Audio()
     this.state = { roundIndex: 0, cycleIndex: 0, phase: 'idle', isPlaying: false }
 
-    this.audio.addEventListener('ended', () => this.onAudioEnded())
-    this.audio.addEventListener('error', (e) => {
+    this.onEndedHandler = () => this.onAudioEnded()
+    this.onErrorHandler = (e: Event) => {
       console.error('Audio error:', e)
-      this.onAudioEnded() // Continue despite errors
-    })
+      if (this.state.phase !== 'pause' && this.state.phase !== 'idle') {
+        this.onAudioEnded()
+      }
+    }
+
+    this.audio.addEventListener('ended', this.onEndedHandler)
+    this.audio.addEventListener('error', this.onErrorHandler)
   }
 
   // Event emitter
@@ -118,6 +128,9 @@ export class SimplePlayer {
         this.rounds.push(round)
       } else {
         this.rounds.splice(insertIndex, 0, round)
+        if (insertIndex <= this.state.roundIndex) {
+          this.state.roundIndex++
+        }
       }
       existingLegoIds.add(round.legoId)
     }
@@ -168,6 +181,7 @@ export class SimplePlayer {
     if (!this.state.isPlaying) return
     this.audio.pause()
     this.clearPauseTimer()
+    this.clearSafetyTimer()
     this.updateState({ isPlaying: false })
   }
 
@@ -178,7 +192,8 @@ export class SimplePlayer {
     if (this.state.phase === 'pause') {
       this.startPausePhase()
     } else if (this.state.phase !== 'idle') {
-      this.audio.play().catch(console.error)
+      // Re-start current phase to ensure correct audio src
+      this.startPhase(this.state.phase)
     }
   }
 
@@ -186,6 +201,7 @@ export class SimplePlayer {
     this.audio.pause()
     this.audio.src = ''
     this.clearPauseTimer()
+    this.clearSafetyTimer()
     this.updateState({ roundIndex: 0, cycleIndex: 0, phase: 'idle', isPlaying: false })
   }
 
@@ -194,6 +210,7 @@ export class SimplePlayer {
 
   skipRound(): void {
     this.clearPauseTimer()
+    this.clearSafetyTimer()
     this.audio.pause()
     this.advanceRound()
   }
@@ -261,8 +278,16 @@ export class SimplePlayer {
   }
 
   private playAudio(url: string): void {
+    this.clearSafetyTimer()
     this.audio.src = url
-    this.audio.play().catch(console.error)
+    this.audio.play().catch((err) => {
+      console.warn('[SimplePlayer] play() rejected:', err.message)
+      this.onAudioEnded()
+    })
+    this.safetyTimer = setTimeout(() => {
+      console.warn('[SimplePlayer] Safety timeout — audio ended event never fired, advancing')
+      this.onAudioEnded()
+    }, 10_000)
   }
 
   private startPausePhase(): void {
@@ -279,7 +304,15 @@ export class SimplePlayer {
     }
   }
 
+  private clearSafetyTimer(): void {
+    if (this.safetyTimer) {
+      clearTimeout(this.safetyTimer)
+      this.safetyTimer = null
+    }
+  }
+
   private onAudioEnded(): void {
+    this.clearSafetyTimer()
     if (!this.state.isPlaying) return
 
     const nextPhase = this.getNextPhase()
@@ -343,5 +376,12 @@ export class SimplePlayer {
   private updateState(partial: Partial<PlaybackState>): void {
     this.state = { ...this.state, ...partial }
     this.emit('state_changed', this.currentState)
+  }
+
+  dispose(): void {
+    this.stop()
+    this.audio.removeEventListener('ended', this.onEndedHandler)
+    this.audio.removeEventListener('error', this.onErrorHandler)
+    this.listeners.clear()
   }
 }
