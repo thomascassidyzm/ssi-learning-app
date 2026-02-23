@@ -18,7 +18,7 @@
  * - Thresholds: 0, 8, 20, 40, 80, 150, 280, 400 seeds
  */
 
-import { ref, computed, watch, type Ref } from 'vue'
+import { ref, shallowRef, computed, watch, type Ref } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 // ============================================================================
@@ -753,7 +753,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
 // SHARED INSTANCE
 // ============================================================================
 
-let sharedInstance: ReturnType<typeof useBeltProgress> | null = null
+const sharedInstanceRef = shallowRef<ReturnType<typeof useBeltProgress> | null>(null)
 let sharedCourseCode: string | null = null
 let sharedSyncConfig: BeltProgressSyncConfig | null = null
 
@@ -762,21 +762,22 @@ export function useSharedBeltProgress(
   syncConfig?: BeltProgressSyncConfig
 ): ReturnType<typeof useBeltProgress> {
   if (
-    sharedInstance &&
+    sharedInstanceRef.value &&
     sharedCourseCode === courseCode &&
     JSON.stringify(sharedSyncConfig) === JSON.stringify(syncConfig)
   ) {
-    return sharedInstance
+    return sharedInstanceRef.value
   }
 
-  sharedInstance = useBeltProgress(courseCode, syncConfig)
+  const instance = useBeltProgress(courseCode, syncConfig)
   sharedCourseCode = courseCode
   sharedSyncConfig = syncConfig ?? null
-  sharedInstance.initializeSync()
+  instance.initializeSync()
+  sharedInstanceRef.value = instance
 
-  return sharedInstance
+  return instance
 }
 
 export function getSharedBeltProgress(): ReturnType<typeof useBeltProgress> | null {
-  return sharedInstance
+  return sharedInstanceRef.value
 }
