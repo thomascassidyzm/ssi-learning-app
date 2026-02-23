@@ -41,7 +41,7 @@ const emit = defineEmits(['open-belts', 'open-brain', 'select-course', 'close', 
 const showBeltBrowser = ref(false)
 
 // Supabase for course fetching
-const supabaseClient = inject('supabase')
+const supabaseRef = inject('supabase', ref(null))
 
 // Belt progress
 const beltProgress = computed(() => getSharedBeltProgress())
@@ -83,13 +83,14 @@ const isLoadingCourses = ref(true)
 
 const fetchCourses = async () => {
   isLoadingCourses.value = true
-  if (!supabaseClient) {
+  const client = supabaseRef.value
+  if (!client) {
     isLoadingCourses.value = false
     return
   }
 
   try {
-    const { data, error } = await supabaseClient
+    const { data, error } = await client
       .from('courses')
       .select('*')
       .order('display_name')
