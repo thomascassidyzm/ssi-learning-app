@@ -6298,12 +6298,7 @@ defineExpose({
               </p>
             </div>
 
-            <!-- Target text - always present for stable sizing, opacity controlled -->
-            <div class="hero-text-target" :class="{ 'is-visible': showTargetText }">
-              <p class="hero-target">
-                {{ displayedTargetText }}
-              </p>
-            </div>
+            <!-- Target text removed — duplicated by LEGO tiles below -->
           </div>
         </template>
       </div>
@@ -6757,12 +6752,7 @@ defineExpose({
         <!-- Visual separator -->
         <div class="pane-text-divider"></div>
 
-        <!-- Target Language Text - always present for stable sizing, opacity controlled -->
-        <div class="pane-text-target" :class="{ 'is-visible': showTargetText }">
-          <p class="target-text">
-            {{ displayedTargetText }}
-          </p>
-        </div>
+        <!-- Target text removed — duplicated by LEGO tiles below -->
 
         <!-- Component Breakdown for M-type LEGOs (visual only, shown during intro) -->
         <div v-if="displayedComponents.length > 0 && isIntroPhase" class="pane-components">
@@ -10515,72 +10505,75 @@ defineExpose({
   pointer-events: none;
 }
 
-/* --- Stars → Cherry blossom petals --- */
+/* --- Stars → Rising bubbles (small) --- */
 [data-theme="mist"] .player .star-field .star {
-  background: #E8B4B8;
-  box-shadow: none;
-  width: 10px;
-  height: 12px;
-  border-radius: 50% 0 50% 50%;
-  opacity: 0.7;
-  animation: petal-fall 10s linear infinite, petal-sway 4s ease-in-out infinite;
+  background: radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.6), rgba(122, 110, 98, 0.08));
+  box-shadow: inset 0 -2px 4px rgba(122, 110, 98, 0.06), 0 0 3px rgba(122, 110, 98, 0.04);
+  border: 1px solid rgba(122, 110, 98, 0.06);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  animation: bubble-rise 14s ease-in infinite;
 }
 
 [data-theme="mist"] .player .star-field .star:nth-child(odd) {
-  animation-delay: -3s, -1.5s;
-  background: #DAADB0;
-  width: 11px;
-  height: 13px;
-  box-shadow: none;
+  animation-delay: -4s;
+  animation-duration: 18s;
+  width: 5px;
+  height: 5px;
+  background: radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.5), rgba(122, 110, 98, 0.06));
+  box-shadow: inset 0 -1px 3px rgba(122, 110, 98, 0.05);
 }
 
 [data-theme="mist"] .player .star-field .star:nth-child(3n) {
-  width: 8px;
-  height: 10px;
-  background: #D4A0A4;
-  animation-duration: 13s, 5s;
+  width: 12px;
+  height: 12px;
+  animation-duration: 20s;
+  animation-delay: -10s;
 }
 
-@keyframes petal-fall {
-  0% { transform: translateY(-10vh) rotate(0deg); opacity: 0; }
-  5% { opacity: 0.7; }
-  85% { opacity: 0.5; }
-  100% { transform: translateY(105vh) rotate(360deg); opacity: 0; }
+[data-theme="mist"] .player .star-field .star:nth-child(5n) {
+  width: 6px;
+  height: 6px;
+  animation-duration: 16s;
+  animation-delay: -7s;
 }
 
-@keyframes petal-sway {
-  0%, 100% { margin-left: 0; }
-  25% { margin-left: 15px; }
-  75% { margin-left: -10px; }
+@keyframes bubble-rise {
+  0% { transform: translateY(0) translateX(0) scale(0.6); opacity: 0; }
+  8% { opacity: 0.35; transform: translateY(-8vh) translateX(2px) scale(0.8); }
+  25% { transform: translateY(-25vh) translateX(-4px) scale(0.9); opacity: 0.3; }
+  50% { transform: translateY(-50vh) translateX(3px) scale(1); opacity: 0.25; }
+  75% { transform: translateY(-75vh) translateX(-2px) scale(1.05); opacity: 0.15; }
+  100% { transform: translateY(-105vh) translateX(1px) scale(1.1); opacity: 0; }
 }
 
-/* --- Drift stars → Larger foreground petals --- */
+/* --- Drift stars → Rising bubbles (large, foreground) --- */
 [data-theme="mist"] .player .drift-star {
-  background: #E8B4B8;
-  box-shadow: none;
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.7), rgba(122, 110, 98, 0.06));
+  box-shadow: inset 0 -3px 6px rgba(122, 110, 98, 0.06), 0 0 6px rgba(122, 110, 98, 0.03);
+  border: 1px solid rgba(122, 110, 98, 0.08);
   clip-path: none;
-  border-radius: 50% 0 50% 50%;
-  width: 14px;
-  height: 16px;
-  opacity: 0.5;
-  animation: petal-fall 16s linear infinite, petal-sway 6s ease-in-out infinite;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  animation: bubble-rise 22s ease-in infinite;
 }
 
 [data-theme="mist"] .player .drift-star:nth-child(even) {
-  animation-duration: 20s, 7s;
-  animation-delay: -8s, -3s;
-  background: #DAADB0;
-  width: 16px;
-  height: 18px;
-  box-shadow: none;
+  animation-duration: 28s;
+  animation-delay: -12s;
+  width: 24px;
+  height: 24px;
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.6), rgba(122, 110, 98, 0.04));
+  box-shadow: inset 0 -3px 6px rgba(122, 110, 98, 0.05), 0 0 8px rgba(122, 110, 98, 0.03);
 }
 
 [data-theme="mist"] .player .drift-star:nth-child(3n) {
-  animation-duration: 22s, 5s;
-  animation-delay: -12s, -2s;
-  width: 12px;
+  animation-duration: 32s;
+  animation-delay: -18s;
+  width: 14px;
   height: 14px;
-  background: #D4A0A4;
 }
 
 /* --- Nebula glow → Warm vermillion floor accent --- */
@@ -10599,11 +10592,13 @@ defineExpose({
   display: block;
 }
 
-/* --- Hero glass → Solid paper card --- */
+/* --- Hero glass → Solid paper card with belt accent --- */
 [data-theme="mist"] .player .hero-glass {
   background: #FAF6EC;
-  border: 1px solid rgba(122, 110, 98, 0.15);
-  box-shadow: 0 2px 6px rgba(44, 38, 34, 0.08), 0 8px 24px rgba(44, 38, 34, 0.06);
+  border: 1px solid color-mix(in srgb, var(--belt-color) 25%, rgba(122, 110, 98, 0.12));
+  box-shadow: 0 2px 6px rgba(44, 38, 34, 0.08),
+              0 8px 24px rgba(44, 38, 34, 0.06),
+              0 0 0 1px color-mix(in srgb, var(--belt-glow) 8%, transparent);
 }
 
 /* --- Hero text --- */
@@ -10612,15 +10607,17 @@ defineExpose({
 }
 
 [data-theme="mist"] .player .hero-target {
-  color: #1A1614;
+  color: color-mix(in srgb, var(--belt-color) 70%, #1A1614);
   text-shadow: none;
 }
 
-/* --- Control bar → Solid paper --- */
+/* --- Control bar → Solid paper with belt accent --- */
 [data-theme="mist"] .player .control-bar {
   background: #FAF6EC;
-  border: 1px solid rgba(122, 110, 98, 0.12);
-  box-shadow: 0 2px 6px rgba(44, 38, 34, 0.08), 0 8px 20px rgba(44, 38, 34, 0.05);
+  border: 1px solid color-mix(in srgb, var(--belt-color) 20%, rgba(122, 110, 98, 0.1));
+  box-shadow: 0 2px 6px rgba(44, 38, 34, 0.08),
+              0 8px 20px rgba(44, 38, 34, 0.05),
+              0 0 15px color-mix(in srgb, var(--belt-glow) 8%, transparent);
 }
 
 /* --- Mode / Transport buttons --- */
