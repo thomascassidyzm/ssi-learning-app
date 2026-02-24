@@ -672,8 +672,8 @@ onMounted(() => {
 }
 
 :root[data-theme="mist"] .course-selector .selector-content {
-  background: #ffffff;
-  border: 1px solid rgba(140, 120, 115, 0.1);
-  box-shadow: 0 4px 12px rgba(60, 40, 45, 0.08), 0 20px 60px rgba(60, 40, 45, 0.1);
+  background: #FAF6EC;
+  border: 1px solid rgba(122, 110, 98, 0.12);
+  box-shadow: 0 4px 12px rgba(44, 38, 34, 0.1), 0 20px 60px rgba(44, 38, 34, 0.12);
 }
 </style>

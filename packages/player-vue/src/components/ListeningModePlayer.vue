@@ -871,23 +871,24 @@ defineExpose({
   box-shadow: 0 0 4px var(--belt-color);
 }
 
-/* ============ MIST THEME OVERRIDES - Bright light mode ============ */
+/* ============ WASHI PAPER DOJO THEME ============ */
 :root[data-theme="mist"] .space-gradient {
   background:
-    radial-gradient(ellipse 120% 80% at 20% 10%, rgba(200, 210, 230, 0.4) 0%, transparent 50%),
-    radial-gradient(ellipse 100% 60% at 80% 90%, rgba(210, 200, 220, 0.3) 0%, transparent 40%),
-    radial-gradient(ellipse 80% 80% at 50% 50%, #f5f5f7 0%, #e8e8ec 100%);
+    radial-gradient(ellipse 90% 70% at 15% 10%, rgba(255, 248, 230, 0.6) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 60% at 80% 90%, rgba(232, 224, 206, 0.4) 0%, transparent 40%),
+    radial-gradient(ellipse 80% 80% at 50% 50%, #F0E8D6 0%, #E8E0CE 100%);
 }
 
 :root[data-theme="mist"] .space-nebula {
   background:
-    radial-gradient(ellipse 60% 40% at 30% 30%, rgba(180, 190, 210, 0.15) 0%, transparent 50%),
-    radial-gradient(ellipse 50% 30% at 70% 60%, rgba(200, 180, 200, 0.1) 0%, transparent 40%);
+    radial-gradient(ellipse 60% 40% at 30% 30%, rgba(122, 110, 98, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 30% at 70% 60%, rgba(122, 110, 98, 0.05) 0%, transparent 40%);
 }
 
 :root[data-theme="mist"] .bg-noise {
-  opacity: 0.02;
-  filter: invert(1);
+  opacity: 0.05;
+  filter: none;
+  mix-blend-mode: multiply;
 }
 
 /* ============ HEADER ============ */

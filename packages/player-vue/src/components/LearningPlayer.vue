@@ -10473,21 +10473,21 @@ defineExpose({
 <style>
 /* --- Player wrapper background --- */
 [data-theme="mist"] .player {
-  background: #f7f4f2;
+  background: #F0E8D6;
 }
 
-/* --- Space / Background layers --- */
+/* --- Space / Background layers → Washi paper --- */
 [data-theme="mist"] .player .space-gradient {
   background:
-    radial-gradient(ellipse 120% 80% at 20% 10%, rgba(200, 175, 170, 0.2) 0%, transparent 50%),
-    radial-gradient(ellipse 100% 60% at 80% 90%, rgba(190, 170, 165, 0.15) 0%, transparent 40%),
-    radial-gradient(ellipse 80% 80% at 50% 50%, #f7f4f2 0%, #f0edea 100%);
+    radial-gradient(ellipse 90% 70% at 15% 10%, rgba(255, 248, 230, 0.6) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 60% at 80% 90%, rgba(232, 224, 206, 0.4) 0%, transparent 40%),
+    radial-gradient(ellipse 80% 80% at 50% 50%, #F0E8D6 0%, #E8E0CE 100%);
 }
 
 [data-theme="mist"] .player .space-nebula {
   background:
-    linear-gradient(180deg, transparent 0%, rgba(190, 170, 165, 0.06) 30%, rgba(190, 170, 165, 0.08) 50%, transparent 70%),
-    linear-gradient(180deg, transparent 40%, rgba(190, 170, 165, 0.04) 60%, transparent 80%);
+    linear-gradient(180deg, transparent 0%, rgba(122, 110, 98, 0.04) 30%, rgba(122, 110, 98, 0.06) 50%, transparent 70%),
+    linear-gradient(180deg, transparent 40%, rgba(122, 110, 98, 0.03) 60%, transparent 80%);
   animation: mist-drift 20s ease-in-out infinite;
 }
 
@@ -10497,101 +10497,101 @@ defineExpose({
 }
 
 [data-theme="mist"] .player .bg-noise {
-  opacity: 0.04;
+  opacity: 0.06;
   filter: none;
   mix-blend-mode: multiply;
 }
 
-/* Subtle vertical lines */
+/* Subtle washi fiber lines */
 [data-theme="mist"] .player .bg-noise::after {
   content: '';
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, transparent 18%, rgba(140, 120, 115, 0.015) 18.5%, transparent 19%),
-    linear-gradient(90deg, transparent 42%, rgba(140, 120, 115, 0.01) 42.3%, transparent 42.8%),
-    linear-gradient(90deg, transparent 71%, rgba(140, 120, 115, 0.015) 71.4%, transparent 72%),
-    linear-gradient(90deg, transparent 89%, rgba(140, 120, 115, 0.01) 89.3%, transparent 89.8%);
+    linear-gradient(90deg, transparent 18%, rgba(122, 110, 98, 0.02) 18.5%, transparent 19%),
+    linear-gradient(90deg, transparent 42%, rgba(122, 110, 98, 0.015) 42.3%, transparent 42.8%),
+    linear-gradient(90deg, transparent 71%, rgba(122, 110, 98, 0.02) 71.4%, transparent 72%),
+    linear-gradient(90deg, transparent 89%, rgba(122, 110, 98, 0.015) 89.3%, transparent 89.8%);
   pointer-events: none;
 }
 
-/* --- Stars → Warm fireflies --- */
+/* --- Stars → Cherry blossom petals --- */
 [data-theme="mist"] .player .star-field .star {
-  background: rgba(180, 140, 50, 0.9);
-  box-shadow: 0 0 8px 3px rgba(180, 140, 50, 0.35);
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  animation: firefly-glow 4s ease-in-out infinite, firefly-drift 12s ease-in-out infinite;
+  background: #E8B4B8;
+  box-shadow: none;
+  width: 10px;
+  height: 12px;
+  border-radius: 50% 0 50% 50%;
+  opacity: 0.7;
+  animation: petal-fall 10s linear infinite, petal-sway 4s ease-in-out infinite;
 }
 
 [data-theme="mist"] .player .star-field .star:nth-child(odd) {
-  animation-delay: -2s, -6s;
-  background: rgba(170, 60, 50, 0.7);
-  box-shadow: 0 0 8px 3px rgba(170, 60, 50, 0.25);
+  animation-delay: -3s, -1.5s;
+  background: #DAADB0;
+  width: 11px;
+  height: 13px;
+  box-shadow: none;
 }
 
 [data-theme="mist"] .player .star-field .star:nth-child(3n) {
-  width: 3px;
-  height: 3px;
-  animation-duration: 5s, 15s;
+  width: 8px;
+  height: 10px;
+  background: #D4A0A4;
+  animation-duration: 13s, 5s;
 }
 
-@keyframes firefly-glow {
-  0%, 100% { opacity: 0.1; }
-  40% { opacity: 0.7; }
-  60% { opacity: 0.4; }
+@keyframes petal-fall {
+  0% { transform: translateY(-10vh) rotate(0deg); opacity: 0; }
+  5% { opacity: 0.7; }
+  85% { opacity: 0.5; }
+  100% { transform: translateY(105vh) rotate(360deg); opacity: 0; }
 }
 
-@keyframes firefly-drift {
-  0%, 100% { transform: translate(0, 0); }
-  25% { transform: translate(3px, -8px); }
-  50% { transform: translate(-2px, -14px); }
-  75% { transform: translate(4px, -6px); }
+@keyframes petal-sway {
+  0%, 100% { margin-left: 0; }
+  25% { margin-left: 15px; }
+  75% { margin-left: -10px; }
 }
 
-/* --- Drift stars → Floating motes --- */
+/* --- Drift stars → Larger foreground petals --- */
 [data-theme="mist"] .player .drift-star {
-  background: rgba(180, 140, 50, 0.6);
-  box-shadow: 0 0 10px 4px rgba(180, 140, 50, 0.2);
+  background: #E8B4B8;
+  box-shadow: none;
   clip-path: none;
-  border-radius: 50%;
-  width: 4px;
-  height: 4px;
-  animation: mote-rise 18s ease-in-out infinite;
+  border-radius: 50% 0 50% 50%;
+  width: 14px;
+  height: 16px;
+  opacity: 0.5;
+  animation: petal-fall 16s linear infinite, petal-sway 6s ease-in-out infinite;
 }
 
 [data-theme="mist"] .player .drift-star:nth-child(even) {
-  animation-duration: 22s;
-  animation-delay: -8s;
-  background: rgba(194, 58, 58, 0.2);
-  box-shadow: 0 0 8px 3px rgba(194, 58, 58, 0.06);
+  animation-duration: 20s, 7s;
+  animation-delay: -8s, -3s;
+  background: #DAADB0;
+  width: 16px;
+  height: 18px;
+  box-shadow: none;
 }
 
 [data-theme="mist"] .player .drift-star:nth-child(3n) {
-  animation-duration: 25s;
-  animation-delay: -12s;
-  width: 3px;
-  height: 3px;
+  animation-duration: 22s, 5s;
+  animation-delay: -12s, -2s;
+  width: 12px;
+  height: 14px;
+  background: #D4A0A4;
 }
 
-@keyframes mote-rise {
-  0% { transform: translateY(0) translateX(0); opacity: 0; }
-  10% { opacity: 0.2; }
-  50% { transform: translateY(-40vh) translateX(10px); opacity: 0.15; }
-  90% { opacity: 0.05; }
-  100% { transform: translateY(-80vh) translateX(-5px); opacity: 0; }
-}
-
-/* --- Nebula glow → Warm floor glow --- */
+/* --- Nebula glow → Warm vermillion floor accent --- */
 [data-theme="mist"] .player .nebula-glow {
   background:
     linear-gradient(
       to top,
-      rgba(194, 58, 58, 0.06) 0%,
+      rgba(193, 39, 45, 0.08) 0%,
       transparent 25%
     );
-  opacity: 0.5;
+  opacity: 0.6;
 }
 
 /* --- Mountain silhouette (shown only in mist) --- */
@@ -10599,81 +10599,75 @@ defineExpose({
   display: block;
 }
 
-/* --- Hero glass → Frosted card --- */
+/* --- Hero glass → Solid paper card --- */
 [data-theme="mist"] .player .hero-glass {
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(140, 120, 115, 0.1);
-  box-shadow: 0 2px 6px rgba(60, 40, 45, 0.06), 0 8px 24px rgba(60, 40, 45, 0.05);
-  backdrop-filter: blur(20px) saturate(1.2);
-  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  background: #FAF6EC;
+  border: 1px solid rgba(122, 110, 98, 0.15);
+  box-shadow: 0 2px 6px rgba(44, 38, 34, 0.08), 0 8px 24px rgba(44, 38, 34, 0.06);
 }
 
 /* --- Hero text --- */
 [data-theme="mist"] .player .hero-known {
-  color: #1c1917;
+  color: #1A1614;
 }
 
 [data-theme="mist"] .player .hero-target {
-  color: #1c1917;
+  color: #1A1614;
   text-shadow: none;
 }
 
-/* --- Control bar → Frosted card --- */
+/* --- Control bar → Solid paper --- */
 [data-theme="mist"] .player .control-bar {
-  background: rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(140, 120, 115, 0.1);
-  box-shadow: 0 2px 6px rgba(60, 40, 45, 0.06), 0 8px 20px rgba(60, 40, 45, 0.04);
-  backdrop-filter: blur(20px) saturate(1.2);
-  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  background: #FAF6EC;
+  border: 1px solid rgba(122, 110, 98, 0.12);
+  box-shadow: 0 2px 6px rgba(44, 38, 34, 0.08), 0 8px 20px rgba(44, 38, 34, 0.05);
 }
 
 /* --- Mode / Transport buttons --- */
 [data-theme="mist"] .player .mode-btn,
 [data-theme="mist"] .player .transport-btn {
-  background: rgba(140, 120, 115, 0.07);
-  border-color: rgba(140, 120, 115, 0.1);
-  color: rgba(28, 25, 23, 0.7);
+  background: rgba(122, 110, 98, 0.08);
+  border-color: rgba(122, 110, 98, 0.12);
+  color: #2C2622;
 }
 
 [data-theme="mist"] .player .mode-btn:hover,
 [data-theme="mist"] .player .transport-btn:hover {
-  background: rgba(140, 120, 115, 0.12);
+  background: rgba(122, 110, 98, 0.14);
 }
 
 [data-theme="mist"] .player .mode-btn.active {
-  background: rgba(140, 120, 115, 0.14);
-  color: #1c1917;
+  background: rgba(122, 110, 98, 0.16);
+  color: #1A1614;
 }
 
 [data-theme="mist"] .player .mode-picker {
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(140, 120, 115, 0.1);
-  box-shadow: 0 4px 12px rgba(60, 40, 45, 0.08), 0 12px 40px rgba(60, 40, 45, 0.06);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: #FAF6EC;
+  border: 1px solid rgba(122, 110, 98, 0.12);
+  box-shadow: 0 4px 12px rgba(44, 38, 34, 0.1), 0 12px 40px rgba(44, 38, 34, 0.07);
 }
 
 [data-theme="mist"] .player .mode-picker-option {
-  background: rgba(140, 120, 115, 0.06);
-  border-color: rgba(140, 120, 115, 0.1);
-  color: #1c1917;
+  background: rgba(122, 110, 98, 0.07);
+  border-color: rgba(122, 110, 98, 0.12);
+  color: #1A1614;
 }
 
-/* --- Brain Network overrides --- */
+/* --- Brain Network overrides → Ink tones --- */
 [data-theme="mist"] .player .brain-network-container .network-link {
-  stroke: rgba(140, 120, 115, 0.12);
+  stroke: rgba(122, 110, 98, 0.15);
 }
 
 [data-theme="mist"] .player .brain-network-container .network-label {
-  fill: rgba(28, 25, 23, 0.55);
+  fill: rgba(26, 22, 20, 0.5);
 }
 
 [data-theme="mist"] .player .brain-network-container .network-label.visible {
-  fill: rgba(28, 25, 23, 0.7);
+  fill: rgba(26, 22, 20, 0.7);
 }
 
 [data-theme="mist"] .player .brain-network-container .network-label.active {
-  fill: #1c1917;
+  fill: #1A1614;
   filter: none;
   text-shadow: none;
 }
@@ -10684,18 +10678,18 @@ defineExpose({
 
 @keyframes mist-node-pulse {
   0%, 100% {
-    filter: drop-shadow(0 0 6px rgba(60, 40, 45, 0.25));
+    filter: drop-shadow(0 0 6px rgba(44, 38, 34, 0.25));
     transform: scale(1);
   }
   50% {
-    filter: drop-shadow(0 0 14px rgba(60, 40, 45, 0.4));
+    filter: drop-shadow(0 0 14px rgba(44, 38, 34, 0.4));
     transform: scale(1.1);
   }
 }
 
 /* --- Belt celebration overlay --- */
 [data-theme="mist"] .player .belt-celebration-overlay {
-  background: rgba(30, 20, 25, 0.6);
+  background: rgba(26, 22, 20, 0.6);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
@@ -10712,21 +10706,19 @@ defineExpose({
 }
 
 [data-theme="mist"] .player .ink-spirit-reward .ink-word {
-  color: #1c1917;
+  color: #1A1614;
 }
 
-/* --- Learning hint box --- */
+/* --- Learning hint box → Solid paper --- */
 [data-theme="mist"] .player .learning-hint,
 [data-theme="mist"] .player .learning-hint-box {
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(140, 120, 115, 0.1);
-  box-shadow: 0 2px 6px rgba(60, 40, 45, 0.06), 0 8px 24px rgba(60, 40, 45, 0.05);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  color: rgba(28, 25, 23, 0.7);
+  background: #FAF6EC;
+  border: 1px solid rgba(122, 110, 98, 0.12);
+  box-shadow: 0 2px 6px rgba(44, 38, 34, 0.08), 0 8px 24px rgba(44, 38, 34, 0.06);
+  color: #2C2622;
 }
 
 [data-theme="mist"] .player .learning-hint-box .hint-text {
-  color: rgba(28, 25, 23, 0.7);
+  color: #2C2622;
 }
 </style>

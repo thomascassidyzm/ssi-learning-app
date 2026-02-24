@@ -582,11 +582,9 @@ const isVisible = computed(() => !props.isLearning)
    MISTY DOJO THEME
    ═══════════════════════════════════════════════════════════════ */
 :root[data-theme="mist"] .nav-backdrop {
-  background: rgba(255, 253, 251, 0.82);
-  border-top: 1px solid rgba(140, 120, 115, 0.08);
-  box-shadow: 0 -1px 3px rgba(60, 40, 45, 0.04), 0 -6px 20px rgba(60, 40, 45, 0.03);
-  backdrop-filter: blur(20px) saturate(1.2);
-  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  background: #1A1614;
+  border-top: 1px solid rgba(168, 156, 142, 0.12);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.15);
 }
 
 :root[data-theme="mist"] .nav-backdrop::before {
@@ -594,14 +592,18 @@ const isVisible = computed(() => !props.isLearning)
 }
 
 :root[data-theme="mist"] .nav-icon {
-  color: var(--text-muted);
+  color: #A89C8E;
 }
 
 :root[data-theme="mist"] .nav-label {
-  color: var(--text-muted);
+  color: #A89C8E;
+}
+
+:root[data-theme="mist"] .nav-item.active .nav-icon {
+  color: #FAF6EC;
 }
 
 :root[data-theme="mist"] .nav-item.active .nav-label {
-  color: var(--text-primary);
+  color: #FAF6EC;
 }
 </style>

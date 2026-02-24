@@ -231,36 +231,36 @@
 }
 
 /* ================================================================
- * MIST THEME (Sakura Glass)
- * Warm rose-cream with Apple-style frosted depth
+ * MIST THEME (Washi Paper Dojo)
+ * Warm Japanese paper tones, ink-brush styling, dark lacquered nav
  * ================================================================ */
 [data-theme="mist"] {
-  /* Background hierarchy — rose cream */
-  --bg-primary: #f7f4f2;
-  --bg-secondary: #faf8f7;
-  --bg-card: #ffffff;
-  --bg-card-hover: #fdfcfb;
-  --bg-elevated: #ffffff;
-  --bg-input: #f5f2f0;
-  --bg-overlay: rgba(30, 20, 25, 0.4);
+  /* Background hierarchy — washi cream */
+  --bg-primary: #F0E8D6;
+  --bg-secondary: #FAF6EC;
+  --bg-card: #FAF6EC;
+  --bg-card-hover: #F5EFE1;
+  --bg-elevated: #FAF6EC;
+  --bg-input: #E8E0CE;
+  --bg-overlay: rgba(26, 22, 20, 0.4);
 
-  /* Text hierarchy — warm near-black */
-  --text-primary: #1c1917;
-  --text-secondary: rgba(60, 50, 45, 0.78);
-  --text-muted: rgba(120, 105, 95, 0.7);
-  --text-inverse: #faf8f7;
+  /* Text hierarchy — ink palette */
+  --text-primary: #1A1614;
+  --text-secondary: #2C2622;
+  --text-muted: #7A6E62;
+  --text-inverse: #FAF6EC;
 
-  /* Borders — rose-gray (barely there, shadows do the work) */
-  --border-subtle: rgba(140, 120, 115, 0.1);
-  --border-medium: rgba(140, 120, 115, 0.18);
-  --border-strong: rgba(140, 120, 115, 0.3);
+  /* Borders — warm brown */
+  --border-subtle: rgba(122, 110, 98, 0.12);
+  --border-medium: rgba(122, 110, 98, 0.22);
+  --border-strong: rgba(122, 110, 98, 0.35);
   --border-focus: var(--ssi-red);
 
-  /* Shadows — iOS-style diffuse with warm rose tint */
-  --shadow-sm: 0 1px 3px rgba(60, 40, 45, 0.06), 0 4px 12px rgba(60, 40, 45, 0.04);
-  --shadow-md: 0 2px 6px rgba(60, 40, 45, 0.07), 0 8px 24px rgba(60, 40, 45, 0.05);
-  --shadow-lg: 0 4px 8px rgba(60, 40, 45, 0.07), 0 12px 40px rgba(60, 40, 45, 0.06);
-  --shadow-xl: 0 4px 12px rgba(60, 40, 45, 0.08), 0 20px 60px rgba(60, 40, 45, 0.08);
+  /* Shadows — warm brown-tint */
+  --shadow-sm: 0 1px 3px rgba(44, 38, 34, 0.08), 0 4px 12px rgba(44, 38, 34, 0.05);
+  --shadow-md: 0 2px 6px rgba(44, 38, 34, 0.09), 0 8px 24px rgba(44, 38, 34, 0.06);
+  --shadow-lg: 0 4px 8px rgba(44, 38, 34, 0.09), 0 12px 40px rgba(44, 38, 34, 0.07);
+  --shadow-xl: 0 4px 12px rgba(44, 38, 34, 0.1), 0 20px 60px rgba(44, 38, 34, 0.09);
   --shadow-glow: 0 0 30px rgba(194, 58, 58, 0.15);
   --shadow-glow-gold: 0 0 30px rgba(212, 168, 83, 0.2);
 
@@ -271,30 +271,30 @@
   /* Gradients */
   --gradient-accent: linear-gradient(145deg, #d94545 0%, #a83232 100%);
   --glow-accent: 0 4px 16px rgba(194, 58, 58, 0.15);
-  --glow-soft: rgba(140, 120, 115, 0.04);
+  --glow-soft: rgba(122, 110, 98, 0.04);
 
-  /* Special surfaces — frosted glass nav */
-  --nav-bg: rgba(255, 253, 251, 0.88);
-  --nav-bg-blur: rgba(255, 253, 251, 0.72);
+  /* Nav — dark lacquer (opaque) */
+  --nav-bg: #1A1614;
+  --nav-bg-blur: #1A1614;
 
-  /* Card styling — shadow-first, minimal border */
-  --card-shadow: 0 1px 3px rgba(60, 40, 45, 0.06), 0 6px 20px rgba(60, 40, 45, 0.05);
-  --card-border: 1px solid rgba(140, 120, 115, 0.1);
-  --chip-bg: #ffffff;
-  --chip-border: 1px solid rgba(140, 120, 115, 0.12);
-  --modal-backdrop: rgba(30, 20, 25, 0.5);
+  /* Card styling — solid paper, no glass */
+  --card-shadow: 0 1px 3px rgba(44, 38, 34, 0.08), 0 6px 20px rgba(44, 38, 34, 0.06);
+  --card-border: 1px solid rgba(122, 110, 98, 0.12);
+  --chip-bg: #FAF6EC;
+  --chip-border: 1px solid rgba(122, 110, 98, 0.15);
+  --modal-backdrop: rgba(26, 22, 20, 0.5);
 
-  /* Network visualization */
-  --network-bg: radial-gradient(ellipse at 50% 50%, rgba(180, 160, 155, 0.15) 0%, transparent 50%);
-  --network-node-fill: rgba(28, 25, 23, 0.7);
-  --network-node-stroke: rgba(28, 25, 23, 0.4);
-  --network-edge-stroke: rgba(140, 120, 115, 0.12);
-  --network-active-edge: #c07a5c;
-  --network-label-fill: rgba(28, 25, 23, 0.6);
+  /* Network visualization — ink tones */
+  --network-bg: radial-gradient(ellipse at 50% 50%, rgba(122, 110, 98, 0.12) 0%, transparent 50%);
+  --network-node-fill: rgba(26, 22, 20, 0.7);
+  --network-node-stroke: rgba(26, 22, 20, 0.4);
+  --network-edge-stroke: rgba(122, 110, 98, 0.15);
+  --network-active-edge: #8B5E3C;
+  --network-label-fill: rgba(26, 22, 20, 0.6);
 
   /* Decorative */
-  --mountain-opacity: 0.2;
-  --overlay-gradient: linear-gradient(180deg, rgba(247, 244, 242, 0) 0%, rgba(247, 244, 242, 0.9) 100%);
+  --mountain-opacity: 0.45;
+  --overlay-gradient: linear-gradient(180deg, rgba(240, 232, 214, 0) 0%, rgba(240, 232, 214, 0.9) 100%);
 
   /* Theme indicator */
   --theme-mode: light;

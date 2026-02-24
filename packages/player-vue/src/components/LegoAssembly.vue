@@ -304,42 +304,41 @@ const staggerDelay = (index: number): string => {
 <!-- Mist theme: paper LEGO chips instead of glass -->
 <style>
 :root[data-theme="mist"] .lego-block {
-  background: #ffffff;
-  backdrop-filter: none;
-  border: 1px solid rgba(140, 120, 115, 0.1);
-  box-shadow: 0 1px 3px rgba(60, 40, 45, 0.05), 0 4px 12px rgba(60, 40, 45, 0.04);
+  background: #FAF6EC;
+  border: 1px solid rgba(122, 110, 98, 0.12);
+  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.06), 0 4px 12px rgba(44, 38, 34, 0.05);
 }
 
 :root[data-theme="mist"] .lego-block .block-text {
-  color: #1c1917;
+  color: #1A1614;
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
 }
 
 :root[data-theme="mist"] .lego-block.assembled {
-  background: #ffffff;
-  border-color: var(--belt-accent, rgba(140, 120, 115, 0.15));
+  background: #FAF6EC;
+  border-color: var(--belt-accent, rgba(122, 110, 98, 0.18));
   box-shadow:
-    0 1px 3px rgba(60, 40, 45, 0.05),
-    0 6px 16px color-mix(in srgb, var(--belt-accent, rgba(140, 120, 115, 0.15)) 18%, transparent);
+    0 1px 3px rgba(44, 38, 34, 0.06),
+    0 6px 16px color-mix(in srgb, var(--belt-accent, rgba(122, 110, 98, 0.18)) 18%, transparent);
 }
 
 :root[data-theme="mist"] .lego-block.salient {
-  background: #ffffff;
-  border-color: var(--belt-accent, rgba(140, 120, 115, 0.25));
+  background: #FAF6EC;
+  border-color: var(--belt-accent, rgba(122, 110, 98, 0.28));
   border-width: 2px;
   box-shadow:
-    0 2px 4px rgba(60, 40, 45, 0.06),
-    0 8px 24px color-mix(in srgb, var(--belt-accent, rgba(140, 120, 115, 0.15)) 25%, transparent);
+    0 2px 4px rgba(44, 38, 34, 0.07),
+    0 8px 24px color-mix(in srgb, var(--belt-accent, rgba(122, 110, 98, 0.18)) 25%, transparent);
 }
 
 :root[data-theme="mist"] .lego-block.salient .block-text {
-  color: #1c1917;
+  color: #1A1614;
 }
 
 :root[data-theme="mist"] .lego-block.salient.assembled {
-  background: #fdfcfb;
+  background: #F5EFE1;
   box-shadow:
-    0 2px 6px rgba(60, 40, 45, 0.06),
-    0 8px 28px color-mix(in srgb, var(--belt-accent, rgba(140, 120, 115, 0.15)) 28%, transparent);
+    0 2px 6px rgba(44, 38, 34, 0.07),
+    0 8px 28px color-mix(in srgb, var(--belt-accent, rgba(122, 110, 98, 0.18)) 28%, transparent);
 }
 </style>
