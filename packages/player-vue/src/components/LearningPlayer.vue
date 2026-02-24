@@ -6384,43 +6384,63 @@ defineExpose({
     <!-- Subtle Nebula Glow - Belt colored -->
     <div class="nebula-glow"></div>
 
-    <!-- Mountain Silhouette - Visible only in mist theme -->
+    <!-- Landscape Silhouette - Visible only in mist theme -->
     <div class="mountain-silhouette">
-      <svg viewBox="0 0 1200 400" preserveAspectRatio="xMidYMax slice" xmlns="http://www.w3.org/2000/svg">
-        <!-- Far peaks -->
-        <g opacity="0.3">
-          <path d="M0 400 L0 280 Q100 180 200 240 Q300 160 400 200 Q500 120 600 180 Q700 100 800 160 Q900 80 1000 200 Q1100 160 1200 220 L1200 400Z" fill="currentColor"/>
+      <svg viewBox="0 0 1200 1000" preserveAspectRatio="xMidYMax slice" xmlns="http://www.w3.org/2000/svg">
+        <!-- Distant misty peaks (very faint, high up) -->
+        <g opacity="0.12">
+          <path d="M0 1000 L0 340 Q80 240 160 300 Q240 180 360 260 Q440 160 540 220 Q620 120 720 200 Q800 80 920 180 Q1000 100 1080 200 Q1140 160 1200 240 L1200 1000Z" fill="currentColor"/>
         </g>
-        <!-- Mid range with torii + pagoda -->
-        <g opacity="0.5">
-          <path d="M0 400 L0 320 Q150 260 300 290 Q450 240 600 270 Q750 220 900 260 Q1050 230 1200 280 L1200 400Z" fill="currentColor"/>
-          <!-- Torii gate -->
-          <g transform="translate(350, 250)">
-            <rect x="-12" y="0" width="3" height="40" fill="currentColor"/>
-            <rect x="9" y="0" width="3" height="40" fill="currentColor"/>
-            <rect x="-16" y="0" width="32" height="3" rx="1" fill="currentColor"/>
-            <rect x="-14" y="8" width="28" height="2" fill="currentColor"/>
+        <!-- Far mountain range -->
+        <g opacity="0.18">
+          <path d="M0 1000 L0 440 Q120 340 240 400 Q360 300 480 370 Q580 280 700 350 Q820 260 940 340 Q1060 290 1200 380 L1200 1000Z" fill="currentColor"/>
+        </g>
+        <!-- Mid hills with torii gate -->
+        <g opacity="0.28">
+          <path d="M0 1000 L0 560 Q100 480 220 520 Q360 440 500 500 Q620 450 740 490 Q860 420 980 480 Q1100 450 1200 500 L1200 1000Z" fill="currentColor"/>
+          <!-- Torii gate on ridge -->
+          <g transform="translate(420, 455)">
+            <rect x="-14" y="0" width="3.5" height="45" fill="currentColor"/>
+            <rect x="10.5" y="0" width="3.5" height="45" fill="currentColor"/>
+            <rect x="-18" y="0" width="36" height="3.5" rx="1.5" fill="currentColor"/>
+            <rect x="-16" y="9" width="32" height="2.5" fill="currentColor"/>
           </g>
+        </g>
+        <!-- Rolling hills with pagoda -->
+        <g opacity="0.38">
+          <path d="M0 1000 L0 660 Q140 600 280 630 Q400 580 540 620 Q680 570 800 610 Q920 580 1060 620 Q1140 600 1200 640 L1200 1000Z" fill="currentColor"/>
           <!-- Pagoda -->
-          <g transform="translate(880, 228)">
-            <rect x="-8" y="20" width="16" height="32" fill="currentColor"/>
-            <path d="M-14 20 L0 10 L14 20Z" fill="currentColor"/>
-            <path d="M-12 10 L0 2 L12 10Z" fill="currentColor"/>
+          <g transform="translate(860, 572)">
+            <rect x="-10" y="24" width="20" height="38" fill="currentColor"/>
+            <path d="M-16 24 L0 12 L16 24Z" fill="currentColor"/>
+            <path d="M-13 12 L0 2 L13 12Z" fill="currentColor"/>
           </g>
         </g>
-        <!-- Near hills with pines -->
-        <g opacity="0.7">
-          <path d="M0 400 L0 350 Q100 320 200 340 Q350 300 500 330 Q650 310 800 340 Q950 320 1100 350 L1200 360 L1200 400Z" fill="currentColor"/>
-          <!-- Pine trees -->
-          <g transform="translate(150, 310)">
-            <path d="M0 0 L-6 20 L-3 18 L-8 32 L8 32 L3 18 L6 20Z" fill="currentColor"/>
-          </g>
-          <g transform="translate(700, 305)">
+        <!-- Near foreground with pines -->
+        <g opacity="0.55">
+          <path d="M0 1000 L0 780 Q80 740 180 760 Q320 720 460 750 Q580 730 700 760 Q840 720 960 750 Q1080 740 1200 770 L1200 1000Z" fill="currentColor"/>
+          <!-- Pine cluster left -->
+          <g transform="translate(120, 725)">
             <path d="M0 0 L-7 22 L-3 20 L-9 36 L9 36 L3 20 L7 22Z" fill="currentColor"/>
           </g>
-          <g transform="translate(1050, 315)">
+          <g transform="translate(145, 730)">
             <path d="M0 0 L-5 18 L-2 16 L-7 28 L7 28 L2 16 L5 18Z" fill="currentColor"/>
           </g>
+          <!-- Pine cluster right -->
+          <g transform="translate(680, 722)">
+            <path d="M0 0 L-8 24 L-3 22 L-10 40 L10 40 L3 22 L8 24Z" fill="currentColor"/>
+          </g>
+          <g transform="translate(710, 730)">
+            <path d="M0 0 L-6 20 L-2 18 L-8 32 L8 32 L2 18 L6 20Z" fill="currentColor"/>
+          </g>
+          <!-- Distant pine -->
+          <g transform="translate(1020, 735)">
+            <path d="M0 0 L-5 16 L-2 14 L-6 26 L6 26 L2 14 L5 16Z" fill="currentColor"/>
+          </g>
+        </g>
+        <!-- Closest foreground ridge -->
+        <g opacity="0.7">
+          <path d="M0 1000 L0 880 Q100 850 220 870 Q380 840 520 860 Q660 845 800 870 Q940 850 1080 875 L1200 885 L1200 1000Z" fill="currentColor"/>
         </g>
       </svg>
     </div>
@@ -7284,17 +7304,14 @@ defineExpose({
   opacity: 0.8;
 }
 
-/* Mountain silhouette - hidden by default (shown in mist theme via non-scoped style) */
+/* Mountain/landscape silhouette - hidden by default (shown in mist theme via non-scoped style) */
 .mountain-silhouette {
   display: none;
   position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 40vh;
+  inset: 0;
   pointer-events: none;
   z-index: 1;
-  color: rgba(44, 37, 32, 0.06);
+  color: rgba(44, 37, 32, var(--mountain-opacity, 0.06));
 }
 
 .mountain-silhouette svg {
@@ -10515,90 +10532,10 @@ defineExpose({
   pointer-events: none;
 }
 
-/* --- Stars → Soap bubbles (small) — belt-tinted transparent film --- */
-[data-theme="mist"] .player .star-field .star {
-  background: radial-gradient(
-    circle at 30% 30%,
-    color-mix(in srgb, var(--belt-color, #A89C8E) 8%, rgba(255, 255, 255, 0.15)),
-    color-mix(in srgb, var(--belt-color, #A89C8E) 5%, transparent)
-  );
-  box-shadow:
-    inset 0 0 4px color-mix(in srgb, var(--belt-color, #A89C8E) 10%, rgba(255, 255, 255, 0.1)),
-    inset 0 -2px 3px rgba(122, 110, 98, 0.06);
-  border: 1px solid color-mix(in srgb, var(--belt-color, #A89C8E) 12%, rgba(122, 110, 98, 0.1));
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  opacity: 1 !important;
-  animation: bubble-rise 18s linear infinite;
-}
-
-[data-theme="mist"] .player .star-field .star:nth-child(odd) {
-  animation-delay: -5s;
-  animation-duration: 24s;
-  width: 7px;
-  height: 7px;
-}
-
-[data-theme="mist"] .player .star-field .star:nth-child(3n) {
-  width: 16px;
-  height: 16px;
-  animation-duration: 28s;
-  animation-delay: -12s;
-}
-
-[data-theme="mist"] .player .star-field .star:nth-child(5n) {
-  width: 8px;
-  height: 8px;
-  animation-duration: 22s;
-  animation-delay: -8s;
-}
-
-[data-theme="mist"] .player .star-field .star:nth-child(7n) {
-  width: 20px;
-  height: 20px;
-  animation-duration: 32s;
-  animation-delay: -16s;
-}
-
-@keyframes bubble-rise {
-  0% { transform: translateY(0) translateX(0) scale(0.8); opacity: 0; }
-  4% { opacity: 0.45; }
-  50% { transform: translateY(-52vh) translateX(3px) scale(1); opacity: 0.35; }
-  100% { transform: translateY(-108vh) translateX(-1px) scale(1.05); opacity: 0; }
-}
-
-/* --- Drift stars → Soap bubbles (large, foreground) --- */
-[data-theme="mist"] .player .drift-star {
-  background: radial-gradient(
-    circle at 28% 28%,
-    color-mix(in srgb, var(--belt-color, #A89C8E) 10%, rgba(255, 255, 255, 0.18)),
-    color-mix(in srgb, var(--belt-color, #A89C8E) 6%, transparent)
-  );
-  box-shadow:
-    inset 0 0 6px color-mix(in srgb, var(--belt-color, #A89C8E) 12%, rgba(255, 255, 255, 0.08)),
-    inset 0 -3px 5px rgba(122, 110, 98, 0.05);
-  border: 1px solid color-mix(in srgb, var(--belt-color, #A89C8E) 15%, rgba(122, 110, 98, 0.08));
-  clip-path: none;
-  border-radius: 50%;
-  width: 24px;
-  height: 24px;
-  opacity: 1 !important;
-  animation: bubble-rise 28s linear infinite;
-}
-
-[data-theme="mist"] .player .drift-star:nth-child(even) {
-  animation-duration: 36s;
-  animation-delay: -14s;
-  width: 34px;
-  height: 34px;
-}
-
-[data-theme="mist"] .player .drift-star:nth-child(3n) {
-  animation-duration: 40s;
-  animation-delay: -22s;
-  width: 18px;
-  height: 18px;
+/* --- Hide stars & drift-stars in mist (landscape replaces them) --- */
+[data-theme="mist"] .player .star-field,
+[data-theme="mist"] .player .drift-stars {
+  display: none;
 }
 
 /* --- Nebula glow → Warm vermillion floor accent --- */
