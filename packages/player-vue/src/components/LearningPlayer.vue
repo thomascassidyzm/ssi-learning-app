@@ -1135,8 +1135,8 @@ const beltCssVars = computed(() => beltProgress.value?.beltCssVars.value ?? {
 // White=100%, Yellow=75%, Orange=50%, Green=25%, Blue+=0%
 const starFieldOpacity = computed(() => {
   const beltIndex = currentBelt.value?.index ?? 0
-  if (beltIndex >= 4) return 0 // Blue belt and beyond: stars gone
-  return 1 - (beltIndex * 0.25)
+  // Fade from 1.0 → 0.3 across belts, never fully gone
+  return Math.max(0.3, 1 - (beltIndex * 0.12))
 })
 
 // Initialize belt progress when course code is available
@@ -10640,41 +10640,72 @@ defineExpose({
   pointer-events: none;
 }
 
-/* --- Stars → Ink dots --- */
+/* --- Stars → Warm fireflies --- */
 [data-theme="mist"] .player .star-field .star {
-  background: rgba(44, 37, 32, 0.6);
-  box-shadow: none;
-  opacity: 0.04;
-  animation: ink-dot-breathe 6s ease-in-out infinite;
+  background: rgba(212, 168, 83, 0.6);
+  box-shadow: 0 0 6px 2px rgba(212, 168, 83, 0.15);
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  animation: firefly-glow 4s ease-in-out infinite, firefly-drift 12s ease-in-out infinite;
 }
 
 [data-theme="mist"] .player .star-field .star:nth-child(odd) {
-  opacity: 0.08;
-  animation-delay: -3s;
+  animation-delay: -2s, -6s;
+  background: rgba(194, 58, 58, 0.4);
+  box-shadow: 0 0 6px 2px rgba(194, 58, 58, 0.1);
 }
 
-@keyframes ink-dot-breathe {
-  0%, 100% { opacity: 0.04; transform: scale(1); }
-  50% { opacity: 0.08; transform: scale(1.2); }
+[data-theme="mist"] .player .star-field .star:nth-child(3n) {
+  width: 2px;
+  height: 2px;
+  animation-duration: 5s, 15s;
 }
 
-/* --- Drift stars → Shuriken --- */
+@keyframes firefly-glow {
+  0%, 100% { opacity: 0.05; }
+  40% { opacity: 0.25; }
+  60% { opacity: 0.15; }
+}
+
+@keyframes firefly-drift {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(3px, -8px); }
+  50% { transform: translate(-2px, -14px); }
+  75% { transform: translate(4px, -6px); }
+}
+
+/* --- Drift stars → Floating motes --- */
 [data-theme="mist"] .player .drift-star {
-  background: rgba(44, 37, 32, 0.12);
-  box-shadow: none;
-  clip-path: polygon(50% 0%, 65% 35%, 100% 50%, 65% 65%, 50% 100%, 35% 65%, 0% 50%, 35% 35%);
-  border-radius: 0;
-  animation: shuriken-spin 12s linear infinite;
+  background: rgba(212, 168, 83, 0.25);
+  box-shadow: 0 0 8px 3px rgba(212, 168, 83, 0.08);
+  clip-path: none;
+  border-radius: 50%;
+  width: 4px;
+  height: 4px;
+  animation: mote-rise 18s ease-in-out infinite;
 }
 
 [data-theme="mist"] .player .drift-star:nth-child(even) {
-  animation-direction: reverse;
-  animation-duration: 16s;
+  animation-duration: 22s;
+  animation-delay: -8s;
+  background: rgba(194, 58, 58, 0.2);
+  box-shadow: 0 0 8px 3px rgba(194, 58, 58, 0.06);
 }
 
-@keyframes shuriken-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+[data-theme="mist"] .player .drift-star:nth-child(3n) {
+  animation-duration: 25s;
+  animation-delay: -12s;
+  width: 3px;
+  height: 3px;
+}
+
+@keyframes mote-rise {
+  0% { transform: translateY(0) translateX(0); opacity: 0; }
+  10% { opacity: 0.2; }
+  50% { transform: translateY(-40vh) translateX(10px); opacity: 0.15; }
+  90% { opacity: 0.05; }
+  100% { transform: translateY(-80vh) translateX(-5px); opacity: 0; }
 }
 
 /* --- Nebula glow → Warm floor glow --- */

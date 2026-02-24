@@ -100,8 +100,12 @@ const staggerDelay = (index: number): string => {
   position: absolute;
   inset: 0;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  align-content: center;
   justify-content: center;
+  gap: 6px;
+  padding: 0 1rem;
   pointer-events: none;
   z-index: 3;
   transition: opacity 0.4s ease;
@@ -114,9 +118,8 @@ const staggerDelay = (index: number): string => {
 .lego-block {
   display: inline-flex;
   align-items: center;
-  padding: 0.45em 0.9em;
-  margin: 0 2px;
-  border-radius: 8px;
+  padding: 0.6em 1.1em;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -129,8 +132,8 @@ const staggerDelay = (index: number): string => {
 }
 
 .block-text {
-  font-size: 1.1rem;
-  font-weight: 500;
+  font-size: 1.35rem;
+  font-weight: 600;
   color: rgba(255, 255, 255, 0.9);
   white-space: nowrap;
   letter-spacing: 0.02em;
@@ -173,7 +176,7 @@ const staggerDelay = (index: number): string => {
   background: rgba(255, 255, 255, 0.15);
   border-color: var(--belt-accent, rgba(255,255,255,0.3));
   border-width: 2px;
-  padding: 0.55em 1.1em;
+  padding: 0.7em 1.3em;
   box-shadow:
     0 0 14px 3px var(--belt-glow, rgba(255,255,255,0.2)),
     inset 0 1px 0 rgba(255, 255, 255, 0.12);
@@ -181,7 +184,7 @@ const staggerDelay = (index: number): string => {
 .lego-block.salient .block-text {
   color: rgba(255, 255, 255, 1);
   font-weight: 700;
-  font-size: 1.35rem;
+  font-size: 1.6rem;
 }
 .lego-block.salient.assembled {
   background: rgba(255, 255, 255, 0.18);
@@ -264,19 +267,19 @@ const staggerDelay = (index: number): string => {
   }
 }
 
-/* Mobile: smaller blocks */
+/* Mobile: still readable at a distance */
 @media (max-width: 600px) {
   .block-text {
-    font-size: 0.9rem;
+    font-size: 1.15rem;
   }
   .lego-block {
-    padding: 0.35em 0.7em;
+    padding: 0.5em 0.9em;
   }
   .lego-block.salient {
-    padding: 0.45em 0.85em;
+    padding: 0.6em 1.1em;
   }
   .lego-block.salient .block-text {
-    font-size: 1.1rem;
+    font-size: 1.35rem;
   }
 }
 </style>
