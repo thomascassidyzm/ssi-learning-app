@@ -1530,8 +1530,8 @@ const confirmReset = async () => {
   background: #ffffff;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  border-bottom: 1px solid rgba(100, 80, 55, 0.1);
-  box-shadow: 0 1px 2px rgba(60, 45, 30, 0.06);
+  border-bottom: 1px solid rgba(100, 80, 55, 0.18);
+  box-shadow: 0 1px 2px rgba(60, 45, 30, 0.08);
 }
 
 :root[data-theme="mist"] .settings-screen .reset-overlay {
@@ -1541,6 +1541,7 @@ const confirmReset = async () => {
 
 :root[data-theme="mist"] .settings-screen .reset-dialog {
   background: #ffffff;
-  box-shadow: 0 1px 3px rgba(60, 45, 30, 0.08), 0 8px 32px rgba(60, 45, 30, 0.06);
+  border: 1px solid rgba(100, 80, 55, 0.15);
+  box-shadow: 0 1px 3px rgba(60, 45, 30, 0.1), 0 8px 32px rgba(60, 45, 30, 0.08);
 }
 </style>

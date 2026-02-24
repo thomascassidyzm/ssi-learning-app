@@ -582,9 +582,9 @@ const isVisible = computed(() => !props.isLearning)
    MISTY DOJO THEME
    ═══════════════════════════════════════════════════════════════ */
 :root[data-theme="mist"] .nav-backdrop {
-  background: #fffcf5;
-  border-top: 1px solid rgba(100, 80, 55, 0.1);
-  box-shadow: 0 -1px 3px rgba(60, 45, 30, 0.04), 0 -4px 12px rgba(60, 45, 30, 0.03);
+  background: #ffffff;
+  border-top: 1px solid rgba(100, 80, 55, 0.15);
+  box-shadow: 0 -1px 3px rgba(60, 45, 30, 0.06), 0 -4px 12px rgba(60, 45, 30, 0.04);
 }
 
 :root[data-theme="mist"] .nav-backdrop::before {

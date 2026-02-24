@@ -10598,8 +10598,8 @@ defineExpose({
 /* --- Hero glass → Paper card --- */
 [data-theme="mist"] .player .hero-glass {
   background: #ffffff;
-  border: 1px solid rgba(100, 80, 55, 0.1);
-  box-shadow: 0 1px 3px rgba(60, 45, 30, 0.06), 0 4px 16px rgba(60, 45, 30, 0.04);
+  border: 1px solid rgba(100, 80, 55, 0.18);
+  box-shadow: 0 1px 3px rgba(60, 45, 30, 0.08), 0 4px 16px rgba(60, 45, 30, 0.06);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
@@ -10617,8 +10617,8 @@ defineExpose({
 /* --- Control bar → Paper card --- */
 [data-theme="mist"] .player .control-bar {
   background: #ffffff;
-  border: 1px solid rgba(100, 80, 55, 0.1);
-  box-shadow: 0 1px 2px rgba(60, 45, 30, 0.06), 0 4px 12px rgba(60, 45, 30, 0.04);
+  border: 1px solid rgba(100, 80, 55, 0.18);
+  box-shadow: 0 1px 2px rgba(60, 45, 30, 0.08), 0 4px 12px rgba(60, 45, 30, 0.06);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
@@ -10626,14 +10626,14 @@ defineExpose({
 /* --- Mode / Transport buttons --- */
 [data-theme="mist"] .player .mode-btn,
 [data-theme="mist"] .player .transport-btn {
-  background: rgba(100, 80, 55, 0.06);
-  border-color: rgba(100, 80, 55, 0.1);
+  background: rgba(100, 80, 55, 0.08);
+  border-color: rgba(100, 80, 55, 0.15);
   color: #5c544a;
 }
 
 [data-theme="mist"] .player .mode-btn:hover,
 [data-theme="mist"] .player .transport-btn:hover {
-  background: rgba(100, 80, 55, 0.1);
+  background: rgba(100, 80, 55, 0.12);
 }
 
 [data-theme="mist"] .player .mode-btn.active {
@@ -10643,13 +10643,13 @@ defineExpose({
 
 [data-theme="mist"] .player .mode-picker {
   background: #ffffff;
-  border: 1px solid rgba(100, 80, 55, 0.1);
-  box-shadow: 0 1px 3px rgba(60, 45, 30, 0.06), 0 4px 16px rgba(60, 45, 30, 0.04);
+  border: 1px solid rgba(100, 80, 55, 0.18);
+  box-shadow: 0 1px 3px rgba(60, 45, 30, 0.08), 0 4px 16px rgba(60, 45, 30, 0.06);
 }
 
 [data-theme="mist"] .player .mode-picker-option {
-  background: rgba(100, 80, 55, 0.06);
-  border-color: rgba(100, 80, 55, 0.1);
+  background: rgba(100, 80, 55, 0.08);
+  border-color: rgba(100, 80, 55, 0.15);
   color: #2c2520;
 }
 
@@ -10713,8 +10713,8 @@ defineExpose({
 [data-theme="mist"] .player .learning-hint,
 [data-theme="mist"] .player .learning-hint-box {
   background: #ffffff;
-  border: 1px solid rgba(100, 80, 55, 0.1);
-  box-shadow: 0 1px 2px rgba(60, 45, 30, 0.06), 0 4px 12px rgba(60, 45, 30, 0.04);
+  border: 1px solid rgba(100, 80, 55, 0.18);
+  box-shadow: 0 1px 2px rgba(60, 45, 30, 0.08), 0 4px 12px rgba(60, 45, 30, 0.06);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   color: #5c544a;

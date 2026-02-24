@@ -306,8 +306,8 @@ const staggerDelay = (index: number): string => {
 :root[data-theme="mist"] .lego-block {
   background: #ffffff;
   backdrop-filter: none;
-  border: 1px solid rgba(100, 80, 55, 0.12);
-  box-shadow: 0 1px 2px rgba(60, 45, 30, 0.06), 0 2px 8px rgba(60, 45, 30, 0.04);
+  border: 1px solid rgba(100, 80, 55, 0.2);
+  box-shadow: 0 1px 2px rgba(60, 45, 30, 0.08), 0 2px 8px rgba(60, 45, 30, 0.05);
 }
 
 :root[data-theme="mist"] .lego-block .block-text {
@@ -325,11 +325,11 @@ const staggerDelay = (index: number): string => {
 
 :root[data-theme="mist"] .lego-block.salient {
   background: #ffffff;
-  border-color: var(--belt-accent, rgba(100, 80, 55, 0.3));
+  border-color: var(--belt-accent, rgba(100, 80, 55, 0.4));
   border-width: 2px;
   box-shadow:
-    0 1px 3px rgba(60, 45, 30, 0.08),
-    0 4px 16px color-mix(in srgb, var(--belt-accent, rgba(100, 80, 55, 0.2)) 20%, transparent);
+    0 1px 3px rgba(60, 45, 30, 0.1),
+    0 4px 16px color-mix(in srgb, var(--belt-accent, rgba(100, 80, 55, 0.2)) 25%, transparent);
 }
 
 :root[data-theme="mist"] .lego-block.salient .block-text {

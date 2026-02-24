@@ -576,7 +576,7 @@ const handleDismiss = () => {
 }
 
 :root[data-theme="mist"] .progress-ring-svg circle:first-child {
-  stroke: rgba(100, 80, 55, 0.1);
+  stroke: rgba(100, 80, 55, 0.15);
 }
 
 :root[data-theme="mist"] .resume-btn {
