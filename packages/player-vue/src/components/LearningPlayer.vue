@@ -512,11 +512,9 @@ const legoTargetTextMap = computed<Map<string, string>>(() => {
 const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
   const cycle = simplePlayer.currentCycle.value as any
   if (!cycle?.componentLegoIds?.length) {
-    // During intro or debut phase, show a single tile for the LEGO being introduced
-    const currentItem = useRoundBasedPlayback.value
-      ? currentPlayableItem.value
-      : sessionItems.value?.[currentItemIndex.value]
-    const isIntroOrDebut = currentItem?.type === 'intro' || currentItem?.type === 'debut'
+    // Detect intro/debut from cycle ID (sync, no async dependency on currentPlayableItem)
+    const cycleId = cycle?.id || ''
+    const isIntroOrDebut = cycleId.includes('_intro_') || cycleId.includes('_debut_')
     if (isIntroOrDebut && currentRound.value?.legoId) {
       const legoId = currentRound.value.legoId
       const targetText = legoTargetTextMap.value.get(legoId) || ''
@@ -2113,14 +2111,14 @@ watch([showTargetText, () => currentPhrase.value.target], ([showing, newTarget])
 // Format: [{known: "after", target: "después de"}, ...]
 const displayedComponents = ref<Array<{known: string, target: string}>>([])
 watch(() => {
-  // Try playable item first (has components from scriptItemToPlayableItem)
+  // Read from current cycle first (sync, always up-to-date)
+  const cycle = simplePlayer.currentCycle.value as any
+  if (cycle?.components) return cycle.components
+  // Fallback: playable item (set async, may lag behind cycle changes)
   const item = useRoundBasedPlayback.value
     ? currentPlayableItem.value
     : sessionItems.value[currentItemIndex.value]
   if (item?.components) return item.components
-  // Fallback: read from current cycle (SimplePlayer path)
-  const cycle = simplePlayer.currentCycle.value as any
-  if (cycle?.components) return cycle.components
   return undefined
 }, (components) => {
   displayedComponents.value = components || []
@@ -2136,7 +2134,11 @@ const isIntroPhase = computed(() => {
 })
 
 // Is current item intro OR debut? (for showing component breakdown tiles)
+// Uses cycle ID for sync detection (currentPlayableItem is set async, causes race)
 const isIntroOrDebutPhase = computed(() => {
+  const cycleId = (simplePlayer.currentCycle.value as any)?.id || ''
+  if (cycleId.includes('_intro_') || cycleId.includes('_debut_')) return true
+  // Fallback for legacy path
   const item = useRoundBasedPlayback.value
     ? currentPlayableItem.value
     : sessionItems.value[currentItemIndex.value]
