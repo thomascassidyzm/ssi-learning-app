@@ -10515,79 +10515,90 @@ defineExpose({
   pointer-events: none;
 }
 
-/* --- Stars → Rising bubbles (small) --- */
+/* --- Stars → Soap bubbles (small) — belt-tinted transparent film --- */
 [data-theme="mist"] .player .star-field .star {
-  background: radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.9), rgba(200, 190, 170, 0.2));
-  box-shadow: inset 0 -2px 4px rgba(122, 110, 98, 0.12), 0 0 4px rgba(122, 110, 98, 0.08);
-  border: 1px solid rgba(122, 110, 98, 0.15);
+  background: radial-gradient(
+    circle at 30% 30%,
+    color-mix(in srgb, var(--belt-color, #A89C8E) 8%, rgba(255, 255, 255, 0.15)),
+    color-mix(in srgb, var(--belt-color, #A89C8E) 5%, transparent)
+  );
+  box-shadow:
+    inset 0 0 4px color-mix(in srgb, var(--belt-color, #A89C8E) 10%, rgba(255, 255, 255, 0.1)),
+    inset 0 -2px 3px rgba(122, 110, 98, 0.06);
+  border: 1px solid color-mix(in srgb, var(--belt-color, #A89C8E) 12%, rgba(122, 110, 98, 0.1));
   width: 10px;
   height: 10px;
   border-radius: 50%;
   opacity: 1 !important;
-  animation: bubble-rise 14s ease-in infinite;
+  animation: bubble-rise 18s linear infinite;
 }
 
 [data-theme="mist"] .player .star-field .star:nth-child(odd) {
-  animation-delay: -4s;
-  animation-duration: 18s;
+  animation-delay: -5s;
+  animation-duration: 24s;
   width: 7px;
   height: 7px;
-  background: radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.85), rgba(200, 190, 170, 0.15));
-  box-shadow: inset 0 -1px 3px rgba(122, 110, 98, 0.1);
-  border: 1px solid rgba(122, 110, 98, 0.12);
 }
 
 [data-theme="mist"] .player .star-field .star:nth-child(3n) {
   width: 16px;
   height: 16px;
-  animation-duration: 20s;
-  animation-delay: -10s;
+  animation-duration: 28s;
+  animation-delay: -12s;
 }
 
 [data-theme="mist"] .player .star-field .star:nth-child(5n) {
   width: 8px;
   height: 8px;
-  animation-duration: 16s;
-  animation-delay: -7s;
+  animation-duration: 22s;
+  animation-delay: -8s;
+}
+
+[data-theme="mist"] .player .star-field .star:nth-child(7n) {
+  width: 20px;
+  height: 20px;
+  animation-duration: 32s;
+  animation-delay: -16s;
 }
 
 @keyframes bubble-rise {
-  0% { transform: translateY(0) translateX(0) scale(0.6); opacity: 0; }
-  6% { opacity: 0.6; transform: translateY(-6vh) translateX(2px) scale(0.8); }
-  25% { transform: translateY(-25vh) translateX(-5px) scale(0.9); opacity: 0.5; }
-  50% { transform: translateY(-50vh) translateX(4px) scale(1); opacity: 0.4; }
-  75% { transform: translateY(-75vh) translateX(-3px) scale(1.05); opacity: 0.25; }
-  100% { transform: translateY(-105vh) translateX(1px) scale(1.1); opacity: 0; }
+  0% { transform: translateY(0) translateX(0) scale(0.8); opacity: 0; }
+  4% { opacity: 0.45; }
+  50% { transform: translateY(-52vh) translateX(3px) scale(1); opacity: 0.35; }
+  100% { transform: translateY(-108vh) translateX(-1px) scale(1.05); opacity: 0; }
 }
 
-/* --- Drift stars → Rising bubbles (large, foreground) --- */
+/* --- Drift stars → Soap bubbles (large, foreground) --- */
 [data-theme="mist"] .player .drift-star {
-  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.85), rgba(200, 190, 170, 0.15));
-  box-shadow: inset 0 -3px 6px rgba(122, 110, 98, 0.1), 0 0 8px rgba(122, 110, 98, 0.06);
-  border: 1px solid rgba(122, 110, 98, 0.12);
+  background: radial-gradient(
+    circle at 28% 28%,
+    color-mix(in srgb, var(--belt-color, #A89C8E) 10%, rgba(255, 255, 255, 0.18)),
+    color-mix(in srgb, var(--belt-color, #A89C8E) 6%, transparent)
+  );
+  box-shadow:
+    inset 0 0 6px color-mix(in srgb, var(--belt-color, #A89C8E) 12%, rgba(255, 255, 255, 0.08)),
+    inset 0 -3px 5px rgba(122, 110, 98, 0.05);
+  border: 1px solid color-mix(in srgb, var(--belt-color, #A89C8E) 15%, rgba(122, 110, 98, 0.08));
   clip-path: none;
   border-radius: 50%;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   opacity: 1 !important;
-  animation: bubble-rise 22s ease-in infinite;
+  animation: bubble-rise 28s linear infinite;
 }
 
 [data-theme="mist"] .player .drift-star:nth-child(even) {
-  animation-duration: 28s;
-  animation-delay: -12s;
-  width: 30px;
-  height: 30px;
-  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.8), rgba(200, 190, 170, 0.1));
-  box-shadow: inset 0 -4px 8px rgba(122, 110, 98, 0.08), 0 0 10px rgba(122, 110, 98, 0.05);
-  border: 1px solid rgba(122, 110, 98, 0.1);
+  animation-duration: 36s;
+  animation-delay: -14s;
+  width: 34px;
+  height: 34px;
 }
 
 [data-theme="mist"] .player .drift-star:nth-child(3n) {
-  animation-duration: 32s;
-  animation-delay: -18s;
-  width: 16px;
-  height: 16px;
+  animation-duration: 40s;
+  animation-delay: -22s;
+  width: 18px;
+  height: 18px;
 }
 
 /* --- Nebula glow → Warm vermillion floor accent --- */
@@ -10606,13 +10617,13 @@ defineExpose({
   display: block;
 }
 
-/* --- Hero glass → Solid paper card with belt accent --- */
+/* --- Hero glass → Solid paper card with belt-tinted edge --- */
 [data-theme="mist"] .player .hero-glass {
   background: #FAF6EC;
-  border: 1px solid color-mix(in srgb, var(--belt-color) 25%, rgba(122, 110, 98, 0.12));
-  box-shadow: 0 2px 6px rgba(44, 38, 34, 0.08),
-              0 8px 24px rgba(44, 38, 34, 0.06),
-              0 0 0 1px color-mix(in srgb, var(--belt-glow) 8%, transparent);
+  border: 1.5px solid color-mix(in srgb, var(--belt-color) 30%, rgba(122, 110, 98, 0.18));
+  box-shadow: 0 1px 2px rgba(44, 38, 34, 0.1),
+              0 4px 12px rgba(44, 38, 34, 0.08),
+              0 0 0 0.5px color-mix(in srgb, var(--belt-color) 12%, rgba(122, 110, 98, 0.08));
 }
 
 /* --- Hero text --- */
@@ -10625,13 +10636,22 @@ defineExpose({
   text-shadow: none;
 }
 
-/* --- Control bar → Solid paper with belt accent --- */
+/* --- Control bar → Solid paper with belt-tinted edge --- */
 [data-theme="mist"] .player .control-bar {
   background: #FAF6EC;
-  border: 1px solid color-mix(in srgb, var(--belt-color) 20%, rgba(122, 110, 98, 0.1));
-  box-shadow: 0 2px 6px rgba(44, 38, 34, 0.08),
-              0 8px 20px rgba(44, 38, 34, 0.05),
-              0 0 15px color-mix(in srgb, var(--belt-glow) 8%, transparent);
+  border: 1.5px solid color-mix(in srgb, var(--belt-color) 30%, rgba(122, 110, 98, 0.18));
+  box-shadow: 0 1px 2px rgba(44, 38, 34, 0.1),
+              0 4px 12px rgba(44, 38, 34, 0.08),
+              0 0 0 0.5px color-mix(in srgb, var(--belt-color) 12%, rgba(122, 110, 98, 0.08));
+}
+
+/* --- Belt timer → Match edge definition --- */
+[data-theme="mist"] .player .belt-timer-unified {
+  background: #FAF6EC;
+  border: 1.5px solid color-mix(in srgb, var(--belt-color) 30%, rgba(122, 110, 98, 0.18));
+  box-shadow: 0 1px 2px rgba(44, 38, 34, 0.1),
+              0 4px 12px rgba(44, 38, 34, 0.08),
+              0 0 0 0.5px color-mix(in srgb, var(--belt-color) 12%, rgba(122, 110, 98, 0.08));
 }
 
 /* --- Mode / Transport buttons --- */
@@ -10654,8 +10674,10 @@ defineExpose({
 
 [data-theme="mist"] .player .mode-picker {
   background: #FAF6EC;
-  border: 1px solid rgba(122, 110, 98, 0.12);
-  box-shadow: 0 4px 12px rgba(44, 38, 34, 0.1), 0 12px 40px rgba(44, 38, 34, 0.07);
+  border: 1.5px solid rgba(122, 110, 98, 0.2);
+  box-shadow: 0 1px 2px rgba(44, 38, 34, 0.1),
+              0 4px 12px rgba(44, 38, 34, 0.08),
+              0 12px 40px rgba(44, 38, 34, 0.07);
 }
 
 [data-theme="mist"] .player .mode-picker-option {
@@ -10724,8 +10746,9 @@ defineExpose({
 [data-theme="mist"] .player .learning-hint,
 [data-theme="mist"] .player .learning-hint-box {
   background: #FAF6EC;
-  border: 1px solid rgba(122, 110, 98, 0.12);
-  box-shadow: 0 2px 6px rgba(44, 38, 34, 0.08), 0 8px 24px rgba(44, 38, 34, 0.06);
+  border: 1.5px solid rgba(122, 110, 98, 0.2);
+  box-shadow: 0 1px 2px rgba(44, 38, 34, 0.1),
+              0 4px 12px rgba(44, 38, 34, 0.08);
   color: #2C2622;
 }
 
