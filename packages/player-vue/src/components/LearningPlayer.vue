@@ -6804,6 +6804,9 @@ defineExpose({
         <!-- Target text removed — duplicated by LEGO tiles below -->
 
         <!-- Component Breakdown for M-type LEGOs (visual only, shown during intro & debut) -->
+        <div v-if="true" class="pane-components" style="color: red; font-size: 12px;">
+          COMPS: {{ displayedComponents.length }} | INTRO: {{ isIntroOrDebutPhase }} | ID: {{ (simplePlayer.currentCycle.value as any)?.id?.substring(0, 20) }}
+        </div>
         <div v-if="displayedComponents.length > 0 && isIntroOrDebutPhase" class="pane-components">
           <div class="components-tiles">
             <template v-for="(comp, i) in displayedComponents" :key="i">
