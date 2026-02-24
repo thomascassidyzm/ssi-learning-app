@@ -2128,6 +2128,14 @@ const isIntroPhase = computed(() => {
   return item?.type === 'intro'
 })
 
+// Is current item intro OR debut? (for showing component breakdown tiles)
+const isIntroOrDebutPhase = computed(() => {
+  const item = useRoundBasedPlayback.value
+    ? currentPlayableItem.value
+    : sessionItems.value[currentItemIndex.value]
+  return item?.type === 'intro' || item?.type === 'debut'
+})
+
 // ============================================
 // LEARNING HINTS - Computed properties (defined after isIntroPhase)
 // ============================================
@@ -6788,17 +6796,16 @@ defineExpose({
 
         <!-- Target text removed — duplicated by LEGO tiles below -->
 
-        <!-- Component Breakdown for M-type LEGOs (visual only, shown during intro) -->
-        <div v-if="displayedComponents.length > 0 && isIntroPhase" class="pane-components">
-          <div class="components-row components-target">
-            <span v-for="(comp, i) in displayedComponents" :key="'t'+i" class="component-part">
-              {{ comp.target }}<span v-if="i < displayedComponents.length - 1" class="component-sep"> / </span>
-            </span>
-          </div>
-          <div class="components-row components-known">
-            <span v-for="(comp, i) in displayedComponents" :key="'k'+i" class="component-part">
-              {{ comp.known }}<span v-if="i < displayedComponents.length - 1" class="component-sep"> / </span>
-            </span>
+        <!-- Component Breakdown for M-type LEGOs (visual only, shown during intro & debut) -->
+        <div v-if="displayedComponents.length > 0 && isIntroOrDebutPhase" class="pane-components">
+          <div class="components-tiles">
+            <template v-for="(comp, i) in displayedComponents" :key="i">
+              <div class="component-tile">
+                <span class="component-tile-target">{{ comp.target }}</span>
+                <span class="component-tile-known">{{ comp.known }}</span>
+              </div>
+              <span v-if="i < displayedComponents.length - 1" class="component-plus">+</span>
+            </template>
           </div>
         </div>
       </div>
@@ -8453,42 +8460,46 @@ defineExpose({
   letter-spacing: 0.3em;
 }
 
-/* Component breakdown for M-type LEGOs */
+/* Component breakdown tiles for M-type LEGOs */
 .pane-components {
   margin-top: 1rem;
-  padding: 0.75rem 1rem;
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 8px;
-  border-left: 3px solid rgba(251, 191, 36, 0.4);
 }
 
-.components-row {
+.components-tiles {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: center;
-  gap: 0.25rem;
-  line-height: 1.5;
+  gap: 0.5rem;
 }
 
-.components-target {
-  font-size: 1.1rem;
-  color: rgba(251, 191, 36, 0.9);
-  font-weight: 500;
-  margin-bottom: 0.25rem;
+.component-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.4rem 0.75rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
 }
 
-.components-known {
-  font-size: 0.95rem;
-  color: rgba(255, 255, 255, 0.7);
+.component-tile-target {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--belt-color, rgba(251, 191, 36, 0.9));
+  line-height: 1.3;
 }
 
-.component-part {
-  white-space: nowrap;
+.component-tile-known {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.3;
 }
 
-.component-sep {
+.component-plus {
+  font-size: 0.9rem;
   color: rgba(255, 255, 255, 0.3);
-  margin: 0 0.15rem;
+  font-weight: 300;
 }
 
 /* Hidden ring reference (for backwards compatibility) */
@@ -10735,5 +10746,24 @@ defineExpose({
 
 [data-theme="mist"] .player .learning-hint-box .hint-text {
   color: #2C2622;
+}
+
+/* --- Component breakdown tiles → Paper style --- */
+[data-theme="mist"] .player .component-tile {
+  background: #F2F0ED;
+  border-color: rgba(122, 110, 98, 0.2);
+  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.08);
+}
+
+[data-theme="mist"] .player .component-tile-target {
+  color: color-mix(in srgb, var(--belt-color) 70%, #1A1614);
+}
+
+[data-theme="mist"] .player .component-tile-known {
+  color: #7A6E62;
+}
+
+[data-theme="mist"] .player .component-plus {
+  color: #A89C8E;
 }
 </style>
