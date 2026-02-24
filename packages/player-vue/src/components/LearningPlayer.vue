@@ -1133,11 +1133,7 @@ const beltCssVars = computed(() => beltProgress.value?.beltCssVars.value ?? {
 
 // Star field fades as constellation fills in - your LEGOs become your stars
 // White=100%, Yellow=75%, Orange=50%, Green=25%, Blue+=0%
-const starFieldOpacity = computed(() => {
-  const beltIndex = currentBelt.value?.index ?? 0
-  // Fade from 1.0 → 0.3 across belts, never fully gone
-  return Math.max(0.3, 1 - (beltIndex * 0.12))
-})
+const starFieldOpacity = computed(() => 1)
 
 // Initialize belt progress when course code is available
 const initializeBeltProgress = async () => {
