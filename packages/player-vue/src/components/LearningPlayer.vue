@@ -5938,13 +5938,7 @@ onMounted(async () => {
   } else {
     isPlaying.value = false
 
-    // Even without auto-start, play welcome audio if this is a fresh start
-    // But only if player is visible - don't play audio when hidden
-    if (props.isVisible && currentRoundIndex.value === 0 && !welcomeChecked.value) {
-      setTimeout(async () => {
-        await playWelcomeIfNeeded()
-      }, 100)
-    }
+    // Welcome audio deferred until user taps Play (never autoplay before interaction)
   }
 
   console.log('[LearningPlayer] Total awakening time:', Date.now() - startTime, 'ms')
@@ -6031,13 +6025,8 @@ watch(() => props.isVisible, (isNowVisible, wasVisible) => {
       setTimeout(() => {
         handleResume()
       }, 100)
-    } else if (!props.autoStart && currentRoundIndex.value === 0 && !welcomeChecked.value) {
-      // Play welcome audio if needed (deferred from mount)
-      hasTriggeredAutoStart = true
-      setTimeout(async () => {
-        await playWelcomeIfNeeded()
-      }, 100)
     }
+    // Welcome audio deferred until user taps Play (never autoplay before interaction)
   }
 })
 
