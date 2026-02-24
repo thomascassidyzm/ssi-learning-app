@@ -511,7 +511,17 @@ const legoTargetTextMap = computed<Map<string, string>>(() => {
 // Current phrase's LEGO blocks for the assembly view
 const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
   const cycle = simplePlayer.currentCycle.value as any
-  if (!cycle?.componentLegoIds?.length) return []
+  if (!cycle?.componentLegoIds?.length) {
+    // During intro phase, show a single tile for the LEGO being introduced
+    if (isIntroPhase.value && currentRound.value?.legoId) {
+      const legoId = currentRound.value.legoId
+      const targetText = legoTargetTextMap.value.get(legoId) || ''
+      if (targetText) {
+        return [{ id: legoId, targetText, isSalient: true }]
+      }
+    }
+    return []
+  }
   // Use the cycle's own legoId (the LEGO this phrase practises), not the round's
   const salientLegoId = cycle.legoId || currentRound.value?.legoId || ''
   const texts: string[] = cycle.componentLegoTexts || []
@@ -8601,7 +8611,7 @@ defineExpose({
 .hero-known {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
   /* Responsive text size using CSS custom property */
-  font-size: var(--text-lg);
+  font-size: var(--text-xl);
   font-weight: 400;
   color: rgba(255, 255, 255, 0.85);
   margin: 0;
@@ -10507,73 +10517,77 @@ defineExpose({
 
 /* --- Stars → Rising bubbles (small) --- */
 [data-theme="mist"] .player .star-field .star {
-  background: radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.6), rgba(122, 110, 98, 0.08));
-  box-shadow: inset 0 -2px 4px rgba(122, 110, 98, 0.06), 0 0 3px rgba(122, 110, 98, 0.04);
-  border: 1px solid rgba(122, 110, 98, 0.06);
-  width: 8px;
-  height: 8px;
+  background: radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.9), rgba(200, 190, 170, 0.2));
+  box-shadow: inset 0 -2px 4px rgba(122, 110, 98, 0.12), 0 0 4px rgba(122, 110, 98, 0.08);
+  border: 1px solid rgba(122, 110, 98, 0.15);
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
+  opacity: 1 !important;
   animation: bubble-rise 14s ease-in infinite;
 }
 
 [data-theme="mist"] .player .star-field .star:nth-child(odd) {
   animation-delay: -4s;
   animation-duration: 18s;
-  width: 5px;
-  height: 5px;
-  background: radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.5), rgba(122, 110, 98, 0.06));
-  box-shadow: inset 0 -1px 3px rgba(122, 110, 98, 0.05);
+  width: 7px;
+  height: 7px;
+  background: radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.85), rgba(200, 190, 170, 0.15));
+  box-shadow: inset 0 -1px 3px rgba(122, 110, 98, 0.1);
+  border: 1px solid rgba(122, 110, 98, 0.12);
 }
 
 [data-theme="mist"] .player .star-field .star:nth-child(3n) {
-  width: 12px;
-  height: 12px;
+  width: 16px;
+  height: 16px;
   animation-duration: 20s;
   animation-delay: -10s;
 }
 
 [data-theme="mist"] .player .star-field .star:nth-child(5n) {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   animation-duration: 16s;
   animation-delay: -7s;
 }
 
 @keyframes bubble-rise {
   0% { transform: translateY(0) translateX(0) scale(0.6); opacity: 0; }
-  8% { opacity: 0.35; transform: translateY(-8vh) translateX(2px) scale(0.8); }
-  25% { transform: translateY(-25vh) translateX(-4px) scale(0.9); opacity: 0.3; }
-  50% { transform: translateY(-50vh) translateX(3px) scale(1); opacity: 0.25; }
-  75% { transform: translateY(-75vh) translateX(-2px) scale(1.05); opacity: 0.15; }
+  6% { opacity: 0.6; transform: translateY(-6vh) translateX(2px) scale(0.8); }
+  25% { transform: translateY(-25vh) translateX(-5px) scale(0.9); opacity: 0.5; }
+  50% { transform: translateY(-50vh) translateX(4px) scale(1); opacity: 0.4; }
+  75% { transform: translateY(-75vh) translateX(-3px) scale(1.05); opacity: 0.25; }
   100% { transform: translateY(-105vh) translateX(1px) scale(1.1); opacity: 0; }
 }
 
 /* --- Drift stars → Rising bubbles (large, foreground) --- */
 [data-theme="mist"] .player .drift-star {
-  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.7), rgba(122, 110, 98, 0.06));
-  box-shadow: inset 0 -3px 6px rgba(122, 110, 98, 0.06), 0 0 6px rgba(122, 110, 98, 0.03);
-  border: 1px solid rgba(122, 110, 98, 0.08);
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.85), rgba(200, 190, 170, 0.15));
+  box-shadow: inset 0 -3px 6px rgba(122, 110, 98, 0.1), 0 0 8px rgba(122, 110, 98, 0.06);
+  border: 1px solid rgba(122, 110, 98, 0.12);
   clip-path: none;
   border-radius: 50%;
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
+  opacity: 1 !important;
   animation: bubble-rise 22s ease-in infinite;
 }
 
 [data-theme="mist"] .player .drift-star:nth-child(even) {
   animation-duration: 28s;
   animation-delay: -12s;
-  width: 24px;
-  height: 24px;
-  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.6), rgba(122, 110, 98, 0.04));
-  box-shadow: inset 0 -3px 6px rgba(122, 110, 98, 0.05), 0 0 8px rgba(122, 110, 98, 0.03);
+  width: 30px;
+  height: 30px;
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.8), rgba(200, 190, 170, 0.1));
+  box-shadow: inset 0 -4px 8px rgba(122, 110, 98, 0.08), 0 0 10px rgba(122, 110, 98, 0.05);
+  border: 1px solid rgba(122, 110, 98, 0.1);
 }
 
 [data-theme="mist"] .player .drift-star:nth-child(3n) {
   animation-duration: 32s;
   animation-delay: -18s;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
 }
 
 /* --- Nebula glow → Warm vermillion floor accent --- */
