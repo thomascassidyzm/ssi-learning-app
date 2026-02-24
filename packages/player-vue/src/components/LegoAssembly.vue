@@ -306,40 +306,40 @@ const staggerDelay = (index: number): string => {
 :root[data-theme="mist"] .lego-block {
   background: #ffffff;
   backdrop-filter: none;
-  border: 1px solid rgba(100, 80, 55, 0.2);
-  box-shadow: 0 1px 2px rgba(60, 45, 30, 0.08), 0 2px 8px rgba(60, 45, 30, 0.05);
+  border: 1px solid rgba(140, 120, 115, 0.1);
+  box-shadow: 0 1px 3px rgba(60, 40, 45, 0.05), 0 4px 12px rgba(60, 40, 45, 0.04);
 }
 
 :root[data-theme="mist"] .lego-block .block-text {
-  color: #2c2520;
+  color: #1c1917;
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
 }
 
 :root[data-theme="mist"] .lego-block.assembled {
   background: #ffffff;
-  border-color: var(--belt-accent, rgba(100, 80, 55, 0.2));
+  border-color: var(--belt-accent, rgba(140, 120, 115, 0.15));
   box-shadow:
-    0 1px 3px rgba(60, 45, 30, 0.06),
-    0 4px 12px color-mix(in srgb, var(--belt-accent, rgba(100, 80, 55, 0.2)) 15%, transparent);
+    0 1px 3px rgba(60, 40, 45, 0.05),
+    0 6px 16px color-mix(in srgb, var(--belt-accent, rgba(140, 120, 115, 0.15)) 18%, transparent);
 }
 
 :root[data-theme="mist"] .lego-block.salient {
   background: #ffffff;
-  border-color: var(--belt-accent, rgba(100, 80, 55, 0.4));
+  border-color: var(--belt-accent, rgba(140, 120, 115, 0.25));
   border-width: 2px;
   box-shadow:
-    0 1px 3px rgba(60, 45, 30, 0.1),
-    0 4px 16px color-mix(in srgb, var(--belt-accent, rgba(100, 80, 55, 0.2)) 25%, transparent);
+    0 2px 4px rgba(60, 40, 45, 0.06),
+    0 8px 24px color-mix(in srgb, var(--belt-accent, rgba(140, 120, 115, 0.15)) 25%, transparent);
 }
 
 :root[data-theme="mist"] .lego-block.salient .block-text {
-  color: #2c2520;
+  color: #1c1917;
 }
 
 :root[data-theme="mist"] .lego-block.salient.assembled {
-  background: #fafaf7;
+  background: #fdfcfb;
   box-shadow:
-    0 2px 4px rgba(60, 45, 30, 0.08),
-    0 4px 20px color-mix(in srgb, var(--belt-accent, rgba(100, 80, 55, 0.2)) 25%, transparent);
+    0 2px 6px rgba(60, 40, 45, 0.06),
+    0 8px 28px color-mix(in srgb, var(--belt-accent, rgba(140, 120, 115, 0.15)) 28%, transparent);
 }
 </style>

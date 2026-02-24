@@ -2598,21 +2598,23 @@ onUnmounted(() => {
 <!-- Mist theme: paper dojo instead of dark cosmos -->
 <style>
 :root[data-theme="mist"] .brain-view {
-  background: linear-gradient(180deg, #f0ebe3 0%, #e8e2d8 50%, #f0ebe3 100%);
+  background: linear-gradient(180deg, #f7f4f2 0%, #f0edea 50%, #f7f4f2 100%);
 }
 
 :root[data-theme="mist"] .brain-view .close-btn {
-  background: #ffffff;
-  backdrop-filter: none;
-  border-color: rgba(100, 80, 55, 0.2);
-  box-shadow: 0 1px 3px rgba(60, 45, 30, 0.08), 0 4px 12px rgba(60, 45, 30, 0.06);
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-color: rgba(140, 120, 115, 0.1);
+  box-shadow: 0 2px 6px rgba(60, 40, 45, 0.06), 0 6px 16px rgba(60, 40, 45, 0.04);
 }
 
 :root[data-theme="mist"] .brain-view .brain-title-mount {
-  background: #ffffff;
-  backdrop-filter: none;
-  border-color: rgba(100, 80, 55, 0.18);
-  box-shadow: 0 1px 3px rgba(60, 45, 30, 0.08), 0 4px 16px rgba(60, 45, 30, 0.06);
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-color: rgba(140, 120, 115, 0.08);
+  box-shadow: 0 2px 6px rgba(60, 40, 45, 0.06), 0 8px 24px rgba(60, 40, 45, 0.05);
 }
 
 :root[data-theme="mist"] .brain-view .brain-title-language {
@@ -2620,22 +2622,23 @@ onUnmounted(() => {
 }
 
 :root[data-theme="mist"] .brain-view .progress-tabs {
-  background: #ffffff;
-  backdrop-filter: none;
-  border-color: rgba(100, 80, 55, 0.18);
-  box-shadow: 0 1px 2px rgba(60, 45, 30, 0.08);
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-color: rgba(140, 120, 115, 0.08);
+  box-shadow: 0 1px 3px rgba(60, 40, 45, 0.05);
 }
 
 :root[data-theme="mist"] .brain-view .belt-card {
   background: #ffffff;
   backdrop-filter: none;
-  border-color: rgba(100, 80, 55, 0.18);
-  box-shadow: 0 1px 2px rgba(60, 45, 30, 0.08), 0 4px 12px rgba(60, 45, 30, 0.06);
+  border-color: rgba(140, 120, 115, 0.08);
+  box-shadow: 0 1px 3px rgba(60, 40, 45, 0.05), 0 6px 20px rgba(60, 40, 45, 0.04);
 }
 
 :root[data-theme="mist"] .brain-view .belt-card.current {
   border-color: var(--belt-color);
-  box-shadow: 0 1px 2px rgba(60, 45, 30, 0.06), 0 4px 16px color-mix(in srgb, var(--belt-color) 15%, transparent);
+  box-shadow: 0 2px 6px rgba(60, 40, 45, 0.06), 0 8px 24px color-mix(in srgb, var(--belt-color) 18%, transparent);
 }
 
 :root[data-theme="mist"] .brain-view .belt-card.completed {
@@ -2643,7 +2646,7 @@ onUnmounted(() => {
 }
 
 :root[data-theme="mist"] .brain-view .belt-indicator--black {
-  outline-color: rgba(100, 80, 55, 0.3);
+  outline-color: rgba(140, 120, 115, 0.25);
 }
 
 :root[data-theme="mist"] .brain-view .status-badge.completed {
@@ -2657,7 +2660,7 @@ onUnmounted(() => {
 }
 
 :root[data-theme="mist"] .brain-view .status-badge.locked {
-  background: rgba(100, 80, 55, 0.06);
+  background: rgba(140, 120, 115, 0.06);
   color: var(--text-muted);
 }
 </style>

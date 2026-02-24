@@ -667,12 +667,13 @@ onMounted(() => {
 <!-- Mist theme: paper surfaces instead of glass -->
 <style>
 :root[data-theme="mist"] .course-selector .selector-backdrop {
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 :root[data-theme="mist"] .course-selector .selector-content {
   background: #ffffff;
-  box-shadow: 0 2px 4px rgba(60, 45, 30, 0.08), 0 8px 32px rgba(60, 45, 30, 0.06);
+  border: 1px solid rgba(140, 120, 115, 0.1);
+  box-shadow: 0 4px 12px rgba(60, 40, 45, 0.08), 0 20px 60px rgba(60, 40, 45, 0.1);
 }
 </style>

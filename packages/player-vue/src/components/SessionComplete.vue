@@ -550,8 +550,8 @@ const handleDismiss = () => {
 }
 
 :root[data-theme="mist"] .time-to-next {
-  background: rgba(100, 80, 55, 0.06);
-  border-color: rgba(100, 80, 55, 0.12);
+  background: rgba(140, 120, 115, 0.05);
+  border-color: rgba(140, 120, 115, 0.1);
 }
 
 :root[data-theme="mist"] .time-estimate-label {
@@ -564,7 +564,7 @@ const handleDismiss = () => {
 }
 
 :root[data-theme="mist"] .journey-dot-inner {
-  background: rgba(44, 37, 32, 0.7);
+  background: rgba(28, 25, 23, 0.65);
 }
 
 :root[data-theme="mist"] .quick-stats {
@@ -576,7 +576,7 @@ const handleDismiss = () => {
 }
 
 :root[data-theme="mist"] .progress-ring-svg circle:first-child {
-  stroke: rgba(100, 80, 55, 0.15);
+  stroke: rgba(140, 120, 115, 0.1);
 }
 
 :root[data-theme="mist"] .resume-btn {

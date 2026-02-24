@@ -10473,21 +10473,21 @@ defineExpose({
 <style>
 /* --- Player wrapper background --- */
 [data-theme="mist"] .player {
-  background: #f0ebe3;
+  background: #f7f4f2;
 }
 
 /* --- Space / Background layers --- */
 [data-theme="mist"] .player .space-gradient {
   background:
-    radial-gradient(ellipse 120% 80% at 20% 10%, rgba(210, 195, 170, 0.35) 0%, transparent 50%),
-    radial-gradient(ellipse 100% 60% at 80% 90%, rgba(200, 185, 160, 0.25) 0%, transparent 40%),
-    radial-gradient(ellipse 80% 80% at 50% 50%, #f0ebe3 0%, #e8e2d8 100%);
+    radial-gradient(ellipse 120% 80% at 20% 10%, rgba(200, 175, 170, 0.2) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 60% at 80% 90%, rgba(190, 170, 165, 0.15) 0%, transparent 40%),
+    radial-gradient(ellipse 80% 80% at 50% 50%, #f7f4f2 0%, #f0edea 100%);
 }
 
 [data-theme="mist"] .player .space-nebula {
   background:
-    linear-gradient(180deg, transparent 0%, rgba(200, 185, 160, 0.08) 30%, rgba(200, 185, 160, 0.12) 50%, transparent 70%),
-    linear-gradient(180deg, transparent 40%, rgba(200, 185, 160, 0.06) 60%, transparent 80%);
+    linear-gradient(180deg, transparent 0%, rgba(190, 170, 165, 0.06) 30%, rgba(190, 170, 165, 0.08) 50%, transparent 70%),
+    linear-gradient(180deg, transparent 40%, rgba(190, 170, 165, 0.04) 60%, transparent 80%);
   animation: mist-drift 20s ease-in-out infinite;
 }
 
@@ -10502,16 +10502,16 @@ defineExpose({
   mix-blend-mode: multiply;
 }
 
-/* Bamboo shadow lines */
+/* Subtle vertical lines */
 [data-theme="mist"] .player .bg-noise::after {
   content: '';
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, transparent 18%, rgba(100, 80, 55, 0.02) 18.5%, transparent 19%),
-    linear-gradient(90deg, transparent 42%, rgba(100, 80, 55, 0.015) 42.3%, transparent 42.8%),
-    linear-gradient(90deg, transparent 71%, rgba(100, 80, 55, 0.02) 71.4%, transparent 72%),
-    linear-gradient(90deg, transparent 89%, rgba(100, 80, 55, 0.015) 89.3%, transparent 89.8%);
+    linear-gradient(90deg, transparent 18%, rgba(140, 120, 115, 0.015) 18.5%, transparent 19%),
+    linear-gradient(90deg, transparent 42%, rgba(140, 120, 115, 0.01) 42.3%, transparent 42.8%),
+    linear-gradient(90deg, transparent 71%, rgba(140, 120, 115, 0.015) 71.4%, transparent 72%),
+    linear-gradient(90deg, transparent 89%, rgba(140, 120, 115, 0.01) 89.3%, transparent 89.8%);
   pointer-events: none;
 }
 
@@ -10599,81 +10599,83 @@ defineExpose({
   display: block;
 }
 
-/* --- Hero glass → Paper card --- */
+/* --- Hero glass → Frosted card --- */
 [data-theme="mist"] .player .hero-glass {
-  background: #ffffff;
-  border: 1px solid rgba(100, 80, 55, 0.18);
-  box-shadow: 0 1px 3px rgba(60, 45, 30, 0.08), 0 4px 16px rgba(60, 45, 30, 0.06);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(140, 120, 115, 0.1);
+  box-shadow: 0 2px 6px rgba(60, 40, 45, 0.06), 0 8px 24px rgba(60, 40, 45, 0.05);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
 }
 
 /* --- Hero text --- */
 [data-theme="mist"] .player .hero-known {
-  color: #2c2520;
+  color: #1c1917;
 }
 
 [data-theme="mist"] .player .hero-target {
-  color: #2c2520;
-  text-shadow: 0 1px 3px rgba(60, 45, 30, 0.15);
+  color: #1c1917;
+  text-shadow: none;
 }
 
-/* --- Control bar → Paper card --- */
+/* --- Control bar → Frosted card --- */
 [data-theme="mist"] .player .control-bar {
-  background: #ffffff;
-  border: 1px solid rgba(100, 80, 55, 0.18);
-  box-shadow: 0 1px 2px rgba(60, 45, 30, 0.08), 0 4px 12px rgba(60, 45, 30, 0.06);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(140, 120, 115, 0.1);
+  box-shadow: 0 2px 6px rgba(60, 40, 45, 0.06), 0 8px 20px rgba(60, 40, 45, 0.04);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
 }
 
 /* --- Mode / Transport buttons --- */
 [data-theme="mist"] .player .mode-btn,
 [data-theme="mist"] .player .transport-btn {
-  background: rgba(100, 80, 55, 0.08);
-  border-color: rgba(100, 80, 55, 0.15);
-  color: #5c544a;
+  background: rgba(140, 120, 115, 0.07);
+  border-color: rgba(140, 120, 115, 0.1);
+  color: rgba(28, 25, 23, 0.7);
 }
 
 [data-theme="mist"] .player .mode-btn:hover,
 [data-theme="mist"] .player .transport-btn:hover {
-  background: rgba(100, 80, 55, 0.12);
+  background: rgba(140, 120, 115, 0.12);
 }
 
 [data-theme="mist"] .player .mode-btn.active {
-  background: rgba(100, 80, 55, 0.12);
-  color: #2c2520;
+  background: rgba(140, 120, 115, 0.14);
+  color: #1c1917;
 }
 
 [data-theme="mist"] .player .mode-picker {
-  background: #ffffff;
-  border: 1px solid rgba(100, 80, 55, 0.18);
-  box-shadow: 0 1px 3px rgba(60, 45, 30, 0.08), 0 4px 16px rgba(60, 45, 30, 0.06);
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(140, 120, 115, 0.1);
+  box-shadow: 0 4px 12px rgba(60, 40, 45, 0.08), 0 12px 40px rgba(60, 40, 45, 0.06);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
 [data-theme="mist"] .player .mode-picker-option {
-  background: rgba(100, 80, 55, 0.08);
-  border-color: rgba(100, 80, 55, 0.15);
-  color: #2c2520;
+  background: rgba(140, 120, 115, 0.06);
+  border-color: rgba(140, 120, 115, 0.1);
+  color: #1c1917;
 }
 
 /* --- Brain Network overrides --- */
 [data-theme="mist"] .player .brain-network-container .network-link {
-  stroke: rgba(100, 80, 55, 0.12);
+  stroke: rgba(140, 120, 115, 0.12);
 }
 
 [data-theme="mist"] .player .brain-network-container .network-label {
-  fill: rgba(44, 37, 32, 0.6);
+  fill: rgba(28, 25, 23, 0.55);
 }
 
 [data-theme="mist"] .player .brain-network-container .network-label.visible {
-  fill: rgba(44, 37, 32, 0.7);
+  fill: rgba(28, 25, 23, 0.7);
 }
 
 [data-theme="mist"] .player .brain-network-container .network-label.active {
-  fill: #2c2520;
+  fill: #1c1917;
   filter: none;
-  text-shadow: 0 1px 3px rgba(60, 45, 30, 0.2);
+  text-shadow: none;
 }
 
 [data-theme="mist"] .player .brain-network-container .network-node.hero {
@@ -10682,20 +10684,20 @@ defineExpose({
 
 @keyframes mist-node-pulse {
   0%, 100% {
-    filter: drop-shadow(0 0 6px rgba(60, 45, 30, 0.3));
+    filter: drop-shadow(0 0 6px rgba(60, 40, 45, 0.25));
     transform: scale(1);
   }
   50% {
-    filter: drop-shadow(0 0 14px rgba(60, 45, 30, 0.5));
+    filter: drop-shadow(0 0 14px rgba(60, 40, 45, 0.4));
     transform: scale(1.1);
   }
 }
 
 /* --- Belt celebration overlay --- */
 [data-theme="mist"] .player .belt-celebration-overlay {
-  background: rgba(44, 37, 32, 0.65);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+  background: rgba(30, 20, 25, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 /* --- Belt particles → Shuriken burst --- */
@@ -10706,25 +10708,25 @@ defineExpose({
 
 /* --- Ink spirit rewards --- */
 [data-theme="mist"] .player .ink-spirit-reward {
-  text-shadow: 0 1px 4px rgba(60, 45, 30, 0.2);
+  text-shadow: none;
 }
 
 [data-theme="mist"] .player .ink-spirit-reward .ink-word {
-  color: #2c2520;
+  color: #1c1917;
 }
 
 /* --- Learning hint box --- */
 [data-theme="mist"] .player .learning-hint,
 [data-theme="mist"] .player .learning-hint-box {
-  background: #ffffff;
-  border: 1px solid rgba(100, 80, 55, 0.18);
-  box-shadow: 0 1px 2px rgba(60, 45, 30, 0.08), 0 4px 12px rgba(60, 45, 30, 0.06);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  color: #5c544a;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(140, 120, 115, 0.1);
+  box-shadow: 0 2px 6px rgba(60, 40, 45, 0.06), 0 8px 24px rgba(60, 40, 45, 0.05);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: rgba(28, 25, 23, 0.7);
 }
 
 [data-theme="mist"] .player .learning-hint-box .hint-text {
-  color: #5c544a;
+  color: rgba(28, 25, 23, 0.7);
 }
 </style>
