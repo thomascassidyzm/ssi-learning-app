@@ -583,8 +583,9 @@ const isVisible = computed(() => !props.isLearning)
    ═══════════════════════════════════════════════════════════════ */
 :root[data-theme="mist"] .nav-backdrop {
   background: #1A1614;
-  border-top: 1px solid rgba(168, 156, 142, 0.12);
-  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.15);
+  border-top: 1.5px solid color-mix(in srgb, var(--belt-color) 40%, rgba(168, 156, 142, 0.15));
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.15),
+              0 -1px 12px color-mix(in srgb, var(--belt-color) 15%, transparent);
 }
 
 :root[data-theme="mist"] .nav-backdrop::before {
@@ -600,10 +601,11 @@ const isVisible = computed(() => !props.isLearning)
 }
 
 :root[data-theme="mist"] .nav-item.active .nav-icon {
-  color: #F2F0ED;
+  color: color-mix(in srgb, var(--belt-color) 40%, #F2F0ED);
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--belt-color) 30%, transparent));
 }
 
 :root[data-theme="mist"] .nav-item.active .nav-label {
-  color: #F2F0ED;
+  color: color-mix(in srgb, var(--belt-color) 40%, #F2F0ED);
 }
 </style>

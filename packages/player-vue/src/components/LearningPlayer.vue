@@ -10538,15 +10538,31 @@ defineExpose({
   display: none;
 }
 
-/* --- Nebula glow → Warm vermillion floor accent --- */
+/* --- Nebula glow → Belt-colored floor accent wash --- */
 [data-theme="mist"] .player .nebula-glow {
   background:
     linear-gradient(
       to top,
-      rgba(193, 39, 45, 0.08) 0%,
-      transparent 25%
+      color-mix(in srgb, var(--belt-color) 12%, transparent) 0%,
+      color-mix(in srgb, var(--belt-color) 4%, transparent) 30%,
+      transparent 50%
     );
-  opacity: 0.6;
+  opacity: 0.8;
+}
+
+/* --- Mountain silhouette → Belt color wash overlay --- */
+[data-theme="mist"] .player .mountain-silhouette::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--belt-color) 8%, transparent) 0%,
+    color-mix(in srgb, var(--belt-color) 3%, transparent) 40%,
+    transparent 70%
+  );
+  pointer-events: none;
+  mix-blend-mode: multiply;
 }
 
 /* --- Mountain silhouette (shown only in mist) --- */
@@ -10554,13 +10570,14 @@ defineExpose({
   display: block;
 }
 
-/* --- Hero glass → Solid paper card with belt-tinted edge --- */
+/* --- Hero glass → Solid paper card with belt glow --- */
 [data-theme="mist"] .player .hero-glass {
   background: #F2F0ED;
-  border: 1.5px solid color-mix(in srgb, var(--belt-color) 30%, rgba(122, 110, 98, 0.18));
+  border: 1.5px solid color-mix(in srgb, var(--belt-color) 40%, rgba(122, 110, 98, 0.18));
   box-shadow: 0 1px 2px rgba(44, 38, 34, 0.1),
               0 4px 12px rgba(44, 38, 34, 0.08),
-              0 0 0 0.5px color-mix(in srgb, var(--belt-color) 12%, rgba(122, 110, 98, 0.08));
+              0 0 8px color-mix(in srgb, var(--belt-color) 20%, transparent),
+              0 0 20px color-mix(in srgb, var(--belt-color) 10%, transparent);
 }
 
 /* --- Hero text --- */
@@ -10573,22 +10590,47 @@ defineExpose({
   text-shadow: none;
 }
 
-/* --- Control bar → Solid paper with belt-tinted edge --- */
+/* --- Control bar → Solid paper with belt glow --- */
 [data-theme="mist"] .player .control-bar {
   background: #F2F0ED;
-  border: 1.5px solid color-mix(in srgb, var(--belt-color) 30%, rgba(122, 110, 98, 0.18));
+  border: 1.5px solid color-mix(in srgb, var(--belt-color) 40%, rgba(122, 110, 98, 0.18));
   box-shadow: 0 1px 2px rgba(44, 38, 34, 0.1),
               0 4px 12px rgba(44, 38, 34, 0.08),
-              0 0 0 0.5px color-mix(in srgb, var(--belt-color) 12%, rgba(122, 110, 98, 0.08));
+              0 0 8px color-mix(in srgb, var(--belt-color) 20%, transparent),
+              0 0 20px color-mix(in srgb, var(--belt-color) 10%, transparent);
 }
 
-/* --- Belt timer → Match edge definition --- */
+/* --- Belt timer → Match edge definition with belt glow --- */
 [data-theme="mist"] .player .belt-timer-unified {
   background: #F2F0ED;
-  border: 1.5px solid color-mix(in srgb, var(--belt-color) 30%, rgba(122, 110, 98, 0.18));
+  border: 1.5px solid color-mix(in srgb, var(--belt-color) 40%, rgba(122, 110, 98, 0.18));
   box-shadow: 0 1px 2px rgba(44, 38, 34, 0.1),
               0 4px 12px rgba(44, 38, 34, 0.08),
-              0 0 0 0.5px color-mix(in srgb, var(--belt-color) 12%, rgba(122, 110, 98, 0.08));
+              0 0 8px color-mix(in srgb, var(--belt-color) 25%, transparent),
+              0 0 20px color-mix(in srgb, var(--belt-color) 12%, transparent);
+}
+
+/* --- Skip buttons → Visible circular buttons with belt color --- */
+[data-theme="mist"] .player .belt-header-skip {
+  background: color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 12%, #F2F0ED);
+  border: 1.5px solid color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 35%, rgba(122, 110, 98, 0.2));
+  opacity: 1;
+  color: color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 70%, #1A1614);
+  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.1),
+              0 0 6px color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 15%, transparent);
+}
+
+[data-theme="mist"] .player .belt-header-skip:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 20%, #F2F0ED);
+  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.1),
+              0 0 10px color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 25%, transparent);
+}
+
+[data-theme="mist"] .player .belt-header-skip:disabled {
+  background: rgba(122, 110, 98, 0.06);
+  border-color: rgba(122, 110, 98, 0.1);
+  color: rgba(122, 110, 98, 0.3);
+  box-shadow: none;
 }
 
 /* --- Mode / Transport buttons --- */
