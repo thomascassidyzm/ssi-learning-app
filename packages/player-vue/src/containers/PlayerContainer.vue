@@ -549,7 +549,7 @@ onMounted(() => {
 .settings-panel {
   width: 100%;
   max-width: 500px;
-  max-height: 90vh;
+  max-height: 90dvh;
   overflow-y: auto;
   background: var(--bg-primary);
   border-radius: 16px 16px 0 0;
