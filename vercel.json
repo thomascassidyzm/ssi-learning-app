@@ -1,5 +1,5 @@
 {
-  "buildCommand": "pnpm --filter @ssi/core build && pnpm --filter player-vue build && pnpm --filter @ssi/schools-dashboard build && mkdir -p packages/player-vue/dist/schools && cp -r apps/schools-dashboard/dist/* packages/player-vue/dist/schools/",
+  "buildCommand": "pnpm --filter @ssi/core build && pnpm --filter player-vue build",
   "outputDirectory": "packages/player-vue/dist",
   "installCommand": "npm install -g pnpm && pnpm install",
   "framework": "vite",
