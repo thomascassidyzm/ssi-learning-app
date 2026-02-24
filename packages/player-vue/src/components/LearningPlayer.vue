@@ -10554,10 +10554,66 @@ defineExpose({
   pointer-events: none;
 }
 
-/* --- Hide stars & drift-stars in mist (landscape replaces them) --- */
-[data-theme="mist"] .player .star-field,
-[data-theme="mist"] .player .drift-stars {
+/* --- Hide stars in mist, repurpose drift-stars as drifting mist wisps --- */
+[data-theme="mist"] .player .star-field {
   display: none;
+}
+
+[data-theme="mist"] .player .drift-stars {
+  opacity: 1;
+  pointer-events: none;
+}
+
+[data-theme="mist"] .player .drift-star {
+  background: none !important;
+  border-radius: 50%;
+  width: 80px !important;
+  height: 30px !important;
+  box-shadow: 0 0 40px 20px rgba(255, 255, 255, 0.06);
+  animation: mist-wisp 18s ease-in-out infinite !important;
+  opacity: 0;
+}
+
+[data-theme="mist"] .player .drift-star:nth-child(2n) {
+  width: 120px !important;
+  height: 40px !important;
+  animation-duration: 24s !important;
+  animation-delay: -6s !important;
+}
+
+[data-theme="mist"] .player .drift-star:nth-child(3n) {
+  width: 60px !important;
+  height: 20px !important;
+  animation-duration: 15s !important;
+  animation-delay: -10s !important;
+}
+
+@keyframes mist-wisp {
+  0% { opacity: 0; transform: translateX(-30px) translateY(0); }
+  20% { opacity: 0.5; }
+  50% { opacity: 0.7; transform: translateX(30px) translateY(-8px); }
+  80% { opacity: 0.4; }
+  100% { opacity: 0; transform: translateX(60px) translateY(0); }
+}
+
+/* --- Landscape shimmer — slow-moving light across the hills --- */
+[data-theme="mist"] .player .mountain-silhouette::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 40% 60% at 30% 40%,
+    rgba(255, 255, 255, 0.08) 0%,
+    transparent 70%
+  );
+  animation: landscape-shimmer 25s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+@keyframes landscape-shimmer {
+  0%, 100% { opacity: 0.3; transform: translateX(-5%); }
+  50% { opacity: 0.8; transform: translateX(15%); }
 }
 
 /* --- Nebula glow → Belt-colored floor accent wash --- */
