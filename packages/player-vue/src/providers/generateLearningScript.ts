@@ -148,7 +148,7 @@ export async function generateLearningScript(
     else if (phrase.phrase_role === 'practice') group.practice.push(phrase)
   }
 
-  console.debug(`[generateLearningScript] ${phrasesResult.data?.length || 0} phrases fetched, ${componentsByLego.size} LEGOs with components`)
+  console.log(`[generateLearningScript] ${phrasesResult.data?.length || 0} phrases fetched, ${componentsByLego.size} LEGOs with components`)
 
   // Classify legacy 'practice' phrases per LEGO:
   // - If the LEGO already has explicit USE phrases, practice → BUILD (fragments, drill once)
