@@ -304,7 +304,7 @@ const staggerDelay = (index: number): string => {
 <!-- Mist theme: paper LEGO chips instead of glass -->
 <style>
 :root[data-theme="mist"] .lego-block {
-  background: #F5F3F0;
+  background: #F2F0ED;
   border: 1px solid rgba(122, 110, 98, 0.12);
   box-shadow: 0 1px 3px rgba(44, 38, 34, 0.06), 0 4px 12px rgba(44, 38, 34, 0.05);
 }
@@ -315,7 +315,7 @@ const staggerDelay = (index: number): string => {
 }
 
 :root[data-theme="mist"] .lego-block.assembled {
-  background: #F5F3F0;
+  background: #F2F0ED;
   border-color: var(--belt-accent, rgba(122, 110, 98, 0.18));
   box-shadow:
     0 1px 3px rgba(44, 38, 34, 0.06),
@@ -323,7 +323,7 @@ const staggerDelay = (index: number): string => {
 }
 
 :root[data-theme="mist"] .lego-block.salient {
-  background: #F5F3F0;
+  background: #F2F0ED;
   border-color: var(--belt-accent, rgba(122, 110, 98, 0.28));
   border-width: 2px;
   box-shadow:
@@ -336,7 +336,7 @@ const staggerDelay = (index: number): string => {
 }
 
 :root[data-theme="mist"] .lego-block.salient.assembled {
-  background: #F0EDEA;
+  background: #ECEAE7;
   box-shadow:
     0 2px 6px rgba(44, 38, 34, 0.07),
     0 8px 28px color-mix(in srgb, var(--belt-accent, rgba(122, 110, 98, 0.18)) 28%, transparent);

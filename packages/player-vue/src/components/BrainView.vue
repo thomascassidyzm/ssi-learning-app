@@ -2598,17 +2598,17 @@ onUnmounted(() => {
 <!-- Mist theme: paper dojo instead of dark cosmos -->
 <style>
 :root[data-theme="mist"] .brain-view {
-  background: linear-gradient(180deg, #EDEAE6 0%, #E5E2DE 50%, #EDEAE6 100%);
+  background: linear-gradient(180deg, #D9D6D2 0%, #E0DDDA 50%, #D9D6D2 100%);
 }
 
 :root[data-theme="mist"] .brain-view .close-btn {
-  background: #F5F3F0;
+  background: #F2F0ED;
   border-color: rgba(122, 110, 98, 0.12);
   box-shadow: 0 2px 6px rgba(44, 38, 34, 0.08), 0 6px 16px rgba(44, 38, 34, 0.05);
 }
 
 :root[data-theme="mist"] .brain-view .brain-title-mount {
-  background: #F5F3F0;
+  background: #F2F0ED;
   border-color: rgba(122, 110, 98, 0.1);
   box-shadow: 0 2px 6px rgba(44, 38, 34, 0.08), 0 8px 24px rgba(44, 38, 34, 0.06);
 }
@@ -2618,13 +2618,13 @@ onUnmounted(() => {
 }
 
 :root[data-theme="mist"] .brain-view .progress-tabs {
-  background: #F5F3F0;
+  background: #F2F0ED;
   border-color: rgba(122, 110, 98, 0.1);
   box-shadow: 0 1px 3px rgba(44, 38, 34, 0.06);
 }
 
 :root[data-theme="mist"] .brain-view .belt-card {
-  background: #F5F3F0;
+  background: #F2F0ED;
   border-color: rgba(122, 110, 98, 0.1);
   box-shadow: 0 1px 3px rgba(44, 38, 34, 0.06), 0 6px 20px rgba(44, 38, 34, 0.05);
 }

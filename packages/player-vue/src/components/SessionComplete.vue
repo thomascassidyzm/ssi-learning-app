@@ -538,7 +538,7 @@ const handleDismiss = () => {
    WASHI PAPER DOJO THEME — Session complete overrides
    ═══════════════════════════════════════════════════════════════ */
 :root[data-theme="mist"] .session-summary {
-  background: #EDEAE6;
+  background: #D9D6D2;
 }
 
 :root[data-theme="mist"] .bg-gradient {
@@ -559,7 +559,7 @@ const handleDismiss = () => {
 }
 
 :root[data-theme="mist"] .journey-dot {
-  background: #F5F3F0;
+  background: #F2F0ED;
   border-color: rgba(122, 110, 98, 0.22);
 }
 

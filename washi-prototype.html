@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Washi Paper Dojo — Light Theme Prototype</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@400;700;900&family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+/* ============================================
+   WASHI PAPER DOJO — Light Theme
+   Metaphor: Calligraphy scroll in a sunlit dojo
+
+   This prototype mirrors the REAL LearningPlayer structure:
+   1. Header (logo + belt bar + timer)
+   2. Network theater (top — visualization area)
+   3. Control pane (known text / target text — tappable)
+   4. Mountain silhouette
+
+   BottomNav is shown separately (only when not learning)
+   ============================================ */
+
+:root {
+  /* Paper tones — warm, never sterile */
+  --paper-deep: #E8E0CE;
+  --paper-mid: #F0E8D6;
+  --paper-light: #F5EDE0;
+  --paper-card: #FAF6EC;
+  --paper-glow: #FFFCF4;
+
+  /* Ink tones — rich, not pure black */
+  --ink-black: #1A1614;
+  --ink-dark: #2C2622;
+  --ink-mid: #4A4038;
+  --ink-soft: #7A6E62;
+  --ink-faint: #A89C8E;
+  --ink-ghost: #C8BEB2;
+
+  /* Lacquer & charcoal — bottom grounding */
+  --lacquer-deep: #1A1614;
+  --lacquer-mid: #252019;
+  --lacquer-warm: #302A22;
+
+  /* Accent — SSi red (vermillion seal) */
+  --vermillion: #C1272D;
+  --vermillion-soft: #D4464B;
+  --vermillion-glow: rgba(193, 39, 45, 0.12);
+
+  /* Belt blue */
+  --belt-blue: #3B7DD8;
+  --belt-glow: rgba(59, 125, 216, 0.2);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+body {
+  font-family: 'Noto Sans', system-ui, sans-serif;
+  background: #2C2622;
+  overflow-x: hidden;
+}
+
+/* ============================================
+   PHONE FRAME
+   ============================================ */
+.phone-frame {
+  width: 375px;
+  height: 812px;
+  margin: 40px auto;
+  border-radius: 44px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 25px 80px rgba(0,0,0,0.4);
+  border: 8px solid #111;
+}
+
+@media (max-width: 500px) {
+  .phone-frame {
+    width: 100%; height: 100dvh; margin: 0;
+    border-radius: 0; border: none; box-shadow: none;
+  }
+}
+
+/* ============================================
+   PLAYER SHELL — mirrors .player in LearningPlayer
+   ============================================ */
+.player {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  background: var(--paper-mid);
+}
+
+/* Washi paper texture — subtle fibre noise */
+.player::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 300 300' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.25'/%3E%3C/svg%3E");
+  opacity: 0.05;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Warm sunlight through shoji screens */
+.player::after {
+  content: '';
+  position: absolute;
+  top: -10%;
+  left: -20%;
+  width: 140%;
+  height: 50%;
+  background: radial-gradient(ellipse at 35% 15%, rgba(255, 250, 235, 0.45) 0%, transparent 65%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ============================================
+   CHERRY BLOSSOM PETALS
+   ============================================ */
+.petals {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  overflow: hidden;
+}
+
+.petal {
+  position: absolute;
+  opacity: 0;
+  will-change: transform, opacity;
+}
+
+.petal svg { width: 100%; height: 100%; }
+
+.petal--1 { left: 12%; top: -4%; width: 11px; height: 13px; animation: fall-a 16s 0s ease-in-out infinite; }
+.petal--2 { left: 35%; top: -4%; width: 8px; height: 10px; animation: fall-b 19s 4s ease-in-out infinite; }
+.petal--3 { left: 62%; top: -4%; width: 10px; height: 12px; animation: fall-a 14s 8s ease-in-out infinite; }
+.petal--4 { left: 82%; top: -4%; width: 7px; height: 9px; animation: fall-c 21s 2s ease-in-out infinite; }
+.petal--5 { left: 48%; top: -4%; width: 9px; height: 11px; animation: fall-b 17s 11s ease-in-out infinite; }
+.petal--6 { left: 6%; top: -4%; width: 10px; height: 12px; animation: fall-c 18s 6s ease-in-out infinite; }
+
+@keyframes fall-a {
+  0%   { transform: translate(0,0) rotate(0deg); opacity: 0; }
+  4%   { opacity: 0.5; }
+  50%  { transform: translate(25px,400px) rotate(200deg); opacity: 0.35; }
+  100% { transform: translate(-10px,850px) rotate(420deg); opacity: 0; }
+}
+@keyframes fall-b {
+  0%   { transform: translate(0,0) rotate(30deg); opacity: 0; }
+  5%   { opacity: 0.45; }
+  50%  { transform: translate(-20px,380px) rotate(180deg); opacity: 0.3; }
+  100% { transform: translate(15px,850px) rotate(400deg); opacity: 0; }
+}
+@keyframes fall-c {
+  0%   { transform: translate(0,0) rotate(-20deg); opacity: 0; }
+  6%   { opacity: 0.4; }
+  50%  { transform: translate(35px,420px) rotate(160deg); opacity: 0.25; }
+  100% { transform: translate(-5px,850px) rotate(380deg); opacity: 0; }
+}
+
+/* ============================================
+   HEADER — mirrors .header in LearningPlayer
+   Logo row + belt row (skip back, belt bar, skip forward)
+   ============================================ */
+.header {
+  position: relative;
+  z-index: 10;
+  padding: 16px 20px 0;
+}
+
+.brand-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.brand {
+  font-family: 'Zen Old Mincho', serif;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink-dark);
+  letter-spacing: -0.3px;
+}
+
+.logo-something { color: var(--vermillion); }
+
+.theme-toggle {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+.theme-toggle:active { background: rgba(0,0,0,0.05); }
+.theme-toggle svg { width: 18px; height: 18px; }
+
+/* Belt row */
+.belt-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.belt-skip {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: none;
+  color: var(--ink-ghost);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: color 0.2s;
+  flex-shrink: 0;
+}
+.belt-skip:active { color: var(--ink-soft); }
+.belt-skip svg { width: 16px; height: 16px; }
+
+.belt-timer {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.belt-track {
+  width: 100%;
+  height: 4px;
+  background: var(--paper-card);
+  border-radius: 2px;
+  overflow: hidden;
+  border: 1px solid rgba(26, 22, 20, 0.06);
+}
+
+.belt-fill {
+  height: 100%;
+  width: 96%;
+  background: linear-gradient(90deg, var(--belt-blue), #5A9BE6);
+  border-radius: 2px;
+  box-shadow: 0 0 6px var(--belt-glow);
+}
+
+.belt-timer-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-faint);
+  letter-spacing: 0.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================
+   NETWORK THEATER — top visualization area
+   In cosmos: constellation. In washi: open paper space with petals
+   ============================================ */
+.network-theater {
+  flex: 1;
+  position: relative;
+  z-index: 3;
+  min-height: 0;
+  /* In light mode, this is the breathing space —
+     the "paper" where petals drift and the eye rests */
+}
+
+/* ============================================
+   CONTROL PANE — the text display area
+   mirrors .control-pane in LearningPlayer
+   Known text on top, divider, target text below
+   Entire pane is tappable (play/pause)
+   ============================================ */
+.control-pane {
+  position: relative;
+  z-index: 10;
+  padding: 0 24px 16px;
+  cursor: pointer;
+}
+
+.pane-text {
+  background: var(--paper-card);
+  border-radius: 16px;
+  border: 1px solid rgba(26, 22, 20, 0.05);
+  box-shadow:
+    0 1px 2px rgba(26, 22, 20, 0.04),
+    0 4px 16px rgba(26, 22, 20, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Paper fibre texture on the text card */
+.pane-text::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)' opacity='0.12'/%3E%3C/svg%3E");
+  opacity: 0.035;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.known-text {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--ink-mid);
+  text-align: center;
+  line-height: 1.5;
+}
+
+.pane-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--ink-ghost) 20%, var(--ink-ghost) 80%, transparent 100%);
+  opacity: 0.5;
+}
+
+.target-text {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ink-black);
+  text-align: center;
+  line-height: 1.45;
+  letter-spacing: -0.3px;
+}
+
+/* Play hint overlay when paused */
+.pane-play-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(250, 246, 236, 0.85);
+  border-radius: inherit;
+  color: var(--ink-soft);
+}
+.pane-play-hint svg {
+  width: 40px;
+  height: 40px;
+  opacity: 0.6;
+}
+.pane-play-hint .start-label {
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.5;
+  letter-spacing: 0.5px;
+}
+
+/* Pause timer bar — thin red line below the card */
+.pause-timer-bar {
+  margin-top: 8px;
+  height: 3px;
+  background: var(--paper-card);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.pause-timer-fill {
+  height: 100%;
+  width: 65%;
+  background: var(--vermillion);
+  border-radius: 2px;
+  transition: width 0.1s linear;
+}
+
+/* ============================================
+   MOUNTAIN SILHOUETTE — Ink brush on warm paper
+   mirrors .mountain-silhouette in LearningPlayer
+   ============================================ */
+.mountain-silhouette {
+  position: relative;
+  z-index: 4;
+  height: 100px;
+  margin-top: auto;
+  color: var(--ink-dark);
+}
+
+.mountain-silhouette svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ============================================
+   BOTTOM NAV — matches BottomNav.vue
+   3 items: Progress, Play (big center), Library
+   ============================================ */
+.bottom-nav {
+  position: relative;
+  z-index: 20;
+  background: var(--lacquer-deep);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.nav-content {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+  padding: 8px 24px 12px;
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.35);
+  padding: 4px 16px;
+}
+.nav-item.active { color: rgba(255, 255, 255, 0.9); }
+.nav-item svg { width: 22px; height: 22px; }
+.nav-label { font-size: 10px; font-weight: 600; letter-spacing: 0.3px; color: inherit; }
+
+/* Central play button */
+.play-button-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-top: -18px;
+}
+
+.play-button {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  background: var(--vermillion);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow:
+    0 4px 16px rgba(193, 39, 45, 0.35),
+    0 0 0 3px rgba(193, 39, 45, 0.12);
+  transition: transform 0.15s ease;
+}
+.play-button:active { transform: scale(0.92); }
+.play-button svg { width: 24px; height: 24px; }
+.play-button-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  letter-spacing: 0.3px;
+}
+
+/* ============================================
+   DEMO TOGGLE (to show paused vs playing states)
+   ============================================ */
+.demo-toggle {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 9999;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid #555;
+  background: #333;
+  color: #ccc;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: monospace;
+}
+
+@media (max-width: 500px) {
+  .demo-toggle { top: auto; bottom: 80px; right: 8px; }
+}
+</style>
+</head>
+<body>
+
+<button class="demo-toggle" onclick="toggleState()">Toggle: Playing</button>
+
+<div class="phone-frame">
+<div class="player" id="player">
+
+  <!-- Cherry blossom petals -->
+  <div class="petals">
+    <div class="petal petal--1"><svg viewBox="0 0 20 22"><path d="M10 0C10 0 4 6 2 12C0 18 4 22 10 22C16 22 20 18 18 12C16 6 10 0 10 0Z" fill="#E8B4B8" opacity="0.65"/><path d="M10 3C10 3 6.5 7.5 5.5 11.5C4.5 15.5 6.5 18 10 18C13.5 18 15.5 15.5 14.5 11.5C13.5 7.5 10 3 10 3Z" fill="#F2CDD0" opacity="0.4"/></svg></div>
+    <div class="petal petal--2"><svg viewBox="0 0 20 22"><path d="M10 0C10 0 4 6 2 12C0 18 4 22 10 22C16 22 20 18 18 12C16 6 10 0 10 0Z" fill="#DAADB0" opacity="0.55"/></svg></div>
+    <div class="petal petal--3"><svg viewBox="0 0 20 22"><path d="M10 0C10 0 4 6 2 12C0 18 4 22 10 22C16 22 20 18 18 12C16 6 10 0 10 0Z" fill="#E8B4B8" opacity="0.6"/><path d="M10 3C10 3 6.5 7.5 5.5 11.5C4.5 15.5 6.5 18 10 18C13.5 18 15.5 15.5 14.5 11.5C13.5 7.5 10 3 10 3Z" fill="#F2CDD0" opacity="0.35"/></svg></div>
+    <div class="petal petal--4"><svg viewBox="0 0 20 22"><path d="M10 0C10 0 4 6 2 12C0 18 4 22 10 22C16 22 20 18 18 12C16 6 10 0 10 0Z" fill="#D4A0A4" opacity="0.5"/></svg></div>
+    <div class="petal petal--5"><svg viewBox="0 0 20 22"><path d="M10 0C10 0 4 6 2 12C0 18 4 22 10 22C16 22 20 18 18 12C16 6 10 0 10 0Z" fill="#E8B4B8" opacity="0.55"/><path d="M10 3C10 3 6.5 7.5 5.5 11.5C4.5 15.5 6.5 18 10 18C13.5 18 15.5 15.5 14.5 11.5C13.5 7.5 10 3 10 3Z" fill="#F2CDD0" opacity="0.35"/></svg></div>
+    <div class="petal petal--6"><svg viewBox="0 0 20 22"><path d="M10 0C10 0 4 6 2 12C0 18 4 22 10 22C16 22 20 18 18 12C16 6 10 0 10 0Z" fill="#DAADB0" opacity="0.45"/></svg></div>
+  </div>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="brand-row">
+      <div class="brand">
+        <span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span>
+      </div>
+      <button class="theme-toggle" title="Switch to Cosmos theme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="belt-row">
+      <button class="belt-skip">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="11 17 6 12 11 7"/>
+          <polyline points="18 17 13 12 18 7"/>
+        </svg>
+      </button>
+
+      <div class="belt-timer">
+        <div class="belt-track">
+          <div class="belt-fill"></div>
+        </div>
+        <span class="belt-timer-label">12:34</span>
+      </div>
+
+      <button class="belt-skip">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="13 17 18 12 13 7"/>
+          <polyline points="6 17 11 12 6 7"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Network Theater — open space where petals drift -->
+  <section class="network-theater"></section>
+
+  <!-- Control Pane — text display, tap to play/pause -->
+  <section class="control-pane" id="controlPane">
+    <div class="pane-text">
+      <p class="known-text" id="knownText">you don't mind helping</p>
+      <div class="pane-divider"></div>
+      <p class="target-text" id="targetText">não te importas de ajudar</p>
+
+      <!-- Play hint (shown when paused) -->
+      <div class="pane-play-hint" id="playHint" style="display: none;">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <polygon points="6 3 20 12 6 21 6 3"/>
+        </svg>
+        <span class="start-label">Tap to start</span>
+      </div>
+    </div>
+
+    <!-- Pause timer bar -->
+    <div class="pause-timer-bar" id="timerBar">
+      <div class="pause-timer-fill"></div>
+    </div>
+  </section>
+
+  <!-- Mountain Silhouette — ink brush on paper -->
+  <div class="mountain-silhouette">
+    <svg viewBox="0 0 1200 400" preserveAspectRatio="xMidYMax slice">
+      <defs>
+        <linearGradient id="inkWash" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="currentColor" stop-opacity="0"/>
+          <stop offset="30%" stop-color="currentColor" stop-opacity="0.08"/>
+          <stop offset="100%" stop-color="currentColor" stop-opacity="0.35"/>
+        </linearGradient>
+      </defs>
+
+      <!-- Atmosphere wash -->
+      <rect width="1200" height="400" fill="url(#inkWash)"/>
+
+      <!-- Far peaks — faint ink wash -->
+      <g opacity="0.2">
+        <path d="M0 400 L0 280 Q100 180 200 240 Q300 160 400 200 Q500 120 600 180 Q700 100 800 160 Q900 80 1000 200 Q1100 160 1200 220 L1200 400Z" fill="currentColor"/>
+      </g>
+
+      <!-- Mid range with torii gate + pagoda -->
+      <g opacity="0.35">
+        <path d="M0 400 L0 320 Q150 260 300 290 Q450 240 600 270 Q750 220 900 260 Q1050 230 1200 280 L1200 400Z" fill="currentColor"/>
+        <!-- Torii gate -->
+        <g transform="translate(350, 250)">
+          <rect x="-12" y="0" width="3" height="40" fill="currentColor"/>
+          <rect x="9" y="0" width="3" height="40" fill="currentColor"/>
+          <rect x="-16" y="0" width="32" height="3" rx="1" fill="currentColor"/>
+          <rect x="-14" y="8" width="28" height="2" fill="currentColor"/>
+        </g>
+        <!-- Pagoda -->
+        <g transform="translate(880, 228)">
+          <rect x="-8" y="20" width="16" height="32" fill="currentColor"/>
+          <path d="M-14 20 L0 10 L14 20Z" fill="currentColor"/>
+          <path d="M-12 10 L0 2 L12 10Z" fill="currentColor"/>
+        </g>
+      </g>
+
+      <!-- Near hills with pines -->
+      <g opacity="0.55">
+        <path d="M0 400 L0 350 Q100 320 200 340 Q350 300 500 330 Q650 310 800 340 Q950 320 1100 350 L1200 360 L1200 400Z" fill="currentColor"/>
+        <g transform="translate(150, 310)">
+          <path d="M0 0 L-6 20 L-3 18 L-8 32 L8 32 L3 18 L6 20Z" fill="currentColor"/>
+        </g>
+        <g transform="translate(700, 305)">
+          <path d="M0 0 L-7 22 L-3 20 L-9 36 L9 36 L3 20 L7 22Z" fill="currentColor"/>
+        </g>
+        <g transform="translate(1050, 315)">
+          <path d="M0 0 L-5 18 L-2 16 L-7 28 L7 28 L2 16 L5 18Z" fill="currentColor"/>
+        </g>
+      </g>
+
+      <!-- Foreground — stronger ink -->
+      <g opacity="0.7">
+        <path d="M0 400 L0 370 Q60 350 120 360 Q180 345 240 355 Q300 348 375 352 Q500 340 600 350 Q700 344 800 352 Q900 345 1000 355 Q1100 348 1200 358 L1200 400Z" fill="currentColor"/>
+      </g>
+    </svg>
+  </div>
+
+  <!-- Bottom Nav -->
+  <nav class="bottom-nav">
+    <div class="nav-content">
+      <button class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M12 2C9.5 2 7.5 3.5 7 5.5C5.5 5.5 4 7 4 9c0 1.5.8 2.8 2 3.5-.2.5-.3 1-.3 1.5 0 2 1.5 3.5 3.3 3.8.5 1.3 1.8 2.2 3 2.2s2.5-.9 3-2.2c1.8-.3 3.3-1.8 3.3-3.8 0-.5-.1-1-.3-1.5 1.2-.7 2-2 2-3.5 0-2-1.5-3.5-3-3.5C16.5 3.5 14.5 2 12 2z"/>
+          <path d="M12 2v18" opacity="0.3"/>
+        </svg>
+        <span class="nav-label">Progress</span>
+      </button>
+
+      <div class="play-button-wrap">
+        <button class="play-button">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <polygon points="6 3 20 12 6 21 6 3"/>
+          </svg>
+        </button>
+        <span class="play-button-label">Play</span>
+      </div>
+
+      <button class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <rect x="3" y="3" width="7" height="7" rx="1"/>
+          <rect x="14" y="3" width="7" height="7" rx="1"/>
+          <rect x="3" y="14" width="7" height="7" rx="1"/>
+          <rect x="14" y="14" width="7" height="7" rx="1"/>
+        </svg>
+        <span class="nav-label">Library</span>
+      </button>
+    </div>
+  </nav>
+
+</div>
+</div>
+
+<script>
+let playing = true;
+function toggleState() {
+  playing = !playing;
+  const btn = document.querySelector('.demo-toggle');
+  const hint = document.getElementById('playHint');
+  const timer = document.getElementById('timerBar');
+  btn.textContent = playing ? 'Toggle: Playing' : 'Toggle: Paused';
+  hint.style.display = playing ? 'none' : 'flex';
+  timer.style.display = playing ? 'block' : 'none';
+}
+</script>
+
+</body>
+</html>
