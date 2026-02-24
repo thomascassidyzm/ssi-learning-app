@@ -2951,8 +2951,11 @@ const handleResume = async () => {
     await preloadSimpleRoundAudio(loadedRounds.value, 2, currentIdx)
   }
 
-  // Mark as started so displayPhrases shows cycle text instead of "ready when you are"
+  // Mark as started and playing IMMEDIATELY so:
+  // 1. displayPhrases shows cycle text instead of "ready when you are"
+  // 2. PlayerRestingState overlay hides (it checks isPlaying)
   hasEverStarted.value = true
+  isPlaying.value = true
 
   // Lazily initialize network on first play (deferred from startup)
   if (!networkInitialized.value) {
