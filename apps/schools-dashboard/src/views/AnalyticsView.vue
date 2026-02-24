@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useGodMode } from '@/composables/useGodMode'
-import { useAnalyticsData } from '@/composables/useAnalyticsData'
+import { useAnalyticsData, type SchoolReport } from '@/composables/useAnalyticsData'
 import { useStudentsData } from '@/composables/useStudentsData'
 
 type TimePeriod = '7d' | '30d' | '90d' | 'year'
@@ -15,8 +15,13 @@ const {
   totalPracticeMinutes,
   fetchDailyActivity,
   fetchClassRankings,
+  getSchoolReport,
 } = useAnalyticsData()
 const { students: studentsData, fetchStudents } = useStudentsData()
+
+// School report data
+const schoolReport = ref<SchoolReport | null>(null)
+const reportLoading = ref(false)
 
 // State
 const selectedPeriod = ref<TimePeriod>('30d')
@@ -211,6 +216,21 @@ function handleExport() {
   console.log('Exporting report...')
 }
 
+// Max cycles for bar chart scaling
+const maxClassCycles = computed(() => {
+  if (!schoolReport.value) return 1
+  return Math.max(...schoolReport.value.classes.map(c => c.total_cycles), 1)
+})
+
+// Load school report
+async function loadSchoolReport() {
+  const schoolId = selectedUser.value?.school_id
+  if (!schoolId) return
+  reportLoading.value = true
+  schoolReport.value = await getSchoolReport(schoolId)
+  reportLoading.value = false
+}
+
 // Animation state
 const isVisible = ref(false)
 onMounted(() => {
@@ -221,6 +241,7 @@ onMounted(() => {
     fetchDailyActivity()
     fetchClassRankings()
     fetchStudents()
+    loadSchoolReport()
   }
 })
 
@@ -229,6 +250,7 @@ watch(selectedUser, (newUser) => {
     fetchDailyActivity()
     fetchClassRankings()
     fetchStudents()
+    loadSchoolReport()
   }
 })
 </script>
@@ -271,6 +293,42 @@ watch(selectedUser, (newUser) => {
           </button>
         </div>
       </header>
+
+      <!-- School Speaking Opportunities Report -->
+      <div v-if="schoolReport" class="school-report animate-item delay-1" :class="{ 'show': isVisible }">
+        <!-- School Summary Hero -->
+        <div class="school-hero">
+          <div class="hero-main">
+            <div class="hero-number">{{ schoolReport.schoolTotal.toLocaleString() }}</div>
+            <div class="hero-label">speaking opportunities across {{ schoolReport.classes.length }} classes</div>
+          </div>
+          <div class="hero-comparison">
+            <span class="comp-tag">School avg: <strong>{{ schoolReport.schoolAvgPerClass.toLocaleString() }}</strong>/class</span>
+            <span v-if="schoolReport.regionAvg" class="comp-tag">Regional avg: <strong>{{ schoolReport.regionAvg.avg_total_cycles.toLocaleString() }}</strong>/class</span>
+          </div>
+        </div>
+
+        <!-- Per-class horizontal bar chart -->
+        <div class="class-bars-card">
+          <h3 class="bars-title">Speaking Opportunities by Class</h3>
+          <div class="class-bars">
+            <div
+              v-for="cls in schoolReport.classes"
+              :key="cls.class_id"
+              class="class-bar-row"
+            >
+              <div class="class-bar-label">{{ cls.class_name }}</div>
+              <div class="class-bar-track">
+                <div
+                  class="class-bar-fill"
+                  :style="{ width: `${(cls.total_cycles / maxClassCycles) * 100}%` }"
+                ></div>
+              </div>
+              <div class="class-bar-value">{{ cls.total_cycles.toLocaleString() }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <!-- Key Metrics Grid -->
       <div class="metrics-grid animate-item delay-1" :class="{ 'show': isVisible }">
@@ -653,6 +711,119 @@ watch(selectedUser, (newUser) => {
 .btn-sm {
   padding: 8px 14px;
   font-size: 13px;
+}
+
+/* ========== School Report ========== */
+.school-report {
+  margin-bottom: 32px;
+}
+
+.school-hero {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-left: 4px solid var(--ssi-red);
+  border-radius: 18px;
+  padding: 32px;
+  margin-bottom: 20px;
+}
+
+.school-hero .hero-main {
+  margin-bottom: 16px;
+}
+
+.school-hero .hero-number {
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 48px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.school-hero .hero-label {
+  font-size: 16px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.hero-comparison {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.comp-tag {
+  font-size: 14px;
+  color: var(--text-secondary);
+  padding: 6px 14px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+}
+
+.comp-tag strong {
+  color: var(--text-primary);
+}
+
+.class-bars-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 18px;
+  padding: 24px;
+}
+
+.bars-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 20px;
+}
+
+.class-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.class-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.class-bar-label {
+  width: 160px;
+  flex-shrink: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.class-bar-track {
+  flex: 1;
+  height: 28px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.class-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--ssi-red), var(--ssi-red-light, #d45555));
+  border-radius: 8px;
+  transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  min-width: 4px;
+}
+
+.class-bar-value {
+  width: 80px;
+  flex-shrink: 0;
+  text-align: right;
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ssi-gold);
 }
 
 /* ========== Metrics Grid ========== */

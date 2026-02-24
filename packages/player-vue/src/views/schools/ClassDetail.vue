@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, inject } from 'vue'
+import { ref, computed, onMounted, inject, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 
 const router = useRouter()
@@ -71,6 +71,32 @@ onMounted(async () => {
   }
 })
 
+// Session history
+const sessions = ref([])
+
+// Load session history
+const loadSessions = async () => {
+  if (!schoolsData || !classData.value.id) return
+  const data = await schoolsData.getClassSessions(classData.value.id)
+  sessions.value = data.map(s => ({
+    ...s,
+    date: new Date(s.started_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+    time: new Date(s.started_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+    durationDisplay: s.duration_seconds > 0
+      ? `${Math.floor(s.duration_seconds / 60)}m ${s.duration_seconds % 60}s`
+      : 'In progress',
+    legoRange: s.end_lego_id
+      ? `${s.start_lego_id} → ${s.end_lego_id}`
+      : s.start_lego_id,
+  }))
+}
+
+// Load sessions after class data is ready
+const classIdForSessions = computed(() => classData.value.id)
+watch(classIdForSessions, (id) => {
+  if (id) loadSessions()
+}, { immediate: true })
+
 // Copy state for join code
 const copySuccess = ref(false)
 
@@ -131,6 +157,7 @@ const handlePlay = () => {
     name: classData.value.class_name,
     course_code: classData.value.course_code,
     current_seed: classData.value.current_seed,
+    last_lego_id: classData.value.last_lego_id,
     timestamp: new Date().toISOString()
   }
   localStorage.setItem('ssi-active-class', JSON.stringify(activeClass))
@@ -352,6 +379,30 @@ const handleRemoveStudent = (student) => {
         </div>
         <p v-if="searchQuery">No students match "{{ searchQuery }}"</p>
         <p v-else>No students have joined this class yet.<br/>Share the join code to get started.</p>
+      </div>
+    </section>
+
+    <!-- Session History -->
+    <section class="session-history-section" v-if="sessions.length > 0">
+      <h2 class="section-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+        </svg>
+        Session History
+      </h2>
+
+      <div class="sessions-list">
+        <div v-for="session in sessions" :key="session.id" class="session-card">
+          <div class="session-date">
+            <span class="date">{{ session.date }}</span>
+            <span class="time">{{ session.time }}</span>
+          </div>
+          <div class="session-details">
+            <span class="session-duration">{{ session.durationDisplay }}</span>
+            <span class="session-legos">{{ session.legoRange }}</span>
+            <span class="session-cycles" v-if="session.cycles_completed > 0">{{ session.cycles_completed }} cycles</span>
+          </div>
+        </div>
       </div>
     </section>
   </div>
@@ -890,5 +941,74 @@ const handleRemoveStudent = (student) => {
   .col-action {
     width: 20%;
   }
+}
+
+/* Session History */
+.session-history-section {
+  position: relative;
+  z-index: 1;
+  margin-top: 32px;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Noto Sans JP', 'DM Sans', sans-serif;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary, #ffffff);
+  margin: 0 0 16px 0;
+}
+
+.section-title svg {
+  opacity: 0.7;
+}
+
+.sessions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.session-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--bg-card, #242424);
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+  border-radius: 10px;
+}
+
+.session-date {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.session-date .date {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary, #ffffff);
+}
+
+.session-date .time {
+  font-size: 0.75rem;
+  color: var(--text-muted, #707070);
+}
+
+.session-details {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 0.8125rem;
+  color: var(--text-secondary, #b0b0b0);
+}
+
+.session-legos {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  opacity: 0.8;
 }
 </style>

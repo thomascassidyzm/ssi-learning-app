@@ -2,14 +2,18 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useGodMode } from '@/composables/useGodMode'
-import { useClassesData } from '@/composables/useClassesData'
+import { useClassesData, type ClassReport } from '@/composables/useClassesData'
 
 const router = useRouter()
 const route = useRoute()
 
 // God Mode and data
 const { selectedUser } = useGodMode()
-const { classDetail, fetchClassDetail } = useClassesData()
+const { classDetail, fetchClassDetail, getClassReport } = useClassesData()
+
+// Report data
+const classReport = ref<ClassReport | null>(null)
+const reportLoading = ref(false)
 
 // Class data - derived from classDetail
 const classData = computed(() => {
@@ -97,13 +101,20 @@ const students = computed(() => {
   })
 })
 
+// Load report data
+async function loadReport(classId: string) {
+  reportLoading.value = true
+  classReport.value = await getClassReport(classId)
+  reportLoading.value = false
+}
+
 // Load class data on mount
 onMounted(() => {
   const classId = route.params.id as string
   if (classId && selectedUser.value) {
     fetchClassDetail(classId)
+    loadReport(classId)
   } else if (!classId) {
-    // No class ID, try sessionStorage fallback
     const stored = sessionStorage.getItem('ssi-class-detail')
     if (!stored) {
       router.push({ name: 'classes' })
@@ -115,6 +126,7 @@ watch(selectedUser, (newUser) => {
   const classId = route.params.id as string
   if (newUser && classId) {
     fetchClassDetail(classId)
+    loadReport(classId)
   }
 })
 
@@ -271,6 +283,56 @@ const handleRemoveStudent = (student: { id: string; name: string }) => {
         </button>
       </div>
     </header>
+
+    <!-- Speaking Opportunities Report -->
+    <section v-if="classReport" class="report-section">
+      <!-- Hero Card -->
+      <div class="report-hero">
+        <div class="hero-main">
+          <div class="hero-number">{{ classReport.class.total_cycles.toLocaleString() }}</div>
+          <div class="hero-label">speaking opportunities</div>
+        </div>
+        <div class="hero-meta">
+          <span class="hero-stat">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+            </svg>
+            {{ classReport.class.avg_cycles_per_session }} per session
+          </span>
+          <span class="meta-divider"></span>
+          <span class="hero-stat">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            {{ classReport.class.active_days_last_7 }} days active this week
+          </span>
+        </div>
+      </div>
+
+      <!-- Comparison Strip -->
+      <div class="comparison-strip">
+        <div class="comparison-item yours">
+          <div class="comparison-label">Your class</div>
+          <div class="comparison-value">{{ classReport.class.avg_cycles_per_session }}</div>
+          <div class="comparison-unit">/session</div>
+        </div>
+        <div v-if="classReport.schoolAvg" class="comparison-item">
+          <div class="comparison-label">School avg</div>
+          <div class="comparison-value">{{ classReport.schoolAvg.avg_cycles_per_session }}</div>
+          <div class="comparison-unit">/session</div>
+        </div>
+        <div v-if="classReport.regionAvg" class="comparison-item">
+          <div class="comparison-label">Regional avg</div>
+          <div class="comparison-value">{{ classReport.regionAvg.avg_cycles_per_session }}</div>
+          <div class="comparison-unit">/session</div>
+        </div>
+        <div v-if="classReport.courseAvg" class="comparison-item">
+          <div class="comparison-label">All classes</div>
+          <div class="comparison-value">{{ classReport.courseAvg.avg_cycles_per_session }}</div>
+          <div class="comparison-unit">/session</div>
+        </div>
+      </div>
+    </section>
 
     <!-- Join Code Section -->
     <section class="join-code-section">
@@ -551,6 +613,100 @@ const handleRemoveStudent = (student: { id: string; name: string }) => {
 .btn-play-main svg {
   width: 22px;
   height: 22px;
+}
+
+/* Report Section */
+.report-section {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 32px;
+}
+
+.report-hero {
+  background: var(--bg-card, #242424);
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+  border-radius: 16px;
+  padding: 32px;
+  margin-bottom: 16px;
+  border-left: 4px solid var(--ssi-red, #c23a3a);
+}
+
+.hero-main {
+  margin-bottom: 16px;
+}
+
+.hero-number {
+  font-family: 'Noto Sans JP', 'DM Sans', sans-serif;
+  font-size: 3rem;
+  font-weight: 700;
+  color: var(--text-primary, #ffffff);
+  line-height: 1;
+}
+
+.hero-label {
+  font-size: 1.125rem;
+  color: var(--text-secondary, #b0b0b0);
+  margin-top: 4px;
+}
+
+.hero-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 0.875rem;
+  color: var(--text-secondary, #b0b0b0);
+}
+
+.hero-stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hero-stat svg {
+  opacity: 0.7;
+}
+
+.comparison-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.comparison-item {
+  background: var(--bg-card, #242424);
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+}
+
+.comparison-item.yours {
+  border-color: var(--ssi-red, #c23a3a);
+  background: rgba(194, 58, 58, 0.08);
+}
+
+.comparison-label {
+  font-size: 0.75rem;
+  color: var(--text-muted, #707070);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.comparison-value {
+  font-family: 'Noto Sans JP', 'DM Sans', sans-serif;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-primary, #ffffff);
+  line-height: 1;
+}
+
+.comparison-unit {
+  font-size: 0.75rem;
+  color: var(--text-muted, #707070);
+  margin-top: 4px;
 }
 
 /* Join Code Section */

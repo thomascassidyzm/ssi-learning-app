@@ -105,6 +105,7 @@ const handlePlayClass = (classData) => {
     name: classData.class_name,
     course_code: classData.course_code,
     current_seed: classData.current_seed,
+    last_lego_id: classData.last_lego_id,
     timestamp: new Date().toISOString()
   }
   localStorage.setItem('ssi-active-class', JSON.stringify(activeClass))

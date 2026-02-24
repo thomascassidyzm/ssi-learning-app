@@ -39,8 +39,21 @@ export interface SchoolClass {
   course_code: string
   student_join_code: string
   current_seed: number
+  last_lego_id: string | null
   is_active: boolean
   created_at: string
+}
+
+export interface ClassSession {
+  id: string
+  class_id: string
+  teacher_user_id: string
+  started_at: string
+  ended_at: string | null
+  start_lego_id: string
+  end_lego_id: string | null
+  cycles_completed: number
+  duration_seconds: number
 }
 
 export interface Teacher {
@@ -452,6 +465,99 @@ export function useSchoolsData(supabase: Ref<SupabaseClient | null>) {
     return school
   }
 
+  // --------------------------------------------------------------------------
+  // WRITE: Update class progress (last LEGO played)
+  // --------------------------------------------------------------------------
+
+  async function updateClassProgress(classId: string, lastLegoId: string): Promise<void> {
+    const client = getClient()
+    if (!client) return
+
+    const { error: err } = await client
+      .from('classes')
+      .update({ last_lego_id: lastLegoId })
+      .eq('id', classId)
+
+    if (err) console.error('[SchoolsData] Failed to update class progress:', err)
+  }
+
+  // --------------------------------------------------------------------------
+  // WRITE: Start a class session
+  // --------------------------------------------------------------------------
+
+  async function startClassSession(
+    classId: string,
+    teacherUserId: string,
+    startLegoId: string
+  ): Promise<string | null> {
+    const client = getClient()
+    if (!client) return null
+
+    const { data, error: err } = await client
+      .from('class_sessions')
+      .insert({
+        class_id: classId,
+        teacher_user_id: teacherUserId,
+        start_lego_id: startLegoId,
+      })
+      .select('id')
+      .single()
+
+    if (err) {
+      console.error('[SchoolsData] Failed to start class session:', err)
+      return null
+    }
+    return data.id
+  }
+
+  // --------------------------------------------------------------------------
+  // WRITE: End a class session
+  // --------------------------------------------------------------------------
+
+  async function endClassSession(
+    sessionId: string,
+    endLegoId: string,
+    cyclesCompleted: number,
+    durationSeconds: number
+  ): Promise<void> {
+    const client = getClient()
+    if (!client) return
+
+    const { error: err } = await client
+      .from('class_sessions')
+      .update({
+        ended_at: new Date().toISOString(),
+        end_lego_id: endLegoId,
+        cycles_completed: cyclesCompleted,
+        duration_seconds: durationSeconds,
+      })
+      .eq('id', sessionId)
+
+    if (err) console.error('[SchoolsData] Failed to end class session:', err)
+  }
+
+  // --------------------------------------------------------------------------
+  // READ: Session history for a class
+  // --------------------------------------------------------------------------
+
+  async function getClassSessions(classId: string, limit = 20): Promise<ClassSession[]> {
+    const client = getClient()
+    if (!client) return []
+
+    const { data, error: err } = await client
+      .from('class_sessions')
+      .select('*')
+      .eq('class_id', classId)
+      .order('started_at', { ascending: false })
+      .limit(limit)
+
+    if (err) {
+      console.warn('[SchoolsData] getClassSessions error:', err.message)
+      return []
+    }
+    return data ?? []
+  }
+
   return {
     loading,
     error,
@@ -469,6 +575,12 @@ export function useSchoolsData(supabase: Ref<SupabaseClient | null>) {
     // Write
     createClass,
     joinWithCode,
+    updateClassProgress,
+    startClassSession,
+    endClassSession,
+
+    // Read (sessions)
+    getClassSessions,
 
     // Dev
     getOrCreateDevSchool,

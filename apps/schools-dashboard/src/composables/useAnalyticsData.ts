@@ -22,6 +22,32 @@ export interface CourseStats {
   avg_seeds_completed: number
 }
 
+export interface SchoolReport {
+  classes: Array<{
+    class_id: string
+    class_name: string
+    course_code: string
+    total_cycles: number
+    avg_cycles_per_session: number
+    active_students: number
+  }>
+  schoolTotal: number
+  schoolAvgPerClass: number
+  regionAvg: { avg_total_cycles: number; avg_cycles_per_session: number; class_count: number } | null
+}
+
+export interface RegionReport {
+  schools: Array<{
+    school_id: string
+    school_name: string
+    total_cycles: number
+    class_count: number
+    active_students: number
+  }>
+  regionTotal: number
+  allRegionsAvg: { avg_total_cycles: number; class_count: number } | null
+}
+
 export interface ClassRanking {
   class_id: string
   class_name: string
@@ -306,6 +332,117 @@ export function useAnalyticsData() {
     return Math.round(activeDays.reduce((sum, d) => sum + d.active_students, 0) / activeDays.length)
   })
 
+  // Fetch school report: all classes + regional comparison
+  async function getSchoolReport(schoolId: string): Promise<SchoolReport | null> {
+    try {
+      const { data: classesData, error: classesError } = await client
+        .from('class_activity_stats')
+        .select('class_id, class_name, course_code, total_cycles, avg_cycles_per_session, active_students, school_id, region_code')
+        .eq('school_id', schoolId)
+
+      if (classesError || !classesData) return null
+
+      const schoolTotal = classesData.reduce((sum, c) => sum + (c.total_cycles || 0), 0)
+      const schoolAvgPerClass = classesData.length > 0 ? Math.round(schoolTotal / classesData.length) : 0
+
+      // Get regional average for comparison
+      const regionCode = classesData[0]?.region_code
+      let regionAvg = null
+      if (regionCode) {
+        const { data: demographics } = await client
+          .from('demographic_cycle_averages')
+          .select('*')
+          .eq('level', 'region')
+          .eq('group_id', regionCode)
+          .single()
+
+        if (demographics) {
+          regionAvg = {
+            avg_total_cycles: demographics.avg_total_cycles,
+            avg_cycles_per_session: demographics.avg_cycles_per_session,
+            class_count: demographics.class_count,
+          }
+        }
+      }
+
+      return {
+        classes: classesData.map(c => ({
+          class_id: c.class_id,
+          class_name: c.class_name,
+          course_code: c.course_code,
+          total_cycles: c.total_cycles || 0,
+          avg_cycles_per_session: c.avg_cycles_per_session || 0,
+          active_students: c.active_students || 0,
+        })),
+        schoolTotal,
+        schoolAvgPerClass,
+        regionAvg,
+      }
+    } catch (err) {
+      console.error('School report fetch error:', err)
+      return null
+    }
+  }
+
+  // Fetch region report: all schools aggregated
+  async function getRegionReport(regionCode: string): Promise<RegionReport | null> {
+    try {
+      // Get all classes in the region, grouped by school
+      const { data: classesData, error: classesError } = await client
+        .from('class_activity_stats')
+        .select('class_id, class_name, school_id, total_cycles, active_students')
+        .eq('region_code', regionCode)
+
+      if (classesError || !classesData) return null
+
+      // Get school names
+      const schoolIds = [...new Set(classesData.map(c => c.school_id))]
+      const { data: schoolsData } = await client
+        .from('schools')
+        .select('id, school_name')
+        .in('id', schoolIds)
+
+      const schoolNameMap = new Map(schoolsData?.map(s => [s.id, s.school_name]) || [])
+
+      // Aggregate by school
+      const schoolMap = new Map<string, { total_cycles: number; class_count: number; active_students: number }>()
+      classesData.forEach(c => {
+        const existing = schoolMap.get(c.school_id) || { total_cycles: 0, class_count: 0, active_students: 0 }
+        existing.total_cycles += c.total_cycles || 0
+        existing.class_count++
+        existing.active_students += c.active_students || 0
+        schoolMap.set(c.school_id, existing)
+      })
+
+      const schools = Array.from(schoolMap.entries()).map(([school_id, stats]) => ({
+        school_id,
+        school_name: schoolNameMap.get(school_id) || 'Unknown',
+        total_cycles: stats.total_cycles,
+        class_count: stats.class_count,
+        active_students: stats.active_students,
+      }))
+
+      const regionTotal = schools.reduce((sum, s) => sum + s.total_cycles, 0)
+
+      // Get course-level average as "all regions" comparison
+      const { data: courseAvg } = await client
+        .from('demographic_cycle_averages')
+        .select('*')
+        .eq('level', 'course')
+        .limit(1)
+        .single()
+
+      return {
+        schools,
+        regionTotal,
+        allRegionsAvg: courseAvg ? { avg_total_cycles: courseAvg.avg_total_cycles, class_count: courseAvg.class_count } : null,
+      }
+    } catch (err) {
+      console.error('Region report fetch error:', err)
+      return null
+    }
+  }
+
   return {
     // State
     dailyActivity,
@@ -323,5 +460,7 @@ export function useAnalyticsData() {
     fetchDailyActivity,
     fetchCourseStats,
     fetchClassRankings,
+    getSchoolReport,
+    getRegionReport,
   }
 }

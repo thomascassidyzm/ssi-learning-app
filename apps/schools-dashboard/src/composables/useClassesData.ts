@@ -24,6 +24,22 @@ export interface ClassInfo {
   created_at: string
 }
 
+export interface ClassReport {
+  class: {
+    class_id: string
+    class_name: string
+    total_cycles: number
+    total_sessions: number
+    total_practice_seconds: number
+    active_students: number
+    avg_cycles_per_session: number
+    active_days_last_7: number
+  }
+  schoolAvg: { avg_total_cycles: number; avg_cycles_per_session: number; class_count: number } | null
+  regionAvg: { avg_total_cycles: number; avg_cycles_per_session: number; class_count: number } | null
+  courseAvg: { avg_total_cycles: number; avg_cycles_per_session: number; class_count: number } | null
+}
+
 export interface StudentProgress {
   student_user_id: string
   learner_id: string
@@ -223,6 +239,56 @@ export function useClassesData() {
     }
   })
 
+  // Fetch class report with demographic comparisons
+  async function getClassReport(classId: string): Promise<ClassReport | null> {
+    try {
+      // Fetch class activity stats
+      const { data: classStats, error: statsError } = await client
+        .from('class_activity_stats')
+        .select('*')
+        .eq('class_id', classId)
+        .single()
+
+      if (statsError || !classStats) return null
+
+      // Fetch demographic averages for comparison
+      const { data: demographics } = await client
+        .from('demographic_cycle_averages')
+        .select('*')
+        .in('level', ['school', 'region', 'course'])
+        .in('group_id', [
+          classStats.school_id,
+          classStats.region_code,
+          classStats.course_code,
+        ].filter(Boolean))
+
+      const findDemographic = (level: string, groupId: string | null) => {
+        if (!groupId || !demographics) return null
+        const d = demographics.find(d => d.level === level && d.group_id === groupId)
+        return d ? { avg_total_cycles: d.avg_total_cycles, avg_cycles_per_session: d.avg_cycles_per_session, class_count: d.class_count } : null
+      }
+
+      return {
+        class: {
+          class_id: classStats.class_id,
+          class_name: classStats.class_name,
+          total_cycles: classStats.total_cycles,
+          total_sessions: classStats.total_sessions,
+          total_practice_seconds: classStats.total_practice_seconds,
+          active_students: classStats.active_students,
+          avg_cycles_per_session: classStats.avg_cycles_per_session,
+          active_days_last_7: classStats.active_days_last_7,
+        },
+        schoolAvg: findDemographic('school', classStats.school_id),
+        regionAvg: findDemographic('region', classStats.region_code),
+        courseAvg: findDemographic('course', classStats.course_code),
+      }
+    } catch (err) {
+      console.error('Class report fetch error:', err)
+      return null
+    }
+  }
+
   return {
     // State
     classes,
@@ -238,5 +304,6 @@ export function useClassesData() {
     // Actions
     fetchClasses,
     fetchClassDetail,
+    getClassReport,
   }
 }

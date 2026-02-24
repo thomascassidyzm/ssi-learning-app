@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import Card from '@/components/shared/Card.vue'
 import { useGodMode } from '@/composables/useGodMode'
 import { useSchoolData } from '@/composables/useSchoolData'
+import { useAnalyticsData, type RegionReport } from '@/composables/useAnalyticsData'
+import { getClient } from '@/composables/useSupabase'
 
 const { selectedUser, isGovtAdmin } = useGodMode()
 const {
@@ -42,6 +44,42 @@ const breadcrumb = computed(() => {
 
 const practiceHoursDisplay = computed(() => Math.round(totalPracticeHours.value))
 
+// Region report and contribution counter
+const { getRegionReport } = useAnalyticsData()
+const regionReport = ref<RegionReport | null>(null)
+
+interface DailyContribution {
+  phrases_count: number
+  minutes_practiced: number
+  unique_speakers: number
+  target_language: string
+}
+const todayContributions = ref<DailyContribution | null>(null)
+
+const languageNames: Record<string, string> = {
+  cym: 'Welsh', gla: 'Scottish Gaelic', gle: 'Irish', cor: 'Cornish',
+  glv: 'Manx', bre: 'Breton', eus: 'Basque', cat: 'Catalan',
+  spa: 'Spanish', fra: 'French', deu: 'German', nld: 'Dutch',
+}
+
+async function loadRegionData() {
+  if (!isGovtAdmin.value || !selectedUser.value?.region_code) return
+  regionReport.value = await getRegionReport(selectedUser.value.region_code)
+}
+
+async function loadContributions() {
+  if (!isGovtAdmin.value) return
+  const client = getClient()
+  const today = new Date().toISOString().split('T')[0]
+  const { data } = await client
+    .from('daily_contributions')
+    .select('phrases_count, minutes_practiced, unique_speakers, target_language')
+    .eq('contribution_date', today)
+    .limit(1)
+    .single()
+  todayContributions.value = data
+}
+
 // Debug info for testing
 const debugInfo = computed(() => ({
   hasUser: !!selectedUser.value,
@@ -57,12 +95,16 @@ const debugInfo = computed(() => ({
 watch(selectedUser, (user) => {
   if (user) {
     fetchSchools()
+    loadRegionData()
+    loadContributions()
   }
 }, { immediate: true })
 
 onMounted(() => {
   if (selectedUser.value) {
     fetchSchools()
+    loadRegionData()
+    loadContributions()
   }
 })
 </script>
@@ -222,16 +264,52 @@ onMounted(() => {
       </Card>
     </section>
 
-    <!-- Recent Activity Placeholder -->
-    <section class="recent-activity animate-in delay-3">
-      <Card title="Recent Activity" subtitle="Last 7 days">
+    <!-- Contribution Counter (Govt Admin) -->
+    <section v-if="isGovtAdmin && todayContributions" class="contribution-counter animate-in delay-3">
+      <div class="contribution-card">
+        <div class="contribution-header">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+          </svg>
+          <span>{{ languageNames[todayContributions.target_language] || todayContributions.target_language }} spoken today</span>
+        </div>
+        <div class="contribution-stats">
+          <div class="contrib-stat">
+            <span class="contrib-value">{{ todayContributions.phrases_count.toLocaleString() }}</span>
+            <span class="contrib-label">phrases</span>
+          </div>
+          <div class="contrib-divider"></div>
+          <div class="contrib-stat">
+            <span class="contrib-value">{{ todayContributions.minutes_practiced.toLocaleString() }}</span>
+            <span class="contrib-label">minutes</span>
+          </div>
+          <div class="contrib-divider"></div>
+          <div class="contrib-stat">
+            <span class="contrib-value">{{ todayContributions.unique_speakers.toLocaleString() }}</span>
+            <span class="contrib-label">speakers</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Region Cycles Summary (Govt Admin) -->
+    <section v-if="isGovtAdmin && regionReport && !isViewingSchool" class="region-cycles animate-in delay-3">
+      <Card title="Speaking Opportunities by School" :subtitle="`${regionReport.regionTotal.toLocaleString()} total across region`">
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+            <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
           </svg>
         </template>
-        <div class="activity-placeholder">
-          <p class="text-muted">Activity feed will appear here...</p>
+        <div class="region-school-list">
+          <div
+            v-for="school in regionReport.schools"
+            :key="school.school_id"
+            class="region-school-row"
+          >
+            <div class="region-school-name">{{ school.school_name }}</div>
+            <div class="region-school-meta">{{ school.class_count }} classes · {{ school.active_students }} students</div>
+            <div class="region-school-cycles">{{ school.total_cycles.toLocaleString() }}</div>
+          </div>
         </div>
       </Card>
     </section>
@@ -448,6 +526,103 @@ onMounted(() => {
   color: var(--text-muted);
 }
 
+/* Contribution Counter */
+.contribution-counter {
+  margin-bottom: var(--space-8);
+}
+
+.contribution-card {
+  background: linear-gradient(135deg, var(--bg-card) 0%, rgba(194, 58, 58, 0.08) 100%);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl, 18px);
+  padding: var(--space-6);
+}
+
+.contribution-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+  margin-bottom: var(--space-6);
+}
+
+.contribution-header svg {
+  color: var(--ssi-gold);
+}
+
+.contribution-stats {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.contrib-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.contrib-value {
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  font-weight: var(--font-bold);
+  color: var(--ssi-gold);
+}
+
+.contrib-label {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.contrib-divider {
+  width: 1px;
+  height: 40px;
+  background: var(--border-subtle);
+}
+
+/* Region Cycles */
+.region-cycles {
+  margin-bottom: var(--space-8);
+}
+
+.region-school-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.region-school-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+}
+
+.region-school-name {
+  flex: 1;
+  font-weight: var(--font-semibold);
+  font-size: var(--text-sm);
+}
+
+.region-school-meta {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.region-school-cycles {
+  font-family: var(--font-display);
+  font-weight: var(--font-bold);
+  font-size: var(--text-lg);
+  color: var(--ssi-gold);
+  min-width: 80px;
+  text-align: right;
+}
+
 /* Quick Actions */
 .quick-actions {
   margin-bottom: var(--space-8);
@@ -480,12 +655,6 @@ onMounted(() => {
 
 .action-icon {
   font-size: var(--text-2xl);
-}
-
-/* Recent Activity */
-.activity-placeholder {
-  padding: var(--space-12);
-  text-align: center;
 }
 
 /* Debug Panel */
