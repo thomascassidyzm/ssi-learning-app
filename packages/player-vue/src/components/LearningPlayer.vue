@@ -2936,6 +2936,10 @@ const handleResume = async () => {
     })
   }
 
+  // Check if welcome audio needs to play first (only on first ever play)
+  // Must await — don't start SimplePlayer until welcome finishes
+  await playWelcomeIfNeeded()
+
   // Use SimplePlayer
   simplePlayer.play()
 }
