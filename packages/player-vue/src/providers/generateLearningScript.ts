@@ -89,7 +89,8 @@ export async function generateLearningScript(
       .gte('seed_number', startSeed)
       .lte('seed_number', endSeed)
       .order('seed_number', { ascending: true })
-      .order('lego_index', { ascending: true }),
+      .order('lego_index', { ascending: true })
+      .limit(5000),
     supabase
       .from('course_practice_phrases')
       .select('seed_number, lego_index, known_text, target_text, target_text_roman, phrase_role, target_syllable_count, position, known_audio_id, target1_audio_id, target2_audio_id, target1_duration_ms, target2_duration_ms')
@@ -99,6 +100,7 @@ export async function generateLearningScript(
       .order('seed_number', { ascending: true })
       .order('lego_index', { ascending: true })
       .order('position', { ascending: true })
+      .limit(10000)
   ])
 
   if (legosResult.error) throw new Error('Failed to query LEGOs: ' + legosResult.error.message)
@@ -145,6 +147,8 @@ export async function generateLearningScript(
     else if (phrase.phrase_role === 'use') group.use.push(phrase)
     else if (phrase.phrase_role === 'practice') group.practice.push(phrase)
   }
+
+  console.debug(`[generateLearningScript] ${phrasesResult.data?.length || 0} phrases fetched, ${componentsByLego.size} LEGOs with components`)
 
   // Classify legacy 'practice' phrases per LEGO:
   // - If the LEGO already has explicit USE phrases, practice → BUILD (fragments, drill once)
