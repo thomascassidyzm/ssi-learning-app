@@ -372,6 +372,68 @@ export function useClassesData() {
     }
   }
 
+  async function createClass(params: {
+    class_name: string
+    course_code: string
+    school_id: string
+  }): Promise<ClassInfo | null> {
+    if (!selectedUser.value) return null
+
+    try {
+      const { data: newClass, error: insertError } = await client
+        .from('classes')
+        .insert({
+          class_name: params.class_name,
+          course_code: params.course_code,
+          school_id: params.school_id,
+          teacher_user_id: selectedUser.value.user_id,
+          is_active: true,
+        })
+        .select('id, class_name, course_code, school_id, teacher_user_id, student_join_code, current_seed, is_active, created_at')
+        .single()
+
+      if (insertError) throw insertError
+
+      if (newClass.student_join_code) {
+        const { error: inviteCodeError } = await client
+          .from('invite_codes')
+          .insert({
+            code: newClass.student_join_code,
+            code_type: 'student',
+            grants_class_id: newClass.id,
+            created_by: selectedUser.value,
+            is_active: true,
+          })
+        if (inviteCodeError) {
+          console.error('[ClassesData] Failed to create invite code for student join code:', inviteCodeError)
+          // Non-fatal — class still works, just won't resolve through /api/invite/validate
+        }
+      }
+
+      const classInfo: ClassInfo = {
+        id: newClass.id,
+        class_name: newClass.class_name,
+        course_code: newClass.course_code,
+        school_id: newClass.school_id,
+        teacher_user_id: newClass.teacher_user_id,
+        student_join_code: newClass.student_join_code,
+        current_seed: newClass.current_seed,
+        is_active: newClass.is_active,
+        student_count: 0,
+        avg_seeds_completed: 0,
+        avg_practice_minutes: 0,
+        created_at: newClass.created_at,
+      }
+
+      classes.value = [...classes.value, classInfo]
+      return classInfo
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to create class'
+      console.error('[ClassesData] createClass error:', err)
+      return null
+    }
+  }
+
   async function updateClassProgress(classId: string, lastLegoId: string): Promise<void> {
     try {
       const { error: err } = await client
@@ -401,6 +463,7 @@ export function useClassesData() {
     fetchClasses,
     fetchClassDetail,
     getClassReport,
+    createClass,
     startClassSession,
     endClassSession,
     getClassSessions,

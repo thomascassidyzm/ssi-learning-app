@@ -8,6 +8,7 @@ import { useAuth } from './composables/useAuth'
 import { checkKillSwitch, unregisterAllServiceWorkers, clearAllCaches } from './composables/useServiceWorkerSafety'
 import { useTheme } from './composables/useTheme'
 import { useEagerScriptPreload } from './composables/useEagerScriptPreload'
+import { useInviteCode } from './composables/useInviteCode'
 import PwaUpdatePrompt from './components/PwaUpdatePrompt.vue'
 
 // RECOVERY MODE: If ?reset=1 in URL, clear everything and reload
@@ -107,6 +108,9 @@ const supabaseClient = ref(null)
 
 // Eager script preload - fires as soon as course is known
 const eagerScript = useEagerScriptPreload()
+
+// Invite code composable (singleton)
+const inviteCode = useInviteCode()
 
 // Active course and enrolled courses state
 const activeCourse = ref(null)
@@ -255,6 +259,7 @@ provide('enrolledCourses', enrolledCourses)
 provide('handleCourseSelect', handleCourseSelect)
 provide('theme', { theme, toggleTheme, setTheme })
 provide('eagerScript', eagerScript)
+provide('inviteCode', inviteCode)
 
 onMounted(async () => {
   // Clear stale caches on new deploy
@@ -287,6 +292,25 @@ onMounted(async () => {
       // Initialize auth with Supabase client (for learner management)
       if (auth) {
         await auth.initialize(supabaseClient.value)
+      }
+
+      // Handle ?code= URL parameter for invite codes
+      try {
+        const urlParams = new URLSearchParams(window.location.search)
+        const codeParam = urlParams.get('code')
+        if (codeParam) {
+          // Clean code from URL immediately
+          const cleanUrl = new URL(window.location.href)
+          cleanUrl.searchParams.delete('code')
+          history.replaceState(null, '', cleanUrl.toString())
+
+          // Validate the code
+          await inviteCode.validateCode(codeParam)
+          // The SignUpModal will pick up pendingCode from the composable
+          // and show the context step when opened
+        }
+      } catch (err) {
+        console.warn('[App] Failed to process invite code from URL:', err)
       }
 
       // Fetch enrolled courses

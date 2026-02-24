@@ -3,22 +3,27 @@ import { ref, computed, watch } from 'vue'
 import { useSignUp, useClerk } from '@clerk/vue'
 import AuthModal from './AuthModal.vue'
 import { useAuthModal } from '@/composables/useAuthModal'
+import { useInviteCode } from '@/composables/useInviteCode'
 
 interface Props {
   isOpen: boolean
+  startStep?: 'code' | 'form'
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  startStep: 'form',
+})
 
 const emit = defineEmits<{
   close: []
   switchToSignIn: []
-  success: []
+  success: [payload?: { role?: string; redirectTo?: string }]
 }>()
 
 const { isLoaded, signUp, setActive } = useSignUp()
 const clerk = useClerk()
 const { sharedEmail, switchToSignIn } = useAuthModal()
+const { pendingCode, validationError, isValidating, isRedeeming, validateCode, redeemCode, clearPendingCode } = useInviteCode()
 
 // Form state
 const email = ref('')
@@ -29,13 +34,73 @@ watch(() => props.isOpen, (isOpen) => {
   if (isOpen && sharedEmail.value) {
     email.value = sharedEmail.value
   }
+  if (isOpen) {
+    step.value = props.startStep === 'code' ? 'code' : (pendingCode.value ? 'context' : 'form')
+  }
 }, { immediate: true })
 const confirmPassword = ref('')
 const verificationCode = ref('')
 const isLoading = ref(false)
 const error = ref('')
 const showPassword = ref(false)
-const step = ref<'form' | 'verify'>('form')
+const step = ref<'code' | 'context' | 'form' | 'verify'>(props.startStep === 'code' ? 'code' : 'form')
+
+// Invite code input
+const codeInput = ref('')
+
+// Auto-format code input: uppercase, auto-hyphen after 3 chars
+const handleCodeInput = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  let val = target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '')
+  // Auto-insert hyphen after 3 letters
+  if (val.length === 4 && !val.includes('-')) {
+    val = val.slice(0, 3) + '-' + val.slice(3)
+  }
+  // Max length ABC-123
+  if (val.length > 7) val = val.slice(0, 7)
+  codeInput.value = val
+}
+
+const handleValidateCode = async () => {
+  if (!codeInput.value || codeInput.value.length < 5) return
+  const valid = await validateCode(codeInput.value)
+  if (valid) {
+    step.value = 'context'
+  }
+}
+
+const stepTitle = computed(() => {
+  if (step.value === 'code') return 'Enter invite code'
+  if (step.value === 'context') return 'Confirm your role'
+  if (step.value === 'verify') return 'Check your email'
+  return 'Begin your journey'
+})
+
+const roleDisplayName = computed(() => {
+  if (!pendingCode.value) return ''
+  const map: Record<string, string> = {
+    govt_admin: 'Regional Admin',
+    school_admin: 'School Admin',
+    teacher: 'Teacher',
+    student: 'Student',
+  }
+  return map[pendingCode.value.codeType] || pendingCode.value.codeType
+})
+
+const contextDescription = computed(() => {
+  if (!pendingCode.value) return ''
+  const ctx = pendingCode.value
+  if (ctx.codeType === 'govt_admin' && ctx.regionName) return `for ${ctx.regionName}`
+  if (ctx.codeType === 'school_admin' && ctx.regionName) return `in ${ctx.regionName}`
+  if (ctx.codeType === 'teacher' && ctx.schoolName) return `at ${ctx.schoolName}`
+  if (ctx.codeType === 'student') {
+    const parts = []
+    if (ctx.className) parts.push(ctx.className)
+    if (ctx.schoolName) parts.push(`at ${ctx.schoolName}`)
+    return parts.join(' ')
+  }
+  return ''
+})
 
 // Password requirements
 const passwordRequirements = computed(() => [
@@ -119,6 +184,27 @@ const handleVerify = async () => {
       if (setActive.value) {
         await setActive.value({ session: result.createdSessionId })
       }
+
+      // If there's a pending invite code, redeem it now
+      if (pendingCode.value) {
+        try {
+          // Get fresh session token from Clerk
+          const sess = clerk.value?.session
+          const token = sess ? await sess.getToken() : null
+          if (token) {
+            const redeemResult = await redeemCode(token)
+            if (redeemResult.success) {
+              emit('success', { role: redeemResult.role, redirectTo: redeemResult.redirectTo })
+              emit('close')
+              return
+            }
+            console.error('[SignUpModal] Code redemption failed:', redeemResult.error)
+          }
+        } catch (err) {
+          console.error('[SignUpModal] Code redemption error:', err)
+        }
+      }
+
       emit('success')
       emit('close')
     } else {
@@ -175,15 +261,88 @@ const handleClose = () => {
   verificationCode.value = ''
   error.value = ''
   showPassword.value = false
+  codeInput.value = ''
+  clearPendingCode()
   step.value = 'form'
   emit('close')
 }
 </script>
 
 <template>
-  <AuthModal :is-open="isOpen" :title="step === 'form' ? 'Begin your journey' : 'Check your email'" @close="handleClose">
+  <AuthModal :is-open="isOpen" :title="stepTitle" @close="handleClose">
+    <!-- Code Entry Step -->
+    <div v-if="step === 'code'" class="auth-form">
+      <p class="code-intro">Have an invite code? Enter it below to join your school or class.</p>
+
+      <!-- Error message -->
+      <Transition name="error">
+        <div v-if="validationError" class="error-message">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          {{ validationError }}
+        </div>
+      </Transition>
+
+      <div class="input-group">
+        <label for="invite-code" class="input-label">Invite Code</label>
+        <div class="input-wrapper code-input-wrapper" :class="{ focused: codeInput }">
+          <input
+            id="invite-code"
+            :value="codeInput"
+            @input="handleCodeInput"
+            type="text"
+            placeholder="ABC-123"
+            autocomplete="off"
+            maxlength="7"
+          />
+        </div>
+      </div>
+
+      <button
+        type="button"
+        class="submit-btn"
+        :class="{ loading: isValidating }"
+        :disabled="codeInput.length < 5 || isValidating"
+        @click="handleValidateCode"
+      >
+        <span v-if="!isValidating">Validate Code</span>
+        <span v-else class="loading-spinner">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="32"/>
+          </svg>
+        </span>
+      </button>
+
+      <p class="switch-mode">
+        Don't have a code?
+        <button type="button" @click="step = 'form'">Sign up without a code</button>
+      </p>
+    </div>
+
+    <!-- Context Confirmation Step -->
+    <div v-else-if="step === 'context'" class="auth-form">
+      <div class="context-card">
+        <div class="role-badge">{{ roleDisplayName }}</div>
+        <p class="context-detail" v-if="contextDescription">{{ contextDescription }}</p>
+      </div>
+
+      <button type="button" class="submit-btn" @click="step = 'form'">
+        Continue to sign up
+      </button>
+
+      <button type="button" class="back-btn" @click="clearPendingCode(); codeInput = ''; step = 'code'">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M19 12H5M12 19l-7-7 7-7"/>
+        </svg>
+        Use a different code
+      </button>
+    </div>
+
     <!-- Sign Up Form -->
-    <form v-if="step === 'form'" @submit.prevent="handleSignUp" class="auth-form">
+    <form v-else-if="step === 'form'" @submit.prevent="handleSignUp" class="auth-form">
       <!-- Error message -->
       <Transition name="error">
         <div v-if="error" class="error-message">
@@ -777,5 +936,50 @@ const handleClose = () => {
 .back-btn svg {
   width: 18px;
   height: 18px;
+}
+
+/* Code entry step */
+.code-intro {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  text-align: center;
+  margin: 0;
+}
+
+.code-input-wrapper input {
+  text-align: center;
+  font-size: 1.5rem;
+  letter-spacing: 0.3em;
+  padding: 1rem !important;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+}
+
+/* Context confirmation step */
+.context-card {
+  text-align: center;
+  padding: 1.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+}
+
+.role-badge {
+  display: inline-block;
+  padding: 0.375rem 1rem;
+  background: linear-gradient(135deg, rgba(194, 58, 58, 0.2), rgba(212, 168, 83, 0.2));
+  border: 1px solid rgba(212, 168, 83, 0.3);
+  border-radius: 20px;
+  color: var(--ssi-gold);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.context-detail {
+  color: var(--text-secondary);
+  font-size: 1rem;
+  margin: 0.75rem 0 0;
 }
 </style>

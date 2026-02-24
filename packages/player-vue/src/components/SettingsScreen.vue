@@ -5,6 +5,7 @@ import { unregisterAllServiceWorkers, clearAllCaches } from '../composables/useS
 import { BELT_RANGES, getBeltForSeed } from '../composables/useBeltLoader'
 import { useBeltProgress } from '../composables/useBeltProgress'
 import { useTheme } from '../composables/useTheme'
+import { useInviteCode, type InviteCodeContext } from '../composables/useInviteCode'
 
 const emit = defineEmits(['close', 'openExplorer', 'openListening', 'settingChanged'])
 
@@ -76,6 +77,83 @@ const isAdmin = computed(() => {
   const domain = email.split('@')[1]
   return ADMIN_EMAIL_DOMAINS.some(d => domain === d.toLowerCase())
 })
+
+// Join school/class via invite code
+const { validateCode, redeemCode, pendingCode, clearPendingCode } = useInviteCode()
+const showJoinCode = ref(false)
+const joinCodeInput = ref('')
+const joinError = ref('')
+const joinContext = ref<InviteCodeContext | null>(null)
+const isJoinValidating = ref(false)
+const isJoinRedeeming = ref(false)
+const joinSuccess = ref(false)
+
+const handleJoinCodeInput = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  let val = target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '')
+  if (val.length === 4 && !val.includes('-')) {
+    val = val.slice(0, 3) + '-' + val.slice(3)
+  }
+  if (val.length > 7) val = val.slice(0, 7)
+  joinCodeInput.value = val
+}
+
+const handleJoinValidate = async () => {
+  joinError.value = ''
+  joinContext.value = null
+  isJoinValidating.value = true
+  try {
+    const valid = await validateCode(joinCodeInput.value)
+    if (valid && pendingCode.value) {
+      joinContext.value = { ...pendingCode.value }
+    } else {
+      joinError.value = 'Invalid or expired code'
+    }
+  } catch {
+    joinError.value = 'Failed to validate code'
+  } finally {
+    isJoinValidating.value = false
+  }
+}
+
+const joinContextRole = computed(() => {
+  if (!joinContext.value) return ''
+  const map: Record<string, string> = { govt_admin: 'Regional Admin', school_admin: 'School Admin', teacher: 'Teacher', student: 'Student' }
+  return map[joinContext.value.codeType] || joinContext.value.codeType
+})
+
+const joinContextDetail = computed(() => {
+  if (!joinContext.value) return ''
+  const ctx = joinContext.value
+  if (ctx.schoolName) return `at ${ctx.schoolName}`
+  if (ctx.regionName) return `for ${ctx.regionName}`
+  if (ctx.className) return ctx.className
+  return ''
+})
+
+const handleJoinRedeem = async () => {
+  isJoinRedeeming.value = true
+  joinError.value = ''
+  try {
+    const token = await auth?.getToken?.()
+    if (!token) {
+      joinError.value = 'Not signed in'
+      return
+    }
+    const result = await redeemCode(token)
+    if (result.success) {
+      joinSuccess.value = true
+      joinContext.value = null
+      clearPendingCode()
+    } else {
+      joinError.value = result.error || 'Failed to join'
+    }
+  } catch {
+    joinError.value = 'Failed to redeem code'
+  } finally {
+    isJoinRedeeming.value = false
+  }
+}
 
 // Open Clerk's user profile for managing account
 const openUserProfile = () => {
@@ -714,6 +792,55 @@ const confirmReset = async () => {
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6"/>
             </svg>
+          </div>
+        </div>
+      </section>
+
+      <!-- Join School/Class Section (only for signed-in users) -->
+      <section class="section" v-if="isSignedIn">
+        <h3 class="section-title">Schools</h3>
+        <div class="card">
+          <div class="setting-row" v-if="!showJoinCode">
+            <div class="setting-info">
+              <span class="setting-label">Join a School or Class</span>
+              <span class="setting-desc">Enter an invite code from your teacher or school</span>
+            </div>
+            <button class="text-btn" @click="showJoinCode = true">Enter Code</button>
+          </div>
+          <div v-else class="join-code-form">
+            <div class="join-code-input-row">
+              <input
+                v-model="joinCodeInput"
+                @input="handleJoinCodeInput"
+                type="text"
+                placeholder="ABC-123"
+                maxlength="7"
+                class="join-code-input"
+              />
+              <button
+                class="text-btn"
+                :disabled="joinCodeInput.length < 5 || isJoinValidating"
+                @click="handleJoinValidate"
+              >
+                {{ isJoinValidating ? '...' : 'Go' }}
+              </button>
+            </div>
+            <p v-if="joinError" class="join-error">{{ joinError }}</p>
+            <!-- Context confirmation -->
+            <div v-if="joinContext" class="join-context">
+              <p class="join-context-text">
+                <strong>{{ joinContextRole }}</strong>
+                <span v-if="joinContextDetail"> {{ joinContextDetail }}</span>
+              </p>
+              <div class="join-context-actions">
+                <button class="text-btn" :disabled="isJoinRedeeming" @click="handleJoinRedeem">
+                  {{ isJoinRedeeming ? 'Joining...' : 'Confirm' }}
+                </button>
+                <button class="text-btn text-btn--secondary" @click="joinContext = null; joinCodeInput = ''">Cancel</button>
+              </div>
+            </div>
+            <p v-if="joinSuccess" class="join-success">Joined successfully!</p>
+            <button class="text-btn text-btn--secondary" @click="showJoinCode = false; joinCodeInput = ''; joinError = ''; joinContext = null; joinSuccess = false">Close</button>
           </div>
         </div>
       </section>
@@ -1521,6 +1648,101 @@ const confirmReset = async () => {
   .download-action {
     display: none;
   }
+}
+
+/* Join code form */
+.join-code-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem;
+}
+
+.join-code-input-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.join-code-input {
+  flex: 1;
+  padding: 0.625rem 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 1.125rem;
+  letter-spacing: 0.2em;
+  text-align: center;
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+  outline: none;
+}
+
+.join-code-input:focus {
+  border-color: var(--ssi-red);
+  box-shadow: 0 0 0 2px rgba(194, 58, 58, 0.15);
+}
+
+.join-error {
+  color: var(--error);
+  font-size: 0.8125rem;
+  margin: 0;
+}
+
+.join-success {
+  color: var(--success);
+  font-size: 0.8125rem;
+  margin: 0;
+}
+
+.join-context {
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+
+.join-context-text {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin: 0 0 0.5rem;
+}
+
+.join-context-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.text-btn {
+  padding: 0.375rem 0.75rem;
+  background: rgba(194, 58, 58, 0.15);
+  border: 1px solid rgba(194, 58, 58, 0.3);
+  border-radius: 6px;
+  color: var(--ssi-red);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.text-btn:hover:not(:disabled) {
+  background: rgba(194, 58, 58, 0.25);
+}
+
+.text-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.text-btn--secondary {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.15);
+  color: var(--text-muted);
+}
+
+.text-btn--secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.05);
 }
 </style>
 

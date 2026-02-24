@@ -3,6 +3,7 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 // Lazy-loaded views
 const PlayerContainer = () => import('@/containers/PlayerContainer.vue')
 const SchoolsContainer = () => import('@/containers/SchoolsContainer.vue')
+const AdminContainer = () => import('@/containers/AdminContainer.vue')
 const SimpleSessionTest = () => import('@/components/SimpleSessionTest.vue')
 const SSOCallback = () => import('@/views/SSOCallback.vue')
 
@@ -133,6 +134,19 @@ const routes: RouteRecordRaw[] = [
       title: 'Signing in...',
     },
   },
+  // Admin panel
+  {
+    path: '/admin',
+    component: AdminContainer,
+    children: [
+      {
+        path: '',
+        name: 'admin',
+        component: () => import('@/views/admin/AdminPanel.vue'),
+        meta: { title: 'SSi Admin', description: 'Admin panel for managing invite codes' },
+      },
+    ],
+  },
   // Catch-all redirect to player
   {
     path: '/:pathMatch(.*)*',
@@ -149,6 +163,58 @@ const router = createRouter({
     }
     return { top: 0 }
   },
+})
+
+// Guard admin routes: only ssi_admin or govt_admin (platform_role) can access /admin
+router.beforeEach(async (to, _from, next) => {
+  if (!to.path.startsWith('/admin')) {
+    next()
+    return
+  }
+
+  // Check god mode first (fast, no network)
+  const godModeStored = localStorage.getItem('ssi-god-mode-user')
+  if (godModeStored) {
+    try {
+      const godUser = JSON.parse(godModeStored)
+      if (godUser.platform_role === 'ssi_admin' || godUser.educational_role === 'govt_admin') {
+        next()
+        return
+      }
+    } catch {
+      // malformed storage — fall through
+    }
+  }
+
+  // Check via Supabase client if available
+  try {
+    const { getSchoolsClient } = await import('@/composables/schools/client')
+    const client = getSchoolsClient()
+
+    // Try to get Clerk user id from Clerk global if available
+    // @ts-ignore
+    const clerkUserId = window.Clerk?.user?.id
+    if (clerkUserId) {
+      const { data } = await client
+        .from('learners')
+        .select('platform_role, educational_role')
+        .eq('user_id', clerkUserId)
+        .single()
+
+      if (
+        data &&
+        (data.platform_role === 'ssi_admin' || data.educational_role === 'govt_admin')
+      ) {
+        next()
+        return
+      }
+    }
+  } catch {
+    // client not set yet or query failed — deny access
+  }
+
+  // Not authorised
+  next('/')
 })
 
 // Update document title on navigation
