@@ -1,8 +1,27 @@
 <script setup>
 import { ref, computed, onMounted, inject } from 'vue'
+import { useRouter } from 'vue-router'
 import { BELTS, getSharedBeltProgress, getSeedFromLegoId } from '@/composables/useBeltProgress'
 import { getLanguageName } from '@/composables/useI18n'
 import CourseBrowser from '@/components/CourseBrowser.vue'
+
+const router = useRouter()
+
+// Show schools link when god mode user is set (teacher/admin)
+const hasSchoolsAccess = computed(() => {
+  try {
+    const stored = localStorage.getItem('ssi-god-mode-user')
+    if (!stored) return false
+    const user = JSON.parse(stored)
+    return ['teacher', 'school_admin', 'govt_admin'].includes(user.educational_role)
+  } catch {
+    return false
+  }
+})
+
+const goToSchools = () => {
+  router.push('/schools')
+}
 
 const props = defineProps({
   activeCourse: {
@@ -146,6 +165,23 @@ onMounted(() => {
     </div>
 
     <div class="browse-content">
+      <!-- ── Schools Dashboard Link (teachers/admins) ── -->
+      <button v-if="hasSchoolsAccess" class="schools-link" @click="goToSchools">
+        <div class="schools-link-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+        </div>
+        <div class="schools-link-text">
+          <span class="schools-link-title">Schools Dashboard</span>
+          <span class="schools-link-subtitle">Classes, students & analytics</span>
+        </div>
+        <svg class="schools-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </button>
+
       <!-- ── Section 1: Progress Strip ── -->
       <section class="section">
         <h3 class="section-label">Your Progress</h3>
@@ -714,6 +750,65 @@ onMounted(() => {
   .course-grid {
     grid-template-columns: repeat(3, 1fr);
   }
+}
+
+/* Schools Dashboard Link */
+.schools-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4, 1rem);
+  width: 100%;
+  padding: var(--space-4, 1rem) var(--space-5, 1.25rem);
+  margin-bottom: var(--space-6, 1.5rem);
+  background: var(--bg-card, rgba(255,255,255,0.06));
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.1));
+  border-radius: var(--radius-lg, 12px);
+  color: var(--text-primary, #fff);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  text-align: left;
+  font-family: inherit;
+}
+
+.schools-link:hover {
+  background: var(--bg-elevated, rgba(255,255,255,0.1));
+  border-color: var(--ssi-gold, #d4a843);
+}
+
+.schools-link-icon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  color: var(--ssi-gold, #d4a843);
+}
+
+.schools-link-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.schools-link-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.schools-link-title {
+  font-size: var(--text-base, 1rem);
+  font-weight: var(--font-semibold, 600);
+}
+
+.schools-link-subtitle {
+  font-size: var(--text-sm, 0.875rem);
+  color: var(--text-muted, rgba(255,255,255,0.5));
+}
+
+.schools-link-arrow {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  color: var(--text-muted, rgba(255,255,255,0.5));
 }
 </style>
 
