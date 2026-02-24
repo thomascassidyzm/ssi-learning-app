@@ -2109,23 +2109,20 @@ watch([showTargetText, () => currentPhrase.value.target], ([showing, newTarget])
 
 // Component breakdown for M-type LEGOs (visual display only)
 // Format: [{known: "after", target: "después de"}, ...]
-const displayedComponents = ref<Array<{known: string, target: string}>>([])
-watch(() => {
-  // Read from current cycle first (sync, always up-to-date)
+const displayedComponents = computed<Array<{known: string, target: string}>>(() => {
   const cycle = simplePlayer.currentCycle.value as any
-  if (cycle?.components) return cycle.components
+  if (cycle?.components && Array.isArray(cycle.components) && cycle.components.length > 0) {
+    return cycle.components
+  }
   // Fallback: playable item (set async, may lag behind cycle changes)
   const item = useRoundBasedPlayback.value
     ? currentPlayableItem.value
     : sessionItems.value[currentItemIndex.value]
-  if (item?.components) return item.components
-  return undefined
-}, (components) => {
-  if (components && components.length > 0) {
-    console.log('[LearningPlayer] Component tiles:', components.length, components)
+  if (item?.components && Array.isArray(item.components) && item.components.length > 0) {
+    return item.components
   }
-  displayedComponents.value = components || []
-}, { immediate: true })
+  return []
+})
 
 // Is current item an intro? (network should fade, show typewriter message)
 // NOTE: Only 'intro' items show typewriter. 'debut' items (lego_itself) show normal phrase display.
@@ -5529,14 +5526,6 @@ onMounted(async () => {
             if (result.items.length > 0) {
               const simpleRounds = toSimpleRounds(result.items)
               console.debug(`[eagerLoad] ${simpleRounds.length} SimplePlayer rounds built`)
-
-              // Debug: check if components survived the pipeline
-              const withComps = simpleRounds.filter(r => r.cycles.some((c: any) => c.components?.length > 0))
-              console.log(`[LearningPlayer] Rounds with components: ${withComps.length}/${simpleRounds.length}`)
-              if (withComps.length > 0) {
-                const firstComp = withComps[0].cycles.find((c: any) => c.components?.length > 0)
-                console.log('[LearningPlayer] First component example:', firstComp?.known?.text, '→', JSON.stringify((firstComp as any)?.components))
-              }
 
               simplePlayer.initialize(simpleRounds as any)
 
