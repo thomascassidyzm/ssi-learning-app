@@ -512,8 +512,12 @@ const legoTargetTextMap = computed<Map<string, string>>(() => {
 const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
   const cycle = simplePlayer.currentCycle.value as any
   if (!cycle?.componentLegoIds?.length) {
-    // During intro phase, show a single tile for the LEGO being introduced
-    if (isIntroPhase.value && currentRound.value?.legoId) {
+    // During intro or debut phase, show a single tile for the LEGO being introduced
+    const currentItem = useRoundBasedPlayback.value
+      ? currentPlayableItem.value
+      : sessionItems.value?.[currentItemIndex.value]
+    const isIntroOrDebut = currentItem?.type === 'intro' || currentItem?.type === 'debut'
+    if (isIntroOrDebut && currentRound.value?.legoId) {
       const legoId = currentRound.value.legoId
       const targetText = legoTargetTextMap.value.get(legoId) || ''
       if (targetText) {
