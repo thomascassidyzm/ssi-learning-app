@@ -7087,8 +7087,8 @@ defineExpose({
   --ring-center-size: 110px;
   --ring-icon-size: 36px;
   --text-zone-min-height: 90px;  /* Increased for larger text */
-  --known-text-size: 2rem;       /* Larger for phone visibility */
-  --target-text-size: 1.75rem;   /* Larger for phone visibility */
+  --known-text-size: 1.35rem;
+  --target-text-size: 1.35rem;
 
   /* ============ THEME COLORS ============ */
   --accent: var(--ssi-red);
@@ -8627,8 +8627,7 @@ defineExpose({
 
 .hero-known {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
-  /* Responsive text size using CSS custom property */
-  font-size: var(--text-xl);
+  font-size: var(--known-text-size);
   font-weight: 400;
   color: rgba(255, 255, 255, 0.85);
   margin: 0;
@@ -8638,8 +8637,7 @@ defineExpose({
 
 .hero-target {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
-  /* Responsive text size - slightly larger than known text */
-  font-size: var(--text-xl);
+  font-size: var(--target-text-size);
   font-weight: 500;
   color: var(--belt-color, #c23a3a);
   margin: 0;
