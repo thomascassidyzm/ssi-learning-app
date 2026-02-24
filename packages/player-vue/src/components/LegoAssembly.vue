@@ -132,8 +132,9 @@ const staggerDelay = (index: number): string => {
 }
 
 .block-text {
-  font-size: 1.35rem;
-  font-weight: 600;
+  font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+  font-size: 1.625rem;
+  font-weight: 500;
   color: rgba(255, 255, 255, 0.9);
   white-space: nowrap;
   letter-spacing: 0.02em;
@@ -183,8 +184,8 @@ const staggerDelay = (index: number): string => {
 }
 .lego-block.salient .block-text {
   color: rgba(255, 255, 255, 1);
-  font-weight: 700;
-  font-size: 1.6rem;
+  font-weight: 600;
+  font-size: 1.875rem;
 }
 .lego-block.salient.assembled {
   background: rgba(255, 255, 255, 0.18);
@@ -270,7 +271,7 @@ const staggerDelay = (index: number): string => {
 /* Mobile: still readable at a distance */
 @media (max-width: 600px) {
   .block-text {
-    font-size: 1.15rem;
+    font-size: 1.375rem;
   }
   .lego-block {
     padding: 0.5em 0.9em;
@@ -279,7 +280,7 @@ const staggerDelay = (index: number): string => {
     padding: 0.6em 1.1em;
   }
   .lego-block.salient .block-text {
-    font-size: 1.35rem;
+    font-size: 1.625rem;
   }
 }
 </style>
@@ -295,6 +296,7 @@ const staggerDelay = (index: number): string => {
 
 :root[data-theme="mist"] .lego-block .block-text {
   color: #2c2520;
+  font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
 }
 
 :root[data-theme="mist"] .lego-block.assembled {

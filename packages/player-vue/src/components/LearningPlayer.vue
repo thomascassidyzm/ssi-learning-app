@@ -3878,156 +3878,31 @@ const handleSkip = async () => {
 
 /**
  * REVISIT - Go back to start of current round, or previous round if already at start
- * IMPORTANT: Must fully halt all audio before navigating
+ * Delegates to SimplePlayer.jumpToRound() which owns playback state.
  */
 const handleRevisit = async () => {
-  // Guard against concurrent operations
-  if (isSkipInProgress.value) {
-    console.log('[LearningPlayer] Skip/revisit already in progress - aborting intro and returning')
-    skipIntroduction()
-    return
-  }
+  if (!useRoundBasedPlayback.value || cachedRounds.value.length === 0) return
 
   console.log('[LearningPlayer] ========== REVISIT REQUESTED ==========')
 
-  // Mark that we're in a skip operation (prevents cycle_stopped from resetting isPlaying)
-  const wasPlaying = isPlaying.value
-  isSkipInProgress.value = true
-
-  // 0. INCREMENT GENERATION FIRST - invalidates any pending callbacks from previous position
-  playbackGeneration.value++
-  console.log('[LearningPlayer] Revisit: Generation incremented to', playbackGeneration.value, 'wasPlaying:', wasPlaying)
-
-  // 1. IMMEDIATELY suppress all audio callbacks to prevent race conditions
-  if (audioController.value?.suppressCallbacks) {
-    audioController.value.suppressCallbacks()
-  }
-
-  // 2. HALT ORCHESTRATOR FIRST - prevents it from starting new audio
-  {
-    stopCycle()
-    console.log('[LearningPlayer] Revisit: Orchestrator stopped')
-  }
-
-  // 3. HARD RESET audio controller - nuclear option to ensure clean slate
-  if (audioController.value) {
-    audioController.value.hardReset()
-    console.log('[LearningPlayer] Revisit: Audio controller hard reset complete')
-  }
-
-  // 4. Skip any playing intro/welcome (these use separate audio elements)
-  if (isPlayingIntroduction.value) {
-    skipIntroduction()
-    console.log('[LearningPlayer] Revisit: Intro skipped')
-  }
-  if (isPlayingWelcome.value) {
-    skipWelcome()
-    console.log('[LearningPlayer] Revisit: Welcome skipped')
-  }
-
-  // 5. Clear path animations
+  // Skip any playing intro/welcome
+  if (isPlayingIntroduction.value) skipIntroduction()
+  if (isPlayingWelcome.value) skipWelcome()
   clearPathAnimation()
 
-  // 6. Wait for complete audio silence
-  await new Promise(resolve => setTimeout(resolve, 50))
-
-  // 7. Double-stop: call stop again after delay to catch any stragglers
-  if (audioController.value) {
-    audioController.value.stop()
+  // Determine target round: go to start of current, or previous if already at start
+  let targetIndex = currentRoundIndex.value
+  if (currentItemInRound.value <= 1 && currentRoundIndex.value > 0) {
+    targetIndex = currentRoundIndex.value - 1
   }
 
-  // 8. Final settling delay for CSS transitions
-  await new Promise(resolve => setTimeout(resolve, 100))
-  console.log('[LearningPlayer] Revisit: All audio cleanup complete, proceeding')
+  console.log('[LearningPlayer] Revisit → jumping to round', targetIndex, 'LEGO:', cachedRounds.value[targetIndex]?.legoId)
 
-  // Round-based navigation
-  if (useRoundBasedPlayback.value && cachedRounds.value.length) {
-    // If we're past the first few items, go to start of current round
-    // If already at start (item 0 or 1, since intro auto-advances to 1), go to previous round
-    let targetIndex = currentRoundIndex.value
-    if (currentItemInRound.value <= 1 && currentRoundIndex.value > 0) {
-      targetIndex = currentRoundIndex.value - 1
-    }
+  // Update belt to match new position (no celebration when going back)
+  updateBeltForPosition(targetIndex, false)
 
-    currentRoundIndex.value = targetIndex
-    currentItemInRound.value = 0
-
-    // Update belt to match new position (no celebration when going back)
-    updateBeltForPosition(targetIndex, false)
-
-    console.log('[LearningPlayer] Revisit → Round', targetIndex, 'LEGO:', cachedRounds.value[targetIndex]?.legoId)
-
-    // Always get the first item to update display
-    const firstItem = cachedRounds.value[targetIndex]?.items?.[0]
-    console.log('[LearningPlayer] Revisit → firstItem:', firstItem?.type, firstItem?.knownText, '→', firstItem?.targetText)
-
-    // Update display (even when paused)
-    if (firstItem) {
-      const playable = await scriptItemToPlayableItem(firstItem)
-      if (playable) {
-        currentPlayableItem.value = playable
-      }
-    }
-
-    // Start the round if wasPlaying (use captured value, not current isPlaying which may have been reset)
-    if (wasPlaying && firstItem) {
-      // Restore playing state since we're about to play
-      isPlaying.value = true
-
-      // INTRO items: play introduction audio directly, then advance to next item
-      if (firstItem.type === 'intro') {
-        console.log('[LearningPlayer] Revisit → Playing INTRO for:', firstItem.legoId)
-        const introPlayed = await playIntroductionAudioDirectly(firstItem)
-        console.log('[LearningPlayer] Revisit → intro played:', introPlayed)
-
-        // CRITICAL: If intro was aborted, bail out
-        if (!introPlayed) {
-          console.log('[LearningPlayer] Revisit → intro was aborted, bailing out')
-          isSkipInProgress.value = false
-          return
-        }
-
-        // CRITICAL: Ensure complete audio silence before starting next item
-        if (audioController.value) {
-          audioController.value.stop()
-        }
-        await new Promise(resolve => setTimeout(resolve, 50))
-
-        // Advance to next item (the DEBUT)
-        currentItemInRound.value++
-        const nextItem = cachedRounds.value[targetIndex]?.items?.[currentItemInRound.value]
-        console.log('[LearningPlayer] Revisit → advancing to item:', currentItemInRound.value, nextItem?.type)
-        if (nextItem && isPlaying.value) {
-          const nextPlayable = await scriptItemToPlayableItem(nextItem)
-          if (nextPlayable) {
-            currentPlayableItem.value = nextPlayable
-            await startCyclePlayback(nextPlayable)
-          }
-        }
-      } else {
-        console.log('[LearningPlayer] Revisit → firstItem NOT intro, starting directly')
-        // Non-intro item: start directly via orchestrator
-        {
-          await startCyclePlayback(currentPlayableItem.value)
-        }
-      }
-    }
-  } else {
-    // Fallback: restart current item in demo mode
-    ringProgressRaw.value = 0
-    if (currentItem.value) {
-      await startCyclePlayback(currentItem.value)
-    }
-  }
-
-  // Re-enable callbacks now that revisit is complete
-  if (audioController.value?.enableCallbacks) {
-    audioController.value.enableCallbacks()
-  }
-
-  // Clear skip flag - revisit operation complete
-  isSkipInProgress.value = false
-  console.log('[LearningPlayer] Revisit: Complete, isPlaying:', isPlaying.value)
+  // Delegate to SimplePlayer which handles stop/play/state correctly
+  simplePlayer.jumpToRound(targetIndex)
 }
 
 /**
