@@ -2108,20 +2108,12 @@ watch([showTargetText, () => currentPhrase.value.target], ([showing, newTarget])
 }, { immediate: true })
 
 // Component breakdown for M-type LEGOs (visual display only)
-// Format: [{known: "after", target: "después de"}, ...]
+// Pre-built map: cycleId → [{known, target}, ...] — avoids Vue proxy issues with nested optional fields
+const componentsByCycleId = ref<Map<string, Array<{known: string, target: string}>>>(new Map())
+
 const displayedComponents = computed<Array<{known: string, target: string}>>(() => {
-  const cycle = simplePlayer.currentCycle.value as any
-  if (cycle?.components && Array.isArray(cycle.components) && cycle.components.length > 0) {
-    return cycle.components
-  }
-  // Fallback: playable item (set async, may lag behind cycle changes)
-  const item = useRoundBasedPlayback.value
-    ? currentPlayableItem.value
-    : sessionItems.value[currentItemIndex.value]
-  if (item?.components && Array.isArray(item.components) && item.components.length > 0) {
-    return item.components
-  }
-  return []
+  const cycleId = (simplePlayer.currentCycle.value as any)?.id || ''
+  return componentsByCycleId.value.get(cycleId) || []
 })
 
 // Is current item an intro? (network should fade, show typewriter message)
@@ -5550,6 +5542,20 @@ onMounted(async () => {
                   }
                 }
               }
+
+              // Build component lookup map from cycles (before Vue proxies the data)
+              const compMap = new Map<string, Array<{known: string, target: string}>>()
+              for (const round of simpleRounds) {
+                for (const cycle of round.cycles) {
+                  if ((cycle as any).components?.length > 0) {
+                    compMap.set(cycle.id, (cycle as any).components)
+                  }
+                }
+              }
+              if (compMap.size > 0) {
+                console.log(`[LearningPlayer] Built component map: ${compMap.size} cycles with components`)
+              }
+              componentsByCycleId.value = compMap
 
               // Store for legacy code
               loadedRounds.value = simpleRounds as any
