@@ -159,91 +159,91 @@
 }
 
 /* ================================================================
- * DARK THEME (default)
- * Rich, deep surfaces with subtle layering
+ * DARK THEME — "Cosmos" (default)
+ * Deep space with glassmorphism — matches player dark theme
  * ================================================================ */
 [data-theme="dark"] {
-  /* Background hierarchy */
-  --bg-primary: #121212;
-  --bg-secondary: #1a1a1a;
-  --bg-card: #242424;
-  --bg-card-hover: #2d2d2d;
-  --bg-elevated: #333333;
-  --bg-input: #1a1a1a;
+  /* Background hierarchy — deep cosmos */
+  --bg-primary: #050508;
+  --bg-secondary: #0a0a12;
+  --bg-card: rgba(255, 255, 255, 0.03);
+  --bg-card-hover: rgba(255, 255, 255, 0.06);
+  --bg-elevated: rgba(255, 255, 255, 0.05);
+  --bg-input: rgba(255, 255, 255, 0.04);
 
-  /* Text hierarchy */
-  --text-primary: #ffffff;
-  --text-secondary: #b0b0b0;
-  --text-muted: #707070;
-  --text-inverse: #121212;
+  /* Text hierarchy — starlight */
+  --text-primary: rgba(255, 255, 255, 0.95);
+  --text-secondary: rgba(255, 255, 255, 0.6);
+  --text-muted: rgba(255, 255, 255, 0.35);
+  --text-inverse: #050508;
 
-  /* Borders */
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-medium: rgba(255, 255, 255, 0.15);
-  --border-strong: rgba(255, 255, 255, 0.25);
+  /* Borders — glass edges */
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-medium: rgba(255, 255, 255, 0.12);
+  --border-strong: rgba(255, 255, 255, 0.2);
   --border-focus: var(--ssi-red);
 
-  /* Shadows (darker for dark theme) */
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.5);
-  --shadow-xl: 0 12px 60px rgba(0, 0, 0, 0.6);
+  /* Shadows — deep space */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.6);
+  --shadow-xl: 0 12px 60px rgba(0, 0, 0, 0.7);
   --shadow-glow: 0 0 30px rgba(194, 58, 58, 0.3);
   --shadow-glow-gold: 0 0 30px rgba(212, 168, 83, 0.3);
 
   /* Special surfaces */
-  --nav-bg: rgba(18, 18, 18, 0.95);
-  --nav-bg-blur: rgba(18, 18, 18, 0.85);
+  --nav-bg: rgba(5, 5, 8, 0.9);
+  --nav-bg-blur: rgba(5, 5, 8, 0.8);
   --modal-backdrop: rgba(0, 0, 0, 0.7);
   --logo-bubble-bg: var(--bg-primary);
 
   /* Decorative */
   --mountain-opacity: 1;
-  --overlay-gradient: linear-gradient(180deg, rgba(18, 18, 18, 0) 0%, rgba(18, 18, 18, 0.8) 100%);
+  --overlay-gradient: linear-gradient(180deg, rgba(5, 5, 8, 0) 0%, rgba(5, 5, 8, 0.8) 100%);
 }
 
 /* ================================================================
- * LIGHT THEME
- * Clean, airy surfaces with subtle depth
+ * LIGHT THEME — "Ink & Paper Dojo" (Mist)
+ * Warm dojo stone with sumi ink — matches player light theme
  * ================================================================ */
 [data-theme="light"] {
-  /* Background hierarchy */
-  --bg-primary: #f5f5f7;
-  --bg-secondary: #ffffff;
+  /* Background hierarchy — dojo stone palette */
+  --bg-primary: #f0ebe3;
+  --bg-secondary: #f7f3ec;
   --bg-card: #ffffff;
-  --bg-card-hover: #f9f9f9;
-  --bg-elevated: #f0f0f2;
-  --bg-input: #ffffff;
+  --bg-card-hover: #fafaf7;
+  --bg-elevated: #ffffff;
+  --bg-input: #f7f3ec;
 
-  /* Text hierarchy */
-  --text-primary: #1a1a1a;
-  --text-secondary: #666666;
-  --text-muted: #999999;
-  --text-inverse: #ffffff;
+  /* Text hierarchy — sumi ink palette */
+  --text-primary: #2c2520;
+  --text-secondary: rgba(92, 84, 74, 0.85);
+  --text-muted: rgba(153, 143, 130, 0.8);
+  --text-inverse: #f7f3ec;
 
-  /* Borders */
-  --border-subtle: rgba(0, 0, 0, 0.06);
-  --border-medium: rgba(0, 0, 0, 0.12);
-  --border-strong: rgba(0, 0, 0, 0.2);
+  /* Borders — earth tints */
+  --border-subtle: rgba(100, 80, 55, 0.1);
+  --border-medium: rgba(100, 80, 55, 0.18);
+  --border-strong: rgba(100, 80, 55, 0.3);
   --border-focus: var(--ssi-red);
 
-  /* Shadows (softer for light theme) */
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
-  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.12);
-  --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.16);
-  --shadow-xl: 0 12px 60px rgba(0, 0, 0, 0.2);
-  --shadow-glow: 0 0 30px rgba(194, 58, 58, 0.2);
+  /* Shadows — layered paper depth */
+  --shadow-sm: 0 1px 2px rgba(60, 45, 30, 0.06), 0 2px 8px rgba(60, 45, 30, 0.04);
+  --shadow-md: 0 1px 3px rgba(60, 45, 30, 0.08), 0 4px 16px rgba(60, 45, 30, 0.05);
+  --shadow-lg: 0 2px 4px rgba(60, 45, 30, 0.08), 0 8px 32px rgba(60, 45, 30, 0.06);
+  --shadow-xl: 0 2px 6px rgba(60, 45, 30, 0.1), 0 12px 48px rgba(60, 45, 30, 0.08);
+  --shadow-glow: 0 0 30px rgba(194, 58, 58, 0.15);
   --shadow-glow-gold: 0 0 30px rgba(212, 168, 83, 0.2);
 
   /* Special surfaces */
-  --nav-bg: rgba(255, 255, 255, 0.95);
-  --nav-bg-blur: rgba(255, 255, 255, 0.85);
-  --modal-backdrop: rgba(0, 0, 0, 0.5);
+  --nav-bg: #fffcf5;
+  --nav-bg-blur: #fffcf5;
+  --modal-backdrop: rgba(44, 37, 32, 0.5);
   --logo-bubble-bg: var(--bg-primary);
 
   /* Decorative */
-  --mountain-opacity: 0.5;
-  --overlay-gradient: linear-gradient(180deg, rgba(245, 245, 247, 0) 0%, rgba(245, 245, 247, 0.8) 100%);
+  --mountain-opacity: 0.25;
+  --overlay-gradient: linear-gradient(180deg, rgba(240, 235, 227, 0) 0%, rgba(240, 235, 227, 0.85) 100%);
 }
 
 /* ================================================================
