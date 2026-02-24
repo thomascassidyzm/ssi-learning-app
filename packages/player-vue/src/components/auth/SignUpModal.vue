@@ -27,7 +27,6 @@ const { pendingCode, validationError, isValidating, isRedeeming, validateCode, r
 
 // Form state
 const email = ref('')
-const password = ref('')
 
 // Initialize email from sharedEmail when modal opens
 watch(() => props.isOpen, (isOpen) => {
@@ -38,11 +37,9 @@ watch(() => props.isOpen, (isOpen) => {
     step.value = props.startStep === 'code' ? 'code' : (pendingCode.value ? 'context' : 'form')
   }
 }, { immediate: true })
-const confirmPassword = ref('')
 const verificationCode = ref('')
 const isLoading = ref(false)
 const error = ref('')
-const showPassword = ref(false)
 const step = ref<'code' | 'context' | 'form' | 'verify'>(props.startStep === 'code' ? 'code' : 'form')
 
 // Invite code input
@@ -102,37 +99,14 @@ const contextDescription = computed(() => {
   return ''
 })
 
-// Password requirements
-const passwordRequirements = computed(() => [
-  { met: password.value.length >= 8, text: 'At least 8 characters' },
-  { met: /[A-Z]/.test(password.value), text: 'One uppercase letter' },
-  { met: /[a-z]/.test(password.value), text: 'One lowercase letter' },
-  { met: /[0-9]/.test(password.value), text: 'One number' },
-])
-
-const isPasswordStrong = computed(() =>
-  passwordRequirements.value.every(r => r.met)
-)
-
 // Validation
 const isEmailValid = computed(() => {
   if (!email.value) return true
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value)
 })
 
-const doPasswordsMatch = computed(() => {
-  if (!confirmPassword.value) return true
-  return password.value === confirmPassword.value
-})
-
 const canSubmit = computed(() => {
-  return email.value &&
-    password.value &&
-    confirmPassword.value &&
-    isEmailValid.value &&
-    isPasswordStrong.value &&
-    doPasswordsMatch.value &&
-    !isLoading.value
+  return email.value && isEmailValid.value && !isLoading.value
 })
 
 // Handle sign up
@@ -145,7 +119,6 @@ const handleSignUp = async () => {
   try {
     await signUp.value.create({
       emailAddress: email.value,
-      password: password.value,
     })
 
     // Send verification email
@@ -237,30 +210,11 @@ const resendCode = async () => {
   }
 }
 
-// OAuth sign up
-const handleOAuthSignUp = async (provider: 'oauth_google' | 'oauth_apple') => {
-  if (!isLoaded.value || !signUp.value) return
-
-  try {
-    await signUp.value.authenticateWithRedirect({
-      strategy: provider,
-      redirectUrl: '/sso-callback',
-      redirectUrlComplete: '/schools',
-    })
-  } catch (err: any) {
-    console.error('OAuth error:', err)
-    error.value = 'Unable to sign up with this provider.'
-  }
-}
-
 // Reset form when modal closes
 const handleClose = () => {
   email.value = ''
-  password.value = ''
-  confirmPassword.value = ''
   verificationCode.value = ''
   error.value = ''
-  showPassword.value = false
   codeInput.value = ''
   clearPendingCode()
   step.value = 'form'
@@ -374,82 +328,7 @@ const handleClose = () => {
         </div>
       </div>
 
-      <!-- Password input -->
-      <div class="input-group">
-        <label for="signup-password" class="input-label">Password</label>
-        <div class="input-wrapper" :class="{ focused: password }">
-          <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="11" width="18" height="11" rx="2"/>
-            <circle cx="12" cy="16" r="1"/>
-            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-          </svg>
-          <input
-            id="signup-password"
-            v-model="password"
-            :type="showPassword ? 'text' : 'password'"
-            placeholder="••••••••"
-            autocomplete="new-password"
-            required
-          />
-          <button
-            type="button"
-            class="password-toggle"
-            @click="showPassword = !showPassword"
-            :aria-label="showPassword ? 'Hide password' : 'Show password'"
-          >
-            <svg v-if="showPassword" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-              <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-              <line x1="1" y1="1" x2="23" y2="23"/>
-            </svg>
-            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-              <circle cx="12" cy="12" r="3"/>
-            </svg>
-          </button>
-        </div>
-
-        <!-- Password requirements -->
-        <div v-if="password" class="password-requirements">
-          <div
-            v-for="req in passwordRequirements"
-            :key="req.text"
-            class="requirement"
-            :class="{ met: req.met }"
-          >
-            <svg v-if="req.met" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="20 6 9 17 4 12"/>
-            </svg>
-            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-            </svg>
-            {{ req.text }}
-          </div>
-        </div>
-      </div>
-
-      <!-- Confirm password -->
-      <div class="input-group">
-        <label for="signup-confirm" class="input-label">Confirm Password</label>
-        <div class="input-wrapper" :class="{ focused: confirmPassword, invalid: confirmPassword && !doPasswordsMatch }">
-          <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="11" width="18" height="11" rx="2"/>
-            <circle cx="12" cy="16" r="1"/>
-            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-          </svg>
-          <input
-            id="signup-confirm"
-            v-model="confirmPassword"
-            :type="showPassword ? 'text' : 'password'"
-            placeholder="••••••••"
-            autocomplete="new-password"
-            required
-          />
-        </div>
-        <p v-if="confirmPassword && !doPasswordsMatch" class="input-error">
-          Passwords don't match
-        </p>
-      </div>
+      <p class="otp-hint">We'll send you a verification code</p>
 
       <!-- Submit button -->
       <button
@@ -465,30 +344,6 @@ const handleClose = () => {
           </svg>
         </span>
       </button>
-
-      <!-- Divider -->
-      <div class="divider">
-        <span>or continue with</span>
-      </div>
-
-      <!-- OAuth buttons -->
-      <div class="oauth-buttons">
-        <button type="button" class="oauth-btn" @click="handleOAuthSignUp('oauth_google')">
-          <svg viewBox="0 0 24 24">
-            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-          </svg>
-          Google
-        </button>
-        <button type="button" class="oauth-btn" @click="handleOAuthSignUp('oauth_apple')">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
-          </svg>
-          Apple
-        </button>
-      </div>
 
       <!-- Switch to sign in -->
       <p class="switch-mode">
@@ -681,54 +536,11 @@ const handleClose = () => {
   margin: 0;
 }
 
-/* Password toggle */
-.password-toggle {
-  position: absolute;
-  right: 0.75rem;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
+.otp-hint {
+  text-align: center;
+  font-size: 0.8125rem;
   color: var(--text-muted);
-  transition: all 0.2s ease;
-}
-
-.password-toggle:hover {
-  color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.password-toggle svg {
-  width: 18px;
-  height: 18px;
-}
-
-/* Password requirements */
-.password-requirements {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 0.25rem;
-}
-
-.requirement {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  transition: color 0.2s ease;
-}
-
-.requirement.met {
-  color: var(--success);
-}
-
-.requirement svg {
-  width: 14px;
-  height: 14px;
+  margin: -0.5rem 0 0;
 }
 
 /* Submit button */
@@ -786,56 +598,6 @@ const handleClose = () => {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
-}
-
-/* Divider */
-.divider {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  color: var(--text-muted);
-  font-size: 0.8125rem;
-}
-
-.divider::before,
-.divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-}
-
-/* OAuth buttons */
-.oauth-buttons {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
-}
-
-.oauth-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-  font-weight: 500;
-  transition: all 0.2s ease;
-}
-
-.oauth-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.2);
-  color: var(--text-primary);
-}
-
-.oauth-btn svg {
-  width: 20px;
-  height: 20px;
 }
 
 /* Switch mode */

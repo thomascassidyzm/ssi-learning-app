@@ -10,6 +10,7 @@ import { useGodMode } from './useGodMode'
 
 interface RegionSummary {
   region_code: string
+  region_name: string
   school_count: number
   teacher_count: number
   student_count: number

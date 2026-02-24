@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, inject, onMounted, onUnmounted } from 'vue'
+import { ref, computed, inject, watch, onMounted, onUnmounted } from 'vue'
 import { getAudioCacheStats, preloadAudioBatch } from '../composables/useScriptCache'
 import { unregisterAllServiceWorkers, clearAllCaches } from '../composables/useServiceWorkerSafety'
 import { BELT_RANGES, getBeltForSeed } from '../composables/useBeltLoader'
 import { useBeltProgress } from '../composables/useBeltProgress'
 import { useTheme } from '../composables/useTheme'
 import { useInviteCode, type InviteCodeContext } from '../composables/useInviteCode'
+import { useAuthModal } from '../composables/useAuthModal'
+import { useRouter } from 'vue-router'
 
 const emit = defineEmits(['close', 'openExplorer', 'openListening', 'settingChanged'])
 
@@ -77,6 +79,31 @@ const isAdmin = computed(() => {
   const domain = email.split('@')[1]
   return ADMIN_EMAIL_DOMAINS.some(d => domain === d.toLowerCase())
 })
+
+const { openSignIn, openSignUp } = useAuthModal()
+const router = useRouter()
+
+// School role check
+const SCHOOL_ROLES = ['teacher', 'school_admin', 'govt_admin']
+const educationalRole = ref<string | null>(null)
+const hasSchoolRole = computed(() => educationalRole.value != null && SCHOOL_ROLES.includes(educationalRole.value))
+
+watch(isSignedIn, async (signedIn) => {
+  if (signedIn && supabase?.value && auth?.learnerId?.value) {
+    try {
+      const { data } = await supabase.value
+        .from('learners')
+        .select('educational_role')
+        .eq('id', auth.learnerId.value)
+        .single()
+      educationalRole.value = data?.educational_role || null
+    } catch {
+      educationalRole.value = null
+    }
+  } else {
+    educationalRole.value = null
+  }
+}, { immediate: true })
 
 // Join school/class via invite code
 const { validateCode, redeemCode, pendingCode, clearPendingCode } = useInviteCode()
@@ -743,7 +770,21 @@ const confirmReset = async () => {
         </div>
       </section>
 
-      <!-- Account Section (only for signed-in users) -->
+      <!-- Account Section (guest - not signed in) -->
+      <section class="section" v-if="!isSignedIn">
+        <h3 class="section-title">Account</h3>
+        <div class="card">
+          <div class="auth-cta-row">
+            <p class="auth-cta-text">Sign in to save your progress across devices</p>
+            <div class="auth-cta-buttons">
+              <button class="auth-cta-btn primary" @click="openSignIn()">Sign In</button>
+              <button class="auth-cta-btn secondary" @click="openSignUp()">Create Account</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Account Section (signed-in users) -->
       <section class="section" v-if="isSignedIn">
         <h3 class="section-title">Account</h3>
         <div class="card">
@@ -781,18 +822,19 @@ const confirmReset = async () => {
             </svg>
           </div>
 
-          <div class="divider"></div>
-
-          <!-- Change Password -->
-          <div class="setting-row clickable" @click="handleChangePassword">
-            <div class="setting-info">
-              <span class="setting-label">Change Password</span>
-              <span class="setting-desc">Update your password</span>
+          <!-- Schools Dashboard -->
+          <template v-if="hasSchoolRole">
+            <div class="divider"></div>
+            <div class="setting-row clickable" @click="router.push('/schools')">
+              <div class="setting-info">
+                <span class="setting-label">Schools Dashboard</span>
+                <span class="setting-desc">Manage your classes and students</span>
+              </div>
+              <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+              </svg>
             </div>
-            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 18l6-6-6-6"/>
-            </svg>
-          </div>
+          </template>
         </div>
       </section>
 
@@ -1188,6 +1230,55 @@ const confirmReset = async () => {
 
 .tool-icon.headphones {
   color: var(--gold);
+}
+
+/* Auth CTA */
+.auth-cta-row {
+  padding: 1rem;
+  text-align: center;
+}
+
+.auth-cta-text {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  margin: 0 0 1rem;
+}
+
+.auth-cta-buttons {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.auth-cta-btn {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.auth-cta-btn.primary {
+  background: linear-gradient(135deg, var(--ssi-red) 0%, var(--ssi-red-dark) 100%);
+  border: none;
+  color: white;
+}
+
+.auth-cta-btn.primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(194, 58, 58, 0.4);
+}
+
+.auth-cta-btn.secondary {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text-secondary);
+}
+
+.auth-cta-btn.secondary:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+  color: var(--text-primary);
 }
 
 /* Toggle Switch */
