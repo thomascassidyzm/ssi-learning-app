@@ -5530,6 +5530,14 @@ onMounted(async () => {
               const simpleRounds = toSimpleRounds(result.items)
               console.debug(`[eagerLoad] ${simpleRounds.length} SimplePlayer rounds built`)
 
+              // Debug: check if components survived the pipeline
+              const withComps = simpleRounds.filter(r => r.cycles.some((c: any) => c.components?.length > 0))
+              console.log(`[LearningPlayer] Rounds with components: ${withComps.length}/${simpleRounds.length}`)
+              if (withComps.length > 0) {
+                const firstComp = withComps[0].cycles.find((c: any) => c.components?.length > 0)
+                console.log('[LearningPlayer] First component example:', firstComp?.known?.text, '→', JSON.stringify((firstComp as any)?.components))
+              }
+
               simplePlayer.initialize(simpleRounds as any)
 
               // Restore position for returning users
