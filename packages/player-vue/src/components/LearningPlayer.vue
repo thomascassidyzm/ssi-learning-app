@@ -10513,30 +10513,30 @@ defineExpose({
 
 /* --- Stars → Warm fireflies --- */
 [data-theme="mist"] .player .star-field .star {
-  background: rgba(212, 168, 83, 0.6);
-  box-shadow: 0 0 6px 2px rgba(212, 168, 83, 0.15);
-  width: 3px;
-  height: 3px;
+  background: rgba(180, 140, 50, 0.9);
+  box-shadow: 0 0 8px 3px rgba(180, 140, 50, 0.35);
+  width: 4px;
+  height: 4px;
   border-radius: 50%;
   animation: firefly-glow 4s ease-in-out infinite, firefly-drift 12s ease-in-out infinite;
 }
 
 [data-theme="mist"] .player .star-field .star:nth-child(odd) {
   animation-delay: -2s, -6s;
-  background: rgba(194, 58, 58, 0.4);
-  box-shadow: 0 0 6px 2px rgba(194, 58, 58, 0.1);
+  background: rgba(170, 60, 50, 0.7);
+  box-shadow: 0 0 8px 3px rgba(170, 60, 50, 0.25);
 }
 
 [data-theme="mist"] .player .star-field .star:nth-child(3n) {
-  width: 2px;
-  height: 2px;
+  width: 3px;
+  height: 3px;
   animation-duration: 5s, 15s;
 }
 
 @keyframes firefly-glow {
-  0%, 100% { opacity: 0.05; }
-  40% { opacity: 0.25; }
-  60% { opacity: 0.15; }
+  0%, 100% { opacity: 0.1; }
+  40% { opacity: 0.7; }
+  60% { opacity: 0.4; }
 }
 
 @keyframes firefly-drift {
@@ -10548,8 +10548,8 @@ defineExpose({
 
 /* --- Drift stars → Floating motes --- */
 [data-theme="mist"] .player .drift-star {
-  background: rgba(212, 168, 83, 0.25);
-  box-shadow: 0 0 8px 3px rgba(212, 168, 83, 0.08);
+  background: rgba(180, 140, 50, 0.6);
+  box-shadow: 0 0 10px 4px rgba(180, 140, 50, 0.2);
   clip-path: none;
   border-radius: 50%;
   width: 4px;
