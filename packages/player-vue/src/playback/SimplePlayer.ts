@@ -8,6 +8,8 @@ export interface Cycle {
   legoId?: string // The LEGO this cycle is practising
   componentLegoIds?: string[]
   componentLegoTexts?: string[]
+  /** M-LEGO component breakdown for visual display */
+  components?: Array<{ known: string; target: string }>
 }
 
 export interface Round {

@@ -226,6 +226,11 @@ export class CourseDataProvider {
       const target1AudioUrl = this.buildProxyUrl(record.target1_audio_id)
       const target2AudioUrl = this.buildProxyUrl(record.target2_audio_id)
 
+      // Parse M-LEGO components from JSONB: [{known: "with", target: "con"}, ...]
+      const components = record.type === 'M' && Array.isArray(record.components)
+        ? record.components.map((c: any) => ({ known: c.known || '', target: c.target || '' }))
+        : undefined
+
       return {
         lego: {
           id: legoId,
@@ -235,6 +240,7 @@ export class CourseDataProvider {
             known: record.known_text,
             target: record.target_text,
           },
+          components,
           audioRefs: {
             known: {
               id: record.known_audio_id,

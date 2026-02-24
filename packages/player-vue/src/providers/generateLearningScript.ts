@@ -38,6 +38,8 @@ export interface ScriptItem {
   reviewOf?: number
   componentLegoIds?: string[]
   componentLegoTexts?: string[]
+  /** M-LEGO component breakdown: [{known: "with", target: "con"}, ...] */
+  components?: Array<{ known: string; target: string }>
 }
 
 export interface LearningScriptResult {
@@ -128,11 +130,17 @@ export async function generateLearningScript(
     target2_duration_ms?: number
   }
   const phrasesByLego = new Map<string, { build: Phrase[]; use: Phrase[]; practice: Phrase[] }>()
+  // Collect M-LEGO component breakdowns: legoKey → [{known, target}, ...]
+  const componentsByLego = new Map<string, Array<{ known: string; target: string }>>()
   for (const phrase of (phrasesResult.data || []) as Phrase[]) {
     const key = `${phrase.seed_number}:${phrase.lego_index}`
     if (!phrasesByLego.has(key)) phrasesByLego.set(key, { build: [], use: [], practice: [] })
     const group = phrasesByLego.get(key)!
-    if (phrase.phrase_role === 'component') continue
+    if (phrase.phrase_role === 'component') {
+      if (!componentsByLego.has(key)) componentsByLego.set(key, [])
+      componentsByLego.get(key)!.push({ known: phrase.known_text, target: phrase.target_text })
+      continue
+    }
     if (phrase.phrase_role === 'build') group.build.push(phrase)
     else if (phrase.phrase_role === 'use') group.use.push(phrase)
     else if (phrase.phrase_role === 'practice') group.practice.push(phrase)
@@ -380,6 +388,7 @@ export async function generateLearningScript(
       const introAudioId = presentationAudioId || lego.known_audio_id
 
       const usedPhrasesThisRound = new Set<string>()
+      const legoComponents = componentsByLego.get(phraseKey)
 
       // Phase 1: INTRO - presentation audio introduces the new LEGO
       // Welsh courses (cym_*): presentation audio already contains the target
@@ -402,7 +411,8 @@ export async function generateLearningScript(
         target2Id: isWelsh ? undefined : lego.target2_audio_id,
         target1DurationMs: isWelsh ? undefined : lego.target1_duration_ms,
         target2DurationMs: isWelsh ? undefined : lego.target2_duration_ms,
-        isNew: true
+        isNew: true,
+        ...(legoComponents ? { components: legoComponents } : {})
       })
 
       // Phase 2: DEBUT
@@ -419,7 +429,8 @@ export async function generateLearningScript(
         target2Id: lego.target2_audio_id,
         target1DurationMs: lego.target1_duration_ms,
         target2DurationMs: lego.target2_duration_ms,
-        isNew: true
+        isNew: true,
+        ...(legoComponents ? { components: legoComponents } : {})
       })
 
       // Phase 3: BUILD phrases up to 7

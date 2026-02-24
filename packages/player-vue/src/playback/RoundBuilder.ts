@@ -349,6 +349,11 @@ function createPracticeItem(options: {
     }
   }
 
+  // Include components on debut items so component tiles show
+  const components = type === 'debut' && lego.type === 'M' && lego.components
+    ? lego.components.map(c => ({ known: c.known, target: c.target }))
+    : undefined
+
   return {
     type,
     roundNumber,
@@ -369,6 +374,7 @@ function createPracticeItem(options: {
       target1: (phrase.audioRefs.target.voice1.duration_ms ?? 2000) / 1000,
       target2: (phrase.audioRefs.target.voice2.duration_ms ?? 2000) / 1000,
     } : undefined,
+    components,
     reviewOf,
     fibonacciPosition,
   }
@@ -398,6 +404,11 @@ function createLegoItem(options: {
     }
   }
 
+  // Include components on debut items so component tiles show
+  const components = type === 'debut' && lego.type === 'M' && lego.components
+    ? lego.components.map(c => ({ known: c.known, target: c.target }))
+    : undefined
+
   return {
     type,
     roundNumber,
@@ -418,6 +429,7 @@ function createLegoItem(options: {
       target1: (lego.audioRefs.target.voice1.duration_ms ?? 2000) / 1000,
       target2: (lego.audioRefs.target.voice2.duration_ms ?? 2000) / 1000,
     } : undefined,
+    components,
     reviewOf,
     fibonacciPosition,
   }

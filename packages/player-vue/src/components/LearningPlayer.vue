@@ -840,6 +840,8 @@ const scriptItemToPlayableItem = async (scriptItem) => {
     },
     // Track original script item data
     _scriptItem: scriptItem,
+    // Pass through component breakdown for M-type LEGOs (shown during intro/debut)
+    components: scriptItem.components || undefined,
   }
 
   // RUNTIME SAFETY NET: Validate the item has all required audio
@@ -2111,10 +2113,15 @@ watch([showTargetText, () => currentPhrase.value.target], ([showing, newTarget])
 // Format: [{known: "after", target: "después de"}, ...]
 const displayedComponents = ref<Array<{known: string, target: string}>>([])
 watch(() => {
+  // Try playable item first (has components from scriptItemToPlayableItem)
   const item = useRoundBasedPlayback.value
     ? currentPlayableItem.value
     : sessionItems.value[currentItemIndex.value]
-  return item?.components
+  if (item?.components) return item.components
+  // Fallback: read from current cycle (SimplePlayer path)
+  const cycle = simplePlayer.currentCycle.value as any
+  if (cycle?.components) return cycle.components
+  return undefined
 }, (components) => {
   displayedComponents.value = components || []
 }, { immediate: true })
