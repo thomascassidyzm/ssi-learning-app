@@ -244,6 +244,65 @@ const enableVerboseLogging = ref(false)
 const shouldShowProgressWarning = computed(() => isGuestLearner.value && showFragileProgressWarning.value)
 const shouldShowQaMode = computed(() => enableQaMode.value || isQaMode.value) // Either setting or URL param
 
+// Class session tracking
+const classSessionId = ref<string | null>(null)
+const classSessionStartTime = ref<number>(0)
+const classSessionLastLegoId = ref<string>('')
+
+// Update class progress in Supabase
+const updateClassLegoProgress = async (classId: string, lastLegoId: string) => {
+  if (!supabase?.value) return
+  classSessionLastLegoId.value = lastLegoId
+  const { error } = await supabase.value
+    .from('classes')
+    .update({ last_lego_id: lastLegoId })
+    .eq('id', classId)
+  if (error) console.error('[LearningPlayer] Failed to update class progress:', error)
+}
+
+// Start a class session
+const startClassSessionTracking = async () => {
+  if (!props.classContext || !supabase?.value) return
+  const startLegoId = props.classContext.last_lego_id || 'S0001L01'
+  classSessionStartTime.value = Date.now()
+  classSessionLastLegoId.value = startLegoId
+
+  const { data, error } = await supabase.value
+    .from('class_sessions')
+    .insert({
+      class_id: props.classContext.id,
+      teacher_user_id: learnerId.value || 'unknown',
+      start_lego_id: startLegoId,
+    })
+    .select('id')
+    .single()
+
+  if (error) {
+    console.error('[LearningPlayer] Failed to start class session:', error)
+  } else {
+    classSessionId.value = data.id
+    console.log('[LearningPlayer] Class session started:', data.id)
+  }
+}
+
+// End a class session
+const endClassSessionTracking = async () => {
+  if (!classSessionId.value || !supabase?.value) return
+  const durationSeconds = Math.floor((Date.now() - classSessionStartTime.value) / 1000)
+  const { error } = await supabase.value
+    .from('class_sessions')
+    .update({
+      ended_at: new Date().toISOString(),
+      end_lego_id: classSessionLastLegoId.value,
+      cycles_completed: totalCycles.value,
+      duration_seconds: durationSeconds,
+    })
+    .eq('id', classSessionId.value)
+  if (error) console.error('[LearningPlayer] Failed to end class session:', error)
+  else console.log('[LearningPlayer] Class session ended:', classSessionId.value)
+  classSessionId.value = null
+}
+
 // Save round completion progress to database
 const saveRoundProgress = async (legoId, roundIndex) => {
   if (isGuestLearner.value || !progressStore?.value) {
@@ -372,11 +431,25 @@ simplePlayer.onCycleCompleted((cycle) => {
 simplePlayer.onRoundCompleted((round) => {
   const completedRoundIndex = simplePlayer.roundIndex.value
   if (round.legoId) {
-    saveRoundProgress(round.legoId, completedRoundIndex)
-    handleRoundBoundary(completedRoundIndex, round.legoId)
-    // Update currentLegoId in belt progress for precise position tracking
-    if (beltProgress.value?.setCurrentLegoId) {
-      beltProgress.value.setCurrentLegoId(round.legoId)
+    if (props.classContext) {
+      // Class mode: update class progress, NOT personal belt
+      updateClassLegoProgress(props.classContext.id, round.legoId)
+      // Update localStorage classContext so page refresh works
+      const stored = localStorage.getItem('ssi-active-class')
+      if (stored) {
+        try {
+          const ctx = JSON.parse(stored)
+          ctx.last_lego_id = round.legoId
+          localStorage.setItem('ssi-active-class', JSON.stringify(ctx))
+        } catch {}
+      }
+    } else {
+      // Individual mode: existing behavior
+      saveRoundProgress(round.legoId, completedRoundIndex)
+      handleRoundBoundary(completedRoundIndex, round.legoId)
+      if (beltProgress.value?.setCurrentLegoId) {
+        beltProgress.value.setCurrentLegoId(round.legoId)
+      }
     }
   }
   // Preload audio for the NEXT round (N+1) so it's cached before the user gets there
@@ -1118,7 +1191,13 @@ const initializeBeltLoader = async () => {
   beltLoader.value = useBeltLoader(loaderConfig)
 
   // Initialize from current progress position
-  const startSeed = beltProgress.value.completedRounds.value + 1
+  let startSeed: number
+  if (props.classContext?.last_lego_id) {
+    const seedMatch = props.classContext.last_lego_id.match(/^S(\d{4})L/)
+    startSeed = seedMatch ? parseInt(seedMatch[1], 10) : 1
+  } else {
+    startSeed = beltProgress.value.completedRounds.value + 1
+  }
   await beltLoader.value.initializeFromSeed(startSeed)
 
   console.log('[LearningPlayer] Belt loader ready, starting from seed', startSeed)
@@ -5507,10 +5586,21 @@ onMounted(async () => {
           // ============================================
           if (supabase?.value) {
             // Determine starting position from saved progress
-            const completedSeeds = beltProgress.value?.completedRounds.value ?? 0
-            const currentSeedFromLegoId = beltProgress.value?.currentSeedNumber.value ?? 0
-            const startingSeed = currentSeedFromLegoId > 0 ? currentSeedFromLegoId : (completedSeeds > 0 ? completedSeeds : 0)
-            const isReturningUser = startingSeed > 0
+            let startingSeed: number
+            let isReturningUser: boolean
+            const classLastLegoId = props.classContext?.last_lego_id
+
+            if (classLastLegoId) {
+              // Class mode: derive seed from class's last LEGO position
+              const seedMatch = classLastLegoId.match(/^S(\d{4})L/)
+              startingSeed = seedMatch ? parseInt(seedMatch[1], 10) : 0
+              isReturningUser = startingSeed > 0
+            } else {
+              const completedSeeds = beltProgress.value?.completedRounds.value ?? 0
+              const currentSeedFromLegoId = beltProgress.value?.currentSeedNumber.value ?? 0
+              startingSeed = currentSeedFromLegoId > 0 ? currentSeedFromLegoId : (completedSeeds > 0 ? completedSeeds : 0)
+              isReturningUser = startingSeed > 0
+            }
 
             // Await eager script (preloaded from App.vue) or fall back to direct call
             let result
@@ -5532,11 +5622,23 @@ onMounted(async () => {
 
               // Restore position for returning users
               if (isReturningUser) {
-                const nextSeed = startingSeed + 1
-                const roundIndex = simplePlayer.findRoundIndexForSeed(nextSeed)
-                if (roundIndex >= 0) {
-                  console.debug(`[eagerLoad] Restoring: seed ${startingSeed} → starting at seed ${nextSeed} (round ${roundIndex})`)
-                  simplePlayer.jumpToRound(roundIndex)
+                if (classLastLegoId) {
+                  // Class mode: find the round AFTER the last completed LEGO
+                  const lastIdx = simpleRounds.findIndex(r => r.legoId === classLastLegoId)
+                  if (lastIdx >= 0 && lastIdx + 1 < simpleRounds.length) {
+                    console.debug(`[eagerLoad] Class mode: resuming after ${classLastLegoId} (round ${lastIdx + 1})`)
+                    simplePlayer.jumpToRound(lastIdx + 1)
+                  } else if (lastIdx >= 0) {
+                    // Last LEGO was the final round — stay there
+                    simplePlayer.jumpToRound(lastIdx)
+                  }
+                } else {
+                  const nextSeed = startingSeed + 1
+                  const roundIndex = simplePlayer.findRoundIndexForSeed(nextSeed)
+                  if (roundIndex >= 0) {
+                    console.debug(`[eagerLoad] Restoring: seed ${startingSeed} → starting at seed ${nextSeed} (round ${roundIndex})`)
+                    simplePlayer.jumpToRound(roundIndex)
+                  }
                 }
               }
 
@@ -5560,6 +5662,11 @@ onMounted(async () => {
             }
           }
           console.log('[LearningPlayer] SimplePlayer initialized successfully')
+
+          // Start class session tracking if in class mode
+          if (props.classContext) {
+            startClassSessionTracking()
+          }
 
           // Network data is loaded lazily when the user navigates to the Progress screen
           // This avoids blocking startup for courses with many LEGOs (1000+)
@@ -5935,6 +6042,11 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  // End class session if active
+  if (classSessionId.value) {
+    endClassSessionTracking()
+  }
+
   // CRITICAL: Stop any playing intro/welcome audio to prevent zombie audio
   if (isPlayingIntroduction.value) {
     skipIntroduction()
@@ -10696,10 +10808,17 @@ defineExpose({
 }
 
 /* --- Learning hint box --- */
-[data-theme="mist"] .player .learning-hint {
+[data-theme="mist"] .player .learning-hint,
+[data-theme="mist"] .player .learning-hint-box {
   background: #ffffff;
   border: 1px solid rgba(100, 80, 55, 0.1);
   box-shadow: 0 1px 2px rgba(60, 45, 30, 0.06), 0 4px 12px rgba(60, 45, 30, 0.04);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  color: #5c544a;
+}
+
+[data-theme="mist"] .player .learning-hint-box .hint-text {
   color: #5c544a;
 }
 </style>

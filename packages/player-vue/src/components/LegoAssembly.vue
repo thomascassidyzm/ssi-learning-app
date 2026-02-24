@@ -280,3 +280,45 @@ const staggerDelay = (index: number): string => {
   }
 }
 </style>
+
+<!-- Mist theme: paper LEGO chips instead of glass -->
+<style>
+:root[data-theme="mist"] .lego-block {
+  background: #ffffff;
+  backdrop-filter: none;
+  border: 1px solid rgba(100, 80, 55, 0.12);
+  box-shadow: 0 1px 2px rgba(60, 45, 30, 0.06), 0 2px 8px rgba(60, 45, 30, 0.04);
+}
+
+:root[data-theme="mist"] .lego-block .block-text {
+  color: #2c2520;
+}
+
+:root[data-theme="mist"] .lego-block.assembled {
+  background: #ffffff;
+  border-color: var(--belt-accent, rgba(100, 80, 55, 0.2));
+  box-shadow:
+    0 1px 3px rgba(60, 45, 30, 0.06),
+    0 4px 12px color-mix(in srgb, var(--belt-accent, rgba(100, 80, 55, 0.2)) 15%, transparent);
+}
+
+:root[data-theme="mist"] .lego-block.salient {
+  background: #ffffff;
+  border-color: var(--belt-accent, rgba(100, 80, 55, 0.3));
+  border-width: 2px;
+  box-shadow:
+    0 1px 3px rgba(60, 45, 30, 0.08),
+    0 4px 16px color-mix(in srgb, var(--belt-accent, rgba(100, 80, 55, 0.2)) 20%, transparent);
+}
+
+:root[data-theme="mist"] .lego-block.salient .block-text {
+  color: #2c2520;
+}
+
+:root[data-theme="mist"] .lego-block.salient.assembled {
+  background: #fafaf7;
+  box-shadow:
+    0 2px 4px rgba(60, 45, 30, 0.08),
+    0 4px 20px color-mix(in srgb, var(--belt-accent, rgba(100, 80, 55, 0.2)) 25%, transparent);
+}
+</style>

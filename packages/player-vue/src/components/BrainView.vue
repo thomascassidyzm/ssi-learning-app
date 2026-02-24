@@ -2594,3 +2594,70 @@ onUnmounted(() => {
   transform: scale(0.95);
 }
 </style>
+
+<!-- Mist theme: paper dojo instead of dark cosmos -->
+<style>
+:root[data-theme="mist"] .brain-view {
+  background: linear-gradient(180deg, #f0ebe3 0%, #e8e2d8 50%, #f0ebe3 100%);
+}
+
+:root[data-theme="mist"] .brain-view .close-btn {
+  background: #ffffff;
+  backdrop-filter: none;
+  border-color: rgba(100, 80, 55, 0.12);
+  box-shadow: 0 1px 3px rgba(60, 45, 30, 0.06), 0 4px 12px rgba(60, 45, 30, 0.04);
+}
+
+:root[data-theme="mist"] .brain-view .brain-title-mount {
+  background: #ffffff;
+  backdrop-filter: none;
+  border-color: rgba(100, 80, 55, 0.1);
+  box-shadow: 0 1px 3px rgba(60, 45, 30, 0.06), 0 4px 16px rgba(60, 45, 30, 0.04);
+}
+
+:root[data-theme="mist"] .brain-view .brain-title-language {
+  text-shadow: none;
+}
+
+:root[data-theme="mist"] .brain-view .progress-tabs {
+  background: #ffffff;
+  backdrop-filter: none;
+  border-color: rgba(100, 80, 55, 0.1);
+  box-shadow: 0 1px 2px rgba(60, 45, 30, 0.06);
+}
+
+:root[data-theme="mist"] .brain-view .belt-card {
+  background: #ffffff;
+  backdrop-filter: none;
+  border-color: rgba(100, 80, 55, 0.1);
+  box-shadow: 0 1px 2px rgba(60, 45, 30, 0.06), 0 4px 12px rgba(60, 45, 30, 0.04);
+}
+
+:root[data-theme="mist"] .brain-view .belt-card.current {
+  border-color: var(--belt-color);
+  box-shadow: 0 1px 2px rgba(60, 45, 30, 0.06), 0 4px 16px color-mix(in srgb, var(--belt-color) 15%, transparent);
+}
+
+:root[data-theme="mist"] .brain-view .belt-card.completed {
+  opacity: 0.8;
+}
+
+:root[data-theme="mist"] .brain-view .belt-indicator--black {
+  outline-color: rgba(100, 80, 55, 0.3);
+}
+
+:root[data-theme="mist"] .brain-view .status-badge.completed {
+  background: rgba(34, 197, 94, 0.1);
+  color: #16a34a;
+}
+
+:root[data-theme="mist"] .brain-view .status-badge.current {
+  background: color-mix(in srgb, var(--belt-color) 10%, transparent);
+  color: var(--text-primary);
+}
+
+:root[data-theme="mist"] .brain-view .status-badge.locked {
+  background: rgba(100, 80, 55, 0.06);
+  color: var(--text-muted);
+}
+</style>
