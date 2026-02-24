@@ -36,23 +36,39 @@ watch(() => props.blocks, (newBlocks) => {
   scatterPositions.value = generateScatter(newBlocks.length)
 }, { immediate: true })
 
-// Map UI phases to assembly phases
-const assemblyPhase = computed<AssemblyPhase>(() => {
-  if (props.blocks.length === 0) return 'hidden'
-  switch (props.phase) {
+// Map UI phases to assembly phases, with a 1s delay entering voice1
+// so the learner HEARS the target before SEEING the tiles
+const VOICE1_REVEAL_DELAY_MS = 1000
+const assemblyPhase = ref<AssemblyPhase>('hidden')
+let voice1Timer: ReturnType<typeof setTimeout> | null = null
+
+watch(() => props.phase, (phase) => {
+  if (voice1Timer) { clearTimeout(voice1Timer); voice1Timer = null }
+
+  if (props.blocks.length === 0) {
+    assemblyPhase.value = 'hidden'
+    return
+  }
+  switch (phase) {
     case 'prompt':
-    case 'speak': // pause phase
-      return 'hidden'
+    case 'speak':
+      assemblyPhase.value = 'hidden'
+      break
     case 'voice1':
     case 'voice_1':
-      return 'assembling'
+      // Delay reveal so learner hears before reading
+      voice1Timer = setTimeout(() => {
+        assemblyPhase.value = 'assembling'
+      }, VOICE1_REVEAL_DELAY_MS)
+      break
     case 'voice2':
     case 'voice_2':
-      return 'assembled'
+      assemblyPhase.value = 'assembled'
+      break
     default:
-      return 'hidden'
+      assemblyPhase.value = 'hidden'
   }
-})
+}, { immediate: true })
 
 // Animation duration for assembling — match voice1 audio
 const assembleDuration = computed(() => {
