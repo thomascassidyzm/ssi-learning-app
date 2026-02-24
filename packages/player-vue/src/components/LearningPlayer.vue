@@ -2121,6 +2121,9 @@ watch(() => {
   if (item?.components) return item.components
   return undefined
 }, (components) => {
+  if (components && components.length > 0) {
+    console.log('[LearningPlayer] Component tiles:', components.length, components)
+  }
   displayedComponents.value = components || []
 }, { immediate: true })
 
