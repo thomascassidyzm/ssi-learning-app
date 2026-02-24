@@ -630,7 +630,7 @@ onUnmounted(() => {
 }
 
 :root[data-theme="mist"] .modal {
-  background: #FAF6EC;
+  background: #F5F3F0;
   border: 1px solid rgba(122, 110, 98, 0.12);
   box-shadow: 0 4px 12px rgba(44, 38, 34, 0.1), 0 20px 60px rgba(44, 38, 34, 0.12);
 }

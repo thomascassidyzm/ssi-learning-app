@@ -876,7 +876,7 @@ defineExpose({
   background:
     radial-gradient(ellipse 90% 70% at 15% 10%, rgba(255, 248, 230, 0.6) 0%, transparent 50%),
     radial-gradient(ellipse 100% 60% at 80% 90%, rgba(232, 224, 206, 0.4) 0%, transparent 40%),
-    radial-gradient(ellipse 80% 80% at 50% 50%, #F0E8D6 0%, #E8E0CE 100%);
+    radial-gradient(ellipse 80% 80% at 50% 50%, #EDEAE6 0%, #E5E2DE 100%);
 }
 
 :root[data-theme="mist"] .space-nebula {

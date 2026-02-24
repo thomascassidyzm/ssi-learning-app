@@ -10473,7 +10473,7 @@ defineExpose({
 <style>
 /* --- Player wrapper background --- */
 [data-theme="mist"] .player {
-  background: #F0E8D6;
+  background: #EDEAE6;
 }
 
 /* --- Space / Background layers → Washi paper --- */
@@ -10481,7 +10481,7 @@ defineExpose({
   background:
     radial-gradient(ellipse 90% 70% at 15% 10%, rgba(255, 248, 230, 0.6) 0%, transparent 50%),
     radial-gradient(ellipse 100% 60% at 80% 90%, rgba(232, 224, 206, 0.4) 0%, transparent 40%),
-    radial-gradient(ellipse 80% 80% at 50% 50%, #F0E8D6 0%, #E8E0CE 100%);
+    radial-gradient(ellipse 80% 80% at 50% 50%, #EDEAE6 0%, #E5E2DE 100%);
 }
 
 [data-theme="mist"] .player .space-nebula {
@@ -10619,7 +10619,7 @@ defineExpose({
 
 /* --- Hero glass → Solid paper card with belt-tinted edge --- */
 [data-theme="mist"] .player .hero-glass {
-  background: #FAF6EC;
+  background: #F5F3F0;
   border: 1.5px solid color-mix(in srgb, var(--belt-color) 30%, rgba(122, 110, 98, 0.18));
   box-shadow: 0 1px 2px rgba(44, 38, 34, 0.1),
               0 4px 12px rgba(44, 38, 34, 0.08),
@@ -10638,7 +10638,7 @@ defineExpose({
 
 /* --- Control bar → Solid paper with belt-tinted edge --- */
 [data-theme="mist"] .player .control-bar {
-  background: #FAF6EC;
+  background: #F5F3F0;
   border: 1.5px solid color-mix(in srgb, var(--belt-color) 30%, rgba(122, 110, 98, 0.18));
   box-shadow: 0 1px 2px rgba(44, 38, 34, 0.1),
               0 4px 12px rgba(44, 38, 34, 0.08),
@@ -10647,7 +10647,7 @@ defineExpose({
 
 /* --- Belt timer → Match edge definition --- */
 [data-theme="mist"] .player .belt-timer-unified {
-  background: #FAF6EC;
+  background: #F5F3F0;
   border: 1.5px solid color-mix(in srgb, var(--belt-color) 30%, rgba(122, 110, 98, 0.18));
   box-shadow: 0 1px 2px rgba(44, 38, 34, 0.1),
               0 4px 12px rgba(44, 38, 34, 0.08),
@@ -10673,7 +10673,7 @@ defineExpose({
 }
 
 [data-theme="mist"] .player .mode-picker {
-  background: #FAF6EC;
+  background: #F5F3F0;
   border: 1.5px solid rgba(122, 110, 98, 0.2);
   box-shadow: 0 1px 2px rgba(44, 38, 34, 0.1),
               0 4px 12px rgba(44, 38, 34, 0.08),
@@ -10745,7 +10745,7 @@ defineExpose({
 /* --- Learning hint box → Solid paper --- */
 [data-theme="mist"] .player .learning-hint,
 [data-theme="mist"] .player .learning-hint-box {
-  background: #FAF6EC;
+  background: #F5F3F0;
   border: 1.5px solid rgba(122, 110, 98, 0.2);
   box-shadow: 0 1px 2px rgba(44, 38, 34, 0.1),
               0 4px 12px rgba(44, 38, 34, 0.08);

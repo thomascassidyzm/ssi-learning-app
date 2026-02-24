@@ -235,20 +235,20 @@
  * Warm Japanese paper tones, ink-brush styling, dark lacquered nav
  * ================================================================ */
 [data-theme="mist"] {
-  /* Background hierarchy — washi cream */
-  --bg-primary: #F0E8D6;
-  --bg-secondary: #FAF6EC;
-  --bg-card: #FAF6EC;
-  --bg-card-hover: #F5EFE1;
-  --bg-elevated: #FAF6EC;
-  --bg-input: #E8E0CE;
+  /* Background hierarchy — cool mist grey */
+  --bg-primary: #EDEAE6;
+  --bg-secondary: #F5F3F0;
+  --bg-card: #F5F3F0;
+  --bg-card-hover: #F0EDEA;
+  --bg-elevated: #F5F3F0;
+  --bg-input: #E5E2DE;
   --bg-overlay: rgba(26, 22, 20, 0.4);
 
   /* Text hierarchy — ink palette */
   --text-primary: #1A1614;
   --text-secondary: #2C2622;
   --text-muted: #7A6E62;
-  --text-inverse: #FAF6EC;
+  --text-inverse: #F5F3F0;
 
   /* Borders — warm brown */
   --border-subtle: rgba(122, 110, 98, 0.12);
@@ -280,7 +280,7 @@
   /* Card styling — solid paper, no glass */
   --card-shadow: 0 1px 3px rgba(44, 38, 34, 0.08), 0 6px 20px rgba(44, 38, 34, 0.06);
   --card-border: 1px solid rgba(122, 110, 98, 0.12);
-  --chip-bg: #FAF6EC;
+  --chip-bg: #F5F3F0;
   --chip-border: 1px solid rgba(122, 110, 98, 0.15);
   --modal-backdrop: rgba(26, 22, 20, 0.5);
 
@@ -294,7 +294,7 @@
 
   /* Decorative */
   --mountain-opacity: 0.45;
-  --overlay-gradient: linear-gradient(180deg, rgba(240, 232, 214, 0) 0%, rgba(240, 232, 214, 0.9) 100%);
+  --overlay-gradient: linear-gradient(180deg, rgba(237, 234, 230, 0) 0%, rgba(237, 234, 230, 0.9) 100%);
 
   /* Theme indicator */
   --theme-mode: light;

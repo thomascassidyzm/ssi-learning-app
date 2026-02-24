@@ -1840,7 +1840,7 @@ const confirmReset = async () => {
 <!-- Mist theme: paper surfaces instead of glass -->
 <style>
 :root[data-theme="mist"] .settings-screen .header {
-  background: #F0E8D6;
+  background: #EDEAE6;
   border-bottom: 1px solid rgba(122, 110, 98, 0.1);
   box-shadow: 0 1px 3px rgba(44, 38, 34, 0.05);
 }
@@ -1851,7 +1851,7 @@ const confirmReset = async () => {
 }
 
 :root[data-theme="mist"] .settings-screen .reset-dialog {
-  background: #FAF6EC;
+  background: #F5F3F0;
   border: 1px solid rgba(122, 110, 98, 0.12);
   box-shadow: 0 4px 12px rgba(44, 38, 34, 0.1), 0 20px 60px rgba(44, 38, 34, 0.12);
 }

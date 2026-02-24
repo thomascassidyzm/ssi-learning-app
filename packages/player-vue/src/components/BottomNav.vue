@@ -600,10 +600,10 @@ const isVisible = computed(() => !props.isLearning)
 }
 
 :root[data-theme="mist"] .nav-item.active .nav-icon {
-  color: #FAF6EC;
+  color: #F5F3F0;
 }
 
 :root[data-theme="mist"] .nav-item.active .nav-label {
-  color: #FAF6EC;
+  color: #F5F3F0;
 }
 </style>
