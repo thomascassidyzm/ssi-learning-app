@@ -555,4 +555,10 @@ onMounted(() => {
   border-radius: 16px 16px 0 0;
   overscroll-behavior: contain;
 }
+
+@media (display-mode: standalone) {
+  .settings-panel {
+    max-height: 90vh;
+  }
+}
 </style>
