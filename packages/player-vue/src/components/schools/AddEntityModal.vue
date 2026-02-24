@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { getClient } from '@/composables/useSupabase'
-import { useGodMode } from '@/composables/useGodMode'
+import { getSchoolsClient } from '@/composables/schools/client'
+import { useGodMode } from '@/composables/schools/useGodMode'
 
 type EntityType = 'govt_admin' | 'school' | 'teacher' | 'student'
 
@@ -16,7 +16,7 @@ const emit = defineEmits<{
 }>()
 
 const { selectedUser } = useGodMode()
-const client = getClient()
+const client = getSchoolsClient()
 
 // Form state
 const isSubmitting = ref(false)

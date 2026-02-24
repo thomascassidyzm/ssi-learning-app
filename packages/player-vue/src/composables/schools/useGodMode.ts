@@ -6,7 +6,7 @@
  */
 
 import { ref, computed, watch } from 'vue'
-import { getClient } from './useSupabase'
+import { getSchoolsClient } from './client'
 
 export type EducationalRole = 'student' | 'teacher' | 'school_admin' | 'govt_admin'
 
@@ -59,7 +59,7 @@ watch(selectedUser, (user) => {
 })
 
 export function useGodMode() {
-  const client = getClient()
+  const client = getSchoolsClient()
 
   // Fetch all users with their context
   async function fetchUsers(): Promise<void> {

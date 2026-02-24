@@ -1,14 +1,16 @@
 <script setup>
-import { ref, computed, inject, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import ClassCard from '@/components/schools/ClassCard.vue'
 import CreateClassModal from '@/components/schools/CreateClassModal.vue'
+import { useGodMode } from '@/composables/schools/useGodMode'
+import { useClassesData } from '@/composables/schools/useClassesData'
 
 const router = useRouter()
 
-// Injected from SchoolsContainer
-const schoolsData = inject('schoolsData')
-const devUser = inject('devUser')
+// God Mode and data
+const { selectedUser } = useGodMode()
+const { classes: classesData, fetchClasses, isLoading } = useClassesData()
 
 // Modal state
 const isCreateModalOpen = ref(false)
@@ -16,30 +18,35 @@ const isCreateModalOpen = ref(false)
 // Search and filter state
 const searchQuery = ref('')
 
-// Live data - loaded from Supabase
-const classes = ref([])
-
-onMounted(async () => {
-  const userId = devUser?.value?.id ?? 'teacher-001'
-
-  // First try to load classes for this teacher
-  let classData = await schoolsData.getClassesForTeacher(userId)
-
-  // If teacher has no classes, fall back to school's classes (for admin viewing as teacher)
-  if (classData.length === 0) {
-    const school = await schoolsData.getSchoolForUser('admin-001')
-    if (school) {
-      classData = await schoolsData.getClasses(school.id)
-    }
-  }
-
-  classes.value = classData.map(cls => ({
-    ...cls,
-    sessions: 0,
-    total_time: '0h',
-    last_played: 'Not started',
+// Transform classes data for ClassCard component
+const classes = computed(() => {
+  return classesData.value.map(c => ({
+    id: c.id,
+    class_name: c.class_name,
+    course_code: c.course_code,
+    student_count: c.student_count,
+    current_seed: c.current_seed,
+    sessions: 0, // Would need session count from analytics
+    total_time: `${c.avg_practice_minutes}m avg`,
+    student_join_code: c.student_join_code,
+    last_played: 'N/A', // Would need last session timestamp
     last_played_recently: false,
+    last_lego_id: c.last_lego_id,
+    created_at: c.created_at
   }))
+})
+
+// Fetch data when user changes
+onMounted(() => {
+  if (selectedUser.value) {
+    fetchClasses()
+  }
+})
+
+watch(selectedUser, (newUser) => {
+  if (newUser) {
+    fetchClasses()
+  }
 })
 
 // Filtered classes based on search
@@ -67,29 +74,7 @@ const closeCreateModal = () => {
   isCreateModalOpen.value = false
 }
 
-const handleCreateClass = async (newClass) => {
-  // Try to create in Supabase
-  const school = await schoolsData.getSchoolForUser('admin-001')
-  if (school && schoolsData) {
-    const created = await schoolsData.createClass(
-      school.id,
-      devUser?.value?.id ?? 'teacher-001',
-      newClass.class_name,
-      newClass.course_code,
-    )
-    if (created) {
-      classes.value.unshift({
-        ...created,
-        sessions: 0,
-        total_time: '0h',
-        last_played: 'Never played',
-        last_played_recently: false,
-      })
-      closeCreateModal()
-      return
-    }
-  }
-  // Fallback: just add to local state
+const handleCreateClass = (newClass) => {
   classes.value.unshift({
     ...newClass,
     last_played: 'Never played',
@@ -106,6 +91,7 @@ const handlePlayClass = (classData) => {
     course_code: classData.course_code,
     current_seed: classData.current_seed,
     last_lego_id: classData.last_lego_id,
+    teacherUserId: selectedUser.value?.user_id,
     timestamp: new Date().toISOString()
   }
   localStorage.setItem('ssi-active-class', JSON.stringify(activeClass))

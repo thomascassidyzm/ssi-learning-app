@@ -5,8 +5,16 @@
  */
 
 import { ref, computed } from 'vue'
-import { getClient, type RegionSummary } from './useSupabase'
+import { getSchoolsClient } from './client'
 import { useGodMode } from './useGodMode'
+
+interface RegionSummary {
+  region_code: string
+  school_count: number
+  teacher_count: number
+  student_count: number
+  total_practice_hours: number
+}
 
 export interface School {
   id: string
@@ -29,7 +37,7 @@ const isLoading = ref(false)
 const error = ref<string | null>(null)
 
 export function useSchoolData() {
-  const client = getClient()
+  const client = getSchoolsClient()
   const { selectedUser, isGovtAdmin, isSchoolAdmin, isTeacher } = useGodMode()
 
   // Fetch school(s) based on user role

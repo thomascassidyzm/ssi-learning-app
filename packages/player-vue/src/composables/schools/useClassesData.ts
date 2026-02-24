@@ -5,7 +5,7 @@
  */
 
 import { ref, computed } from 'vue'
-import { getClient } from './useSupabase'
+import { getSchoolsClient } from './client'
 import { useGodMode } from './useGodMode'
 import { useSchoolData } from './useSchoolData'
 
@@ -51,6 +51,18 @@ export interface StudentProgress {
   joined_class_at: string
 }
 
+export interface ClassSession {
+  id: string
+  class_id: string
+  teacher_user_id: string
+  started_at: string
+  ended_at: string | null
+  start_lego_id: string
+  end_lego_id: string | null
+  cycles_completed: number
+  duration_seconds: number
+}
+
 const classes = ref<ClassInfo[]>([])
 const currentClass = ref<ClassInfo | null>(null)
 const classStudents = ref<StudentProgress[]>([])
@@ -58,7 +70,7 @@ const isLoading = ref(false)
 const error = ref<string | null>(null)
 
 export function useClassesData() {
-  const client = getClient()
+  const client = getSchoolsClient()
   const { selectedUser, isTeacher, isSchoolAdmin, isGovtAdmin } = useGodMode()
   const { viewingSchool, isViewingSchool } = useSchoolData()
 
@@ -289,6 +301,90 @@ export function useClassesData() {
     }
   }
 
+  // Session management (merged from player's useSchoolsData)
+  async function startClassSession(
+    classId: string,
+    teacherUserId: string,
+    startLegoId: string
+  ): Promise<string | null> {
+    try {
+      const { data, error: err } = await client
+        .from('class_sessions')
+        .insert({
+          class_id: classId,
+          teacher_user_id: teacherUserId,
+          start_lego_id: startLegoId,
+        })
+        .select('id')
+        .single()
+
+      if (err) {
+        console.error('[ClassesData] Failed to start class session:', err)
+        return null
+      }
+      return data.id
+    } catch (err) {
+      console.error('[ClassesData] startClassSession error:', err)
+      return null
+    }
+  }
+
+  async function endClassSession(
+    sessionId: string,
+    endLegoId: string,
+    cyclesCompleted: number,
+    durationSeconds: number
+  ): Promise<void> {
+    try {
+      const { error: err } = await client
+        .from('class_sessions')
+        .update({
+          ended_at: new Date().toISOString(),
+          end_lego_id: endLegoId,
+          cycles_completed: cyclesCompleted,
+          duration_seconds: durationSeconds,
+        })
+        .eq('id', sessionId)
+
+      if (err) console.error('[ClassesData] Failed to end class session:', err)
+    } catch (err) {
+      console.error('[ClassesData] endClassSession error:', err)
+    }
+  }
+
+  async function getClassSessions(classId: string, limit = 20): Promise<ClassSession[]> {
+    try {
+      const { data, error: err } = await client
+        .from('class_sessions')
+        .select('*')
+        .eq('class_id', classId)
+        .order('started_at', { ascending: false })
+        .limit(limit)
+
+      if (err) {
+        console.warn('[ClassesData] getClassSessions error:', err.message)
+        return []
+      }
+      return data ?? []
+    } catch (err) {
+      console.error('[ClassesData] getClassSessions error:', err)
+      return []
+    }
+  }
+
+  async function updateClassProgress(classId: string, lastLegoId: string): Promise<void> {
+    try {
+      const { error: err } = await client
+        .from('classes')
+        .update({ last_lego_id: lastLegoId })
+        .eq('id', classId)
+
+      if (err) console.error('[ClassesData] Failed to update class progress:', err)
+    } catch (err) {
+      console.error('[ClassesData] updateClassProgress error:', err)
+    }
+  }
+
   return {
     // State
     classes,
@@ -305,5 +401,9 @@ export function useClassesData() {
     fetchClasses,
     fetchClassDetail,
     getClassReport,
+    startClassSession,
+    endClassSession,
+    getClassSessions,
+    updateClassProgress,
   }
 }

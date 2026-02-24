@@ -198,24 +198,32 @@ export function useAuth(): AuthState & AuthActions {
     supabase.value = supabaseClient
     isLoading.value = true
 
-    // God mode bypass: skip Clerk entirely when dev role is set
-    const devRole = localStorage.getItem('ssi-dev-role')
-    if (devRole) {
-      const { useDevRole } = await import('./useDevRole')
-      const { currentUser } = useDevRole()
-      // Set learner to mock user, skip Clerk
-      guestId.value = null
-      learner.value = {
-        id: currentUser.value.id,
-        user_id: currentUser.value.id,
-        display_name: currentUser.value.name,
-        created_at: new Date(),
-        updated_at: new Date(),
-        preferences: defaultPreferences(),
-      } as any
-      isLoading.value = false
-      console.log('[useAuth] God mode active, using mock user:', currentUser.value.id)
-      return
+    // God mode bypass: skip Clerk entirely when god mode user is set
+    const godModeUser = localStorage.getItem('ssi-god-mode-user')
+    if (godModeUser) {
+      try {
+        const parsed = JSON.parse(godModeUser)
+        guestId.value = null
+        learner.value = {
+          id: parsed.learner_id || parsed.user_id,
+          user_id: parsed.user_id,
+          display_name: parsed.display_name,
+          created_at: new Date(),
+          updated_at: new Date(),
+          preferences: defaultPreferences(),
+        } as any
+        isLoading.value = false
+        console.log('[useAuth] God mode active, using user:', parsed.display_name)
+        return
+      } catch {
+        // Invalid stored user, continue with normal auth
+        localStorage.removeItem('ssi-god-mode-user')
+      }
+    }
+
+    // Legacy dev role bypass — clear old storage key
+    if (localStorage.getItem('ssi-dev-role')) {
+      localStorage.removeItem('ssi-dev-role')
     }
 
     // Initialize guest ID

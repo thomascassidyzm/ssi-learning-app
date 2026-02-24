@@ -1,34 +1,73 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, inject } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import SearchBox from '@/components/schools/shared/SearchBox.vue'
 import FilterDropdown from '@/components/schools/shared/FilterDropdown.vue'
 import Badge from '@/components/schools/shared/Badge.vue'
 import Button from '@/components/schools/shared/Button.vue'
-import { getBeltIndexForSeed, BELTS } from '@/composables/useBeltProgress'
-import type { useSchoolsData } from '@/composables/useSchoolsData'
+import { useGodMode } from '@/composables/schools/useGodMode'
+import { useStudentsData } from '@/composables/schools/useStudentsData'
 
-interface Student {
-  id: number
-  name: string
-  initials: string
-  email: string
-  class: string
-  belt: 'white' | 'yellow' | 'orange' | 'green' | 'blue' | 'brown' | 'black'
-  phrasesLearned: number
-  sessionsCompleted: number
-  lastActive: string
-  progress: number
-}
+// God Mode and data
+const { selectedUser } = useGodMode()
+const { students: studentsData, fetchStudents } = useStudentsData()
 
-// Injected from SchoolsContainer
-const schoolsData = inject<ReturnType<typeof useSchoolsData>>('schoolsData')!
-
+// Filters
 const searchQuery = ref('')
 const selectedClass = ref<string | null>(null)
 const selectedBelt = ref<string | null>(null)
 
-const students = ref<Student[]>([])
-const classOptions = ref<{ value: string; label: string }[]>([])
+// Get belt based on seeds completed (rough approximation)
+function getBelt(seedsCompleted: number): 'white' | 'yellow' | 'orange' | 'green' | 'blue' | 'brown' | 'black' {
+  if (seedsCompleted >= 400) return 'black'
+  if (seedsCompleted >= 280) return 'brown'
+  if (seedsCompleted >= 150) return 'blue'
+  if (seedsCompleted >= 80) return 'green'
+  if (seedsCompleted >= 40) return 'orange'
+  if (seedsCompleted >= 20) return 'yellow'
+  return 'white'
+}
+
+// Get initials from name
+function getInitials(name: string): string {
+  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+}
+
+// Format last active
+function formatLastActive(dateStr: string | null): string {
+  if (!dateStr) return 'Never'
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+  if (diffDays === 0) return 'Today'
+  if (diffDays === 1) return 'Yesterday'
+  if (diffDays < 7) return `${diffDays} days ago`
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`
+  return `${Math.floor(diffDays / 30)} months ago`
+}
+
+// Transform students data for display
+const students = computed(() => {
+  return studentsData.value.map((s, idx) => ({
+    id: idx + 1,
+    name: s.display_name,
+    initials: getInitials(s.display_name),
+    email: s.learner_id ? `student_${s.learner_id.substring(0, 8)}` : 'N/A', // No email in schema yet
+    class: s.class_name,
+    belt: getBelt(s.seeds_completed),
+    phrasesLearned: s.legos_mastered, // LEGOs mastered = phrases learned
+    sessionsCompleted: Math.ceil(s.total_practice_minutes / 30), // ~30 min per session
+    lastActive: formatLastActive(s.last_active_at),
+    progress: s.seeds_completed // Seeds completed is the actual progress
+  }))
+})
+
+// Build class options from actual classes
+const classOptions = computed(() => {
+  const uniqueClasses = [...new Set(studentsData.value.map(s => s.class_name))]
+  return uniqueClasses.map(c => ({ value: c, label: c }))
+})
 
 const beltOptions = [
   { value: 'white', label: 'White Belt' },
@@ -39,52 +78,6 @@ const beltOptions = [
   { value: 'brown', label: 'Brown Belt' },
   { value: 'black', label: 'Black Belt' },
 ]
-
-onMounted(async () => {
-  const school = await schoolsData.getSchoolForUser('admin-001')
-  if (!school) return
-
-  // Build class options from actual classes
-  const classes = await schoolsData.getClasses(school.id)
-  classOptions.value = classes.map(c => ({ value: c.class_name, label: c.class_name }))
-
-  // Get student progress from all classes
-  const allStudents: Student[] = []
-  let idCounter = 1
-
-  for (const cls of classes) {
-    const progress = await schoolsData.getClassStudentProgress(cls.id)
-    for (const p of progress) {
-      const beltIdx = getBeltIndexForSeed(p.seeds_completed ?? 0)
-      const beltName = BELTS[beltIdx].name as Student['belt']
-      const name = p.student_name || `Student ${idCounter}`
-      allStudents.push({
-        id: idCounter++,
-        name,
-        initials: name.split(' ').map((n: string) => n[0]).join(''),
-        email: '',
-        class: cls.class_name,
-        belt: beltName,
-        phrasesLearned: p.seeds_completed ?? 0,
-        sessionsCompleted: Math.round((p.total_practice_seconds ?? 0) / 1800), // ~30 min sessions
-        lastActive: p.last_active_at ? formatRelativeTime(p.last_active_at) : 'Never',
-        progress: Math.min(100, Math.round(((p.seeds_completed ?? 0) / 668) * 100)),
-      })
-    }
-  }
-
-  students.value = allStudents
-})
-
-function formatRelativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime()
-  const hours = Math.floor(diff / 3600000)
-  if (hours < 1) return 'Just now'
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  if (days < 7) return `${days}d ago`
-  return `${Math.floor(days / 7)}w ago`
-}
 
 const filteredStudents = computed(() => {
   return students.value.filter(student => {
@@ -105,6 +98,15 @@ const totalStudents = computed(() => students.value.length)
 const isVisible = ref(false)
 onMounted(() => {
   setTimeout(() => { isVisible.value = true }, 50)
+  if (selectedUser.value) {
+    fetchStudents()
+  }
+})
+
+watch(selectedUser, (newUser) => {
+  if (newUser) {
+    fetchStudents()
+  }
 })
 </script>
 

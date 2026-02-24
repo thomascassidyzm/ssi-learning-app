@@ -14,6 +14,8 @@ const TeacherDashboard = () => import('@/views/schools/TeacherDashboard.vue')
 const ClassDetail = () => import('@/views/schools/ClassDetail.vue')
 const AnalyticsView = () => import('@/views/schools/AnalyticsView.vue')
 const SettingsView = () => import('@/views/schools/SettingsView.vue')
+const SchoolsView = () => import('@/views/schools/SchoolsView.vue')
+const StudentProgressView = () => import('@/views/schools/StudentProgressView.vue')
 
 const routes: RouteRecordRaw[] = [
   // Learning player (default)
@@ -91,6 +93,24 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: 'Settings',
           description: 'School and account settings',
+        },
+      },
+      {
+        path: 'all',
+        name: 'schools-list',
+        component: SchoolsView,
+        meta: {
+          title: 'Schools',
+          description: 'All schools in region (govt admin)',
+        },
+      },
+      {
+        path: 'student-progress',
+        name: 'student-progress',
+        component: StudentProgressView,
+        meta: {
+          title: 'Student Progress',
+          description: 'Individual student progress view',
         },
       },
     ],

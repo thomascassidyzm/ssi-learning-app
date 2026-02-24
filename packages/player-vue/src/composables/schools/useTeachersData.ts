@@ -5,7 +5,7 @@
  */
 
 import { ref, computed } from 'vue'
-import { getClient } from './useSupabase'
+import { getSchoolsClient } from './client'
 import { useGodMode } from './useGodMode'
 import { useSchoolData } from './useSchoolData'
 
@@ -24,7 +24,7 @@ const isLoading = ref(false)
 const error = ref<string | null>(null)
 
 export function useTeachersData() {
-  const client = getClient()
+  const client = getSchoolsClient()
   const { selectedUser } = useGodMode()
   const { viewingSchool } = useSchoolData()
 

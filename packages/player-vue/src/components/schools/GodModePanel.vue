@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useGodMode, type EducationalRole, type GodModeUser } from '@/composables/useGodMode'
+import { useGodMode, type EducationalRole, type GodModeUser } from '@/composables/schools/useGodMode'
 import AddEntityModal from './AddEntityModal.vue'
 
 const router = useRouter()

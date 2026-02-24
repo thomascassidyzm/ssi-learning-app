@@ -82,7 +82,7 @@ export async function generateLearningScript(
   const [legosResult, phrasesResult] = await Promise.all([
     supabase
       .from('course_legos')
-      .select('seed_number, lego_index, known_text, target_text, type, is_new, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, target1_duration_ms, target2_duration_ms')
+      .select('seed_number, lego_index, known_text, target_text, target_text_roman, type, is_new, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, target1_duration_ms, target2_duration_ms')
       .eq('course_code', courseCode)
       .gte('seed_number', startSeed)
       .lte('seed_number', endSeed)
@@ -90,7 +90,7 @@ export async function generateLearningScript(
       .order('lego_index', { ascending: true }),
     supabase
       .from('course_practice_phrases')
-      .select('seed_number, lego_index, known_text, target_text, phrase_role, target_syllable_count, position, known_audio_id, target1_audio_id, target2_audio_id, target1_duration_ms, target2_duration_ms')
+      .select('seed_number, lego_index, known_text, target_text, target_text_roman, phrase_role, target_syllable_count, position, known_audio_id, target1_audio_id, target2_audio_id, target1_duration_ms, target2_duration_ms')
       .eq('course_code', courseCode)
       .gte('seed_number', startSeed)
       .lte('seed_number', endSeed)
@@ -117,6 +117,7 @@ export async function generateLearningScript(
     lego_index: number
     known_text: string
     target_text: string
+    target_text_roman?: string
     phrase_role: string
     target_syllable_count?: number
     position?: number
@@ -164,6 +165,7 @@ export async function generateLearningScript(
     lego_index: number
     known_text: string
     target_text: string
+    target_text_roman?: string
     type: string
     is_new: boolean
     known_audio_id?: string
@@ -393,7 +395,7 @@ export async function generateLearningScript(
         seedCode: seedId, legoCode: legoNum,
         type: 'intro',
         knownText: lego.known_text,
-        targetText: lego.target_text,
+        targetText: lego.target_text_roman || lego.target_text,
         presentationAudioId,
         knownAudioId: introAudioId,  // Presentation audio, or known audio as fallback
         target1Id: isWelsh ? undefined : lego.target1_audio_id,
@@ -411,7 +413,7 @@ export async function generateLearningScript(
         seedCode: seedId, legoCode: legoNum,
         type: 'debut',
         knownText: lego.known_text,
-        targetText: lego.target_text,
+        targetText: lego.target_text_roman || lego.target_text,
         knownAudioId: lego.known_audio_id,
         target1Id: lego.target1_audio_id,
         target2Id: lego.target2_audio_id,
@@ -436,7 +438,7 @@ export async function generateLearningScript(
           seedCode: seedId, legoCode: legoNum,
           type: 'build',
           knownText: phrase.known_text,
-          targetText: phrase.target_text,
+          targetText: phrase.target_text_roman || phrase.target_text,
           knownAudioId: phrase.known_audio_id,
           target1Id: phrase.target1_audio_id,
           target2Id: phrase.target2_audio_id,
@@ -480,7 +482,7 @@ export async function generateLearningScript(
           seedCode: seedId, legoCode: legoNum,
           type: 'build',
           knownText: phrase.known_text,
-          targetText: phrase.target_text,
+          targetText: phrase.target_text_roman || phrase.target_text,
           knownAudioId: phrase.known_audio_id,
           target1Id: phrase.target1_audio_id,
           target2Id: phrase.target2_audio_id,
@@ -544,7 +546,7 @@ export async function generateLearningScript(
             seedCode: reviewSeedId, legoCode: reviewLegoNum,
             type: 'spaced_rep',
             knownText: phrase.known_text,
-            targetText: phrase.target_text,
+            targetText: phrase.target_text_roman || phrase.target_text,
             knownAudioId: phrase.known_audio_id,
             target1Id: phrase.target1_audio_id,
             target2Id: phrase.target2_audio_id,
@@ -574,7 +576,7 @@ export async function generateLearningScript(
           seedCode: seedId, legoCode: legoNum,
           type: 'use',
           knownText: phrase.known_text,
-          targetText: phrase.target_text,
+          targetText: phrase.target_text_roman || phrase.target_text,
           knownAudioId: phrase.known_audio_id,
           target1Id: phrase.target1_audio_id,
           target2Id: phrase.target2_audio_id,

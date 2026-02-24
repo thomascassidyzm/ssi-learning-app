@@ -1,30 +1,18 @@
 <script setup lang="ts">
-import { ref, provide, inject, onMounted } from 'vue'
+import { ref, inject, onMounted } from 'vue'
 import TopNav from '@/components/schools/shared/TopNav.vue'
-import DevRoleSwitcher from '@/components/schools/DevRoleSwitcher.vue'
+import GodModePanel from '@/components/schools/GodModePanel.vue'
 import { SignInModal, SignUpModal } from '@/components/auth'
 import { useAuthModal } from '@/composables/useAuthModal'
-import { useSchoolsData } from '@/composables/useSchoolsData'
-import { useDevRole } from '@/composables/useDevRole'
+import { setSchoolsClient } from '@/composables/schools/client'
 
 // Supabase client from App
 const supabase = inject('supabase', ref(null)) as any
 
-// Schools data composable — provided to all child views
-const schoolsData = useSchoolsData(supabase)
-provide('schoolsData', schoolsData)
-
-// Dev role for god mode context
-const { currentUser } = useDevRole()
-provide('devUser', currentUser)
-
-// On mount: ensure dev school exists for god mode
-onMounted(async () => {
+// Set up client bridge on mount so all schools composables can access Supabase
+onMounted(() => {
   if (supabase.value) {
-    const school = await schoolsData.getOrCreateDevSchool()
-    if (school) {
-      provide('devSchool', ref(school))
-    }
+    setSchoolsClient(supabase.value)
   }
 })
 
@@ -82,8 +70,8 @@ const handleAuthSuccess = () => {
 
     <TopNav @sign-in="openSignIn" @sign-up="openSignUp" />
 
-    <!-- Dev Role Switcher (bottom right corner) -->
-    <DevRoleSwitcher />
+    <!-- God Mode Panel (replaces DevRoleSwitcher) -->
+    <GodModePanel />
 
     <main class="main-content">
       <router-view v-slot="{ Component }">

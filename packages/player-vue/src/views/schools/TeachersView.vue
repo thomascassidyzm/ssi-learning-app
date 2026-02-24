@@ -1,58 +1,59 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, inject } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import JoinCodeBanner from '@/components/schools/JoinCodeBanner.vue'
-import type { useSchoolsData } from '@/composables/useSchoolsData'
+import { useGodMode } from '@/composables/schools/useGodMode'
+import { useTeachersData } from '@/composables/schools/useTeachersData'
+import { useSchoolData } from '@/composables/schools/useSchoolData'
 
-interface Teacher {
-  id: number
-  name: string
-  initials: string
-  email: string
-  course: string
-  belt: string
-  status: 'active' | 'inactive'
-  classCount: number
-  studentCount: number
-  phrasesLearned: number
-  engagementRate: number
-  joinDate: string
-}
+// God Mode and data
+const { selectedUser } = useGodMode()
+const { teachers: teachersData, fetchTeachers } = useTeachersData()
+const { currentSchool, fetchSchools } = useSchoolData()
 
-// Injected from SchoolsContainer
-const schoolsData = inject<ReturnType<typeof useSchoolsData>>('schoolsData')!
+// Get join code from school data
+const teacherJoinCode = computed(() => currentSchool.value?.teacher_join_code || 'N/A')
 
-const teacherJoinCode = ref('')
 const searchQuery = ref('')
 const selectedCourse = ref('all')
 const selectedBelt = ref('all')
 const showAddModal = ref(false)
 
-const teachers = ref<Teacher[]>([])
+// Get initials from name
+function getInitials(name: string): string {
+  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+}
 
-onMounted(async () => {
-  const school = await schoolsData.getSchoolForUser('admin-001')
-  if (!school) return
+// Get belt based on practice hours
+function getBelt(practiceHours: number): string {
+  if (practiceHours >= 100) return 'black'
+  if (practiceHours >= 70) return 'brown'
+  if (practiceHours >= 40) return 'blue'
+  if (practiceHours >= 20) return 'green'
+  if (practiceHours >= 10) return 'orange'
+  if (practiceHours >= 5) return 'yellow'
+  return 'white'
+}
 
-  teacherJoinCode.value = school.teacher_join_code
-
-  const teacherList = await schoolsData.getTeachers(school.id)
-  teachers.value = teacherList.map((t, i) => ({
-    id: i + 1,
-    name: t.name === t.user_id ? `Teacher ${i + 1}` : t.name,
-    initials: t.name === t.user_id ? `T${i + 1}` : t.name.split(' ').map((n: string) => n[0]).join(''),
-    email: t.email || `teacher${i + 1}@school.edu`,
-    course: 'Welsh',
-    belt: 'white',
+// Transform teachers data for display
+const teachers = computed(() => {
+  return teachersData.value.map((t, idx) => ({
+    id: idx + 1,
+    name: t.display_name,
+    initials: getInitials(t.display_name),
+    email: t.learner_id ? `teacher_${t.learner_id.substring(0, 8)}` : 'N/A', // No email in schema yet
+    course: t.class_count > 0 ? 'Language Course' : 'No Classes', // Courses come from classes
+    belt: getBelt(t.total_practice_hours),
     status: 'active' as const,
-    classCount: 0,
-    studentCount: 0,
-    phrasesLearned: 0,
-    engagementRate: 0,
-    joinDate: t.added_at ? new Date(t.added_at).toISOString().split('T')[0] : '',
+    classCount: t.class_count,
+    studentCount: t.student_count,
+    phrasesLearned: Math.round(t.total_practice_hours * 20), // Derived from practice time
+    engagementRate: t.student_count > 0 ? Math.min(100, Math.round((t.student_count / t.class_count) * 5)) : 0,
+    joinDate: t.joined_at ? new Date(t.joined_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Unknown'
   }))
 })
 
-const courses = ['Welsh (Northern)', 'Welsh (Southern)', 'Spanish (Latin Am)']
+// Courses would come from database - currently placeholder
+const courses = ['All Courses']
 const belts = ['white', 'yellow', 'orange', 'green', 'blue', 'brown', 'black']
 
 const beltGradients: Record<string, string> = {
@@ -111,7 +112,10 @@ function handleRegenerateCode() {
 
 function handleRemoveTeacher(teacherId: number) {
   if (confirm('Are you sure you want to remove this teacher from your school?')) {
-    teachers.value = teachers.value.filter(t => t.id !== teacherId)
+    // TODO: Implement Supabase call to remove the teacher tag from the school
+    console.log('Would remove teacher:', teacherId)
+    // After removal, refetch teachers
+    // fetchTeachers()
   }
 }
 
@@ -129,6 +133,17 @@ onMounted(() => {
   setTimeout(() => {
     isVisible.value = true
   }, 50)
+  if (selectedUser.value) {
+    fetchTeachers()
+    fetchSchools()
+  }
+})
+
+watch(selectedUser, (newUser) => {
+  if (newUser) {
+    fetchTeachers()
+    fetchSchools()
+  }
 })
 </script>
 

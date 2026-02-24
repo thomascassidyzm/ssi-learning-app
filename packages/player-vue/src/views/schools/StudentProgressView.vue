@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import Card from '@/components/shared/Card.vue'
-import Badge from '@/components/shared/Badge.vue'
-import { useGodMode } from '@/composables/useGodMode'
-import { getClient } from '@/composables/useSupabase'
+import Card from '@/components/schools/shared/Card.vue'
+import Badge from '@/components/schools/shared/Badge.vue'
+import { useGodMode } from '@/composables/schools/useGodMode'
+import { getSchoolsClient } from '@/composables/schools/client'
 
 interface CourseProgress {
   course_id: string
@@ -16,7 +16,7 @@ interface CourseProgress {
 }
 
 const { selectedUser } = useGodMode()
-const client = getClient()
+const client = getSchoolsClient()
 
 const courses = ref<CourseProgress[]>([])
 const isLoading = ref(false)

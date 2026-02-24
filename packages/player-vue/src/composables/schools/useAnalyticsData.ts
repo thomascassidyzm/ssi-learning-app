@@ -5,7 +5,7 @@
  */
 
 import { ref, computed } from 'vue'
-import { getClient } from './useSupabase'
+import { getSchoolsClient } from './client'
 import { useGodMode } from './useGodMode'
 
 export interface DailyActivity {
@@ -64,7 +64,7 @@ const isLoading = ref(false)
 const error = ref<string | null>(null)
 
 export function useAnalyticsData() {
-  const client = getClient()
+  const client = getSchoolsClient()
   const { selectedUser, isSchoolAdmin, isGovtAdmin } = useGodMode()
 
   // Fetch daily activity for last 30 days

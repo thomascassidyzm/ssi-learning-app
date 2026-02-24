@@ -1,84 +1,132 @@
-<script setup>
-import { ref, computed, onMounted, inject, watch } from 'vue'
+<script setup lang="ts">
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useGodMode } from '@/composables/schools/useGodMode'
+import { useClassesData, type ClassReport } from '@/composables/schools/useClassesData'
 
 const router = useRouter()
 const route = useRoute()
 
-// Injected from SchoolsContainer
-const schoolsData = inject('schoolsData')
+// God Mode and data
+const { selectedUser } = useGodMode()
+const { classDetail, fetchClassDetail, getClassReport, getClassSessions } = useClassesData()
 
-const avatarColors = [
-  'linear-gradient(135deg, #1f2937, #111827)',
-  'linear-gradient(135deg, #22c55e, #16a34a)',
-  'linear-gradient(135deg, #3b82f6, #2563eb)',
-  'linear-gradient(135deg, #f97316, #ea580c)',
-  'linear-gradient(135deg, #fbbf24, #d97706)',
-  'linear-gradient(135deg, #a78bfa, #7c3aed)',
-]
+// Report data
+const classReport = ref<ClassReport | null>(null)
+const reportLoading = ref(false)
 
-// Class data
-const classData = ref({
-  id: '',
-  class_name: '',
-  course_code: '',
-  student_count: 0,
-  current_seed: 1,
-  student_join_code: ''
-})
+// Session history
+const sessions = ref<Array<{
+  id: string
+  started_at: string
+  ended_at: string | null
+  start_lego_id: string
+  end_lego_id: string | null
+  cycles_completed: number
+  duration_seconds: number
+  date: string
+  time: string
+  durationDisplay: string
+  legoRange: string
+}>>([])
 
-// Student data
-const students = ref([])
-
-// Load class data on mount
-onMounted(async () => {
-  const classId = route.params.id
-
-  // Try Supabase first
-  if (classId && schoolsData) {
-    const detail = await schoolsData.getClassDetail(classId)
-    if (detail) {
-      classData.value = detail
-
-      // Load student progress from reporting view
-      const progress = await schoolsData.getClassStudentProgress(classId)
-      students.value = progress.map((p, i) => ({
-        id: p.student_user_id,
-        name: p.student_name || `Student ${i + 1}`,
-        email: '',
-        initials: (p.student_name || `S${i + 1}`).split(' ').map(n => n[0]).join(''),
-        avatarColor: avatarColors[i % avatarColors.length],
-        joined_at: p.joined_class_at ?? '',
-        joined_display: p.joined_class_at ? new Date(p.joined_class_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '',
-        seeds_completed: p.seeds_completed ?? 0,
-        total_practice_seconds: p.total_practice_seconds ?? 0,
-      }))
-      return
+// Class data - derived from classDetail
+const classData = computed(() => {
+  if (classDetail.value) {
+    return {
+      id: classDetail.value.class_id,
+      class_name: classDetail.value.class_name,
+      course_code: classDetail.value.course_code,
+      student_count: classDetail.value.students.length,
+      current_seed: classDetail.value.current_seed || 1,
+      student_join_code: classDetail.value.student_join_code || 'N/A'
     }
   }
-
-  // Fallback to sessionStorage
+  // Fallback to sessionStorage for backwards compatibility
   const stored = sessionStorage.getItem('ssi-class-detail')
   if (stored) {
     try {
-      classData.value = JSON.parse(stored)
+      return JSON.parse(stored)
     } catch (e) {
-      console.error('Failed to parse class data:', e)
-      router.push({ name: 'classes' })
+      return { id: '', class_name: '', course_code: '', student_count: 0, current_seed: 1, student_join_code: '' }
     }
-  } else {
-    router.push({ name: 'classes' })
   }
+  return { id: '', class_name: '', course_code: '', student_count: 0, current_seed: 1, student_join_code: '' }
 })
 
-// Session history
-const sessions = ref([])
+// Belt gradients for avatars
+const beltGradients: Record<string, string> = {
+  white: 'linear-gradient(135deg, #f5f5f5, #e0e0e0)',
+  yellow: 'linear-gradient(135deg, #fbbf24, #d97706)',
+  orange: 'linear-gradient(135deg, #f97316, #ea580c)',
+  green: 'linear-gradient(135deg, #22c55e, #16a34a)',
+  blue: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+  brown: 'linear-gradient(135deg, #92400e, #78350f)',
+  black: 'linear-gradient(135deg, #1f2937, #111827)'
+}
+
+const beltTextColors: Record<string, string> = {
+  white: '#333',
+  yellow: '#333',
+  orange: '#fff',
+  green: '#fff',
+  blue: '#fff',
+  brown: '#fff',
+  black: '#fff'
+}
+
+// Get belt based on seeds completed
+function getBelt(seedsCompleted: number): string {
+  if (seedsCompleted >= 400) return 'black'
+  if (seedsCompleted >= 280) return 'brown'
+  if (seedsCompleted >= 150) return 'blue'
+  if (seedsCompleted >= 80) return 'green'
+  if (seedsCompleted >= 40) return 'orange'
+  if (seedsCompleted >= 20) return 'yellow'
+  return 'white'
+}
+
+// Get initials from name
+function getInitials(name: string): string {
+  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+}
+
+// Format date for display
+function formatJoinDate(dateStr: string | null): string {
+  if (!dateStr) return 'Unknown'
+  const date = new Date(dateStr)
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+// Transform students from classDetail
+const students = computed(() => {
+  if (!classDetail.value?.students) return []
+  return classDetail.value.students.map(s => {
+    const belt = getBelt(s.seeds_completed)
+    return {
+      id: s.learner_id,
+      name: s.display_name,
+      email: `${s.user_id.replace('user_2bre_', '')}@student.edu`,
+      initials: getInitials(s.display_name),
+      avatarColor: beltGradients[belt],
+      textColor: beltTextColors[belt],
+      joined_at: s.joined_at,
+      joined_display: formatJoinDate(s.joined_at)
+    }
+  })
+})
+
+// Load report data
+async function loadReport(classId: string) {
+  reportLoading.value = true
+  classReport.value = await getClassReport(classId)
+  reportLoading.value = false
+}
 
 // Load session history
-const loadSessions = async () => {
-  if (!schoolsData || !classData.value.id) return
-  const data = await schoolsData.getClassSessions(classData.value.id)
-  sessions.value = data.map(s => ({
+async function loadSessions(classId: string) {
+  const data = await getClassSessions(classId)
+  sessions.value = data.map((s: any) => ({
     ...s,
     date: new Date(s.started_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
     time: new Date(s.started_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
@@ -86,16 +134,34 @@ const loadSessions = async () => {
       ? `${Math.floor(s.duration_seconds / 60)}m ${s.duration_seconds % 60}s`
       : 'In progress',
     legoRange: s.end_lego_id
-      ? `${s.start_lego_id} → ${s.end_lego_id}`
+      ? `${s.start_lego_id} \u2192 ${s.end_lego_id}`
       : s.start_lego_id,
   }))
 }
 
-// Load sessions after class data is ready
-const classIdForSessions = computed(() => classData.value.id)
-watch(classIdForSessions, (id) => {
-  if (id) loadSessions()
-}, { immediate: true })
+// Load class data on mount
+onMounted(() => {
+  const classId = route.params.id as string
+  if (classId && selectedUser.value) {
+    fetchClassDetail(classId)
+    loadReport(classId)
+    loadSessions(classId)
+  } else if (!classId) {
+    const stored = sessionStorage.getItem('ssi-class-detail')
+    if (!stored) {
+      router.push({ name: 'classes' })
+    }
+  }
+})
+
+watch(selectedUser, (newUser) => {
+  const classId = route.params.id as string
+  if (newUser && classId) {
+    fetchClassDetail(classId)
+    loadReport(classId)
+    loadSessions(classId)
+  }
+})
 
 // Copy state for join code
 const copySuccess = ref(false)
@@ -115,7 +181,7 @@ const filteredStudents = computed(() => {
 })
 
 // Course info
-const courseFlags = {
+const courseFlags: Record<string, string> = {
   'cym_for_eng': '\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62\uDB40\uDC77\uDB40\uDC6C\uDB40\uDC73\uDB40\uDC7F',
   'cym_for_eng_north': '\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62\uDB40\uDC77\uDB40\uDC6C\uDB40\uDC73\uDB40\uDC7F',
   'cym_for_eng_south': '\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62\uDB40\uDC77\uDB40\uDC6C\uDB40\uDC73\uDB40\uDC7F',
@@ -126,7 +192,7 @@ const courseFlags = {
   'glv_for_eng': '\uD83C\uDDEE\uD83C\uDDF2'
 }
 
-const courseNames = {
+const courseNames: Record<string, string> = {
   'cym_for_eng': 'Welsh',
   'cym_for_eng_north': 'Welsh (Northern)',
   'cym_for_eng_south': 'Welsh (Southern)',
@@ -138,11 +204,13 @@ const courseNames = {
 }
 
 const courseFlag = computed(() => {
-  return courseFlags[classData.value.course_code] || '\uD83C\uDF10'
+  const code = classData.value.course_code as string
+  return courseFlags[code] || '\uD83C\uDF10'
 })
 
 const courseName = computed(() => {
-  return courseNames[classData.value.course_code] || classData.value.course_code
+  const code = classData.value.course_code as string
+  return courseNames[code] || classData.value.course_code
 })
 
 // Handlers
@@ -157,7 +225,6 @@ const handlePlay = () => {
     name: classData.value.class_name,
     course_code: classData.value.course_code,
     current_seed: classData.value.current_seed,
-    last_lego_id: classData.value.last_lego_id,
     timestamp: new Date().toISOString()
   }
   localStorage.setItem('ssi-active-class', JSON.stringify(activeClass))
@@ -176,10 +243,10 @@ const copyJoinCode = async () => {
   }
 }
 
-const handleRemoveStudent = (student) => {
+const handleRemoveStudent = (student: { id: string; name: string }) => {
   if (confirm(`Remove ${student.name} from this class?`)) {
-    students.value = students.value.filter(s => s.id !== student.id)
-    // In production: would call Supabase to remove the class tag from the student
+    // TODO: Implement Supabase call to remove the class tag from the student
+    console.log('Would remove student:', student.id, 'from class:', classData.value.id)
   }
 }
 </script>
@@ -247,6 +314,56 @@ const handleRemoveStudent = (student) => {
         </button>
       </div>
     </header>
+
+    <!-- Speaking Opportunities Report -->
+    <section v-if="classReport" class="report-section">
+      <!-- Hero Card -->
+      <div class="report-hero">
+        <div class="hero-main">
+          <div class="hero-number">{{ classReport.class.total_cycles.toLocaleString() }}</div>
+          <div class="hero-label">speaking opportunities</div>
+        </div>
+        <div class="hero-meta">
+          <span class="hero-stat">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+            </svg>
+            {{ classReport.class.avg_cycles_per_session }} per session
+          </span>
+          <span class="meta-divider"></span>
+          <span class="hero-stat">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            {{ classReport.class.active_days_last_7 }} days active this week
+          </span>
+        </div>
+      </div>
+
+      <!-- Comparison Strip -->
+      <div class="comparison-strip">
+        <div class="comparison-item yours">
+          <div class="comparison-label">Your class</div>
+          <div class="comparison-value">{{ classReport.class.avg_cycles_per_session }}</div>
+          <div class="comparison-unit">/session</div>
+        </div>
+        <div v-if="classReport.schoolAvg" class="comparison-item">
+          <div class="comparison-label">School avg</div>
+          <div class="comparison-value">{{ classReport.schoolAvg.avg_cycles_per_session }}</div>
+          <div class="comparison-unit">/session</div>
+        </div>
+        <div v-if="classReport.regionAvg" class="comparison-item">
+          <div class="comparison-label">Regional avg</div>
+          <div class="comparison-value">{{ classReport.regionAvg.avg_cycles_per_session }}</div>
+          <div class="comparison-unit">/session</div>
+        </div>
+        <div v-if="classReport.courseAvg" class="comparison-item">
+          <div class="comparison-label">All classes</div>
+          <div class="comparison-value">{{ classReport.courseAvg.avg_cycles_per_session }}</div>
+          <div class="comparison-unit">/session</div>
+        </div>
+      </div>
+    </section>
 
     <!-- Join Code Section -->
     <section class="join-code-section">
@@ -551,6 +668,100 @@ const handleRemoveStudent = (student) => {
 .btn-play-main svg {
   width: 22px;
   height: 22px;
+}
+
+/* Report Section */
+.report-section {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 32px;
+}
+
+.report-hero {
+  background: var(--bg-card, #242424);
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+  border-radius: 16px;
+  padding: 32px;
+  margin-bottom: 16px;
+  border-left: 4px solid var(--ssi-red, #c23a3a);
+}
+
+.hero-main {
+  margin-bottom: 16px;
+}
+
+.hero-number {
+  font-family: 'Noto Sans JP', 'DM Sans', sans-serif;
+  font-size: 3rem;
+  font-weight: 700;
+  color: var(--text-primary, #ffffff);
+  line-height: 1;
+}
+
+.hero-label {
+  font-size: 1.125rem;
+  color: var(--text-secondary, #b0b0b0);
+  margin-top: 4px;
+}
+
+.hero-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 0.875rem;
+  color: var(--text-secondary, #b0b0b0);
+}
+
+.hero-stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hero-stat svg {
+  opacity: 0.7;
+}
+
+.comparison-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.comparison-item {
+  background: var(--bg-card, #242424);
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+}
+
+.comparison-item.yours {
+  border-color: var(--ssi-red, #c23a3a);
+  background: rgba(194, 58, 58, 0.08);
+}
+
+.comparison-label {
+  font-size: 0.75rem;
+  color: var(--text-muted, #707070);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.comparison-value {
+  font-family: 'Noto Sans JP', 'DM Sans', sans-serif;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-primary, #ffffff);
+  line-height: 1;
+}
+
+.comparison-unit {
+  font-size: 0.75rem;
+  color: var(--text-muted, #707070);
+  margin-top: 4px;
 }
 
 /* Join Code Section */
@@ -886,63 +1097,6 @@ const handleRemoveStudent = (student) => {
   margin: 0;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .class-detail {
-    padding: 16px;
-  }
-
-  .header-content {
-    flex-direction: column;
-  }
-
-  .btn-play-main {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .join-code {
-    font-size: 1.25rem;
-    letter-spacing: 2px;
-  }
-
-  .join-code-display {
-    flex-direction: column;
-    align-items: stretch;
-    text-align: center;
-  }
-
-  .btn-copy {
-    justify-content: center;
-  }
-
-  .roster-header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .roster-search {
-    width: 100%;
-  }
-
-  .roster-table th,
-  .roster-table td {
-    padding: 12px 16px;
-  }
-
-  .col-joined {
-    display: none;
-  }
-
-  .col-student {
-    width: 80%;
-  }
-
-  .col-action {
-    width: 20%;
-  }
-}
-
 /* Session History */
 .session-history-section {
   position: relative;
@@ -1010,5 +1164,62 @@ const handleRemoveStudent = (student) => {
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.75rem;
   opacity: 0.8;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .class-detail {
+    padding: 16px;
+  }
+
+  .header-content {
+    flex-direction: column;
+  }
+
+  .btn-play-main {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .join-code {
+    font-size: 1.25rem;
+    letter-spacing: 2px;
+  }
+
+  .join-code-display {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+
+  .btn-copy {
+    justify-content: center;
+  }
+
+  .roster-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .roster-search {
+    width: 100%;
+  }
+
+  .roster-table th,
+  .roster-table td {
+    padding: 12px 16px;
+  }
+
+  .col-joined {
+    display: none;
+  }
+
+  .col-student {
+    width: 80%;
+  }
+
+  .col-action {
+    width: 20%;
+  }
 }
 </style>

@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import SearchBox from '@/components/shared/SearchBox.vue'
-import { useGodMode } from '@/composables/useGodMode'
-import { useSchoolData } from '@/composables/useSchoolData'
+import SearchBox from '@/components/schools/shared/SearchBox.vue'
+import { useGodMode } from '@/composables/schools/useGodMode'
+import { useSchoolData } from '@/composables/schools/useSchoolData'
 
 const router = useRouter()
 const { selectedUser } = useGodMode()

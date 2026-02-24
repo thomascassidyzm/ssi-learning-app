@@ -1,13 +1,27 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import Card from '@/components/schools/shared/Card.vue'
 import Button from '@/components/schools/shared/Button.vue'
+import { useGodMode } from '@/composables/schools/useGodMode'
+import { useSchoolData } from '@/composables/schools/useSchoolData'
 
-// Settings state
-const schoolName = ref('Ysgol Cymraeg Cardiff')
-const schoolEmail = ref('admin@ysgolcymraeg.edu')
+const { selectedUser } = useGodMode()
+const { activeSchool, currentSchool, fetchSchools } = useSchoolData()
+
+// Settings state - derived from real data
+const schoolName = computed(() => activeSchool.value?.school_name || currentSchool.value?.school_name || selectedUser.value?.school_name || 'Your School')
+const schoolEmail = computed(() => {
+  const school = activeSchool.value || currentSchool.value
+  if (school) return `admin@${school.school_name.toLowerCase().replace(/\s+/g, '')}.edu`
+  return 'admin@school.edu'
+})
 const timezone = ref('Europe/London')
 const language = ref('en')
+
+// Fetch data on mount
+watch(selectedUser, (user) => {
+  if (user) fetchSchools()
+}, { immediate: true })
 
 const isDark = ref(document.documentElement.getAttribute('data-theme') !== 'light')
 
