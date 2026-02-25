@@ -6411,60 +6411,140 @@ defineExpose({
     <!-- Landscape Silhouette - Visible only in mist theme -->
     <div class="mountain-silhouette">
       <svg viewBox="0 0 1200 1000" preserveAspectRatio="xMidYMax slice" xmlns="http://www.w3.org/2000/svg">
-        <!-- Distant misty peaks (very faint, high up) -->
-        <g opacity="0.12">
-          <path d="M0 1000 L0 340 Q80 240 160 300 Q240 180 360 260 Q440 160 540 220 Q620 120 720 200 Q800 80 920 180 Q1000 100 1080 200 Q1140 160 1200 240 L1200 1000Z" fill="currentColor"/>
+        <!-- Ink brush texture filter -->
+        <defs>
+          <filter id="ink-edge" x="-2%" y="-2%" width="104%" height="104%">
+            <feTurbulence type="turbulence" baseFrequency="0.04" numOctaves="4" seed="3" result="noise"/>
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="3" xChannelSelector="R" yChannelSelector="G"/>
+          </filter>
+        </defs>
+
+        <!-- Distant misty peaks (very faint, high up) - dramatic shan shui silhouettes -->
+        <g opacity="0.12" filter="url(#ink-edge)">
+          <path d="M0 1000 L0 350 C30 330 50 310 80 280 C100 260 115 230 140 210 C160 195 170 240 200 270 C225 295 240 280 260 240 C275 210 290 170 320 150 C345 135 360 180 390 230 C410 260 430 240 460 200 C485 165 500 140 530 120 C555 105 570 145 590 190 C610 225 635 210 660 170 C680 140 700 100 740 80 C770 65 790 120 820 170 C845 210 870 190 900 150 C925 120 945 90 980 110 C1010 125 1030 160 1060 190 C1085 215 1100 200 1120 180 C1140 165 1165 200 1200 240 L1200 1000Z" fill="currentColor"/>
         </g>
-        <!-- Far mountain range -->
-        <g opacity="0.18">
-          <path d="M0 1000 L0 440 Q120 340 240 400 Q360 300 480 370 Q580 280 700 350 Q820 260 940 340 Q1060 290 1200 380 L1200 1000Z" fill="currentColor"/>
+
+        <!-- Birds in the sky - simple ink brush V marks -->
+        <g opacity="0.09" filter="url(#ink-edge)">
+          <path d="M340 200 C345 193 350 190 355 193 C360 190 365 193 370 200" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+          <path d="M380 180 C383 175 387 173 390 175 C393 173 397 175 400 180" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+          <path d="M360 210 C362 206 365 205 367 206 C369 205 372 206 374 210" stroke="currentColor" stroke-width="1" fill="none" stroke-linecap="round"/>
         </g>
-        <!-- Mid hills with torii gate -->
-        <g opacity="0.28">
-          <path d="M0 1000 L0 560 Q100 480 220 520 Q360 440 500 500 Q620 450 740 490 Q860 420 980 480 Q1100 450 1200 500 L1200 1000Z" fill="currentColor"/>
-          <!-- Torii gate on ridge -->
-          <g transform="translate(420, 455)">
-            <rect x="-14" y="0" width="3.5" height="45" fill="currentColor"/>
-            <rect x="10.5" y="0" width="3.5" height="45" fill="currentColor"/>
-            <rect x="-18" y="0" width="36" height="3.5" rx="1.5" fill="currentColor"/>
-            <rect x="-16" y="9" width="32" height="2.5" fill="currentColor"/>
-          </g>
+
+        <!-- Far mountain range - irregular brush strokes with double peaks -->
+        <g opacity="0.18" filter="url(#ink-edge)">
+          <path d="M0 1000 L0 450 C40 430 70 400 110 370 C140 345 160 320 190 340 C215 355 230 380 260 390 C290 400 310 370 340 330 C365 300 380 280 410 295 C435 305 450 330 480 350 C510 370 530 340 560 300 C585 265 600 250 630 280 C655 305 670 330 700 340 C730 350 755 320 780 290 C800 265 820 240 850 260 C880 280 900 310 930 330 C960 348 980 320 1010 295 C1040 275 1060 260 1090 285 C1120 308 1145 340 1170 360 C1185 372 1195 380 1200 385 L1200 1000Z" fill="currentColor"/>
         </g>
-        <!-- Rolling hills with pagoda -->
-        <g opacity="0.38">
-          <path d="M0 1000 L0 660 Q140 600 280 630 Q400 580 540 620 Q680 570 800 610 Q920 580 1060 620 Q1140 600 1200 640 L1200 1000Z" fill="currentColor"/>
-          <!-- Pagoda -->
-          <g transform="translate(860, 572)">
-            <rect x="-10" y="24" width="20" height="38" fill="currentColor"/>
-            <path d="M-16 24 L0 12 L16 24Z" fill="currentColor"/>
-            <path d="M-13 12 L0 2 L13 12Z" fill="currentColor"/>
-          </g>
-        </g>
-        <!-- Near foreground with pines -->
-        <g opacity="0.55">
-          <path d="M0 1000 L0 780 Q80 740 180 760 Q320 720 460 750 Q580 730 700 760 Q840 720 960 750 Q1080 740 1200 770 L1200 1000Z" fill="currentColor"/>
-          <!-- Pine cluster left -->
-          <g transform="translate(120, 725)">
-            <path d="M0 0 L-7 22 L-3 20 L-9 36 L9 36 L3 20 L7 22Z" fill="currentColor"/>
-          </g>
-          <g transform="translate(145, 730)">
-            <path d="M0 0 L-5 18 L-2 16 L-7 28 L7 28 L2 16 L5 18Z" fill="currentColor"/>
-          </g>
-          <!-- Pine cluster right -->
-          <g transform="translate(680, 722)">
-            <path d="M0 0 L-8 24 L-3 22 L-10 40 L10 40 L3 22 L8 24Z" fill="currentColor"/>
-          </g>
-          <g transform="translate(710, 730)">
-            <path d="M0 0 L-6 20 L-2 18 L-8 32 L8 32 L2 18 L6 20Z" fill="currentColor"/>
-          </g>
-          <!-- Distant pine -->
-          <g transform="translate(1020, 735)">
-            <path d="M0 0 L-5 16 L-2 14 L-6 26 L6 26 L2 14 L5 16Z" fill="currentColor"/>
+
+        <!-- Mid hills with torii gate - organic ridgeline -->
+        <g opacity="0.28" filter="url(#ink-edge)">
+          <path d="M0 1000 L0 570 C35 555 60 530 100 500 C130 478 155 465 190 485 C220 502 245 520 280 510 C310 500 340 475 380 460 C415 448 435 458 460 480 C485 498 510 505 540 495 C570 485 595 465 630 455 C660 448 685 460 710 478 C735 492 760 488 790 475 C815 465 840 445 870 435 C900 428 925 445 950 465 C975 482 1000 488 1030 478 C1060 468 1085 452 1110 460 C1140 468 1165 485 1200 500 L1200 1000Z" fill="currentColor"/>
+
+          <!-- Torii gate - hand-drawn brush strokes -->
+          <g transform="translate(420, 448)">
+            <!-- Left pillar - slightly tapered, organic -->
+            <path d="M-13 2 C-14 1 -14.5 0 -13.5 -1 L-12 -1 C-11 0 -11.5 1 -10.5 2 L-10 46 C-10 47 -10.5 48 -11.5 48 L-12.5 48 C-13.5 48 -14 47 -13.5 46 Z" fill="currentColor"/>
+            <!-- Right pillar - slight lean -->
+            <path d="M10 2 C10.5 1 11 0 12 -1 L13 -1 C14 0 14.5 1 14 2 L13 46 C13 47 12.5 48 11.5 48 L10.5 48 C10 48 9.5 47 10 46 Z" fill="currentColor"/>
+            <!-- Kasagi (top beam) - curved with upturned ends, brush stroke character -->
+            <path d="M-22 -2 C-20 -5 -16 -6 -12 -4 C-4 -1 4 -1 12 -4 C16 -6 20 -5 22 -2 C21 0 18 2 12 1 C4 0 -4 0 -12 1 C-18 2 -21 0 -22 -2Z" fill="currentColor"/>
+            <!-- Nuki (lower crossbeam) - slight curve -->
+            <path d="M-16 8 C-8 6 0 6 8 6 C12 6 16 7 16 9 C16 10.5 12 11 8 11 C0 11 -8 11 -16 10.5 C-17 10 -17 8.5 -16 8Z" fill="currentColor"/>
           </g>
         </g>
-        <!-- Closest foreground ridge -->
-        <g opacity="0.7">
-          <path d="M0 1000 L0 880 Q100 850 220 870 Q380 840 520 860 Q660 845 800 870 Q940 850 1080 875 L1200 885 L1200 1000Z" fill="currentColor"/>
+
+        <!-- Rolling hills with pagoda - flowing brush contours -->
+        <g opacity="0.38" filter="url(#ink-edge)">
+          <path d="M0 1000 L0 670 C50 648 90 625 140 610 C185 598 220 615 270 628 C315 640 350 625 400 600 C440 580 475 575 520 590 C560 604 600 610 640 598 C675 588 710 575 750 582 C785 588 820 600 860 608 C900 615 935 605 970 592 C1005 580 1040 578 1080 592 C1115 604 1150 618 1200 640 L1200 1000Z" fill="currentColor"/>
+
+          <!-- Pagoda - brush-stroke architecture with curved eaves -->
+          <g transform="translate(860, 560)">
+            <!-- Base/walls - slightly irregular -->
+            <path d="M-9 28 C-9 27 -8 26 -7 26 L7 26 C8 26 9 27 9 28 L8 62 C8 63 7 64 6 64 L-6 64 C-7 64 -8 63 -8 62 Z" fill="currentColor"/>
+            <!-- Lower eaves - sweeping upward at tips -->
+            <path d="M-22 28 C-18 22 -12 20 -6 22 C-2 23 2 23 6 22 C12 20 18 22 22 28 C20 29 16 28 12 26 C6 24 -6 24 -12 26 C-16 28 -20 29 -22 28Z" fill="currentColor"/>
+            <!-- Upper eaves - narrower, same sweep -->
+            <path d="M-17 16 C-14 11 -9 9 -4 11 C-1 12 1 12 4 11 C9 9 14 11 17 16 C15 17 12 16 8 14 C3 12 -3 12 -8 14 C-12 16 -15 17 -17 16Z" fill="currentColor"/>
+            <!-- Top tier -->
+            <path d="M-12 8 C-10 4 -6 2 -2 4 C0 5 2 4 4 3 C8 2 10 4 12 8 C10 9 7 8 4 7 C1 6 -1 6 -4 7 C-7 8 -10 9 -12 8Z" fill="currentColor"/>
+            <!-- Finial/spire -->
+            <path d="M-1 4 C-1 2 0 -4 0 -8 C0 -4 1 2 1 4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+            <circle cx="0" cy="-9" r="1.5" fill="currentColor"/>
+          </g>
+        </g>
+
+        <!-- Near foreground with shan shui pines -->
+        <g opacity="0.55" filter="url(#ink-edge)">
+          <path d="M0 1000 L0 788 C30 775 55 760 90 748 C125 738 155 745 190 755 C225 764 260 758 300 740 C335 725 365 730 400 742 C435 752 465 755 500 748 C535 742 565 735 600 740 C635 745 665 755 700 758 C735 762 770 752 810 738 C845 728 880 732 920 745 C955 755 990 758 1030 748 C1065 740 1100 745 1140 758 C1170 768 1190 775 1200 778 L1200 1000Z" fill="currentColor"/>
+
+          <!-- Pine tree left - gnarled trunk, asymmetric branches (shan shui style) -->
+          <g transform="translate(115, 710)">
+            <!-- Trunk - curved, organic -->
+            <path d="M2 40 C1 35 -1 28 0 20 C1 14 3 8 2 0" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+            <!-- Branch clusters at different heights - irregular, wind-swept -->
+            <path d="M0 5 C-4 2 -10 -2 -15 -4 C-12 -3 -8 -5 -14 -8 C-10 -6 -5 -4 0 3" fill="currentColor"/>
+            <path d="M2 3 C6 -1 12 -4 16 -2 C13 -3 10 -6 15 -7 C11 -5 7 -2 2 1" fill="currentColor"/>
+            <path d="M1 14 C-3 11 -8 8 -12 6 C-9 7 -6 4 -11 2 C-7 5 -3 9 1 12" fill="currentColor"/>
+            <path d="M1 12 C5 10 9 7 12 9 C10 8 8 5 11 4 C8 6 5 9 1 11" fill="currentColor"/>
+          </g>
+
+          <!-- Pine tree left-companion - smaller, leaning -->
+          <g transform="translate(148, 722)">
+            <path d="M1 30 C0 25 -2 18 -1 10 C0 5 1 2 0 -2" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+            <path d="M0 2 C-3 -1 -8 -4 -11 -5 C-8 -4 -6 -6 -9 -8 C-6 -5 -3 -2 0 0" fill="currentColor"/>
+            <path d="M0 0 C4 -3 8 -5 11 -3 C9 -4 7 -6 10 -7 C7 -5 4 -2 0 -1" fill="currentColor"/>
+            <path d="M-1 10 C-4 8 -7 5 -9 4 C-6 5 -4 3 -7 1 C-4 3 -2 7 -1 9" fill="currentColor"/>
+          </g>
+
+          <!-- Pine cluster right - taller, more dramatic -->
+          <g transform="translate(678, 705)">
+            <path d="M0 50 C-1 42 1 32 0 22 C-1 14 1 6 0 -4" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round"/>
+            <path d="M0 0 C-5 -4 -13 -8 -18 -10 C-14 -8 -10 -11 -16 -14 C-11 -10 -5 -5 0 -2" fill="currentColor"/>
+            <path d="M0 -2 C6 -6 14 -9 18 -6 C15 -8 12 -11 17 -12 C13 -9 7 -5 0 -3" fill="currentColor"/>
+            <path d="M0 12 C-4 9 -11 5 -15 3 C-11 5 -8 2 -13 -1 C-9 3 -4 7 0 10" fill="currentColor"/>
+            <path d="M0 10 C5 7 10 3 14 5 C11 3 9 0 13 -2 C10 1 6 5 0 8" fill="currentColor"/>
+            <path d="M-1 24 C-5 21 -9 18 -12 16 C-9 18 -7 15 -10 13 C-7 16 -4 20 -1 22" fill="currentColor"/>
+          </g>
+
+          <!-- Pine right-companion -->
+          <g transform="translate(715, 720)">
+            <path d="M1 38 C0 30 -1 22 0 14 C1 8 0 3 1 -2" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+            <path d="M0 2 C-4 -1 -9 -4 -12 -6 C-9 -4 -7 -7 -10 -9 C-7 -6 -3 -2 0 0" fill="currentColor"/>
+            <path d="M1 0 C5 -3 10 -5 13 -3 C11 -5 9 -7 12 -8 C9 -6 5 -2 1 -1" fill="currentColor"/>
+            <path d="M0 14 C-3 11 -7 8 -9 7 C-7 8 -5 5 -8 3 C-5 6 -2 10 0 12" fill="currentColor"/>
+          </g>
+
+          <!-- Distant lone pine - small, windswept -->
+          <g transform="translate(1020, 728)">
+            <path d="M0 28 C-1 22 0 15 0 8 C0 4 1 1 0 -2" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+            <path d="M0 1 C-3 -2 -7 -4 -9 -5 C-7 -3 -5 -6 -8 -7 C-5 -5 -2 -1 0 0" fill="currentColor"/>
+            <path d="M0 0 C3 -3 7 -4 9 -3 C7 -4 6 -6 8 -7 C6 -5 3 -2 0 -1" fill="currentColor"/>
+          </g>
+
+          <!-- Small bridge on mid-foreground ridge -->
+          <g transform="translate(480, 748)" opacity="0.8">
+            <path d="M-18 2 C-12 -4 -4 -6 0 -6 C4 -6 12 -4 18 2" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+            <!-- Bridge posts -->
+            <path d="M-14 2 L-14 -2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M14 2 L14 -2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <!-- Railing -->
+            <path d="M-14 -2 C-8 -7 8 -7 14 -2" stroke="currentColor" stroke-width="1" fill="none" stroke-linecap="round"/>
+          </g>
+        </g>
+
+        <!-- Closest foreground ridge - bold brush stroke -->
+        <g opacity="0.7" filter="url(#ink-edge)">
+          <path d="M0 1000 L0 888 C40 872 75 858 120 850 C165 844 200 855 250 868 C300 878 345 872 390 858 C430 848 470 845 520 855 C570 862 610 868 660 860 C705 852 750 848 800 858 C845 868 890 872 940 862 C985 854 1025 850 1070 860 C1115 870 1155 878 1200 885 L1200 1000Z" fill="currentColor"/>
+
+          <!-- Lone fisherman in small boat -->
+          <g transform="translate(950, 852)" opacity="0.8">
+            <!-- Boat hull - simple brush curve -->
+            <path d="M-12 2 C-8 5 8 5 12 2" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+            <!-- Figure - minimal brush marks -->
+            <path d="M2 2 C2 -2 1 -6 1 -8" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+            <!-- Fishing rod -->
+            <path d="M1 -7 C4 -10 8 -12 13 -10" stroke="currentColor" stroke-width="0.8" fill="none" stroke-linecap="round"/>
+          </g>
         </g>
       </svg>
     </div>
