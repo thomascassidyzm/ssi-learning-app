@@ -6270,6 +6270,7 @@ defineExpose({
       :belt-color="beltCssVars['--belt-color'] || '#f5f5f5'"
       :belt-glow="beltCssVars['--belt-glow'] || 'rgba(245, 245, 245, 0.3)'"
       :voice1-duration-ms="currentVoice1DurationMs"
+      :components="isIntroOrDebutPhase ? displayedComponents : undefined"
     />
 
     <!-- Text Network Visualization Layer - kept for Brain View / Progress screen -->
@@ -6807,18 +6808,7 @@ defineExpose({
 
         <!-- Target text removed — duplicated by LEGO tiles below -->
 
-        <!-- Component Breakdown for M-type LEGOs (visual only, shown during intro & debut) -->
-        <div v-if="displayedComponents.length > 0 && isIntroOrDebutPhase" class="pane-components">
-          <div class="components-tiles">
-            <template v-for="(comp, i) in displayedComponents" :key="i">
-              <div class="component-tile">
-                <span class="component-tile-target">{{ comp.target }}</span>
-                <span class="component-tile-known">{{ comp.known }}</span>
-              </div>
-              <span v-if="i < displayedComponents.length - 1" class="component-plus">+</span>
-            </template>
-          </div>
-        </div>
+        <!-- Component tiles now rendered inside LegoAssembly -->
       </div>
 
       <!-- Play button when paused -->

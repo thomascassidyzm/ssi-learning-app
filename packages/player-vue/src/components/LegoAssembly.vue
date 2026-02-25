@@ -9,12 +9,18 @@ export interface LegoBlock {
 
 type AssemblyPhase = 'hidden' | 'scattered' | 'assembling' | 'assembled' | 'dissolving'
 
+export interface ComponentBreakdown {
+  known: string
+  target: string
+}
+
 const props = defineProps<{
   blocks: LegoBlock[]
   phase: string // UI phase: 'prompt' | 'speak' | 'voice1' | 'voice2'
   beltColor: string
   beltGlow: string
   voice1DurationMs?: number
+  components?: ComponentBreakdown[]
 }>()
 
 // Generate stable random scatter positions per block set
@@ -108,6 +114,17 @@ const staggerDelay = (index: number): string => {
         <span class="block-text">{{ block.targetText }}</span>
       </div>
     </TransitionGroup>
+
+    <!-- Component breakdown for M-type LEGOs: shows atomic pieces below the main tile -->
+    <div v-if="components && components.length > 0" class="component-breakdown">
+      <template v-for="(comp, i) in components" :key="i">
+        <div class="comp-tile">
+          <span class="comp-target">{{ comp.target }}</span>
+          <span class="comp-known">{{ comp.known }}</span>
+        </div>
+        <span v-if="i < components.length - 1" class="comp-plus">+</span>
+      </template>
+    </div>
   </div>
 </template>
 
@@ -284,6 +301,53 @@ const staggerDelay = (index: number): string => {
   }
 }
 
+/* --- Component breakdown tiles --- */
+.component-breakdown {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  opacity: 0;
+  animation: comp-fade-in 0.6s 0.3s ease forwards;
+}
+
+.comp-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.4rem 0.75rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+}
+
+.comp-target {
+  font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--belt-accent, rgba(251, 191, 36, 0.9));
+  line-height: 1.3;
+}
+
+.comp-known {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.55);
+  line-height: 1.3;
+}
+
+.comp-plus {
+  font-size: 0.9rem;
+  font-weight: 300;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+@keyframes comp-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* Mobile: still readable at a distance */
 @media (max-width: 600px) {
   .block-text {
@@ -333,6 +397,24 @@ const staggerDelay = (index: number): string => {
 
 :root[data-theme="mist"] .lego-block.salient .block-text {
   color: #1A1614;
+}
+
+:root[data-theme="mist"] .comp-tile {
+  background: #F2F0ED;
+  border-color: rgba(122, 110, 98, 0.15);
+  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.06);
+}
+
+:root[data-theme="mist"] .comp-target {
+  color: color-mix(in srgb, var(--belt-accent, #7A6E62) 70%, #1A1614);
+}
+
+:root[data-theme="mist"] .comp-known {
+  color: #7A6E62;
+}
+
+:root[data-theme="mist"] .comp-plus {
+  color: #A89C8E;
 }
 
 :root[data-theme="mist"] .lego-block.salient.assembled {
