@@ -176,6 +176,20 @@ BEGIN
   ON CONFLICT (id) DO NOTHING;
 
   -- ============================================
+  -- 6b. INVITE CODES for classes
+  -- ============================================
+  INSERT INTO invite_codes (code, code_type, grants_class_id, created_by, is_active) VALUES
+    ('R5G-001', 'student', v_r5_gle, v_admin_uid, true),
+    ('R5F-001', 'student', v_r5_fra, v_admin_uid, true),
+    ('R5S-001', 'student', v_r5_spa, v_admin_uid, true),
+    ('R5C-001', 'student', v_r5_cmn, v_admin_uid, true),
+    ('R6G-001', 'student', v_r6_gle, v_admin_uid, true),
+    ('R6F-001', 'student', v_r6_fra, v_admin_uid, true),
+    ('R6S-001', 'student', v_r6_spa, v_admin_uid, true),
+    ('R6C-001', 'student', v_r6_cmn, v_admin_uid, true)
+  ON CONFLICT (code) DO NOTHING;
+
+  -- ============================================
   -- 7. STUDENT CLASS TAGS + PROGRESS DATA
   -- ============================================
   -- Students 1-10 = Rang 5, Students 11-20 = Rang 6
