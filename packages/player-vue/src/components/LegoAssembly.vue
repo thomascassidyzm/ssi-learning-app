@@ -55,17 +55,39 @@ watch(() => props.phase, (phase) => {
     assemblyPhase.value = 'hidden'
     return
   }
+
+  // During intro/debut (components present): show tile early, from prompt phase
+  const isIntro = props.components && props.components.length > 0
+
   switch (phase) {
     case 'prompt':
+      if (isIntro) {
+        // Show early during intro — learner sees the LEGO while hearing the known audio
+        voice1Timer = setTimeout(() => {
+          assemblyPhase.value = 'assembling'
+        }, 500)
+      } else {
+        assemblyPhase.value = 'hidden'
+      }
+      break
     case 'speak':
-      assemblyPhase.value = 'hidden'
+      if (isIntro) {
+        assemblyPhase.value = 'assembled'
+      } else {
+        assemblyPhase.value = 'hidden'
+      }
       break
     case 'voice1':
     case 'voice_1':
-      // Delay reveal so learner hears before reading
-      voice1Timer = setTimeout(() => {
-        assemblyPhase.value = 'assembling'
-      }, VOICE1_REVEAL_DELAY_MS)
+      if (isIntro) {
+        // Already visible from prompt — just ensure assembled
+        assemblyPhase.value = 'assembled'
+      } else {
+        // Normal behaviour: delay reveal so learner hears before reading
+        voice1Timer = setTimeout(() => {
+          assemblyPhase.value = 'assembling'
+        }, VOICE1_REVEAL_DELAY_MS)
+      }
       break
     case 'voice2':
     case 'voice_2':
@@ -109,6 +131,7 @@ const staggerDelay = (index: number): string => {
           '--belt-glow': beltGlow,
           '--block-index': index,
           '--block-total': blocks.length,
+          '--char-count': block.targetText.length,
         }"
       >
         <span class="block-text">{{ block.targetText }}</span>
@@ -166,7 +189,8 @@ const staggerDelay = (index: number): string => {
 
 .block-text {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
-  font-size: 1.875rem;
+  /* Scale font down for long text: 1.875rem at 8 chars, shrinks to ~1rem at 25+ chars */
+  font-size: clamp(1rem, calc(2.2rem - var(--char-count, 8) * 0.05rem), 1.875rem);
   font-weight: 500;
   color: rgba(255, 255, 255, 0.9);
   white-space: nowrap;
@@ -218,7 +242,7 @@ const staggerDelay = (index: number): string => {
 .lego-block.salient .block-text {
   color: rgba(255, 255, 255, 1);
   font-weight: 600;
-  font-size: 2.125rem;
+  font-size: clamp(1.1rem, calc(2.5rem - var(--char-count, 8) * 0.055rem), 2.125rem);
 }
 .lego-block.salient.assembled {
   background: rgba(255, 255, 255, 0.18);
@@ -348,19 +372,20 @@ const staggerDelay = (index: number): string => {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Mobile: still readable at a distance */
+/* Mobile: scale down more aggressively */
 @media (max-width: 600px) {
   .block-text {
-    font-size: 1.625rem;
+    font-size: clamp(0.9rem, calc(1.9rem - var(--char-count, 8) * 0.045rem), 1.625rem);
   }
   .lego-block {
     padding: 0.5em 0.9em;
+    max-width: calc(100vw - 3rem);
   }
   .lego-block.salient {
     padding: 0.6em 1.1em;
   }
   .lego-block.salient .block-text {
-    font-size: 1.875rem;
+    font-size: clamp(1rem, calc(2.2rem - var(--char-count, 8) * 0.05rem), 1.875rem);
   }
 }
 </style>
