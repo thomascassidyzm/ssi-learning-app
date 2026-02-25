@@ -531,7 +531,7 @@ watch(selectedUser, (newUser) => {
             <h2 class="card-title">
               Top Learners This Month
             </h2>
-            <router-link to="/students" class="btn btn-secondary btn-sm">
+            <router-link to="/schools/students" class="btn btn-secondary btn-sm">
               View All
             </router-link>
           </div>

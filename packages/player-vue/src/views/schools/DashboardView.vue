@@ -244,19 +244,19 @@ onMounted(() => {
           </svg>
         </template>
         <div class="actions-grid">
-          <router-link to="/classes" class="action-card">
+          <router-link to="/schools/classes" class="action-card">
             <div class="action-icon">&#9658;</div>
             <span>Start Session</span>
           </router-link>
-          <router-link to="/students" class="action-card">
+          <router-link to="/schools/students" class="action-card">
             <div class="action-icon">&#128100;</div>
             <span>Add Student</span>
           </router-link>
-          <router-link to="/teachers" class="action-card">
+          <router-link to="/schools/teachers" class="action-card">
             <div class="action-icon">&#128188;</div>
             <span>Add Teacher</span>
           </router-link>
-          <router-link to="/analytics" class="action-card">
+          <router-link to="/schools/analytics" class="action-card">
             <div class="action-icon">&#128200;</div>
             <span>View Reports</span>
           </router-link>
