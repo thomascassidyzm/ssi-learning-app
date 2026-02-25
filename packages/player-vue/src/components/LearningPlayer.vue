@@ -6191,6 +6191,11 @@ defineExpose({
   <!-- Single root wrapper - required for v-show from parent to work correctly -->
   <div class="learning-player-root">
 
+  <!-- DEBUG: fixed overlay for component diagnosis -->
+  <div style="position: fixed; top: 0; left: 0; right: 0; z-index: 99999; background: red; color: white; font-size: 14px; padding: 4px 8px; text-align: center; font-family: monospace;">
+    COMPS: {{ displayedComponents.length }} | INTRO: {{ isIntroOrDebutPhase }} | ID: {{ simplePlayer.currentCycle?.id || 'null' }}
+  </div>
+
   <!-- Belt Skip Loading Overlay -->
   <Transition name="fade">
     <div v-if="isSkippingBelt" class="belt-skip-overlay">
@@ -6814,10 +6819,7 @@ defineExpose({
         <!-- Target text removed — duplicated by LEGO tiles below -->
 
         <!-- Component Breakdown for M-type LEGOs (visual only, shown during intro & debut) -->
-        <!-- DEBUG: always show component status -->
-        <div v-if="true" style="color: yellow; font-size: 10px; text-align: center; opacity: 0.8;">
-          comps: {{ displayedComponents.length }} | intro: {{ isIntroOrDebutPhase }} | id: {{ simplePlayer.currentCycle.value?.id }}
-        </div>
+        <!-- DEBUG removed from here, moved to fixed overlay -->
         <div v-if="displayedComponents.length > 0 && isIntroOrDebutPhase" class="pane-components">
           <div class="components-tiles">
             <template v-for="(comp, i) in displayedComponents" :key="i">
