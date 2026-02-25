@@ -2116,12 +2116,21 @@ const _componentsByCycleId = new Map<string, Array<{known: string, target: strin
 // Wrapper: call toSimpleRounds AND extract components into the plain Map
 function toSimpleRoundsWithComponents(items: any[]) {
   const rounds = toSimpleRounds(items)
+  let count = 0
   for (const round of rounds) {
     for (const cycle of round.cycles) {
       if ((cycle as any).components) {
         _componentsByCycleId.set(cycle.id, (cycle as any).components)
+        count++
       }
     }
+  }
+  if (count > 0) {
+    console.log(`[Components] Extracted ${count} cycles with components (map size: ${_componentsByCycleId.size})`)
+  } else {
+    // Debug: check if components exist on ScriptItems but not on cycles
+    const itemsWithComps = items.filter((i: any) => i.components?.length > 0)
+    console.log(`[Components] 0 cycles with components. ScriptItems with components: ${itemsWithComps.length}`)
   }
   return rounds
 }
