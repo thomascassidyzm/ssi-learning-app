@@ -67,6 +67,22 @@ export function useStudentsData() {
 
         if (classesError) throw classesError
         classIds = (classesData || []).map(c => c.id)
+      } else if (isGovtAdmin.value && selectedUser.value.region_code) {
+        // Govt admin region view - get all class IDs in region's schools
+        const { data: regionSchools } = await client
+          .from('schools')
+          .select('id')
+          .eq('region_code', selectedUser.value.region_code)
+        const schoolIds = (regionSchools || []).map(s => s.id)
+        if (schoolIds.length > 0) {
+          const { data: classesData, error: classesError } = await client
+            .from('classes')
+            .select('id')
+            .in('school_id', schoolIds)
+            .eq('is_active', true)
+          if (classesError) throw classesError
+          classIds = (classesData || []).map(c => c.id)
+        }
       } else if (isSchoolAdmin.value && selectedUser.value.school_id) {
         // Get all class IDs in school
         const { data: classesData, error: classesError } = await client

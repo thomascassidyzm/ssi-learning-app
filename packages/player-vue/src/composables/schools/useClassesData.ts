@@ -98,6 +98,20 @@ export function useClassesData() {
       } else if (isGovtAdmin.value && isViewingSchool.value && activeSchoolId.value) {
         // Govt admin drilled into a school sees all classes in that school
         query = query.eq('school_id', activeSchoolId.value)
+      } else if (isGovtAdmin.value && selectedUser.value.region_code) {
+        // Govt admin sees all classes in their region's schools
+        const { data: regionSchools } = await client
+          .from('schools')
+          .select('id')
+          .eq('region_code', selectedUser.value.region_code)
+        const schoolIds = (regionSchools || []).map(s => s.id)
+        if (schoolIds.length > 0) {
+          query = query.in('school_id', schoolIds)
+        } else {
+          classes.value = []
+          isLoading.value = false
+          return
+        }
       } else if (isSchoolAdmin.value && selectedUser.value.school_id) {
         // School admin sees all classes in school
         query = query.eq('school_id', selectedUser.value.school_id)
