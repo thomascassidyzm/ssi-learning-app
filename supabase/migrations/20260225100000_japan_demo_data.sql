@@ -445,9 +445,9 @@ BEGIN
       v_cid := ('d5000000-0000-0000-0000-' || LPAD((v_class_base + v_j)::TEXT, 12, '0'))::UUID;
       INSERT INTO invite_codes (
         code,
-        school_id,
-        class_id,
-        role,
+        code_type,
+        grants_school_id,
+        grants_class_id,
         created_by,
         is_active
       ) VALUES (
@@ -459,13 +459,13 @@ BEGIN
             WHEN 3 THEN 'S'
             WHEN 4 THEN 'C'
           END || '-001',
+        'student',
         v_school_id,
         v_cid,
-        'student',
         v_school_admin_uids[v_s],
         true
       )
-      ON CONFLICT DO NOTHING;
+      ON CONFLICT (code) DO NOTHING;
     END LOOP;
   END LOOP;
 
