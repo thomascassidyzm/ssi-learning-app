@@ -194,7 +194,7 @@ DECLARE
 
 BEGIN
   -- Ensure region exists
-  INSERT INTO regions (code, name, country) VALUES ('japan', 'Japan', 'JP')
+  INSERT INTO regions (code, name, country_code, primary_language) VALUES ('japan', 'Japan', 'JP', 'jpn')
   ON CONFLICT (code) DO NOTHING;
 
   v_school_ids := ARRAY[v_school1_id, v_school2_id, v_school3_id, v_school4_id, v_school5_id];
