@@ -55,9 +55,18 @@ const filteredClasses = computed(() => {
     return classes.value
   }
   const query = searchQuery.value.toLowerCase()
+  // Import courseNames inline for search matching
+  const names = {
+    'cym_for_eng': 'welsh', 'spa_for_eng': 'spanish', 'fra_for_eng': 'french',
+    'deu_for_eng': 'german', 'nld_for_eng': 'dutch', 'gle_for_eng': 'irish',
+    'jpn_for_eng': 'japanese', 'eng_for_jpn': 'english', 'cmn_for_eng': 'chinese',
+    'ara_for_eng': 'arabic', 'kor_for_eng': 'korean', 'ita_for_eng': 'italian',
+    'por_for_eng': 'portuguese', 'bre_for_fre': 'breton', 'eng_for_spa': 'english',
+  }
   return classes.value.filter(cls =>
     cls.class_name.toLowerCase().includes(query) ||
-    cls.course_code.toLowerCase().includes(query)
+    cls.course_code.toLowerCase().includes(query) ||
+    (names[cls.course_code] || '').includes(query)
   )
 })
 

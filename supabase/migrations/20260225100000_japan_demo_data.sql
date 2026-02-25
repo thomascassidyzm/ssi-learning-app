@@ -157,8 +157,8 @@ DECLARE
   -- d5000000-0000-0000-0000-0000000000XX (01-40)
 
   -- Course codes
-  v_course_codes TEXT[] := ARRAY['jpn_for_eng', 'fra_for_eng', 'spa_for_eng', 'cmn_for_eng'];
-  v_course_labels TEXT[] := ARRAY['日本語', 'フランス語', 'スペイン語', '中国語'];
+  v_course_codes TEXT[] := ARRAY['eng_for_jpn', 'fra_for_eng', 'spa_for_eng', 'cmn_for_eng'];
+  v_course_labels TEXT[] := ARRAY['英語', 'フランス語', 'スペイン語', '中国語'];
 
   -- Loop vars
   v_s INTEGER;  -- school index
