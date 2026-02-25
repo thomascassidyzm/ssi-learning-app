@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, shallowRef, inject, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, shallowRef, inject, nextTick, toRaw } from 'vue'
 import * as d3 from 'd3'
 import {
   AudioController,
@@ -2108,12 +2108,12 @@ watch([showTargetText, () => currentPhrase.value.target], ([showing, newTarget])
 }, { immediate: true })
 
 // Component breakdown for M-type LEGOs (visual display only)
-// Pre-built map: cycleId → [{known, target}, ...] — avoids Vue proxy issues with nested optional fields
-const componentsByCycleId = ref<Map<string, Array<{known: string, target: string}>>>(new Map())
-
+// Uses toRaw() to bypass Vue proxy and read the components field directly
 const displayedComponents = computed<Array<{known: string, target: string}>>(() => {
-  const cycleId = (simplePlayer.currentCycle.value as any)?.id || ''
-  return componentsByCycleId.value.get(cycleId) || []
+  const cycle = simplePlayer.currentCycle.value
+  if (!cycle) return []
+  const raw = toRaw(cycle) as any
+  return raw.components || []
 })
 
 // Is current item an intro? (network should fade, show typewriter message)
@@ -5543,20 +5543,6 @@ onMounted(async () => {
                 }
               }
 
-              // Build component lookup map from cycles (before Vue proxies the data)
-              const compMap = new Map<string, Array<{known: string, target: string}>>()
-              for (const round of simpleRounds) {
-                for (const cycle of round.cycles) {
-                  if ((cycle as any).components?.length > 0) {
-                    compMap.set(cycle.id, (cycle as any).components)
-                  }
-                }
-              }
-              if (compMap.size > 0) {
-                console.log(`[LearningPlayer] Built component map: ${compMap.size} cycles with components`)
-              }
-              componentsByCycleId.value = compMap
-
               // Store for legacy code
               loadedRounds.value = simpleRounds as any
 
@@ -6804,9 +6790,6 @@ defineExpose({
         <!-- Target text removed — duplicated by LEGO tiles below -->
 
         <!-- Component Breakdown for M-type LEGOs (visual only, shown during intro & debut) -->
-        <div v-if="true" class="pane-components" style="color: red; font-size: 12px;">
-          COMPS: {{ displayedComponents.length }} | INTRO: {{ isIntroOrDebutPhase }} | ID: {{ (simplePlayer.currentCycle.value as any)?.id?.substring(0, 20) }}
-        </div>
         <div v-if="displayedComponents.length > 0 && isIntroOrDebutPhase" class="pane-components">
           <div class="components-tiles">
             <template v-for="(comp, i) in displayedComponents" :key="i">
