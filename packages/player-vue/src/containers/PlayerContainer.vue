@@ -281,7 +281,12 @@ onMounted(() => {
 
   // Check if launched from Schools with class context
   const hasClassContext = checkClassContext()
-  if (hasClassContext) {
+  if (hasClassContext && classContext.value?.course_code) {
+    // Switch to the class's course
+    const courseCode = classContext.value.course_code
+    if (handleCourseSelect && (!activeCourse.value || activeCourse.value.course_code !== courseCode)) {
+      handleCourseSelect({ course_code: courseCode, id: courseCode })
+    }
     currentScreen.value = 'player'
     isLearning.value = false
   }
