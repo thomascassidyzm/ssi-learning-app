@@ -1182,7 +1182,7 @@ const initializeBeltLoader = async () => {
     if (!supabase?.value) return { rounds: [] as any[], nextSeed: startSeed, hasMore: false }
     const endSeed = startSeed + count
     const result = await generateSimpleScript(supabase.value, courseCode.value, startSeed, endSeed, 1)
-    const rounds = toSimpleRounds(result.items)
+    const rounds = toSimpleRoundsWithComponents(result.items)
     return {
       rounds: rounds as any[],
       nextSeed: endSeed + 1,
@@ -2112,6 +2112,19 @@ watch([showTargetText, () => currentPhrase.value.target], ([showing, newTarget])
 // Vue proxies strip non-declared properties like `components`, so we extract them
 // from the raw data and look them up by cycle ID (which IS readable through proxies).
 const _componentsByCycleId = new Map<string, Array<{known: string, target: string}>>()
+
+// Wrapper: call toSimpleRounds AND extract components into the plain Map
+function toSimpleRoundsWithComponents(items: any[]) {
+  const rounds = toSimpleRounds(items)
+  for (const round of rounds) {
+    for (const cycle of round.cycles) {
+      if ((cycle as any).components) {
+        _componentsByCycleId.set(cycle.id, (cycle as any).components)
+      }
+    }
+  }
+  return rounds
+}
 
 const displayedComponents = computed<Array<{known: string, target: string}>>(() => {
   const cycle = simplePlayer.currentCycle.value
@@ -4169,7 +4182,7 @@ const handleSkipToNextBelt = async () => {
       const skipResult = await generateSimpleScript(supabase.value, courseCode.value, targetSeed, targetSeed + 5, 1)
 
       if (skipResult.items.length > 0) {
-        const newRounds = toSimpleRounds(skipResult.items)
+        const newRounds = toSimpleRoundsWithComponents(skipResult.items)
         simplePlayer.addRounds(newRounds as any)
         console.debug(`[progressiveLoad] Belt skip: added ${newRounds.length} rounds`)
       }
@@ -4202,7 +4215,7 @@ const loadSeedIfNeeded = async (targetSeed: number) => {
   const skipResult = await generateSimpleScript(supabase.value, courseCode.value, targetSeed, targetSeed + 5, 1)
 
   if (skipResult.items.length > 0) {
-    const newRounds = toSimpleRounds(skipResult.items)
+    const newRounds = toSimpleRoundsWithComponents(skipResult.items)
     simplePlayer.addRounds(newRounds as any)
     console.debug(`[progressiveLoad] Belt skip: added ${newRounds.length} rounds`)
   }
@@ -5519,18 +5532,7 @@ onMounted(async () => {
             }
 
             if (result.items.length > 0) {
-              const simpleRounds = toSimpleRounds(result.items)
-
-              // Extract components into plain JS Map BEFORE Vue proxies the data
-              _componentsByCycleId.clear()
-              for (const round of simpleRounds) {
-                for (const cycle of round.cycles) {
-                  if ((cycle as any).components) {
-                    _componentsByCycleId.set(cycle.id, (cycle as any).components)
-                  }
-                }
-              }
-              console.log(`[Components] Extracted ${_componentsByCycleId.size} cycles with component breakdowns`)
+              const simpleRounds = toSimpleRoundsWithComponents(result.items)
 
               simplePlayer.initialize(simpleRounds as any)
 
@@ -5777,7 +5779,7 @@ onMounted(async () => {
           // Use real generateLearningScript + toSimpleRounds for legacy fallback
           const endSeed = startOffset + INITIAL_ROUNDS
           const result = await generateSimpleScript(supabase.value, courseCode.value, 1, endSeed, 1)
-          const simpleRounds = toSimpleRounds(result.items)
+          const simpleRounds = toSimpleRoundsWithComponents(result.items)
 
           if (simpleRounds.length > 0) {
             console.log('[LearningPlayer] Legacy fallback: generated', simpleRounds.length, 'rounds')
@@ -5882,7 +5884,7 @@ onMounted(async () => {
         console.log(`[LearningPlayer] Preview ${targetIndex} exceeds cached ${absoluteEnd}, expanding...`)
         const neededEnd = absoluteEnd + (targetIndex - absoluteEnd) + 10
         const expandResult = await generateSimpleScript(supabase.value, courseCode.value, 1, neededEnd, 1)
-        const expandedRounds = toSimpleRounds(expandResult.items)
+        const expandedRounds = toSimpleRoundsWithComponents(expandResult.items)
         if (expandedRounds.length > cachedRounds.value.length) {
           cachedRounds.value = expandedRounds as any
           console.log(`[LearningPlayer] Expanded to ${cachedRounds.value.length} rounds for preview`)
@@ -6125,7 +6127,7 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
       console.log('[LearningPlayer] No eager preload, generating full script for', newCourseCode)
       freshResult = await generateSimpleScript(supabase.value, newCourseCode, 1, 668, 1)
     }
-    const freshRounds = toSimpleRounds(freshResult.items)
+    const freshRounds = toSimpleRoundsWithComponents(freshResult.items)
     cachedRounds.value = freshRounds as any
   }
 
