@@ -344,5 +344,32 @@ onMounted(async () => {
   min-height: 100vh;
   min-height: 100dvh;
   background: var(--bg-primary);
+  position: relative;
+}
+
+/* Mist theme: subtle layered mountain silhouettes at the bottom */
+:global([data-theme="mist"]) .app-root::after {
+  content: '';
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 45vh;
+  pointer-events: none;
+  z-index: 0;
+  opacity: var(--mountain-opacity, 0.45);
+  background:
+    /* Foreground ridge — darkest, closest */
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 200' preserveAspectRatio='none'%3E%3Cpath d='M0 200 L0 140 Q60 95 120 110 Q200 80 280 100 Q360 60 440 85 Q520 55 600 75 Q680 45 760 70 Q840 50 920 65 Q1000 40 1080 60 Q1160 45 1240 70 Q1320 55 1400 80 L1440 75 L1440 200Z' fill='%23978E84'/%3E%3C/svg%3E") no-repeat bottom / 100% 55%,
+    /* Mid-ground ridge — lighter, further */
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 200' preserveAspectRatio='none'%3E%3Cpath d='M0 200 L0 120 Q80 70 160 95 Q280 40 400 70 Q500 30 600 55 Q720 20 840 50 Q960 25 1080 45 Q1200 30 1320 55 L1440 45 L1440 200Z' fill='%23B5ADA5'/%3E%3C/svg%3E") no-repeat bottom / 100% 70%,
+    /* Background ridge — lightest, most distant, misty */
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 200' preserveAspectRatio='none'%3E%3Cpath d='M0 200 L0 100 Q100 50 200 75 Q350 15 500 45 Q650 5 800 35 Q950 10 1100 30 Q1250 15 1380 40 L1440 30 L1440 200Z' fill='%23C8C1B9'/%3E%3C/svg%3E") no-repeat bottom / 100% 85%;
+}
+
+/* Ensure main content sits above the mountains */
+:global([data-theme="mist"]) .app-root > :deep(*) {
+  position: relative;
+  z-index: 1;
 }
 </style>
