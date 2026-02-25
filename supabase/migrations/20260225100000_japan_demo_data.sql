@@ -30,7 +30,7 @@ DECLARE
 
   -- Govt admin
   v_govt_uid TEXT := 'test_govt_tanaka';
-  v_govt_lid UUID := 'd0000000-0000-0000-0000-000000000001';
+  v_govt_lid UUID := 'd0100000-0000-0000-0000-000000000001';
 
   -- School admin UIDs
   v_school_admin_uids TEXT[] := ARRAY[
