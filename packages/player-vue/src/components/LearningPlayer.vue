@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, shallowRef, inject, nextTick, toRaw } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, shallowRef, inject, nextTick } from 'vue'
 import * as d3 from 'd3'
 import {
   AudioController,
@@ -2108,12 +2108,15 @@ watch([showTargetText, () => currentPhrase.value.target], ([showing, newTarget])
 }, { immediate: true })
 
 // Component breakdown for M-type LEGOs (visual display only)
-// Uses toRaw() to bypass Vue proxy and read the components field directly
+// Plain JS Map populated BEFORE SimplePlayer wraps rounds in Vue proxies.
+// Vue proxies strip non-declared properties like `components`, so we extract them
+// from the raw data and look them up by cycle ID (which IS readable through proxies).
+const _componentsByCycleId = new Map<string, Array<{known: string, target: string}>>()
+
 const displayedComponents = computed<Array<{known: string, target: string}>>(() => {
   const cycle = simplePlayer.currentCycle.value
   if (!cycle) return []
-  const raw = toRaw(cycle) as any
-  return raw.components || []
+  return _componentsByCycleId.get(cycle.id) || []
 })
 
 // Is current item an intro? (network should fade, show typewriter message)
@@ -5517,12 +5520,17 @@ onMounted(async () => {
 
             if (result.items.length > 0) {
               const simpleRounds = toSimpleRounds(result.items)
-              // Verify components survive pipeline
-              const r0 = simpleRounds[0]
-              if (r0) {
-                const c0 = r0.cycles[0]
-                console.log('[COMPONENT CHECK] Round 0 cycle 0:', c0?.id, 'has components:', !!(c0 as any)?.components, 'keys:', c0 ? Object.keys(c0) : 'null')
+
+              // Extract components into plain JS Map BEFORE Vue proxies the data
+              _componentsByCycleId.clear()
+              for (const round of simpleRounds) {
+                for (const cycle of round.cycles) {
+                  if ((cycle as any).components) {
+                    _componentsByCycleId.set(cycle.id, (cycle as any).components)
+                  }
+                }
               }
+              console.log(`[Components] Extracted ${_componentsByCycleId.size} cycles with component breakdowns`)
 
               simplePlayer.initialize(simpleRounds as any)
 
