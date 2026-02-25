@@ -39,6 +39,7 @@ function getBelt(practiceHours: number): string {
 const teachers = computed(() => {
   return teachersData.value.map((t, idx) => ({
     id: idx + 1,
+    user_id: t.user_id,
     name: t.display_name,
     initials: getInitials(t.display_name),
     email: t.learner_id ? `teacher_${t.learner_id.substring(0, 8)}` : 'N/A', // No email in schema yet
@@ -111,13 +112,13 @@ function handleRegenerateCode() {
   console.log('Regenerating code...')
 }
 
-async function handleRemoveTeacher(teacherId: number) {
+async function handleRemoveTeacher(userId: string) {
   if (confirm('Are you sure you want to remove this teacher from your school?')) {
     const supabase = getSchoolsClient()
     const { error } = await supabase
       .from('user_tags')
       .update({ removed_at: new Date().toISOString() })
-      .eq('user_id', teacherId)
+      .eq('user_id', userId)
       .eq('tag_type', 'school')
       .eq('role_in_context', 'teacher')
       .eq('tag_value', `SCHOOL:${currentSchool.value?.id}`)
@@ -284,7 +285,7 @@ watch(selectedUser, (newUser) => {
               <button
                 class="action-btn danger"
                 title="Remove"
-                @click="handleRemoveTeacher(teacher.id)"
+                @click="handleRemoveTeacher(teacher.user_id)"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <polyline points="3 6 5 6 21 6"/>
