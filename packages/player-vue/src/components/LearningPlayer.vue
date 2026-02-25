@@ -6191,11 +6191,6 @@ defineExpose({
   <!-- Single root wrapper - required for v-show from parent to work correctly -->
   <div class="learning-player-root">
 
-  <!-- DEBUG: fixed overlay for component diagnosis -->
-  <div style="position: fixed; top: 0; left: 0; right: 0; z-index: 99999; background: red; color: white; font-size: 14px; padding: 4px 8px; text-align: center; font-family: monospace;">
-    COMPS: {{ displayedComponents.length }} | INTRO: {{ isIntroOrDebutPhase }} | ID: {{ simplePlayer.currentCycle?.id || 'null' }}
-  </div>
-
   <!-- Belt Skip Loading Overlay -->
   <Transition name="fade">
     <div v-if="isSkippingBelt" class="belt-skip-overlay">
@@ -6282,6 +6277,19 @@ defineExpose({
       :belt-glow="beltCssVars['--belt-glow'] || 'rgba(245, 245, 245, 0.3)'"
       :voice1-duration-ms="currentVoice1DurationMs"
     />
+
+    <!-- Component Breakdown for M-type LEGOs (shown below LEGO tile during intro & debut) -->
+    <div v-if="displayedComponents.length > 0 && isIntroOrDebutPhase" class="pane-components">
+      <div class="components-tiles">
+        <template v-for="(comp, i) in displayedComponents" :key="i">
+          <div class="component-tile">
+            <span class="component-tile-target">{{ comp.target }}</span>
+            <span class="component-tile-known">{{ comp.known }}</span>
+          </div>
+          <span v-if="i < displayedComponents.length - 1" class="component-plus">+</span>
+        </template>
+      </div>
+    </div>
 
     <!-- Text Network Visualization Layer - kept for Brain View / Progress screen -->
     <LegoTextNetwork
@@ -6818,19 +6826,7 @@ defineExpose({
 
         <!-- Target text removed — duplicated by LEGO tiles below -->
 
-        <!-- Component Breakdown for M-type LEGOs (visual only, shown during intro & debut) -->
-        <!-- DEBUG removed from here, moved to fixed overlay -->
-        <div v-if="displayedComponents.length > 0 && isIntroOrDebutPhase" class="pane-components">
-          <div class="components-tiles">
-            <template v-for="(comp, i) in displayedComponents" :key="i">
-              <div class="component-tile">
-                <span class="component-tile-target">{{ comp.target }}</span>
-                <span class="component-tile-known">{{ comp.known }}</span>
-              </div>
-              <span v-if="i < displayedComponents.length - 1" class="component-plus">+</span>
-            </template>
-          </div>
-        </div>
+        <!-- Component tiles moved to after LegoAssembly -->
       </div>
 
       <!-- Play button when paused -->
