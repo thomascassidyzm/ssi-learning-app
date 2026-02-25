@@ -9,12 +9,10 @@ import { setSchoolsClient } from '@/composables/schools/client'
 // Supabase client from App
 const supabase = inject('supabase', ref(null)) as any
 
-// Set up client bridge on mount so all schools composables can access Supabase
-onMounted(() => {
-  if (supabase.value) {
-    setSchoolsClient(supabase.value)
-  }
-})
+// Set client immediately during setup (before child components call useGodMode)
+if (supabase.value) {
+  setSchoolsClient(supabase.value)
+}
 
 // Global auth modal (shared singleton - same state as PlayerContainer)
 const {
