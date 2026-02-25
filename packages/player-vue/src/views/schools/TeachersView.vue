@@ -4,6 +4,7 @@ import JoinCodeBanner from '@/components/schools/JoinCodeBanner.vue'
 import { useGodMode } from '@/composables/schools/useGodMode'
 import { useTeachersData } from '@/composables/schools/useTeachersData'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
+import { getSchoolsClient } from '@/composables/schools/client'
 
 // God Mode and data
 const { selectedUser } = useGodMode()
@@ -110,12 +111,23 @@ function handleRegenerateCode() {
   console.log('Regenerating code...')
 }
 
-function handleRemoveTeacher(teacherId: number) {
+async function handleRemoveTeacher(teacherId: number) {
   if (confirm('Are you sure you want to remove this teacher from your school?')) {
-    // TODO: Implement Supabase call to remove the teacher tag from the school
-    console.log('Would remove teacher:', teacherId)
-    // After removal, refetch teachers
-    // fetchTeachers()
+    const supabase = getSchoolsClient()
+    const { error } = await supabase
+      .from('user_tags')
+      .update({ removed_at: new Date().toISOString() })
+      .eq('user_id', teacherId)
+      .eq('tag_type', 'school')
+      .eq('role_in_context', 'teacher')
+      .eq('tag_value', `SCHOOL:${currentSchool.value?.id}`)
+      .is('removed_at', null)
+
+    if (error) {
+      console.error('Failed to remove teacher:', error)
+      return
+    }
+    fetchTeachers()
   }
 }
 

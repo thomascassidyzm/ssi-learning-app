@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useGodMode } from '@/composables/schools/useGodMode'
 import { useClassesData, type ClassReport } from '@/composables/schools/useClassesData'
+import { getSchoolsClient } from '@/composables/schools/client'
 
 const router = useRouter()
 const route = useRoute()
@@ -243,10 +244,22 @@ const copyJoinCode = async () => {
   }
 }
 
-const handleRemoveStudent = (student: { id: string; name: string }) => {
+const handleRemoveStudent = async (student: { id: string; name: string }) => {
   if (confirm(`Remove ${student.name} from this class?`)) {
-    // TODO: Implement Supabase call to remove the class tag from the student
-    console.log('Would remove student:', student.id, 'from class:', classData.value.id)
+    const supabase = getSchoolsClient()
+    const { error } = await supabase
+      .from('user_tags')
+      .update({ removed_at: new Date().toISOString() })
+      .eq('user_id', student.id)
+      .eq('tag_type', 'class')
+      .eq('tag_value', `CLASS:${classData.value.id}`)
+      .is('removed_at', null)
+
+    if (error) {
+      console.error('Failed to remove student:', error)
+      return
+    }
+    fetchClassDetail(classData.value.id)
   }
 }
 </script>
