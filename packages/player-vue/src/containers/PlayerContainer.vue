@@ -282,10 +282,11 @@ onMounted(() => {
   // Check if launched from Schools with class context
   const hasClassContext = checkClassContext()
   if (hasClassContext && classContext.value?.course_code) {
-    // Switch to the class's course
+    // Switch to the class's course using full course metadata from enrolled list
     const courseCode = classContext.value.course_code
     if (handleCourseSelect && (!activeCourse.value || activeCourse.value.course_code !== courseCode)) {
-      handleCourseSelect({ course_code: courseCode, id: courseCode })
+      const fullCourse = enrolledCourses?.value?.find(c => c.course_code === courseCode)
+      handleCourseSelect(fullCourse || { course_code: courseCode, id: courseCode })
     }
     currentScreen.value = 'player'
     isLearning.value = false
