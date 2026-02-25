@@ -2125,13 +2125,7 @@ function toSimpleRoundsWithComponents(items: any[]) {
       }
     }
   }
-  if (count > 0) {
-    console.log(`[Components] Extracted ${count} cycles with components (map size: ${_componentsByCycleId.size})`)
-  } else {
-    // Debug: check if components exist on ScriptItems but not on cycles
-    const itemsWithComps = items.filter((i: any) => i.components?.length > 0)
-    console.log(`[Components] 0 cycles with components. ScriptItems with components: ${itemsWithComps.length}`)
-  }
+  if (count > 0) console.log(`[Components] Extracted ${count} cycles with components (map size: ${_componentsByCycleId.size})`)
   return rounds
 }
 
@@ -6278,19 +6272,6 @@ defineExpose({
       :voice1-duration-ms="currentVoice1DurationMs"
     />
 
-    <!-- Component Breakdown for M-type LEGOs (shown below LEGO tile during intro & debut) -->
-    <div v-if="displayedComponents.length > 0 && isIntroOrDebutPhase" class="pane-components">
-      <div class="components-tiles">
-        <template v-for="(comp, i) in displayedComponents" :key="i">
-          <div class="component-tile">
-            <span class="component-tile-target">{{ comp.target }}</span>
-            <span class="component-tile-known">{{ comp.known }}</span>
-          </div>
-          <span v-if="i < displayedComponents.length - 1" class="component-plus">+</span>
-        </template>
-      </div>
-    </div>
-
     <!-- Text Network Visualization Layer - kept for Brain View / Progress screen -->
     <LegoTextNetwork
       v-if="networkViewProps.nodes.length > 0 && showSessionComplete"
@@ -6826,7 +6807,18 @@ defineExpose({
 
         <!-- Target text removed — duplicated by LEGO tiles below -->
 
-        <!-- Component tiles moved to after LegoAssembly -->
+        <!-- Component Breakdown for M-type LEGOs (visual only, shown during intro & debut) -->
+        <div v-if="displayedComponents.length > 0 && isIntroOrDebutPhase" class="pane-components">
+          <div class="components-tiles">
+            <template v-for="(comp, i) in displayedComponents" :key="i">
+              <div class="component-tile">
+                <span class="component-tile-target">{{ comp.target }}</span>
+                <span class="component-tile-known">{{ comp.known }}</span>
+              </div>
+              <span v-if="i < displayedComponents.length - 1" class="component-plus">+</span>
+            </template>
+          </div>
+        </div>
       </div>
 
       <!-- Play button when paused -->
@@ -8496,30 +8488,28 @@ defineExpose({
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 0.5rem 1rem;
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 10px;
-  backdrop-filter: blur(8px);
+  padding: 0.4rem 0.75rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
 }
 
 .component-tile-target {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--belt-color, rgba(251, 191, 36, 1));
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--belt-color, rgba(251, 191, 36, 0.9));
   line-height: 1.3;
 }
 
 .component-tile-known {
-  font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.5);
   line-height: 1.3;
 }
 
 .component-plus {
-  font-size: 1rem;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.3);
   font-weight: 300;
 }
 
