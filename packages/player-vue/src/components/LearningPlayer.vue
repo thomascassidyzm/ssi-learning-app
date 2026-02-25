@@ -5517,7 +5517,12 @@ onMounted(async () => {
 
             if (result.items.length > 0) {
               const simpleRounds = toSimpleRounds(result.items)
-              console.debug(`[eagerLoad] ${simpleRounds.length} SimplePlayer rounds built`)
+              // Verify components survive pipeline
+              const r0 = simpleRounds[0]
+              if (r0) {
+                const c0 = r0.cycles[0]
+                console.log('[COMPONENT CHECK] Round 0 cycle 0:', c0?.id, 'has components:', !!(c0 as any)?.components, 'keys:', c0 ? Object.keys(c0) : 'null')
+              }
 
               simplePlayer.initialize(simpleRounds as any)
 
