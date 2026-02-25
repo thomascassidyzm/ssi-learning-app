@@ -8500,28 +8500,30 @@ defineExpose({
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 0.4rem 0.75rem;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 10px;
+  backdrop-filter: blur(8px);
 }
 
 .component-tile-target {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--belt-color, rgba(251, 191, 36, 0.9));
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--belt-color, rgba(251, 191, 36, 1));
   line-height: 1.3;
 }
 
 .component-tile-known {
-  font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.7);
   line-height: 1.3;
 }
 
 .component-plus {
-  font-size: 0.9rem;
-  color: rgba(255, 255, 255, 0.3);
+  font-size: 1rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
   font-weight: 300;
 }
 
