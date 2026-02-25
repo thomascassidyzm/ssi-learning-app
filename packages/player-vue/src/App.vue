@@ -306,7 +306,7 @@ onMounted(async () => {
 
           // Validate the code
           await inviteCode.validateCode(codeParam)
-          // The SignUpModal will pick up pendingCode from the composable
+          // The unified auth modal will pick up pendingCode from the composable
           // and show the context step when opened
         }
       } catch (err) {

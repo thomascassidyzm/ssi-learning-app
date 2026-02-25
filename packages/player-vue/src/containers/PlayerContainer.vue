@@ -14,8 +14,8 @@ import BuildBadge from '@/components/BuildBadge.vue'
 import PlayerRestingState from '@/components/PlayerRestingState.vue'
 import CourseSelector from '@/components/CourseSelector.vue'
 
-// Custom auth modals
-import { SignInModal, SignUpModal } from '@/components/auth'
+// Custom auth modal (unified)
+import { SignInModal } from '@/components/auth'
 
 // Global auth modal state (shared singleton)
 import { useAuthModal } from '@/composables/useAuthModal'
@@ -36,16 +36,12 @@ const router = useRouter()
 
 // Global auth modal (shared with BottomNav and other components)
 const {
-  isSignInOpen,
-  isSignUpOpen,
-  openSignIn,
-  openSignUp,
-  closeAll: closeAuthModals,
-  closeSignIn,
-  closeSignUp,
-  switchToSignIn,
-  switchToSignUp,
+  isOpen: isAuthOpen,
+  open: openAuth,
+  close: closeAuth,
 } = useAuthModal()
+// Aliases for backwards compatibility within this file
+const closeAuthModals = closeAuth
 
 // Navigation state — 3 panes only
 // Screens: 'progress' | 'player' | 'library'
@@ -211,8 +207,7 @@ const totalPhrasesSpoken = computed(() => beltProgress.value?.totalPhrasesSpoken
 // Handle auth success
 const handleAuthSuccess = () => {
   console.debug('[PlayerContainer] Auth successful!')
-  closeSignIn()
-  closeSignUp()
+  closeAuth()
 }
 
 // Check for class context from Schools
@@ -423,19 +418,8 @@ onMounted(() => {
       @close="showCourseSelector = false"
     />
 
-    <!-- Custom Auth Modals (shared state with BottomNav) -->
-    <SignInModal
-      :is-open="isSignInOpen"
-      @close="closeSignIn"
-      @switch-to-sign-up="switchToSignUp"
-      @success="handleAuthSuccess"
-    />
-    <SignUpModal
-      :is-open="isSignUpOpen"
-      @close="closeSignUp"
-      @switch-to-sign-in="switchToSignIn"
-      @success="handleAuthSuccess"
-    />
+    <!-- Unified Auth Modal (shared state with all components) -->
+    <SignInModal @success="handleAuthSuccess" />
   </div>
 </template>
 
@@ -464,11 +448,13 @@ onMounted(() => {
 
 /* Slide right transition */
 .slide-right-enter-active {
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, opacity;
 }
 
 .slide-right-leave-active {
-  transition: all 0.3s ease-in;
+  transition: all 0.2s ease-in;
+  will-change: transform, opacity;
 }
 
 .slide-right-enter-from {

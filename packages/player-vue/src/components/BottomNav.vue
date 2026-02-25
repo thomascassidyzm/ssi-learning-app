@@ -442,11 +442,13 @@ const isVisible = computed(() => !props.isLearning)
 
 /* Nav slide transition */
 .nav-slide-enter-active {
-  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, opacity;
 }
 
 .nav-slide-leave-active {
-  transition: all 0.25s ease-in;
+  transition: all 0.2s ease-in;
+  will-change: transform, opacity;
 }
 
 .nav-slide-enter-from,

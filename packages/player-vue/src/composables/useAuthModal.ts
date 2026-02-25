@@ -1,80 +1,31 @@
 import { ref, readonly } from 'vue'
 
-type AuthModalView = 'signIn' | 'signUp' | null
-
 // Shared state at module level (singleton)
-const isSignInOpen = ref(false)
-const isSignUpOpen = ref(false)
-const currentView = ref<AuthModalView>(null)
-// Shared email for preserving across sign-in/sign-up switches
-const sharedEmail = ref('')
+const isOpen = ref(false)
+// Optional invite code context (for school join flows)
+const inviteCodeMode = ref(false)
 
-const openSignIn = () => {
-  currentView.value = 'signIn'
-  isSignInOpen.value = true
-  isSignUpOpen.value = false
+const open = (opts?: { inviteCode?: boolean }) => {
+  inviteCodeMode.value = opts?.inviteCode ?? false
+  isOpen.value = true
 }
 
-const openSignUp = () => {
-  currentView.value = 'signUp'
-  isSignUpOpen.value = true
-  isSignInOpen.value = false
-}
-
-const closeAll = () => {
-  currentView.value = null
-  isSignInOpen.value = false
-  isSignUpOpen.value = false
-  sharedEmail.value = '' // Clear email on full close
-}
-
-const closeSignIn = () => {
-  isSignInOpen.value = false
-  if (currentView.value === 'signIn') {
-    currentView.value = null
-    sharedEmail.value = '' // Clear email when closing (not switching)
-  }
-}
-
-const closeSignUp = () => {
-  isSignUpOpen.value = false
-  if (currentView.value === 'signUp') {
-    currentView.value = null
-    sharedEmail.value = '' // Clear email when closing (not switching)
-  }
-}
-
-const switchToSignIn = (email?: string) => {
-  if (email) sharedEmail.value = email
-  openSignIn()
-}
-
-const switchToSignUp = (email?: string) => {
-  if (email) sharedEmail.value = email
-  openSignUp()
+const close = () => {
+  isOpen.value = false
+  inviteCodeMode.value = false
 }
 
 /**
- * Composable for managing auth modal state across the app.
+ * Composable for managing the unified auth modal.
  * Uses module-level state for true singleton behavior.
  * All components calling this share the same refs.
  */
 export function useAuthModal() {
   return {
-    // State (writable refs for direct binding)
-    isSignInOpen,
-    isSignUpOpen,
-    currentView: readonly(currentView),
-    sharedEmail, // Email preserved when switching between sign-in/sign-up
-
-    // Actions
-    openSignIn,
-    openSignUp,
-    closeAll,
-    closeSignIn,
-    closeSignUp,
-    switchToSignIn,
-    switchToSignUp,
+    isOpen: readonly(isOpen),
+    inviteCodeMode: readonly(inviteCodeMode),
+    open,
+    close,
   }
 }
 

@@ -2,7 +2,7 @@
 import { ref, inject, onMounted } from 'vue'
 import TopNav from '@/components/schools/shared/TopNav.vue'
 import GodModePanel from '@/components/schools/GodModePanel.vue'
-import { SignInModal, SignUpModal } from '@/components/auth'
+import { SignInModal } from '@/components/auth'
 import { useAuthModal } from '@/composables/useAuthModal'
 import { setSchoolsClient } from '@/composables/schools/client'
 
@@ -15,21 +15,11 @@ if (supabase.value) {
 }
 
 // Global auth modal (shared singleton - same state as PlayerContainer)
-const {
-  isSignInOpen,
-  isSignUpOpen,
-  openSignIn,
-  openSignUp,
-  closeSignIn,
-  closeSignUp,
-  switchToSignIn,
-  switchToSignUp,
-} = useAuthModal()
+const { open: openAuth, close: closeAuth } = useAuthModal()
 
 const handleAuthSuccess = () => {
   console.log('Auth successful!')
-  closeSignIn()
-  closeSignUp()
+  closeAuth()
 }
 </script>
 
@@ -66,7 +56,7 @@ const handleAuthSuccess = () => {
       <div class="drift-star drift-5"></div>
     </div>
 
-    <TopNav @sign-in="openSignIn" @sign-up="openSignUp" />
+    <TopNav @sign-in="openAuth" @sign-up="openAuth" />
 
     <!-- God Mode Panel (replaces DevRoleSwitcher) -->
     <GodModePanel />
@@ -79,19 +69,8 @@ const handleAuthSuccess = () => {
       </router-view>
     </main>
 
-    <!-- Auth Modals (shared state across app) -->
-    <SignInModal
-      :is-open="isSignInOpen"
-      @close="closeSignIn"
-      @switch-to-sign-up="switchToSignUp"
-      @success="handleAuthSuccess"
-    />
-    <SignUpModal
-      :is-open="isSignUpOpen"
-      @close="closeSignUp"
-      @switch-to-sign-in="switchToSignIn"
-      @success="handleAuthSuccess"
-    />
+    <!-- Unified Auth Modal (shared state across app) -->
+    <SignInModal @success="handleAuthSuccess" />
   </div>
 </template>
 

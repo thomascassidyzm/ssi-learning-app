@@ -80,7 +80,7 @@ const isAdmin = computed(() => {
   return ADMIN_EMAIL_DOMAINS.some(d => domain === d.toLowerCase())
 })
 
-const { openSignIn, openSignUp } = useAuthModal()
+const { open: openAuth } = useAuthModal()
 const router = useRouter()
 
 // School role check
@@ -777,8 +777,7 @@ const confirmReset = async () => {
           <div class="auth-cta-row">
             <p class="auth-cta-text">Sign in to save your progress across devices</p>
             <div class="auth-cta-buttons">
-              <button class="auth-cta-btn primary" @click="openSignIn()">Sign In</button>
-              <button class="auth-cta-btn secondary" @click="openSignUp()">Create Account</button>
+              <button class="auth-cta-btn primary" @click="openAuth()">Sign In</button>
             </div>
           </div>
         </div>

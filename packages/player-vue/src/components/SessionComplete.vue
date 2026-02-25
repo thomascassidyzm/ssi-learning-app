@@ -1,6 +1,7 @@
 <script setup>
 import { computed, inject, ref } from 'vue'
 import AuthPrompt from './AuthPrompt.vue'
+import { useAuthModal } from '@/composables/useAuthModal'
 
 // Get auth state from App
 const auth = inject('auth')
@@ -74,9 +75,9 @@ const shouldShowAuthPrompt = computed(() => {
 
 // Handle signup click
 const handleSignup = () => {
-  if (auth) {
-    auth.openSignIn()
-  }
+  // Use global auth modal
+  const { open } = useAuthModal()
+  open()
 }
 
 // Handle dismiss

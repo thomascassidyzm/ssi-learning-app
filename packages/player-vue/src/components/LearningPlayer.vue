@@ -196,7 +196,7 @@ const {
 } = useAlgorithmConfig(supabase)
 
 // Auth modal for sign-in/sign-up prompts
-const { openSignIn, openSignUp: openCreateAccount } = useAuthModal()
+const { open: openAuth } = useAuthModal()
 
 // Network data from database (for edge connections - like brain view)
 const { loadNetworkData: loadLegoNetworkData } = useLegoNetwork(supabase)
@@ -6731,13 +6731,9 @@ defineExpose({
           <p class="progress-warning-text">
             Create an account or sign-in to store your progress in our database.
           </p>
-          <p class="progress-warning-cta">Sign-in to save your progress.</p>
           <div class="progress-warning-actions">
-            <button class="progress-warning-btn progress-warning-btn--primary" @click="openSignIn">
-              Sign In
-            </button>
-            <button class="progress-warning-btn progress-warning-btn--secondary" @click="openCreateAccount">
-              Create Account
+            <button class="progress-warning-btn progress-warning-btn--primary" @click="openAuth()">
+              Sign in to save
             </button>
           </div>
         </div>

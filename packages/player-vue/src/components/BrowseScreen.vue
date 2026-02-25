@@ -4,8 +4,14 @@ import { useRouter } from 'vue-router'
 import { BELTS, getSharedBeltProgress, getSeedFromLegoId } from '@/composables/useBeltProgress'
 import { getLanguageName } from '@/composables/useI18n'
 import CourseBrowser from '@/components/CourseBrowser.vue'
+import { useAuthModal } from '@/composables/useAuthModal'
 
 const router = useRouter()
+
+// Auth state for guest banner
+const auth = inject('auth')
+const isGuest = computed(() => auth?.isGuest?.value ?? true)
+const { open: openAuth } = useAuthModal()
 
 // Show schools link when god mode user is set (teacher/admin)
 const hasSchoolsAccess = computed(() => {
@@ -165,6 +171,24 @@ onMounted(() => {
     </div>
 
     <div class="browse-content">
+      <!-- ── Guest auth banner ── -->
+      <div v-if="isGuest" class="guest-auth-banner" @click="openAuth()">
+        <div class="guest-auth-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </div>
+        <div class="guest-auth-text">
+          <span class="guest-auth-title">Your progress is fragile</span>
+          <span class="guest-auth-subtitle">Sign in to save it</span>
+        </div>
+        <svg class="guest-auth-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </div>
+
       <!-- ── Schools Dashboard Link (teachers/admins) ── -->
       <button v-if="hasSchoolsAccess" class="schools-link" @click="goToSchools">
         <div class="schools-link-icon">
@@ -753,6 +777,70 @@ onMounted(() => {
 }
 
 /* Schools Dashboard Link */
+/* Guest auth banner */
+.guest-auth-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3, 0.75rem);
+  width: 100%;
+  padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
+  margin-bottom: var(--space-4, 1rem);
+  background: rgba(194, 58, 58, 0.08);
+  border: 1px solid rgba(194, 58, 58, 0.2);
+  border-radius: var(--radius-lg, 12px);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.guest-auth-banner:hover {
+  background: rgba(194, 58, 58, 0.12);
+  border-color: rgba(194, 58, 58, 0.3);
+}
+
+.guest-auth-banner:active {
+  transform: scale(0.98);
+}
+
+.guest-auth-icon {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.guest-auth-icon svg {
+  width: 22px;
+  height: 22px;
+  color: var(--ssi-red, #c23a3a);
+}
+
+.guest-auth-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.guest-auth-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+}
+
+.guest-auth-subtitle {
+  font-size: 0.75rem;
+  color: var(--text-secondary, rgba(255,255,255,0.6));
+}
+
+.guest-auth-arrow {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: var(--text-muted, rgba(255,255,255,0.3));
+}
+
 .schools-link {
   display: flex;
   align-items: center;
