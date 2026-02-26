@@ -18,7 +18,7 @@ import ReportIssueButton from './ReportIssueButton.vue'
 import { useLearningSession } from '../composables/useLearningSession'
 import { useScriptCache, setCachedScript } from '../composables/useScriptCache'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
-import { useSharedBeltProgress, type BeltProgressSyncConfig } from '../composables/useBeltProgress'
+import { useSharedBeltProgress, getSeedFromLegoId, type BeltProgressSyncConfig } from '../composables/useBeltProgress'
 import { useBeltLoader, getBeltForSeed, BELT_RANGES, type BeltLoaderConfig } from '../composables/useBeltLoader'
 import { useOfflinePlay } from '../composables/useOfflinePlay'
 import { useOfflineCache } from '../composables/useOfflineCache'
@@ -449,6 +449,11 @@ simplePlayer.onRoundCompleted((round) => {
       handleRoundBoundary(completedRoundIndex, round.legoId)
       if (beltProgress.value?.setCurrentLegoId) {
         beltProgress.value.setCurrentLegoId(round.legoId)
+      }
+      // Update playing belt accent to match current content
+      if (round.legoId && beltProgress.value?.setPlayingPosition) {
+        const seed = getSeedFromLegoId(round.legoId)
+        if (seed !== null) beltProgress.value.setPlayingPosition(seed)
       }
     }
   }
@@ -1101,6 +1106,7 @@ const isOnline = ref(navigator.onLine)
 // Computed properties that delegate to the composable (with fallbacks for initial load)
 const completedRounds = computed(() => beltProgress.value?.completedRounds.value ?? 0)
 const currentBelt = computed(() => beltProgress.value?.currentBelt.value ?? { name: 'white', seedsRequired: 0, color: '#f5f5f5', colorDark: '#e0e0e0', glow: 'rgba(245, 245, 245, 0.3)', index: 0 })
+const playingBelt = computed(() => beltProgress.value?.playingBelt.value ?? { name: 'white', seedsRequired: 0, color: '#f5f5f5', colorDark: '#e0e0e0', glow: 'rgba(245, 245, 245, 0.3)', index: 0 })
 const nextBelt = computed(() => beltProgress.value?.nextBelt.value ?? null)
 const previousBelt = computed(() => beltProgress.value?.previousBelt.value ?? null)
 
@@ -4365,6 +4371,10 @@ const drivingMode = useDrivingMode({
       if (round?.legoId && beltProgress.value?.setCurrentLegoId) {
         beltProgress.value.setCurrentLegoId(round.legoId)
       }
+      if (round?.legoId && beltProgress.value?.setPlayingPosition) {
+        const seed = getSeedFromLegoId(round.legoId)
+        if (seed !== null) beltProgress.value.setPlayingPosition(seed)
+      }
     }
   },
   onSessionComplete: () => {
@@ -5430,6 +5440,7 @@ onMounted(async () => {
       // Update belt progress to match the jumped position
       const legoId = `S${String(seedNumber).padStart(4, '0')}L01`
       beltProgress.value?.setLastLegoId(legoId)
+      beltProgress.value?.setPlayingPosition(seedNumber)
     } catch (err) {
       console.warn('[LearningPlayer] Jump to seed failed:', err)
     }
@@ -5520,6 +5531,11 @@ onMounted(async () => {
               const currentSeedFromLegoId = beltProgress.value?.currentSeedNumber.value ?? 0
               startingSeed = currentSeedFromLegoId > 0 ? currentSeedFromLegoId : (completedSeeds > 0 ? completedSeeds : 0)
               isReturningUser = startingSeed > 0
+            }
+
+            // Set playing belt to match starting position
+            if (startingSeed > 0) {
+              beltProgress.value?.setPlayingPosition(startingSeed)
             }
 
             // Await eager script (preloaded from App.vue) or fall back to direct call
@@ -6253,7 +6269,7 @@ defineExpose({
 
   <div
     class="player"
-    :class="[`belt-${currentBelt.name}`, { 'is-paused': !isPlaying }]"
+    :class="[`belt-${playingBelt.name}`, { 'is-paused': !isPlaying }]"
     :style="beltCssVars"
     v-show="!showSessionComplete"
   >
@@ -10580,7 +10596,11 @@ defineExpose({
 <style>
 /* --- Player wrapper background --- */
 [data-theme="mist"] .player {
-  background: #D9D6D2;
+  background:
+    radial-gradient(ellipse 120% 80% at 50% 80%,
+      color-mix(in srgb, var(--belt-color) 4%, transparent) 0%,
+      transparent 60%),
+    #D9D6D2;
 }
 
 /* --- Space / Background layers → Washi paper --- */
@@ -10898,5 +10918,24 @@ defineExpose({
 
 [data-theme="mist"] .player .component-plus {
   color: #A89C8E;
+}
+
+/* --- White belt in mist → black accents (white-on-white invisible) --- */
+[data-theme="mist"] .player.belt-white {
+  --belt-color: #1A1614;
+  --belt-color-dark: #000000;
+  --belt-glow: rgba(26, 22, 20, 0.15);
+}
+
+/* --- Black belt in mist → double stripe distinction --- */
+[data-theme="mist"] .player.belt-black .belt-bar-fill {
+  background: linear-gradient(to bottom,
+    var(--belt-color) 35%, var(--bg-primary, #F2F0ED) 42%,
+    var(--bg-primary, #F2F0ED) 58%, var(--belt-color) 65%);
+}
+[data-theme="mist"] .player.belt-black .belt-timer-unified {
+  border: 2px solid #1A1614;
+  outline: 2px solid #1A1614;
+  outline-offset: 2px;
 }
 </style>

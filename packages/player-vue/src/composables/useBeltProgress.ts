@@ -382,6 +382,21 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   }
 
   // ============================================================================
+  // PLAYING BELT (follows currently-playing content, not highest achieved)
+  // ============================================================================
+
+  const playingBeltIndex = ref(0)
+
+  const playingBelt = computed((): Belt => {
+    const idx = Math.min(Math.max(playingBeltIndex.value, 0), BELTS.length - 1)
+    return { ...BELTS[idx], index: idx }
+  })
+
+  const setPlayingPosition = (seedNumber: number) => {
+    playingBeltIndex.value = getBeltIndexForSeed(seedNumber)
+  }
+
+  // ============================================================================
   // BELT INFO (computed from highestBeltIndex)
   // ============================================================================
 
@@ -621,9 +636,9 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   // ============================================================================
 
   const beltCssVars = computed(() => ({
-    '--belt-color': currentBelt.value.color,
-    '--belt-color-dark': currentBelt.value.colorDark,
-    '--belt-glow': currentBelt.value.glow,
+    '--belt-color': playingBelt.value.color,
+    '--belt-color-dark': playingBelt.value.colorDark,
+    '--belt-glow': playingBelt.value.glow,
   }))
 
   // ============================================================================
@@ -690,6 +705,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
 
     // Belt info
     currentBelt,
+    playingBelt,
     nextBelt,
     previousBelt,
     beltJourney,
@@ -716,6 +732,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
     endSession,
 
     // Actions
+    setPlayingPosition,
     setLastLegoId,
     checkBeltPromotion,
     resetProgress,
