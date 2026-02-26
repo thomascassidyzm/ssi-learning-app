@@ -207,7 +207,7 @@ export default async function handler(
       }
     }
 
-    const isAdminOrTeacher = ['govt_admin', 'school_admin', 'teacher'].includes(codeType)
+    const isAdminOrTeacher = ['god', 'govt_admin', 'school_admin', 'teacher'].includes(codeType)
     const redirectTo = isAdminOrTeacher ? '/schools' : '/'
 
     console.log('[InviteRedeem] Redeemed code:', normalizedCode, 'for user:', userId, 'role:', codeType)

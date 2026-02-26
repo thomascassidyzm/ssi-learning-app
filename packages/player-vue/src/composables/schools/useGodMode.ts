@@ -8,7 +8,7 @@
 import { ref, computed, watch } from 'vue'
 import { getSchoolsClient } from './client'
 
-export type EducationalRole = 'student' | 'teacher' | 'school_admin' | 'govt_admin'
+export type EducationalRole = 'god' | 'student' | 'teacher' | 'school_admin' | 'govt_admin'
 
 export interface GodModeUser {
   user_id: string
@@ -31,6 +31,7 @@ const selectedUser = ref<GodModeUser | null>(loadStoredUser())
 const allUsers = ref<GodModeUser[]>([])
 const isLoading = ref(false)
 const error = ref<string | null>(null)
+const isGodAccessVerified = ref(false)
 
 function loadStoredUser(): GodModeUser | null {
   if (typeof window === 'undefined') return null
@@ -60,6 +61,27 @@ watch(selectedUser, (user) => {
 
 export function useGodMode() {
   const client = getSchoolsClient()
+
+  // Check if current authenticated user has god access
+  async function checkGodAccess(): Promise<boolean> {
+    try {
+      const { data, error: fetchError } = await client
+        .from('learners')
+        .select('educational_role')
+        .eq('educational_role', 'god')
+        .maybeSingle()
+
+      if (fetchError || !data) {
+        isGodAccessVerified.value = false
+        return false
+      }
+      isGodAccessVerified.value = true
+      return true
+    } catch {
+      isGodAccessVerified.value = false
+      return false
+    }
+  }
 
   // Fetch all users with their context
   async function fetchUsers(): Promise<void> {
@@ -287,6 +309,7 @@ export function useGodMode() {
     allUsers,
     isLoading,
     error,
+    isGodAccessVerified,
 
     // Computed
     currentRole,
@@ -306,6 +329,7 @@ export function useGodMode() {
     canViewRegion,
 
     // Actions
+    checkGodAccess,
     fetchUsers,
     selectUser,
     clearSelection,

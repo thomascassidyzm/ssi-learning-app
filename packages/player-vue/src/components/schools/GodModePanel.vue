@@ -11,7 +11,9 @@ const {
   allUsers,
   isLoading,
   error,
+  isGodAccessVerified,
   usersByRole,
+  checkGodAccess,
   fetchUsers,
   selectUser,
   clearSelection,
@@ -81,13 +83,16 @@ function getRoleLabel(role: EducationalRole | null): string {
   return roles.find(r => r.value === role)?.label || 'Unknown'
 }
 
-onMounted(() => {
-  fetchUsers()
+onMounted(async () => {
+  const hasAccess = await checkGodAccess()
+  if (hasAccess) {
+    fetchUsers()
+  }
 })
 </script>
 
 <template>
-  <div class="god-mode-panel" :class="{ open: isOpen }">
+  <div v-if="isGodAccessVerified" class="god-mode-panel" :class="{ open: isOpen }">
     <!-- Toggle Button -->
     <button class="panel-toggle" @click="isOpen = !isOpen" title="God Mode - Impersonate User">
       <span class="toggle-icon">👁️</span>
