@@ -3767,6 +3767,16 @@ const startPlayback = async () => {
  * SKIP - Jump to start of NEXT round
  * IMPORTANT: Must fully halt all audio before advancing
  */
+/**
+ * Halt all non-SimplePlayer audio: intro, welcome, path animation.
+ * SimplePlayer handles its own audio/timer cleanup via jumpToRound()/skipRound().
+ */
+const haltAllPlayback = () => {
+  if (isPlayingIntroduction.value) skipIntroduction()
+  if (isPlayingWelcome.value) skipWelcome()
+  clearPathAnimation()
+}
+
 const handleSkip = async () => {
   // CRITICAL: Guard against concurrent skips - if already skipping, abort any playing intro and return
   if (isSkipInProgress.value) {
@@ -3781,180 +3791,13 @@ const handleSkip = async () => {
   console.log('[LearningPlayer] Using SimplePlayer skipRound')
   isSkipInProgress.value = true
   try {
-    // Skip any intro/welcome audio
-    if (isPlayingIntroduction.value) skipIntroduction()
-    if (isPlayingWelcome.value) skipWelcome()
-    // Clear path animations
-    clearPathAnimation()
-    // Skip to next round
+    haltAllPlayback()
     simplePlayer.skipRound()
   } finally {
     isSkipInProgress.value = false
   }
-  return
-
-  // Mark that we're in a skip operation (prevents cycle_stopped from resetting isPlaying)
-  const wasPlaying = isPlaying.value
-  isSkipInProgress.value = true
-
-  // 0. INCREMENT GENERATION FIRST - invalidates any pending callbacks from previous position
-  playbackGeneration.value++
-  console.log('[LearningPlayer] Skip: Generation incremented to', playbackGeneration.value, 'wasPlaying:', wasPlaying)
-
-  // 1. IMMEDIATELY suppress all audio callbacks to prevent race conditions
-  if (audioController.value?.suppressCallbacks) {
-    audioController.value.suppressCallbacks()
-  }
-
-  // 2. HALT ORCHESTRATOR FIRST - prevents it from starting new audio
-  {
-    stopCycle()
-    console.log('[LearningPlayer] Skip: Orchestrator stopped')
-  }
-
-  // 3. HARD RESET audio controller - nuclear option to ensure clean slate
-  // This recreates the audio element, clearing ALL browser buffers
-  if (audioController.value) {
-    audioController.value.hardReset()
-    console.log('[LearningPlayer] Skip: Audio controller hard reset complete')
-  }
-
-  // 4. Skip any playing intro/welcome (these use separate audio elements)
-  if (isPlayingIntroduction.value) {
-    skipIntroduction()
-    console.log('[LearningPlayer] Skip: Intro skipped')
-  }
-  if (isPlayingWelcome.value) {
-    skipWelcome()
-    console.log('[LearningPlayer] Skip: Welcome skipped')
-  }
-
-  // 5. Clear any path animations
-  clearPathAnimation()
-
-  // 6. Wait for complete audio silence - ensures no fragments can play
-  // This is critical: we MUST wait for browser to fully release audio resources
-  await new Promise(resolve => setTimeout(resolve, 50))
-
-  // 7. Double-stop: call stop again after delay to catch any stragglers
-  if (audioController.value) {
-    audioController.value.stop()
-  }
-
-  // 8. Final settling delay for CSS transitions (300ms transition, add buffer)
-  await new Promise(resolve => setTimeout(resolve, 100))
-  console.log('[LearningPlayer] Skip: All audio cleanup complete, proceeding to next item')
-
-  // 6. Re-enable callbacks AFTER skip navigation is complete
-  // (this happens at end of function)
-
-  // Round-based navigation
-  if (useRoundBasedPlayback.value && cachedRounds.value.length) {
-    let nextIndex = currentRoundIndex.value + 1
-
-    // Check if we're at/near the end and need expansion
-    if (nextIndex >= cachedRounds.value.length - EXPANSION_THRESHOLD) {
-      console.log('[LearningPlayer] Skip: Near end, triggering expansion...')
-      await expandScript()
-    }
-
-    // Re-check after expansion
-    if (nextIndex >= cachedRounds.value.length) {
-      console.log('[LearningPlayer] Skip: Reached end of course (no more content)')
-      showPausedSummary()
-      return
-    }
-
-    currentRoundIndex.value = nextIndex
-    currentItemInRound.value = 0
-    // Don't increment roundsThisSession when skipping - only natural completion counts
-
-    // Update belt to match new position (NO celebration when skipping - only natural completion)
-    updateBeltForPosition(nextIndex, false)
-
-    // Populate network with all LEGOs up to this point (backfill skipped nodes)
-    populateNetworkUpToRound(nextIndex)
-
-    console.log('[LearningPlayer] Skip → Round', nextIndex, 'LEGO:', cachedRounds.value[nextIndex]?.legoId)
-
-    // Always get the first item to update display
-    const firstItem = cachedRounds.value[nextIndex]?.items?.[0]
-    console.log('[LearningPlayer] Skip → firstItem:', firstItem?.type, firstItem?.knownText, '→', firstItem?.targetText)
-
-    // Update display (even when paused)
-    if (firstItem) {
-      const playable = await scriptItemToPlayableItem(firstItem)
-      if (playable) {
-        currentPlayableItem.value = playable
-      }
-    }
-
-    // Start the new round if wasPlaying (use captured value, not current isPlaying which may have been reset)
-    if (wasPlaying && firstItem) {
-      // Restore playing state since we're about to play
-      isPlaying.value = true
-
-      // INTRO items: play introduction audio directly, then advance to next item
-      if (firstItem.type === 'intro') {
-        console.log('[LearningPlayer] Skip → Playing INTRO for:', firstItem.legoId)
-        const introPlayed = await playIntroductionAudioDirectly(firstItem)
-        console.log('[LearningPlayer] Skip → intro played:', introPlayed)
-
-        // CRITICAL: If intro was aborted (another skip happened), bail out completely
-        // The other skip is now in control - don't interfere
-        if (!introPlayed) {
-          console.log('[LearningPlayer] Skip → intro was aborted, bailing out')
-          isSkipInProgress.value = false
-          return
-        }
-
-        // CRITICAL: Ensure complete audio silence before starting next item
-        // This prevents any stale audio fragments from contaminating the new playback
-        if (audioController.value) {
-          audioController.value.stop()
-        }
-        // Brief delay to ensure browser has released audio resources
-        await new Promise(resolve => setTimeout(resolve, 50))
-
-        // Advance to next item (the DEBUT)
-        currentItemInRound.value++
-        const nextItem = cachedRounds.value[nextIndex]?.items?.[currentItemInRound.value]
-        console.log('[LearningPlayer] Skip → advancing to item:', currentItemInRound.value, nextItem?.type)
-        if (nextItem && isPlaying.value) {
-          const nextPlayable = await scriptItemToPlayableItem(nextItem)
-          if (nextPlayable) {
-            currentPlayableItem.value = nextPlayable
-            // Set pause duration for new item
-            if (nextPlayable.audioDurations) {
-              const pauseMs = getPauseDuration(Math.round(nextPlayable.audioDurations.target1 * 1000))
-            }
-            await startCyclePlayback(nextPlayable)
-          }
-        }
-      } else {
-        console.log('[LearningPlayer] Skip → firstItem NOT intro, starting directly')
-        // Non-intro item: start directly via orchestrator
-        {
-          await startCyclePlayback(currentPlayableItem.value)
-        }
-      }
-    }
-  } else {
-    // Fallback: skip current phase in demo mode
-    {
-      
-    }
-  }
-
-  // Re-enable callbacks now that skip is complete
-  if (audioController.value?.enableCallbacks) {
-    audioController.value.enableCallbacks()
-  }
-
-  // Clear skip flag - skip operation complete
-  isSkipInProgress.value = false
-  console.log('[LearningPlayer] Skip: Complete, isPlaying:', isPlaying.value)
 }
+
 
 /**
  * REVISIT - Go back to start of current round, or previous round if already at start
@@ -3965,10 +3808,7 @@ const handleRevisit = async () => {
 
   console.log('[LearningPlayer] ========== REVISIT REQUESTED ==========')
 
-  // Skip any playing intro/welcome
-  if (isPlayingIntroduction.value) skipIntroduction()
-  if (isPlayingWelcome.value) skipWelcome()
-  clearPathAnimation()
+  haltAllPlayback()
 
   // Determine target round: go to start of current, or previous if already at start
   let targetIndex = currentRoundIndex.value
@@ -3998,159 +3838,9 @@ const jumpToRound = async (roundIndex) => {
   }
 
   console.log('[LearningPlayer] Using SimplePlayer jumpToRound:', roundIndex)
-  // Skip any intro/welcome audio
-  if (isPlayingIntroduction.value) skipIntroduction()
-  if (isPlayingWelcome.value) skipWelcome()
-  // Clear path animations
-  clearPathAnimation()
+  haltAllPlayback()
   // Jump via SimplePlayer (0-based index)
   simplePlayer.jumpToRound(roundIndex)
-  return true
-
-  // Legacy validation
-  if (!cachedRounds.value.length) {
-    console.log('[LearningPlayer] Jump not available - no cached rounds')
-    return false
-  }
-
-  if (roundIndex < 0 || roundIndex >= cachedRounds.value.length) {
-    console.log('[LearningPlayer] Invalid round index:', roundIndex)
-    return false
-  }
-
-  // Guard against concurrent operations
-  if (isSkipInProgress.value) {
-    console.log('[LearningPlayer] Skip/jump already in progress - aborting intro and returning')
-    skipIntroduction()
-    return false
-  }
-
-  console.log('[LearningPlayer] ========== JUMP TO ROUND', roundIndex, '==========')
-
-  // Mark that we're in a skip operation (prevents cycle_stopped from resetting isPlaying)
-  const wasPlaying = isPlaying.value
-  isSkipInProgress.value = true
-
-  // 0. Increment generation to invalidate any pending callbacks from previous position
-  playbackGeneration.value++
-  console.log('[LearningPlayer] Jump: Generation incremented to', playbackGeneration.value, 'wasPlaying:', wasPlaying)
-
-  // 1. IMMEDIATELY suppress all audio callbacks to prevent race conditions
-  if (audioController.value?.suppressCallbacks) {
-    audioController.value.suppressCallbacks()
-  }
-
-  // 2. HALT ORCHESTRATOR FIRST - prevents it from starting new audio
-  {
-    stopCycle()
-    console.log('[LearningPlayer] Jump: Orchestrator stopped')
-  }
-
-  // 3. HARD RESET audio controller - nuclear option to ensure clean slate
-  if (audioController.value) {
-    audioController.value.hardReset()
-    console.log('[LearningPlayer] Jump: Audio controller hard reset complete')
-  }
-
-  // 4. Skip any playing intro/welcome (these use separate audio elements)
-  if (isPlayingIntroduction.value) {
-    skipIntroduction()
-    console.log('[LearningPlayer] Jump: Intro skipped')
-  }
-  if (isPlayingWelcome.value) {
-    skipWelcome()
-    console.log('[LearningPlayer] Jump: Welcome skipped')
-  }
-
-  // 5. Clear path animations
-  clearPathAnimation()
-
-  // 6. Wait for complete audio silence
-  await new Promise(resolve => setTimeout(resolve, 50))
-
-  // 7. Double-stop: call stop again after delay to catch any stragglers
-  if (audioController.value) {
-    audioController.value.stop()
-  }
-
-  // 8. Final settling delay for CSS transitions
-  await new Promise(resolve => setTimeout(resolve, 100))
-  console.log('[LearningPlayer] Jump: All audio cleanup complete, proceeding')
-
-  const previousIndex = currentRoundIndex.value
-  currentRoundIndex.value = roundIndex
-  currentItemInRound.value = 0
-
-  // Update belt to match new position (NO celebration when jumping - only natural completion)
-  updateBeltForPosition(roundIndex, false)
-
-  // Populate network with all LEGOs up to this point (backfill skipped nodes)
-  populateNetworkUpToRound(roundIndex)
-
-  console.log('[LearningPlayer] Jump → Round', roundIndex, 'LEGO:', cachedRounds.value[roundIndex]?.legoId)
-
-  // Always get the first item to update display
-  const firstItem = cachedRounds.value[roundIndex]?.items?.[0]
-  console.log('[LearningPlayer] Jump → firstItem:', firstItem?.type, firstItem?.knownText, '→', firstItem?.targetText)
-
-  // Update display (even when paused)
-  if (firstItem) {
-    const playable = await scriptItemToPlayableItem(firstItem)
-    if (playable) {
-      currentPlayableItem.value = playable
-    }
-  }
-
-  // Start the round if playing
-  if (isPlaying.value && firstItem) {
-    // INTRO items: play introduction audio directly, then advance to next item
-    if (firstItem.type === 'intro') {
-      console.log('[LearningPlayer] Jump → Playing INTRO for:', firstItem.legoId)
-      const introPlayed = await playIntroductionAudioDirectly(firstItem)
-      console.log('[LearningPlayer] Jump → intro played:', introPlayed)
-
-      // CRITICAL: If intro was aborted, bail out
-      if (!introPlayed) {
-        console.log('[LearningPlayer] Jump → intro was aborted, bailing out')
-        isSkipInProgress.value = false
-        return false
-      }
-
-      // CRITICAL: Ensure complete audio silence before starting next item
-      if (audioController.value) {
-        audioController.value.stop()
-      }
-      await new Promise(resolve => setTimeout(resolve, 50))
-
-      // Advance to next item (the DEBUT)
-      currentItemInRound.value++
-      const nextItem = cachedRounds.value[roundIndex]?.items?.[currentItemInRound.value]
-      console.log('[LearningPlayer] Jump → advancing to item:', currentItemInRound.value, nextItem?.type)
-      if (nextItem && isPlaying.value) {
-        const nextPlayable = await scriptItemToPlayableItem(nextItem)
-        if (nextPlayable) {
-          currentPlayableItem.value = nextPlayable
-          await startCyclePlayback(nextPlayable)
-        }
-      }
-    } else {
-      console.log('[LearningPlayer] Jump → firstItem NOT intro, starting directly')
-      // Non-intro item: start directly via orchestrator
-      {
-        await startCyclePlayback(currentPlayableItem.value)
-      }
-    }
-  }
-
-  // Re-enable callbacks now that jump is complete
-  if (audioController.value?.enableCallbacks) {
-    audioController.value.enableCallbacks()
-  }
-
-  // Clear skip flag - jump operation complete
-  isSkipInProgress.value = false
-  console.log('[LearningPlayer] Jump: Complete, isPlaying:', isPlaying.value)
-
   return true
 }
 
@@ -4196,6 +3886,7 @@ const handleSkipToNextBelt = async () => {
 
   isSkippingBelt.value = true
   try {
+    haltAllPlayback()
     const targetSeed = nextBeltThreshold
     console.log(`[LearningPlayer] Skipping to ${nextBeltNameFromPosition} belt - seed ${targetSeed}`)
 
@@ -4301,6 +3992,7 @@ const handleGoBackBelt = async () => {
   isSkippingBelt.value = true
 
   try {
+    haltAllPlayback()
     console.log(`[LearningPlayer] Going back to seed ${targetSeed}`)
 
     // Reset the brain network for fresh start at new belt
@@ -4347,6 +4039,7 @@ const handleSkipToBeltFromModal = async (belt) => {
 
   isSkippingBelt.value = true
   try {
+    haltAllPlayback()
     // Reset the brain network for fresh start at new belt
     if (networkState?.revealedNodeIds) {
       networkState.revealedNodeIds.value = new Set<string>()
@@ -6221,6 +5914,9 @@ defineExpose({
   exitListeningMode,
   exitAllModes,
   unlockAudio,
+  handleListeningMode,
+  handleEnterDrivingMode,
+  handleExitDrivingMode,
 })
 </script>
 
@@ -6889,7 +6585,7 @@ defineExpose({
     </section>
 
     <!-- CONTROL PANE - Minimal text display, tap to play/pause -->
-    <section class="control-pane" :class="[currentPhase, `layout-${layoutMode}`, { 'is-paused': !isPlaying }]" @click="handleRingTap">
+    <section class="control-pane" :class="[currentPhase, `layout-${layoutMode}`, { 'is-paused': !isPlaying }]">
       <!-- Ink Spirit Rewards - Float upward from the text area -->
       <TransitionGroup name="ink-spirit" tag="div" class="ink-spirit-container">
         <div
@@ -6997,35 +6693,8 @@ defineExpose({
 
     <!-- Control Bar - 2+2 balanced layout around nav bar play button -->
     <div class="control-bar" :class="{ 'control-bar--hidden': !isPlaying && !showListeningOverlay && !isDrivingModeActive }">
-      <!-- Left side: Mode | Revisit -->
+      <!-- Revisit -->
       <div class="control-group control-group--left">
-        <button
-          class="mode-btn mode-btn--modes"
-          :class="{
-            'active active--listening': showListeningOverlay,
-            'active active--driving': isDrivingModeActive,
-          }"
-          @click="handleModeButtonClick"
-          title="Learning Modes"
-        >
-          <svg v-if="isDrivingModeActive" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0ZM15 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z"/>
-            <path d="M5 17H3v-6l2-5h10l4 5h2v6h-2"/>
-            <path d="M5 11h14"/>
-            <path d="M9 17h6"/>
-          </svg>
-          <svg v-else-if="showListeningOverlay" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
-            <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
-          </svg>
-          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 20v-6M6 20v-4M18 20v-2"/>
-            <circle cx="12" cy="10" r="2"/>
-            <path d="M8 12a4 4 0 0 1 8 0"/>
-            <path d="M5 14a7 7 0 0 1 14 0"/>
-          </svg>
-        </button>
-
         <button class="transport-btn" @click="handleRevisit" :disabled="isDrivingModeActive" title="Revisit">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="15 18 9 12 15 6"/>
@@ -7033,23 +6702,11 @@ defineExpose({
         </button>
       </div>
 
-      <!-- Right side: Skip | Turbo -->
+      <!-- Skip -->
       <div class="control-group control-group--right">
         <button class="transport-btn" @click="handleSkip" :disabled="isDrivingModeActive" title="Skip">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="9 18 15 12 9 6"/>
-          </svg>
-        </button>
-
-        <button
-          class="mode-btn mode-btn--turbo"
-          :class="{ active: turboActive }"
-          @click="handleTurboClick"
-          :disabled="isDrivingModeActive"
-          title="Turbo Boost"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
           </svg>
         </button>
       </div>
