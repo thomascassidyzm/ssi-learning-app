@@ -153,24 +153,11 @@ const fetchCourses = async () => {
   } catch (e) {
     console.error('Failed to fetch courses:', e)
     error.value = 'Failed to load courses'
-    // Fallback to mock data for development
-    allCourses.value = getMockCourses()
+    allCourses.value = []
   } finally {
     isLoading.value = false
   }
 }
-
-// Mock courses for development/fallback (matches dashboard schema with new visibility fields)
-const getMockCourses = () => [
-  // Community/free courses - visible at launch
-  { course_code: 'cym_n_for_eng', known_lang: 'eng', target_lang: 'cym_n', display_name: 'Welsh (North) for English Speakers', visibility: 'public', pricing_tier: 'free', is_community: false },
-  { course_code: 'cym_s_for_eng', known_lang: 'eng', target_lang: 'cym_s', display_name: 'Welsh (South) for English Speakers', visibility: 'public', pricing_tier: 'free', is_community: false },
-  // Premium courses - hidden at launch, shown here for testing
-  { course_code: 'spa_for_eng', known_lang: 'eng', target_lang: 'spa', display_name: 'Spanish for English Speakers', visibility: 'public', pricing_tier: 'premium', is_community: false },
-  { course_code: 'ita_for_eng', known_lang: 'eng', target_lang: 'ita', display_name: 'Italian for English Speakers', visibility: 'public', pricing_tier: 'premium', is_community: false },
-  { course_code: 'fra_for_eng', known_lang: 'eng', target_lang: 'fra', display_name: 'French for English Speakers', visibility: 'beta', pricing_tier: 'premium', is_community: false },
-  { course_code: 'deu_for_eng', known_lang: 'eng', target_lang: 'deu', display_name: 'German for English Speakers', visibility: 'beta', pricing_tier: 'premium', is_community: false },
-]
 
 // Handle course selection
 const handleCourseSelect = (course) => {
