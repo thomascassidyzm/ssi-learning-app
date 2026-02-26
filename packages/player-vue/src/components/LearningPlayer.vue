@@ -18,7 +18,7 @@ import ReportIssueButton from './ReportIssueButton.vue'
 import { useLearningSession } from '../composables/useLearningSession'
 import { useScriptCache, setCachedScript } from '../composables/useScriptCache'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
-import { useSharedBeltProgress, getSeedFromLegoId, type BeltProgressSyncConfig } from '../composables/useBeltProgress'
+import { useSharedBeltProgress, getSeedFromLegoId, BELTS, type BeltProgressSyncConfig } from '../composables/useBeltProgress'
 import { useBeltLoader, getBeltForSeed, BELT_RANGES, type BeltLoaderConfig } from '../composables/useBeltLoader'
 import { useOfflinePlay } from '../composables/useOfflinePlay'
 import { useOfflineCache } from '../composables/useOfflineCache'
@@ -1110,24 +1110,38 @@ const playingBelt = computed(() => beltProgress.value?.playingBelt.value ?? { na
 const nextBelt = computed(() => beltProgress.value?.nextBelt.value ?? null)
 const previousBelt = computed(() => beltProgress.value?.previousBelt.value ?? null)
 
+// Skip nav: next/prev belts relative to PLAYING position (not highest achieved)
+const playingNextBelt = computed(() => {
+  const idx = playingBelt.value.index + 1
+  if (idx >= BELTS.length) return null
+  return { ...BELTS[idx], index: idx }
+})
+
+const playingPrevBelt = computed(() => {
+  const idx = playingBelt.value.index - 1
+  if (idx < 0) return null
+  return { ...BELTS[idx], index: idx }
+})
+
 // Calculate which belt the "back" button will go TO
-// Mirrors goBackToBeltStart logic: if >2 seeds into current belt, stays on current; otherwise goes to previous
+// Based on playing position: if >2 seeds into playing belt, go to its start; otherwise previous belt
 const backTargetBelt = computed(() => {
-  const currentStart = currentBelt.value.seedsRequired
-  // If we're more than 2 seeds into current belt, target is current belt start
-  if (completedRounds.value > currentStart + 2 || !previousBelt.value) {
-    return currentBelt.value
+  const pb = playingBelt.value
+  const currentRound = simplePlayer.currentRound?.value
+  const currentSeedId = currentRound?.seedId || 'S0001'
+  const currentSeedNumber = parseInt(currentSeedId.substring(1, 5), 10) || 1
+  const beltStart = pb.seedsRequired === 0 ? 1 : pb.seedsRequired
+  if (currentSeedNumber > beltStart + 2 && pb.index > 0) {
+    return pb
   }
-  // Otherwise, target is previous belt
-  return previousBelt.value
+  return playingPrevBelt.value ?? pb
 })
 
 // Belt skip loading state: true when target belt's first round is NOT yet loaded
 // Belt skip buttons flash until their target rounds are available
 const nextBeltLoading = computed(() => {
-  const nb = nextBelt.value
+  const nb = playingNextBelt.value
   if (!nb) return false
-  // Use findRoundIndexForSeed to check if target seed's rounds are loaded
   return simplePlayer.findRoundIndexForSeed(nb.seedsRequired) < 0
 })
 
@@ -1135,7 +1149,6 @@ const prevBeltLoading = computed(() => {
   const bt = backTargetBelt.value
   if (!bt) return false
   const targetSeed = bt.seedsRequired === 0 ? 1 : bt.seedsRequired
-  // Use findRoundIndexForSeed to check if target seed's rounds are loaded
   return simplePlayer.findRoundIndexForSeed(targetSeed) < 0
 })
 
@@ -4215,6 +4228,7 @@ const handleSkipToNextBelt = async () => {
     // Update belt progress to match (uses absolute seed number)
     if (beltProgress.value) {
       beltProgress.value.setSeeds(targetSeed)
+      beltProgress.value.setPlayingPosition(targetSeed)
     }
   } finally {
     isSkippingBelt.value = false
@@ -4306,6 +4320,7 @@ const handleGoBackBelt = async () => {
     // Update belt progress to match
     if (beltProgress.value) {
       beltProgress.value.setSeeds(targetSeed)
+      beltProgress.value.setPlayingPosition(targetSeed)
     }
 
     console.log(`[LearningPlayer] handleGoBackBelt: complete, now at seed ${targetSeed}`)
@@ -6625,7 +6640,7 @@ defineExpose({
             class="belt-header-skip belt-header-skip--back"
             :class="{ 'is-skipping': isSkippingBelt, 'is-loading-target': prevBeltLoading }"
             @click="handleGoBackBelt"
-            :disabled="!previousBelt && currentBelt.seedsRequired === completedRounds"
+            :disabled="playingBelt.index === 0"
             :title="`Back to ${backTargetBelt.name} belt`"
             :style="{ '--skip-belt-color': backTargetBelt.color }"
           >
@@ -6652,9 +6667,9 @@ defineExpose({
             class="belt-header-skip belt-header-skip--forward"
             :class="{ 'is-skipping': isSkippingBelt, 'is-loading-target': nextBeltLoading }"
             @click="handleSkipToNextBelt"
-            :disabled="!nextBelt"
-            :title="nextBelt ? `Skip to ${nextBelt.name} belt` : 'Black belt achieved!'"
-            :style="nextBelt ? { '--skip-belt-color': nextBelt.color, '--skip-belt-glow': nextBelt.glow } : {}"
+            :disabled="!playingNextBelt"
+            :title="playingNextBelt ? `Skip to ${playingNextBelt.name} belt` : 'End of course'"
+            :style="playingNextBelt ? { '--skip-belt-color': playingNextBelt.color, '--skip-belt-glow': playingNextBelt.glow } : {}"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="13 17 18 12 13 7"/>
