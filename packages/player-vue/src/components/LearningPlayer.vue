@@ -1145,10 +1145,22 @@ const timeToNextBelt = computed(() => beltProgress.value?.timeToNextBelt.value ?
 const beltJourney = computed(() => beltProgress.value?.beltJourney.value ?? [])
 
 // CSS custom properties for belt theming
-const beltCssVars = computed(() => beltProgress.value?.beltCssVars.value ?? {
-  '--belt-color': '#f5f5f5',
-  '--belt-color-dark': '#e0e0e0',
-  '--belt-glow': 'rgba(245, 245, 245, 0.3)',
+const beltCssVars = computed(() => {
+  const base = beltProgress.value?.beltCssVars.value ?? {
+    '--belt-color': '#f5f5f5',
+    '--belt-color-dark': '#e0e0e0',
+    '--belt-glow': 'rgba(245, 245, 245, 0.3)',
+  }
+  // Mist theme: white belt needs dark accents (white-on-white invisible)
+  const isMist = themeContext?.theme?.value === 'mist'
+  if (isMist && playingBelt.value.name === 'white') {
+    return {
+      '--belt-color': '#1A1614',
+      '--belt-color-dark': '#000000',
+      '--belt-glow': 'rgba(26, 22, 20, 0.15)',
+    }
+  }
+  return base
 })
 
 // Star field fades as constellation fills in - your LEGOs become your stars
@@ -10585,6 +10597,7 @@ defineExpose({
   opacity: 0;
 }
 
+
 </style>
 
 <!-- ═══════════════════════════════════════════════════════════════
@@ -10920,21 +10933,14 @@ defineExpose({
   color: #A89C8E;
 }
 
-/* --- White belt in mist → black accents (white-on-white invisible) --- */
-[data-theme="mist"] .player.belt-white {
-  --belt-color: #1A1614;
-  --belt-color-dark: #000000;
-  --belt-glow: rgba(26, 22, 20, 0.15);
-}
-
 /* --- Black belt in mist → double stripe distinction --- */
 [data-theme="mist"] .player.belt-black .belt-bar-fill {
   background: linear-gradient(to bottom,
-    var(--belt-color) 35%, var(--bg-primary, #F2F0ED) 42%,
-    var(--bg-primary, #F2F0ED) 58%, var(--belt-color) 65%);
+    var(--belt-color) 35%, #F2F0ED 42%,
+    #F2F0ED 58%, var(--belt-color) 65%) !important;
 }
 [data-theme="mist"] .player.belt-black .belt-timer-unified {
-  border: 2px solid #1A1614;
+  border: 2px solid #1A1614 !important;
   outline: 2px solid #1A1614;
   outline-offset: 2px;
 }
