@@ -118,6 +118,7 @@ const fetchCourses = async () => {
     const { data, error } = await client
       .from('courses')
       .select('*')
+      .in('new_app_status', ['live', 'beta'])
       .order('display_name')
 
     if (error) throw error
