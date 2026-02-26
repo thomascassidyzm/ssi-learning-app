@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import { useSignIn, useSignUp, useClerk } from '@clerk/vue'
+import { ref, computed, watch, inject } from 'vue'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import AuthModal from './AuthModal.vue'
 import { useAuthModal } from '@/composables/useAuthModal'
 import { useInviteCode } from '@/composables/useInviteCode'
@@ -11,16 +11,13 @@ const emit = defineEmits<{
   success: [payload?: { role?: string; redirectTo?: string }]
 }>()
 
-const { isLoaded: signInLoaded, signIn, setActive: setActiveSignIn } = useSignIn()
-const { isLoaded: signUpLoaded, signUp, setActive: setActiveSignUp } = useSignUp()
-const clerk = useClerk()
+const supabaseClient = inject<{ value: SupabaseClient | null }>('supabase')
 const { pendingCode, validationError, isValidating, validateCode, redeemCode, clearPendingCode } = useInviteCode()
 
 // Form state
 const email = ref('')
 const verificationCode = ref('')
 const step = ref<'code' | 'context' | 'email' | 'verify'>('email')
-const authPath = ref<'signIn' | 'signUp'>('signIn')
 const isLoading = ref(false)
 const error = ref('')
 
@@ -38,7 +35,6 @@ watch(isOpen, (open) => {
     codeInput.value = ''
     clearPendingCode()
     step.value = 'email'
-    authPath.value = 'signIn'
   }
 })
 
@@ -105,51 +101,31 @@ const contextDescription = computed(() => {
   return ''
 })
 
-// ── Unified email → OTP flow ──
-// Try signIn first. If account doesn't exist, fall back to signUp.
+// ── Supabase OTP flow ──
+// signInWithOtp handles both sign-in AND sign-up automatically
 
 const handleSendCode = async () => {
-  if (!signInLoaded.value || !signIn.value || !signUpLoaded.value || !signUp.value) return
+  const client = supabaseClient?.value
+  if (!client) {
+    error.value = 'App not ready. Please try again.'
+    return
+  }
 
   isLoading.value = true
   error.value = ''
 
   try {
-    // Try sign-in first
-    const result = await signIn.value.create({ identifier: email.value })
-    const emailCodeFactor = result.supportedFirstFactors?.find(
-      (f: any) => f.strategy === 'email_code'
-    )
+    const { error: otpError } = await client.auth.signInWithOtp({ email: email.value })
 
-    if (!emailCodeFactor) {
-      error.value = 'Email sign-in is not available for this account.'
+    if (otpError) {
+      error.value = otpError.message || 'Unable to send code. Please try again.'
       return
     }
 
-    await signIn.value.prepareFirstFactor({
-      strategy: 'email_code',
-      emailAddressId: (emailCodeFactor as any).emailAddressId,
-    })
-
-    authPath.value = 'signIn'
     step.value = 'verify'
   } catch (err: any) {
-    // Check if it's "account not found" — fall back to sign-up
-    const code = err.errors?.[0]?.code
-    if (code === 'form_identifier_not_found') {
-      try {
-        await signUp.value.create({ emailAddress: email.value })
-        await signUp.value.prepareEmailAddressVerification({ strategy: 'email_code' })
-        authPath.value = 'signUp'
-        step.value = 'verify'
-      } catch (signUpErr: any) {
-        console.error('Sign up error:', signUpErr)
-        error.value = signUpErr.errors?.[0]?.message || signUpErr.message || 'Unable to create account. Please try again.'
-      }
-    } else {
-      console.error('Sign in error:', err)
-      error.value = err.errors?.[0]?.message || err.message || 'Unable to sign in. Please check your email address.'
-    }
+    console.error('OTP error:', err)
+    error.value = err.message || 'Unable to send code. Please try again.'
   } finally {
     isLoading.value = false
   }
@@ -158,41 +134,29 @@ const handleSendCode = async () => {
 // ── Verify OTP ──
 
 const handleVerify = async () => {
+  const client = supabaseClient?.value
+  if (!client) return
+
   isLoading.value = true
   error.value = ''
 
   try {
-    if (authPath.value === 'signIn') {
-      if (!signInLoaded.value || !signIn.value) return
-      const result = await signIn.value.attemptFirstFactor({
-        strategy: 'email_code',
-        code: verificationCode.value,
-      })
-      if (result.status === 'complete') {
-        if (setActiveSignIn.value) {
-          await setActiveSignIn.value({ session: result.createdSessionId })
-        }
-        await handlePostAuth()
-      } else {
-        error.value = 'Additional verification required.'
-      }
-    } else {
-      if (!signUpLoaded.value || !signUp.value) return
-      const result = await signUp.value.attemptEmailAddressVerification({
-        code: verificationCode.value,
-      })
-      if (result.status === 'complete') {
-        if (setActiveSignUp.value) {
-          await setActiveSignUp.value({ session: result.createdSessionId })
-        }
-        await handlePostAuth()
-      } else {
-        error.value = 'Please complete all verification steps.'
-      }
+    const { error: verifyError } = await client.auth.verifyOtp({
+      email: email.value,
+      token: verificationCode.value,
+      type: 'email',
+    })
+
+    if (verifyError) {
+      error.value = verifyError.message || 'Invalid verification code. Please try again.'
+      return
     }
+
+    // Auth state change listener in useAuth will handle the rest
+    await handlePostAuth()
   } catch (err: any) {
     console.error('Verification error:', err)
-    error.value = err.errors?.[0]?.message || 'Invalid verification code. Please try again.'
+    error.value = err.message || 'Invalid verification code. Please try again.'
   } finally {
     isLoading.value = false
   }
@@ -202,16 +166,19 @@ const handleVerify = async () => {
 const handlePostAuth = async () => {
   if (pendingCode.value) {
     try {
-      const sess = clerk.value?.session
-      const token = sess ? await sess.getToken() : null
-      if (token) {
-        const redeemResult = await redeemCode(token)
-        if (redeemResult.success) {
-          emit('success', { role: redeemResult.role, redirectTo: redeemResult.redirectTo })
-          close()
-          return
+      const client = supabaseClient?.value
+      if (client) {
+        const { data: { session } } = await client.auth.getSession()
+        const token = session?.access_token
+        if (token) {
+          const redeemResult = await redeemCode(token)
+          if (redeemResult.success) {
+            emit('success', { role: redeemResult.role, redirectTo: redeemResult.redirectTo })
+            close()
+            return
+          }
+          console.error('[AuthModal] Code redemption failed:', redeemResult.error)
         }
-        console.error('[AuthModal] Code redemption failed:', redeemResult.error)
       }
     } catch (err) {
       console.error('[AuthModal] Code redemption error:', err)
@@ -223,24 +190,16 @@ const handlePostAuth = async () => {
 
 // Resend verification code
 const resendCode = async () => {
+  const client = supabaseClient?.value
+  if (!client) return
+
   try {
-    if (authPath.value === 'signIn') {
-      if (!signIn.value) return
-      await signIn.value.create({ identifier: email.value })
-      const emailCodeFactor = (signIn.value as any).supportedFirstFactors?.find(
-        (f: any) => f.strategy === 'email_code'
-      )
-      if (emailCodeFactor) {
-        await signIn.value.prepareFirstFactor({
-          strategy: 'email_code',
-          emailAddressId: emailCodeFactor.emailAddressId,
-        })
-      }
+    const { error: otpError } = await client.auth.signInWithOtp({ email: email.value })
+    if (otpError) {
+      error.value = 'Unable to resend code. Please try again.'
     } else {
-      if (!signUp.value) return
-      await signUp.value.prepareEmailAddressVerification({ strategy: 'email_code' })
+      error.value = ''
     }
-    error.value = ''
   } catch (err: any) {
     error.value = 'Unable to resend code. Please try again.'
   }

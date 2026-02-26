@@ -11,8 +11,8 @@
  * This allows easy provider swap (to Stripe, etc.) by only changing API endpoints.
  */
 
-import { ref, computed, type Ref, type ComputedRef } from 'vue'
-import { useUser } from '@clerk/vue'
+import { ref, computed, inject, type Ref, type ComputedRef } from 'vue'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
   Subscription,
   SubscriptionStatus,
@@ -64,8 +64,8 @@ export interface UseSubscriptionReturn {
 // ============================================================================
 
 export function useSubscription(): UseSubscriptionReturn {
-  // Clerk state for auth token
-  const { user: clerkUser } = useUser()
+  // Supabase client for auth token
+  const supabaseRef = inject<{ value: SupabaseClient | null }>('supabase')
 
   // Subscription state
   const subscription = ref<Subscription | null>(null)
@@ -138,12 +138,12 @@ export function useSubscription(): UseSubscriptionReturn {
   // ============================================================================
 
   async function getAuthToken(): Promise<string | null> {
-    if (!clerkUser.value) return null
+    const client = supabaseRef?.value
+    if (!client) return null
 
     try {
-      // @ts-expect-error - Clerk types may not include getToken
-      const token = await clerkUser.value.getToken?.()
-      return token || null
+      const { data: { session } } = await client.auth.getSession()
+      return session?.access_token || null
     } catch {
       return null
     }
@@ -284,8 +284,8 @@ export function useSubscription(): UseSubscriptionReturn {
     subscription.value = cached.subscription
   }
 
-  // Fetch fresh data in background (if authenticated)
-  if (clerkUser.value) {
+  // Fetch fresh data in background (if we have a client)
+  if (supabaseRef?.value) {
     fetchSubscription()
   }
 

@@ -1,16 +1,15 @@
 /**
- * useAuth - Authentication composable wrapping Clerk with Supabase integration
+ * useAuth - Authentication composable using Supabase Auth (email OTP)
  *
  * Provides:
- * - Clerk user state
+ * - Supabase Auth user state
  * - Supabase learner record
  * - Guest mode with local ID
  * - Progress migration when guest signs up
  */
 
-import { ref, computed, watch, type Ref, type ComputedRef } from 'vue'
-import { useUser, useClerk } from '@clerk/vue'
-import type { SupabaseClient } from '@supabase/supabase-js'
+import { ref, computed, type Ref, type ComputedRef } from 'vue'
+import type { SupabaseClient, User } from '@supabase/supabase-js'
 import type { LearnerRecord, LearnerPreferences } from '@ssi/core'
 
 // Local storage keys
@@ -19,15 +18,15 @@ const GUEST_SESSIONS_KEY = 'ssi-guest-sessions-count'
 const SIGNUP_PROMPT_SEEN_KEY = 'ssi-signup-prompt-seen'
 
 export interface AuthState {
-  /** Clerk user (null if guest) */
-  user: Ref<ReturnType<typeof useUser>['user']['value']>
+  /** Supabase Auth user (null if guest) */
+  user: Ref<User | null>
   /** Supabase learner record (null if guest or not yet loaded) */
   learner: Ref<LearnerRecord | null>
-  /** Whether user is authenticated with Clerk */
+  /** Whether user is authenticated with Supabase Auth */
   isAuthenticated: ComputedRef<boolean>
-  /** Whether user is a guest (no Clerk account) */
+  /** Whether user is a guest (no account) */
   isGuest: ComputedRef<boolean>
-  /** Effective learner ID (Clerk userId or guestId) */
+  /** Effective learner ID (Supabase user ID or guestId) */
   learnerId: ComputedRef<string | null>
   /** Number of completed sessions (for signup prompt) */
   completedSessionsCount: Ref<number>
@@ -38,11 +37,7 @@ export interface AuthState {
 }
 
 export interface AuthActions {
-  /** Open Clerk sign in modal */
-  openSignIn: () => void
-  /** Open Clerk sign up modal */
-  openSignUp: () => void
-  /** Sign out from Clerk */
+  /** Sign out from Supabase Auth */
   signOut: () => Promise<void>
   /** Increment guest session count */
   incrementSessionCount: () => void
@@ -79,9 +74,8 @@ function clearGuestData(): void {
  * useAuth composable
  */
 export function useAuth(): AuthState & AuthActions {
-  // Clerk state
-  const { user: clerkUser, isLoaded: clerkLoaded } = useUser()
-  const clerk = useClerk()
+  // Supabase Auth state
+  const supabaseUser = ref<User | null>(null)
 
   // Local state
   const learner = ref<LearnerRecord | null>(null)
@@ -97,12 +91,12 @@ export function useAuth(): AuthState & AuthActions {
     localStorage.getItem(SIGNUP_PROMPT_SEEN_KEY) === 'true'
   )
 
-  // Computed state (accounts for god mode where learner is set without Clerk)
-  const isAuthenticated = computed(() => !!clerkUser.value || !!learner.value)
-  const isGuest = computed(() => !clerkUser.value && !learner.value && !!guestId.value)
+  // Computed state (accounts for god mode where learner is set without Supabase Auth)
+  const isAuthenticated = computed(() => !!supabaseUser.value || !!learner.value)
+  const isGuest = computed(() => !supabaseUser.value && !learner.value && !!guestId.value)
   const learnerId = computed(() => {
-    if (clerkUser.value) {
-      return clerkUser.value.id
+    if (supabaseUser.value) {
+      return supabaseUser.value.id
     }
     if (learner.value) {
       return learner.value.user_id
@@ -114,9 +108,9 @@ export function useAuth(): AuthState & AuthActions {
    * Fetch or create learner record in Supabase
    */
   async function ensureLearnerExists(): Promise<LearnerRecord | null> {
-    if (!supabase.value || !clerkUser.value) return null
+    if (!supabase.value || !supabaseUser.value) return null
 
-    const userId = clerkUser.value.id
+    const userId = supabaseUser.value.id
 
     try {
       // Try to fetch existing learner
@@ -139,9 +133,7 @@ export function useAuth(): AuthState & AuthActions {
 
       // Create new learner if not found (PGRST116 = no rows)
       if (fetchError && fetchError.code === 'PGRST116') {
-        const displayName = clerkUser.value.firstName
-          || clerkUser.value.username
-          || 'Learner'
+        const displayName = supabaseUser.value.email?.split('@')[0] || 'Learner'
 
         const { data: newLearner, error: createError } = await supabase.value
           .from('learners')
@@ -191,14 +183,41 @@ export function useAuth(): AuthState & AuthActions {
   }
 
   /**
+   * Handle auth state change (sign in or sign out)
+   */
+  async function handleAuthChange(user: User | null): Promise<void> {
+    const previousUser = supabaseUser.value
+    supabaseUser.value = user
+
+    if (user && !previousUser) {
+      // User just signed in
+      isLoading.value = true
+      learner.value = await ensureLearnerExists()
+
+      // Migrate guest progress if any
+      const hadGuestId = localStorage.getItem(GUEST_ID_KEY)
+      if (hadGuestId) {
+        await migrateGuestProgress()
+      }
+
+      isLoading.value = false
+    } else if (!user && previousUser) {
+      // User signed out
+      learner.value = null
+      // Reinitialize guest ID
+      guestId.value = getOrCreateGuestId()
+    }
+  }
+
+  /**
    * Initialize auth state.
-   * In god mode (ssi-dev-role set), skips Clerk entirely and uses mock user IDs.
+   * In god mode (ssi-god-mode-user set), skips Supabase Auth entirely and uses mock user IDs.
    */
   async function initialize(supabaseClient: SupabaseClient): Promise<void> {
     supabase.value = supabaseClient
     isLoading.value = true
 
-    // God mode bypass: skip Clerk entirely when god mode user is set
+    // God mode bypass: skip auth entirely when god mode user is set
     const godModeUser = localStorage.getItem('ssi-god-mode-user')
     if (godModeUser) {
       try {
@@ -229,28 +248,10 @@ export function useAuth(): AuthState & AuthActions {
     // Initialize guest ID
     guestId.value = getOrCreateGuestId()
 
-    // Wait for Clerk to load
-    const waitForClerk = new Promise<void>((resolve) => {
-      if (clerkLoaded.value) {
-        resolve()
-        return
-      }
-      const unwatch = watch(
-        () => clerkLoaded.value,
-        (loaded) => {
-          if (loaded) {
-            unwatch()
-            resolve()
-          }
-        },
-        { immediate: true }
-      )
-    })
-
-    await waitForClerk
-
-    // If authenticated, fetch/create learner
-    if (clerkUser.value) {
+    // Check for existing Supabase Auth session
+    const { data: { session } } = await supabaseClient.auth.getSession()
+    if (session?.user) {
+      supabaseUser.value = session.user
       learner.value = await ensureLearnerExists()
 
       // Check if there's guest progress to migrate
@@ -260,50 +261,23 @@ export function useAuth(): AuthState & AuthActions {
       }
     }
 
+    // Listen for auth state changes (sign in, sign out, token refresh)
+    supabaseClient.auth.onAuthStateChange((_event, session) => {
+      handleAuthChange(session?.user ?? null)
+    })
+
     isLoading.value = false
   }
-
-  /**
-   * Watch for auth changes
-   */
-  watch(
-    () => clerkUser.value,
-    async (newUser, oldUser) => {
-      if (newUser && !oldUser && supabase.value) {
-        // User just signed in
-        isLoading.value = true
-        learner.value = await ensureLearnerExists()
-
-        // Migrate guest progress if any
-        const hadGuestId = localStorage.getItem(GUEST_ID_KEY)
-        if (hadGuestId) {
-          await migrateGuestProgress()
-        }
-
-        isLoading.value = false
-      } else if (!newUser && oldUser) {
-        // User signed out
-        learner.value = null
-        // Reinitialize guest ID
-        guestId.value = getOrCreateGuestId()
-      }
-    }
-  )
 
   // ============================================
   // ACTIONS
   // ============================================
 
-  function openSignIn(): void {
-    clerk.value?.openSignIn()
-  }
-
-  function openSignUp(): void {
-    clerk.value?.openSignUp()
-  }
-
   async function signOut(): Promise<void> {
-    await clerk.value?.signOut()
+    if (supabase.value) {
+      await supabase.value.auth.signOut()
+    }
+    supabaseUser.value = null
     learner.value = null
     // Reinitialize guest
     guestId.value = getOrCreateGuestId()
@@ -450,7 +424,7 @@ export function useAuth(): AuthState & AuthActions {
 
   return {
     // State
-    user: clerkUser,
+    user: supabaseUser,
     learner,
     isAuthenticated,
     isGuest,
@@ -460,8 +434,6 @@ export function useAuth(): AuthState & AuthActions {
     isLoading,
 
     // Actions
-    openSignIn,
-    openSignUp,
     signOut,
     incrementSessionCount,
     markSignupPromptSeen,

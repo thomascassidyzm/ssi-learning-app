@@ -68,7 +68,7 @@ export function useInviteCode() {
     }
   }
 
-  async function redeemCode(clerkToken: string): Promise<{ success: boolean; role?: string; redirectTo?: string; error?: string }> {
+  async function redeemCode(authToken: string): Promise<{ success: boolean; role?: string; redirectTo?: string; error?: string }> {
     if (!pendingCode.value) {
       return { success: false, error: 'No pending code' }
     }
@@ -78,7 +78,7 @@ export function useInviteCode() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${clerkToken}`,
+          'Authorization': `Bearer ${authToken}`,
         },
         body: JSON.stringify({ code: pendingCode.value.code }),
       })

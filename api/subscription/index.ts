@@ -9,7 +9,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
-import { getClerkUserId } from '../_utils/clerk'
+import { getAuthUserId } from '../_utils/auth'
 
 // Supabase client with service role (to bypass RLS for reading)
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
@@ -46,7 +46,7 @@ export default async function handler(
   }
 
   // Verify authentication
-  const userId = await getClerkUserId(req)
+  const userId = await getAuthUserId(req)
   if (!userId) {
     res.status(401).json({ error: 'Unauthorized', subscription: null, isSubscribed: false })
     return

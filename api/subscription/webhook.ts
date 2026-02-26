@@ -38,7 +38,7 @@ interface LemonSqueezyWebhookPayload {
     event_name: string
     custom_data?: {
       learner_id?: string
-      clerk_user_id?: string
+      user_id?: string
     }
   }
   data: {

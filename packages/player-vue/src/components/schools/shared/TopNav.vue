@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, inject } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useUser, useClerk } from '@clerk/vue'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 interface NavTab {
   name: string
@@ -16,8 +16,13 @@ const emit = defineEmits<{
 
 const route = useRoute()
 const router = useRouter()
-const { isLoaded, isSignedIn, user } = useUser()
-const clerk = useClerk()
+const auth = inject<any>('auth')
+const supabaseRef = inject<{ value: SupabaseClient | null }>('supabase')
+
+// Derive auth state from injected auth composable
+const isLoaded = computed(() => auth ? !auth.isLoading.value : true)
+const isSignedIn = computed(() => auth?.isAuthenticated.value ?? false)
+const user = computed(() => auth?.user.value ?? null)
 
 const tabs: NavTab[] = [
   { name: 'dashboard', path: '/schools', label: 'Dashboard' },
@@ -27,20 +32,20 @@ const tabs: NavTab[] = [
   { name: 'analytics', path: '/schools/analytics', label: 'Analytics' },
 ]
 
-// Computed user info from Clerk
+// Computed user info from Supabase Auth
 const userName = computed(() => {
   if (!isSignedIn.value || !user.value) return 'Guest'
-  return user.value.firstName || user.value.username || 'User'
+  return user.value.email?.split('@')[0] || 'User'
 })
 
 const userEmail = computed(() => {
   if (!isSignedIn.value || !user.value) return ''
-  return user.value.primaryEmailAddress?.emailAddress || ''
+  return user.value.email || ''
 })
 
 const userInitials = computed(() => {
   if (!isSignedIn.value || !user.value) return '?'
-  const name = user.value.firstName || user.value.username || 'U'
+  const name = user.value.email?.split('@')[0] || 'U'
   return name.charAt(0).toUpperCase()
 })
 
@@ -81,7 +86,10 @@ const toggleUserMenu = () => {
 // Sign out
 const handleSignOut = async () => {
   isUserMenuOpen.value = false
-  await clerk.value?.signOut()
+  const client = supabaseRef?.value
+  if (client) {
+    await client.auth.signOut()
+  }
 }
 </script>
 

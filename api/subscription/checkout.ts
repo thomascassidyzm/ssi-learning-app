@@ -10,7 +10,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
-import { getClerkUserId } from '../_utils/clerk'
+import { getAuthUserId } from '../_utils/auth'
 
 // Environment variables
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
@@ -48,7 +48,7 @@ export default async function handler(
   }
 
   // Verify authentication
-  const userId = await getClerkUserId(req)
+  const userId = await getAuthUserId(req)
   if (!userId) {
     res.status(401).json({ error: 'Unauthorized' })
     return
@@ -132,7 +132,7 @@ export default async function handler(
             checkout_data: {
               custom: {
                 learner_id: learner!.id,
-                clerk_user_id: userId,
+                user_id: userId,
               },
             },
             product_options: {

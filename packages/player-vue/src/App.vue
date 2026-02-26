@@ -3,7 +3,7 @@ import { ref, provide, onMounted } from 'vue'
 import { createClient } from '@supabase/supabase-js'
 import { createProgressStore, createSessionStore } from '@ssi/core'
 import { createCourseDataProvider } from './providers/CourseDataProvider'
-import { loadConfig, isSupabaseConfigured, isClerkConfigured } from './config/env'
+import { loadConfig, isSupabaseConfigured } from './config/env'
 import { useAuth } from './composables/useAuth'
 import { checkKillSwitch, unregisterAllServiceWorkers, clearAllCaches } from './composables/useServiceWorkerSafety'
 import { useTheme } from './composables/useTheme'
@@ -95,10 +95,9 @@ const invalidateStaleCaches = () => {
 
 // Load configuration
 const config = loadConfig()
-const clerkEnabled = isClerkConfigured(config)
 
-// Auth state (only if Clerk is configured)
-const auth = clerkEnabled ? useAuth() : null
+// Auth state
+const auth = useAuth()
 
 // Initialize stores (null if database not configured)
 const progressStore = ref(null)
@@ -253,7 +252,6 @@ provide('courseDataProvider', courseDataProvider)
 provide('auth', auth)
 provide('supabase', supabaseClient)
 provide('config', config)
-provide('clerkEnabled', clerkEnabled)
 provide('activeCourse', activeCourse)
 provide('enrolledCourses', enrolledCourses)
 provide('handleCourseSelect', handleCourseSelect)

@@ -5,8 +5,6 @@ const PlayerContainer = () => import('@/containers/PlayerContainer.vue')
 const SchoolsContainer = () => import('@/containers/SchoolsContainer.vue')
 const AdminContainer = () => import('@/containers/AdminContainer.vue')
 const SimpleSessionTest = () => import('@/components/SimpleSessionTest.vue')
-const SSOCallback = () => import('@/views/SSOCallback.vue')
-
 // Schools views (lazy-loaded)
 const DashboardView = () => import('@/views/schools/DashboardView.vue')
 const TeachersView = () => import('@/views/schools/TeachersView.vue')
@@ -125,15 +123,6 @@ const routes: RouteRecordRaw[] = [
       title: 'Simple Session Test',
     },
   },
-  // OAuth SSO callback handler
-  {
-    path: '/sso-callback',
-    name: 'sso-callback',
-    component: SSOCallback,
-    meta: {
-      title: 'Signing in...',
-    },
-  },
   // Admin panel
   {
     path: '/admin',
@@ -191,14 +180,13 @@ router.beforeEach(async (to, _from, next) => {
     const { getSchoolsClient } = await import('@/composables/schools/client')
     const client = getSchoolsClient()
 
-    // Try to get Clerk user id from Clerk global if available
-    // @ts-ignore
-    const clerkUserId = window.Clerk?.user?.id
-    if (clerkUserId) {
+    // Get current Supabase Auth user
+    const { data: { user } } = await client.auth.getUser()
+    if (user) {
       const { data } = await client
         .from('learners')
         .select('platform_role, educational_role')
-        .eq('user_id', clerkUserId)
+        .eq('user_id', user.id)
         .single()
 
       if (

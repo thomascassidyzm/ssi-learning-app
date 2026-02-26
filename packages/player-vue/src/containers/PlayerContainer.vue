@@ -21,9 +21,6 @@ import { SignInModal } from '@/components/auth'
 import { useAuthModal } from '@/composables/useAuthModal'
 import { BELTS, getSharedBeltProgress, getSeedFromLegoId } from '@/composables/useBeltProgress'
 
-// Clerk components (conditionally imported)
-import { SignedIn, SignedOut, UserButton } from '@clerk/vue'
-
 // Inject from App
 const supabaseClient = inject('supabase')
 const progressStore = inject('progressStore')
@@ -31,7 +28,6 @@ const sessionStore = inject('sessionStore')
 const courseDataProvider = inject('courseDataProvider')
 const auth = inject('auth')
 const config = inject('config')
-const clerkEnabled = inject('clerkEnabled')
 const router = useRouter()
 
 // Global auth modal (shared with BottomNav and other components)
