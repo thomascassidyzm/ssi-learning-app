@@ -4,7 +4,10 @@ import { computed, ref, watch } from 'vue'
 export interface LegoBlock {
   id: string
   targetText: string
+  knownText?: string
   isSalient?: boolean
+  /** M-LEGO component breakdown */
+  components?: { known: string; target: string }[]
 }
 
 type AssemblyPhase = 'hidden' | 'scattered' | 'assembling' | 'assembled' | 'dissolving'
@@ -23,10 +26,15 @@ const props = defineProps<{
   components?: ComponentBreakdown[]
 }>()
 
-// Is this an M-LEGO with components? → train carriage mode
-const isTrainCarriage = computed(() =>
-  props.components && props.components.length > 1
-)
+// Detect M-LEGO: multiple components on the salient block or in props
+const mLegoComponents = computed(() => {
+  if (props.components && props.components.length > 1) return props.components
+  // Check if any block has components
+  for (const b of props.blocks) {
+    if (b.components && b.components.length > 1) return b.components
+  }
+  return null
+})
 
 // Generate stable random scatter positions per block set
 const scatterPositions = ref<{ x: number; y: number; rotate: number }[]>([])
@@ -100,72 +108,64 @@ const staggerDelay = (index: number): string => {
   const stagger = (ms * 0.5) / total
   return `${(stagger * index) / 1000}s`
 }
+
+// For intro/single-lego: compute known text from components or props
+const knownText = computed(() => {
+  if (props.components && props.components.length > 0) {
+    return props.components.map(c => c.known).join(' · ')
+  }
+  if (props.blocks.length === 1 && props.blocks[0].knownText) {
+    return props.blocks[0].knownText
+  }
+  return ''
+})
 </script>
 
 <template>
   <div class="lego-assembly" :class="[assemblyPhase, { 'instant-hide': instantHide }]">
 
     <!-- ═══════════════════════════════════════════
-         TRAIN CARRIAGE MODE — M-LEGO with components
-         Target carriages linked together, known underneath
+         SINGLE TILE MODE — M-LEGO (with stubs) or A-LEGO
+         Used for intro/debut: shows known text underneath
          ═══════════════════════════════════════════ -->
     <div
-      v-if="isTrainCarriage"
-      class="train"
+      v-if="blocks.length === 1 && (components || blocks[0]?.components)"
+      class="lego-tile"
       :class="[assemblyPhase, { salient: blocks[0]?.isSalient }]"
       :style="{
         '--assemble-duration': assembleDuration,
         '--stagger-delay': '0s',
         '--belt-accent': beltColor,
         '--belt-glow': beltGlow,
+        '--char-count': blocks[0]?.targetText.length || 8,
       }"
     >
-      <!-- Columns: each component is a column, couplers between -->
-      <div class="train-columns">
-        <template v-for="(comp, i) in components" :key="i">
-          <div class="train-col">
-            <div class="carriage carriage--target">
-              <span class="carriage-text">{{ comp.target }}</span>
-            </div>
-            <div class="carriage carriage--known">
-              <span class="carriage-text">{{ comp.known }}</span>
-            </div>
-          </div>
-          <div v-if="i < components!.length - 1" class="coupler-col">
-            <div class="coupler-dot"></div>
-          </div>
+      <!-- Target row: single tile, components are spans with stubs between -->
+      <div class="tile-target" :class="{ 'has-components': !!mLegoComponents }">
+        <template v-if="mLegoComponents">
+          <span
+            v-for="(comp, i) in mLegoComponents"
+            :key="i"
+            class="comp"
+          >{{ comp.target }}</span>
         </template>
+        <span v-else class="comp">{{ blocks[0]?.targetText }}</span>
       </div>
+      <!-- Known row underneath -->
+      <div v-if="knownText" class="tile-known">{{ knownText }}</div>
     </div>
 
     <!-- ═══════════════════════════════════════════
-         SINGLE BLOCK MODE — A-LEGOs and practice phrases
+         PRACTICE PHRASE BLOCKS — multiple LEGOs in a phrase
+         Each block is a tile; M-LEGOs render with stubs internally
          ═══════════════════════════════════════════ -->
     <template v-else>
-      <!-- Single A-LEGO with component (shows known underneath) -->
-      <div
-        v-if="components && components.length === 1 && blocks.length === 1"
-        class="single-lego"
-        :class="[assemblyPhase, { salient: blocks[0]?.isSalient }]"
-        :style="{
-          '--assemble-duration': assembleDuration,
-          '--stagger-delay': '0s',
-          '--belt-accent': beltColor,
-          '--belt-glow': beltGlow,
-          '--char-count': blocks[0]?.targetText.length || 8,
-        }"
-      >
-        <span class="block-text">{{ blocks[0].targetText }}</span>
-        <span class="block-known">{{ components[0].known }}</span>
-      </div>
-
-      <!-- Practice phrase blocks (multiple LEGOs, no component data) -->
-      <TransitionGroup v-else :name="instantHide ? '' : 'lego-block'">
+      <TransitionGroup :name="instantHide ? '' : 'lego-block'">
         <div
           v-for="(block, index) in blocks"
           :key="block.id"
           class="lego-block"
-          :class="[assemblyPhase, { salient: block.isSalient }]"
+          :class="[assemblyPhase, { salient: block.isSalient, 'has-components': block.components && block.components.length > 1 }]"
           :style="{
             '--scatter-x': `${scatterPositions[index]?.x ?? 0}%`,
             '--scatter-y': `${scatterPositions[index]?.y ?? 0}%`,
@@ -179,7 +179,15 @@ const staggerDelay = (index: number): string => {
             '--char-count': block.targetText.length,
           }"
         >
-          <span class="block-text">{{ block.targetText }}</span>
+          <!-- M-LEGO in practice phrase: same stubs rendering -->
+          <template v-if="block.components && block.components.length > 1">
+            <span
+              v-for="(comp, ci) in block.components"
+              :key="ci"
+              class="comp block-text"
+            >{{ comp.target }}</span>
+          </template>
+          <span v-else class="block-text">{{ block.targetText }}</span>
         </div>
       </TransitionGroup>
     </template>
@@ -194,11 +202,12 @@ const staggerDelay = (index: number): string => {
   position: absolute;
   inset: 0;
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   align-items: center;
+  align-content: center;
   justify-content: center;
   gap: 6px;
-  padding: 0 1rem;
+  padding: 0 0.75rem;
   pointer-events: none;
   z-index: 3;
   transition: opacity 0.4s ease;
@@ -213,199 +222,103 @@ const staggerDelay = (index: number): string => {
   transition: none !important;
 }
 .lego-assembly.instant-hide .lego-block,
-.lego-assembly.instant-hide .train,
-.lego-assembly.instant-hide .single-lego {
+.lego-assembly.instant-hide .lego-tile {
   transition: none !important;
   animation: none !important;
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   TRAIN CARRIAGE — M-LEGO with linked components
+   SINGLE TILE — intro/debut (A-LEGO or M-LEGO with stubs)
    ═══════════════════════════════════════════════════════════════ */
-.train {
+.lego-tile {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   max-width: calc(100vw - 2rem);
   transition-property: transform, opacity;
   transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
   will-change: transform, opacity;
 }
 
-.train.hidden {
+.lego-tile.hidden {
   opacity: 0;
   transform: scale(0.85);
 }
 
-.train.assembling {
+.lego-tile.assembling {
   opacity: 1;
   transform: scale(1);
   transition-duration: var(--assemble-duration, 1.5s);
-  animation: train-arrive var(--assemble-duration, 1.5s) both;
+  animation: tile-arrive var(--assemble-duration, 1.5s) both;
 }
 
-.train.assembled {
+.lego-tile.assembled {
   opacity: 1;
   transform: scale(1);
   transition-duration: 0.6s;
 }
 
-.train-columns {
-  display: flex;
-  align-items: stretch;
-  justify-content: center;
-}
-
-.train-col {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-/* --- Carriages --- */
-.carriage {
+/* Target row: the actual tile */
+.tile-target {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  padding: 0.5em 1em;
-  backdrop-filter: blur(8px);
-  transition: all 0.3s ease;
-}
-
-.carriage--target {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  min-height: 2.8em;
-}
-
-/* First column: rounded left corners */
-.train-col:first-of-type .carriage--target { border-radius: 10px 0 0 10px; }
-.train-col:first-of-type .carriage--known { border-radius: 10px 0 0 10px; }
-
-/* Last column: rounded right corners */
-.train-col:last-of-type .carriage--target { border-radius: 0 10px 10px 0; }
-.train-col:last-of-type .carriage--known { border-radius: 0 10px 10px 0; }
-
-/* Solo column: all corners rounded */
-.train-col:only-of-type .carriage--target { border-radius: 10px; }
-.train-col:only-of-type .carriage--known { border-radius: 10px; }
-
-.carriage--target .carriage-text {
-  font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
-  font-size: clamp(1.1rem, 1.8rem, 2rem);
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.95);
-  white-space: nowrap;
-  letter-spacing: 0.02em;
-}
-
-/* --- Known carriages (smaller, muted) --- */
-.carriage--known {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 0.3em 1em;
-}
-
-.carriage--known .carriage-text {
-  font-family: var(--font-body, system-ui);
-  font-size: 0.85rem;
-  font-weight: 400;
-  color: rgba(255, 255, 255, 0.5);
-  white-space: nowrap;
-}
-
-/* --- Coupler column (vertically centered dot between carriage columns) --- */
-.coupler-col {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 12px;
-  flex-shrink: 0;
-}
-
-.coupler-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--belt-accent, rgba(255, 255, 255, 0.3));
-  box-shadow: 0 0 6px var(--belt-glow, rgba(255, 255, 255, 0.15));
-}
-
-/* Salient train (intro/debut) — belt accent glow */
-.train.salient .carriage--target {
-  border-color: var(--belt-accent, rgba(255, 255, 255, 0.3));
-  border-width: 2px;
-  background: rgba(255, 255, 255, 0.15);
-}
-
-.train.salient.assembled .carriage--target {
-  box-shadow:
-    0 0 12px 2px var(--belt-glow, rgba(255, 255, 255, 0.15)),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  animation: assembled-pulse 2.5s ease-in-out infinite;
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   SINGLE LEGO — A-type with known text underneath
-   ═══════════════════════════════════════════════════════════════ */
-.single-lego {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 0.7em 1.3em;
+  padding: 0.6em 1.2em;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  max-width: calc(100vw - 3rem);
-  transition-property: transform, opacity, box-shadow, background;
-  transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
-  will-change: transform, opacity;
+  overflow: hidden;
+  position: relative;
 }
 
-.single-lego .block-text {
+.tile-target .comp {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
   font-size: clamp(1.1rem, calc(2.2rem - var(--char-count, 8) * 0.035rem), 2rem);
   font-weight: 600;
   color: rgba(255, 255, 255, 0.95);
   white-space: nowrap;
   letter-spacing: 0.02em;
+  position: relative;
+  padding: 0 0.15em;
 }
 
-.single-lego .block-known {
+/* Stubs-bright: short lines from top & bottom edges, open middle */
+.tile-target.has-components .comp + .comp::before,
+.tile-target.has-components .comp + .comp::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: 1px;
+  height: 25%;
+  background: rgba(255, 255, 255, 0.3);
+  z-index: 2;
+  pointer-events: none;
+}
+.tile-target.has-components .comp + .comp::before {
+  top: 0;
+}
+.tile-target.has-components .comp + .comp::after {
+  bottom: 0;
+}
+
+/* Known text underneath */
+.tile-known {
   font-family: var(--font-body, system-ui);
   font-size: 0.85rem;
   font-weight: 400;
   color: rgba(255, 255, 255, 0.5);
+  white-space: nowrap;
 }
 
-.single-lego.hidden {
-  opacity: 0;
-  transform: scale(0.85);
-}
-
-.single-lego.assembling {
-  opacity: 1;
-  transform: scale(1);
-  transition-duration: var(--assemble-duration, 1.5s);
-  animation: train-arrive var(--assemble-duration, 1.5s) both;
-}
-
-.single-lego.assembled {
-  opacity: 1;
-  transform: scale(1);
-  transition-duration: 0.6s;
-}
-
-.single-lego.salient {
+/* Salient (intro/debut) — belt accent glow */
+.lego-tile.salient .tile-target {
   border-color: var(--belt-accent, rgba(255, 255, 255, 0.3));
   border-width: 2px;
   background: rgba(255, 255, 255, 0.15);
 }
 
-.single-lego.salient.assembled {
+.lego-tile.salient.assembled .tile-target {
   box-shadow:
     0 0 20px 5px var(--belt-glow, rgba(255, 255, 255, 0.25)),
     inset 0 1px 0 rgba(255, 255, 255, 0.15);
@@ -413,7 +326,7 @@ const staggerDelay = (index: number): string => {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   PRACTICE BLOCKS — multiple LEGOs in a phrase
+   PRACTICE BLOCKS — multiple LEGOs in a phrase (horizontal flow)
    ═══════════════════════════════════════════════════════════════ */
 .lego-block {
   display: inline-flex;
@@ -427,6 +340,8 @@ const staggerDelay = (index: number): string => {
     0 0 0 0 var(--belt-glow, rgba(255, 255, 255, 0.1)),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
   max-width: calc(100vw - 3rem);
+  overflow: hidden;
+  position: relative;
   transition-property: transform, opacity, box-shadow, background;
   transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
   will-change: transform, opacity;
@@ -434,13 +349,33 @@ const staggerDelay = (index: number): string => {
 
 .lego-block .block-text {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
-  /* Softer scaling: stays larger for longer, floor at 1.1rem */
   font-size: clamp(1.1rem, calc(2.2rem - var(--char-count, 8) * 0.035rem), 1.875rem);
   font-weight: 500;
   color: rgba(255, 255, 255, 0.9);
   white-space: nowrap;
   letter-spacing: 0.02em;
   user-select: none;
+  position: relative;
+  padding: 0 0.15em;
+}
+
+/* Stubs-bright on practice M-LEGOs */
+.lego-block.has-components .comp + .comp::before,
+.lego-block.has-components .comp + .comp::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: 1px;
+  height: 25%;
+  background: rgba(255, 255, 255, 0.3);
+  z-index: 2;
+  pointer-events: none;
+}
+.lego-block.has-components .comp + .comp::before {
+  top: 0;
+}
+.lego-block.has-components .comp + .comp::after {
+  bottom: 0;
 }
 
 /* --- SCATTERED (floating gently) --- */
@@ -539,7 +474,7 @@ const staggerDelay = (index: number): string => {
   100% { transform: translate(0, 0) rotate(0deg) scale(1); }
 }
 
-@keyframes train-arrive {
+@keyframes tile-arrive {
   0% { transform: scale(0.85); opacity: 0; }
   70% { transform: scale(1.03); opacity: 1; }
   85% { transform: scale(0.98); }
@@ -589,17 +524,7 @@ const staggerDelay = (index: number): string => {
     font-size: clamp(1rem, calc(2rem - var(--char-count, 8) * 0.03rem), 1.875rem);
   }
 
-  .carriage--target .carriage-text {
-    font-size: clamp(1rem, 1.5rem, 1.75rem);
-  }
-  .carriage--target {
-    padding: 0.4em 0.8em;
-  }
-  .carriage--known {
-    padding: 0.25em 0.8em;
-  }
-
-  .single-lego .block-text {
+  .tile-target .comp {
     font-size: clamp(1rem, calc(2rem - var(--char-count, 8) * 0.03rem), 1.75rem);
   }
 }
@@ -645,37 +570,26 @@ const staggerDelay = (index: number): string => {
     0 8px 28px color-mix(in srgb, var(--belt-accent, rgba(122, 110, 98, 0.18)) 28%, transparent);
 }
 
-/* Train carriage mist overrides */
-:root[data-theme="mist"] .carriage--target {
-  background: #F2F0ED;
-  border-color: rgba(122, 110, 98, 0.15);
-}
-:root[data-theme="mist"] .carriage--target .carriage-text {
-  color: #1A1614;
-}
-:root[data-theme="mist"] .carriage--known {
-  background: #E8E5E1;
-  border-color: rgba(122, 110, 98, 0.1);
-}
-:root[data-theme="mist"] .carriage--known .carriage-text {
-  color: #7A6E62;
-}
-:root[data-theme="mist"] .coupler-dot {
-  background: color-mix(in srgb, var(--belt-accent, #7A6E62) 50%, #A89C8E);
+/* M-LEGO stubs for mist theme */
+:root[data-theme="mist"] .tile-target.has-components .comp + .comp::before,
+:root[data-theme="mist"] .tile-target.has-components .comp + .comp::after,
+:root[data-theme="mist"] .lego-block.has-components .comp + .comp::before,
+:root[data-theme="mist"] .lego-block.has-components .comp + .comp::after {
+  background: rgba(44, 38, 34, 0.2);
 }
 
-:root[data-theme="mist"] .single-lego {
+/* Single tile mist overrides */
+:root[data-theme="mist"] .tile-target {
   background: #F2F0ED;
   border-color: rgba(122, 110, 98, 0.12);
 }
-:root[data-theme="mist"] .single-lego .block-text {
+:root[data-theme="mist"] .tile-target .comp {
   color: #1A1614;
 }
-:root[data-theme="mist"] .single-lego .block-known {
+:root[data-theme="mist"] .tile-known {
   color: #7A6E62;
 }
-
-:root[data-theme="mist"] .train.salient .carriage--target {
+:root[data-theme="mist"] .lego-tile.salient .tile-target {
   border-color: var(--belt-accent, rgba(122, 110, 98, 0.28));
   background: #ECEAE7;
 }
