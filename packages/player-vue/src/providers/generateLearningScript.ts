@@ -261,13 +261,20 @@ export async function generateLearningScript(
     const legoKey = `S${String(lego.seed_number).padStart(4, '0')}L${String(lego.lego_index).padStart(2, '0')}`
     const normalized = normalizeText(lego.target_text)
     if (normalized) legoTextMap.set(normalized, legoKey)
+    // Also index by romanized text so phrases using target_text_roman can decompose
+    if (lego.target_text_roman) {
+      const normalizedRoman = normalizeText(lego.target_text_roman)
+      if (normalizedRoman && !legoTextMap.has(normalizedRoman)) {
+        legoTextMap.set(normalizedRoman, legoKey)
+      }
+    }
   }
 
-  // Reverse map: LEGO key → original target text (for assembly display)
+  // Reverse map: LEGO key → display text (prefer romanized for display when available)
   const legoIdToText = new Map<string, string>()
   for (const lego of allLegos) {
     const legoKey = `S${String(lego.seed_number).padStart(4, '0')}L${String(lego.lego_index).padStart(2, '0')}`
-    if (lego.target_text) legoIdToText.set(legoKey, lego.target_text)
+    if (lego.target_text) legoIdToText.set(legoKey, lego.target_text_roman || lego.target_text)
   }
 
   // Greedy longest-match decomposition of a phrase into component LEGO IDs

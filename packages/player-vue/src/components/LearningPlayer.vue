@@ -527,6 +527,10 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
         return [{ id: legoId, targetText, isSalient: true }]
       }
     }
+    // Debug: log when a non-intro cycle has no componentLegoIds
+    if (cycle && !isIntroOrDebut) {
+      console.warn(`[LegoBlocks] Cycle "${cycle.target?.text}" has no componentLegoIds — keys:`, Object.keys(cycle))
+    }
     return []
   }
   // Use the cycle's own legoId (the LEGO this phrase practises), not the round's
