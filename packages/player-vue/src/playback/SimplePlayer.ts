@@ -5,6 +5,7 @@ export interface Cycle {
   known: { text: string; audioUrl: string }
   target: { text: string; voice1Url: string; voice2Url: string }
   pauseDuration?: number // ms — set by toSimpleRounds formula
+  lingerMs?: number // ms — extra hold after voice2 (intro/debut: lets learner read tiles)
   legoId?: string // The LEGO this cycle is practising
   componentLegoIds?: string[]
   componentLegoTexts?: string[]
@@ -41,6 +42,7 @@ export class SimplePlayer {
   private state: PlaybackState
   private pauseTimer: ReturnType<typeof setTimeout> | null = null
   private safetyTimer: ReturnType<typeof setTimeout> | null = null
+  private lingerTimer: ReturnType<typeof setTimeout> | null = null
   private listeners: Map<EventName, Set<EventCallback>> = new Map()
 
   // Named handlers for cleanup in dispose()
@@ -184,6 +186,7 @@ export class SimplePlayer {
     this.audio.pause()
     this.clearPauseTimer()
     this.clearSafetyTimer()
+    this.clearLingerTimer()
     this.updateState({ isPlaying: false })
   }
 
@@ -204,6 +207,7 @@ export class SimplePlayer {
     this.audio.src = ''
     this.clearPauseTimer()
     this.clearSafetyTimer()
+    this.clearLingerTimer()
     this.updateState({ roundIndex: 0, cycleIndex: 0, phase: 'idle', isPlaying: false })
   }
 
@@ -213,6 +217,7 @@ export class SimplePlayer {
   skipRound(): void {
     this.clearPauseTimer()
     this.clearSafetyTimer()
+    this.clearLingerTimer()
     this.audio.pause()
     this.advanceRound()
   }
@@ -225,6 +230,7 @@ export class SimplePlayer {
     }
     this.clearPauseTimer()
     this.clearSafetyTimer()
+    this.clearLingerTimer()
     this.audio.pause()
     this.audio.src = ''
     const wasPlaying = this.state.isPlaying
@@ -315,6 +321,13 @@ export class SimplePlayer {
     }
   }
 
+  private clearLingerTimer(): void {
+    if (this.lingerTimer) {
+      clearTimeout(this.lingerTimer)
+      this.lingerTimer = null
+    }
+  }
+
   private onAudioEnded(): void {
     this.clearSafetyTimer()
     if (!this.state.isPlaying) return
@@ -323,7 +336,16 @@ export class SimplePlayer {
     if (nextPhase) {
       this.startPhase(nextPhase)
     } else {
-      this.advanceCycle()
+      // End of cycle — linger if requested (intro/debut tiles stay visible)
+      const linger = this.currentCycle?.lingerMs
+      if (linger && linger > 0) {
+        this.lingerTimer = setTimeout(() => {
+          this.lingerTimer = null
+          if (this.state.isPlaying) this.advanceCycle()
+        }, linger)
+      } else {
+        this.advanceCycle()
+      }
     }
   }
 

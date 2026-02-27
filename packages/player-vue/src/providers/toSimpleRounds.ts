@@ -111,6 +111,8 @@ export function toSimpleRounds(
         pauseDuration: i.type === 'intro'
           ? 0
           : calculatePauseDuration(i.target1DurationMs, i.target2DurationMs, pauseConfig, i.targetText),
+        // Intro: 3s linger after voice2 so learner can read tiles
+        ...(i.type === 'intro' ? { lingerMs: 3000 } : {}),
         ...(i.componentLegoIds ? { componentLegoIds: i.componentLegoIds } : {}),
         ...(i.componentLegoTexts ? { componentLegoTexts: i.componentLegoTexts } : {}),
         ...(i.components ? { components: i.components } : {})
