@@ -111,14 +111,19 @@ const staggerDelay = (index: number): string => {
 
 // For intro/single-lego: compute known text from components or props
 const knownText = computed(() => {
-  if (props.components && props.components.length > 0) {
-    return props.components.map(c => c.known).join(' · ')
+  if (props.components && props.components.length === 1) {
+    return props.components[0].known
   }
   if (props.blocks.length === 1 && props.blocks[0].knownText) {
     return props.blocks[0].knownText
   }
   return ''
 })
+
+// Do any blocks in the current phrase have known text? (for placeholder alignment)
+const hasAnyKnownText = computed(() =>
+  props.blocks.some(b => b.knownText || (b.components && b.components.some(c => c.known)))
+)
 </script>
 
 <template>
@@ -151,8 +156,15 @@ const knownText = computed(() => {
         </template>
         <span v-else class="comp">{{ blocks[0]?.targetText }}</span>
       </div>
-      <!-- Known row underneath -->
-      <div v-if="knownText" class="tile-known">{{ knownText }}</div>
+      <!-- Known row: per-component aligned text -->
+      <div v-if="mLegoComponents" class="tile-known-row">
+        <span
+          v-for="(comp, i) in mLegoComponents"
+          :key="i"
+          class="tile-known-comp"
+        >{{ comp.known || '·' }}</span>
+      </div>
+      <div v-else-if="knownText" class="tile-known">{{ knownText }}</div>
     </div>
 
     <!-- ═══════════════════════════════════════════
@@ -193,7 +205,16 @@ const knownText = computed(() => {
             </template>
             <span v-else class="block-text">{{ block.targetText }}</span>
           </div>
-          <span v-if="block.knownText" class="block-known">{{ block.knownText }}</span>
+          <!-- Known text: per-component for M-LEGOs, single for A-LEGOs -->
+          <div v-if="block.components && block.components.length > 1" class="block-known-row">
+            <span
+              v-for="(comp, ci) in block.components"
+              :key="ci"
+              class="block-known-comp"
+            >{{ comp.known || '·' }}</span>
+          </div>
+          <span v-else-if="block.knownText" class="block-known">{{ block.knownText }}</span>
+          <span v-else-if="hasAnyKnownText" class="block-known block-known--placeholder">·</span>
         </div>
       </TransitionGroup>
     </template>
@@ -308,13 +329,31 @@ const knownText = computed(() => {
   bottom: 0;
 }
 
-/* Known text underneath */
+/* Known text underneath (single A-LEGO) */
 .tile-known {
   font-family: var(--font-body, system-ui);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 400;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.4);
   white-space: nowrap;
+}
+
+/* Known text row: per-component aligned with target (M-LEGO) */
+.tile-known-row {
+  display: inline-flex;
+  align-items: baseline;
+  /* Match tile-target horizontal padding so component widths align */
+  padding: 0 1.2em;
+}
+.tile-known-comp {
+  font-family: var(--font-body, system-ui);
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.4);
+  white-space: nowrap;
+  text-align: center;
+  /* Match target comp padding so widths stay in sync */
+  padding: 0 0.35em;
 }
 
 /* Salient (intro/debut) — belt accent glow */
@@ -363,7 +402,7 @@ const knownText = computed(() => {
   position: relative;
 }
 
-/* Known text under each practice block */
+/* Known text under each practice block (A-LEGO) */
 .block-known {
   font-family: var(--font-body, system-ui);
   font-size: 0.75rem;
@@ -374,6 +413,28 @@ const knownText = computed(() => {
   max-width: calc(100vw - 3rem);
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.block-known--placeholder {
+  opacity: 0.3;
+}
+
+/* Known text row: per-component aligned with target (practice M-LEGO) */
+.block-known-row {
+  display: inline-flex;
+  align-items: baseline;
+  /* Match lego-block horizontal padding so comp widths align */
+  padding: 0 1.1em;
+}
+.block-known-comp {
+  font-family: var(--font-body, system-ui);
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.4);
+  white-space: nowrap;
+  text-align: center;
+  /* Match target comp padding for alignment */
+  padding: 0 0.35em;
 }
 
 .lego-block .block-text {
@@ -618,7 +679,9 @@ const knownText = computed(() => {
   color: #1A1614;
 }
 :root[data-theme="mist"] .tile-known,
-:root[data-theme="mist"] .block-known {
+:root[data-theme="mist"] .tile-known-comp,
+:root[data-theme="mist"] .block-known,
+:root[data-theme="mist"] .block-known-comp {
   color: #7A6E62;
 }
 :root[data-theme="mist"] .lego-tile.salient .tile-target {
