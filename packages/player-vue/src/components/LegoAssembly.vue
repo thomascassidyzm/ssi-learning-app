@@ -280,7 +280,7 @@ const knownText = computed(() => {
   white-space: nowrap;
   letter-spacing: 0.02em;
   position: relative;
-  padding: 0 0.15em;
+  padding: 0 0.35em;
 }
 
 /* Stubs-bright: short lines from top & bottom edges, open middle */
@@ -356,7 +356,7 @@ const knownText = computed(() => {
   letter-spacing: 0.02em;
   user-select: none;
   position: relative;
-  padding: 0 0.15em;
+  padding: 0 0.35em;
 }
 
 /* Stubs-bright on practice M-LEGOs */

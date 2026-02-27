@@ -537,7 +537,8 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
     .map((id: string, idx: number) => {
       const targetText = texts[idx] || textMap.get(id) || ''
       if (!targetText) return null
-      return { id, targetText, isSalient: id === salientLegoId }
+      const comps = _componentsByLegoId.get(id)
+      return { id, targetText, isSalient: id === salientLegoId, ...(comps ? { components: comps } : {}) }
     })
     .filter((b: LegoBlock | null): b is LegoBlock => b !== null)
 })
@@ -2143,6 +2144,7 @@ watch([showTargetText, () => currentPhrase.value.target], ([showing, newTarget])
 // Vue proxies strip non-declared properties like `components`, so we extract them
 // from the raw data and look them up by cycle ID (which IS readable through proxies).
 const _componentsByCycleId = new Map<string, Array<{known: string, target: string}>>()
+const _componentsByLegoId = new Map<string, Array<{known: string, target: string}>>()
 
 // Wrapper: call toSimpleRounds AND extract components into the plain Map
 function toSimpleRoundsWithComponents(items: any[]) {
@@ -2152,11 +2154,15 @@ function toSimpleRoundsWithComponents(items: any[]) {
     for (const cycle of round.cycles) {
       if ((cycle as any).components) {
         _componentsByCycleId.set(cycle.id, (cycle as any).components)
+        // Also index by legoId so practice phrases can look up M-LEGO components
+        if (cycle.legoId) {
+          _componentsByLegoId.set(cycle.legoId, (cycle as any).components)
+        }
         count++
       }
     }
   }
-  if (count > 0) console.log(`[Components] Extracted ${count} cycles with components (map size: ${_componentsByCycleId.size})`)
+  if (count > 0) console.log(`[Components] Extracted ${count} cycles with components (map size: ${_componentsByCycleId.size}, lego map: ${_componentsByLegoId.size})`)
   return rounds
 }
 
