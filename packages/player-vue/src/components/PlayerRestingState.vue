@@ -72,7 +72,7 @@ const handleChangeCourse = () => {
 </script>
 
 <template>
-  <div class="resting-state" @click="emit('start')">
+  <div class="resting-state">
     <div class="resting-content">
       <!-- Course identity -->
       <div class="course-flag">{{ courseFlag }}</div>
@@ -114,7 +114,6 @@ const handleChangeCourse = () => {
   align-items: flex-end;
   justify-content: center;
   padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px));
-  cursor: pointer;
   /* Translucent — let constellation/particles show through */
   background: radial-gradient(
     ellipse at center 60%,
