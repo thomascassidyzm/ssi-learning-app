@@ -120,24 +120,18 @@ const staggerDelay = (index: number): string => {
         '--belt-glow': beltGlow,
       }"
     >
-      <!-- Target language carriages -->
-      <div class="train-row train-row--target">
-        <template v-for="(comp, i) in components" :key="'t-' + i">
-          <div class="carriage carriage--target">
-            <span class="carriage-text">{{ comp.target }}</span>
+      <!-- Columns: each component is a column, couplers between -->
+      <div class="train-columns">
+        <template v-for="(comp, i) in components" :key="i">
+          <div class="train-col">
+            <div class="carriage carriage--target">
+              <span class="carriage-text">{{ comp.target }}</span>
+            </div>
+            <div class="carriage carriage--known">
+              <span class="carriage-text">{{ comp.known }}</span>
+            </div>
           </div>
-          <div v-if="i < components!.length - 1" class="coupler">
-            <div class="coupler-dot"></div>
-          </div>
-        </template>
-      </div>
-      <!-- Known language carriages (mirror structure) -->
-      <div class="train-row train-row--known">
-        <template v-for="(comp, i) in components" :key="'k-' + i">
-          <div class="carriage carriage--known">
-            <span class="carriage-text">{{ comp.known }}</span>
-          </div>
-          <div v-if="i < components!.length - 1" class="coupler coupler--known">
+          <div v-if="i < components!.length - 1" class="coupler-col">
             <div class="coupler-dot"></div>
           </div>
         </template>
@@ -257,15 +251,19 @@ const staggerDelay = (index: number): string => {
   transition-duration: 0.6s;
 }
 
-.train-row {
+.train-columns {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
-  flex-wrap: wrap;
-  gap: 0;
 }
 
-/* --- Target carriages --- */
+.train-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* --- Carriages --- */
 .carriage {
   display: inline-flex;
   align-items: center;
@@ -281,23 +279,17 @@ const staggerDelay = (index: number): string => {
   min-height: 2.8em;
 }
 
-/* First carriage: rounded left corners */
-.train-row--target .carriage--target:first-child,
-.train-row--known .carriage--known:first-child {
-  border-radius: 10px 0 0 10px;
-}
+/* First column: rounded left corners */
+.train-col:first-of-type .carriage--target { border-radius: 10px 0 0 10px; }
+.train-col:first-of-type .carriage--known { border-radius: 10px 0 0 10px; }
 
-/* Last carriage: rounded right corners */
-.train-row--target .carriage--target:last-child,
-.train-row--known .carriage--known:last-child {
-  border-radius: 0 10px 10px 0;
-}
+/* Last column: rounded right corners */
+.train-col:last-of-type .carriage--target { border-radius: 0 10px 10px 0; }
+.train-col:last-of-type .carriage--known { border-radius: 0 10px 10px 0; }
 
-/* Solo carriage (only child): all corners rounded */
-.train-row--target .carriage--target:only-child,
-.train-row--known .carriage--known:only-child {
-  border-radius: 10px;
-}
+/* Solo column: all corners rounded */
+.train-col:only-of-type .carriage--target { border-radius: 10px; }
+.train-col:only-of-type .carriage--known { border-radius: 10px; }
 
 .carriage--target .carriage-text {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
@@ -323,26 +315,21 @@ const staggerDelay = (index: number): string => {
   white-space: nowrap;
 }
 
-/* --- Coupler (link between carriages) --- */
-.coupler {
+/* --- Coupler column (vertically centered dot between carriage columns) --- */
+.coupler-col {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 8px;
+  width: 12px;
   flex-shrink: 0;
 }
 
 .coupler-dot {
-  width: 4px;
-  height: 4px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: var(--belt-accent, rgba(255, 255, 255, 0.3));
   box-shadow: 0 0 6px var(--belt-glow, rgba(255, 255, 255, 0.15));
-}
-
-.coupler--known .coupler-dot {
-  background: rgba(255, 255, 255, 0.15);
-  box-shadow: none;
 }
 
 /* Salient train (intro/debut) — belt accent glow */
