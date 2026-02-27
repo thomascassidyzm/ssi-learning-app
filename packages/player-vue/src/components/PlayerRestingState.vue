@@ -114,6 +114,7 @@ const handleChangeCourse = () => {
   align-items: flex-end;
   justify-content: center;
   padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+  pointer-events: none;
   /* Translucent — let constellation/particles show through */
   background: radial-gradient(
     ellipse at center 60%,
@@ -136,6 +137,7 @@ const handleChangeCourse = () => {
   gap: 12px;
   padding: 32px 24px;
   text-align: center;
+  pointer-events: auto;
 }
 
 .course-flag {
