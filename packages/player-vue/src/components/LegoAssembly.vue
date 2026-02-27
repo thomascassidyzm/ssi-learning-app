@@ -42,58 +42,45 @@ watch(() => props.blocks, (newBlocks) => {
   scatterPositions.value = generateScatter(newBlocks.length)
 }, { immediate: true })
 
-// Map UI phases to assembly phases, with a 1s delay entering voice1
-// so the learner HEARS the target before SEEING the tiles
+// Map UI phases to assembly phases.
+// Tiles appear at VOICE_1 (with short delay so learner hears before reading).
+// On stop/hidden, tiles vanish instantly (no fade) to stay in sync with audio.
 const VOICE1_REVEAL_DELAY_MS = 1000
 const assemblyPhase = ref<AssemblyPhase>('hidden')
+// Track whether we're instant-hiding (skip transition)
+const instantHide = ref(false)
 let voice1Timer: ReturnType<typeof setTimeout> | null = null
 
 watch(() => props.phase, (phase) => {
   if (voice1Timer) { clearTimeout(voice1Timer); voice1Timer = null }
 
   if (props.blocks.length === 0) {
+    instantHide.value = true
     assemblyPhase.value = 'hidden'
     return
   }
 
-  // During intro/debut (components present): show tile early, from prompt phase
-  const isIntro = props.components && props.components.length > 0
-
   switch (phase) {
     case 'prompt':
-      if (isIntro) {
-        // Show early during intro — learner sees the LEGO while hearing the known audio
-        voice1Timer = setTimeout(() => {
-          assemblyPhase.value = 'assembling'
-        }, 500)
-      } else {
-        assemblyPhase.value = 'hidden'
-      }
-      break
     case 'speak':
-      if (isIntro) {
-        assemblyPhase.value = 'assembled'
-      } else {
-        assemblyPhase.value = 'hidden'
-      }
+      assemblyPhase.value = 'hidden'
       break
     case 'voice1':
     case 'voice_1':
-      if (isIntro) {
-        // Already visible from prompt — just ensure assembled
-        assemblyPhase.value = 'assembled'
-      } else {
-        // Normal behaviour: delay reveal so learner hears before reading
-        voice1Timer = setTimeout(() => {
-          assemblyPhase.value = 'assembling'
-        }, VOICE1_REVEAL_DELAY_MS)
-      }
+      // Delay reveal so learner hears target before reading tiles
+      instantHide.value = false
+      voice1Timer = setTimeout(() => {
+        assemblyPhase.value = 'assembling'
+      }, VOICE1_REVEAL_DELAY_MS)
       break
     case 'voice2':
     case 'voice_2':
+      instantHide.value = false
       assemblyPhase.value = 'assembled'
       break
     default:
+      // Stop/unknown phase — instant hide, no animation
+      instantHide.value = true
       assemblyPhase.value = 'hidden'
   }
 }, { immediate: true })
@@ -114,8 +101,8 @@ const staggerDelay = (index: number): string => {
 </script>
 
 <template>
-  <div class="lego-assembly" :class="assemblyPhase">
-    <TransitionGroup name="lego-block">
+  <div class="lego-assembly" :class="[assemblyPhase, { 'instant-hide': instantHide }]">
+    <TransitionGroup :name="instantHide ? '' : 'lego-block'">
       <div
         v-for="(block, index) in blocks"
         :key="block.id"
@@ -168,6 +155,19 @@ const staggerDelay = (index: number): string => {
 }
 
 .lego-assembly.hidden {
+  opacity: 0;
+}
+
+/* Instant hide: no fade, no transition — tiles vanish with audio */
+.lego-assembly.instant-hide {
+  transition: none !important;
+}
+.lego-assembly.instant-hide .lego-block {
+  transition: none !important;
+  animation: none !important;
+}
+.lego-assembly.instant-hide .component-breakdown {
+  animation: none !important;
   opacity: 0;
 }
 
