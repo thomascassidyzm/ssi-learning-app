@@ -513,6 +513,17 @@ const legoTargetTextMap = computed<Map<string, string>>(() => {
   return map
 })
 
+// Build lookup: LEGO ID → known text from all loaded rounds
+const legoKnownTextMap = computed<Map<string, string>>(() => {
+  const map = new Map<string, string>()
+  for (const round of (loadedRounds.value || [])) {
+    if (round.legoId && round.cycles?.[0]?.known?.text) {
+      map.set(round.legoId, round.cycles[0].known.text)
+    }
+  }
+  return map
+})
+
 // Current phrase's LEGO blocks for the assembly view
 const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
   const cycle = simplePlayer.currentCycle.value as any
@@ -537,12 +548,21 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
   const salientLegoId = cycle.legoId || currentRound.value?.legoId || ''
   const texts: string[] = cycle.componentLegoTexts || []
   const textMap = legoTargetTextMap.value
+  // Show known text underneath blocks for current-round cycles (not spaced_rep)
+  const cycleId = cycle.id || ''
+  const isSpacedRep = cycleId.includes('_spaced_rep_')
+  const knownMap = isSpacedRep ? null : legoKnownTextMap.value
   return cycle.componentLegoIds
     .map((id: string, idx: number) => {
       const targetText = texts[idx] || textMap.get(id) || ''
       if (!targetText) return null
       const comps = _componentsByLegoId.get(id)
-      return { id, targetText, isSalient: id === salientLegoId, ...(comps ? { components: comps } : {}) }
+      const knownText = knownMap?.get(id)
+      return {
+        id, targetText, isSalient: id === salientLegoId,
+        ...(comps ? { components: comps } : {}),
+        ...(knownText ? { knownText } : {}),
+      }
     })
     .filter((b: LegoBlock | null): b is LegoBlock => b !== null)
 })

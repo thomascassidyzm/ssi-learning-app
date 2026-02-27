@@ -164,8 +164,8 @@ const knownText = computed(() => {
         <div
           v-for="(block, index) in blocks"
           :key="block.id"
-          class="lego-block"
-          :class="[assemblyPhase, { salient: block.isSalient, 'has-components': block.components && block.components.length > 1 }]"
+          class="lego-block-wrapper"
+          :class="[assemblyPhase]"
           :style="{
             '--scatter-x': `${scatterPositions[index]?.x ?? 0}%`,
             '--scatter-y': `${scatterPositions[index]?.y ?? 0}%`,
@@ -179,15 +179,21 @@ const knownText = computed(() => {
             '--char-count': block.targetText.length,
           }"
         >
-          <!-- M-LEGO in practice phrase: same stubs rendering -->
-          <template v-if="block.components && block.components.length > 1">
-            <span
-              v-for="(comp, ci) in block.components"
-              :key="ci"
-              class="comp block-text"
-            >{{ comp.target }}</span>
-          </template>
-          <span v-else class="block-text">{{ block.targetText }}</span>
+          <div
+            class="lego-block"
+            :class="{ salient: block.isSalient, 'has-components': block.components && block.components.length > 1 }"
+          >
+            <!-- M-LEGO in practice phrase: same stubs rendering -->
+            <template v-if="block.components && block.components.length > 1">
+              <span
+                v-for="(comp, ci) in block.components"
+                :key="ci"
+                class="comp block-text"
+              >{{ comp.target }}</span>
+            </template>
+            <span v-else class="block-text">{{ block.targetText }}</span>
+          </div>
+          <span v-if="block.knownText" class="block-known">{{ block.knownText }}</span>
         </div>
       </TransitionGroup>
     </template>
@@ -221,7 +227,7 @@ const knownText = computed(() => {
 .lego-assembly.instant-hide {
   transition: none !important;
 }
-.lego-assembly.instant-hide .lego-block,
+.lego-assembly.instant-hide .lego-block-wrapper,
 .lego-assembly.instant-hide .lego-tile {
   transition: none !important;
   animation: none !important;
@@ -328,6 +334,19 @@ const knownText = computed(() => {
 /* ═══════════════════════════════════════════════════════════════
    PRACTICE BLOCKS — multiple LEGOs in a phrase (horizontal flow)
    ═══════════════════════════════════════════════════════════════ */
+
+/* Wrapper: handles animation/positioning, contains tile + known text */
+.lego-block-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  transition-property: transform, opacity;
+  transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+  will-change: transform, opacity;
+}
+
+/* The visual tile */
 .lego-block {
   display: inline-flex;
   align-items: center;
@@ -342,9 +361,19 @@ const knownText = computed(() => {
   max-width: calc(100vw - 3rem);
   overflow: hidden;
   position: relative;
-  transition-property: transform, opacity, box-shadow, background;
-  transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
-  will-change: transform, opacity;
+}
+
+/* Known text under each practice block */
+.block-known {
+  font-family: var(--font-body, system-ui);
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.4);
+  white-space: nowrap;
+  text-align: center;
+  max-width: calc(100vw - 3rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .lego-block .block-text {
@@ -379,7 +408,7 @@ const knownText = computed(() => {
 }
 
 /* --- SCATTERED (floating gently) --- */
-.lego-block.scattered {
+.lego-block-wrapper.scattered {
   opacity: 0.5;
   transform: translate(var(--scatter-x), var(--scatter-y)) rotate(var(--scatter-rotate));
   transition-duration: 0.6s;
@@ -388,7 +417,7 @@ const knownText = computed(() => {
 }
 
 /* --- ASSEMBLING (drift to center, snap) --- */
-.lego-block.assembling {
+.lego-block-wrapper.assembling {
   opacity: 1;
   transform: translate(0, 0) rotate(0deg);
   transition-duration: var(--assemble-duration, 1.5s);
@@ -396,11 +425,13 @@ const knownText = computed(() => {
   animation: snap-arrive var(--assemble-duration, 1.5s) var(--stagger-delay, 0s) both;
 }
 
-/* --- ASSEMBLED (with gentle pulse) --- */
-.lego-block.assembled {
+/* --- ASSEMBLED (with gentle pulse on tile) --- */
+.lego-block-wrapper.assembled {
   opacity: 1;
   transform: translate(0, 0) rotate(0deg);
   transition-duration: 0.6s;
+}
+.lego-block-wrapper.assembled .lego-block {
   border-color: var(--belt-accent, rgba(255, 255, 255, 0.2));
   box-shadow:
     0 0 12px 2px var(--belt-glow, rgba(255, 255, 255, 0.15)),
@@ -424,7 +455,7 @@ const knownText = computed(() => {
   font-weight: 600;
   font-size: clamp(1.1rem, calc(2.3rem - var(--char-count, 8) * 0.035rem), 2.125rem);
 }
-.lego-block.salient.assembled {
+.lego-block-wrapper.assembled .lego-block.salient {
   background: rgba(255, 255, 255, 0.18);
   box-shadow:
     0 0 20px 5px var(--belt-glow, rgba(255, 255, 255, 0.25)),
@@ -433,7 +464,7 @@ const knownText = computed(() => {
 }
 
 /* --- HIDDEN --- */
-.lego-block.hidden {
+.lego-block-wrapper.hidden {
   opacity: 0;
   transform: translate(var(--scatter-x), var(--scatter-y)) scale(0.85);
   transition-duration: 0.4s;
@@ -542,7 +573,7 @@ const knownText = computed(() => {
   color: #1A1614;
 }
 
-:root[data-theme="mist"] .lego-block.assembled {
+:root[data-theme="mist"] .lego-block-wrapper.assembled .lego-block {
   background: #F2F0ED;
   border-color: var(--belt-accent, rgba(122, 110, 98, 0.18));
   box-shadow:
@@ -563,7 +594,7 @@ const knownText = computed(() => {
   color: #1A1614;
 }
 
-:root[data-theme="mist"] .lego-block.salient.assembled {
+:root[data-theme="mist"] .lego-block-wrapper.assembled .lego-block.salient {
   background: #ECEAE7;
   box-shadow:
     0 2px 6px rgba(44, 38, 34, 0.07),
@@ -586,7 +617,8 @@ const knownText = computed(() => {
 :root[data-theme="mist"] .tile-target .comp {
   color: #1A1614;
 }
-:root[data-theme="mist"] .tile-known {
+:root[data-theme="mist"] .tile-known,
+:root[data-theme="mist"] .block-known {
   color: #7A6E62;
 }
 :root[data-theme="mist"] .lego-tile.salient .tile-target {
