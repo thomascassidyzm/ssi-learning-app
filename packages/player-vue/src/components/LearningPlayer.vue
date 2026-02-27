@@ -1714,7 +1714,7 @@ watch(pendingPhase, (phase) => {
 
 watch(() => cyclePlaybackState.value.isPlaying, (playing) => {
   if (!playing && !isSkipInProgress.value && !isSkippingBelt.value && !isCycleTransitioning.value) {
-    isPlaying.value = false
+    simplePlayer.pause()
   }
 })
 
@@ -2923,7 +2923,7 @@ const handleCycleEvent = (event) => {
       // isSkipInProgress: used by skip/revisit/jumpToRound for single-item navigation
       // isSkippingBelt: used by belt skip functions that stop audio before calling jumpToRound
       if (!isSkipInProgress.value && !isSkippingBelt.value) {
-        isPlaying.value = false
+        simplePlayer.pause()
       }
       break
 
@@ -2997,7 +2997,7 @@ const handleResume = async () => {
   // 1. displayPhrases shows cycle text instead of "ready when you are"
   // 2. PlayerRestingState overlay hides (it checks isPlaying)
   hasEverStarted.value = true
-  isPlaying.value = true
+  simplePlayer.play()
 
   // Lazily initialize network on first play (deferred from startup)
   if (!networkInitialized.value) {
@@ -3635,134 +3635,6 @@ const skipIntroduction = () => {
   console.log('[LearningPlayer] Introduction fully skipped and cleaned up')
 }
 
-const startPlayback = async () => {
-  // Show "preparing to play" message on cold start (first ever play)
-  const isColdStart = !hasEverStarted.value
-  if (isColdStart) {
-    startPreparingState()
-  }
-
-  hasEverStarted.value = true
-  isPlaying.value = true
-
-  // Lazily initialize network on first play (deferred from startup)
-  if (!networkInitialized.value) {
-    nextTick(() => {
-      ensureNetworkInitialized()
-      // Populate network up to current position
-      if (currentRoundIndex.value > 0) {
-        populateNetworkUpToRound(currentRoundIndex.value)
-      } else if (cachedRounds.value.length > 0) {
-        populateNetworkUpToRound(0)
-      }
-    })
-  }
-
-  // Start belt progress session for time tracking
-  if (beltProgress.value) {
-    beltProgress.value.startSession(beltProgress.value.currentSeedNumber.value ?? 0)
-  }
-
-  // Check if welcome audio needs to play first (only on first ever play)
-  await playWelcomeIfNeeded()
-
-  // ============================================
-  // ROUND-BASED PLAYBACK
-  // ============================================
-  if (useRoundBasedPlayback.value) {
-    // Prefetch audio for current round before starting
-    if (currentRound.value?.items && courseCode.value) {
-      await prefetchRoundAudio(currentRound.value.items, courseCode.value)
-
-      // Also prefetch next round in background (don't await)
-      const nextRound = cachedRounds.value[currentRoundIndex.value + 1]
-      if (nextRound?.items) {
-        prefetchRoundAudio(nextRound.items, courseCode.value)
-      }
-    }
-
-    // Get the first item from the current round
-    const scriptItem = currentRound.value?.items[currentItemInRound.value]
-    if (!scriptItem) {
-      console.warn('[LearningPlayer] No script item to play')
-      return
-    }
-
-    console.log('[LearningPlayer] Starting round-based playback, round:', currentRoundIndex.value, 'LEGO:', currentRound.value?.legoId)
-    console.log('[LearningPlayer] Current scriptItem:', {
-      type: scriptItem.type,
-      legoId: scriptItem.legoId,
-      knownText: scriptItem.knownText,
-      targetText: scriptItem.targetText
-    })
-
-    // INTRO items: play intro audio directly, then advance to next item
-    if (scriptItem.type === 'intro') {
-      console.log('[LearningPlayer] First item is INTRO for:', scriptItem.legoId)
-      const playableItem = await scriptItemToPlayableItem(scriptItem)
-      if (playableItem) {
-        currentPlayableItem.value = playableItem
-        // Play intro audio and wait for completion
-        await playIntroductionAudioDirectly(scriptItem)
-
-        // CRITICAL: Ensure complete audio silence before starting next item
-        if (audioController.value) {
-          audioController.value.stop()
-        }
-        await new Promise(resolve => setTimeout(resolve, 50))
-
-        // Advance to next item in round (the DEBUT that follows)
-        currentItemInRound.value++
-        // Get and play the next item directly (don't call handleCycleEvent which would double-increment)
-        const nextItem = currentRound.value?.items[currentItemInRound.value]
-        if (nextItem && isPlaying.value) {
-          const nextPlayable = await scriptItemToPlayableItem(nextItem)
-          if (nextPlayable) {
-            currentPlayableItem.value = nextPlayable
-            if (nextPlayable.audioDurations) {
-              const pauseMs = getPauseDuration(Math.round(nextPlayable.audioDurations.target1 * 1000))
-            }
-            await startCyclePlayback(nextPlayable)
-          }
-        }
-      }
-      return
-    }
-
-    // Convert to playable item
-    const playableItem = await scriptItemToPlayableItem(scriptItem)
-    if (!playableItem) {
-      console.error('[LearningPlayer] Failed to convert script item')
-      return
-    }
-
-    // Store for currentItem computed
-    currentPlayableItem.value = playableItem
-
-    // Set pause duration: 1.5s boot up + target1 duration
-    if (playableItem.audioDurations) {
-      const pauseMs = getPauseDuration(Math.round(playableItem.audioDurations.target1 * 1000))
-    }
-
-    await startCyclePlayback(playableItem)
-    return
-  }
-
-  // ============================================
-  // FALLBACK: SESSION-BASED PLAYBACK (demo mode)
-  // ============================================
-  if (currentItem.value) {
-    // Check if this LEGO needs an introduction first
-    await playIntroductionIfNeeded(currentItem.value)
-
-    // Set pause duration: 1.5s boot up + target1 duration
-    if (currentItem.value.audioDurations) {
-      const pauseMs = getPauseDuration(Math.round(currentItem.value.audioDurations.target1 * 1000))
-    }
-    await startCyclePlayback(currentItem.value)
-  }
-}
-
 /**
  * SKIP - Jump to start of NEXT round
  * IMPORTANT: Must fully halt all audio before advancing
@@ -4214,7 +4086,7 @@ const handleAdaptationConsent = async (granted) => {
   await playWelcomeIfNeeded()
 
   // Let the learner tap to start — don't auto-play after consent
-  isPlaying.value = false
+  simplePlayer.pause()
 }
 
 // Preload first round audio during consent overlay (first visit only).
@@ -4509,7 +4381,7 @@ const showPausedSummary = () => {
   {
     stopCycle()
   }
-  isPlaying.value = false
+  simplePlayer.stop()
   showSessionComplete.value = true
 
   // End belt progress session (saves session history for time estimates)
@@ -4589,22 +4461,15 @@ const ensureNetworkLoaded = () => {
 }
 
 const handleResumeLearning = async () => {
-  // Hide summary and continue the infinite stream
+  // Hide summary and resume via the standard play path
   showSessionComplete.value = false
-  isPlaying.value = true
 
   // Start new belt progress session for time tracking
   if (beltProgress.value) {
     beltProgress.value.startSession(beltProgress.value.currentSeedNumber.value ?? 0)
   }
 
-  if (currentItem.value) {
-    // Check for introduction before starting
-    await playIntroductionIfNeeded(currentItem.value)
-    if (isPlaying.value) {
-      await startCyclePlayback(currentItem.value)
-    }
-  }
+  await handleResume()
 }
 
 const handleExit = () => {
@@ -4612,7 +4477,7 @@ const handleExit = () => {
   {
     stopCycle()
   }
-  isPlaying.value = false
+  simplePlayer.stop()
 
   // End belt progress session (saves session history)
   if (beltProgress.value) {
@@ -4861,7 +4726,7 @@ const handleNetworkNodeTap = async (node) => {
   // Pause main playback if running
   const wasPlaying = isPlaying.value
   if (wasPlaying) {
-    isPlaying.value = false
+    simplePlayer.pause()
   }
 
   // Get all practice items for this LEGO

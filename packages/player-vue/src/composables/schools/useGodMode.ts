@@ -290,6 +290,7 @@ export function useGodMode() {
   // Quick access helpers
   const usersByRole = computed(() => {
     const grouped: Record<EducationalRole, GodModeUser[]> = {
+      god: [],
       govt_admin: [],
       school_admin: [],
       teacher: [],
