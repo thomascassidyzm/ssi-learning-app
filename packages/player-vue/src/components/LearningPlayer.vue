@@ -5922,24 +5922,20 @@ defineExpose({
     />
 
     <!-- Hero-Centric Text Labels - Floating above/below the hero node -->
-    <div class="hero-text-pane" :class="[currentPhase, { 'is-intro': isIntroPhase, 'has-hint': showLearningHint && !isIntroPhase }]">
+    <div class="hero-text-pane" :class="[currentPhase, { 'is-intro': isIntroPhase }]">
 
-      <!-- Learning Hint Box - sits ABOVE the main text box -->
-      <div v-if="showLearningHint && !isIntroPhase" class="learning-hint-box" :class="{ 'is-speaking': currentPhase === 'speak' }">
-        <span class="hint-text">{{ phaseInstruction }}</span>
-        <button class="hint-dismiss" @click.stop="dismissLearningHint" title="Hide hints">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M18 6L6 18M6 6l12 12"/>
-          </svg>
-        </button>
-        <!-- Timer bar during speak phase -->
-        <div v-if="currentPhase === 'speak'" class="hint-timer">
-          <div class="hint-timer-fill" :style="{ width: ringProgress + '%' }"></div>
+      <!-- Main Text Box (with integrated hint) -->
+      <div class="hero-glass" :class="{ 'is-speaking': currentPhase === 'speak' && showLearningHint && !isIntroPhase }">
+        <!-- Inline learning hint label -->
+        <div v-if="showLearningHint && !isIntroPhase" class="hero-hint-label">
+          <span class="hint-text">{{ phaseInstruction }}</span>
+          <button class="hint-dismiss" @click.stop="dismissLearningHint" title="Hide hints">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
         </div>
-      </div>
 
-      <!-- Main Text Box -->
-      <div class="hero-glass">
         <!-- INTRO MODE: Typewriter-style encouraging message -->
         <template v-if="isIntroPhase && !isAwakening">
           <div class="intro-display">
@@ -5951,7 +5947,7 @@ defineExpose({
           </div>
         </template>
 
-        <!-- NORMAL MODE: Text only (hint is now above) -->
+        <!-- NORMAL MODE: Text with optional hint above -->
         <template v-else>
           <!-- Text container - fades all text together during transition -->
           <div class="hero-text-container" :class="{ 'is-transitioning': isTransitioningItem }">
@@ -5967,15 +5963,13 @@ defineExpose({
                 {{ displayedKnownText }}
               </p>
             </div>
-
-            <!-- Target text removed — duplicated by LEGO tiles below -->
           </div>
         </template>
-      </div>
 
-      <!-- Pause countdown bar - only shows after hint box auto-hides -->
-      <div v-if="currentPhase === 'speak' && !isIntroPhase && !showLearningHint" class="pause-timer-bar">
-        <div class="pause-timer-fill" :style="{ width: ringProgress + '%' }"></div>
+        <!-- Pause countdown bar — inside the glass, at the bottom -->
+        <div v-if="currentPhase === 'speak' && !isIntroPhase" class="pause-timer-bar">
+          <div class="pause-timer-fill" :style="{ width: ringProgress + '%' }"></div>
+        </div>
       </div>
     </div>
 
@@ -6191,42 +6185,14 @@ defineExpose({
     </div>
 
     <!-- Header - Logo with belt underneath, centered -->
+    <!-- Header - brand row + belt row -->
     <header class="header" :class="{ 'has-banner': props.classContext }">
       <div class="header-stack">
-        <!-- Logo row with theme toggle -->
-        <div class="brand-row">
-          <div class="brand">
-            <span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span>
-          </div>
-          <!-- Theme toggle button -->
-          <button
-            v-if="themeContext"
-            class="theme-toggle-btn"
-            @click="themeContext.toggleTheme"
-            :title="themeContext.theme.value === 'cosmos' ? 'Switch to Mist theme' : 'Switch to Cosmos theme'"
-          >
-            <!-- Sun icon for mist/day mode -->
-            <svg v-if="themeContext.theme.value === 'cosmos'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="5"/>
-              <line x1="12" y1="1" x2="12" y2="3"/>
-              <line x1="12" y1="21" x2="12" y2="23"/>
-              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-              <line x1="1" y1="12" x2="3" y2="12"/>
-              <line x1="21" y1="12" x2="23" y2="12"/>
-              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-            </svg>
-            <!-- Moon icon for cosmos/night mode -->
-            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-            </svg>
-          </button>
-        </div>
+        <!-- Brand -->
+        <div class="brand"><span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span></div>
 
-        <!-- Belt row: Skip buttons + progress/timer + Skip buttons -->
+        <!-- Belt row: skip back + timer + skip forward -->
         <div class="belt-row">
-          <!-- Skip back button -->
           <button
             class="belt-header-skip belt-header-skip--back"
             :class="{ 'is-skipping': isSkippingBelt, 'is-loading-target': prevBeltLoading }"
@@ -6241,7 +6207,6 @@ defineExpose({
             </svg>
           </button>
 
-          <!-- Belt + Timer - narrower, opens modal on tap -->
           <button
             class="belt-timer-unified"
             @click="openBeltProgressModal"
@@ -6253,7 +6218,6 @@ defineExpose({
             <span class="belt-timer-label">{{ formattedSessionTime }}</span>
           </button>
 
-          <!-- Skip forward button -->
           <button
             class="belt-header-skip belt-header-skip--forward"
             :class="{ 'is-skipping': isSkippingBelt, 'is-loading-target': nextBeltLoading }"
@@ -6690,12 +6654,12 @@ defineExpose({
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
 
   /* ============ LAYOUT STRUCTURE ============ */
-  --header-height: 56px;
+  --header-height: 72px;
   --header-total: calc(var(--header-height) + var(--safe-area-top));
   --nav-height: 80px;
   --nav-total: calc(var(--nav-height) + var(--safe-area-bottom));
   --control-bar-bottom: var(--nav-total);
-  --hero-offset: 64px;
+  --hero-offset: 16px;
   --hero-top: calc(var(--header-total) + var(--hero-offset));
 
   /* ============ SPACING SCALE ============ */
@@ -7148,15 +7112,12 @@ defineExpose({
 /* ============ HEADER ============ */
 .header {
   position: relative;
-  z-index: 15; /* Higher than hero-text-pane (10) to prevent overlap issues */
+  z-index: 15;
   display: flex;
   align-items: center;
-  justify-content: center; /* Center the header stack */
-  /* Use safe area + spacing from design system */
-  padding: calc(var(--space-md) + var(--safe-area-top)) var(--space-lg) var(--space-sm);
-  gap: var(--space-md);
-  pointer-events: auto; /* Header buttons clickable */
-  /* Height defined by CSS custom property for consistency */
+  justify-content: center;
+  padding: calc(var(--space-sm) + var(--safe-area-top)) var(--space-lg) 0;
+  pointer-events: auto;
   min-height: var(--header-height);
 }
 
@@ -7169,65 +7130,19 @@ defineExpose({
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.375rem;
+  gap: 6px;
+  width: 100%;
+  max-width: 400px;
 }
 
-/* Close button removed - navigation handled by bottom nav */
-.close-btn {
-  display: none;
-}
-
-/* Brand row - logo + theme toggle */
-.brand-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-/* Brand/logo - centered in stack */
+/* Brand — compact logo text */
 .brand {
   font-family: var(--font-body);
   font-weight: 700;
-  font-size: 1.5rem; /* Fixed size - don't scale */
+  font-size: 1.125rem;
   letter-spacing: -0.02em;
-  opacity: 0.7;
-  transition: opacity 0.2s ease;
-}
-
-/* Theme toggle button */
-.theme-toggle-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: var(--bg-card);
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  opacity: 0.6;
-}
-
-.theme-toggle-btn:hover {
-  opacity: 1;
-  background: var(--bg-elevated);
-  color: var(--text-primary);
-}
-
-.theme-toggle-btn:active {
-  transform: scale(0.95);
-}
-
-.theme-toggle-btn svg {
-  width: 18px;
-  height: 18px;
-}
-
-.brand:hover {
-  opacity: 1;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .logo-say, .logo-in { color: var(--accent); }
@@ -7386,26 +7301,21 @@ defineExpose({
   background: rgba(255, 255, 255, 0.1);
 }
 
-/* ============ BELT ROW WITH SKIP BUTTONS ============ */
-/* Container for belt skip buttons + progress/timer */
+/* ============ BELT ROW ============ */
 .belt-row {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: var(--belt-row-gap);
   width: 100%;
-  max-width: 400px;
-  margin: 0 auto;
-  margin-top: var(--space-md);
-  padding: 0 var(--space-lg);
+  padding: 0 var(--space-sm);
 }
 
-/* Belt header skip buttons - subtle chevrons only (no circle) */
+/* Belt skip buttons */
 .belt-header-skip {
-  width: var(--belt-skip-btn-size);
-  height: var(--belt-skip-btn-size);
-  min-width: var(--btn-touch-target);
-  min-height: var(--btn-touch-target);
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
   border-radius: 50%;
   border: none;
   background: transparent;
@@ -7420,8 +7330,8 @@ defineExpose({
 }
 
 .belt-header-skip svg {
-  width: var(--belt-skip-btn-icon);
-  height: var(--belt-skip-btn-icon);
+  width: 18px;
+  height: 18px;
 }
 
 .belt-header-skip:hover:not(:disabled) {
@@ -7430,7 +7340,7 @@ defineExpose({
 }
 
 .belt-header-skip:disabled {
-  opacity: 0.3;
+  opacity: 0.25;
   cursor: not-allowed;
 }
 
@@ -7440,7 +7350,6 @@ defineExpose({
   opacity: 1;
 }
 
-/* Belt skip loading state: target rounds not yet loaded */
 .belt-header-skip.is-loading-target:not(.is-skipping) {
   animation: belt-skip-pulse 1.5s ease-in-out infinite;
   opacity: 0.5;
@@ -7451,23 +7360,19 @@ defineExpose({
   50% { opacity: 0.2; }
 }
 
-/* ============ UNIFIED BELT + TIMER ============ */
-/* Single element showing belt progress bar + session time, opens modal on tap */
-/* Narrower to fit alongside skip buttons */
+/* ============ BELT TIMER ============ */
 .belt-timer-unified {
   display: flex;
   align-items: center;
-  gap: var(--space-md);
-  padding: var(--space-sm) var(--space-lg);
+  gap: var(--space-sm);
+  padding: 6px 16px;
   background: var(--bg-card);
   border: 1px solid color-mix(in srgb, var(--belt-color) 35%, var(--border-subtle));
-  border-radius: 16px;
+  border-radius: 20px;
   cursor: pointer;
   transition: all 0.2s ease;
   box-shadow: 0 0 15px color-mix(in srgb, var(--belt-glow) 12%, transparent);
-  flex: 1;
-  min-width: 0;
-  max-width: var(--belt-timer-width);
+  width: 100%;
 }
 
 .belt-timer-unified:hover {
@@ -8195,7 +8100,6 @@ defineExpose({
 /* Text labels floating above/below the hero node with glass effect */
 .hero-text-pane {
   position: absolute;
-  /* Position below header using CSS custom property - no media queries needed */
   top: var(--hero-top);
   left: 50%;
   transform: translate(-50%, 0);
@@ -8204,8 +8108,6 @@ defineExpose({
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.75rem; /* Fixed gap between hint and text box */
-  /* Fixed phone-like width */
   width: calc(100% - 2rem);
   max-width: 400px;
   transition: opacity 0.4s ease, transform 0.4s ease;
@@ -8379,56 +8281,42 @@ defineExpose({
   to { stroke-dashoffset: 172; }
 }
 
-/* ============ LEARNING HINT BOX - Matches hero-glass style ============ */
-.learning-hint-box {
+/* ============ INLINE HINT LABEL (inside hero-glass) ============ */
+.hero-hint-label {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  padding: 12px 24px;
-  /* Match hero-glass styling */
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: none;
-  box-shadow:
-    0 2px 16px rgba(0, 0, 0, 0.3),
-    0 0 0 1px rgba(255, 255, 255, 0.08);
-  /* Match hero-glass width */
-  min-width: 320px;
-  max-width: 400px;
+  gap: 8px;
   width: 100%;
   position: relative;
-  transition: all 0.3s ease;
-  /* Make clickable despite parent pointer-events: none */
   pointer-events: auto;
 }
 
 .hint-text {
-  font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
-  font-size: 0.9375rem;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.75);
-  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.5);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   text-align: center;
 }
 
 .hint-dismiss {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: -2px;
+  right: -4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   padding: 0;
   background: rgba(255, 255, 255, 0.08);
   border: none;
   border-radius: 50%;
   cursor: pointer;
-  opacity: 0.5;
+  opacity: 0.4;
   transition: all 0.2s ease;
   flex-shrink: 0;
 }
@@ -8439,76 +8327,34 @@ defineExpose({
 }
 
 .hint-dismiss svg {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   color: rgba(255, 255, 255, 0.8);
 }
 
-/* Speaking state - ALIVE! Recording feel */
-.learning-hint-box.is-speaking {
-  background: rgba(220, 38, 38, 0.12);
+/* Speaking state — subtle glow on the hero-glass itself */
+.hero-glass.is-speaking {
   box-shadow:
     0 2px 16px rgba(0, 0, 0, 0.3),
-    0 0 0 1px rgba(220, 38, 38, 0.4),
-    0 0 30px rgba(220, 38, 38, 0.2),
-    inset 0 0 30px rgba(220, 38, 38, 0.05);
-  animation: speaking-pulse 1.2s ease-in-out infinite;
+    0 0 0 1px rgba(220, 38, 38, 0.3),
+    0 0 20px rgba(220, 38, 38, 0.12);
 }
 
-.learning-hint-box.is-speaking .hint-text {
-  color: rgba(255, 255, 255, 0.95);
+.hero-glass.is-speaking .hint-text {
+  color: rgba(220, 38, 38, 0.8);
   font-weight: 600;
 }
 
-@keyframes speaking-pulse {
-  0%, 100% {
-    box-shadow:
-      0 2px 16px rgba(0, 0, 0, 0.3),
-      0 0 0 1px rgba(220, 38, 38, 0.4),
-      0 0 20px rgba(220, 38, 38, 0.15),
-      inset 0 0 20px rgba(220, 38, 38, 0.03);
-  }
-  50% {
-    box-shadow:
-      0 2px 16px rgba(0, 0, 0, 0.3),
-      0 0 0 2px rgba(220, 38, 38, 0.6),
-      0 0 40px rgba(220, 38, 38, 0.3),
-      inset 0 0 40px rgba(220, 38, 38, 0.08);
-  }
-}
-
-/* Timer bar inside hint during speak phase */
-/* Inset to respect the 24px rounded corners */
-.hint-timer {
-  position: absolute;
-  bottom: 6px;
-  /* Inset from edges so it doesn't extend beyond the rounded corners */
-  left: 20px;
-  right: 20px;
-  height: 3px;
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.hint-timer-fill {
-  height: 100%;
-  background: #dc2626;
-  border-radius: 2px;
-  transition: width 0.1s linear;
-  box-shadow: 0 0 8px rgba(220, 38, 38, 0.6);
-}
-
-/* Standalone pause countdown bar - always visible during speak phase */
+/* Pause countdown bar — inside hero-glass at bottom */
 .pause-timer-bar {
-  width: 80%;
-  max-width: 500px;
-  height: 4px;
-  margin: 12px auto 0;
-  background: rgba(0, 0, 0, 0.3);
+  width: 100%;
+  height: 3px;
+  margin-top: var(--space-sm);
+  background: rgba(0, 0, 0, 0.2);
   border-radius: 2px;
   overflow: hidden;
 }
+
 .pause-timer-fill {
   height: 100%;
   background: #dc2626;
@@ -9773,8 +9619,8 @@ defineExpose({
 /* Tablet and Desktop (768px+) - more breathing room */
 @media (min-width: 768px) {
   .player {
-    --header-height: 64px;
-    --hero-offset: 80px;
+    --header-height: 80px;
+    --hero-offset: 20px;
     --space-md: 16px;
     --space-lg: 20px;
     --mode-btn-size: 44px;
@@ -9802,8 +9648,8 @@ defineExpose({
 /* Landscape phones - compact vertical spacing */
 @media (orientation: landscape) and (max-height: 500px) {
   .player {
-    --header-height: 48px;
-    --hero-offset: 20px;
+    --header-height: 56px;
+    --hero-offset: 8px;
     --space-sm: 4px;
     --space-md: 8px;
     --space-lg: 12px;
@@ -10155,11 +10001,14 @@ defineExpose({
      Scoped manually via .player parent class.
      ═══════════════════════════════════════════════════════════════ -->
 <style>
-/* --- Player wrapper background --- */
+/* --- Player wrapper background — belt-colored underglow --- */
 [data-theme="mist"] .player {
   background:
-    radial-gradient(ellipse 120% 80% at 50% 80%,
-      color-mix(in srgb, var(--belt-color) 5%, transparent) 0%,
+    radial-gradient(ellipse 140% 60% at 50% 70%,
+      color-mix(in srgb, var(--belt-color) 8%, transparent) 0%,
+      transparent 50%),
+    radial-gradient(ellipse 80% 50% at 50% 30%,
+      color-mix(in srgb, var(--belt-color) 4%, transparent) 0%,
       transparent 60%),
     #e8e3dd;
 }
@@ -10207,12 +10056,12 @@ defineExpose({
   display: none !important;
 }
 
-/* --- Hero glass → Elevated white card with strong pop --- */
+/* --- Hero glass → Elevated white card with dark edge --- */
 [data-theme="mist"] .player .hero-glass {
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(16px) saturate(160%);
   -webkit-backdrop-filter: blur(16px) saturate(160%);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.12);
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
               0 8px 24px rgba(44, 38, 34, 0.08),
               0 20px 48px rgba(44, 38, 34, 0.05);
@@ -10248,25 +10097,33 @@ defineExpose({
   color: var(--text-muted);
 }
 
-/* --- Control bar → Elevated white pill with pop --- */
+/* --- Control bar → Elevated white pill with dark edge --- */
 [data-theme="mist"] .player .control-bar {
   background: rgba(255, 255, 255, 0.90);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.12);
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.14),
               0 8px 24px rgba(44, 38, 34, 0.10),
               0 20px 48px rgba(44, 38, 34, 0.06);
 }
 
-/* --- Belt timer → Elevated white with belt accent --- */
+/* --- Belt timer → Elevated white with dark edge + belt glow --- */
 [data-theme="mist"] .player .belt-timer-unified {
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(16px) saturate(160%);
   -webkit-backdrop-filter: blur(16px) saturate(160%);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.12);
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
-              0 8px 24px rgba(44, 38, 34, 0.08);
+              0 8px 24px rgba(44, 38, 34, 0.08),
+              0 0 12px color-mix(in srgb, var(--belt-color) 10%, transparent);
+}
+
+[data-theme="mist"] .player .belt-timer-unified:hover {
+  border-color: color-mix(in srgb, var(--belt-color) 40%, rgba(0, 0, 0, 0.12));
+  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
+              0 8px 24px rgba(44, 38, 34, 0.08),
+              0 0 20px color-mix(in srgb, var(--belt-color) 18%, transparent);
 }
 
 /* Belt bar track needs contrast against white timer */
@@ -10279,25 +10136,26 @@ defineExpose({
   box-shadow: none;
 }
 
-/* --- Skip buttons → Elevated white with belt color accent --- */
+/* --- Belt skip buttons → soft belt-color fill --- */
 [data-theme="mist"] .player .belt-header-skip {
-  background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 10%, #ffffff);
+  border: 1px solid rgba(0, 0, 0, 0.10);
   opacity: 1;
   color: color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 70%, #2C2622);
-  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
-              0 0 8px color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 15%, transparent);
+  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10),
+              0 0 8px color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 12%, transparent);
 }
 
 [data-theme="mist"] .player .belt-header-skip:hover:not(:disabled) {
-  background: #ffffff;
-  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.16),
-              0 0 12px color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 20%, transparent);
+  background: color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 18%, #ffffff);
+  border-color: color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 30%, rgba(0, 0, 0, 0.10));
+  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.14),
+              0 0 16px color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 25%, transparent);
 }
 
 [data-theme="mist"] .player .belt-header-skip:disabled {
   background: rgba(0, 0, 0, 0.03);
-  border-color: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.04);
   color: var(--text-muted);
   box-shadow: none;
 }
@@ -10395,20 +10253,32 @@ defineExpose({
   color: #1A1614;
 }
 
-/* --- Learning hint box → Elevated white --- */
-[data-theme="mist"] .player .learning-hint,
-[data-theme="mist"] .player .learning-hint-box {
-  background: rgba(255, 255, 255, 0.90);
-  backdrop-filter: blur(16px) saturate(160%);
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
-              0 8px 24px rgba(44, 38, 34, 0.08);
-  color: var(--text-secondary);
+/* --- Inline hint label → muted text on white glass --- */
+[data-theme="mist"] .player .hero-hint-label .hint-text {
+  color: var(--text-muted);
 }
 
-[data-theme="mist"] .player .learning-hint-box .hint-text {
-  color: var(--text-secondary);
+[data-theme="mist"] .player .hero-glass.is-speaking .hint-text {
+  color: var(--ssi-red);
+}
+
+[data-theme="mist"] .player .hero-glass.is-speaking {
+  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
+              0 8px 24px rgba(44, 38, 34, 0.08),
+              0 0 0 1px rgba(194, 58, 58, 0.2),
+              0 0 16px rgba(194, 58, 58, 0.08);
+}
+
+[data-theme="mist"] .player .pause-timer-bar {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="mist"] .player .hint-dismiss {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="mist"] .player .hint-dismiss svg {
+  color: var(--text-muted);
 }
 
 /* --- Component breakdown tiles → White elevated --- */

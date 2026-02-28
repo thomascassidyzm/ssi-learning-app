@@ -260,3 +260,24 @@ const handleChangeCourse = () => {
   50% { opacity: 0.8; }
 }
 </style>
+
+<!-- Mist theme overrides -->
+<style>
+:root[data-theme="mist"] .resting-state {
+  background: radial-gradient(
+    ellipse at center 60%,
+    color-mix(in srgb, var(--bg-primary) 30%, transparent) 0%,
+    transparent 100%
+  );
+}
+
+:root[data-theme="mist"] .belt-badge {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.08);
+}
+
+:root[data-theme="mist"] .progress-bar-track {
+  background: rgba(0, 0, 0, 0.06);
+}
+</style>

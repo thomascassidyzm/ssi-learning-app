@@ -20,50 +20,31 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'exitListeningMode', 'revisit', 'skip'])
+const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'exitListeningMode', 'revisit', 'skip', 'openSettings'])
 
-// Tap feedback state
+// Tap feedback
 const tappedItem = ref(null)
 const playButtonPressed = ref(false)
 
-// Transport mode: playing on player screen
-const isTransportMode = computed(() =>
-  props.currentScreen === 'player'
-  && props.isPlaying
-  && !props.isListeningMode
+const isOnPlayerScreen = computed(() => props.currentScreen === 'player')
+
+const isStopMode = computed(() =>
+  isOnPlayerScreen.value && props.isPlaying && !props.isListeningMode
 )
 
-// Handle navigation tap with haptic feedback
 const handleNavTap = (itemId) => {
   tappedItem.value = itemId
   setTimeout(() => { tappedItem.value = null }, 150)
-
-  if (navigator.vibrate) {
-    navigator.vibrate(10)
-  }
-
-  // If listening mode is active, exit it first
-  if (props.isListeningMode) {
-    emit('exitListeningMode')
-  }
-
+  if (navigator.vibrate) navigator.vibrate(10)
+  if (props.isListeningMode) emit('exitListeningMode')
   emit('navigate', itemId)
 }
 
-// Check if we're on the player screen
-const isOnPlayerScreen = computed(() => props.currentScreen === 'player')
-
-// Handle play button
 const handlePlayTap = () => {
   if (props.isListeningMode) return
-
   playButtonPressed.value = true
   setTimeout(() => { playButtonPressed.value = false }, 200)
-
-  if (navigator.vibrate) {
-    navigator.vibrate([10, 50, 10])
-  }
-
+  if (navigator.vibrate) navigator.vibrate([10, 50, 10])
   if (isOnPlayerScreen.value) {
     emit('togglePlayback')
   } else {
@@ -71,7 +52,6 @@ const handlePlayTap = () => {
   }
 }
 
-// Handle transport buttons
 const handleRevisit = () => {
   if (navigator.vibrate) navigator.vibrate(10)
   emit('revisit')
@@ -82,151 +62,92 @@ const handleSkip = () => {
   emit('skip')
 }
 
-// Button label based on state
-const playButtonLabel = computed(() => {
-  if (props.isListeningMode) return 'Listening'
-  if (isOnPlayerScreen.value) return props.isPlaying ? 'Stop' : 'Play'
-  return 'Learn'
-})
+const handleSettings = () => {
+  if (navigator.vibrate) navigator.vibrate(10)
+  emit('openSettings')
+}
 </script>
 
 <template>
-  <nav class="bottom-nav" :class="{ 'transport-mode': isTransportMode }">
-    <!-- Blur backdrop -->
+  <nav class="bottom-nav">
     <div class="nav-backdrop"></div>
 
-    <!-- === TRANSPORT MODE (playing) === -->
-    <div v-if="isTransportMode" class="nav-content nav-content--transport">
-      <!-- Library escape button -->
+    <div class="nav-content">
+      <!-- Slot 1: Library -->
       <button
-        class="transport-nav-btn"
-        :class="{ tapped: tappedItem === 'library' }"
+        class="pill-btn"
+        :class="{
+          active: currentScreen === 'library',
+          tapped: tappedItem === 'library'
+        }"
         @click="handleNavTap('library')"
         title="Library"
       >
+        <span class="pill-btn-bg"></span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-          <rect x="3" y="3" width="7" height="7" rx="1"/>
-          <rect x="14" y="3" width="7" height="7" rx="1"/>
-          <rect x="3" y="14" width="7" height="7" rx="1"/>
-          <rect x="14" y="14" width="7" height="7" rx="1"/>
+          <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+          <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+          <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+          <rect x="14" y="14" width="7" height="7" rx="1.5"/>
         </svg>
       </button>
 
-      <!-- Revisit -->
-      <button class="transport-nav-btn" @click="handleRevisit" title="Revisit">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <!-- Slot 2: Revisit -->
+      <button class="pill-btn" :class="{ tapped: tappedItem === 'revisit' }" @click="handleRevisit" title="Revisit">
+        <span class="pill-btn-bg"></span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <polyline points="15 18 9 12 15 6"/>
         </svg>
       </button>
 
-      <!-- Stop button (center) -->
+      <!-- Slot 3: Play / Stop -->
       <button
-        class="play-button play-button--transport is-playing"
-        :class="{ pressed: playButtonPressed }"
+        class="center-btn"
+        :class="{
+          pressed: playButtonPressed,
+          'is-stop': isStopMode,
+          'is-disabled': isListeningMode
+        }"
+        :disabled="isListeningMode"
         @click="handlePlayTap"
       >
-        <div class="play-button-glow"></div>
-        <div class="play-button-inner">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <rect x="6" y="6" width="12" height="12" rx="1"/>
+        <div class="center-btn-inner">
+          <svg v-if="isStopMode" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="6" y="6" width="12" height="12" rx="2"/>
+          </svg>
+          <svg v-else-if="isListeningMode" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+            <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+          </svg>
+          <svg v-else viewBox="0 0 24 24" fill="currentColor">
+            <polygon points="7 3 20 12 7 21 7 3"/>
           </svg>
         </div>
       </button>
 
-      <!-- Skip -->
-      <button class="transport-nav-btn" @click="handleSkip" title="Skip">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <!-- Slot 4: Skip -->
+      <button class="pill-btn" :class="{ tapped: tappedItem === 'skip' }" @click="handleSkip" title="Skip">
+        <span class="pill-btn-bg"></span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <polyline points="9 18 15 12 9 6"/>
         </svg>
       </button>
 
-      <!-- Empty spacer to balance library button -->
-      <div class="transport-spacer"></div>
+      <!-- Slot 5: Settings (gear) -->
+      <button
+        class="pill-btn"
+        :class="{ tapped: tappedItem === 'settings' }"
+        @click="handleSettings"
+        title="Settings"
+      >
+        <span class="pill-btn-bg"></span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
     </div>
 
-    <!-- === RESTING MODE (not playing) === -->
-    <div v-else class="nav-content">
-      <!-- Left: Progress -->
-      <div class="nav-group nav-group--left">
-        <button
-          class="nav-item"
-          :class="{
-            active: currentScreen === 'progress',
-            tapped: tappedItem === 'progress'
-          }"
-          @click="handleNavTap('progress')"
-        >
-          <div class="nav-icon">
-            <!-- Brain icon -->
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-              <path d="M12 2C9.5 2 7.5 3.5 7 5.5C5.5 5.5 4 7 4 9c0 1.5.8 2.8 2 3.5-.2.5-.3 1-.3 1.5 0 2 1.5 3.5 3.3 3.8.5 1.3 1.8 2.2 3 2.2s2.5-.9 3-2.2c1.8-.3 3.3-1.8 3.3-3.8 0-.5-.1-1-.3-1.5 1.2-.7 2-2 2-3.5 0-2-1.5-3.5-3-3.5C16.5 3.5 14.5 2 12 2z"/>
-              <path d="M12 2v18" opacity="0.3"/>
-              <path d="M7 9h10" opacity="0.3"/>
-            </svg>
-          </div>
-          <span class="nav-label">Progress</span>
-          <div class="active-indicator"></div>
-        </button>
-      </div>
-
-      <!-- Central Play/Stop Button -->
-      <div class="play-button-container">
-        <button
-          class="play-button"
-          :class="{
-            pressed: playButtonPressed,
-            'is-playing': isOnPlayerScreen && isPlaying,
-            'is-disabled': isListeningMode
-          }"
-          :disabled="isListeningMode"
-          @click="handlePlayTap"
-        >
-          <div class="play-button-glow"></div>
-          <div class="play-button-inner">
-            <!-- Stop icon when playing -->
-            <svg v-if="isOnPlayerScreen && isPlaying && !isListeningMode" viewBox="0 0 24 24" fill="currentColor">
-              <rect x="6" y="6" width="12" height="12" rx="1"/>
-            </svg>
-            <!-- Headphones icon when in listening mode -->
-            <svg v-else-if="isListeningMode" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
-              <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
-            </svg>
-            <!-- Play icon otherwise -->
-            <svg v-else viewBox="0 0 24 24" fill="currentColor">
-              <polygon points="6 3 20 12 6 21 6 3"/>
-            </svg>
-          </div>
-        </button>
-        <span class="play-label">{{ playButtonLabel }}</span>
-      </div>
-
-      <!-- Right: Library -->
-      <div class="nav-group nav-group--right">
-        <button
-          class="nav-item"
-          :class="{
-            active: currentScreen === 'library',
-            tapped: tappedItem === 'library'
-          }"
-          @click="handleNavTap('library')"
-        >
-          <div class="nav-icon">
-            <!-- Browse/grid icon -->
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-              <rect x="3" y="3" width="7" height="7" rx="1"/>
-              <rect x="14" y="3" width="7" height="7" rx="1"/>
-              <rect x="3" y="14" width="7" height="7" rx="1"/>
-              <rect x="14" y="14" width="7" height="7" rx="1"/>
-            </svg>
-          </div>
-          <span class="nav-label">Library</span>
-          <div class="active-indicator"></div>
-        </button>
-      </div>
-    </div>
-
-    <!-- Safe area spacer for PWA -->
     <div class="safe-area-spacer"></div>
   </nav>
 </template>
@@ -255,310 +176,128 @@ const playButtonLabel = computed(() => {
   z-index: 100;
 }
 
-.nav-backdrop::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 10%;
-  right: 10%;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--border-subtle) 20%,
-    var(--border-subtle) 80%,
-    transparent
-  );
-}
-
 .nav-content {
   position: relative;
+  z-index: 102;
   display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding: 0 8px;
+  align-items: center;
+  justify-content: space-evenly;
   width: 100%;
   max-width: 400px;
   margin: 0 auto;
-  height: 68px;
+  height: 64px;
+  padding: 0 6px;
 }
 
-/* Transport mode content — spread buttons across the pill */
-.nav-content--transport {
-  align-items: center;
-  justify-content: space-evenly;
-  gap: 0;
-  height: 56px;
-  padding: 0 12px;
-  max-width: none;
-  z-index: 102; /* Above nav-backdrop (z:100) */
-}
-
-.nav-group {
-  display: flex;
-  flex: 1;
-  max-width: 100px;
+/* Pill buttons (outer 4 slots) */
+.pill-btn {
   position: relative;
-  z-index: 102;
-}
-
-.nav-group--left {
-  justify-content: center;
-}
-
-.nav-group--right {
-  justify-content: center;
-}
-
-/* Nav Item */
-.nav-item {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
-  padding: 0 10px 12px;
-  background: transparent;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
   border: none;
+  background: transparent;
   cursor: pointer;
-  position: relative;
-  transition: all 0.2s ease;
-  min-width: 44px;
-  min-height: 44px;
+  color: var(--text-muted);
+  transition: color 0.2s ease;
   -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
 }
 
-.nav-item:active,
-.nav-item.tapped {
-  transform: scale(0.9);
-}
-
-.nav-icon {
+.pill-btn svg {
+  position: relative;
+  z-index: 1;
   width: 22px;
   height: 22px;
-  color: var(--text-muted);
-  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.nav-icon svg {
-  width: 100%;
-  height: 100%;
+.pill-btn:active,
+.pill-btn.tapped {
+  transform: scale(0.88);
 }
 
-.nav-label {
-  font-family: var(--font-body);
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--text-muted);
-  transition: all 0.25s ease;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-}
-
-/* Active state */
-.nav-item.active .nav-icon {
-  color: var(--belt-color, var(--ssi-red));
-  transform: translateY(-1px) scale(1.05);
-}
-
-.nav-item.active .nav-label {
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-.active-indicator {
+/* Circle highlight background (Telegram-style) */
+.pill-btn-bg {
   position: absolute;
-  bottom: 6px;
-  width: 4px;
-  height: 4px;
+  inset: 4px;
   border-radius: 50%;
-  background: var(--belt-color, var(--ssi-red));
-  opacity: 0;
-  transform: scale(0) translateY(4px);
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  box-shadow: 0 0 8px var(--belt-glow, rgba(194, 58, 58, 0.6));
+  background: transparent;
+  transition: background 0.2s ease;
 }
 
-.nav-item.active .active-indicator {
-  opacity: 1;
-  transform: scale(1) translateY(0);
+.pill-btn.active .pill-btn-bg {
+  background: color-mix(in srgb, var(--belt-color, var(--ssi-red)) 12%, transparent);
 }
 
-/* Hover state (desktop) */
+.pill-btn.active {
+  color: var(--belt-color, var(--ssi-red));
+}
+
 @media (hover: hover) {
-  .nav-item:hover:not(.active) .nav-icon {
-    color: var(--text-secondary);
+  .pill-btn:hover:not(.active) .pill-btn-bg {
+    background: rgba(255, 255, 255, 0.06);
   }
-
-  .nav-item:hover:not(.active) .nav-label {
+  .pill-btn:hover:not(.active) {
     color: var(--text-secondary);
   }
 }
 
-/* Central Play Button */
-.play-button-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin: 0 12px;
+/* Center play/stop button */
+.center-btn {
   position: relative;
-  top: -18px;
-  z-index: 110;
-}
-
-.play-button {
-  position: relative;
-  width: 56px;
-  height: 56px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
   border: none;
   background: linear-gradient(145deg, var(--ssi-red-light) 0%, var(--ssi-red) 100%);
   cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
   box-shadow:
-    0 4px 16px rgba(194, 58, 58, 0.45),
-    0 8px 24px rgba(194, 58, 58, 0.25),
-    inset 0 1px 1px var(--highlight-inset),
-    inset 0 -1px 1px rgba(0, 0, 0, 0.15);
+    0 4px 16px rgba(194, 58, 58, 0.4),
+    0 8px 24px rgba(194, 58, 58, 0.2);
   -webkit-tap-highlight-color: transparent;
-}
-
-.play-button:active,
-.play-button.pressed {
-  transform: scale(0.92);
-  box-shadow:
-    0 2px 8px rgba(194, 58, 58, 0.5),
-    0 4px 12px rgba(194, 58, 58, 0.3),
-    inset 0 1px 1px var(--highlight-inset),
-    inset 0 -1px 1px rgba(0, 0, 0, 0.15);
-}
-
-/* Transport mode play button - inline, not floating */
-.play-button--transport {
-  width: 44px;
-  height: 44px;
   flex-shrink: 0;
 }
 
-.play-button--transport .play-button-inner svg {
-  width: 18px;
-  height: 18px;
-  margin-left: 0;
+.center-btn:active,
+.center-btn.pressed {
+  transform: scale(0.9);
 }
 
-.play-button-glow {
-  position: absolute;
-  inset: -6px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(194, 58, 58, 0.5) 0%, transparent 70%);
-  opacity: 0.5;
-  transition: opacity 0.3s ease;
-  animation: glow-pulse 2.5s ease-in-out infinite;
-  pointer-events: none;
-}
-
-@keyframes glow-pulse {
-  0%, 100% { opacity: 0.5; transform: scale(1); }
-  50% { opacity: 0.8; transform: scale(1.08); }
-}
-
-.play-button:hover .play-button-glow {
-  opacity: 0.9;
-}
-
-.play-button-inner {
+.center-btn-inner {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-on-accent);
+  color: white;
 }
 
-.play-button-inner svg {
+.center-btn-inner svg {
   width: 22px;
   height: 22px;
-  margin-left: 2px;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
 }
 
-.play-button.is-playing .play-button-inner svg {
-  margin-left: 0;
+.center-btn:not(.is-stop):not(.is-disabled) .center-btn-inner svg {
+  margin-left: 2px;
 }
 
-/* Disabled state - listening mode */
-.play-button.is-disabled {
-  background: linear-gradient(145deg, var(--bg-interactive-disabled) 0%, var(--bg-interactive-disabled) 100%);
-  box-shadow:
-    0 2px 8px rgba(0, 0, 0, 0.3),
-    0 4px 12px rgba(0, 0, 0, 0.2),
-    inset 0 1px 1px var(--border-subtle),
-    inset 0 -1px 1px rgba(0, 0, 0, 0.1);
+.center-btn.is-disabled {
+  background: var(--bg-elevated);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   cursor: not-allowed;
-  opacity: 0.7;
+  opacity: 0.6;
 }
 
-.play-button.is-disabled .play-button-glow {
-  opacity: 0;
-  animation: none;
-}
-
-.play-button.is-disabled .play-button-inner {
-  color: var(--text-secondary);
-}
-
-.play-button.is-disabled .play-button-inner svg {
-  margin-left: 0;
-}
-
-.play-label {
-  font-family: var(--font-body);
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin-top: 6px;
-  letter-spacing: 0.02em;
-}
-
-/* Transport nav buttons (revisit, skip, library escape) */
-.transport-nav-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: none;
-  background: transparent;
-  cursor: pointer;
+.center-btn.is-disabled .center-btn-inner {
   color: var(--text-muted);
-  transition: all 0.2s ease;
-  -webkit-tap-highlight-color: transparent;
-  flex-shrink: 0;
 }
 
-.transport-nav-btn svg {
-  width: 20px;
-  height: 20px;
-}
-
-.transport-nav-btn:active,
-.transport-nav-btn.tapped {
-  transform: scale(0.9);
-}
-
-.transport-nav-btn:hover {
-  color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.1);
-}
-
-/* Spacer to balance the layout */
-.transport-spacer {
-  width: 40px;
-  flex-shrink: 0;
-}
-
-/* Safe area for PWA */
+/* Safe area */
 .safe-area-spacer {
   height: env(safe-area-inset-bottom, 0px);
   min-height: 4px;
@@ -570,175 +309,31 @@ const playButtonLabel = computed(() => {
 
 @media (min-width: 768px) {
   .nav-content {
-    max-width: 400px;
+    max-width: 420px;
     height: 68px;
   }
-
-  .nav-content--transport {
-    height: 60px;
-  }
-
-  .nav-group {
-    max-width: 120px;
-  }
-
-  .nav-item {
-    padding: 0 16px 14px;
-    min-width: 56px;
-    gap: 5px;
-  }
-
-  .nav-icon {
-    width: 26px;
-    height: 26px;
-  }
-
-  .nav-label {
-    font-size: 11px;
-  }
-
-  .play-button-container {
-    margin: 0 24px;
-    top: -24px;
-  }
-
-  .play-button {
-    width: 68px;
-    height: 68px;
-  }
-
-  .play-button--transport {
-    width: 52px;
-    height: 52px;
-  }
-
-  .play-button-inner svg {
-    width: 28px;
-    height: 28px;
-  }
-
-  .play-button-glow {
-    inset: -8px;
-  }
-
-  .play-label {
-    font-size: 11px;
-    margin-top: 8px;
-  }
-
-  .active-indicator {
-    width: 5px;
-    height: 5px;
-  }
-
-  .transport-nav-btn {
-    width: 44px;
-    height: 44px;
-  }
-
-  .transport-nav-btn svg {
-    width: 22px;
-    height: 22px;
-  }
-
-  .transport-spacer {
-    width: 44px;
-  }
+  .pill-btn { width: 52px; height: 52px; }
+  .pill-btn svg { width: 24px; height: 24px; }
+  .center-btn { width: 56px; height: 56px; }
+  .center-btn-inner svg { width: 24px; height: 24px; }
 }
 
-@media (min-width: 1280px) {
-  .nav-content {
-    max-width: 400px;
-    height: 68px;
-  }
-
-  .nav-group {
-    max-width: 100px;
-  }
-}
-
-/* Landscape compact */
 @media (orientation: landscape) and (max-height: 500px) {
   .nav-content {
-    height: 56px;
-    max-width: 360px;
-    padding: 0 8px;
+    height: 52px;
+    max-width: 380px;
   }
-
-  .nav-content--transport {
-    height: 48px;
-    gap: 4px;
-  }
-
-  .nav-group {
-    max-width: 80px;
-  }
-
-  .nav-item {
-    padding: 0 6px 8px;
-    gap: 3px;
-    min-width: 44px;
-    min-height: 44px;
-  }
-
-  .nav-icon {
-    width: 18px;
-    height: 18px;
-  }
-
-  .nav-label {
-    font-size: 8px;
-  }
-
-  .play-button-container {
-    margin: 0 10px;
-    top: -12px;
-  }
-
-  .play-button {
-    width: 44px;
-    height: 44px;
-  }
-
-  .play-button--transport {
-    width: 36px;
-    height: 36px;
-  }
-
-  .play-button-inner svg {
-    width: 18px;
-    height: 18px;
-  }
-
-  .play-label {
-    font-size: 8px;
-    margin-top: 4px;
-  }
-
-  .safe-area-spacer {
-    min-height: 2px;
-  }
-
-  .transport-nav-btn {
-    width: 36px;
-    height: 36px;
-  }
-
-  .transport-nav-btn svg {
-    width: 16px;
-    height: 16px;
-  }
-
-  .transport-spacer {
-    width: 36px;
-  }
+  .pill-btn { width: 40px; height: 40px; }
+  .pill-btn svg { width: 18px; height: 18px; }
+  .center-btn { width: 42px; height: 42px; }
+  .center-btn-inner svg { width: 18px; height: 18px; }
+  .safe-area-spacer { min-height: 2px; }
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   MODERN LIGHT THEME — Floating pill nav (Telegram/iOS style)
+   MODERN LIGHT THEME — Floating pill
    ═══════════════════════════════════════════════════════════════ */
 
-/* Floating pill — matches top pills width, lifted from bottom */
 :root[data-theme="mist"] .bottom-nav {
   left: 50%;
   right: auto;
@@ -754,7 +349,7 @@ const playButtonLabel = computed(() => {
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   border-top: none;
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.12);
   border-radius: 32px;
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.14),
               0 8px 24px rgba(44, 38, 34, 0.10),
@@ -766,53 +361,33 @@ const playButtonLabel = computed(() => {
 }
 
 :root[data-theme="mist"] .nav-content {
-  height: 60px;
-  padding: 0 16px;
-}
-
-:root[data-theme="mist"] .nav-content--transport {
-  height: 56px;
-  padding: 0 16px;
-  max-width: none;
-}
-
-:root[data-theme="mist"] .play-button-container {
-  top: -14px;
+  height: 64px;
+  padding: 0 6px;
 }
 
 :root[data-theme="mist"] .safe-area-spacer {
   display: none;
 }
 
-:root[data-theme="mist"] .nav-icon {
-  color: #8A8078;
+/* Button stroke colors on white pill — belt-tinted */
+:root[data-theme="mist"] .pill-btn {
+  color: color-mix(in srgb, var(--belt-color, var(--ssi-red)) 30%, #6B6560);
 }
 
-:root[data-theme="mist"] .nav-label {
-  color: #8A8078;
-}
-
-:root[data-theme="mist"] .nav-item.active .nav-icon {
+:root[data-theme="mist"] .pill-btn.active {
   color: var(--belt-color, var(--ssi-red));
-  filter: none;
 }
 
-:root[data-theme="mist"] .nav-item.active .nav-label {
-  color: var(--text-primary);
+:root[data-theme="mist"] .pill-btn.active .pill-btn-bg {
+  background: color-mix(in srgb, var(--belt-color, var(--ssi-red)) 12%, rgba(0, 0, 0, 0.02));
 }
 
-/* Transport buttons in mist theme — must be visible on white pill */
-:root[data-theme="mist"] .transport-nav-btn {
-  color: #4A4440;
-}
-
-:root[data-theme="mist"] .transport-nav-btn:hover {
-  color: #2C2622;
-  background: rgba(0, 0, 0, 0.06);
-}
-
-/* Nav icons in mist — darker for visibility */
-:root[data-theme="mist"] .transport-nav-btn svg {
-  stroke-width: 2.2;
+@media (hover: hover) {
+  :root[data-theme="mist"] .pill-btn:hover:not(.active) {
+    color: color-mix(in srgb, var(--belt-color, var(--ssi-red)) 65%, #2C2622);
+  }
+  :root[data-theme="mist"] .pill-btn:hover:not(.active) .pill-btn-bg {
+    background: color-mix(in srgb, var(--belt-color, var(--ssi-red)) 10%, rgba(0, 0, 0, 0.02));
+  }
 }
 </style>
