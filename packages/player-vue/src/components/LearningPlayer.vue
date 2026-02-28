@@ -10224,14 +10224,15 @@ defineExpose({
   display: none !important;
 }
 
-/* --- Hero glass → White frosted card --- */
+/* --- Hero glass → Crisp white card --- */
 [data-theme="mist"] .player .hero-glass {
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.06),
-              0 8px 24px rgba(44, 38, 34, 0.04);
+  background: #ffffff;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.08),
+              0 4px 16px rgba(44, 38, 34, 0.06),
+              0 12px 32px rgba(44, 38, 34, 0.04);
 }
 
 /* --- Hero text --- */
@@ -10244,29 +10245,29 @@ defineExpose({
   text-shadow: none;
 }
 
-/* --- Control bar → White frosted pill --- */
+/* --- Control bar → Crisp white pill --- */
 [data-theme="mist"] .player .control-bar {
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.06),
-              0 8px 24px rgba(44, 38, 34, 0.04);
+  background: #ffffff;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.08),
+              0 4px 16px rgba(44, 38, 34, 0.06),
+              0 12px 32px rgba(44, 38, 34, 0.04);
 }
 
-/* --- Belt timer → White elevated with belt accent --- */
+/* --- Belt timer → Crisp white with belt accent --- */
 [data-theme="mist"] .player .belt-timer-unified {
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(0, 0, 0, 0.04);
-  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.06),
-              0 8px 24px rgba(44, 38, 34, 0.04),
-              0 0 8px color-mix(in srgb, var(--belt-color) 12%, transparent);
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.08),
+              0 4px 16px rgba(44, 38, 34, 0.06);
 }
 
-/* --- Skip buttons → White pills with belt color accent --- */
+/* --- Skip buttons → Crisp white with belt color accent --- */
 [data-theme="mist"] .player .belt-header-skip {
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(0, 0, 0, 0.04);
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
   opacity: 1;
   color: color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 70%, #2C2622);
   box-shadow: 0 2px 6px rgba(44, 38, 34, 0.06),
@@ -10289,29 +10290,30 @@ defineExpose({
 /* --- Mode / Transport buttons --- */
 [data-theme="mist"] .player .mode-btn,
 [data-theme="mist"] .player .transport-btn {
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(0, 0, 0, 0.04);
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
   color: var(--text-secondary);
+  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.06);
 }
 
 [data-theme="mist"] .player .mode-btn:hover,
 [data-theme="mist"] .player .transport-btn:hover {
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.06);
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.1);
 }
 
 [data-theme="mist"] .player .mode-btn.active {
-  background: rgba(255, 255, 255, 0.95);
+  background: #ffffff;
   color: var(--text-primary);
+  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.1);
 }
 
 [data-theme="mist"] .player .mode-picker {
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  box-shadow: 0 4px 16px rgba(44, 38, 34, 0.08),
-              0 16px 48px rgba(44, 38, 34, 0.06);
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.08),
+              0 8px 24px rgba(44, 38, 34, 0.06),
+              0 20px 48px rgba(44, 38, 34, 0.04);
 }
 
 [data-theme="mist"] .player .mode-picker-option {
@@ -10376,13 +10378,13 @@ defineExpose({
   color: #1A1614;
 }
 
-/* --- Learning hint box → White elevated --- */
+/* --- Learning hint box → Crisp white --- */
 [data-theme="mist"] .player .learning-hint,
 [data-theme="mist"] .player .learning-hint-box {
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(0, 0, 0, 0.04);
-  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.06),
-              0 8px 24px rgba(44, 38, 34, 0.04);
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.08),
+              0 4px 16px rgba(44, 38, 34, 0.06);
   color: var(--text-secondary);
 }
 

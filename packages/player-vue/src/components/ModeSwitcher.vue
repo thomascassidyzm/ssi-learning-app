@@ -200,11 +200,13 @@ onUnmounted(() => {
   transform: translateX(-50%) translateY(8px) scale(0.95);
 }
 
-/* Mist theme — white frosted popup */
+/* Mist theme — crisp white popup */
 :root[data-theme="mist"] .mode-switcher {
-  background: rgba(255, 255, 255, 0.92);
-  border-color: rgba(0, 0, 0, 0.04);
-  box-shadow: 0 8px 32px rgba(44, 38, 34, 0.1), 0 2px 8px rgba(44, 38, 34, 0.05);
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.08),
+              0 8px 24px rgba(44, 38, 34, 0.06),
+              0 20px 48px rgba(44, 38, 34, 0.04);
 }
 
 :root[data-theme="mist"] .mode-option:hover {
