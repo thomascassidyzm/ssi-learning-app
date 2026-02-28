@@ -237,8 +237,8 @@
  * ================================================================ */
 [data-theme="mist"] {
   /* Background hierarchy — warm grey canvas, white elevated */
-  --bg-primary: #f0ece7;
-  --bg-secondary: #e8e4df;
+  --bg-primary: #e8e3dd;
+  --bg-secondary: #e0dbd5;
   --bg-card: #ffffff;
   --bg-card-hover: #faf9f8;
   --bg-elevated: #ffffff;
@@ -299,7 +299,7 @@
 
   /* Decorative */
   --mountain-opacity: 0.18;
-  --overlay-gradient: linear-gradient(180deg, rgba(240, 236, 231, 0) 0%, rgba(240, 236, 231, 0.9) 100%);
+  --overlay-gradient: linear-gradient(180deg, rgba(232, 227, 221, 0) 0%, rgba(232, 227, 221, 0.9) 100%);
 
   /* Theme indicator */
   --theme-mode: light;

@@ -10178,15 +10178,15 @@ defineExpose({
     radial-gradient(ellipse 120% 80% at 50% 80%,
       color-mix(in srgb, var(--belt-color) 5%, transparent) 0%,
       transparent 60%),
-    #f0ece7;
+    #e8e3dd;
 }
 
 /* --- Space / Background layers → Warm grey canvas --- */
 [data-theme="mist"] .player .space-gradient {
   background:
-    radial-gradient(ellipse 90% 70% at 15% 10%, rgba(255, 252, 245, 0.5) 0%, transparent 50%),
-    radial-gradient(ellipse 100% 60% at 80% 90%, rgba(240, 236, 231, 0.3) 0%, transparent 40%),
-    radial-gradient(ellipse 80% 80% at 50% 50%, #f0ece7 0%, #e8e4df 100%);
+    radial-gradient(ellipse 90% 70% at 15% 10%, rgba(255, 252, 245, 0.4) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 60% at 80% 90%, rgba(232, 227, 221, 0.3) 0%, transparent 40%),
+    radial-gradient(ellipse 80% 80% at 50% 50%, #e8e3dd 0%, #e0dbd5 100%);
 }
 
 [data-theme="mist"] .player .space-nebula {
@@ -10235,7 +10235,7 @@ defineExpose({
               0 12px 32px rgba(44, 38, 34, 0.04);
 }
 
-/* --- Hero text --- */
+/* --- Hero text & intro — all text must be dark on white --- */
 [data-theme="mist"] .player .hero-known {
   color: var(--text-primary);
 }
@@ -10243,6 +10243,26 @@ defineExpose({
 [data-theme="mist"] .player .hero-target {
   color: color-mix(in srgb, var(--belt-color) 70%, #2C2622);
   text-shadow: none;
+}
+
+[data-theme="mist"] .player .intro-message {
+  color: var(--text-primary);
+}
+
+[data-theme="mist"] .player .intro-prefix {
+  color: var(--belt-color, var(--ssi-red));
+}
+
+[data-theme="mist"] .player .intro-cursor {
+  color: var(--belt-color, var(--ssi-red));
+}
+
+[data-theme="mist"] .player .intro-typewriter {
+  color: var(--text-primary);
+}
+
+[data-theme="mist"] .player .loading-text {
+  color: var(--text-muted);
 }
 
 /* --- Control bar → Crisp white pill --- */
@@ -10262,6 +10282,16 @@ defineExpose({
   border: 1px solid rgba(0, 0, 0, 0.08);
   box-shadow: 0 1px 3px rgba(44, 38, 34, 0.08),
               0 4px 16px rgba(44, 38, 34, 0.06);
+}
+
+/* Belt bar track needs contrast against white timer */
+[data-theme="mist"] .player .belt-timer-unified .belt-bar-track {
+  background: #e8e3dd;
+}
+
+/* Belt bar fill glow — softer on light */
+[data-theme="mist"] .player .belt-timer-unified .belt-bar-fill {
+  box-shadow: none;
 }
 
 /* --- Skip buttons → Crisp white with belt color accent --- */
@@ -10358,7 +10388,7 @@ defineExpose({
 
 /* --- Belt celebration overlay --- */
 [data-theme="mist"] .player .belt-celebration-overlay {
-  background: rgba(240, 236, 231, 0.8);
+  background: rgba(232, 227, 221, 0.8);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }

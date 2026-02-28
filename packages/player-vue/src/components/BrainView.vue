@@ -2598,7 +2598,7 @@ onUnmounted(() => {
 <!-- Mist theme: paper dojo instead of dark cosmos -->
 <style>
 :root[data-theme="mist"] .brain-view {
-  background: linear-gradient(180deg, #f0ece7 0%, #e8e4df 50%, #f0ece7 100%);
+  background: linear-gradient(180deg, #e8e3dd 0%, #e0dbd5 50%, #e8e3dd 100%);
 }
 
 :root[data-theme="mist"] .brain-view .close-btn {
