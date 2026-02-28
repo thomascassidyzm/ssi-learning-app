@@ -188,6 +188,13 @@ const closeExplorerOverlay = () => {
 // Real learner progress from shared belt progress (created by LearningPlayer)
 const beltProgress = computed(() => getSharedBeltProgress())
 
+// Belt CSS vars for cascading to BottomNav and other siblings
+const containerBeltVars = computed(() => {
+  const bp = beltProgress.value
+  if (!bp) return {}
+  return bp.beltCssVars.value
+})
+
 // Seed count derived from highestLegoId
 const completedSeeds = computed(() => {
   const bp = beltProgress.value
@@ -299,7 +306,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="player-container" :class="{ 'has-nav': !isLearning }">
+  <div class="player-container" :class="{ 'has-nav': !isLearning }" :style="containerBeltVars">
     <!-- Progress pane (Brain View) -->
     <Transition name="slide-right" mode="out-in">
       <BrainView

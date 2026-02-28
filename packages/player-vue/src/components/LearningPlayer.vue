@@ -5814,6 +5814,7 @@ defineExpose({
   handleListeningMode,
   handleEnterDrivingMode,
   handleExitDrivingMode,
+  beltCssVars,
 })
 </script>
 
