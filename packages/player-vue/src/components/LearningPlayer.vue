@@ -10231,7 +10231,7 @@ defineExpose({
   border-radius: 50%;
   width: 80px !important;
   height: 30px !important;
-  box-shadow: 0 0 40px 20px rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 40px 20px rgba(255, 255, 255, 0.15);
   animation: mist-wisp 18s ease-in-out infinite !important;
   opacity: 0;
 }
@@ -10312,9 +10312,9 @@ defineExpose({
 
 /* --- Hero glass → White elevated card with subtle shadow --- */
 [data-theme="mist"] .player .hero-glass {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: #ffffff;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border: 1px solid rgba(0, 0, 0, 0.04);
   box-shadow: 0 2px 8px rgba(44, 38, 34, 0.06),
               0 8px 24px rgba(44, 38, 34, 0.04),
@@ -10333,9 +10333,9 @@ defineExpose({
 
 /* --- Control bar → White elevated pill --- */
 [data-theme="mist"] .player .control-bar {
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(16px) saturate(180%);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  background: #ffffff;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border: 1px solid rgba(0, 0, 0, 0.04);
   box-shadow: 0 2px 8px rgba(44, 38, 34, 0.06),
               0 8px 24px rgba(44, 38, 34, 0.04);
@@ -10393,9 +10393,7 @@ defineExpose({
 }
 
 [data-theme="mist"] .player .mode-picker {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background: #ffffff;
   border: 1px solid rgba(0, 0, 0, 0.04);
   box-shadow: 0 4px 16px rgba(44, 38, 34, 0.08),
               0 16px 48px rgba(44, 38, 34, 0.06);
