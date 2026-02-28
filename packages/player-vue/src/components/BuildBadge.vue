@@ -44,3 +44,13 @@ const formattedTime = new Date(buildTime).toLocaleDateString('en-GB', {
   display: none;
 }
 </style>
+
+<style>
+:root[data-theme="mist"] .build-badge {
+  color: #2C2622;
+  background: rgba(44, 38, 34, 0.06);
+  border-color: rgba(44, 38, 34, 0.15);
+  text-shadow: none;
+  box-shadow: none;
+}
+</style>
