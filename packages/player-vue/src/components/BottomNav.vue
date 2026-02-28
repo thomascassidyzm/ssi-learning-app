@@ -172,7 +172,7 @@ const handleSettings = () => {
   );
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border-top: 1px solid var(--border-subtle);
+  border-top: 1.5px solid rgba(255, 255, 255, 0.22);
   z-index: 100;
 }
 
@@ -349,7 +349,7 @@ const handleSettings = () => {
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   border-top: none;
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  border: 1.5px solid rgba(0, 0, 0, 0.22);
   border-radius: 32px;
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.14),
               0 8px 24px rgba(44, 38, 34, 0.10),

@@ -7159,7 +7159,7 @@ defineExpose({
   padding: 0.5rem 1rem;
   background: var(--bg-card);
   border-radius: 100px;
-  border: 1px solid var(--border-subtle);
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -7318,7 +7318,7 @@ defineExpose({
   height: 36px;
   min-width: 36px;
   border-radius: 50%;
-  border: none;
+  border: 1.5px solid rgba(255, 255, 255, 0.15);
   background: transparent;
   color: var(--skip-belt-color, var(--text-muted));
   opacity: 0.6;
@@ -7368,7 +7368,7 @@ defineExpose({
   gap: var(--space-sm);
   padding: 6px 16px;
   background: var(--bg-card);
-  border: 1px solid color-mix(in srgb, var(--belt-color) 35%, var(--border-subtle));
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
   border-radius: 20px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -7630,7 +7630,7 @@ defineExpose({
   background: rgba(20, 20, 30, 0.7);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
   border-radius: 8px;
   color: rgba(255, 255, 255, 0.6);
   font-size: 12px;
@@ -7685,7 +7685,7 @@ defineExpose({
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
   max-width: 90%;
   cursor: pointer;
   pointer-events: auto; /* Clickable despite parent being pointer-events: none */
@@ -8038,7 +8038,7 @@ defineExpose({
   align-items: center;
   padding: 0.4rem 0.75rem;
   background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
   border-radius: 8px;
 }
 
@@ -8132,7 +8132,7 @@ defineExpose({
   background: rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: none;
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
   box-shadow:
     0 2px 16px rgba(0, 0, 0, 0.3),
     0 0 0 1px var(--belt-glow, rgba(194, 58, 58, 0.08));
@@ -8529,8 +8529,7 @@ defineExpose({
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-radius: 20px;
-  /* Belt-colored subtle border accent */
-  border: 1px solid color-mix(in srgb, var(--belt-color) 30%, rgba(255, 255, 255, 0.1));
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
   z-index: 25;
   /* Subtle belt glow */
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3),
@@ -9162,7 +9161,7 @@ defineExpose({
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-radius: var(--control-bar-radius);
-  border: 1px solid color-mix(in srgb, var(--belt-color) 25%, rgba(255, 255, 255, 0.06));
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
   /* Subtle belt glow on bottom edge */
   box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.3),
               0 0 20px color-mix(in srgb, var(--belt-glow) 10%, transparent);
@@ -9200,7 +9199,7 @@ defineExpose({
   min-width: var(--btn-touch-target);
   min-height: var(--btn-touch-target);
   border-radius: 50%;
-  border: none;
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
   background: rgba(255, 255, 255, 0.08);
   color: var(--text-muted);
   cursor: pointer;
@@ -9254,7 +9253,7 @@ defineExpose({
   gap: 12px;
   padding: 12px;
   background: rgba(20, 20, 30, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
   border-radius: 16px;
   backdrop-filter: blur(20px);
 }
@@ -9265,7 +9264,7 @@ defineExpose({
   align-items: center;
   gap: 8px;
   padding: 20px 28px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1.5px solid rgba(255, 255, 255, 0.15);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.05);
   color: rgba(255, 255, 255, 0.8);
@@ -9477,7 +9476,7 @@ defineExpose({
   min-width: var(--btn-touch-target);
   min-height: var(--btn-touch-target);
   border-radius: 50%;
-  border: none;
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
   background: rgba(255, 255, 255, 0.08);
   color: var(--text-muted);
   cursor: pointer;
@@ -10057,12 +10056,12 @@ defineExpose({
   display: none !important;
 }
 
-/* --- Hero glass → Elevated white card with dark edge --- */
+/* --- Hero glass → Elevated white card with crisp black edge --- */
 [data-theme="mist"] .player .hero-glass {
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(16px) saturate(160%);
   -webkit-backdrop-filter: blur(16px) saturate(160%);
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  border: 1.5px solid rgba(0, 0, 0, 0.22);
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
               0 8px 24px rgba(44, 38, 34, 0.08),
               0 20px 48px rgba(44, 38, 34, 0.05);
@@ -10098,33 +10097,32 @@ defineExpose({
   color: var(--text-muted);
 }
 
-/* --- Control bar → Elevated white pill with dark edge --- */
+/* --- Control bar → Elevated white pill with crisp black edge --- */
 [data-theme="mist"] .player .control-bar {
   background: rgba(255, 255, 255, 0.90);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  border: 1.5px solid rgba(0, 0, 0, 0.22);
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.14),
               0 8px 24px rgba(44, 38, 34, 0.10),
               0 20px 48px rgba(44, 38, 34, 0.06);
 }
 
-/* --- Belt timer → Elevated white with dark edge + belt glow --- */
+/* --- Belt timer → Belt-tinted fill with crisp black edge --- */
 [data-theme="mist"] .player .belt-timer-unified {
-  background: rgba(255, 255, 255, 0.92);
+  background: color-mix(in srgb, var(--belt-color) 8%, rgba(255, 255, 255, 0.92));
   backdrop-filter: blur(16px) saturate(160%);
   -webkit-backdrop-filter: blur(16px) saturate(160%);
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  border: 1.5px solid rgba(0, 0, 0, 0.22);
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
-              0 8px 24px rgba(44, 38, 34, 0.08),
-              0 0 12px color-mix(in srgb, var(--belt-color) 10%, transparent);
+              0 8px 24px rgba(44, 38, 34, 0.08);
 }
 
 [data-theme="mist"] .player .belt-timer-unified:hover {
-  border-color: color-mix(in srgb, var(--belt-color) 40%, rgba(0, 0, 0, 0.12));
+  background: color-mix(in srgb, var(--belt-color) 12%, rgba(255, 255, 255, 0.92));
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
               0 8px 24px rgba(44, 38, 34, 0.08),
-              0 0 20px color-mix(in srgb, var(--belt-color) 18%, transparent);
+              0 0 16px color-mix(in srgb, var(--belt-color) 15%, transparent);
 }
 
 /* Belt bar track needs contrast against white timer */
@@ -10137,26 +10135,24 @@ defineExpose({
   box-shadow: none;
 }
 
-/* --- Belt skip buttons → soft belt-color fill --- */
+/* --- Belt skip buttons → soft belt fill, crisp black edge --- */
 [data-theme="mist"] .player .belt-header-skip {
   background: color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 10%, #ffffff);
-  border: 1px solid rgba(0, 0, 0, 0.10);
+  border: 1.5px solid rgba(0, 0, 0, 0.22);
   opacity: 1;
   color: color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 70%, #2C2622);
-  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10),
-              0 0 8px color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 12%, transparent);
+  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10);
 }
 
 [data-theme="mist"] .player .belt-header-skip:hover:not(:disabled) {
   background: color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 18%, #ffffff);
-  border-color: color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 30%, rgba(0, 0, 0, 0.10));
   box-shadow: 0 2px 8px rgba(44, 38, 34, 0.14),
-              0 0 16px color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 25%, transparent);
+              0 0 12px color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 20%, transparent);
 }
 
 [data-theme="mist"] .player .belt-header-skip:disabled {
   background: rgba(0, 0, 0, 0.03);
-  border-color: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.10);
   color: var(--text-muted);
   box-shadow: none;
 }
@@ -10165,7 +10161,7 @@ defineExpose({
 [data-theme="mist"] .player .mode-btn,
 [data-theme="mist"] .player .transport-btn {
   background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  border: 1.5px solid rgba(0, 0, 0, 0.22);
   color: var(--text-secondary);
   box-shadow: 0 1px 3px rgba(44, 38, 34, 0.10);
 }
@@ -10186,7 +10182,7 @@ defineExpose({
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  border: 1.5px solid rgba(0, 0, 0, 0.22);
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.14),
               0 12px 32px rgba(44, 38, 34, 0.12),
               0 24px 56px rgba(44, 38, 34, 0.08);
@@ -10194,7 +10190,7 @@ defineExpose({
 
 [data-theme="mist"] .player .mode-picker-option {
   background: rgba(0, 0, 0, 0.03);
-  border-color: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.10);
   color: var(--text-primary);
 }
 
@@ -10285,7 +10281,7 @@ defineExpose({
 /* --- Component breakdown tiles → White elevated --- */
 [data-theme="mist"] .player .component-tile {
   background: #ffffff;
-  border-color: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.22);
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10),
               0 6px 16px rgba(44, 38, 34, 0.06);
 }
