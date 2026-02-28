@@ -626,6 +626,91 @@ const confirmReset = async () => {
 
     <!-- Main Content -->
     <main class="main">
+      <!-- Account Section (guest - not signed in) -->
+      <section class="section" v-if="!isSignedIn">
+        <h3 class="section-title">Account</h3>
+        <div class="card">
+          <div class="auth-cta-row">
+            <p class="auth-cta-text">Sign in to save your progress across devices</p>
+            <div class="auth-cta-buttons">
+              <button class="auth-cta-btn primary" @click="openAuth()">Sign In</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Account Section (signed-in users) -->
+      <section class="section" v-if="isSignedIn">
+        <h3 class="section-title">Account</h3>
+        <div class="card">
+          <!-- User Info -->
+          <div class="setting-row" v-if="userName || userEmail">
+            <div class="setting-info">
+              <span class="setting-label">{{ userName || 'User' }}</span>
+              <span class="setting-desc">{{ userEmail }}</span>
+            </div>
+          </div>
+
+          <div class="divider" v-if="userName || userEmail"></div>
+
+          <!-- Update Profile -->
+          <div class="setting-row clickable" @click="openUserProfile">
+            <div class="setting-info">
+              <span class="setting-label">Update Profile</span>
+              <span class="setting-desc">Change your name and photo</span>
+            </div>
+            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- Change Email -->
+          <div class="setting-row clickable" @click="handleChangeEmail">
+            <div class="setting-info">
+              <span class="setting-label">Change Email</span>
+              <span class="setting-desc">Update your email address</span>
+            </div>
+            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </div>
+
+          <!-- Schools Dashboard -->
+          <template v-if="hasSchoolRole">
+            <div class="divider"></div>
+            <div class="setting-row clickable" @click="router.push('/schools')">
+              <div class="setting-info">
+                <span class="setting-label">Schools Dashboard</span>
+                <span class="setting-desc">Manage your classes and students</span>
+              </div>
+              <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+              </svg>
+            </div>
+          </template>
+        </div>
+      </section>
+
+      <!-- Appearance Section — instant theme toggle -->
+      <section class="section">
+        <h3 class="section-title">Appearance</h3>
+        <div class="card">
+          <div class="setting-row clickable" @click="toggleTheme">
+            <div class="setting-info">
+              <span class="setting-label">Dark Mode</span>
+              <span class="setting-desc">Toggle light/dark theme</span>
+            </div>
+            <div class="toggle-switch" :class="{ 'is-on': isDarkMode }">
+              <div class="toggle-track">
+                <div class="toggle-thumb"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- Tools Section -->
       <section class="section">
         <h3 class="section-title">Tools</h3>
@@ -657,24 +742,6 @@ const confirmReset = async () => {
               </svg>
             </div>
           </template>
-        </div>
-      </section>
-
-      <!-- Display Section -->
-      <section class="section">
-        <h3 class="section-title">Display</h3>
-        <div class="card">
-          <div class="setting-row clickable" @click="toggleFirePath">
-            <div class="setting-info">
-              <span class="setting-label">Path Animation</span>
-              <span class="setting-desc">Show traveling pulse along phrase path</span>
-            </div>
-            <div class="toggle-switch" :class="{ 'is-on': showFirePath }">
-              <div class="toggle-track">
-                <div class="toggle-thumb"></div>
-              </div>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -749,91 +816,6 @@ const confirmReset = async () => {
           <div class="download-error" v-if="downloadError">
             {{ downloadError }}
           </div>
-        </div>
-      </section>
-
-      <!-- Appearance Section -->
-      <section class="section">
-        <h3 class="section-title">Appearance</h3>
-        <div class="card">
-          <div class="setting-row clickable" @click="toggleTheme">
-            <div class="setting-info">
-              <span class="setting-label">Dark Mode</span>
-              <span class="setting-desc">Toggle light/dark theme</span>
-            </div>
-            <div class="toggle-switch" :class="{ 'is-on': isDarkMode }">
-              <div class="toggle-track">
-                <div class="toggle-thumb"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Account Section (guest - not signed in) -->
-      <section class="section" v-if="!isSignedIn">
-        <h3 class="section-title">Account</h3>
-        <div class="card">
-          <div class="auth-cta-row">
-            <p class="auth-cta-text">Sign in to save your progress across devices</p>
-            <div class="auth-cta-buttons">
-              <button class="auth-cta-btn primary" @click="openAuth()">Sign In</button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Account Section (signed-in users) -->
-      <section class="section" v-if="isSignedIn">
-        <h3 class="section-title">Account</h3>
-        <div class="card">
-          <!-- User Info -->
-          <div class="setting-row" v-if="userName || userEmail">
-            <div class="setting-info">
-              <span class="setting-label">{{ userName || 'User' }}</span>
-              <span class="setting-desc">{{ userEmail }}</span>
-            </div>
-          </div>
-
-          <div class="divider" v-if="userName || userEmail"></div>
-
-          <!-- Update Profile -->
-          <div class="setting-row clickable" @click="openUserProfile">
-            <div class="setting-info">
-              <span class="setting-label">Update Profile</span>
-              <span class="setting-desc">Change your name and photo</span>
-            </div>
-            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 18l6-6-6-6"/>
-            </svg>
-          </div>
-
-          <div class="divider"></div>
-
-          <!-- Change Email -->
-          <div class="setting-row clickable" @click="handleChangeEmail">
-            <div class="setting-info">
-              <span class="setting-label">Change Email</span>
-              <span class="setting-desc">Update your email address</span>
-            </div>
-            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 18l6-6-6-6"/>
-            </svg>
-          </div>
-
-          <!-- Schools Dashboard -->
-          <template v-if="hasSchoolRole">
-            <div class="divider"></div>
-            <div class="setting-row clickable" @click="router.push('/schools')">
-              <div class="setting-info">
-                <span class="setting-label">Schools Dashboard</span>
-                <span class="setting-desc">Manage your classes and students</span>
-              </div>
-              <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 18l6-6-6-6"/>
-              </svg>
-            </div>
-          </template>
         </div>
       </section>
 
