@@ -117,6 +117,19 @@ const handleTogglePlayback = () => {
   }
 }
 
+// Handle transport controls from BottomNav (revisit/skip)
+const handleRevisit = () => {
+  if (learningPlayerRef.value?.handleRevisit) {
+    learningPlayerRef.value.handleRevisit()
+  }
+}
+
+const handleSkip = () => {
+  if (learningPlayerRef.value?.handleSkip) {
+    learningPlayerRef.value.handleSkip()
+  }
+}
+
 // Handle play state changes from LearningPlayer
 const handlePlayStateChanged = (playing) => {
   isPlaying.value = playing
@@ -354,6 +367,8 @@ onMounted(() => {
       @startLearning="handleStartLearning"
       @togglePlayback="handleTogglePlayback"
       @exitListeningMode="handleExitListeningMode"
+      @revisit="handleRevisit"
+      @skip="handleSkip"
     />
 
     <!-- Gear icon for settings (visible on all panes when not learning) -->

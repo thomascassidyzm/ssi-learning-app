@@ -20,11 +20,18 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'exitListeningMode'])
+const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'exitListeningMode', 'revisit', 'skip'])
 
 // Tap feedback state
 const tappedItem = ref(null)
 const playButtonPressed = ref(false)
+
+// Transport mode: playing on player screen
+const isTransportMode = computed(() =>
+  props.currentScreen === 'player'
+  && props.isPlaying
+  && !props.isListeningMode
+)
 
 // Handle navigation tap with haptic feedback
 const handleNavTap = (itemId) => {
@@ -64,109 +71,164 @@ const handlePlayTap = () => {
   }
 }
 
+// Handle transport buttons
+const handleRevisit = () => {
+  if (navigator.vibrate) navigator.vibrate(10)
+  emit('revisit')
+}
+
+const handleSkip = () => {
+  if (navigator.vibrate) navigator.vibrate(10)
+  emit('skip')
+}
+
 // Button label based on state
 const playButtonLabel = computed(() => {
   if (props.isListeningMode) return 'Listening'
   if (isOnPlayerScreen.value) return props.isPlaying ? 'Stop' : 'Play'
   return 'Learn'
 })
-
-// Hide nav when learning
-const isVisible = computed(() => !props.isLearning)
 </script>
 
 <template>
-  <Transition name="nav-slide">
-    <nav v-if="isVisible" class="bottom-nav">
-      <!-- Blur backdrop -->
-      <div class="nav-backdrop"></div>
+  <nav class="bottom-nav" :class="{ 'transport-mode': isTransportMode }">
+    <!-- Blur backdrop -->
+    <div class="nav-backdrop"></div>
 
-      <!-- Navigation content -->
-      <div class="nav-content">
-        <!-- Left: Progress -->
-        <div class="nav-group nav-group--left">
-          <button
-            class="nav-item"
-            :class="{
-              active: currentScreen === 'progress',
-              tapped: tappedItem === 'progress'
-            }"
-            @click="handleNavTap('progress')"
-          >
-            <div class="nav-icon">
-              <!-- Brain icon -->
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                <path d="M12 2C9.5 2 7.5 3.5 7 5.5C5.5 5.5 4 7 4 9c0 1.5.8 2.8 2 3.5-.2.5-.3 1-.3 1.5 0 2 1.5 3.5 3.3 3.8.5 1.3 1.8 2.2 3 2.2s2.5-.9 3-2.2c1.8-.3 3.3-1.8 3.3-3.8 0-.5-.1-1-.3-1.5 1.2-.7 2-2 2-3.5 0-2-1.5-3.5-3-3.5C16.5 3.5 14.5 2 12 2z"/>
-                <path d="M12 2v18" opacity="0.3"/>
-                <path d="M7 9h10" opacity="0.3"/>
-              </svg>
-            </div>
-            <span class="nav-label">Progress</span>
-            <div class="active-indicator"></div>
-          </button>
-        </div>
+    <!-- === TRANSPORT MODE (playing) === -->
+    <div v-if="isTransportMode" class="nav-content nav-content--transport">
+      <!-- Library escape button -->
+      <button
+        class="transport-nav-btn"
+        :class="{ tapped: tappedItem === 'library' }"
+        @click="handleNavTap('library')"
+        title="Library"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <rect x="3" y="3" width="7" height="7" rx="1"/>
+          <rect x="14" y="3" width="7" height="7" rx="1"/>
+          <rect x="3" y="14" width="7" height="7" rx="1"/>
+          <rect x="14" y="14" width="7" height="7" rx="1"/>
+        </svg>
+      </button>
 
-        <!-- Central Play/Stop Button -->
-        <div class="play-button-container">
-          <button
-            class="play-button"
-            :class="{
-              pressed: playButtonPressed,
-              'is-playing': isOnPlayerScreen && isPlaying,
-              'is-disabled': isListeningMode
-            }"
-            :disabled="isListeningMode"
-            @click="handlePlayTap"
-          >
-            <div class="play-button-glow"></div>
-            <div class="play-button-inner">
-              <!-- Stop icon when playing -->
-              <svg v-if="isOnPlayerScreen && isPlaying && !isListeningMode" viewBox="0 0 24 24" fill="currentColor">
-                <rect x="6" y="6" width="12" height="12" rx="1"/>
-              </svg>
-              <!-- Headphones icon when in listening mode -->
-              <svg v-else-if="isListeningMode" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
-                <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
-              </svg>
-              <!-- Play icon otherwise -->
-              <svg v-else viewBox="0 0 24 24" fill="currentColor">
-                <polygon points="6 3 20 12 6 21 6 3"/>
-              </svg>
-            </div>
-          </button>
-          <span class="play-label">{{ playButtonLabel }}</span>
-        </div>
+      <!-- Revisit -->
+      <button class="transport-nav-btn" @click="handleRevisit" title="Revisit">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+      </button>
 
-        <!-- Right: Library -->
-        <div class="nav-group nav-group--right">
-          <button
-            class="nav-item"
-            :class="{
-              active: currentScreen === 'library',
-              tapped: tappedItem === 'library'
-            }"
-            @click="handleNavTap('library')"
-          >
-            <div class="nav-icon">
-              <!-- Browse/grid icon -->
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                <rect x="3" y="3" width="7" height="7" rx="1"/>
-                <rect x="14" y="3" width="7" height="7" rx="1"/>
-                <rect x="3" y="14" width="7" height="7" rx="1"/>
-                <rect x="14" y="14" width="7" height="7" rx="1"/>
-              </svg>
-            </div>
-            <span class="nav-label">Library</span>
-            <div class="active-indicator"></div>
-          </button>
+      <!-- Stop button (center) -->
+      <button
+        class="play-button play-button--transport is-playing"
+        :class="{ pressed: playButtonPressed }"
+        @click="handlePlayTap"
+      >
+        <div class="play-button-glow"></div>
+        <div class="play-button-inner">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <rect x="6" y="6" width="12" height="12" rx="1"/>
+          </svg>
         </div>
+      </button>
+
+      <!-- Skip -->
+      <button class="transport-nav-btn" @click="handleSkip" title="Skip">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </button>
+
+      <!-- Empty spacer to balance library button -->
+      <div class="transport-spacer"></div>
+    </div>
+
+    <!-- === RESTING MODE (not playing) === -->
+    <div v-else class="nav-content">
+      <!-- Left: Progress -->
+      <div class="nav-group nav-group--left">
+        <button
+          class="nav-item"
+          :class="{
+            active: currentScreen === 'progress',
+            tapped: tappedItem === 'progress'
+          }"
+          @click="handleNavTap('progress')"
+        >
+          <div class="nav-icon">
+            <!-- Brain icon -->
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M12 2C9.5 2 7.5 3.5 7 5.5C5.5 5.5 4 7 4 9c0 1.5.8 2.8 2 3.5-.2.5-.3 1-.3 1.5 0 2 1.5 3.5 3.3 3.8.5 1.3 1.8 2.2 3 2.2s2.5-.9 3-2.2c1.8-.3 3.3-1.8 3.3-3.8 0-.5-.1-1-.3-1.5 1.2-.7 2-2 2-3.5 0-2-1.5-3.5-3-3.5C16.5 3.5 14.5 2 12 2z"/>
+              <path d="M12 2v18" opacity="0.3"/>
+              <path d="M7 9h10" opacity="0.3"/>
+            </svg>
+          </div>
+          <span class="nav-label">Progress</span>
+          <div class="active-indicator"></div>
+        </button>
       </div>
 
-      <!-- Safe area spacer for PWA -->
-      <div class="safe-area-spacer"></div>
-    </nav>
-  </Transition>
+      <!-- Central Play/Stop Button -->
+      <div class="play-button-container">
+        <button
+          class="play-button"
+          :class="{
+            pressed: playButtonPressed,
+            'is-playing': isOnPlayerScreen && isPlaying,
+            'is-disabled': isListeningMode
+          }"
+          :disabled="isListeningMode"
+          @click="handlePlayTap"
+        >
+          <div class="play-button-glow"></div>
+          <div class="play-button-inner">
+            <!-- Stop icon when playing -->
+            <svg v-if="isOnPlayerScreen && isPlaying && !isListeningMode" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="6" y="6" width="12" height="12" rx="1"/>
+            </svg>
+            <!-- Headphones icon when in listening mode -->
+            <svg v-else-if="isListeningMode" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+              <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+            </svg>
+            <!-- Play icon otherwise -->
+            <svg v-else viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="6 3 20 12 6 21 6 3"/>
+            </svg>
+          </div>
+        </button>
+        <span class="play-label">{{ playButtonLabel }}</span>
+      </div>
+
+      <!-- Right: Library -->
+      <div class="nav-group nav-group--right">
+        <button
+          class="nav-item"
+          :class="{
+            active: currentScreen === 'library',
+            tapped: tappedItem === 'library'
+          }"
+          @click="handleNavTap('library')"
+        >
+          <div class="nav-icon">
+            <!-- Browse/grid icon -->
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <rect x="3" y="3" width="7" height="7" rx="1"/>
+              <rect x="14" y="3" width="7" height="7" rx="1"/>
+              <rect x="3" y="14" width="7" height="7" rx="1"/>
+              <rect x="14" y="14" width="7" height="7" rx="1"/>
+            </svg>
+          </div>
+          <span class="nav-label">Library</span>
+          <div class="active-indicator"></div>
+        </button>
+      </div>
+    </div>
+
+    <!-- Safe area spacer for PWA -->
+    <div class="safe-area-spacer"></div>
+  </nav>
 </template>
 
 <style scoped>
@@ -219,6 +281,15 @@ const isVisible = computed(() => !props.isLearning)
   max-width: 400px;
   margin: 0 auto;
   height: 68px;
+}
+
+/* Transport mode content */
+.nav-content--transport {
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 56px;
+  padding: 0 12px;
 }
 
 .nav-group {
@@ -360,6 +431,19 @@ const isVisible = computed(() => !props.isLearning)
     inset 0 -1px 1px rgba(0, 0, 0, 0.15);
 }
 
+/* Transport mode play button - inline, not floating */
+.play-button--transport {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+
+.play-button--transport .play-button-inner svg {
+  width: 18px;
+  height: 18px;
+  margin-left: 0;
+}
+
 .play-button-glow {
   position: absolute;
   inset: -6px;
@@ -434,27 +518,48 @@ const isVisible = computed(() => !props.isLearning)
   letter-spacing: 0.02em;
 }
 
+/* Transport nav buttons (revisit, skip, library escape) */
+.transport-nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
+
+.transport-nav-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.transport-nav-btn:active,
+.transport-nav-btn.tapped {
+  transform: scale(0.9);
+}
+
+.transport-nav-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Spacer to balance the layout */
+.transport-spacer {
+  width: 40px;
+  flex-shrink: 0;
+}
+
 /* Safe area for PWA */
 .safe-area-spacer {
   height: env(safe-area-inset-bottom, 0px);
   min-height: 4px;
-}
-
-/* Nav slide transition */
-.nav-slide-enter-active {
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  will-change: transform, opacity;
-}
-
-.nav-slide-leave-active {
-  transition: all 0.2s ease-in;
-  will-change: transform, opacity;
-}
-
-.nav-slide-enter-from,
-.nav-slide-leave-to {
-  transform: translateY(100%);
-  opacity: 0;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -465,6 +570,10 @@ const isVisible = computed(() => !props.isLearning)
   .nav-content {
     max-width: 400px;
     height: 68px;
+  }
+
+  .nav-content--transport {
+    height: 60px;
   }
 
   .nav-group {
@@ -496,6 +605,11 @@ const isVisible = computed(() => !props.isLearning)
     height: 68px;
   }
 
+  .play-button--transport {
+    width: 52px;
+    height: 52px;
+  }
+
   .play-button-inner svg {
     width: 28px;
     height: 28px;
@@ -513,6 +627,20 @@ const isVisible = computed(() => !props.isLearning)
   .active-indicator {
     width: 5px;
     height: 5px;
+  }
+
+  .transport-nav-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .transport-nav-btn svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .transport-spacer {
+    width: 44px;
   }
 }
 
@@ -533,6 +661,11 @@ const isVisible = computed(() => !props.isLearning)
     height: 56px;
     max-width: 360px;
     padding: 0 8px;
+  }
+
+  .nav-content--transport {
+    height: 48px;
+    gap: 4px;
   }
 
   .nav-group {
@@ -565,6 +698,11 @@ const isVisible = computed(() => !props.isLearning)
     height: 44px;
   }
 
+  .play-button--transport {
+    width: 36px;
+    height: 36px;
+  }
+
   .play-button-inner svg {
     width: 18px;
     height: 18px;
@@ -577,6 +715,20 @@ const isVisible = computed(() => !props.isLearning)
 
   .safe-area-spacer {
     min-height: 2px;
+  }
+
+  .transport-nav-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .transport-nav-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .transport-spacer {
+    width: 36px;
   }
 }
 
@@ -616,6 +768,11 @@ const isVisible = computed(() => !props.isLearning)
   padding: 0 16px;
 }
 
+:root[data-theme="mist"] .nav-content--transport {
+  height: 52px;
+  padding: 0 8px;
+}
+
 :root[data-theme="mist"] .play-button-container {
   top: -14px;
 }
@@ -639,5 +796,15 @@ const isVisible = computed(() => !props.isLearning)
 
 :root[data-theme="mist"] .nav-item.active .nav-label {
   color: var(--text-primary);
+}
+
+/* Transport buttons in mist theme */
+:root[data-theme="mist"] .transport-nav-btn {
+  color: #8A8078;
+}
+
+:root[data-theme="mist"] .transport-nav-btn:hover {
+  color: var(--text-primary);
+  background: rgba(0, 0, 0, 0.04);
 }
 </style>

@@ -5806,6 +5806,8 @@ defineExpose({
   togglePlayback,
   handlePause,
   handleResume,
+  handleRevisit,
+  handleSkip,
   exitListeningMode,
   exitAllModes,
   unlockAudio,
@@ -6586,26 +6588,7 @@ defineExpose({
       </div>
     </Transition>
 
-    <!-- Control Bar - 2+2 balanced layout around nav bar play button -->
-    <div class="control-bar" :class="{ 'control-bar--hidden': !isPlaying && !showListeningOverlay && !isDrivingModeActive }">
-      <!-- Revisit -->
-      <div class="control-group control-group--left">
-        <button class="transport-btn" @click="handleRevisit" :disabled="isDrivingModeActive" title="Revisit">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="15 18 9 12 15 6"/>
-          </svg>
-        </button>
-      </div>
-
-      <!-- Skip -->
-      <div class="control-group control-group--right">
-        <button class="transport-btn" @click="handleSkip" :disabled="isDrivingModeActive" title="Skip">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="9 18 15 12 9 6"/>
-          </svg>
-        </button>
-      </div>
-    </div>
+    <!-- Control Bar - REMOVED: transport controls now live in BottomNav pill -->
 
     <!-- Report Issue Button - moved to header area for QA mode only -->
     <ReportIssueButton
