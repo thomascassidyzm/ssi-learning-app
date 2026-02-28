@@ -257,17 +257,17 @@
   --border-strong: rgba(0, 0, 0, 0.14);
   --border-focus: var(--ssi-red);
 
-  /* Shadows — warm brown tint, more pronounced for white-on-grey */
-  --shadow-sm: 0 1px 3px rgba(44, 38, 34, 0.06), 0 4px 12px rgba(44, 38, 34, 0.04);
-  --shadow-md: 0 2px 8px rgba(44, 38, 34, 0.07), 0 8px 24px rgba(44, 38, 34, 0.05);
-  --shadow-lg: 0 4px 12px rgba(44, 38, 34, 0.08), 0 16px 48px rgba(44, 38, 34, 0.06);
-  --shadow-xl: 0 4px 16px rgba(44, 38, 34, 0.1), 0 24px 64px rgba(44, 38, 34, 0.08);
-  --shadow-glow: 0 0 24px rgba(194, 58, 58, 0.18);
-  --shadow-glow-gold: 0 0 24px rgba(212, 168, 83, 0.22);
+  /* Shadows — warm brown tint, strong enough for white-on-grey pop */
+  --shadow-sm: 0 1px 3px rgba(44, 38, 34, 0.10), 0 4px 12px rgba(44, 38, 34, 0.07);
+  --shadow-md: 0 2px 6px rgba(44, 38, 34, 0.12), 0 8px 24px rgba(44, 38, 34, 0.08);
+  --shadow-lg: 0 4px 12px rgba(44, 38, 34, 0.14), 0 16px 48px rgba(44, 38, 34, 0.10);
+  --shadow-xl: 0 4px 16px rgba(44, 38, 34, 0.16), 0 24px 64px rgba(44, 38, 34, 0.12);
+  --shadow-glow: 0 0 24px rgba(194, 58, 58, 0.25);
+  --shadow-glow-gold: 0 0 24px rgba(212, 168, 83, 0.28);
 
-  /* New elevation tokens — frosted glass effect */
-  --nav-shadow: 0 4px 16px rgba(44, 38, 34, 0.08), 0 1px 4px rgba(44, 38, 34, 0.04);
-  --card-glow: 0 0 0 1px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(44, 38, 34, 0.06), 0 8px 24px rgba(44, 38, 34, 0.04);
+  /* Elevation tokens — frosted glass with pop */
+  --nav-shadow: 0 2px 4px rgba(44, 38, 34, 0.14), 0 8px 24px rgba(44, 38, 34, 0.10);
+  --card-glow: 0 0 0 1px rgba(0, 0, 0, 0.04), 0 2px 6px rgba(44, 38, 34, 0.12), 0 8px 24px rgba(44, 38, 34, 0.08);
 
   /* Accent adjustments */
   --accent-glow: rgba(194, 58, 58, 0.18);
@@ -283,7 +283,7 @@
   --nav-bg-blur: rgba(255, 255, 255, 0.85);
 
   /* Card styling — white elevated on warm canvas */
-  --card-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(44, 38, 34, 0.06), 0 8px 24px rgba(44, 38, 34, 0.04);
+  --card-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04), 0 2px 6px rgba(44, 38, 34, 0.12), 0 8px 24px rgba(44, 38, 34, 0.08);
   --card-border: 1px solid rgba(0, 0, 0, 0.04);
   --chip-bg: #ffffff;
   --chip-border: 1px solid rgba(0, 0, 0, 0.06);

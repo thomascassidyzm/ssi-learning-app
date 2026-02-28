@@ -10224,15 +10224,15 @@ defineExpose({
   display: none !important;
 }
 
-/* --- Hero glass → Crisp white card --- */
+/* --- Hero glass → Elevated white card with strong pop --- */
 [data-theme="mist"] .player .hero-glass {
-  background: #ffffff;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.08),
-              0 4px 16px rgba(44, 38, 34, 0.06),
-              0 12px 32px rgba(44, 38, 34, 0.04);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
+              0 8px 24px rgba(44, 38, 34, 0.08),
+              0 20px 48px rgba(44, 38, 34, 0.05);
 }
 
 /* --- Hero text & intro — all text must be dark on white --- */
@@ -10265,23 +10265,25 @@ defineExpose({
   color: var(--text-muted);
 }
 
-/* --- Control bar → Crisp white pill --- */
+/* --- Control bar → Elevated white pill with pop --- */
 [data-theme="mist"] .player .control-bar {
-  background: #ffffff;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.08),
-              0 4px 16px rgba(44, 38, 34, 0.06),
-              0 12px 32px rgba(44, 38, 34, 0.04);
+  background: rgba(255, 255, 255, 0.90);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.14),
+              0 8px 24px rgba(44, 38, 34, 0.10),
+              0 20px 48px rgba(44, 38, 34, 0.06);
 }
 
-/* --- Belt timer → Crisp white with belt accent --- */
+/* --- Belt timer → Elevated white with belt accent --- */
 [data-theme="mist"] .player .belt-timer-unified {
-  background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.08),
-              0 4px 16px rgba(44, 38, 34, 0.06);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
+              0 8px 24px rgba(44, 38, 34, 0.08);
 }
 
 /* Belt bar track needs contrast against white timer */
@@ -10294,20 +10296,20 @@ defineExpose({
   box-shadow: none;
 }
 
-/* --- Skip buttons → Crisp white with belt color accent --- */
+/* --- Skip buttons → Elevated white with belt color accent --- */
 [data-theme="mist"] .player .belt-header-skip {
   background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   opacity: 1;
   color: color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 70%, #2C2622);
-  box-shadow: 0 2px 6px rgba(44, 38, 34, 0.06),
-              0 0 6px color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 10%, transparent);
+  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
+              0 0 8px color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 15%, transparent);
 }
 
 [data-theme="mist"] .player .belt-header-skip:hover:not(:disabled) {
   background: #ffffff;
-  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.08),
-              0 0 10px color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 15%, transparent);
+  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.16),
+              0 0 12px color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 20%, transparent);
 }
 
 [data-theme="mist"] .player .belt-header-skip:disabled {
@@ -10321,29 +10323,31 @@ defineExpose({
 [data-theme="mist"] .player .mode-btn,
 [data-theme="mist"] .player .transport-btn {
   background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   color: var(--text-secondary);
-  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.06);
+  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.10);
 }
 
 [data-theme="mist"] .player .mode-btn:hover,
 [data-theme="mist"] .player .transport-btn:hover {
   background: #ffffff;
-  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.1);
+  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.16);
 }
 
 [data-theme="mist"] .player .mode-btn.active {
   background: #ffffff;
   color: var(--text-primary);
-  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.1);
+  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.16);
 }
 
 [data-theme="mist"] .player .mode-picker {
-  background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.08),
-              0 8px 24px rgba(44, 38, 34, 0.06),
-              0 20px 48px rgba(44, 38, 34, 0.04);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.14),
+              0 12px 32px rgba(44, 38, 34, 0.12),
+              0 24px 56px rgba(44, 38, 34, 0.08);
 }
 
 [data-theme="mist"] .player .mode-picker-option {
@@ -10408,13 +10412,15 @@ defineExpose({
   color: #1A1614;
 }
 
-/* --- Learning hint box → Crisp white --- */
+/* --- Learning hint box → Elevated white --- */
 [data-theme="mist"] .player .learning-hint,
 [data-theme="mist"] .player .learning-hint-box {
-  background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.08),
-              0 4px 16px rgba(44, 38, 34, 0.06);
+  background: rgba(255, 255, 255, 0.90);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
+              0 8px 24px rgba(44, 38, 34, 0.08);
   color: var(--text-secondary);
 }
 
@@ -10425,8 +10431,9 @@ defineExpose({
 /* --- Component breakdown tiles → White elevated --- */
 [data-theme="mist"] .player .component-tile {
   background: #ffffff;
-  border-color: rgba(0, 0, 0, 0.04);
-  box-shadow: 0 2px 6px rgba(44, 38, 34, 0.05);
+  border-color: rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10),
+              0 6px 16px rgba(44, 38, 34, 0.06);
 }
 
 [data-theme="mist"] .player .component-tile-target {

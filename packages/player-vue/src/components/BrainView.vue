@@ -2604,13 +2604,13 @@ onUnmounted(() => {
 :root[data-theme="mist"] .brain-view .close-btn {
   background: rgba(255, 255, 255, 0.9);
   border-color: rgba(0, 0, 0, 0.04);
-  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.06), 0 8px 20px rgba(44, 38, 34, 0.04);
+  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.12), 0 8px 20px rgba(44, 38, 34, 0.08);
 }
 
 :root[data-theme="mist"] .brain-view .brain-title-mount {
   background: rgba(255, 255, 255, 0.92);
   border-color: rgba(0, 0, 0, 0.04);
-  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.06), 0 8px 24px rgba(44, 38, 34, 0.04);
+  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.12), 0 8px 24px rgba(44, 38, 34, 0.08);
 }
 
 :root[data-theme="mist"] .brain-view .brain-title-language {
@@ -2620,18 +2620,20 @@ onUnmounted(() => {
 :root[data-theme="mist"] .brain-view .progress-tabs {
   background: rgba(255, 255, 255, 0.9);
   border-color: rgba(0, 0, 0, 0.04);
-  box-shadow: 0 2px 6px rgba(44, 38, 34, 0.04);
+  box-shadow: 0 2px 6px rgba(44, 38, 34, 0.08);
 }
 
 :root[data-theme="mist"] .brain-view .belt-card {
   background: #ffffff;
   border-color: rgba(0, 0, 0, 0.04);
-  box-shadow: 0 2px 6px rgba(44, 38, 34, 0.05), 0 8px 24px rgba(44, 38, 34, 0.03);
+  box-shadow: 0 2px 6px rgba(44, 38, 34, 0.10), 0 8px 24px rgba(44, 38, 34, 0.06);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
 }
 
 :root[data-theme="mist"] .brain-view .belt-card.current {
   border-color: var(--belt-color);
-  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.06), 0 8px 24px color-mix(in srgb, var(--belt-color) 15%, transparent);
+  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.12), 0 8px 24px color-mix(in srgb, var(--belt-color) 15%, transparent);
 }
 
 :root[data-theme="mist"] .brain-view .belt-card.completed {
