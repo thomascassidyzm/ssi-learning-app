@@ -345,7 +345,7 @@ const handleSettings = () => {
 }
 
 :root[data-theme="mist"] .nav-backdrop {
-  background: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   border-top: none;

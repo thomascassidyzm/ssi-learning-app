@@ -10056,9 +10056,9 @@ defineExpose({
   display: none !important;
 }
 
-/* --- Hero glass → Elevated white card with crisp black edge --- */
+/* --- Hero glass → Crisp white card with black edge --- */
 [data-theme="mist"] .player .hero-glass {
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(16px) saturate(160%);
   -webkit-backdrop-filter: blur(16px) saturate(160%);
   border: 1.5px solid rgba(0, 0, 0, 0.22);
@@ -10097,9 +10097,9 @@ defineExpose({
   color: var(--text-muted);
 }
 
-/* --- Control bar → Elevated white pill with crisp black edge --- */
+/* --- Control bar → Crisp white pill with black edge --- */
 [data-theme="mist"] .player .control-bar {
-  background: rgba(255, 255, 255, 0.90);
+  background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   border: 1.5px solid rgba(0, 0, 0, 0.22);
@@ -10108,9 +10108,9 @@ defineExpose({
               0 20px 48px rgba(44, 38, 34, 0.06);
 }
 
-/* --- Belt timer → Belt-tinted fill with crisp black edge --- */
+/* --- Belt timer → Crisp white pill, belt color in progress bar only --- */
 [data-theme="mist"] .player .belt-timer-unified {
-  background: color-mix(in srgb, var(--belt-color) 8%, rgba(255, 255, 255, 0.92));
+  background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(16px) saturate(160%);
   -webkit-backdrop-filter: blur(16px) saturate(160%);
   border: 1.5px solid rgba(0, 0, 0, 0.22);
@@ -10119,7 +10119,7 @@ defineExpose({
 }
 
 [data-theme="mist"] .player .belt-timer-unified:hover {
-  background: color-mix(in srgb, var(--belt-color) 12%, rgba(255, 255, 255, 0.92));
+  background: color-mix(in srgb, var(--belt-color) 8%, rgba(255, 255, 255, 0.96));
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
               0 8px 24px rgba(44, 38, 34, 0.08),
               0 0 16px color-mix(in srgb, var(--belt-color) 15%, transparent);
@@ -10135,23 +10135,24 @@ defineExpose({
   box-shadow: none;
 }
 
-/* --- Belt skip buttons → soft belt fill, crisp black edge --- */
+/* --- Belt skip buttons → crisp white, neutral arrows, belt color on hover --- */
 [data-theme="mist"] .player .belt-header-skip {
-  background: color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 10%, #ffffff);
+  background: rgba(255, 255, 255, 0.96);
   border: 1.5px solid rgba(0, 0, 0, 0.22);
   opacity: 1;
-  color: color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 70%, #2C2622);
+  color: #6B6560;
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10);
 }
 
 [data-theme="mist"] .player .belt-header-skip:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 18%, #ffffff);
+  background: color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 12%, #ffffff);
+  color: color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 70%, #2C2622);
   box-shadow: 0 2px 8px rgba(44, 38, 34, 0.14),
               0 0 12px color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 20%, transparent);
 }
 
 [data-theme="mist"] .player .belt-header-skip:disabled {
-  background: rgba(0, 0, 0, 0.03);
+  background: rgba(255, 255, 255, 0.5);
   border-color: rgba(0, 0, 0, 0.10);
   color: var(--text-muted);
   box-shadow: none;
