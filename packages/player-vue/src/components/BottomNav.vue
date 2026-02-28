@@ -369,9 +369,9 @@ const handleSettings = () => {
   display: none;
 }
 
-/* Button stroke colors on white pill — belt-tinted */
+/* Button stroke colors on white pill — subtle belt tint */
 :root[data-theme="mist"] .pill-btn {
-  color: color-mix(in srgb, var(--belt-color, var(--ssi-red)) 30%, #6B6560);
+  color: color-mix(in srgb, var(--belt-color, var(--ssi-red)) 15%, #6B6560);
 }
 
 :root[data-theme="mist"] .pill-btn.active {

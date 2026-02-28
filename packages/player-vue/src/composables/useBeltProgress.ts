@@ -386,14 +386,27 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   // ============================================================================
 
   const playingBeltIndex = ref(0)
+  const playingSeedNumber = ref(0)
 
   const playingBelt = computed((): Belt => {
     const idx = Math.min(Math.max(playingBeltIndex.value, 0), BELTS.length - 1)
     return { ...BELTS[idx], index: idx }
   })
 
+  // Progress within the current playing belt (0-100%)
+  const playingBeltProgress = computed(() => {
+    const idx = playingBeltIndex.value
+    const currentThreshold = BELTS[idx]?.seedsRequired ?? 0
+    const nextThreshold = idx + 1 < BELTS.length ? BELTS[idx + 1].seedsRequired : TOTAL_SEEDS
+    const range = nextThreshold - currentThreshold
+    if (range <= 0) return 100
+    const progress = ((playingSeedNumber.value - currentThreshold) / range) * 100
+    return Math.min(Math.max(progress, 0), 100)
+  })
+
   const setPlayingPosition = (seedNumber: number) => {
     playingBeltIndex.value = getBeltIndexForSeed(seedNumber)
+    playingSeedNumber.value = seedNumber
   }
 
   // ============================================================================
@@ -759,7 +772,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
     addSeeds,
     currentSeedNumber: computed(() => getSeedFromLegoId(lastLegoId.value)),
     getSeedFromLegoId: (id: string | null) => getSeedFromLegoId(id),
-    beltProgress: computed(() => 100), // Always 100% - belt is achieved or not
+    beltProgress: playingBeltProgress,
     skipToNextBelt: () => null, // No longer managed here - handled by player
     goBackToBeltStart: () => 0, // No longer managed here - handled by player
     jumpToBelt: () => 0, // No longer managed here - handled by player
