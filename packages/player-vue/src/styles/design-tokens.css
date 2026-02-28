@@ -2,7 +2,7 @@
  * SSi Learning App — Design Tokens (Single Source of Truth)
  *
  * ALL CSS custom properties live here. No tokens in style.css or App.vue.
- * Two themes: cosmos (dark, default) and mist (warm light).
+ * Two themes: cosmos (dark, default) and mist (modern light).
  *
  * Theme mechanism:
  *   cosmos = no data-theme attribute → :root values apply
@@ -231,70 +231,75 @@
 }
 
 /* ================================================================
- * MIST THEME (Washi Paper Dojo)
- * Warm Japanese paper tones, ink-brush styling, dark lacquered nav
+ * MIST THEME (Modern Light)
+ * Warm grey canvas, white elevated elements, frosted glass nav
+ * Slack/Telegram/iOS inspired — belt colors pop on warm canvas
  * ================================================================ */
 [data-theme="mist"] {
-  /* Background hierarchy — layered grey (bg dark, cards light) */
-  --bg-primary: #D9D6D2;
-  --bg-secondary: #E5E3E0;
-  --bg-card: #F2F0ED;
-  --bg-card-hover: #ECEAE7;
-  --bg-elevated: #F2F0ED;
-  --bg-input: #E0DDDA;
-  --bg-overlay: rgba(26, 22, 20, 0.4);
+  /* Background hierarchy — warm grey canvas, white elevated */
+  --bg-primary: #f0ece7;
+  --bg-secondary: #e8e4df;
+  --bg-card: #ffffff;
+  --bg-card-hover: #faf9f8;
+  --bg-elevated: #ffffff;
+  --bg-input: #e8e4df;
+  --bg-overlay: rgba(26, 22, 20, 0.35);
 
-  /* Text hierarchy — ink palette */
-  --text-primary: #1A1614;
-  --text-secondary: #2C2622;
-  --text-muted: #6B6058;
-  --text-inverse: #F2F0ED;
+  /* Text hierarchy — warm dark brown (not harsh black) */
+  --text-primary: #2C2622;
+  --text-secondary: #4A4440;
+  --text-muted: #8A8078;
+  --text-inverse: #ffffff;
 
-  /* Borders — warm brown */
-  --border-subtle: rgba(122, 110, 98, 0.12);
-  --border-medium: rgba(122, 110, 98, 0.22);
-  --border-strong: rgba(122, 110, 98, 0.35);
+  /* Borders — barely-visible warm edges */
+  --border-subtle: rgba(0, 0, 0, 0.04);
+  --border-medium: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.14);
   --border-focus: var(--ssi-red);
 
-  /* Shadows — warm brown-tint */
-  --shadow-sm: 0 1px 3px rgba(44, 38, 34, 0.08), 0 4px 12px rgba(44, 38, 34, 0.05);
-  --shadow-md: 0 2px 6px rgba(44, 38, 34, 0.09), 0 8px 24px rgba(44, 38, 34, 0.06);
-  --shadow-lg: 0 4px 8px rgba(44, 38, 34, 0.09), 0 12px 40px rgba(44, 38, 34, 0.07);
-  --shadow-xl: 0 4px 12px rgba(44, 38, 34, 0.1), 0 20px 60px rgba(44, 38, 34, 0.09);
-  --shadow-glow: 0 0 30px rgba(194, 58, 58, 0.15);
-  --shadow-glow-gold: 0 0 30px rgba(212, 168, 83, 0.2);
+  /* Shadows — warm brown tint, more pronounced for white-on-grey */
+  --shadow-sm: 0 1px 3px rgba(44, 38, 34, 0.06), 0 4px 12px rgba(44, 38, 34, 0.04);
+  --shadow-md: 0 2px 8px rgba(44, 38, 34, 0.07), 0 8px 24px rgba(44, 38, 34, 0.05);
+  --shadow-lg: 0 4px 12px rgba(44, 38, 34, 0.08), 0 16px 48px rgba(44, 38, 34, 0.06);
+  --shadow-xl: 0 4px 16px rgba(44, 38, 34, 0.1), 0 24px 64px rgba(44, 38, 34, 0.08);
+  --shadow-glow: 0 0 24px rgba(194, 58, 58, 0.18);
+  --shadow-glow-gold: 0 0 24px rgba(212, 168, 83, 0.22);
+
+  /* New elevation tokens — frosted glass effect */
+  --nav-shadow: 0 4px 16px rgba(44, 38, 34, 0.08), 0 1px 4px rgba(44, 38, 34, 0.04);
+  --card-glow: 0 0 0 1px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(44, 38, 34, 0.06), 0 8px 24px rgba(44, 38, 34, 0.04);
 
   /* Accent adjustments */
-  --accent-glow: rgba(194, 58, 58, 0.15);
-  --gold-glow: rgba(212, 168, 83, 0.2);
+  --accent-glow: rgba(194, 58, 58, 0.18);
+  --gold-glow: rgba(212, 168, 83, 0.22);
 
   /* Gradients */
   --gradient-accent: linear-gradient(145deg, #d94545 0%, #a83232 100%);
-  --glow-accent: 0 4px 16px rgba(194, 58, 58, 0.15);
-  --glow-soft: rgba(122, 110, 98, 0.04);
+  --glow-accent: 0 4px 16px rgba(194, 58, 58, 0.18);
+  --glow-soft: rgba(122, 110, 98, 0.03);
 
-  /* Nav — dark lacquer (opaque) */
-  --nav-bg: #1A1614;
-  --nav-bg-blur: #1A1614;
+  /* Nav — white frosted glass (Slack/Telegram style) */
+  --nav-bg: rgba(255, 255, 255, 0.92);
+  --nav-bg-blur: rgba(255, 255, 255, 0.85);
 
-  /* Card styling — solid paper, no glass */
-  --card-shadow: 0 1px 3px rgba(44, 38, 34, 0.08), 0 6px 20px rgba(44, 38, 34, 0.06);
-  --card-border: 1px solid rgba(122, 110, 98, 0.12);
-  --chip-bg: #F2F0ED;
-  --chip-border: 1px solid rgba(122, 110, 98, 0.15);
-  --modal-backdrop: rgba(26, 22, 20, 0.5);
+  /* Card styling — white elevated on warm canvas */
+  --card-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(44, 38, 34, 0.06), 0 8px 24px rgba(44, 38, 34, 0.04);
+  --card-border: 1px solid rgba(0, 0, 0, 0.04);
+  --chip-bg: #ffffff;
+  --chip-border: 1px solid rgba(0, 0, 0, 0.06);
+  --modal-backdrop: rgba(26, 22, 20, 0.4);
 
-  /* Network visualization — ink tones */
-  --network-bg: radial-gradient(ellipse at 50% 50%, rgba(122, 110, 98, 0.12) 0%, transparent 50%);
-  --network-node-fill: rgba(26, 22, 20, 0.7);
-  --network-node-stroke: rgba(26, 22, 20, 0.4);
-  --network-edge-stroke: rgba(122, 110, 98, 0.15);
+  /* Network visualization — warm tones */
+  --network-bg: radial-gradient(ellipse at 50% 50%, rgba(122, 110, 98, 0.08) 0%, transparent 50%);
+  --network-node-fill: rgba(44, 38, 34, 0.7);
+  --network-node-stroke: rgba(44, 38, 34, 0.35);
+  --network-edge-stroke: rgba(122, 110, 98, 0.12);
   --network-active-edge: #8B5E3C;
-  --network-label-fill: rgba(26, 22, 20, 0.6);
+  --network-label-fill: rgba(44, 38, 34, 0.5);
 
   /* Decorative */
-  --mountain-opacity: 0.45;
-  --overlay-gradient: linear-gradient(180deg, rgba(217, 214, 210, 0) 0%, rgba(217, 214, 210, 0.9) 100%);
+  --mountain-opacity: 0.35;
+  --overlay-gradient: linear-gradient(180deg, rgba(240, 236, 231, 0) 0%, rgba(240, 236, 231, 0.9) 100%);
 
   /* Theme indicator */
   --theme-mode: light;

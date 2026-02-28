@@ -181,20 +181,28 @@ const handleModeTap = () => {
   }
 }
 
-/* Mist theme */
+/* Mist theme — white frosted pill */
 :root[data-theme="mist"] .nav-pill {
-  background: rgba(26, 22, 20, 0.7);
-  border-color: color-mix(in srgb, var(--belt-color) 20%, rgba(168, 156, 142, 0.1));
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3),
-              0 0 12px color-mix(in srgb, var(--belt-color) 10%, transparent);
+  background: rgba(255, 255, 255, 0.88);
+  border-color: rgba(0, 0, 0, 0.04);
+  box-shadow: 0 4px 16px rgba(44, 38, 34, 0.08),
+              0 1px 4px rgba(44, 38, 34, 0.04);
 }
 
 :root[data-theme="mist"] .pill-btn {
-  color: #A89C8E;
+  color: #8A8078;
 }
 
 :root[data-theme="mist"] .pill-btn.active {
-  color: color-mix(in srgb, var(--belt-color) 40%, #F2F0ED);
-  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--belt-color) 30%, transparent));
+  color: var(--belt-color, var(--ssi-red));
+  background: rgba(0, 0, 0, 0.04);
+  filter: none;
+}
+
+@media (hover: hover) {
+  :root[data-theme="mist"] .pill-btn:hover:not(.active) {
+    color: var(--text-secondary);
+    background: rgba(0, 0, 0, 0.03);
+  }
 }
 </style>

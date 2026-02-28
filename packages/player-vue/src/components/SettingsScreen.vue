@@ -1839,19 +1839,21 @@ const confirmReset = async () => {
 <!-- Mist theme: paper surfaces instead of glass -->
 <style>
 :root[data-theme="mist"] .settings-screen .header {
-  background: #D9D6D2;
-  border-bottom: 1px solid rgba(122, 110, 98, 0.1);
-  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.05);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  box-shadow: 0 1px 4px rgba(44, 38, 34, 0.04);
 }
 
 :root[data-theme="mist"] .settings-screen .reset-overlay {
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 :root[data-theme="mist"] .settings-screen .reset-dialog {
-  background: #F2F0ED;
-  border: 1px solid rgba(122, 110, 98, 0.12);
-  box-shadow: 0 4px 12px rgba(44, 38, 34, 0.1), 0 20px 60px rgba(44, 38, 34, 0.12);
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  box-shadow: 0 4px 16px rgba(44, 38, 34, 0.08), 0 24px 64px rgba(44, 38, 34, 0.08);
 }
 </style>

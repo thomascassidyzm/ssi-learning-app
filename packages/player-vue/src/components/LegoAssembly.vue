@@ -625,41 +625,41 @@ const hasAnyKnownText = computed(() =>
 <!-- Mist theme overrides -->
 <style>
 :root[data-theme="mist"] .lego-block {
-  background: #F2F0ED;
-  border: 1px solid rgba(122, 110, 98, 0.12);
-  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.06), 0 4px 12px rgba(44, 38, 34, 0.05);
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  box-shadow: 0 2px 6px rgba(44, 38, 34, 0.05), 0 6px 16px rgba(44, 38, 34, 0.03);
 }
 
 :root[data-theme="mist"] .lego-block .block-text {
-  color: #1A1614;
+  color: var(--text-primary);
 }
 
 :root[data-theme="mist"] .lego-block-wrapper.assembled .lego-block {
-  background: #F2F0ED;
-  border-color: var(--belt-accent, rgba(122, 110, 98, 0.18));
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.04);
   box-shadow:
-    0 1px 3px rgba(44, 38, 34, 0.06),
-    0 6px 16px color-mix(in srgb, var(--belt-accent, rgba(122, 110, 98, 0.18)) 18%, transparent);
+    0 2px 6px rgba(44, 38, 34, 0.05),
+    0 8px 20px color-mix(in srgb, var(--belt-accent, rgba(0, 0, 0, 0.04)) 15%, transparent);
 }
 
 :root[data-theme="mist"] .lego-block.salient {
-  background: #F2F0ED;
-  border-color: var(--belt-accent, rgba(122, 110, 98, 0.28));
+  background: #ffffff;
+  border-color: color-mix(in srgb, var(--belt-accent, rgba(0, 0, 0, 0.08)) 40%, rgba(0, 0, 0, 0.06));
   border-width: 2px;
   box-shadow:
-    0 2px 4px rgba(44, 38, 34, 0.07),
-    0 8px 24px color-mix(in srgb, var(--belt-accent, rgba(122, 110, 98, 0.18)) 25%, transparent);
+    0 2px 8px rgba(44, 38, 34, 0.06),
+    0 10px 28px color-mix(in srgb, var(--belt-accent, rgba(0, 0, 0, 0.04)) 20%, transparent);
 }
 
 :root[data-theme="mist"] .lego-block.salient .block-text {
-  color: #1A1614;
+  color: var(--text-primary);
 }
 
 :root[data-theme="mist"] .lego-block-wrapper.assembled .lego-block.salient {
-  background: #ECEAE7;
+  background: #faf9f8;
   box-shadow:
-    0 2px 6px rgba(44, 38, 34, 0.07),
-    0 8px 28px color-mix(in srgb, var(--belt-accent, rgba(122, 110, 98, 0.18)) 28%, transparent);
+    0 2px 8px rgba(44, 38, 34, 0.06),
+    0 10px 32px color-mix(in srgb, var(--belt-accent, rgba(0, 0, 0, 0.04)) 22%, transparent);
 }
 
 /* M-LEGO stubs for mist theme */
@@ -667,25 +667,25 @@ const hasAnyKnownText = computed(() =>
 :root[data-theme="mist"] .tile-target.has-components .comp + .comp::after,
 :root[data-theme="mist"] .lego-block.has-components .comp + .comp::before,
 :root[data-theme="mist"] .lego-block.has-components .comp + .comp::after {
-  background: rgba(44, 38, 34, 0.2);
+  background: rgba(44, 38, 34, 0.15);
 }
 
 /* Single tile mist overrides */
 :root[data-theme="mist"] .tile-target {
-  background: #F2F0ED;
-  border-color: rgba(122, 110, 98, 0.12);
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.04);
 }
 :root[data-theme="mist"] .tile-target .comp {
-  color: #1A1614;
+  color: var(--text-primary);
 }
 :root[data-theme="mist"] .tile-known,
 :root[data-theme="mist"] .tile-known-comp,
 :root[data-theme="mist"] .block-known,
 :root[data-theme="mist"] .block-known-comp {
-  color: #7A6E62;
+  color: var(--text-muted);
 }
 :root[data-theme="mist"] .lego-tile.salient .tile-target {
-  border-color: var(--belt-accent, rgba(122, 110, 98, 0.28));
-  background: #ECEAE7;
+  border-color: color-mix(in srgb, var(--belt-accent, rgba(0, 0, 0, 0.08)) 40%, rgba(0, 0, 0, 0.06));
+  background: #faf9f8;
 }
 </style>

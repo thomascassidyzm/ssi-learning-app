@@ -654,13 +654,15 @@ onMounted(() => {
 <!-- Mist theme: paper surfaces instead of glass -->
 <style>
 :root[data-theme="mist"] .course-selector .selector-backdrop {
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 :root[data-theme="mist"] .course-selector .selector-content {
-  background: #F2F0ED;
-  border: 1px solid rgba(122, 110, 98, 0.12);
-  box-shadow: 0 4px 12px rgba(44, 38, 34, 0.1), 0 20px 60px rgba(44, 38, 34, 0.12);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  box-shadow: 0 4px 16px rgba(44, 38, 34, 0.08), 0 24px 64px rgba(44, 38, 34, 0.08);
 }
 </style>

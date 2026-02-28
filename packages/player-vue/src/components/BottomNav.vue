@@ -584,10 +584,12 @@ const isVisible = computed(() => !props.isLearning)
    MISTY DOJO THEME
    ═══════════════════════════════════════════════════════════════ */
 :root[data-theme="mist"] .nav-backdrop {
-  background: #1A1614;
-  border-top: 1.5px solid color-mix(in srgb, var(--belt-color) 40%, rgba(168, 156, 142, 0.15));
-  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.15),
-              0 -1px 12px color-mix(in srgb, var(--belt-color) 15%, transparent);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-top: 1px solid rgba(0, 0, 0, 0.04);
+  box-shadow: 0 -4px 16px rgba(44, 38, 34, 0.06),
+              0 -1px 4px rgba(44, 38, 34, 0.03);
 }
 
 :root[data-theme="mist"] .nav-backdrop::before {
@@ -595,19 +597,19 @@ const isVisible = computed(() => !props.isLearning)
 }
 
 :root[data-theme="mist"] .nav-icon {
-  color: #A89C8E;
+  color: #8A8078;
 }
 
 :root[data-theme="mist"] .nav-label {
-  color: #A89C8E;
+  color: #8A8078;
 }
 
 :root[data-theme="mist"] .nav-item.active .nav-icon {
-  color: color-mix(in srgb, var(--belt-color) 40%, #F2F0ED);
-  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--belt-color) 30%, transparent));
+  color: var(--belt-color, var(--ssi-red));
+  filter: none;
 }
 
 :root[data-theme="mist"] .nav-item.active .nav-label {
-  color: color-mix(in srgb, var(--belt-color) 40%, #F2F0ED);
+  color: var(--text-primary);
 }
 </style>

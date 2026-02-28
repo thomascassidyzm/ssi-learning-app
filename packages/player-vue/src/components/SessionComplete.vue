@@ -539,37 +539,37 @@ const handleDismiss = () => {
    WASHI PAPER DOJO THEME — Session complete overrides
    ═══════════════════════════════════════════════════════════════ */
 :root[data-theme="mist"] .session-summary {
-  background: #D9D6D2;
+  background: #f0ece7;
 }
 
 :root[data-theme="mist"] .bg-gradient {
-  background: radial-gradient(ellipse 80% 60% at 50% 30%, rgba(var(--belt-color-r, 194), var(--belt-color-g, 58), var(--belt-color-b, 58), 0.08) 0%, transparent 60%);
+  background: radial-gradient(ellipse 80% 60% at 50% 30%, rgba(var(--belt-color-r, 194), var(--belt-color-g, 58), var(--belt-color-b, 58), 0.06) 0%, transparent 60%);
 }
 
 :root[data-theme="mist"] .belt-name {
-  color: #1A1614;
+  color: var(--text-primary);
 }
 
 :root[data-theme="mist"] .time-to-next {
-  background: rgba(122, 110, 98, 0.06);
-  border-color: rgba(122, 110, 98, 0.12);
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(0, 0, 0, 0.04);
 }
 
 :root[data-theme="mist"] .time-estimate-label {
-  color: #2C2622;
+  color: var(--text-secondary);
 }
 
 :root[data-theme="mist"] .journey-dot {
-  background: #F2F0ED;
-  border-color: rgba(122, 110, 98, 0.22);
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.08);
 }
 
 :root[data-theme="mist"] .journey-dot-inner {
-  background: rgba(26, 22, 20, 0.65);
+  background: rgba(44, 38, 34, 0.55);
 }
 
 :root[data-theme="mist"] .quick-stats {
-  color: #7A6E62;
+  color: var(--text-muted);
 }
 
 :root[data-theme="mist"] .progress-ring-svg {
@@ -577,10 +577,10 @@ const handleDismiss = () => {
 }
 
 :root[data-theme="mist"] .progress-ring-svg circle:first-child {
-  stroke: rgba(122, 110, 98, 0.12);
+  stroke: rgba(0, 0, 0, 0.06);
 }
 
 :root[data-theme="mist"] .resume-btn {
-  box-shadow: 0 4px 20px rgba(194, 58, 58, 0.2);
+  box-shadow: 0 4px 20px rgba(194, 58, 58, 0.25);
 }
 </style>

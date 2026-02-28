@@ -10176,23 +10176,23 @@ defineExpose({
 [data-theme="mist"] .player {
   background:
     radial-gradient(ellipse 120% 80% at 50% 80%,
-      color-mix(in srgb, var(--belt-color) 4%, transparent) 0%,
+      color-mix(in srgb, var(--belt-color) 5%, transparent) 0%,
       transparent 60%),
-    #D9D6D2;
+    #f0ece7;
 }
 
-/* --- Space / Background layers → Washi paper --- */
+/* --- Space / Background layers → Warm grey canvas --- */
 [data-theme="mist"] .player .space-gradient {
   background:
-    radial-gradient(ellipse 90% 70% at 15% 10%, rgba(255, 248, 230, 0.6) 0%, transparent 50%),
-    radial-gradient(ellipse 100% 60% at 80% 90%, rgba(232, 224, 206, 0.4) 0%, transparent 40%),
-    radial-gradient(ellipse 80% 80% at 50% 50%, #D9D6D2 0%, #E0DDDA 100%);
+    radial-gradient(ellipse 90% 70% at 15% 10%, rgba(255, 252, 245, 0.5) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 60% at 80% 90%, rgba(240, 236, 231, 0.3) 0%, transparent 40%),
+    radial-gradient(ellipse 80% 80% at 50% 50%, #f0ece7 0%, #e8e4df 100%);
 }
 
 [data-theme="mist"] .player .space-nebula {
   background:
-    linear-gradient(180deg, transparent 0%, rgba(122, 110, 98, 0.04) 30%, rgba(122, 110, 98, 0.06) 50%, transparent 70%),
-    linear-gradient(180deg, transparent 40%, rgba(122, 110, 98, 0.03) 60%, transparent 80%);
+    linear-gradient(180deg, transparent 0%, rgba(122, 110, 98, 0.03) 30%, rgba(122, 110, 98, 0.04) 50%, transparent 70%),
+    linear-gradient(180deg, transparent 40%, rgba(122, 110, 98, 0.02) 60%, transparent 80%);
   animation: mist-drift 20s ease-in-out infinite;
 }
 
@@ -10202,21 +10202,17 @@ defineExpose({
 }
 
 [data-theme="mist"] .player .bg-noise {
-  opacity: 0.06;
+  opacity: 0.04;
   filter: none;
   mix-blend-mode: multiply;
 }
 
-/* Subtle washi fiber lines */
+/* Subtle texture */
 [data-theme="mist"] .player .bg-noise::after {
   content: '';
   position: absolute;
   inset: 0;
-  background:
-    linear-gradient(90deg, transparent 18%, rgba(122, 110, 98, 0.02) 18.5%, transparent 19%),
-    linear-gradient(90deg, transparent 42%, rgba(122, 110, 98, 0.015) 42.3%, transparent 42.8%),
-    linear-gradient(90deg, transparent 71%, rgba(122, 110, 98, 0.02) 71.4%, transparent 72%),
-    linear-gradient(90deg, transparent 89%, rgba(122, 110, 98, 0.015) 89.3%, transparent 89.8%);
+  background: none;
   pointer-events: none;
 }
 
@@ -10282,16 +10278,16 @@ defineExpose({
   50% { opacity: 0.8; transform: translateX(15%); }
 }
 
-/* --- Nebula glow → Belt-colored floor accent wash --- */
+/* --- Nebula glow → Subtle belt-colored radial wash --- */
 [data-theme="mist"] .player .nebula-glow {
   background:
-    linear-gradient(
-      to top,
-      color-mix(in srgb, var(--belt-color) 12%, transparent) 0%,
-      color-mix(in srgb, var(--belt-color) 4%, transparent) 30%,
-      transparent 50%
+    radial-gradient(
+      ellipse 100% 60% at 50% 100%,
+      color-mix(in srgb, var(--belt-color) 8%, transparent) 0%,
+      color-mix(in srgb, var(--belt-color) 3%, transparent) 40%,
+      transparent 70%
     );
-  opacity: 0.8;
+  opacity: 0.6;
 }
 
 /* --- Mountain silhouette → Belt color wash overlay --- */
@@ -10314,100 +10310,101 @@ defineExpose({
   display: block;
 }
 
-/* --- Hero glass → Solid paper card with belt glow --- */
+/* --- Hero glass → White elevated card with subtle shadow --- */
 [data-theme="mist"] .player .hero-glass {
-  background: #F2F0ED;
-  border: 1.5px solid color-mix(in srgb, var(--belt-color) 40%, rgba(122, 110, 98, 0.18));
-  box-shadow: 0 1px 2px rgba(44, 38, 34, 0.1),
-              0 4px 12px rgba(44, 38, 34, 0.08),
-              0 0 8px color-mix(in srgb, var(--belt-color) 20%, transparent),
-              0 0 20px color-mix(in srgb, var(--belt-color) 10%, transparent);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.06),
+              0 8px 24px rgba(44, 38, 34, 0.04),
+              0 0 0 1px rgba(0, 0, 0, 0.02);
 }
 
 /* --- Hero text --- */
 [data-theme="mist"] .player .hero-known {
-  color: #1A1614;
+  color: var(--text-primary);
 }
 
 [data-theme="mist"] .player .hero-target {
-  color: color-mix(in srgb, var(--belt-color) 70%, #1A1614);
+  color: color-mix(in srgb, var(--belt-color) 70%, #2C2622);
   text-shadow: none;
 }
 
-/* --- Control bar → Solid paper with belt glow --- */
+/* --- Control bar → White elevated pill --- */
 [data-theme="mist"] .player .control-bar {
-  background: #F2F0ED;
-  border: 1.5px solid color-mix(in srgb, var(--belt-color) 40%, rgba(122, 110, 98, 0.18));
-  box-shadow: 0 1px 2px rgba(44, 38, 34, 0.1),
-              0 4px 12px rgba(44, 38, 34, 0.08),
-              0 0 8px color-mix(in srgb, var(--belt-color) 20%, transparent),
-              0 0 20px color-mix(in srgb, var(--belt-color) 10%, transparent);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.06),
+              0 8px 24px rgba(44, 38, 34, 0.04);
 }
 
-/* --- Belt timer → Match edge definition with belt glow --- */
+/* --- Belt timer → White elevated with belt accent --- */
 [data-theme="mist"] .player .belt-timer-unified {
-  background: #F2F0ED;
-  border: 1.5px solid color-mix(in srgb, var(--belt-color) 40%, rgba(122, 110, 98, 0.18));
-  box-shadow: 0 1px 2px rgba(44, 38, 34, 0.1),
-              0 4px 12px rgba(44, 38, 34, 0.08),
-              0 0 8px color-mix(in srgb, var(--belt-color) 25%, transparent),
-              0 0 20px color-mix(in srgb, var(--belt-color) 12%, transparent);
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.06),
+              0 8px 24px rgba(44, 38, 34, 0.04),
+              0 0 8px color-mix(in srgb, var(--belt-color) 12%, transparent);
 }
 
-/* --- Skip buttons → Visible circular buttons with belt color --- */
+/* --- Skip buttons → White pills with belt color accent --- */
 [data-theme="mist"] .player .belt-header-skip {
-  background: color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 12%, #F2F0ED);
-  border: 1.5px solid color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 35%, rgba(122, 110, 98, 0.2));
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(0, 0, 0, 0.04);
   opacity: 1;
-  color: color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 70%, #1A1614);
-  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.1),
-              0 0 6px color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 15%, transparent);
+  color: color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 70%, #2C2622);
+  box-shadow: 0 2px 6px rgba(44, 38, 34, 0.06),
+              0 0 6px color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 10%, transparent);
 }
 
 [data-theme="mist"] .player .belt-header-skip:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 20%, #F2F0ED);
-  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.1),
-              0 0 10px color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 25%, transparent);
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.08),
+              0 0 10px color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 15%, transparent);
 }
 
 [data-theme="mist"] .player .belt-header-skip:disabled {
-  background: rgba(122, 110, 98, 0.06);
-  border-color: rgba(122, 110, 98, 0.1);
-  color: rgba(122, 110, 98, 0.3);
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.03);
+  color: var(--text-muted);
   box-shadow: none;
 }
 
 /* --- Mode / Transport buttons --- */
 [data-theme="mist"] .player .mode-btn,
 [data-theme="mist"] .player .transport-btn {
-  background: color-mix(in srgb, var(--belt-color) 8%, rgba(122, 110, 98, 0.06));
-  border: 1.5px solid color-mix(in srgb, var(--belt-color) 25%, rgba(122, 110, 98, 0.12));
-  color: color-mix(in srgb, var(--belt-color) 50%, #2C2622);
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  color: var(--text-secondary);
 }
 
 [data-theme="mist"] .player .mode-btn:hover,
 [data-theme="mist"] .player .transport-btn:hover {
-  background: color-mix(in srgb, var(--belt-color) 15%, rgba(122, 110, 98, 0.08));
-  box-shadow: 0 0 6px color-mix(in srgb, var(--belt-color) 15%, transparent);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.06);
 }
 
 [data-theme="mist"] .player .mode-btn.active {
-  background: rgba(122, 110, 98, 0.16);
-  color: #1A1614;
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--text-primary);
 }
 
 [data-theme="mist"] .player .mode-picker {
-  background: #F2F0ED;
-  border: 1.5px solid rgba(122, 110, 98, 0.2);
-  box-shadow: 0 1px 2px rgba(44, 38, 34, 0.1),
-              0 4px 12px rgba(44, 38, 34, 0.08),
-              0 12px 40px rgba(44, 38, 34, 0.07);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  box-shadow: 0 4px 16px rgba(44, 38, 34, 0.08),
+              0 16px 48px rgba(44, 38, 34, 0.06);
 }
 
 [data-theme="mist"] .player .mode-picker-option {
-  background: rgba(122, 110, 98, 0.07);
-  border-color: rgba(122, 110, 98, 0.12);
-  color: #1A1614;
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.04);
+  color: var(--text-primary);
 }
 
 /* --- Brain Network overrides → Ink tones --- */
@@ -10446,9 +10443,9 @@ defineExpose({
 
 /* --- Belt celebration overlay --- */
 [data-theme="mist"] .player .belt-celebration-overlay {
-  background: rgba(26, 22, 20, 0.6);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgba(240, 236, 231, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 /* --- Belt particles → Shuriken burst --- */
@@ -10466,48 +10463,48 @@ defineExpose({
   color: #1A1614;
 }
 
-/* --- Learning hint box → Solid paper --- */
+/* --- Learning hint box → White elevated --- */
 [data-theme="mist"] .player .learning-hint,
 [data-theme="mist"] .player .learning-hint-box {
-  background: #F2F0ED;
-  border: 1.5px solid rgba(122, 110, 98, 0.2);
-  box-shadow: 0 1px 2px rgba(44, 38, 34, 0.1),
-              0 4px 12px rgba(44, 38, 34, 0.08);
-  color: #2C2622;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.06),
+              0 8px 24px rgba(44, 38, 34, 0.04);
+  color: var(--text-secondary);
 }
 
 [data-theme="mist"] .player .learning-hint-box .hint-text {
-  color: #2C2622;
+  color: var(--text-secondary);
 }
 
-/* --- Component breakdown tiles → Paper style --- */
+/* --- Component breakdown tiles → White elevated --- */
 [data-theme="mist"] .player .component-tile {
-  background: #F2F0ED;
-  border-color: rgba(122, 110, 98, 0.2);
-  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.08);
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.04);
+  box-shadow: 0 2px 6px rgba(44, 38, 34, 0.05);
 }
 
 [data-theme="mist"] .player .component-tile-target {
-  color: color-mix(in srgb, var(--belt-color) 70%, #1A1614);
+  color: color-mix(in srgb, var(--belt-color) 70%, #2C2622);
 }
 
 [data-theme="mist"] .player .component-tile-known {
-  color: #7A6E62;
+  color: var(--text-muted);
 }
 
 [data-theme="mist"] .player .component-plus {
-  color: #A89C8E;
+  color: var(--text-muted);
 }
 
 /* --- Black belt in mist → double stripe distinction --- */
 [data-theme="mist"] .player.belt-black .belt-bar-fill {
   background: linear-gradient(to bottom,
-    var(--belt-color) 35%, #F2F0ED 42%,
-    #F2F0ED 58%, var(--belt-color) 65%) !important;
+    var(--belt-color) 35%, #ffffff 42%,
+    #ffffff 58%, var(--belt-color) 65%) !important;
 }
 [data-theme="mist"] .player.belt-black .belt-timer-unified {
-  border: 2px solid #1A1614 !important;
-  outline: 2px solid #1A1614;
+  border: 2px solid #2C2622 !important;
+  outline: 2px solid #2C2622;
   outline-offset: 2px;
 }
 </style>

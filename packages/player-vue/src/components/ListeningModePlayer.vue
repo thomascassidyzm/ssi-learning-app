@@ -871,22 +871,22 @@ defineExpose({
   box-shadow: 0 0 4px var(--belt-color);
 }
 
-/* ============ WASHI PAPER DOJO THEME ============ */
+/* ============ MODERN LIGHT THEME ============ */
 :root[data-theme="mist"] .space-gradient {
   background:
-    radial-gradient(ellipse 90% 70% at 15% 10%, rgba(255, 248, 230, 0.6) 0%, transparent 50%),
-    radial-gradient(ellipse 100% 60% at 80% 90%, rgba(232, 224, 206, 0.4) 0%, transparent 40%),
-    radial-gradient(ellipse 80% 80% at 50% 50%, #D9D6D2 0%, #E0DDDA 100%);
+    radial-gradient(ellipse 90% 70% at 15% 10%, rgba(255, 252, 245, 0.5) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 60% at 80% 90%, rgba(240, 236, 231, 0.3) 0%, transparent 40%),
+    radial-gradient(ellipse 80% 80% at 50% 50%, #f0ece7 0%, #e8e4df 100%);
 }
 
 :root[data-theme="mist"] .space-nebula {
   background:
-    radial-gradient(ellipse 60% 40% at 30% 30%, rgba(122, 110, 98, 0.08) 0%, transparent 50%),
-    radial-gradient(ellipse 50% 30% at 70% 60%, rgba(122, 110, 98, 0.05) 0%, transparent 40%);
+    radial-gradient(ellipse 60% 40% at 30% 30%, rgba(122, 110, 98, 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 30% at 70% 60%, rgba(122, 110, 98, 0.03) 0%, transparent 40%);
 }
 
 :root[data-theme="mist"] .bg-noise {
-  opacity: 0.05;
+  opacity: 0.03;
   filter: none;
   mix-blend-mode: multiply;
 }

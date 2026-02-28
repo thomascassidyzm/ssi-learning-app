@@ -200,21 +200,30 @@ onUnmounted(() => {
   transform: translateX(-50%) translateY(8px) scale(0.95);
 }
 
-/* Mist theme */
+/* Mist theme — white frosted popup */
 :root[data-theme="mist"] .mode-switcher {
-  background: rgba(26, 22, 20, 0.85);
-  border-color: color-mix(in srgb, var(--belt-color) 20%, rgba(168, 156, 142, 0.1));
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(0, 0, 0, 0.04);
+  box-shadow: 0 8px 32px rgba(44, 38, 34, 0.1), 0 2px 8px rgba(44, 38, 34, 0.05);
+}
+
+:root[data-theme="mist"] .mode-option:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+:root[data-theme="mist"] .mode-option.active {
+  background: rgba(0, 0, 0, 0.04);
 }
 
 :root[data-theme="mist"] .mode-label {
-  color: #F2F0ED;
+  color: var(--text-primary);
 }
 
 :root[data-theme="mist"] .mode-desc {
-  color: #A89C8E;
+  color: var(--text-muted);
 }
 
 :root[data-theme="mist"] .mode-icon {
-  color: #A89C8E;
+  color: #8A8078;
 }
 </style>

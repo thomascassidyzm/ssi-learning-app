@@ -1880,8 +1880,10 @@ onUnmounted(() => {
 <!-- Mist theme: paper surfaces instead of glass -->
 <style>
 :root[data-theme="mist"] .explorer .explorer-header {
-  background: #D9D6D2;
-  border-bottom: 1px solid rgba(122, 110, 98, 0.1);
-  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.05);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  box-shadow: 0 1px 4px rgba(44, 38, 34, 0.04);
 }
 </style>

@@ -624,14 +624,14 @@ onUnmounted(() => {
 <!-- Mist theme: paper surfaces instead of glass -->
 <style>
 :root[data-theme="mist"] .modal-backdrop {
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  background: rgba(26, 22, 20, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: rgba(240, 236, 231, 0.6);
 }
 
 :root[data-theme="mist"] .modal {
-  background: #F2F0ED;
-  border: 1px solid rgba(122, 110, 98, 0.12);
-  box-shadow: 0 4px 12px rgba(44, 38, 34, 0.1), 0 20px 60px rgba(44, 38, 34, 0.12);
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  box-shadow: 0 4px 16px rgba(44, 38, 34, 0.08), 0 24px 64px rgba(44, 38, 34, 0.08);
 }
 </style>
