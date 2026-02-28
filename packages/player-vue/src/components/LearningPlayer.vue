@@ -7639,11 +7639,12 @@ defineExpose({
   align-items: center;
   gap: 6px;
   padding: 8px 12px;
-  background: rgba(20, 20, 30, 0.7);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
   border: 1.5px solid rgba(255, 255, 255, 0.22);
   border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   color: rgba(255, 255, 255, 0.6);
   font-size: 12px;
   font-family: inherit;
@@ -7652,9 +7653,9 @@ defineExpose({
 }
 
 .layout-toggle-btn:hover {
-  background: rgba(30, 30, 45, 0.85);
+  background: rgba(255, 255, 255, 0.12);
   color: rgba(255, 255, 255, 0.9);
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.35);
 }
 
 .layout-toggle-btn:active {
@@ -8049,9 +8050,10 @@ defineExpose({
   flex-direction: column;
   align-items: center;
   padding: 0.4rem 0.75rem;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.06);
   border: 1.5px solid rgba(255, 255, 255, 0.22);
   border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
 .component-tile-target {
@@ -8151,6 +8153,7 @@ defineExpose({
     0 0 0 1px color-mix(in srgb, var(--belt-glow, rgba(194, 58, 58, 0.15)) 40%, transparent);
   /* Fill parent width - parent handles max-width */
   width: 100%;
+  overflow: hidden;
 }
 
 /* Glass pane is hidden during intro - this rule kept for any edge cases */
@@ -8217,6 +8220,9 @@ defineExpose({
   margin: 0;
   line-height: 1.5;
   letter-spacing: 0.01em;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  max-width: 100%;
 }
 
 .hero-target {
@@ -8229,6 +8235,9 @@ defineExpose({
   letter-spacing: 0.01em;
   text-shadow: 0 0 24px var(--belt-glow, rgba(194, 58, 58, 0.5)),
                0 0 8px var(--belt-glow, rgba(194, 58, 58, 0.2));
+  overflow-wrap: break-word;
+  word-break: break-word;
+  max-width: 100%;
 }
 
 .hero-target-placeholder {
@@ -9269,10 +9278,13 @@ defineExpose({
   display: flex;
   gap: 12px;
   padding: 12px;
-  background: rgba(20, 20, 30, 0.9);
+  background: rgba(255, 255, 255, 0.06);
   border: 1.5px solid rgba(255, 255, 255, 0.22);
   border-radius: 16px;
-  backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5),
+              0 16px 48px rgba(0, 0, 0, 0.3);
 }
 
 .mode-picker-option {
@@ -9422,8 +9434,8 @@ defineExpose({
   min-width: var(--btn-touch-target);
   min-height: var(--btn-touch-target);
   border-radius: 50%;
-  border: 2px solid;
-  background: rgba(255, 255, 255, 0.04);
+  border: 1.5px solid;
+  background: rgba(255, 255, 255, 0.06);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -9437,8 +9449,9 @@ defineExpose({
 }
 
 .belt-nav-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.12);
   transform: scale(1.05);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--belt-glow) 20%, transparent);
 }
 
 .belt-nav-btn:disabled {
