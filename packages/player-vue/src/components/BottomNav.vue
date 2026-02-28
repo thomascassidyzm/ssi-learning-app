@@ -291,6 +291,7 @@ const playButtonLabel = computed(() => {
   height: 56px;
   padding: 0 12px;
   max-width: none;
+  z-index: 102; /* Above nav-backdrop (z:100) */
 }
 
 .nav-group {
@@ -737,27 +738,15 @@ const playButtonLabel = computed(() => {
    MODERN LIGHT THEME — Floating pill nav (Telegram/iOS style)
    ═══════════════════════════════════════════════════════════════ */
 
-/* Floating pill — wide, lifted from bottom edge like Telegram */
+/* Floating pill — matches top pills width, lifted from bottom */
 :root[data-theme="mist"] .bottom-nav {
-  left: 16px;
-  right: 16px;
+  left: 50%;
+  right: auto;
   bottom: calc(20px + env(safe-area-inset-bottom, 0px));
-  transform: none;
-  width: auto;
-  max-width: 500px;
-  margin: 0 auto;
+  transform: translateX(-50%);
+  width: calc(100% - 2rem);
+  max-width: 400px;
   overflow: visible;
-}
-
-/* Center the pill on wide screens */
-@media (min-width: 540px) {
-  :root[data-theme="mist"] .bottom-nav {
-    left: 50%;
-    right: auto;
-    transform: translateX(-50%);
-    width: calc(100% - 32px);
-    max-width: 500px;
-  }
 }
 
 :root[data-theme="mist"] .nav-backdrop {
