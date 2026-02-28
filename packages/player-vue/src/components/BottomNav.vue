@@ -155,24 +155,28 @@ const handleSettings = () => {
 <style scoped>
 .bottom-nav {
   position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  width: calc(100% - 2rem);
+  max-width: 400px;
   z-index: 3000;
+  overflow: visible;
 }
 
 .nav-backdrop {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    to top,
-    rgba(10, 10, 15, 0.85) 0%,
-    rgba(10, 10, 15, 0.80) 50%,
-    rgba(10, 10, 15, 0.65) 100%
-  );
+  background: rgba(10, 10, 18, 0.82);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border-top: 1.5px solid rgba(255, 255, 255, 0.22);
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  border-radius: 32px;
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.5),
+    0 8px 24px rgba(0, 0, 0, 0.4),
+    0 20px 48px rgba(0, 0, 0, 0.25);
   z-index: 100;
 }
 
@@ -185,8 +189,8 @@ const handleSettings = () => {
   width: 100%;
   max-width: 400px;
   margin: 0 auto;
-  height: 64px;
-  padding: 0 6px;
+  height: 72px;
+  padding: 0 10px;
 }
 
 /* Pill buttons (outer 4 slots) */
@@ -195,8 +199,8 @@ const handleSettings = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
   border: none;
   background: transparent;
@@ -210,8 +214,8 @@ const handleSettings = () => {
 .pill-btn svg {
   position: relative;
   z-index: 1;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
 }
 
 .pill-btn:active,
@@ -248,8 +252,8 @@ const handleSettings = () => {
 /* Center play/stop button */
 .center-btn {
   position: relative;
-  width: 52px;
-  height: 52px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   border: none;
   background: linear-gradient(145deg, var(--ssi-red-light) 0%, var(--ssi-red) 100%);
@@ -277,8 +281,8 @@ const handleSettings = () => {
 }
 
 .center-btn-inner svg {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
 }
 
@@ -297,10 +301,9 @@ const handleSettings = () => {
   color: var(--text-muted);
 }
 
-/* Safe area */
+/* Safe area — not needed for floating pill (bottom offset includes safe area) */
 .safe-area-spacer {
-  height: env(safe-area-inset-bottom, 0px);
-  min-height: 4px;
+  display: none;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -331,71 +334,23 @@ const handleSettings = () => {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   MODERN LIGHT THEME — Floating pill
+   MIST (LIGHT) THEME — Color overrides only
+   Layout/sizing shared with cosmos via base styles above.
    ═══════════════════════════════════════════════════════════════ */
-
-:root[data-theme="mist"] .bottom-nav {
-  left: 50%;
-  right: auto;
-  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
-  transform: translateX(-50%);
-  width: calc(100% - 2rem);
-  max-width: 400px;
-  overflow: visible;
-}
 
 :root[data-theme="mist"] .nav-backdrop {
   background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-top: none;
   border: 1.5px solid rgba(0, 0, 0, 0.22);
-  border-radius: 32px;
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.14),
               0 8px 24px rgba(44, 38, 34, 0.10),
               0 20px 48px rgba(44, 38, 34, 0.06);
 }
 
-:root[data-theme="mist"] .nav-backdrop::before {
-  display: none;
-}
-
-:root[data-theme="mist"] .nav-content {
-  height: 72px;
-  padding: 0 10px;
-}
-
-:root[data-theme="mist"] .pill-btn {
-  width: 52px;
-  height: 52px;
-}
-
-:root[data-theme="mist"] .pill-btn svg {
-  width: 24px;
-  height: 24px;
-}
-
-:root[data-theme="mist"] .center-btn {
-  width: 56px;
-  height: 56px;
-}
-
-:root[data-theme="mist"] .center-btn-inner svg {
-  width: 24px;
-  height: 24px;
-}
-
-:root[data-theme="mist"] .safe-area-spacer {
-  display: none;
-}
-
 /* Button stroke colors on white pill — subtle belt tint */
 :root[data-theme="mist"] .pill-btn {
   color: color-mix(in srgb, var(--belt-color, var(--ssi-red)) 15%, #6B6560);
-}
-
-:root[data-theme="mist"] .pill-btn.active {
-  color: var(--belt-color, var(--ssi-red));
 }
 
 :root[data-theme="mist"] .pill-btn.active .pill-btn-bg {
