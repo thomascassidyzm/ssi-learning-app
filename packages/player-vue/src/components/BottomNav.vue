@@ -581,19 +581,43 @@ const isVisible = computed(() => !props.isLearning)
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   MISTY DOJO THEME
+   MODERN LIGHT THEME — Floating pill nav (Telegram/iOS style)
    ═══════════════════════════════════════════════════════════════ */
+
+/* Convert full-width bar into a centered floating pill */
+:root[data-theme="mist"] .bottom-nav {
+  bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  width: auto;
+}
+
 :root[data-theme="mist"] .nav-backdrop {
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-top: 1px solid rgba(0, 0, 0, 0.04);
-  box-shadow: 0 -4px 16px rgba(44, 38, 34, 0.06),
-              0 -1px 4px rgba(44, 38, 34, 0.03);
+  border-top: none;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 28px;
+  box-shadow: 0 4px 16px rgba(44, 38, 34, 0.08),
+              0 1px 4px rgba(44, 38, 34, 0.04);
 }
 
 :root[data-theme="mist"] .nav-backdrop::before {
-  background: none;
+  display: none;
+}
+
+:root[data-theme="mist"] .nav-content {
+  height: 60px;
+}
+
+:root[data-theme="mist"] .play-button-container {
+  top: -14px;
+}
+
+:root[data-theme="mist"] .safe-area-spacer {
+  display: none;
 }
 
 :root[data-theme="mist"] .nav-icon {

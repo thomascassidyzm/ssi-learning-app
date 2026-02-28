@@ -1839,7 +1839,9 @@ const confirmReset = async () => {
 <!-- Mist theme: paper surfaces instead of glass -->
 <style>
 :root[data-theme="mist"] .settings-screen .header {
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
   border-bottom: 1px solid rgba(0, 0, 0, 0.04);
   box-shadow: 0 1px 4px rgba(44, 38, 34, 0.04);
 }

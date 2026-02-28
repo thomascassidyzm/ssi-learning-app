@@ -10216,109 +10216,22 @@ defineExpose({
   pointer-events: none;
 }
 
-/* --- Hide stars in mist, repurpose drift-stars as drifting mist wisps --- */
-[data-theme="mist"] .player .star-field {
-  display: none;
-}
-
-[data-theme="mist"] .player .drift-stars {
-  opacity: 1;
-  pointer-events: none;
-}
-
-[data-theme="mist"] .player .drift-star {
-  background: none !important;
-  border-radius: 50%;
-  width: 80px !important;
-  height: 30px !important;
-  box-shadow: 0 0 40px 20px rgba(255, 255, 255, 0.15);
-  animation: mist-wisp 18s ease-in-out infinite !important;
-  opacity: 0;
-}
-
-[data-theme="mist"] .player .drift-star:nth-child(2n) {
-  width: 120px !important;
-  height: 40px !important;
-  animation-duration: 24s !important;
-  animation-delay: -6s !important;
-}
-
-[data-theme="mist"] .player .drift-star:nth-child(3n) {
-  width: 60px !important;
-  height: 20px !important;
-  animation-duration: 15s !important;
-  animation-delay: -10s !important;
-}
-
-@keyframes mist-wisp {
-  0% { opacity: 0; transform: translateX(-30px) translateY(0); }
-  20% { opacity: 0.5; }
-  50% { opacity: 0.7; transform: translateX(30px) translateY(-8px); }
-  80% { opacity: 0.4; }
-  100% { opacity: 0; transform: translateX(60px) translateY(0); }
-}
-
-/* --- Landscape shimmer — slow-moving light across the hills --- */
-[data-theme="mist"] .player .mountain-silhouette::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    ellipse 40% 60% at 30% 40%,
-    rgba(255, 255, 255, 0.08) 0%,
-    transparent 70%
-  );
-  animation: landscape-shimmer 25s ease-in-out infinite;
-  pointer-events: none;
-  z-index: 1;
-}
-
-@keyframes landscape-shimmer {
-  0%, 100% { opacity: 0.3; transform: translateX(-5%); }
-  50% { opacity: 0.8; transform: translateX(15%); }
-}
-
-/* --- Nebula glow → Subtle belt-colored radial wash --- */
+/* --- Hide ALL decorative layers in mist — clean canvas first --- */
+[data-theme="mist"] .player .star-field,
+[data-theme="mist"] .player .drift-stars,
+[data-theme="mist"] .player .mountain-silhouette,
 [data-theme="mist"] .player .nebula-glow {
-  background:
-    radial-gradient(
-      ellipse 100% 60% at 50% 100%,
-      color-mix(in srgb, var(--belt-color) 8%, transparent) 0%,
-      color-mix(in srgb, var(--belt-color) 3%, transparent) 40%,
-      transparent 70%
-    );
-  opacity: 0.6;
+  display: none !important;
 }
 
-/* --- Mountain silhouette → Belt color wash overlay --- */
-[data-theme="mist"] .player .mountain-silhouette::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    to top,
-    color-mix(in srgb, var(--belt-color) 8%, transparent) 0%,
-    color-mix(in srgb, var(--belt-color) 3%, transparent) 40%,
-    transparent 70%
-  );
-  pointer-events: none;
-  mix-blend-mode: multiply;
-}
-
-/* --- Mountain silhouette (shown only in mist) --- */
-[data-theme="mist"] .player .mountain-silhouette {
-  display: block;
-}
-
-/* --- Hero glass → White elevated card with subtle shadow --- */
+/* --- Hero glass → White frosted card --- */
 [data-theme="mist"] .player .hero-glass {
-  background: #ffffff;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  border: 1px solid rgba(0, 0, 0, 0.04);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   box-shadow: 0 2px 8px rgba(44, 38, 34, 0.06),
-              0 8px 24px rgba(44, 38, 34, 0.04),
-              0 0 0 1px rgba(0, 0, 0, 0.02);
+              0 8px 24px rgba(44, 38, 34, 0.04);
 }
 
 /* --- Hero text --- */
@@ -10331,12 +10244,12 @@ defineExpose({
   text-shadow: none;
 }
 
-/* --- Control bar → White elevated pill --- */
+/* --- Control bar → White frosted pill --- */
 [data-theme="mist"] .player .control-bar {
-  background: #ffffff;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  border: 1px solid rgba(0, 0, 0, 0.04);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   box-shadow: 0 2px 8px rgba(44, 38, 34, 0.06),
               0 8px 24px rgba(44, 38, 34, 0.04);
 }
@@ -10393,8 +10306,10 @@ defineExpose({
 }
 
 [data-theme="mist"] .player .mode-picker {
-  background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.04);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   box-shadow: 0 4px 16px rgba(44, 38, 34, 0.08),
               0 16px 48px rgba(44, 38, 34, 0.06);
 }
