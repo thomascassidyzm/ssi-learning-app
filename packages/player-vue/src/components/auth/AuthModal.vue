@@ -90,7 +90,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 200;
+  z-index: 10000;
   padding: 1rem;
   /* iOS safe areas */
   padding-top: max(1rem, env(safe-area-inset-top));
