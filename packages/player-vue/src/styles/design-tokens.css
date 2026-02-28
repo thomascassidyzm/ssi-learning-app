@@ -196,13 +196,20 @@
   --border-strong: rgba(255, 255, 255, 0.25);
   --border-focus: var(--ssi-red);
 
-  /* Shadows */
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.5);
-  --shadow-xl: 0 12px 60px rgba(0, 0, 0, 0.6);
+  /* Shadows — deep space with subtle luminance */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.6);
+  --shadow-xl: 0 12px 60px rgba(0, 0, 0, 0.7);
   --shadow-glow: 0 0 30px rgba(194, 58, 58, 0.3);
   --shadow-glow-gold: 0 0 30px rgba(212, 168, 83, 0.3);
+
+  /* Pill surfaces — dark frosted glass with luminous edge */
+  --pill-bg: rgba(255, 255, 255, 0.06);
+  --pill-bg-hover: rgba(255, 255, 255, 0.10);
+  --pill-border: 1.5px solid rgba(255, 255, 255, 0.22);
+  --pill-shadow: 0 2px 8px rgba(0, 0, 0, 0.4),
+                 0 8px 24px rgba(0, 0, 0, 0.3);
 
   /* Gradients */
   --gradient-accent: linear-gradient(145deg, #d44545 0%, #b83232 100%);

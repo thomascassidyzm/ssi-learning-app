@@ -7157,9 +7157,12 @@ defineExpose({
   font-size: 0.875rem;
   color: var(--text-secondary);
   padding: 0.5rem 1rem;
-  background: var(--bg-card);
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
   border-radius: 100px;
   border: 1.5px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -7318,16 +7321,17 @@ defineExpose({
   height: 36px;
   min-width: 36px;
   border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.15);
-  background: transparent;
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.06);
   color: var(--skip-belt-color, var(--text-muted));
-  opacity: 0.6;
+  opacity: 0.7;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
   flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
 .belt-header-skip svg {
@@ -7338,11 +7342,15 @@ defineExpose({
 .belt-header-skip:hover:not(:disabled) {
   opacity: 1;
   transform: scale(1.1);
+  background: rgba(255, 255, 255, 0.10);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3),
+              0 0 12px color-mix(in srgb, var(--skip-belt-color, var(--belt-glow)) 20%, transparent);
 }
 
 .belt-header-skip:disabled {
   opacity: 0.25;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 .belt-header-skip.is-skipping {
@@ -7367,19 +7375,23 @@ defineExpose({
   align-items: center;
   gap: var(--space-sm);
   padding: 6px 16px;
-  background: var(--bg-card);
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
   border: 1.5px solid rgba(255, 255, 255, 0.22);
   border-radius: 20px;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 0 15px color-mix(in srgb, var(--belt-glow) 12%, transparent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3),
+              0 0 12px color-mix(in srgb, var(--belt-glow) 15%, transparent);
   width: 100%;
 }
 
 .belt-timer-unified:hover {
-  background: var(--bg-elevated);
-  border-color: var(--belt-color);
-  box-shadow: 0 0 12px var(--belt-glow);
+  background: rgba(255, 255, 255, 0.10);
+  border-color: color-mix(in srgb, var(--belt-color) 60%, rgba(255, 255, 255, 0.22));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3),
+              0 0 20px color-mix(in srgb, var(--belt-glow) 25%, transparent);
 }
 
 .belt-timer-unified:active {
@@ -7408,7 +7420,7 @@ defineExpose({
   font-family: 'Space Mono', monospace;
   font-size: clamp(0.75rem, 2vw, 0.875rem);
   font-weight: 600;
-  color: var(--text-primary);
+  color: rgba(255, 255, 255, 0.9);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
 }
@@ -8130,12 +8142,13 @@ defineExpose({
   /* Responsive border-radius */
   border-radius: clamp(16px, 3vmin, 24px);
   background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
   border: 1.5px solid rgba(255, 255, 255, 0.22);
   box-shadow:
-    0 2px 16px rgba(0, 0, 0, 0.3),
-    0 0 0 1px var(--belt-glow, rgba(194, 58, 58, 0.08));
+    0 2px 8px rgba(0, 0, 0, 0.4),
+    0 8px 24px rgba(0, 0, 0, 0.3),
+    0 0 0 1px color-mix(in srgb, var(--belt-glow, rgba(194, 58, 58, 0.15)) 40%, transparent);
   /* Fill parent width - parent handles max-width */
   width: 100%;
 }
@@ -8214,7 +8227,8 @@ defineExpose({
   margin: 0;
   line-height: 1.5;
   letter-spacing: 0.01em;
-  text-shadow: 0 0 20px var(--belt-glow, rgba(194, 58, 58, 0.4));
+  text-shadow: 0 0 24px var(--belt-glow, rgba(194, 58, 58, 0.5)),
+               0 0 8px var(--belt-glow, rgba(194, 58, 58, 0.2));
 }
 
 .hero-target-placeholder {
@@ -8336,9 +8350,10 @@ defineExpose({
 /* Speaking state — subtle glow on the hero-glass itself */
 .hero-glass.is-speaking {
   box-shadow:
-    0 2px 16px rgba(0, 0, 0, 0.3),
-    0 0 0 1px rgba(220, 38, 38, 0.3),
-    0 0 20px rgba(220, 38, 38, 0.12);
+    0 2px 8px rgba(0, 0, 0, 0.4),
+    0 8px 24px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(220, 38, 38, 0.35),
+    0 0 24px rgba(220, 38, 38, 0.15);
 }
 
 .hero-glass.is-speaking .hint-text {
@@ -8525,14 +8540,14 @@ defineExpose({
   align-items: baseline;
   gap: 4px;
   padding: 6px 16px;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
   border-radius: 20px;
   border: 1.5px solid rgba(255, 255, 255, 0.22);
   z-index: 25;
   /* Subtle belt glow */
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3),
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4),
               0 0 12px color-mix(in srgb, var(--belt-glow) 15%, transparent);
 }
 
@@ -9157,14 +9172,15 @@ defineExpose({
   /* Above BottomNav backdrop (z:100) but below BottomNav play button (z:110) */
   z-index: 105;
   pointer-events: auto;
-  background: rgba(10, 10, 15, 0.5);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
   border-radius: var(--control-bar-radius);
   border: 1.5px solid rgba(255, 255, 255, 0.22);
-  /* Subtle belt glow on bottom edge */
-  box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.3),
-              0 0 20px color-mix(in srgb, var(--belt-glow) 10%, transparent);
+  /* Belt glow accent */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4),
+              0 8px 24px rgba(0, 0, 0, 0.3),
+              0 0 16px color-mix(in srgb, var(--belt-glow) 12%, transparent);
   /* Fixed phone-like width - matches other content */
   width: calc(100% - 2rem);
   max-width: 400px;
@@ -9200,7 +9216,7 @@ defineExpose({
   min-height: var(--btn-touch-target);
   border-radius: 50%;
   border: 1.5px solid rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.06);
   color: var(--text-muted);
   cursor: pointer;
   display: flex;
@@ -9215,10 +9231,11 @@ defineExpose({
 }
 
 .mode-btn:hover {
-  background: var(--bg-elevated);
+  background: rgba(255, 255, 255, 0.12);
   color: var(--text-primary);
   transform: scale(1.05);
-  border-color: var(--text-muted);
+  border-color: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--belt-glow) 15%, transparent);
 }
 
 .mode-btn.active {
@@ -9477,7 +9494,7 @@ defineExpose({
   min-height: var(--btn-touch-target);
   border-radius: 50%;
   border: 1.5px solid rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.06);
   color: var(--text-muted);
   cursor: pointer;
   display: flex;
@@ -9492,9 +9509,11 @@ defineExpose({
 }
 
 .transport-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.12);
   color: var(--text-primary);
   transform: scale(1.05);
+  border-color: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--belt-glow) 15%, transparent);
 }
 
 /* ============ FOOTER ============ */
@@ -10135,12 +10154,12 @@ defineExpose({
   box-shadow: none;
 }
 
-/* --- Belt skip buttons → crisp white, neutral arrows, belt color on hover --- */
+/* --- Belt skip buttons → crisp white, destination belt color arrows --- */
 [data-theme="mist"] .player .belt-header-skip {
   background: rgba(255, 255, 255, 0.96);
   border: 1.5px solid rgba(0, 0, 0, 0.22);
   opacity: 1;
-  color: #6B6560;
+  color: color-mix(in srgb, var(--skip-belt-color, #6B6560) 70%, #2C2622);
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10);
 }
 
@@ -10307,7 +10326,7 @@ defineExpose({
 }
 [data-theme="mist"] .player.belt-black .belt-timer-unified {
   border: 2px solid #2C2622 !important;
-  outline: 2px solid #2C2622;
-  outline-offset: 2px;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.4),
+              0 2px 8px rgba(0, 0, 0, 0.25);
 }
 </style>

@@ -290,6 +290,7 @@ const hasAnyKnownText = computed(() =>
 .tile-target {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   padding: 0.6em 1.2em;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.08);
@@ -297,6 +298,7 @@ const hasAnyKnownText = computed(() =>
   border: 1px solid rgba(255, 255, 255, 0.12);
   overflow: hidden;
   position: relative;
+  max-width: 100%;
 }
 
 .tile-target .comp {
@@ -304,7 +306,8 @@ const hasAnyKnownText = computed(() =>
   font-size: clamp(1.1rem, calc(2.2rem - var(--char-count, 8) * 0.035rem), 2rem);
   font-weight: 600;
   color: rgba(255, 255, 255, 0.95);
-  white-space: nowrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
   letter-spacing: 0.02em;
   position: relative;
   padding: 0 0.35em;
@@ -389,6 +392,7 @@ const hasAnyKnownText = computed(() =>
 .lego-block {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   padding: 0.6em 1.1em;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.08);
@@ -442,7 +446,8 @@ const hasAnyKnownText = computed(() =>
   font-size: clamp(1.1rem, calc(2.2rem - var(--char-count, 8) * 0.035rem), 1.875rem);
   font-weight: 500;
   color: rgba(255, 255, 255, 0.9);
-  white-space: nowrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
   letter-spacing: 0.02em;
   user-select: none;
   position: relative;
@@ -626,8 +631,10 @@ const hasAnyKnownText = computed(() =>
 <style>
 :root[data-theme="mist"] .lego-block {
   background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10), 0 8px 20px rgba(44, 38, 34, 0.06);
+  border: 1.5px solid rgba(0, 0, 0, 0.22);
+  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10),
+              0 8px 20px rgba(44, 38, 34, 0.06);
+  backdrop-filter: none;
 }
 
 :root[data-theme="mist"] .lego-block .block-text {
@@ -636,19 +643,17 @@ const hasAnyKnownText = computed(() =>
 
 :root[data-theme="mist"] .lego-block-wrapper.assembled .lego-block {
   background: #ffffff;
-  border-color: rgba(0, 0, 0, 0.06);
-  box-shadow:
-    0 2px 4px rgba(44, 38, 34, 0.10),
-    0 8px 24px color-mix(in srgb, var(--belt-accent, rgba(0, 0, 0, 0.08)) 25%, transparent);
+  border-color: rgba(0, 0, 0, 0.22);
+  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10),
+              0 8px 20px rgba(44, 38, 34, 0.06);
+  animation: none;
 }
 
 :root[data-theme="mist"] .lego-block.salient {
   background: #ffffff;
-  border-color: color-mix(in srgb, var(--belt-accent, rgba(0, 0, 0, 0.10)) 50%, rgba(0, 0, 0, 0.08));
-  border-width: 2px;
-  box-shadow:
-    0 2px 6px rgba(44, 38, 34, 0.12),
-    0 10px 32px color-mix(in srgb, var(--belt-accent, rgba(0, 0, 0, 0.06)) 30%, transparent);
+  border: 1.5px solid rgba(0, 0, 0, 0.22);
+  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
+              0 8px 24px rgba(44, 38, 34, 0.08);
 }
 
 :root[data-theme="mist"] .lego-block.salient .block-text {
@@ -656,10 +661,10 @@ const hasAnyKnownText = computed(() =>
 }
 
 :root[data-theme="mist"] .lego-block-wrapper.assembled .lego-block.salient {
-  background: #faf9f8;
-  box-shadow:
-    0 2px 6px rgba(44, 38, 34, 0.12),
-    0 10px 36px color-mix(in srgb, var(--belt-accent, rgba(0, 0, 0, 0.06)) 30%, transparent);
+  background: #ffffff;
+  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
+              0 8px 24px rgba(44, 38, 34, 0.08);
+  animation: none;
 }
 
 /* M-LEGO stubs for mist theme */
@@ -673,8 +678,10 @@ const hasAnyKnownText = computed(() =>
 /* Single tile mist overrides */
 :root[data-theme="mist"] .tile-target {
   background: #ffffff;
-  border-color: rgba(0, 0, 0, 0.06);
-  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.08), 0 6px 16px rgba(44, 38, 34, 0.05);
+  border: 1.5px solid rgba(0, 0, 0, 0.22);
+  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10),
+              0 8px 20px rgba(44, 38, 34, 0.06);
+  backdrop-filter: none;
 }
 :root[data-theme="mist"] .tile-target .comp {
   color: var(--text-primary);
@@ -686,7 +693,10 @@ const hasAnyKnownText = computed(() =>
   color: var(--text-muted);
 }
 :root[data-theme="mist"] .lego-tile.salient .tile-target {
-  border-color: color-mix(in srgb, var(--belt-accent, rgba(0, 0, 0, 0.08)) 40%, rgba(0, 0, 0, 0.06));
-  background: #faf9f8;
+  border-color: rgba(0, 0, 0, 0.22);
+  background: #ffffff;
+}
+:root[data-theme="mist"] .lego-tile.salient.assembled .tile-target {
+  animation: none;
 }
 </style>
