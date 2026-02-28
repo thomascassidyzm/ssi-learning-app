@@ -633,7 +633,7 @@ const confirmReset = async () => {
           <div class="auth-cta-row">
             <p class="auth-cta-text">Sign in to save your progress across devices</p>
             <div class="auth-cta-buttons">
-              <button class="auth-cta-btn primary" @click="openAuth()">Sign In</button>
+              <button class="auth-cta-btn primary" @click="emit('close'); openAuth()">Sign In</button>
             </div>
           </div>
         </div>
