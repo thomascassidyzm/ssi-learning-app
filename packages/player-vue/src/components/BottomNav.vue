@@ -166,9 +166,9 @@ const handleSettings = () => {
   inset: 0;
   background: linear-gradient(
     to top,
-    var(--bg-elevated) 0%,
-    var(--bg-elevated) 50%,
-    color-mix(in srgb, var(--bg-elevated) 88%, transparent) 100%
+    rgba(10, 10, 15, 0.85) 0%,
+    rgba(10, 10, 15, 0.80) 50%,
+    rgba(10, 10, 15, 0.65) 100%
   );
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
@@ -238,10 +238,10 @@ const handleSettings = () => {
 
 @media (hover: hover) {
   .pill-btn:hover:not(.active) .pill-btn-bg {
-    background: rgba(255, 255, 255, 0.06);
+    background: color-mix(in srgb, var(--belt-color, var(--ssi-red)) 8%, rgba(255, 255, 255, 0.06));
   }
   .pill-btn:hover:not(.active) {
-    color: var(--text-secondary);
+    color: rgba(255, 255, 255, 0.7);
   }
 }
 
