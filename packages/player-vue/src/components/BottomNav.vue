@@ -283,13 +283,14 @@ const playButtonLabel = computed(() => {
   height: 68px;
 }
 
-/* Transport mode content */
+/* Transport mode content — spread buttons across the pill */
 .nav-content--transport {
   align-items: center;
-  justify-content: center;
-  gap: 8px;
+  justify-content: space-evenly;
+  gap: 0;
   height: 56px;
   padding: 0 12px;
+  max-width: none;
 }
 
 .nav-group {
@@ -736,15 +737,27 @@ const playButtonLabel = computed(() => {
    MODERN LIGHT THEME — Floating pill nav (Telegram/iOS style)
    ═══════════════════════════════════════════════════════════════ */
 
-/* Convert full-width bar into a centered floating pill */
+/* Floating pill — wide, lifted from bottom edge like Telegram */
 :root[data-theme="mist"] .bottom-nav {
-  left: 50%;
-  right: auto;
-  bottom: calc(8px + env(safe-area-inset-bottom, 0px));
-  transform: translateX(-50%);
+  left: 16px;
+  right: 16px;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  transform: none;
   width: auto;
-  max-width: calc(100% - 32px);
+  max-width: 500px;
+  margin: 0 auto;
   overflow: visible;
+}
+
+/* Center the pill on wide screens */
+@media (min-width: 540px) {
+  :root[data-theme="mist"] .bottom-nav {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: calc(100% - 32px);
+    max-width: 500px;
+  }
 }
 
 :root[data-theme="mist"] .nav-backdrop {
@@ -769,8 +782,9 @@ const playButtonLabel = computed(() => {
 }
 
 :root[data-theme="mist"] .nav-content--transport {
-  height: 52px;
-  padding: 0 8px;
+  height: 56px;
+  padding: 0 16px;
+  max-width: none;
 }
 
 :root[data-theme="mist"] .play-button-container {
@@ -798,13 +812,18 @@ const playButtonLabel = computed(() => {
   color: var(--text-primary);
 }
 
-/* Transport buttons in mist theme */
+/* Transport buttons in mist theme — must be visible on white pill */
 :root[data-theme="mist"] .transport-nav-btn {
-  color: #8A8078;
+  color: #4A4440;
 }
 
 :root[data-theme="mist"] .transport-nav-btn:hover {
-  color: var(--text-primary);
-  background: rgba(0, 0, 0, 0.04);
+  color: #2C2622;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+/* Nav icons in mist — darker for visibility */
+:root[data-theme="mist"] .transport-nav-btn svg {
+  stroke-width: 2.2;
 }
 </style>
