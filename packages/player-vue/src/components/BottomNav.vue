@@ -361,8 +361,28 @@ const handleSettings = () => {
 }
 
 :root[data-theme="mist"] .nav-content {
-  height: 64px;
-  padding: 0 6px;
+  height: 72px;
+  padding: 0 10px;
+}
+
+:root[data-theme="mist"] .pill-btn {
+  width: 52px;
+  height: 52px;
+}
+
+:root[data-theme="mist"] .pill-btn svg {
+  width: 24px;
+  height: 24px;
+}
+
+:root[data-theme="mist"] .center-btn {
+  width: 56px;
+  height: 56px;
+}
+
+:root[data-theme="mist"] .center-btn-inner svg {
+  width: 24px;
+  height: 24px;
 }
 
 :root[data-theme="mist"] .safe-area-spacer {
