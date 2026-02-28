@@ -241,7 +241,7 @@ const showDebugOverlay = ref(false)
 const enableVerboseLogging = ref(false)
 
 // Computed properties for conditional rendering
-const shouldShowProgressWarning = computed(() => isGuestLearner.value && showFragileProgressWarning.value)
+const shouldShowProgressWarning = computed(() => false /* disabled during light theme work */)
 const shouldShowQaMode = computed(() => enableQaMode.value || isQaMode.value) // Either setting or URL param
 
 // Class session tracking

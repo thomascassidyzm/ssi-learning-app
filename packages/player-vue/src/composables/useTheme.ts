@@ -5,7 +5,7 @@ export type Theme = 'cosmos' | 'mist'
 const THEME_STORAGE_KEY = 'ssi-theme'
 
 // Singleton state
-const currentTheme = ref<Theme>('cosmos')
+const currentTheme = ref<Theme>('mist')
 const isInitialized = ref(false)
 
 /**
