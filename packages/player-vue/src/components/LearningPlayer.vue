@@ -3002,6 +3002,10 @@ const handlePause = () => {
   // Use SimplePlayer
   simplePlayer.pause()
 
+  // Always set isPlaying = false, even if simplePlayer wasn't playing yet
+  // (e.g. during welcome audio before cycle playback has started)
+  isPlaying.value = false
+
   if (ringAnimationFrame) {
     cancelAnimationFrame(ringAnimationFrame)
   }
@@ -3015,9 +3019,18 @@ const handleResume = async () => {
     return // Don't start until consent is resolved
   }
 
-  // On first play, ensure audio for first 2 rounds is fully cached before starting
+  // RESUME from pause — use resume() to continue from current phase
+  // (play() always restarts from prompt, losing position mid-cycle)
+  if (hasEverStarted.value) {
+    simplePlayer.resume()
+    return
+  }
+
+  // FIRST PLAY — full initialization path
+
+  // Ensure audio for first 2 rounds is fully cached before starting
   // Better to wait 1-2s at startup than stall mid-playback
-  if (!hasEverStarted.value && loadedRounds.value.length > 0) {
+  if (loadedRounds.value.length > 0) {
     startPreparingState()
     const currentIdx = simplePlayer.roundIndex.value ?? 0
     await preloadSimpleRoundAudio(loadedRounds.value, 2, currentIdx)
@@ -3027,7 +3040,7 @@ const handleResume = async () => {
   // 1. displayPhrases shows cycle text instead of "ready when you are"
   // 2. PlayerRestingState overlay hides (it checks isPlaying)
   hasEverStarted.value = true
-  simplePlayer.play()
+  isPlaying.value = true
 
   // Lazily initialize network on first play (deferred from startup)
   if (!networkInitialized.value) {
@@ -3042,56 +3055,14 @@ const handleResume = async () => {
     })
   }
 
-  // Check if welcome audio needs to play first (only on first ever play)
-  // Must await — don't start SimplePlayer until welcome finishes
+  // Play welcome audio FIRST (if needed) — blocks until done
+  // Cycle audio must not start until welcome finishes
   await playWelcomeIfNeeded()
 
-  // Use SimplePlayer
-  simplePlayer.play()
-}
+  // If user paused during welcome, don't start cycle audio
+  if (!isPlaying.value) return
 
-/**
- * Start playback using SimplePlayer
- */
-const startSimplePlayback = async () => {
-  console.log('[LearningPlayer] Starting SimplePlayer playback...')
-
-  // Wait for rounds to be loaded
-  if (loadedRounds.value.length === 0) {
-    console.log('[LearningPlayer] Waiting for rounds to load...')
-    startPreparingState()
-    await new Promise<void>((resolve) => {
-      const timeout = setTimeout(() => {
-        unwatch()
-        console.error('[LearningPlayer] Timed out waiting for rounds to load (30s)')
-        resolve()
-      }, 30_000)
-      const unwatch = watch(
-        () => loadedRounds.value.length > 0,
-        (hasRounds) => {
-          if (hasRounds) {
-            clearTimeout(timeout)
-            unwatch()
-            resolve()
-          }
-        },
-        { immediate: true }
-      )
-    })
-    console.log('[LearningPlayer] Rounds loaded')
-  }
-
-  hasEverStarted.value = true
-
-  // Start belt progress session for time tracking
-  if (beltProgress.value) {
-    beltProgress.value.startSession(beltProgress.value.currentSeedNumber.value ?? 0)
-  }
-
-  // Check if welcome audio needs to play first (only on first ever play)
-  await playWelcomeIfNeeded()
-
-  // Start playback
+  // NOW start cycle playback
   simplePlayer.play()
 }
 
@@ -4116,7 +4087,8 @@ const handleAdaptationConsent = async (granted) => {
   await playWelcomeIfNeeded()
 
   // Let the learner tap to start — don't auto-play after consent
-  simplePlayer.pause()
+  // (simplePlayer was never started during consent flow, so ensure isPlaying is false)
+  isPlaying.value = false
 }
 
 // Preload first round audio during consent overlay (first visit only).
@@ -6910,27 +6882,39 @@ defineExpose({
 }
 
 /* ============ NEBULA GLOW - Belt colored ambient light ============ */
-/* Removed central radial gradient (looks oval on mobile) */
-/* Belt color now expressed via edge accents on UI elements */
+/* Belt color expressed as soft atmospheric wash over the deep space background */
 .nebula-glow {
   position: fixed;
   inset: 0;
   pointer-events: none;
   z-index: 1;
-  /* Very subtle edge glow at bottom - where transport controls are */
+  /* Multi-layer belt-colored atmosphere:
+     1. Bottom edge glow (under transport controls)
+     2. Central radial wash (warm ambient light)
+     3. Top-corner accent (balances the composition) */
   background:
     linear-gradient(
       to top,
-      var(--belt-glow, rgba(194, 58, 58, 0.04)) 0%,
-      transparent 15%
+      color-mix(in srgb, var(--belt-glow, rgba(194, 58, 58, 0.06)) 60%, transparent) 0%,
+      transparent 18%
+    ),
+    radial-gradient(
+      ellipse 120% 50% at 50% 75%,
+      color-mix(in srgb, var(--belt-glow, rgba(194, 58, 58, 0.05)) 40%, transparent) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      ellipse 60% 40% at 20% 15%,
+      color-mix(in srgb, var(--belt-glow, rgba(194, 58, 58, 0.03)) 30%, transparent) 0%,
+      transparent 50%
     );
-  opacity: 0.6;
+  opacity: 0.7;
   transition: background 1s ease, opacity 0.5s ease;
 }
 
 /* Slightly brighter during intro/debut */
 .player:has(.hero-text-pane.is-intro) .nebula-glow {
-  opacity: 0.8;
+  opacity: 0.9;
 }
 
 /* Mountain/landscape silhouette - hidden by default (shown in mist theme via non-scoped style) */
