@@ -29,8 +29,10 @@ const playButtonPressed = ref(false)
 const isOnPlayerScreen = computed(() => props.currentScreen === 'player')
 
 const isStopMode = computed(() =>
-  isOnPlayerScreen.value && props.isPlaying && !props.isListeningMode
+  props.isPlaying && !props.isListeningMode
 )
+
+const isReturnMode = computed(() => !isOnPlayerScreen.value && !props.isPlaying)
 
 const handleNavTap = (itemId) => {
   tappedItem.value = itemId
@@ -45,7 +47,7 @@ const handlePlayTap = () => {
   playButtonPressed.value = true
   setTimeout(() => { playButtonPressed.value = false }, 200)
   if (navigator.vibrate) navigator.vibrate([10, 50, 10])
-  if (isOnPlayerScreen.value) {
+  if (props.isPlaying || isOnPlayerScreen.value) {
     emit('togglePlayback')
   } else {
     emit('startLearning')
@@ -92,20 +94,21 @@ const handleSettings = () => {
         </svg>
       </button>
 
-      <!-- Slot 2: Revisit -->
-      <button class="pill-btn" :class="{ tapped: tappedItem === 'revisit' }" @click="handleRevisit" title="Revisit">
+      <!-- Slot 2: Revisit (hidden on non-player screens) -->
+      <button v-show="isOnPlayerScreen" class="pill-btn" :class="{ tapped: tappedItem === 'revisit' }" @click="handleRevisit" title="Revisit">
         <span class="pill-btn-bg"></span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <polyline points="15 18 9 12 15 6"/>
         </svg>
       </button>
 
-      <!-- Slot 3: Play / Stop -->
+      <!-- Slot 3: Play / Stop / Return -->
       <button
         class="center-btn"
         :class="{
           pressed: playButtonPressed,
           'is-stop': isStopMode,
+          'is-return': isReturnMode,
           'is-disabled': isListeningMode
         }"
         :disabled="isListeningMode"
@@ -119,14 +122,17 @@ const handleSettings = () => {
             <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
             <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
           </svg>
+          <svg v-else-if="isReturnMode" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+          </svg>
           <svg v-else viewBox="0 0 24 24" fill="currentColor">
             <polygon points="7 3 20 12 7 21 7 3"/>
           </svg>
         </div>
       </button>
 
-      <!-- Slot 4: Skip -->
-      <button class="pill-btn" :class="{ tapped: tappedItem === 'skip' }" @click="handleSkip" title="Skip">
+      <!-- Slot 4: Skip (hidden on non-player screens) -->
+      <button v-show="isOnPlayerScreen" class="pill-btn" :class="{ tapped: tappedItem === 'skip' }" @click="handleSkip" title="Skip">
         <span class="pill-btn-bg"></span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <polyline points="9 18 15 12 9 6"/>
@@ -286,8 +292,17 @@ const handleSettings = () => {
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
 }
 
-.center-btn:not(.is-stop):not(.is-disabled) .center-btn-inner svg {
+.center-btn:not(.is-stop):not(.is-disabled):not(.is-return) .center-btn-inner svg {
   margin-left: 2px;
+}
+
+.center-btn.is-return {
+  background: var(--bg-elevated);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.center-btn.is-return .center-btn-inner {
+  color: var(--text-primary);
 }
 
 .center-btn.is-disabled {
@@ -364,5 +379,14 @@ const handleSettings = () => {
   :root[data-theme="mist"] .pill-btn:hover:not(.active) .pill-btn-bg {
     background: color-mix(in srgb, var(--belt-color, var(--ssi-red)) 10%, rgba(0, 0, 0, 0.02));
   }
+}
+
+:root[data-theme="mist"] .center-btn.is-return {
+  background: rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10);
+}
+
+:root[data-theme="mist"] .center-btn.is-return .center-btn-inner {
+  color: #2C2622;
 }
 </style>

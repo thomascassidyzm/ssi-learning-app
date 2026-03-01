@@ -78,13 +78,7 @@ const navigate = (screen, data = null) => {
   // Close any open auth modals when navigating
   closeAuthModals()
 
-  // CRITICAL: Pause the player when navigating AWAY from it
-  if (currentScreen.value === 'player' && screen !== 'player') {
-    if (learningPlayerRef.value?.handlePause) {
-      learningPlayerRef.value.handlePause()
-      console.debug('[PlayerContainer] Paused player before navigating to', screen)
-    }
-  }
+  // Let audio continue when browsing library/progress — center button shows Stop from any screen
 
   // CRITICAL: Unlock audio element synchronously within user gesture context.
   if (screen === 'player' && learningPlayerRef.value?.unlockAudio) {

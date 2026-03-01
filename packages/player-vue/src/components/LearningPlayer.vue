@@ -3660,12 +3660,13 @@ const handleSkip = async () => {
 
   console.log('[LearningPlayer] ========== SKIP REQUESTED ==========')
 
-  // Use SimplePlayer
-  console.log('[LearningPlayer] Using SimplePlayer skipRound')
+  // Use SimplePlayer — jumpToRound preserves play state (paused stays paused)
+  console.log('[LearningPlayer] Using SimplePlayer jumpToRound (skip)')
   isSkipInProgress.value = true
   try {
     haltAllPlayback()
-    simplePlayer.skipRound()
+    const nextIndex = simplePlayer.roundIndex.value + 1
+    simplePlayer.jumpToRound(nextIndex)
   } finally {
     isSkipInProgress.value = false
   }
@@ -6181,6 +6182,34 @@ defineExpose({
           </button>
 
           <button
+            class="mode-pill"
+            :class="{
+              'mode-pill--listening': showListeningOverlay,
+              'mode-pill--driving': isDrivingModeActive
+            }"
+            @click="handleModeButtonClick"
+            title="Switch mode"
+          >
+            <!-- Learning mode: graduation cap -->
+            <svg v-if="!showListeningOverlay && !isDrivingModeActive" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M2 10l10-5 10 5-10 5z"/>
+              <path d="M6 12v5c0 1.66 2.69 3 6 3s6-1.34 6-3v-5"/>
+            </svg>
+            <!-- Listening mode: headphones -->
+            <svg v-else-if="showListeningOverlay" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+              <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+            </svg>
+            <!-- Driving mode: car -->
+            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0ZM15 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z"/>
+              <path d="M5 17H3v-6l2-5h10l4 5h2v6h-2"/>
+              <path d="M9 17h6"/>
+            </svg>
+            <span class="mode-pill-chevron">&#x25BE;</span>
+          </button>
+
+          <button
             class="belt-timer-unified"
             @click="openBeltProgressModal"
             :title="!nextBelt ? 'Black belt achieved!' : `${Math.round(beltProgressPercent)}% to ${nextBelt.name} belt`"
@@ -7351,6 +7380,53 @@ defineExpose({
 @keyframes belt-skip-pulse {
   0%, 100% { opacity: 0.5; }
   50% { opacity: 0.2; }
+}
+
+/* ============ MODE PILL ============ */
+.mode-pill {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px 4px 6px;
+  border-radius: 16px;
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mode-pill svg {
+  width: 16px;
+  height: 16px;
+}
+
+.mode-pill-chevron {
+  font-size: 10px;
+  line-height: 1;
+  opacity: 0.6;
+}
+
+.mode-pill:hover {
+  background: rgba(255, 255, 255, 0.10);
+  color: var(--text-primary);
+}
+
+.mode-pill:active {
+  transform: scale(0.95);
+}
+
+.mode-pill--listening {
+  border-color: color-mix(in srgb, var(--belt-color) 40%, rgba(255, 255, 255, 0.22));
+  color: var(--belt-color);
+}
+
+.mode-pill--driving {
+  border-color: color-mix(in srgb, var(--belt-color) 40%, rgba(255, 255, 255, 0.22));
+  color: var(--belt-color);
 }
 
 /* ============ BELT TIMER ============ */
@@ -10149,6 +10225,25 @@ defineExpose({
 /* Belt bar fill glow — softer on light */
 [data-theme="mist"] .player .belt-timer-unified .belt-bar-fill {
   box-shadow: none;
+}
+
+/* --- Mode pill → crisp white on mist --- */
+[data-theme="mist"] .player .mode-pill {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1.5px solid rgba(0, 0, 0, 0.22);
+  color: #6B6560;
+  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10);
+}
+
+[data-theme="mist"] .player .mode-pill:hover {
+  background: color-mix(in srgb, var(--belt-color) 8%, #ffffff);
+  color: #2C2622;
+}
+
+[data-theme="mist"] .player .mode-pill--listening,
+[data-theme="mist"] .player .mode-pill--driving {
+  border-color: color-mix(in srgb, var(--belt-color) 40%, rgba(0, 0, 0, 0.22));
+  color: color-mix(in srgb, var(--belt-color) 70%, #2C2622);
 }
 
 /* --- Belt skip buttons → crisp white, destination belt color arrows --- */
