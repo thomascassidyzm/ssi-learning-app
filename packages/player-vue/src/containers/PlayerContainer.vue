@@ -305,8 +305,8 @@ onMounted(() => {
 
 <template>
   <div class="player-container" :class="{ 'has-nav': !isLearning }" :style="containerBeltVars">
-    <!-- Sumi-e ink wash mountain backdrop (mist theme only, always mounted to avoid flash) -->
-    <SumiEBackground v-if="themeContext?.theme?.value === 'mist'" />
+    <!-- Cultural journey backdrop (mist theme only, language-specific artwork) -->
+    <SumiEBackground v-if="themeContext?.theme?.value === 'mist'" :lang="activeCourse?.target_lang" />
 
     <!-- Progress pane (Brain View) -->
     <Transition name="slide-right" mode="out-in">

@@ -1,17 +1,39 @@
 <script setup lang="ts">
 /**
- * Sumi-e ink wash mountain pilgrimage — mist theme only.
- * Shows a real ink wash painting as a subtle background layer.
- * Purely decorative — no belt colour mechanics.
+ * Cultural journey background — mist theme only.
+ * Shows a language-specific ink/sketch painting as a subtle background layer.
+ * Each target language gets its own cultural art style:
+ *   jpn = sumi-e mountain temple pilgrimage
+ *   cmn = Chinese shanshui vertical cliff stairway
+ *   ita = Tuscan sepia sketch, hilltop monastery
+ *   (more languages to come)
+ * Falls back to Japanese sumi-e for unmapped languages.
  */
+import { computed } from 'vue'
+
+const props = withDefaults(defineProps<{
+  lang?: string
+}>(), {
+  lang: 'jpn',
+})
+
+const JOURNEY_MAP: Record<string, string> = {
+  jpn: '/design/journey-jpn.webp',
+  cmn: '/design/journey-cmn.webp',
+  ita: '/design/journey-ita.webp',
+}
+
+const DEFAULT_JOURNEY = '/design/journey-jpn.webp'
+
+const imageSrc = computed(() => JOURNEY_MAP[props.lang] || DEFAULT_JOURNEY)
 </script>
 
 <template>
-  <div class="sumi-e-bg" aria-hidden="true">
+  <div class="journey-bg" aria-hidden="true">
     <img
-      src="/design/sumi-e-mountain-5.webp"
+      :src="imageSrc"
       alt=""
-      class="sumi-e-painting"
+      class="journey-painting"
       loading="eager"
       draggable="false"
     >
@@ -19,7 +41,7 @@
 </template>
 
 <style scoped>
-.sumi-e-bg {
+.journey-bg {
   position: absolute;
   inset: 0;
   pointer-events: none;
@@ -27,7 +49,7 @@
   overflow: hidden;
 }
 
-.sumi-e-painting {
+.journey-painting {
   position: absolute;
   inset: 0;
   width: 100%;
