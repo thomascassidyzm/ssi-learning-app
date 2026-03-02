@@ -306,7 +306,7 @@ onMounted(() => {
 <template>
   <div class="player-container" :class="{ 'has-nav': !isLearning }" :style="containerBeltVars">
     <!-- Cultural journey backdrop (mist theme only, language-specific artwork) -->
-    <SumiEBackground v-if="themeContext?.theme?.value === 'mist'" :lang="activeCourse?.target_lang" />
+    <SumiEBackground v-if="themeContext?.theme?.value === 'mist'" :lang="activeCourse?.target_lang" :belt-name="currentBeltName" />
 
     <!-- Progress pane (Brain View) -->
     <Transition name="slide-right" mode="out-in">
