@@ -49,29 +49,10 @@ const mLegoComponents = computed(() => {
   return null
 })
 
-// Generate stable random scatter positions per block set
-const scatterPositions = ref<{ x: number; y: number; rotate: number }[]>([])
-
-const generateScatter = (count: number) => {
-  const positions = []
-  for (let i = 0; i < count; i++) {
-    positions.push({
-      x: -30 + Math.random() * 60,
-      y: -20 + Math.random() * 40,
-      rotate: -15 + Math.random() * 30,
-    })
-  }
-  return positions
-}
-
-watch(() => props.blocks, (newBlocks) => {
-  scatterPositions.value = generateScatter(newBlocks.length)
-}, { immediate: true })
-
 // Map UI phases to assembly phases.
 // Tiles appear at VOICE_1 (with short delay so learner hears before reading).
 // On stop/hidden, tiles vanish instantly (no fade) to stay in sync with audio.
-const VOICE1_REVEAL_DELAY_MS = 1000
+const VOICE1_REVEAL_DELAY_MS = 1500
 const assemblyPhase = ref<AssemblyPhase>('hidden')
 const instantHide = ref(false)
 let voice1Timer: ReturnType<typeof setTimeout> | null = null
@@ -147,6 +128,13 @@ const carriageGroups = computed(() => {
   return groups
 })
 
+// RTL detection — Arabic, Hebrew, and related scripts
+const RTL_RE = /[\u0600-\u06FF\u0590-\u05FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]/
+const isRTL = computed(() => {
+  const text = props.blocks[0]?.targetText || ''
+  return RTL_RE.test(text)
+})
+
 // Uniform sentence-level scaling: all tiles in a phrase scale together
 const sentenceScale = computed(() => {
   if (props.blocks.length <= 1) return 1
@@ -157,7 +145,7 @@ const sentenceScale = computed(() => {
 </script>
 
 <template>
-  <div class="lego-assembly" :class="[assemblyPhase, { 'instant-hide': instantHide }]" :style="{ '--sentence-scale': sentenceScale }">
+  <div class="lego-assembly" :class="[assemblyPhase, { 'instant-hide': instantHide }]" :style="{ '--sentence-scale': sentenceScale, direction: isRTL ? 'rtl' : 'ltr' }">
 
     <!-- ═══════════════════════════════════════════
          CARRIAGE MODE — long M-LEGO as groups of up to 3 components
@@ -241,13 +229,7 @@ const sentenceScale = computed(() => {
           class="lego-block-wrapper"
           :class="[assemblyPhase]"
           :style="{
-            '--scatter-x': `${scatterPositions[index]?.x ?? 0}%`,
-            '--scatter-y': `${scatterPositions[index]?.y ?? 0}%`,
-            '--scatter-rotate': `${scatterPositions[index]?.rotate ?? 0}deg`,
-            '--assemble-duration': assembleDuration,
             '--stagger-delay': staggerDelay(index),
-            '--block-index': index,
-            '--block-total': blocks.length,
             '--char-count': block.targetText.length,
           }"
         >
@@ -631,22 +613,9 @@ const sentenceScale = computed(() => {
   bottom: 0;
 }
 
-/* --- SCATTERED (floating gently) --- */
-.lego-block-wrapper.scattered {
-  opacity: 0.5;
-  transform: translate(var(--scatter-x), var(--scatter-y)) rotate(var(--scatter-rotate));
-  transition-duration: 0.6s;
-  animation: gentle-float 4s ease-in-out infinite;
-  animation-delay: calc(var(--block-index, 0) * 0.3s);
-}
-
-/* --- ASSEMBLING (drift to center, snap) --- */
+/* --- ASSEMBLING (sequential reveal in reading order) --- */
 .lego-block-wrapper.assembling {
-  opacity: 1;
-  transform: translate(0, 0) rotate(0deg);
-  transition-duration: var(--assemble-duration, 1.5s);
-  transition-delay: var(--stagger-delay, 0s);
-  animation: snap-arrive var(--assemble-duration, 1.5s) var(--stagger-delay, 0s) both;
+  animation: block-reveal 0.35s ease-out var(--stagger-delay, 0s) both;
 }
 
 /* --- ASSEMBLED (with gentle pulse on tile) --- */
@@ -688,8 +657,8 @@ const sentenceScale = computed(() => {
 /* --- HIDDEN --- */
 .lego-block-wrapper.hidden {
   opacity: 0;
-  transform: translate(var(--scatter-x), var(--scatter-y)) scale(0.85);
-  transition-duration: 0.4s;
+  transform: translateY(6px);
+  transition-duration: 0.3s;
   transition-timing-function: ease-in;
 }
 
@@ -712,19 +681,9 @@ const sentenceScale = computed(() => {
 /* ═══════════════════════════════════════════════════════════════
    KEYFRAMES
    ═══════════════════════════════════════════════════════════════ */
-@keyframes gentle-float {
-  0%, 100% { transform: translate(var(--scatter-x), var(--scatter-y)) rotate(var(--scatter-rotate)); }
-  50% { transform: translate(calc(var(--scatter-x) + 2%), calc(var(--scatter-y) - 1.5%)) rotate(calc(var(--scatter-rotate) + 2deg)); }
-}
-
-@keyframes snap-arrive {
-  0% {
-    transform: translate(var(--scatter-x), var(--scatter-y)) rotate(var(--scatter-rotate)) scale(0.9);
-    opacity: 0.4;
-  }
-  70% { transform: translate(0, 0) rotate(0deg) scale(1.06); opacity: 1; }
-  85% { transform: translate(0, 0) rotate(0deg) scale(0.97); }
-  100% { transform: translate(0, 0) rotate(0deg) scale(1); }
+@keyframes block-reveal {
+  0% { opacity: 0; transform: translateY(6px); }
+  100% { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes tile-arrive {
