@@ -7446,7 +7446,6 @@ defineExpose({
               0 0 12px color-mix(in srgb, var(--belt-glow) 15%, transparent);
   flex: 1;
   min-width: 0;
-  overflow: hidden;
 }
 
 .belt-timer-unified:hover {
@@ -10229,6 +10228,11 @@ defineExpose({
 /* Belt bar fill glow — softer on light */
 [data-theme="mist"] .player .belt-timer-unified .belt-bar-fill {
   box-shadow: none;
+}
+
+/* Timer label needs dark text on white pill */
+[data-theme="mist"] .player .belt-timer-label {
+  color: #2C2622;
 }
 
 /* --- Mode pill → crisp white on mist --- */
