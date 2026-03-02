@@ -638,8 +638,16 @@ watch(playbackSpeed, (newSpeed) => {
       </div>
     </div>
 
-    <!-- Progress Bar -->
-    <div class="progress-container" @click.stop>
+    <!-- Transport + Progress -->
+    <div class="transport-bar" @click.stop>
+      <button class="transport-btn" @click="togglePlayback">
+        <svg v-if="isPlaying" viewBox="0 0 24 24" fill="currentColor">
+          <rect x="6" y="6" width="12" height="12" rx="2"/>
+        </svg>
+        <svg v-else viewBox="0 0 24 24" fill="currentColor">
+          <polygon points="7 3 20 12 7 21 7 3"/>
+        </svg>
+      </button>
       <div class="progress-bar">
         <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
       </div>
@@ -657,7 +665,7 @@ watch(playbackSpeed, (newSpeed) => {
   z-index: 1000;
   display: flex;
   flex-direction: column;
-  background: rgba(8, 8, 12, 0.97);
+  background: var(--bg-primary);
   backdrop-filter: blur(20px);
   font-family: var(--font-body);
   padding: env(safe-area-inset-top, 20px) 0 calc(env(safe-area-inset-bottom, 20px) + 100px) 0;
@@ -666,7 +674,6 @@ watch(playbackSpeed, (newSpeed) => {
 
 /* Theme colors - belt color is set dynamically via inline style */
 .listening-overlay {
-  /* --belt-color is set dynamically from beltColor prop */
   --belt-glow: color-mix(in srgb, var(--belt-color) 15%, transparent);
 }
 
@@ -680,18 +687,18 @@ watch(playbackSpeed, (newSpeed) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-medium);
   border-radius: 50%;
-  color: var(--text-secondary, #a0a0a0);
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
   z-index: 10;
 }
 
 .close-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: var(--text-primary, #ffffff);
+  background: var(--pill-bg-hover);
+  color: var(--text-primary);
 }
 
 .close-btn svg {
@@ -728,7 +735,7 @@ watch(playbackSpeed, (newSpeed) => {
 .phrase-count {
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.75rem;
-  color: var(--text-muted, #666);
+  color: var(--text-muted);
 }
 
 /* Mode Toggle */
@@ -745,10 +752,10 @@ watch(playbackSpeed, (newSpeed) => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-medium);
   border-radius: 20px;
-  color: var(--text-muted, #666);
+  color: var(--text-muted);
   font-size: 0.8125rem;
   font-weight: 500;
   cursor: pointer;
@@ -756,8 +763,8 @@ watch(playbackSpeed, (newSpeed) => {
 }
 
 .mode-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--text-secondary, #a0a0a0);
+  background: var(--pill-bg-hover);
+  color: var(--text-secondary);
 }
 
 .mode-btn.active {
@@ -787,7 +794,7 @@ watch(playbackSpeed, (newSpeed) => {
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: var(--text-muted, #666);
+  color: var(--text-muted);
 }
 
 .speed-selector {
@@ -798,9 +805,9 @@ watch(playbackSpeed, (newSpeed) => {
 .speed-btn {
   padding: 4px 10px;
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid var(--border-medium);
   border-radius: 4px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted);
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.7rem;
   cursor: pointer;
@@ -808,8 +815,8 @@ watch(playbackSpeed, (newSpeed) => {
 }
 
 .speed-btn:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.8);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
 }
 
 .speed-btn.active {
@@ -826,14 +833,14 @@ watch(playbackSpeed, (newSpeed) => {
   align-items: center;
   justify-content: center;
   gap: 1rem;
-  color: var(--text-muted, #666);
+  color: var(--text-muted);
   cursor: default;
 }
 
 .loading-spinner {
   width: 32px;
   height: 32px;
-  border: 2px solid rgba(255, 255, 255, 0.1);
+  border: 2px solid var(--border-medium);
   border-top-color: var(--belt-color);
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -848,7 +855,7 @@ watch(playbackSpeed, (newSpeed) => {
   background: var(--belt-color);
   border: none;
   border-radius: 8px;
-  color: #000;
+  color: var(--text-inverse);
   font-weight: 600;
   cursor: pointer;
 }
@@ -862,7 +869,6 @@ watch(playbackSpeed, (newSpeed) => {
   padding: 0 1rem;
   overflow-y: auto;
   overflow-x: hidden;
-  /* Hide scrollbar for cleaner look */
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -878,7 +884,6 @@ watch(playbackSpeed, (newSpeed) => {
   gap: 0.75rem;
   width: 100%;
   max-width: 600px;
-  /* Add padding to allow first/last items to scroll to center */
   padding-block: 25vh;
 }
 
@@ -890,7 +895,6 @@ watch(playbackSpeed, (newSpeed) => {
   padding: 0.75rem 1.5rem;
   border-radius: 12px;
   cursor: pointer;
-  /* Smooth, spring-like transitions for phase changes */
   transition:
     opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1),
     transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
@@ -921,18 +925,18 @@ watch(playbackSpeed, (newSpeed) => {
   border: 1px solid color-mix(in srgb, var(--belt-color) 50%, transparent);
   box-shadow:
     0 0 20px color-mix(in srgb, var(--belt-color) 15%, transparent),
-    0 8px 32px rgba(0, 0, 0, 0.3);
+    var(--shadow-md);
 }
 
 .phrase-row:hover:not(.current) {
   opacity: 0.8;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-card-hover);
 }
 
 .phrase-target {
   font-size: 1.0625rem;
   font-weight: 500;
-  color: var(--text-primary, #ffffff);
+  color: var(--text-primary);
   text-align: center;
   line-height: 1.4;
   transition:
@@ -953,7 +957,7 @@ watch(playbackSpeed, (newSpeed) => {
 .playback-hint {
   margin-top: 2rem;
   font-size: 0.875rem;
-  color: var(--text-muted, #666);
+  color: var(--text-muted);
   opacity: 0.6;
   transition: opacity 0.3s ease;
 }
@@ -962,8 +966,8 @@ watch(playbackSpeed, (newSpeed) => {
   opacity: 0.4;
 }
 
-/* Progress Bar */
-.progress-container {
+/* Transport + Progress */
+.transport-bar {
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -971,10 +975,42 @@ watch(playbackSpeed, (newSpeed) => {
   cursor: default;
 }
 
+.transport-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(145deg, var(--ssi-red-light, #d44545) 0%, var(--ssi-red, #b83232) 100%);
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 4px 12px rgba(194, 58, 58, 0.35);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.transport-btn:active {
+  transform: scale(0.9);
+}
+
+.transport-btn svg {
+  width: 18px;
+  height: 18px;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+}
+
+/* Play icon offset for optical centering */
+.transport-btn svg polygon {
+  transform: translateX(1px);
+}
+
 .progress-bar {
   flex: 1;
   height: 4px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--border-medium);
   border-radius: 2px;
   overflow: hidden;
 }
@@ -989,7 +1025,7 @@ watch(playbackSpeed, (newSpeed) => {
 .progress-text {
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.6875rem;
-  color: var(--text-muted, #666);
+  color: var(--text-muted);
   min-width: 36px;
 }
 </style>
