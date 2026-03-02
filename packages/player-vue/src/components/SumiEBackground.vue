@@ -9,7 +9,7 @@
 <template>
   <div class="sumi-e-bg" aria-hidden="true">
     <img
-      src="/design/sumi-e-mountain-4.webp"
+      src="/design/sumi-e-mountain-5.webp"
       alt=""
       class="sumi-e-painting"
       loading="eager"
