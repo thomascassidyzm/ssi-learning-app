@@ -161,7 +161,7 @@ const handleSettings = () => {
 <style scoped>
 .bottom-nav {
   position: fixed;
-  bottom: calc(env(safe-area-inset-bottom, 8px) - 4px);
+  bottom: env(safe-area-inset-bottom, 0px);
   left: 50%;
   right: auto;
   transform: translateX(-50%);
