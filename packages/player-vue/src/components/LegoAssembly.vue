@@ -135,9 +135,6 @@ const isRTL = computed(() => {
   return RTL_RE.test(text)
 })
 
-// Detect whether any block is salient — used to mute non-salient tiles during voice2
-const hasSalientBlock = computed(() => props.blocks.some(b => b.isSalient))
-
 // Uniform sentence-level scaling: all tiles in a phrase scale together
 const sentenceScale = computed(() => {
   if (props.blocks.length <= 1) return 1
@@ -148,7 +145,7 @@ const sentenceScale = computed(() => {
 </script>
 
 <template>
-  <div class="lego-assembly" :class="[assemblyPhase, { 'instant-hide': instantHide, 'has-salient': hasSalientBlock }]" :style="{ '--sentence-scale': sentenceScale, direction: isRTL ? 'rtl' : 'ltr' }">
+  <div class="lego-assembly" :class="[assemblyPhase, { 'instant-hide': instantHide }]" :style="{ '--sentence-scale': sentenceScale, direction: isRTL ? 'rtl' : 'ltr' }">
 
     <!-- ═══════════════════════════════════════════
          CARRIAGE MODE — long M-LEGO as groups of up to 3 components
@@ -636,20 +633,14 @@ const sentenceScale = computed(() => {
 
 /* Belt color wash on salient LEGO during voice2 (assembled phase) */
 .lego-assembly.assembled .lego-block.salient {
-  background: color-mix(in srgb, var(--belt-color) 12%, rgba(30, 30, 60, 0.85));
-  border-color: color-mix(in srgb, var(--belt-color) 50%, rgba(255, 255, 255, 0.25));
-  box-shadow: 0 0 16px 4px color-mix(in srgb, var(--belt-glow) 30%, transparent);
+  background: color-mix(in srgb, var(--belt-color) 22%, rgba(30, 30, 60, 0.85));
+  border-color: color-mix(in srgb, var(--belt-color) 65%, rgba(255, 255, 255, 0.35));
+  box-shadow: 0 0 22px 6px color-mix(in srgb, var(--belt-glow) 45%, transparent);
 }
 .lego-block.salient .block-text {
   color: rgba(255, 255, 255, 1);
   font-weight: 600;
   font-size: calc(clamp(1.1rem, calc(2.3rem - var(--char-count, 8) * 0.035rem), 2.125rem) * var(--sentence-scale, 1));
-}
-
-/* --- MUTE non-salient tiles when a salient tile is present (voice2) --- */
-.lego-assembly.has-salient.assembled .lego-block:not(.salient) {
-  opacity: 0.55;
-  transform: scale(0.97);
 }
 
 /* --- HIDDEN --- */
@@ -749,15 +740,9 @@ const sentenceScale = computed(() => {
 
 /* Belt color wash on salient LEGO — mist theme */
 :root[data-theme="mist"] .lego-assembly.assembled .lego-block.salient {
-  background: color-mix(in srgb, var(--belt-color) 12%, rgba(220, 220, 240, 0.85));
-  border-color: color-mix(in srgb, var(--belt-color) 50%, rgba(0, 0, 0, 0.15));
-  box-shadow: 0 0 16px 4px color-mix(in srgb, var(--belt-glow) 20%, transparent);
-}
-
-/* Mute non-salient tiles — mist theme */
-:root[data-theme="mist"] .lego-assembly.has-salient.assembled .lego-block:not(.salient) {
-  opacity: 0.55;
-  transform: scale(0.97);
+  background: color-mix(in srgb, var(--belt-color) 18%, rgba(220, 220, 240, 0.85));
+  border-color: color-mix(in srgb, var(--belt-color) 55%, rgba(0, 0, 0, 0.18));
+  box-shadow: 0 0 20px 5px color-mix(in srgb, var(--belt-glow) 30%, transparent);
 }
 
 /* M-LEGO stubs for mist theme */

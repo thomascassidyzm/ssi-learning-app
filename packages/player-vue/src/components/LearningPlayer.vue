@@ -564,7 +564,7 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
         : undefined
       const knownText = (knownMap && id === salientLegoId) ? knownMap.get(id) : undefined
       return {
-        id, targetText, isSalient: id === salientLegoId,
+        id, targetText, isSalient: isIntro && id === salientLegoId,
         ...(comps ? { components: comps } : {}),
         ...(knownText ? { knownText } : {}),
       }
