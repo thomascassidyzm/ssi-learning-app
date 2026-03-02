@@ -118,10 +118,6 @@ const knownText = computed(() => {
   return ''
 })
 
-// Do any blocks in the current phrase have known text? (for placeholder alignment)
-const hasAnyKnownText = computed(() =>
-  props.blocks.some(b => b.knownText || (b.components && b.components.some(c => c.known)))
-)
 
 // Uniform sentence-level scaling: all tiles in a phrase scale together
 const sentenceScale = computed(() => {
@@ -216,7 +212,6 @@ const sentenceScale = computed(() => {
             >{{ comp.known || '·' }}</span>
           </div>
           <span v-else-if="block.knownText" class="block-known">{{ block.knownText }}</span>
-          <span v-else-if="hasAnyKnownText" class="block-known block-known--placeholder">·</span>
         </div>
       </TransitionGroup>
     </template>
@@ -321,9 +316,9 @@ const sentenceScale = computed(() => {
   content: '';
   position: absolute;
   left: 0;
-  width: 1px;
-  height: 25%;
-  background: rgba(255, 255, 255, 0.3);
+  width: 1.5px;
+  height: 35%;
+  background: rgba(255, 255, 255, 0.4);
   z-index: 2;
   pointer-events: none;
 }
@@ -337,9 +332,9 @@ const sentenceScale = computed(() => {
 /* Known text underneath (single A-LEGO) */
 .tile-known {
   font-family: var(--font-body, system-ui);
-  font-size: 0.8rem;
+  font-size: 0.9rem;
   font-weight: 400;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.6);
   white-space: nowrap;
 }
 
@@ -352,9 +347,9 @@ const sentenceScale = computed(() => {
 }
 .tile-known-comp {
   font-family: var(--font-body, system-ui);
-  font-size: 0.8rem;
+  font-size: 0.9rem;
   font-weight: 400;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.6);
   white-space: nowrap;
   text-align: center;
   /* Match target comp padding so widths stay in sync */
@@ -410,18 +405,14 @@ const sentenceScale = computed(() => {
 /* Known text under each practice block (A-LEGO) */
 .block-known {
   font-family: var(--font-body, system-ui);
-  font-size: 0.75rem;
+  font-size: 0.85rem;
   font-weight: 400;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.6);
   white-space: nowrap;
   text-align: center;
   max-width: calc(100vw - 3rem);
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.block-known--placeholder {
-  opacity: 0.3;
 }
 
 /* Known text row: per-component aligned with target (practice M-LEGO) */
@@ -433,9 +424,9 @@ const sentenceScale = computed(() => {
 }
 .block-known-comp {
   font-family: var(--font-body, system-ui);
-  font-size: 0.75rem;
+  font-size: 0.85rem;
   font-weight: 400;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.6);
   white-space: nowrap;
   text-align: center;
   /* Match target comp padding for alignment */
@@ -461,9 +452,9 @@ const sentenceScale = computed(() => {
   content: '';
   position: absolute;
   left: 0;
-  width: 1px;
-  height: 25%;
-  background: rgba(255, 255, 255, 0.3);
+  width: 1.5px;
+  height: 35%;
+  background: rgba(255, 255, 255, 0.4);
   z-index: 2;
   pointer-events: none;
 }
@@ -643,7 +634,7 @@ const sentenceScale = computed(() => {
 :root[data-theme="mist"] .tile-target.has-components .comp + .comp::after,
 :root[data-theme="mist"] .lego-block.has-components .comp + .comp::before,
 :root[data-theme="mist"] .lego-block.has-components .comp + .comp::after {
-  background: rgba(44, 38, 34, 0.15);
+  background: rgba(44, 38, 34, 0.2);
 }
 
 /* Single tile mist overrides */

@@ -558,7 +558,7 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
       const targetText = texts[idx] || textMap.get(id) || ''
       if (!targetText) return null
       const comps = _componentsByLegoId.get(id)
-      const knownText = knownMap?.get(id)
+      const knownText = (knownMap && id === salientLegoId) ? knownMap.get(id) : undefined
       return {
         id, targetText, isSalient: id === salientLegoId,
         ...(comps ? { components: comps } : {}),
