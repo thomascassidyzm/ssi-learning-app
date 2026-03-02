@@ -5898,6 +5898,7 @@ defineExpose({
   >
     <!-- Deep Space Background Layers -->
     <div class="space-gradient"></div>
+    <div class="sun-backlight"></div>
     <div class="space-nebula"></div>
     <div class="bg-noise"></div>
 
@@ -6776,6 +6777,21 @@ defineExpose({
     radial-gradient(ellipse 120% 80% at 20% 10%, rgba(30, 20, 50, 0.8) 0%, transparent 50%),
     radial-gradient(ellipse 100% 60% at 80% 90%, rgba(20, 30, 50, 0.6) 0%, transparent 40%),
     radial-gradient(ellipse 80% 80% at 50% 50%, rgba(10, 10, 20, 1) 0%, #08080c 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Belt-colored sun backlight — rising from the horizon.
+   At white belt (#f5f5f5 against dark bg) this is nearly invisible.
+   As belts gain saturation the sun gradually emerges. */
+.sun-backlight {
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 90% 50% at 50% 105%,
+      color-mix(in srgb, var(--belt-color) 15%, transparent) 0%,
+      color-mix(in srgb, var(--belt-color) 6%, transparent) 30%,
+      transparent 70%);
   pointer-events: none;
   z-index: 0;
 }
@@ -10144,6 +10160,10 @@ defineExpose({
     radial-gradient(ellipse 90% 70% at 15% 10%, rgba(255, 252, 245, 0.4) 0%, transparent 50%),
     radial-gradient(ellipse 100% 60% at 80% 90%, rgba(232, 227, 221, 0.3) 0%, transparent 40%),
     radial-gradient(ellipse 80% 80% at 50% 50%, #e8e3dd 0%, #e0dbd5 100%);
+}
+
+[data-theme="mist"] .player .sun-backlight {
+  display: none;
 }
 
 [data-theme="mist"] .player .space-nebula {
