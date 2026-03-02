@@ -628,14 +628,6 @@ const sentenceScale = computed(() => {
   box-shadow:
     0 0 14px 3px rgba(255, 255, 255, 0.15),
     inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  transition: background 0.5s ease, border-color 0.5s ease, box-shadow 0.5s ease;
-}
-
-/* Belt color wash on salient LEGO during voice2 (assembled phase) */
-.lego-assembly.assembled .lego-block.salient {
-  background: color-mix(in srgb, var(--belt-color) 22%, rgba(30, 30, 60, 0.85));
-  border-color: color-mix(in srgb, var(--belt-color) 65%, rgba(255, 255, 255, 0.35));
-  box-shadow: 0 0 22px 6px color-mix(in srgb, var(--belt-glow) 45%, transparent);
 }
 .lego-block.salient .block-text {
   color: rgba(255, 255, 255, 1);
@@ -736,13 +728,6 @@ const sentenceScale = computed(() => {
 
 :root[data-theme="mist"] .lego-block.salient .block-text {
   color: var(--text-primary);
-}
-
-/* Belt color wash on salient LEGO — mist theme */
-:root[data-theme="mist"] .lego-assembly.assembled .lego-block.salient {
-  background: color-mix(in srgb, var(--belt-color) 18%, rgba(220, 220, 240, 0.85));
-  border-color: color-mix(in srgb, var(--belt-color) 55%, rgba(0, 0, 0, 0.18));
-  box-shadow: 0 0 20px 5px color-mix(in srgb, var(--belt-glow) 30%, transparent);
 }
 
 /* M-LEGO stubs for mist theme */
