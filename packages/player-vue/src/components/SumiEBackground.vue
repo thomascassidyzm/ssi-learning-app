@@ -4,7 +4,7 @@
  * Shows a language-specific ink/sketch painting as a subtle background layer.
  * Each target language gets its own cultural art style:
  *   jpn = sumi-e mountain temple pilgrimage
- *   cmn = Chinese shanshui vertical cliff stairway
+ *   zho = Chinese shanshui vertical cliff stairway
  *   ita = Tuscan sepia sketch, hilltop monastery
  *   (more languages to come)
  * Falls back to Japanese sumi-e for unmapped languages.
@@ -19,7 +19,8 @@ const props = withDefaults(defineProps<{
 
 const JOURNEY_MAP: Record<string, string> = {
   jpn: '/design/journey-jpn.webp',
-  cmn: '/design/journey-cmn.webp',
+  zho: '/design/journey-cmn.webp',
+  cmn: '/design/journey-cmn.webp',  // alias
   ita: '/design/journey-ita.webp',
 }
 
@@ -58,5 +59,12 @@ const imageSrc = computed(() => JOURNEY_MAP[props.lang] || DEFAULT_JOURNEY)
   object-position: center center;
   opacity: 0.18;
   mix-blend-mode: multiply;
+}
+
+/* Wide/landscape viewports: show full painting centered, don't crop */
+@media (min-aspect-ratio: 3/4) {
+  .journey-painting {
+    object-fit: contain;
+  }
 }
 </style>
