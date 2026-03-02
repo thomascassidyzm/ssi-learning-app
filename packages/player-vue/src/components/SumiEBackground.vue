@@ -33,7 +33,7 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center calc(50% - 40px);
+  object-position: center calc(50% - 80px);
   opacity: 0.18;
   mix-blend-mode: multiply;
 }
