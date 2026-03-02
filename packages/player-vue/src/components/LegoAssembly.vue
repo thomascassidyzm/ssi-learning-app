@@ -400,14 +400,11 @@ const sentenceScale = computed(() => {
   padding: 0 0.35em;
 }
 
-/* Salient (intro/debut) — neutral glow */
+/* Salient (intro/debut) — neutral glow, consistent across phases */
 .lego-tile.salient .tile-target {
   border-color: rgba(255, 255, 255, 0.3);
   border-width: 2px;
   background: rgba(255, 255, 255, 0.15);
-}
-
-.lego-tile.salient.assembled .tile-target {
   box-shadow:
     0 0 20px 5px rgba(255, 255, 255, 0.15),
     inset 0 1px 0 rgba(255, 255, 255, 0.15);
@@ -502,19 +499,17 @@ const sentenceScale = computed(() => {
   padding: 0 0.3em;
 }
 
-/* Salient carriage styling */
+/* Salient carriage styling — consistent across phases */
 .lego-tile.salient .carriage-cell {
   border-color: rgba(255, 255, 255, 0.3);
   border-width: 2px;
   background: rgba(255, 255, 255, 0.15);
-}
-.lego-tile.salient .carriage-wagon + .carriage-wagon::before {
-  background: rgba(255, 255, 255, 0.55);
-}
-.lego-tile.salient.assembled .carriage-cell {
   box-shadow:
     0 0 12px 2px rgba(255, 255, 255, 0.12),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+.lego-tile.salient .carriage-wagon + .carriage-wagon::before {
+  background: rgba(255, 255, 255, 0.55);
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -539,12 +534,12 @@ const sentenceScale = computed(() => {
   flex-wrap: wrap;
   padding: calc(0.6em * var(--sentence-scale, 1)) calc(1.1em * var(--sentence-scale, 1));
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow:
-    0 0 0 0 rgba(255, 255, 255, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    0 0 12px 2px rgba(255, 255, 255, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
   max-width: calc(100vw - 3rem);
   overflow: hidden;
   position: relative;
@@ -615,21 +610,13 @@ const sentenceScale = computed(() => {
 
 /* --- ASSEMBLING (sequential reveal in reading order) --- */
 .lego-block-wrapper.assembling {
-  animation: block-reveal 0.35s ease-out var(--stagger-delay, 0s) both;
+  animation: block-reveal 0.5s ease-out var(--stagger-delay, 0s) both;
 }
 
-/* --- ASSEMBLED (with gentle pulse on tile) --- */
+/* --- ASSEMBLED (static, no style change from base) --- */
 .lego-block-wrapper.assembled {
   opacity: 1;
-  transform: translate(0, 0) rotate(0deg);
-  transition-duration: 0.6s;
-}
-.lego-block-wrapper.assembled .lego-block {
-  border-color: rgba(255, 255, 255, 0.2);
-  box-shadow:
-    0 0 12px 2px rgba(255, 255, 255, 0.15),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(0);
 }
 
 /* --- SALIENT LEGO (newly introduced) --- */
@@ -646,12 +633,6 @@ const sentenceScale = computed(() => {
   color: rgba(255, 255, 255, 1);
   font-weight: 600;
   font-size: calc(clamp(1.1rem, calc(2.3rem - var(--char-count, 8) * 0.035rem), 2.125rem) * var(--sentence-scale, 1));
-}
-.lego-block-wrapper.assembled .lego-block.salient {
-  background: rgba(255, 255, 255, 0.18);
-  box-shadow:
-    0 0 20px 5px rgba(255, 255, 255, 0.15),
-    inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
 /* --- HIDDEN --- */
@@ -737,12 +718,6 @@ const sentenceScale = computed(() => {
   color: var(--text-primary);
 }
 
-:root[data-theme="mist"] .lego-block-wrapper.assembled .lego-block {
-  background: #ffffff;
-  border-color: rgba(0, 0, 0, 0.22);
-  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10),
-              0 8px 20px rgba(44, 38, 34, 0.06);
-}
 
 :root[data-theme="mist"] .lego-block.salient {
   background: #ffffff;
@@ -755,11 +730,6 @@ const sentenceScale = computed(() => {
   color: var(--text-primary);
 }
 
-:root[data-theme="mist"] .lego-block-wrapper.assembled .lego-block.salient {
-  background: #ffffff;
-  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
-              0 8px 24px rgba(44, 38, 34, 0.08);
-}
 
 /* M-LEGO stubs for mist theme */
 :root[data-theme="mist"] .tile-target.has-components .comp + .comp::before,
@@ -814,9 +784,5 @@ const sentenceScale = computed(() => {
 :root[data-theme="mist"] .lego-tile.salient .carriage-cell {
   border-color: rgba(0, 0, 0, 0.22);
   background: #ffffff;
-}
-:root[data-theme="mist"] .lego-tile.salient.assembled .carriage-cell {
-  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
-              0 8px 24px rgba(44, 38, 34, 0.08);
 }
 </style>
