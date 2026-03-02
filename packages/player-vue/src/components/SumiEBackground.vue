@@ -9,7 +9,7 @@
 <template>
   <div class="sumi-e-bg" aria-hidden="true">
     <img
-      src="/design/sumi-e-mountain-3.webp"
+      src="/design/sumi-e-mountain-4.webp"
       alt=""
       class="sumi-e-painting"
       loading="eager"
@@ -33,7 +33,7 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center calc(50% - 80px);
+  object-position: center center;
   opacity: 0.18;
   mix-blend-mode: multiply;
 }
