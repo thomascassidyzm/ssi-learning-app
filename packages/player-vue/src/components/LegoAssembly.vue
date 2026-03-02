@@ -157,7 +157,7 @@ const sentenceScale = computed(() => {
         <span v-else class="comp">{{ blocks[0]?.targetText }}</span>
       </div>
       <!-- Known row: per-component aligned text -->
-      <div v-if="mLegoComponents" class="tile-known-row">
+      <div v-if="mLegoComponents && mLegoComponents.some(c => c.known)" class="tile-known-row">
         <span
           v-for="(comp, i) in mLegoComponents"
           :key="i"
@@ -204,7 +204,7 @@ const sentenceScale = computed(() => {
             <span v-else class="block-text">{{ block.targetText }}</span>
           </div>
           <!-- Known text: per-component for M-LEGOs, single for A-LEGOs -->
-          <div v-if="block.components && block.components.length > 1" class="block-known-row">
+          <div v-if="block.components && block.components.length > 1 && block.components.some(c => c.known)" class="block-known-row">
             <span
               v-for="(comp, ci) in block.components"
               :key="ci"

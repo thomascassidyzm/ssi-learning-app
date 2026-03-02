@@ -557,7 +557,11 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
     .map((id: string, idx: number) => {
       const targetText = texts[idx] || textMap.get(id) || ''
       if (!targetText) return null
-      const comps = _componentsByLegoId.get(id)
+      const rawComps = _componentsByLegoId.get(id)
+      // Strip known text from components outside intro/debut — stubs still render
+      const comps = rawComps
+        ? (isIntro ? rawComps : rawComps.map(c => ({ known: '', target: c.target })))
+        : undefined
       const knownText = (knownMap && id === salientLegoId) ? knownMap.get(id) : undefined
       return {
         id, targetText, isSalient: id === salientLegoId,
