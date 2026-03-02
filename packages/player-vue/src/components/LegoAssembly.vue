@@ -134,11 +134,17 @@ const knownText = computed(() => {
 })
 
 
-// Carriage mode: long M-LEGOs (4+ components) render as separate connected tiles
-const carriageComponents = computed(() => {
+// Carriage mode: long M-LEGOs (4+ components) render as groups of up to 3,
+// each group is a mini M-LEGO tile with internal stubs, groups linked externally
+const carriageGroups = computed(() => {
   if (props.blocks.length !== 1) return null
-  if (!mLegoComponents.value) return null
-  return mLegoComponents.value.length > 3 ? mLegoComponents.value : null
+  if (!mLegoComponents.value || mLegoComponents.value.length <= 3) return null
+  const comps = mLegoComponents.value
+  const groups: ComponentBreakdown[][] = []
+  for (let i = 0; i < comps.length; i += 3) {
+    groups.push(comps.slice(i, i + 3))
+  }
+  return groups
 })
 
 // Uniform sentence-level scaling: all tiles in a phrase scale together
@@ -154,23 +160,35 @@ const sentenceScale = computed(() => {
   <div class="lego-assembly" :class="[assemblyPhase, { 'instant-hide': instantHide }]" :style="{ '--sentence-scale': sentenceScale }">
 
     <!-- ═══════════════════════════════════════════
-         CARRIAGE MODE — long M-LEGO split into connected word-tiles
-         Each component gets its own tile, linked by external connectors
+         CARRIAGE MODE — long M-LEGO as groups of up to 3 components
+         Each group is a mini tile with internal stubs, groups linked externally
          ═══════════════════════════════════════════ -->
     <div
-      v-if="carriageComponents"
+      v-if="carriageGroups"
       class="lego-tile"
       :class="[assemblyPhase, { salient: blocks[0]?.isSalient }]"
       :style="{ '--assemble-duration': assembleDuration, '--stagger-delay': '0s' }"
     >
       <div class="carriage-track">
         <div
-          v-for="(comp, i) in carriageComponents"
-          :key="i"
+          v-for="(group, gi) in carriageGroups"
+          :key="gi"
           class="carriage-wagon"
         >
-          <div class="carriage-cell">{{ comp.target }}</div>
-          <span v-if="comp.known" class="carriage-known">{{ comp.known }}</span>
+          <div
+            class="carriage-cell"
+            :class="{ 'has-components': group.length > 1 }"
+            :style="{ '--char-count': group.reduce((s, c) => s + c.target.length, 0) }"
+          >
+            <span v-for="(comp, ci) in group" :key="ci" class="comp">{{ comp.target }}</span>
+          </div>
+          <div v-if="group.some(c => c.known)" class="carriage-known-row">
+            <span
+              v-for="(comp, ci) in group"
+              :key="ci"
+              class="carriage-known-comp"
+            >{{ comp.known || '' }}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -414,14 +432,14 @@ const sentenceScale = computed(() => {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   CARRIAGE MODE — long M-LEGO as connected word-tiles
+   CARRIAGE MODE — long M-LEGO as groups of ≤3, linked externally
    ═══════════════════════════════════════════════════════════════ */
 .carriage-track {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: center;
-  column-gap: 3px;
+  column-gap: 10px;
   row-gap: 10px;
 }
 
@@ -433,43 +451,73 @@ const sentenceScale = computed(() => {
   position: relative;
 }
 
-/* Horizontal connector bar between adjacent wagons */
-.carriage-wagon + .carriage-wagon .carriage-cell::before {
+/* External hyphen connector between wagon groups */
+.carriage-wagon + .carriage-wagon::before {
   content: '';
   position: absolute;
-  left: -4px;
-  top: 50%;
-  width: 5px;
+  left: -7px;
+  top: 1.2em;
+  width: 4px;
   height: 2px;
-  background: rgba(255, 255, 255, 0.35);
-  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.4);
 }
 
+/* Each group is a mini M-LEGO tile (reuses stub styling via .has-components .comp) */
 .carriage-cell {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  padding: 0.5em 0.7em;
-  border-radius: 8px;
+  padding: 0.5em 0.9em;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.12);
   position: relative;
+}
+
+.carriage-cell .comp {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
-  font-size: 1.5rem;
+  font-size: clamp(1.1rem, calc(2rem - var(--char-count, 8) * 0.035rem), 1.7rem);
   font-weight: 600;
   color: rgba(255, 255, 255, 0.95);
   letter-spacing: 0.02em;
+  position: relative;
+  padding: 0 0.3em;
   white-space: nowrap;
 }
 
-.carriage-known {
+/* Internal stubs within each carriage group (same pattern as tile-target) */
+.carriage-cell.has-components .comp + .comp::before,
+.carriage-cell.has-components .comp + .comp::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: 1.5px;
+  height: 35%;
+  background: rgba(255, 255, 255, 0.4);
+  z-index: 2;
+  pointer-events: none;
+}
+.carriage-cell.has-components .comp + .comp::before {
+  top: 0;
+}
+.carriage-cell.has-components .comp + .comp::after {
+  bottom: 0;
+}
+
+/* Known text row per group, aligned per component */
+.carriage-known-row {
+  display: inline-flex;
+  align-items: baseline;
+  padding: 0 0.9em;
+}
+.carriage-known-comp {
   font-family: var(--font-body, system-ui);
   font-size: 0.85rem;
   font-weight: 400;
   color: rgba(255, 255, 255, 0.6);
   white-space: nowrap;
   text-align: center;
+  padding: 0 0.3em;
 }
 
 /* Salient carriage styling */
@@ -478,8 +526,8 @@ const sentenceScale = computed(() => {
   border-width: 2px;
   background: rgba(255, 255, 255, 0.15);
 }
-.lego-tile.salient .carriage-wagon + .carriage-wagon .carriage-cell::before {
-  background: rgba(255, 255, 255, 0.5);
+.lego-tile.salient .carriage-wagon + .carriage-wagon::before {
+  background: rgba(255, 255, 255, 0.55);
 }
 .lego-tile.salient.assembled .carriage-cell {
   box-shadow:
@@ -708,8 +756,10 @@ const sentenceScale = computed(() => {
   }
 
   .carriage-cell {
-    font-size: 1.3rem;
-    padding: 0.45em 0.6em;
+    padding: 0.45em 0.7em;
+  }
+  .carriage-cell .comp {
+    font-size: clamp(1rem, calc(1.7rem - var(--char-count, 8) * 0.03rem), 1.5rem);
   }
 }
 </style>
@@ -788,12 +838,18 @@ const sentenceScale = computed(() => {
   border: 1.5px solid rgba(0, 0, 0, 0.22);
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10);
   backdrop-filter: none;
+}
+:root[data-theme="mist"] .carriage-cell .comp {
   color: var(--text-primary);
 }
-:root[data-theme="mist"] .carriage-wagon + .carriage-wagon .carriage-cell::before {
+:root[data-theme="mist"] .carriage-cell.has-components .comp + .comp::before,
+:root[data-theme="mist"] .carriage-cell.has-components .comp + .comp::after {
+  background: rgba(44, 38, 34, 0.2);
+}
+:root[data-theme="mist"] .carriage-wagon + .carriage-wagon::before {
   background: rgba(44, 38, 34, 0.25);
 }
-:root[data-theme="mist"] .carriage-known {
+:root[data-theme="mist"] .carriage-known-comp {
   color: var(--text-muted);
 }
 :root[data-theme="mist"] .lego-tile.salient .carriage-cell {
