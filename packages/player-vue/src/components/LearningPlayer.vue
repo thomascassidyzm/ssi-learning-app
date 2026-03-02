@@ -10407,7 +10407,7 @@ defineExpose({
 }
 
 [data-theme="mist"] .player .component-tile-target {
-  color: color-mix(in srgb, var(--belt-color) 70%, #2C2622);
+  color: #2C2622;
 }
 
 [data-theme="mist"] .player .component-tile-known {
