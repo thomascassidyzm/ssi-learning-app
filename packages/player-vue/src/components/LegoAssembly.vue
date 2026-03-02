@@ -20,8 +20,6 @@ export interface ComponentBreakdown {
 const props = defineProps<{
   blocks: LegoBlock[]
   phase: string // UI phase: 'prompt' | 'speak' | 'voice1' | 'voice2'
-  beltColor: string
-  beltGlow: string
   voice1DurationMs?: number
   components?: ComponentBreakdown[]
 }>()
@@ -124,10 +122,18 @@ const knownText = computed(() => {
 const hasAnyKnownText = computed(() =>
   props.blocks.some(b => b.knownText || (b.components && b.components.some(c => c.known)))
 )
+
+// Uniform sentence-level scaling: all tiles in a phrase scale together
+const sentenceScale = computed(() => {
+  if (props.blocks.length <= 1) return 1
+  const totalChars = props.blocks.reduce((sum, b) => sum + b.targetText.length, 0)
+  if (totalChars <= 20) return 1
+  return Math.max(0.65, 1 - (totalChars - 20) * 0.008)
+})
 </script>
 
 <template>
-  <div class="lego-assembly" :class="[assemblyPhase, { 'instant-hide': instantHide }]">
+  <div class="lego-assembly" :class="[assemblyPhase, { 'instant-hide': instantHide }]" :style="{ '--sentence-scale': sentenceScale }">
 
     <!-- ═══════════════════════════════════════════
          SINGLE TILE MODE — M-LEGO (with stubs) or A-LEGO
@@ -140,8 +146,6 @@ const hasAnyKnownText = computed(() =>
       :style="{
         '--assemble-duration': assembleDuration,
         '--stagger-delay': '0s',
-        '--belt-accent': beltColor,
-        '--belt-glow': beltGlow,
         '--char-count': blocks[0]?.targetText.length || 8,
       }"
     >
@@ -184,8 +188,6 @@ const hasAnyKnownText = computed(() =>
             '--scatter-rotate': `${scatterPositions[index]?.rotate ?? 0}deg`,
             '--assemble-duration': assembleDuration,
             '--stagger-delay': staggerDelay(index),
-            '--belt-accent': beltColor,
-            '--belt-glow': beltGlow,
             '--block-index': index,
             '--block-total': blocks.length,
             '--char-count': block.targetText.length,
@@ -234,7 +236,7 @@ const hasAnyKnownText = computed(() =>
   align-content: center;
   justify-content: center;
   gap: 6px;
-  padding: 0 0.75rem;
+  padding: calc(var(--hero-top, 88px) + 100px) 0.75rem calc(var(--nav-total, 100px) + 10px);
   pointer-events: none;
   z-index: 3;
   transition: opacity 0.4s ease;
@@ -359,18 +361,17 @@ const hasAnyKnownText = computed(() =>
   padding: 0 0.35em;
 }
 
-/* Salient (intro/debut) — belt accent glow */
+/* Salient (intro/debut) — neutral glow */
 .lego-tile.salient .tile-target {
-  border-color: var(--belt-accent, rgba(255, 255, 255, 0.3));
+  border-color: rgba(255, 255, 255, 0.3);
   border-width: 2px;
   background: rgba(255, 255, 255, 0.15);
 }
 
 .lego-tile.salient.assembled .tile-target {
   box-shadow:
-    0 0 20px 5px var(--belt-glow, rgba(255, 255, 255, 0.25)),
+    0 0 20px 5px rgba(255, 255, 255, 0.15),
     inset 0 1px 0 rgba(255, 255, 255, 0.15);
-  animation: salient-pulse 2.5s ease-in-out infinite;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -393,13 +394,13 @@ const hasAnyKnownText = computed(() =>
   display: inline-flex;
   align-items: center;
   flex-wrap: wrap;
-  padding: 0.6em 1.1em;
+  padding: calc(0.6em * var(--sentence-scale, 1)) calc(1.1em * var(--sentence-scale, 1));
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow:
-    0 0 0 0 var(--belt-glow, rgba(255, 255, 255, 0.1)),
+    0 0 0 0 rgba(255, 255, 255, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
   max-width: calc(100vw - 3rem);
   overflow: hidden;
@@ -443,7 +444,7 @@ const hasAnyKnownText = computed(() =>
 
 .lego-block .block-text {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
-  font-size: clamp(1.1rem, calc(2.2rem - var(--char-count, 8) * 0.035rem), 1.875rem);
+  font-size: calc(clamp(1.1rem, calc(2.2rem - var(--char-count, 8) * 0.035rem), 1.875rem) * var(--sentence-scale, 1));
   font-weight: 500;
   color: rgba(255, 255, 255, 0.9);
   overflow-wrap: break-word;
@@ -498,35 +499,33 @@ const hasAnyKnownText = computed(() =>
   transition-duration: 0.6s;
 }
 .lego-block-wrapper.assembled .lego-block {
-  border-color: var(--belt-accent, rgba(255, 255, 255, 0.2));
+  border-color: rgba(255, 255, 255, 0.2);
   box-shadow:
-    0 0 12px 2px var(--belt-glow, rgba(255, 255, 255, 0.15)),
+    0 0 12px 2px rgba(255, 255, 255, 0.15),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.1);
-  animation: assembled-pulse 2.5s ease-in-out infinite;
 }
 
 /* --- SALIENT LEGO (newly introduced) --- */
 .lego-block.salient {
   background: rgba(255, 255, 255, 0.15);
-  border-color: var(--belt-accent, rgba(255, 255, 255, 0.3));
+  border-color: rgba(255, 255, 255, 0.3);
   border-width: 2px;
-  padding: 0.7em 1.3em;
+  padding: calc(0.7em * var(--sentence-scale, 1)) calc(1.3em * var(--sentence-scale, 1));
   box-shadow:
-    0 0 14px 3px var(--belt-glow, rgba(255, 255, 255, 0.2)),
+    0 0 14px 3px rgba(255, 255, 255, 0.15),
     inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 .lego-block.salient .block-text {
   color: rgba(255, 255, 255, 1);
   font-weight: 600;
-  font-size: clamp(1.1rem, calc(2.3rem - var(--char-count, 8) * 0.035rem), 2.125rem);
+  font-size: calc(clamp(1.1rem, calc(2.3rem - var(--char-count, 8) * 0.035rem), 2.125rem) * var(--sentence-scale, 1));
 }
 .lego-block-wrapper.assembled .lego-block.salient {
   background: rgba(255, 255, 255, 0.18);
   box-shadow:
-    0 0 20px 5px var(--belt-glow, rgba(255, 255, 255, 0.25)),
+    0 0 20px 5px rgba(255, 255, 255, 0.15),
     inset 0 1px 0 rgba(255, 255, 255, 0.15);
-  animation: salient-pulse 2.5s ease-in-out infinite;
 }
 
 /* --- HIDDEN --- */
@@ -578,47 +577,21 @@ const hasAnyKnownText = computed(() =>
   100% { transform: scale(1); }
 }
 
-@keyframes assembled-pulse {
-  0%, 100% {
-    box-shadow:
-      0 0 12px 2px var(--belt-glow, rgba(255, 255, 255, 0.15)),
-      inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  }
-  50% {
-    box-shadow:
-      0 0 18px 4px var(--belt-glow, rgba(255, 255, 255, 0.2)),
-      inset 0 1px 0 rgba(255, 255, 255, 0.15);
-  }
-}
-
-@keyframes salient-pulse {
-  0%, 100% {
-    box-shadow:
-      0 0 20px 5px var(--belt-glow, rgba(255, 255, 255, 0.25)),
-      inset 0 1px 0 rgba(255, 255, 255, 0.15);
-  }
-  50% {
-    box-shadow:
-      0 0 28px 8px var(--belt-glow, rgba(255, 255, 255, 0.35)),
-      inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  }
-}
-
 /* ═══════════════════════════════════════════════════════════════
    MOBILE
    ═══════════════════════════════════════════════════════════════ */
 @media (max-width: 600px) {
   .lego-block .block-text {
-    font-size: clamp(1rem, calc(1.9rem - var(--char-count, 8) * 0.03rem), 1.625rem);
+    font-size: calc(clamp(1rem, calc(1.9rem - var(--char-count, 8) * 0.03rem), 1.625rem) * var(--sentence-scale, 1));
   }
   .lego-block {
-    padding: 0.5em 0.9em;
+    padding: calc(0.5em * var(--sentence-scale, 1)) calc(0.9em * var(--sentence-scale, 1));
   }
   .lego-block.salient {
-    padding: 0.6em 1.1em;
+    padding: calc(0.6em * var(--sentence-scale, 1)) calc(1.1em * var(--sentence-scale, 1));
   }
   .lego-block.salient .block-text {
-    font-size: clamp(1rem, calc(2rem - var(--char-count, 8) * 0.03rem), 1.875rem);
+    font-size: calc(clamp(1rem, calc(2rem - var(--char-count, 8) * 0.03rem), 1.875rem) * var(--sentence-scale, 1));
   }
 
   .tile-target .comp {
@@ -646,7 +619,6 @@ const hasAnyKnownText = computed(() =>
   border-color: rgba(0, 0, 0, 0.22);
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10),
               0 8px 20px rgba(44, 38, 34, 0.06);
-  animation: none;
 }
 
 :root[data-theme="mist"] .lego-block.salient {
@@ -664,7 +636,6 @@ const hasAnyKnownText = computed(() =>
   background: #ffffff;
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
               0 8px 24px rgba(44, 38, 34, 0.08);
-  animation: none;
 }
 
 /* M-LEGO stubs for mist theme */
@@ -695,8 +666,5 @@ const hasAnyKnownText = computed(() =>
 :root[data-theme="mist"] .lego-tile.salient .tile-target {
   border-color: rgba(0, 0, 0, 0.22);
   background: #ffffff;
-}
-:root[data-theme="mist"] .lego-tile.salient.assembled .tile-target {
-  animation: none;
 }
 </style>

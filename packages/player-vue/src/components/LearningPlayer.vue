@@ -5877,8 +5877,6 @@ defineExpose({
       v-if="currentPhraseLegoBlocks.length > 0"
       :blocks="currentPhraseLegoBlocks"
       :phase="currentPhase"
-      :belt-color="beltCssVars['--belt-color'] || '#f5f5f5'"
-      :belt-glow="beltCssVars['--belt-glow'] || 'rgba(245, 245, 245, 0.3)'"
       :voice1-duration-ms="currentVoice1DurationMs"
       :components="isIntroOrDebutPhase ? displayedComponents : undefined"
     />
