@@ -42,7 +42,7 @@ const particles = Array.from({ length: 10 }, (_, i) => ({
     '--p-left': `${7 + (i * 37 + 13) % 86}%`,
     '--p-delay': `${(i * 3.7) % 20}s`,
     '--p-duration': `${18 + (i * 7) % 16}s`,
-    '--p-size': `${3 + (i * 3) % 5}px`,
+    '--p-size': `${6 + (i * 3) % 7}px`,
   },
 }))
 </script>
@@ -117,7 +117,7 @@ const particles = Array.from({ length: 10 }, (_, i) => ({
 
 /* ── Cherry blossom petals (Japanese) ── */
 .particles--petals .particle {
-  background: radial-gradient(circle, rgba(219, 160, 170, 0.5), rgba(219, 160, 170, 0.15));
+  background: radial-gradient(circle, rgba(219, 140, 160, 0.9), rgba(219, 140, 160, 0.3));
   border-radius: 50% 0 50% 0;
   animation-name: petal-fall;
 }
@@ -127,8 +127,8 @@ const particles = Array.from({ length: 10 }, (_, i) => ({
     transform: translate(0, -5vh) rotate(0deg);
     opacity: 0;
   }
-  8% { opacity: 0.3; }
-  85% { opacity: 0.25; }
+  8% { opacity: 0.8; }
+  85% { opacity: 0.7; }
   100% {
     transform: translate(40px, 105vh) rotate(540deg);
     opacity: 0;
@@ -137,7 +137,7 @@ const particles = Array.from({ length: 10 }, (_, i) => ({
 
 /* ── Mist wisps (Chinese) ── */
 .particles--mist .particle {
-  background: radial-gradient(ellipse, rgba(120, 120, 130, 0.2), transparent);
+  background: radial-gradient(ellipse, rgba(120, 120, 130, 0.6), transparent);
   width: calc(var(--p-size, 4px) * 12);
   height: calc(var(--p-size, 4px) * 3);
   border-radius: 50%;
@@ -149,8 +149,8 @@ const particles = Array.from({ length: 10 }, (_, i) => ({
     transform: translateX(-15vw) scaleX(0.8);
     opacity: 0;
   }
-  15% { opacity: 0.12; }
-  75% { opacity: 0.1; }
+  15% { opacity: 0.5; }
+  75% { opacity: 0.4; }
   100% {
     transform: translateX(110vw) scaleX(1.2);
     opacity: 0;
@@ -159,7 +159,7 @@ const particles = Array.from({ length: 10 }, (_, i) => ({
 
 /* ── Golden dust motes (Italian) ── */
 .particles--motes .particle {
-  background: radial-gradient(circle, rgba(180, 150, 90, 0.5), rgba(180, 150, 90, 0.1));
+  background: radial-gradient(circle, rgba(180, 150, 90, 0.9), rgba(180, 150, 90, 0.3));
   animation-name: mote-float;
 }
 
@@ -168,12 +168,12 @@ const particles = Array.from({ length: 10 }, (_, i) => ({
     transform: translate(0, 5vh) scale(0.8);
     opacity: 0;
   }
-  10% { opacity: 0.25; }
+  10% { opacity: 0.7; }
   50% {
     transform: translate(15px, -20vh) scale(1);
-    opacity: 0.3;
+    opacity: 0.8;
   }
-  90% { opacity: 0.15; }
+  90% { opacity: 0.5; }
   100% {
     transform: translate(-10px, -40vh) scale(0.6);
     opacity: 0;
