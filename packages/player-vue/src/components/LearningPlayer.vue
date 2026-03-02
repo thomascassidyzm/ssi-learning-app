@@ -34,7 +34,6 @@ import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
 import { useAuthModal } from '../composables/useAuthModal'
 import LegoTextNetwork from './LegoTextNetwork.vue'
 import LegoAssembly from './LegoAssembly.vue'
-import SumiEBackground from './SumiEBackground.vue'
 import type { LegoBlock } from './LegoAssembly.vue'
 import { ensureTileCoverage } from '../utils/ensureTileCoverage'
 import BeltProgressModal from './BeltProgressModal.vue'
@@ -5902,12 +5901,7 @@ defineExpose({
     <div class="space-nebula"></div>
     <div class="bg-noise"></div>
 
-    <!-- Sumi-e ink wash mountain pilgrimage (mist theme only) -->
-    <SumiEBackground
-      v-if="themeContext?.theme?.value === 'mist'"
-      :belt-name="playingBelt.name"
-      :belt-color="playingBelt.color"
-    />
+    <!-- Sumi-e background is now in PlayerContainer (global backdrop) -->
 
     <!-- LEGO Assembly Visualization - blocks assemble during phrase playback -->
     <LegoAssembly

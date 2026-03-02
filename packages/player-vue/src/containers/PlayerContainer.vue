@@ -2,6 +2,9 @@
 import { ref, provide, onMounted, computed, inject, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
+// Global backdrop
+import SumiEBackground from '@/components/SumiEBackground.vue'
+
 // Screen components
 import LearningPlayer from '@/components/LearningPlayer.vue'
 import SettingsScreen from '@/components/SettingsScreen.vue'
@@ -28,6 +31,7 @@ const sessionStore = inject('sessionStore')
 const courseDataProvider = inject('courseDataProvider')
 const auth = inject('auth')
 const config = inject('config')
+const themeContext = inject('theme', null)
 const router = useRouter()
 
 // Global auth modal (shared with BottomNav and other components)
@@ -301,6 +305,9 @@ onMounted(() => {
 
 <template>
   <div class="player-container" :class="{ 'has-nav': !isLearning }" :style="containerBeltVars">
+    <!-- Sumi-e ink wash mountain backdrop (mist theme only) -->
+    <SumiEBackground v-if="themeContext?.theme?.value === 'mist'" />
+
     <!-- Progress pane (Brain View) -->
     <Transition name="slide-right" mode="out-in">
       <BrainView
@@ -420,6 +427,7 @@ onMounted(() => {
 
 <style scoped>
 .player-container {
+  position: relative;
   min-height: 100vh;
   min-height: 100dvh;
   background: var(--bg-primary);
@@ -538,7 +546,9 @@ onMounted(() => {
   max-width: 500px;
   max-height: 100dvh;
   overflow-y: auto;
-  background: var(--bg-primary);
+  background: color-mix(in srgb, var(--bg-primary) 85%, transparent);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border-radius: 16px 16px 0 0;
   overscroll-behavior: contain;
 }
