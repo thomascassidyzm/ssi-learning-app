@@ -305,8 +305,8 @@ onMounted(() => {
 
 <template>
   <div class="player-container" :class="{ 'has-nav': !isLearning }" :style="containerBeltVars">
-    <!-- Sumi-e ink wash mountain backdrop (mist theme only) -->
-    <SumiEBackground v-if="themeContext?.theme?.value === 'mist'" />
+    <!-- Sumi-e ink wash mountain backdrop (mist theme, player/progress only — library scrolls) -->
+    <SumiEBackground v-if="themeContext?.theme?.value === 'mist' && currentScreen !== 'library'" />
 
     <!-- Progress pane (Brain View) -->
     <Transition name="slide-right" mode="out-in">
@@ -546,9 +546,7 @@ onMounted(() => {
   max-width: 500px;
   max-height: 100dvh;
   overflow-y: auto;
-  background: color-mix(in srgb, var(--bg-primary) 85%, transparent);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: var(--bg-primary);
   border-radius: 16px 16px 0 0;
   overscroll-behavior: contain;
 }

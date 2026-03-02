@@ -29,11 +29,13 @@
 
 .sumi-e-painting {
   position: absolute;
-  inset: 0;
+  left: 0;
+  right: 0;
+  top: 10%;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center center;
+  object-position: center top;
   opacity: 0.18;
   mix-blend-mode: multiply;
 }
