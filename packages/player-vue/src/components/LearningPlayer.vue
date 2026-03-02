@@ -7149,11 +7149,11 @@ defineExpose({
   max-width: 400px;
 }
 
-/* Brand — compact logo text */
+/* Brand — logo text */
 .brand {
   font-family: var(--font-body);
   font-weight: 700;
-  font-size: 1.125rem;
+  font-size: 1.5rem;
   letter-spacing: -0.02em;
   white-space: nowrap;
   flex-shrink: 0;
