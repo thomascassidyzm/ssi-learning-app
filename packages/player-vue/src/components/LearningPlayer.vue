@@ -6681,7 +6681,7 @@ defineExpose({
   --nav-height: 80px;
   --nav-total: calc(var(--nav-height) + var(--safe-area-bottom));
   --control-bar-bottom: var(--nav-total);
-  --hero-offset: 16px;
+  --hero-offset: 20px;
   --hero-top: calc(var(--header-total) + var(--hero-offset));
 
   /* ============ SPACING SCALE ============ */
@@ -7164,7 +7164,7 @@ defineExpose({
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-sm);
   width: 100%;
   max-width: 400px;
 }
@@ -9734,8 +9734,9 @@ defineExpose({
 /* Tablet and Desktop (768px+) - more breathing room */
 @media (min-width: 768px) {
   .player {
-    --header-height: 80px;
-    --hero-offset: 20px;
+    --header-height: 84px;
+    --hero-offset: 24px;
+    --space-sm: 10px;
     --space-md: 16px;
     --space-lg: 20px;
     --mode-btn-size: 44px;
