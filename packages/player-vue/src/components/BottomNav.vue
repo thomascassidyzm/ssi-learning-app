@@ -161,7 +161,9 @@ const handleSettings = () => {
 <style scoped>
 .bottom-nav {
   position: fixed;
-  bottom: max(env(safe-area-inset-bottom, 0px), 12px);
+  /* Use half the safe area on iPhone (native apps do the same),
+     with 12px minimum for desktop/browser where safe area is 0 */
+  bottom: max(calc(env(safe-area-inset-bottom, 0px) / 2), 12px);
   left: 50%;
   right: auto;
   transform: translateX(-50%);
