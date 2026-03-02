@@ -35,6 +35,7 @@ import { useAuthModal } from '../composables/useAuthModal'
 import LegoTextNetwork from './LegoTextNetwork.vue'
 import LegoAssembly from './LegoAssembly.vue'
 import type { LegoBlock } from './LegoAssembly.vue'
+import { ensureTileCoverage } from '../utils/ensureTileCoverage'
 import BeltProgressModal from './BeltProgressModal.vue'
 import ListeningOverlay from './ListeningOverlay.vue'
 import DrivingModeOverlay from './DrivingModeOverlay.vue'
@@ -552,7 +553,7 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
   const cycleId = cycle.id || ''
   const isSpacedRep = cycleId.includes('_spaced_rep_')
   const knownMap = isSpacedRep ? null : legoKnownTextMap.value
-  return cycle.componentLegoIds
+  const rawBlocks = cycle.componentLegoIds
     .map((id: string, idx: number) => {
       const targetText = texts[idx] || textMap.get(id) || ''
       if (!targetText) return null
@@ -565,6 +566,8 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
       }
     })
     .filter((b: LegoBlock | null): b is LegoBlock => b !== null)
+
+  return ensureTileCoverage(rawBlocks, cycle.target?.text || '')
 })
 
 // Voice1 duration for assembly timing
