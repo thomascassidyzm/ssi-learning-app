@@ -7444,7 +7444,9 @@ defineExpose({
   transition: all 0.2s ease;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3),
               0 0 12px color-mix(in srgb, var(--belt-glow) 15%, transparent);
-  width: 100%;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .belt-timer-unified:hover {
@@ -7483,6 +7485,8 @@ defineExpose({
   color: rgba(255, 255, 255, 0.9);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* Legacy styles kept for backwards compatibility */
