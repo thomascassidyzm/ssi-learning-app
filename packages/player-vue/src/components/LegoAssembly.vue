@@ -25,11 +25,26 @@ const props = defineProps<{
 }>()
 
 // Detect M-LEGO: multiple components on the salient block or in props
+// Falls back to word-aligned synthesis when known/target have matching word counts
 const mLegoComponents = computed(() => {
   if (props.components && props.components.length > 1) return props.components
   // Check if any block has components
   for (const b of props.blocks) {
     if (b.components && b.components.length > 1) return b.components
+  }
+  // Single-tile intro/debut: synthesize word-aligned components
+  if (props.blocks.length === 1) {
+    const block = props.blocks[0]
+    const known = block.knownText
+      || (props.components?.length === 1 ? props.components[0].known : '')
+    const target = block.targetText
+    if (known && target) {
+      const targetWords = target.trim().split(/\s+/)
+      const knownWords = known.trim().split(/\s+/)
+      if (targetWords.length > 1 && knownWords.length === targetWords.length) {
+        return targetWords.map((t, i) => ({ known: knownWords[i], target: t }))
+      }
+    }
   }
   return null
 })
