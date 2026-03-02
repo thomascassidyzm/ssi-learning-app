@@ -549,10 +549,10 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
   const salientLegoId = cycle.legoId || currentRound.value?.legoId || ''
   const texts: string[] = cycle.componentLegoTexts || []
   const textMap = legoTargetTextMap.value
-  // Show known text underneath blocks for current-round cycles (not spaced_rep)
+  // Show known text only during intro/debut (first encounter with the LEGO)
   const cycleId = cycle.id || ''
-  const isSpacedRep = cycleId.includes('_spaced_rep_')
-  const knownMap = isSpacedRep ? null : legoKnownTextMap.value
+  const isIntro = cycleId.includes('_intro_') || cycleId.includes('_debut_')
+  const knownMap = isIntro ? legoKnownTextMap.value : null
   const rawBlocks = cycle.componentLegoIds
     .map((id: string, idx: number) => {
       const targetText = texts[idx] || textMap.get(id) || ''
