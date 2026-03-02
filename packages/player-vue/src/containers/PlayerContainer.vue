@@ -305,8 +305,8 @@ onMounted(() => {
 
 <template>
   <div class="player-container" :class="{ 'has-nav': !isLearning }" :style="containerBeltVars">
-    <!-- Sumi-e ink wash mountain backdrop (mist theme, player/progress only — library scrolls) -->
-    <SumiEBackground v-if="themeContext?.theme?.value === 'mist' && currentScreen !== 'library'" />
+    <!-- Sumi-e ink wash mountain backdrop (mist theme only, always mounted to avoid flash) -->
+    <SumiEBackground v-if="themeContext?.theme?.value === 'mist'" />
 
     <!-- Progress pane (Brain View) -->
     <Transition name="slide-right" mode="out-in">
