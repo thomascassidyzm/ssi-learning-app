@@ -52,7 +52,7 @@ const mLegoComponents = computed(() => {
 // Map UI phases to assembly phases.
 // Tiles appear at VOICE_1 (with short delay so learner hears before reading).
 // On stop/hidden, tiles vanish instantly (no fade) to stay in sync with audio.
-const VOICE1_REVEAL_DELAY_MS = 1500
+const revealDelayMs = computed(() => Math.max(1500, (props.voice1DurationMs || 2000) * 0.7))
 const assemblyPhase = ref<AssemblyPhase>('hidden')
 const instantHide = ref(false)
 let voice1Timer: ReturnType<typeof setTimeout> | null = null
@@ -76,7 +76,7 @@ watch(() => props.phase, (phase) => {
       instantHide.value = false
       voice1Timer = setTimeout(() => {
         assemblyPhase.value = 'assembling'
-      }, VOICE1_REVEAL_DELAY_MS)
+      }, revealDelayMs.value)
       break
     case 'voice2':
     case 'voice_2':
@@ -135,6 +135,9 @@ const isRTL = computed(() => {
   return RTL_RE.test(text)
 })
 
+// Detect whether any block is salient — used to mute non-salient tiles during voice2
+const hasSalientBlock = computed(() => props.blocks.some(b => b.isSalient))
+
 // Uniform sentence-level scaling: all tiles in a phrase scale together
 const sentenceScale = computed(() => {
   if (props.blocks.length <= 1) return 1
@@ -145,7 +148,7 @@ const sentenceScale = computed(() => {
 </script>
 
 <template>
-  <div class="lego-assembly" :class="[assemblyPhase, { 'instant-hide': instantHide }]" :style="{ '--sentence-scale': sentenceScale, direction: isRTL ? 'rtl' : 'ltr' }">
+  <div class="lego-assembly" :class="[assemblyPhase, { 'instant-hide': instantHide, 'has-salient': hasSalientBlock }]" :style="{ '--sentence-scale': sentenceScale, direction: isRTL ? 'rtl' : 'ltr' }">
 
     <!-- ═══════════════════════════════════════════
          CARRIAGE MODE — long M-LEGO as groups of up to 3 components
@@ -523,7 +526,7 @@ const sentenceScale = computed(() => {
   align-items: center;
   gap: 3px;
   transition-property: transform, opacity;
-  transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition-timing-function: cubic-bezier(0.25, 0.1, 0.25, 1.0);
   will-change: transform, opacity;
 }
 
@@ -610,7 +613,7 @@ const sentenceScale = computed(() => {
 
 /* --- ASSEMBLING (sequential reveal in reading order) --- */
 .lego-block-wrapper.assembling {
-  animation: block-reveal 0.5s ease-out var(--stagger-delay, 0s) both;
+  animation: block-reveal 0.6s cubic-bezier(0.25, 0.1, 0.25, 1.0) var(--stagger-delay, 0s) both;
 }
 
 /* --- ASSEMBLED (static, no style change from base) --- */
@@ -628,11 +631,25 @@ const sentenceScale = computed(() => {
   box-shadow:
     0 0 14px 3px rgba(255, 255, 255, 0.15),
     inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  transition: background 0.5s ease, border-color 0.5s ease, box-shadow 0.5s ease;
+}
+
+/* Belt color wash on salient LEGO during voice2 (assembled phase) */
+.lego-assembly.assembled .lego-block.salient {
+  background: color-mix(in srgb, var(--belt-color) 12%, rgba(30, 30, 60, 0.85));
+  border-color: color-mix(in srgb, var(--belt-color) 50%, rgba(255, 255, 255, 0.25));
+  box-shadow: 0 0 16px 4px color-mix(in srgb, var(--belt-glow) 30%, transparent);
 }
 .lego-block.salient .block-text {
   color: rgba(255, 255, 255, 1);
   font-weight: 600;
   font-size: calc(clamp(1.1rem, calc(2.3rem - var(--char-count, 8) * 0.035rem), 2.125rem) * var(--sentence-scale, 1));
+}
+
+/* --- MUTE non-salient tiles when a salient tile is present (voice2) --- */
+.lego-assembly.has-salient.assembled .lego-block:not(.salient) {
+  opacity: 0.55;
+  transform: scale(0.97);
 }
 
 /* --- HIDDEN --- */
@@ -730,6 +747,18 @@ const sentenceScale = computed(() => {
   color: var(--text-primary);
 }
 
+/* Belt color wash on salient LEGO — mist theme */
+:root[data-theme="mist"] .lego-assembly.assembled .lego-block.salient {
+  background: color-mix(in srgb, var(--belt-color) 12%, rgba(220, 220, 240, 0.85));
+  border-color: color-mix(in srgb, var(--belt-color) 50%, rgba(0, 0, 0, 0.15));
+  box-shadow: 0 0 16px 4px color-mix(in srgb, var(--belt-glow) 20%, transparent);
+}
+
+/* Mute non-salient tiles — mist theme */
+:root[data-theme="mist"] .lego-assembly.has-salient.assembled .lego-block:not(.salient) {
+  opacity: 0.55;
+  transform: scale(0.97);
+}
 
 /* M-LEGO stubs for mist theme */
 :root[data-theme="mist"] .tile-target.has-components .comp + .comp::before,
