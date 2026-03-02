@@ -5558,7 +5558,29 @@ onMounted(async () => {
   console.log('[LearningPlayer] Total awakening time:', Date.now() - startTime, 'ms')
 })
 
+// ============================================
+// HERO PANE HEIGHT TRACKING
+// Measure the hero text pane's bottom edge so LegoAssembly tiles never overlap it
+const heroTextPaneRef = ref<HTMLElement | null>(null)
+const heroPaneBottom = ref(250)
+let heroResizeObserver: ResizeObserver | null = null
+
+onMounted(() => {
+  if (heroTextPaneRef.value) {
+    const measure = () => {
+      const el = heroTextPaneRef.value
+      if (el) heroPaneBottom.value = el.offsetTop + el.offsetHeight
+    }
+    heroResizeObserver = new ResizeObserver(measure)
+    heroResizeObserver.observe(heroTextPaneRef.value)
+    measure()
+  }
+})
+
 onUnmounted(() => {
+  heroResizeObserver?.disconnect()
+  heroResizeObserver = null
+
   // End class session if active
   if (classSessionId.value) {
     endClassSessionTracking()
@@ -5864,7 +5886,7 @@ defineExpose({
   <div
     class="player"
     :class="[`belt-${playingBelt.name}`, { 'is-paused': !isPlaying }]"
-    :style="beltCssVars"
+    :style="{ ...beltCssVars, '--hero-pane-bottom': heroPaneBottom + 'px' }"
     v-show="!showSessionComplete"
   >
     <!-- Deep Space Background Layers -->
@@ -5894,7 +5916,7 @@ defineExpose({
     />
 
     <!-- Hero-Centric Text Labels - Floating above/below the hero node -->
-    <div class="hero-text-pane" :class="[currentPhase, { 'is-intro': isIntroPhase }]">
+    <div ref="heroTextPaneRef" class="hero-text-pane" :class="[currentPhase, { 'is-intro': isIntroPhase }]">
 
       <!-- Main Text Box (with integrated hint) -->
       <div class="hero-glass" :class="{ 'is-speaking': currentPhase === 'speak' && showLearningHint && !isIntroPhase }">

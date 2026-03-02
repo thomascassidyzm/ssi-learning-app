@@ -236,7 +236,7 @@ const sentenceScale = computed(() => {
   align-content: center;
   justify-content: center;
   gap: 6px;
-  padding: calc(var(--hero-top, 88px) + 100px) 0.75rem calc(var(--nav-total, 100px) + 10px);
+  padding: calc(var(--hero-pane-bottom, 250px) + 16px) 0.75rem calc(var(--nav-total, 100px) + 10px);
   pointer-events: none;
   z-index: 3;
   transition: opacity 0.4s ease;
