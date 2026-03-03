@@ -23,7 +23,7 @@ export interface ScriptItem {
   legoKey: string
   seedCode: string
   legoCode: string
-  type: 'intro' | 'debut' | 'build' | 'spaced_rep' | 'use'
+  type: 'intro' | 'debut' | 'build' | 'spaced_rep' | 'use' | 'listening'
   knownText: string
   targetText: string
   presentationAudioId?: string
@@ -40,6 +40,36 @@ export interface ScriptItem {
   componentLegoTexts?: string[]
   /** M-LEGO component breakdown: [{known: "with", target: "con"}, ...] */
   components?: Array<{ known: string; target: string }>
+  /** Listening phase: playback speed multiplier (1.0 = normal, 2.0 = double) */
+  playbackSpeed?: number
+  /** Listening phase: which seed this listening item is for */
+  listeningSeedNumber?: number
+}
+
+export interface ListeningConfig {
+  enabled: boolean
+  offset: number                    // rounds after last LEGO before seed graduates
+  totalSeeds: number                // total seeds entering listening across all batches
+  batchSize: number                 // seeds per batch
+  batchCount: number                // number of batches
+  speedProgression: Array<{
+    plays: number                   // times at this stage (Infinity for final)
+    speeds: number[]                // e.g. [1.0], [1.0, 2.0], [2.0, 2.0], [2.0]
+  }>
+}
+
+export const DEFAULT_LISTENING_CONFIG: ListeningConfig = {
+  enabled: true,
+  offset: 56,
+  totalSeeds: 80,
+  batchSize: 20,
+  batchCount: 4,
+  speedProgression: [
+    { plays: 3, speeds: [1.0] },
+    { plays: 3, speeds: [1.0, 2.0] },
+    { plays: 3, speeds: [2.0, 2.0] },
+    { plays: Infinity, speeds: [2.0] },
+  ],
 }
 
 export interface LearningScriptResult {
@@ -53,7 +83,8 @@ export async function generateLearningScript(
   courseCode: string,
   startSeed: number,
   endSeed: number,
-  emitFromRound: number = 1  // Only emit ScriptItems from this round onward
+  emitFromRound: number = 1,  // Only emit ScriptItems from this round onward
+  listeningConfig: ListeningConfig = DEFAULT_LISTENING_CONFIG
 ): Promise<LearningScriptResult> {
   // Constants
   const SPACED_REP_OFFSETS = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
@@ -81,7 +112,7 @@ export async function generateLearningScript(
   }
 
   // Query tables directly - audio IDs stored on each row, no joins needed
-  const [legosResult, phrasesResult] = await Promise.all([
+  const [legosResult, phrasesResult, seedsResult] = await Promise.all([
     supabase
       .from('course_legos')
       .select('seed_number, lego_index, known_text, target_text, target_text_roman, type, is_new, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, target1_duration_ms, target2_duration_ms')
@@ -100,11 +131,37 @@ export async function generateLearningScript(
       .order('seed_number', { ascending: true })
       .order('lego_index', { ascending: true })
       .order('position', { ascending: true })
-      .limit(10000)
+      .limit(10000),
+    // Fetch seed sentences for listening phase (whole-sentence replay after graduation)
+    listeningConfig.enabled
+      ? supabase
+          .from('course_seeds')
+          .select('seed_number, known_text, target_text, target_text_roman, known_audio_id, target1_audio_id, target2_audio_id')
+          .eq('course_code', courseCode)
+          .gte('seed_number', startSeed)
+          .lte('seed_number', Math.min(endSeed, startSeed + listeningConfig.totalSeeds - 1))
+          .order('seed_number', { ascending: true })
+      : Promise.resolve({ data: [], error: null })
   ])
 
   if (legosResult.error) throw new Error('Failed to query LEGOs: ' + legosResult.error.message)
   if (phrasesResult.error) throw new Error('Failed to query phrases: ' + phrasesResult.error.message)
+  if (seedsResult.error) throw new Error('Failed to query seeds for listening: ' + seedsResult.error.message)
+
+  // Build seed map for listening phase
+  interface SeedData {
+    seed_number: number
+    known_text: string
+    target_text: string
+    target_text_roman?: string
+    known_audio_id?: string
+    target1_audio_id?: string
+    target2_audio_id?: string
+  }
+  const seedMap = new Map<number, SeedData>()
+  for (const seed of (seedsResult.data || []) as SeedData[]) {
+    seedMap.set(seed.seed_number, seed)
+  }
 
   // FLAG: LEGOs with bracket explanations (these shouldn't exist in production)
   const bracketPattern = /\[.*?\]/
@@ -254,6 +311,23 @@ export async function generateLearningScript(
   let cycleNum = 0
   let roundNumber = 0
 
+  // Listening phase state
+  const seedLastRound = new Map<number, number>()       // seedNum → last LEGO round
+  const graduatedSeeds = new Set<number>()               // seeds that have left Fibonacci
+  const batches: Map<number, { playCount: number }>[] = [] // batches[0]=B1, etc.
+  let nextBatchRotation = 0                              // round-robin index
+
+  // Helper: get speed(s) for a given play count from the speed progression config
+  const getSpeedsForPlayCount = (playCount: number, config: ListeningConfig): number[] => {
+    let cumulative = 0
+    for (const stage of config.speedProgression) {
+      cumulative += stage.plays
+      if (playCount < cumulative) return stage.speeds
+    }
+    // Past all stages — use the last one (which should have plays: Infinity)
+    return config.speedProgression[config.speedProgression.length - 1].speeds
+  }
+
   // Build LEGO text map for phrase decomposition (normalised target text → LEGO key)
   // Uses ALL LEGOs (not just is_new) since reused LEGOs are still valid vocabulary
   const legoTextMap = new Map<string, string>()
@@ -369,6 +443,9 @@ export async function generateLearningScript(
       if (!item.knownAudioId) {
         console.warn(`[generateLearningScript] Intro for ${item.legoKey} missing presentation audio — will play target audio only`)
       }
+    } else if (item.type === 'listening') {
+      // Listening items only need target audio (passive listening, no known prompt)
+      if (!item.target1Id) return
     } else {
       // Non-intro items need all three audio IDs to be useful
       if (!item.knownAudioId || !item.target1Id || !item.target2Id) return
@@ -523,6 +600,9 @@ export async function generateLearningScript(
         seedNum, legoIndex: lego.lego_index, lego
       })
 
+      // Track seed's last LEGO round for listening graduation
+      seedLastRound.set(seedNum, roundNumber)
+
       // Phase 4: SPACED REP
       const dueForReview: { key: string; state: LegoState; fibPosition: number; phraseCount: number }[] = []
       const seenLegos = new Set<string>()
@@ -534,6 +614,8 @@ export async function generateLearningScript(
 
         for (const [prevKey, state] of legoState.entries()) {
           if (prevKey === legoKey || seenLegos.has(prevKey)) continue
+          // Skip LEGOs from graduated seeds — they're in listening now
+          if (graduatedSeeds.has(state.seedNum)) continue
           if (state.lastRound === reviewRound) {
             const isN1 = offset === 1
             const phraseCount = isN1 ? N1_PHRASE_COUNT : 1
@@ -607,13 +689,77 @@ export async function generateLearningScript(
           isNew: true
         })
       }
+
+      // Phase 6: LISTENING — check for seed graduations and emit listening items
+      if (listeningConfig.enabled) {
+        let newGraduateThisRound = false
+
+        // Check ALL seeds for graduation (not just current seed)
+        for (const [sNum, lastRound] of seedLastRound) {
+          if (graduatedSeeds.has(sNum)) continue
+          if (roundNumber - lastRound < listeningConfig.offset) continue
+          if (sNum > startSeed + listeningConfig.totalSeeds - 1) continue  // Cap at totalSeeds
+
+          graduatedSeeds.add(sNum)
+          // Assign to correct batch: S1-20 → B0, S21-40 → B1, etc.
+          const batchIndex = Math.floor((sNum - startSeed) / listeningConfig.batchSize)
+          if (batchIndex >= listeningConfig.batchCount) continue
+          if (!batches[batchIndex]) batches[batchIndex] = new Map()
+          batches[batchIndex].set(sNum, { playCount: 0 })
+          newGraduateThisRound = true
+        }
+
+        // Trigger listening if any seed graduated this round
+        if (newGraduateThisRound && batches.length > 0) {
+          // During B1-only build-up: always play B1
+          // Once B2+ exists: rotate through active batches
+          const activeBatches = batches.filter(b => b && b.size > 0)
+          const batchToPlay = activeBatches.length === 1
+            ? 0  // Only B1 exists, always play it
+            : nextBatchRotation % activeBatches.length
+
+          const batch = activeBatches[batchToPlay]
+          if (activeBatches.length > 1) nextBatchRotation++
+
+          // Emit listening items for every seed in this batch
+          if (batch) {
+            for (const [sNum, entry] of batch) {
+              const seedData = seedMap.get(sNum)
+              if (!seedData || !seedData.target1_audio_id) continue  // Skip seeds without audio
+
+              const speeds = getSpeedsForPlayCount(entry.playCount, listeningConfig)
+              for (const speed of speeds) {
+                cycleNum++
+                emitItem({
+                  uuid: `listening_S${String(sNum).padStart(4, '0')}_${speed}x_${cycleNum}`,
+                  cycleNum, roundNumber,
+                  seedId: `S${String(sNum).padStart(4, '0')}`,
+                  legoKey: `S${String(sNum).padStart(4, '0')}L00`,
+                  seedCode: `S${String(sNum).padStart(4, '0')}`,
+                  legoCode: '00',
+                  type: 'listening',
+                  knownText: seedData.known_text,
+                  targetText: seedData.target_text_roman || seedData.target_text,
+                  knownAudioId: seedData.known_audio_id,
+                  target1Id: seedData.target1_audio_id,
+                  target2Id: seedData.target2_audio_id,
+                  isNew: false,
+                  playbackSpeed: speed,
+                  listeningSeedNumber: sNum,
+                })
+              }
+              entry.playCount++
+            }
+          }
+        }
+      }
     }
   }
 
   // Decompose phrases into component LEGO IDs
   let decomposedCount = 0
   for (const item of items) {
-    if (item.type === 'intro' || item.type === 'debut') continue
+    if (item.type === 'intro' || item.type === 'debut' || item.type === 'listening') continue
     const components = decomposePhrase(item.targetText)
     if (components.length > 0) {
       item.componentLegoIds = components
@@ -628,7 +774,7 @@ export async function generateLearningScript(
   let lastNonIntroItem: ScriptItem | null = null
 
   for (const item of items) {
-    if (item.type === 'intro') {
+    if (item.type === 'intro' || item.type === 'listening') {
       dedupedItems.push(item)
       continue
     }
@@ -663,6 +809,10 @@ export async function generateLearningScript(
   }
 
   const skippedRounds = emitFromRound > 1 ? emitFromRound - 1 : 0
-  console.debug(`[generateLearningScript] ${dedupedItems.length} items, ${roundNumber} rounds for ${courseCode} S${startSeed}-${endSeed}${removedCount > 0 ? `, ${removedCount} deduped` : ''}${skippedRounds > 0 ? `, from R${emitFromRound}` : ''}`)
+  const listeningItemCount = dedupedItems.filter(i => i.type === 'listening').length
+  const listeningStats = listeningConfig.enabled && graduatedSeeds.size > 0
+    ? `, ${graduatedSeeds.size} seeds graduated, ${listeningItemCount} listening items`
+    : ''
+  console.debug(`[generateLearningScript] ${dedupedItems.length} items, ${roundNumber} rounds for ${courseCode} S${startSeed}-${endSeed}${removedCount > 0 ? `, ${removedCount} deduped` : ''}${skippedRounds > 0 ? `, from R${emitFromRound}` : ''}${listeningStats}`)
   return { items: dedupedItems, cycleCount: dedupedItems.length, roundCount: roundNumber }
 }

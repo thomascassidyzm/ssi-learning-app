@@ -87,10 +87,12 @@ export function toSimpleRounds(
     const primarySeedId = introItem?.seedId || roundItems[0]?.seedId || ''
 
     // Build cycles — intros always included (define round structure),
-    // non-intro items need all three audio IDs
+    // listening items only need target audio, other items need all three audio IDs
     const cycles: Cycle[] = []
     for (const i of roundItems) {
-      if (i.type !== 'intro') {
+      if (i.type === 'listening') {
+        if (!i.target1Id) continue
+      } else if (i.type !== 'intro') {
         if (!i.knownAudioId || !i.target1Id || !i.target2Id) continue
       }
 
@@ -106,16 +108,17 @@ export function toSimpleRounds(
           voice1Url: audioUrl(i.target1Id),
           voice2Url: audioUrl(i.target2Id)
         },
-        // Intro has no pause (learner doesn't know it yet)
+        // Intro/listening has no pause (learner doesn't know it yet / passive listening)
         // Other cycles: dynamic pause based on target audio lengths
-        pauseDuration: i.type === 'intro'
+        pauseDuration: (i.type === 'intro' || i.type === 'listening')
           ? 0
           : calculatePauseDuration(i.target1DurationMs, i.target2DurationMs, pauseConfig, i.targetText),
         // Intro: 3s linger after voice2 so learner can read tiles
         ...(i.type === 'intro' ? { lingerMs: 2000 } : {}),
         ...(i.componentLegoIds ? { componentLegoIds: i.componentLegoIds } : {}),
         ...(i.componentLegoTexts ? { componentLegoTexts: i.componentLegoTexts } : {}),
-        ...(i.components ? { components: i.components } : {})
+        ...(i.components ? { components: i.components } : {}),
+        ...(i.playbackSpeed ? { playbackSpeed: i.playbackSpeed } : {})
       })
     }
 

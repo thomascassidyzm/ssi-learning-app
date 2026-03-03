@@ -39,6 +39,7 @@ export interface RoundValidationResult {
     buildCount: number
     spacedRepCount: number
     consolidateCount: number
+    listeningCount: number
     totalCycles: number
   }
   errors: CycleValidationError[]
@@ -116,6 +117,14 @@ export function validateScriptItem(item: ScriptItem): CycleValidationError[] {
     if (!isNonEmpty(item.target2Id)) {
       results.push(makeError(item, 'target2Id', 'intro cycle missing target2Id (second voice)', 'warning'))
     }
+  } else if (item.type === 'listening') {
+    // Listening items only need target audio (passive listening, no known prompt required)
+    if (!isNonEmpty(item.target1Id)) {
+      results.push(makeError(item, 'target1Id', 'listening cycle missing target1Id', 'error'))
+    }
+    if (!isNonEmpty(item.target2Id)) {
+      results.push(makeError(item, 'target2Id', 'listening cycle missing target2Id (second voice)', 'warning'))
+    }
   } else {
     // debut, build, spaced_rep, use — all require knownAudioId + target IDs
     if (!isNonEmpty(item.knownAudioId)) {
@@ -137,7 +146,7 @@ export function validateScriptItem(item: ScriptItem): CycleValidationError[] {
 // ---------------------------------------------------------------------------
 
 /** Expected type ordering within a round. */
-const TYPE_ORDER: ScriptItem['type'][] = ['intro', 'debut', 'build', 'spaced_rep', 'use']
+const TYPE_ORDER: ScriptItem['type'][] = ['intro', 'debut', 'build', 'spaced_rep', 'use', 'listening']
 
 function typeOrderIndex(type: ScriptItem['type']): number {
   const idx = TYPE_ORDER.indexOf(type)
@@ -176,6 +185,7 @@ export function validateRoundStructure(
   const builds = items.filter(i => i.type === 'build')
   const spacedReps = items.filter(i => i.type === 'spaced_rep')
   const uses = items.filter(i => i.type === 'use')
+  const listeningItems = items.filter(i => i.type === 'listening')
 
   const structure = {
     hasIntro: intros.length > 0,
@@ -183,6 +193,7 @@ export function validateRoundStructure(
     buildCount: builds.length,
     spacedRepCount: spacedReps.length,
     consolidateCount: uses.length,
+    listeningCount: listeningItems.length,
     totalCycles: items.length,
   }
 

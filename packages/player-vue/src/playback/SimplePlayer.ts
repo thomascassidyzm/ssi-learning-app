@@ -11,6 +11,8 @@ export interface Cycle {
   componentLegoTexts?: string[]
   /** M-LEGO component breakdown for visual display */
   components?: Array<{ known: string; target: string }>
+  /** Listening phase: playback speed multiplier (1.0 = normal, 2.0 = double) */
+  playbackSpeed?: number
 }
 
 export interface Round {
@@ -205,6 +207,7 @@ export class SimplePlayer {
   stop(): void {
     this.audio.pause()
     this.audio.src = ''
+    this.audio.playbackRate = 1.0
     this.clearPauseTimer()
     this.clearSafetyTimer()
     this.clearLingerTimer()
@@ -290,6 +293,7 @@ export class SimplePlayer {
   private playAudio(url: string): void {
     this.clearSafetyTimer()
     this.audio.src = url
+    this.audio.playbackRate = this.currentCycle?.playbackSpeed ?? 1.0
     this.audio.play().catch((err) => {
       console.warn('[SimplePlayer] play() rejected:', err.message)
       this.onAudioEnded()

@@ -2137,9 +2137,22 @@ const getEstimatedDuration = (item: any, audioType: 'target1' | 'target2'): numb
 // During transition, fade ALL text (known + target together)
 const showAllText = computed(() => !isTransitioningItem.value)
 
+// Detect listening cycles (passive whole-sentence replay at speed)
+const isListeningCycle = computed(() => {
+  const cycle = simplePlayer.currentCycle.value
+  return cycle?.id?.startsWith('listening_') || false
+})
+const listeningPlaybackSpeed = computed(() => {
+  const cycle = simplePlayer.currentCycle.value
+  return cycle?.playbackSpeed ?? 1.0
+})
+
 // Target text visible during VOICE_2 — always shown as fallback when no LEGO tiles
+// Listening cycles: show target text immediately (no hide-until-voice2)
 const showTargetText = computed(() =>
-  currentPhase.value === Phase.VOICE_2 && !isTransitioningItem.value
+  isListeningCycle.value
+    ? !isTransitioningItem.value
+    : (currentPhase.value === Phase.VOICE_2 && !isTransitioningItem.value)
 )
 
 // Stable known text - updates when not transitioning (prevents flash) OR when phrase changes
@@ -6504,6 +6517,10 @@ defineExpose({
           <p v-else-if="isPreparingToPlay" class="known-text loading-text preparing-text">
             {{ preparingMessage }}<span class="loading-cursor">▌</span>
           </p>
+          <p v-else-if="isListeningCycle" class="known-text listening-label">
+            {{ displayedKnownText }}
+            <span class="listening-speed-badge">{{ listeningPlaybackSpeed === 1.0 ? '1x' : '2x' }}</span>
+          </p>
           <p v-else class="known-text">
             {{ displayedKnownText }}
           </p>
@@ -8747,6 +8764,22 @@ defineExpose({
   font-weight: 500;
   color: var(--text-primary);
   line-height: 1.3;
+}
+
+.known-text.listening-label {
+  opacity: 0.7;
+}
+
+.listening-speed-badge {
+  display: inline-block;
+  font-size: 0.7em;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--text-secondary, #aaa);
+  padding: 0.1em 0.4em;
+  border-radius: 4px;
+  margin-left: 0.5em;
+  vertical-align: middle;
 }
 
 .text-zone--target {
