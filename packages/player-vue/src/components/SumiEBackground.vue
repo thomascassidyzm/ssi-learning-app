@@ -2,11 +2,9 @@
 /**
  * Cultural journey background — mist theme only.
  *
- * Three layers (back to front):
+ * Two layers:
  *   1. Dawn glow — radial warmth that grows with belt progression
  *   2. Journey painting — monochrome cultural landscape
- *   3. Colour accents — "Schindler's List" style tiny belt-coloured
- *      highlights at meaningful spots (a lantern, a window, a flower)
  */
 import { computed } from 'vue'
 
@@ -39,39 +37,15 @@ const DAWN_GLOW: Record<string, { color: string; opacity: number }> = {
   black:  { color: '230, 195, 110', opacity: 0.28 },
 }
 
-// Schindler accents: tiny coloured spots at meaningful positions per painting.
-// Coordinates are % of the container. Each accent = one small element of life
-// in the monochrome landscape: a lantern, a lit window, a flower.
-const ACCENTS: Record<string, { x: number; y: number; size: number; label: string }[]> = {
-  jpn: [
-    { x: 50, y: 19, size: 8, label: 'temple lantern' },
-    { x: 43, y: 55, size: 6, label: 'path marker' },
-  ],
-  zho: [
-    { x: 50, y: 20, size: 8, label: 'pavilion lantern' },
-    { x: 46, y: 58, size: 6, label: 'pine blossom' },
-  ],
-  cmn: [
-    { x: 50, y: 20, size: 8, label: 'pavilion lantern' },
-    { x: 46, y: 58, size: 6, label: 'pine blossom' },
-  ],
-  ita: [
-    { x: 55, y: 24, size: 8, label: 'bell tower window' },
-    { x: 35, y: 76, size: 6, label: 'wildflower' },
-  ],
-}
-
 const DEFAULT_JOURNEY = '/design/journey-jpn.webp'
 
 const imageSrc = computed(() => JOURNEY_MAP[props.lang] || DEFAULT_JOURNEY)
-const accents = computed(() => ACCENTS[props.lang] || ACCENTS.jpn)
 
 const glowStyle = computed(() => {
   const glow = DAWN_GLOW[props.beltName] || DAWN_GLOW.white
   return {
     '--glow-color': glow.color,
     '--glow-opacity': glow.opacity,
-    '--accent-color': props.beltColor,
   }
 })
 </script>
@@ -88,13 +62,6 @@ const glowStyle = computed(() => {
       loading="eager"
       draggable="false"
     >
-    <!-- Schindler accents — tiny belt-coloured highlights -->
-    <span
-      v-for="(a, i) in accents"
-      :key="i"
-      class="accent"
-      :style="{ left: `${a.x}%`, top: `${a.y}%`, width: `${a.size}px`, height: `${a.size}px` }"
-    />
   </div>
 </template>
 
@@ -133,16 +100,5 @@ const glowStyle = computed(() => {
   .journey-painting {
     object-fit: contain;
   }
-}
-
-/* Schindler accent — a tiny dot of belt colour, softly glowing */
-.accent {
-  position: absolute;
-  border-radius: 50%;
-  background: var(--accent-color, #f5f5f5);
-  box-shadow: 0 0 12px 4px var(--accent-color, #f5f5f5);
-  opacity: 0.6;
-  transform: translate(-50%, -50%);
-  transition: background 1.5s ease, box-shadow 1.5s ease;
 }
 </style>
