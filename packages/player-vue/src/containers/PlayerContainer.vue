@@ -201,11 +201,17 @@ const completedSeeds = computed(() => {
   return seed ?? 0
 })
 
-// Current belt name from real progress
+// Current belt name and color from real progress
 const currentBeltName = computed(() => {
   const bp = beltProgress.value
   if (!bp) return 'white'
   return bp.currentBelt.value.name
+})
+
+const currentBeltColor = computed(() => {
+  const bp = beltProgress.value
+  if (!bp) return '#f5f5f5'
+  return bp.currentBelt.value.color
 })
 
 // Total seeds in course
@@ -306,7 +312,7 @@ onMounted(() => {
 <template>
   <div class="player-container" :class="{ 'has-nav': !isLearning }" :style="containerBeltVars">
     <!-- Cultural journey backdrop (mist theme only, language-specific artwork) -->
-    <SumiEBackground v-if="themeContext?.theme?.value === 'mist'" :lang="activeCourse?.target_lang" :belt-name="currentBeltName" />
+    <SumiEBackground v-if="themeContext?.theme?.value === 'mist'" :lang="activeCourse?.target_lang" :belt-name="currentBeltName" :belt-color="currentBeltColor" />
 
     <!-- Progress pane (Brain View) -->
     <Transition name="slide-right" mode="out-in">
