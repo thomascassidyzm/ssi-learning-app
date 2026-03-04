@@ -1,26 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { BELTS } from '@/composables/useBeltProgress'
-
-const LANGUAGE_META = {
-  eng: { name: 'English', flag: '🇬🇧' },
-  cym: { name: 'Welsh', flag: '🏴󠁧󠁢󠁷󠁬󠁳󠁿' },
-  spa: { name: 'Spanish', flag: '🇪🇸' },
-  fra: { name: 'French', flag: '🇫🇷' },
-  deu: { name: 'German', flag: '🇩🇪' },
-  ita: { name: 'Italian', flag: '🇮🇹' },
-  por: { name: 'Portuguese', flag: '🇵🇹' },
-  jpn: { name: 'Japanese', flag: '🇯🇵' },
-  kor: { name: 'Korean', flag: '🇰🇷' },
-  cmn: { name: 'Chinese', flag: '🇨🇳' },
-  zho: { name: 'Chinese', flag: '🇨🇳' },
-  ara: { name: 'Arabic', flag: '🇸🇦' },
-  nld: { name: 'Dutch', flag: '🇳🇱' },
-  rus: { name: 'Russian', flag: '🇷🇺' },
-  pol: { name: 'Polish', flag: '🇵🇱' },
-}
-
-const getLangMeta = (code) => LANGUAGE_META[code] || { name: code?.toUpperCase() || '?', flag: '🌐' }
+import { getLanguageName, getLanguageFlag } from '@/composables/useI18n'
 
 const props = defineProps({
   course: { type: Object, default: null },
@@ -35,21 +16,19 @@ const courseName = computed(() => {
   if (!props.course) return 'Loading...'
   if (props.course.display_name) {
     const name = props.course.display_name.replace(/\s+for\s+.+$/i, '')
-    // If display_name was a raw code like "ARA FOR ENG", fall back to meta lookup
     if (!/^[a-z]{2,3}$/i.test(name.trim())) return name
   }
-  return getLangMeta(props.course.target_lang).name
+  return getLanguageName(props.course.target_lang)
 })
 
 const courseSubtitle = computed(() => {
   if (!props.course?.known_lang) return ''
-  const knownMeta = getLangMeta(props.course.known_lang)
-  return `for ${knownMeta.name} Speakers`
+  return `for ${getLanguageName(props.course.known_lang)} Speakers`
 })
 
 const courseFlag = computed(() => {
   if (!props.course) return '🌐'
-  return getLangMeta(props.course.target_lang).flag
+  return getLanguageFlag(props.course.target_lang)
 })
 
 const belt = computed(() => {
