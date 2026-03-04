@@ -297,6 +297,18 @@ export async function generateLearningScript(
     legosBySeed.get(lego.seed_number)!.push(lego)
   }
 
+  // Diagnostic: warn if no LEGOs found or all missing audio
+  if (allLegos.length === 0) {
+    console.warn(`[generateLearningScript] No LEGOs found for course "${courseCode}" seeds ${startSeed}-${endSeed}`)
+  } else {
+    const missingAudio = allLegos.filter(l => !l.known_audio_id || !l.target1_audio_id || !l.target2_audio_id)
+    if (missingAudio.length === allLegos.length) {
+      console.warn(`[generateLearningScript] ALL ${allLegos.length} LEGOs for "${courseCode}" are missing audio IDs — course will not play`)
+    } else if (missingAudio.length > 0) {
+      console.warn(`[generateLearningScript] ${missingAudio.length}/${allLegos.length} LEGOs for "${courseCode}" missing audio IDs`)
+    }
+  }
+
   const sortedSeedNums = Array.from(legosBySeed.keys()).sort((a, b) => a - b)
   interface LegoState {
     lastRound: number

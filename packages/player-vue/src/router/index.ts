@@ -134,6 +134,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/AdminPanel.vue'),
         meta: { title: 'SSi Admin', description: 'Admin panel for managing invite codes' },
       },
+      {
+        path: 'analytics',
+        name: 'admin-analytics',
+        component: () => import('@/views/admin/AdminAnalytics.vue'),
+        meta: { title: 'Admin Analytics', description: 'Platform-wide analytics dashboard' },
+      },
     ],
   },
   // Catch-all redirect to player

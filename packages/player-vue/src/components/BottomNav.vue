@@ -17,22 +17,33 @@ const props = defineProps({
   isListeningMode: {
     type: Boolean,
     default: false
+  },
+  showLibrary: {
+    type: Boolean,
+    default: false
+  },
+  showSettings: {
+    type: Boolean,
+    default: false
   }
 })
 
-const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'exitListeningMode', 'revisit', 'skip', 'openSettings'])
+const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'exitListeningMode', 'revisit', 'skip', 'openSettings', 'closeOverlays'])
 
 // Tap feedback
 const tappedItem = ref(null)
 const playButtonPressed = ref(false)
 
 const isOnPlayerScreen = computed(() => props.currentScreen === 'player')
+const hasOverlayOpen = computed(() => props.showLibrary || props.showSettings)
 
 const isStopMode = computed(() =>
   props.isPlaying && !props.isListeningMode
 )
 
-const isReturnMode = computed(() => !isOnPlayerScreen.value && !props.isPlaying)
+const isReturnMode = computed(() =>
+  (!isOnPlayerScreen.value || hasOverlayOpen.value) && !props.isPlaying
+)
 
 const handleNavTap = (itemId) => {
   tappedItem.value = itemId
@@ -47,6 +58,11 @@ const handlePlayTap = () => {
   playButtonPressed.value = true
   setTimeout(() => { playButtonPressed.value = false }, 200)
   if (navigator.vibrate) navigator.vibrate([10, 50, 10])
+  // Back arrow when overlay is open — close it
+  if (hasOverlayOpen.value && !props.isPlaying) {
+    emit('closeOverlays')
+    return
+  }
   if (props.isPlaying || isOnPlayerScreen.value) {
     emit('togglePlayback')
   } else {
@@ -79,7 +95,7 @@ const handleSettings = () => {
       <button
         class="pill-btn"
         :class="{
-          active: currentScreen === 'library',
+          active: showLibrary,
           tapped: tappedItem === 'library'
         }"
         @click="handleNavTap('library')"
@@ -142,7 +158,7 @@ const handleSettings = () => {
       <!-- Slot 5: Settings (gear) -->
       <button
         class="pill-btn"
-        :class="{ tapped: tappedItem === 'settings' }"
+        :class="{ active: showSettings, tapped: tappedItem === 'settings' }"
         @click="handleSettings"
         title="Settings"
       >

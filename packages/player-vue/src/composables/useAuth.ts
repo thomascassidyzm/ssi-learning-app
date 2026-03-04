@@ -212,6 +212,9 @@ export function useAuth(): AuthState & AuthActions {
   /**
    * Initialize auth state.
    * In god mode (ssi-god-mode-user set), skips Supabase Auth entirely and uses mock user IDs.
+   *
+   * Guest mode is always available immediately — the Supabase session check
+   * runs with a timeout so the app is never blocked by network issues.
    */
   async function initialize(supabaseClient: SupabaseClient): Promise<void> {
     supabase.value = supabaseClient
@@ -245,26 +248,40 @@ export function useAuth(): AuthState & AuthActions {
       localStorage.removeItem('ssi-dev-role')
     }
 
-    // Initialize guest ID
+    // Initialize guest ID BEFORE any async work — app is usable as guest immediately
     guestId.value = getOrCreateGuestId()
 
-    // Check for existing Supabase Auth session
-    const { data: { session } } = await supabaseClient.auth.getSession()
-    if (session?.user) {
-      supabaseUser.value = session.user
-      learner.value = await ensureLearnerExists()
-
-      // Check if there's guest progress to migrate
-      const hadGuestId = localStorage.getItem(GUEST_ID_KEY)
-      if (hadGuestId) {
-        await migrateGuestProgress()
-      }
-    }
-
     // Listen for auth state changes (sign in, sign out, token refresh)
+    // Register listener early so we catch any auth events during session check
     supabaseClient.auth.onAuthStateChange((_event, session) => {
       handleAuthChange(session?.user ?? null)
     })
+
+    // Check for existing Supabase Auth session with a timeout.
+    // If the network is slow/down, fall through to guest mode gracefully.
+    try {
+      const SESSION_TIMEOUT_MS = 5000
+      const sessionPromise = supabaseClient.auth.getSession()
+      const timeoutPromise = new Promise<null>((resolve) =>
+        setTimeout(() => resolve(null), SESSION_TIMEOUT_MS)
+      )
+      const result = await Promise.race([sessionPromise, timeoutPromise])
+
+      if (result && 'data' in result && result.data.session?.user) {
+        supabaseUser.value = result.data.session.user
+        learner.value = await ensureLearnerExists()
+
+        // Check if there's guest progress to migrate
+        const hadGuestId = localStorage.getItem(GUEST_ID_KEY)
+        if (hadGuestId) {
+          await migrateGuestProgress()
+        }
+      } else if (result === null) {
+        console.warn('[useAuth] Session check timed out, continuing as guest')
+      }
+    } catch (err) {
+      console.warn('[useAuth] Session check failed, continuing as guest:', err)
+    }
 
     isLoading.value = false
   }

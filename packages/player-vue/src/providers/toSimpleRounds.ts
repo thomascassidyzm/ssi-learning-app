@@ -89,11 +89,12 @@ export function toSimpleRounds(
     // Build cycles — intros always included (define round structure),
     // listening items only need target audio, other items need all three audio IDs
     const cycles: Cycle[] = []
+    let skippedNoAudio = 0
     for (const i of roundItems) {
       if (i.type === 'listening') {
-        if (!i.target1Id) continue
+        if (!i.target1Id) { skippedNoAudio++; continue }
       } else if (i.type !== 'intro') {
-        if (!i.knownAudioId || !i.target1Id || !i.target2Id) continue
+        if (!i.knownAudioId || !i.target1Id || !i.target2Id) { skippedNoAudio++; continue }
       }
 
       cycles.push({
@@ -122,6 +123,9 @@ export function toSimpleRounds(
       })
     }
 
+    if (skippedNoAudio > 0) {
+      console.warn(`[toSimpleRounds] Round ${roundNum}: skipped ${skippedNoAudio}/${roundItems.length} items due to missing audio IDs`)
+    }
     if (cycles.length === 0) continue
 
     rounds.push({

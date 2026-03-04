@@ -94,6 +94,14 @@ const seedsToNext = computed(() => {
   return Math.max(0, nextBelt.value.seedsRequired - props.completedSeeds)
 })
 
+// Time estimate to next belt (~1 seed/min)
+const timeToNext = computed(() => {
+  const mins = seedsToNext.value
+  if (mins < 60) return `~${mins} min`
+  const hours = Math.round(mins / 60)
+  return `~${hours} hr`
+})
+
 // Format time
 const formattedTime = computed(() => {
   const mins = props.totalLearningMinutes
@@ -130,8 +138,23 @@ const fetchCourses = async () => {
   }
 }
 
-// All courses — no filtering by known language (supports language chaining)
-const displayedCourses = computed(() => allCourses.value)
+// Admin check: ssi_admin platform_role in god mode user
+const isAdmin = computed(() => {
+  try {
+    const stored = localStorage.getItem('ssi-god-mode-user')
+    if (!stored) return false
+    const user = JSON.parse(stored)
+    return user.platform_role === 'ssi_admin'
+  } catch {
+    return false
+  }
+})
+
+// All courses — hide paid (premium) courses from non-admin users
+const displayedCourses = computed(() => {
+  if (isAdmin.value) return allCourses.value
+  return allCourses.value.filter(c => c.is_community || c.pricing_tier !== 'premium')
+})
 
 // Check if course is enrolled
 const isEnrolled = (courseCode) => {
@@ -168,7 +191,9 @@ onMounted(() => {
   <div class="browse-screen">
     <!-- Header -->
     <div class="browse-header">
+      <div class="header-spacer" />
       <h1 class="browse-title">Library</h1>
+      <button class="close-btn" @click="emit('close')" aria-label="Close library">&#x2715;</button>
     </div>
 
     <div class="browse-content">
@@ -237,7 +262,7 @@ onMounted(() => {
               {{ currentBelt.name }} Belt
             </span>
             <span v-if="nextBelt" class="progress-to-next">
-              {{ seedsToNext }} seeds to {{ nextBelt.name }}
+              {{ timeToNext }} to {{ nextBelt.name }}
             </span>
             <span v-else class="progress-to-next">
               {{ completedSeeds }} / {{ totalSeeds }} seeds
@@ -246,7 +271,7 @@ onMounted(() => {
 
           <!-- Chevron -->
           <div class="card-action">
-            <span class="card-action-label">View Seeds</span>
+            <span class="card-action-label">View Belts</span>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="9 18 15 12 9 6"/>
             </svg>
@@ -384,8 +409,6 @@ onMounted(() => {
 
 <style scoped>
 .browse-screen {
-  min-height: 100vh;
-  min-height: 100dvh;
   background: var(--bg-primary);
   color: var(--text-primary);
   font-family: var(--font-body);
@@ -395,7 +418,14 @@ onMounted(() => {
 
 /* Header */
 .browse-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: calc(1rem + env(safe-area-inset-top, 0px)) 1.5rem 0.75rem;
+}
+
+.header-spacer {
+  width: 2rem;
 }
 
 .browse-title {
@@ -403,6 +433,28 @@ onMounted(() => {
   font-weight: 700;
   margin: 0;
   letter-spacing: -0.02em;
+  text-align: center;
+  flex: 1;
+}
+
+.close-btn {
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: color 0.2s, background 0.2s;
+}
+
+.close-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-secondary, rgba(255,255,255,0.08));
 }
 
 /* Content */

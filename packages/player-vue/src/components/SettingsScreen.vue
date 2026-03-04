@@ -25,7 +25,8 @@ const courseDataProvider = inject('courseDataProvider', null)
 
 // Get belt progress for current seed position
 const courseCode = computed(() => props.course?.course_code || 'demo')
-const { completedRounds } = useBeltProgress(courseCode.value)
+const beltProgressInstance = useBeltProgress(courseCode.value)
+const { completedRounds, currentBelt, totalLearningMinutes, totalSessionCount, highestLegoId } = beltProgressInstance
 
 // Reset progress state
 const showResetConfirm = ref(false)
@@ -35,6 +36,24 @@ const resetSuccess = ref(false)
 
 // Current course info for reset
 const courseName = computed(() => props.course?.display_name || props.course?.course_code || 'this course')
+
+// Data for reset confirmation — show what will be lost
+const seedsCompleted = computed(() => {
+  if (!highestLegoId.value) return 0
+  const match = highestLegoId.value.match(/^S(\d{4})L/)
+  return match ? parseInt(match[1], 10) : 0
+})
+const hasProgress = computed(() => seedsCompleted.value > 0 || totalLearningMinutes.value > 0)
+
+const formattedLearningTime = computed(() => {
+  const mins = totalLearningMinutes.value
+  if (mins <= 0) return null
+  if (mins < 60) return `${mins} min learned`
+  const hours = Math.floor(mins / 60)
+  const remaining = mins % 60
+  if (remaining === 0) return `${hours} hr learned`
+  return `${hours} hr ${remaining} min learned`
+})
 
 // App info
 const appVersion = '1.0.0'
@@ -489,11 +508,6 @@ const cancelReset = () => {
 }
 
 const confirmReset = async () => {
-  if (!supabase?.value || !auth?.learnerId?.value) {
-    resetError.value = 'Unable to reset - not signed in'
-    return
-  }
-
   if (!courseCode.value) {
     resetError.value = 'No course selected'
     return
@@ -503,49 +517,58 @@ const confirmReset = async () => {
   resetError.value = null
 
   try {
-    const learnerId = auth.learnerId.value
     const course = courseCode.value
 
-    // Delete from tables in order (respecting FK constraints)
-    // Filter by both learner_id AND course_id
-    const tables = [
-      'response_metrics',
-      'spike_events',
-      'lego_progress',
-      'seed_progress',
-      'sessions',
-    ]
+    // Clear Supabase tables if signed in
+    if (supabase?.value && auth?.learnerId?.value && !auth.learnerId.value.startsWith('guest-')) {
+      const learnerId = auth.learnerId.value
 
-    for (const table of tables) {
-      const { error } = await supabase.value
-        .from(table)
-        .delete()
+      // Delete from tables in order (respecting FK constraints)
+      const tables = [
+        'response_metrics',
+        'spike_events',
+        'lego_progress',
+        'seed_progress',
+        'sessions',
+      ]
+
+      for (const table of tables) {
+        const { error } = await supabase.value
+          .from(table)
+          .delete()
+          .eq('learner_id', learnerId)
+          .eq('course_id', course)
+
+        if (error) {
+          console.warn(`[Reset] Error clearing ${table}:`, error.message)
+        }
+      }
+
+      // Reset enrollment stats for this course only
+      await supabase.value
+        .from('course_enrollments')
+        .update({
+          total_practice_minutes: 0,
+          last_practiced_at: null,
+          welcome_played: false,
+          highest_completed_seed: 0,
+          last_completed_lego_id: null,
+        })
         .eq('learner_id', learnerId)
         .eq('course_id', course)
-
-      if (error) {
-        console.warn(`[Reset] Error clearing ${table}:`, error.message)
-      }
     }
 
-    // Reset enrollment stats for this course only
-    await supabase.value
-      .from('course_enrollments')
-      .update({
-        total_practice_minutes: 0,
-        last_practiced_at: null,
-        welcome_played: false,
-      })
-      .eq('learner_id', learnerId)
-      .eq('course_id', course)
+    // Always reset local belt progress (localStorage + session history)
+    beltProgressInstance.resetProgress()
 
     resetSuccess.value = true
     console.log('[Settings] Progress reset complete for course:', course)
 
-    // Close dialog after brief success message
+    // Close dialog after brief success message, then reload to reset player state
     setTimeout(() => {
       showResetConfirm.value = false
       resetSuccess.value = false
+      window.location.reload()
     }, 1500)
   } catch (err) {
     console.error('[Settings] Reset error:', err)
@@ -572,8 +595,22 @@ const confirmReset = async () => {
             </svg>
           </div>
           <h3 class="reset-title">Reset {{ courseName }}?</h3>
+          <div v-if="hasProgress" class="reset-stats">
+            <div v-if="currentBelt.index > 0" class="reset-stat">
+              <span class="reset-stat-value" :style="{ color: currentBelt.color }">{{ currentBelt.name }} belt</span>
+            </div>
+            <div v-if="seedsCompleted > 0" class="reset-stat">
+              <span class="reset-stat-value">{{ seedsCompleted }} seeds learned</span>
+            </div>
+            <div v-if="totalLearningMinutes > 0" class="reset-stat">
+              <span class="reset-stat-value">{{ totalLearningMinutes }} min practiced</span>
+            </div>
+            <div v-if="totalSessionCount > 0" class="reset-stat">
+              <span class="reset-stat-value">{{ totalSessionCount }} {{ totalSessionCount === 1 ? 'session' : 'sessions' }}</span>
+            </div>
+          </div>
           <p class="reset-desc">
-            This will clear your progress for this course and start you from the beginning. Other courses are not affected. This cannot be undone.
+            This will clear all progress for this course and start you from the beginning. Other courses are not affected. This cannot be undone.
           </p>
           <p v-if="resetError" class="reset-error">{{ resetError }}</p>
           <p v-if="resetSuccess" class="reset-success">Progress reset!</p>
@@ -620,7 +657,10 @@ const confirmReset = async () => {
     <!-- Header -->
     <header class="header">
       <div class="header-spacer" />
-      <h1 class="title">Settings</h1>
+      <div class="header-center">
+        <h1 class="title">Settings</h1>
+        <span v-if="formattedLearningTime" class="learning-time">{{ formattedLearningTime }}</span>
+      </div>
       <button class="close-btn" @click="emit('close')" aria-label="Close settings">✕</button>
     </header>
 
@@ -742,6 +782,20 @@ const confirmReset = async () => {
               </svg>
             </div>
           </template>
+
+          <div class="divider"></div>
+
+          <div class="setting-row clickable" @click="toggleQaMode">
+            <div class="setting-info">
+              <span class="setting-label">QA Mode</span>
+              <span class="setting-desc">Help improve the course by flagging phrases that don't sound right. Your feedback goes directly to our content team.</span>
+            </div>
+            <div class="toggle-switch" :class="{ 'is-on': enableQaMode }">
+              <div class="toggle-track">
+                <div class="toggle-thumb"></div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -782,7 +836,7 @@ const confirmReset = async () => {
               <span class="option-radio"></span>
               <span class="option-content">
                 <span class="option-label">
-                  {{ key === 'current' ? 'Current belt' : key === 'next50' ? 'Next 50 seeds' : key === 'next100' ? 'Next 100 seeds' : 'Entire course' }}
+                  {{ key === 'current' ? 'Current belt' : key === 'next50' ? '~1 hour of content' : key === 'next100' ? '~2 hours of content' : 'Entire course' }}
                 </span>
                 <span class="option-size">{{ estimate.size }}</span>
               </span>
@@ -912,8 +966,8 @@ const confirmReset = async () => {
         </div>
       </section>
 
-      <!-- Developer Section - TODO: Add v-if="isAdmin" once ready for production -->
-      <section class="section">
+      <!-- Developer Section -->
+      <section class="section" v-if="isAdmin">
         <h3 class="section-title">Developer</h3>
         <div class="card">
           <!-- Tools -->
@@ -923,20 +977,6 @@ const confirmReset = async () => {
               <span class="setting-desc">Show script browser in Tools section</span>
             </div>
             <div class="toggle-switch" :class="{ 'is-on': showViewScript }">
-              <div class="toggle-track">
-                <div class="toggle-thumb"></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="setting-row clickable" @click="toggleQaMode">
-            <div class="setting-info">
-              <span class="setting-label">QA Mode</span>
-              <span class="setting-desc">Show Report Issue button during learning</span>
-            </div>
-            <div class="toggle-switch" :class="{ 'is-on': enableQaMode }">
               <div class="toggle-track">
                 <div class="toggle-thumb"></div>
               </div>
@@ -1096,11 +1136,24 @@ const confirmReset = async () => {
   background: var(--bg-secondary, rgba(255,255,255,0.08));
 }
 
+.header-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.125rem;
+}
+
 .title {
   font-size: 1.125rem;
   font-weight: 600;
   color: var(--text-primary);
   margin: 0;
+}
+
+.learning-time {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 400;
 }
 
 /* Main */
@@ -1363,6 +1416,23 @@ const confirmReset = async () => {
   font-weight: 600;
   color: var(--text-primary);
   margin: 0 0 0.75rem;
+}
+
+.reset-stats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem 1rem;
+  margin: 0 0 1rem;
+  padding: 0.75rem;
+  background: var(--bg-elevated);
+  border-radius: 0.5rem;
+}
+
+.reset-stat-value {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-secondary);
 }
 
 .reset-desc {

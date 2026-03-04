@@ -36,7 +36,6 @@ import LegoTextNetwork from './LegoTextNetwork.vue'
 import LegoAssembly from './LegoAssembly.vue'
 import type { LegoBlock } from './LegoAssembly.vue'
 import { ensureTileCoverage } from '../utils/ensureTileCoverage'
-import BeltProgressModal from './BeltProgressModal.vue'
 import ListeningOverlay from './ListeningOverlay.vue'
 import DrivingModeOverlay from './DrivingModeOverlay.vue'
 import { useDrivingMode } from '../composables/useDrivingMode'
@@ -1823,8 +1822,6 @@ function cycleLayoutMode() {
 const itemsPracticed = ref(0)
 const phrasesSpokenCount = ref(0) // Cycles where VAD detected learner speech
 const showSessionComplete = ref(false)
-const showBeltProgressModal = ref(false)
-
 // Lifetime learning minutes (would come from persistence in production)
 // For now, track session time and estimate based on session history
 const lifetimeLearningMinutes = ref(0)
@@ -3533,12 +3530,9 @@ const playWelcomeIfNeeded = async () => {
       welcomeResolve = resolve // Store so skipWelcome can resolve
       audioController.value?.stop()
 
-      // Tell audioController to skip notifying orchestrator when this audio ends
-      if (audioController.value) {
-        audioController.value.skipNextNotify = true
-      }
-
-      const audio = audioController.value?.audio || new Audio()
+      // Use dedicated Audio element (same pattern as introduction audio)
+      // This avoids sharing audioController's element and the fragile skipNextNotify flag
+      const audio = new Audio()
       welcomeAudioElement = audio
 
       const cleanup = async () => {
@@ -3548,10 +3542,6 @@ const playWelcomeIfNeeded = async () => {
         showWelcomeSkip.value = false
         welcomeAudioElement = null
         welcomeResolve = null
-        // Reset skipNextNotify so next audio triggers orchestrator callbacks
-        if (audioController.value) {
-          audioController.value.skipNextNotify = false
-        }
         // Mark as played
         if (courseDataProvider.value) {
           await courseDataProvider.value.markWelcomePlayed(learnerId.value)
@@ -3604,12 +3594,7 @@ const skipWelcome = async () => {
   showWelcomeSkip.value = false
   welcomeAudioElement = null
 
-  // 3. Reset skipNextNotify so next audio triggers orchestrator callbacks
-  if (audioController.value) {
-    audioController.value.skipNextNotify = false
-  }
-
-  // 4. Resolve the promise so startPlayback can continue
+  // 3. Resolve the promise so startPlayback can continue
   if (welcomeResolve) {
     welcomeResolve(true)
     welcomeResolve = null
@@ -3915,48 +3900,6 @@ const handleGoBackBelt = async () => {
   }
 }
 
-/**
- * Jump to a specific belt from the modal
- * Handles both forward and backward jumps
- */
-const handleSkipToBeltFromModal = async (belt) => {
-  if (!belt || !beltProgress.value) {
-    console.log('[LearningPlayer] Cannot skip - invalid belt or no belt progress')
-    return
-  }
-
-  const targetSeed = belt.seedsRequired
-  console.log(`[LearningPlayer] Skipping to ${belt.name} belt (seed ${targetSeed}) from modal`)
-
-  // Close modal first for better UX
-  closeBeltProgressModal()
-
-  isSkippingBelt.value = true
-  try {
-    haltAllPlayback()
-    // Reset the brain network for fresh start at new belt
-    if (networkState?.revealedNodeIds) {
-      networkState.revealedNodeIds.value = new Set<string>()
-      console.log('[LearningPlayer] Reset brain network for modal belt skip')
-    }
-
-    // Handle edge case: seed 0 (white belt) means go to round 0
-    if (targetSeed === 0) {
-      simplePlayer.jumpToRound(0)
-    } else {
-      await loadSeedIfNeeded(targetSeed)
-      simplePlayer.jumpToSeed(targetSeed)
-    }
-
-    // Update belt progress to match
-    if (beltProgress.value) {
-      beltProgress.value.setSeeds(targetSeed)
-    }
-  } finally {
-    isSkippingBelt.value = false
-  }
-}
-
 // Mode toggles
 const turboActive = ref(false)
 const turboPopupShownThisSession = ref(false)
@@ -4248,30 +4191,50 @@ const exitListeningMode = () => {
 // ============================================
 
 // Mode picker popover
-const showModePicker = ref(false)
 const showListeningExplainer = ref(false)
 const showDrivingExplainer = ref(false)
 const listeningExplainerShownThisSession = ref(false)
 const drivingExplainerShownThisSession = ref(false)
 
-const handleModeButtonClick = () => {
+// Tab bar handlers
+const handleTabLearning = () => {
   if (isDrivingModeActive.value) {
+    handleExitDrivingMode()
+  } else if (showListeningOverlay.value) {
+    handleCloseListening()
+  }
+  // Already in learning mode — no-op
+}
+
+const handleTabListening = () => {
+  if (showListeningOverlay.value) {
+    // Already in listening — exit back to learning
+    handleCloseListening()
+    return
+  }
+  if (isDrivingModeActive.value) {
+    handleExitDrivingMode()
+  }
+  if (listeningExplainerShownThisSession.value) {
+    handleListeningMode()
+  } else {
+    showListeningExplainer.value = true
+  }
+}
+
+const handleTabDriving = () => {
+  if (isDrivingModeActive.value) {
+    // Already in driving — exit back to learning
     handleExitDrivingMode()
     return
   }
   if (showListeningOverlay.value) {
     handleCloseListening()
-    return
   }
-  showModePicker.value = true
-}
-
-const handlePickListening = () => {
-  showModePicker.value = false
-  if (listeningExplainerShownThisSession.value) {
-    handleListeningMode()
+  if (drivingExplainerShownThisSession.value) {
+    handleEnterDrivingMode()
   } else {
-    showListeningExplainer.value = true
+    showDrivingExplainer.value = true
   }
 }
 
@@ -4284,15 +4247,6 @@ const confirmListeningMode = () => {
 const cancelListeningExplainer = () => {
   showListeningExplainer.value = false
   listeningExplainerShownThisSession.value = true
-}
-
-const handlePickDriving = () => {
-  showModePicker.value = false
-  if (drivingExplainerShownThisSession.value) {
-    handleEnterDrivingMode()
-  } else {
-    showDrivingExplainer.value = true
-  }
 }
 
 const confirmDrivingMode = () => {
@@ -4418,30 +4372,6 @@ const showPausedSummary = () => {
   }
 }
 
-// Belt Progress Modal handlers
-const openBeltProgressModal = () => {
-  showBeltProgressModal.value = true
-}
-
-const closeBeltProgressModal = () => {
-  showBeltProgressModal.value = false
-}
-
-const handleViewFullProgress = () => {
-  closeBeltProgressModal()
-  // Lazily initialize network if not yet done (e.g. user opens Progress before first play)
-  ensureNetworkInitialized()
-  // Populate network up to current position
-  if (currentRoundIndex.value > 0) {
-    populateNetworkUpToRound(currentRoundIndex.value)
-  } else if (cachedRounds.value.length > 0) {
-    populateNetworkUpToRound(0)
-  }
-  // Lazily load full network data before navigating to Brain View
-  ensureNetworkLoaded()
-  // Emit to parent to navigate to Brain View / Progress screen
-  emit('viewProgress')
-}
 
 /**
  * Lazily load network data from database (deferred from init to avoid blocking startup)
@@ -6224,44 +6154,15 @@ defineExpose({
             </svg>
           </button>
 
-          <button
-            class="mode-pill"
-            :class="{
-              'mode-pill--listening': showListeningOverlay,
-              'mode-pill--driving': isDrivingModeActive
-            }"
-            @click="handleModeButtonClick"
-            title="Switch mode"
-          >
-            <!-- Learning mode: graduation cap -->
-            <svg v-if="!showListeningOverlay && !isDrivingModeActive" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-              <path d="M2 10l10-5 10 5-10 5z"/>
-              <path d="M6 12v5c0 1.66 2.69 3 6 3s6-1.34 6-3v-5"/>
-            </svg>
-            <!-- Listening mode: headphones -->
-            <svg v-else-if="showListeningOverlay" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-              <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
-              <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
-            </svg>
-            <!-- Driving mode: car -->
-            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-              <path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0ZM15 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z"/>
-              <path d="M5 17H3v-6l2-5h10l4 5h2v6h-2"/>
-              <path d="M9 17h6"/>
-            </svg>
-            <span class="mode-pill-chevron">&#x25BE;</span>
-          </button>
-
-          <button
+          <div
             class="belt-timer-unified"
-            @click="openBeltProgressModal"
             :title="!nextBelt ? 'Black belt achieved!' : `${Math.round(beltProgressPercent)}% to ${nextBelt.name} belt`"
           >
             <div class="belt-bar-track">
               <div class="belt-bar-fill" :style="{ width: `${beltProgressPercent}%` }"></div>
             </div>
             <span class="belt-timer-label">{{ formattedSessionTime }}</span>
-          </button>
+          </div>
 
           <button
             class="belt-header-skip belt-header-skip--forward"
@@ -6280,19 +6181,44 @@ defineExpose({
       </div>
     </header>
 
-    <!-- Belt Progress Modal -->
-    <BeltProgressModal
-      :is-open="showBeltProgressModal"
-      :current-belt="currentBelt"
-      :next-belt="nextBelt"
-      :completed-seeds="completedRounds"
-      :session-seconds="sessionSeconds"
-      :lifetime-learning-minutes="lifetimeLearningMinutes"
-      :is-skipping="isSkippingBelt"
-      @close="closeBeltProgressModal"
-      @view-progress="handleViewFullProgress"
-      @skip-to-belt="handleSkipToBeltFromModal"
-    />
+    <!-- Mode Tab Bar: Learning | Listening | Driving -->
+    <nav class="mode-tab-bar">
+      <button
+        class="mode-tab"
+        :class="{ 'mode-tab--active': !showListeningOverlay && !isDrivingModeActive }"
+        @click="handleTabLearning"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M2 10l10-5 10 5-10 5z"/>
+          <path d="M6 12v5c0 1.66 2.69 3 6 3s6-1.34 6-3v-5"/>
+        </svg>
+        <span>Learning</span>
+      </button>
+      <button
+        class="mode-tab"
+        :class="{ 'mode-tab--active': showListeningOverlay }"
+        @click="handleTabListening"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+          <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+        </svg>
+        <span>Listening</span>
+      </button>
+      <button
+        class="mode-tab"
+        :class="{ 'mode-tab--active': isDrivingModeActive }"
+        @click="handleTabDriving"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0ZM15 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z"/>
+          <path d="M5 17H3v-6l2-5h10l4 5h2v6h-2"/>
+          <path d="M5 11h14"/>
+          <path d="M9 17h6"/>
+        </svg>
+        <span>Driving</span>
+      </button>
+    </nav>
 
     <!-- Turbo Mode Explanation Popup -->
     <Transition name="fade">
@@ -6313,30 +6239,6 @@ defineExpose({
             <button class="mode-popup-btn mode-popup-btn--cancel" @click="closeTurboPopup">Cancel</button>
             <button class="mode-popup-btn mode-popup-btn--confirm" @click="confirmTurbo">Enable Turbo</button>
           </div>
-        </div>
-      </div>
-    </Transition>
-
-    <!-- Mode Picker Popover -->
-    <Transition name="fade">
-      <div v-if="showModePicker" class="mode-picker-overlay" @click.self="showModePicker = false">
-        <div class="mode-picker">
-          <button class="mode-picker-option" @click="handlePickListening">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
-              <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
-            </svg>
-            <span>Listening</span>
-          </button>
-          <button class="mode-picker-option" @click="handlePickDriving">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0ZM15 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z"/>
-              <path d="M5 17H3v-6l2-5h10l4 5h2v6h-2"/>
-              <path d="M5 11h14"/>
-              <path d="M9 17h6"/>
-            </svg>
-            <span>Driving</span>
-          </button>
         </div>
       </div>
     </Transition>
@@ -6678,9 +6580,11 @@ defineExpose({
 /* which properly hides all fixed-position children (space-gradient, overlays, etc.) */
 .learning-player-root {
   /* Fill viewport so fixed children display correctly when visible */
-  position: relative;
-  min-height: 100vh;
-  min-height: 100dvh;
+  position: fixed;
+  inset: 0;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 .player {
@@ -7444,51 +7348,65 @@ defineExpose({
   50% { opacity: 0.2; }
 }
 
-/* ============ MODE PILL ============ */
-.mode-pill {
+/* ============ MODE TAB BAR ============ */
+.mode-tab-bar {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 2px;
-  padding: 4px 8px 4px 6px;
-  border-radius: 16px;
-  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  padding: 3px;
+  margin: 0 auto;
+  width: fit-content;
+  max-width: 320px;
   background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 12px;
+  position: relative;
+  z-index: 15;
+}
+
+.mode-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
   color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
-  flex-shrink: 0;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
   -webkit-tap-highlight-color: transparent;
+  white-space: nowrap;
 }
 
-.mode-pill svg {
-  width: 16px;
-  height: 16px;
+.mode-tab svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
 }
 
-.mode-pill-chevron {
-  font-size: 10px;
-  line-height: 1;
-  opacity: 0.6;
+.mode-tab:hover {
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.05);
 }
 
-.mode-pill:hover {
+.mode-tab:active {
+  transform: scale(0.97);
+}
+
+.mode-tab--active {
   background: rgba(255, 255, 255, 0.10);
-  color: var(--text-primary);
+  color: var(--belt-color, var(--ssi-red));
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
 }
 
-.mode-pill:active {
-  transform: scale(0.95);
-}
-
-.mode-pill--listening {
-  border-color: color-mix(in srgb, var(--belt-color) 40%, rgba(255, 255, 255, 0.22));
-  color: var(--belt-color);
-}
-
-.mode-pill--driving {
-  border-color: color-mix(in srgb, var(--belt-color) 40%, rgba(255, 255, 255, 0.22));
-  color: var(--belt-color);
+.mode-tab--active:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--belt-color, var(--ssi-red));
 }
 
 /* ============ BELT TIMER ============ */
@@ -7502,7 +7420,6 @@ defineExpose({
   -webkit-backdrop-filter: blur(16px) saturate(150%);
   border: 1.5px solid rgba(255, 255, 255, 0.22);
   border-radius: 20px;
-  cursor: pointer;
   transition: all 0.2s ease;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3),
               0 0 12px color-mix(in srgb, var(--belt-glow) 15%, transparent);
@@ -7510,16 +7427,6 @@ defineExpose({
   min-width: 0;
 }
 
-.belt-timer-unified:hover {
-  background: rgba(255, 255, 255, 0.10);
-  border-color: color-mix(in srgb, var(--belt-color) 60%, rgba(255, 255, 255, 0.22));
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3),
-              0 0 20px color-mix(in srgb, var(--belt-glow) 25%, transparent);
-}
-
-.belt-timer-unified:active {
-  transform: scale(0.98);
-}
 
 .belt-timer-unified .belt-bar-track {
   flex: 1;
@@ -9402,57 +9309,6 @@ defineExpose({
   box-shadow: 0 0 16px rgba(212, 168, 83, 0.4);
 }
 
-/* Mode Picker - compact two-option popover above control bar */
-.mode-picker-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 2000;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(8px);
-  padding-bottom: calc(80px + env(safe-area-inset-bottom));
-}
-
-.mode-picker {
-  display: flex;
-  gap: 12px;
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1.5px solid rgba(255, 255, 255, 0.22);
-  border-radius: 16px;
-  backdrop-filter: blur(20px) saturate(150%);
-  -webkit-backdrop-filter: blur(20px) saturate(150%);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5),
-              0 16px 48px rgba(0, 0, 0, 0.3);
-}
-
-.mode-picker-option {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 20px 28px;
-  border: 1.5px solid rgba(255, 255, 255, 0.15);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.8);
-  cursor: pointer;
-  transition: all 0.2s;
-  font-size: 0.85rem;
-}
-
-.mode-picker-option:active {
-  background: rgba(255, 255, 255, 0.12);
-  transform: scale(0.97);
-}
-
-.mode-picker-option svg {
-  width: 28px;
-  height: 28px;
-}
-
 /* Mode Explanation Popups */
 .mode-popup-overlay {
   position: fixed;
@@ -10296,13 +10152,6 @@ defineExpose({
               0 8px 24px rgba(44, 38, 34, 0.08);
 }
 
-[data-theme="mist"] .player .belt-timer-unified:hover {
-  background: color-mix(in srgb, var(--belt-color) 8%, rgba(255, 255, 255, 0.96));
-  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
-              0 8px 24px rgba(44, 38, 34, 0.08),
-              0 0 16px color-mix(in srgb, var(--belt-color) 15%, transparent);
-}
-
 /* Belt bar track needs contrast against white timer */
 [data-theme="mist"] .player .belt-timer-unified .belt-bar-track {
   background: #e8e3dd;
@@ -10318,22 +10167,29 @@ defineExpose({
   color: #2C2622;
 }
 
-/* --- Mode pill → crisp white on mist --- */
-[data-theme="mist"] .player .mode-pill {
-  background: rgba(255, 255, 255, 0.96);
-  border: 1.5px solid rgba(0, 0, 0, 0.22);
-  color: #6B6560;
-  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10);
+/* --- Mode tab bar → crisp white on mist --- */
+[data-theme="mist"] .player .mode-tab-bar {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(0, 0, 0, 0.08);
 }
 
-[data-theme="mist"] .player .mode-pill:hover {
-  background: color-mix(in srgb, var(--belt-color) 8%, #ffffff);
+[data-theme="mist"] .player .mode-tab {
+  color: #8A8078;
+}
+
+[data-theme="mist"] .player .mode-tab:hover {
   color: #2C2622;
+  background: rgba(0, 0, 0, 0.03);
 }
 
-[data-theme="mist"] .player .mode-pill--listening,
-[data-theme="mist"] .player .mode-pill--driving {
-  border-color: color-mix(in srgb, var(--belt-color) 40%, rgba(0, 0, 0, 0.22));
+[data-theme="mist"] .player .mode-tab--active {
+  background: rgba(255, 255, 255, 0.96);
+  color: color-mix(in srgb, var(--belt-color) 70%, #2C2622);
+  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.12);
+}
+
+[data-theme="mist"] .player .mode-tab--active:hover {
+  background: rgba(255, 255, 255, 0.98);
   color: color-mix(in srgb, var(--belt-color) 70%, #2C2622);
 }
 
@@ -10379,22 +10235,6 @@ defineExpose({
   background: #ffffff;
   color: var(--text-primary);
   box-shadow: 0 2px 8px rgba(44, 38, 34, 0.16);
-}
-
-[data-theme="mist"] .player .mode-picker {
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1.5px solid rgba(0, 0, 0, 0.22);
-  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.14),
-              0 12px 32px rgba(44, 38, 34, 0.12),
-              0 24px 56px rgba(44, 38, 34, 0.08);
-}
-
-[data-theme="mist"] .player .mode-picker-option {
-  background: rgba(0, 0, 0, 0.03);
-  border-color: rgba(0, 0, 0, 0.10);
-  color: var(--text-primary);
 }
 
 /* --- Brain Network overrides → Ink tones --- */

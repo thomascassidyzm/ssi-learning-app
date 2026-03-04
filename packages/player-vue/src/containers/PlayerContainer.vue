@@ -43,14 +43,16 @@ const {
 // Aliases for backwards compatibility within this file
 const closeAuthModals = closeAuth
 
-// Navigation state — 3 panes only
-// Screens: 'progress' | 'player' | 'library'
+// Navigation state — 2 screens + overlays
+// Screens: 'progress' | 'player'
+// Overlays: showLibrary, showSettings, showExplorer
 const currentScreen = ref('player')
 const selectedCourse = ref(null)
 const isLearning = ref(false)
 
 // Overlay state (not screens)
 const showSettings = ref(false)
+const showLibrary = ref(false)
 const showExplorer = ref(false)
 const showCourseSelector = ref(false)
 
@@ -101,6 +103,12 @@ const startLearning = (course) => navigate('player', course)
 
 // Handle nav events
 const handleNavigation = (screen) => {
+  if (screen === 'library') {
+    toggleLibrary()
+    return
+  }
+  // Close library overlay when navigating elsewhere
+  showLibrary.value = false
   navigate(screen)
 }
 
@@ -152,7 +160,7 @@ const handleViewProgress = () => {
 
 // Handle starting at a specific seed from CourseBrowser
 const handleStartAtSeed = (seedNumber) => {
-  navigate('player')
+  closeLibrary()
   setTimeout(() => {
     window.dispatchEvent(new CustomEvent('ssi-jump-to-seed', {
       detail: { seedNumber },
@@ -160,10 +168,25 @@ const handleStartAtSeed = (seedNumber) => {
   }, 100)
 }
 
+// Library overlay
+const toggleLibrary = () => {
+  if (!showLibrary.value) {
+    showSettings.value = false // Close settings if open
+    if (learningPlayerRef.value?.handlePause) {
+      learningPlayerRef.value.handlePause()
+    }
+  }
+  showLibrary.value = !showLibrary.value
+}
+
+const closeLibrary = () => {
+  showLibrary.value = false
+}
+
 // Settings overlay
 const toggleSettings = () => {
   if (!showSettings.value) {
-    // Pause player when opening settings
+    showLibrary.value = false // Close library if open
     if (learningPlayerRef.value?.handlePause) {
       learningPlayerRef.value.handlePause()
     }
@@ -273,14 +296,14 @@ const handleGoHome = () => {
 const screenParamMap = {
   'home': 'player',
   'project': 'player',
-  'browse': 'library',
+  'browse': 'player', // library is now an overlay
   'network': 'progress',
-  'belt-browser': 'library',
+  'belt-browser': 'player', // library is now an overlay
   'settings': 'player', // settings is now an overlay
   'explorer': 'player',
   'progress': 'progress',
   'player': 'player',
-  'library': 'library',
+  'library': 'player', // library is now an overlay
 }
 
 onMounted(() => {
@@ -289,9 +312,10 @@ onMounted(() => {
   if (screenParam) {
     const mapped = screenParamMap[screenParam] || 'player'
     currentScreen.value = mapped
-    // If old URL was settings or explorer, open as overlay
+    // If old URL was settings, explorer, or library, open as overlay
     if (screenParam === 'settings') showSettings.value = true
     if (screenParam === 'explorer') showExplorer.value = true
+    if (['library', 'browse', 'belt-browser'].includes(screenParam)) showLibrary.value = true
   }
 
   // Check if launched from Schools with class context
@@ -341,34 +365,38 @@ onMounted(() => {
       @listeningModeChanged="handleListeningModeChanged"
     />
 
-    <!-- Player resting state overlay (when player is visible but paused) -->
+    <!-- Player resting state overlay (full when paused, minimised during playback) -->
     <PlayerRestingState
-      v-if="currentScreen === 'player' && !isPlaying && !isListeningMode"
+      v-if="currentScreen === 'player' && !isListeningMode"
       :course="activeCourse"
       :completed-seeds="completedSeeds"
       :total-seeds="totalSeeds"
       :current-belt-name="currentBeltName"
+      :minimized="isPlaying"
       @start="handleTogglePlayback"
       @change-course="showCourseSelector = true"
     />
 
-    <!-- Library pane (Browse + inline belt browser) -->
-    <Transition name="slide-right" mode="out-in">
-      <BrowseScreen
-        v-if="currentScreen === 'library'"
-        :active-course="activeCourse"
-        :enrolled-courses="enrolledCourses"
-        :completed-seeds="completedSeeds"
-        :total-seeds="totalSeeds"
-        :current-belt-name="currentBeltName"
-        :total-learning-minutes="totalLearningMinutes"
-        :total-phrases-spoken="totalPhrasesSpoken"
-        @open-belts="navigate('library')"
-        @open-brain="navigate('progress')"
-        @select-course="handleCourseSelect"
-        @close="navigate('player')"
-        @start-seed="handleStartAtSeed"
-      />
+    <!-- Library overlay (slide-up modal, same pattern as Settings) -->
+    <Transition name="slide-up">
+      <div v-if="showLibrary" class="settings-overlay" @click.self="closeLibrary">
+        <div class="settings-panel">
+          <BrowseScreen
+            :active-course="activeCourse"
+            :enrolled-courses="enrolledCourses"
+            :completed-seeds="completedSeeds"
+            :total-seeds="totalSeeds"
+            :current-belt-name="currentBeltName"
+            :total-learning-minutes="totalLearningMinutes"
+            :total-phrases-spoken="totalPhrasesSpoken"
+            @open-belts="null"
+            @open-brain="closeLibrary(); navigate('progress')"
+            @select-course="(c) => { closeLibrary(); handleCourseSelect(c) }"
+            @close="closeLibrary"
+            @start-seed="handleStartAtSeed"
+          />
+        </div>
+      </div>
     </Transition>
 
     <!-- Bottom Navigation -->
@@ -377,6 +405,8 @@ onMounted(() => {
       :isLearning="isLearning"
       :isPlaying="isPlaying"
       :isListeningMode="isListeningMode"
+      :showLibrary="showLibrary"
+      :showSettings="showSettings"
       @navigate="handleNavigation"
       @startLearning="handleStartLearning"
       @togglePlayback="handleTogglePlayback"
@@ -384,6 +414,7 @@ onMounted(() => {
       @revisit="handleRevisit"
       @skip="handleSkip"
       @openSettings="toggleSettings"
+      @closeOverlays="closeLibrary(); closeSettings()"
     />
 
     <!-- Gear icon removed — settings now accessible from bottom pill -->

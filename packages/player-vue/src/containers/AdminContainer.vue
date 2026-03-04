@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, inject, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { setSchoolsClient } from '@/composables/schools/client'
+
+const route = useRoute()
 
 // Supabase client from App
 const supabase = inject('supabase', ref(null)) as any
@@ -17,6 +20,22 @@ onMounted(() => {
   <div class="admin-container">
     <header class="admin-header">
       <h1 class="admin-title">SSi Admin</h1>
+      <nav class="admin-nav">
+        <router-link
+          to="/admin"
+          class="nav-link"
+          :class="{ active: route.path === '/admin' }"
+        >
+          Invite Codes
+        </router-link>
+        <router-link
+          to="/admin/analytics"
+          class="nav-link"
+          :class="{ active: route.path === '/admin/analytics' }"
+        >
+          Analytics
+        </router-link>
+      </nav>
     </header>
     <main class="admin-main">
       <router-view />
@@ -35,6 +54,9 @@ onMounted(() => {
   padding: 20px 32px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .admin-title {
@@ -43,6 +65,33 @@ onMounted(() => {
   margin: 0;
   color: var(--text-primary, #e8e8f0);
   letter-spacing: 0.02em;
+}
+
+.admin-nav {
+  display: flex;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.nav-link {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-secondary, #a0a0b8);
+  text-decoration: none;
+  transition: all 0.15s;
+}
+
+.nav-link:hover {
+  color: var(--text-primary, #e8e8f0);
+}
+
+.nav-link.active {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary, #e8e8f0);
 }
 
 .admin-main {
