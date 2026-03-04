@@ -3913,12 +3913,6 @@ const handleGoBackBelt = async () => {
     haltAllPlayback()
     console.log(`[LearningPlayer] Going back to seed ${targetSeed}`)
 
-    // Reset the brain network for fresh start at new belt
-    if (networkState?.revealedNodeIds) {
-      networkState.revealedNodeIds.value = new Set<string>()
-      console.log('[LearningPlayer] Reset brain network for belt skip')
-    }
-
     // Handle edge case: seed 0 (white belt) means go to round 0
     if (targetSeed === 0) {
       simplePlayer.jumpToRound(0)
@@ -3939,10 +3933,11 @@ const handleGoBackBelt = async () => {
   }
 }
 
-// Belt pill tap — same as skip forward for now (natural action)
+// Belt pill tap — skip to next belt
 const handleBeltPillTap = () => {
-  // No-op for now — clickable appearance signals belt navigation exists
-  // Future: could open belt journey/progress detail
+  if (playingNextBelt.value) {
+    handleSkipToNextBelt()
+  }
 }
 
 // Mode toggles
@@ -7338,7 +7333,7 @@ defineExpose({
   align-items: center;
   gap: var(--space-sm);
   padding: 6px 12px 6px 16px;
-  background: rgba(255, 255, 255, 0.96);
+  background: color-mix(in srgb, var(--belt-color) 70%, rgba(0,0,0,0.3));
   backdrop-filter: blur(16px) saturate(150%);
   -webkit-backdrop-filter: blur(16px) saturate(150%);
   border: 1.5px solid rgba(255, 255, 255, 0.35);
@@ -7360,7 +7355,7 @@ defineExpose({
   font-size: 11px;
   font-weight: 600;
   text-transform: capitalize;
-  color: rgba(0, 0, 0, 0.5);
+  color: rgba(255, 255, 255, 0.8);
   white-space: nowrap;
   flex-shrink: 0;
   letter-spacing: 0.02em;
@@ -7371,7 +7366,7 @@ defineExpose({
   min-width: var(--belt-bar-width);
   height: var(--belt-bar-height);
   background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(0, 0, 0, 0.15);
   border-radius: 4px;
   overflow: hidden;
 }
@@ -7388,7 +7383,7 @@ defineExpose({
   font-family: 'Space Mono', monospace;
   font-size: clamp(0.75rem, 2vw, 0.875rem);
   font-weight: 600;
-  color: #2C2622;
+  color: rgba(255, 255, 255, 0.9);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
   white-space: nowrap;
@@ -9980,19 +9975,14 @@ defineExpose({
   background: #e8e3dd;
 }
 
-/* --- Space / Background layers → Warm grey canvas --- */
+/* --- Space / Background layers → Flat canvas, no gradients --- */
 [data-theme="mist"] .player .space-gradient {
-  background:
-    radial-gradient(ellipse 90% 70% at 15% 10%, rgba(255, 252, 245, 0.4) 0%, transparent 50%),
-    radial-gradient(ellipse 100% 60% at 80% 90%, rgba(232, 227, 221, 0.3) 0%, transparent 40%),
-    radial-gradient(ellipse 80% 80% at 50% 50%, #e8e3dd 0%, #e0dbd5 100%);
+  background: #e8e3dd;
 }
 
 [data-theme="mist"] .player .space-nebula {
-  background:
-    linear-gradient(180deg, transparent 0%, rgba(122, 110, 98, 0.03) 30%, rgba(122, 110, 98, 0.04) 50%, transparent 70%),
-    linear-gradient(180deg, transparent 40%, rgba(122, 110, 98, 0.02) 60%, transparent 80%);
-  animation: mist-drift 20s ease-in-out infinite;
+  background: transparent;
+  animation: none;
 }
 
 @keyframes mist-drift {
@@ -10075,11 +10065,20 @@ defineExpose({
               0 20px 48px rgba(44, 38, 34, 0.06);
 }
 
-/* --- Belt timer on mist — same white pill, softer shadow --- */
+/* --- Belt timer on mist — belt colour fill, softer shadow --- */
 [data-theme="mist"] .player .belt-timer-unified {
+  background: color-mix(in srgb, var(--belt-color) 65%, white);
   border: 1.5px solid rgba(0, 0, 0, 0.35);
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
               0 8px 24px rgba(44, 38, 34, 0.08);
+}
+
+[data-theme="mist"] .player .belt-name-label {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="mist"] .player .belt-timer-label {
+  color: #2C2622;
 }
 
 /* --- Mode nav buttons on mist → translucent, not opaque like the pill --- */

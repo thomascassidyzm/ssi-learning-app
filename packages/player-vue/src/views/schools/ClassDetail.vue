@@ -199,9 +199,21 @@ const courseNames: Record<string, string> = {
   'cym_for_eng_south': 'Welsh (Southern)',
   'spa_for_eng': 'Spanish',
   'spa_for_eng_latam': 'Spanish (Latin Am.)',
+  'eng_for_spa': 'English',
   'nld_for_eng': 'Dutch',
+  'fra_for_eng': 'French',
+  'deu_for_eng': 'German',
+  'ita_for_eng': 'Italian',
+  'por_for_eng': 'Portuguese',
+  'jpn_for_eng': 'Japanese',
+  'kor_for_eng': 'Korean',
+  'zho_for_eng': 'Chinese',
+  'ara_for_eng': 'Arabic',
+  'rus_for_eng': 'Russian',
+  'pol_for_eng': 'Polish',
   'cor_for_eng': 'Cornish',
-  'glv_for_eng': 'Manx'
+  'glv_for_eng': 'Manx',
+  'gle_for_eng': 'Irish'
 }
 
 const courseFlag = computed(() => {

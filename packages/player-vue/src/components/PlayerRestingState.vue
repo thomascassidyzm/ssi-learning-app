@@ -34,7 +34,9 @@ const emit = defineEmits(['start', 'change-course'])
 const courseName = computed(() => {
   if (!props.course) return 'Loading...'
   if (props.course.display_name) {
-    return props.course.display_name.replace(/\s+for\s+.+$/i, '')
+    const name = props.course.display_name.replace(/\s+for\s+.+$/i, '')
+    // If display_name was a raw code like "ARA FOR ENG", fall back to meta lookup
+    if (!/^[a-z]{2,3}$/i.test(name.trim())) return name
   }
   return getLangMeta(props.course.target_lang).name
 })

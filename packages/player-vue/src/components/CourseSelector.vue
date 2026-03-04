@@ -28,10 +28,11 @@ const isBetaCourse = (course) => {
 
 // Extract target language name from display_name or fall back to locale lookup
 // e.g., "Welsh (North) for English Speakers" → "Welsh (North)"
+// Detects raw code display_names like "ARA FOR ENG" and falls back to locale
 const getTargetDisplayName = (course) => {
   if (course.display_name) {
     const match = course.display_name.match(/^(.+?)\s+for\s+/i)
-    if (match) return match[1]
+    if (match && !/^[a-z]{2,3}$/i.test(match[1].trim())) return match[1]
   }
   return getLanguageName(course.target_lang)
 }

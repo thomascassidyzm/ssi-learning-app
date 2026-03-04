@@ -77,11 +77,7 @@ const glowStyle = computed(() => {
 .dawn-glow {
   position: absolute;
   inset: 0;
-  background: radial-gradient(
-    ellipse 80% 60% at 50% 25%,
-    rgba(var(--glow-color, 200, 200, 215), var(--glow-opacity, 0.06)) 0%,
-    transparent 70%
-  );
+  background: transparent;
   transition: background 2s ease;
 }
 
