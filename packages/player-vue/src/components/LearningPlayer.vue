@@ -7321,15 +7321,12 @@ defineExpose({
   50% { opacity: 0.2; }
 }
 
-/* ============ MODE NAV BUTTONS (anchored to top corners of bottom nav pill) ============ */
-/* Bottom nav pill: bottom ~12px, height 72px, max-width 400px, border-radius 32px.
-   Buttons sit at the top edge, inset to where the straight meets the curve (~28px in). */
+/* ============ MODE NAV BUTTONS (raised outward from bottom nav pill) ============ */
 .mode-nav-btn {
   position: fixed;
-  /* Align to top of the bottom nav pill */
-  bottom: max(calc(env(safe-area-inset-bottom, 0px) / 2 + 72px), 84px);
-  width: 36px;
-  height: 36px;
+  bottom: max(calc(env(safe-area-inset-bottom, 0px) / 2 + 84px), 96px);
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   border: 1.5px solid rgba(255, 255, 255, 0.22);
   background: rgba(10, 10, 18, 0.82);
@@ -7346,12 +7343,11 @@ defineExpose({
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-/* Position at the top corners of the pill — where straight edge meets the 32px radius */
 .mode-nav-btn--left {
-  left: calc(50% - min(200px, calc(50vw - 1rem)) + 18px);
+  left: calc(50% - min(200px, calc(50vw - 1rem)) - 4px);
 }
 .mode-nav-btn--right {
-  right: calc(50% - min(200px, calc(50vw - 1rem)) + 18px);
+  right: calc(50% - min(200px, calc(50vw - 1rem)) - 4px);
 }
 
 .mode-nav-btn svg {
