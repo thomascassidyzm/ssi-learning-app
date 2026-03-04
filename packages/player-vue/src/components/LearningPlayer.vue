@@ -6181,11 +6181,6 @@ defineExpose({
             </svg>
           </button>
         </div>
-        <!-- Course identity: flag + name -->
-        <div class="course-identity" v-if="activeCourseCode">
-          <span class="course-identity-flag">{{ courseFlag }}</span>
-          <span class="course-identity-name">{{ courseDisplayName }}</span>
-        </div>
       </div>
     </header>
 
@@ -6485,6 +6480,14 @@ defineExpose({
         <path d="M9 17h6"/>
       </svg>
     </button>
+
+    <!-- Course identity: flag + language (only during playback, hides when resting state visible) -->
+    <Transition name="fade">
+      <div v-if="isPlaying && activeCourseCode" class="course-identity">
+        <span class="course-identity-flag">{{ courseFlag }}</span>
+        <span class="course-identity-name">{{ courseDisplayName }}</span>
+      </div>
+    </Transition>
 
     <!-- Footer -->
     <footer class="footer">
@@ -7318,10 +7321,10 @@ defineExpose({
   50% { opacity: 0.2; }
 }
 
-/* ============ MODE NAV BUTTONS (flanking bottom nav) ============ */
+/* ============ MODE NAV BUTTONS (flanking bottom nav, raised) ============ */
 .mode-nav-btn {
   position: fixed;
-  bottom: max(calc(env(safe-area-inset-bottom, 0px) / 2 + 20px), 32px);
+  bottom: max(calc(env(safe-area-inset-bottom, 0px) / 2 + 100px), 112px);
   width: 40px;
   height: 40px;
   border-radius: 50%;
@@ -7368,18 +7371,25 @@ defineExpose({
   .mode-nav-btn--right { right: 8px; }
 }
 
-/* Course identity line */
+/* Course identity — fixed above bottom nav, only during playback */
 .course-identity {
+  position: fixed;
+  bottom: max(calc(env(safe-area-inset-bottom, 0px) / 2 + 96px), 108px);
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  font-size: 12px;
+  gap: 5px;
+  font-size: 11px;
   color: var(--text-muted);
-  opacity: 0.7;
+  opacity: 0.6;
+  z-index: 25;
+  pointer-events: none;
+  white-space: nowrap;
 }
-.course-identity-flag { font-size: 14px; }
-.course-identity-name { font-weight: 500; }
+.course-identity-flag { font-size: 13px; }
+.course-identity-name { font-weight: 500; letter-spacing: 0.02em; }
 
 /* ============ BELT TIMER ============ */
 .belt-timer-unified {
