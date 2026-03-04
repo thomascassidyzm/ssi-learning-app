@@ -7329,11 +7329,10 @@ defineExpose({
   background: color-mix(in srgb, var(--belt-color) 35%, rgba(0,0,0,0.4));
   backdrop-filter: blur(16px) saturate(150%);
   -webkit-backdrop-filter: blur(16px) saturate(150%);
-  border: 1.5px solid color-mix(in srgb, var(--belt-color) 55%, transparent);
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
   border-radius: 20px;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3),
-              0 0 14px color-mix(in srgb, var(--belt-glow) 30%, transparent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   flex: 1;
   min-width: 0;
 }
@@ -10060,7 +10059,7 @@ defineExpose({
   background: color-mix(in srgb, var(--belt-color) 28%, white);
   backdrop-filter: blur(16px) saturate(160%);
   -webkit-backdrop-filter: blur(16px) saturate(160%);
-  border: 1.5px solid color-mix(in srgb, var(--belt-color) 45%, rgba(0,0,0,0.08));
+  border: 1.5px solid rgba(0, 0, 0, 0.35);
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
               0 8px 24px rgba(44, 38, 34, 0.08);
 }
