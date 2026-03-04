@@ -70,12 +70,14 @@ interface DrivingModeReturn {
   currentSegment: ComputedRef<AudioSegment | null>
   preparationProgress: ComputedRef<number>
   isActive: ComputedRef<boolean>
+  isPrepared: ComputedRef<boolean>
 
   // Aliases for convenience
   currentRound: ComputedRef<number>
   prepProgress: ComputedRef<number>
 
   // Actions
+  prepare: (startFromRound: number) => Promise<void>
   enter: (startFromRound?: number) => Promise<void>
   exit: () => DrivingModePosition | null
   skipToNextRound: () => Promise<void>
@@ -131,6 +133,11 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
   let positionUpdateFrame: number | null = null
   let lastPositionUpdateTime = 0
 
+  // Pre-built audio (from prepare() — survives modal cancel)
+  let preparedRoundAudio: ConcatenatedAudio | null = null
+  let preparedForRound = -1
+  let isPrepareInProgress = false
+
   // Preload generation counter — incremented on skip to abort stale preloads
   let preloadGeneration = 0
 
@@ -155,6 +162,10 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
 
   const isActive = computed<boolean>(() =>
     internalState.value !== 'inactive'
+  )
+
+  const isPrepared = computed<boolean>(() =>
+    preparedRoundAudio !== null
   )
 
   // ----------------------------------------
@@ -659,6 +670,48 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
   // ----------------------------------------
 
   /**
+   * Pre-build audio for a round without starting playback.
+   * Survives modal cancel — enter() will use the pre-built audio if valid.
+   */
+  async function prepare(startFromRound: number): Promise<void> {
+    // Already prepared for this round
+    if (preparedRoundAudio && preparedForRound === startFromRound) return
+    // Already preparing or already active
+    if (isPrepareInProgress) return
+    if (internalState.value !== 'inactive') return
+
+    // Release old prepared audio if for a different round
+    if (preparedRoundAudio) {
+      releaseConcatenatedAudio(preparedRoundAudio)
+      preparedRoundAudio = null
+    }
+
+    preparedForRound = startFromRound
+    prepProgress.value = 0
+    isPrepareInProgress = true
+
+    // Create audio context if needed
+    if (!audioContext) {
+      audioContext = createAudioContext()
+    }
+
+    try {
+      preparedRoundAudio = await loadRound(startFromRound, (progress) => {
+        prepProgress.value = progress
+      })
+      if (preparedRoundAudio) {
+        prepProgress.value = 1
+      }
+    } catch (err) {
+      console.error('[useDrivingMode] Failed to prepare round:', err)
+      preparedRoundAudio = null
+      preparedForRound = -1
+    } finally {
+      isPrepareInProgress = false
+    }
+  }
+
+  /**
    * Enter driving mode starting from a specific round
    */
   async function enter(startFromRound = 0): Promise<void> {
@@ -672,8 +725,10 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
     prepProgress.value = 0
 
     try {
-      // Create audio infrastructure
-      audioContext = createAudioContext()
+      // Create audio infrastructure (reuse AudioContext from prepare() if available)
+      if (!audioContext) {
+        audioContext = createAudioContext()
+      }
       mainAudio = createMainAudio()
       silentAudio = createSilentAudio()
 
@@ -695,10 +750,18 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
         () => mainAudio?.removeEventListener('pause', pauseHandler)
       )
 
-      // Concatenate first round
-      currentRoundAudio = await loadRound(startFromRound, (progress) => {
-        prepProgress.value = progress
-      })
+      // Use pre-built audio from prepare() if available for this round
+      if (preparedRoundAudio && preparedForRound === startFromRound) {
+        currentRoundAudio = preparedRoundAudio
+        preparedRoundAudio = null
+        preparedForRound = -1
+        prepProgress.value = 1
+      } else {
+        // Build from scratch
+        currentRoundAudio = await loadRound(startFromRound, (progress) => {
+          prepProgress.value = progress
+        })
+      }
 
       if (!currentRoundAudio) {
         throw new Error('Failed to prepare first round audio')
@@ -913,6 +976,13 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
       nextRoundAudio = null
     }
 
+    // Release prepared audio too
+    if (preparedRoundAudio) {
+      releaseConcatenatedAudio(preparedRoundAudio)
+      preparedRoundAudio = null
+      preparedForRound = -1
+    }
+
     // Run all cleanup functions (event listeners, media session)
     for (const fn of cleanupFns) {
       try {
@@ -962,12 +1032,14 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
     currentSegment,
     preparationProgress,
     isActive,
+    isPrepared,
 
     // Aliases for convenience
     currentRound: currentRoundIndex,
     prepProgress: preparationProgress,
 
     // Actions
+    prepare,
     enter,
     exit,
     skipToNextRound,

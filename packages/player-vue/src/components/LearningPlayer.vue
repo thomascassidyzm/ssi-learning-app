@@ -4228,9 +4228,8 @@ const exitListeningMode = () => {
 // DRIVING MODE
 // ============================================
 
-// Driving mode explainer (kept — build takes 15-20s, manages expectations)
+// Driving mode explainer (always shown — audio pre-builds in background for instant start)
 const showDrivingExplainer = ref(false)
-const drivingExplainerShownThisSession = ref(false)
 
 // Mode toggle handlers — mutually exclusive
 const handleListeningToggle = () => {
@@ -4244,32 +4243,35 @@ const handleListeningToggle = () => {
 }
 
 const handleDrivingToggle = () => {
-  if (isDrivingModeActive.value || showDrivingExplainer.value) {
+  // If actively driving, exit fully
+  if (isDrivingModeActive.value) {
     handleExitDrivingMode()
-    showDrivingExplainer.value = false
-  } else {
-    // Exit listening mode first if active
-    if (showListeningOverlay.value) handleCloseListening()
-    // Signal driving mode immediately (hides course identity, shows return arrow)
-    emit('drivingModeChanged', true)
-    if (drivingExplainerShownThisSession.value) {
-      handleEnterDrivingMode()
-    } else {
-      showDrivingExplainer.value = true
-    }
+    return
   }
+  // If modal is showing, cancel it
+  if (showDrivingExplainer.value) {
+    cancelDrivingExplainer()
+    return
+  }
+  // Exit listening mode first if active
+  if (showListeningOverlay.value) handleCloseListening()
+  // Signal driving mode immediately (hides course identity, shows return arrow)
+  emit('drivingModeChanged', true)
+  // Start building audio immediately in background
+  drivingMode.prepare(simplePlayer.roundIndex.value)
+  // Always show the modal
+  showDrivingExplainer.value = true
 }
 
 const confirmDrivingMode = () => {
   showDrivingExplainer.value = false
-  drivingExplainerShownThisSession.value = true
   handleEnterDrivingMode()
 }
 
 const cancelDrivingExplainer = () => {
   showDrivingExplainer.value = false
-  drivingExplainerShownThisSession.value = true
   emit('drivingModeChanged', false)
+  // Pre-built audio stays alive — next tap will be instant
 }
 
 const handleEnterDrivingMode = async () => {
