@@ -298,16 +298,16 @@ const handleSettings = () => {
 }
 
 .pill-btn.active .pill-btn-bg {
-  background: color-mix(in srgb, var(--belt-color, var(--ssi-red)) 12%, transparent);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .pill-btn.active {
-  color: var(--belt-color, var(--ssi-red));
+  color: var(--text-primary);
 }
 
 @media (hover: hover) {
   .pill-btn:hover:not(.active) .pill-btn-bg {
-    background: color-mix(in srgb, var(--belt-color, var(--ssi-red)) 8%, rgba(255, 255, 255, 0.06));
+    background: rgba(255, 255, 255, 0.08);
   }
   .pill-btn:hover:not(.active) {
     color: rgba(255, 255, 255, 0.7);
@@ -465,21 +465,25 @@ const handleSettings = () => {
               0 20px 48px rgba(44, 38, 34, 0.06);
 }
 
-/* Button stroke colors on white pill — subtle belt tint */
+/* Button stroke colors on white pill — neutral, no belt tint */
 :root[data-theme="mist"] .pill-btn {
-  color: color-mix(in srgb, var(--belt-color, var(--ssi-red)) 15%, #6B6560);
+  color: #6B6560;
 }
 
 :root[data-theme="mist"] .pill-btn.active .pill-btn-bg {
-  background: color-mix(in srgb, var(--belt-color, var(--ssi-red)) 12%, rgba(0, 0, 0, 0.02));
+  background: rgba(0, 0, 0, 0.06);
+}
+
+:root[data-theme="mist"] .pill-btn.active {
+  color: #2C2622;
 }
 
 @media (hover: hover) {
   :root[data-theme="mist"] .pill-btn:hover:not(.active) {
-    color: color-mix(in srgb, var(--belt-color, var(--ssi-red)) 65%, #2C2622);
+    color: #2C2622;
   }
   :root[data-theme="mist"] .pill-btn:hover:not(.active) .pill-btn-bg {
-    background: color-mix(in srgb, var(--belt-color, var(--ssi-red)) 10%, rgba(0, 0, 0, 0.02));
+    background: rgba(0, 0, 0, 0.04);
   }
 }
 

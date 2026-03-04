@@ -3709,6 +3709,8 @@ const handleSkip = async () => {
     haltAllPlayback()
     const nextIndex = simplePlayer.roundIndex.value + 1
     simplePlayer.jumpToRound(nextIndex)
+    // Update belt position to match (positional indicator, not just achievement)
+    updateBeltForPosition(nextIndex, false)
   } finally {
     isSkipInProgress.value = false
   }
@@ -3935,6 +3937,12 @@ const handleGoBackBelt = async () => {
   } finally {
     isSkippingBelt.value = false
   }
+}
+
+// Belt pill tap — same as skip forward for now (natural action)
+const handleBeltPillTap = () => {
+  // No-op for now — clickable appearance signals belt navigation exists
+  // Future: could open belt journey/progress detail
 }
 
 // Mode toggles
@@ -6174,15 +6182,17 @@ defineExpose({
             </svg>
           </button>
 
-          <div
+          <button
             class="belt-timer-unified"
             :title="!nextBelt ? 'Black belt achieved!' : `${Math.round(beltProgressPercent)}% to ${nextBelt.name} belt`"
+            @click="handleBeltPillTap"
           >
+            <span class="belt-name-label">{{ playingBelt.name }}</span>
             <div class="belt-bar-track">
               <div class="belt-bar-fill" :style="{ width: `${beltProgressPercent}%` }"></div>
             </div>
             <span class="belt-timer-label">{{ formattedSessionTime }}</span>
-          </div>
+          </button>
 
           <button
             class="belt-header-skip belt-header-skip--forward"
@@ -7327,8 +7337,8 @@ defineExpose({
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  padding: 6px 16px;
-  background: color-mix(in srgb, var(--belt-color) 35%, rgba(0,0,0,0.4));
+  padding: 6px 12px 6px 16px;
+  background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(16px) saturate(150%);
   -webkit-backdrop-filter: blur(16px) saturate(150%);
   border: 1.5px solid rgba(255, 255, 255, 0.35);
@@ -7337,24 +7347,40 @@ defineExpose({
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   flex: 1;
   min-width: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
+.belt-timer-unified:active {
+  transform: scale(0.98);
+}
+
+.belt-name-label {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: capitalize;
+  color: rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+  flex-shrink: 0;
+  letter-spacing: 0.02em;
+}
 
 .belt-timer-unified .belt-bar-track {
   flex: 1;
   min-width: var(--belt-bar-width);
   height: var(--belt-bar-height);
-  background: var(--bg-elevated);
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.2);
   border-radius: 4px;
   overflow: hidden;
 }
 
 .belt-timer-unified .belt-bar-fill {
   height: 100%;
-  background: var(--belt-color);
-  border-radius: 4px;
-  transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1), background 0.5s ease;
-  box-shadow: 0 0 6px var(--belt-glow);
+  background: #1a1a1a;
+  border-radius: 3px;
+  transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   min-width: 2px;
 }
 
@@ -7362,7 +7388,7 @@ defineExpose({
   font-family: 'Space Mono', monospace;
   font-size: clamp(0.75rem, 2vw, 0.875rem);
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
+  color: #2C2622;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
   white-space: nowrap;
@@ -9949,16 +9975,9 @@ defineExpose({
      Scoped manually via .player parent class.
      ═══════════════════════════════════════════════════════════════ -->
 <style>
-/* --- Player wrapper background — belt-colored underglow --- */
+/* --- Player wrapper background — clean flat canvas --- */
 [data-theme="mist"] .player {
-  background:
-    radial-gradient(ellipse 140% 60% at 50% 70%,
-      color-mix(in srgb, var(--belt-color) 8%, transparent) 0%,
-      transparent 50%),
-    radial-gradient(ellipse 80% 50% at 50% 30%,
-      color-mix(in srgb, var(--belt-color) 4%, transparent) 0%,
-      transparent 60%),
-    #e8e3dd;
+  background: #e8e3dd;
 }
 
 /* --- Space / Background layers → Warm grey canvas --- */
@@ -10056,29 +10075,11 @@ defineExpose({
               0 20px 48px rgba(44, 38, 34, 0.06);
 }
 
-/* --- Belt timer → Crisp white pill, belt color in progress bar only --- */
+/* --- Belt timer on mist — same white pill, softer shadow --- */
 [data-theme="mist"] .player .belt-timer-unified {
-  background: color-mix(in srgb, var(--belt-color) 28%, white);
-  backdrop-filter: blur(16px) saturate(160%);
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
   border: 1.5px solid rgba(0, 0, 0, 0.35);
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
               0 8px 24px rgba(44, 38, 34, 0.08);
-}
-
-/* Belt bar track needs contrast against white timer */
-[data-theme="mist"] .player .belt-timer-unified .belt-bar-track {
-  background: #e8e3dd;
-}
-
-/* Belt bar fill glow — softer on light */
-[data-theme="mist"] .player .belt-timer-unified .belt-bar-fill {
-  box-shadow: none;
-}
-
-/* Timer label needs dark text on white pill */
-[data-theme="mist"] .player .belt-timer-label {
-  color: #2C2622;
 }
 
 /* --- Mode nav buttons on mist → translucent, not opaque like the pill --- */
@@ -10238,9 +10239,5 @@ defineExpose({
     var(--belt-color) 35%, #ffffff 42%,
     #ffffff 58%, var(--belt-color) 65%) !important;
 }
-[data-theme="mist"] .player.belt-black .belt-timer-unified {
-  border: 2px solid #2C2622 !important;
-  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.4),
-              0 2px 8px rgba(0, 0, 0, 0.25);
-}
+/* Black belt uses same white pill style — no special override needed */
 </style>
