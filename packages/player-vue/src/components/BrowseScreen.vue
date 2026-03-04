@@ -166,13 +166,17 @@ const isActiveCourse = (courseCode) => {
   return props.activeCourse?.course_code === courseCode
 }
 
-// Get target display name
-const getTargetDisplayName = (course) => {
+// Get full course display name e.g. "English for Arabic speakers"
+const getFullDisplayName = (course) => {
   if (course.display_name) {
-    const match = course.display_name.match(/^(.+?)\s+for\s+/i)
-    if (match && !/^[a-z]{2,3}$/i.test(match[1].trim())) return match[1]
+    // Check if display_name looks like a real name (not raw codes like "ARA FOR ENG")
+    const hasRawCodes = /^[A-Z]{2,3}\s+(for|FOR)\s+[A-Z]{2,3}/.test(course.display_name.trim())
+    if (!hasRawCodes) return course.display_name
   }
-  return getLanguageName(course.target_lang)
+  // Construct from language codes
+  const target = getLanguageName(course.target_lang)
+  const known = getLanguageName(course.known_lang)
+  return `${target} for ${known} speakers`
 }
 
 // Get enrollment progress
@@ -289,8 +293,8 @@ onMounted(() => {
         </div>
       </Transition>
 
-      <!-- ── Section 2: Brain Map ── -->
-      <section class="section">
+      <!-- ── Section 2: Brain Map (hidden for now) ── -->
+      <section v-if="false" class="section">
         <h3 class="section-label">Brain Map</h3>
         <div class="brain-card" @click="emit('open-brain')">
           <div class="brain-icon-area">
@@ -387,7 +391,7 @@ onMounted(() => {
             <div v-else-if="course.new_app_status === 'beta'" class="course-badge beta-badge">B</div>
             <div v-else-if="!isEnrolled(course.course_code)" class="course-badge new-badge">NEW</div>
 
-            <span class="course-name">{{ getTargetDisplayName(course) }}</span>
+            <span class="course-name">{{ getFullDisplayName(course) }}</span>
 
             <span class="course-status">
               <template v-if="isEnrolled(course.course_code)">
@@ -777,8 +781,9 @@ onMounted(() => {
 }
 
 .course-name {
-  font-size: 0.9375rem;
+  font-size: 0.8125rem;
   font-weight: 600;
+  line-height: 1.3;
 }
 
 .course-status {

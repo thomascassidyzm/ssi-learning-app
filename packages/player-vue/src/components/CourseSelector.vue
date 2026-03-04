@@ -72,6 +72,7 @@ const allCourses = ref([])
 const isLoading = ref(true)
 const error = ref(null)
 const langSearchQuery = ref('')
+const langSearchFocused = ref(false)
 
 // Top 4 most popular known languages (hardcoded for now, could be dynamic later)
 const TOP_KNOWN_LANGS = ['eng', 'zho', 'jpn', 'spa']
@@ -264,9 +265,11 @@ onMounted(() => {
                 v-model="langSearchQuery"
                 type="text"
                 class="lang-search-input"
-                placeholder="Other language..."
+                placeholder="Search other languages..."
+                @focus="langSearchFocused = true"
+                @blur="setTimeout(() => langSearchFocused = false, 200)"
               />
-              <div v-if="filteredOtherLanguages.length > 0 && langSearchQuery.trim()" class="language-pills">
+              <div v-if="filteredOtherLanguages.length > 0 && (langSearchFocused || langSearchQuery.trim())" class="language-pills">
                 <button
                   v-for="lang in filteredOtherLanguages"
                   :key="lang.code"
