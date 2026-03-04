@@ -26,6 +26,7 @@ const JOURNEY_MAP: Record<string, string> = {
   gle: '/design/journey-gle.webp',
   nld: '/design/journey-nld.webp',
   por: '/design/journey-por.webp',
+  spa: '/design/journey-spa.webp',
 }
 
 // Dawn glow per belt: colour warms and intensifies as learner progresses
