@@ -29,10 +29,14 @@ const props = defineProps({
   showSettings: {
     type: Boolean,
     default: false
+  },
+  showSessionComplete: {
+    type: Boolean,
+    default: false
   }
 })
 
-const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'exitListeningMode', 'exitDrivingMode', 'revisit', 'skip', 'openSettings', 'closeOverlays'])
+const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'exitListeningMode', 'exitDrivingMode', 'toggleListening', 'toggleDriving', 'revisit', 'skip', 'openSettings', 'closeOverlays'])
 
 // Tap feedback
 const tappedItem = ref(null)
@@ -103,6 +107,34 @@ const handleSettings = () => {
 
 <template>
   <nav class="bottom-nav">
+    <!-- Mode buttons — positioned absolutely relative to the pill so they stay in sync on Android -->
+    <button
+      v-show="!showSessionComplete && isOnPlayerScreen"
+      class="mode-btn mode-btn--left"
+      :class="{ active: isListeningMode, disabled: isDrivingMode }"
+      @click="emit('toggleListening')"
+      title="Listening mode"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+        <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+      </svg>
+    </button>
+    <button
+      v-show="!showSessionComplete && isOnPlayerScreen"
+      class="mode-btn mode-btn--right"
+      :class="{ active: isDrivingMode, disabled: isListeningMode }"
+      @click="emit('toggleDriving')"
+      title="Driving mode"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0ZM15 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z"/>
+        <path d="M5 17H3v-6l2-5h10l4 5h2v6h-2"/>
+        <path d="M5 11h14"/>
+        <path d="M9 17h6"/>
+      </svg>
+    </button>
+
     <div class="nav-backdrop"></div>
 
     <div class="nav-content">
@@ -332,6 +364,60 @@ const handleSettings = () => {
   color: var(--text-primary);
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   MODE BUTTONS — anchored to the pill, always in sync
+   ═══════════════════════════════════════════════════════════════ */
+.mode-btn {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  background: rgba(10, 10, 18, 0.82);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+  color: var(--text-muted);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.5),
+    0 8px 20px rgba(0, 0, 0, 0.25);
+  z-index: 103;
+}
+
+.mode-btn--left {
+  left: 16px;
+}
+
+.mode-btn--right {
+  right: 16px;
+}
+
+.mode-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.mode-btn:active {
+  transform: scale(0.9);
+}
+
+.mode-btn.active {
+  background: rgba(10, 10, 18, 0.92);
+  border-color: rgba(255, 255, 255, 0.35);
+  color: var(--text-primary);
+}
+
+.mode-btn.disabled {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
 /* Safe area — not needed for floating pill (bottom offset includes safe area) */
 .safe-area-spacer {
   display: none;
@@ -403,6 +489,21 @@ const handleSettings = () => {
 }
 
 :root[data-theme="mist"] .center-btn.is-return .center-btn-inner {
+  color: #2C2622;
+}
+
+/* Mode buttons on mist — match white pill */
+:root[data-theme="mist"] .mode-btn {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1.5px solid rgba(0, 0, 0, 0.22);
+  color: #6B6560;
+  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.14),
+              0 8px 20px rgba(44, 38, 34, 0.08);
+}
+
+:root[data-theme="mist"] .mode-btn.active {
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(0, 0, 0, 0.3);
   color: #2C2622;
 }
 </style>

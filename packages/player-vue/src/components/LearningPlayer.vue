@@ -5774,6 +5774,8 @@ defineExpose({
   exitAllModes,
   unlockAudio,
   handleListeningMode,
+  handleListeningToggle,
+  handleDrivingToggle,
   handleEnterDrivingMode,
   handleExitDrivingMode,
   beltCssVars,
@@ -6481,35 +6483,7 @@ defineExpose({
 
   </div>
 
-  <!-- Mode buttons + course identity — OUTSIDE .player to avoid stacking context / overflow clip -->
-  <button
-    v-show="!showSessionComplete"
-    class="mode-nav-btn mode-nav-btn--left"
-    :class="{ active: showListeningOverlay, disabled: isDrivingModeActive }"
-    :style="beltCssVars"
-    @click="handleListeningToggle"
-    title="Listening mode"
-  >
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
-      <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
-    </svg>
-  </button>
-  <button
-    v-show="!showSessionComplete"
-    class="mode-nav-btn mode-nav-btn--right"
-    :class="{ active: isDrivingModeActive, disabled: showListeningOverlay }"
-    :style="beltCssVars"
-    @click="handleDrivingToggle"
-    title="Driving mode"
-  >
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-      <path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0ZM15 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z"/>
-      <path d="M5 17H3v-6l2-5h10l4 5h2v6h-2"/>
-      <path d="M5 11h14"/>
-      <path d="M9 17h6"/>
-    </svg>
-  </button>
+  <!-- Mode buttons moved to BottomNav for Android viewport sync -->
   <Transition name="fade">
     <div v-if="isPlaying && activeCourseCode && !isDrivingModeActive && !showDrivingExplainer" class="course-identity" :style="beltCssVars">
       <span class="course-identity-flag">{{ courseFlag }}</span>
@@ -7322,59 +7296,7 @@ defineExpose({
   50% { opacity: 0.2; }
 }
 
-/* ============ MODE NAV BUTTONS (flanking course identity above bottom nav) ============ */
-.mode-nav-btn {
-  position: fixed;
-  bottom: max(calc(env(safe-area-inset-bottom, 0px) / 2 + 88px), 100px);
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.22);
-  background: rgba(10, 10, 18, 0.82);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  -webkit-tap-highlight-color: transparent;
-  color: var(--text-muted);
-  box-shadow:
-    0 2px 8px rgba(0, 0, 0, 0.5),
-    0 8px 24px rgba(0, 0, 0, 0.3);
-  z-index: 3001;
-}
-
-.mode-nav-btn--left {
-  left: calc(50% - 100px);
-}
-.mode-nav-btn--right {
-  right: calc(50% - 100px);
-}
-
-.mode-nav-btn svg {
-  width: 20px;
-  height: 20px;
-}
-
-.mode-nav-btn:active {
-  transform: scale(0.9);
-}
-
-.mode-nav-btn.active {
-  background: rgba(10, 10, 18, 0.9);
-  border-color: rgba(255, 255, 255, 0.35);
-  color: var(--text-primary);
-  box-shadow:
-    0 2px 8px rgba(0, 0, 0, 0.5),
-    0 8px 24px rgba(0, 0, 0, 0.3);
-}
-
-.mode-nav-btn.disabled {
-  opacity: 0.3;
-  pointer-events: none;
-}
+/* Mode nav buttons moved to BottomNav.vue */
 
 /* Course identity — fixed above bottom nav, only during playback */
 .course-identity {
@@ -10155,21 +10077,7 @@ defineExpose({
 }
 
 /* --- Mode nav buttons on mist → translucent, not opaque like the pill --- */
-[data-theme="mist"] .player .mode-nav-btn {
-  background: rgba(255, 255, 255, 0.96);
-  border: 1.5px solid rgba(0, 0, 0, 0.22);
-  color: #6B6560;
-  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.14),
-              0 8px 24px rgba(44, 38, 34, 0.10);
-}
-
-[data-theme="mist"] .player .mode-nav-btn.active {
-  background: rgba(255, 255, 255, 0.96);
-  border-color: rgba(0, 0, 0, 0.3);
-  color: #2C2622;
-  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.14),
-              0 8px 24px rgba(44, 38, 34, 0.10);
-}
+/* Mode nav buttons moved to BottomNav.vue */
 
 /* --- Belt skip buttons → crisp white, destination belt color arrows --- */
 [data-theme="mist"] .player .belt-header-skip {

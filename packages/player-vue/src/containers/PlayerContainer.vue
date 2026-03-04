@@ -168,6 +168,19 @@ const handleExitDrivingMode = () => {
   }
 }
 
+// Handle mode toggle from BottomNav mode buttons
+const handleToggleListening = () => {
+  if (learningPlayerRef.value?.handleListeningToggle) {
+    learningPlayerRef.value.handleListeningToggle()
+  }
+}
+
+const handleToggleDriving = () => {
+  if (learningPlayerRef.value?.handleDrivingToggle) {
+    learningPlayerRef.value.handleDrivingToggle()
+  }
+}
+
 // Handle view progress from LearningPlayer (belt modal)
 const handleViewProgress = () => {
   navigate('progress')
@@ -428,6 +441,8 @@ onMounted(() => {
       @togglePlayback="handleTogglePlayback"
       @exitListeningMode="handleExitListeningMode"
       @exitDrivingMode="handleExitDrivingMode"
+      @toggleListening="handleToggleListening"
+      @toggleDriving="handleToggleDriving"
       @revisit="handleRevisit"
       @skip="handleSkip"
       @openSettings="toggleSettings"
