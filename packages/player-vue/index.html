@@ -43,15 +43,6 @@
         overscroll-behavior: none;
       }
 
-      /* Fixed body prevents Android viewport scroll/bounce.
-         Applied to body only — putting position:fixed on html breaks iOS PWA. */
-      body {
-        overflow: hidden;
-        position: fixed;
-        width: 100%;
-        height: 100%;
-      }
-
       /* Prevent pull-to-refresh on Chrome Android */
       body {
         overscroll-behavior-y: contain;

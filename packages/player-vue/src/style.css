@@ -29,7 +29,38 @@ body {
   overscroll-behavior: none;
 }
 
-/* PWA standalone mode */
+/* ═══════════════════════════════════════════════════════════════
+   PLATFORM-SPECIFIC FIXES
+
+   Android Chrome: viewport bounces/scrolls on swipe — needs
+   overflow:hidden + touch-action:none on body to suppress.
+
+   iOS PWA (standalone): position:fixed on body/html collapses
+   the viewport and breaks safe area coverage. Must NOT be applied.
+
+   Detection:
+   - @supports (-webkit-touch-callout: none) = WebKit (iOS Safari)
+   - @media (display-mode: standalone)       = installed PWA
+   - Combined = iOS PWA specifically
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Android scroll/bounce prevention — safe everywhere except iOS PWA */
+body {
+  overflow: hidden;
+  touch-action: none;
+}
+
+/* iOS PWA: undo the overflow lock — iOS handles this natively in standalone */
+@supports (-webkit-touch-callout: none) {
+  @media (display-mode: standalone) {
+    body {
+      overflow: visible;
+      touch-action: auto;
+    }
+  }
+}
+
+/* PWA standalone mode — all platforms */
 @media (display-mode: standalone) {
   body {
     -webkit-user-select: none;
