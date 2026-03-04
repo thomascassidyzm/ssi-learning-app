@@ -63,6 +63,9 @@ const learningPlayerRef = ref(null)
 // Listening mode overlay state (overlay is inside LearningPlayer, but we track it for BottomNav)
 const isListeningMode = ref(false)
 
+// Driving mode state (tracked for BottomNav return arrow)
+const isDrivingMode = ref(false)
+
 // Class context (when launched from Schools)
 const classContext = ref(null)
 
@@ -146,10 +149,22 @@ const handleListeningModeChanged = (listening) => {
   isListeningMode.value = listening
 }
 
+// Handle driving mode state changes from LearningPlayer
+const handleDrivingModeChanged = (driving) => {
+  isDrivingMode.value = driving
+}
+
 // Handle exit listening mode from BottomNav (user navigated away)
 const handleExitListeningMode = () => {
   if (learningPlayerRef.value) {
     learningPlayerRef.value.exitListeningMode()
+  }
+}
+
+// Handle exit driving mode from BottomNav
+const handleExitDrivingMode = () => {
+  if (learningPlayerRef.value) {
+    learningPlayerRef.value.handleExitDrivingMode()
   }
 }
 
@@ -363,11 +378,12 @@ onMounted(() => {
       @playStateChanged="handlePlayStateChanged"
       @viewProgress="handleViewProgress"
       @listeningModeChanged="handleListeningModeChanged"
+      @drivingModeChanged="handleDrivingModeChanged"
     />
 
     <!-- Player resting state overlay (shown when paused, hidden during playback) -->
     <PlayerRestingState
-      v-if="currentScreen === 'player' && !isListeningMode && !isPlaying"
+      v-if="currentScreen === 'player' && !isListeningMode && !isDrivingMode && !isPlaying"
       :course="activeCourse"
       :completed-seeds="completedSeeds"
       :total-seeds="totalSeeds"
@@ -404,12 +420,14 @@ onMounted(() => {
       :isLearning="isLearning"
       :isPlaying="isPlaying"
       :isListeningMode="isListeningMode"
+      :isDrivingMode="isDrivingMode"
       :showLibrary="showLibrary"
       :showSettings="showSettings"
       @navigate="handleNavigation"
       @startLearning="handleStartLearning"
       @togglePlayback="handleTogglePlayback"
       @exitListeningMode="handleExitListeningMode"
+      @exitDrivingMode="handleExitDrivingMode"
       @revisit="handleRevisit"
       @skip="handleSkip"
       @openSettings="toggleSettings"

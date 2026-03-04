@@ -41,7 +41,7 @@ import DrivingModeOverlay from './DrivingModeOverlay.vue'
 import { useDrivingMode } from '../composables/useDrivingMode'
 import { simpleRoundToTypedCycles } from '../utils/drivingModeAdapter'
 
-const emit = defineEmits(['close', 'playStateChanged', 'viewProgress', 'listeningModeChanged', 'cycle-started'])
+const emit = defineEmits(['close', 'playStateChanged', 'viewProgress', 'listeningModeChanged', 'drivingModeChanged', 'cycle-started'])
 
 const props = defineProps({
   classContext: {
@@ -3973,6 +3973,7 @@ const drivingMode = useDrivingMode({
   },
   onSessionComplete: () => {
     isDrivingModeActive.value = false
+    emit('drivingModeChanged', false)
     drivingModeInitialRound = null
   },
 })
@@ -4231,11 +4232,13 @@ const exitListeningMode = () => {
 const showDrivingExplainer = ref(false)
 const drivingExplainerShownThisSession = ref(false)
 
-// Top nav: [🎧] SSi [🚗] — toggle handlers
+// Mode toggle handlers — mutually exclusive
 const handleListeningToggle = () => {
   if (showListeningOverlay.value) {
     handleCloseListening()
   } else {
+    // Exit driving mode first if active
+    if (isDrivingModeActive.value) handleExitDrivingMode()
     handleListeningMode()
   }
 }
@@ -4244,6 +4247,8 @@ const handleDrivingToggle = () => {
   if (isDrivingModeActive.value) {
     handleExitDrivingMode()
   } else {
+    // Exit listening mode first if active
+    if (showListeningOverlay.value) handleCloseListening()
     if (drivingExplainerShownThisSession.value) {
       handleEnterDrivingMode()
     } else {
@@ -4269,6 +4274,7 @@ const handleEnterDrivingMode = async () => {
   if (isPlayingWelcome.value) skipWelcome()
 
   isDrivingModeActive.value = true
+  emit('drivingModeChanged', true)
   drivingModeInitialRound = null
 
   try {
@@ -4276,12 +4282,14 @@ const handleEnterDrivingMode = async () => {
   } catch (err) {
     console.error('[LearningPlayer] Failed to enter driving mode:', err)
     isDrivingModeActive.value = false
+    emit('drivingModeChanged', false)
   }
 }
 
 const handleExitDrivingMode = () => {
   const position = drivingMode.exit()
   isDrivingModeActive.value = false
+  emit('drivingModeChanged', false)
   drivingModeInitialRound = null
 
   if (position && position.roundIndex >= 0) {
@@ -4295,6 +4303,7 @@ const exitAllModes = () => {
   if (isDrivingModeActive.value) {
     drivingMode.exit()
     isDrivingModeActive.value = false
+    emit('drivingModeChanged', false)
     drivingModeInitialRound = null
   }
   if (showListeningOverlay.value) {
@@ -6454,40 +6463,6 @@ defineExpose({
       :qa-mode="shouldShowQaMode"
     />
 
-    <!-- Mode buttons flanking bottom nav -->
-    <button
-      class="mode-nav-btn mode-nav-btn--left"
-      :class="{ active: showListeningOverlay }"
-      @click="handleListeningToggle"
-      title="Listening mode"
-    >
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
-        <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
-      </svg>
-    </button>
-    <button
-      class="mode-nav-btn mode-nav-btn--right"
-      :class="{ active: isDrivingModeActive }"
-      @click="handleDrivingToggle"
-      title="Driving mode"
-    >
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-        <path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0ZM15 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z"/>
-        <path d="M5 17H3v-6l2-5h10l4 5h2v6h-2"/>
-        <path d="M5 11h14"/>
-        <path d="M9 17h6"/>
-      </svg>
-    </button>
-
-    <!-- Course identity: flag + language (only during playback, hides when resting state visible) -->
-    <Transition name="fade">
-      <div v-if="isPlaying && activeCourseCode" class="course-identity">
-        <span class="course-identity-flag">{{ courseFlag }}</span>
-        <span class="course-identity-name">{{ courseDisplayName }}</span>
-      </div>
-    </Transition>
-
     <!-- Footer -->
     <footer class="footer">
       <div class="progress-bar">
@@ -6500,6 +6475,43 @@ defineExpose({
     </footer>
 
   </div>
+
+  <!-- Mode buttons + course identity — OUTSIDE .player to avoid stacking context / overflow clip -->
+  <button
+    v-show="!showSessionComplete"
+    class="mode-nav-btn mode-nav-btn--left"
+    :class="{ active: showListeningOverlay, disabled: isDrivingModeActive }"
+    :style="beltCssVars"
+    @click="handleListeningToggle"
+    title="Listening mode"
+  >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+      <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+    </svg>
+  </button>
+  <button
+    v-show="!showSessionComplete"
+    class="mode-nav-btn mode-nav-btn--right"
+    :class="{ active: isDrivingModeActive, disabled: showListeningOverlay }"
+    :style="beltCssVars"
+    @click="handleDrivingToggle"
+    title="Driving mode"
+  >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0ZM15 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z"/>
+      <path d="M5 17H3v-6l2-5h10l4 5h2v6h-2"/>
+      <path d="M5 11h14"/>
+      <path d="M9 17h6"/>
+    </svg>
+  </button>
+  <Transition name="fade">
+    <div v-if="isPlaying && activeCourseCode" class="course-identity" :style="beltCssVars">
+      <span class="course-identity-flag">{{ courseFlag }}</span>
+      <span class="course-identity-name">{{ courseDisplayName }}</span>
+    </div>
+  </Transition>
+
   </div><!-- /.learning-player-root -->
 </template>
 
@@ -7347,6 +7359,11 @@ defineExpose({
   border-color: color-mix(in srgb, var(--belt-color) 50%, transparent);
   color: var(--belt-color);
   box-shadow: 0 0 14px color-mix(in srgb, var(--belt-glow) 35%, transparent);
+}
+
+.mode-nav-btn.disabled {
+  opacity: 0.3;
+  pointer-events: none;
 }
 
 /* Course identity — fixed above bottom nav, only during playback */
@@ -9279,13 +9296,14 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   padding: 1.5rem;
 }
 
 .mode-popup {
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
   border: 1px solid var(--border-medium);
   border-radius: 1rem;
   padding: 1.5rem;

@@ -18,6 +18,10 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  isDrivingMode: {
+    type: Boolean,
+    default: false
+  },
   showLibrary: {
     type: Boolean,
     default: false
@@ -28,7 +32,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'exitListeningMode', 'revisit', 'skip', 'openSettings', 'closeOverlays'])
+const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'exitListeningMode', 'exitDrivingMode', 'revisit', 'skip', 'openSettings', 'closeOverlays'])
 
 // Tap feedback
 const tappedItem = ref(null)
@@ -38,11 +42,13 @@ const isOnPlayerScreen = computed(() => props.currentScreen === 'player')
 const hasOverlayOpen = computed(() => props.showLibrary || props.showSettings)
 
 const isStopMode = computed(() =>
-  props.isPlaying && !props.isListeningMode
+  props.isPlaying && !props.isListeningMode && !props.isDrivingMode
 )
 
+const hasActiveMode = computed(() => props.isListeningMode || props.isDrivingMode)
+
 const isReturnMode = computed(() =>
-  (!isOnPlayerScreen.value || hasOverlayOpen.value) && !props.isPlaying
+  ((!isOnPlayerScreen.value || hasOverlayOpen.value) && !props.isPlaying) || hasActiveMode.value
 )
 
 const handleNavTap = (itemId) => {
@@ -50,14 +56,23 @@ const handleNavTap = (itemId) => {
   setTimeout(() => { tappedItem.value = null }, 150)
   if (navigator.vibrate) navigator.vibrate(10)
   if (props.isListeningMode) emit('exitListeningMode')
+  if (props.isDrivingMode) emit('exitDrivingMode')
   emit('navigate', itemId)
 }
 
 const handlePlayTap = () => {
-  if (props.isListeningMode) return
   playButtonPressed.value = true
   setTimeout(() => { playButtonPressed.value = false }, 200)
   if (navigator.vibrate) navigator.vibrate([10, 50, 10])
+  // Exit active mode (listening or driving) — return to player
+  if (props.isListeningMode) {
+    emit('exitListeningMode')
+    return
+  }
+  if (props.isDrivingMode) {
+    emit('exitDrivingMode')
+    return
+  }
   // Back arrow when overlay is open — close it
   if (hasOverlayOpen.value && !props.isPlaying) {
     emit('closeOverlays')
@@ -125,18 +140,12 @@ const handleSettings = () => {
           pressed: playButtonPressed,
           'is-stop': isStopMode,
           'is-return': isReturnMode,
-          'is-disabled': isListeningMode
         }"
-        :disabled="isListeningMode"
         @click="handlePlayTap"
       >
         <div class="center-btn-inner">
           <svg v-if="isStopMode" viewBox="0 0 24 24" fill="currentColor">
             <rect x="6" y="6" width="12" height="12" rx="2"/>
-          </svg>
-          <svg v-else-if="isListeningMode" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
-            <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
           </svg>
           <svg v-else-if="isReturnMode" viewBox="0 0 24 24" fill="currentColor">
             <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
@@ -321,17 +330,6 @@ const handleSettings = () => {
 
 .center-btn.is-return .center-btn-inner {
   color: var(--text-primary);
-}
-
-.center-btn.is-disabled {
-  background: var(--bg-elevated);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-.center-btn.is-disabled .center-btn-inner {
-  color: var(--text-muted);
 }
 
 /* Safe area — not needed for floating pill (bottom offset includes safe area) */
