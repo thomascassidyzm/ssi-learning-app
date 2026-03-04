@@ -4252,12 +4252,6 @@ const handleDrivingToggle = () => {
   }
 }
 
-// SSi logo tap: exit all modes → return to default Learning state
-const handleBrandTap = () => {
-  if (showListeningOverlay.value) handleCloseListening()
-  if (isDrivingModeActive.value) handleExitDrivingMode()
-}
-
 const confirmDrivingMode = () => {
   showDrivingExplainer.value = false
   drivingExplainerShownThisSession.value = true
@@ -6144,26 +6138,8 @@ defineExpose({
     <!-- Header - brand row + belt row -->
     <header class="header" :class="{ 'has-banner': props.classContext }">
       <div class="header-stack">
-        <!-- Top nav: [🎧] SaySomethingin [🚗] -->
-        <div class="top-nav-row">
-          <button class="mode-nav-btn" :class="{ active: showListeningOverlay }" :style="showListeningOverlay ? { '--mode-accent': 'var(--belt-color)' } : {}" @click="handleListeningToggle">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
-              <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
-            </svg>
-          </button>
-          <button class="brand-btn" @click="handleBrandTap">
-            <span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span>
-          </button>
-          <button class="mode-nav-btn" :class="{ active: isDrivingModeActive }" :style="isDrivingModeActive ? { '--mode-accent': 'var(--belt-color)' } : {}" @click="handleDrivingToggle">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0ZM15 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z"/>
-              <path d="M5 17H3v-6l2-5h10l4 5h2v6h-2"/>
-              <path d="M5 11h14"/>
-              <path d="M9 17h6"/>
-            </svg>
-          </button>
-        </div>
+        <!-- Brand -->
+        <div class="brand"><span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span></div>
 
         <!-- Belt row: skip back + timer + skip forward -->
         <div class="belt-row">
@@ -6483,6 +6459,32 @@ defineExpose({
       :current-target="visibleTexts.target"
       :qa-mode="shouldShowQaMode"
     />
+
+    <!-- Mode buttons flanking bottom nav -->
+    <button
+      class="mode-nav-btn mode-nav-btn--left"
+      :class="{ active: showListeningOverlay }"
+      @click="handleListeningToggle"
+      title="Listening mode"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+        <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+      </svg>
+    </button>
+    <button
+      class="mode-nav-btn mode-nav-btn--right"
+      :class="{ active: isDrivingModeActive }"
+      @click="handleDrivingToggle"
+      title="Driving mode"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0ZM15 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z"/>
+        <path d="M5 17H3v-6l2-5h10l4 5h2v6h-2"/>
+        <path d="M5 11h14"/>
+        <path d="M9 17h6"/>
+      </svg>
+    </button>
 
     <!-- Footer -->
     <footer class="footer">
@@ -7083,6 +7085,16 @@ defineExpose({
   max-width: 400px;
 }
 
+/* Brand — logo text */
+.brand {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .logo-say, .logo-in { color: var(--accent); }
 .logo-something { color: var(--text-primary); }
 
@@ -7306,20 +7318,17 @@ defineExpose({
   50% { opacity: 0.2; }
 }
 
-/* ============ TOP NAV ROW ============ */
-.top-nav-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-}
-
+/* ============ MODE NAV BUTTONS (flanking bottom nav) ============ */
 .mode-nav-btn {
-  width: 36px;
-  height: 36px;
+  position: fixed;
+  bottom: max(calc(env(safe-area-inset-bottom, 0px) / 2 + 20px), 32px);
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -7327,7 +7336,14 @@ defineExpose({
   transition: all 0.2s ease;
   -webkit-tap-highlight-color: transparent;
   color: var(--text-muted);
-  flex-shrink: 0;
+  z-index: 3001;
+}
+
+.mode-nav-btn--left {
+  left: calc(50% - 232px);
+}
+.mode-nav-btn--right {
+  right: calc(50% - 232px);
 }
 
 .mode-nav-btn svg {
@@ -7340,28 +7356,16 @@ defineExpose({
 }
 
 .mode-nav-btn.active {
-  background: color-mix(in srgb, var(--mode-accent, var(--belt-color)) 15%, transparent);
-  border-color: color-mix(in srgb, var(--mode-accent, var(--belt-color)) 35%, transparent);
-  color: var(--mode-accent, var(--belt-color));
-  box-shadow: 0 0 10px color-mix(in srgb, var(--mode-accent, var(--belt-color)) 25%, transparent);
+  background: color-mix(in srgb, var(--belt-color) 15%, rgba(0,0,0,0.4));
+  border-color: color-mix(in srgb, var(--belt-color) 40%, transparent);
+  color: var(--belt-color);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--belt-glow) 30%, transparent);
 }
 
-/* Brand button — looks like logo text, acts as escape hatch */
-.brand-btn {
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  font-family: var(--font-body);
-  font-weight: 700;
-  font-size: 1.5rem;
-  letter-spacing: -0.02em;
-  white-space: nowrap;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.brand-btn:active {
-  opacity: 0.7;
+/* On narrow screens, tuck buttons closer to the pill */
+@media (max-width: 500px) {
+  .mode-nav-btn--left { left: 8px; }
+  .mode-nav-btn--right { right: 8px; }
 }
 
 /* Course identity line */
@@ -10137,16 +10141,17 @@ defineExpose({
 
 /* --- Mode nav buttons on mist → white circle, dark icons --- */
 [data-theme="mist"] .player .mode-nav-btn {
-  background: rgba(255, 255, 255, 0.9);
-  border-color: rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.10);
   color: #8A8078;
 }
 
 [data-theme="mist"] .player .mode-nav-btn.active {
-  background: color-mix(in srgb, var(--mode-accent, var(--belt-color)) 12%, white);
-  border-color: color-mix(in srgb, var(--mode-accent, var(--belt-color)) 30%, transparent);
-  color: var(--mode-accent, var(--belt-color));
-  box-shadow: 0 0 8px color-mix(in srgb, var(--mode-accent, var(--belt-color)) 20%, transparent);
+  background: color-mix(in srgb, var(--belt-color) 15%, white);
+  border-color: color-mix(in srgb, var(--belt-color) 30%, transparent);
+  color: var(--belt-color);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--belt-color) 20%, transparent);
 }
 
 /* --- Belt skip buttons → crisp white, destination belt color arrows --- */
