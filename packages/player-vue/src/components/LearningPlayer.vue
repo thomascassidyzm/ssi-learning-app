@@ -9228,18 +9228,19 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 1);
+  background: #ffffff;
   backdrop-filter: none;
-  -webkit-backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: none;
   padding: 1.5rem;
 }
 
 .mode-popup {
   background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  border: none;
   border-radius: 1rem;
   padding: 1.5rem;
   max-width: 320px;
+  width: 100%;
   text-align: center;
   color: #2C2622;
 }
@@ -9270,8 +9271,8 @@ defineExpose({
 }
 
 .mode-popup-icon--driving {
-  background: rgba(96, 165, 250, 0.15);
-  color: #60a5fa;
+  background: rgba(44, 38, 34, 0.08);
+  color: #2C2622;
 }
 
 .mode-popup-hint {
