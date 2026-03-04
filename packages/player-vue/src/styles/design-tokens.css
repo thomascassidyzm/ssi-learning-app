@@ -49,7 +49,7 @@
    * These CSS vars are for utility classes; components get belt color
    * dynamically via beltCssVars inline styles.
    * ================================================================ */
-  --belt-white: #f5f5f5;
+  --belt-white: #ffffff;
   --belt-white-dark: #e0e0e0;
   --belt-yellow: #fcd34d;
   --belt-yellow-dark: #f59e0b;

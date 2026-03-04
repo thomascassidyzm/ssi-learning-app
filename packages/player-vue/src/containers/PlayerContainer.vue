@@ -261,7 +261,7 @@ const currentBeltName = computed(() => {
 
 const currentBeltColor = computed(() => {
   const bp = beltProgress.value
-  if (!bp) return '#f5f5f5'
+  if (!bp) return '#ffffff'
   return bp.currentBelt.value.color
 })
 

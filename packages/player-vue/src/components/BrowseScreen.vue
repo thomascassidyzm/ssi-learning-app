@@ -387,7 +387,7 @@ onMounted(() => {
             <div v-else-if="course.new_app_status === 'beta'" class="course-badge beta-badge">B</div>
             <div v-else-if="!isEnrolled(course.course_code)" class="course-badge new-badge">NEW</div>
 
-            <span class="course-name">{{ course.display_name || getTargetDisplayName(course) }}</span>
+            <span class="course-name">{{ getTargetDisplayName(course) }}</span>
 
             <span class="course-status">
               <template v-if="isEnrolled(course.course_code)">

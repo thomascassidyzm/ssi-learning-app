@@ -1174,8 +1174,8 @@ const isOnline = ref(navigator.onLine)
 
 // Computed properties that delegate to the composable (with fallbacks for initial load)
 const completedRounds = computed(() => beltProgress.value?.completedRounds.value ?? 0)
-const currentBelt = computed(() => beltProgress.value?.currentBelt.value ?? { name: 'white', seedsRequired: 0, color: '#f5f5f5', colorDark: '#e0e0e0', glow: 'rgba(245, 245, 245, 0.3)', index: 0 })
-const playingBelt = computed(() => beltProgress.value?.playingBelt.value ?? { name: 'white', seedsRequired: 0, color: '#f5f5f5', colorDark: '#e0e0e0', glow: 'rgba(245, 245, 245, 0.3)', index: 0 })
+const currentBelt = computed(() => beltProgress.value?.currentBelt.value ?? { name: 'white', seedsRequired: 0, color: '#ffffff', colorDark: '#e0e0e0', glow: 'rgba(255, 255, 255, 0.3)', index: 0 })
+const playingBelt = computed(() => beltProgress.value?.playingBelt.value ?? { name: 'white', seedsRequired: 0, color: '#ffffff', colorDark: '#e0e0e0', glow: 'rgba(255, 255, 255, 0.3)', index: 0 })
 const nextBelt = computed(() => beltProgress.value?.nextBelt.value ?? null)
 const previousBelt = computed(() => beltProgress.value?.previousBelt.value ?? null)
 
@@ -3901,8 +3901,7 @@ const handleGoBackBelt = async () => {
     isPlaying: simplePlayer.isPlaying.value,
   })
 
-  isSkippingBelt.value = true
-
+  // No overlay for back navigation — data is already loaded so it's instant
   try {
     haltAllPlayback()
     console.log(`[LearningPlayer] Going back to seed ${targetSeed}`)
@@ -3921,8 +3920,8 @@ const handleGoBackBelt = async () => {
     }
 
     console.log(`[LearningPlayer] handleGoBackBelt: complete, now at seed ${targetSeed}`)
-  } finally {
-    isSkippingBelt.value = false
+  } catch (err) {
+    console.warn('[LearningPlayer] handleGoBackBelt error:', err)
   }
 }
 
