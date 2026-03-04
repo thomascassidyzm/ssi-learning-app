@@ -5844,7 +5844,6 @@ defineExpose({
   >
     <!-- Deep Space Background Layers -->
     <div class="space-gradient"></div>
-    <div class="sun-backlight"></div>
     <div class="space-nebula"></div>
     <div class="bg-noise"></div>
 
@@ -6585,7 +6584,7 @@ defineExpose({
   --nav-height: 80px;
   --nav-total: calc(var(--nav-height) + var(--safe-area-bottom));
   --control-bar-bottom: var(--nav-total);
-  --hero-offset: 20px;
+  --hero-offset: 32px;
   --hero-top: calc(var(--header-total) + var(--hero-offset));
 
   /* ============ SPACING SCALE ============ */
@@ -6671,21 +6670,6 @@ defineExpose({
     radial-gradient(ellipse 120% 80% at 20% 10%, rgba(30, 20, 50, 0.8) 0%, transparent 50%),
     radial-gradient(ellipse 100% 60% at 80% 90%, rgba(20, 30, 50, 0.6) 0%, transparent 40%),
     radial-gradient(ellipse 80% 80% at 50% 50%, rgba(10, 10, 20, 1) 0%, #08080c 100%);
-  pointer-events: none;
-  z-index: 0;
-}
-
-/* Belt-colored sun backlight — rising from the horizon.
-   At white belt (#f5f5f5 against dark bg) this is nearly invisible.
-   As belts gain saturation the sun gradually emerges. */
-.sun-backlight {
-  position: fixed;
-  inset: 0;
-  background:
-    radial-gradient(ellipse 90% 50% at 50% 105%,
-      color-mix(in srgb, var(--belt-color) 15%, transparent) 0%,
-      color-mix(in srgb, var(--belt-color) 6%, transparent) 30%,
-      transparent 70%);
   pointer-events: none;
   z-index: 0;
 }
@@ -7321,38 +7305,37 @@ defineExpose({
   50% { opacity: 0.2; }
 }
 
-/* ============ MODE NAV BUTTONS (raised outward from bottom nav pill) ============ */
+/* ============ MODE NAV BUTTONS (flanking course identity above bottom nav) ============ */
 .mode-nav-btn {
   position: fixed;
-  bottom: max(calc(env(safe-area-inset-bottom, 0px) / 2 + 84px), 96px);
-  width: 40px;
-  height: 40px;
+  bottom: max(calc(env(safe-area-inset-bottom, 0px) / 2 + 88px), 100px);
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.22);
-  background: rgba(10, 10, 18, 0.82);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 0.2s ease;
   -webkit-tap-highlight-color: transparent;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.45);
   z-index: 3001;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .mode-nav-btn--left {
-  left: calc(50% - min(200px, calc(50vw - 1rem)) - 4px);
+  left: calc(50% - 100px);
 }
 .mode-nav-btn--right {
-  right: calc(50% - min(200px, calc(50vw - 1rem)) - 4px);
+  right: calc(50% - 100px);
 }
 
 .mode-nav-btn svg {
-  width: 17px;
-  height: 17px;
+  width: 20px;
+  height: 20px;
 }
 
 .mode-nav-btn:active {
@@ -7360,11 +7343,10 @@ defineExpose({
 }
 
 .mode-nav-btn.active {
-  background: color-mix(in srgb, var(--belt-color) 18%, rgba(10,10,18,0.85));
-  border-color: color-mix(in srgb, var(--belt-color) 45%, transparent);
+  background: color-mix(in srgb, var(--belt-color) 20%, rgba(0,0,0,0.3));
+  border-color: color-mix(in srgb, var(--belt-color) 50%, transparent);
   color: var(--belt-color);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3),
-              0 0 10px color-mix(in srgb, var(--belt-glow) 25%, transparent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--belt-glow) 35%, transparent);
 }
 
 /* Course identity — fixed above bottom nav, only during playback */
@@ -7396,14 +7378,14 @@ defineExpose({
   align-items: center;
   gap: var(--space-sm);
   padding: 6px 16px;
-  background: color-mix(in srgb, var(--belt-color) 25%, rgba(0,0,0,0.4));
+  background: color-mix(in srgb, var(--belt-color) 35%, rgba(0,0,0,0.4));
   backdrop-filter: blur(16px) saturate(150%);
   -webkit-backdrop-filter: blur(16px) saturate(150%);
-  border: 1.5px solid color-mix(in srgb, var(--belt-color) 40%, transparent);
+  border: 1.5px solid color-mix(in srgb, var(--belt-color) 55%, transparent);
   border-radius: 20px;
   transition: all 0.2s ease;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3),
-              0 0 12px color-mix(in srgb, var(--belt-glow) 20%, transparent);
+              0 0 14px color-mix(in srgb, var(--belt-glow) 30%, transparent);
   flex: 1;
   min-width: 0;
 }
@@ -9630,7 +9612,7 @@ defineExpose({
 @media (min-width: 768px) {
   .player {
     --header-height: 84px;
-    --hero-offset: 24px;
+    --hero-offset: 36px;
     --space-sm: 10px;
     --space-md: 16px;
     --space-lg: 20px;
@@ -10032,10 +10014,6 @@ defineExpose({
     radial-gradient(ellipse 80% 80% at 50% 50%, #e8e3dd 0%, #e0dbd5 100%);
 }
 
-[data-theme="mist"] .player .sun-backlight {
-  display: none;
-}
-
 [data-theme="mist"] .player .space-nebula {
   background:
     linear-gradient(180deg, transparent 0%, rgba(122, 110, 98, 0.03) 30%, rgba(122, 110, 98, 0.04) 50%, transparent 70%),
@@ -10125,10 +10103,10 @@ defineExpose({
 
 /* --- Belt timer → Crisp white pill, belt color in progress bar only --- */
 [data-theme="mist"] .player .belt-timer-unified {
-  background: color-mix(in srgb, var(--belt-color) 20%, white);
+  background: color-mix(in srgb, var(--belt-color) 28%, white);
   backdrop-filter: blur(16px) saturate(160%);
   -webkit-backdrop-filter: blur(16px) saturate(160%);
-  border: 1.5px solid color-mix(in srgb, var(--belt-color) 35%, rgba(0,0,0,0.08));
+  border: 1.5px solid color-mix(in srgb, var(--belt-color) 45%, rgba(0,0,0,0.08));
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
               0 8px 24px rgba(44, 38, 34, 0.08);
 }
@@ -10148,23 +10126,18 @@ defineExpose({
   color: #2C2622;
 }
 
-/* --- Mode nav buttons on mist → match mist bottom nav aesthetic --- */
+/* --- Mode nav buttons on mist → translucent, not opaque like the pill --- */
 [data-theme="mist"] .player .mode-nav-btn {
-  background: rgba(255, 255, 255, 0.96);
-  border: 1.5px solid rgba(0, 0, 0, 0.22);
-  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.14),
-              0 8px 24px rgba(44, 38, 34, 0.10);
-  color: color-mix(in srgb, var(--belt-color, var(--ssi-red)) 15%, #6B6560);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background: rgba(255, 255, 255, 0.5);
+  border: 1.5px solid rgba(0, 0, 0, 0.08);
+  color: rgba(44, 38, 34, 0.4);
 }
 
 [data-theme="mist"] .player .mode-nav-btn.active {
-  background: color-mix(in srgb, var(--belt-color) 12%, rgba(255, 255, 255, 0.96));
-  border-color: color-mix(in srgb, var(--belt-color) 30%, rgba(0, 0, 0, 0.15));
+  background: color-mix(in srgb, var(--belt-color) 15%, rgba(255, 255, 255, 0.6));
+  border-color: color-mix(in srgb, var(--belt-color) 35%, rgba(0, 0, 0, 0.08));
   color: var(--belt-color);
-  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.14),
-              0 0 8px color-mix(in srgb, var(--belt-color) 15%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--belt-color) 20%, transparent);
 }
 
 /* --- Belt skip buttons → crisp white, destination belt color arrows --- */
