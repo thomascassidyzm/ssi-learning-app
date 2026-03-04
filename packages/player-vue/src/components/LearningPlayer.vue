@@ -5779,6 +5779,7 @@ defineExpose({
   handleEnterDrivingMode,
   handleExitDrivingMode,
   beltCssVars,
+  showAdaptationPrompt,
 })
 </script>
 
