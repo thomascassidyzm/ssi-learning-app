@@ -7986,53 +7986,52 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.25rem;
-  padding: 0.25rem 0.625rem;
-  background: rgba(194, 58, 58, 0.08);
-  border: 1px solid rgba(194, 58, 58, 0.15);
-  border-radius: 8px;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: rgba(194, 58, 58, 0.12);
+  border: 1px solid rgba(194, 58, 58, 0.25);
+  border-radius: 10px;
   cursor: pointer;
   pointer-events: auto;
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  max-width: min(90%, 360px);
-  white-space: nowrap;
-  opacity: 0.7;
+  max-width: min(90%, 380px);
+  opacity: 0.85;
 }
 
 .guest-progress-nudge.expanded {
-  padding: 0.5rem 1rem;
-  gap: 0.5rem;
-  background: rgba(194, 58, 58, 0.15);
-  border-color: rgba(194, 58, 58, 0.35);
+  padding: 0.75rem 1.25rem;
+  gap: 0.625rem;
+  background: rgba(194, 58, 58, 0.18);
+  border-color: rgba(194, 58, 58, 0.45);
   opacity: 1;
-  white-space: normal;
+  box-shadow: 0 2px 16px rgba(194, 58, 58, 0.15);
 }
 
 .guest-progress-nudge.expanded .nudge-icon {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
 }
 
 .guest-progress-nudge.expanded .nudge-text {
-  font-size: 0.9rem;
+  font-size: 1.05rem;
 }
 
 .guest-progress-nudge:active {
-  background: rgba(194, 58, 58, 0.2);
+  background: rgba(194, 58, 58, 0.25);
   transform: translateX(-50%) scale(0.97);
 }
 
 .nudge-icon {
-  width: 12px;
-  height: 12px;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
   color: var(--ssi-red, #c23a3a);
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .nudge-text {
-  font-size: 0.7rem;
-  color: var(--text-secondary, rgba(255,255,255,0.6));
+  font-size: 0.875rem;
+  color: var(--text-secondary, rgba(255,255,255,0.7));
   line-height: 1.3;
   transition: font-size 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
