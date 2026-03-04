@@ -519,60 +519,71 @@ watch(playbackSpeed, (newSpeed) => {
       </svg>
     </button>
 
-    <!-- Header -->
-    <header class="overlay-header">
-      <div class="header-content">
-        <span class="listening-badge">Listening Mode</span>
-        <span class="phrase-count">{{ loadedCount }} / {{ totalCount }}</span>
-      </div>
-    </header>
-
-    <!-- Mode Toggle -->
-    <div class="mode-toggle" @click.stop>
-      <button
-        class="mode-btn"
-        :class="{ active: mode === 'ordered' }"
-        @click="setMode('ordered')"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="8" y1="6" x2="21" y2="6"/>
-          <line x1="8" y1="12" x2="21" y2="12"/>
-          <line x1="8" y1="18" x2="21" y2="18"/>
-          <line x1="3" y1="6" x2="3.01" y2="6"/>
-          <line x1="3" y1="12" x2="3.01" y2="12"/>
-          <line x1="3" y1="18" x2="3.01" y2="18"/>
-        </svg>
-        Ordered
-      </button>
-      <button
-        class="mode-btn"
-        :class="{ active: mode === 'shuffled' }"
-        @click="setMode('shuffled')"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="16 3 21 3 21 8"/>
-          <line x1="4" y1="20" x2="21" y2="3"/>
-          <polyline points="21 16 21 21 16 21"/>
-          <line x1="15" y1="15" x2="21" y2="21"/>
-          <line x1="4" y1="4" x2="9" y2="9"/>
-        </svg>
-        Shuffled
-      </button>
-    </div>
-
-    <!-- Speed Selector -->
-    <div class="speed-controls" @click.stop>
-      <span class="speed-label">Speed</span>
-      <div class="speed-selector">
+    <!-- Controls bar: mode toggle + transport + speed -->
+    <div class="controls-bar" @click.stop>
+      <!-- Mode Toggle -->
+      <div class="mode-toggle">
         <button
-          v-for="speed in SPEED_OPTIONS"
-          :key="speed"
-          class="speed-btn"
-          :class="{ active: playbackSpeed === speed }"
-          @click="playbackSpeed = speed"
+          class="mode-btn"
+          :class="{ active: mode === 'ordered' }"
+          @click="setMode('ordered')"
         >
-          {{ speed }}x
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="8" y1="6" x2="21" y2="6"/>
+            <line x1="8" y1="12" x2="21" y2="12"/>
+            <line x1="8" y1="18" x2="21" y2="18"/>
+            <line x1="3" y1="6" x2="3.01" y2="6"/>
+            <line x1="3" y1="12" x2="3.01" y2="12"/>
+            <line x1="3" y1="18" x2="3.01" y2="18"/>
+          </svg>
+          Ordered
         </button>
+        <button
+          class="mode-btn"
+          :class="{ active: mode === 'shuffled' }"
+          @click="setMode('shuffled')"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="16 3 21 3 21 8"/>
+            <line x1="4" y1="20" x2="21" y2="3"/>
+            <polyline points="21 16 21 21 16 21"/>
+            <line x1="15" y1="15" x2="21" y2="21"/>
+            <line x1="4" y1="4" x2="9" y2="9"/>
+          </svg>
+          Shuffled
+        </button>
+      </div>
+
+      <!-- Transport: play/stop + progress bar -->
+      <div class="transport-bar">
+        <button class="transport-btn" @click="togglePlayback">
+          <svg v-if="isPlaying" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="6" y="6" width="12" height="12" rx="2"/>
+          </svg>
+          <svg v-else viewBox="0 0 24 24" fill="currentColor">
+            <polygon points="7 3 20 12 7 21 7 3"/>
+          </svg>
+        </button>
+        <div class="progress-bar">
+          <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
+        </div>
+        <span class="progress-text">{{ progressPercent }}%</span>
+      </div>
+
+      <!-- Speed Selector -->
+      <div class="speed-controls">
+        <span class="speed-label">Speed</span>
+        <div class="speed-selector">
+          <button
+            v-for="speed in SPEED_OPTIONS"
+            :key="speed"
+            class="speed-btn"
+            :class="{ active: playbackSpeed === speed }"
+            @click="playbackSpeed = speed"
+          >
+            {{ speed }}x
+          </button>
+        </div>
       </div>
     </div>
 
@@ -612,22 +623,6 @@ watch(playbackSpeed, (newSpeed) => {
         <span v-else>Tap to play</span>
       </div>
     </div>
-
-    <!-- Transport + Progress -->
-    <div class="transport-bar" @click.stop>
-      <button class="transport-btn" @click="togglePlayback">
-        <svg v-if="isPlaying" viewBox="0 0 24 24" fill="currentColor">
-          <rect x="6" y="6" width="12" height="12" rx="2"/>
-        </svg>
-        <svg v-else viewBox="0 0 24 24" fill="currentColor">
-          <polygon points="7 3 20 12 7 21 7 3"/>
-        </svg>
-      </button>
-      <div class="progress-bar">
-        <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
-      </div>
-      <span class="progress-text">{{ progressPercent }}%</span>
-    </div>
   </div>
 </template>
 
@@ -645,11 +640,6 @@ watch(playbackSpeed, (newSpeed) => {
   font-family: var(--font-body);
   padding: env(safe-area-inset-top, 20px) 0 calc(env(safe-area-inset-bottom, 20px) + 100px) 0;
   cursor: pointer;
-}
-
-/* Theme colors - belt color is set dynamically via inline style */
-.listening-overlay {
-  --belt-glow: color-mix(in srgb, var(--belt-color) 15%, transparent);
 }
 
 /* Close button */
@@ -681,36 +671,13 @@ watch(playbackSpeed, (newSpeed) => {
   height: 20px;
 }
 
-/* Header */
-.overlay-header {
-  padding: 1rem 1.5rem;
-  text-align: center;
-}
-
-.header-content {
+/* Controls bar — grouped at top */
+.controls-bar {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-}
-
-.listening-badge {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  padding: 0.375rem 0.75rem;
-  background: var(--belt-glow);
-  color: var(--belt-color);
-  border: 1px solid var(--belt-color);
-  border-radius: 4px;
-}
-
-.phrase-count {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.75rem;
-  color: var(--text-muted);
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem 1.5rem 0.5rem;
+  cursor: default;
 }
 
 /* Mode Toggle */
@@ -718,8 +685,6 @@ watch(playbackSpeed, (newSpeed) => {
   display: flex;
   justify-content: center;
   gap: 0.5rem;
-  padding: 0.5rem 1.5rem;
-  cursor: default;
 }
 
 .mode-btn {
@@ -743,9 +708,9 @@ watch(playbackSpeed, (newSpeed) => {
 }
 
 .mode-btn.active {
-  background: var(--belt-glow);
-  border-color: var(--belt-color);
-  color: var(--belt-color);
+  background: var(--bg-elevated);
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
 }
 
 .mode-btn svg {
@@ -759,8 +724,6 @@ watch(playbackSpeed, (newSpeed) => {
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
-  padding: 0.25rem 1.5rem 0.5rem;
-  cursor: default;
 }
 
 .speed-label {
@@ -795,9 +758,9 @@ watch(playbackSpeed, (newSpeed) => {
 }
 
 .speed-btn.active {
-  background: var(--belt-glow);
-  border-color: var(--belt-color);
-  color: var(--belt-color);
+  background: var(--bg-elevated);
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
 }
 
 /* Loading / Error */
@@ -816,7 +779,7 @@ watch(playbackSpeed, (newSpeed) => {
   width: 32px;
   height: 32px;
   border: 2px solid var(--border-medium);
-  border-top-color: var(--belt-color);
+  border-top-color: var(--text-muted);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -827,10 +790,10 @@ watch(playbackSpeed, (newSpeed) => {
 
 .error button {
   padding: 0.5rem 1rem;
-  background: var(--belt-color);
+  background: var(--ssi-red, #b83232);
   border: none;
   border-radius: 8px;
-  color: var(--text-inverse);
+  color: white;
   font-weight: 600;
   cursor: pointer;
 }
@@ -893,14 +856,9 @@ watch(playbackSpeed, (newSpeed) => {
 .phrase-row.current {
   opacity: 1;
   transform: scale(1.05);
-  background: linear-gradient(135deg,
-    color-mix(in srgb, var(--belt-color) 12%, transparent) 0%,
-    color-mix(in srgb, var(--belt-color) 6%, transparent) 50%,
-    color-mix(in srgb, var(--belt-color) 3%, transparent) 100%);
-  border: 1px solid color-mix(in srgb, var(--belt-color) 50%, transparent);
-  box-shadow:
-    0 0 20px color-mix(in srgb, var(--belt-color) 15%, transparent),
-    var(--shadow-md);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-medium);
+  box-shadow: var(--shadow-md);
 }
 
 .phrase-row:hover:not(.current) {
@@ -924,8 +882,7 @@ watch(playbackSpeed, (newSpeed) => {
 .phrase-row.current .phrase-target {
   font-size: clamp(1.25rem, 3vmin, 1.5rem);
   font-weight: 600;
-  color: var(--belt-color);
-  text-shadow: 0 0 20px color-mix(in srgb, var(--belt-color) 30%, transparent);
+  color: var(--text-primary);
 }
 
 /* Playback hint */
@@ -946,8 +903,6 @@ watch(playbackSpeed, (newSpeed) => {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.75rem 1.5rem;
-  cursor: default;
 }
 
 .transport-btn {
@@ -992,7 +947,7 @@ watch(playbackSpeed, (newSpeed) => {
 
 .progress-fill {
   height: 100%;
-  background: var(--belt-color);
+  background: var(--ssi-red, #b83232);
   border-radius: 2px;
   transition: width 0.3s ease;
 }
