@@ -105,11 +105,25 @@ function formatDate(dateString: string) {
 }
 
 function handleCopyCode() {
-  console.log('Code copied')
+  if (teacherJoinCode.value && teacherJoinCode.value !== 'N/A') {
+    navigator.clipboard.writeText(teacherJoinCode.value)
+  }
 }
 
 function handleRegenerateCode() {
   console.log('Regenerating code...')
+}
+
+// Teacher detail state
+const selectedTeacher = ref<typeof teachers.value[0] | null>(null)
+
+function viewTeacherDetail(teacher: typeof teachers.value[0]) {
+  selectedTeacher.value = selectedTeacher.value?.user_id === teacher.user_id ? null : teacher
+}
+
+function editTeacher(teacher: typeof teachers.value[0]) {
+  // For demo: show detail panel (full edit not implemented)
+  selectedTeacher.value = teacher
 }
 
 async function handleRemoveTeacher(userId: string) {
@@ -270,13 +284,13 @@ watch(selectedUser, (newUser) => {
             </div>
 
             <div class="teacher-card-actions">
-              <button class="action-btn" title="View Details">
+              <button class="action-btn" title="View Details" @click="viewTeacherDetail(teacher)">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                   <circle cx="12" cy="12" r="3"/>
                 </svg>
               </button>
-              <button class="action-btn" title="Edit">
+              <button class="action-btn" title="Edit" @click="editTeacher(teacher)">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -335,6 +349,44 @@ watch(selectedUser, (newUser) => {
           </div>
         </div>
       </div>
+
+      <!-- Teacher Detail Panel -->
+      <Transition name="panel">
+        <div v-if="selectedTeacher" class="teacher-detail-panel animate-item delay-2" :class="{ 'show': isVisible }">
+          <div class="detail-header">
+            <h3>{{ selectedTeacher.name }}</h3>
+            <button class="action-btn" @click="selectedTeacher = null" title="Close">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+          <div class="detail-stats">
+            <div class="detail-stat">
+              <span class="detail-stat-value">{{ selectedTeacher.classCount }}</span>
+              <span class="detail-stat-label">Classes</span>
+            </div>
+            <div class="detail-stat">
+              <span class="detail-stat-value">{{ selectedTeacher.studentCount }}</span>
+              <span class="detail-stat-label">Students</span>
+            </div>
+            <div class="detail-stat">
+              <span class="detail-stat-value">{{ selectedTeacher.phrasesLearned.toLocaleString() }}</span>
+              <span class="detail-stat-label">Phrases Taught</span>
+            </div>
+            <div class="detail-stat">
+              <span class="detail-stat-value">{{ selectedTeacher.engagementRate }}%</span>
+              <span class="detail-stat-label">Student Engagement</span>
+            </div>
+          </div>
+          <div class="detail-meta">
+            <span>Joined {{ selectedTeacher.joinDate }}</span>
+            <span class="meta-tag belt" :class="selectedTeacher.belt">
+              {{ selectedTeacher.belt.charAt(0).toUpperCase() + selectedTeacher.belt.slice(1) }} Belt
+            </span>
+          </div>
+        </div>
+      </Transition>
 
       <!-- Empty State -->
       <div
@@ -981,5 +1033,72 @@ watch(selectedUser, (newUser) => {
     justify-content: flex-end;
     margin-top: 12px;
   }
+}
+
+/* Teacher Detail Panel */
+.teacher-detail-panel {
+  background: var(--bg-card, #242424);
+  border: 1px solid var(--ssi-red, #c23a3a);
+  border-radius: var(--radius-xl, 16px);
+  padding: var(--space-6, 24px);
+  margin-bottom: var(--space-6, 24px);
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-5, 20px);
+}
+
+.detail-header h3 {
+  font-size: var(--text-xl, 1.25rem);
+  font-weight: var(--font-bold, 700);
+}
+
+.detail-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-4, 16px);
+  margin-bottom: var(--space-5, 20px);
+}
+
+.detail-stat {
+  text-align: center;
+  padding: var(--space-4, 16px);
+  background: var(--bg-secondary, #1a1a1a);
+  border-radius: var(--radius-lg, 12px);
+}
+
+.detail-stat-value {
+  display: block;
+  font-size: var(--text-2xl, 1.5rem);
+  font-weight: var(--font-bold, 700);
+  color: var(--ssi-gold, #d4a853);
+}
+
+.detail-stat-label {
+  display: block;
+  font-size: var(--text-xs, 0.75rem);
+  color: var(--text-muted, #707070);
+  text-transform: uppercase;
+  margin-top: var(--space-1, 4px);
+}
+
+.detail-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4, 16px);
+  font-size: var(--text-sm, 0.875rem);
+  color: var(--text-secondary, #b0b0b0);
+}
+
+/* Panel transition */
+.panel-enter-active, .panel-leave-active {
+  transition: all 0.3s ease;
+}
+.panel-enter-from, .panel-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
 }
 </style>

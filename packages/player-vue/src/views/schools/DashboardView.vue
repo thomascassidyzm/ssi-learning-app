@@ -314,8 +314,8 @@ onMounted(() => {
       </Card>
     </section>
 
-    <!-- Debug Panel (temporary) -->
-    <section class="debug-panel animate-in delay-4">
+    <!-- Debug Panel (hidden for production/demo) -->
+    <section v-if="false" class="debug-panel animate-in delay-4">
       <Card title="Debug Info" subtitle="God Mode state">
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

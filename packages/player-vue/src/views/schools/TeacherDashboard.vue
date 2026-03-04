@@ -10,7 +10,7 @@ const router = useRouter()
 
 // God Mode and data
 const { selectedUser } = useGodMode()
-const { classes: classesData, fetchClasses, isLoading } = useClassesData()
+const { classes: classesData, fetchClasses, createClass, isLoading } = useClassesData()
 
 // Modal state
 const isCreateModalOpen = ref(false)
@@ -83,11 +83,17 @@ const closeCreateModal = () => {
   isCreateModalOpen.value = false
 }
 
-const handleCreateClass = (newClass) => {
-  classes.value.unshift({
-    ...newClass,
-    last_played: 'Never played',
-    last_played_recently: false
+const handleCreateClass = async (params) => {
+  const schoolId = selectedUser.value?.school_id
+  if (!schoolId) {
+    console.error('No school_id available for class creation')
+    closeCreateModal()
+    return
+  }
+  await createClass({
+    class_name: params.class_name,
+    course_code: params.course_code,
+    school_id: schoolId,
   })
   closeCreateModal()
 }

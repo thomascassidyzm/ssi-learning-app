@@ -58,37 +58,10 @@ const handleSubmit = async () => {
 
   isSubmitting.value = true
 
-  // Generate a join code (XXX-NNN format)
-  const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ' // No I, O
-  const generateCode = () => {
-    let code = ''
-    for (let i = 0; i < 3; i++) {
-      code += letters[Math.floor(Math.random() * letters.length)]
-    }
-    code += '-'
-    for (let i = 0; i < 3; i++) {
-      code += Math.floor(Math.random() * 10)
-    }
-    return code
-  }
-
-  const newClass = {
-    id: crypto.randomUUID(),
+  emit('create', {
     class_name: className.value.trim(),
     course_code: courseCode.value,
-    student_join_code: generateCode(),
-    student_count: 0,
-    current_seed: 1,
-    sessions: 0,
-    total_time: '0h',
-    created_at: new Date().toISOString(),
-    is_active: true
-  }
-
-  // Simulate network delay
-  await new Promise(resolve => setTimeout(resolve, 300))
-
-  emit('create', newClass)
+  })
   isSubmitting.value = false
 }
 </script>

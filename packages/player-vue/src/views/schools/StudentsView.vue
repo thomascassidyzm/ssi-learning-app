@@ -108,6 +108,21 @@ watch(selectedUser, (newUser) => {
     fetchStudents()
   }
 })
+
+// Student detail state
+const selectedStudent = ref<typeof students.value[0] | null>(null)
+
+function viewStudentDetail(student: typeof students.value[0]) {
+  selectedStudent.value = selectedStudent.value?.id === student.id ? null : student
+}
+
+function handleExport() {
+  // Export not yet implemented
+}
+
+function handleAddStudent() {
+  // Students self-enroll via class invite codes
+}
 </script>
 
 <template>
@@ -121,7 +136,7 @@ watch(selectedUser, (newUser) => {
         </div>
       </div>
       <div class="header-actions">
-        <Button variant="secondary">
+        <Button variant="secondary" @click="handleExport">
           <template #icon>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -131,7 +146,7 @@ watch(selectedUser, (newUser) => {
           </template>
           Export
         </Button>
-        <Button variant="primary">
+        <Button variant="primary" @click="handleAddStudent">
           <template #icon>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="12" y1="5" x2="12" y2="19"/>
@@ -206,7 +221,7 @@ watch(selectedUser, (newUser) => {
             <td>{{ student.sessionsCompleted }}</td>
             <td class="text-muted">{{ student.lastActive }}</td>
             <td>
-              <button class="action-btn" title="View Details">
+              <button class="action-btn" title="View Details" @click="viewStudentDetail(student)">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <circle cx="12" cy="12" r="1"/>
                   <circle cx="19" cy="12" r="1"/>
@@ -218,6 +233,44 @@ watch(selectedUser, (newUser) => {
         </tbody>
       </table>
     </div>
+
+    <!-- Student Detail Panel -->
+    <Transition name="panel">
+      <div v-if="selectedStudent" class="student-detail-panel">
+        <div class="detail-header">
+          <h3>{{ selectedStudent.name }}</h3>
+          <button class="action-btn" @click="selectedStudent = null" title="Close">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div class="detail-stats">
+          <div class="detail-stat">
+            <span class="detail-stat-value">{{ selectedStudent.phrasesLearned }}</span>
+            <span class="detail-stat-label">LEGOs Mastered</span>
+          </div>
+          <div class="detail-stat">
+            <span class="detail-stat-value">{{ selectedStudent.sessionsCompleted }}</span>
+            <span class="detail-stat-label">Sessions</span>
+          </div>
+          <div class="detail-stat">
+            <span class="detail-stat-value">{{ selectedStudent.progress }}</span>
+            <span class="detail-stat-label">Seeds Completed</span>
+          </div>
+          <div class="detail-stat">
+            <span class="detail-stat-value">{{ selectedStudent.lastActive }}</span>
+            <span class="detail-stat-label">Last Active</span>
+          </div>
+        </div>
+        <div class="detail-meta">
+          <span>Class: {{ selectedStudent.class }}</span>
+          <Badge :belt="selectedStudent.belt" size="sm">
+            {{ selectedStudent.belt.charAt(0).toUpperCase() + selectedStudent.belt.slice(1) }} Belt
+          </Badge>
+        </div>
+      </div>
+    </Transition>
 
     <!-- Empty State -->
     <div v-if="filteredStudents.length === 0" class="empty-state">
@@ -469,5 +522,72 @@ watch(selectedUser, (newUser) => {
   .students-table {
     min-width: 800px;
   }
+}
+
+/* Student Detail Panel */
+.student-detail-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--ssi-red);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6);
+  margin-top: var(--space-6);
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-5);
+}
+
+.detail-header h3 {
+  font-size: var(--text-xl);
+  font-weight: var(--font-bold);
+}
+
+.detail-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.detail-stat {
+  text-align: center;
+  padding: var(--space-4);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+}
+
+.detail-stat-value {
+  display: block;
+  font-size: var(--text-2xl);
+  font-weight: var(--font-bold);
+  color: var(--ssi-gold);
+}
+
+.detail-stat-label {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-top: var(--space-1);
+}
+
+.detail-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+/* Panel transition */
+.panel-enter-active, .panel-leave-active {
+  transition: all 0.3s ease;
+}
+.panel-enter-from, .panel-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
 }
 </style>

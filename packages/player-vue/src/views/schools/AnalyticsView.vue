@@ -59,19 +59,19 @@ const metrics = computed(() => {
   return {
     phrasesLearned: {
       value: totalPhrases,
-      trend: '+23%' // Placeholder - would need historical data to calculate
+      trend: 'This month'
     },
     hoursLearned: {
       value: totalHours,
-      trend: '+18%'
+      trend: 'This month'
     },
     activeRate: {
       value: `${activeRate}%`,
-      trend: '+5%'
+      trend: 'Last 7 days'
     },
     beltPromotions: {
       value: totalSessions.value,
-      trend: '+12'
+      trend: 'Total sessions'
     }
   }
 })
@@ -337,10 +337,7 @@ watch(selectedUser, (newUser) => {
           <div class="metric-content">
             <div class="metric-header">
               <span class="metric-icon">books</span>
-              <span class="metric-trend up">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
-                </svg>
+              <span class="metric-trend">
                 {{ metrics.phrasesLearned.trend }}
               </span>
             </div>
@@ -366,10 +363,7 @@ watch(selectedUser, (newUser) => {
           <div class="metric-content">
             <div class="metric-header">
               <span class="metric-icon">schedule</span>
-              <span class="metric-trend up">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
-                </svg>
+              <span class="metric-trend">
                 {{ metrics.hoursLearned.trend }}
               </span>
             </div>
@@ -388,10 +382,7 @@ watch(selectedUser, (newUser) => {
           <div class="metric-content">
             <div class="metric-header">
               <span class="metric-icon">target</span>
-              <span class="metric-trend up">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
-                </svg>
+              <span class="metric-trend">
                 {{ metrics.activeRate.trend }}
               </span>
             </div>
@@ -410,10 +401,7 @@ watch(selectedUser, (newUser) => {
           <div class="metric-content">
             <div class="metric-header">
               <span class="metric-icon">trophy</span>
-              <span class="metric-trend up">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
-                </svg>
+              <span class="metric-trend">
                 {{ metrics.beltPromotions.trend }}
               </span>
             </div>

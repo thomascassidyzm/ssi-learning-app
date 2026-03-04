@@ -8,20 +8,64 @@ import { useSchoolData } from '@/composables/schools/useSchoolData'
 const { selectedUser } = useGodMode()
 const { activeSchool, currentSchool, fetchSchools } = useSchoolData()
 
-// Settings state - derived from real data
-const schoolName = computed(() => activeSchool.value?.school_name || currentSchool.value?.school_name || selectedUser.value?.school_name || 'Your School')
-const schoolEmail = computed(() => {
-  const school = activeSchool.value || currentSchool.value
-  if (school) return `admin@${school.school_name.toLowerCase().replace(/\s+/g, '')}.edu`
-  return 'admin@school.edu'
-})
+// Settings state - editable refs initialized from real data
+const schoolNameEdit = ref('')
+const schoolEmailEdit = ref('')
 const timezone = ref('Europe/London')
 const language = ref('en')
+const saveStatus = ref<'idle' | 'saving' | 'saved'>('idle')
+const localizationSaveStatus = ref<'idle' | 'saving' | 'saved'>('idle')
 
-// Fetch data on mount
-watch(selectedUser, (user) => {
-  if (user) fetchSchools()
+function syncFromSchoolData() {
+  const school = activeSchool.value || currentSchool.value
+  schoolNameEdit.value = school?.school_name || selectedUser.value?.school_name || 'Your School'
+  schoolEmailEdit.value = school
+    ? `admin@${school.school_name.toLowerCase().replace(/\s+/g, '')}.edu`
+    : 'admin@school.edu'
+}
+
+// Fetch data on mount and sync editable fields
+watch(selectedUser, async (user) => {
+  if (user) {
+    await fetchSchools()
+    syncFromSchoolData()
+  }
 }, { immediate: true })
+
+watch([activeSchool, currentSchool], () => {
+  syncFromSchoolData()
+})
+
+async function saveSchoolProfile() {
+  const school = activeSchool.value || currentSchool.value
+  if (!school) return
+  saveStatus.value = 'saving'
+  try {
+    const { getSchoolsClient } = await import('@/composables/schools/client')
+    const client = getSchoolsClient()
+    await client
+      .from('schools')
+      .update({ school_name: schoolNameEdit.value })
+      .eq('id', school.id)
+    saveStatus.value = 'saved'
+    setTimeout(() => { saveStatus.value = 'idle' }, 2000)
+    await fetchSchools()
+  } catch (err) {
+    console.error('Failed to save school profile:', err)
+    saveStatus.value = 'idle'
+  }
+}
+
+function saveLocalization() {
+  localizationSaveStatus.value = 'saving'
+  // Localization preferences saved locally (no DB table yet)
+  localStorage.setItem('ssi-timezone', timezone.value)
+  localStorage.setItem('ssi-language', language.value)
+  setTimeout(() => {
+    localizationSaveStatus.value = 'saved'
+    setTimeout(() => { localizationSaveStatus.value = 'idle' }, 2000)
+  }, 300)
+}
 
 const isDark = ref(document.documentElement.getAttribute('data-theme') !== 'light')
 
@@ -60,14 +104,16 @@ onMounted(() => {
         </template>
         <div class="form-group">
           <label class="form-label">School Name</label>
-          <input type="text" v-model="schoolName" class="form-input" />
+          <input type="text" v-model="schoolNameEdit" class="form-input" />
         </div>
         <div class="form-group">
           <label class="form-label">Contact Email</label>
-          <input type="email" v-model="schoolEmail" class="form-input" />
+          <input type="email" v-model="schoolEmailEdit" class="form-input" />
         </div>
         <div class="form-actions">
-          <Button variant="primary" size="sm">Save Changes</Button>
+          <Button variant="primary" size="sm" @click="saveSchoolProfile" :disabled="saveStatus === 'saving'">
+            {{ saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved!' : 'Save Changes' }}
+          </Button>
         </div>
       </Card>
 
@@ -130,7 +176,9 @@ onMounted(() => {
           </select>
         </div>
         <div class="form-actions">
-          <Button variant="primary" size="sm">Save Changes</Button>
+          <Button variant="primary" size="sm" @click="saveLocalization" :disabled="localizationSaveStatus === 'saving'">
+            {{ localizationSaveStatus === 'saving' ? 'Saving...' : localizationSaveStatus === 'saved' ? 'Saved!' : 'Save Changes' }}
+          </Button>
         </div>
       </Card>
 

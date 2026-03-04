@@ -2,6 +2,7 @@
 import { ref, computed, inject } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { useGodMode } from '@/composables/schools/useGodMode'
 
 interface NavTab {
   name: string
@@ -18,19 +19,30 @@ const route = useRoute()
 const router = useRouter()
 const auth = inject<any>('auth')
 const supabaseRef = inject<{ value: SupabaseClient | null }>('supabase')
+const { selectedUser, isGovtAdmin } = useGodMode()
 
 // Derive auth state from injected auth composable
 const isLoaded = computed(() => auth ? !auth.isLoading.value : true)
 const isSignedIn = computed(() => auth?.isAuthenticated.value ?? false)
 const user = computed(() => auth?.user.value ?? null)
 
-const tabs: NavTab[] = [
+const baseTabs: NavTab[] = [
   { name: 'dashboard', path: '/schools', label: 'Dashboard' },
   { name: 'teachers', path: '/schools/teachers', label: 'Teachers' },
   { name: 'students', path: '/schools/students', label: 'Students' },
   { name: 'classes', path: '/schools/classes', label: 'Classes' },
   { name: 'analytics', path: '/schools/analytics', label: 'Analytics' },
 ]
+
+const tabs = computed(() => {
+  if (isGovtAdmin.value) {
+    return [
+      { name: 'all-schools', path: '/schools/all', label: 'Schools' },
+      ...baseTabs
+    ]
+  }
+  return baseTabs
+})
 
 // Computed user info from Supabase Auth
 const userName = computed(() => {
@@ -49,10 +61,9 @@ const userInitials = computed(() => {
   return name.charAt(0).toUpperCase()
 })
 
-// School info (would come from user metadata in real app)
+// School info from God Mode selected user
 const schoolName = computed(() => {
-  // TODO: Get from user.publicMetadata.schoolName
-  return 'Ysgol Cymraeg'
+  return (selectedUser.value as any)?.school_name || 'Schools Dashboard'
 })
 
 const schoolInitials = computed(() => {

@@ -17,6 +17,7 @@ export interface ClassInfo {
   teacher_user_id: string
   student_join_code: string
   current_seed: number
+  last_lego_id: string | null
   is_active: boolean
   student_count: number
   avg_seeds_completed: number
@@ -89,7 +90,7 @@ export function useClassesData() {
     try {
       let query = client.from('classes').select(`
         id, class_name, course_code, school_id, teacher_user_id,
-        student_join_code, current_seed, is_active, created_at
+        student_join_code, current_seed, last_lego_id, is_active, created_at
       `)
 
       if (isTeacher.value) {
@@ -153,6 +154,7 @@ export function useClassesData() {
             teacher_user_id: c.teacher_user_id,
             student_join_code: c.student_join_code,
             current_seed: c.current_seed,
+            last_lego_id: c.last_lego_id || null,
             is_active: c.is_active,
             student_count: stats.count,
             avg_seeds_completed: stats.count > 0 ? Math.round(stats.totalSeeds / stats.count) : 0,
@@ -220,6 +222,7 @@ export function useClassesData() {
         teacher_user_id: classData.teacher_user_id,
         student_join_code: classData.student_join_code,
         current_seed: classData.current_seed,
+        last_lego_id: classData.last_lego_id || null,
         is_active: classData.is_active,
         student_count: students.length,
         avg_seeds_completed: students.length > 0 ? Math.round(totalSeeds / students.length) : 0,
@@ -432,6 +435,7 @@ export function useClassesData() {
         teacher_user_id: newClass.teacher_user_id,
         student_join_code: newClass.student_join_code,
         current_seed: newClass.current_seed,
+        last_lego_id: null,
         is_active: newClass.is_active,
         student_count: 0,
         avg_seeds_completed: 0,

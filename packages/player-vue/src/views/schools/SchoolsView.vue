@@ -24,7 +24,7 @@ const filteredSchools = computed(() => {
 // Handle school click - drill down
 function handleSchoolClick(school: typeof schools.value[0]) {
   selectSchoolToView(school)
-  router.push('/')
+  router.push('/schools')
 }
 
 // Format hours
