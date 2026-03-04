@@ -22,7 +22,7 @@ const formattedTime = new Date(buildTime).toLocaleDateString('en-GB', {
 .build-badge {
   position: fixed;
   top: calc(env(safe-area-inset-top, 0px) + 8px);
-  right: 12px;
+  left: 12px;
   padding: 4px 8px;
   font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
   font-size: 10px;
