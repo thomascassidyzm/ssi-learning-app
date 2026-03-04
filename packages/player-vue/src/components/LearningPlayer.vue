@@ -6393,6 +6393,16 @@ defineExpose({
           </p>
         </div>
 
+        <!-- Guest progress warning -->
+        <div v-if="isGuestLearner" class="guest-progress-nudge" @click="openAuth()">
+          <svg class="nudge-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          <span class="nudge-text">Your progress is fragile — <strong>sign in</strong> to save it</span>
+        </div>
+
         <!-- Visual separator -->
         <div class="pane-text-divider"></div>
 
@@ -7949,6 +7959,44 @@ defineExpose({
   color: var(--text-primary);
   line-height: 1.4;
   margin: 0;
+}
+
+/* Guest progress nudge */
+.guest-progress-nudge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  margin: 0.5rem auto 0;
+  padding: 0.375rem 0.75rem;
+  background: rgba(194, 58, 58, 0.1);
+  border: 1px solid rgba(194, 58, 58, 0.2);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  max-width: 90%;
+}
+
+.guest-progress-nudge:active {
+  background: rgba(194, 58, 58, 0.18);
+}
+
+.nudge-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--ssi-red, #c23a3a);
+}
+
+.nudge-text {
+  font-size: 0.75rem;
+  color: var(--text-secondary, rgba(255,255,255,0.6));
+  line-height: 1.3;
+}
+
+.nudge-text strong {
+  color: var(--ssi-red, #c23a3a);
+  font-weight: 600;
 }
 
 /* Visual divider between known and target */
