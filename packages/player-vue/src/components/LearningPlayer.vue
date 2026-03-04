@@ -1446,13 +1446,17 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId) => {
     )
 
     if (commentary) {
-      console.log('[LearningPlayer] 📢 Playing', commentary.type, 'commentary')
+      console.log('[LearningPlayer] Playing', commentary.type, 'commentary')
 
-      // Play the commentary audio (pauses learning while playing)
+      // Pause the player so the next round doesn't start while commentary plays
+      simplePlayer.pause()
+
+      // Play the commentary audio
       await playCommentaryAudio(commentary)
 
-      // Mark commentary as complete
+      // Mark commentary as complete and resume learning
       metaCommentary.finishCommentaryPlayback()
+      simplePlayer.resume()
     }
   }
 
