@@ -6394,7 +6394,7 @@ defineExpose({
         </div>
 
         <!-- Guest progress warning -->
-        <div v-if="isGuestLearner" class="guest-progress-nudge" @click="openAuth()">
+        <div v-if="isGuestLearner" class="guest-progress-nudge" :class="{ expanded: !isPlaying }" @click="openAuth()">
           <svg class="nudge-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
             <line x1="12" y1="9" x2="12" y2="13"/>
@@ -7973,8 +7973,25 @@ defineExpose({
   border: 1px solid rgba(194, 58, 58, 0.2);
   border-radius: 8px;
   cursor: pointer;
-  transition: background 0.2s ease;
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
   max-width: 90%;
+}
+
+.guest-progress-nudge.expanded {
+  padding: 0.625rem 1rem;
+  gap: 0.5rem;
+  background: rgba(194, 58, 58, 0.15);
+  border-color: rgba(194, 58, 58, 0.35);
+  z-index: 20;
+}
+
+.guest-progress-nudge.expanded .nudge-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.guest-progress-nudge.expanded .nudge-text {
+  font-size: 0.875rem;
 }
 
 .guest-progress-nudge:active {
@@ -7986,12 +8003,14 @@ defineExpose({
   height: 14px;
   flex-shrink: 0;
   color: var(--ssi-red, #c23a3a);
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .nudge-text {
   font-size: 0.75rem;
   color: var(--text-secondary, rgba(255,255,255,0.6));
   line-height: 1.3;
+  transition: font-size 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .nudge-text strong {

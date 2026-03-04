@@ -56,8 +56,7 @@ const formattedLearningTime = computed(() => {
 })
 
 // App info
-const appVersion = '1.0.0'
-const buildNumber = '2024.12.16'
+const buildNumber = typeof __BUILD_NUMBER__ !== 'undefined' ? __BUILD_NUMBER__ : 'dev'
 
 // Display settings
 const showFirePath = ref(true)
@@ -1046,7 +1045,7 @@ const confirmReset = async () => {
             <div class="setting-info">
               <span class="setting-label">Version</span>
             </div>
-            <span class="setting-value">{{ appVersion }} ({{ buildNumber }})</span>
+            <span class="setting-value">{{ buildNumber }}</span>
           </div>
         </div>
       </section>

@@ -193,6 +193,10 @@ onMounted(() => {
 
 <template>
   <div class="browse-screen">
+    <!-- Background layers (matching Settings) -->
+    <div class="bg-gradient"></div>
+    <div class="bg-noise"></div>
+
     <!-- Header -->
     <div class="browse-header">
       <div class="header-spacer" />
@@ -418,14 +422,41 @@ onMounted(() => {
   font-family: var(--font-body);
   overflow-y: auto;
   padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Backgrounds (matching Settings) */
+.bg-gradient {
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 40% at 50% -10%, var(--accent-glow) 0%, transparent 50%),
+    linear-gradient(to bottom, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+  pointer-events: none;
+}
+
+.bg-noise {
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  opacity: 0.02;
+  pointer-events: none;
 }
 
 /* Header */
 .browse-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: calc(1rem + env(safe-area-inset-top, 0px)) 1.5rem 0.75rem;
+  background: linear-gradient(to bottom, var(--bg-primary) 0%, transparent 100%);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .header-spacer {
@@ -433,7 +464,7 @@ onMounted(() => {
 }
 
 .browse-title {
-  font-size: 1.625rem;
+  font-size: 1.125rem;
   font-weight: 700;
   margin: 0;
   letter-spacing: -0.02em;
@@ -463,6 +494,8 @@ onMounted(() => {
 
 /* Content */
 .browse-content {
+  position: relative;
+  z-index: 10;
   padding: 0 1.5rem;
 }
 

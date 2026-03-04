@@ -49,4 +49,5 @@ button {
 
 html {
   scroll-behavior: smooth;
+  background: var(--bg-primary);
 }
