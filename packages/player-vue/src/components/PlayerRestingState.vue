@@ -92,7 +92,6 @@ const handleChangeCourse = () => {
       <!-- Belt badge -->
       <div class="belt-badge" :style="{ '--belt-accent': belt.color }">
         <div class="belt-dot"></div>
-        <span class="belt-name">{{ currentBeltName }} belt</span>
       </div>
 
       <!-- Progress -->
@@ -185,27 +184,19 @@ const handleChangeCourse = () => {
 .belt-badge {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  border-radius: 20px;
-  background: color-mix(in srgb, var(--belt-accent, #f5f5f5) 15%, transparent);
-  border: 1.5px solid color-mix(in srgb, var(--belt-accent, #f5f5f5) 40%, transparent);
+  justify-content: center;
+  padding: 8px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--belt-accent, #ffffff) 15%, transparent);
+  border: 1.5px solid color-mix(in srgb, var(--belt-accent, #ffffff) 40%, transparent);
 }
 
 .belt-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--belt-accent, #f5f5f5);
-  box-shadow: 0 0 6px var(--belt-accent, #f5f5f5);
-}
-
-.belt-name {
-  font-family: var(--font-body);
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  text-transform: capitalize;
+  background: var(--belt-accent, #ffffff);
+  box-shadow: 0 0 6px var(--belt-accent, #ffffff);
 }
 
 .progress-section {

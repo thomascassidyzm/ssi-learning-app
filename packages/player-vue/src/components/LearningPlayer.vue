@@ -40,6 +40,7 @@ import ListeningOverlay from './ListeningOverlay.vue'
 import DrivingModeOverlay from './DrivingModeOverlay.vue'
 import { useDrivingMode } from '../composables/useDrivingMode'
 import { simpleRoundToTypedCycles } from '../utils/drivingModeAdapter'
+import BeltProgressModal from './BeltProgressModal.vue'
 
 const emit = defineEmits(['close', 'playStateChanged', 'viewProgress', 'listeningModeChanged', 'drivingModeChanged', 'cycle-started'])
 
@@ -1416,30 +1417,12 @@ const playCommentaryAudio = async (commentary) => {
  * @param roundIndex - Current round position (0-based, relative to loaded batch)
  * @param showCelebration - Whether to show belt promotion celebration
  */
-const updateBeltForPosition = (roundIndex, showCelebration = true) => {
+const updateBeltForPosition = (roundIndex) => {
   if (!beltProgress.value) return
 
-  const previousBelt = beltProgress.value.currentBelt.value
-  const previousSeeds = beltProgress.value.completedRounds.value
-
-  // Set seeds to match current position (1 seed ≈ 1 round/LEGO)
-  // Convert relative round index to absolute seed number using base offset
+  // Update visual playing position only — does NOT ratchet highest belt
   const newSeeds = scriptBaseOffset.value + roundIndex + 1
-  beltProgress.value.setSeeds(newSeeds)
-
-  // Check for belt promotion (only celebrate if moving forward)
-  // During driving mode, skip celebration — queue for display on exit
-  if (showCelebration && newSeeds > previousSeeds && !isDrivingModeActive.value) {
-    const newBelt = beltProgress.value.currentBelt.value
-    if (newBelt.index > previousBelt.index) {
-      beltJustEarned.value = newBelt
-      console.log('[LearningPlayer] Belt promotion!', previousBelt.name, '->', newBelt.name)
-      triggerRewardAnimation(100, 5)
-      setTimeout(() => {
-        beltJustEarned.value = null
-      }, 5000)
-    }
-  }
+  beltProgress.value.setPlayingPosition(newSeeds)
 }
 
 // Handle round boundary - called when a round completes
@@ -1447,7 +1430,7 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId) => {
   roundsThisSession.value++
 
   // Update belt progress to match current position (NO celebration during play - manual only)
-  updateBeltForPosition(completedRoundIndex, false)
+  updateBeltForPosition(completedRoundIndex)
 
   // ============================================
   // META-COMMENTARY: Instructions & Encouragements
@@ -3710,7 +3693,7 @@ const handleSkip = async () => {
     const nextIndex = simplePlayer.roundIndex.value + 1
     simplePlayer.jumpToRound(nextIndex)
     // Update belt position to match (positional indicator, not just achievement)
-    updateBeltForPosition(nextIndex, false)
+    updateBeltForPosition(nextIndex)
   } finally {
     isSkipInProgress.value = false
   }
@@ -3737,7 +3720,7 @@ const handleRevisit = async () => {
   console.log('[LearningPlayer] Revisit → jumping to round', targetIndex, 'LEGO:', cachedRounds.value[targetIndex]?.legoId)
 
   // Update belt to match new position (no celebration when going back)
-  updateBeltForPosition(targetIndex, false)
+  updateBeltForPosition(targetIndex)
 
   // Delegate to SimplePlayer which handles stop/play/state correctly
   simplePlayer.jumpToRound(targetIndex)
@@ -3834,9 +3817,8 @@ const handleSkipToNextBelt = async () => {
     // Now jump to the seed
     simplePlayer.jumpToSeed(targetSeed)
 
-    // Update belt progress to match (uses absolute seed number)
+    // Update visual playing position only — belt award requires natural completion
     if (beltProgress.value) {
-      beltProgress.value.setSeeds(targetSeed)
       beltProgress.value.setPlayingPosition(targetSeed)
     }
   } finally {
@@ -3921,9 +3903,8 @@ const handleGoBackBelt = async () => {
       simplePlayer.jumpToSeed(targetSeed)
     }
 
-    // Update belt progress to match
+    // Update visual playing position only — belt award requires natural completion
     if (beltProgress.value) {
-      beltProgress.value.setSeeds(targetSeed)
       beltProgress.value.setPlayingPosition(targetSeed)
     }
 
@@ -3933,10 +3914,30 @@ const handleGoBackBelt = async () => {
   }
 }
 
-// Belt pill tap — skip to next belt
+// Belt pill tap — open belt progress modal
 const handleBeltPillTap = () => {
-  if (playingNextBelt.value) {
-    handleSkipToNextBelt()
+  showBeltModal.value = true
+}
+
+// Jump to any belt (from BeltProgressModal)
+const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) => {
+  showBeltModal.value = false
+  const targetSeed = belt.seedsRequired === 0 ? 1 : belt.seedsRequired
+
+  isSkippingBelt.value = true
+  try {
+    haltAllPlayback()
+    console.log(`[LearningPlayer] Skipping to ${belt.name} belt - seed ${targetSeed}`)
+
+    await loadSeedIfNeeded(targetSeed)
+    simplePlayer.jumpToSeed(targetSeed)
+
+    // Update visual playing position only — belt award requires natural completion
+    if (beltProgress.value) {
+      beltProgress.value.setPlayingPosition(targetSeed)
+    }
+  } finally {
+    isSkippingBelt.value = false
   }
 }
 
@@ -4013,6 +4014,7 @@ const showTurboPopup = ref(false)
 
 // Belt skip feedback state
 const isSkippingBelt = ref(false)
+const showBeltModal = ref(false)
 
 // Helper: Calculate pause duration using current mode config
 const getPauseDuration = (targetDurationMs: number): number => {
@@ -5478,7 +5480,7 @@ onMounted(async () => {
       currentItemInRound.value = 0
 
       // Update belt to match preview position
-      updateBeltForPosition(targetIndex, false)
+      updateBeltForPosition(targetIndex)
 
       // Update display to show the preview LEGO's text
       const previewItem = cachedRounds.value[targetIndex]?.items?.[0]
@@ -5798,6 +5800,20 @@ defineExpose({
       <span class="belt-skip-label">Jumping to {{ nextBelt?.name || 'next' }} belt...</span>
     </div>
   </Transition>
+
+  <!-- Belt Progress Modal -->
+  <BeltProgressModal
+    :is-open="showBeltModal"
+    :current-belt="playingBelt"
+    :next-belt="playingNextBelt"
+    :completed-rounds="beltProgress?.playingSeedNumber?.value ?? 0"
+    :session-seconds="sessionSeconds"
+    :lifetime-learning-minutes="beltProgress?.totalLearningMinutes?.value ?? 0"
+    :is-skipping="isSkippingBelt"
+    @close="showBeltModal = false"
+    @viewProgress="showBeltModal = false"
+    @skipToBelt="handleSkipToBelt"
+  />
 
   <!-- Paused Summary Overlay -->
   <Transition name="session-complete">
@@ -6182,7 +6198,6 @@ defineExpose({
             :title="!nextBelt ? 'Black belt achieved!' : `${Math.round(beltProgressPercent)}% to ${nextBelt.name} belt`"
             @click="handleBeltPillTap"
           >
-            <span class="belt-name-label">{{ playingBelt.name }}</span>
             <div class="belt-bar-track">
               <div class="belt-bar-fill" :style="{ width: `${beltProgressPercent}%` }"></div>
             </div>
@@ -7348,17 +7363,6 @@ defineExpose({
 
 .belt-timer-unified:active {
   transform: scale(0.98);
-}
-
-.belt-name-label {
-  font-family: var(--font-body);
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: capitalize;
-  color: rgba(255, 255, 255, 0.8);
-  white-space: nowrap;
-  flex-shrink: 0;
-  letter-spacing: 0.02em;
 }
 
 .belt-timer-unified .belt-bar-track {
@@ -10071,10 +10075,6 @@ defineExpose({
   border: 1.5px solid rgba(0, 0, 0, 0.35);
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
               0 8px 24px rgba(44, 38, 34, 0.08);
-}
-
-[data-theme="mist"] .player .belt-name-label {
-  color: rgba(0, 0, 0, 0.6);
 }
 
 [data-theme="mist"] .player .belt-timer-label {

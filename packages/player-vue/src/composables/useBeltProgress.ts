@@ -35,7 +35,7 @@ export interface Belt {
 }
 
 export const BELTS: Omit<Belt, 'index'>[] = [
-  { name: 'white',  seedsRequired: 0,   color: '#f5f5f5', colorDark: '#e0e0e0', glow: 'rgba(245, 245, 245, 0.3)' },
+  { name: 'white',  seedsRequired: 0,   color: '#ffffff', colorDark: '#e0e0e0', glow: 'rgba(255, 255, 255, 0.3)' },
   { name: 'yellow', seedsRequired: 8,   color: '#fcd34d', colorDark: '#f59e0b', glow: 'rgba(252, 211, 77, 0.4)' },
   { name: 'orange', seedsRequired: 20,  color: '#fb923c', colorDark: '#ea580c', glow: 'rgba(251, 146, 60, 0.4)' },
   { name: 'green',  seedsRequired: 40,  color: '#4ade80', colorDark: '#16a34a', glow: 'rgba(74, 222, 128, 0.4)' },

@@ -198,7 +198,11 @@ export class SimplePlayer {
 
     if (this.state.phase === 'pause') {
       this.startPausePhase()
-    } else if (this.state.phase !== 'idle') {
+    } else if (this.state.phase === 'idle') {
+      // After belt skip or jumpToRound while paused, phase is idle —
+      // start from prompt (same as play() but skipping the isPlaying guard)
+      this.startPhase('prompt')
+    } else {
       // Re-start current phase to ensure correct audio src
       this.startPhase(this.state.phase)
     }

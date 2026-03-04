@@ -4,7 +4,7 @@ import { computed, watch, onMounted, onUnmounted, ref } from 'vue'
 // All belt levels in order
 // Belt colors must match useBeltProgress.ts BELTS array (single source of truth)
 const ALL_BELTS = [
-  { name: 'white', color: '#f5f5f5', seedsRequired: 0, glow: 'rgba(245, 245, 245, 0.3)' },
+  { name: 'white', color: '#ffffff', seedsRequired: 0, glow: 'rgba(255, 255, 255, 0.3)' },
   { name: 'yellow', color: '#fcd34d', seedsRequired: 8, glow: 'rgba(252, 211, 77, 0.4)' },
   { name: 'orange', color: '#fb923c', seedsRequired: 20, glow: 'rgba(251, 146, 60, 0.4)' },
   { name: 'green', color: '#4ade80', seedsRequired: 40, glow: 'rgba(74, 222, 128, 0.4)' },
@@ -209,7 +209,6 @@ onUnmounted(() => {
                   :title="`Jump to ${belt.name} belt (seed ${belt.seedsRequired})`"
                 >
                   <span class="belt-chip-dot"></span>
-                  <span class="belt-chip-name">{{ belt.name }}</span>
                 </button>
               </div>
             </div>
@@ -478,17 +477,6 @@ onUnmounted(() => {
   border-radius: 50%;
   background: var(--chip-color);
   box-shadow: 0 0 6px var(--chip-glow);
-}
-
-.belt-chip-name {
-  font-size: 0.6875rem;
-  color: var(--text-secondary);
-  text-transform: capitalize;
-  font-weight: 500;
-}
-
-.belt-chip--current .belt-chip-name {
-  color: var(--text-primary);
 }
 
 /* Lifetime Stats */
