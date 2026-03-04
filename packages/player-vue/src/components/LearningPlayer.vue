@@ -5952,6 +5952,18 @@ defineExpose({
       </div>
     </div>
 
+    <!-- Guest progress warning - between known text and LEGO tiles -->
+    <Transition name="nudge-fade">
+      <div v-if="isGuestLearner" class="guest-progress-nudge" :class="{ expanded: !isPlaying }" @click="openAuth()">
+        <svg class="nudge-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/>
+          <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        <span class="nudge-text">Your progress is fragile — <strong>sign in</strong> to save it</span>
+      </div>
+    </Transition>
+
     <!-- Node Hover Tooltip -->
     <Transition name="tooltip-fade">
       <div v-if="hoveredNode" class="node-hover-tooltip">
@@ -7963,61 +7975,82 @@ defineExpose({
   margin: 0;
 }
 
-/* Guest progress nudge */
+/* Guest progress nudge - positioned between hero glass and LEGO tiles */
 .guest-progress-nudge {
+  position: absolute;
+  /* Sits just below hero-text-pane: hero-top + hero height + gap */
+  top: calc(var(--hero-top, 38%) + 5.5rem);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 11;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.375rem;
-  margin: 0.5rem auto 0;
-  padding: 0.375rem 0.75rem;
-  background: rgba(194, 58, 58, 0.1);
-  border: 1px solid rgba(194, 58, 58, 0.2);
+  gap: 0.25rem;
+  padding: 0.25rem 0.625rem;
+  background: rgba(194, 58, 58, 0.08);
+  border: 1px solid rgba(194, 58, 58, 0.15);
   border-radius: 8px;
   cursor: pointer;
-  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-  max-width: 90%;
+  pointer-events: auto;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  max-width: min(90%, 360px);
+  white-space: nowrap;
+  opacity: 0.7;
 }
 
 .guest-progress-nudge.expanded {
-  padding: 0.625rem 1rem;
+  padding: 0.5rem 1rem;
   gap: 0.5rem;
   background: rgba(194, 58, 58, 0.15);
   border-color: rgba(194, 58, 58, 0.35);
-  z-index: 20;
+  opacity: 1;
+  white-space: normal;
 }
 
 .guest-progress-nudge.expanded .nudge-icon {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
 }
 
 .guest-progress-nudge.expanded .nudge-text {
-  font-size: 0.875rem;
+  font-size: 0.9rem;
 }
 
 .guest-progress-nudge:active {
-  background: rgba(194, 58, 58, 0.18);
+  background: rgba(194, 58, 58, 0.2);
+  transform: translateX(-50%) scale(0.97);
 }
 
 .nudge-icon {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   flex-shrink: 0;
   color: var(--ssi-red, #c23a3a);
-  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .nudge-text {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: var(--text-secondary, rgba(255,255,255,0.6));
   line-height: 1.3;
-  transition: font-size 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: font-size 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .nudge-text strong {
   color: var(--ssi-red, #c23a3a);
   font-weight: 600;
+}
+
+/* Nudge fade transition */
+.nudge-fade-enter-active,
+.nudge-fade-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.nudge-fade-enter-from,
+.nudge-fade-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(8px);
 }
 
 /* Visual divider between known and target */
