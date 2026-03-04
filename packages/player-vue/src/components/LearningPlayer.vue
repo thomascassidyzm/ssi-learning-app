@@ -6506,7 +6506,7 @@ defineExpose({
     </svg>
   </button>
   <Transition name="fade">
-    <div v-if="isPlaying && activeCourseCode" class="course-identity" :style="beltCssVars">
+    <div v-if="isPlaying && activeCourseCode && !isDrivingModeActive" class="course-identity" :style="beltCssVars">
       <span class="course-identity-flag">{{ courseFlag }}</span>
       <span class="course-identity-name">{{ courseDisplayName }}</span>
     </div>
@@ -7324,8 +7324,8 @@ defineExpose({
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.06);
+  border: 1.5px solid color-mix(in srgb, var(--belt-color) 45%, transparent);
+  background: color-mix(in srgb, var(--belt-color) 25%, rgba(0,0,0,0.35));
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   display: flex;
@@ -7334,7 +7334,8 @@ defineExpose({
   cursor: pointer;
   transition: all 0.2s ease;
   -webkit-tap-highlight-color: transparent;
-  color: rgba(255, 255, 255, 0.45);
+  color: color-mix(in srgb, var(--belt-color) 80%, rgba(255,255,255,0.6));
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3), 0 0 10px color-mix(in srgb, var(--belt-glow) 15%, transparent);
   z-index: 3001;
 }
 
@@ -9296,8 +9297,8 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(12px);
+  background: rgba(0, 0, 0, 0.92);
+  backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(12px);
   padding: 1.5rem;
 }
@@ -9309,6 +9310,7 @@ defineExpose({
   padding: 1.5rem;
   max-width: 320px;
   text-align: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
 }
 
 .mode-popup-icon {
@@ -10145,16 +10147,17 @@ defineExpose({
 
 /* --- Mode nav buttons on mist → translucent, not opaque like the pill --- */
 [data-theme="mist"] .player .mode-nav-btn {
-  background: rgba(255, 255, 255, 0.5);
-  border: 1.5px solid rgba(0, 0, 0, 0.08);
-  color: rgba(44, 38, 34, 0.4);
+  background: color-mix(in srgb, var(--belt-color) 20%, white);
+  border: 1.5px solid color-mix(in srgb, var(--belt-color) 35%, rgba(0, 0, 0, 0.08));
+  color: color-mix(in srgb, var(--belt-color) 70%, #2C2622);
+  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12);
 }
 
 [data-theme="mist"] .player .mode-nav-btn.active {
-  background: color-mix(in srgb, var(--belt-color) 15%, rgba(255, 255, 255, 0.6));
-  border-color: color-mix(in srgb, var(--belt-color) 35%, rgba(0, 0, 0, 0.08));
+  background: color-mix(in srgb, var(--belt-color) 30%, white);
+  border-color: color-mix(in srgb, var(--belt-color) 50%, rgba(0, 0, 0, 0.08));
   color: var(--belt-color);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--belt-color) 20%, transparent);
+  box-shadow: 0 2px 6px rgba(44, 38, 34, 0.15);
 }
 
 /* --- Belt skip buttons → crisp white, destination belt color arrows --- */
