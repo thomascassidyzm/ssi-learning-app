@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { BELTS } from '@/composables/useBeltProgress'
 
 const LANGUAGE_META = {
+  eng: { name: 'English', flag: '🇬🇧' },
   cym: { name: 'Welsh', flag: '🏴󠁧󠁢󠁷󠁬󠁳󠁿' },
   spa: { name: 'Spanish', flag: '🇪🇸' },
   fra: { name: 'French', flag: '🇫🇷' },
@@ -26,7 +27,6 @@ const props = defineProps({
   completedSeeds: { type: Number, default: 0 },
   totalSeeds: { type: Number, default: 668 },
   currentBeltName: { type: String, default: 'white' },
-  minimized: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['start', 'change-course'])
@@ -74,20 +74,8 @@ const handleChangeCourse = () => {
 </script>
 
 <template>
-  <!-- Minimised: compact strip at top during playback -->
-  <div v-if="minimized" class="resting-mini">
-    <span class="mini-flag">{{ courseFlag }}</span>
-    <span class="mini-name">{{ courseName }}</span>
-    <span v-if="courseSubtitle" class="mini-subtitle">{{ courseSubtitle }}</span>
-    <span class="mini-belt-dot" :style="{ background: belt.color, boxShadow: '0 0 6px ' + belt.color }"></span>
-    <div class="mini-progress-track" :style="{ background: belt.color + '26' }">
-      <div class="mini-progress-fill" :style="{ width: progressPercent + '%', background: belt.color }"></div>
-    </div>
-    <span class="mini-progress-label">{{ completedSeeds }}/{{ totalSeeds }}</span>
-  </div>
-
-  <!-- Full resting state when paused -->
-  <div v-else class="resting-state">
+  <!-- Full resting state (shown when paused) -->
+  <div class="resting-state">
     <div class="resting-content">
       <!-- Course identity -->
       <div class="course-flag">{{ courseFlag }}</div>
@@ -121,74 +109,6 @@ const handleChangeCourse = () => {
 </template>
 
 <style scoped>
-/* ===== Minimised strip (during playback) ===== */
-.resting-mini {
-  position: absolute;
-  top: calc(env(safe-area-inset-top, 0px) + 8px);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 45;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  background: rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-radius: 20px;
-  pointer-events: none;
-  opacity: 0.7;
-  transition: opacity 0.3s ease;
-  white-space: nowrap;
-}
-
-.mini-flag {
-  font-size: 16px;
-  line-height: 1;
-}
-
-.mini-name {
-  font-family: var(--font-body);
-  font-size: 12px;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.85);
-}
-
-.mini-subtitle {
-  font-family: var(--font-body);
-  font-size: 10px;
-  font-weight: 400;
-  color: rgba(255, 255, 255, 0.45);
-}
-
-.mini-belt-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.mini-progress-track {
-  width: 40px;
-  height: 3px;
-  border-radius: 1.5px;
-  background: rgba(255, 255, 255, 0.15);
-  overflow: hidden;
-}
-
-.mini-progress-fill {
-  height: 100%;
-  border-radius: 1.5px;
-  transition: width 0.5s ease;
-}
-
-.mini-progress-label {
-  font-family: var(--font-body);
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.5);
-  font-variant-numeric: tabular-nums;
-}
-
 /* ===== Full resting state (when paused) ===== */
 .resting-state {
   position: absolute;
@@ -365,23 +285,4 @@ const handleChangeCourse = () => {
   background: rgba(0, 0, 0, 0.06);
 }
 
-:root[data-theme="mist"] .resting-mini {
-  background: rgba(255, 255, 255, 0.7);
-}
-
-:root[data-theme="mist"] .mini-name {
-  color: rgba(0, 0, 0, 0.7);
-}
-
-:root[data-theme="mist"] .mini-subtitle {
-  color: rgba(0, 0, 0, 0.35);
-}
-
-:root[data-theme="mist"] .mini-progress-track {
-  background: rgba(0, 0, 0, 0.08);
-}
-
-:root[data-theme="mist"] .mini-progress-label {
-  color: rgba(0, 0, 0, 0.4);
-}
 </style>

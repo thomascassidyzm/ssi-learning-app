@@ -365,14 +365,13 @@ onMounted(() => {
       @listeningModeChanged="handleListeningModeChanged"
     />
 
-    <!-- Player resting state overlay (full when paused, minimised during playback) -->
+    <!-- Player resting state overlay (shown when paused, hidden during playback) -->
     <PlayerRestingState
-      v-if="currentScreen === 'player' && !isListeningMode"
+      v-if="currentScreen === 'player' && !isListeningMode && !isPlaying"
       :course="activeCourse"
       :completed-seeds="completedSeeds"
       :total-seeds="totalSeeds"
       :current-belt-name="currentBeltName"
-      :minimized="isPlaying"
       @start="handleTogglePlayback"
       @change-course="showCourseSelector = true"
     />

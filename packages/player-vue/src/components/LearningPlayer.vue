@@ -4196,47 +4196,46 @@ const showDrivingExplainer = ref(false)
 const listeningExplainerShownThisSession = ref(false)
 const drivingExplainerShownThisSession = ref(false)
 
-// Tab bar handlers
-const handleTabLearning = () => {
-  if (isDrivingModeActive.value) {
-    handleExitDrivingMode()
+// Mode cycle button: Learning → Listening → Driving → Learning
+const handleModeCycle = () => {
+  if (!showListeningOverlay.value && !isDrivingModeActive.value) {
+    // Learning → Listening
+    if (listeningExplainerShownThisSession.value) {
+      handleListeningMode()
+    } else {
+      showListeningExplainer.value = true
+    }
   } else if (showListeningOverlay.value) {
+    // Listening → Driving
     handleCloseListening()
-  }
-  // Already in learning mode — no-op
-}
-
-const handleTabListening = () => {
-  if (showListeningOverlay.value) {
-    // Already in listening — exit back to learning
-    handleCloseListening()
-    return
-  }
-  if (isDrivingModeActive.value) {
+    if (drivingExplainerShownThisSession.value) {
+      handleEnterDrivingMode()
+    } else {
+      showDrivingExplainer.value = true
+    }
+  } else if (isDrivingModeActive.value) {
+    // Driving → Learning
     handleExitDrivingMode()
-  }
-  if (listeningExplainerShownThisSession.value) {
-    handleListeningMode()
-  } else {
-    showListeningExplainer.value = true
   }
 }
 
-const handleTabDriving = () => {
-  if (isDrivingModeActive.value) {
-    // Already in driving — exit back to learning
-    handleExitDrivingMode()
-    return
-  }
+// Exit pill handler: always returns to Learning
+const handleModeCycleExit = () => {
   if (showListeningOverlay.value) {
     handleCloseListening()
-  }
-  if (drivingExplainerShownThisSession.value) {
-    handleEnterDrivingMode()
-  } else {
-    showDrivingExplainer.value = true
+  } else if (isDrivingModeActive.value) {
+    handleExitDrivingMode()
   }
 }
+
+// Icon for the mode cycle button (shows what NEXT tap will do)
+const modeCycleIcon = computed(() => {
+  if (showListeningOverlay.value) return 'driving'  // next: driving
+  if (isDrivingModeActive.value) return 'exit'       // next: back to learning
+  return 'listening'                                  // next: listening
+})
+
+const isNonDefaultMode = computed(() => showListeningOverlay.value || isDrivingModeActive.value)
 
 const confirmListeningMode = () => {
   showListeningExplainer.value = false
@@ -6181,44 +6180,18 @@ defineExpose({
       </div>
     </header>
 
-    <!-- Mode Tab Bar: Learning | Listening | Driving -->
-    <nav class="mode-tab-bar">
+    <!-- Exit pill: shows current mode when in non-default mode -->
+    <Transition name="fade">
       <button
-        class="mode-tab"
-        :class="{ 'mode-tab--active': !showListeningOverlay && !isDrivingModeActive }"
-        @click="handleTabLearning"
+        v-if="showListeningOverlay || isDrivingModeActive"
+        class="mode-exit-pill"
+        @click="handleModeCycleExit"
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-          <path d="M2 10l10-5 10 5-10 5z"/>
-          <path d="M6 12v5c0 1.66 2.69 3 6 3s6-1.34 6-3v-5"/>
-        </svg>
-        <span>Learning</span>
+        <span>✕</span>
+        <span v-if="showListeningOverlay">🎧 Listening mode</span>
+        <span v-else>🚗 Driving mode</span>
       </button>
-      <button
-        class="mode-tab"
-        :class="{ 'mode-tab--active': showListeningOverlay }"
-        @click="handleTabListening"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-          <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
-          <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
-        </svg>
-        <span>Listening</span>
-      </button>
-      <button
-        class="mode-tab"
-        :class="{ 'mode-tab--active': isDrivingModeActive }"
-        @click="handleTabDriving"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0ZM15 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z"/>
-          <path d="M5 17H3v-6l2-5h10l4 5h2v6h-2"/>
-          <path d="M5 11h14"/>
-          <path d="M9 17h6"/>
-        </svg>
-        <span>Driving</span>
-      </button>
-    </nav>
+    </Transition>
 
     <!-- Turbo Mode Explanation Popup -->
     <Transition name="fade">
@@ -6504,6 +6477,36 @@ defineExpose({
     </Transition>
 
     <!-- Control Bar - REMOVED: transport controls now live in BottomNav pill -->
+
+    <!-- Floating mode cycle button (rest-only: visible when not playing) -->
+    <Transition name="fade">
+      <button
+        v-if="!isPlaying && !showListeningOverlay"
+        class="mode-cycle-fab"
+        :class="{ 'mode-cycle-fab--active': isNonDefaultMode }"
+        :style="isNonDefaultMode ? { '--fab-accent': currentBelt.color } : {}"
+        @click="handleModeCycle"
+        :title="modeCycleIcon === 'listening' ? 'Switch to Listening mode' : modeCycleIcon === 'driving' ? 'Switch to Driving mode' : 'Back to Learning'"
+      >
+        <!-- Headphones icon (next: listening) -->
+        <svg v-if="modeCycleIcon === 'listening'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+          <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+        </svg>
+        <!-- Car icon (next: driving) -->
+        <svg v-else-if="modeCycleIcon === 'driving'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0ZM15 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z"/>
+          <path d="M5 17H3v-6l2-5h10l4 5h2v6h-2"/>
+          <path d="M5 11h14"/>
+          <path d="M9 17h6"/>
+        </svg>
+        <!-- X icon (next: back to learning) -->
+        <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </Transition>
 
     <!-- Report Issue Button - moved to header area for QA mode only -->
     <ReportIssueButton
@@ -7348,65 +7351,73 @@ defineExpose({
   50% { opacity: 0.2; }
 }
 
-/* ============ MODE TAB BAR ============ */
-.mode-tab-bar {
+/* ============ MODE CYCLE FAB ============ */
+.mode-cycle-fab {
+  position: fixed;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 96px);
+  right: 16px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  z-index: 25;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  padding: 3px;
-  margin: 0 auto;
-  width: fit-content;
-  max-width: 320px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: 12px;
-  position: relative;
-  z-index: 15;
-}
-
-.mode-tab {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  border: none;
-  border-radius: 10px;
-  background: transparent;
-  color: var(--text-muted);
-  font-family: var(--font-body);
-  font-size: 0.8rem;
-  font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
   -webkit-tap-highlight-color: transparent;
+  color: var(--text-muted);
+}
+
+.mode-cycle-fab svg {
+  width: 20px;
+  height: 20px;
+}
+
+.mode-cycle-fab:active {
+  transform: scale(0.92);
+}
+
+.mode-cycle-fab--active {
+  background: color-mix(in srgb, var(--fab-accent, var(--ssi-red)) 12%, transparent);
+  border-color: color-mix(in srgb, var(--fab-accent, var(--ssi-red)) 30%, transparent);
+  color: var(--fab-accent, var(--ssi-red));
+}
+
+/* ============ MODE EXIT PILL ============ */
+.mode-exit-pill {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 14px;
+  border-radius: 16px;
+  border: none;
+  background: rgba(200, 90, 74, 0.88);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: white;
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
   white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(200, 90, 74, 0.3);
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.mode-tab svg {
-  width: 15px;
-  height: 15px;
-  flex-shrink: 0;
-}
-
-.mode-tab:hover {
-  color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.mode-tab:active {
-  transform: scale(0.97);
-}
-
-.mode-tab--active {
-  background: rgba(255, 255, 255, 0.10);
-  color: var(--belt-color, var(--ssi-red));
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
-}
-
-.mode-tab--active:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: var(--belt-color, var(--ssi-red));
+.mode-exit-pill:active {
+  transform: translateX(-50%) scale(0.95);
 }
 
 /* ============ BELT TIMER ============ */
@@ -10167,30 +10178,18 @@ defineExpose({
   color: #2C2622;
 }
 
-/* --- Mode tab bar → crisp white on mist --- */
-[data-theme="mist"] .player .mode-tab-bar {
-  background: rgba(255, 255, 255, 0.7);
+/* --- Mode cycle FAB → frosted glass on mist --- */
+[data-theme="mist"] .player .mode-cycle-fab {
+  background: rgba(255, 255, 255, 0.9);
   border-color: rgba(0, 0, 0, 0.08);
-}
-
-[data-theme="mist"] .player .mode-tab {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
   color: #8A8078;
 }
 
-[data-theme="mist"] .player .mode-tab:hover {
-  color: #2C2622;
-  background: rgba(0, 0, 0, 0.03);
-}
-
-[data-theme="mist"] .player .mode-tab--active {
-  background: rgba(255, 255, 255, 0.96);
-  color: color-mix(in srgb, var(--belt-color) 70%, #2C2622);
-  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.12);
-}
-
-[data-theme="mist"] .player .mode-tab--active:hover {
-  background: rgba(255, 255, 255, 0.98);
-  color: color-mix(in srgb, var(--belt-color) 70%, #2C2622);
+[data-theme="mist"] .player .mode-cycle-fab--active {
+  background: color-mix(in srgb, var(--fab-accent, var(--ssi-red)) 10%, white);
+  border-color: color-mix(in srgb, var(--fab-accent, var(--ssi-red)) 25%, transparent);
+  color: var(--fab-accent, var(--ssi-red));
 }
 
 /* --- Belt skip buttons → crisp white, destination belt color arrows --- */
