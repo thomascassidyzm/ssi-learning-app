@@ -6566,8 +6566,6 @@ defineExpose({
   /* Fill viewport so fixed children display correctly when visible */
   position: fixed;
   inset: 0;
-  height: 100vh;
-  height: 100dvh;
   overflow: hidden;
 }
 
