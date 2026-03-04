@@ -275,6 +275,17 @@ const totalSeeds = computed(() => {
 const totalLearningMinutes = computed(() => beltProgress.value?.totalLearningMinutes.value ?? 0)
 const totalPhrasesSpoken = computed(() => beltProgress.value?.totalPhrasesSpoken.value ?? 0)
 
+// Admin detection (mirrors SettingsScreen logic)
+const ADMIN_EMAIL_DOMAINS = ['saysomethingin.com', 'ssi.cymru']
+const ADMIN_EMAILS = ['tom@tomcassidy.co.uk']
+const isAdmin = computed(() => {
+  const email = (auth?.user?.value?.emailAddresses?.[0]?.emailAddress || '').toLowerCase()
+  if (!email) return false
+  if (ADMIN_EMAILS.some(e => email === e.toLowerCase())) return true
+  const domain = email.split('@')[1]
+  return ADMIN_EMAIL_DOMAINS.some(d => domain === d.toLowerCase())
+})
+
 // Handle auth success
 const handleAuthSuccess = () => {
   console.debug('[PlayerContainer] Auth successful!')
@@ -436,6 +447,7 @@ onMounted(() => {
       :isDrivingMode="isDrivingMode"
       :showLibrary="showLibrary"
       :showSettings="showSettings"
+      :isAuthOpen="isAuthOpen"
       @navigate="handleNavigation"
       @startLearning="handleStartLearning"
       @togglePlayback="handleTogglePlayback"
@@ -447,6 +459,7 @@ onMounted(() => {
       @skip="handleSkip"
       @openSettings="toggleSettings"
       @closeOverlays="closeLibrary(); closeSettings()"
+      @closeAuth="closeAuth"
     />
 
     <!-- Gear icon removed — settings now accessible from bottom pill -->
@@ -462,6 +475,7 @@ onMounted(() => {
             :course="activeCourse"
             @close="closeSettings"
             @openExplorer="openExplorerOverlay"
+            @openListening="closeSettings(); handleToggleListening()"
           />
         </div>
       </div>
@@ -485,6 +499,7 @@ onMounted(() => {
       :supabase="supabaseClient"
       :enrolled-courses="enrolledCourses"
       :active-course-id="activeCourse?.course_code"
+      :is-admin="isAdmin"
       @selectCourse="(c) => { showCourseSelector = false; handleCourseSelect(c) }"
       @close="showCourseSelector = false"
     />

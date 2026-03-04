@@ -57,6 +57,10 @@ const props = defineProps({
   defaultKnownLang: {
     type: String,
     default: 'eng'  // 3-letter code
+  },
+  isAdmin: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -88,9 +92,11 @@ const knownLanguages = computed(() => {
 })
 
 // Computed: courses available for selected known language
+// Hide premium courses for non-admin users
 const availableCourses = computed(() => {
   return allCourses.value
     .filter(c => c.known_lang === selectedKnownLang.value)
+    .filter(c => props.isAdmin || !isPremiumCourse(c))
     .sort((a, b) => {
       const nameA = getLanguageName(a.target_lang)
       const nameB = getLanguageName(b.target_lang)

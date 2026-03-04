@@ -33,10 +33,14 @@ const props = defineProps({
   showSessionComplete: {
     type: Boolean,
     default: false
+  },
+  isAuthOpen: {
+    type: Boolean,
+    default: false
   }
 })
 
-const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'exitListeningMode', 'exitDrivingMode', 'toggleListening', 'toggleDriving', 'revisit', 'skip', 'openSettings', 'closeOverlays'])
+const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'exitListeningMode', 'exitDrivingMode', 'toggleListening', 'toggleDriving', 'revisit', 'skip', 'openSettings', 'closeOverlays', 'closeAuth'])
 
 // Tap feedback
 const tappedItem = ref(null)
@@ -52,7 +56,7 @@ const isStopMode = computed(() =>
 const hasActiveMode = computed(() => props.isListeningMode || props.isDrivingMode)
 
 const isReturnMode = computed(() =>
-  ((!isOnPlayerScreen.value || hasOverlayOpen.value) && !props.isPlaying) || hasActiveMode.value
+  ((!isOnPlayerScreen.value || hasOverlayOpen.value || props.isAuthOpen) && !props.isPlaying) || hasActiveMode.value
 )
 
 const handleNavTap = (itemId) => {
@@ -75,6 +79,11 @@ const handlePlayTap = () => {
   }
   if (props.isDrivingMode) {
     emit('exitDrivingMode')
+    return
+  }
+  // Back arrow when auth is open — close it
+  if (props.isAuthOpen) {
+    emit('closeAuth')
     return
   }
   // Back arrow when overlay is open — close it

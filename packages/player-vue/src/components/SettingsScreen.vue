@@ -733,24 +733,6 @@ const confirmReset = async () => {
         </div>
       </section>
 
-      <!-- Appearance Section — instant theme toggle -->
-      <section class="section">
-        <h3 class="section-title">Appearance</h3>
-        <div class="card">
-          <div class="setting-row clickable" @click="toggleTheme">
-            <div class="setting-info">
-              <span class="setting-label">Dark Mode</span>
-              <span class="setting-desc">Toggle light/dark theme</span>
-            </div>
-            <div class="toggle-switch" :class="{ 'is-on': isDarkMode }">
-              <div class="toggle-track">
-                <div class="toggle-thumb"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       <!-- Tools Section -->
       <section class="section">
         <h3 class="section-title">Tools</h3>

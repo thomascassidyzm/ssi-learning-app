@@ -1,10 +1,10 @@
-import { ref, watch, readonly } from 'vue'
+import { ref, readonly } from 'vue'
 
 export type Theme = 'cosmos' | 'mist'
 
 const THEME_STORAGE_KEY = 'ssi-theme'
 
-// Singleton state
+// Singleton state — mist forced for all users (dark mode deprecated)
 const currentTheme = ref<Theme>('mist')
 const isInitialized = ref(false)
 
@@ -13,24 +13,17 @@ const isInitialized = ref(false)
  */
 function applyTheme(theme: Theme) {
   if (typeof document === 'undefined') return
-
-  if (theme === 'cosmos') {
-    // Remove data-theme attribute for default dark theme
-    document.documentElement.removeAttribute('data-theme')
-  } else {
-    document.documentElement.setAttribute('data-theme', theme)
-  }
+  document.documentElement.setAttribute('data-theme', 'mist')
 
   // Also update meta theme-color for browser chrome
   const metaThemeColor = document.querySelector('meta[name="theme-color"]')
   if (metaThemeColor) {
-    metaThemeColor.setAttribute('content', theme === 'cosmos' ? '#050508' : '#D9D6D2')
+    metaThemeColor.setAttribute('content', '#D9D6D2')
   }
 }
 
 /**
- * Initialize theme from localStorage or system preference
- * Also registers the watch handler (only once)
+ * Initialize theme — always mist (dark mode deprecated)
  */
 function initTheme() {
   if (isInitialized.value) return
@@ -40,58 +33,44 @@ function initTheme() {
     return
   }
 
-  // Check localStorage first
-  const stored = localStorage.getItem(THEME_STORAGE_KEY) as Theme | null
-  if (stored && (stored === 'cosmos' || stored === 'mist')) {
-    currentTheme.value = stored
+  // Force mist, clear any stored cosmos preference
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, 'mist')
+  } catch (e) {
+    // Ignore storage errors
   }
-  // Could add system preference detection here if desired:
-  // else if (window.matchMedia('(prefers-color-scheme: light)').matches) {
-  //   currentTheme.value = 'mist'
-  // }
 
-  applyTheme(currentTheme.value)
-
-  // Register watch ONCE during initialization (not per-component)
-  watch(currentTheme, (theme) => {
-    applyTheme(theme)
-    try {
-      localStorage.setItem(THEME_STORAGE_KEY, theme)
-    } catch (e) {
-      console.warn('[useTheme] Failed to persist theme:', e)
-    }
-  })
-
+  applyTheme('mist')
   isInitialized.value = true
 }
 
 /**
- * Theme composable - provides theme state and toggle
+ * Theme composable - provides theme state (mist only, toggle is no-op)
  */
 export function useTheme() {
-  // Initialize on first use (registers watch only once)
+  // Initialize on first use
   if (!isInitialized.value) {
     initTheme()
   }
 
   /**
-   * Set theme directly
+   * Set theme — no-op, mist is forced
    */
-  function setTheme(theme: Theme) {
-    currentTheme.value = theme
+  function setTheme(_theme: Theme) {
+    // Dark mode deprecated — always mist
   }
 
   /**
-   * Toggle between cosmos and mist
+   * Toggle — no-op, mist is forced
    */
   function toggleTheme() {
-    currentTheme.value = currentTheme.value === 'cosmos' ? 'mist' : 'cosmos'
+    // Dark mode deprecated — always mist
   }
 
   /**
-   * Check if current theme is dark (cosmos)
+   * Check if current theme is dark (always false now)
    */
-  const isDark = () => currentTheme.value === 'cosmos'
+  const isDark = () => false
 
   return {
     theme: readonly(currentTheme),

@@ -712,3 +712,28 @@ const handleClose = () => {
   margin: 0.75rem 0 0;
 }
 </style>
+
+<!-- Mist theme overrides (unscoped for Teleport to body) -->
+<style>
+:root[data-theme="mist"] .input-wrapper {
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+
+:root[data-theme="mist"] .input-wrapper:hover {
+  border-color: rgba(0, 0, 0, 0.25);
+}
+
+:root[data-theme="mist"] .input-wrapper input {
+  color: #2C2622;
+}
+
+:root[data-theme="mist"] .input-wrapper input::placeholder {
+  color: #A09A94;
+}
+
+:root[data-theme="mist"] .context-card {
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+</style>

@@ -248,3 +248,44 @@ onUnmounted(() => {
   }
 }
 </style>
+
+<!-- Mist theme overrides (unscoped for Teleport to body) -->
+<style>
+:root[data-theme="mist"] .auth-modal-backdrop {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+:root[data-theme="mist"] .auth-modal {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  box-shadow:
+    0 25px 80px rgba(0, 0, 0, 0.15),
+    0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+:root[data-theme="mist"] .modal-close {
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+:root[data-theme="mist"] .modal-close svg {
+  color: #6B6560;
+}
+
+:root[data-theme="mist"] .modal-close:hover {
+  background: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+:root[data-theme="mist"] .modal-close:hover svg {
+  color: #2C2622;
+}
+
+:root[data-theme="mist"] .logo-something {
+  color: #2C2622;
+}
+
+:root[data-theme="mist"] .modal-title {
+  color: #6B6560;
+}
+</style>
