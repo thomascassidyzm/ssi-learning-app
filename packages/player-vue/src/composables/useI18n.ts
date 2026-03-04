@@ -92,6 +92,42 @@ export const getLanguageName = (langCode: string): string => {
 }
 
 /**
+ * Language flag emoji lookup (ISO 639-3 → flag)
+ */
+const LANGUAGE_FLAGS: Record<string, string> = {
+  eng: '🇬🇧',
+  cym: '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
+  cym_n: '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
+  cym_s: '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
+  spa: '🇪🇸',
+  fra: '🇫🇷',
+  deu: '🇩🇪',
+  ita: '🇮🇹',
+  por: '🇵🇹',
+  jpn: '🇯🇵',
+  kor: '🇰🇷',
+  cmn: '🇨🇳',
+  zho: '🇨🇳',
+  ara: '🇸🇦',
+  nld: '🇳🇱',
+  rus: '🇷🇺',
+  pol: '🇵🇱',
+  gle: '🇮🇪',
+  gla: '🏴󠁧󠁢󠁳󠁣󠁴󠁿',
+  eus: '🇪🇸',
+  cat: '🇪🇸',
+  swe: '🇸🇪',
+  nor: '🇳🇴',
+  dan: '🇩🇰',
+  fin: '🇫🇮',
+  heb: '🇮🇱',
+}
+
+export const getLanguageFlag = (langCode: string): string => {
+  return LANGUAGE_FLAGS[langCode] || '🌐'
+}
+
+/**
  * Composable for use in Vue components
  */
 export function useI18n() {

@@ -12,7 +12,7 @@
  * - Localized UI based on selected known language
  */
 import { ref, computed, watch, onMounted } from 'vue'
-import { useI18n, setLocale, getLanguageName } from '../composables/useI18n'
+import { useI18n, setLocale, getLanguageName, getLanguageFlag } from '../composables/useI18n'
 
 const { t } = useI18n()
 
@@ -310,6 +310,7 @@ onMounted(() => {
                 <!-- NEW badge for unenrolled released courses -->
                 <div v-else-if="!isEnrolled(course.course_code)" class="new-badge">{{ t('courseSelector.new') }}</div>
 
+                <span class="target-flag">{{ getLanguageFlag(course.target_lang) }}</span>
                 <span class="target-name">{{ getTargetDisplayName(course) }}</span>
 
                 <!-- Progress or status -->
@@ -677,6 +678,11 @@ onMounted(() => {
   font-weight: 400;
   color: rgba(167, 139, 250, 0.8);
   letter-spacing: 0.05em;
+}
+
+.target-flag {
+  font-size: 1.5rem;
+  line-height: 1;
 }
 
 .target-name {
