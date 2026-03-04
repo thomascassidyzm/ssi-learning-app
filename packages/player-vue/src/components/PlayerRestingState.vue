@@ -187,7 +187,7 @@ const handleChangeCourse = () => {
   padding: 6px 14px;
   border-radius: 20px;
   background: color-mix(in srgb, var(--belt-accent, #f5f5f5) 15%, transparent);
-  border: 1px solid color-mix(in srgb, var(--belt-accent, #f5f5f5) 30%, transparent);
+  border: 1.5px solid color-mix(in srgb, var(--belt-accent, #f5f5f5) 40%, transparent);
 }
 
 .belt-dot {
@@ -268,7 +268,7 @@ const handleChangeCourse = () => {
 
 :root[data-theme="mist"] .belt-badge {
   background: #ffffff;
-  border-color: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.25);
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.08);
 }
 

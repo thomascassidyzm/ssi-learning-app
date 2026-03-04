@@ -7088,7 +7088,7 @@ defineExpose({
   backdrop-filter: blur(16px) saturate(150%);
   -webkit-backdrop-filter: blur(16px) saturate(150%);
   border-radius: 100px;
-  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   cursor: pointer;
   transition: all 0.2s ease;
@@ -7248,7 +7248,7 @@ defineExpose({
   height: 36px;
   min-width: 36px;
   border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
   background: rgba(255, 255, 255, 0.06);
   color: var(--skip-belt-color, var(--text-muted));
   opacity: 0.7;
@@ -7585,7 +7585,7 @@ defineExpose({
   background: rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(16px) saturate(150%);
   -webkit-backdrop-filter: blur(16px) saturate(150%);
-  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   color: rgba(255, 255, 255, 0.6);
@@ -7641,7 +7641,7 @@ defineExpose({
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   border-radius: 16px;
-  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
   max-width: 90%;
   cursor: pointer;
   pointer-events: auto; /* Clickable despite parent being pointer-events: none */
@@ -7994,7 +7994,7 @@ defineExpose({
   align-items: center;
   padding: 0.4rem 0.75rem;
   background: rgba(255, 255, 255, 0.06);
-  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
   border-radius: 8px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
@@ -8089,7 +8089,7 @@ defineExpose({
   background: rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(20px) saturate(150%);
   -webkit-backdrop-filter: blur(20px) saturate(150%);
-  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
   box-shadow:
     0 2px 8px rgba(0, 0, 0, 0.4),
     0 8px 24px rgba(0, 0, 0, 0.3),
@@ -8496,7 +8496,7 @@ defineExpose({
   backdrop-filter: blur(16px) saturate(150%);
   -webkit-backdrop-filter: blur(16px) saturate(150%);
   border-radius: 20px;
-  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
   z-index: 25;
   /* Subtle belt glow */
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4),
@@ -9144,7 +9144,7 @@ defineExpose({
   backdrop-filter: blur(20px) saturate(150%);
   -webkit-backdrop-filter: blur(20px) saturate(150%);
   border-radius: var(--control-bar-radius);
-  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
   /* Belt glow accent */
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4),
               0 8px 24px rgba(0, 0, 0, 0.3),
@@ -9183,7 +9183,7 @@ defineExpose({
   min-width: var(--btn-touch-target);
   min-height: var(--btn-touch-target);
   border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-muted);
   cursor: pointer;
@@ -9235,10 +9235,10 @@ defineExpose({
 }
 
 .mode-popup {
-  background: rgba(255, 255, 255, 0.96);
+  background: rgba(255, 255, 255, 0.98);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  border: 1.5px solid rgba(0, 0, 0, 0.25);
   border-radius: 1rem;
   padding: 1.5rem;
   max-width: 320px;
@@ -9420,7 +9420,7 @@ defineExpose({
   min-width: var(--btn-touch-target);
   min-height: var(--btn-touch-target);
   border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-muted);
   cursor: pointer;
@@ -10008,7 +10008,7 @@ defineExpose({
   background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(16px) saturate(160%);
   -webkit-backdrop-filter: blur(16px) saturate(160%);
-  border: 1.5px solid rgba(0, 0, 0, 0.22);
+  border: 1.5px solid rgba(0, 0, 0, 0.35);
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
               0 8px 24px rgba(44, 38, 34, 0.08),
               0 20px 48px rgba(44, 38, 34, 0.05);
@@ -10049,7 +10049,7 @@ defineExpose({
   background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1.5px solid rgba(0, 0, 0, 0.22);
+  border: 1.5px solid rgba(0, 0, 0, 0.35);
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.14),
               0 8px 24px rgba(44, 38, 34, 0.10),
               0 20px 48px rgba(44, 38, 34, 0.06);
@@ -10086,7 +10086,7 @@ defineExpose({
 /* --- Belt skip buttons → crisp white, destination belt color arrows --- */
 [data-theme="mist"] .player .belt-header-skip {
   background: rgba(255, 255, 255, 0.96);
-  border: 1.5px solid rgba(0, 0, 0, 0.22);
+  border: 1.5px solid rgba(0, 0, 0, 0.35);
   opacity: 1;
   color: color-mix(in srgb, var(--skip-belt-color, #6B6560) 70%, #2C2622);
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10);
@@ -10101,7 +10101,7 @@ defineExpose({
 
 [data-theme="mist"] .player .belt-header-skip:disabled {
   background: rgba(255, 255, 255, 0.5);
-  border-color: rgba(0, 0, 0, 0.10);
+  border-color: rgba(0, 0, 0, 0.18);
   color: var(--text-muted);
   box-shadow: none;
 }
@@ -10110,7 +10110,7 @@ defineExpose({
 [data-theme="mist"] .player .mode-btn,
 [data-theme="mist"] .player .transport-btn {
   background: #ffffff;
-  border: 1.5px solid rgba(0, 0, 0, 0.22);
+  border: 1.5px solid rgba(0, 0, 0, 0.35);
   color: var(--text-secondary);
   box-shadow: 0 1px 3px rgba(44, 38, 34, 0.10);
 }
@@ -10214,7 +10214,7 @@ defineExpose({
 /* --- Component breakdown tiles → White elevated --- */
 [data-theme="mist"] .player .component-tile {
   background: #ffffff;
-  border-color: rgba(0, 0, 0, 0.22);
+  border-color: rgba(0, 0, 0, 0.35);
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10),
               0 6px 16px rgba(44, 38, 34, 0.06);
 }

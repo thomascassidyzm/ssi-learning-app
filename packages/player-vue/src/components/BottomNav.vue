@@ -236,7 +236,7 @@ const handleSettings = () => {
   background: rgba(10, 10, 18, 0.82);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
   border-radius: 32px;
   box-shadow:
     0 2px 8px rgba(0, 0, 0, 0.5),
@@ -373,7 +373,7 @@ const handleSettings = () => {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
   background: rgba(10, 10, 18, 0.82);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
@@ -409,7 +409,7 @@ const handleSettings = () => {
 
 .mode-btn.active {
   background: rgba(10, 10, 18, 0.92);
-  border-color: rgba(255, 255, 255, 0.35);
+  border-color: rgba(255, 255, 255, 0.5);
   color: var(--text-primary);
 }
 
@@ -459,7 +459,7 @@ const handleSettings = () => {
   background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1.5px solid rgba(0, 0, 0, 0.22);
+  border: 1.5px solid rgba(0, 0, 0, 0.35);
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.14),
               0 8px 24px rgba(44, 38, 34, 0.10),
               0 20px 48px rgba(44, 38, 34, 0.06);
@@ -495,7 +495,7 @@ const handleSettings = () => {
 /* Mode buttons on mist — match white pill */
 :root[data-theme="mist"] .mode-btn {
   background: rgba(255, 255, 255, 0.96);
-  border: 1.5px solid rgba(0, 0, 0, 0.22);
+  border: 1.5px solid rgba(0, 0, 0, 0.35);
   color: #6B6560;
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.14),
               0 8px 20px rgba(44, 38, 34, 0.08);
@@ -503,7 +503,7 @@ const handleSettings = () => {
 
 :root[data-theme="mist"] .mode-btn.active {
   background: rgba(255, 255, 255, 0.96);
-  border-color: rgba(0, 0, 0, 0.3);
+  border-color: rgba(0, 0, 0, 0.45);
   color: #2C2622;
 }
 </style>

@@ -708,7 +708,7 @@ const sentenceScale = computed(() => {
 <style>
 :root[data-theme="mist"] .lego-block {
   background: #ffffff;
-  border: 1.5px solid rgba(0, 0, 0, 0.22);
+  border: 1.5px solid rgba(0, 0, 0, 0.35);
   box-shadow: 0 2px 6px rgba(44, 38, 34, 0.14),
               0 8px 24px rgba(44, 38, 34, 0.10);
   backdrop-filter: none;
@@ -721,7 +721,7 @@ const sentenceScale = computed(() => {
 
 :root[data-theme="mist"] .lego-block.salient {
   background: #ffffff;
-  border: 1.5px solid rgba(0, 0, 0, 0.22);
+  border: 1.5px solid rgba(0, 0, 0, 0.35);
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
               0 8px 24px rgba(44, 38, 34, 0.08);
 }
@@ -741,7 +741,7 @@ const sentenceScale = computed(() => {
 /* Single tile mist overrides */
 :root[data-theme="mist"] .tile-target {
   background: #ffffff;
-  border: 1.5px solid rgba(0, 0, 0, 0.22);
+  border: 1.5px solid rgba(0, 0, 0, 0.35);
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10),
               0 8px 20px rgba(44, 38, 34, 0.06);
   backdrop-filter: none;
@@ -756,14 +756,14 @@ const sentenceScale = computed(() => {
   color: var(--text-muted);
 }
 :root[data-theme="mist"] .lego-tile.salient .tile-target {
-  border-color: rgba(0, 0, 0, 0.22);
+  border-color: rgba(0, 0, 0, 0.35);
   background: #ffffff;
 }
 
 /* Carriage mist overrides */
 :root[data-theme="mist"] .carriage-cell {
   background: #ffffff;
-  border: 1.5px solid rgba(0, 0, 0, 0.22);
+  border: 1.5px solid rgba(0, 0, 0, 0.35);
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10);
   backdrop-filter: none;
 }
@@ -781,7 +781,7 @@ const sentenceScale = computed(() => {
   color: var(--text-muted);
 }
 :root[data-theme="mist"] .lego-tile.salient .carriage-cell {
-  border-color: rgba(0, 0, 0, 0.22);
+  border-color: rgba(0, 0, 0, 0.35);
   background: #ffffff;
 }
 </style>
