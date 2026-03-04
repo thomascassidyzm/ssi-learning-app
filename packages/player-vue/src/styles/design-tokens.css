@@ -250,7 +250,7 @@
   --bg-card-hover: #faf9f8;
   --bg-elevated: #ffffff;
   --bg-input: #e8e4df;
-  --bg-overlay: rgba(26, 22, 20, 0.35);
+  --bg-overlay: rgba(26, 22, 20, 0.7);
 
   /* Text hierarchy — warm dark brown (not harsh black) */
   --text-primary: #2C2622;
