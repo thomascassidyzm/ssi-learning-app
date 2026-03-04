@@ -71,6 +71,10 @@ const selectedKnownLang = ref(props.defaultKnownLang)
 const allCourses = ref([])
 const isLoading = ref(true)
 const error = ref(null)
+const langSearchQuery = ref('')
+
+// Top 4 most popular known languages (hardcoded for now, could be dynamic later)
+const TOP_KNOWN_LANGS = ['eng', 'zho', 'jpn', 'spa']
 
 // Computed: unique known languages from courses
 const knownLanguages = computed(() => {
@@ -83,12 +87,24 @@ const knownLanguages = computed(() => {
       })
     }
   }
-  // Sort with English first, then alphabetically
-  return [...langMap.values()].sort((a, b) => {
-    if (a.code === 'eng') return -1
-    if (b.code === 'eng') return 1
-    return a.name.localeCompare(b.name)
-  })
+  return [...langMap.values()].sort((a, b) => a.name.localeCompare(b.name))
+})
+
+// Split into top languages and others
+const topLanguages = computed(() => {
+  return TOP_KNOWN_LANGS
+    .map(code => knownLanguages.value.find(l => l.code === code))
+    .filter(Boolean)
+})
+
+const otherLanguages = computed(() => {
+  return knownLanguages.value.filter(l => !TOP_KNOWN_LANGS.includes(l.code))
+})
+
+const filteredOtherLanguages = computed(() => {
+  const q = langSearchQuery.value.toLowerCase().trim()
+  if (!q) return otherLanguages.value
+  return otherLanguages.value.filter(l => l.name.toLowerCase().includes(q))
 })
 
 // Computed: courses available for selected known language
@@ -228,14 +244,35 @@ onMounted(() => {
           <!-- Known Language Selector -->
           <section class="section">
             <h3 class="section-label">{{ t('courseSelector.iSpeak') }}</h3>
-            <div class="language-pills-container">
-              <div class="language-pills">
+
+            <!-- Top 4 language buttons -->
+            <div class="top-lang-grid">
+              <button
+                v-for="lang in topLanguages"
+                :key="lang.code"
+                class="top-lang-btn"
+                :class="{ active: selectedKnownLang === lang.code }"
+                @click="selectedKnownLang = lang.code; langSearchQuery = ''"
+              >
+                {{ lang.name }}
+              </button>
+            </div>
+
+            <!-- Search for other languages -->
+            <div v-if="otherLanguages.length > 0" class="lang-search-section">
+              <input
+                v-model="langSearchQuery"
+                type="text"
+                class="lang-search-input"
+                placeholder="Other language..."
+              />
+              <div v-if="filteredOtherLanguages.length > 0 && langSearchQuery.trim()" class="language-pills">
                 <button
-                  v-for="lang in knownLanguages"
+                  v-for="lang in filteredOtherLanguages"
                   :key="lang.code"
                   class="language-pill"
                   :class="{ active: selectedKnownLang === lang.code }"
-                  @click="selectedKnownLang = lang.code"
+                  @click="selectedKnownLang = lang.code; langSearchQuery = ''"
                 >
                   <span class="pill-name">{{ lang.name }}</span>
                 </button>
@@ -443,23 +480,73 @@ onMounted(() => {
   margin: 0 0 0.75rem 0;
 }
 
+/* Top Language Grid (2x2) */
+.top-lang-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.top-lang-btn {
+  padding: 0.75rem 1rem;
+  background: var(--bg-card, rgba(255, 255, 255, 0.04));
+  border: 1.5px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+  border-radius: 12px;
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.top-lang-btn:hover {
+  background: var(--bg-elevated, rgba(255, 255, 255, 0.06));
+  border-color: var(--border-medium, rgba(255, 255, 255, 0.12));
+}
+
+.top-lang-btn.active {
+  background: rgba(194, 58, 58, 0.15);
+  border-color: rgba(194, 58, 58, 0.4);
+  color: var(--accent, #c23a3a);
+}
+
+/* Language Search */
+.lang-search-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.lang-search-input {
+  width: 100%;
+  padding: 0.625rem 1rem;
+  background: var(--bg-card, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+  border-radius: 10px;
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  color: var(--text-primary, #f5f5f5);
+  outline: none;
+  transition: border-color 0.2s ease;
+  box-sizing: border-box;
+}
+
+.lang-search-input::placeholder {
+  color: var(--text-muted, rgba(255, 255, 255, 0.35));
+}
+
+.lang-search-input:focus {
+  border-color: var(--border-medium, rgba(255, 255, 255, 0.2));
+}
+
 /* Language Pills */
-.language-pills-container {
-  margin: 0 -1.5rem;
-  padding: 0 1.5rem;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.language-pills-container::-webkit-scrollbar {
-  display: none;
-}
-
 .language-pills {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
-  padding-bottom: 0.25rem;
 }
 
 .language-pill {
@@ -645,10 +732,6 @@ onMounted(() => {
     padding: 1rem 1rem 0.75rem;
   }
 
-  .language-pills-container {
-    margin: 0 -1rem;
-    padding: 0 1rem;
-  }
 }
 
 @media (min-width: 500px) {

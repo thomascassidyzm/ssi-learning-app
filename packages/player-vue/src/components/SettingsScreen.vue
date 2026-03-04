@@ -9,7 +9,7 @@ import { useInviteCode, type InviteCodeContext } from '../composables/useInviteC
 import { useAuthModal } from '../composables/useAuthModal'
 import { useRouter } from 'vue-router'
 
-const emit = defineEmits(['close', 'openExplorer', 'openListening', 'settingChanged'])
+const emit = defineEmits(['close', 'openExplorer', 'openListening', 'openDriving', 'settingChanged'])
 
 const props = defineProps({
   course: {
@@ -745,6 +745,21 @@ const confirmReset = async () => {
             <svg class="tool-icon headphones" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
               <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+            </svg>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row clickable" @click="emit('openDriving')">
+            <div class="setting-info">
+              <span class="setting-label">Driving Mode</span>
+              <span class="setting-desc">Hands-free learning while driving</span>
+            </div>
+            <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 17h2m10 0h2M5 17a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2M5 17H3m18 0h-2"/>
+              <circle cx="7.5" cy="17" r="1.5"/>
+              <circle cx="16.5" cy="17" r="1.5"/>
+              <path d="M5 7l1-3h12l1 3"/>
             </svg>
           </div>
 

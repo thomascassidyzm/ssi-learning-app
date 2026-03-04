@@ -476,6 +476,7 @@ onMounted(() => {
             @close="closeSettings"
             @openExplorer="openExplorerOverlay"
             @openListening="closeSettings(); handleToggleListening()"
+            @openDriving="closeSettings(); handleToggleDriving()"
           />
         </div>
       </div>

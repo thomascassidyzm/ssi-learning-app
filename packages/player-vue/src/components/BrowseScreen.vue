@@ -170,7 +170,7 @@ const isActiveCourse = (courseCode) => {
 const getTargetDisplayName = (course) => {
   if (course.display_name) {
     const match = course.display_name.match(/^(.+?)\s+for\s+/i)
-    if (match) return match[1]
+    if (match && !/^[a-z]{2,3}$/i.test(match[1].trim())) return match[1]
   }
   return getLanguageName(course.target_lang)
 }
@@ -198,7 +198,7 @@ onMounted(() => {
 
     <div class="browse-content">
       <!-- ── Guest auth banner ── -->
-      <div v-if="isGuest" class="guest-auth-banner" @click="openAuth()">
+      <div v-if="isGuest" class="guest-auth-banner" @click="emit('close'); openAuth()">
         <div class="guest-auth-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>

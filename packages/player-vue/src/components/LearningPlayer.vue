@@ -1229,19 +1229,31 @@ const beltJourney = computed(() => beltProgress.value?.beltJourney.value ?? [])
 // CSS custom properties for belt theming
 const beltCssVars = computed(() => {
   const base = beltProgress.value?.beltCssVars.value ?? {
-    '--belt-color': '#f5f5f5',
+    '--belt-color': '#ffffff',
     '--belt-color-dark': '#e0e0e0',
-    '--belt-glow': 'rgba(245, 245, 245, 0.3)',
+    '--belt-glow': 'rgba(255, 255, 255, 0.3)',
   }
-  // Mist theme: white belt needs dark accents (white-on-white invisible)
   const isMist = themeContext?.theme?.value === 'mist'
-  if (isMist && playingBelt.value.name === 'white') {
+  const isWhite = playingBelt.value.name === 'white'
+
+  if (isWhite) {
+    if (isMist) {
+      // Mist theme: warm neutral so pill is visible on light background
+      return {
+        ...base,
+        '--belt-color': '#8B8178',
+        '--belt-color-dark': '#6B6058',
+        '--belt-glow': 'rgba(139, 129, 120, 0.2)',
+        '--belt-pill-bg': 'rgba(139, 129, 120, 0.55)',
+      }
+    }
+    // Dark theme: white pill
     return {
-      '--belt-color': '#1A1614',
-      '--belt-color-dark': '#000000',
-      '--belt-glow': 'rgba(26, 22, 20, 0.15)',
+      ...base,
+      '--belt-pill-bg': 'rgba(255, 255, 255, 0.75)',
     }
   }
+
   return base
 })
 
@@ -7348,7 +7360,7 @@ defineExpose({
   align-items: center;
   gap: var(--space-sm);
   padding: 6px 12px 6px 16px;
-  background: color-mix(in srgb, var(--belt-color) 70%, rgba(0,0,0,0.3));
+  background: var(--belt-pill-bg, color-mix(in srgb, var(--belt-color) 70%, rgba(0,0,0,0.3)));
   backdrop-filter: blur(16px) saturate(150%);
   -webkit-backdrop-filter: blur(16px) saturate(150%);
   border: 1.5px solid rgba(255, 255, 255, 0.35);
@@ -10071,7 +10083,7 @@ defineExpose({
 
 /* --- Belt timer on mist — belt colour fill, softer shadow --- */
 [data-theme="mist"] .player .belt-timer-unified {
-  background: color-mix(in srgb, var(--belt-color) 65%, white);
+  background: var(--belt-pill-bg, color-mix(in srgb, var(--belt-color) 65%, white));
   border: 1.5px solid rgba(0, 0, 0, 0.35);
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
               0 8px 24px rgba(44, 38, 34, 0.08);
