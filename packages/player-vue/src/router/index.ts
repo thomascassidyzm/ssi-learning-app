@@ -142,6 +142,13 @@ const routes: RouteRecordRaw[] = [
       },
     ],
   },
+  // PWA install guide
+  {
+    path: '/install',
+    name: 'install-guide',
+    component: () => import('@/views/InstallGuide.vue'),
+    meta: { title: 'Install App' },
+  },
   // Catch-all redirect to player
   {
     path: '/:pathMatch(.*)*',

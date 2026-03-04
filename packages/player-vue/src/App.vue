@@ -10,6 +10,7 @@ import { useTheme } from './composables/useTheme'
 import { useEagerScriptPreload } from './composables/useEagerScriptPreload'
 import { useInviteCode } from './composables/useInviteCode'
 import PwaUpdatePrompt from './components/PwaUpdatePrompt.vue'
+import InstallBanner from './components/InstallBanner.vue'
 
 // RECOVERY MODE: If ?reset=1 in URL, clear everything and reload
 // This helps users stuck in broken states
@@ -110,6 +111,13 @@ const eagerScript = useEagerScriptPreload()
 
 // Invite code composable (singleton)
 const inviteCode = useInviteCode()
+
+// Capture beforeinstallprompt for PWA install guide
+const installPrompt = ref(null)
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault()
+  installPrompt.value = e
+})
 
 // Active course and enrolled courses state
 const activeCourse = ref(null)
@@ -258,6 +266,7 @@ provide('handleCourseSelect', handleCourseSelect)
 provide('theme', { theme, toggleTheme, setTheme })
 provide('eagerScript', eagerScript)
 provide('inviteCode', inviteCode)
+provide('installPrompt', installPrompt)
 
 onMounted(async () => {
   // Clear stale caches on new deploy
@@ -326,6 +335,7 @@ onMounted(async () => {
   <div class="app-root">
     <router-view />
     <PwaUpdatePrompt />
+    <InstallBanner />
   </div>
 </template>
 
