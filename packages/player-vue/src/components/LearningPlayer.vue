@@ -4291,6 +4291,7 @@ const handleEnterDrivingMode = async () => {
 }
 
 const handleExitDrivingMode = () => {
+  showDrivingExplainer.value = false
   const position = drivingMode.exit()
   isDrivingModeActive.value = false
   emit('drivingModeChanged', false)
