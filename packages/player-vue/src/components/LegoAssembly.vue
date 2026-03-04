@@ -334,9 +334,9 @@ const sentenceScale = computed(() => {
   flex-wrap: wrap;
   padding: 0.6em 1.2em;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.15);
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.20);
   overflow: hidden;
   position: relative;
   max-width: 100%;
@@ -447,9 +447,9 @@ const sentenceScale = computed(() => {
   align-items: center;
   padding: 0.5em 0.9em;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.15);
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.20);
   position: relative;
 }
 
@@ -534,9 +534,9 @@ const sentenceScale = computed(() => {
   flex-wrap: wrap;
   padding: calc(0.6em * var(--sentence-scale, 1)) calc(1.1em * var(--sentence-scale, 1));
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.18);
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.28);
   box-shadow:
     0 0 12px 2px rgba(255, 255, 255, 0.15),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
@@ -709,8 +709,8 @@ const sentenceScale = computed(() => {
 :root[data-theme="mist"] .lego-block {
   background: #ffffff;
   border: 1.5px solid rgba(0, 0, 0, 0.22);
-  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10),
-              0 8px 20px rgba(44, 38, 34, 0.06);
+  box-shadow: 0 2px 6px rgba(44, 38, 34, 0.14),
+              0 8px 24px rgba(44, 38, 34, 0.10);
   backdrop-filter: none;
 }
 

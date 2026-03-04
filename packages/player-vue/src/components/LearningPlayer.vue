@@ -218,6 +218,43 @@ const courseCode = computed(() => props.course?.course_code || '')
 // Alias for ReportIssueButton
 const activeCourseCode = courseCode
 
+// Language metadata for course identity display
+const LANGUAGE_META: Record<string, { name: string; flag: string }> = {
+  eng: { name: 'English', flag: '🇬🇧' },
+  cym: { name: 'Welsh', flag: '🏴󠁧󠁢󠁷󠁬󠁳󠁿' },
+  spa: { name: 'Spanish', flag: '🇪🇸' },
+  fra: { name: 'French', flag: '🇫🇷' },
+  deu: { name: 'German', flag: '🇩🇪' },
+  ita: { name: 'Italian', flag: '🇮🇹' },
+  por: { name: 'Portuguese', flag: '🇵🇹' },
+  jpn: { name: 'Japanese', flag: '🇯🇵' },
+  kor: { name: 'Korean', flag: '🇰🇷' },
+  cmn: { name: 'Chinese', flag: '🇨🇳' },
+  zho: { name: 'Chinese', flag: '🇨🇳' },
+  ara: { name: 'Arabic', flag: '🇸🇦' },
+  nld: { name: 'Dutch', flag: '🇳🇱' },
+  rus: { name: 'Russian', flag: '🇷🇺' },
+  pol: { name: 'Polish', flag: '🇵🇱' },
+  gle: { name: 'Irish', flag: '🇮🇪' },
+}
+const getLangMeta = (code: string) => LANGUAGE_META[code] || { name: code?.toUpperCase() || '?', flag: '🌐' }
+
+const courseFlag = computed(() => {
+  if (!props.course) return '🌐'
+  // Target language for X_for_eng, known language for eng_for_X
+  const targetLang = props.course.target_lang || courseCode.value?.split('_')[0]
+  return getLangMeta(targetLang).flag
+})
+
+const courseDisplayName = computed(() => {
+  if (!props.course) return ''
+  if (props.course.display_name) {
+    return props.course.display_name.replace(/\s+for\s+.+$/i, '')
+  }
+  const targetLang = props.course.target_lang || courseCode.value?.split('_')[0]
+  return getLangMeta(targetLang).name
+})
+
 // Check if launched from dashboard in QA mode
 const isQaMode = computed(() => {
   if (typeof window === 'undefined') return false
@@ -4190,62 +4227,35 @@ const exitListeningMode = () => {
 // DRIVING MODE
 // ============================================
 
-// Mode picker popover
-const showListeningExplainer = ref(false)
+// Driving mode explainer (kept — build takes 15-20s, manages expectations)
 const showDrivingExplainer = ref(false)
-const listeningExplainerShownThisSession = ref(false)
 const drivingExplainerShownThisSession = ref(false)
 
-// Mode cycle button: Learning → Listening → Driving → Learning
-const handleModeCycle = () => {
-  if (!showListeningOverlay.value && !isDrivingModeActive.value) {
-    // Learning → Listening
-    if (listeningExplainerShownThisSession.value) {
-      handleListeningMode()
-    } else {
-      showListeningExplainer.value = true
-    }
-  } else if (showListeningOverlay.value) {
-    // Listening → Driving
+// Top nav: [🎧] SSi [🚗] — toggle handlers
+const handleListeningToggle = () => {
+  if (showListeningOverlay.value) {
     handleCloseListening()
+  } else {
+    handleListeningMode()
+  }
+}
+
+const handleDrivingToggle = () => {
+  if (isDrivingModeActive.value) {
+    handleExitDrivingMode()
+  } else {
     if (drivingExplainerShownThisSession.value) {
       handleEnterDrivingMode()
     } else {
       showDrivingExplainer.value = true
     }
-  } else if (isDrivingModeActive.value) {
-    // Driving → Learning
-    handleExitDrivingMode()
   }
 }
 
-// Exit pill handler: always returns to Learning
-const handleModeCycleExit = () => {
-  if (showListeningOverlay.value) {
-    handleCloseListening()
-  } else if (isDrivingModeActive.value) {
-    handleExitDrivingMode()
-  }
-}
-
-// Icon for the mode cycle button (shows what NEXT tap will do)
-const modeCycleIcon = computed(() => {
-  if (showListeningOverlay.value) return 'driving'  // next: driving
-  if (isDrivingModeActive.value) return 'exit'       // next: back to learning
-  return 'listening'                                  // next: listening
-})
-
-const isNonDefaultMode = computed(() => showListeningOverlay.value || isDrivingModeActive.value)
-
-const confirmListeningMode = () => {
-  showListeningExplainer.value = false
-  listeningExplainerShownThisSession.value = true
-  handleListeningMode()
-}
-
-const cancelListeningExplainer = () => {
-  showListeningExplainer.value = false
-  listeningExplainerShownThisSession.value = true
+// SSi logo tap: exit all modes → return to default Learning state
+const handleBrandTap = () => {
+  if (showListeningOverlay.value) handleCloseListening()
+  if (isDrivingModeActive.value) handleExitDrivingMode()
 }
 
 const confirmDrivingMode = () => {
@@ -6134,8 +6144,26 @@ defineExpose({
     <!-- Header - brand row + belt row -->
     <header class="header" :class="{ 'has-banner': props.classContext }">
       <div class="header-stack">
-        <!-- Brand -->
-        <div class="brand"><span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span></div>
+        <!-- Top nav: [🎧] SaySomethingin [🚗] -->
+        <div class="top-nav-row">
+          <button class="mode-nav-btn" :class="{ active: showListeningOverlay }" :style="showListeningOverlay ? { '--mode-accent': 'var(--belt-color)' } : {}" @click="handleListeningToggle">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+              <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+            </svg>
+          </button>
+          <button class="brand-btn" @click="handleBrandTap">
+            <span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span>
+          </button>
+          <button class="mode-nav-btn" :class="{ active: isDrivingModeActive }" :style="isDrivingModeActive ? { '--mode-accent': 'var(--belt-color)' } : {}" @click="handleDrivingToggle">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0ZM15 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z"/>
+              <path d="M5 17H3v-6l2-5h10l4 5h2v6h-2"/>
+              <path d="M5 11h14"/>
+              <path d="M9 17h6"/>
+            </svg>
+          </button>
+        </div>
 
         <!-- Belt row: skip back + timer + skip forward -->
         <div class="belt-row">
@@ -6177,21 +6205,13 @@ defineExpose({
             </svg>
           </button>
         </div>
+        <!-- Course identity: flag + name -->
+        <div class="course-identity" v-if="activeCourseCode">
+          <span class="course-identity-flag">{{ courseFlag }}</span>
+          <span class="course-identity-name">{{ courseDisplayName }}</span>
+        </div>
       </div>
     </header>
-
-    <!-- Exit pill: shows current mode when in non-default mode -->
-    <Transition name="fade">
-      <button
-        v-if="showListeningOverlay || isDrivingModeActive"
-        class="mode-exit-pill"
-        @click="handleModeCycleExit"
-      >
-        <span>✕</span>
-        <span v-if="showListeningOverlay">🎧 Listening mode</span>
-        <span v-else>🚗 Driving mode</span>
-      </button>
-    </Transition>
 
     <!-- Turbo Mode Explanation Popup -->
     <Transition name="fade">
@@ -6211,31 +6231,6 @@ defineExpose({
           <div class="mode-popup-actions">
             <button class="mode-popup-btn mode-popup-btn--cancel" @click="closeTurboPopup">Cancel</button>
             <button class="mode-popup-btn mode-popup-btn--confirm" @click="confirmTurbo">Enable Turbo</button>
-          </div>
-        </div>
-      </div>
-    </Transition>
-
-    <!-- Listening Mode Explanation Popup -->
-    <Transition name="fade">
-      <div v-if="showListeningExplainer" class="mode-popup-overlay" @click.self="cancelListeningExplainer">
-        <div class="mode-popup">
-          <div class="mode-popup-icon mode-popup-icon--listening">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
-              <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
-            </svg>
-          </div>
-          <h3 class="mode-popup-title">Listening Mode</h3>
-          <p class="mode-popup-desc">
-            Just listen and absorb — no need to speak.
-            Perfect for when you're in public or just want to take it easy.
-            This will take a few moments to prepare.
-          </p>
-          <p class="mode-popup-hint">Tap the mode button again to exit.</p>
-          <div class="mode-popup-actions">
-            <button class="mode-popup-btn mode-popup-btn--cancel" @click="cancelListeningExplainer">Cancel</button>
-            <button class="mode-popup-btn mode-popup-btn--confirm" @click="confirmListeningMode">Start Listening</button>
           </div>
         </div>
       </div>
@@ -6477,36 +6472,6 @@ defineExpose({
     </Transition>
 
     <!-- Control Bar - REMOVED: transport controls now live in BottomNav pill -->
-
-    <!-- Floating mode cycle button (rest-only: visible when not playing) -->
-    <Transition name="fade">
-      <button
-        v-if="!isPlaying && !showListeningOverlay"
-        class="mode-cycle-fab"
-        :class="{ 'mode-cycle-fab--active': isNonDefaultMode }"
-        :style="isNonDefaultMode ? { '--fab-accent': currentBelt.color } : {}"
-        @click="handleModeCycle"
-        :title="modeCycleIcon === 'listening' ? 'Switch to Listening mode' : modeCycleIcon === 'driving' ? 'Switch to Driving mode' : 'Back to Learning'"
-      >
-        <!-- Headphones icon (next: listening) -->
-        <svg v-if="modeCycleIcon === 'listening'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
-          <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
-        </svg>
-        <!-- Car icon (next: driving) -->
-        <svg v-else-if="modeCycleIcon === 'driving'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-          <path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0ZM15 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z"/>
-          <path d="M5 17H3v-6l2-5h10l4 5h2v6h-2"/>
-          <path d="M5 11h14"/>
-          <path d="M9 17h6"/>
-        </svg>
-        <!-- X icon (next: back to learning) -->
-        <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="18" y1="6" x2="6" y2="18"/>
-          <line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </button>
-    </Transition>
 
     <!-- Report Issue Button - moved to header area for QA mode only -->
     <ReportIssueButton
@@ -7118,16 +7083,6 @@ defineExpose({
   max-width: 400px;
 }
 
-/* Brand — logo text */
-.brand {
-  font-family: var(--font-body);
-  font-weight: 700;
-  font-size: 1.5rem;
-  letter-spacing: -0.02em;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
 .logo-say, .logo-in { color: var(--accent); }
 .logo-something { color: var(--text-primary); }
 
@@ -7351,20 +7306,20 @@ defineExpose({
   50% { opacity: 0.2; }
 }
 
-/* ============ MODE CYCLE FAB ============ */
-.mode-cycle-fab {
-  position: fixed;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 96px);
-  right: 16px;
-  width: 44px;
-  height: 44px;
+/* ============ TOP NAV ROW ============ */
+.top-nav-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.mode-nav-btn {
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
-  z-index: 25;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -7372,53 +7327,55 @@ defineExpose({
   transition: all 0.2s ease;
   -webkit-tap-highlight-color: transparent;
   color: var(--text-muted);
+  flex-shrink: 0;
 }
 
-.mode-cycle-fab svg {
-  width: 20px;
-  height: 20px;
+.mode-nav-btn svg {
+  width: 18px;
+  height: 18px;
 }
 
-.mode-cycle-fab:active {
-  transform: scale(0.92);
+.mode-nav-btn:active {
+  transform: scale(0.9);
 }
 
-.mode-cycle-fab--active {
-  background: color-mix(in srgb, var(--fab-accent, var(--ssi-red)) 12%, transparent);
-  border-color: color-mix(in srgb, var(--fab-accent, var(--ssi-red)) 30%, transparent);
-  color: var(--fab-accent, var(--ssi-red));
+.mode-nav-btn.active {
+  background: color-mix(in srgb, var(--mode-accent, var(--belt-color)) 15%, transparent);
+  border-color: color-mix(in srgb, var(--mode-accent, var(--belt-color)) 35%, transparent);
+  color: var(--mode-accent, var(--belt-color));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--mode-accent, var(--belt-color)) 25%, transparent);
 }
 
-/* ============ MODE EXIT PILL ============ */
-.mode-exit-pill {
-  position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + 8px);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 30;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 14px;
-  border-radius: 16px;
+/* Brand button — looks like logo text, acts as escape hatch */
+.brand-btn {
+  background: none;
   border: none;
-  background: rgba(200, 90, 74, 0.88);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  color: white;
-  font-family: var(--font-body);
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
+  padding: 0;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(200, 90, 74, 0.3);
-  transition: all 0.2s ease;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
   -webkit-tap-highlight-color: transparent;
 }
 
-.mode-exit-pill:active {
-  transform: translateX(-50%) scale(0.95);
+.brand-btn:active {
+  opacity: 0.7;
 }
+
+/* Course identity line */
+.course-identity {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+.course-identity-flag { font-size: 14px; }
+.course-identity-name { font-weight: 500; }
 
 /* ============ BELT TIMER ============ */
 .belt-timer-unified {
@@ -7426,14 +7383,14 @@ defineExpose({
   align-items: center;
   gap: var(--space-sm);
   padding: 6px 16px;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--belt-color) 25%, rgba(0,0,0,0.4));
   backdrop-filter: blur(16px) saturate(150%);
   -webkit-backdrop-filter: blur(16px) saturate(150%);
-  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  border: 1.5px solid color-mix(in srgb, var(--belt-color) 40%, transparent);
   border-radius: 20px;
   transition: all 0.2s ease;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3),
-              0 0 12px color-mix(in srgb, var(--belt-glow) 15%, transparent);
+              0 0 12px color-mix(in srgb, var(--belt-glow) 20%, transparent);
   flex: 1;
   min-width: 0;
 }
@@ -10155,10 +10112,10 @@ defineExpose({
 
 /* --- Belt timer → Crisp white pill, belt color in progress bar only --- */
 [data-theme="mist"] .player .belt-timer-unified {
-  background: rgba(255, 255, 255, 0.96);
+  background: color-mix(in srgb, var(--belt-color) 20%, white);
   backdrop-filter: blur(16px) saturate(160%);
   -webkit-backdrop-filter: blur(16px) saturate(160%);
-  border: 1.5px solid rgba(0, 0, 0, 0.22);
+  border: 1.5px solid color-mix(in srgb, var(--belt-color) 35%, rgba(0,0,0,0.08));
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
               0 8px 24px rgba(44, 38, 34, 0.08);
 }
@@ -10178,18 +10135,18 @@ defineExpose({
   color: #2C2622;
 }
 
-/* --- Mode cycle FAB → frosted glass on mist --- */
-[data-theme="mist"] .player .mode-cycle-fab {
+/* --- Mode nav buttons on mist → white circle, dark icons --- */
+[data-theme="mist"] .player .mode-nav-btn {
   background: rgba(255, 255, 255, 0.9);
   border-color: rgba(0, 0, 0, 0.08);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
   color: #8A8078;
 }
 
-[data-theme="mist"] .player .mode-cycle-fab--active {
-  background: color-mix(in srgb, var(--fab-accent, var(--ssi-red)) 10%, white);
-  border-color: color-mix(in srgb, var(--fab-accent, var(--ssi-red)) 25%, transparent);
-  color: var(--fab-accent, var(--ssi-red));
+[data-theme="mist"] .player .mode-nav-btn.active {
+  background: color-mix(in srgb, var(--mode-accent, var(--belt-color)) 12%, white);
+  border-color: color-mix(in srgb, var(--mode-accent, var(--belt-color)) 30%, transparent);
+  color: var(--mode-accent, var(--belt-color));
+  box-shadow: 0 0 8px color-mix(in srgb, var(--mode-accent, var(--belt-color)) 20%, transparent);
 }
 
 /* --- Belt skip buttons → crisp white, destination belt color arrows --- */
