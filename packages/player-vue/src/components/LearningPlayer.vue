@@ -9228,21 +9228,24 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #ffffff;
+  background: rgba(0, 0, 0, 0.3);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   padding: 1.5rem;
 }
 
 .mode-popup {
-  background: #ffffff;
-  border: none;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(0, 0, 0, 0.12);
   border-radius: 1rem;
   padding: 1.5rem;
   max-width: 320px;
   width: 100%;
   text-align: center;
   color: #2C2622;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
 }
 
 .mode-popup-icon {
