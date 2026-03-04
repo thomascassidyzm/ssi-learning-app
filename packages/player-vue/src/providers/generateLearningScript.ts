@@ -560,28 +560,16 @@ export async function generateLearningScript(
         })
       }
 
-      // Reserve USE phrases for consolidation BEFORE using them for BUILD padding
-      // This prevents BUILD from consuming all USE phrases, leaving nothing for CONSOLIDATE
+      // Fill remaining BUILD slots with USE phrases (BUILD priority > CONSOLIDATE)
+      // CONSOLIDATE can repeat BUILD phrases if needed — filling 7 BUILD is non-negotiable
       const sortedUsePhrases = [...phrases.use].sort((a, b) =>
         (a.target_syllable_count || countTargetSyllables(a.target_text)) -
         (b.target_syllable_count || countTargetSyllables(b.target_text))
       )
-      const reservedForConsolidation = new Set<string>()
-      let reservedCount = 0
-      for (const phrase of sortedUsePhrases) {
-        if (reservedCount >= USE_CONSOLIDATION_COUNT) break
-        const phraseId = getPhraseId(phrase.known_text, phrase.target_text)
-        if (usedPhrasesThisRound.has(phraseId)) continue
-        reservedForConsolidation.add(phraseId)
-        reservedCount++
-      }
-
-      // Fill remaining practice slots with USE phrases (excluding reserved ones)
       for (const phrase of sortedUsePhrases) {
         if (practiceCount >= MAX_BUILD_PHRASES) break
         const phraseId = getPhraseId(phrase.known_text, phrase.target_text)
         if (usedPhrasesThisRound.has(phraseId)) continue
-        if (reservedForConsolidation.has(phraseId)) continue
 
         cycleNum++
         practiceCount++
@@ -675,16 +663,10 @@ export async function generateLearningScript(
         }
       }
 
-      // Phase 5: CONSOLIDATE ×2 - use the reserved phrases
+      // Phase 5: CONSOLIDATE ×2 - prefer unused USE phrases, allow reuse if pool exhausted
       let consolidateCount = 0
-      for (const phrase of sortedUsePhrases) {
-        if (consolidateCount >= USE_CONSOLIDATION_COUNT) break
-        const phraseId = getPhraseId(phrase.known_text, phrase.target_text)
-        if (!reservedForConsolidation.has(phraseId)) continue
-        if (usedPhrasesThisRound.has(phraseId)) continue
+      const emitConsolidate = (phrase: Phrase) => {
         consolidateCount++
-        usedPhrasesThisRound.add(phraseId)
-
         cycleNum++
         emitItem({
           uuid: `${legoKey}_use_${cycleNum}`,
@@ -700,6 +682,21 @@ export async function generateLearningScript(
           target2DurationMs: phrase.target2_duration_ms,
           isNew: true
         })
+      }
+      // First pass: unused USE phrases
+      for (const phrase of sortedUsePhrases) {
+        if (consolidateCount >= USE_CONSOLIDATION_COUNT) break
+        const phraseId = getPhraseId(phrase.known_text, phrase.target_text)
+        if (usedPhrasesThisRound.has(phraseId)) continue
+        usedPhrasesThisRound.add(phraseId)
+        emitConsolidate(phrase)
+      }
+      // Second pass: reuse USE phrases already used in BUILD (pool was too small)
+      if (consolidateCount < USE_CONSOLIDATION_COUNT) {
+        for (const phrase of sortedUsePhrases) {
+          if (consolidateCount >= USE_CONSOLIDATION_COUNT) break
+          emitConsolidate(phrase)
+        }
       }
 
       // Phase 6: LISTENING — check for seed graduations and emit listening items
