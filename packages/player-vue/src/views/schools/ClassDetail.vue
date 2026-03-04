@@ -183,14 +183,26 @@ const filteredStudents = computed(() => {
 
 // Course info
 const courseFlags: Record<string, string> = {
-  'cym_for_eng': '\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62\uDB40\uDC77\uDB40\uDC6C\uDB40\uDC73\uDB40\uDC7F',
-  'cym_for_eng_north': '\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62\uDB40\uDC77\uDB40\uDC6C\uDB40\uDC73\uDB40\uDC7F',
-  'cym_for_eng_south': '\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62\uDB40\uDC77\uDB40\uDC6C\uDB40\uDC73\uDB40\uDC7F',
-  'spa_for_eng': '\uD83C\uDDEA\uD83C\uDDF8',
-  'spa_for_eng_latam': '\uD83C\uDDEA\uD83C\uDDF8',
-  'nld_for_eng': '\uD83C\uDDF3\uD83C\uDDF1',
-  'cor_for_eng': '\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62\uDB40\uDC65\uDB40\uDC6E\uDB40\uDC67\uDB40\uDC7F',
-  'glv_for_eng': '\uD83C\uDDEE\uD83C\uDDF2'
+  'cym_for_eng': '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
+  'cym_for_eng_north': '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
+  'cym_for_eng_south': '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
+  'spa_for_eng': '🇪🇸',
+  'spa_for_eng_latam': '🇪🇸',
+  'eng_for_spa': '🇬🇧',
+  'nld_for_eng': '🇳🇱',
+  'fra_for_eng': '🇫🇷',
+  'deu_for_eng': '🇩🇪',
+  'ita_for_eng': '🇮🇹',
+  'por_for_eng': '🇵🇹',
+  'jpn_for_eng': '🇯🇵',
+  'kor_for_eng': '🇰🇷',
+  'zho_for_eng': '🇨🇳',
+  'ara_for_eng': '🇸🇦',
+  'rus_for_eng': '🇷🇺',
+  'pol_for_eng': '🇵🇱',
+  'cor_for_eng': '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
+  'glv_for_eng': '🇮🇲',
+  'gle_for_eng': '🇮🇪'
 }
 
 const courseNames: Record<string, string> = {
