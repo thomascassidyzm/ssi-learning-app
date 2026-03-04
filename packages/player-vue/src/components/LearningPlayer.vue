@@ -6584,7 +6584,7 @@ defineExpose({
   --nav-height: 80px;
   --nav-total: calc(var(--nav-height) + var(--safe-area-bottom));
   --control-bar-bottom: var(--nav-total);
-  --hero-offset: 32px;
+  --hero-offset: 24px;
   --hero-top: calc(var(--header-total) + var(--hero-offset));
 
   /* ============ SPACING SCALE ============ */
@@ -7352,24 +7352,23 @@ defineExpose({
 /* Course identity — fixed above bottom nav, only during playback */
 .course-identity {
   position: fixed;
-  bottom: max(calc(env(safe-area-inset-bottom, 0px) / 2 + 90px), 102px);
+  bottom: max(calc(env(safe-area-inset-bottom, 0px) / 2 + 82px), 94px);
   left: 50%;
   transform: translateX(-50%);
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
+  gap: 2px;
   z-index: 25;
   pointer-events: none;
-  white-space: nowrap;
 }
-.course-identity-flag { font-size: 28px; }
+.course-identity-flag { font-size: 32px; line-height: 1; }
 .course-identity-name {
   font-family: var(--font-body);
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  letter-spacing: -0.01em;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
 }
 
 /* ============ BELT TIMER ============ */
@@ -9612,7 +9611,7 @@ defineExpose({
 @media (min-width: 768px) {
   .player {
     --header-height: 84px;
-    --hero-offset: 36px;
+    --hero-offset: 28px;
     --space-sm: 10px;
     --space-md: 16px;
     --space-lg: 20px;
