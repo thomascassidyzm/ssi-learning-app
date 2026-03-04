@@ -6565,18 +6565,8 @@ defineExpose({
 .learning-player-root {
   /* Fill viewport so fixed children display correctly when visible */
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  inset: 0;
   overflow: hidden;
-}
-
-/* iOS PWA standalone: extend behind home indicator */
-@media (display-mode: standalone) {
-  .learning-player-root {
-    height: calc(100% + env(safe-area-inset-bottom, 0px));
-  }
 }
 
 .player {

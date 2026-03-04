@@ -41,6 +41,11 @@
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
         overscroll-behavior: none;
+      }
+
+      /* Fixed body prevents Android viewport scroll/bounce.
+         Applied to body only — putting position:fixed on html breaks iOS PWA. */
+      body {
         overflow: hidden;
         position: fixed;
         width: 100%;
