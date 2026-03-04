@@ -4244,11 +4244,14 @@ const handleListeningToggle = () => {
 }
 
 const handleDrivingToggle = () => {
-  if (isDrivingModeActive.value) {
+  if (isDrivingModeActive.value || showDrivingExplainer.value) {
     handleExitDrivingMode()
+    showDrivingExplainer.value = false
   } else {
     // Exit listening mode first if active
     if (showListeningOverlay.value) handleCloseListening()
+    // Signal driving mode immediately (hides course identity, shows return arrow)
+    emit('drivingModeChanged', true)
     if (drivingExplainerShownThisSession.value) {
       handleEnterDrivingMode()
     } else {
@@ -4266,6 +4269,7 @@ const confirmDrivingMode = () => {
 const cancelDrivingExplainer = () => {
   showDrivingExplainer.value = false
   drivingExplainerShownThisSession.value = true
+  emit('drivingModeChanged', false)
 }
 
 const handleEnterDrivingMode = async () => {
@@ -6506,7 +6510,7 @@ defineExpose({
     </svg>
   </button>
   <Transition name="fade">
-    <div v-if="isPlaying && activeCourseCode && !isDrivingModeActive" class="course-identity" :style="beltCssVars">
+    <div v-if="isPlaying && activeCourseCode && !isDrivingModeActive && !showDrivingExplainer" class="course-identity" :style="beltCssVars">
       <span class="course-identity-flag">{{ courseFlag }}</span>
       <span class="course-identity-name">{{ courseDisplayName }}</span>
     </div>
