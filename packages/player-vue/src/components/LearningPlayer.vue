@@ -7329,18 +7329,20 @@ defineExpose({
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  border: 1.5px solid color-mix(in srgb, var(--belt-color) 45%, transparent);
-  background: color-mix(in srgb, var(--belt-color) 25%, rgba(0,0,0,0.35));
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  background: rgba(10, 10, 18, 0.82);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 0.2s ease;
   -webkit-tap-highlight-color: transparent;
-  color: color-mix(in srgb, var(--belt-color) 80%, rgba(255,255,255,0.6));
-  box-shadow: 0 2px 8px rgba(0,0,0,0.3), 0 0 10px color-mix(in srgb, var(--belt-glow) 15%, transparent);
+  color: var(--text-muted);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.5),
+    0 8px 24px rgba(0, 0, 0, 0.3);
   z-index: 3001;
 }
 
@@ -7361,10 +7363,12 @@ defineExpose({
 }
 
 .mode-nav-btn.active {
-  background: color-mix(in srgb, var(--belt-color) 20%, rgba(0,0,0,0.3));
-  border-color: color-mix(in srgb, var(--belt-color) 50%, transparent);
-  color: var(--belt-color);
-  box-shadow: 0 0 14px color-mix(in srgb, var(--belt-glow) 35%, transparent);
+  background: rgba(10, 10, 18, 0.9);
+  border-color: rgba(255, 255, 255, 0.35);
+  color: var(--text-primary);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.5),
+    0 8px 24px rgba(0, 0, 0, 0.3);
 }
 
 .mode-nav-btn.disabled {
@@ -9302,20 +9306,20 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.92);
-  backdrop-filter: blur(16px);
+  background: rgba(255, 255, 255, 1);
+  backdrop-filter: none;
   -webkit-backdrop-filter: blur(12px);
   padding: 1.5rem;
 }
 
 .mode-popup {
-  background: var(--bg-primary);
-  border: 1px solid var(--border-medium);
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 1rem;
   padding: 1.5rem;
   max-width: 320px;
   text-align: center;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  color: #2C2622;
 }
 
 .mode-popup-icon {
@@ -9350,7 +9354,7 @@ defineExpose({
 
 .mode-popup-hint {
   font-size: 0.8125rem;
-  color: var(--text-muted);
+  color: #6B6560;
   margin: -0.5rem 0 1.25rem;
   font-style: italic;
 }
@@ -9358,13 +9362,13 @@ defineExpose({
 .mode-popup-title {
   font-size: 1.25rem;
   font-weight: 600;
-  color: var(--text-primary);
+  color: #2C2622;
   margin: 0 0 0.75rem;
 }
 
 .mode-popup-desc {
   font-size: 0.9375rem;
-  color: var(--text-secondary);
+  color: #4A4440;
   line-height: 1.5;
   margin: 0 0 1.25rem;
 }
@@ -9393,13 +9397,13 @@ defineExpose({
 }
 
 .mode-popup-btn--cancel {
-  background: var(--bg-elevated);
-  color: var(--text-secondary);
+  background: #f0ece8;
+  color: #4A4440;
 }
 
 .mode-popup-btn--cancel:hover {
-  background: var(--bg-card);
-  color: var(--text-primary);
+  background: #e5e0db;
+  color: #2C2622;
 }
 
 .mode-popup-btn--confirm {
@@ -10152,17 +10156,19 @@ defineExpose({
 
 /* --- Mode nav buttons on mist → translucent, not opaque like the pill --- */
 [data-theme="mist"] .player .mode-nav-btn {
-  background: color-mix(in srgb, var(--belt-color) 20%, white);
-  border: 1.5px solid color-mix(in srgb, var(--belt-color) 35%, rgba(0, 0, 0, 0.08));
-  color: color-mix(in srgb, var(--belt-color) 70%, #2C2622);
-  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12);
+  background: rgba(255, 255, 255, 0.96);
+  border: 1.5px solid rgba(0, 0, 0, 0.22);
+  color: #6B6560;
+  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.14),
+              0 8px 24px rgba(44, 38, 34, 0.10);
 }
 
 [data-theme="mist"] .player .mode-nav-btn.active {
-  background: color-mix(in srgb, var(--belt-color) 30%, white);
-  border-color: color-mix(in srgb, var(--belt-color) 50%, rgba(0, 0, 0, 0.08));
-  color: var(--belt-color);
-  box-shadow: 0 2px 6px rgba(44, 38, 34, 0.15);
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(0, 0, 0, 0.3);
+  color: #2C2622;
+  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.14),
+              0 8px 24px rgba(44, 38, 34, 0.10);
 }
 
 /* --- Belt skip buttons → crisp white, destination belt color arrows --- */

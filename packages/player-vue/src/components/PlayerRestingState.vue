@@ -119,12 +119,7 @@ const handleChangeCourse = () => {
   justify-content: center;
   padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px));
   pointer-events: none;
-  /* Translucent — let constellation/particles show through */
-  background: radial-gradient(
-    ellipse at center 60%,
-    color-mix(in srgb, var(--bg-primary) 70%, transparent) 0%,
-    color-mix(in srgb, var(--bg-primary) 40%, transparent) 100%
-  );
+  background: transparent;
   -webkit-tap-highlight-color: transparent;
   animation: resting-fade-in 0.4s ease;
 }
@@ -268,11 +263,7 @@ const handleChangeCourse = () => {
 <!-- Mist theme overrides -->
 <style>
 :root[data-theme="mist"] .resting-state {
-  background: radial-gradient(
-    ellipse at center 60%,
-    color-mix(in srgb, var(--bg-primary) 30%, transparent) 0%,
-    transparent 100%
-  );
+  background: transparent;
 }
 
 :root[data-theme="mist"] .belt-badge {
