@@ -859,9 +859,10 @@ watch(playbackSpeed, (newSpeed) => {
   opacity: 1;
   transform: scale(1.05);
   padding: 1rem 1.5rem;
-  background: var(--bg-elevated);
+  background: color-mix(in srgb, var(--bg-elevated) 85%, var(--bg-primary));
   border: 1px solid var(--border-medium);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-md), 0 4px 20px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(8px);
 }
 
 .phrase-row:hover:not(.current) {
@@ -889,7 +890,7 @@ watch(playbackSpeed, (newSpeed) => {
 }
 
 .phrase-known {
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   color: var(--text-secondary);
   margin-top: 0.375rem;
   font-style: italic;
