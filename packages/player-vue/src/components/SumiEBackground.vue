@@ -81,7 +81,6 @@ const glowStyle = computed(() => {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 1;
   overflow: hidden;
 }
 

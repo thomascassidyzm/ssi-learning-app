@@ -6512,9 +6512,6 @@ defineExpose({
   position: fixed;
   inset: 0;
   overflow: hidden;
-  /* Must sit above SumiEBackground (z-index:1) so overlays, modals,
-     and listening mode render above the landscape artwork */
-  z-index: 2;
 }
 
 .player {
@@ -9905,12 +9902,12 @@ defineExpose({
 <style>
 /* --- Player wrapper background — clean flat canvas --- */
 [data-theme="mist"] .player {
-  background: #e8e3dd;
+  background: transparent;
 }
 
 /* --- Space / Background layers → Flat canvas, no gradients --- */
 [data-theme="mist"] .player .space-gradient {
-  background: #e8e3dd;
+  background: transparent;
 }
 
 [data-theme="mist"] .player .space-nebula {
