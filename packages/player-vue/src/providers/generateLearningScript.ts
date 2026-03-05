@@ -197,7 +197,7 @@ export async function generateLearningScript(
     const group = phrasesByLego.get(key)!
     if (phrase.phrase_role === 'component') {
       if (!componentsByLego.has(key)) componentsByLego.set(key, [])
-      componentsByLego.get(key)!.push({ known: phrase.known_text, target: phrase.target_text })
+      componentsByLego.get(key)!.push({ known: phrase.known_text, target: phrase.target_text_roman || phrase.target_text })
       continue
     }
     if (phrase.phrase_role === 'build') group.build.push(phrase)
