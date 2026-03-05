@@ -6512,6 +6512,9 @@ defineExpose({
   position: fixed;
   inset: 0;
   overflow: hidden;
+  /* Must sit above SumiEBackground (z-index:1) so overlays, modals,
+     and listening mode render above the landscape artwork */
+  z-index: 2;
 }
 
 .player {
