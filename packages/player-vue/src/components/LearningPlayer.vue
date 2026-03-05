@@ -35,7 +35,7 @@ import { useAuthModal } from '../composables/useAuthModal'
 import LegoTextNetwork from './LegoTextNetwork.vue'
 import LegoAssembly from './LegoAssembly.vue'
 import type { LegoBlock } from './LegoAssembly.vue'
-import { ensureTileCoverage } from '../utils/ensureTileCoverage'
+import { ensureTileCoverage, absorbGapsIntoBlocks } from '../utils/ensureTileCoverage'
 import ListeningOverlay from './ListeningOverlay.vue'
 import DrivingModeOverlay from './DrivingModeOverlay.vue'
 import { useDrivingMode } from '../composables/useDrivingMode'
@@ -608,7 +608,8 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
     })
     .filter((b: LegoBlock | null): b is LegoBlock => b !== null)
 
-  return ensureTileCoverage(rawBlocks, cycle.target?.text || '')
+  const covered = ensureTileCoverage(rawBlocks, cycle.target?.text || '')
+  return absorbGapsIntoBlocks(covered)
 })
 
 // Voice1 duration for assembly timing

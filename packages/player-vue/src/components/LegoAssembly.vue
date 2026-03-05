@@ -7,7 +7,7 @@ export interface LegoBlock {
   knownText?: string
   isSalient?: boolean
   /** M-LEGO component breakdown */
-  components?: { known: string; target: string }[]
+  components?: { known: string; target: string; absorbed?: boolean }[]
 }
 
 type AssemblyPhase = 'hidden' | 'scattered' | 'assembling' | 'assembled' | 'dissolving'
@@ -243,6 +243,7 @@ const sentenceScale = computed(() => {
                 v-for="(comp, ci) in block.components"
                 :key="ci"
                 class="comp block-text"
+                :class="{ absorbed: comp.absorbed }"
               >{{ comp.target }}</span>
             </template>
             <span v-else class="block-text">{{ block.targetText }}</span>
@@ -589,6 +590,12 @@ const sentenceScale = computed(() => {
   padding: 0 0.35em;
 }
 
+/* Absorbed filler — dimmed within the tile */
+.lego-block .block-text.absorbed {
+  opacity: 0.45;
+  font-weight: 400;
+}
+
 /* Stubs-bright on practice M-LEGOs */
 .lego-block.has-components .comp + .comp::before,
 .lego-block.has-components .comp + .comp::after {
@@ -728,6 +735,11 @@ const sentenceScale = computed(() => {
 
 :root[data-theme="mist"] .lego-block.salient .block-text {
   color: var(--text-primary);
+}
+
+/* Absorbed filler — mist theme */
+:root[data-theme="mist"] .lego-block .block-text.absorbed {
+  opacity: 0.4;
 }
 
 /* M-LEGO stubs for mist theme */

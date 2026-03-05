@@ -104,3 +104,59 @@ export function ensureTileCoverage(blocks: LegoBlock[], fullPhraseText: string):
 
   return result
 }
+
+/**
+ * Absorb filler blocks (_SYN*, _gap_*) into adjacent real LEGO blocks.
+ * Filler attaches to the next real block (prefix); if none, to the previous (suffix).
+ * Absorbed components get `{ known: '', target: text, absorbed: true }`.
+ */
+export function absorbGapsIntoBlocks(blocks: LegoBlock[]): LegoBlock[] {
+  if (blocks.length <= 1) return blocks
+
+  const isFiller = (b: LegoBlock) => b.id.startsWith('_SYN') || b.id.startsWith('_gap_')
+
+  // Bail if ALL blocks are filler
+  if (blocks.every(isFiller)) return blocks
+
+  // Group consecutive fillers with their target real block
+  const result: LegoBlock[] = []
+  let pendingFillers: LegoBlock[] = []
+
+  for (const block of blocks) {
+    if (isFiller(block)) {
+      pendingFillers.push(block)
+    } else {
+      // Attach pending fillers as prefix to this real block
+      if (pendingFillers.length > 0) {
+        const absorbed = pendingFillers.map(f => ({ known: '', target: f.targetText, absorbed: true as const }))
+        const coreComps = block.components && block.components.length > 0
+          ? block.components
+          : [{ known: block.knownText || '', target: block.targetText }]
+        result.push({
+          ...block,
+          targetText: [...pendingFillers.map(f => f.targetText), block.targetText].join(' '),
+          components: [...absorbed, ...coreComps],
+        })
+        pendingFillers = []
+      } else {
+        result.push(block)
+      }
+    }
+  }
+
+  // Trailing fillers — attach as suffix to last real block
+  if (pendingFillers.length > 0 && result.length > 0) {
+    const last = result[result.length - 1]
+    const absorbed = pendingFillers.map(f => ({ known: '', target: f.targetText, absorbed: true as const }))
+    const coreComps = last.components && last.components.length > 0
+      ? last.components
+      : [{ known: last.knownText || '', target: last.targetText }]
+    result[result.length - 1] = {
+      ...last,
+      targetText: [last.targetText, ...pendingFillers.map(f => f.targetText)].join(' '),
+      components: [...coreComps, ...absorbed],
+    }
+  }
+
+  return result
+}
