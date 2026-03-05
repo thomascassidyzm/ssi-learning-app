@@ -5,6 +5,7 @@ const PlayerContainer = () => import('@/containers/PlayerContainer.vue')
 const SchoolsContainer = () => import('@/containers/SchoolsContainer.vue')
 const AdminContainer = () => import('@/containers/AdminContainer.vue')
 const SimpleSessionTest = () => import('@/components/SimpleSessionTest.vue')
+const ListeningPodPlayer = () => import('@/components/ListeningPodPlayer.vue')
 // Schools views (lazy-loaded)
 const DashboardView = () => import('@/views/schools/DashboardView.vue')
 const TeachersView = () => import('@/views/schools/TeachersView.vue')
@@ -113,6 +114,15 @@ const routes: RouteRecordRaw[] = [
         },
       },
     ],
+  },
+  // Listening Pods
+  {
+    path: '/pods',
+    name: 'listening-pods',
+    component: ListeningPodPlayer,
+    meta: {
+      title: 'Listening Pods',
+    },
   },
   // Test route for simple session flow
   {
