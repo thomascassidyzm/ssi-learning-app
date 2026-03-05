@@ -106,6 +106,7 @@ export function toSimpleRounds(
         },
         target: {
           text: i.targetText,
+          ...(i.targetTextNative ? { textNative: i.targetTextNative } : {}),
           voice1Url: audioUrl(i.target1Id),
           voice2Url: audioUrl(i.target2Id)
         },
@@ -118,7 +119,9 @@ export function toSimpleRounds(
         ...(i.type === 'intro' ? { lingerMs: 2000 } : {}),
         ...(i.componentLegoIds ? { componentLegoIds: i.componentLegoIds } : {}),
         ...(i.componentLegoTexts ? { componentLegoTexts: i.componentLegoTexts } : {}),
+        ...(i.componentLegoTextsNative ? { componentLegoTextsNative: i.componentLegoTextsNative } : {}),
         ...(i.components ? { components: i.components } : {}),
+        ...(i.componentsNative ? { componentsNative: i.componentsNative } : {}),
         ...(i.playbackSpeed ? { playbackSpeed: i.playbackSpeed } : {})
       })
     }

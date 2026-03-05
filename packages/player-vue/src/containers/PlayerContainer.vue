@@ -66,6 +66,10 @@ const isListeningMode = ref(false)
 // Driving mode state (tracked for BottomNav return arrow)
 const isDrivingMode = ref(false)
 
+// Script mode (romanized vs native script toggle)
+const playerHasRomanized = computed(() => learningPlayerRef.value?.hasRomanizedText ?? false)
+const playerIsNativeScript = computed(() => learningPlayerRef.value?.isNativeScript ?? false)
+
 // Class context (when launched from Schools)
 const classContext = ref(null)
 
@@ -178,6 +182,12 @@ const handleToggleListening = () => {
 const handleToggleDriving = () => {
   if (learningPlayerRef.value?.handleDrivingToggle) {
     learningPlayerRef.value.handleDrivingToggle()
+  }
+}
+
+const handleToggleScript = () => {
+  if (learningPlayerRef.value?.toggleScriptMode) {
+    learningPlayerRef.value.toggleScriptMode()
   }
 }
 
@@ -448,6 +458,8 @@ onMounted(() => {
       :showLibrary="showLibrary"
       :showSettings="showSettings"
       :isAuthOpen="isAuthOpen"
+      :hasRomanizedText="playerHasRomanized"
+      :isNativeScript="playerIsNativeScript"
       @navigate="handleNavigation"
       @startLearning="handleStartLearning"
       @togglePlayback="handleTogglePlayback"
@@ -455,6 +467,7 @@ onMounted(() => {
       @exitDrivingMode="handleExitDrivingMode"
       @toggleListening="handleToggleListening"
       @toggleDriving="handleToggleDriving"
+      @toggleScript="handleToggleScript"
       @revisit="handleRevisit"
       @skip="handleSkip"
       @openSettings="toggleSettings"

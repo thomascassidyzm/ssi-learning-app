@@ -39,6 +39,7 @@ import { ensureTileCoverage, absorbGapsIntoBlocks } from '../utils/ensureTileCov
 import ListeningOverlay from './ListeningOverlay.vue'
 import DrivingModeOverlay from './DrivingModeOverlay.vue'
 import { useDrivingMode } from '../composables/useDrivingMode'
+import { useScriptMode } from '../composables/useScriptMode'
 import { simpleRoundToTypedCycles } from '../utils/drivingModeAdapter'
 import BeltProgressModal from './BeltProgressModal.vue'
 
@@ -218,6 +219,10 @@ const courseCode = computed(() => props.course?.course_code || '')
 
 // Alias for ReportIssueButton
 const activeCourseCode = courseCode
+
+// Script mode: toggle between romanized and native script for target text
+const { scriptMode, isNativeScript, toggleScriptMode } = useScriptMode(courseCode)
+const hasRomanizedText = ref(false)
 
 // Language metadata for course identity display
 const LANGUAGE_META: Record<string, { name: string; flag: string }> = {
@@ -551,6 +556,18 @@ const legoTargetTextMap = computed<Map<string, string>>(() => {
   return map
 })
 
+// Native script variant of target text map
+const legoTargetTextNativeMap = computed<Map<string, string>>(() => {
+  const map = new Map<string, string>()
+  for (const round of (loadedRounds.value || [])) {
+    const native = (round.cycles?.[0] as any)?.target?.textNative
+    if (round.legoId && native) {
+      map.set(round.legoId, native)
+    }
+  }
+  return map
+})
+
 // Build lookup: LEGO ID → known text from all loaded rounds
 const legoKnownTextMap = computed<Map<string, string>>(() => {
   const map = new Map<string, string>()
@@ -565,13 +582,16 @@ const legoKnownTextMap = computed<Map<string, string>>(() => {
 // Current phrase's LEGO blocks for the assembly view
 const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
   const cycle = simplePlayer.currentCycle.value as any
+  const useNative = isNativeScript.value && hasRomanizedText.value
   if (!cycle?.componentLegoIds?.length) {
     // Detect intro/debut from cycle ID (sync, no async dependency on currentPlayableItem)
     const cycleId = cycle?.id || ''
     const isIntroOrDebut = cycleId.includes('_intro_') || cycleId.includes('_debut_')
     if (isIntroOrDebut && currentRound.value?.legoId) {
       const legoId = currentRound.value.legoId
-      const targetText = legoTargetTextMap.value.get(legoId) || ''
+      const targetText = useNative
+        ? (legoTargetTextNativeMap.value.get(legoId) || legoTargetTextMap.value.get(legoId) || '')
+        : (legoTargetTextMap.value.get(legoId) || '')
       if (targetText) {
         return [{ id: legoId, targetText, isSalient: true }]
       }
@@ -584,17 +604,20 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
   }
   // Use the cycle's own legoId (the LEGO this phrase practises), not the round's
   const salientLegoId = cycle.legoId || currentRound.value?.legoId || ''
-  const texts: string[] = cycle.componentLegoTexts || []
-  const textMap = legoTargetTextMap.value
+  const texts: string[] = (useNative ? cycle.componentLegoTextsNative : null) || cycle.componentLegoTexts || []
+  const textMap = useNative ? legoTargetTextNativeMap.value : legoTargetTextMap.value
+  const textMapFallback = legoTargetTextMap.value
   // Show known text only during intro/debut (first encounter with the LEGO)
   const cycleId = cycle.id || ''
   const isIntro = cycleId.includes('_intro_') || cycleId.includes('_debut_')
   const knownMap = isIntro ? legoKnownTextMap.value : null
   const rawBlocks = cycle.componentLegoIds
     .map((id: string, idx: number) => {
-      const targetText = texts[idx] || textMap.get(id) || ''
+      const targetText = texts[idx] || textMap.get(id) || textMapFallback.get(id) || ''
       if (!targetText) return null
-      const rawComps = _componentsByLegoId.get(id)
+      const rawComps = useNative
+        ? (_componentsByLegoIdNative.get(id) || _componentsByLegoId.get(id))
+        : _componentsByLegoId.get(id)
       // Strip known text from components outside intro/debut — stubs still render
       const comps = rawComps
         ? (isIntro ? rawComps : rawComps.map(c => ({ known: '', target: c.target })))
@@ -608,7 +631,8 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
     })
     .filter((b: LegoBlock | null): b is LegoBlock => b !== null)
 
-  const covered = ensureTileCoverage(rawBlocks, cycle.target?.text || '')
+  const tileText = useNative ? (cycle.target?.textNative || cycle.target?.text || '') : (cycle.target?.text || '')
+  const covered = ensureTileCoverage(rawBlocks, tileText)
   return absorbGapsIntoBlocks(covered)
 })
 
@@ -1273,6 +1297,7 @@ const initializeBeltLoader = async () => {
     if (!supabase?.value) return { rounds: [] as any[], nextSeed: startSeed, hasMore: false }
     const endSeed = startSeed + count
     const result = await generateSimpleScript(supabase.value, courseCode.value, startSeed, endSeed, 1)
+    if (result.hasRomanizedText) hasRomanizedText.value = true
     const rounds = toSimpleRoundsWithComponents(result.items)
     return {
       rounds: rounds as any[],
@@ -2201,6 +2226,9 @@ watch([showTargetText, () => currentPhrase.value.target], ([showing, newTarget])
 // from the raw data and look them up by cycle ID (which IS readable through proxies).
 const _componentsByCycleId = new Map<string, Array<{known: string, target: string}>>()
 const _componentsByLegoId = new Map<string, Array<{known: string, target: string}>>()
+// Native script variants of components
+const _componentsByCycleIdNative = new Map<string, Array<{known: string, target: string}>>()
+const _componentsByLegoIdNative = new Map<string, Array<{known: string, target: string}>>()
 
 // Wrapper: call toSimpleRounds AND extract components into the plain Map
 function toSimpleRoundsWithComponents(items: any[]) {
@@ -2210,11 +2238,16 @@ function toSimpleRoundsWithComponents(items: any[]) {
     for (const cycle of round.cycles) {
       if ((cycle as any).components) {
         _componentsByCycleId.set(cycle.id, (cycle as any).components)
-        // Also index by legoId so practice phrases can look up M-LEGO components
         if (cycle.legoId) {
           _componentsByLegoId.set(cycle.legoId, (cycle as any).components)
         }
         count++
+      }
+      if ((cycle as any).componentsNative) {
+        _componentsByCycleIdNative.set(cycle.id, (cycle as any).componentsNative)
+        if (cycle.legoId) {
+          _componentsByLegoIdNative.set(cycle.legoId, (cycle as any).componentsNative)
+        }
       }
     }
   }
@@ -2225,6 +2258,9 @@ function toSimpleRoundsWithComponents(items: any[]) {
 const displayedComponents = computed<Array<{known: string, target: string}>>(() => {
   const cycle = simplePlayer.currentCycle.value
   if (!cycle) return []
+  if (isNativeScript.value && hasRomanizedText.value) {
+    return _componentsByCycleIdNative.get(cycle.id) || _componentsByCycleId.get(cycle.id) || []
+  }
   return _componentsByCycleId.get(cycle.id) || []
 })
 
@@ -5739,6 +5775,9 @@ defineExpose({
   handleEnterDrivingMode,
   handleExitDrivingMode,
   beltCssVars,
+  hasRomanizedText,
+  isNativeScript,
+  toggleScriptMode,
 })
 </script>
 

@@ -3,14 +3,16 @@
 export interface Cycle {
   id: string
   known: { text: string; audioUrl: string }
-  target: { text: string; voice1Url: string; voice2Url: string }
+  target: { text: string; textNative?: string; voice1Url: string; voice2Url: string }
   pauseDuration?: number // ms — set by toSimpleRounds formula
   lingerMs?: number // ms — extra hold after voice2 (intro/debut: lets learner read tiles)
   legoId?: string // The LEGO this cycle is practising
   componentLegoIds?: string[]
   componentLegoTexts?: string[]
+  componentLegoTextsNative?: string[]
   /** M-LEGO component breakdown for visual display */
   components?: Array<{ known: string; target: string }>
+  componentsNative?: Array<{ known: string; target: string }>
   /** Listening phase: playback speed multiplier (1.0 = normal, 2.0 = double) */
   playbackSpeed?: number
 }

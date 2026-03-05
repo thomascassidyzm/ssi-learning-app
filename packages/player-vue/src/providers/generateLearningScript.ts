@@ -26,6 +26,8 @@ export interface ScriptItem {
   type: 'intro' | 'debut' | 'build' | 'spaced_rep' | 'use' | 'listening'
   knownText: string
   targetText: string
+  /** Native script text — only set when targetText is romanized */
+  targetTextNative?: string
   presentationAudioId?: string
   knownAudioId?: string
   target1Id?: string
@@ -38,8 +40,12 @@ export interface ScriptItem {
   reviewOf?: number
   componentLegoIds?: string[]
   componentLegoTexts?: string[]
+  /** Native script variants — only set when romanized text exists */
+  componentLegoTextsNative?: string[]
   /** M-LEGO component breakdown: [{known: "with", target: "con"}, ...] */
   components?: Array<{ known: string; target: string }>
+  /** Native script variant of components */
+  componentsNative?: Array<{ known: string; target: string }>
   /** Listening phase: playback speed multiplier (1.0 = normal, 2.0 = double) */
   playbackSpeed?: number
   /** Listening phase: which seed this listening item is for */
@@ -76,6 +82,7 @@ export interface LearningScriptResult {
   items: ScriptItem[]
   cycleCount: number
   roundCount: number
+  hasRomanizedText: boolean
 }
 
 export async function generateLearningScript(
@@ -191,6 +198,7 @@ export async function generateLearningScript(
   const phrasesByLego = new Map<string, { build: Phrase[]; use: Phrase[]; practice: Phrase[] }>()
   // Collect M-LEGO component breakdowns: legoKey → [{known, target}, ...]
   const componentsByLego = new Map<string, Array<{ known: string; target: string }>>()
+  const componentsByLegoNative = new Map<string, Array<{ known: string; target: string }>>()
   for (const phrase of (phrasesResult.data || []) as Phrase[]) {
     const key = `${phrase.seed_number}:${phrase.lego_index}`
     if (!phrasesByLego.has(key)) phrasesByLego.set(key, { build: [], use: [], practice: [] })
@@ -198,6 +206,11 @@ export async function generateLearningScript(
     if (phrase.phrase_role === 'component') {
       if (!componentsByLego.has(key)) componentsByLego.set(key, [])
       componentsByLego.get(key)!.push({ known: phrase.known_text, target: phrase.target_text_roman || phrase.target_text })
+      // Store native script variant when romanized exists
+      if (phrase.target_text_roman) {
+        if (!componentsByLegoNative.has(key)) componentsByLegoNative.set(key, [])
+        componentsByLegoNative.get(key)!.push({ known: phrase.known_text, target: phrase.target_text })
+      }
       continue
     }
     if (phrase.phrase_role === 'build') group.build.push(phrase)
@@ -358,9 +371,12 @@ export async function generateLearningScript(
 
   // Reverse map: LEGO key → display text (prefer romanized for display when available)
   const legoIdToText = new Map<string, string>()
+  // Native script map: LEGO key → native text (only populated when romanized exists)
+  const legoIdToTextNative = new Map<string, string>()
   for (const lego of allLegos) {
     const legoKey = `S${String(lego.seed_number).padStart(4, '0')}L${String(lego.lego_index).padStart(2, '0')}`
     if (lego.target_text) legoIdToText.set(legoKey, lego.target_text_roman || lego.target_text)
+    if (lego.target_text_roman) legoIdToTextNative.set(legoKey, lego.target_text)
   }
 
   // Greedy longest-match decomposition of a phrase into component LEGO IDs
@@ -465,6 +481,13 @@ export async function generateLearningScript(
     items.push(item)
   }
 
+  // Whether this course has any romanized text (for toggle detection)
+  const courseHasRomanized = legoIdToTextNative.size > 0
+
+  // Helper: returns native text fields when romanized text exists
+  const nativeFields = (item: { target_text?: string; target_text_roman?: string }) =>
+    item.target_text_roman ? { targetTextNative: item.target_text } : {}
+
   // Process each seed
   for (const seedNum of sortedSeedNums) {
     // Only process LEGOs that are NEW (is_new = true)
@@ -489,6 +512,7 @@ export async function generateLearningScript(
 
       const usedPhrasesThisRound = new Set<string>()
       const legoComponents = componentsByLego.get(phraseKey)
+      const legoComponentsNative = componentsByLegoNative.get(phraseKey)
 
       // Phase 1: INTRO - presentation audio introduces the new LEGO
       // Welsh courses (cym_*): presentation audio already contains the target
@@ -505,6 +529,7 @@ export async function generateLearningScript(
         type: 'intro',
         knownText: lego.known_text,
         targetText: lego.target_text_roman || lego.target_text,
+        ...nativeFields(lego),
         presentationAudioId,
         knownAudioId: introAudioId,  // Presentation audio, or known audio as fallback
         target1Id: isWelsh ? undefined : lego.target1_audio_id,
@@ -512,7 +537,8 @@ export async function generateLearningScript(
         target1DurationMs: isWelsh ? undefined : lego.target1_duration_ms,
         target2DurationMs: isWelsh ? undefined : lego.target2_duration_ms,
         isNew: true,
-        ...(legoComponents ? { components: legoComponents } : {})
+        ...(legoComponents ? { components: legoComponents } : {}),
+        ...(legoComponentsNative ? { componentsNative: legoComponentsNative } : {}),
       })
 
       // Phase 2: DEBUT
@@ -524,13 +550,15 @@ export async function generateLearningScript(
         type: 'debut',
         knownText: lego.known_text,
         targetText: lego.target_text_roman || lego.target_text,
+        ...nativeFields(lego),
         knownAudioId: lego.known_audio_id,
         target1Id: lego.target1_audio_id,
         target2Id: lego.target2_audio_id,
         target1DurationMs: lego.target1_duration_ms,
         target2DurationMs: lego.target2_duration_ms,
         isNew: true,
-        ...(legoComponents ? { components: legoComponents } : {})
+        ...(legoComponents ? { components: legoComponents } : {}),
+        ...(legoComponentsNative ? { componentsNative: legoComponentsNative } : {}),
       })
 
       // Phase 3: BUILD phrases up to 7
@@ -550,6 +578,7 @@ export async function generateLearningScript(
           type: 'build',
           knownText: phrase.known_text,
           targetText: phrase.target_text_roman || phrase.target_text,
+          ...nativeFields(phrase),
           knownAudioId: phrase.known_audio_id,
           target1Id: phrase.target1_audio_id,
           target2Id: phrase.target2_audio_id,
@@ -582,6 +611,7 @@ export async function generateLearningScript(
           type: 'build',
           knownText: phrase.known_text,
           targetText: phrase.target_text_roman || phrase.target_text,
+          ...nativeFields(phrase),
           knownAudioId: phrase.known_audio_id,
           target1Id: phrase.target1_audio_id,
           target2Id: phrase.target2_audio_id,
@@ -651,6 +681,7 @@ export async function generateLearningScript(
             type: 'spaced_rep',
             knownText: phrase.known_text,
             targetText: phrase.target_text_roman || phrase.target_text,
+            ...nativeFields(phrase),
             knownAudioId: phrase.known_audio_id,
             target1Id: phrase.target1_audio_id,
             target2Id: phrase.target2_audio_id,
@@ -675,6 +706,7 @@ export async function generateLearningScript(
           type: 'use',
           knownText: phrase.known_text,
           targetText: phrase.target_text_roman || phrase.target_text,
+          ...nativeFields(phrase),
           knownAudioId: phrase.known_audio_id,
           target1Id: phrase.target1_audio_id,
           target2Id: phrase.target2_audio_id,
@@ -749,6 +781,7 @@ export async function generateLearningScript(
                   type: 'listening',
                   knownText: seedData.known_text,
                   targetText: seedData.target_text_roman || seedData.target_text,
+                  ...nativeFields(seedData),
                   knownAudioId: seedData.known_audio_id,
                   target1Id: seedData.target1_audio_id,
                   target2Id: seedData.target2_audio_id,
@@ -773,6 +806,9 @@ export async function generateLearningScript(
     if (components.length > 0) {
       item.componentLegoIds = components
       item.componentLegoTexts = components.map(id => legoIdToText.get(id) || '')
+      if (courseHasRomanized) {
+        item.componentLegoTextsNative = components.map(id => legoIdToTextNative.get(id) || legoIdToText.get(id) || '')
+      }
       decomposedCount++
     }
   }
@@ -823,5 +859,5 @@ export async function generateLearningScript(
     ? `, ${graduatedSeeds.size} seeds graduated, ${listeningItemCount} listening items`
     : ''
   console.debug(`[generateLearningScript] ${dedupedItems.length} items, ${roundNumber} rounds for ${courseCode} S${startSeed}-${endSeed}${removedCount > 0 ? `, ${removedCount} deduped` : ''}${skippedRounds > 0 ? `, from R${emitFromRound}` : ''}${listeningStats}`)
-  return { items: dedupedItems, cycleCount: dedupedItems.length, roundCount: roundNumber }
+  return { items: dedupedItems, cycleCount: dedupedItems.length, roundCount: roundNumber, hasRomanizedText: courseHasRomanized }
 }

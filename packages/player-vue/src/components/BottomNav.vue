@@ -37,10 +37,18 @@ const props = defineProps({
   isAuthOpen: {
     type: Boolean,
     default: false
+  },
+  hasRomanizedText: {
+    type: Boolean,
+    default: false
+  },
+  isNativeScript: {
+    type: Boolean,
+    default: false
   }
 })
 
-const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'exitListeningMode', 'exitDrivingMode', 'toggleListening', 'toggleDriving', 'revisit', 'skip', 'openSettings', 'closeOverlays', 'closeAuth'])
+const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'exitListeningMode', 'exitDrivingMode', 'toggleListening', 'toggleDriving', 'toggleScript', 'revisit', 'skip', 'openSettings', 'closeOverlays', 'closeAuth'])
 
 // Tap feedback
 const tappedItem = ref(null)
@@ -128,6 +136,15 @@ const handleSettings = () => {
         <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
         <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
       </svg>
+    </button>
+    <button
+      v-show="!showSessionComplete && isOnPlayerScreen && hasRomanizedText"
+      class="mode-btn mode-btn--center"
+      :class="{ active: isNativeScript }"
+      @click="emit('toggleScript')"
+      :title="isNativeScript ? 'Show romanized' : 'Show native script'"
+    >
+      <span class="script-toggle-label">{{ isNativeScript ? 'Aa' : '\u6587' }}</span>
     </button>
     <button
       v-show="!showSessionComplete && isOnPlayerScreen"
@@ -403,6 +420,15 @@ const handleSettings = () => {
   left: 16px;
 }
 
+.mode-btn--center {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.mode-btn--center:active {
+  transform: translateX(-50%) scale(0.9);
+}
+
 .mode-btn--right {
   right: 16px;
 }
@@ -425,6 +451,14 @@ const handleSettings = () => {
 .mode-btn.disabled {
   opacity: 0.3;
   pointer-events: none;
+}
+
+.script-toggle-label {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  user-select: none;
 }
 
 /* Safe area — not needed for floating pill (bottom offset includes safe area) */
@@ -518,5 +552,9 @@ const handleSettings = () => {
   background: rgba(255, 255, 255, 0.96);
   border-color: rgba(0, 0, 0, 0.45);
   color: #2C2622;
+}
+
+:root[data-theme="mist"] .script-toggle-label {
+  color: inherit;
 }
 </style>
