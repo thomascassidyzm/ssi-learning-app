@@ -636,8 +636,8 @@ watch(playbackSpeed, (newSpeed) => {
   z-index: 1000;
   display: flex;
   flex-direction: column;
-  background: color-mix(in srgb, var(--bg-primary) 80%, transparent);
-  backdrop-filter: blur(12px);
+  background: color-mix(in srgb, var(--bg-primary) 55%, transparent);
+  backdrop-filter: blur(8px);
   font-family: var(--font-body);
   padding: env(safe-area-inset-top, 20px) 0 calc(env(safe-area-inset-bottom, 20px) + 100px) 0;
   cursor: pointer;
