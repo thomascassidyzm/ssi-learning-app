@@ -750,8 +750,10 @@ defineExpose({
           }"
           @click="handlePhraseClick(phrase.displayIndex)"
         >
-          <div class="phrase-target">{{ phrase.targetText }}</div>
-          <div v-if="phrase.isCurrent" class="phrase-known">{{ phrase.knownText || '(no translation)' }}</div>
+          <div class="phrase-target">
+            {{ phrase.targetText }}
+            <div v-if="phrase.isCurrent" style="font-size: 0.8rem; color: red; font-style: italic; margin-top: 0.25rem;">{{ phrase.knownText || 'DEBUG: no knownText' }}</div>
+          </div>
         </div>
       </div>
 
