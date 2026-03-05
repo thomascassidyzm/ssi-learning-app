@@ -1152,6 +1152,7 @@ defineExpose({
 .phrase-row.current {
   opacity: 1;
   transform: scale(1.05);
+  padding: 1rem 1.5rem;
   background: linear-gradient(135deg,
     color-mix(in srgb, var(--belt-color) 12%, transparent) 0%,
     color-mix(in srgb, var(--belt-color) 6%, transparent) 50%,
@@ -1191,9 +1192,9 @@ defineExpose({
 
 .phrase-known {
   font-size: 0.8125rem;
-  color: var(--text-muted);
-  margin-top: 0.25rem;
-  opacity: 0.7;
+  color: var(--text-secondary);
+  margin-top: 0.375rem;
+  font-style: italic;
 }
 
 .loading-more {
