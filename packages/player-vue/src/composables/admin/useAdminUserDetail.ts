@@ -37,16 +37,10 @@ export interface CourseProgress {
   legos_retired: number
 }
 
-export interface DetailSubscription {
-  status: string
-  plan_name: string | null
-}
-
 const profile = ref<UserProfile | null>(null)
 const enrollments = ref<DetailEnrollment[]>([])
 const sessions = ref<DetailSession[]>([])
 const courseProgress = ref<Map<string, CourseProgress>>(new Map())
-const subscription = ref<DetailSubscription | null>(null)
 
 const isLoading = ref(false)
 const error = ref<string | null>(null)
@@ -60,7 +54,7 @@ export function useAdminUserDetail() {
 
     try {
       // Fetch all data in parallel
-      const [profileResult, enrollResult, sessResult, subResult] = await Promise.all([
+      const [profileResult, enrollResult, sessResult] = await Promise.all([
         client
           .from('learners')
           .select('id, user_id, display_name, created_at, educational_role, platform_role')
@@ -76,22 +70,15 @@ export function useAdminUserDetail() {
           .eq('learner_id', learnerId)
           .order('started_at', { ascending: false })
           .limit(50),
-        client
-          .from('subscriptions')
-          .select('status, plan_name')
-          .eq('learner_id', learnerId)
-          .maybeSingle(),
       ])
 
       if (profileResult.error) throw profileResult.error
       if (enrollResult.error) throw enrollResult.error
       if (sessResult.error) throw sessResult.error
-      if (subResult.error) throw subResult.error
 
       profile.value = profileResult.data
       enrollments.value = enrollResult.data || []
       sessions.value = sessResult.data || []
-      subscription.value = subResult.data
 
       // Fetch progress per course
       const courseIds = enrollments.value.map(e => e.course_id)
@@ -158,7 +145,6 @@ export function useAdminUserDetail() {
     enrollments,
     sessions,
     courseProgress,
-    subscription,
     isLoading,
     error,
     fetchUserDetail,

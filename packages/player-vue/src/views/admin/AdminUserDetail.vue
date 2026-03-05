@@ -11,7 +11,6 @@ const {
   profile,
   enrollments,
   sessions,
-  subscription,
   isLoading,
   error,
   fetchUserDetail,
@@ -61,13 +60,6 @@ function goBack() {
           <Badge v-if="profile.educational_role === 'god'" variant="ssi-gold" pill>God</Badge>
           <Badge v-if="profile.educational_role && profile.educational_role !== 'god'" variant="info" pill>
             {{ profile.educational_role }}
-          </Badge>
-          <Badge
-            v-if="subscription"
-            :variant="subscription.status === 'active' ? 'success' : 'warning'"
-            pill
-          >
-            {{ subscription.plan_name || subscription.status }}
           </Badge>
         </div>
       </div>

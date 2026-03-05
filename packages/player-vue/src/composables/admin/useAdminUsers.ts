@@ -1,5 +1,5 @@
 /**
- * useAdminUsers - Paginated user list with enrollments and subscriptions
+ * useAdminUsers - Paginated user list with enrollments
  */
 
 import { ref, computed } from 'vue'
@@ -21,30 +21,21 @@ export interface UserEnrollment {
   total_practice_minutes: number
 }
 
-export interface UserSubscription {
-  learner_id: string
-  status: string
-  plan_name: string | null
-}
-
 const PAGE_SIZE = 50
 
 const users = ref<AdminUser[]>([])
 const enrollments = ref<Map<string, UserEnrollment[]>>(new Map())
-const subscriptions = ref<Map<string, UserSubscription>>(new Map())
 
 const totalCount = ref(0)
 const currentPage = ref(1)
 const searchQuery = ref('')
 const courseFilter = ref<string | null>(null)
-const subscriptionFilter = ref<string | null>(null)
 
 const isLoading = ref(false)
 const error = ref<string | null>(null)
 
 // Hero stats
 const totalUsers = ref(0)
-const activeSubscribers = ref(0)
 const newThisWeek = ref(0)
 
 export function useAdminUsers() {
@@ -79,43 +70,28 @@ export function useAdminUsers() {
 
       if (users.value.length === 0) {
         enrollments.value = new Map()
-        subscriptions.value = new Map()
         return
       }
 
       const pageIds = users.value.map(u => u.id)
 
-      // Batch fetch enrollments and subscriptions
-      const [enrollResult, subResult] = await Promise.all([
-        client
-          .from('course_enrollments')
-          .select('learner_id, course_id, last_practiced_at, total_practice_minutes')
-          .in('learner_id', pageIds),
-        client
-          .from('subscriptions')
-          .select('learner_id, status, plan_name')
-          .in('learner_id', pageIds),
-      ])
+      // Batch fetch enrollments
+      const { data: enrollData, error: enrollErr } = await client
+        .from('course_enrollments')
+        .select('learner_id, course_id, last_practiced_at, total_practice_minutes')
+        .in('learner_id', pageIds)
 
-      if (enrollResult.error) throw enrollResult.error
-      if (subResult.error) throw subResult.error
+      if (enrollErr) throw enrollErr
 
       // Group enrollments by learner_id
       const enrollMap = new Map<string, UserEnrollment[]>()
-      enrollResult.data?.forEach(e => {
+      enrollData?.forEach(e => {
         if (!enrollMap.has(e.learner_id)) {
           enrollMap.set(e.learner_id, [])
         }
         enrollMap.get(e.learner_id)!.push(e)
       })
       enrollments.value = enrollMap
-
-      // Map subscriptions by learner_id
-      const subMap = new Map<string, UserSubscription>()
-      subResult.data?.forEach(s => {
-        subMap.set(s.learner_id, s)
-      })
-      subscriptions.value = subMap
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to fetch users'
       console.error('[AdminUsers] fetch error:', err)
@@ -131,13 +107,6 @@ export function useAdminUsers() {
         .from('learners')
         .select('*', { count: 'exact', head: true })
       totalUsers.value = count || 0
-
-      // Active subscribers
-      const { count: subCount } = await client
-        .from('subscriptions')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'active')
-      activeSubscribers.value = subCount || 0
 
       // New this week
       const weekAgo = new Date()
@@ -172,12 +141,7 @@ export function useAdminUsers() {
     currentPage.value = 1
   }
 
-  function setSubscriptionFilter(status: string | null) {
-    subscriptionFilter.value = status
-    currentPage.value = 1
-  }
-
-  // Client-side filtering for course/subscription (applied to already-fetched page)
+  // Client-side filtering for course (applied to already-fetched page)
   const filteredUsers = computed(() => {
     let result = users.value
 
@@ -189,24 +153,11 @@ export function useAdminUsers() {
       })
     }
 
-    if (subscriptionFilter.value) {
-      const status = subscriptionFilter.value
-      result = result.filter(u => {
-        const sub = subscriptions.value.get(u.id)
-        if (status === 'none') return !sub
-        return sub?.status === status
-      })
-    }
-
     return result
   })
 
   function getUserEnrollments(learnerId: string): UserEnrollment[] {
     return enrollments.value.get(learnerId) || []
-  }
-
-  function getUserSubscription(learnerId: string): UserSubscription | undefined {
-    return subscriptions.value.get(learnerId)
   }
 
   function getLastActive(learnerId: string): string | null {
@@ -235,13 +186,11 @@ export function useAdminUsers() {
     totalPages,
     searchQuery,
     courseFilter,
-    subscriptionFilter,
     isLoading,
     error,
 
     // Hero stats
     totalUsers,
-    activeSubscribers,
     newThisWeek,
 
     // Actions
@@ -250,11 +199,9 @@ export function useAdminUsers() {
     setPage,
     setSearch,
     setCourseFilter,
-    setSubscriptionFilter,
 
     // Helpers
     getUserEnrollments,
-    getUserSubscription,
     getLastActive,
     getTotalPracticeMinutes,
   }

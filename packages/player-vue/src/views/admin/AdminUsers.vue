@@ -13,21 +13,16 @@ const {
   totalCount,
   currentPage,
   totalPages,
-  searchQuery,
   courseFilter,
-  subscriptionFilter,
   isLoading,
   error,
   totalUsers,
-  activeSubscribers,
   newThisWeek,
   fetchAll,
   setPage,
   setSearch,
   setCourseFilter,
-  setSubscriptionFilter,
   getUserEnrollments,
-  getUserSubscription,
   getLastActive,
   getTotalPracticeMinutes,
 } = useAdminUsers()
@@ -36,12 +31,6 @@ const searchInput = ref('')
 
 // Collect unique courses from the page for filter options
 const courseOptions = ref<{ value: string; label: string }[]>([])
-const subscriptionOptions = [
-  { value: 'active', label: 'Active' },
-  { value: 'trialing', label: 'Trial' },
-  { value: 'canceled', label: 'Canceled' },
-  { value: 'none', label: 'No subscription' },
-]
 
 function handleSearch() {
   setSearch(searchInput.value)
@@ -82,10 +71,6 @@ onMounted(async () => {
         <div class="stat-label">Total Users</div>
       </div>
       <div class="stat-card">
-        <div class="stat-value">{{ activeSubscribers.toLocaleString() }}</div>
-        <div class="stat-label">Active Subscribers</div>
-      </div>
-      <div class="stat-card">
         <div class="stat-value">{{ newThisWeek.toLocaleString() }}</div>
         <div class="stat-label">New This Week</div>
       </div>
@@ -109,13 +94,6 @@ onMounted(async () => {
           size="sm"
           @update:model-value="setCourseFilter"
         />
-        <FilterDropdown
-          :model-value="subscriptionFilter"
-          :options="subscriptionOptions"
-          placeholder="All statuses"
-          size="sm"
-          @update:model-value="setSubscriptionFilter"
-        />
       </div>
     </div>
 
@@ -134,7 +112,6 @@ onMounted(async () => {
             <th>Joined</th>
             <th>Courses</th>
             <th>Last Active</th>
-            <th>Subscription</th>
             <th>Practice Time</th>
           </tr>
         </thead>
@@ -167,17 +144,6 @@ onMounted(async () => {
             </td>
             <td class="text-muted">
               {{ getLastActive(user.id) ? timeAgo(getLastActive(user.id)!) : '—' }}
-            </td>
-            <td>
-              <Badge
-                v-if="getUserSubscription(user.id)"
-                :variant="getUserSubscription(user.id)!.status === 'active' ? 'success' : 'warning'"
-                size="sm"
-                pill
-              >
-                {{ getUserSubscription(user.id)!.status }}
-              </Badge>
-              <span v-else class="text-muted">—</span>
             </td>
             <td class="text-muted">
               {{ getTotalPracticeMinutes(user.id) > 0 ? formatDuration(getTotalPracticeMinutes(user.id)) : '—' }}
@@ -228,7 +194,7 @@ onMounted(async () => {
 /* Stat cards */
 .stat-cards {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 16px;
 }
 
