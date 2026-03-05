@@ -614,6 +614,7 @@ watch(playbackSpeed, (newSpeed) => {
           @click.stop="handlePhraseClick(phrase.displayIndex)"
         >
           <div class="phrase-target">{{ phrase.targetText }}</div>
+          <div v-if="phrase.isCurrent && phrase.knownText" class="phrase-known">{{ phrase.knownText }}</div>
         </div>
       </div>
 
@@ -827,6 +828,7 @@ watch(playbackSpeed, (newSpeed) => {
 
 .phrase-row {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   width: 100%;
@@ -856,6 +858,7 @@ watch(playbackSpeed, (newSpeed) => {
 .phrase-row.current {
   opacity: 1;
   transform: scale(1.05);
+  padding: 1rem 1.5rem;
   background: var(--bg-elevated);
   border: 1px solid var(--border-medium);
   box-shadow: var(--shadow-md);
@@ -883,6 +886,13 @@ watch(playbackSpeed, (newSpeed) => {
   font-size: clamp(1.25rem, 3vmin, 1.5rem);
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.phrase-known {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  margin-top: 0.375rem;
+  font-style: italic;
 }
 
 /* Playback hint */

@@ -750,10 +750,7 @@ defineExpose({
           }"
           @click="handlePhraseClick(phrase.displayIndex)"
         >
-          <div class="phrase-target">
-            {{ phrase.targetText }}
-            <div v-if="phrase.isCurrent" style="font-size: 0.8rem; color: red; font-style: italic; margin-top: 0.25rem;">{{ phrase.knownText || 'DEBUG: no knownText' }}</div>
-          </div>
+          <div class="phrase-target">{{ phrase.targetText }}</div>
         </div>
       </div>
 
@@ -1123,7 +1120,6 @@ defineExpose({
 
 .phrase-row {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
   width: 100%;
@@ -1154,7 +1150,6 @@ defineExpose({
 .phrase-row.current {
   opacity: 1;
   transform: scale(1.05);
-  padding: 1rem 1.5rem;
   background: linear-gradient(135deg,
     color-mix(in srgb, var(--belt-color) 12%, transparent) 0%,
     color-mix(in srgb, var(--belt-color) 6%, transparent) 50%,
@@ -1190,13 +1185,6 @@ defineExpose({
   font-weight: 600;
   color: var(--belt-color);
   text-shadow: 0 0 20px color-mix(in srgb, var(--belt-color) 30%, transparent);
-}
-
-.phrase-known {
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
-  margin-top: 0.375rem;
-  font-style: italic;
 }
 
 .loading-more {
