@@ -3472,6 +3472,13 @@ const playWelcomeIfNeeded = async () => {
   welcomeChecked.value = true
 
   try {
+    // Welcome only plays on the very first course a learner ever opens.
+    // After that, they know how SSi works — no need to repeat.
+    if (localStorage.getItem('ssi-welcome-heard') === 'true') {
+      console.log('[LearningPlayer] Welcome already heard on a previous course - skipping')
+      return false
+    }
+
     // If resuming beyond round 1, they've obviously already heard/skipped the welcome
     if (currentRoundIndex.value > 0) {
       console.log('[LearningPlayer] Resuming at round', currentRoundIndex.value + 1, '- skipping welcome')
@@ -3483,15 +3490,6 @@ const playWelcomeIfNeeded = async () => {
     if (completedRounds.value > 0) {
       console.log('[LearningPlayer] Learner has progress (', completedRounds.value, 'seeds) - skipping welcome')
       return false
-    }
-
-    // Check if learner has already heard the welcome (requires courseDataProvider)
-    if (courseDataProvider.value) {
-      const alreadyPlayed = await courseDataProvider.value.hasPlayedWelcome(learnerId.value)
-      if (alreadyPlayed) {
-        console.log('[LearningPlayer] Welcome already played for this learner')
-        return false
-      }
     }
 
     // Get welcome audio - prefer cached course welcome, fall back to database
@@ -3550,7 +3548,8 @@ const playWelcomeIfNeeded = async () => {
         showWelcomeSkip.value = false
         welcomeAudioElement = null
         welcomeResolve = null
-        // Mark as played
+        // Mark as played (globally — welcome only plays on first-ever course)
+        localStorage.setItem('ssi-welcome-heard', 'true')
         if (courseDataProvider.value) {
           await courseDataProvider.value.markWelcomePlayed(learnerId.value)
         }
@@ -8901,13 +8900,12 @@ defineExpose({
   cursor: pointer;
   transition: all 0.2s ease;
   border: 1px solid var(--border-medium);
-  background: transparent;
-  color: var(--text-secondary);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
 }
 
 .welcome-skip:hover {
-  background: var(--bg-elevated);
-  color: var(--text-primary);
+  background: var(--bg-card);
   border-color: var(--accent);
 }
 
