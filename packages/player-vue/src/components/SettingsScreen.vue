@@ -8,6 +8,7 @@ import { useTheme } from '../composables/useTheme'
 import { useInviteCode, type InviteCodeContext } from '../composables/useInviteCode'
 import { useAuthModal } from '../composables/useAuthModal'
 import { useRouter } from 'vue-router'
+import { useSharedSubscription } from '../composables/useSubscription'
 
 const emit = defineEmits(['close', 'openExplorer', 'openListening', 'openDriving', 'settingChanged'])
 
@@ -57,6 +58,19 @@ const formattedLearningTime = computed(() => {
 
 // App info
 const buildNumber = typeof __BUILD_NUMBER__ !== 'undefined' ? __BUILD_NUMBER__ : 'dev'
+const buildTime = typeof __BUILD_TIME__ !== 'undefined' ? __BUILD_TIME__ : ''
+const formattedBuildTime = computed(() => {
+  if (!buildTime) return ''
+  try {
+    const d = new Date(buildTime)
+    if (isNaN(d.getTime())) return ''
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  } catch { return '' }
+})
+const versionDisplay = computed(() => {
+  const sha = buildNumber || 'dev'
+  return formattedBuildTime.value ? `${sha} · ${formattedBuildTime.value}` : sha
+})
 
 // Display settings
 const showFirePath = ref(true)
@@ -73,10 +87,81 @@ const enableVerboseLogging = ref(false) // Detailed console logs
 const { theme, toggleTheme: doToggleTheme, isDark } = useTheme()
 const isDarkMode = computed(() => isDark())
 
+// Display name management
+const showDisplayNameForm = ref(false)
+const displayNameInput = ref('')
+const displayNameError = ref('')
+const displayNameSuccess = ref(false)
+const isSavingDisplayName = ref(false)
+
+const handleSaveDisplayName = async () => {
+  displayNameError.value = ''
+  displayNameSuccess.value = false
+
+  const name = displayNameInput.value.trim()
+  if (!name) {
+    displayNameError.value = 'Name cannot be empty'
+    return
+  }
+
+  if (!supabase?.value || !auth?.learnerId?.value) {
+    displayNameError.value = 'Not connected'
+    return
+  }
+
+  isSavingDisplayName.value = true
+  try {
+    // Update Supabase Auth metadata
+    const { error: authError } = await supabase.value.auth.updateUser({
+      data: { display_name: name }
+    })
+    if (authError) {
+      displayNameError.value = authError.message
+      return
+    }
+
+    // Update learners table
+    await supabase.value
+      .from('learners')
+      .update({ display_name: name })
+      .eq('user_id', auth.learnerId.value)
+
+    // Update local auth user metadata
+    if (auth.user?.value) {
+      auth.user.value = {
+        ...auth.user.value,
+        user_metadata: { ...auth.user.value.user_metadata, display_name: name }
+      }
+    }
+
+    displayNameSuccess.value = true
+    showDisplayNameForm.value = false
+  } catch {
+    displayNameError.value = 'Failed to update name'
+  } finally {
+    isSavingDisplayName.value = false
+  }
+}
+
+// Subscription management
+const { openPortal, isLoading: isPortalLoading, error: portalError } = useSharedSubscription()
+const portalFeedback = ref('')
+
+const handleManageSubscription = async () => {
+  portalFeedback.value = ''
+  try {
+    await openPortal()
+  } catch {
+    portalFeedback.value = 'Unable to open billing portal. You may not have an active subscription.'
+  }
+}
+
 // Account management state
 const showDeleteConfirm = ref(false)
 const isDeleting = ref(false)
 const deleteError = ref(null)
+const deleteConfirmInput = ref('')
+const deleteConfirmMatch = computed(() => deleteConfirmInput.value.trim().toUpperCase() === 'DELETE')
 
 // Check if user is signed in
 const isSignedIn = computed(() => auth?.user?.value != null)
@@ -296,20 +381,16 @@ const handleSaveBackupEmail = async () => {
   }
 }
 
-// Handle cancel subscription - redirect to billing
-const handleCancelSubscription = () => {
-  // For now, open an email to support
-  window.location.href = 'mailto:support@saysomethingin.com?subject=Cancel%20Subscription%20Request'
-}
-
 // Handle delete account
 const handleDeleteClick = () => {
   showDeleteConfirm.value = true
   deleteError.value = null
+  deleteConfirmInput.value = ''
 }
 
 const cancelDelete = () => {
   showDeleteConfirm.value = false
+  deleteConfirmInput.value = ''
 }
 
 const confirmDelete = async () => {
@@ -719,12 +800,22 @@ const confirmReset = async () => {
           <p class="reset-desc">
             This will permanently delete your account and all your learning progress across all courses. This action cannot be undone.
           </p>
+          <div class="delete-confirm-field">
+            <label class="inline-label">Type DELETE to confirm</label>
+            <input
+              v-model="deleteConfirmInput"
+              type="text"
+              class="inline-input"
+              placeholder="DELETE"
+              autocomplete="off"
+            />
+          </div>
           <p v-if="deleteError" class="reset-error">{{ deleteError }}</p>
           <div class="reset-actions">
             <button class="reset-btn reset-btn--cancel" @click="cancelDelete" :disabled="isDeleting">
               Cancel
             </button>
-            <button class="reset-btn reset-btn--confirm" @click="confirmDelete" :disabled="isDeleting">
+            <button class="reset-btn reset-btn--confirm" @click="confirmDelete" :disabled="isDeleting || !deleteConfirmMatch">
               {{ isDeleting ? 'Deleting...' : 'Delete Account' }}
             </button>
           </div>
@@ -761,12 +852,38 @@ const confirmReset = async () => {
       <section class="section" v-if="isSignedIn">
         <h3 class="section-title">Account</h3>
         <div class="card">
-          <!-- User Info -->
-          <div class="setting-row" v-if="userName || userEmail">
+          <!-- User Info / Display Name -->
+          <div class="setting-row clickable" v-if="userName || userEmail" @click="showDisplayNameForm = !showDisplayNameForm; displayNameInput = userName; displayNameError = ''; displayNameSuccess = false">
             <div class="setting-info">
               <span class="setting-label">{{ userName || 'User' }}</span>
               <span class="setting-desc">{{ userEmail }}</span>
             </div>
+            <svg class="chevron" :class="{ rotated: showDisplayNameForm }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </div>
+
+          <!-- Display Name inline form -->
+          <div v-if="showDisplayNameForm" class="inline-form">
+            <div class="inline-form-field">
+              <label class="inline-label">Display name</label>
+              <input
+                v-model="displayNameInput"
+                type="text"
+                class="inline-input"
+                placeholder="Your name"
+                autocomplete="name"
+              />
+            </div>
+            <div v-if="displayNameError" class="inline-error">{{ displayNameError }}</div>
+            <div v-if="displayNameSuccess" class="inline-success">Name saved</div>
+            <button
+              class="inline-save-btn"
+              :disabled="isSavingDisplayName || !displayNameInput.trim()"
+              @click="handleSaveDisplayName"
+            >
+              {{ isSavingDisplayName ? 'Saving...' : 'Save' }}
+            </button>
           </div>
 
           <div class="divider" v-if="userName || userEmail"></div>
@@ -1071,10 +1188,10 @@ const confirmReset = async () => {
       <section class="section" v-if="isSignedIn">
         <h3 class="section-title">Subscription</h3>
         <div class="card">
-          <div class="setting-row clickable" @click="handleCancelSubscription">
+          <div class="setting-row clickable" @click="handleManageSubscription">
             <div class="setting-info">
-              <span class="setting-label">Manage Subscription</span>
-              <span class="setting-desc">View or cancel your subscription</span>
+              <span class="setting-label">{{ isPortalLoading ? 'Opening...' : 'Manage Subscription' }}</span>
+              <span class="setting-desc">{{ portalFeedback || 'View or cancel your subscription' }}</span>
             </div>
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6"/>
@@ -1194,7 +1311,7 @@ const confirmReset = async () => {
             <div class="setting-info">
               <span class="setting-label">Version</span>
             </div>
-            <span class="setting-value">{{ buildNumber }}</span>
+            <span class="setting-value">{{ versionDisplay }}</span>
           </div>
         </div>
       </section>
@@ -1662,6 +1779,13 @@ const confirmReset = async () => {
   color: var(--text-muted);
   line-height: 1.5;
   margin: 0 0 1.5rem;
+}
+
+.delete-confirm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
 }
 
 .reset-error {
