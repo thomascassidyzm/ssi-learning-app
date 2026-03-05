@@ -45,6 +45,10 @@ const props = defineProps({
   isNativeScript: {
     type: Boolean,
     default: false
+  },
+  isPlayerReady: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -76,7 +80,12 @@ const handleNavTap = (itemId) => {
   emit('navigate', itemId)
 }
 
+const isPlayDisabled = computed(() =>
+  isOnPlayerScreen.value && !props.isPlaying && !props.isPlayerReady && !hasOverlayOpen.value && !props.isAuthOpen && !hasActiveMode.value
+)
+
 const handlePlayTap = () => {
+  if (isPlayDisabled.value) return
   playButtonPressed.value = true
   setTimeout(() => { playButtonPressed.value = false }, 200)
   if (navigator.vibrate) navigator.vibrate([10, 50, 10])
@@ -198,6 +207,7 @@ const handleSettings = () => {
           pressed: playButtonPressed,
           'is-stop': isStopMode,
           'is-return': isReturnMode,
+          'is-disabled': isPlayDisabled,
         }"
         @click="handlePlayTap"
       >
@@ -381,6 +391,16 @@ const handleSettings = () => {
   margin-left: 2px;
 }
 
+.center-btn.is-disabled {
+  background: linear-gradient(145deg, rgba(160, 160, 160, 0.6) 0%, rgba(120, 120, 120, 0.6) 100%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  cursor: default;
+}
+
+.center-btn.is-disabled .center-btn-inner {
+  opacity: 0.5;
+}
+
 .center-btn.is-return {
   background: var(--bg-elevated);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
@@ -523,6 +543,11 @@ const handleSettings = () => {
   :root[data-theme="mist"] .pill-btn:hover:not(.active) .pill-btn-bg {
     background: rgba(0, 0, 0, 0.04);
   }
+}
+
+:root[data-theme="mist"] .center-btn.is-disabled {
+  background: linear-gradient(145deg, rgba(180, 175, 170, 0.5) 0%, rgba(160, 155, 150, 0.5) 100%);
+  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.08);
 }
 
 :root[data-theme="mist"] .center-btn.is-return {

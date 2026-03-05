@@ -69,6 +69,7 @@ const isDrivingMode = ref(false)
 // Script mode (romanized vs native script toggle)
 const playerHasRomanized = computed(() => learningPlayerRef.value?.hasRomanizedText ?? false)
 const playerIsNativeScript = computed(() => learningPlayerRef.value?.isNativeScript ?? false)
+const isPlayerReady = computed(() => !(learningPlayerRef.value?.isAwakening ?? true))
 
 // Class context (when launched from Schools)
 const classContext = ref(null)
@@ -422,6 +423,7 @@ onMounted(() => {
       :completed-seeds="completedSeeds"
       :total-seeds="totalSeeds"
       :current-belt-name="currentBeltName"
+      :is-player-ready="isPlayerReady"
       @start="handleTogglePlayback"
       @change-course="showCourseSelector = true"
     />
@@ -460,6 +462,7 @@ onMounted(() => {
       :isAuthOpen="isAuthOpen"
       :hasRomanizedText="playerHasRomanized"
       :isNativeScript="playerIsNativeScript"
+      :isPlayerReady="isPlayerReady"
       @navigate="handleNavigation"
       @startLearning="handleStartLearning"
       @togglePlayback="handleTogglePlayback"

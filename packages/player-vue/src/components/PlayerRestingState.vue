@@ -8,6 +8,7 @@ const props = defineProps({
   completedSeeds: { type: Number, default: 0 },
   totalSeeds: { type: Number, default: 668 },
   currentBeltName: { type: String, default: 'white' },
+  isPlayerReady: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['start', 'change-course'])
@@ -41,6 +42,7 @@ const progressPercent = computed(() => {
 })
 
 const greeting = computed(() => {
+  if (!props.isPlayerReady) return 'Loading course…'
   if (props.completedSeeds === 0) return 'Ready when you are'
   if (props.completedSeeds < 10) return 'Great start — keep going'
   if (props.completedSeeds < 50) return 'Building momentum'

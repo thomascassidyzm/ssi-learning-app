@@ -5773,6 +5773,7 @@ const unlockAudio = () => {
 
 defineExpose({
   isPlaying,
+  isAwakening,
   togglePlayback,
   handlePause,
   handleResume,
