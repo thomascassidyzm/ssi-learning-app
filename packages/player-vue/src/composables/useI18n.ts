@@ -95,7 +95,7 @@ export const getLanguageName = (langCode: string): string => {
  * Language flag emoji lookup (ISO 639-3 → flag)
  */
 const LANGUAGE_FLAGS: Record<string, string> = {
-  eng: '🇬🇧',
+  eng: '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
   cym: '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
   cym_n: '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
   cym_s: '🏴󠁧󠁢󠁷󠁬󠁳󠁿',

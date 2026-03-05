@@ -226,7 +226,7 @@ const hasRomanizedText = ref(false)
 
 // Language metadata for course identity display
 const LANGUAGE_META: Record<string, { name: string; flag: string }> = {
-  eng: { name: 'English', flag: '🇬🇧' },
+  eng: { name: 'English', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿' },
   cym: { name: 'Welsh', flag: '🏴󠁧󠁢󠁷󠁬󠁳󠁿' },
   spa: { name: 'Spanish', flag: '🇪🇸' },
   fra: { name: 'French', flag: '🇫🇷' },

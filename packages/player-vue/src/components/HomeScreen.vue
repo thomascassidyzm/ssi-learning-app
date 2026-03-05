@@ -6,7 +6,7 @@ import { BELTS } from '@/composables/useBeltProgress'
 
 // Language metadata mapping (3-letter codes to display info)
 const LANGUAGE_META = {
-  eng: { name: 'English', flag: '🇬🇧' },
+  eng: { name: 'English', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿' },
   spa: { name: 'Spanish', flag: '🇪🇸' },
   ita: { name: 'Italian', flag: '🇮🇹' },
   fra: { name: 'French', flag: '🇫🇷' },

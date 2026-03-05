@@ -188,7 +188,7 @@ const courseFlags: Record<string, string> = {
   'cym_for_eng_south': '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
   'spa_for_eng': '🇪🇸',
   'spa_for_eng_latam': '🇪🇸',
-  'eng_for_spa': '🇬🇧',
+  'eng_for_spa': '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
   'nld_for_eng': '🇳🇱',
   'fra_for_eng': '🇫🇷',
   'deu_for_eng': '🇩🇪',

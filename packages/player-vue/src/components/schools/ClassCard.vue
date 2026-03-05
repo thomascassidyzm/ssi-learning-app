@@ -17,7 +17,7 @@ const courseFlags = {
   'cym_for_eng_south': '\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62\uDB40\uDC77\uDB40\uDC6C\uDB40\uDC73\uDB40\uDC7F',
   'spa_for_eng': '\uD83C\uDDEA\uD83C\uDDF8',
   'spa_for_eng_latam': '\uD83C\uDDEA\uD83C\uDDF8',
-  'eng_for_spa': '\uD83C\uDDEC\uD83C\uDDE7',
+  'eng_for_spa': '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
   'fra_for_eng': '\uD83C\uDDEB\uD83C\uDDF7',
   'deu_for_eng': '\uD83C\uDDE9\uD83C\uDDEA',
   'nld_for_eng': '\uD83C\uDDF3\uD83C\uDDF1',
