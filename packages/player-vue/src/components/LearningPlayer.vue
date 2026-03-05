@@ -5879,14 +5879,14 @@ defineExpose({
           <div class="pause-timer-fill" :style="{ width: ringProgress + '%' }"></div>
         </div>
       </div>
-    </div>
 
-    <!-- Guest progress warning - between known text and LEGO tiles -->
-    <Transition name="nudge-fade">
-      <button v-if="isGuestLearner" class="guest-progress-nudge" @click="openAuth()">
-        Save Progress
-      </button>
-    </Transition>
+      <!-- Guest save progress button -->
+      <Transition name="nudge-fade">
+        <button v-if="isGuestLearner" class="guest-progress-nudge" @click="openAuth()">
+          Save Progress
+        </button>
+      </Transition>
+    </div>
 
     <!-- Node Hover Tooltip -->
     <Transition name="tooltip-fade">
@@ -7901,11 +7901,7 @@ defineExpose({
 
 /* Guest progress nudge - positioned between hero glass and LEGO tiles */
 .guest-progress-nudge {
-  position: absolute;
-  top: calc(var(--hero-top, 38%) + 5.5rem);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 11;
+  margin-top: var(--hero-offset);
   padding: 0.625rem 1.5rem;
   background: #1a3a5c;
   color: #ffffff;
@@ -7922,7 +7918,7 @@ defineExpose({
 
 .guest-progress-nudge:active {
   background: #0f2a45;
-  transform: translateX(-50%) scale(0.97);
+  transform: scale(0.97);
 }
 
 /* Nudge fade transition */
