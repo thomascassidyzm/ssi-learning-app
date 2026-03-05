@@ -644,7 +644,7 @@ onMounted(() => {
 
 /* Dim SumiE landscape during listening mode so phrases pop */
 .sumi-dimmed {
-  opacity: 0.35;
+  opacity: 0.5;
   transition: opacity 0.4s ease;
 }
 </style>
