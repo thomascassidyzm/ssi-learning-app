@@ -751,6 +751,7 @@ defineExpose({
           @click="handlePhraseClick(phrase.displayIndex)"
         >
           <div class="phrase-target">{{ phrase.targetText }}</div>
+          <div v-if="phrase.isCurrent && phrase.knownText" class="phrase-known">{{ phrase.knownText }}</div>
         </div>
       </div>
 
@@ -1120,6 +1121,7 @@ defineExpose({
 
 .phrase-row {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   width: 100%;
@@ -1185,6 +1187,13 @@ defineExpose({
   font-weight: 600;
   color: var(--belt-color);
   text-shadow: 0 0 20px color-mix(in srgb, var(--belt-color) 30%, transparent);
+}
+
+.phrase-known {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+  opacity: 0.7;
 }
 
 .loading-more {
