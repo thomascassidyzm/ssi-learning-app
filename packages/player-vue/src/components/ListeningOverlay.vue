@@ -859,7 +859,7 @@ watch(playbackSpeed, (newSpeed) => {
   opacity: 1;
   transform: scale(1.05);
   padding: 1rem 1.5rem;
-  background: rgba(255, 255, 255, 0.92);
+  background: #ffffff;
   border: 1px solid var(--border-medium);
   box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
 }
