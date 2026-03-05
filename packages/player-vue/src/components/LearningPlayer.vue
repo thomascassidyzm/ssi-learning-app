@@ -3043,13 +3043,6 @@ const handlePause = () => {
 }
 
 const handleResume = async () => {
-  // On first play, ask for adaptation consent (user gesture context)
-  // Wait for response before starting playback
-  if (adaptationConsent.value === null) {
-    showAdaptationPrompt.value = true
-    return // Don't start until consent is resolved
-  }
-
   // RESUME from pause — use resume() to continue from current phase
   // (play() always restarts from prompt, losing position mid-cycle)
   if (hasEverStarted.value) {
@@ -3072,6 +3065,7 @@ const handleResume = async () => {
   // 2. PlayerRestingState overlay hides (it checks isPlaying)
   hasEverStarted.value = true
   isPlaying.value = true
+  localStorage.setItem('ssi-has-played', 'true')
 
   // Lazily initialize network on first play (deferred from startup)
   if (!networkInitialized.value) {
@@ -4024,7 +4018,6 @@ const ADAPTATION_CONSENT_KEY = 'ssi-adaptation-consent'
 
 // Consent states: null (not asked), true (granted), false (declined)
 const adaptationConsent = ref(null)
-const showAdaptationPrompt = ref(false)
 
 // Voice Activity Detection (VAD) and Speech Timing state
 const vadInstance = shallowRef(null)
@@ -4039,8 +4032,7 @@ let vadStatusInterval = null
 const loadAdaptationConsent = () => {
   const stored = localStorage.getItem(ADAPTATION_CONSENT_KEY)
   if (stored === 'true') adaptationConsent.value = true
-  else if (stored === 'false') adaptationConsent.value = false
-  else adaptationConsent.value = null
+  else adaptationConsent.value = false
 }
 
 // Save consent to localStorage
@@ -4049,59 +4041,24 @@ const saveAdaptationConsent = (value) => {
   localStorage.setItem(ADAPTATION_CONSENT_KEY, String(value))
 }
 
-// Handle consent response
+// Handle consent change (called from Settings toggle)
 const handleAdaptationConsent = async (granted) => {
-  showAdaptationPrompt.value = false
   saveAdaptationConsent(granted)
 
   if (granted) {
-    // Initialize VAD now (user gesture context)
     const success = await initializeVad()
     if (success) {
       console.log('[LearningPlayer] Adaptation enabled - timing will run silently')
     }
   } else {
     console.log('[LearningPlayer] Adaptation declined - learning continues normally')
-  }
-
-  // Wait for rounds to load if not yet available (first play may race with initialization)
-  if (loadedRounds.value.length === 0) {
-    console.log('[LearningPlayer] Waiting for rounds to load after consent...')
-    startPreparingState()
-    await new Promise<void>((resolve) => {
-      const unwatch = watch(
-        () => loadedRounds.value.length > 0,
-        (hasRounds) => {
-          if (hasRounds) {
-            unwatch()
-            resolve()
-          }
-        },
-        { immediate: true }
-      )
-    })
-    isPreparingToPlay.value = false
-  }
-
-  // Play welcome audio on first play if needed
-  await playWelcomeIfNeeded()
-
-  // Let the learner tap to start — don't auto-play after consent
-  // (simplePlayer was never started during consent flow, so ensure isPlaying is false)
-  isPlaying.value = false
-}
-
-// Preload first round audio during consent overlay (first visit only).
-// When the consent overlay is showing AND rounds are available, fire-and-forget preload
-// so that audio is cached by the time the user finishes consent + welcome.
-watch(
-  [showAdaptationPrompt, loadedRounds],
-  ([showingConsent, rounds]) => {
-    if (showingConsent && rounds && rounds.length > 0) {
-      preloadSimpleRoundAudio(rounds, 2)
+    if (vadInstance.value) {
+      vadInstance.value.dispose()
+      vadInstance.value = null
+      vadInitialized.value = false
     }
   }
-)
+}
 
 // Initialize VAD (must be called from user gesture)
 const initializeVad = async () => {
@@ -4947,7 +4904,7 @@ onMounted(async () => {
   // ============================================
 
   const startTime = Date.now()
-  const isReturnUser = adaptationConsent.value !== null
+  const isReturnUser = localStorage.getItem('ssi-has-played') === 'true'
   const MINIMUM_ANIMATION_MS = isReturnUser ? 300 : 2800
 
   // Stage 1: Awakening (immediate)
@@ -4979,6 +4936,9 @@ onMounted(async () => {
         break
       case 'enableVerboseLogging':
         enableVerboseLogging.value = detail.value
+        break
+      case 'adaptationConsent':
+        handleAdaptationConsent(detail.value)
         break
     }
   }
@@ -5779,7 +5739,6 @@ defineExpose({
   handleEnterDrivingMode,
   handleExitDrivingMode,
   beltCssVars,
-  showAdaptationPrompt,
 })
 </script>
 
@@ -5823,36 +5782,6 @@ defineExpose({
       :belt-journey="beltJourney"
       @resume="handleResumeLearning"
     />
-  </Transition>
-
-  <!-- Adaptation Consent Prompt -->
-  <Transition name="fade">
-    <div v-if="showAdaptationPrompt" class="consent-overlay">
-      <div class="consent-card">
-        <div class="consent-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M12 2a3 3 0 0 0-3 3v4a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-            <line x1="12" y1="19" x2="12" y2="22"/>
-          </svg>
-        </div>
-        <h3 class="consent-title">Learn at your natural pace</h3>
-        <p class="consent-description">
-          SSi adapts to your rhythm, keeping you in the optimal learning zone — not too fast, not too slow, just right for you.
-        </p>
-        <p class="consent-detail">
-          Uses your microphone to detect timing only — no audio is recorded or stored.
-        </p>
-        <div class="consent-actions">
-          <button class="consent-btn consent-btn--secondary" @click="handleAdaptationConsent(false)">
-            No thanks
-          </button>
-          <button class="consent-btn consent-btn--primary" @click="handleAdaptationConsent(true)">
-            Yes, personalise
-          </button>
-        </div>
-      </div>
-    </div>
   </Transition>
 
   <!-- Welcome Audio Overlay (with skip button) -->
@@ -8924,98 +8853,6 @@ defineExpose({
 @keyframes icon-pulse {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.1); }
-}
-
-/* ============ CONSENT PROMPT ============ */
-
-.consent-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-overlay);
-  backdrop-filter: blur(8px);
-  padding: 1.5rem;
-}
-
-.consent-card {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-medium);
-  border-radius: 1rem;
-  padding: 2rem;
-  max-width: 360px;
-  text-align: center;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-}
-
-.consent-icon {
-  width: 48px;
-  height: 48px;
-  margin: 0 auto 1rem;
-  color: var(--accent);
-}
-
-.consent-icon svg {
-  width: 100%;
-  height: 100%;
-}
-
-.consent-title {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 0.75rem;
-}
-
-.consent-description {
-  font-size: 0.9375rem;
-  color: var(--text-primary);
-  line-height: 1.5;
-  margin-bottom: 0.75rem;
-}
-
-.consent-detail {
-  font-size: 0.8125rem;
-  color: var(--text-muted);
-  line-height: 1.4;
-  margin-bottom: 1.5rem;
-}
-
-.consent-actions {
-  display: flex;
-  gap: 0.75rem;
-}
-
-.consent-btn {
-  flex: 1;
-  padding: 0.75rem 1rem;
-  border-radius: 0.5rem;
-  font-size: 0.9375rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border: none;
-}
-
-.consent-btn--secondary {
-  background: var(--bg-elevated);
-  color: var(--text-secondary);
-}
-
-.consent-btn--secondary:hover {
-  background: var(--bg-card);
-  color: var(--text-primary);
-}
-
-.consent-btn--primary {
-  background: var(--gradient-accent);
-  color: white;
-}
-
-.consent-btn--primary:hover {
-  filter: brightness(1.1);
 }
 
 /* ============ WELCOME OVERLAY ============ */

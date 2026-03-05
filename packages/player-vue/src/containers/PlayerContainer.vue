@@ -60,9 +60,6 @@ const showCourseSelector = ref(false)
 const isPlaying = ref(false)
 const learningPlayerRef = ref(null)
 
-// Whether LearningPlayer has a modal overlay active (consent prompt etc.)
-const playerHasModal = computed(() => !!learningPlayerRef.value?.showAdaptationPrompt)
-
 // Listening mode overlay state (overlay is inside LearningPlayer, but we track it for BottomNav)
 const isListeningMode = ref(false)
 
@@ -410,7 +407,7 @@ onMounted(() => {
 
     <!-- Player resting state overlay (shown when paused, hidden during playback) -->
     <PlayerRestingState
-      v-if="currentScreen === 'player' && !isListeningMode && !isDrivingMode && !isPlaying && !playerHasModal"
+      v-if="currentScreen === 'player' && !isListeningMode && !isDrivingMode && !isPlaying"
       :course="activeCourse"
       :completed-seeds="completedSeeds"
       :total-seeds="totalSeeds"

@@ -65,6 +65,7 @@ const showFirePath = ref(true)
 const showViewScript = ref(false)
 const showFragileProgressWarning = ref(true) // Default: show the warning to guests
 const enableQaMode = ref(false) // Show Report Issue button
+const enableAdaptation = ref(false) // Personalised pacing via microphone
 const showDebugOverlay = ref(false) // Show phase/round/LEGO info overlay
 const enableVerboseLogging = ref(false) // Detailed console logs
 
@@ -331,6 +332,7 @@ onMounted(async () => {
   showViewScript.value = localStorage.getItem('ssi-show-view-script') === 'true'
   showFragileProgressWarning.value = localStorage.getItem('ssi-show-fragile-warning') !== 'false' // Default true
   enableQaMode.value = localStorage.getItem('ssi-enable-qa-mode') === 'true'
+  enableAdaptation.value = localStorage.getItem('ssi-adaptation-consent') === 'true'
   showDebugOverlay.value = localStorage.getItem('ssi-show-debug-overlay') === 'true'
   enableVerboseLogging.value = localStorage.getItem('ssi-verbose-logging') === 'true'
 
@@ -443,6 +445,12 @@ const toggleQaMode = () => {
   enableQaMode.value = !enableQaMode.value
   localStorage.setItem('ssi-enable-qa-mode', enableQaMode.value ? 'true' : 'false')
   dispatchSettingChanged('enableQaMode', enableQaMode.value)
+}
+
+const toggleAdaptation = () => {
+  enableAdaptation.value = !enableAdaptation.value
+  localStorage.setItem('ssi-adaptation-consent', enableAdaptation.value ? 'true' : 'false')
+  dispatchSettingChanged('adaptationConsent', enableAdaptation.value)
 }
 
 const toggleDebugOverlay = () => {
@@ -787,6 +795,20 @@ const confirmReset = async () => {
               <span class="setting-desc">Help improve the course by flagging phrases that don't sound right. Your feedback goes directly to our content team.</span>
             </div>
             <div class="toggle-switch" :class="{ 'is-on': enableQaMode }">
+              <div class="toggle-track">
+                <div class="toggle-thumb"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row clickable" @click="toggleAdaptation">
+            <div class="setting-info">
+              <span class="setting-label">Personalised pacing</span>
+              <span class="setting-desc">Uses your microphone to detect when you speak, adapting pause lengths to your rhythm. No audio is recorded or stored.</span>
+            </div>
+            <div class="toggle-switch" :class="{ 'is-on': enableAdaptation }">
               <div class="toggle-track">
                 <div class="toggle-thumb"></div>
               </div>
