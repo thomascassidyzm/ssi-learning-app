@@ -47,6 +47,8 @@ export interface AuthActions {
   migrateGuestProgress: () => Promise<void>
   /** Initialize auth (call on mount) */
   initialize: (supabaseClient: SupabaseClient) => Promise<void>
+  /** Set or change the user's password */
+  updatePassword: (newPassword: string) => Promise<{ error?: string }>
 }
 
 /**
@@ -311,6 +313,31 @@ export function useAuth(): AuthState & AuthActions {
   }
 
   /**
+   * Set or change the user's password
+   */
+  async function updatePassword(newPassword: string): Promise<{ error?: string }> {
+    if (!supabase.value) return { error: 'Not connected' }
+    if (!supabaseUser.value) return { error: 'Not signed in' }
+
+    const { error: updateError } = await supabase.value.auth.updateUser({
+      password: newPassword,
+      data: { has_password: true },
+    })
+
+    if (updateError) {
+      return { error: updateError.message }
+    }
+
+    // Update local user ref so has_password is immediately available
+    supabaseUser.value = {
+      ...supabaseUser.value,
+      user_metadata: { ...supabaseUser.value.user_metadata, has_password: true },
+    } as User
+
+    return {}
+  }
+
+  /**
    * Migrate guest progress to authenticated user
    * This reads from OfflineCache and uploads to Supabase
    */
@@ -456,5 +483,6 @@ export function useAuth(): AuthState & AuthActions {
     markSignupPromptSeen,
     migrateGuestProgress,
     initialize,
+    updatePassword,
   }
 }

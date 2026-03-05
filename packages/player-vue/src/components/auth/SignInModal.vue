@@ -17,6 +17,8 @@ const { pendingCode, validationError, isValidating, validateCode, redeemCode, cl
 // Form state
 const email = ref('')
 const verificationCode = ref('')
+const password = ref('')
+const usePassword = ref(false)
 const step = ref<'code' | 'context' | 'email' | 'verify'>('email')
 const isLoading = ref(false)
 const error = ref('')
@@ -31,6 +33,8 @@ watch(isOpen, (open) => {
   } else {
     email.value = ''
     verificationCode.value = ''
+    password.value = ''
+    usePassword.value = false
     error.value = ''
     codeInput.value = ''
     clearPendingCode()
@@ -128,6 +132,46 @@ const handleSendCode = async () => {
     error.value = err.message || 'Unable to send code. Please try again.'
   } finally {
     isLoading.value = false
+  }
+}
+
+// ── Password sign-in ──
+
+const handlePasswordSignIn = async () => {
+  const client = supabaseClient?.value
+  if (!client) {
+    error.value = 'App not ready. Please try again.'
+    return
+  }
+
+  isLoading.value = true
+  error.value = ''
+
+  try {
+    const { error: signInError } = await client.auth.signInWithPassword({
+      email: email.value,
+      password: password.value,
+    })
+
+    if (signInError) {
+      error.value = signInError.message || 'Invalid email or password.'
+      return
+    }
+
+    await handlePostAuth()
+  } catch (err: any) {
+    console.error('Password sign-in error:', err)
+    error.value = err.message || 'Unable to sign in. Please try again.'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const handleEmailSubmit = () => {
+  if (usePassword.value) {
+    handlePasswordSignIn()
+  } else {
+    handleSendCode()
   }
 }
 
@@ -283,7 +327,7 @@ const handleClose = () => {
     </div>
 
     <!-- Email Step -->
-    <form v-else-if="step === 'email'" @submit.prevent="handleSendCode" class="auth-form">
+    <form v-else-if="step === 'email'" @submit.prevent="handleEmailSubmit" class="auth-form">
       <Transition name="error">
         <div v-if="error" class="error-message">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -313,21 +357,46 @@ const handleClose = () => {
         </div>
       </div>
 
-      <p class="otp-hint">We'll send you a code</p>
+      <!-- Password input (when using password mode) -->
+      <div v-if="usePassword" class="input-group">
+        <label for="auth-password" class="input-label">Password</label>
+        <div class="input-wrapper" :class="{ focused: password }">
+          <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+          <input
+            id="auth-password"
+            v-model="password"
+            type="password"
+            placeholder="Your password"
+            autocomplete="current-password"
+            required
+          />
+        </div>
+      </div>
+
+      <p v-if="!usePassword" class="otp-hint">We'll send you a code</p>
 
       <button
         type="submit"
         class="submit-btn"
         :class="{ loading: isLoading }"
-        :disabled="!canSubmitEmail"
+        :disabled="usePassword ? (!canSubmitEmail || !password) : !canSubmitEmail"
       >
-        <span v-if="!isLoading">Continue</span>
+        <span v-if="!isLoading">{{ usePassword ? 'Sign In' : 'Continue' }}</span>
         <span v-else class="loading-spinner">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="32"/>
           </svg>
         </span>
       </button>
+
+      <p class="switch-mode">
+        <button type="button" @click="usePassword = !usePassword; error = ''; password = ''">
+          {{ usePassword ? 'Use email code instead' : 'Use password instead' }}
+        </button>
+      </p>
     </form>
 
     <!-- Verify Step -->

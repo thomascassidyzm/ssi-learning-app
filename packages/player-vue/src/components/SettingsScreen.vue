@@ -80,8 +80,8 @@ const deleteError = ref(null)
 
 // Check if user is signed in
 const isSignedIn = computed(() => auth?.user?.value != null)
-const userEmail = computed(() => auth?.user?.value?.emailAddresses?.[0]?.emailAddress || '')
-const userName = computed(() => auth?.user?.value?.fullName || auth?.user?.value?.firstName || '')
+const userEmail = computed(() => auth?.user?.value?.email || '')
+const userName = computed(() => auth?.user?.value?.user_metadata?.display_name || '')
 
 // Check if user is an SSi team admin (can see Developer section)
 // Add email domains or specific emails here
@@ -201,27 +201,98 @@ const handleJoinRedeem = async () => {
   }
 }
 
-// Open Clerk's user profile for managing account
-const openUserProfile = () => {
-  if (auth?.openUserProfile) {
-    auth.openUserProfile()
-  } else {
-    // Fallback - show message
-    console.log('[Settings] User profile management not available')
+// Password management
+const showPasswordForm = ref(false)
+const passwordInput = ref('')
+const passwordConfirm = ref('')
+const passwordError = ref('')
+const passwordSuccess = ref(false)
+const isSavingPassword = ref(false)
+const hasPassword = computed(() => auth?.user?.value?.user_metadata?.has_password === true)
+
+const handleSavePassword = async () => {
+  passwordError.value = ''
+  passwordSuccess.value = false
+
+  if (passwordInput.value.length < 6) {
+    passwordError.value = 'Password must be at least 6 characters'
+    return
+  }
+  if (passwordInput.value !== passwordConfirm.value) {
+    passwordError.value = 'Passwords do not match'
+    return
+  }
+
+  isSavingPassword.value = true
+  try {
+    const result = await auth?.updatePassword?.(passwordInput.value)
+    if (result?.error) {
+      passwordError.value = result.error
+    } else {
+      passwordSuccess.value = true
+      passwordInput.value = ''
+      passwordConfirm.value = ''
+      showPasswordForm.value = false
+    }
+  } catch {
+    passwordError.value = 'Failed to update password'
+  } finally {
+    isSavingPassword.value = false
   }
 }
 
-// Handle change email - uses Clerk's user management
-const handleChangeEmail = () => {
-  if (auth?.openUserProfile) {
-    auth.openUserProfile()
-  }
-}
+// Backup email management
+const showBackupEmailForm = ref(false)
+const backupEmailInput = ref('')
+const backupEmailError = ref('')
+const backupEmailSuccess = ref(false)
+const isSavingBackupEmail = ref(false)
+const currentBackupEmail = computed(() => auth?.learner?.value?.preferences?.backup_email || '')
 
-// Handle change password - uses Clerk's user management
-const handleChangePassword = () => {
-  if (auth?.openUserProfile) {
-    auth.openUserProfile()
+const handleSaveBackupEmail = async () => {
+  backupEmailError.value = ''
+  backupEmailSuccess.value = false
+
+  if (!backupEmailInput.value || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(backupEmailInput.value)) {
+    backupEmailError.value = 'Please enter a valid email address'
+    return
+  }
+
+  if (!supabase?.value || !auth?.learnerId?.value) {
+    backupEmailError.value = 'Not connected'
+    return
+  }
+
+  isSavingBackupEmail.value = true
+  try {
+    const { error: updateError } = await supabase.value
+      .from('learners')
+      .update({
+        preferences: {
+          ...auth.learner?.value?.preferences,
+          backup_email: backupEmailInput.value,
+        },
+      })
+      .eq('user_id', auth.learnerId.value)
+
+    if (updateError) {
+      backupEmailError.value = updateError.message
+    } else {
+      backupEmailSuccess.value = true
+      // Update local learner preferences
+      if (auth.learner?.value) {
+        auth.learner.value = {
+          ...auth.learner.value,
+          preferences: { ...auth.learner.value.preferences, backup_email: backupEmailInput.value },
+        }
+      }
+      backupEmailInput.value = ''
+      showBackupEmailForm.value = false
+    }
+  } catch {
+    backupEmailError.value = 'Failed to save backup email'
+  } finally {
+    isSavingBackupEmail.value = false
   }
 }
 
@@ -700,28 +771,84 @@ const confirmReset = async () => {
 
           <div class="divider" v-if="userName || userEmail"></div>
 
-          <!-- Update Profile -->
-          <div class="setting-row clickable" @click="openUserProfile">
+          <!-- Set / Change Password -->
+          <div class="setting-row clickable" @click="showPasswordForm = !showPasswordForm; passwordError = ''; passwordSuccess = false">
             <div class="setting-info">
-              <span class="setting-label">Update Profile</span>
-              <span class="setting-desc">Change your name and photo</span>
+              <span class="setting-label">{{ hasPassword ? 'Change Password' : 'Set Password' }}</span>
+              <span class="setting-desc">{{ hasPassword ? 'Update your login password' : 'Add a password for easier sign-in' }}</span>
             </div>
-            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg class="chevron" :class="{ rotated: showPasswordForm }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6"/>
             </svg>
           </div>
 
+          <!-- Password inline form -->
+          <div v-if="showPasswordForm" class="inline-form">
+            <div class="inline-form-field">
+              <label class="inline-label">New password</label>
+              <input
+                v-model="passwordInput"
+                type="password"
+                class="inline-input"
+                placeholder="At least 6 characters"
+                autocomplete="new-password"
+              />
+            </div>
+            <div class="inline-form-field">
+              <label class="inline-label">Confirm password</label>
+              <input
+                v-model="passwordConfirm"
+                type="password"
+                class="inline-input"
+                placeholder="Type it again"
+                autocomplete="new-password"
+              />
+            </div>
+            <div v-if="passwordError" class="inline-error">{{ passwordError }}</div>
+            <div v-if="passwordSuccess" class="inline-success">Password saved</div>
+            <button
+              class="inline-save-btn"
+              :disabled="isSavingPassword || !passwordInput || !passwordConfirm"
+              @click="handleSavePassword"
+            >
+              {{ isSavingPassword ? 'Saving...' : 'Save Password' }}
+            </button>
+          </div>
+
           <div class="divider"></div>
 
-          <!-- Change Email -->
-          <div class="setting-row clickable" @click="handleChangeEmail">
+          <!-- Backup Email -->
+          <div class="setting-row clickable" @click="showBackupEmailForm = !showBackupEmailForm; backupEmailError = ''; backupEmailSuccess = false; backupEmailInput = currentBackupEmail">
             <div class="setting-info">
-              <span class="setting-label">Change Email</span>
-              <span class="setting-desc">Update your email address</span>
+              <span class="setting-label">Backup Email</span>
+              <span class="setting-desc">{{ currentBackupEmail || 'Add a backup email for account safety' }}</span>
             </div>
-            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg class="chevron" :class="{ rotated: showBackupEmailForm }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6"/>
             </svg>
+          </div>
+
+          <!-- Backup Email inline form -->
+          <div v-if="showBackupEmailForm" class="inline-form">
+            <div class="inline-form-field">
+              <label class="inline-label">Backup email address</label>
+              <input
+                v-model="backupEmailInput"
+                type="email"
+                class="inline-input"
+                placeholder="backup@example.com"
+                autocomplete="email"
+              />
+            </div>
+            <div v-if="backupEmailError" class="inline-error">{{ backupEmailError }}</div>
+            <div v-if="backupEmailSuccess" class="inline-success">Backup email saved</div>
+            <button
+              class="inline-save-btn"
+              :disabled="isSavingBackupEmail || !backupEmailInput"
+              @click="handleSaveBackupEmail"
+            >
+              {{ isSavingBackupEmail ? 'Saving...' : 'Save' }}
+            </button>
           </div>
 
           <!-- Schools Dashboard -->
@@ -1266,6 +1393,83 @@ const confirmReset = async () => {
   height: 20px;
   color: var(--text-muted);
   flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.chevron.rotated {
+  transform: rotate(90deg);
+}
+
+/* Inline forms for account management */
+.inline-form {
+  padding: 0 1rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.inline-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.inline-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.inline-input {
+  padding: 0.625rem 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.inline-input:focus {
+  border-color: var(--ssi-red);
+}
+
+.inline-input::placeholder {
+  color: var(--text-muted);
+}
+
+.inline-error {
+  font-size: 0.8125rem;
+  color: var(--error, #ef4444);
+}
+
+.inline-success {
+  font-size: 0.8125rem;
+  color: var(--success, #22c55e);
+}
+
+.inline-save-btn {
+  align-self: flex-start;
+  padding: 0.5rem 1.25rem;
+  background: linear-gradient(135deg, var(--ssi-red) 0%, var(--ssi-red-dark) 100%);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.inline-save-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.inline-save-btn:hover:not(:disabled) {
+  opacity: 0.9;
 }
 
 .tool-icon {
@@ -1925,5 +2129,15 @@ const confirmReset = async () => {
   background: rgba(255, 255, 255, 0.95);
   border: 1px solid rgba(0, 0, 0, 0.04);
   box-shadow: 0 4px 16px rgba(44, 38, 34, 0.14), 0 24px 64px rgba(44, 38, 34, 0.14);
+}
+
+:root[data-theme="mist"] .inline-input {
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  color: #2C2622;
+}
+
+:root[data-theme="mist"] .inline-input::placeholder {
+  color: #A09A94;
 }
 </style>
