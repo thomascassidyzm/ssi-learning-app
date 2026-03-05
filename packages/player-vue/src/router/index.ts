@@ -150,6 +150,30 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/AdminAnalytics.vue'),
         meta: { title: 'Admin Analytics', description: 'Platform-wide analytics dashboard' },
       },
+      {
+        path: 'users',
+        name: 'admin-users',
+        component: () => import('@/views/admin/AdminUsers.vue'),
+        meta: { title: 'Admin Users', description: 'All platform users and enrollments' },
+      },
+      {
+        path: 'users/:learnerId',
+        name: 'admin-user-detail',
+        component: () => import('@/views/admin/AdminUserDetail.vue'),
+        meta: { title: 'User Detail', description: 'Individual user profile and progress' },
+      },
+      {
+        path: 'activity',
+        name: 'admin-activity',
+        component: () => import('@/views/admin/AdminActivity.vue'),
+        meta: { title: 'Admin Activity', description: 'Live activity and recent sessions' },
+      },
+      {
+        path: 'courses',
+        name: 'admin-courses',
+        component: () => import('@/views/admin/AdminCourses.vue'),
+        meta: { title: 'Admin Courses', description: 'Course overview with enrollment stats' },
+      },
     ],
   },
   // PWA install guide

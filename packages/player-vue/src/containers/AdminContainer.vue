@@ -26,7 +26,7 @@ onMounted(() => {
           class="nav-link"
           :class="{ active: route.path === '/admin' }"
         >
-          Invite Codes
+          Codes
         </router-link>
         <router-link
           to="/admin/analytics"
@@ -34,6 +34,27 @@ onMounted(() => {
           :class="{ active: route.path === '/admin/analytics' }"
         >
           Analytics
+        </router-link>
+        <router-link
+          to="/admin/users"
+          class="nav-link"
+          :class="{ active: route.path.startsWith('/admin/users') }"
+        >
+          Users
+        </router-link>
+        <router-link
+          to="/admin/activity"
+          class="nav-link"
+          :class="{ active: route.path === '/admin/activity' }"
+        >
+          Activity
+        </router-link>
+        <router-link
+          to="/admin/courses"
+          class="nav-link"
+          :class="{ active: route.path === '/admin/courses' }"
+        >
+          Courses
         </router-link>
       </nav>
     </header>
