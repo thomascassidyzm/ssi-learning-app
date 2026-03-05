@@ -224,6 +224,18 @@ const activeCourseCode = courseCode
 const { scriptMode, isNativeScript, toggleScriptMode } = useScriptMode(courseCode)
 const hasRomanizedText = ref(false)
 
+// Detect romanized text early (before play) via a lightweight DB check
+watch(courseCode, async (code) => {
+  if (!code || !supabase?.value) return
+  const { count } = await supabase.value
+    .from('course_legos')
+    .select('id', { count: 'exact', head: true })
+    .eq('course_code', code)
+    .not('target_text_roman', 'is', null)
+    .limit(1)
+  hasRomanizedText.value = (count ?? 0) > 0
+}, { immediate: true })
+
 // Language metadata for course identity display
 const LANGUAGE_META: Record<string, { name: string; flag: string }> = {
   eng: { name: 'English', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿' },
