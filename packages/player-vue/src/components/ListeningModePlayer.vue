@@ -751,7 +751,7 @@ defineExpose({
           @click="handlePhraseClick(phrase.displayIndex)"
         >
           <div class="phrase-target">{{ phrase.targetText }}</div>
-          <div v-if="phrase.isCurrent && phrase.knownText" class="phrase-known">{{ phrase.knownText }}</div>
+          <div v-if="phrase.isCurrent" class="phrase-known">{{ phrase.knownText || '(no translation)' }}</div>
         </div>
       </div>
 
