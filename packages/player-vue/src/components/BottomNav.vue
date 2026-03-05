@@ -139,7 +139,7 @@ const handleSettings = () => {
     </button>
     <button
       v-show="!showSessionComplete && isOnPlayerScreen && hasRomanizedText"
-      class="mode-btn mode-btn--center"
+      class="mode-btn mode-btn--right-inner"
       :class="{ active: isNativeScript }"
       @click="emit('toggleScript')"
       :title="isNativeScript ? 'Show romanized' : 'Show native script'"
@@ -420,13 +420,8 @@ const handleSettings = () => {
   left: 16px;
 }
 
-.mode-btn--center {
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-.mode-btn--center:active {
-  transform: translateX(-50%) scale(0.9);
+.mode-btn--right-inner {
+  right: 64px;
 }
 
 .mode-btn--right {
