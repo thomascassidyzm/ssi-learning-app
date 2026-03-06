@@ -43,7 +43,7 @@ const selectedRegion = ref('')
 const organizationName = ref('')
 const expiresAt = ref('')
 const maxUses = ref<number | ''>('')
-const codeType = ref<'govt_admin' | 'school_admin'>('govt_admin')
+const codeType = ref<'ssi_admin' | 'govt_admin' | 'school_admin'>('govt_admin')
 
 function getCurrentUserId(): string | null {
   if (selectedUser.value) return selectedUser.value.user_id
@@ -227,7 +227,10 @@ function formatDate(dateStr: string | null): string {
 }
 
 function formatCodeType(type: string): string {
-  return type === 'govt_admin' ? 'Govt Admin' : 'School Admin'
+  if (type === 'ssi_admin') return 'SSi Admin'
+  if (type === 'govt_admin') return 'Govt Admin'
+  if (type === 'school_admin') return 'School Admin'
+  return type
 }
 
 onMounted(() => {
@@ -252,6 +255,7 @@ onMounted(() => {
         <div class="form-group">
           <label class="form-label">Code Type</label>
           <select v-model="codeType" class="form-control">
+            <option v-if="isSsiAdmin" value="ssi_admin">SSi Admin</option>
             <option v-if="isSsiAdmin" value="govt_admin">Govt Admin</option>
             <option value="school_admin">School Admin</option>
           </select>
@@ -578,6 +582,11 @@ select.form-control option {
   border-radius: 4px;
   font-size: 0.75rem;
   font-weight: 500;
+}
+
+.badge--ssi_admin {
+  background: rgba(212, 168, 83, 0.2);
+  color: #d4a853;
 }
 
 .badge--govt_admin {

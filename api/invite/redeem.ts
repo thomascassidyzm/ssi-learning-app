@@ -109,13 +109,16 @@ export default async function handler(
       return
     }
 
-    // Step 4: Update learner educational_role and invite_code_id
+    // Step 4: Update learner role and invite_code_id
+    const learnerUpdate: Record<string, unknown> = { invite_code_id: inviteRow.id }
+    if (codeType === 'ssi_admin') {
+      learnerUpdate.platform_role = 'ssi_admin'
+    } else {
+      learnerUpdate.educational_role = codeType
+    }
     const { error: learnerError } = await supabase
       .from('learners')
-      .update({
-        educational_role: codeType,
-        invite_code_id: inviteRow.id,
-      })
+      .update(learnerUpdate)
       .eq('user_id', userId)
 
     if (learnerError) {
@@ -207,8 +210,9 @@ export default async function handler(
       }
     }
 
-    const isAdminOrTeacher = ['god', 'govt_admin', 'school_admin', 'teacher'].includes(codeType)
-    const redirectTo = isAdminOrTeacher ? '/schools' : '/'
+    const redirectTo = codeType === 'ssi_admin' ? '/admin'
+      : ['god', 'govt_admin', 'school_admin', 'teacher'].includes(codeType) ? '/schools'
+      : '/'
 
     console.log('[InviteRedeem] Redeemed code:', normalizedCode, 'for user:', userId, 'role:', codeType)
     res.status(200).json({

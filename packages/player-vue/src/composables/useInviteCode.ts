@@ -3,7 +3,7 @@ import { ref, readonly } from 'vue'
 export interface InviteCodeContext {
   code: string
   inviteCodeId: string
-  codeType: 'god' | 'govt_admin' | 'school_admin' | 'teacher' | 'student'
+  codeType: 'ssi_admin' | 'god' | 'govt_admin' | 'school_admin' | 'teacher' | 'student'
   regionName?: string
   schoolName?: string
   className?: string
