@@ -652,6 +652,13 @@ onMounted(() => {
   overscroll-behavior: contain;
 }
 
+@media (min-width: 540px) {
+  .settings-panel {
+    border-left: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+    border-right: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+  }
+}
+
 @media (display-mode: standalone) {
   .settings-panel {
     max-height: 90vh;
@@ -659,4 +666,19 @@ onMounted(() => {
 }
 
 
+</style>
+
+<!-- Mist theme: subtle border for desktop panels -->
+<style>
+:root[data-theme="mist"] .player-container .settings-panel {
+  border-left: 1px solid rgba(0, 0, 0, 0.08);
+  border-right: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+@media (max-width: 539px) {
+  :root[data-theme="mist"] .player-container .settings-panel {
+    border-left: none;
+    border-right: none;
+  }
+}
 </style>

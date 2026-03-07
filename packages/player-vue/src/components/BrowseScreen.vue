@@ -453,7 +453,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: calc(1rem + env(safe-area-inset-top, 0px)) 1.5rem 0.75rem;
+  padding: 1rem 1.5rem;
   background: linear-gradient(to bottom, var(--bg-primary) 0%, transparent 100%);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
