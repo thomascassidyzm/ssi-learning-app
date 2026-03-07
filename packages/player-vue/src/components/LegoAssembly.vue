@@ -135,6 +135,39 @@ const isRTL = computed(() => {
   return RTL_RE.test(text)
 })
 
+// Soft-hyphenate long text so tiles can wrap instead of shrinking.
+// Inserts \u00AD at word boundaries, and mid-word if a single word > maxChars.
+const SHY = '\u00AD'
+const MAX_LINE_CHARS = 20
+
+function softHyphenate(text: string): string {
+  if (text.length <= MAX_LINE_CHARS) return text
+  const words = text.split(' ')
+  const result: string[] = []
+  let lineLen = 0
+  for (const word of words) {
+    // If a single word is too long, break it mid-word
+    let w = word
+    if (w.length > MAX_LINE_CHARS) {
+      const parts: string[] = []
+      for (let i = 0; i < w.length; i += MAX_LINE_CHARS) {
+        parts.push(w.slice(i, i + MAX_LINE_CHARS))
+      }
+      w = parts.join(SHY)
+    }
+    // Would adding this word exceed the line? Insert shy before the space
+    if (result.length > 0 && lineLen + 1 + w.replace(/\u00AD/g, '').length > MAX_LINE_CHARS) {
+      result.push(SHY + w)
+      lineLen = w.replace(/\u00AD/g, '').length
+    } else {
+      if (result.length > 0) lineLen += 1 // space
+      result.push(w)
+      lineLen += w.replace(/\u00AD/g, '').length
+    }
+  }
+  return result.join(' ')
+}
+
 // Uniform sentence-level scaling: all tiles in a phrase scale together
 const sentenceScale = computed(() => {
   if (props.blocks.length <= 1) return 1
@@ -168,7 +201,7 @@ const sentenceScale = computed(() => {
             :class="{ 'has-components': group.length > 1 }"
             :style="{ '--char-count': group.reduce((s, c) => s + c.target.length, 0) }"
           >
-            <span v-for="(comp, ci) in group" :key="ci" class="comp">{{ comp.target }}</span>
+            <span v-for="(comp, ci) in group" :key="ci" class="comp">{{ softHyphenate(comp.target) }}</span>
           </div>
           <div v-if="group.some(c => c.known)" class="carriage-known-row">
             <span
@@ -202,9 +235,9 @@ const sentenceScale = computed(() => {
             v-for="(comp, i) in mLegoComponents"
             :key="i"
             class="comp"
-          >{{ comp.target }}</span>
+          >{{ softHyphenate(comp.target) }}</span>
         </template>
-        <span v-else class="comp">{{ blocks[0]?.targetText }}</span>
+        <span v-else class="comp">{{ softHyphenate(blocks[0]?.targetText || '') }}</span>
       </div>
       <!-- Known row: per-component aligned text -->
       <div v-if="mLegoComponents && mLegoComponents.some(c => c.known)" class="tile-known-row">
@@ -244,9 +277,9 @@ const sentenceScale = computed(() => {
                 :key="ci"
                 class="comp block-text"
                 :class="{ absorbed: comp.absorbed }"
-              >{{ comp.target }}</span>
+              >{{ softHyphenate(comp.target) }}</span>
             </template>
-            <span v-else class="block-text">{{ block.targetText }}</span>
+            <span v-else class="block-text">{{ softHyphenate(block.targetText) }}</span>
           </div>
           <!-- Known text: per-component for M-LEGOs, single for A-LEGOs -->
           <div v-if="block.components && block.components.length > 1 && block.components.some(c => c.known)" class="block-known-row">
@@ -350,6 +383,7 @@ const sentenceScale = computed(() => {
   color: rgba(255, 255, 255, 0.95);
   overflow-wrap: break-word;
   word-break: break-word;
+  hyphens: manual;
   letter-spacing: 0.02em;
   position: relative;
   padding: 0 0.35em;
@@ -575,6 +609,7 @@ const sentenceScale = computed(() => {
   color: rgba(255, 255, 255, 0.9);
   overflow-wrap: break-word;
   word-break: break-word;
+  hyphens: manual;
   letter-spacing: 0.02em;
   user-select: none;
   position: relative;
