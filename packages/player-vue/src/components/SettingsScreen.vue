@@ -190,22 +190,27 @@ const router = useRouter()
 // School role check
 const SCHOOL_ROLES = ['teacher', 'school_admin', 'govt_admin']
 const educationalRole = ref<string | null>(null)
+const platformRole = ref<string | null>(null)
 const hasSchoolRole = computed(() => educationalRole.value != null && SCHOOL_ROLES.includes(educationalRole.value))
+const hasAdminRole = computed(() => platformRole.value === 'ssi_admin')
 
 watch(isSignedIn, async (signedIn) => {
   if (signedIn && supabase?.value && auth?.learnerId?.value) {
     try {
       const { data } = await supabase.value
         .from('learners')
-        .select('educational_role')
+        .select('educational_role, platform_role')
         .eq('id', auth.learnerId.value)
         .single()
       educationalRole.value = data?.educational_role || null
+      platformRole.value = data?.platform_role || null
     } catch {
       educationalRole.value = null
+      platformRole.value = null
     }
   } else {
     educationalRole.value = null
+    platformRole.value = null
   }
 }, { immediate: true })
 
@@ -249,7 +254,7 @@ const handleJoinValidate = async () => {
 
 const joinContextRole = computed(() => {
   if (!joinContext.value) return ''
-  const map: Record<string, string> = { govt_admin: 'Regional Admin', school_admin: 'School Admin', teacher: 'Teacher', student: 'Student' }
+  const map: Record<string, string> = { ssi_admin: 'SSi Admin', govt_admin: 'Regional Admin', school_admin: 'School Admin', teacher: 'Teacher', student: 'Student' }
   return map[joinContext.value.codeType] || joinContext.value.codeType
 })
 
@@ -975,6 +980,20 @@ const confirmReset = async () => {
               <div class="setting-info">
                 <span class="setting-label">Schools Dashboard</span>
                 <span class="setting-desc">Manage your classes and students</span>
+              </div>
+              <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+              </svg>
+            </div>
+          </template>
+
+          <!-- Admin Dashboard -->
+          <template v-if="hasAdminRole">
+            <div class="divider"></div>
+            <div class="setting-row clickable" @click="router.push('/admin')">
+              <div class="setting-info">
+                <span class="setting-label">Admin Dashboard</span>
+                <span class="setting-desc">Platform users, activity, and course analytics</span>
               </div>
               <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M9 18l6-6-6-6"/>
