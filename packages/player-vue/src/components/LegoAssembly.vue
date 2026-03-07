@@ -275,7 +275,7 @@ const sentenceScale = computed(() => {
   align-items: center;
   align-content: center;
   justify-content: center;
-  gap: 6px;
+  gap: 0;
   padding: calc(var(--hero-pane-bottom, 250px) + 16px) 0.75rem calc(var(--nav-total, 100px) + 10px);
   pointer-events: none;
   z-index: 3;
@@ -334,7 +334,7 @@ const sentenceScale = computed(() => {
   align-items: center;
   flex-wrap: wrap;
   padding: 0.6em 1.2em;
-  border-radius: 10px;
+  border-radius: 0;
   background: rgba(255, 255, 255, 0.15);
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.20);
@@ -362,7 +362,7 @@ const sentenceScale = computed(() => {
   position: absolute;
   left: 0;
   width: 1.5px;
-  height: 35%;
+  height: 27%;
   background: rgba(255, 255, 255, 0.4);
   z-index: 2;
   pointer-events: none;
@@ -419,8 +419,8 @@ const sentenceScale = computed(() => {
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: center;
-  column-gap: 10px;
-  row-gap: 10px;
+  column-gap: 0;
+  row-gap: 0;
 }
 
 .carriage-wagon {
@@ -431,23 +431,14 @@ const sentenceScale = computed(() => {
   position: relative;
 }
 
-/* External hyphen connector between wagon groups */
-.carriage-wagon + .carriage-wagon::before {
-  content: '';
-  position: absolute;
-  left: -7px;
-  top: 1.2em;
-  width: 4px;
-  height: 2px;
-  background: rgba(255, 255, 255, 0.4);
-}
+/* Flush: no connector between wagon groups */
 
 /* Each group is a mini M-LEGO tile (reuses stub styling via .has-components .comp) */
 .carriage-cell {
   display: inline-flex;
   align-items: center;
   padding: 0.5em 0.9em;
-  border-radius: 10px;
+  border-radius: 0;
   background: rgba(255, 255, 255, 0.15);
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.20);
@@ -472,7 +463,7 @@ const sentenceScale = computed(() => {
   position: absolute;
   left: 0;
   width: 1.5px;
-  height: 35%;
+  height: 27%;
   background: rgba(255, 255, 255, 0.4);
   z-index: 2;
   pointer-events: none;
@@ -509,19 +500,19 @@ const sentenceScale = computed(() => {
     0 0 12px 2px rgba(255, 255, 255, 0.12),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
-.lego-tile.salient .carriage-wagon + .carriage-wagon::before {
-  background: rgba(255, 255, 255, 0.55);
-}
+/* Flush: no connector to style */
 
 /* ═══════════════════════════════════════════════════════════════
    PRACTICE BLOCKS — multiple LEGOs in a phrase (horizontal flow)
    ═══════════════════════════════════════════════════════════════ */
 
-/* Wrapper: handles animation/positioning, contains tile + known text */
+/* Wrapper: handles animation/positioning, contains tile + known text.
+   flex-shrink: 0 ensures tiles never compress — they wrap to the next line whole. */
 .lego-block-wrapper {
   display: flex;
   flex-direction: column;
   align-items: center;
+  flex-shrink: 0;
   gap: 3px;
   transition-property: transform, opacity;
   transition-timing-function: cubic-bezier(0.25, 0.1, 0.25, 1.0);
@@ -534,7 +525,7 @@ const sentenceScale = computed(() => {
   align-items: center;
   flex-wrap: wrap;
   padding: calc(0.6em * var(--sentence-scale, 1)) calc(1.1em * var(--sentence-scale, 1));
-  border-radius: 10px;
+  border-radius: 0;
   background: rgba(255, 255, 255, 0.18);
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.28);
@@ -603,7 +594,7 @@ const sentenceScale = computed(() => {
   position: absolute;
   left: 0;
   width: 1.5px;
-  height: 35%;
+  height: 27%;
   background: rgba(255, 255, 255, 0.4);
   z-index: 2;
   pointer-events: none;
@@ -785,9 +776,6 @@ const sentenceScale = computed(() => {
 :root[data-theme="mist"] .carriage-cell.has-components .comp + .comp::before,
 :root[data-theme="mist"] .carriage-cell.has-components .comp + .comp::after {
   background: rgba(44, 38, 34, 0.2);
-}
-:root[data-theme="mist"] .carriage-wagon + .carriage-wagon::before {
-  background: rgba(44, 38, 34, 0.25);
 }
 :root[data-theme="mist"] .carriage-known-comp {
   color: var(--text-muted);
