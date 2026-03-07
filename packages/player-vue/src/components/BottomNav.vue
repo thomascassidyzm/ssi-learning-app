@@ -392,13 +392,19 @@ const handleSettings = () => {
 }
 
 .center-btn.is-disabled {
-  background: linear-gradient(145deg, rgba(160, 160, 160, 0.6) 0%, rgba(120, 120, 120, 0.6) 100%);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  background: linear-gradient(145deg, var(--ssi-red-light) 0%, var(--ssi-red) 100%);
+  box-shadow: 0 2px 8px rgba(194, 58, 58, 0.2);
   cursor: default;
+  animation: play-pulse 1.8s ease-in-out infinite;
 }
 
 .center-btn.is-disabled .center-btn-inner {
-  opacity: 0.5;
+  opacity: 0.6;
+}
+
+@keyframes play-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(1); }
+  50% { opacity: 0.75; transform: scale(1.04); }
 }
 
 .center-btn.is-return {
@@ -546,8 +552,8 @@ const handleSettings = () => {
 }
 
 :root[data-theme="mist"] .center-btn.is-disabled {
-  background: linear-gradient(145deg, rgba(180, 175, 170, 0.5) 0%, rgba(160, 155, 150, 0.5) 100%);
-  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.08);
+  background: linear-gradient(145deg, var(--ssi-red-light) 0%, var(--ssi-red) 100%);
+  box-shadow: 0 2px 4px rgba(194, 58, 58, 0.15);
 }
 
 :root[data-theme="mist"] .center-btn.is-return {
