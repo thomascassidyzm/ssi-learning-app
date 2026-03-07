@@ -291,6 +291,14 @@ const handleJoinRedeem = async () => {
   }
 }
 
+// Sign out
+const handleSignOut = async () => {
+  if (auth?.signOut) {
+    await auth.signOut()
+  }
+  window.location.reload()
+}
+
 // Password management
 const showPasswordForm = ref(false)
 const passwordInput = ref('')
@@ -1000,6 +1008,19 @@ const confirmReset = async () => {
               </svg>
             </div>
           </template>
+
+          <!-- Sign Out -->
+          <div class="divider"></div>
+          <div class="setting-row clickable sign-out-row" @click="handleSignOut">
+            <div class="setting-info">
+              <span class="setting-label sign-out-label">Sign Out</span>
+            </div>
+            <svg class="sign-out-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+              <polyline points="16 17 21 12 16 7"/>
+              <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+          </div>
         </div>
       </section>
 
@@ -1498,6 +1519,17 @@ const confirmReset = async () => {
 
 .setting-row.danger .setting-label {
   color: #ef4444;
+}
+
+.sign-out-label {
+  color: var(--text-secondary);
+}
+
+.sign-out-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
 }
 
 .setting-info {
