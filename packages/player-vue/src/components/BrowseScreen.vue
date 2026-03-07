@@ -999,6 +999,14 @@ onMounted(() => {
 
 <!-- Belt pip future needs !important to override inline style attribute -->
 <style>
+:root[data-theme="mist"] .browse-screen .browse-header {
+  background: #ffffff;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 4px rgba(44, 38, 34, 0.12);
+}
+
 :root[data-theme="mist"] .browse-screen .belt-pip.future {
   background: var(--bg-elevated) !important;
 }
