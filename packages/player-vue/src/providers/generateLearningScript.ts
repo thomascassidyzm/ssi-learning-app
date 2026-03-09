@@ -23,7 +23,7 @@ export interface ScriptItem {
   legoKey: string
   seedCode: string
   legoCode: string
-  type: 'intro' | 'debut' | 'build' | 'spaced_rep' | 'use' | 'listening'
+  type: 'intro' | 'debut' | 'build' | 'spaced_rep' | 'use' | 'listening' | 'component_intro' | 'component_practice'
   knownText: string
   targetText: string
   /** Native script text — only set when targetText is romanized */
@@ -199,6 +199,8 @@ export async function generateLearningScript(
   // Collect M-LEGO component breakdowns: legoKey → [{known, target}, ...]
   const componentsByLego = new Map<string, Array<{ known: string; target: string }>>()
   const componentsByLegoNative = new Map<string, Array<{ known: string; target: string }>>()
+  // Full component phrases with audio IDs for component priming
+  const componentPhrasesByLego = new Map<string, Phrase[]>()
   for (const phrase of (phrasesResult.data || []) as Phrase[]) {
     const key = `${phrase.seed_number}:${phrase.lego_index}`
     if (!phrasesByLego.has(key)) phrasesByLego.set(key, { build: [], use: [], practice: [] })
@@ -211,6 +213,9 @@ export async function generateLearningScript(
         if (!componentsByLegoNative.has(key)) componentsByLegoNative.set(key, [])
         componentsByLegoNative.get(key)!.push({ known: phrase.known_text, target: phrase.target_text })
       }
+      // Also store full phrase with audio IDs for component priming
+      if (!componentPhrasesByLego.has(key)) componentPhrasesByLego.set(key, [])
+      componentPhrasesByLego.get(key)!.push(phrase)
       continue
     }
     if (phrase.phrase_role === 'build') group.build.push(phrase)
@@ -541,6 +546,50 @@ export async function generateLearningScript(
         ...(legoComponentsNative ? { componentsNative: legoComponentsNative } : {}),
       })
 
+      // Phase 1b: COMPONENT PRIMING (M-LEGOs only)
+      // For each component phrase, emit a component_intro + 2× component_practice
+      const compPhrases = componentPhrasesByLego.get(phraseKey)
+      if (compPhrases && compPhrases.length > 0) {
+        for (const comp of compPhrases) {
+          // Component intro: contextual display, target audio as confirmation, no pause
+          cycleNum++
+          emitItem({
+            uuid: `${legoKey}_cmp_intro_${cycleNum}`,
+            cycleNum, roundNumber, seedId, legoKey,
+            seedCode: seedId, legoCode: legoNum,
+            type: 'component_intro',
+            knownText: `${comp.known_text}, as in ${lego.known_text}`,
+            targetText: comp.target_text_roman || comp.target_text,
+            ...nativeFields(comp),
+            target1Id: comp.target1_audio_id,
+            target2Id: comp.target2_audio_id,
+            target1DurationMs: comp.target1_duration_ms,
+            target2DurationMs: comp.target2_duration_ms,
+            isNew: true,
+          })
+
+          // Component practice ×2: standard 4-phase cycle
+          for (let cp = 0; cp < 2; cp++) {
+            cycleNum++
+            emitItem({
+              uuid: `${legoKey}_cmp_practice_${cycleNum}`,
+              cycleNum, roundNumber, seedId, legoKey,
+              seedCode: seedId, legoCode: legoNum,
+              type: 'component_practice',
+              knownText: comp.known_text,
+              targetText: comp.target_text_roman || comp.target_text,
+              ...nativeFields(comp),
+              knownAudioId: comp.known_audio_id,
+              target1Id: comp.target1_audio_id,
+              target2Id: comp.target2_audio_id,
+              target1DurationMs: comp.target1_duration_ms,
+              target2DurationMs: comp.target2_duration_ms,
+              isNew: true,
+            })
+          }
+        }
+      }
+
       // Phase 2: DEBUT
       cycleNum++
       emitItem({
@@ -801,7 +850,7 @@ export async function generateLearningScript(
   // Decompose phrases into component LEGO IDs
   let decomposedCount = 0
   for (const item of items) {
-    if (item.type === 'intro' || item.type === 'debut' || item.type === 'listening') continue
+    if (item.type === 'intro' || item.type === 'debut' || item.type === 'listening' || item.type === 'component_intro' || item.type === 'component_practice') continue
     const components = decomposePhrase(item.targetText)
     if (components.length > 0) {
       item.componentLegoIds = components
@@ -819,7 +868,7 @@ export async function generateLearningScript(
   let lastNonIntroItem: ScriptItem | null = null
 
   for (const item of items) {
-    if (item.type === 'intro' || item.type === 'listening') {
+    if (item.type === 'intro' || item.type === 'listening' || item.type === 'component_intro') {
       dedupedItems.push(item)
       continue
     }

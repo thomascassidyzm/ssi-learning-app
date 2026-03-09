@@ -14,8 +14,10 @@ import type { Cycle, CycleType } from '../types/Cycle'
 function mapScriptItemTypeToCycleType(type: ScriptItem['type']): CycleType {
   switch (type) {
     case 'intro':
+    case 'component_intro':
       return 'intro'
     case 'component':
+    case 'component_practice':
       return 'practice' // Components are practice of individual words
     case 'debut':
     case 'debut_phrase':

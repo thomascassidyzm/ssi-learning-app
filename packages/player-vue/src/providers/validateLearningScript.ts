@@ -117,6 +117,11 @@ export function validateScriptItem(item: ScriptItem): CycleValidationError[] {
     if (!isNonEmpty(item.target2Id)) {
       results.push(makeError(item, 'target2Id', 'intro cycle missing target2Id (second voice)', 'warning'))
     }
+  } else if (item.type === 'component_intro') {
+    // Component intro only needs target audio (confirmation, no known prompt)
+    if (!isNonEmpty(item.target1Id)) {
+      results.push(makeError(item, 'target1Id', 'component_intro cycle missing target1Id', 'error'))
+    }
   } else if (item.type === 'listening') {
     // Listening items only need target audio (passive listening, no known prompt required)
     if (!isNonEmpty(item.target1Id)) {
@@ -146,7 +151,7 @@ export function validateScriptItem(item: ScriptItem): CycleValidationError[] {
 // ---------------------------------------------------------------------------
 
 /** Expected type ordering within a round. */
-const TYPE_ORDER: ScriptItem['type'][] = ['intro', 'debut', 'build', 'spaced_rep', 'use', 'listening']
+const TYPE_ORDER: ScriptItem['type'][] = ['intro', 'component_intro', 'component_practice', 'debut', 'build', 'spaced_rep', 'use', 'listening']
 
 function typeOrderIndex(type: ScriptItem['type']): number {
   const idx = TYPE_ORDER.indexOf(type)
@@ -235,8 +240,10 @@ export function validateRoundStructure(
     })
   }
 
-  // 4. Debut must be second
-  if (items.length > 1 && items[1].type !== 'debut') {
+  // 4. Debut must follow intro (possibly after component priming items)
+  const debutIdx = items.findIndex(i => i.type === 'debut')
+  const hasComponentPriming = items.some(i => i.type === 'component_intro' || i.type === 'component_practice')
+  if (items.length > 1 && !hasComponentPriming && items[1].type !== 'debut') {
     errors.push({
       cycleId: items[1]?.uuid || '',
       legoKey: items[1]?.legoKey || primaryLegoKey,

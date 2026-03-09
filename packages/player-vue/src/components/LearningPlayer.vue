@@ -845,8 +845,8 @@ const normalizeAudioUrl = (url) => {
 const isValidPlayableItem = (playable, scriptItem) => {
   if (!playable) return false
 
-  // For INTRO items, we don't validate here - intro audio is handled separately
-  if (scriptItem?.type === 'intro') return true
+  // For INTRO and COMPONENT_INTRO items, we don't validate here - intro audio is handled separately
+  if (scriptItem?.type === 'intro' || scriptItem?.type === 'component_intro') return true
 
   // For practice items, need known + target1 + target2
   const hasKnown = !!playable.lego?.audioRefs?.known?.url
@@ -891,7 +891,7 @@ const scriptItemToPlayableItem = async (scriptItem) => {
       supabase?.value,
       scriptItem.knownText,
       'known',
-      scriptItem.type === 'intro' ? scriptItem : null,
+      (scriptItem.type === 'intro' || scriptItem.type === 'component_intro') ? scriptItem : null,
       AUDIO_S3_BASE_URL
     )
 
@@ -2298,23 +2298,27 @@ const displayedComponents = computed<Array<{known: string, target: string}>>(() 
 })
 
 // Is current item an intro? (network should fade, show typewriter message)
-// NOTE: Only 'intro' items show typewriter. 'debut' items (lego_itself) show normal phrase display.
+// NOTE: Only 'intro' and 'component_intro' items show typewriter. 'debut' items (lego_itself) show normal phrase display.
 const isIntroPhase = computed(() => {
   const item = useRoundBasedPlayback.value
     ? currentPlayableItem.value
     : sessionItems.value[currentItemIndex.value]
-  return item?.type === 'intro'
+  return item?.type === 'intro' || item?.type === 'component_intro'
 })
 
 // Is current item intro OR debut? (for showing component breakdown tiles)
+// Component priming items should NOT show tiles (they ARE the component being primed)
 // Uses cycle ID for sync detection (currentPlayableItem is set async, causes race)
 const isIntroOrDebutPhase = computed(() => {
   const cycleId = (simplePlayer.currentCycle.value as any)?.id || ''
+  // Component priming items are NOT intro/debut — they don't show component tiles
+  if (cycleId.includes('_cmp_intro_') || cycleId.includes('_cmp_practice_')) return false
   if (cycleId.includes('_intro_') || cycleId.includes('_debut_')) return true
   // Fallback for legacy path
   const item = useRoundBasedPlayback.value
     ? currentPlayableItem.value
     : sessionItems.value[currentItemIndex.value]
+  if (item?.type === 'component_intro' || item?.type === 'component_practice') return false
   return item?.type === 'intro' || item?.type === 'debut'
 })
 
@@ -2935,9 +2939,9 @@ const handleCycleEvent = (event) => {
             audioController.value.stop()
           }
 
-          // INTRO items: play introduction audio directly, then advance
-          if (nextScriptItem.type === 'intro') {
-              console.log('[LearningPlayer] Playing INTRO item for:', nextScriptItem.legoId)
+          // INTRO and COMPONENT_INTRO items: play introduction audio directly, then advance
+          if (nextScriptItem.type === 'intro' || nextScriptItem.type === 'component_intro') {
+              console.log('[LearningPlayer] Playing', nextScriptItem.type, 'item for:', nextScriptItem.legoId)
               // Clear transition flag for intro playback
               isCycleTransitioning.value = false
               const introPlayable = await scriptItemToPlayableItem(nextScriptItem)
@@ -2948,17 +2952,36 @@ const handleCycleEvent = (event) => {
               }
               if (introPlayable) {
                 currentPlayableItem.value = introPlayable
-                // Play intro audio and wait for completion
-                const introPlayed = await playIntroductionAudioDirectly(nextScriptItem)
-                // CRITICAL: Check generation after async intro audio
-                if (playbackGeneration.value !== generationAtStart) {
-                  console.log('[LearningPlayer] Stale after intro audio, aborting')
-                  return
+
+                if (nextScriptItem.type === 'component_intro') {
+                  // Component intro: just play target audio as confirmation, then advance
+                  // No presentation audio — the contextual text is shown on screen
+                  const target1Url = introPlayable.lego?.audioRefs?.target?.voice1?.url
+                  if (target1Url && audioController.value) {
+                    audioController.value.stop()
+                    const tempAudio = new Audio(normalizeAudioUrl(target1Url))
+                    await new Promise<void>((resolve) => {
+                      tempAudio.addEventListener('ended', () => resolve())
+                      tempAudio.addEventListener('error', () => resolve())
+                      tempAudio.play().catch(() => resolve())
+                    })
+                    // Brief linger for reading
+                    await new Promise<void>(r => setTimeout(r, 1000))
+                  }
+                } else {
+                  // Full intro: play presentation audio sequence
+                  const introPlayed = await playIntroductionAudioDirectly(nextScriptItem)
+                  // CRITICAL: Check generation after async intro audio
+                  if (playbackGeneration.value !== generationAtStart) {
+                    console.log('[LearningPlayer] Stale after intro audio, aborting')
+                    return
+                  }
+                  if (introPlayed) {
+                    console.log('[LearningPlayer] INTRO complete, advancing to next item')
+                  }
                 }
-                if (introPlayed) {
-                  console.log('[LearningPlayer] INTRO complete, advancing to next item')
-                }
-                // Advance to next item in round (the DEBUT that follows)
+
+                // Advance to next item in round
                 currentItemInRound.value++
                 // Get and play the next item directly (don't call handleCycleEvent which would double-increment)
                 const followingItem = currentRound.value?.items[currentItemInRound.value]

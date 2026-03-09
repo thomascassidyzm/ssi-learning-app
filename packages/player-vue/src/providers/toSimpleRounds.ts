@@ -91,7 +91,7 @@ export function toSimpleRounds(
     const cycles: Cycle[] = []
     let skippedNoAudio = 0
     for (const i of roundItems) {
-      if (i.type === 'listening') {
+      if (i.type === 'listening' || i.type === 'component_intro') {
         if (!i.target1Id) { skippedNoAudio++; continue }
       } else if (i.type !== 'intro') {
         if (!i.knownAudioId || !i.target1Id || !i.target2Id) { skippedNoAudio++; continue }
@@ -110,13 +110,14 @@ export function toSimpleRounds(
           voice1Url: audioUrl(i.target1Id),
           voice2Url: audioUrl(i.target2Id)
         },
-        // Intro/listening has no pause (learner doesn't know it yet / passive listening)
+        // Intro/listening/component_intro has no pause (learner doesn't know it yet / passive listening)
         // Other cycles: dynamic pause based on target audio lengths
-        pauseDuration: (i.type === 'intro' || i.type === 'listening')
+        pauseDuration: (i.type === 'intro' || i.type === 'listening' || i.type === 'component_intro')
           ? 0
           : calculatePauseDuration(i.target1DurationMs, i.target2DurationMs, pauseConfig, i.targetText),
-        // Intro: 3s linger after voice2 so learner can read tiles
+        // Intro/component_intro: linger after voice2 so learner can read
         ...(i.type === 'intro' ? { lingerMs: 2000 } : {}),
+        ...(i.type === 'component_intro' ? { lingerMs: 1500 } : {}),
         ...(i.componentLegoIds ? { componentLegoIds: i.componentLegoIds } : {}),
         ...(i.componentLegoTexts ? { componentLegoTexts: i.componentLegoTexts } : {}),
         ...(i.componentLegoTextsNative ? { componentLegoTextsNative: i.componentLegoTextsNative } : {}),

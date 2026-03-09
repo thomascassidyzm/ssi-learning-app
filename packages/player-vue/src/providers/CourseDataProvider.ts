@@ -1324,7 +1324,7 @@ export class CourseDataProvider {
  * ScriptItem - one item in the learning script
  */
 export interface ScriptItem {
-  type: 'intro' | 'component' | 'debut' | 'debut_phrase' | 'spaced_rep' | 'consolidation'
+  type: 'intro' | 'component' | 'component_intro' | 'component_practice' | 'debut' | 'debut_phrase' | 'spaced_rep' | 'consolidation'
   roundNumber: number
   legoId: string
   legoIndex: number // 1-based position in course
