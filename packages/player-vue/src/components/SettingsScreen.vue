@@ -201,7 +201,7 @@ watch(isSignedIn, async (signedIn) => {
       const { data } = await supabase.value
         .from('learners')
         .select('educational_role, platform_role')
-        .eq('id', auth.learnerId.value)
+        .eq('user_id', auth.learnerId.value)
         .single()
       educationalRole.value = data?.educational_role || null
       platformRole.value = data?.platform_role || null
