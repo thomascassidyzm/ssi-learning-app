@@ -529,14 +529,14 @@ export async function generateLearningScript(
       if (compPhrases && compPhrases.length > 0) {
         const practiceReps = 2
         for (const comp of compPhrases) {
-          // Component intro: show component tile with known text, play target audio
+          // Component intro: contextual known text, play target audio (ear first, no tile)
           cycleNum++
           emitItem({
             uuid: `${legoKey}_cmp_intro_${cycleNum}`,
             cycleNum, roundNumber, seedId, legoKey,
             seedCode: seedId, legoCode: legoNum,
             type: 'component_intro',
-            knownText: comp.known_text,
+            knownText: `${comp.known_text}, as in ${lego.known_text}`,
             targetText: comp.target_text_roman || comp.target_text,
             ...nativeFields(comp),
             target1Id: comp.target1_audio_id,
