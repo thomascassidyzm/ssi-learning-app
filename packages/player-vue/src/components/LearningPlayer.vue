@@ -9564,8 +9564,6 @@ defineExpose({
     --ring-center-size: 130px;
     --ring-icon-size: 44px;
     --text-zone-min-height: 100px;
-    --known-text-size: 2.25rem;
-    --target-text-size: 2rem;
   }
 }
 
