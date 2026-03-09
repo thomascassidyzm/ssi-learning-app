@@ -579,20 +579,34 @@ onMounted(() => {
 
 /* Slide up transition for overlays */
 .slide-up-enter-active {
-  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity 0.3s ease;
+}
+
+.slide-up-enter-active .settings-panel {
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .slide-up-leave-active {
-  transition: all 0.25s ease-in;
+  transition: opacity 0.25s ease-in;
+}
+
+.slide-up-leave-active .settings-panel {
+  transition: transform 0.2s ease-in;
 }
 
 .slide-up-enter-from {
   opacity: 0;
+}
+
+.slide-up-enter-from .settings-panel {
   transform: translateY(100%);
 }
 
 .slide-up-leave-to {
   opacity: 0;
+}
+
+.slide-up-leave-to .settings-panel {
   transform: translateY(100%);
 }
 
