@@ -520,23 +520,23 @@ export async function generateLearningScript(
       const legoComponentsNative = componentsByLegoNative.get(phraseKey)
 
       // Phase 1: INTRO or COMPONENT PRIMING
-      // M-LEGOs with components: skip the M-LEGO intro entirely — component intros
-      //   replace it. Each component intro provides the M-LEGO as context
-      //   ("as in 'I'm trying to learn'"), so the M-LEGO is implicit.
+      // M-LEGOs with components: introduce each component solo first (in target
+      //   language order), then show the assembled M-LEGO so the learner sees
+      //   the pieces snap together before the debut asks them to produce it.
       // A-LEGOs / Welsh: standard intro with presentation audio.
       const isWelsh = courseCode.startsWith('cym_')
       const compPhrases = isWelsh ? undefined : componentPhrasesByLego.get(phraseKey)
       if (compPhrases && compPhrases.length > 0) {
         const practiceReps = 2
         for (const comp of compPhrases) {
-          // Component intro: contextual display, target audio as confirmation, no pause
+          // Component intro: show component tile with known text, play target audio
           cycleNum++
           emitItem({
             uuid: `${legoKey}_cmp_intro_${cycleNum}`,
             cycleNum, roundNumber, seedId, legoKey,
             seedCode: seedId, legoCode: legoNum,
             type: 'component_intro',
-            knownText: `${comp.known_text}, as in ${lego.known_text}`,
+            knownText: comp.known_text,
             targetText: comp.target_text_roman || comp.target_text,
             ...nativeFields(comp),
             target1Id: comp.target1_audio_id,
@@ -566,6 +566,28 @@ export async function generateLearningScript(
             })
           }
         }
+
+        // M-LEGO intro: after all components are primed, show the assembled
+        // M-LEGO tile with internal stubs so the learner sees how the pieces
+        // they just learned snap together as a single unit.
+        cycleNum++
+        emitItem({
+          uuid: `${legoKey}_intro_${cycleNum}`,
+          cycleNum, roundNumber, seedId, legoKey,
+          seedCode: seedId, legoCode: legoNum,
+          type: 'intro',
+          knownText: lego.known_text,
+          targetText: lego.target_text_roman || lego.target_text,
+          ...nativeFields(lego),
+          presentationAudioId: introAudioId,
+          target1Id: lego.target1_audio_id,
+          target2Id: lego.target2_audio_id,
+          target1DurationMs: lego.target1_duration_ms,
+          target2DurationMs: lego.target2_duration_ms,
+          isNew: true,
+          ...(legoComponents ? { components: legoComponents } : {}),
+          ...(legoComponentsNative ? { componentsNative: legoComponentsNative } : {}),
+        })
       } else {
         // A-LEGO or Welsh: standard intro with presentation audio
         cycleNum++
