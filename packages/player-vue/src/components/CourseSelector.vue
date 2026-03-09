@@ -70,9 +70,7 @@ const emit = defineEmits(['close', 'selectCourse'])
 const selectedKnownLang = ref(props.defaultKnownLang)
 const allCourses = ref([])
 const isLoading = ref(false)
-const hasFetched = ref(false)
 const error = ref(null)
-let loadingTimer = null
 const langSearchQuery = ref('')
 const langSearchFocused = ref(false)
 
@@ -152,24 +150,18 @@ const isActive = (courseCode) => {
 
 // Fetch courses from Supabase (dashboard schema is SSoT)
 const fetchCourses = async () => {
+  isLoading.value = true
   error.value = null
-
-  // Only show loading spinner if fetch takes > 150ms
-  if (loadingTimer) clearTimeout(loadingTimer)
-  loadingTimer = setTimeout(() => { isLoading.value = true }, 150)
 
   // If no Supabase client, use mock data (demo mode)
   if (!props.supabase) {
     console.log('[CourseSelector] No Supabase client, using mock data')
     allCourses.value = getMockCourses()
-    clearTimeout(loadingTimer)
     isLoading.value = false
     return
   }
 
   try {
-    // Query courses filtered by new_app_status (live or beta)
-    // Status options: draft (hidden), beta (visible with badge), live (fully visible)
     const { data, error: fetchError } = await props.supabase
       .from('courses')
       .select('*')
@@ -177,17 +169,13 @@ const fetchCourses = async () => {
       .order('display_name')
 
     if (fetchError) throw fetchError
-    // courses table now uses 'course_code' directly (renamed from 'code' 2026-01-18)
     allCourses.value = data || []
-    console.log('[CourseSelector] Loaded courses from Supabase:', data?.length || 0)
   } catch (e) {
     console.error('Failed to fetch courses:', e)
     error.value = 'Failed to load courses'
     allCourses.value = []
   } finally {
-    clearTimeout(loadingTimer)
     isLoading.value = false
-    hasFetched.value = true
   }
 }
 
@@ -220,28 +208,31 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="course-selector">
-    <!-- Header -->
-    <header class="sheet-header">
-      <div class="header-spacer" />
-      <h2 class="sheet-title">{{ t('courseSelector.title') }}</h2>
-      <button class="close-btn" @click="emit('close')" aria-label="Close">&#x2715;</button>
-    </header>
+  <Transition name="slide-up">
+    <div v-if="isOpen" class="selector-overlay" @click.self="emit('close')">
+      <div class="selector-panel">
+        <div class="course-selector">
+          <!-- Header -->
+          <header class="sheet-header">
+            <div class="header-spacer" />
+            <h2 class="sheet-title">{{ t('courseSelector.title') }}</h2>
+            <button class="close-btn" @click="emit('close')" aria-label="Close">&#x2715;</button>
+          </header>
 
-        <!-- Loading state -->
-        <div v-if="isLoading || !hasFetched" class="loading-state">
-          <div class="loading-spinner"></div>
-          <span>Loading courses...</span>
-        </div>
+          <!-- Loading state -->
+          <div v-if="isLoading" class="loading-state">
+            <div class="loading-spinner"></div>
+            <span>Loading courses...</span>
+          </div>
 
-        <!-- Error state -->
-        <div v-else-if="error" class="error-state">
-          <span>{{ error }}</span>
-          <button @click="fetchCourses">Retry</button>
-        </div>
+          <!-- Error state -->
+          <div v-else-if="error" class="error-state">
+            <span>{{ error }}</span>
+            <button @click="fetchCourses">Retry</button>
+          </div>
 
-        <!-- Content -->
-        <div v-else class="sheet-content">
+          <!-- Content -->
+          <div v-else class="sheet-content">
           <!-- Known Language Selector -->
           <section class="section">
             <h3 class="section-label">{{ t('courseSelector.iSpeak') }}</h3>
@@ -329,11 +320,67 @@ onMounted(() => {
             </div>
           </section>
         </div>
+      </div>
+    </div>
   </div>
+  </Transition>
 </template>
 
 <style scoped>
 /* Fonts loaded globally in style.css */
+
+.selector-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.selector-panel {
+  width: 100%;
+  max-width: 500px;
+  max-height: 100dvh;
+  overflow-y: auto;
+  background: var(--bg-primary);
+  border-radius: 16px 16px 0 0;
+  overscroll-behavior: contain;
+}
+
+/* Slide up transition */
+.slide-up-enter-active {
+  transition: opacity 0.3s ease;
+}
+
+.slide-up-enter-active .selector-panel {
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.slide-up-leave-active {
+  transition: opacity 0.25s ease-in;
+}
+
+.slide-up-leave-active .selector-panel {
+  transition: transform 0.2s ease-in;
+}
+
+.slide-up-enter-from {
+  opacity: 0;
+}
+
+.slide-up-enter-from .selector-panel {
+  transform: translateY(100%);
+}
+
+.slide-up-leave-to {
+  opacity: 0;
+}
+
+.slide-up-leave-to .selector-panel {
+  transform: translateY(100%);
+}
 
 .course-selector {
   display: flex;
@@ -698,6 +745,18 @@ onMounted(() => {
 
 <!-- Mist theme: paper surfaces instead of glass -->
 <style>
+:root[data-theme="mist"] .selector-panel {
+  border-left: 1px solid rgba(0, 0, 0, 0.08);
+  border-right: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+@media (max-width: 539px) {
+  :root[data-theme="mist"] .selector-panel {
+    border-left: none;
+    border-right: none;
+  }
+}
+
 :root[data-theme="mist"] .course-selector .sheet-header {
   background: #ffffff;
   backdrop-filter: blur(20px) saturate(180%);
