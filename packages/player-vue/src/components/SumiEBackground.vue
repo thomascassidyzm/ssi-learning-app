@@ -94,18 +94,15 @@ const glowStyle = computed(() => {
 
 .journey-painting {
   position: absolute;
-  inset: 0;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
   width: 100%;
+  max-width: 500px;
   height: 100%;
   object-fit: cover;
-  object-position: center center;
+  object-position: center bottom;
   opacity: 0.18;
   mix-blend-mode: multiply;
-}
-
-@media (min-aspect-ratio: 3/4) {
-  .journey-painting {
-    object-fit: contain;
-  }
 }
 </style>
