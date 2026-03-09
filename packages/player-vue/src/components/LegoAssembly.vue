@@ -6,6 +6,8 @@ export interface LegoBlock {
   targetText: string
   knownText?: string
   isSalient?: boolean
+  /** This A-LEGO was extracted from an M-LEGO and now appears solo */
+  isSoloComponent?: boolean
   /** M-LEGO component breakdown */
   components?: { known: string; target: string; absorbed?: boolean }[]
 }
@@ -268,7 +270,7 @@ const sentenceScale = computed(() => {
         >
           <div
             class="lego-block"
-            :class="{ salient: block.isSalient, 'has-components': block.components && block.components.length > 1 }"
+            :class="{ salient: block.isSalient, 'has-components': block.components && block.components.length > 1, 'solo-component': block.isSoloComponent }"
           >
             <!-- M-LEGO in practice phrase: same stubs rendering -->
             <template v-if="block.components && block.components.length > 1">
@@ -616,10 +618,14 @@ const sentenceScale = computed(() => {
   padding: 0 0.35em;
 }
 
-/* Absorbed filler — dimmed within the tile */
-.lego-block .block-text.absorbed {
-  opacity: 0.45;
-  font-weight: 400;
+/* Solo component — extracted from an M-LEGO, dashed vertical edges */
+.lego-block.solo-component {
+  border-left-style: dashed;
+  border-right-style: dashed;
+}
+.lego-block.solo-component.salient {
+  border-left-style: dashed;
+  border-right-style: dashed;
 }
 
 /* Stubs-bright on practice M-LEGOs */
@@ -763,9 +769,10 @@ const sentenceScale = computed(() => {
   color: var(--text-primary);
 }
 
-/* Absorbed filler — mist theme */
-:root[data-theme="mist"] .lego-block .block-text.absorbed {
-  opacity: 0.4;
+/* Solo component — mist theme */
+:root[data-theme="mist"] .lego-block.solo-component {
+  border-left-style: dashed;
+  border-right-style: dashed;
 }
 
 /* M-LEGO stubs for mist theme */

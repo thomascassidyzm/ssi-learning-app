@@ -591,6 +591,26 @@ const legoKnownTextMap = computed<Map<string, string>>(() => {
   return map
 })
 
+// Solo component detection: A-LEGOs whose target text appears as a component
+// inside any M-LEGO. These get dashed edges to show "extracted from something bigger."
+const soloComponentIds = computed<Set<string>>(() => {
+  const ids = new Set<string>()
+  // Collect all component target texts from M-LEGOs
+  const componentTexts = new Set<string>()
+  for (const comps of _componentsByLegoId.values()) {
+    for (const c of comps) {
+      componentTexts.add(c.target.toLowerCase().trim())
+    }
+  }
+  // Find A-LEGOs (not in _componentsByLegoId = not M-LEGOs) whose text matches
+  for (const [legoId, text] of legoTargetTextMap.value.entries()) {
+    if (!_componentsByLegoId.has(legoId) && componentTexts.has(text.toLowerCase().trim())) {
+      ids.add(legoId)
+    }
+  }
+  return ids
+})
+
 // Current phrase's LEGO blocks for the assembly view
 const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
   const cycle = simplePlayer.currentCycle.value as any
@@ -637,6 +657,7 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
       const knownText = (knownMap && id === salientLegoId) ? knownMap.get(id) : undefined
       return {
         id, targetText, isSalient: id === salientLegoId,
+        ...(soloComponentIds.value.has(id) ? { isSoloComponent: true } : {}),
         ...(comps ? { components: comps } : {}),
         ...(knownText ? { knownText } : {}),
       }
