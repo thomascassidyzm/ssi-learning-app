@@ -220,12 +220,9 @@ onMounted(() => {
 
         <!-- Header -->
         <header class="sheet-header">
+          <div class="header-spacer" />
           <h2 class="sheet-title">{{ t('courseSelector.title') }}</h2>
-          <button class="close-btn" @click="emit('close')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 6L6 18M6 6l12 12"/>
-            </svg>
-          </button>
+          <button class="close-btn" @click="emit('close')" aria-label="Close">&#x2715;</button>
         </header>
 
         <!-- Loading state -->
@@ -389,40 +386,45 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1.25rem 1.5rem 1rem;
+  padding: 1rem 1.5rem;
   flex-shrink: 0;
+  background: linear-gradient(to bottom, var(--bg-primary) 0%, transparent 100%);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.header-spacer {
+  width: 2rem;
 }
 
 .sheet-title {
-  font-family: var(--font-body);
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--text-primary, #f5f5f5);
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
   margin: 0;
+  text-align: center;
+  flex: 1;
 }
 
 .close-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
-  background: var(--bg-elevated, rgba(255, 255, 255, 0.04));
-  color: var(--text-muted, rgba(255, 255, 255, 0.45));
+  width: 2rem;
+  height: 2rem;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 1rem;
   cursor: pointer;
-  transition: all 0.2s ease;
+  border-radius: 50%;
+  transition: color 0.2s, background 0.2s;
 }
 
 .close-btn:hover {
-  background: var(--bg-card, rgba(255, 255, 255, 0.06));
-  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
-}
-
-.close-btn svg {
-  width: 18px;
-  height: 18px;
+  color: var(--text-primary);
+  background: var(--bg-secondary, rgba(255,255,255,0.08));
 }
 
 /* Loading & Error states */
@@ -738,7 +740,7 @@ onMounted(() => {
   }
 
   .sheet-header {
-    padding: 1rem 1rem 0.75rem;
+    padding: 1rem 1rem;
   }
 
 }
@@ -769,6 +771,8 @@ onMounted(() => {
 
 :root[data-theme="mist"] .course-selector .sheet-header {
   background: #ffffff;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   box-shadow: 0 1px 4px rgba(44, 38, 34, 0.12);
 }

@@ -990,20 +990,8 @@ onUnmounted(() => {
 
     <!-- Header -->
     <header class="header">
-      <button class="back-btn" @click="$emit('close')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M19 12H5M12 19l-7-7 7-7"/>
-        </svg>
-      </button>
-      <div class="header-content">
-        <h1 class="header-title">{{ courseName }}</h1>
-        <span class="header-badge">QA Script</span>
-        <span v-if="loadedFromCache" class="cache-indicator" :title="'Cached: ' + formatCachedDate">
-          cached
-        </span>
-      </div>
       <button
-        class="refresh-btn"
+        class="header-action-btn"
         @click="refreshContent"
         :disabled="isRefreshing"
         title="Refresh from database"
@@ -1019,6 +1007,14 @@ onUnmounted(() => {
           <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
         </svg>
       </button>
+      <div class="header-content">
+        <h1 class="header-title">{{ courseName }}</h1>
+        <span class="header-badge">QA Script</span>
+        <span v-if="loadedFromCache" class="cache-indicator" :title="'Cached: ' + formatCachedDate">
+          cached
+        </span>
+      </div>
+      <button class="close-btn" @click="$emit('close')" aria-label="Close">&#x2715;</button>
     </header>
 
     <!-- Stats Bar -->
@@ -1281,36 +1277,59 @@ onUnmounted(() => {
   z-index: 100;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 1rem;
   padding: 1rem 1.5rem;
-  background: linear-gradient(to bottom, var(--bg-primary) 60%, transparent);
-  backdrop-filter: blur(16px);
+  background: linear-gradient(to bottom, var(--bg-primary) 0%, transparent 100%);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
-.back-btn, .refresh-btn {
-  width: 40px;
-  height: 40px;
+.close-btn {
+  width: 2rem;
+  height: 2rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 12px;
+  background: none;
+  border: none;
   color: var(--text-secondary);
+  font-size: 1rem;
   cursor: pointer;
-  transition: all 0.2s ease;
+  border-radius: 50%;
+  transition: color 0.2s, background 0.2s;
   flex-shrink: 0;
 }
 
-.back-btn:hover, .refresh-btn:hover:not(:disabled) {
-  background: var(--bg-elevated);
+.close-btn:hover {
   color: var(--text-primary);
+  background: var(--bg-secondary, rgba(255,255,255,0.08));
 }
 
-.refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.refresh-btn svg { width: 18px; height: 18px; }
-.refresh-btn svg.spinning { animation: spin 1s linear infinite; }
-.back-btn svg { width: 20px; height: 20px; }
+.header-action-btn {
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 50%;
+  transition: color 0.2s, background 0.2s;
+  flex-shrink: 0;
+}
+
+.header-action-btn:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--bg-secondary, rgba(255,255,255,0.08));
+}
+
+.header-action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.header-action-btn svg { width: 18px; height: 18px; }
+.header-action-btn svg.spinning { animation: spin 1s linear infinite; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -1879,9 +1898,11 @@ onUnmounted(() => {
 
 <!-- Mist theme: paper surfaces instead of glass -->
 <style>
-:root[data-theme="mist"] .explorer .explorer-header {
+:root[data-theme="mist"] .explorer .header {
   background: #ffffff;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  box-shadow: 0 1px 4px rgba(44, 38, 34, 0.06);
+  box-shadow: 0 1px 4px rgba(44, 38, 34, 0.12);
 }
 </style>

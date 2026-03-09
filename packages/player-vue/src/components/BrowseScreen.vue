@@ -466,9 +466,8 @@ onMounted(() => {
 
 .browse-title {
   font-size: 1.125rem;
-  font-weight: 700;
+  font-weight: 600;
   margin: 0;
-  letter-spacing: -0.02em;
   text-align: center;
   flex: 1;
 }
