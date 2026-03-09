@@ -235,10 +235,13 @@ router.beforeEach(async (to, _from, next) => {
     }
   }
 
-  // Check via Supabase client if available
+  // Check via Supabase client directly (can't rely on getSchoolsClient — not set until component mounts)
   try {
-    const { getSchoolsClient } = await import('@/composables/schools/client')
-    const client = getSchoolsClient()
+    const { createClient } = await import('@supabase/supabase-js')
+    const url = import.meta.env.VITE_SUPABASE_URL
+    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+    if (!url || !anonKey) throw new Error('Missing Supabase config')
+    const client = createClient(url, anonKey)
 
     // Get current Supabase Auth user
     const { data: { user } } = await client.auth.getUser()
