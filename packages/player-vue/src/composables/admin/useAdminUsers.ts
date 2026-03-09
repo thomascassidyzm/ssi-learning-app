@@ -3,7 +3,7 @@
  */
 
 import { ref, computed } from 'vue'
-import { getSchoolsClient } from '@/composables/schools/client'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 export interface AdminUser {
   id: string
@@ -38,8 +38,7 @@ const error = ref<string | null>(null)
 const totalUsers = ref(0)
 const newThisWeek = ref(0)
 
-export function useAdminUsers() {
-  const client = getSchoolsClient()
+export function useAdminUsers(client: SupabaseClient) {
 
   const totalPages = computed(() => Math.max(1, Math.ceil(totalCount.value / PAGE_SIZE)))
 

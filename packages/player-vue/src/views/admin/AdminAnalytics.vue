@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { onMounted, computed, ref } from 'vue'
+import { useAdminClient } from '@/composables/useAdminClient'
 import { useAdminAnalytics } from '@/composables/useAdminAnalytics'
+
+const { getClient } = useAdminClient()
 
 const {
   totalUsers,
@@ -16,7 +19,7 @@ const {
   isLoading,
   error,
   fetchAll,
-} = useAdminAnalytics()
+} = useAdminAnalytics(getClient())
 
 const activeTab = ref<'acquisition' | 'engagement' | 'retention'>('acquisition')
 

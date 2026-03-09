@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useAdminClient } from '@/composables/useAdminClient'
 import { useAdminUserDetail } from '@/composables/admin/useAdminUserDetail'
 import { parseCourseCode, getBeltForSeeds, timeAgo, formatDuration } from '@/composables/admin/adminUtils'
 import Badge from '@/components/schools/shared/Badge.vue'
 
+const { getClient } = useAdminClient()
 const route = useRoute()
 const router = useRouter()
 const {
@@ -15,7 +17,7 @@ const {
   error,
   fetchUserDetail,
   getCourseProgress,
-} = useAdminUserDetail()
+} = useAdminUserDetail(getClient())
 
 onMounted(() => {
   const learnerId = route.params.learnerId as string

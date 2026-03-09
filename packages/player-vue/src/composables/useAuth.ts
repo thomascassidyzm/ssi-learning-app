@@ -16,6 +16,7 @@ import type { LearnerRecord, LearnerPreferences } from '@ssi/core'
 const GUEST_ID_KEY = 'ssi-guest-id'
 const GUEST_SESSIONS_KEY = 'ssi-guest-sessions-count'
 const SIGNUP_PROMPT_SEEN_KEY = 'ssi-signup-prompt-seen'
+const ADMIN_ROLES_KEY = 'ssi-admin-roles'
 
 export interface AuthState {
   /** Supabase Auth user (null if guest) */
@@ -61,6 +62,22 @@ function getOrCreateGuestId(): string {
     localStorage.setItem(GUEST_ID_KEY, guestId)
   }
   return guestId
+}
+
+/**
+ * Cache admin roles in localStorage for the router guard.
+ * This avoids a network call on every /admin navigation.
+ */
+function cacheAdminRoles(platformRole: string | null, educationalRole: string | null): void {
+  try {
+    if (platformRole === 'ssi_admin' || educationalRole === 'govt_admin') {
+      localStorage.setItem(ADMIN_ROLES_KEY, JSON.stringify({ platformRole, educationalRole }))
+    } else {
+      localStorage.removeItem(ADMIN_ROLES_KEY)
+    }
+  } catch {
+    // localStorage unavailable
+  }
 }
 
 /**
@@ -123,6 +140,9 @@ export function useAuth(): AuthState & AuthActions {
         .single()
 
       if (existingLearner) {
+        // Cache admin roles for router guard (fast, no network)
+        cacheAdminRoles(existingLearner.platform_role, existingLearner.educational_role)
+
         return {
           id: existingLearner.id,
           user_id: existingLearner.user_id,
@@ -298,6 +318,7 @@ export function useAuth(): AuthState & AuthActions {
     }
     supabaseUser.value = null
     learner.value = null
+    localStorage.removeItem(ADMIN_ROLES_KEY)
     // Reinitialize guest
     guestId.value = getOrCreateGuestId()
   }

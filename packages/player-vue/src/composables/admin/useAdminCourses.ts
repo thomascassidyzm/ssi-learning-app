@@ -3,7 +3,7 @@
  */
 
 import { ref, computed } from 'vue'
-import { getSchoolsClient } from '@/composables/schools/client'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 export interface CourseInfo {
   course_code: string
@@ -29,8 +29,7 @@ const isLoading = ref(false)
 const error = ref<string | null>(null)
 const sortBy = ref<'enrolled' | 'active' | 'name'>('enrolled')
 
-export function useAdminCourses() {
-  const client = getSchoolsClient()
+export function useAdminCourses(client: SupabaseClient) {
 
   // Hero stats
   const totalCourses = computed(() => courses.value.length)

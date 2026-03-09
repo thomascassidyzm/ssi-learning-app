@@ -6,7 +6,7 @@
  */
 
 import { ref } from 'vue'
-import { getSchoolsClient } from './schools/client'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 // --- Types ---
 
@@ -72,8 +72,7 @@ function toDateStr(date: Date): string {
   return date.toISOString().split('T')[0]
 }
 
-export function useAdminAnalytics() {
-  const client = getSchoolsClient()
+export function useAdminAnalytics(client: SupabaseClient) {
 
   async function fetchAll(): Promise<void> {
     isLoading.value = true

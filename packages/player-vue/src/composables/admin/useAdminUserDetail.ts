@@ -3,7 +3,7 @@
  */
 
 import { ref } from 'vue'
-import { getSchoolsClient } from '@/composables/schools/client'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 export interface UserProfile {
   id: string
@@ -45,8 +45,7 @@ const courseProgress = ref<Map<string, CourseProgress>>(new Map())
 const isLoading = ref(false)
 const error = ref<string | null>(null)
 
-export function useAdminUserDetail() {
-  const client = getSchoolsClient()
+export function useAdminUserDetail(client: SupabaseClient) {
 
   async function fetchUserDetail(learnerId: string): Promise<void> {
     isLoading.value = true

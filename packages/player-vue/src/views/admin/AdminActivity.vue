@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue'
+import { useAdminClient } from '@/composables/useAdminClient'
 import { useAdminActivity } from '@/composables/admin/useAdminActivity'
 import { parseCourseCode, timeAgo, formatDuration } from '@/composables/admin/adminUtils'
 import Badge from '@/components/schools/shared/Badge.vue'
+
+const { getClient } = useAdminClient()
 
 const {
   isLoading,
@@ -16,7 +19,7 @@ const {
   fetchActivity,
   startAutoRefresh,
   stopAutoRefresh,
-} = useAdminActivity()
+} = useAdminActivity(getClient())
 
 onMounted(async () => {
   await fetchActivity()

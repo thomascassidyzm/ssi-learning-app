@@ -3,7 +3,7 @@
  */
 
 import { ref, computed } from 'vue'
-import { getSchoolsClient } from '@/composables/schools/client'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 export interface ActivitySession {
   id: string
@@ -23,8 +23,7 @@ const error = ref<string | null>(null)
 // Auto-refresh timer
 let refreshInterval: ReturnType<typeof setInterval> | null = null
 
-export function useAdminActivity() {
-  const client = getSchoolsClient()
+export function useAdminActivity(client: SupabaseClient) {
 
   // --- Computed summaries ---
 

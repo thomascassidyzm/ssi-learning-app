@@ -214,14 +214,16 @@ const router = createRouter({
   },
 })
 
-// Guard admin routes: only ssi_admin or govt_admin (platform_role) can access /admin
-router.beforeEach(async (to, _from, next) => {
+// Guard admin routes: only ssi_admin or govt_admin can access /admin
+// Uses localStorage caches — no network calls needed.
+// Roles are cached by useAuth on login and by god mode on selection.
+router.beforeEach((to, _from, next) => {
   if (!to.path.startsWith('/admin')) {
     next()
     return
   }
 
-  // Check god mode first (fast, no network)
+  // Check god mode (cached in localStorage by useGodMode)
   const godModeStored = localStorage.getItem('ssi-god-mode-user')
   if (godModeStored) {
     try {
@@ -231,37 +233,22 @@ router.beforeEach(async (to, _from, next) => {
         return
       }
     } catch {
-      // malformed storage — fall through
+      // malformed — fall through
     }
   }
 
-  // Check via Supabase client directly (can't rely on getSchoolsClient — not set until component mounts)
-  try {
-    const { createClient } = await import('@supabase/supabase-js')
-    const url = import.meta.env.VITE_SUPABASE_URL
-    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-    if (!url || !anonKey) throw new Error('Missing Supabase config')
-    const client = createClient(url, anonKey)
-
-    // Get current Supabase Auth user
-    const { data: { user } } = await client.auth.getUser()
-    if (user) {
-      const { data } = await client
-        .from('learners')
-        .select('platform_role, educational_role')
-        .eq('user_id', user.id)
-        .single()
-
-      if (
-        data &&
-        (data.platform_role === 'ssi_admin' || data.educational_role === 'govt_admin')
-      ) {
+  // Check admin roles (cached by useAuth when learner record loads)
+  const adminRoles = localStorage.getItem('ssi-admin-roles')
+  if (adminRoles) {
+    try {
+      const roles = JSON.parse(adminRoles)
+      if (roles.platformRole === 'ssi_admin' || roles.educationalRole === 'govt_admin') {
         next()
         return
       }
+    } catch {
+      // malformed — fall through
     }
-  } catch {
-    // client not set yet or query failed — deny access
   }
 
   // Not authorised

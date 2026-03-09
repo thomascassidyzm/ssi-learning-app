@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, inject, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useAuth } from '@/composables/useAuth'
-import { getSchoolsClient } from '@/composables/schools/client'
+import { useAdminClient } from '@/composables/useAdminClient'
 import { useGodMode } from '@/composables/schools/useGodMode'
 
 interface Region {
@@ -23,6 +23,7 @@ interface InviteCode {
 }
 
 const { user, learner } = useAuth()
+const { getClient, getAuthToken } = useAdminClient()
 const { selectedUser } = useGodMode()
 
 // Determine current user's platform_role
@@ -53,7 +54,7 @@ function getCurrentUserId(): string | null {
 }
 
 async function fetchRegionsAndCodes(): Promise<void> {
-  const client = getSchoolsClient()
+  const client = getClient()
   const userId = getCurrentUserId()
   if (!userId) return
 
@@ -118,15 +119,7 @@ async function createCode(): Promise<void> {
   successMessage.value = null
 
   try {
-    // Get Clerk token for API call
-    let token: string | null = null
-    if (user.value) {
-      // @ts-ignore - Clerk session token
-      const session = window.Clerk?.session
-      if (session) {
-        token = await session.getToken()
-      }
-    }
+    const token = await getAuthToken()
 
     const body: Record<string, unknown> = {
       code_type: codeType.value,
@@ -178,7 +171,7 @@ async function createCode(): Promise<void> {
 }
 
 async function toggleCodeActive(code: InviteCode): Promise<void> {
-  const client = getSchoolsClient()
+  const client = getClient()
   error.value = null
 
   try {

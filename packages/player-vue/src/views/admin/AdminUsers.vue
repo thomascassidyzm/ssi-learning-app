@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAdminClient } from '@/composables/useAdminClient'
 import { useAdminUsers } from '@/composables/admin/useAdminUsers'
 import { parseCourseCode, timeAgo, formatDuration } from '@/composables/admin/adminUtils'
 import SearchBox from '@/components/schools/shared/SearchBox.vue'
 import FilterDropdown from '@/components/schools/shared/FilterDropdown.vue'
 import Badge from '@/components/schools/shared/Badge.vue'
 
+const { getClient } = useAdminClient()
 const router = useRouter()
 const {
   users,
@@ -25,7 +27,7 @@ const {
   getUserEnrollments,
   getLastActive,
   getTotalPracticeMinutes,
-} = useAdminUsers()
+} = useAdminUsers(getClient())
 
 const searchInput = ref('')
 

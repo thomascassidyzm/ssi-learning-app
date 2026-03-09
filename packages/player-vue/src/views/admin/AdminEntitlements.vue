@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useAuth } from '@/composables/useAuth'
+import { ref, onMounted } from 'vue'
+import { useAdminClient } from '@/composables/useAdminClient'
 import { useGodMode } from '@/composables/schools/useGodMode'
 
 interface EntitlementCode {
@@ -19,7 +19,7 @@ interface EntitlementCode {
   created_by: string
 }
 
-const { user } = useAuth()
+const { getAuthToken } = useAdminClient()
 const { selectedUser } = useGodMode()
 
 // State
@@ -38,16 +38,6 @@ const formDurationDays = ref<number | ''>('')
 const formLabel = ref('')
 const formMaxUses = ref<number | ''>('')
 const formExpiresAt = ref('')
-
-async function getAuthToken(): Promise<string | null> {
-  if (!user.value) return null
-  // @ts-ignore - Clerk session token
-  const session = window.Clerk?.session
-  if (session) {
-    return await session.getToken()
-  }
-  return null
-}
 
 async function fetchCodes(): Promise<void> {
   isLoading.value = true

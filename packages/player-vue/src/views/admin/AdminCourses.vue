@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
+import { useAdminClient } from '@/composables/useAdminClient'
 import { useAdminCourses } from '@/composables/admin/useAdminCourses'
 import { parseCourseCode, getBeltForSeeds, formatDuration } from '@/composables/admin/adminUtils'
 import Badge from '@/components/schools/shared/Badge.vue'
+
+const { getClient } = useAdminClient()
 
 const {
   courses,
@@ -15,7 +18,7 @@ const {
   fetchCourses,
   getStats,
   setSortBy,
-} = useAdminCourses()
+} = useAdminCourses(getClient())
 
 onMounted(() => {
   fetchCourses()

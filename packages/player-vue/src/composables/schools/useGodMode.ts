@@ -6,7 +6,7 @@
  */
 
 import { ref, computed, watch } from 'vue'
-import { getSchoolsClient } from './client'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 export type EducationalRole = 'god' | 'student' | 'teacher' | 'school_admin' | 'govt_admin'
 
@@ -59,13 +59,17 @@ watch(selectedUser, (user) => {
   saveUser(user)
 })
 
-export function useGodMode() {
-  const client = getSchoolsClient()
+export function useGodMode(client?: SupabaseClient) {
+
+  function requireClient(): SupabaseClient {
+    if (!client) throw new Error('[useGodMode] Supabase client required for queries')
+    return client
+  }
 
   // Check if current authenticated user has god access
   async function checkGodAccess(): Promise<boolean> {
     try {
-      const { data, error: fetchError } = await client
+      const { data, error: fetchError } = await requireClient()
         .from('learners')
         .select('educational_role')
         .eq('educational_role', 'god')
@@ -90,7 +94,7 @@ export function useGodMode() {
 
     try {
       // Fetch all learners with educational roles
-      const { data: learners, error: learnersError } = await client
+      const { data: learners, error: learnersError } = await requireClient()
         .from('learners')
         .select('id, user_id, display_name, educational_role, platform_role, created_at')
         .not('educational_role', 'is', null)
@@ -100,21 +104,21 @@ export function useGodMode() {
       if (learnersError) throw learnersError
 
       // Fetch school admins (to get school context)
-      const { data: schools, error: schoolsError } = await client
+      const { data: schools, error: schoolsError } = await requireClient()
         .from('schools')
         .select('id, admin_user_id, school_name, region_code')
 
       if (schoolsError) throw schoolsError
 
       // Fetch govt admins
-      const { data: govtAdmins, error: govtError } = await client
+      const { data: govtAdmins, error: govtError } = await requireClient()
         .from('govt_admins')
         .select('user_id, region_code, organization_name')
 
       if (govtError) throw govtError
 
       // Fetch teacher school tags
-      const { data: teacherTags, error: tagsError } = await client
+      const { data: teacherTags, error: tagsError } = await requireClient()
         .from('user_tags')
         .select('user_id, tag_value')
         .eq('tag_type', 'school')
@@ -124,7 +128,7 @@ export function useGodMode() {
       if (tagsError) throw tagsError
 
       // Fetch student class tags
-      const { data: studentTags, error: studentTagsError } = await client
+      const { data: studentTags, error: studentTagsError } = await requireClient()
         .from('user_tags')
         .select('user_id, tag_value')
         .eq('tag_type', 'class')
@@ -134,7 +138,7 @@ export function useGodMode() {
       if (studentTagsError) throw studentTagsError
 
       // Fetch classes for school lookup
-      const { data: classes, error: classesError } = await client
+      const { data: classes, error: classesError } = await requireClient()
         .from('classes')
         .select('id, school_id')
 
