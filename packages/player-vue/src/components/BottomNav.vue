@@ -491,17 +491,6 @@ const handleSettings = () => {
    RESPONSIVE
    ═══════════════════════════════════════════════════════════════ */
 
-@media (min-width: 768px) {
-  .nav-content {
-    max-width: 420px;
-    height: 68px;
-  }
-  .pill-btn { width: 52px; height: 52px; }
-  .pill-btn svg { width: 24px; height: 24px; }
-  .center-btn { width: 56px; height: 56px; }
-  .center-btn-inner svg { width: 24px; height: 24px; }
-}
-
 @media (orientation: landscape) and (max-height: 500px) {
   .nav-content {
     height: 52px;

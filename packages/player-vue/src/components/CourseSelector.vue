@@ -477,7 +477,7 @@ onMounted(() => {
 .sheet-content {
   flex: 1;
   overflow-y: auto;
-  padding: 0 1.5rem 2rem;
+  padding: 0.75rem 1.5rem 2rem;
   padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
   -webkit-overflow-scrolling: touch;
 }
@@ -725,15 +725,6 @@ onMounted(() => {
   .target-grid {
     grid-template-columns: repeat(2, 1fr);
   }
-
-  .sheet-content {
-    padding: 0 1rem 1.5rem;
-  }
-
-  .sheet-header {
-    padding: 1rem 1rem;
-  }
-
 }
 
 @media (min-width: 500px) {
