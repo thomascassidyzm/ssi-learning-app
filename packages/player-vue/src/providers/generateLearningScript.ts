@@ -548,8 +548,8 @@ export async function generateLearningScript(
 
       // Phase 1b: COMPONENT PRIMING (M-LEGOs only)
       // Each component gets intro + 2× practice before the full M-LEGO debut.
-      // "Too easy" moments are welcome — the method is already demanding.
-      const compPhrases = componentPhrasesByLego.get(phraseKey)
+      // Welsh courses skip this — they were hand-built with a different methodology.
+      const compPhrases = isWelsh ? undefined : componentPhrasesByLego.get(phraseKey)
       if (compPhrases && compPhrases.length > 0) {
         const practiceReps = 2
         for (const comp of compPhrases) {
