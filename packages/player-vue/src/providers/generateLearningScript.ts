@@ -547,13 +547,11 @@ export async function generateLearningScript(
       })
 
       // Phase 1b: COMPONENT PRIMING (M-LEGOs only)
-      // Tapers by seed number to avoid boring advanced learners:
-      //   Seeds 1-50:  intro + 2× practice per component (full priming)
-      //   Seeds 51-100: intro + 1× practice per component
-      //   Seeds 101+:  intro only (quick reminder, no practice)
+      // Each component gets intro + 2× practice before the full M-LEGO debut.
+      // "Too easy" moments are welcome — the method is already demanding.
       const compPhrases = componentPhrasesByLego.get(phraseKey)
       if (compPhrases && compPhrases.length > 0) {
-        const practiceReps = seedNum <= 50 ? 2 : seedNum <= 100 ? 1 : 0
+        const practiceReps = 2
         for (const comp of compPhrases) {
           // Component intro: contextual display, target audio as confirmation, no pause
           cycleNum++
