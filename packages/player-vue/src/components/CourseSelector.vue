@@ -69,8 +69,10 @@ const emit = defineEmits(['close', 'selectCourse'])
 // State
 const selectedKnownLang = ref(props.defaultKnownLang)
 const allCourses = ref([])
-const isLoading = ref(true)
+const isLoading = ref(false)
+const hasFetched = ref(false)
 const error = ref(null)
+let loadingTimer = null
 const langSearchQuery = ref('')
 const langSearchFocused = ref(false)
 
@@ -150,13 +152,17 @@ const isActive = (courseCode) => {
 
 // Fetch courses from Supabase (dashboard schema is SSoT)
 const fetchCourses = async () => {
-  isLoading.value = true
   error.value = null
+
+  // Only show loading spinner if fetch takes > 150ms
+  if (loadingTimer) clearTimeout(loadingTimer)
+  loadingTimer = setTimeout(() => { isLoading.value = true }, 150)
 
   // If no Supabase client, use mock data (demo mode)
   if (!props.supabase) {
     console.log('[CourseSelector] No Supabase client, using mock data')
     allCourses.value = getMockCourses()
+    clearTimeout(loadingTimer)
     isLoading.value = false
     return
   }
@@ -179,7 +185,9 @@ const fetchCourses = async () => {
     error.value = 'Failed to load courses'
     allCourses.value = []
   } finally {
+    clearTimeout(loadingTimer)
     isLoading.value = false
+    hasFetched.value = true
   }
 }
 
@@ -221,7 +229,7 @@ onMounted(() => {
     </header>
 
         <!-- Loading state -->
-        <div v-if="isLoading" class="loading-state">
+        <div v-if="isLoading || !hasFetched" class="loading-state">
           <div class="loading-spinner"></div>
           <span>Loading courses...</span>
         </div>
