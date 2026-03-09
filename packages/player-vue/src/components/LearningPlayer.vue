@@ -637,9 +637,12 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
         return [{ id: legoId, targetText, isSalient: true }]
       }
     }
-    // Debug: log when a non-intro cycle has no componentLegoIds
+    // No decomposition available — fallback: show the full phrase as a single tile
     if (cycle && !isIntroOrDebut && !isCmpCycle) {
-      console.warn(`[LegoBlocks] Cycle "${cycle.target?.text}" has no componentLegoIds — keys:`, Object.keys(cycle))
+      const targetText = useNative ? (cycle.target?.textNative || cycle.target?.text || '') : (cycle.target?.text || '')
+      if (targetText) {
+        return [{ id: cycle.legoId || 'phrase', targetText, isSalient: false }]
+      }
     }
     return []
   }
@@ -675,7 +678,14 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
 
   const tileText = useNative ? (cycle.target?.textNative || cycle.target?.text || '') : (cycle.target?.text || '')
   const covered = ensureTileCoverage(rawBlocks, tileText)
-  return absorbGapsIntoBlocks(covered)
+  const result = absorbGapsIntoBlocks(covered)
+
+  // Fallback: if decomposition fails, show the full phrase as a single tile.
+  // The audio still plays — the learner must see what they hear.
+  if (result.length === 0 && tileText) {
+    return [{ id: salientLegoId || 'phrase', targetText: tileText, isSalient: false }]
+  }
+  return result
 })
 
 // Voice1 duration for assembly timing
