@@ -519,36 +519,12 @@ export async function generateLearningScript(
       const legoComponents = componentsByLego.get(phraseKey)
       const legoComponentsNative = componentsByLegoNative.get(phraseKey)
 
-      // Phase 1: INTRO - presentation audio introduces the new LEGO
-      // Welsh courses (cym_*): presentation audio already contains the target
-      //   pronunciation, so we play presentation only (no target1/target2).
-      // All other courses: presentation is just the prompt ("The German for X is..."),
-      //   followed by target1/target2. If presentation is missing, falls back to
-      //   known audio — effectively playing the LEGO twice (once passive, once active).
+      // Phase 1: INTRO or COMPONENT PRIMING
+      // M-LEGOs with components: skip the M-LEGO intro entirely — component intros
+      //   replace it. Each component intro provides the M-LEGO as context
+      //   ("as in 'I'm trying to learn'"), so the M-LEGO is implicit.
+      // A-LEGOs / Welsh: standard intro with presentation audio.
       const isWelsh = courseCode.startsWith('cym_')
-      cycleNum++
-      emitItem({
-        uuid: `${legoKey}_intro_${cycleNum}`,
-        cycleNum, roundNumber, seedId, legoKey,
-        seedCode: seedId, legoCode: legoNum,
-        type: 'intro',
-        knownText: lego.known_text,
-        targetText: lego.target_text_roman || lego.target_text,
-        ...nativeFields(lego),
-        presentationAudioId,
-        knownAudioId: introAudioId,  // Presentation audio, or known audio as fallback
-        target1Id: isWelsh ? undefined : lego.target1_audio_id,
-        target2Id: isWelsh ? undefined : lego.target2_audio_id,
-        target1DurationMs: isWelsh ? undefined : lego.target1_duration_ms,
-        target2DurationMs: isWelsh ? undefined : lego.target2_duration_ms,
-        isNew: true,
-        ...(legoComponents ? { components: legoComponents } : {}),
-        ...(legoComponentsNative ? { componentsNative: legoComponentsNative } : {}),
-      })
-
-      // Phase 1b: COMPONENT PRIMING (M-LEGOs only)
-      // Each component gets intro + 2× practice before the full M-LEGO debut.
-      // Welsh courses skip this — they were hand-built with a different methodology.
       const compPhrases = isWelsh ? undefined : componentPhrasesByLego.get(phraseKey)
       if (compPhrases && compPhrases.length > 0) {
         const practiceReps = 2
@@ -590,6 +566,26 @@ export async function generateLearningScript(
             })
           }
         }
+      } else {
+        // A-LEGO or Welsh: standard intro with presentation audio
+        cycleNum++
+        emitItem({
+          uuid: `${legoKey}_intro_${cycleNum}`,
+          cycleNum, roundNumber, seedId, legoKey,
+          seedCode: seedId, legoCode: legoNum,
+          type: 'intro',
+          knownText: lego.known_text,
+          targetText: lego.target_text_roman || lego.target_text,
+          ...nativeFields(lego),
+          presentationAudioId: introAudioId,
+          target1Id: lego.target1_audio_id,
+          target2Id: lego.target2_audio_id,
+          target1DurationMs: lego.target1_duration_ms,
+          target2DurationMs: lego.target2_duration_ms,
+          isNew: true,
+          ...(legoComponents ? { components: legoComponents } : {}),
+          ...(legoComponentsNative ? { componentsNative: legoComponentsNative } : {}),
+        })
       }
 
       // Phase 2: DEBUT
