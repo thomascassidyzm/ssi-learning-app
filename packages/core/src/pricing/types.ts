@@ -91,7 +91,7 @@ export interface CourseAccessResult {
   previewMaxSeed?: number;
 
   /** Reason for the access level */
-  reason: 'free' | 'community' | 'subscribed' | 'preview_only';
+  reason: 'free' | 'community' | 'subscribed' | 'entitled' | 'preview_only';
 
   /** Whether an upgrade prompt should be shown */
   upgradeRequired: boolean;
@@ -112,4 +112,18 @@ export interface UserSubscriptionStatus {
 
   /** Source of subscription */
   source?: 'stripe' | 'gift' | 'government' | 'admin_grant';
+}
+
+/**
+ * User entitlement from an entitlement code
+ */
+export interface UserEntitlement {
+  /** Type of access granted */
+  accessType: 'full' | 'courses';
+
+  /** Specific courses granted (null = all courses) */
+  grantedCourses: string[] | null;
+
+  /** When entitlement expires (null = lifetime) */
+  expiresAt: string | null;
 }

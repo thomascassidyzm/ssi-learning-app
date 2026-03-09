@@ -21,6 +21,7 @@ export {
   type CourseWithPricing,
   type CourseAccessResult,
   type UserSubscriptionStatus,
+  type UserEntitlement,
   BELT_MAX_SEEDS,
   PREMIUM_PREVIEW_BELT,
   PREMIUM_PREVIEW_MAX_SEED,

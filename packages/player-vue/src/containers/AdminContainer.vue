@@ -56,6 +56,13 @@ onMounted(() => {
         >
           Courses
         </router-link>
+        <router-link
+          to="/admin/entitlements"
+          class="nav-link"
+          :class="{ active: route.path === '/admin/entitlements' }"
+        >
+          Entitlements
+        </router-link>
       </nav>
     </header>
     <main class="admin-main">

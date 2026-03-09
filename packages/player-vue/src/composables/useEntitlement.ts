@@ -15,6 +15,7 @@
 
 import { ref, computed, inject, type Ref, type ComputedRef } from 'vue'
 import { useSharedSubscription } from './useSubscription'
+import { useSharedUserEntitlements } from './useUserEntitlements'
 import type { CoursePricingTier } from '@ssi/core'
 import {
   checkCourseAccess,
@@ -92,6 +93,9 @@ export function useEntitlement(): UseEntitlementReturn {
   // Get subscription status
   const { isSubscribed: hasActiveSubscription } = useSharedSubscription()
 
+  // Get user entitlements from entitlement codes
+  const { entitlements: userEntitlements } = useSharedUserEntitlements()
+
   // Entitlement state
   const entitlement = ref<EntitlementStatus>({
     canDownload: false,
@@ -159,12 +163,13 @@ export function useEntitlement(): UseEntitlementReturn {
     const isCommunity = course.is_community ?? course.course_code.startsWith('community_')
 
     const courseWithPricing = {
+      course_code: course.course_code,
       pricing_tier: pricingTier,
       is_community: isCommunity,
     }
 
     const subscription = getSubscriptionStatus()
-    return checkCourseAccess(courseWithPricing, subscription)
+    return checkCourseAccess(courseWithPricing, subscription, userEntitlements.value)
   }
 
   /**

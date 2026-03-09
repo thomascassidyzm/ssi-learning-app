@@ -2,12 +2,21 @@ import { ref, readonly } from 'vue'
 
 export interface InviteCodeContext {
   code: string
-  inviteCodeId: string
-  codeType: 'ssi_admin' | 'god' | 'govt_admin' | 'school_admin' | 'teacher' | 'student'
+  codeKind: 'invite' | 'entitlement'
+  // Invite-specific
+  inviteCodeId?: string
+  codeType?: 'ssi_admin' | 'god' | 'govt_admin' | 'school_admin' | 'teacher' | 'student'
   regionName?: string
   schoolName?: string
   className?: string
   courseName?: string
+  // Entitlement-specific
+  entitlementCodeId?: string
+  label?: string
+  accessType?: 'full' | 'courses'
+  grantedCourses?: string[]
+  accessDescription?: string
+  durationDescription?: string
 }
 
 // Module-level singleton state
@@ -38,21 +47,35 @@ export function useInviteCode() {
     validationError.value = null
     isValidating.value = true
     try {
-      const res = await fetch('/api/invite/validate', {
+      const res = await fetch('/api/code/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: code.trim().toUpperCase() }),
       })
       const data = await res.json()
       if (data.valid) {
-        pendingCode.value = {
-          code: code.trim().toUpperCase(),
-          inviteCodeId: data.inviteCodeId,
-          codeType: data.codeType,
-          regionName: data.context?.regionName,
-          schoolName: data.context?.schoolName,
-          className: data.context?.className,
-          courseName: data.context?.courseName,
+        if (data.codeKind === 'entitlement') {
+          pendingCode.value = {
+            code: code.trim().toUpperCase(),
+            codeKind: 'entitlement',
+            entitlementCodeId: data.entitlementCodeId,
+            label: data.label,
+            accessType: data.accessType,
+            grantedCourses: data.grantedCourses,
+            accessDescription: data.accessDescription,
+            durationDescription: data.durationDescription,
+          }
+        } else {
+          pendingCode.value = {
+            code: code.trim().toUpperCase(),
+            codeKind: 'invite',
+            inviteCodeId: data.inviteCodeId,
+            codeType: data.codeType,
+            regionName: data.context?.regionName,
+            schoolName: data.context?.schoolName,
+            className: data.context?.className,
+            courseName: data.context?.courseName,
+          }
         }
         persistPendingCode()
         return true
@@ -68,24 +91,34 @@ export function useInviteCode() {
     }
   }
 
-  async function redeemCode(authToken: string): Promise<{ success: boolean; role?: string; redirectTo?: string; error?: string }> {
+  async function redeemCode(authToken: string): Promise<{ success: boolean; role?: string; redirectTo?: string; label?: string; codeKind?: string; error?: string }> {
     if (!pendingCode.value) {
       return { success: false, error: 'No pending code' }
     }
     isRedeeming.value = true
     try {
-      const res = await fetch('/api/invite/redeem', {
+      const res = await fetch('/api/code/redeem', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${authToken}`,
         },
-        body: JSON.stringify({ code: pendingCode.value.code }),
+        body: JSON.stringify({
+          code: pendingCode.value.code,
+          codeKind: pendingCode.value.codeKind,
+        }),
       })
       const data = await res.json()
       if (data.success) {
+        const codeKind = pendingCode.value.codeKind
         clearPendingCode()
-        return { success: true, role: data.role, redirectTo: data.redirectTo }
+        return {
+          success: true,
+          codeKind,
+          role: data.role,
+          label: data.label,
+          redirectTo: data.redirectTo,
+        }
       } else {
         return { success: false, error: data.error || 'Failed to redeem code' }
       }

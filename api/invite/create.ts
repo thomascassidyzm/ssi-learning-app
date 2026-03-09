@@ -8,27 +8,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
+import { generateCode } from '../_utils/codeGen'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 
 if (!supabaseUrl) {
   throw new Error('Missing SUPABASE_URL environment variable')
-}
-
-// Consonants only, excluding I and O (confusable with 1 and 0)
-const CODE_CONSONANTS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
-
-function generateCode(): string {
-  let letters = ''
-  for (let i = 0; i < 3; i++) {
-    letters += CODE_CONSONANTS[Math.floor(Math.random() * CODE_CONSONANTS.length)]
-  }
-  let digits = ''
-  for (let i = 0; i < 3; i++) {
-    digits += Math.floor(Math.random() * 10).toString()
-  }
-  return `${letters}-${digits}`
 }
 
 export default async function handler(

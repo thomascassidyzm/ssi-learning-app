@@ -174,7 +174,20 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/AdminCourses.vue'),
         meta: { title: 'Admin Courses', description: 'Course overview with enrollment stats' },
       },
+      {
+        path: 'entitlements',
+        name: 'admin-entitlements',
+        component: () => import('@/views/admin/AdminEntitlements.vue'),
+        meta: { title: 'Entitlements', description: 'Manage entitlement access codes' },
+      },
     ],
+  },
+  // Shareable redeem link
+  {
+    path: '/redeem/:code',
+    name: 'redeem-code',
+    component: () => import('@/views/RedeemCode.vue'),
+    meta: { title: 'Redeem Code' },
   },
   // PWA install guide
   {

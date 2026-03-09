@@ -9,6 +9,7 @@ import { useInviteCode, type InviteCodeContext } from '../composables/useInviteC
 import { useAuthModal } from '../composables/useAuthModal'
 import { useRouter } from 'vue-router'
 import { useSharedSubscription } from '../composables/useSubscription'
+import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 
 const emit = defineEmits(['close', 'openExplorer', 'openListening', 'openDriving', 'settingChanged'])
 
@@ -254,18 +255,29 @@ const handleJoinValidate = async () => {
 
 const joinContextRole = computed(() => {
   if (!joinContext.value) return ''
+  if (joinContext.value.codeKind === 'entitlement') {
+    return joinContext.value.label || 'Access Code'
+  }
   const map: Record<string, string> = { ssi_admin: 'SSi Admin', govt_admin: 'Regional Admin', school_admin: 'School Admin', teacher: 'Teacher', student: 'Student' }
-  return map[joinContext.value.codeType] || joinContext.value.codeType
+  return map[joinContext.value.codeType || ''] || joinContext.value.codeType || ''
 })
 
 const joinContextDetail = computed(() => {
   if (!joinContext.value) return ''
   const ctx = joinContext.value
+  if (ctx.codeKind === 'entitlement') {
+    const parts = []
+    if (ctx.accessDescription) parts.push(ctx.accessDescription)
+    if (ctx.durationDescription) parts.push(ctx.durationDescription)
+    return parts.join(', ')
+  }
   if (ctx.schoolName) return `at ${ctx.schoolName}`
   if (ctx.regionName) return `for ${ctx.regionName}`
   if (ctx.className) return ctx.className
   return ''
 })
+
+const { refresh: refreshEntitlements } = useSharedUserEntitlements()
 
 const handleJoinRedeem = async () => {
   isJoinRedeeming.value = true
@@ -281,6 +293,10 @@ const handleJoinRedeem = async () => {
       joinSuccess.value = true
       joinContext.value = null
       clearPendingCode()
+      // Refresh entitlements if an entitlement code was redeemed
+      if (result.codeKind === 'entitlement') {
+        refreshEntitlements()
+      }
     } else {
       joinError.value = result.error || 'Failed to join'
     }
@@ -1175,14 +1191,14 @@ const confirmReset = async () => {
         </div>
       </section>
 
-      <!-- Join School/Class Section (only for signed-in users) -->
+      <!-- Enter Code Section (only for signed-in users) -->
       <section class="section" v-if="isSignedIn">
-        <h3 class="section-title">Schools</h3>
+        <h3 class="section-title">Codes</h3>
         <div class="card">
           <div class="setting-row" v-if="!showJoinCode">
             <div class="setting-info">
-              <span class="setting-label">Join a School or Class</span>
-              <span class="setting-desc">Enter an invite code from your teacher or school</span>
+              <span class="setting-label">Enter a Code</span>
+              <span class="setting-desc">Enter an invite or access code</span>
             </div>
             <button class="text-btn" @click="showJoinCode = true">Enter Code</button>
           </div>

@@ -11,6 +11,7 @@ import type {
   CourseWithPricing,
   CourseAccessResult,
   UserSubscriptionStatus,
+  UserEntitlement,
   CoursePricingTier,
 } from './types';
 import {
@@ -29,11 +30,13 @@ import {
  *
  * @param course - Course with pricing metadata
  * @param subscription - User's subscription status
+ * @param entitlements - Optional user entitlements from entitlement codes
  * @returns CourseAccessResult with access level and reason
  */
 export function checkCourseAccess(
-  course: Pick<CourseWithPricing, 'pricing_tier' | 'is_community'>,
-  subscription: UserSubscriptionStatus | null
+  course: Pick<CourseWithPricing, 'pricing_tier' | 'is_community'> & { course_code?: string },
+  subscription: UserSubscriptionStatus | null,
+  entitlements?: UserEntitlement[]
 ): CourseAccessResult {
   // Community courses are always free
   if (course.is_community || course.pricing_tier === 'community') {
@@ -67,6 +70,30 @@ export function checkCourseAccess(
     };
   }
 
+  // Check entitlements from entitlement codes
+  if (entitlements && entitlements.length > 0) {
+    const now = new Date();
+    const hasAccess = entitlements.some((e) => {
+      // Check expiry
+      if (e.expiresAt && new Date(e.expiresAt) <= now) return false;
+      // Full access covers everything
+      if (e.accessType === 'full') return true;
+      // Course-specific: check if this course is in the list
+      if (e.accessType === 'courses' && e.grantedCourses && course.course_code) {
+        return e.grantedCourses.includes(course.course_code);
+      }
+      return false;
+    });
+    if (hasAccess) {
+      return {
+        canAccess: true,
+        canPreview: true,
+        reason: 'entitled',
+        upgradeRequired: false,
+      };
+    }
+  }
+
   // Not subscribed - preview through Yellow Belt only
   return {
     canAccess: false,
@@ -87,11 +114,12 @@ export function checkCourseAccess(
  * @returns true if user can access this seed
  */
 export function canAccessSeed(
-  course: Pick<CourseWithPricing, 'pricing_tier' | 'is_community'>,
+  course: Pick<CourseWithPricing, 'pricing_tier' | 'is_community'> & { course_code?: string },
   subscription: UserSubscriptionStatus | null,
-  seedNumber: number
+  seedNumber: number,
+  entitlements?: UserEntitlement[]
 ): boolean {
-  const access = checkCourseAccess(course, subscription);
+  const access = checkCourseAccess(course, subscription, entitlements);
 
   // Full access - can access any seed
   if (access.canAccess) {
