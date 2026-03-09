@@ -84,7 +84,10 @@ export function ensureTileCoverage(blocks: LegoBlock[], fullPhraseText: string):
       })
     }
 
-    result.push(block)
+    // GOLDEN RULE: use the phrase's own text, not the LEGO's canonical form.
+    // The audio says the phrase — the tile must show exactly what the audio says.
+    const phraseSubstring = originalTokens.slice(matchStart, matchStart + blockTokens.length).join(isCJK ? '' : ' ')
+    result.push({ ...block, targetText: phraseSubstring })
     phraseIdx = matchStart + blockTokens.length
   }
 
