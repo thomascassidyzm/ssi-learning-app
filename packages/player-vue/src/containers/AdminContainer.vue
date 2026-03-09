@@ -1,19 +1,15 @@
 <script setup lang="ts">
-import { ref, inject, onMounted } from 'vue'
+import { ref, inject } from 'vue'
 import { useRoute } from 'vue-router'
 import { setSchoolsClient } from '@/composables/schools/client'
 
 const route = useRoute()
 
-// Supabase client from App
+// Supabase client from App — set synchronously so child components can use it in onMounted
 const supabase = inject('supabase', ref(null)) as any
-
-// Set up client bridge so admin composables can access Supabase
-onMounted(() => {
-  if (supabase.value) {
-    setSchoolsClient(supabase.value)
-  }
-})
+if (supabase.value) {
+  setSchoolsClient(supabase.value)
+}
 </script>
 
 <template>
