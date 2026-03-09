@@ -496,7 +496,7 @@ onMounted(() => {
 .browse-content {
   position: relative;
   z-index: 10;
-  padding: 0 1.5rem;
+  padding: 0.75rem 1.5rem 0;
 }
 
 /* Section */
