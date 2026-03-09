@@ -510,16 +510,22 @@ onMounted(() => {
       </div>
     </Transition>
 
-    <!-- Course Selector (triggered from resting state) -->
-    <CourseSelector
-      :is-open="showCourseSelector"
-      :supabase="supabaseClient"
-      :enrolled-courses="enrolledCourses"
-      :active-course-id="activeCourse?.course_code"
-      :is-admin="isAdmin"
-      @selectCourse="(c) => { showCourseSelector = false; handleCourseSelect(c) }"
-      @close="showCourseSelector = false"
-    />
+    <!-- Course Selector overlay (same pattern as Library/Settings) -->
+    <Transition name="slide-up">
+      <div v-if="showCourseSelector" class="settings-overlay" @click.self="showCourseSelector = false">
+        <div class="settings-panel">
+          <CourseSelector
+            :is-open="showCourseSelector"
+            :supabase="supabaseClient"
+            :enrolled-courses="enrolledCourses"
+            :active-course-id="activeCourse?.course_code"
+            :is-admin="isAdmin"
+            @selectCourse="(c) => { showCourseSelector = false; handleCourseSelect(c) }"
+            @close="showCourseSelector = false"
+          />
+        </div>
+      </div>
+    </Transition>
 
     <!-- Unified Auth Modal (shared state with all components) -->
     <SignInModal @success="handleAuthSuccess" />

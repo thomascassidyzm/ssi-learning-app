@@ -212,18 +212,13 @@ onMounted(() => {
 </script>
 
 <template>
-  <Transition name="sheet">
-    <div v-if="isOpen" class="course-selector-overlay" @click="emit('close')">
-      <div class="course-selector-sheet" @click.stop>
-        <!-- Drag handle -->
-        <div class="sheet-handle"></div>
-
-        <!-- Header -->
-        <header class="sheet-header">
-          <div class="header-spacer" />
-          <h2 class="sheet-title">{{ t('courseSelector.title') }}</h2>
-          <button class="close-btn" @click="emit('close')" aria-label="Close">&#x2715;</button>
-        </header>
+  <div class="course-selector">
+    <!-- Header -->
+    <header class="sheet-header">
+      <div class="header-spacer" />
+      <h2 class="sheet-title">{{ t('courseSelector.title') }}</h2>
+      <button class="close-btn" @click="emit('close')" aria-label="Close">&#x2715;</button>
+    </header>
 
         <!-- Loading state -->
         <div v-if="isLoading" class="loading-state">
@@ -326,63 +321,22 @@ onMounted(() => {
             </div>
           </section>
         </div>
-      </div>
-    </div>
-  </Transition>
+  </div>
 </template>
 
 <style scoped>
 /* Fonts loaded globally in style.css */
 
-.course-selector-overlay {
-  position: fixed;
-  inset: 0;
-  bottom: 0; /* Sits above nav bar if z-index is right */
-  background: var(--bg-overlay, rgba(0, 0, 0, 0.6));
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  z-index: 200;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding-bottom: 70px; /* Space for bottom nav */
-}
-
-.course-selector-sheet {
-  width: 100%;
-  max-width: 500px;
-  max-height: 85vh;
-  background: var(--bg-secondary, #0d0d12);
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
-  border-bottom: none;
-  border-radius: 24px 24px 0 0;
+.course-selector {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  animation: sheet-slide-up 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@keyframes sheet-slide-up {
-  from {
-    transform: translateY(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-.sheet-handle {
-  width: 36px;
-  height: 4px;
-  background: var(--border-medium, rgba(255, 255, 255, 0.12));
-  border-radius: 2px;
-  margin: 12px auto 0;
-  flex-shrink: 0;
+  min-height: 100%;
 }
 
 .sheet-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -710,25 +664,6 @@ onMounted(() => {
   color: var(--accent, #c23a3a);
 }
 
-/* Sheet transition */
-.sheet-enter-active {
-  transition: opacity 0.3s ease;
-}
-
-.sheet-leave-active {
-  transition: opacity 0.2s ease;
-}
-
-.sheet-enter-from,
-.sheet-leave-to {
-  opacity: 0;
-}
-
-.sheet-enter-from .course-selector-sheet,
-.sheet-leave-to .course-selector-sheet {
-  transform: translateY(100%);
-}
-
 /* Responsive */
 @media (max-width: 400px) {
   .target-grid {
@@ -754,21 +689,6 @@ onMounted(() => {
 
 <!-- Mist theme: paper surfaces instead of glass -->
 <style>
-:root[data-theme="mist"] .course-selector .selector-backdrop {
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-:root[data-theme="mist"] .course-selector .selector-content {
-  background: #ffffff;
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.14),
-              0 8px 24px rgba(44, 38, 34, 0.12),
-              0 24px 64px rgba(44, 38, 34, 0.08);
-}
-
 :root[data-theme="mist"] .course-selector .sheet-header {
   background: #ffffff;
   backdrop-filter: blur(20px) saturate(180%);
