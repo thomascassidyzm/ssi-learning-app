@@ -69,7 +69,7 @@ export function useAdminCourses(client: SupabaseClient) {
       // Fetch all courses
       const { data: courseData, error: courseErr } = await client
         .from('courses')
-        .select('course_code, known_lang, target_lang, display_name')
+        .select('course_code, known_lang, target_lang, display_name, pricing_tier, is_community')
 
       if (courseErr) throw courseErr
       courses.value = courseData || []
