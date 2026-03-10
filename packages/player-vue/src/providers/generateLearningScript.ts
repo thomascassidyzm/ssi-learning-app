@@ -464,6 +464,9 @@ export async function generateLearningScript(
     return result
   }
 
+  // Track intros missing presentation audio (logged as summary at end, not per-item)
+  const introsMissingAudio: string[] = []
+
   // Helper: only emit items from emitFromRound onward
   // Earlier rounds are still fully processed (legoState, spaced rep) but not emitted
   const shouldEmit = () => roundNumber >= emitFromRound
@@ -474,7 +477,7 @@ export async function generateLearningScript(
       // Missing presentation audio is handled by SimplePlayer (skips empty prompt phase).
       // Target voice1/voice2 still play to introduce the LEGO pronunciation.
       if (!item.knownAudioId) {
-        console.warn(`[generateLearningScript] Intro for ${item.legoKey} missing presentation audio — will play target audio only`)
+        introsMissingAudio.push(item.legoKey || 'unknown')
       }
     } else if (item.type === 'listening') {
       // Listening items only need target audio (passive listening, no known prompt)
@@ -920,6 +923,11 @@ export async function generateLearningScript(
     if (errorCount < validationReport.rounds.filter(r => !r.valid).length) {
       console.error(`  ... and ${validationReport.rounds.filter(r => !r.valid).length - errorCount} more rounds with errors`)
     }
+  }
+
+  // Summary: intros missing presentation audio (single log instead of per-item spam)
+  if (introsMissingAudio.length > 0) {
+    console.warn(`[generateLearningScript] ${introsMissingAudio.length} intros missing presentation audio — will play target audio only`)
   }
 
   const skippedRounds = emitFromRound > 1 ? emitFromRound - 1 : 0
