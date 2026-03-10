@@ -4,6 +4,8 @@ import { useAdminClient } from '@/composables/useAdminClient'
 import { useAdminActivity } from '@/composables/admin/useAdminActivity'
 import { parseCourseCode, timeAgo, formatDuration } from '@/composables/admin/adminUtils'
 import Badge from '@/components/schools/shared/Badge.vue'
+import Card from '@/components/schools/shared/Card.vue'
+import StatsCard from '@/components/schools/StatsCard.vue'
 
 const { getClient } = useAdminClient()
 
@@ -33,73 +35,106 @@ onUnmounted(() => {
 
 <template>
   <div class="admin-activity">
-    <h2 class="page-title">Activity</h2>
+    <!-- Page Header -->
+    <header class="page-header animate-in">
+      <div class="page-title">
+        <h1>Activity</h1>
+        <p class="page-subtitle">Real-time learning activity</p>
+      </div>
+    </header>
 
-    <!-- Summary cards -->
-    <div class="stat-cards">
-      <div class="stat-card">
-        <div class="stat-value">{{ sessionsToday }}</div>
-        <div class="stat-label">Sessions Today</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">{{ learnersToday }}</div>
-        <div class="stat-label">Learners Today</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">{{ formatDuration(minutesToday) }}</div>
-        <div class="stat-label">Minutes Today</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value stat-value-sm">{{ topCourseToday ? parseCourseCode(topCourseToday).label : '—' }}</div>
-        <div class="stat-label">Top Course</div>
-      </div>
+    <!-- Summary Stats -->
+    <div class="stats-grid animate-in delay-1">
+      <StatsCard
+        label="Sessions Today"
+        :value="sessionsToday"
+        icon="⚡"
+        variant="blue"
+      />
+      <StatsCard
+        label="Learners Today"
+        :value="learnersToday"
+        icon="👥"
+        variant="gold"
+      />
+      <StatsCard
+        label="Minutes Today"
+        :value="formatDuration(minutesToday)"
+        icon="⏱"
+        variant="green"
+      />
+      <StatsCard
+        label="Top Course"
+        :value="topCourseToday ? parseCourseCode(topCourseToday).label : '—'"
+        icon="🏆"
+        variant="red"
+      />
     </div>
 
     <!-- Live Now -->
-    <div v-if="liveSessions.length > 0" class="live-section">
-      <h3 class="section-title">
-        <span class="live-dot"></span>
-        Live Now ({{ liveSessions.length }})
-      </h3>
-      <div class="live-list">
-        <div v-for="session in liveSessions" :key="session.id" class="live-item">
-          <span class="live-name">{{ session.display_name }}</span>
-          <Badge variant="default" size="sm" pill>{{ parseCourseCode(session.course_id).label }}</Badge>
-          <span class="live-time">{{ timeAgo(session.started_at) }}</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Error -->
-    <div v-if="error" class="error-banner">{{ error }}</div>
-
-    <!-- Loading -->
-    <div v-if="isLoading" class="loading">Loading activity...</div>
-
-    <!-- Activity timeline -->
-    <div v-else-if="sessionsByHour.length > 0" class="timeline">
-      <h3 class="section-title">Today's Activity</h3>
-      <div v-for="group in sessionsByHour" :key="group.hour" class="timeline-group">
-        <div class="timeline-hour">{{ group.hour }}</div>
-        <div class="timeline-items">
-          <div v-for="session in group.sessions" :key="session.id" class="timeline-item">
-            <span class="item-name">{{ session.display_name }}</span>
+    <section v-if="liveSessions.length > 0" class="live-section animate-in delay-2">
+      <Card accent="green">
+        <template #header>
+          <div class="card-header-content">
+            <h3 class="card-title">
+              <span class="live-dot"></span>
+              Live Now ({{ liveSessions.length }})
+            </h3>
+          </div>
+        </template>
+        <div class="live-list">
+          <div v-for="session in liveSessions" :key="session.id" class="live-item">
+            <span class="live-name">{{ session.display_name }}</span>
             <Badge variant="default" size="sm" pill>{{ parseCourseCode(session.course_id).label }}</Badge>
-            <span v-if="session.duration_seconds" class="item-duration">
-              {{ formatDuration(session.duration_seconds / 60) }}
-            </span>
-            <span v-if="session.items_practiced" class="item-count">
-              {{ session.items_practiced }} items
-            </span>
-            <Badge v-if="!session.ended_at" variant="success" size="sm" pill pulse>live</Badge>
+            <span class="live-time">{{ timeAgo(session.started_at) }}</span>
           </div>
         </div>
-      </div>
+      </Card>
+    </section>
+
+    <!-- Error -->
+    <div v-if="error" class="error-banner animate-in delay-2">{{ error }}</div>
+
+    <!-- Loading -->
+    <div v-if="isLoading" class="loading-state animate-in delay-2">
+      <p>Loading activity...</p>
     </div>
 
-    <div v-else-if="!isLoading" class="empty-state">No activity in the last 24 hours.</div>
+    <!-- Activity Timeline -->
+    <section v-else-if="sessionsByHour.length > 0" class="timeline-section animate-in delay-3">
+      <Card title="Today's Activity">
+        <template #icon>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+        </template>
+        <div class="timeline">
+          <div v-for="group in sessionsByHour" :key="group.hour" class="timeline-group">
+            <div class="timeline-hour">{{ group.hour }}</div>
+            <div class="timeline-items">
+              <div v-for="session in group.sessions" :key="session.id" class="timeline-item">
+                <span class="item-name">{{ session.display_name }}</span>
+                <Badge variant="default" size="sm" pill>{{ parseCourseCode(session.course_id).label }}</Badge>
+                <span v-if="session.duration_seconds" class="item-duration">
+                  {{ formatDuration(session.duration_seconds / 60) }}
+                </span>
+                <span v-if="session.items_practiced" class="item-count">
+                  {{ session.items_practiced }} items
+                </span>
+                <Badge v-if="!session.ended_at" variant="success" size="sm" pill pulse>live</Badge>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Card>
+    </section>
 
-    <div class="refresh-note">Auto-refreshes every 60s</div>
+    <div v-else-if="!isLoading" class="empty-state animate-in delay-3">
+      No activity in the last 24 hours.
+    </div>
+
+    <div class="refresh-note animate-in delay-4">Auto-refreshes every 60s</div>
   </div>
 </template>
 
@@ -107,76 +142,64 @@ onUnmounted(() => {
 .admin-activity {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--space-6);
+  max-width: 1200px;
 }
 
-.page-title {
-  font-size: 1.5rem;
-  font-weight: 600;
+/* Page Header */
+.page-header {
+  margin-bottom: var(--space-2);
+}
+
+.page-title h1 {
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  font-weight: var(--font-bold);
+  margin: 0 0 var(--space-1) 0;
+  color: var(--text-primary);
+}
+
+.page-subtitle {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
   margin: 0;
-  color: var(--text-primary, #e8e8f0);
 }
 
-/* Stat cards */
-.stat-cards {
+/* Stats Grid */
+.stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
+  gap: var(--space-6);
 }
 
-.stat-card {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  padding: 20px;
+/* Live Section */
+.live-section {
+  /* Spacing handled by parent gap */
 }
 
-.stat-value {
-  font-size: 2rem;
-  font-weight: 700;
-  color: var(--text-primary, #e8e8f0);
-  line-height: 1;
+.card-header-content {
+  flex: 1;
+  min-width: 0;
 }
 
-.stat-value-sm {
-  font-size: 1.25rem;
-}
-
-.stat-label {
-  font-size: 0.8125rem;
-  color: var(--text-secondary, #a0a0b8);
-  margin-top: 8px;
-}
-
-/* Section titles */
-.section-title {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--text-primary, #e8e8f0);
-  margin: 0;
+.card-title {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-
-/* Live section */
-.live-section {
-  background: rgba(74, 222, 128, 0.05);
-  border: 1px solid rgba(74, 222, 128, 0.15);
-  border-radius: 12px;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
+  margin: 0;
 }
 
 .live-dot {
-  width: 8px;
-  height: 8px;
-  background: #4ade80;
+  width: 10px;
+  height: 10px;
+  background: var(--success);
   border-radius: 50%;
   display: inline-block;
   animation: pulse 2s ease-in-out infinite;
+  box-shadow: 0 0 8px var(--success);
 }
 
 @keyframes pulse {
@@ -187,121 +210,143 @@ onUnmounted(() => {
 .live-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .live-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 8px;
-  font-size: 0.875rem;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+  transition: background var(--transition-fast);
+}
+
+.live-item:hover {
+  background: var(--bg-elevated);
 }
 
 .live-name {
-  font-weight: 500;
-  color: var(--text-primary, #e8e8f0);
+  font-weight: var(--font-medium);
+  color: var(--text-primary);
 }
 
 .live-time {
-  color: var(--text-secondary, #a0a0b8);
-  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
   margin-left: auto;
 }
 
+/* Error */
+.error-banner {
+  padding: var(--space-4) var(--space-5);
+  background: var(--bg-card);
+  border: 1px solid var(--ssi-red);
+  border-radius: var(--radius-lg);
+  color: var(--ssi-red);
+  font-size: var(--text-sm);
+}
+
+/* Loading */
+.loading-state {
+  text-align: center;
+  padding: var(--space-12);
+  color: var(--text-secondary);
+}
+
 /* Timeline */
+.timeline-section {
+  /* Spacing handled by parent gap */
+}
+
 .timeline {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4);
 }
 
 .timeline-group {
   display: flex;
-  gap: 16px;
+  gap: var(--space-4);
 }
 
 .timeline-hour {
-  width: 48px;
+  width: 52px;
   flex-shrink: 0;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--text-secondary, #a0a0b8);
-  padding-top: 8px;
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  color: var(--text-muted);
+  padding-top: var(--space-3);
 }
 
 .timeline-items {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  border-left: 2px solid rgba(255, 255, 255, 0.08);
-  padding-left: 16px;
+  gap: var(--space-1);
+  border-left: 2px solid var(--border-subtle);
+  padding-left: var(--space-4);
 }
 
 .timeline-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 8px;
-  font-size: 0.875rem;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+  transition: background var(--transition-fast);
+}
+
+.timeline-item:hover {
+  background: var(--bg-elevated);
 }
 
 .item-name {
-  font-weight: 500;
-  color: var(--text-primary, #e8e8f0);
+  font-weight: var(--font-medium);
+  color: var(--text-primary);
 }
 
 .item-duration,
 .item-count {
-  color: var(--text-secondary, #a0a0b8);
-  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
 }
 
-/* Error */
-.error-banner {
-  padding: 12px 16px;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  border-radius: 8px;
-  color: #ef4444;
-  font-size: 0.875rem;
-}
-
-/* Loading */
-.loading {
-  text-align: center;
-  padding: 40px;
-  color: var(--text-secondary, #a0a0b8);
-}
-
-/* Empty */
+/* Empty State */
 .empty-state {
   text-align: center;
-  padding: 40px;
-  color: var(--text-secondary, #a0a0b8);
-  font-size: 0.875rem;
+  padding: var(--space-12);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
 }
 
+/* Refresh Note */
 .refresh-note {
   text-align: center;
-  font-size: 0.75rem;
-  color: var(--text-secondary, #a0a0b8);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
   opacity: 0.6;
 }
 
-@media (max-width: 768px) {
-  .stat-cards {
+/* Responsive */
+@media (max-width: 1024px) {
+  .stats-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
   }
 
   .timeline-group {
     flex-direction: column;
-    gap: 4px;
+    gap: var(--space-1);
   }
 
   .timeline-hour {
