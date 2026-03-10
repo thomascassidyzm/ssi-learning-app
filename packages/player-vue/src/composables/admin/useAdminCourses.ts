@@ -77,7 +77,7 @@ export function useAdminCourses(client: SupabaseClient) {
       // Fetch all enrollments
       const { data: enrollData, error: enrollErr } = await client
         .from('course_enrollments')
-        .select('learner_id, course_id, total_practice_minutes, highest_completed_seed')
+        .select('learner_id, course_id, total_practice_minutes')
 
       if (enrollErr) throw enrollErr
 
