@@ -9,7 +9,7 @@ export interface CourseInfo {
   course_code: string
   known_lang: string
   target_lang: string
-  title: string | null
+  display_name: string | null
   pricing_tier: string | null
   is_community: boolean
 }
@@ -56,7 +56,7 @@ export function useAdminCourses(client: SupabaseClient) {
       if (sortBy.value === 'active') {
         return (statsB?.active_30d || 0) - (statsA?.active_30d || 0)
       }
-      return (a.title || a.course_code).localeCompare(b.title || b.course_code)
+      return (a.display_name || a.course_code).localeCompare(b.display_name || b.course_code)
     })
     return arr
   })
@@ -69,7 +69,7 @@ export function useAdminCourses(client: SupabaseClient) {
       // Fetch all courses
       const { data: courseData, error: courseErr } = await client
         .from('courses')
-        .select('course_code, known_lang, target_lang, title, pricing_tier, is_community')
+        .select('course_code, known_lang, target_lang, display_name, pricing_tier, is_community')
 
       if (courseErr) throw courseErr
       courses.value = courseData || []

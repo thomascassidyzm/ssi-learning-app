@@ -11,8 +11,8 @@ import { verifyAuthToken } from '../_utils/auth'
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 
-if (!supabaseUrl) {
-  throw new Error('Missing SUPABASE_URL environment variable')
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.error('[EntitlementList] Missing env vars:', { hasUrl: !!supabaseUrl, hasKey: !!supabaseServiceKey })
 }
 
 export default async function handler(
@@ -21,6 +21,11 @@ export default async function handler(
 ): Promise<void> {
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'Method not allowed' })
+    return
+  }
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    res.status(500).json({ error: 'Server misconfigured — missing SUPABASE_SERVICE_ROLE_KEY' })
     return
   }
 

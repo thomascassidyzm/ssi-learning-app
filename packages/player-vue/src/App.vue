@@ -9,8 +9,12 @@ import { checkKillSwitch, unregisterAllServiceWorkers, clearAllCaches } from './
 import { useTheme } from './composables/useTheme'
 import { useEagerScriptPreload } from './composables/useEagerScriptPreload'
 import { useInviteCode } from './composables/useInviteCode'
+import { installConsoleDedup } from './utils/consoleDedup'
 import PwaUpdatePrompt from './components/PwaUpdatePrompt.vue'
 import InstallBanner from './components/InstallBanner.vue'
+
+// Suppress consecutive identical console errors/warnings after 3 repeats
+installConsoleDedup()
 
 // RECOVERY MODE: If ?reset=1 in URL, clear everything and reload
 // This helps users stuck in broken states
