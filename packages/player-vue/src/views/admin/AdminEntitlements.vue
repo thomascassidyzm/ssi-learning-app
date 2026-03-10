@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useGodMode } from '@/composables/schools/useGodMode'
 import Card from '@/components/schools/shared/Card.vue'
@@ -20,7 +20,14 @@ interface EntitlementCode {
   created_by: string
 }
 
-const { getAuthToken } = useAdminClient()
+interface CourseOption {
+  course_code: string
+  display_name: string | null
+  known_lang: string
+  target_lang: string
+}
+
+const { getAuthToken, getClient } = useAdminClient()
 const { selectedUser } = useGodMode()
 
 // State
@@ -31,9 +38,50 @@ const error = ref<string | null>(null)
 const successMessage = ref<string | null>(null)
 const copiedCode = ref<string | null>(null)
 
+// Course picker state
+const allCourses = ref<CourseOption[]>([])
+const courseSearch = ref('')
+const selectedCourses = ref<Set<string>>(new Set())
+const coursePickerOpen = ref(false)
+
+const filteredCourses = computed(() => {
+  const q = courseSearch.value.toLowerCase().trim()
+  if (!q) return allCourses.value
+  return allCourses.value.filter(c =>
+    c.course_code.toLowerCase().includes(q) ||
+    (c.display_name || '').toLowerCase().includes(q) ||
+    c.known_lang.toLowerCase().includes(q) ||
+    c.target_lang.toLowerCase().includes(q)
+  )
+})
+
+function toggleCourse(code: string) {
+  const s = new Set(selectedCourses.value)
+  if (s.has(code)) s.delete(code)
+  else s.add(code)
+  selectedCourses.value = s
+}
+
+function courseLabel(c: CourseOption): string {
+  return c.display_name || `${c.target_lang} for ${c.known_lang}`
+}
+
+async function fetchAllCourses(): Promise<void> {
+  try {
+    const client = getClient()
+    const { data, error: err } = await client
+      .from('courses')
+      .select('course_code, display_name, known_lang, target_lang')
+      .order('display_name')
+    if (err) throw err
+    allCourses.value = data || []
+  } catch (err) {
+    console.warn('[AdminEntitlements] Failed to load courses:', err)
+  }
+}
+
 // Form state
 const formAccessType = ref<'full' | 'courses'>('full')
-const formGrantedCourses = ref('')
 const formDurationType = ref<'lifetime' | 'time_limited'>('lifetime')
 const formDurationDays = ref<number | ''>('')
 const formLabel = ref('')
@@ -70,8 +118,8 @@ async function createCode(): Promise<void> {
     error.value = 'Label is required'
     return
   }
-  if (formAccessType.value === 'courses' && !formGrantedCourses.value.trim()) {
-    error.value = 'Course codes are required for course-specific access'
+  if (formAccessType.value === 'courses' && selectedCourses.value.size === 0) {
+    error.value = 'Select at least one course'
     return
   }
   if (formDurationType.value === 'time_limited' && (!formDurationDays.value || Number(formDurationDays.value) < 1)) {
@@ -97,7 +145,7 @@ async function createCode(): Promise<void> {
     }
 
     if (formAccessType.value === 'courses') {
-      body.granted_courses = formGrantedCourses.value.split(',').map(s => s.trim()).filter(Boolean)
+      body.granted_courses = [...selectedCourses.value]
     }
     if (formDurationType.value === 'time_limited') {
       body.duration_days = Number(formDurationDays.value)
@@ -124,7 +172,9 @@ async function createCode(): Promise<void> {
 
     // Reset form
     formLabel.value = ''
-    formGrantedCourses.value = ''
+    selectedCourses.value = new Set()
+    courseSearch.value = ''
+    coursePickerOpen.value = false
     formDurationDays.value = ''
     formMaxUses.value = ''
     formExpiresAt.value = ''
@@ -162,7 +212,12 @@ function formatDate(dateStr: string | null): string {
 
 function formatAccess(code: EntitlementCode): string {
   if (code.access_type === 'full') return 'Full access'
-  if (code.granted_courses?.length) return code.granted_courses.join(', ')
+  if (code.granted_courses?.length) {
+    return code.granted_courses.map(gc => {
+      const c = allCourses.value.find(ac => ac.course_code === gc)
+      return c?.display_name || gc
+    }).join(', ')
+  }
   return 'Courses'
 }
 
@@ -179,6 +234,7 @@ function formatUses(code: EntitlementCode): string {
 
 onMounted(() => {
   fetchCodes()
+  fetchAllCourses()
 })
 </script>
 
@@ -232,9 +288,59 @@ onMounted(() => {
             </select>
           </div>
 
-          <div class="form-group" v-if="formAccessType === 'courses'">
-            <label>Course Codes (comma-separated)</label>
-            <input v-model="formGrantedCourses" type="text" placeholder="cym_for_eng, spa_for_eng" />
+          <div class="form-group course-picker-group" v-if="formAccessType === 'courses'">
+            <label>Courses</label>
+            <div class="course-picker">
+              <!-- Selected tags -->
+              <div class="selected-tags" v-if="selectedCourses.size > 0">
+                <span
+                  v-for="code in selectedCourses"
+                  :key="code"
+                  class="course-tag"
+                  @click="toggleCourse(code)"
+                >
+                  {{ code }}
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </span>
+              </div>
+              <!-- Search input -->
+              <input
+                v-model="courseSearch"
+                type="text"
+                placeholder="Search courses..."
+                @focus="coursePickerOpen = true"
+              />
+              <!-- Dropdown -->
+              <div class="course-dropdown" v-if="coursePickerOpen">
+                <div
+                  v-for="c in filteredCourses"
+                  :key="c.course_code"
+                  class="course-option"
+                  :class="{ selected: selectedCourses.has(c.course_code) }"
+                  @click="toggleCourse(c.course_code)"
+                >
+                  <div class="course-option-check">
+                    <svg v-if="selectedCourses.has(c.course_code)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                  </div>
+                  <div class="course-option-info">
+                    <span class="course-option-name">{{ courseLabel(c) }}</span>
+                    <span class="course-option-code">{{ c.course_code }}</span>
+                  </div>
+                </div>
+                <div v-if="filteredCourses.length === 0" class="course-option-empty">
+                  No courses match "{{ courseSearch }}"
+                </div>
+              </div>
+            </div>
+            <button
+              v-if="coursePickerOpen"
+              class="picker-done-btn"
+              @click="coursePickerOpen = false; courseSearch = ''"
+            >Done</button>
           </div>
 
           <div class="form-group">
@@ -502,6 +608,139 @@ onMounted(() => {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* Course Picker */
+.course-picker-group {
+  grid-column: 1 / -1;
+}
+
+.course-picker {
+  position: relative;
+}
+
+.selected-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.course-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  background: color-mix(in srgb, var(--ssi-gold) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ssi-gold) 30%, transparent);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  color: var(--ssi-gold);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.course-tag:hover {
+  background: color-mix(in srgb, var(--error) 15%, transparent);
+  border-color: color-mix(in srgb, var(--error) 40%, transparent);
+  color: var(--error);
+}
+
+.course-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  margin-top: var(--space-1);
+  z-index: 50;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.course-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.course-option:hover {
+  background: var(--bg-secondary);
+}
+
+.course-option.selected {
+  background: color-mix(in srgb, var(--ssi-gold) 8%, transparent);
+}
+
+.course-option-check {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border-medium);
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+
+.course-option.selected .course-option-check {
+  background: var(--ssi-gold);
+  border-color: var(--ssi-gold);
+  color: #000;
+}
+
+.course-option-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.course-option-name {
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.course-option-code {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.course-option-empty {
+  padding: var(--space-4);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.picker-done-btn {
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.picker-done-btn:hover {
+  border-color: var(--ssi-gold);
+  color: var(--text-primary);
 }
 
 /* Table */
