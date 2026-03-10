@@ -10,8 +10,8 @@ export interface CourseInfo {
   known_lang: string
   target_lang: string
   display_name: string | null
-  pricing_tier: string | null
-  is_community: boolean
+  pricing_tier?: string | null
+  is_community?: boolean
 }
 
 export interface CourseStats {
@@ -69,7 +69,7 @@ export function useAdminCourses(client: SupabaseClient) {
       // Fetch all courses
       const { data: courseData, error: courseErr } = await client
         .from('courses')
-        .select('course_code, known_lang, target_lang, display_name, pricing_tier, is_community')
+        .select('course_code, known_lang, target_lang, display_name')
 
       if (courseErr) throw courseErr
       courses.value = courseData || []
