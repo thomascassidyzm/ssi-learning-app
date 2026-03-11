@@ -658,6 +658,7 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
   const rawBlocks = cycle.componentLegoIds
     .map((id: string, idx: number) => {
       const targetText = texts[idx] || textMap.get(id) || textMapFallback.get(id) || ''
+      // Skip blocks with no text — ensureTileCoverage will fill gaps from the phrase
       if (!targetText) return null
       const rawComps = useNative
         ? (_componentsByLegoIdNative.get(id) || _componentsByLegoId.get(id))

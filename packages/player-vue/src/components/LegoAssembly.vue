@@ -28,14 +28,18 @@ const props = defineProps<{
 
 // Detect M-LEGO: multiple components on the salient block or in props
 // Falls back to word-aligned synthesis when known/target have matching word counts
+// GOLDEN RULE: result must cover ALL words in targetText — gaps get absorbed
 const mLegoComponents = computed(() => {
-  if (props.components && props.components.length > 1) return props.components
+  let rawComps: ComponentBreakdown[] | null = null
+  if (props.components && props.components.length > 1) rawComps = props.components
   // Check if any block has components
-  for (const b of props.blocks) {
-    if (b.components && b.components.length > 1) return b.components
+  if (!rawComps) {
+    for (const b of props.blocks) {
+      if (b.components && b.components.length > 1) { rawComps = b.components; break }
+    }
   }
   // Single-tile intro/debut: synthesize word-aligned components
-  if (props.blocks.length === 1) {
+  if (!rawComps && props.blocks.length === 1) {
     const block = props.blocks[0]
     const known = block.knownText
       || (props.components?.length === 1 ? props.components[0].known : '')
@@ -44,12 +48,99 @@ const mLegoComponents = computed(() => {
       const targetWords = target.trim().split(/\s+/)
       const knownWords = known.trim().split(/\s+/)
       if (targetWords.length > 1 && knownWords.length === targetWords.length) {
-        return targetWords.map((t, i) => ({ known: knownWords[i], target: t }))
+        rawComps = targetWords.map((t, i) => ({ known: knownWords[i], target: t }))
       }
     }
   }
-  return null
+  if (!rawComps) return null
+
+  // Align components to the block's full targetText, absorbing gap words
+  const fullText = props.blocks[0]?.targetText || ''
+  if (!fullText) return rawComps
+  return alignComponentsToFullText(rawComps, fullText)
 })
+
+/**
+ * Align declared components to the full LEGO targetText.
+ * Words not covered by any component get absorbed into the nearest component
+ * (prefix → next component, trailing → previous component).
+ * This ensures the tile displays ALL words the audio says.
+ */
+function alignComponentsToFullText(
+  comps: ComponentBreakdown[],
+  fullText: string
+): ComponentBreakdown[] {
+  const fullWords = fullText.trim().split(/\s+/)
+  if (fullWords.length === 0) return comps
+
+  // Build alignment: for each component, find its word span in fullWords
+  type Span = { compIdx: number; start: number; end: number }
+  const spans: Span[] = []
+  let searchFrom = 0
+
+  for (let ci = 0; ci < comps.length; ci++) {
+    const compWords = comps[ci].target.trim().split(/\s+/)
+    // Find component words in fullWords starting from searchFrom
+    let matchStart = -1
+    for (let i = searchFrom; i <= fullWords.length - compWords.length; i++) {
+      let match = true
+      for (let j = 0; j < compWords.length; j++) {
+        if (fullWords[i + j].toLowerCase() !== compWords[j].toLowerCase()) {
+          match = false
+          break
+        }
+      }
+      if (match) { matchStart = i; break }
+    }
+    if (matchStart === -1) {
+      // Component not found — alignment failed, return raw components
+      return comps
+    }
+    spans.push({ compIdx: ci, start: matchStart, end: matchStart + compWords.length })
+    searchFrom = matchStart + compWords.length
+  }
+
+  // Check if components already cover all words
+  const totalCovered = spans.reduce((s, sp) => s + (sp.end - sp.start), 0)
+  if (totalCovered === fullWords.length) return comps
+
+  // Absorb gaps: words between components attach to the NEXT component (prefix)
+  // Trailing words after last component attach to the LAST component (suffix)
+  const result: ComponentBreakdown[] = []
+  let wordIdx = 0
+
+  for (let si = 0; si < spans.length; si++) {
+    const span = spans[si]
+    const comp = comps[span.compIdx]
+    // Gap words before this component → prefix into this component
+    const gapBefore = fullWords.slice(wordIdx, span.start)
+    if (gapBefore.length > 0) {
+      result.push({
+        known: comp.known,
+        target: [...gapBefore, ...fullWords.slice(span.start, span.end)].join(' '),
+      })
+    } else {
+      // Use fullText words (preserves original casing from the LEGO text)
+      result.push({
+        known: comp.known,
+        target: fullWords.slice(span.start, span.end).join(' '),
+      })
+    }
+    wordIdx = span.end
+  }
+
+  // Trailing gap words → suffix onto last component
+  if (wordIdx < fullWords.length && result.length > 0) {
+    const last = result[result.length - 1]
+    const trailing = fullWords.slice(wordIdx)
+    result[result.length - 1] = {
+      known: last.known,
+      target: last.target + ' ' + trailing.join(' '),
+    }
+  }
+
+  return result
+}
 
 // Map UI phases to assembly phases.
 // Tiles appear at VOICE_1 (with short delay so learner hears before reading).
