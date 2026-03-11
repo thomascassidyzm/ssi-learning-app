@@ -97,12 +97,19 @@ export function toSimpleRounds(
         if (!i.knownAudioId || !i.target1Id || !i.target2Id) { skippedNoAudio++; continue }
       }
 
+      // Intro/component_intro: use presentationAudioId as prompt audio
+      // ("The Spanish for 'want', as in 'I want to learn', is:")
+      // Regular items: use knownAudioId (the known-language prompt)
+      const promptAudioId = (i.type === 'intro' || i.type === 'component_intro')
+        ? (i.presentationAudioId || i.knownAudioId)
+        : i.knownAudioId
+
       cycles.push({
         id: i.uuid,
         legoId: i.legoKey,
         known: {
           text: i.knownText,
-          audioUrl: audioUrl(i.knownAudioId)
+          audioUrl: audioUrl(promptAudioId)
         },
         target: {
           text: i.targetText,
