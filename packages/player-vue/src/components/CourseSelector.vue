@@ -13,8 +13,10 @@
  */
 import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n, setLocale, getLanguageName, getLanguageFlag } from '../composables/useI18n'
+import { useEntitlement } from '../composables/useEntitlement'
 
 const { t } = useI18n()
+const { checkAccess } = useEntitlement()
 
 // Check if course is premium (for "Free preview" indicator)
 const isPremiumCourse = (course) => {
@@ -109,17 +111,23 @@ const filteredOtherLanguages = computed(() => {
 })
 
 // Computed: courses available for selected known language
-// Hide premium courses for non-admin users
+// Show all courses - premium ones visible if user has entitlement/subscription or for preview
 const availableCourses = computed(() => {
   return allCourses.value
     .filter(c => c.known_lang === selectedKnownLang.value)
-    .filter(c => props.isAdmin || !isPremiumCourse(c))
     .sort((a, b) => {
       const nameA = getLanguageName(a.target_lang)
       const nameB = getLanguageName(b.target_lang)
       return nameA.localeCompare(nameB)
     })
 })
+
+// Check if user has full access to a course (not just preview)
+const hasFullAccess = (course) => {
+  if (!isPremiumCourse(course)) return true
+  const access = checkAccess(course)
+  return access.canAccess
+}
 
 // Update locale when known language changes
 watch(selectedKnownLang, (newLang) => {
@@ -309,7 +317,7 @@ onMounted(() => {
                   <template v-if="isEnrolled(course.course_code)">
                     {{ getProgress(course.course_code) }}%
                   </template>
-                  <template v-else-if="isPremiumCourse(course)">
+                  <template v-else-if="isPremiumCourse(course) && !hasFullAccess(course)">
                     Free preview
                   </template>
                   <template v-else>
