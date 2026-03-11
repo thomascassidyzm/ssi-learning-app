@@ -893,7 +893,7 @@ export async function generateLearningScript(
   let lastNonIntroItem: ScriptItem | null = null
 
   for (const item of items) {
-    if (item.type === 'intro' || item.type === 'listening' || item.type === 'component_intro') {
+    if (item.type === 'intro' || item.type === 'debut' || item.type === 'listening' || item.type === 'component_intro') {
       dedupedItems.push(item)
       continue
     }
