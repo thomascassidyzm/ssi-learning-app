@@ -42,6 +42,9 @@ import { useDrivingMode } from '../composables/useDrivingMode'
 import { useScriptMode } from '../composables/useScriptMode'
 import { simpleRoundToTypedCycles } from '../utils/drivingModeAdapter'
 import BeltProgressModal from './BeltProgressModal.vue'
+import { useEntitlement } from '../composables/useEntitlement'
+import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
+import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
 
 const emit = defineEmits(['close', 'playStateChanged', 'viewProgress', 'listeningModeChanged', 'drivingModeChanged', 'cycle-started'])
 
@@ -443,6 +446,24 @@ const playbackGeneration = ref(0)  // Counter for playback generation tracking
 const scriptBaseOffset = ref(0)  // Base offset for script loading
 
 // ============================================
+// ENTITLEMENT / PAYWALL
+// ============================================
+const entitlementComposable = useEntitlement()
+const showPaywall = ref(false)
+
+// Watch entitlements — auto-dismiss paywall if user redeems a code or subscribes
+const { entitlements: liveEntitlements } = useSharedUserEntitlements()
+watch(liveEntitlements, () => {
+  if (showPaywall.value && props.course) {
+    const canAccess = entitlementComposable.canAccessSeed(props.course, PREMIUM_PREVIEW_MAX_SEED + 1)
+    if (canAccess) {
+      showPaywall.value = false
+      simplePlayer.resume()
+    }
+  }
+})
+
+// ============================================
 // SIMPLE PLAYER EVENT SUBSCRIPTIONS
 // ============================================
 
@@ -516,6 +537,19 @@ simplePlayer.onRoundCompleted((round) => {
   const nextRoundIndex = completedRoundIndex + 1
   if (nextRoundIndex < loadedRounds.value.length) {
     preloadSimpleRoundAudio(loadedRounds.value, 2, nextRoundIndex)
+  }
+
+  // Paywall check: before advancing to next round, verify access
+  if (props.course && nextRoundIndex < loadedRounds.value.length) {
+    const nextRound = loadedRounds.value[nextRoundIndex]
+    const nextSeedId = nextRound?.seedId || nextRound?.legoId?.substring(0, 5)
+    if (nextSeedId) {
+      const nextSeedNumber = parseInt(nextSeedId.substring(1, 5), 10) || 1
+      if (!entitlementComposable.canAccessSeed(props.course, nextSeedNumber)) {
+        simplePlayer.pause()
+        showPaywall.value = true
+      }
+    }
   }
 })
 
@@ -5912,6 +5946,21 @@ defineExpose({
     />
   </Transition>
 
+  <!-- Paywall Overlay -->
+  <Transition name="fade">
+    <div v-if="showPaywall" class="paywall-overlay">
+      <div class="paywall-card">
+        <h2 class="paywall-title">You've completed the free preview!</h2>
+        <p class="paywall-subtitle">Subscribe or enter an access code to keep learning beyond seed {{ PREMIUM_PREVIEW_MAX_SEED }}.</p>
+        <div class="paywall-actions">
+          <button class="paywall-btn paywall-btn-primary" @click="emit('viewProgress')">Subscribe</button>
+          <button class="paywall-btn paywall-btn-secondary" @click="emit('viewProgress')">Enter Code</button>
+          <button class="paywall-btn paywall-btn-ghost" @click="showPaywall = false; simplePlayer.jumpToRound(0); simplePlayer.resume()">Keep Previewing</button>
+        </div>
+      </div>
+    </div>
+  </Transition>
+
   <!-- Welcome Audio Overlay (with skip button) -->
   <Transition name="fade">
     <div v-if="isPlayingWelcome" class="welcome-overlay">
@@ -6626,6 +6675,92 @@ defineExpose({
   font-weight: 500;
   color: var(--text-primary);
   letter-spacing: 0.02em;
+}
+
+/* Paywall Overlay */
+.paywall-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.paywall-card {
+  max-width: 360px;
+  margin: 0 1.5rem;
+  padding: 2rem 1.5rem;
+  background: var(--bg-primary, #1a1a2e);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-radius: 20px;
+  text-align: center;
+}
+
+.paywall-title {
+  font-family: var(--font-heading, var(--font-body));
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary, #f5f5f5);
+  margin: 0 0 0.75rem;
+}
+
+.paywall-subtitle {
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+  margin: 0 0 1.5rem;
+  line-height: 1.5;
+}
+
+.paywall-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.paywall-btn {
+  padding: 0.75rem 1.5rem;
+  border-radius: 12px;
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.paywall-btn-primary {
+  background: var(--accent, #c23a3a);
+  color: white;
+}
+
+.paywall-btn-primary:hover {
+  filter: brightness(1.1);
+}
+
+.paywall-btn-secondary {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary, #f5f5f5);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12));
+}
+
+.paywall-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.paywall-btn-ghost {
+  background: none;
+  color: var(--text-muted, rgba(255, 255, 255, 0.45));
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.paywall-btn-ghost:hover {
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
 }
 
 /* Root wrapper - enables v-show to work correctly from parent component */

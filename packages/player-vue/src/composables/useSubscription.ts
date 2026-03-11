@@ -49,6 +49,8 @@ export interface UseSubscriptionReturn {
   error: Ref<string | null>
   /** Subscription status for display */
   status: ComputedRef<SubscriptionStatus>
+  /** Initialize — call from App.vue after supabase + auth are ready */
+  initialize: () => Promise<void>
   /** Start checkout for a plan */
   checkout: (planId: string) => Promise<void>
   /** Open customer portal */
@@ -284,9 +286,8 @@ export function useSubscription(): UseSubscriptionReturn {
     subscription.value = cached.subscription
   }
 
-  // Fetch fresh data in background (if we have a client)
-  if (supabaseRef?.value) {
-    fetchSubscription()
+  async function initialize(): Promise<void> {
+    if (supabaseRef?.value) await fetchSubscription()
   }
 
   // ============================================================================
@@ -299,6 +300,7 @@ export function useSubscription(): UseSubscriptionReturn {
     isLoading,
     error,
     status,
+    initialize,
     checkout,
     openPortal,
     refresh,

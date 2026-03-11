@@ -34,6 +34,8 @@ export interface UseUserEntitlementsReturn {
   hasEntitlement: ComputedRef<boolean>
   /** Whether we're loading */
   isLoading: Ref<boolean>
+  /** Initialize — call from App.vue after supabase + auth are ready */
+  initialize: () => Promise<void>
   /** Refresh from API */
   refresh: () => Promise<void>
   /** Clear local cache */
@@ -151,14 +153,15 @@ export function useUserEntitlements(): UseUserEntitlementsReturn {
     entitlements.value = cached.entitlements
   }
 
-  if (supabaseRef?.value) {
-    fetchEntitlements()
+  async function initialize(): Promise<void> {
+    if (supabaseRef?.value) await fetchEntitlements()
   }
 
   return {
     entitlements,
     hasEntitlement,
     isLoading,
+    initialize,
     refresh,
     clearCache,
   }

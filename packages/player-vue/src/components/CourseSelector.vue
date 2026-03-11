@@ -13,8 +13,39 @@
  */
 import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n, setLocale, getLanguageName, getLanguageFlag } from '../composables/useI18n'
+import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
+import { useSharedSubscription } from '../composables/useSubscription'
+import { checkCourseAccess, inferPricingTier } from '@ssi/core'
 
 const { t } = useI18n()
+
+// Entitlement + subscription singletons (initialized by App.vue)
+const { entitlements: userEntitlements } = useSharedUserEntitlements()
+const { isSubscribed: hasActiveSubscription } = useSharedSubscription()
+
+// Check if user has full access to a course (not just preview)
+const hasFullAccess = (course) => {
+  const pricingTier = course.pricing_tier ?? inferPricingTier(course.target_lang ?? '', course.course_code)
+  const isCommunity = course.is_community ?? course.course_code?.startsWith('community_')
+  // Dev flag override
+  const devPaid = (() => {
+    try {
+      const tier = localStorage.getItem('ssi-dev-tier')
+      if (tier === 'paid') return true
+      return localStorage.getItem('ssi-dev-paid-user') === 'true'
+    } catch { return false }
+  })()
+  const subscription = {
+    isActive: hasActiveSubscription.value || devPaid,
+    tier: (hasActiveSubscription.value || devPaid) ? 'paid' : 'free',
+  }
+  const result = checkCourseAccess(
+    { course_code: course.course_code, pricing_tier: pricingTier, is_community: isCommunity },
+    subscription,
+    userEntitlements.value
+  )
+  return result.canAccess
+}
 
 // Check if course is premium (for "Free preview" indicator)
 const isPremiumCourse = (course) => {
@@ -304,9 +335,12 @@ onMounted(() => {
                 <span class="target-name">{{ getTargetDisplayName(course) }}</span>
 
                 <!-- Progress or status -->
-                <span class="target-status">
+                <span class="target-status" :class="{ 'preview-status': isPremiumCourse(course) && !hasFullAccess(course) }">
                   <template v-if="isEnrolled(course.course_code)">
                     {{ getProgress(course.course_code) }}%
+                  </template>
+                  <template v-else-if="isPremiumCourse(course) && !hasFullAccess(course)">
+                    Free preview
                   </template>
                   <template v-else>
                     {{ t('courseSelector.ready') }}
@@ -714,6 +748,13 @@ onMounted(() => {
 
 .target-card.active .target-status {
   color: var(--accent, #c23a3a);
+}
+
+.target-status.preview-status {
+  color: #ffb340;
+  font-family: var(--font-body);
+  font-size: 0.625rem;
+  font-weight: 600;
 }
 
 /* Responsive */

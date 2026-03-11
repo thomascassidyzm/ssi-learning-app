@@ -9,6 +9,8 @@ import { checkKillSwitch, unregisterAllServiceWorkers, clearAllCaches } from './
 import { useTheme } from './composables/useTheme'
 import { useEagerScriptPreload } from './composables/useEagerScriptPreload'
 import { useInviteCode } from './composables/useInviteCode'
+import { useSharedUserEntitlements } from './composables/useUserEntitlements'
+import { useSharedSubscription } from './composables/useSubscription'
 import { installConsoleDedup } from './utils/consoleDedup'
 import PwaUpdatePrompt from './components/PwaUpdatePrompt.vue'
 import InstallBanner from './components/InstallBanner.vue'
@@ -304,6 +306,11 @@ onMounted(async () => {
       if (auth) {
         await auth.initialize(supabaseClient.value)
       }
+
+      // Initialize entitlements + subscription (now that supabase + auth are ready)
+      const { initialize: initEntitlements } = useSharedUserEntitlements()
+      const { initialize: initSubscription } = useSharedSubscription()
+      Promise.all([initEntitlements(), initSubscription()]).catch(() => {})
 
       // Handle ?code= URL parameter for invite codes
       try {
