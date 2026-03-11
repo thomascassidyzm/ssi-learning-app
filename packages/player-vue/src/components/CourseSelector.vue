@@ -111,23 +111,22 @@ const filteredOtherLanguages = computed(() => {
 })
 
 // Computed: courses available for selected known language
-// Show all courses - premium ones visible if user has entitlement/subscription or for preview
+// Free/community courses always shown; premium only if user has access (entitlement/subscription)
 const availableCourses = computed(() => {
   return allCourses.value
     .filter(c => c.known_lang === selectedKnownLang.value)
+    .filter(c => {
+      if (props.isAdmin || !isPremiumCourse(c)) return true
+      // Premium: show only if user has full access (entitlement or subscription)
+      const access = checkAccess(c)
+      return access.canAccess
+    })
     .sort((a, b) => {
       const nameA = getLanguageName(a.target_lang)
       const nameB = getLanguageName(b.target_lang)
       return nameA.localeCompare(nameB)
     })
 })
-
-// Check if user has full access to a course (not just preview)
-const hasFullAccess = (course) => {
-  if (!isPremiumCourse(course)) return true
-  const access = checkAccess(course)
-  return access.canAccess
-}
 
 // Update locale when known language changes
 watch(selectedKnownLang, (newLang) => {
@@ -316,9 +315,6 @@ onMounted(() => {
                 <span class="target-status">
                   <template v-if="isEnrolled(course.course_code)">
                     {{ getProgress(course.course_code) }}%
-                  </template>
-                  <template v-else-if="isPremiumCourse(course) && !hasFullAccess(course)">
-                    Free preview
                   </template>
                   <template v-else>
                     {{ t('courseSelector.ready') }}
