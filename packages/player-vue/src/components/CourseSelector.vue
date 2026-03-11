@@ -209,8 +209,14 @@ const fetchCourses = async () => {
   }
 }
 
+// Check if course is locked (premium without access)
+const isLocked = (course) => {
+  return isPremiumCourse(course) && !hasFullAccess(course)
+}
+
 // Handle course selection
 const handleCourseSelect = (course) => {
+  if (isLocked(course)) return
   // Haptic feedback
   if (navigator.vibrate) {
     navigator.vibrate(10)
@@ -314,7 +320,8 @@ onMounted(() => {
                 class="target-card"
                 :class="{
                   enrolled: isEnrolled(course.course_code),
-                  active: isActive(course.course_code)
+                  active: isActive(course.course_code),
+                  locked: isLocked(course)
                 }"
                 @click="handleCourseSelect(course)"
               >
@@ -672,6 +679,21 @@ onMounted(() => {
   background: rgba(194, 58, 58, 0.12);
   border-color: rgba(194, 58, 58, 0.4);
   box-shadow: 0 0 20px rgba(194, 58, 58, 0.15);
+}
+
+.target-card.locked {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.target-card.locked:hover {
+  transform: none;
+  background: var(--bg-card, rgba(255, 255, 255, 0.04));
+  border-color: var(--border-subtle, rgba(255, 255, 255, 0.06));
+}
+
+.target-card.locked:active {
+  transform: none;
 }
 
 .active-badge {
