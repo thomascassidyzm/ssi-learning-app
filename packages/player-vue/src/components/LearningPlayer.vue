@@ -3353,11 +3353,13 @@ const playIntroductionIfNeeded = async (item) => {
  */
 const playIntroductionAudioDirectly = async (scriptItem) => {
   const legoId = scriptItem?.legoId
-  console.log('[LearningPlayer] playIntroductionAudioDirectly for:', legoId)
+  // Component intros share the parent legoId — use uuid for dedup so each component plays
+  const introDedupeKey = scriptItem?.type === 'component_intro' ? (scriptItem.uuid || legoId) : legoId
+  console.log('[LearningPlayer] playIntroductionAudioDirectly for:', legoId, 'dedupeKey:', introDedupeKey)
 
   // Skip if already played this session
-  if (playedIntroductions.value.has(legoId)) {
-    console.log('[LearningPlayer] Intro already played this session for:', legoId)
+  if (playedIntroductions.value.has(introDedupeKey)) {
+    console.log('[LearningPlayer] Intro already played this session for:', introDedupeKey)
     return false
   }
 
@@ -3542,12 +3544,14 @@ const playIntroductionAudioDirectly = async (scriptItem) => {
     }
 
     // Success - mark as played so it won't repeat this session
-    playedIntroductions.value.add(legoId)
+    playedIntroductions.value.add(introDedupeKey)
 
-    // Add LEGO node to the brain network visualization
-    const targetText = playable.lego?.lego?.target || scriptItem?.targetText || ''
-    const knownText = playable.lego?.lego?.known || scriptItem?.knownText || ''
-    addNetworkNode(legoId, targetText, knownText, currentBelt.value?.name || 'white')
+    // Add LEGO node to the brain network visualization (only for full LEGO intros, not components)
+    if (scriptItem?.type !== 'component_intro') {
+      const targetText = playable.lego?.lego?.target || scriptItem?.targetText || ''
+      const knownText = playable.lego?.lego?.known || scriptItem?.knownText || ''
+      addNetworkNode(legoId, targetText, knownText, currentBelt.value?.name || 'white')
+    }
 
     // Cleanup
     isPlayingIntroduction.value = false
