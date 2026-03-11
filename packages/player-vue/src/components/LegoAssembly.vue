@@ -45,10 +45,10 @@ const mLegoComponents = computed(() => {
       || (props.components?.length === 1 ? props.components[0].known : '')
     const target = block.targetText
     if (known && target) {
-      const targetWords = target.trim().split(/\s+/)
-      const knownWords = known.trim().split(/\s+/)
-      if (targetWords.length > 1 && knownWords.length === targetWords.length) {
-        rawComps = targetWords.map((t, i) => ({ known: knownWords[i], target: t }))
+      const targetTokens = originalTokens(target)
+      const knownTokens = originalTokens(known)
+      if (targetTokens.length > 1 && knownTokens.length === targetTokens.length) {
+        rawComps = targetTokens.map((t, i) => ({ known: knownTokens[i], target: t }))
       }
     }
   }
@@ -60,32 +60,64 @@ const mLegoComponents = computed(() => {
   return alignComponentsToFullText(rawComps, fullText)
 })
 
+// CJK detection — matches ensureTileCoverage.ts
+const CJK_RE = /[\u3000-\u9fff\uac00-\ud7af\uff00-\uffef]/
+const PUNCT_RE = /[.,!?;:¡¿'"\u3000-\u303f\uff00-\uff0f\uff1a-\uff20\uff3b-\uff40\uff5b-\uff65]+/g
+
+/** Tokenize text: per-character for CJK, per-word for alphabetic. Strips punctuation. */
+function tokenize(text: string): string[] {
+  if (!text) return []
+  const cleaned = text.toLowerCase().trim().replace(PUNCT_RE, '')
+  if (CJK_RE.test(text)) {
+    return cleaned.split('').filter(ch => ch.trim() !== '')
+  }
+  return cleaned.split(/\s+/).filter(Boolean)
+}
+
+/** Get original-cased tokens (parallel to tokenize, for display). */
+function originalTokens(text: string): string[] {
+  if (!text) return []
+  const cleaned = text.trim().replace(PUNCT_RE, '')
+  if (CJK_RE.test(text)) {
+    return cleaned.split('').filter(ch => ch.trim() !== '')
+  }
+  return cleaned.split(/\s+/).filter(Boolean)
+}
+
+/** Join tokens back — no separator for CJK, space for alphabetic. */
+function joinTokens(tokens: string[], text: string): string {
+  return CJK_RE.test(text) ? tokens.join('') : tokens.join(' ')
+}
+
 /**
  * Align declared components to the full LEGO targetText.
  * Words not covered by any component get absorbed into the nearest component
  * (prefix → next component, trailing → previous component).
  * This ensures the tile displays ALL words the audio says.
+ * CJK-aware: uses per-character tokenization for Chinese/Japanese/Korean.
  */
 function alignComponentsToFullText(
   comps: ComponentBreakdown[],
   fullText: string
 ): ComponentBreakdown[] {
-  const fullWords = fullText.trim().split(/\s+/)
-  if (fullWords.length === 0) return comps
+  const fullTokens = tokenize(fullText)
+  const fullOriginal = originalTokens(fullText)
+  if (fullTokens.length === 0) return comps
 
-  // Build alignment: for each component, find its word span in fullWords
+  // Build alignment: for each component, find its token span in fullTokens
   type Span = { compIdx: number; start: number; end: number }
   const spans: Span[] = []
   let searchFrom = 0
 
   for (let ci = 0; ci < comps.length; ci++) {
-    const compWords = comps[ci].target.trim().split(/\s+/)
-    // Find component words in fullWords starting from searchFrom
+    const compTokens = tokenize(comps[ci].target)
+    if (compTokens.length === 0) continue
+    // Find component tokens in fullTokens starting from searchFrom
     let matchStart = -1
-    for (let i = searchFrom; i <= fullWords.length - compWords.length; i++) {
+    for (let i = searchFrom; i <= fullTokens.length - compTokens.length; i++) {
       let match = true
-      for (let j = 0; j < compWords.length; j++) {
-        if (fullWords[i + j].toLowerCase() !== compWords[j].toLowerCase()) {
+      for (let j = 0; j < compTokens.length; j++) {
+        if (fullTokens[i + j] !== compTokens[j]) {
           match = false
           break
         }
@@ -96,46 +128,41 @@ function alignComponentsToFullText(
       // Component not found — alignment failed, return raw components
       return comps
     }
-    spans.push({ compIdx: ci, start: matchStart, end: matchStart + compWords.length })
-    searchFrom = matchStart + compWords.length
+    spans.push({ compIdx: ci, start: matchStart, end: matchStart + compTokens.length })
+    searchFrom = matchStart + compTokens.length
   }
 
-  // Check if components already cover all words
-  const totalCovered = spans.reduce((s, sp) => s + (sp.end - sp.start), 0)
-  if (totalCovered === fullWords.length) return comps
+  if (spans.length === 0) return comps
 
-  // Absorb gaps: words between components attach to the NEXT component (prefix)
-  // Trailing words after last component attach to the LAST component (suffix)
+  // Check if components already cover all tokens
+  const totalCovered = spans.reduce((s, sp) => s + (sp.end - sp.start), 0)
+  if (totalCovered === fullTokens.length) return comps
+
+  // Absorb gaps: tokens between components attach to the NEXT component (prefix)
+  // Trailing tokens after last component attach to the LAST component (suffix)
   const result: ComponentBreakdown[] = []
-  let wordIdx = 0
+  let tokenIdx = 0
 
   for (let si = 0; si < spans.length; si++) {
     const span = spans[si]
     const comp = comps[span.compIdx]
-    // Gap words before this component → prefix into this component
-    const gapBefore = fullWords.slice(wordIdx, span.start)
-    if (gapBefore.length > 0) {
-      result.push({
-        known: comp.known,
-        target: [...gapBefore, ...fullWords.slice(span.start, span.end)].join(' '),
-      })
-    } else {
-      // Use fullText words (preserves original casing from the LEGO text)
-      result.push({
-        known: comp.known,
-        target: fullWords.slice(span.start, span.end).join(' '),
-      })
-    }
-    wordIdx = span.end
+    // Gap tokens before this component → prefix into this component
+    const gapBefore = fullOriginal.slice(tokenIdx, span.start)
+    const compOriginal = fullOriginal.slice(span.start, span.end)
+    result.push({
+      known: comp.known,
+      target: joinTokens([...gapBefore, ...compOriginal], fullText),
+    })
+    tokenIdx = span.end
   }
 
-  // Trailing gap words → suffix onto last component
-  if (wordIdx < fullWords.length && result.length > 0) {
+  // Trailing gap tokens → suffix onto last component
+  if (tokenIdx < fullTokens.length && result.length > 0) {
     const last = result[result.length - 1]
-    const trailing = fullWords.slice(wordIdx)
+    const trailing = fullOriginal.slice(tokenIdx)
     result[result.length - 1] = {
       known: last.known,
-      target: last.target + ' ' + trailing.join(' '),
+      target: last.target + (CJK_RE.test(fullText) ? '' : ' ') + joinTokens(trailing, fullText),
     }
   }
 
