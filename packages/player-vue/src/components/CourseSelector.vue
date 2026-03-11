@@ -16,7 +16,25 @@ import { useI18n, setLocale, getLanguageName, getLanguageFlag } from '../composa
 import { useEntitlement } from '../composables/useEntitlement'
 
 const { t } = useI18n()
-const { checkAccess } = useEntitlement()
+
+// Entitlement check - defensive so CourseSelector never breaks
+let entitlementCheckAccess = null
+try {
+  const { checkAccess } = useEntitlement()
+  entitlementCheckAccess = checkAccess
+} catch (err) {
+  console.warn('[CourseSelector] useEntitlement unavailable:', err)
+}
+
+const canAccessPremiumCourse = (course) => {
+  if (!entitlementCheckAccess) return false
+  try {
+    const access = entitlementCheckAccess(course)
+    return access.canAccess
+  } catch {
+    return false
+  }
+}
 
 // Check if course is premium (for "Free preview" indicator)
 const isPremiumCourse = (course) => {
@@ -118,8 +136,7 @@ const availableCourses = computed(() => {
     .filter(c => {
       if (props.isAdmin || !isPremiumCourse(c)) return true
       // Premium: show only if user has full access (entitlement or subscription)
-      const access = checkAccess(c)
-      return access.canAccess
+      return canAccessPremiumCourse(c)
     })
     .sort((a, b) => {
       const nameA = getLanguageName(a.target_lang)
