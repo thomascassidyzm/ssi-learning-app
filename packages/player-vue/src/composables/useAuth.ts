@@ -487,6 +487,19 @@ export function useAuth(): AuthState & AuthActions {
     }
   }
 
+  /**
+   * Get the current Supabase session access token (for API calls that need auth)
+   */
+  async function getToken(): Promise<string | null> {
+    if (!supabase.value) return null
+    try {
+      const { data: { session } } = await supabase.value.auth.getSession()
+      return session?.access_token || null
+    } catch {
+      return null
+    }
+  }
+
   return {
     // State
     user: supabaseUser,
@@ -500,6 +513,7 @@ export function useAuth(): AuthState & AuthActions {
 
     // Actions
     signOut,
+    getToken,
     incrementSessionCount,
     markSignupPromptSeen,
     migrateGuestProgress,

@@ -119,6 +119,7 @@ const route = useRoute()
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-subtle);
   backdrop-filter: blur(12px);
+  padding-top: env(safe-area-inset-top);
 }
 
 .header-top {

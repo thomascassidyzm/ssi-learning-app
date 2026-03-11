@@ -13,27 +13,32 @@
  */
 import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n, setLocale, getLanguageName, getLanguageFlag } from '../composables/useI18n'
-import { useEntitlement } from '../composables/useEntitlement'
+import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
+import { useSharedSubscription } from '../composables/useSubscription'
 
 const { t } = useI18n()
 
-// Entitlement check - defensive so CourseSelector never breaks
-let entitlementCheckAccess = null
-try {
-  const { checkAccess } = useEntitlement()
-  entitlementCheckAccess = checkAccess
-} catch (err) {
-  console.warn('[CourseSelector] useEntitlement unavailable:', err)
-}
+// Get entitlements + subscription directly (reactive refs, survive late init)
+const { entitlements: userEntitlements, refresh: refreshEntitlements } = useSharedUserEntitlements()
+const { isSubscribed } = useSharedSubscription()
 
 const canAccessPremiumCourse = (course) => {
-  if (!entitlementCheckAccess) return false
+  // Subscribed users can access all premium courses
+  if (isSubscribed.value) return true
+  // Dev paid user flag
   try {
-    const access = entitlementCheckAccess(course)
-    return access.canAccess
-  } catch {
+    if (localStorage.getItem('ssi-dev-paid-user') === 'true') return true
+    if (localStorage.getItem('ssi-dev-tier') === 'paid') return true
+  } catch { /* ignore */ }
+  // Check entitlements
+  if (!userEntitlements.value || userEntitlements.value.length === 0) return false
+  return userEntitlements.value.some(e => {
+    if (e.accessType === 'full') return true
+    if (e.accessType === 'courses' && e.grantedCourses) {
+      return e.grantedCourses.includes(course.course_code)
+    }
     return false
-  }
+  })
 }
 
 // Check if course is premium (for "Free preview" indicator)
@@ -218,8 +223,10 @@ watch(() => props.defaultKnownLang, (newVal) => {
 })
 
 watch(() => props.isOpen, (newVal) => {
-  if (newVal && allCourses.value.length === 0) {
-    fetchCourses()
+  if (newVal) {
+    if (allCourses.value.length === 0) fetchCourses()
+    // Refresh entitlements so premium course visibility is current
+    refreshEntitlements().catch(() => {})
   }
 })
 
