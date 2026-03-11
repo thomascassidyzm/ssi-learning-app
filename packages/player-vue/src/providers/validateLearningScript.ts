@@ -107,9 +107,9 @@ export function validateScriptItem(item: ScriptItem): CycleValidationError[] {
   // -- Audio fields --
 
   if (item.type === 'intro') {
-    // Intro requires presentationAudioId instead of knownAudioId
+    // Intro uses presentationAudioId as prompt — warn if missing (will play target audio only)
     if (!isNonEmpty(item.presentationAudioId)) {
-      results.push(makeError(item, 'presentationAudioId', 'intro cycle missing presentationAudioId', 'error'))
+      results.push(makeError(item, 'presentationAudioId', 'intro cycle missing presentationAudioId', 'warning'))
     }
     if (!isNonEmpty(item.target1Id)) {
       results.push(makeError(item, 'target1Id', 'intro cycle missing target1Id', 'error'))
@@ -204,8 +204,9 @@ export function validateRoundStructure(
 
   // -- Structural checks --
 
-  // 1. Intro must exist
-  if (!structure.hasIntro) {
+  // 1. Intro or component_intro must exist (M-LEGOs start with component_intro before the M-LEGO intro)
+  const hasAnyIntro = intros.length > 0 || items.some(i => i.type === 'component_intro')
+  if (!hasAnyIntro) {
     errors.push({
       cycleId: items[0]?.uuid || '',
       legoKey: primaryLegoKey,
@@ -228,8 +229,8 @@ export function validateRoundStructure(
     })
   }
 
-  // 3. Intro must be first
-  if (items.length > 0 && items[0].type !== 'intro') {
+  // 3. Round must start with intro or component_intro
+  if (items.length > 0 && items[0].type !== 'intro' && items[0].type !== 'component_intro') {
     errors.push({
       cycleId: items[0].uuid,
       legoKey: items[0].legoKey,
