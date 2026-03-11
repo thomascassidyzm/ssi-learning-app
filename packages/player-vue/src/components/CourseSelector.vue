@@ -13,33 +13,8 @@
  */
 import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n, setLocale, getLanguageName, getLanguageFlag } from '../composables/useI18n'
-import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
-import { useSharedSubscription } from '../composables/useSubscription'
 
 const { t } = useI18n()
-
-// Get entitlements + subscription directly (reactive refs, survive late init)
-const { entitlements: userEntitlements, refresh: refreshEntitlements } = useSharedUserEntitlements()
-const { isSubscribed } = useSharedSubscription()
-
-const canAccessPremiumCourse = (course) => {
-  // Subscribed users can access all premium courses
-  if (isSubscribed.value) return true
-  // Dev paid user flag
-  try {
-    if (localStorage.getItem('ssi-dev-paid-user') === 'true') return true
-    if (localStorage.getItem('ssi-dev-tier') === 'paid') return true
-  } catch { /* ignore */ }
-  // Check entitlements
-  if (!userEntitlements.value || userEntitlements.value.length === 0) return false
-  return userEntitlements.value.some(e => {
-    if (e.accessType === 'full') return true
-    if (e.accessType === 'courses' && e.grantedCourses) {
-      return e.grantedCourses.includes(course.course_code)
-    }
-    return false
-  })
-}
 
 // Check if course is premium (for "Free preview" indicator)
 const isPremiumCourse = (course) => {
@@ -134,15 +109,10 @@ const filteredOtherLanguages = computed(() => {
 })
 
 // Computed: courses available for selected known language
-// Free/community courses always shown; premium only if user has access (entitlement/subscription)
+// TODO: Re-add entitlement gating once entitlements are fully wired up
 const availableCourses = computed(() => {
   return allCourses.value
     .filter(c => c.known_lang === selectedKnownLang.value)
-    .filter(c => {
-      if (props.isAdmin || !isPremiumCourse(c)) return true
-      // Premium: show only if user has full access (entitlement or subscription)
-      return canAccessPremiumCourse(c)
-    })
     .sort((a, b) => {
       const nameA = getLanguageName(a.target_lang)
       const nameB = getLanguageName(b.target_lang)
@@ -223,10 +193,8 @@ watch(() => props.defaultKnownLang, (newVal) => {
 })
 
 watch(() => props.isOpen, (newVal) => {
-  if (newVal) {
-    if (allCourses.value.length === 0) fetchCourses()
-    // Refresh entitlements so premium course visibility is current
-    refreshEntitlements().catch(() => {})
+  if (newVal && allCourses.value.length === 0) {
+    fetchCourses()
   }
 })
 
