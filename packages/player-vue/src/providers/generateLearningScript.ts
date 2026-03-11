@@ -131,7 +131,7 @@ export async function generateLearningScript(
       .limit(5000),
     supabase
       .from('course_practice_phrases')
-      .select('seed_number, lego_index, known_text, target_text, target_text_roman, phrase_role, target_syllable_count, position, known_audio_id, target1_audio_id, target2_audio_id, target1_duration_ms, target2_duration_ms')
+      .select('seed_number, lego_index, known_text, target_text, target_text_roman, phrase_role, target_syllable_count, position, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, target1_duration_ms, target2_duration_ms')
       .eq('course_code', courseCode)
       .gte('seed_number', startSeed)
       .lte('seed_number', endSeed)
@@ -192,6 +192,7 @@ export async function generateLearningScript(
     known_audio_id?: string
     target1_audio_id?: string
     target2_audio_id?: string
+    presentation_audio_id?: string
     target1_duration_ms?: number
     target2_duration_ms?: number
   }
@@ -472,11 +473,11 @@ export async function generateLearningScript(
   const shouldEmit = () => roundNumber >= emitFromRound
   const emitItem = (item: ScriptItem) => {
     if (!shouldEmit()) return
-    if (item.type === 'intro') {
+    if (item.type === 'intro' || item.type === 'component_intro') {
       // Intros ALWAYS pass — they define the round structure.
       // Missing presentation audio is handled by SimplePlayer (skips empty prompt phase).
       // Target voice1/voice2 still play to introduce the LEGO pronunciation.
-      if (!item.knownAudioId) {
+      if (!item.knownAudioId && item.type === 'intro') {
         introsMissingAudio.push(item.legoKey || 'unknown')
       }
     } else if (item.type === 'listening') {
@@ -532,7 +533,7 @@ export async function generateLearningScript(
       if (compPhrases && compPhrases.length > 0) {
         const practiceReps = 2
         for (const comp of compPhrases) {
-          // Component intro: play target audio first, tile appears shortly after (ear first)
+          // Component intro: presentation audio ("The X for 'word', as in 'phrase', is:") → target audio
           cycleNum++
           emitItem({
             uuid: `${legoKey}_cmp_intro_${cycleNum}`,
@@ -542,6 +543,7 @@ export async function generateLearningScript(
             knownText: comp.known_text,
             targetText: comp.target_text_roman || comp.target_text,
             ...nativeFields(comp),
+            presentationAudioId: comp.presentation_audio_id,
             target1Id: comp.target1_audio_id,
             target2Id: comp.target2_audio_id,
             target1DurationMs: comp.target1_duration_ms,

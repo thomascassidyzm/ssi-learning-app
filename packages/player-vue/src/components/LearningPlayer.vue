@@ -904,6 +904,12 @@ const scriptItemToPlayableItem = async (scriptItem) => {
     target1AudioUrl = normalizeAudioUrl(scriptItem.audioRefs?.target?.voice1?.url)
     target2AudioUrl = normalizeAudioUrl(scriptItem.audioRefs?.target?.voice2?.url)
     console.log('[scriptItemToPlayableItem] Using preloaded:', { knownAudioUrl, target1AudioUrl, target2AudioUrl })
+  } else if (scriptItem.type === 'component_intro' && scriptItem.target1Id) {
+    // Component intros have target1Id/target2Id as bare UUIDs (no audioRefs)
+    // Resolve directly via proxy URL — presentation audio handled by playIntroductionAudioDirectly
+    target1AudioUrl = `/api/audio/${scriptItem.target1Id}`
+    target2AudioUrl = scriptItem.target2Id ? `/api/audio/${scriptItem.target2Id}` : undefined
+    console.log('[scriptItemToPlayableItem] Component intro resolved from UUIDs:', { target1AudioUrl, target2AudioUrl })
   } else {
     // Fallback: Look up audio URLs from cache (lazy loaded)
     knownAudioUrl = await getAudioUrlFromCache(
@@ -2972,9 +2978,18 @@ const handleCycleEvent = (event) => {
               if (introPlayable) {
                 currentPlayableItem.value = introPlayable
 
-                if (nextScriptItem.type === 'component_intro') {
-                  // Component intro: just play target audio as confirmation, then advance
-                  // No presentation audio — the contextual text is shown on screen
+                // Both intro and component_intro: play presentation audio sequence
+                // Component intros now have presentation audio ("The X for 'word', as in 'phrase', is:")
+                const introPlayed = await playIntroductionAudioDirectly(nextScriptItem)
+                // CRITICAL: Check generation after async intro audio
+                if (playbackGeneration.value !== generationAtStart) {
+                  console.log('[LearningPlayer] Stale after intro audio, aborting')
+                  return
+                }
+                if (introPlayed) {
+                  console.log('[LearningPlayer]', nextScriptItem.type, 'complete, advancing to next item')
+                } else if (nextScriptItem.type === 'component_intro') {
+                  // Fallback: no presentation audio available, play target audio only
                   const target1Url = introPlayable.lego?.audioRefs?.target?.voice1?.url
                   if (target1Url && audioController.value) {
                     audioController.value.stop()
@@ -2984,19 +2999,7 @@ const handleCycleEvent = (event) => {
                       tempAudio.addEventListener('error', () => resolve())
                       tempAudio.play().catch(() => resolve())
                     })
-                    // Brief linger for reading
                     await new Promise<void>(r => setTimeout(r, 1000))
-                  }
-                } else {
-                  // Full intro: play presentation audio sequence
-                  const introPlayed = await playIntroductionAudioDirectly(nextScriptItem)
-                  // CRITICAL: Check generation after async intro audio
-                  if (playbackGeneration.value !== generationAtStart) {
-                    console.log('[LearningPlayer] Stale after intro audio, aborting')
-                    return
-                  }
-                  if (introPlayed) {
-                    console.log('[LearningPlayer] INTRO complete, advancing to next item')
                   }
                 }
 
@@ -3372,6 +3375,11 @@ const playIntroductionAudioDirectly = async (scriptItem) => {
   // Get PRESENTATION audio - v13: use presentationAudio from script item (already resolved)
   // This is the narration: "The Welsh for 'X' is..."
   let presentationUrl = scriptItem?.presentationAudio?.url
+
+  // Fallback: resolve from presentationAudioId UUID (generateLearningScript emits UUID, not resolved object)
+  if (!presentationUrl && scriptItem?.presentationAudioId) {
+    presentationUrl = `/api/audio/${scriptItem.presentationAudioId}`
+  }
 
   // Fallback: try audioMap cache (for backwards compatibility with cached scripts)
   if (!presentationUrl) {
