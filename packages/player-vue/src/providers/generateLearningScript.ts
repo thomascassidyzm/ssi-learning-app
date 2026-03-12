@@ -477,7 +477,7 @@ export async function generateLearningScript(
       // Intros ALWAYS pass — they define the round structure.
       // Missing presentation audio is handled by SimplePlayer (skips empty prompt phase).
       // Target voice1/voice2 still play to introduce the LEGO pronunciation.
-      if (!item.knownAudioId && item.type === 'intro') {
+      if (!item.presentationAudioId && !item.knownAudioId && item.type === 'intro') {
         introsMissingAudio.push(item.legoKey || 'unknown')
       }
     } else if (item.type === 'listening') {
