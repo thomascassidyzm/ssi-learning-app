@@ -156,11 +156,21 @@ const handleCourseSelect = async (course) => {
   // NOW update activeCourse (triggers LearningPlayer remount via :key)
   activeCourse.value = course
 
-  // Persist course selection
+  // Persist course selection (localStorage + DB)
   try {
     localStorage.setItem(LAST_COURSE_KEY, courseCode)
   } catch (e) {
     console.warn('[App] Failed to persist course selection:', e)
+  }
+  // Save to DB for cross-device persistence (fire-and-forget)
+  if (supabaseClient.value && auth.learner.value?.id) {
+    supabaseClient.value
+      .from('learners')
+      .update({ preferences: { ...auth.learner.value.preferences, last_course_code: courseCode } })
+      .eq('id', auth.learner.value.id)
+      .then(({ error }) => {
+        if (error) console.warn('[App] Failed to save last course to DB:', error.message)
+      })
   }
 }
 
@@ -224,15 +234,17 @@ const fetchEnrolledCourses = async () => {
         console.warn('[App] Failed to read URL params:', e)
       }
 
-      // Check for saved course preference
-      let savedCourseCode = null
-      try {
-        savedCourseCode = localStorage.getItem(LAST_COURSE_KEY)
-      } catch (e) {
-        console.warn('[App] Failed to read saved course:', e)
+      // Check for saved course preference: DB (cross-device) then localStorage (fallback)
+      let savedCourseCode = auth.learner.value?.preferences?.last_course_code || null
+      if (!savedCourseCode) {
+        try {
+          savedCourseCode = localStorage.getItem(LAST_COURSE_KEY)
+        } catch (e) {
+          console.warn('[App] Failed to read saved course:', e)
+        }
       }
 
-      // Priority: 1) URL param, 2) localStorage, 3) first available
+      // Priority: 1) URL param, 2) DB/localStorage, 3) first available
       let defaultCourse = null
 
       // First try URL param (explicit intent — let paywall handle access)

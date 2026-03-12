@@ -38,6 +38,8 @@ export interface LearnerPreferences {
   turbo_mode_enabled: boolean;
   /** Volume level (0-1) */
   volume: number;
+  /** Last accessed course code (cross-device persistence) */
+  last_course_code?: string;
 }
 
 export interface CourseEnrollmentRecord {
