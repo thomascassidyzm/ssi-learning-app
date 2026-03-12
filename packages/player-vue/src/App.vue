@@ -11,6 +11,7 @@ import { useEagerScriptPreload } from './composables/useEagerScriptPreload'
 import { useInviteCode } from './composables/useInviteCode'
 import { useSharedUserEntitlements } from './composables/useUserEntitlements'
 import { useSharedSubscription } from './composables/useSubscription'
+import { checkCourseAccess, inferPricingTier } from '@ssi/core'
 import { installConsoleDedup } from './utils/consoleDedup'
 import PwaUpdatePrompt from './components/PwaUpdatePrompt.vue'
 import InstallBanner from './components/InstallBanner.vue'
@@ -163,6 +164,31 @@ const handleCourseSelect = async (course) => {
   }
 }
 
+// Check if user can access a course (mirrors CourseSelector logic)
+const canAccessCourse = (course) => {
+  const { entitlements } = useSharedUserEntitlements()
+  const { isSubscribed } = useSharedSubscription()
+  const pricingTier = course.pricing_tier ?? inferPricingTier(course.target_lang ?? '', course.course_code)
+  const isCommunity = course.is_community ?? course.course_code?.startsWith('community_')
+  const devPaid = (() => {
+    try {
+      const tier = localStorage.getItem('ssi-dev-tier')
+      if (tier === 'paid') return true
+      return localStorage.getItem('ssi-dev-paid-user') === 'true'
+    } catch { return false }
+  })()
+  const subscription = {
+    isActive: isSubscribed.value || devPaid,
+    tier: (isSubscribed.value || devPaid) ? 'paid' : 'free',
+  }
+  const result = checkCourseAccess(
+    { course_code: course.course_code, pricing_tier: pricingTier, is_community: isCommunity },
+    subscription,
+    entitlements.value
+  )
+  return result.canAccess
+}
+
 // Fetch enrolled courses from Supabase
 const fetchEnrolledCourses = async () => {
   if (!supabaseClient.value) {
@@ -209,7 +235,7 @@ const fetchEnrolledCourses = async () => {
       // Priority: 1) URL param, 2) localStorage, 3) first available
       let defaultCourse = null
 
-      // First try URL param
+      // First try URL param (explicit intent — let paywall handle access)
       if (urlCourseCode) {
         defaultCourse = data.find(c => c.course_code === urlCourseCode)
         if (defaultCourse) {
@@ -221,12 +247,16 @@ const fetchEnrolledCourses = async () => {
         }
       }
 
-      // Then try localStorage
+      // Then try localStorage (but only if user can access it)
       if (!defaultCourse && savedCourseCode) {
-        defaultCourse = data.find(c => c.course_code === savedCourseCode)
+        const saved = data.find(c => c.course_code === savedCourseCode)
+        if (saved && canAccessCourse(saved)) {
+          defaultCourse = saved
+        }
       }
+      // Fall back to first accessible course
       if (!defaultCourse) {
-        defaultCourse = data[0]
+        defaultCourse = data.find(c => canAccessCourse(c)) || data[0]
       }
 
       if (defaultCourse && !activeCourse.value) {
@@ -308,9 +338,10 @@ onMounted(async () => {
       }
 
       // Initialize entitlements + subscription (now that supabase + auth are ready)
+      // Await so course access checks have data before fetchEnrolledCourses picks a default
       const { initialize: initEntitlements } = useSharedUserEntitlements()
       const { initialize: initSubscription } = useSharedSubscription()
-      Promise.all([initEntitlements(), initSubscription()]).catch(() => {})
+      await Promise.all([initEntitlements(), initSubscription()]).catch(() => {})
 
       // Handle ?code= URL parameter for invite codes
       try {
