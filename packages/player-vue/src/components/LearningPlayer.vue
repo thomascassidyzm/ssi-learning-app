@@ -257,6 +257,7 @@ const LANGUAGE_META: Record<string, { name: string; flag: string }> = {
   rus: { name: 'Russian', flag: '🇷🇺' },
   pol: { name: 'Polish', flag: '🇵🇱' },
   gle: { name: 'Irish', flag: '🇮🇪' },
+  tur: { name: 'Turkish', flag: '🇹🇷' },
 }
 const getLangMeta = (code: string) => LANGUAGE_META[code] || { name: code?.toUpperCase() || '?', flag: '🌐' }
 
