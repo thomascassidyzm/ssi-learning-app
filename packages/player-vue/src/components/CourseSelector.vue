@@ -144,6 +144,7 @@ const filteredOtherLanguages = computed(() => {
 const availableCourses = computed(() => {
   return allCourses.value
     .filter(c => c.known_lang === selectedKnownLang.value)
+    .filter(c => !isPremiumCourse(c) || hasFullAccess(c))
     .sort((a, b) => {
       const nameA = getLanguageName(a.target_lang)
       const nameB = getLanguageName(b.target_lang)
@@ -320,8 +321,7 @@ onMounted(() => {
                 class="target-card"
                 :class="{
                   enrolled: isEnrolled(course.course_code),
-                  active: isActive(course.course_code),
-                  locked: isLocked(course)
+                  active: isActive(course.course_code)
                 }"
                 @click="handleCourseSelect(course)"
               >
@@ -679,21 +679,6 @@ onMounted(() => {
   background: rgba(194, 58, 58, 0.12);
   border-color: rgba(194, 58, 58, 0.4);
   box-shadow: 0 0 20px rgba(194, 58, 58, 0.15);
-}
-
-.target-card.locked {
-  opacity: 0.45;
-  cursor: default;
-}
-
-.target-card.locked:hover {
-  transform: none;
-  background: var(--bg-card, rgba(255, 255, 255, 0.04));
-  border-color: var(--border-subtle, rgba(255, 255, 255, 0.06));
-}
-
-.target-card.locked:active {
-  transform: none;
 }
 
 .active-badge {

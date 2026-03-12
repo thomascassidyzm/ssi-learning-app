@@ -5951,10 +5951,9 @@ defineExpose({
     <div v-if="showPaywall" class="paywall-overlay">
       <div class="paywall-card">
         <h2 class="paywall-title">You've completed the free preview!</h2>
-        <p class="paywall-subtitle">Subscribe or enter an access code to keep learning beyond seed {{ PREMIUM_PREVIEW_MAX_SEED }}.</p>
+        <p class="paywall-subtitle">Enter an access code to keep learning beyond seed {{ PREMIUM_PREVIEW_MAX_SEED }}.</p>
         <div class="paywall-actions">
-          <button class="paywall-btn paywall-btn-primary" @click="emit('viewProgress')">Subscribe</button>
-          <button class="paywall-btn paywall-btn-secondary" @click="emit('viewProgress')">Enter Code</button>
+          <button class="paywall-btn paywall-btn-primary" @click="emit('viewProgress')">Enter Code</button>
           <button class="paywall-btn paywall-btn-ghost" @click="showPaywall = false; simplePlayer.jumpToRound(0); simplePlayer.resume()">Keep Previewing</button>
         </div>
       </div>
