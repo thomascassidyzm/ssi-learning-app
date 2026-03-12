@@ -121,6 +121,7 @@ const LANGUAGE_FLAGS: Record<string, string> = {
   dan: '🇩🇰',
   fin: '🇫🇮',
   heb: '🇮🇱',
+  tur: '🇹🇷',
 }
 
 export const getLanguageFlag = (langCode: string): string => {
