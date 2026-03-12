@@ -937,13 +937,6 @@ export async function generateLearningScript(
   const listeningStats = listeningConfig.enabled && graduatedSeeds.size > 0
     ? `, ${graduatedSeeds.size} seeds graduated, ${listeningItemCount} listening items`
     : ''
-  const compIntroItems = dedupedItems.filter(i => i.type === 'component_intro')
-  const compPracticeItems = dedupedItems.filter(i => i.type === 'component_practice')
-  console.log(`[generateLearningScript] Component items: ${compIntroItems.length} intros, ${compPracticeItems.length} practice`)
-  if (compIntroItems.length > 0) {
-    const sample = compIntroItems[0]
-    console.log(`[generateLearningScript] Sample component_intro: "${sample.knownText}" → "${sample.targetText}" presAudioId=${sample.presentationAudioId || 'NONE'} target1Id=${sample.target1Id || 'NONE'}`)
-  }
   console.debug(`[generateLearningScript] ${dedupedItems.length} items, ${roundNumber} rounds for ${courseCode} S${startSeed}-${endSeed}${removedCount > 0 ? `, ${removedCount} deduped` : ''}${skippedRounds > 0 ? `, from R${emitFromRound}` : ''}${listeningStats}`)
   return { items: dedupedItems, cycleCount: dedupedItems.length, roundCount: roundNumber, hasRomanizedText: courseHasRomanized }
 }

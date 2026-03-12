@@ -104,10 +104,6 @@ export function toSimpleRounds(
         ? (i.presentationAudioId || i.knownAudioId)
         : i.knownAudioId
 
-      if (i.type === 'component_intro') {
-        console.log(`[toSimpleRounds] component_intro: "${i.knownText}" → "${i.targetText}" | presAudioId=${i.presentationAudioId || 'NONE'} | knownAudioId=${i.knownAudioId || 'NONE'} | promptAudioId=${promptAudioId || 'NONE'} | audioUrl=${audioUrl(promptAudioId)}`)
-      }
-
       cycles.push({
         id: i.uuid,
         legoId: i.legoKey,
