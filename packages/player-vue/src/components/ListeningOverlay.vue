@@ -108,7 +108,7 @@ const props = defineProps({
   },
   /**
    * Current playing seed number.
-   * Filters phrases to only those up to this seed.
+   * Filters phrases to only completed seeds (strictly less than this seed).
    * When null/0, shows all USE phrases (no filtering).
    */
   upToSeed: {
@@ -199,7 +199,7 @@ const loadPhrases = async (offset = 0) => {
         .in('phrase_role', ['use', 'eternal_eligible'])
 
       if (props.upToSeed) {
-        countQuery = countQuery.lte('seed_number', props.upToSeed)
+        countQuery = countQuery.lt('seed_number', props.upToSeed)
       }
 
       const { count, error: countError } = await countQuery
@@ -218,7 +218,7 @@ const loadPhrases = async (offset = 0) => {
       .in('phrase_role', ['use', 'eternal_eligible'])
 
     if (props.upToSeed) {
-      dataQuery = dataQuery.lte('seed_number', props.upToSeed)
+      dataQuery = dataQuery.lt('seed_number', props.upToSeed)
     }
 
     const { data, error: fetchError } = await dataQuery
