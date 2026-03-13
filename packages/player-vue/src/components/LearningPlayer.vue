@@ -5993,6 +5993,7 @@ defineExpose({
       :phase="currentPhase"
       :voice1-duration-ms="currentVoice1DurationMs"
       :components="isIntroOrDebutPhase ? displayedComponents : undefined"
+      :target-lang="props.course?.target_lang || courseCode?.split('_')[0]"
     />
 
     <!-- Text Network Visualization Layer - kept for Brain View / Progress screen -->

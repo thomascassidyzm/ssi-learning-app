@@ -24,6 +24,7 @@ const props = defineProps<{
   phase: string // UI phase: 'prompt' | 'speak' | 'voice1' | 'voice2'
   voice1DurationMs?: number
   components?: ComponentBreakdown[]
+  targetLang?: string // ISO 639-3 language code (e.g., 'jpn', 'zho', 'spa')
 }>()
 
 // Detect M-LEGO: multiple components on the salient block or in props
@@ -270,25 +271,44 @@ const isRTL = computed(() => {
 // Soft-hyphenate long text so tiles can wrap instead of shrinking.
 // Inserts \u00AD at word boundaries, and mid-word if a single word > maxChars.
 const SHY = '\u00AD'
-const MAX_LINE_CHARS = 20
+
+// Max characters per visual line before soft-hyphenation, by target language.
+// CJK characters are larger and denser — fewer per line keeps them readable.
+const HYPHEN_LIMITS: Record<string, number> = {
+  jpn: 10,  // Japanese
+  zho: 10,  // Chinese (Mandarin)
+  cmn: 10,  // Chinese (Mandarin, alternate code)
+  yue: 10,  // Cantonese
+  kor: 10,  // Korean
+  tha: 12,  // Thai (no spaces, medium-density script)
+  ara: 16,  // Arabic (connected script, slightly shorter)
+  heb: 16,  // Hebrew
+}
+const DEFAULT_HYPHEN_LIMIT = 20 // Roman alphabet languages
+
+const maxLineChars = computed(() => {
+  const lang = props.targetLang?.toLowerCase() || ''
+  return HYPHEN_LIMITS[lang] || DEFAULT_HYPHEN_LIMIT
+})
 
 function softHyphenate(text: string): string {
-  if (text.length <= MAX_LINE_CHARS) return text
+  const limit = maxLineChars.value
+  if (text.length <= limit) return text
   const words = text.split(' ')
   const result: string[] = []
   let lineLen = 0
   for (const word of words) {
     // If a single word is too long, break it mid-word
     let w = word
-    if (w.length > MAX_LINE_CHARS) {
+    if (w.length > limit) {
       const parts: string[] = []
-      for (let i = 0; i < w.length; i += MAX_LINE_CHARS) {
-        parts.push(w.slice(i, i + MAX_LINE_CHARS))
+      for (let i = 0; i < w.length; i += limit) {
+        parts.push(w.slice(i, i + limit))
       }
       w = parts.join(SHY)
     }
     // Would adding this word exceed the line? Insert shy before the space
-    if (result.length > 0 && lineLen + 1 + w.replace(/\u00AD/g, '').length > MAX_LINE_CHARS) {
+    if (result.length > 0 && lineLen + 1 + w.replace(/\u00AD/g, '').length > limit) {
       result.push(SHY + w)
       lineLen = w.replace(/\u00AD/g, '').length
     } else {
