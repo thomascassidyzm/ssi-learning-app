@@ -460,6 +460,7 @@ onMounted(() => {
       :showLibrary="showLibrary"
       :showSettings="showSettings"
       :isAuthOpen="isAuthOpen"
+      :showCourseSelector="showCourseSelector"
       :hasRomanizedText="playerHasRomanized"
       :isNativeScript="playerIsNativeScript"
       :isPlayerReady="isPlayerReady"

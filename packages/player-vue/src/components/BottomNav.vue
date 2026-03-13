@@ -34,6 +34,10 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  showCourseSelector: {
+    type: Boolean,
+    default: false
+  },
   isAuthOpen: {
     type: Boolean,
     default: false
@@ -135,7 +139,7 @@ const handleSettings = () => {
   <nav class="bottom-nav">
     <!-- Mode buttons — positioned absolutely relative to the pill so they stay in sync on Android -->
     <button
-      v-show="!showSessionComplete && isOnPlayerScreen"
+      v-show="!showSessionComplete && !showCourseSelector && isOnPlayerScreen"
       class="mode-btn mode-btn--left"
       :class="{ active: isListeningMode, disabled: isDrivingMode }"
       @click="emit('toggleListening')"
@@ -147,7 +151,7 @@ const handleSettings = () => {
       </svg>
     </button>
     <button
-      v-show="!showSessionComplete && isOnPlayerScreen && hasRomanizedText"
+      v-show="!showSessionComplete && !showCourseSelector && isOnPlayerScreen && hasRomanizedText"
       class="mode-btn mode-btn--right-inner"
       :class="{ active: isNativeScript }"
       @click="emit('toggleScript')"
@@ -156,7 +160,7 @@ const handleSettings = () => {
       <span class="script-toggle-label">{{ isNativeScript ? 'Aa' : '\u6587' }}</span>
     </button>
     <button
-      v-show="!showSessionComplete && isOnPlayerScreen"
+      v-show="!showSessionComplete && !showCourseSelector && isOnPlayerScreen"
       class="mode-btn mode-btn--right"
       :class="{ active: isDrivingMode, disabled: isListeningMode }"
       @click="emit('toggleDriving')"
