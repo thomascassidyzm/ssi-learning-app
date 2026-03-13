@@ -23,6 +23,7 @@ import { SignInModal } from '@/components/auth'
 // Global auth modal state (shared singleton)
 import { useAuthModal } from '@/composables/useAuthModal'
 import { BELTS, getSharedBeltProgress, getSeedFromLegoId } from '@/composables/useBeltProgress'
+import { useSharedUserEntitlements } from '@/composables/useUserEntitlements'
 
 // Inject from App
 const supabaseClient = inject('supabase')
@@ -297,10 +298,16 @@ const isAdmin = computed(() => {
   return ADMIN_EMAIL_DOMAINS.some(d => domain === d.toLowerCase())
 })
 
-// Handle auth success
-const handleAuthSuccess = () => {
-  console.debug('[PlayerContainer] Auth successful!')
+// Handle auth success — refresh entitlements and course list so newly redeemed codes take effect
+const fetchEnrolledCourses = inject('fetchEnrolledCourses', null)
+const handleAuthSuccess = async () => {
+  console.debug('[PlayerContainer] Auth successful, refreshing entitlements...')
   closeAuth()
+  // Refresh entitlements so paywall re-evaluates with new codes
+  const { refresh: refreshEntitlements } = useSharedUserEntitlements()
+  await refreshEntitlements().catch(() => {})
+  // Re-fetch courses so newly accessible courses appear
+  if (fetchEnrolledCourses) await fetchEnrolledCourses().catch(() => {})
 }
 
 // Check for class context from Schools

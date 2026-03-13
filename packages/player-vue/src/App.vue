@@ -9,6 +9,7 @@ import { checkKillSwitch, unregisterAllServiceWorkers, clearAllCaches } from './
 import { useTheme } from './composables/useTheme'
 import { useEagerScriptPreload } from './composables/useEagerScriptPreload'
 import { useInviteCode } from './composables/useInviteCode'
+import { useAuthModal } from './composables/useAuthModal'
 import { useSharedUserEntitlements } from './composables/useUserEntitlements'
 import { useSharedSubscription } from './composables/useSubscription'
 import { checkCourseAccess, inferPricingTier } from '@ssi/core'
@@ -315,6 +316,7 @@ provide('theme', { theme, toggleTheme, setTheme })
 provide('eagerScript', eagerScript)
 provide('inviteCode', inviteCode)
 provide('installPrompt', installPrompt)
+provide('fetchEnrolledCourses', fetchEnrolledCourses)
 
 onMounted(async () => {
   // Clear stale caches on new deploy
@@ -366,9 +368,22 @@ onMounted(async () => {
           history.replaceState(null, '', cleanUrl.toString())
 
           // Validate the code
-          await inviteCode.validateCode(codeParam)
-          // The unified auth modal will pick up pendingCode from the composable
-          // and show the context step when opened
+          const valid = await inviteCode.validateCode(codeParam)
+          if (valid) {
+            // If entitlement code grants specific courses, inject as ?course= so fetchEnrolledCourses selects it
+            const granted = inviteCode.pendingCode.value?.grantedCourses
+            if (granted?.length) {
+              const url = new URL(window.location.href)
+              if (!url.searchParams.has('course')) {
+                url.searchParams.set('course', granted[0])
+                history.replaceState(null, '', url.toString())
+              }
+            }
+            // If user not signed in, auto-open auth modal so they can redeem it
+            if (!auth.learner.value) {
+              useAuthModal().open()
+            }
+          }
         }
       } catch (err) {
         console.warn('[App] Failed to process invite code from URL:', err)
