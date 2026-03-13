@@ -54,10 +54,22 @@ const mLegoComponents = computed(() => {
   }
   if (!rawComps) return null
 
-  // Align components to the block's full targetText, absorbing gap words
+  // Align components to the block's full targetText, absorbing gap words.
+  // If alignment fails, fall back to NO components (single span with full text)
+  // rather than showing partial text that violates the golden rule.
   const fullText = props.blocks[0]?.targetText || ''
   if (!fullText) return rawComps
-  return alignComponentsToFullText(rawComps, fullText)
+  const aligned = alignComponentsToFullText(rawComps, fullText)
+  // Verify aligned text covers full text (golden rule check)
+  const alignedText = aligned.map(c => c.target).join(CJK_RE.test(fullText) ? '' : ' ')
+  const normFull = fullText.toLowerCase().trim().replace(PUNCT_RE, '')
+  const normAligned = alignedText.toLowerCase().trim().replace(PUNCT_RE, '')
+  if (normAligned !== normFull) {
+    // Alignment produced incomplete text — drop component stubs entirely
+    console.warn(`[LegoAssembly] Component alignment mismatch: "${alignedText}" vs "${fullText}" — showing full text`)
+    return null  // null = no components, single span shows blocks[0].targetText
+  }
+  return aligned
 })
 
 // CJK detection — matches ensureTileCoverage.ts
@@ -288,6 +300,25 @@ function softHyphenate(text: string): string {
   return result.join(' ')
 }
 
+/**
+ * Align a practice block's components to its targetText.
+ * Returns aligned components if successful, null if alignment fails
+ * (caller should fall back to showing block.targetText as a single span).
+ */
+function alignedBlockComponents(block: LegoBlock): ComponentBreakdown[] | null {
+  if (!block.components || block.components.length <= 1) return null
+  const aligned = alignComponentsToFullText(block.components, block.targetText)
+  // Golden rule check: verify aligned text covers full block text
+  const alignedText = aligned.map(c => c.target).join(CJK_RE.test(block.targetText) ? '' : ' ')
+  const normFull = block.targetText.toLowerCase().trim().replace(PUNCT_RE, '')
+  const normAligned = alignedText.toLowerCase().trim().replace(PUNCT_RE, '')
+  if (normAligned !== normFull) {
+    console.warn(`[LegoAssembly] Block component mismatch: "${alignedText}" vs "${block.targetText}"`)
+    return null
+  }
+  return aligned
+}
+
 // Uniform sentence-level scaling: all tiles in a phrase scale together
 const sentenceScale = computed(() => {
   if (props.blocks.length <= 1) return 1
@@ -388,23 +419,22 @@ const sentenceScale = computed(() => {
         >
           <div
             class="lego-block"
-            :class="{ salient: block.isSalient, 'has-components': block.components && block.components.length > 1, 'solo-component': block.isSoloComponent }"
+            :class="{ salient: block.isSalient, 'has-components': !!alignedBlockComponents(block), 'solo-component': block.isSoloComponent }"
           >
-            <!-- M-LEGO in practice phrase: same stubs rendering -->
-            <template v-if="block.components && block.components.length > 1">
+            <!-- M-LEGO in practice phrase: align components to block text (golden rule) -->
+            <template v-if="alignedBlockComponents(block)">
               <span
-                v-for="(comp, ci) in block.components"
+                v-for="(comp, ci) in alignedBlockComponents(block)!"
                 :key="ci"
                 class="comp block-text"
-                :class="{ absorbed: comp.absorbed }"
               >{{ softHyphenate(comp.target) }}</span>
             </template>
             <span v-else class="block-text">{{ softHyphenate(block.targetText) }}</span>
           </div>
           <!-- Known text: per-component for M-LEGOs, single for A-LEGOs -->
-          <div v-if="block.components && block.components.length > 1 && block.components.some(c => c.known)" class="block-known-row">
+          <div v-if="alignedBlockComponents(block)?.some(c => c.known)" class="block-known-row">
             <span
-              v-for="(comp, ci) in block.components"
+              v-for="(comp, ci) in alignedBlockComponents(block)!"
               :key="ci"
               class="block-known-comp"
             >{{ comp.known || '·' }}</span>
