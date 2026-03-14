@@ -10,8 +10,8 @@ import ProsodyFeedback from './ProsodyFeedback.vue'
 
 // ============================================================================
 // Pronunciation Overlay - Record-compare-feedback loop on completed phrases
-// Pulls BUILD + USE phrases, sorted short→long for confidence building.
-// Adaptive reinsertion: struggled phrases come back sooner.
+// Mostly USE phrases with a sprinkling of BUILD (max 2 per seed).
+// Sorted short→long. Reinsertion only for lowest band, max once.
 // ============================================================================
 
 const emit = defineEmits(['close'])
@@ -72,18 +72,11 @@ function scoreToBand(score) {
   return BANDS[4] // tryagain
 }
 
-// How far ahead to reinsert based on band
-// Always progresses — never blocks. Struggled phrases come back later.
-// Returns -1 (don't reinsert) or N (insert N phrases ahead).
+// Reinsertion: only for "Try again" (lowest band), and only once.
+// Everything else just moves on — don't punish the learner.
 function reinsertDistance(bandKey) {
-  switch (bandKey) {
-    case 'crystal': return -1  // nailed it
-    case 'clear':   return -1  // good enough
-    case 'getting': return 6   // come back in ~6 phrases
-    case 'practise': return 3  // come back soon
-    case 'tryagain': return 2  // come back very soon
-    default: return 4
-  }
+  if (bandKey === 'tryagain') return 3  // come back in ~3 phrases
+  return -1  // all other bands: done, move on
 }
 
 // Track how many times each phrase has been attempted (by phrase ID)
@@ -184,7 +177,7 @@ const loadPhrases = async (offset = 0) => {
       const { count, error: countError } = await countQuery
       if (countError) console.warn('[PronunciationOverlay] Count error:', countError.message)
       totalCount.value = count || 0
-      console.log('[PronunciationOverlay] BUILD+USE phrases available:', totalCount.value)
+      console.log('[PronunciationOverlay] Phrases available:', totalCount.value)
     }
 
     // Fetch phrases
@@ -261,19 +254,30 @@ const loadMoreIfNeeded = async () => {
  * Sort by text length (short→long) with a light shuffle within length bands.
  */
 function buildQueue() {
-  const phrases = [...masterPhrases.value]
+  // Mostly USE phrases, with max 2 BUILD per seed for variety
+  const usePhrases = masterPhrases.value.filter(p => p.phraseRole !== 'build')
+
+  // Limit BUILD: pick at most 2 per seed
+  const buildBySeed = new Map()
+  for (const p of masterPhrases.value) {
+    if (p.phraseRole !== 'build') continue
+    const seeds = buildBySeed.get(p.seedNumber) || []
+    if (seeds.length < 2) seeds.push(p)
+    buildBySeed.set(p.seedNumber, seeds)
+  }
+  const buildPhrases = [...buildBySeed.values()].flat()
+
+  const phrases = [...usePhrases, ...buildPhrases]
 
   // Group into length bands: short (<20), medium (20-50), long (50+)
   const short = phrases.filter(p => p.textLength < 20)
   const medium = phrases.filter(p => p.textLength >= 20 && p.textLength < 50)
   const long = phrases.filter(p => p.textLength >= 50)
 
-  // Shuffle within each band
   shuffle(short)
   shuffle(medium)
   shuffle(long)
 
-  // Concatenate: short first, then medium, then long
   queue.value = [...short, ...medium, ...long]
   currentIndex.value = -1
 }
