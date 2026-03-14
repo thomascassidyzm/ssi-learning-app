@@ -73,16 +73,22 @@ function scoreToBand(score) {
 }
 
 // How far ahead to reinsert based on band
+// Always progresses — never blocks. Struggled phrases come back later.
+// Returns -1 (don't reinsert) or N (insert N phrases ahead).
 function reinsertDistance(bandKey) {
   switch (bandKey) {
-    case 'crystal': return -1  // don't reinsert (done)
-    case 'clear':   return -1  // done
-    case 'getting': return 8   // come back in ~8 phrases
+    case 'crystal': return -1  // nailed it
+    case 'clear':   return -1  // good enough
+    case 'getting': return 6   // come back in ~6 phrases
     case 'practise': return 3  // come back soon
-    case 'tryagain': return 0  // immediate retry (don't advance)
-    default: return 5
+    case 'tryagain': return 2  // come back very soon
+    default: return 4
   }
 }
+
+// Track how many times each phrase has been attempted (by phrase ID)
+// After 2 attempts, never reinsert again — don't punish the learner
+const attemptCounts = new Map()
 
 // ============================================================================
 // State
@@ -426,29 +432,24 @@ const startCycle = async (index) => {
   currentBand.value = band
   phase.value = 'feedback'
 
-  // Adaptive reinsertion
+  // Adaptive reinsertion — always progress, never block
+  const phraseKey = phrase.id || `${phrase.targetText}`
+  const attempts = (attemptCounts.get(phraseKey) || 0) + 1
+  attemptCounts.set(phraseKey, attempts)
+
   const dist = reinsertDistance(band.key)
-  if (dist === 0) {
-    // "Try again" — don't advance, will replay same phrase
-  } else if (dist > 0) {
-    // Reinsert this phrase further ahead in the queue
+  if (dist > 0 && attempts < 2) {
+    // Reinsert this phrase further ahead for another go — but only once
     const insertAt = Math.min(currentIndex.value + dist + 1, queue.value.length)
     queue.value.splice(insertAt, 0, { ...phrase })
   }
-  // dist === -1 means don't reinsert (nailed it)
+  // dist === -1 or attempts >= 2: don't reinsert, move on
 
-  // Wait for user action or auto-advance
-  // "Try again" auto-retries after 2s; others after 3s
-  const waitMs = dist === 0 ? 2000 : 3000
-  await new Promise(resolve => setTimeout(resolve, waitMs))
+  // Brief pause to show feedback, then always advance
+  await new Promise(resolve => setTimeout(resolve, 2500))
   if (myCycleId !== cycleId) return
 
-  if (dist === 0) {
-    // Retry same phrase
-    startCycle(currentIndex.value)
-  } else {
-    advanceToNext(myCycleId)
-  }
+  advanceToNext(myCycleId)
 }
 
 const advanceToNext = async (myCycleId) => {
