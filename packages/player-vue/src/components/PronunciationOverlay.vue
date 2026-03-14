@@ -96,7 +96,7 @@ const queue = ref([])           // Adaptive playback queue
 const currentIndex = ref(-1)
 
 // Pagination
-const BATCH_SIZE = 100
+const BATCH_SIZE = 2000
 const loadedCount = ref(0)
 const totalCount = ref(0)
 const hasMore = ref(true)
