@@ -37,7 +37,8 @@ watch(isOpen, (open) => {
     usePassword.value = false
     error.value = ''
     codeInput.value = ''
-    clearPendingCode()
+    // Don't clear pendingCode on close — user may reopen to complete redemption.
+    // It's cleared after successful redemption in handlePostAuth.
     step.value = 'email'
   }
 })
@@ -57,6 +58,25 @@ const stepTitle = computed(() => {
   if (step.value === 'context') return 'Confirm your role'
   if (step.value === 'verify') return 'Check your email'
   return 'Sign in or create account'
+})
+
+// Entitlement context banner (shown when user arrived via ?code= link)
+const entitlementBanner = computed(() => {
+  const code = pendingCode.value
+  if (!code || code.codeKind !== 'entitlement') return null
+  if (code.accessType === 'full') return 'You\'ve been given full access'
+  if (code.grantedCourses?.length) {
+    const names = code.grantedCourses.map((c: string) => {
+      const parts = c.split('_for_')
+      if (parts.length === 2) {
+        const lang = parts[0].charAt(0).toUpperCase() + parts[0].slice(1)
+        return lang
+      }
+      return c
+    })
+    return `You've been given access to ${names.join(', ')}`
+  }
+  return code.label || null
 })
 
 // ── Invite code handling ──
@@ -328,6 +348,12 @@ const handleClose = () => {
 
     <!-- Email Step -->
     <form v-else-if="step === 'email'" @submit.prevent="handleEmailSubmit" class="auth-form">
+      <!-- Entitlement context banner -->
+      <div v-if="entitlementBanner" class="entitlement-banner">
+        {{ entitlementBanner }}
+        <span class="entitlement-sub">Sign in to activate</span>
+      </div>
+
       <Transition name="error">
         <div v-if="error" class="error-message">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -474,6 +500,27 @@ const handleClose = () => {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+}
+
+/* Entitlement context banner */
+.entitlement-banner {
+  text-align: center;
+  padding: 0.875rem 1rem;
+  background: linear-gradient(135deg, rgba(212, 168, 83, 0.12), rgba(194, 58, 58, 0.08));
+  border: 1px solid rgba(212, 168, 83, 0.25);
+  border-radius: 12px;
+  color: var(--ssi-gold);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.entitlement-sub {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--text-muted);
 }
 
 /* Error message */

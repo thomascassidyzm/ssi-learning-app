@@ -379,8 +379,22 @@ onMounted(async () => {
                 history.replaceState(null, '', url.toString())
               }
             }
-            // If user not signed in, auto-open auth modal so they can redeem it
-            if (!auth.learner.value) {
+            if (auth.learner.value) {
+              // Already signed in — redeem immediately
+              try {
+                const { data: { session } } = await supabaseClient.value.auth.getSession()
+                if (session?.access_token) {
+                  const result = await inviteCode.redeemCode(session.access_token)
+                  if (result.success) {
+                    const { refresh } = useSharedUserEntitlements()
+                    await refresh()
+                  }
+                }
+              } catch (e) {
+                console.warn('[App] Auto-redeem failed:', e)
+              }
+            } else {
+              // Not signed in — open auth modal
               useAuthModal().open()
             }
           }
