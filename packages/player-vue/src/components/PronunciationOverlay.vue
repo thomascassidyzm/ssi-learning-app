@@ -53,14 +53,14 @@ const BANDS = [
 // Sensitivity presets: each defines the score thresholds for band boundaries
 // [crystal_min, clear_min, getting_min, practise_min] — below practise_min = tryagain
 const SENSITIVITY_PRESETS = [
-  { name: 'Encouraging',  thresholds: [75, 55, 35, 20] },
-  { name: 'Moderate',     thresholds: [80, 62, 45, 28] },
-  { name: 'Balanced',     thresholds: [85, 70, 52, 35] },
-  { name: 'Demanding',    thresholds: [90, 78, 60, 42] },
-  { name: 'Exacting',     thresholds: [95, 85, 70, 50] },
+  { name: 'Encouraging',  thresholds: [60, 42, 25, 12] },
+  { name: 'Moderate',     thresholds: [68, 50, 33, 18] },
+  { name: 'Balanced',     thresholds: [75, 58, 40, 25] },
+  { name: 'Demanding',    thresholds: [82, 68, 50, 35] },
+  { name: 'Exacting',     thresholds: [90, 78, 60, 45] },
 ]
 
-const sensitivityIndex = ref(2) // Default: Balanced
+const sensitivityIndex = ref(0) // Default: Encouraging
 const sensitivity = computed(() => SENSITIVITY_PRESETS[sensitivityIndex.value])
 
 function scoreToBand(score) {

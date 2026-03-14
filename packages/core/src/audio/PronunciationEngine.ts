@@ -171,9 +171,10 @@ function mixToMono(buffer: AudioBuffer): Float32Array {
 export function trimSilence(energy: number[]): [number, number] {
   if (energy.length === 0) return [0, 0]
 
-  // Threshold = 10% of peak energy, with an absolute floor
+  // Threshold = 25% of peak energy — high enough to cut through background noise
+  // In a noisy room, the "silence" floor is much higher than in a studio
   const peak = Math.max(...energy)
-  const threshold = Math.max(peak * 0.1, 0.005)
+  const threshold = Math.max(peak * 0.25, 0.008)
 
   let start = 0
   while (start < energy.length && energy[start] < threshold) start++
@@ -198,20 +199,23 @@ export function trimSilence(energy: number[]): [number, number] {
 export function countEnergyPeaks(energy: number[]): number {
   if (energy.length < 3) return energy.length > 0 ? 1 : 0
 
-  // Smooth with a 5-frame moving average to remove jitter
-  const smoothed = smooth(energy, 5)
+  // Smooth with a 7-frame moving average — wider window to suppress noise bumps
+  const smoothed = smooth(energy, 7)
 
-  // Find local maxima that are above the mean energy
-  const mean = smoothed.reduce((a, b) => a + b, 0) / smoothed.length
+  // Find local maxima that are clearly above the noise floor
+  // Use 70th percentile as threshold (more noise-resistant than mean)
+  const sorted = [...smoothed].sort((a, b) => a - b)
+  const p70 = sorted[Math.floor(sorted.length * 0.7)] || 0
+  const threshold = Math.max(p70 * 0.6, sorted[Math.floor(sorted.length * 0.3)] || 0)
+
   let peaks = 0
   for (let i = 1; i < smoothed.length - 1; i++) {
     if (smoothed[i] > smoothed[i - 1] &&
         smoothed[i] > smoothed[i + 1] &&
-        smoothed[i] > mean * 0.5) {
+        smoothed[i] > threshold) {
       peaks++
-      // Skip ahead to avoid counting the same peak twice
-      // (minimum ~80ms between syllable nuclei)
-      i += 3
+      // Skip ahead — minimum ~100ms between syllable nuclei
+      i += 4
     }
   }
 
@@ -290,9 +294,10 @@ export function envelopeSimilarity(a: number[], b: number[]): number {
   // Cosine similarity is -1 to 1; speech envelopes are always positive so 0 to 1
   const cosSim = dotProduct / denom
 
-  // Map to 0-100 with a gentle curve that rewards "close enough"
-  // cosSim of 0.85+ should feel like a good match
-  return Math.max(0, Math.min(100, Math.pow(cosSim, 2) * 100))
+  // Map to 0-100 — linear, not squared. Background noise flattens contrast
+  // so even "good" attempts get lower cosine similarity than in a studio.
+  // cosSim of 0.7+ should feel like a decent match
+  return Math.max(0, Math.min(100, cosSim * 100))
 }
 
 // ============================================
@@ -325,19 +330,16 @@ export function compareProsody(
   const nDuration = nEnergy.length / ANALYSIS_FPS
   const lDuration = lEnergy.length / ANALYSIS_FPS
 
-  // 2. Duration score — generous: ±30% is still 80+
+  // 2. Duration score — very generous, noisy trimming shifts boundaries
+  //    ±40% is still 80+, ±60% is ~60, only 2x+ difference tanks it
   let durationScore = 50
   if (nDuration > 0 && lDuration > 0) {
     const ratio = lDuration / nDuration
-    // Centered at 1.0, gentle falloff
-    // ratio of 0.7 or 1.3 → score ~85
-    // ratio of 0.5 or 1.5 → score ~55
-    // ratio of 0.3 or 2.0 → score ~20
     const deviation = Math.abs(1 - ratio)
-    durationScore = Math.max(0, Math.min(100, 100 * Math.exp(-2.5 * deviation * deviation)))
+    durationScore = Math.max(0, Math.min(100, 100 * Math.exp(-1.5 * deviation * deviation)))
   }
 
-  // 3. Peak count score — right number of syllables?
+  // 3. Peak count score — forgiving because background noise creates phantom peaks
   const nPeaks = countEnergyPeaks(nEnergy)
   const lPeaks = countEnergyPeaks(lEnergy)
 
@@ -346,11 +348,8 @@ export function compareProsody(
     peakCountScore = 100
   } else {
     const diff = Math.abs(nPeaks - lPeaks)
-    const maxPeaks = Math.max(nPeaks, lPeaks)
-    // Off by 1 on a 4-syllable word: still ~80
-    // Off by 2: ~55
-    // Off by 3+: drops fast
-    peakCountScore = Math.max(0, Math.min(100, 100 * (1 - (diff / maxPeaks) * 1.2)))
+    // Off by 1: still ~85. Off by 2: ~70. Off by 3+: gradual falloff
+    peakCountScore = Math.max(0, Math.min(100, 100 * Math.exp(-0.3 * diff * diff)))
   }
 
   // 4. Envelope shape — does the stress pattern match?
