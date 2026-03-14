@@ -107,7 +107,8 @@ const route = useRoute()
 
 <style scoped>
 .admin-container {
-  min-height: 100vh;
+  height: 100vh;
+  overflow-y: auto;
   background: var(--bg-primary);
   color: var(--text-primary);
 }

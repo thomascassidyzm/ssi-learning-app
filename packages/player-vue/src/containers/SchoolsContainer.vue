@@ -76,10 +76,10 @@ const handleAuthSuccess = () => {
 
 <style scoped>
 .schools-container {
-  min-height: 100vh;
+  height: 100vh;
   position: relative;
   background: var(--bg-primary);
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .main-content {
