@@ -1,19 +1,18 @@
 /**
  * PronunciationEngine - Prosody-based pronunciation feedback
  *
- * Compares learner speech against native audio using pitch contour matching.
- * No speech-to-text needed — purely acoustic comparison.
+ * Compares learner speech against native audio using envelope matching.
+ * No speech-to-text, no frame-level pitch DTW.
  *
- * Pipeline:
- *   1. Extract pitch contour from native audio (offline, cached per phrase)
- *   2. Record learner via MediaRecorder + extract pitch in real-time
- *   3. Normalize both to semitones (eliminates male/female pitch differences)
- *   4. DTW alignment + scoring
+ * Three signals (what a human listener actually notices):
+ *   1. Duration — is the utterance roughly the right length?
+ *   2. Peak count — does it have the right number of "bumps" (≈ syllables)?
+ *   3. Envelope shape — does the stress pattern roughly match?
  *
- * Dependencies: pitchy (McLeod Pitch Method, ~15KB)
+ * Critical first step: trim silence from learner recording.
+ * MediaRecorder captures mic-click, room noise, and dead air that
+ * would otherwise destroy any comparison.
  */
-
-import { PitchDetector } from 'pitchy'
 
 // ============================================
 // TYPES
@@ -22,45 +21,44 @@ import { PitchDetector } from 'pitchy'
 export interface PitchContour {
   /** Time offsets in seconds */
   times: number[]
-  /** Fundamental frequencies in Hz (0 = unvoiced) */
+  /** Fundamental frequencies in Hz (0 = unvoiced) — kept for visualization */
   frequencies: number[]
   /** Clarity/confidence scores 0-1 */
   clarities: number[]
   /** Sample rate used for extraction */
   sampleRate: number
+  /** RMS energy envelope (one value per frame) */
+  energy: number[]
 }
 
 export interface ProsodyScore {
-  /** Pitch contour similarity 0-100 */
-  pitch: number
-  /** Rhythm/timing similarity 0-100 */
-  rhythm: number
-  /** Duration ratio similarity 0-100 */
-  timing: number
+  /** Duration match 0-100 */
+  duration: number
+  /** Peak count (syllable) match 0-100 */
+  peakCount: number
+  /** Envelope shape similarity 0-100 */
+  envelope: number
   /** Weighted overall score 0-100 */
   overall: number
 }
 
 export interface PronunciationResult {
-  /** The computed scores */
   score: ProsodyScore
-  /** Native pitch contour (semitone-normalized) */
+  /** Native energy envelope (trimmed, normalized) */
   nativeContour: number[]
-  /** Learner pitch contour (semitone-normalized) */
+  /** Learner energy envelope (trimmed, normalized) */
   learnerContour: number[]
-  /** DTW alignment path (indices into native/learner) */
+  /** Not used in new engine, kept for interface compat */
   alignmentPath: [number, number][]
-  /** Learner audio duration in ms */
   learnerDurationMs: number
-  /** Native audio duration in ms */
   nativeDurationMs: number
 }
 
 /** Per-language prosody weights */
 export interface ProsodyWeights {
-  pitch: number
-  rhythm: number
-  timing: number
+  duration: number
+  peakCount: number
+  envelope: number
 }
 
 // ============================================
@@ -68,147 +66,329 @@ export interface ProsodyWeights {
 // ============================================
 
 const PROSODY_WEIGHTS: Record<string, ProsodyWeights> = {
-  // Tonal — pitch is paramount
-  cmn: { pitch: 0.7, rhythm: 0.15, timing: 0.15 },
-  zho: { pitch: 0.7, rhythm: 0.15, timing: 0.15 },
-  yue: { pitch: 0.7, rhythm: 0.15, timing: 0.15 },
-  tha: { pitch: 0.6, rhythm: 0.2, timing: 0.2 },
-  vie: { pitch: 0.6, rhythm: 0.2, timing: 0.2 },
+  // Tonal — envelope shape matters most (tone = energy contour)
+  cmn: { duration: 0.2, peakCount: 0.3, envelope: 0.5 },
+  zho: { duration: 0.2, peakCount: 0.3, envelope: 0.5 },
+  yue: { duration: 0.2, peakCount: 0.3, envelope: 0.5 },
+  tha: { duration: 0.25, peakCount: 0.3, envelope: 0.45 },
+  vie: { duration: 0.25, peakCount: 0.3, envelope: 0.45 },
 
   // Pitch-accent
-  jpn: { pitch: 0.5, rhythm: 0.25, timing: 0.25 },
-  kor: { pitch: 0.4, rhythm: 0.3, timing: 0.3 },
+  jpn: { duration: 0.25, peakCount: 0.35, envelope: 0.4 },
+  kor: { duration: 0.25, peakCount: 0.35, envelope: 0.4 },
 
-  // Stress-timed — rhythm matters most
-  eng: { pitch: 0.3, rhythm: 0.45, timing: 0.25 },
-  deu: { pitch: 0.3, rhythm: 0.45, timing: 0.25 },
-  nld: { pitch: 0.3, rhythm: 0.45, timing: 0.25 },
-  rus: { pitch: 0.3, rhythm: 0.45, timing: 0.25 },
+  // Stress-timed — peak count and envelope both matter
+  eng: { duration: 0.25, peakCount: 0.35, envelope: 0.4 },
+  deu: { duration: 0.25, peakCount: 0.35, envelope: 0.4 },
+  nld: { duration: 0.25, peakCount: 0.35, envelope: 0.4 },
+  rus: { duration: 0.25, peakCount: 0.35, envelope: 0.4 },
 
-  // Syllable-timed — even duration matters
-  spa: { pitch: 0.3, rhythm: 0.3, timing: 0.4 },
-  fra: { pitch: 0.3, rhythm: 0.3, timing: 0.4 },
-  ita: { pitch: 0.3, rhythm: 0.3, timing: 0.4 },
-  por: { pitch: 0.3, rhythm: 0.3, timing: 0.4 },
-
-  // Mora-timed
-  // jpn already covered above
+  // Syllable-timed — duration and peak count matter most
+  spa: { duration: 0.3, peakCount: 0.4, envelope: 0.3 },
+  fra: { duration: 0.3, peakCount: 0.4, envelope: 0.3 },
+  ita: { duration: 0.3, peakCount: 0.4, envelope: 0.3 },
+  por: { duration: 0.3, peakCount: 0.4, envelope: 0.3 },
 
   // Celtic
-  cym: { pitch: 0.35, rhythm: 0.35, timing: 0.3 },
-  gle: { pitch: 0.35, rhythm: 0.35, timing: 0.3 },
-  gla: { pitch: 0.35, rhythm: 0.35, timing: 0.3 },
+  cym: { duration: 0.3, peakCount: 0.35, envelope: 0.35 },
+  gle: { duration: 0.3, peakCount: 0.35, envelope: 0.35 },
+  gla: { duration: 0.3, peakCount: 0.35, envelope: 0.35 },
 
   // Semitic
-  ara: { pitch: 0.3, rhythm: 0.35, timing: 0.35 },
-  heb: { pitch: 0.3, rhythm: 0.35, timing: 0.35 },
+  ara: { duration: 0.3, peakCount: 0.35, envelope: 0.35 },
+  heb: { duration: 0.3, peakCount: 0.35, envelope: 0.35 },
 }
 
-const DEFAULT_WEIGHTS: ProsodyWeights = { pitch: 0.35, rhythm: 0.35, timing: 0.3 }
+const DEFAULT_WEIGHTS: ProsodyWeights = { duration: 0.25, peakCount: 0.35, envelope: 0.4 }
 
 export function getWeightsForLanguage(langCode: string): ProsodyWeights {
   return PROSODY_WEIGHTS[langCode] || DEFAULT_WEIGHTS
 }
 
 // ============================================
-// PITCH EXTRACTION
+// ENERGY EXTRACTION
 // ============================================
 
-/** Frame rate for pitch analysis (frames per second) */
+/** Frame rate for energy analysis */
 const ANALYSIS_FPS = 50
-/** Minimum clarity to consider a frame "voiced" */
-const MIN_CLARITY = 0.8
 
 /**
- * Extract pitch contour from an AudioBuffer (offline analysis).
- * Runs pitchy's McLeod Pitch Method on overlapping frames.
+ * Extract energy envelope from an AudioBuffer.
+ * Also extracts pitch for visualization (kept from v1).
  */
 export function extractPitchContour(audioBuffer: AudioBuffer): PitchContour {
-  // Mix to mono if stereo
   const channelData = audioBuffer.numberOfChannels > 1
     ? mixToMono(audioBuffer)
     : audioBuffer.getChannelData(0)
 
   const sampleRate = audioBuffer.sampleRate
   const frameSize = Math.round(sampleRate / ANALYSIS_FPS)
-  // pitchy needs power-of-2 input size; use 2048 or 4096
-  const inputSize = frameSize <= 2048 ? 2048 : 4096
-  const detector = PitchDetector.forFloat32Array(inputSize)
 
   const times: number[] = []
-  const frequencies: number[] = []
+  const frequencies: number[] = [] // kept for viz, not used in scoring
   const clarities: number[] = []
+  const energy: number[] = []
 
-  for (let offset = 0; offset + inputSize <= channelData.length; offset += frameSize) {
-    const frame = channelData.slice(offset, offset + inputSize)
-    const [pitch, clarity] = detector.findPitch(frame, sampleRate)
+  for (let offset = 0; offset + frameSize <= channelData.length; offset += frameSize) {
+    // RMS energy for this frame
+    let sumSq = 0
+    for (let i = offset; i < offset + frameSize; i++) {
+      sumSq += channelData[i] * channelData[i]
+    }
+    const rms = Math.sqrt(sumSq / frameSize)
 
     times.push(offset / sampleRate)
-    frequencies.push(clarity >= MIN_CLARITY ? pitch : 0)
-    clarities.push(clarity)
+    frequencies.push(0) // placeholder — pitch not used in scoring
+    clarities.push(rms > 0.01 ? 0.95 : 0.1) // voiced if energy above noise floor
+    energy.push(rms)
   }
 
-  return { times, frequencies, clarities, sampleRate }
+  return { times, frequencies, clarities, sampleRate, energy }
 }
 
-/**
- * Mix multi-channel AudioBuffer to mono Float32Array
- */
 function mixToMono(buffer: AudioBuffer): Float32Array {
   const length = buffer.length
   const mono = new Float32Array(length)
   const numChannels = buffer.numberOfChannels
-
   for (let ch = 0; ch < numChannels; ch++) {
     const channelData = buffer.getChannelData(ch)
     for (let i = 0; i < length; i++) {
       mono[i] += channelData[i] / numChannels
     }
   }
-
   return mono
 }
 
 // ============================================
-// SEMITONE NORMALIZATION
+// SILENCE TRIMMING
 // ============================================
 
 /**
- * Convert voiced F0 values to semitones relative to speaker's mean F0.
- * This eliminates differences between male/female voices.
- *
- * Formula: semitones = 12 * log2(f0 / mean_f0)
- *
- * Returns only voiced frames (unvoiced frames are dropped).
+ * Trim leading and trailing silence from an energy envelope.
+ * Uses a threshold relative to the signal's own energy.
+ * Returns the trimmed slice indices [start, end).
  */
-export function toSemitones(contour: PitchContour): number[] {
-  // Filter to voiced frames only
-  const voiced = contour.frequencies.filter((f, i) => f > 0 && contour.clarities[i] >= MIN_CLARITY)
+export function trimSilence(energy: number[]): [number, number] {
+  if (energy.length === 0) return [0, 0]
 
-  if (voiced.length === 0) return []
+  // Threshold = 10% of peak energy, with an absolute floor
+  const peak = Math.max(...energy)
+  const threshold = Math.max(peak * 0.1, 0.005)
 
-  // Calculate geometric mean (more appropriate for frequencies)
-  const logSum = voiced.reduce((sum, f) => sum + Math.log2(f), 0)
-  const meanF0 = Math.pow(2, logSum / voiced.length)
+  let start = 0
+  while (start < energy.length && energy[start] < threshold) start++
 
-  return voiced.map(f => 12 * Math.log2(f / meanF0))
+  let end = energy.length
+  while (end > start && energy[end - 1] < threshold) end--
+
+  // If somehow everything is below threshold, return the whole thing
+  if (start >= end) return [0, energy.length]
+
+  return [start, end]
 }
 
 // ============================================
-// DTW (Dynamic Time Warping)
+// PEAK DETECTION (≈ syllable counting)
 // ============================================
 
 /**
- * Compute DTW distance and alignment path between two sequences.
- * Inline implementation — avoids a dependency for ~30 lines of code.
+ * Count energy peaks in a contour. Each peak ≈ one syllable nucleus.
+ * Uses a smoothed envelope to avoid counting noise as peaks.
  */
+export function countEnergyPeaks(energy: number[]): number {
+  if (energy.length < 3) return energy.length > 0 ? 1 : 0
+
+  // Smooth with a 5-frame moving average to remove jitter
+  const smoothed = smooth(energy, 5)
+
+  // Find local maxima that are above the mean energy
+  const mean = smoothed.reduce((a, b) => a + b, 0) / smoothed.length
+  let peaks = 0
+  for (let i = 1; i < smoothed.length - 1; i++) {
+    if (smoothed[i] > smoothed[i - 1] &&
+        smoothed[i] > smoothed[i + 1] &&
+        smoothed[i] > mean * 0.5) {
+      peaks++
+      // Skip ahead to avoid counting the same peak twice
+      // (minimum ~80ms between syllable nuclei)
+      i += 3
+    }
+  }
+
+  return Math.max(1, peaks)
+}
+
+function smooth(arr: number[], windowSize: number): number[] {
+  const half = Math.floor(windowSize / 2)
+  return arr.map((_, i) => {
+    let sum = 0, count = 0
+    for (let j = Math.max(0, i - half); j <= Math.min(arr.length - 1, i + half); j++) {
+      sum += arr[j]
+      count++
+    }
+    return sum / count
+  })
+}
+
+// ============================================
+// ENVELOPE SHAPE COMPARISON
+// ============================================
+
+/**
+ * Downsample an energy envelope to N bins and normalize to sum=1.
+ * This gives a "shape" that's independent of absolute loudness or duration.
+ */
+export function normalizeEnvelope(energy: number[], bins: number = 20): number[] {
+  if (energy.length === 0) return new Array(bins).fill(1 / bins)
+
+  // If fewer samples than bins, reduce bin count to match
+  const actualBins = Math.min(bins, energy.length)
+  const binSize = energy.length / actualBins
+  const result: number[] = []
+
+  for (let b = 0; b < actualBins; b++) {
+    const start = Math.floor(b * binSize)
+    const end = Math.max(start + 1, Math.floor((b + 1) * binSize))
+    let sum = 0
+    for (let i = start; i < Math.min(end, energy.length); i++) {
+      sum += energy[i]
+    }
+    result.push(sum / (end - start))
+  }
+
+  // Pad to target bin count if we reduced
+  while (result.length < bins) {
+    result.push(result[result.length - 1] || 0)
+  }
+
+  // Normalize to sum = 1
+  const total = result.reduce((a, b) => a + b, 0)
+  if (total > 0) {
+    for (let i = 0; i < result.length; i++) result[i] /= total
+  }
+
+  return result
+}
+
+/**
+ * Compare two normalized envelopes using cosine similarity.
+ * Returns 0-100 (100 = identical shape).
+ */
+export function envelopeSimilarity(a: number[], b: number[]): number {
+  if (a.length !== b.length || a.length === 0) return 50
+
+  let dotProduct = 0, normA = 0, normB = 0
+  for (let i = 0; i < a.length; i++) {
+    dotProduct += a[i] * b[i]
+    normA += a[i] * a[i]
+    normB += b[i] * b[i]
+  }
+
+  const denom = Math.sqrt(normA) * Math.sqrt(normB)
+  if (denom === 0) return 50
+
+  // Cosine similarity is -1 to 1; speech envelopes are always positive so 0 to 1
+  const cosSim = dotProduct / denom
+
+  // Map to 0-100 with a gentle curve that rewards "close enough"
+  // cosSim of 0.85+ should feel like a good match
+  return Math.max(0, Math.min(100, Math.pow(cosSim, 2) * 100))
+}
+
+// ============================================
+// SCORING
+// ============================================
+
+/**
+ * Compare native and learner audio, returning a prosody-based score.
+ *
+ * Step 1: Trim silence (fixes MediaRecorder start/end noise)
+ * Step 2: Duration score (right length?)
+ * Step 3: Peak count score (right number of syllables?)
+ * Step 4: Envelope shape score (similar stress pattern?)
+ */
+export function compareProsody(
+  nativeContour: PitchContour,
+  learnerContour: PitchContour,
+  langCode: string
+): PronunciationResult {
+  const weights = getWeightsForLanguage(langCode)
+
+  // 1. Trim silence from both
+  const [nStart, nEnd] = trimSilence(nativeContour.energy)
+  const [lStart, lEnd] = trimSilence(learnerContour.energy)
+
+  const nEnergy = nativeContour.energy.slice(nStart, nEnd)
+  const lEnergy = learnerContour.energy.slice(lStart, lEnd)
+
+  // Trimmed durations in seconds
+  const nDuration = nEnergy.length / ANALYSIS_FPS
+  const lDuration = lEnergy.length / ANALYSIS_FPS
+
+  // 2. Duration score — generous: ±30% is still 80+
+  let durationScore = 50
+  if (nDuration > 0 && lDuration > 0) {
+    const ratio = lDuration / nDuration
+    // Centered at 1.0, gentle falloff
+    // ratio of 0.7 or 1.3 → score ~85
+    // ratio of 0.5 or 1.5 → score ~55
+    // ratio of 0.3 or 2.0 → score ~20
+    const deviation = Math.abs(1 - ratio)
+    durationScore = Math.max(0, Math.min(100, 100 * Math.exp(-2.5 * deviation * deviation)))
+  }
+
+  // 3. Peak count score — right number of syllables?
+  const nPeaks = countEnergyPeaks(nEnergy)
+  const lPeaks = countEnergyPeaks(lEnergy)
+
+  let peakCountScore: number
+  if (nPeaks === lPeaks) {
+    peakCountScore = 100
+  } else {
+    const diff = Math.abs(nPeaks - lPeaks)
+    const maxPeaks = Math.max(nPeaks, lPeaks)
+    // Off by 1 on a 4-syllable word: still ~80
+    // Off by 2: ~55
+    // Off by 3+: drops fast
+    peakCountScore = Math.max(0, Math.min(100, 100 * (1 - (diff / maxPeaks) * 1.2)))
+  }
+
+  // 4. Envelope shape — does the stress pattern match?
+  const nNorm = normalizeEnvelope(nEnergy)
+  const lNorm = normalizeEnvelope(lEnergy)
+  const envelopeScore = envelopeSimilarity(nNorm, lNorm)
+
+  // 5. Weighted overall
+  const overall = Math.round(
+    weights.duration * durationScore +
+    weights.peakCount * peakCountScore +
+    weights.envelope * envelopeScore
+  )
+
+  return {
+    score: {
+      duration: Math.round(durationScore),
+      peakCount: Math.round(peakCountScore),
+      envelope: Math.round(envelopeScore),
+      overall,
+    },
+    nativeContour: nNorm,
+    learnerContour: lNorm,
+    alignmentPath: [],
+    learnerDurationMs: lDuration * 1000,
+    nativeDurationMs: nDuration * 1000,
+  }
+}
+
+// ============================================
+// DTW (kept for potential future use / backwards compat)
+// ============================================
+
 export function dtw(seq1: number[], seq2: number[]): { distance: number; path: [number, number][] } {
   const n = seq1.length
   const m = seq2.length
-
   if (n === 0 || m === 0) return { distance: Infinity, path: [] }
 
-  // Cost matrix
   const cost = Array.from({ length: n + 1 }, () => new Float64Array(m + 1).fill(Infinity))
   cost[0][0] = 0
 
@@ -219,7 +399,6 @@ export function dtw(seq1: number[], seq2: number[]): { distance: number; path: [
     }
   }
 
-  // Backtrack to find optimal path
   const path: [number, number][] = []
   let i = n, j = m
   while (i > 0 && j > 0) {
@@ -233,146 +412,29 @@ export function dtw(seq1: number[], seq2: number[]): { distance: number; path: [
     i += best.di
     j += best.dj
   }
-
   path.reverse()
 
-  // Normalize distance by path length
-  const normalizedDistance = cost[n][m] / path.length
-
-  return { distance: normalizedDistance, path }
+  return { distance: cost[n][m] / path.length, path }
 }
 
 // ============================================
-// RHYTHM ANALYSIS
+// SEMITONE NORMALIZATION (kept for viz / backwards compat)
 // ============================================
 
-/**
- * Compute inter-onset intervals from a pitch contour.
- * An "onset" is a transition from unvoiced to voiced.
- */
-function getInterOnsetIntervals(contour: PitchContour): number[] {
-  const intervals: number[] = []
-  let lastOnsetTime: number | null = null
-  let wasVoiced = false
+const MIN_CLARITY = 0.8
 
-  for (let i = 0; i < contour.frequencies.length; i++) {
-    const isVoiced = contour.frequencies[i] > 0 && contour.clarities[i] >= MIN_CLARITY
-    if (isVoiced && !wasVoiced) {
-      // Onset detected
-      if (lastOnsetTime !== null) {
-        intervals.push(contour.times[i] - lastOnsetTime)
-      }
-      lastOnsetTime = contour.times[i]
-    }
-    wasVoiced = isVoiced
-  }
-
-  return intervals
-}
-
-/**
- * Compute rhythm similarity between two IOI sequences.
- * Normalizes IOIs to ratios (each / mean) then correlates.
- */
-function rhythmSimilarity(nativeIOI: number[], learnerIOI: number[]): number {
-  if (nativeIOI.length < 2 || learnerIOI.length < 2) return 50 // neutral if not enough data
-
-  // Normalize to ratios
-  const normalize = (arr: number[]): number[] => {
-    const mean = arr.reduce((a, b) => a + b, 0) / arr.length
-    return mean > 0 ? arr.map(v => v / mean) : arr
-  }
-
-  const nNorm = normalize(nativeIOI)
-  const lNorm = normalize(learnerIOI)
-
-  // DTW on rhythm ratios
-  const { distance } = dtw(nNorm, lNorm)
-
-  // Convert distance to 0-100 score (lower distance = higher score)
-  // Empirically, distance > 2.0 is very poor
-  return Math.max(0, Math.min(100, 100 * (1 - distance / 2.0)))
+export function toSemitones(contour: PitchContour): number[] {
+  const voiced = contour.frequencies.filter((f, i) => f > 0 && contour.clarities[i] >= MIN_CLARITY)
+  if (voiced.length === 0) return []
+  const logSum = voiced.reduce((sum, f) => sum + Math.log2(f), 0)
+  const meanF0 = Math.pow(2, logSum / voiced.length)
+  return voiced.map(f => 12 * Math.log2(f / meanF0))
 }
 
 // ============================================
-// SCORING
+// RECORDING
 // ============================================
 
-/**
- * Compare native and learner pitch contours, returning a full PronunciationResult.
- */
-export function compareProsody(
-  nativeContour: PitchContour,
-  learnerContour: PitchContour,
-  langCode: string
-): PronunciationResult {
-  const weights = getWeightsForLanguage(langCode)
-
-  // 1. Semitone normalization
-  const nSemitones = toSemitones(nativeContour)
-  const lSemitones = toSemitones(learnerContour)
-
-  // 2. Pitch score via DTW
-  let pitchScore = 50 // default if insufficient data
-  let alignmentPath: [number, number][] = []
-
-  if (nSemitones.length >= 3 && lSemitones.length >= 3) {
-    const result = dtw(nSemitones, lSemitones)
-    alignmentPath = result.path
-    // Distance of 0 = perfect, > 5 semitones avg = very poor
-    pitchScore = Math.max(0, Math.min(100, 100 * (1 - result.distance / 5)))
-  }
-
-  // 3. Rhythm score via IOI comparison
-  const nIOI = getInterOnsetIntervals(nativeContour)
-  const lIOI = getInterOnsetIntervals(learnerContour)
-  const rhythmScore = rhythmSimilarity(nIOI, lIOI)
-
-  // 4. Timing score via duration ratio
-  const nDuration = nativeContour.times.length > 0
-    ? nativeContour.times[nativeContour.times.length - 1]
-    : 0
-  const lDuration = learnerContour.times.length > 0
-    ? learnerContour.times[learnerContour.times.length - 1]
-    : 0
-
-  let timingScore = 50
-  if (nDuration > 0 && lDuration > 0) {
-    const ratio = lDuration / nDuration
-    // 1.0 = perfect, penalize quadratically for deviation
-    timingScore = Math.max(0, Math.min(100, 100 * (1 - Math.pow(Math.abs(1 - ratio), 1.5))))
-  }
-
-  // 5. Weighted overall
-  const overall = Math.round(
-    weights.pitch * pitchScore +
-    weights.rhythm * rhythmScore +
-    weights.timing * timingScore
-  )
-
-  return {
-    score: {
-      pitch: Math.round(pitchScore),
-      rhythm: Math.round(rhythmScore),
-      timing: Math.round(timingScore),
-      overall,
-    },
-    nativeContour: nSemitones,
-    learnerContour: lSemitones,
-    alignmentPath,
-    learnerDurationMs: lDuration * 1000,
-    nativeDurationMs: nDuration * 1000,
-  }
-}
-
-// ============================================
-// RECORDING (MediaRecorder integration)
-// ============================================
-
-/**
- * Record audio from a MediaStream using MediaRecorder.
- * Returns a promise that resolves to an AudioBuffer when stopped.
- */
 export class AudioRecorder {
   private mediaRecorder: MediaRecorder | null = null
   private chunks: Blob[] = []
@@ -384,19 +446,14 @@ export class AudioRecorder {
     this.audioContext = audioContext
   }
 
-  /**
-   * Start recording from the given MediaStream.
-   * Returns a Promise<AudioBuffer> that resolves when stop() is called.
-   */
   start(stream: MediaStream): Promise<AudioBuffer> {
     this.chunks = []
 
-    // Prefer webm/opus, fall back to whatever's available
     const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
       ? 'audio/webm;codecs=opus'
       : MediaRecorder.isTypeSupported('audio/webm')
         ? 'audio/webm'
-        : '' // let browser choose
+        : ''
 
     this.mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
 
@@ -419,7 +476,7 @@ export class AudioRecorder {
       this.rejectRecording?.(new Error(`MediaRecorder error: ${event}`))
     }
 
-    this.mediaRecorder.start(100) // collect in 100ms chunks
+    this.mediaRecorder.start(100)
 
     return new Promise<AudioBuffer>((resolve, reject) => {
       this.resolveRecording = resolve
@@ -427,46 +484,31 @@ export class AudioRecorder {
     })
   }
 
-  /**
-   * Stop recording. The Promise from start() will resolve.
-   */
   stop(): void {
     if (this.mediaRecorder?.state === 'recording') {
       this.mediaRecorder.stop()
     }
   }
 
-  /**
-   * Check if currently recording
-   */
   isRecording(): boolean {
     return this.mediaRecorder?.state === 'recording'
   }
 }
 
 // ============================================
-// NATIVE AUDIO PITCH CACHE
+// NATIVE AUDIO CACHE
 // ============================================
 
-/** Cache of extracted pitch contours for native audio, keyed by phrase ID */
 const nativePitchCache = new Map<string, PitchContour>()
 
-/**
- * Get or compute the pitch contour for a native audio buffer.
- * Results are cached by phraseId since native audio is immutable.
- */
 export function getNativePitchContour(phraseId: string, audioBuffer: AudioBuffer): PitchContour {
   const cached = nativePitchCache.get(phraseId)
   if (cached) return cached
-
   const contour = extractPitchContour(audioBuffer)
   nativePitchCache.set(phraseId, contour)
   return contour
 }
 
-/**
- * Clear the native pitch cache (e.g., on course change)
- */
 export function clearNativePitchCache(): void {
   nativePitchCache.clear()
 }

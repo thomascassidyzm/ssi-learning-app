@@ -2,9 +2,9 @@
 /**
  * ProsodyFeedback - Visual pronunciation feedback
  *
- * Shows native pitch as a shaded "target band" and learner pitch as a line overlay.
- * Green where learner is within the band, amber where outside.
- * Score badge fades in after render.
+ * Shows native and learner energy envelopes as overlaid bar charts.
+ * Native = subtle filled shape, learner = colored overlay.
+ * Green where shapes match, amber where they diverge.
  */
 import { ref, watch, onMounted, computed, nextTick, type PropType } from 'vue'
 import type { PronunciationResult } from '@ssi/core/audio'
@@ -14,7 +14,6 @@ const props = defineProps({
     type: Object as PropType<PronunciationResult>,
     required: true,
   },
-  /** Whether to animate the drawing */
   animate: {
     type: Boolean,
     default: true,
@@ -24,7 +23,6 @@ const props = defineProps({
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 const showScore = ref(false)
 
-// Score color: green (80+), amber (50-79), red (<50)
 const scoreColor = computed(() => {
   const s = props.result.score.overall
   if (s >= 80) return '#4ade80'
@@ -39,16 +37,11 @@ const scoreBgColor = computed(() => {
   return 'rgba(248, 113, 113, 0.15)'
 })
 
-// Drawing constants
-const BAND_TOLERANCE = 2.0 // semitones above/below native for "good" band
 const CANVAS_PADDING = 16
-const LINE_WIDTH = 2.5
-const BAND_OPACITY = 0.15
 
 function draw() {
   const canvas = canvasRef.value
   if (!canvas) return
-
   const ctx = canvas.getContext('2d')
   if (!ctx) return
 
@@ -67,10 +60,8 @@ function draw() {
 
   const native = props.result.nativeContour
   const learner = props.result.learnerContour
-  const path = props.result.alignmentPath
 
-  if (native.length < 2 || learner.length < 2 || path.length < 2) {
-    // Not enough data — show a "?" placeholder
+  if (native.length < 2 || learner.length < 2) {
     ctx.fillStyle = 'rgba(255, 255, 255, 0.3)'
     ctx.font = '24px system-ui'
     ctx.textAlign = 'center'
@@ -78,76 +69,53 @@ function draw() {
     return
   }
 
-  // Find Y range from both contours
-  const allValues = [...native, ...learner]
-  const minY = Math.min(...allValues) - BAND_TOLERANCE
-  const maxY = Math.max(...allValues) + BAND_TOLERANCE
-  const rangeY = maxY - minY || 1
+  const bins = native.length // both are normalized to same bin count
+  const barW = drawW / bins
+  const maxVal = Math.max(...native, ...learner) || 1
 
-  // Map functions
-  const xScale = (i: number, total: number) => CANVAS_PADDING + (i / Math.max(1, total - 1)) * drawW
-  const yScale = (v: number) => CANVAS_PADDING + drawH - ((v - minY) / rangeY) * drawH
-
-  // 1. Draw native pitch as a shaded band (± tolerance)
-  ctx.beginPath()
-  for (let i = 0; i < native.length; i++) {
-    const x = xScale(i, native.length)
-    const y = yScale(native[i] + BAND_TOLERANCE)
-    if (i === 0) ctx.moveTo(x, y)
-    else ctx.lineTo(x, y)
+  // 1. Draw native envelope as filled bars (subtle)
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.12)'
+  for (let i = 0; i < bins; i++) {
+    const x = CANVAS_PADDING + i * barW
+    const barH = (native[i] / maxVal) * drawH
+    ctx.fillRect(x + 1, CANVAS_PADDING + drawH - barH, barW - 2, barH)
   }
-  for (let i = native.length - 1; i >= 0; i--) {
-    const x = xScale(i, native.length)
-    const y = yScale(native[i] - BAND_TOLERANCE)
-    ctx.lineTo(x, y)
-  }
-  ctx.closePath()
-  ctx.fillStyle = `rgba(255, 255, 255, ${BAND_OPACITY})`
-  ctx.fill()
 
-  // 2. Draw native center line (subtle dashed)
+  // 2. Draw learner envelope as colored overlay bars
+  for (let i = 0; i < bins; i++) {
+    const x = CANVAS_PADDING + i * barW
+    const barH = (learner[i] / maxVal) * drawH
+
+    // Color by how close this bin is to native
+    const diff = Math.abs(native[i] - learner[i])
+    const maxDiff = maxVal * 0.3 // 30% of max = threshold for "close enough"
+    const close = diff < maxDiff
+
+    ctx.fillStyle = close
+      ? 'rgba(74, 222, 128, 0.5)'  // green
+      : 'rgba(251, 191, 36, 0.5)'  // amber
+
+    ctx.fillRect(x + 1, CANVAS_PADDING + drawH - barH, barW - 2, barH)
+  }
+
+  // 3. Draw native outline on top (dashed line connecting bar tops)
   ctx.beginPath()
-  ctx.setLineDash([4, 4])
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)'
-  ctx.lineWidth = 1
-  for (let i = 0; i < native.length; i++) {
-    const x = xScale(i, native.length)
-    const y = yScale(native[i])
+  ctx.setLineDash([3, 3])
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)'
+  ctx.lineWidth = 1.5
+  for (let i = 0; i < bins; i++) {
+    const x = CANVAS_PADDING + i * barW + barW / 2
+    const y = CANVAS_PADDING + drawH - (native[i] / maxVal) * drawH
     if (i === 0) ctx.moveTo(x, y)
     else ctx.lineTo(x, y)
   }
   ctx.stroke()
   ctx.setLineDash([])
-
-  // 3. Draw learner pitch line — colored by proximity to native band
-  // We use the DTW alignment path to match learner points to native points
-  for (let p = 0; p < path.length - 1; p++) {
-    const [ni, li] = path[p]
-    const [ni2, li2] = path[p + 1]
-
-    const x1 = xScale(li, learner.length)
-    const y1 = yScale(learner[li])
-    const x2 = xScale(li2, learner.length)
-    const y2 = yScale(learner[li2])
-
-    // Check if learner is within the band
-    const diff = Math.abs(learner[li] - native[ni])
-    const inBand = diff <= BAND_TOLERANCE
-
-    ctx.beginPath()
-    ctx.moveTo(x1, y1)
-    ctx.lineTo(x2, y2)
-    ctx.strokeStyle = inBand ? '#4ade80' : '#fbbf24'
-    ctx.lineWidth = LINE_WIDTH
-    ctx.lineCap = 'round'
-    ctx.stroke()
-  }
 }
 
 onMounted(() => {
   nextTick(() => {
     draw()
-    // Fade in score after a brief delay
     setTimeout(() => { showScore.value = true }, 300)
   })
 })
@@ -163,37 +131,37 @@ watch(() => props.result, () => {
 
 <template>
   <div class="prosody-feedback">
-    <!-- Pitch contour visualization -->
     <div class="contour-container">
       <canvas ref="canvasRef" class="contour-canvas" />
     </div>
 
-    <!-- Score badge -->
-    <Transition name="score-fade">
-      <div v-if="showScore" class="score-badge" :style="{ color: scoreColor, background: scoreBgColor }">
-        <span class="score-value">{{ result.score.overall }}%</span>
-      </div>
-    </Transition>
-
-    <!-- Sub-scores (compact) -->
+    <!-- Sub-scores (human labels, no raw percentages) -->
     <Transition name="score-fade">
       <div v-if="showScore" class="sub-scores">
         <span class="sub-score">
-          <span class="sub-label">Melody</span>
-          <span class="sub-value">{{ result.score.pitch }}</span>
+          <span class="sub-label">Length</span>
+          <span class="sub-dot" :class="dotClass(result.score.duration)" />
         </span>
         <span class="sub-score">
-          <span class="sub-label">Rhythm</span>
-          <span class="sub-value">{{ result.score.rhythm }}</span>
+          <span class="sub-label">Syllables</span>
+          <span class="sub-dot" :class="dotClass(result.score.peakCount)" />
         </span>
         <span class="sub-score">
-          <span class="sub-label">Timing</span>
-          <span class="sub-value">{{ result.score.timing }}</span>
+          <span class="sub-label">Shape</span>
+          <span class="sub-dot" :class="dotClass(result.score.envelope)" />
         </span>
       </div>
     </Transition>
   </div>
 </template>
+
+<script lang="ts">
+function dotClass(score: number): string {
+  if (score >= 80) return 'dot-green'
+  if (score >= 50) return 'dot-amber'
+  return 'dot-red'
+}
+</script>
 
 <style scoped>
 .prosody-feedback {
@@ -221,32 +189,16 @@ watch(() => props.result, () => {
   display: block;
 }
 
-.score-badge {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px 16px;
-  border-radius: 20px;
-  border: 1px solid currentColor;
-}
-
-.score-value {
-  font-size: 20px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
-}
-
 .sub-scores {
   display: flex;
-  gap: 16px;
+  gap: 20px;
 }
 
 .sub-score {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
 }
 
 .sub-label {
@@ -256,45 +208,36 @@ watch(() => props.result, () => {
   color: rgba(255, 255, 255, 0.4);
 }
 
-.sub-value {
-  font-size: 14px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.7);
-  font-variant-numeric: tabular-nums;
+.sub-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
 }
 
-/* Score fade transition */
+.dot-green { background: #4ade80; }
+.dot-amber { background: #fbbf24; }
+.dot-red { background: #f87171; }
+
 .score-fade-enter-active {
   transition: all 0.4s ease-out;
 }
-
 .score-fade-leave-active {
   transition: all 0.2s ease-in;
 }
-
 .score-fade-enter-from {
   opacity: 0;
   transform: translateY(8px);
 }
-
 .score-fade-leave-to {
   opacity: 0;
 }
 
-/* ═══════════════════════════════════════════════════
-   MIST (LIGHT) THEME
-   ═══════════════════════════════════════════════════ */
-
+/* Mist theme */
 :root[data-theme="mist"] .contour-container {
   background: rgba(0, 0, 0, 0.03);
   border: 1px solid rgba(0, 0, 0, 0.08);
 }
-
 :root[data-theme="mist"] .sub-label {
   color: rgba(44, 38, 34, 0.4);
-}
-
-:root[data-theme="mist"] .sub-value {
-  color: rgba(44, 38, 34, 0.7);
 }
 </style>
