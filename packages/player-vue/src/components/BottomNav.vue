@@ -57,6 +57,18 @@ const props = defineProps({
   isPlayerReady: {
     type: Boolean,
     default: false
+  },
+  showListeningBtn: {
+    type: Boolean,
+    default: false
+  },
+  showPronunciationBtn: {
+    type: Boolean,
+    default: false
+  },
+  showDrivingBtn: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -148,7 +160,7 @@ const handleSettings = () => {
   <nav class="bottom-nav">
     <!-- Mode buttons — positioned absolutely relative to the pill so they stay in sync on Android -->
     <button
-      v-show="!showSessionComplete && !showCourseSelector && isOnPlayerScreen"
+      v-show="showListeningBtn && !showSessionComplete && !showCourseSelector && isOnPlayerScreen"
       class="mode-btn mode-btn--left"
       :class="{ active: isListeningMode, disabled: isDrivingMode }"
       @click="emit('toggleListening')"
@@ -169,7 +181,7 @@ const handleSettings = () => {
       <span class="script-toggle-label">{{ isNativeScript ? 'Aa' : '\u6587' }}</span>
     </button>
     <button
-      v-show="!showSessionComplete && !showCourseSelector && isOnPlayerScreen"
+      v-show="showPronunciationBtn && !showSessionComplete && !showCourseSelector && isOnPlayerScreen"
       class="mode-btn mode-btn--left-inner"
       :class="{ active: isPronunciationMode, disabled: isListeningMode || isDrivingMode }"
       @click="emit('togglePronunciation')"
@@ -183,7 +195,7 @@ const handleSettings = () => {
       </svg>
     </button>
     <button
-      v-show="!showSessionComplete && !showCourseSelector && isOnPlayerScreen"
+      v-show="showDrivingBtn && !showSessionComplete && !showCourseSelector && isOnPlayerScreen"
       class="mode-btn mode-btn--right"
       :class="{ active: isDrivingMode, disabled: isListeningMode }"
       @click="emit('toggleDriving')"

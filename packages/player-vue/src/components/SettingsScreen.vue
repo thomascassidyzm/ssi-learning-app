@@ -73,6 +73,11 @@ const versionDisplay = computed(() => {
   return formattedBuildTime.value ? `${sha} · ${formattedBuildTime.value}` : sha
 })
 
+// Practice mode visibility (default: off — unlocked via settings or notification)
+const showListeningMode = ref(false)
+const showPronunciationMode = ref(false)
+const showDrivingMode = ref(false)
+
 // Display settings
 const showFirePath = ref(true)
 
@@ -506,6 +511,11 @@ const handleOnline = () => { isOnline.value = true }
 const handleOffline = () => { isOnline.value = false }
 
 onMounted(async () => {
+  // Load practice mode visibility
+  showListeningMode.value = localStorage.getItem('ssi-mode-listening') === 'true'
+  showPronunciationMode.value = localStorage.getItem('ssi-mode-pronunciation') === 'true'
+  showDrivingMode.value = localStorage.getItem('ssi-mode-driving') === 'true'
+
   // Load saved display settings
   showFirePath.value = localStorage.getItem('ssi-show-fire-path') !== 'false'
 
@@ -599,6 +609,24 @@ const cancelDownload = () => {
   }
   isDownloading.value = false
   downloadProgress.value = 0
+}
+
+const toggleListeningMode = () => {
+  showListeningMode.value = !showListeningMode.value
+  localStorage.setItem('ssi-mode-listening', showListeningMode.value ? 'true' : 'false')
+  dispatchSettingChanged('showListeningMode', showListeningMode.value)
+}
+
+const togglePronunciationMode = () => {
+  showPronunciationMode.value = !showPronunciationMode.value
+  localStorage.setItem('ssi-mode-pronunciation', showPronunciationMode.value ? 'true' : 'false')
+  dispatchSettingChanged('showPronunciationMode', showPronunciationMode.value)
+}
+
+const toggleDrivingMode = () => {
+  showDrivingMode.value = !showDrivingMode.value
+  localStorage.setItem('ssi-mode-driving', showDrivingMode.value ? 'true' : 'false')
+  dispatchSettingChanged('showDrivingMode', showDrivingMode.value)
 }
 
 const toggleFirePath = () => {
@@ -1040,34 +1068,48 @@ const confirmReset = async () => {
         </div>
       </section>
 
-      <!-- Tools Section -->
+      <!-- Practice Modes Section -->
       <section class="section">
-        <h3 class="section-title">Tools</h3>
+        <h3 class="section-title">Practice Modes</h3>
         <div class="card">
-          <div class="setting-row clickable" @click="emit('openListening')">
+          <div class="setting-row clickable" @click="toggleListeningMode">
             <div class="setting-info">
               <span class="setting-label">Listening Mode</span>
-              <span class="setting-desc">Review phrases with passive listening</span>
+              <span class="setting-desc">Review phrases with passive listening. Adds a headphones button to the player.</span>
             </div>
-            <svg class="tool-icon headphones" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
-              <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
-            </svg>
+            <div class="toggle-switch" :class="{ 'is-on': showListeningMode }">
+              <div class="toggle-track">
+                <div class="toggle-thumb"></div>
+              </div>
+            </div>
           </div>
 
           <div class="divider"></div>
 
-          <div class="setting-row clickable" @click="emit('openDriving')">
+          <div class="setting-row clickable" @click="togglePronunciationMode">
+            <div class="setting-info">
+              <span class="setting-label">Pronunciation Practice</span>
+              <span class="setting-desc">Record yourself and compare with native speakers. Adds a microphone button to the player.</span>
+            </div>
+            <div class="toggle-switch" :class="{ 'is-on': showPronunciationMode }">
+              <div class="toggle-track">
+                <div class="toggle-thumb"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row clickable" @click="toggleDrivingMode">
             <div class="setting-info">
               <span class="setting-label">Driving Mode</span>
-              <span class="setting-desc">Hands-free learning while driving</span>
+              <span class="setting-desc">Hands-free learning while driving. Adds a car button to the player.</span>
             </div>
-            <svg class="tool-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M5 17h2m10 0h2M5 17a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2M5 17H3m18 0h-2"/>
-              <circle cx="7.5" cy="17" r="1.5"/>
-              <circle cx="16.5" cy="17" r="1.5"/>
-              <path d="M5 7l1-3h12l1 3"/>
-            </svg>
+            <div class="toggle-switch" :class="{ 'is-on': showDrivingMode }">
+              <div class="toggle-track">
+                <div class="toggle-thumb"></div>
+              </div>
+            </div>
           </div>
 
           <template v-if="showViewScript">

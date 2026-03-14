@@ -5943,6 +5943,7 @@ defineExpose({
   hasRomanizedText,
   isNativeScript,
   toggleScriptMode,
+  sessionSeconds,
 })
 </script>
 
