@@ -46,7 +46,7 @@ const BANDS = [
   { key: 'crystal',    label: 'Crystal clear',     desc: 'A native speaker would understand instantly',     color: '#4ade80', icon: '✦' },
   { key: 'clear',      label: 'Clear enough',       desc: 'Understandable without needing context',          color: '#86efac', icon: '●' },
   { key: 'getting',    label: 'Getting there',      desc: 'Would be understood with a little context',       color: '#fbbf24', icon: '◐' },
-  { key: 'practise',   label: 'Keep practising',    desc: 'A native speaker would need some effort to parse', color: '#fb923c', icon: '○' },
+  { key: 'practise',   label: 'Keep practising',    desc: 'A native speaker would need to concentrate to understand', color: '#fb923c', icon: '○' },
   { key: 'tryagain',   label: 'Try again',          desc: 'Would be hard to understand, even with context',  color: '#f87171', icon: '◌' },
 ]
 
