@@ -11,12 +11,12 @@
 import { ref, computed, type Ref, type ComputedRef } from 'vue'
 import type { SupabaseClient, User } from '@supabase/supabase-js'
 import type { LearnerRecord, LearnerPreferences } from '@ssi/core'
+import { useUserRole } from '@/composables/useUserRole'
 
 // Local storage keys
 const GUEST_ID_KEY = 'ssi-guest-id'
 const GUEST_SESSIONS_KEY = 'ssi-guest-sessions-count'
 const SIGNUP_PROMPT_SEEN_KEY = 'ssi-signup-prompt-seen'
-const ADMIN_ROLES_KEY = 'ssi-admin-roles'
 
 export interface AuthState {
   /** Supabase Auth user (null if guest) */
@@ -62,22 +62,6 @@ function getOrCreateGuestId(): string {
     localStorage.setItem(GUEST_ID_KEY, guestId)
   }
   return guestId
-}
-
-/**
- * Cache admin roles in localStorage for the router guard.
- * This avoids a network call on every /admin navigation.
- */
-function cacheAdminRoles(platformRole: string | null, educationalRole: string | null): void {
-  try {
-    if (platformRole === 'ssi_admin' || educationalRole === 'govt_admin') {
-      localStorage.setItem(ADMIN_ROLES_KEY, JSON.stringify({ platformRole, educationalRole }))
-    } else {
-      localStorage.removeItem(ADMIN_ROLES_KEY)
-    }
-  } catch {
-    // localStorage unavailable
-  }
 }
 
 /**
@@ -140,8 +124,9 @@ export function useAuth(): AuthState & AuthActions {
         .single()
 
       if (existingLearner) {
-        // Cache admin roles for router guard (fast, no network)
-        cacheAdminRoles(existingLearner.platform_role, existingLearner.educational_role)
+        // Update useUserRole with DB roles (source of truth)
+        const { initialize: initRole } = useUserRole()
+        initRole(existingLearner.platform_role, existingLearner.educational_role)
 
         return {
           id: existingLearner.id,
@@ -256,6 +241,9 @@ export function useAuth(): AuthState & AuthActions {
           updated_at: new Date(),
           preferences: defaultPreferences(),
         } as any
+        // Sync roles to useUserRole so router guard works in god mode
+        const { initialize: initRole } = useUserRole()
+        initRole(parsed.platform_role ?? null, parsed.educational_role ?? null)
         isLoading.value = false
         console.log('[useAuth] God mode active, using user:', parsed.display_name)
         return
@@ -318,7 +306,7 @@ export function useAuth(): AuthState & AuthActions {
     }
     supabaseUser.value = null
     learner.value = null
-    localStorage.removeItem(ADMIN_ROLES_KEY)
+    useUserRole().clear()
     // Reinitialize guest
     guestId.value = getOrCreateGuestId()
   }

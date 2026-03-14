@@ -7,6 +7,7 @@
 
 import { ref, computed, watch } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { useUserRole } from '@/composables/useUserRole'
 
 export type EducationalRole = 'god' | 'student' | 'teacher' | 'school_admin' | 'govt_admin'
 
@@ -236,6 +237,9 @@ export function useGodMode(client?: SupabaseClient) {
   // Select a user to impersonate
   function selectUser(user: GodModeUser) {
     selectedUser.value = user
+    // Sync impersonated user's roles to useUserRole so router guard reflects their access
+    const { initialize: initRole } = useUserRole()
+    initRole(user.platform_role, user.educational_role)
   }
 
   // Clear selection

@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import { useUserRole } from '@/composables/useUserRole'
 
 // Lazy-loaded views
 const PlayerContainer = () => import('@/containers/PlayerContainer.vue')
@@ -214,45 +215,12 @@ const router = createRouter({
   },
 })
 
-// Guard admin routes: only ssi_admin or govt_admin can access /admin
-// Uses localStorage caches — no network calls needed.
-// Roles are cached by useAuth on login and by god mode on selection.
+// Guard admin routes — useUserRole is the single authority
 router.beforeEach((to, _from, next) => {
-  if (!to.path.startsWith('/admin')) {
-    next()
-    return
-  }
-
-  // Check god mode (cached in localStorage by useGodMode)
-  const godModeStored = localStorage.getItem('ssi-god-mode-user')
-  if (godModeStored) {
-    try {
-      const godUser = JSON.parse(godModeStored)
-      if (godUser.platform_role === 'ssi_admin' || godUser.educational_role === 'govt_admin') {
-        next()
-        return
-      }
-    } catch {
-      // malformed — fall through
-    }
-  }
-
-  // Check admin roles (cached by useAuth when learner record loads)
-  const adminRoles = localStorage.getItem('ssi-admin-roles')
-  if (adminRoles) {
-    try {
-      const roles = JSON.parse(adminRoles)
-      if (roles.platformRole === 'ssi_admin' || roles.educationalRole === 'govt_admin') {
-        next()
-        return
-      }
-    } catch {
-      // malformed — fall through
-    }
-  }
-
-  // Not authorised
-  next('/')
+  if (!to.path.startsWith('/admin')) return next()
+  const { canAccessAdmin, restoreFromCache } = useUserRole()
+  restoreFromCache()
+  return canAccessAdmin.value ? next() : next('/')
 })
 
 // Update document title on navigation
