@@ -5986,7 +5986,7 @@ defineExpose({
 
     <!-- LEGO Assembly Visualization - blocks assemble during phrase playback -->
     <LegoAssembly
-      v-if="currentPhraseLegoBlocks.length > 0"
+      v-if="currentPhraseLegoBlocks.length > 0 && isPlaying"
       :blocks="currentPhraseLegoBlocks"
       :phase="currentPhase"
       :voice1-duration-ms="currentVoice1DurationMs"
