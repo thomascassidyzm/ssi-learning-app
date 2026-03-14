@@ -672,12 +672,12 @@ watch(playbackSpeed, (newSpeed) => {
   height: 20px;
 }
 
-/* Controls bar — grouped at top */
+/* Controls bar — pushed down to clear the SSi logo */
 .controls-bar {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  padding: 1rem 1.5rem 0.5rem;
+  padding: 3.5rem 1.5rem 0.5rem;
   cursor: default;
 }
 

@@ -495,9 +495,12 @@ const handleSettings = () => {
 }
 
 .mode-btn.active {
-  background: rgba(10, 10, 18, 0.92);
-  border-color: rgba(255, 255, 255, 0.5);
-  color: var(--text-primary);
+  background: rgba(10, 18, 14, 0.92);
+  border-color: rgba(74, 222, 128, 0.5);
+  color: #4ade80;
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.5),
+    0 0 12px rgba(74, 222, 128, 0.15);
 }
 
 .mode-btn.disabled {
@@ -595,9 +598,11 @@ const handleSettings = () => {
 }
 
 :root[data-theme="mist"] .mode-btn.active {
-  background: rgba(255, 255, 255, 0.96);
-  border-color: rgba(0, 0, 0, 0.45);
-  color: #2C2622;
+  background: rgba(240, 253, 244, 0.96);
+  border-color: rgba(34, 197, 94, 0.5);
+  color: #16a34a;
+  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.14),
+              0 0 12px rgba(34, 197, 94, 0.12);
 }
 
 :root[data-theme="mist"] .script-toggle-label {
