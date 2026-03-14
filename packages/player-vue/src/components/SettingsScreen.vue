@@ -1129,19 +1129,21 @@ const confirmReset = async () => {
             </div>
           </template>
 
-          <div class="divider"></div>
+          <template v-if="isAdmin">
+            <div class="divider"></div>
 
-          <div class="setting-row clickable" @click="toggleQaMode">
-            <div class="setting-info">
-              <span class="setting-label">QA Mode</span>
-              <span class="setting-desc">Help improve the course by flagging phrases that don't sound right. Your feedback goes directly to our content team.</span>
-            </div>
-            <div class="toggle-switch" :class="{ 'is-on': enableQaMode }">
-              <div class="toggle-track">
-                <div class="toggle-thumb"></div>
+            <div class="setting-row clickable" @click="toggleQaMode">
+              <div class="setting-info">
+                <span class="setting-label">QA Mode</span>
+                <span class="setting-desc">Flag phrases that don't sound right. Feedback goes directly to the content team.</span>
+              </div>
+              <div class="toggle-switch" :class="{ 'is-on': enableQaMode }">
+                <div class="toggle-track">
+                  <div class="toggle-thumb"></div>
+                </div>
               </div>
             </div>
-          </div>
+          </template>
 
           <div class="divider"></div>
 
