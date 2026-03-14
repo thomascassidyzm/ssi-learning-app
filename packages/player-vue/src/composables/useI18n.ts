@@ -16,7 +16,8 @@ import cym from '../locales/cym.json'
 
 // Map ISO 639-3 codes to locale files
 // Multiple codes can map to same locale (e.g., cym_n and cym_s both use cym)
-const LOCALE_MAP: Record<string, typeof eng> = {
+// Use loose type — locale files may have fewer keys than eng (fallback handles missing)
+const LOCALE_MAP: Record<string, Record<string, any>> = {
   eng: eng,
   spa: spa,
   cym: cym,
@@ -39,7 +40,7 @@ const getSavedLocale = (): string => {
 // Current locale state (shared across app)
 const savedLocale = getSavedLocale()
 const currentLocale: Ref<string> = ref(savedLocale)
-const currentMessages: Ref<typeof eng> = ref(LOCALE_MAP[savedLocale] || eng)
+const currentMessages: Ref<Record<string, any>> = ref(LOCALE_MAP[savedLocale] || eng)
 
 /**
  * Set the current locale based on the user's known language
@@ -93,39 +94,112 @@ export const getLanguageName = (langCode: string): string => {
 
 /**
  * Language flag emoji lookup (ISO 639-3 → flag)
+ * Comprehensive: add new languages here once — CourseSelector and LearningPlayer both use this.
  */
 const LANGUAGE_FLAGS: Record<string, string> = {
+  // Celtic
   eng: '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
   cym: '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
   cym_n: '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
   cym_s: '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
+  gle: '🇮🇪',
+  gla: '🏴󠁧󠁢󠁳󠁣󠁴󠁿',
+  bre: '🇫🇷',  // Breton
+  cor: '🏴󠁧󠁢󠁥󠁮󠁧󠁿',  // Cornish
+  // Romance
   spa: '🇪🇸',
   fra: '🇫🇷',
-  deu: '🇩🇪',
   ita: '🇮🇹',
   por: '🇵🇹',
+  ron: '🇷🇴',  // Romanian
+  cat: '🇪🇸',  // Catalan
+  eus: '🇪🇸',  // Basque
+  glg: '🇪🇸',  // Galician
+  // Germanic
+  deu: '🇩🇪',
+  nld: '🇳🇱',
+  swe: '🇸🇪',
+  nor: '🇳🇴',
+  nob: '🇳🇴',  // Norwegian Bokmål
+  nno: '🇳🇴',  // Norwegian Nynorsk
+  dan: '🇩🇰',
+  fin: '🇫🇮',
+  isl: '🇮🇸',  // Icelandic
+  // Slavic
+  rus: '🇷🇺',
+  pol: '🇵🇱',
+  ces: '🇨🇿',  // Czech
+  slk: '🇸🇰',  // Slovak
+  hrv: '🇭🇷',  // Croatian
+  srp: '🇷🇸',  // Serbian
+  bos: '🇧🇦',  // Bosnian
+  slv: '🇸🇮',  // Slovenian
+  ukr: '🇺🇦',  // Ukrainian
+  bul: '🇧🇬',  // Bulgarian
+  mkd: '🇲🇰',  // Macedonian
+  // East Asian
   jpn: '🇯🇵',
   kor: '🇰🇷',
   cmn: '🇨🇳',
   zho: '🇨🇳',
+  yue: '🇭🇰',  // Cantonese
+  // South/Southeast Asian
+  hin: '🇮🇳',  // Hindi
+  ben: '🇧🇩',  // Bengali
+  urd: '🇵🇰',  // Urdu
+  tam: '🇮🇳',  // Tamil
+  tel: '🇮🇳',  // Telugu
+  tha: '🇹🇭',  // Thai
+  vie: '🇻🇳',  // Vietnamese
+  msa: '🇲🇾',  // Malay
+  ind: '🇮🇩',  // Indonesian
+  fil: '🇵🇭',  // Filipino
+  // Semitic & Middle Eastern
   ara: '🇸🇦',
-  nld: '🇳🇱',
-  rus: '🇷🇺',
-  pol: '🇵🇱',
-  gle: '🇮🇪',
-  gla: '🏴󠁧󠁢󠁳󠁣󠁴󠁿',
-  eus: '🇪🇸',
-  cat: '🇪🇸',
-  swe: '🇸🇪',
-  nor: '🇳🇴',
-  dan: '🇩🇰',
-  fin: '🇫🇮',
   heb: '🇮🇱',
   tur: '🇹🇷',
+  fas: '🇮🇷',  // Persian/Farsi
+  kur: '🇮🇶',  // Kurdish
+  // African
+  swa: '🇰🇪',  // Swahili
+  amh: '🇪🇹',  // Amharic
+  hau: '🇳🇬',  // Hausa
+  yor: '🇳🇬',  // Yoruba
+  zul: '🇿🇦',  // Zulu
+  // Other European
+  ell: '🇬🇷',  // Greek
+  kat: '🇬🇪',  // Georgian
+  hye: '🇦🇲',  // Armenian
+  lit: '🇱🇹',  // Lithuanian
+  lav: '🇱🇻',  // Latvian
+  est: '🇪🇪',  // Estonian
+  hun: '🇭🇺',  // Hungarian
+  sqi: '🇦🇱',  // Albanian
+}
+
+/**
+ * Auto-generate flag emoji from ISO 639-3 → ISO 3166-1 alpha-2 country code.
+ * Falls back to 🌐 if no mapping exists.
+ */
+const LANG_TO_COUNTRY: Record<string, string> = {
+  // Only needed for languages NOT in LANGUAGE_FLAGS above
+  // This is a safety net for new courses
+}
+
+function countryCodeToFlag(cc: string): string {
+  const upper = cc.toUpperCase()
+  if (upper.length !== 2) return '🌐'
+  return String.fromCodePoint(
+    0x1F1E6 + upper.charCodeAt(0) - 65,
+    0x1F1E6 + upper.charCodeAt(1) - 65
+  )
 }
 
 export const getLanguageFlag = (langCode: string): string => {
-  return LANGUAGE_FLAGS[langCode] || '🌐'
+  if (LANGUAGE_FLAGS[langCode]) return LANGUAGE_FLAGS[langCode]
+  const cc = LANG_TO_COUNTRY[langCode]
+  if (cc) return countryCodeToFlag(cc)
+  return '🌐'
 }
 
 /**

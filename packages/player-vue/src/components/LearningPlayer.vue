@@ -40,6 +40,7 @@ import ListeningOverlay from './ListeningOverlay.vue'
 import DrivingModeOverlay from './DrivingModeOverlay.vue'
 import { useDrivingMode } from '../composables/useDrivingMode'
 import { useScriptMode } from '../composables/useScriptMode'
+import { getLanguageFlag } from '../composables/useI18n'
 import { simpleRoundToTypedCycles } from '../utils/drivingModeAdapter'
 import BeltProgressModal from './BeltProgressModal.vue'
 import { useEntitlement } from '../composables/useEntitlement'
@@ -239,27 +240,24 @@ watch(courseCode, async (code) => {
   hasRomanizedText.value = (count ?? 0) > 0
 }, { immediate: true })
 
-// Language metadata for course identity display
-const LANGUAGE_META: Record<string, { name: string; flag: string }> = {
-  eng: { name: 'English', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿' },
-  cym: { name: 'Welsh', flag: '🏴󠁧󠁢󠁷󠁬󠁳󠁿' },
-  spa: { name: 'Spanish', flag: '🇪🇸' },
-  fra: { name: 'French', flag: '🇫🇷' },
-  deu: { name: 'German', flag: '🇩🇪' },
-  ita: { name: 'Italian', flag: '🇮🇹' },
-  por: { name: 'Portuguese', flag: '🇵🇹' },
-  jpn: { name: 'Japanese', flag: '🇯🇵' },
-  kor: { name: 'Korean', flag: '🇰🇷' },
-  cmn: { name: 'Chinese', flag: '🇨🇳' },
-  zho: { name: 'Chinese', flag: '🇨🇳' },
-  ara: { name: 'Arabic', flag: '🇸🇦' },
-  nld: { name: 'Dutch', flag: '🇳🇱' },
-  rus: { name: 'Russian', flag: '🇷🇺' },
-  pol: { name: 'Polish', flag: '🇵🇱' },
-  gle: { name: 'Irish', flag: '🇮🇪' },
-  tur: { name: 'Turkish', flag: '🇹🇷' },
+// Language names for course identity display (flags from shared useI18n.getLanguageFlag)
+const LANGUAGE_NAMES: Record<string, string> = {
+  eng: 'English', cym: 'Welsh', spa: 'Spanish', fra: 'French',
+  deu: 'German', ita: 'Italian', por: 'Portuguese', jpn: 'Japanese',
+  kor: 'Korean', cmn: 'Chinese', zho: 'Chinese', ara: 'Arabic',
+  nld: 'Dutch', rus: 'Russian', pol: 'Polish', gle: 'Irish',
+  tur: 'Turkish', hrv: 'Croatian', srp: 'Serbian', ron: 'Romanian',
+  hun: 'Hungarian', ces: 'Czech', slk: 'Slovak', ukr: 'Ukrainian',
+  hin: 'Hindi', tha: 'Thai', vie: 'Vietnamese', swa: 'Swahili',
+  ell: 'Greek', heb: 'Hebrew', fin: 'Finnish', swe: 'Swedish',
+  nor: 'Norwegian', dan: 'Danish', isl: 'Icelandic', gla: 'Scottish Gaelic',
+  cat: 'Catalan', eus: 'Basque', bos: 'Bosnian', slv: 'Slovenian',
+  bul: 'Bulgarian', mkd: 'Macedonian', ind: 'Indonesian', fil: 'Filipino',
 }
-const getLangMeta = (code: string) => LANGUAGE_META[code] || { name: code?.toUpperCase() || '?', flag: '🌐' }
+const getLangMeta = (code: string) => ({
+  name: LANGUAGE_NAMES[code] || code?.toUpperCase() || '?',
+  flag: getLanguageFlag(code),
+})
 
 const courseFlag = computed(() => {
   if (!props.course) return '🌐'
