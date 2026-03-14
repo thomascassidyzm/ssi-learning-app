@@ -141,7 +141,8 @@ const phaseLabel = computed(() => {
   switch (phase.value) {
     case 'playing': return 'Listen...'
     case 'recording': return 'Your turn'
-    case 'analyzing': return 'Analyzing...'
+    case 'analyzing': return ''
+    case 'replay': return 'Listen again...'
     case 'feedback': return ''
     default: return ''
   }
@@ -341,8 +342,85 @@ const playAndDecode = async (audioUrl) => {
   return audioBuffer
 }
 
+/**
+ * Play audio without decoding (for replay). Returns when playback ends.
+ */
+const playAudio = (audioUrl) => {
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      playbackAudio.removeEventListener('ended', onEnded)
+      playbackAudio.removeEventListener('error', onError)
+    }
+    const onEnded = () => { cleanup(); resolve() }
+    const onError = (e) => { cleanup(); reject(e) }
+
+    playbackAudio.addEventListener('ended', onEnded)
+    playbackAudio.addEventListener('error', onError)
+    playbackAudio.src = audioUrl
+    playbackAudio.load()
+    playbackAudio.play().catch(onError)
+  })
+}
+
+/**
+ * Wait for learner to speak and then go silent.
+ * Uses AnalyserNode to monitor energy in real-time.
+ * Resolves when 1s of silence is detected after speech, or on timeout.
+ */
+const waitForSilence = (stream, ctx, opts) => {
+  const { silenceDurationMs = 1000, maxWaitMs = 8000, silenceThresholdDb = -45, myCycleId } = opts
+
+  return new Promise((resolve) => {
+    const analyser = ctx.createAnalyser()
+    analyser.fftSize = 256
+    const source = ctx.createMediaStreamSource(stream)
+    source.connect(analyser)
+
+    const dataArray = new Uint8Array(analyser.frequencyBinCount)
+    let speechDetected = false
+    let silenceStart = null
+    const startTime = Date.now()
+
+    const check = () => {
+      if (myCycleId !== cycleId) {
+        source.disconnect()
+        resolve()
+        return
+      }
+
+      const elapsed = Date.now() - startTime
+      if (elapsed >= maxWaitMs) {
+        source.disconnect()
+        resolve()
+        return
+      }
+
+      analyser.getByteFrequencyData(dataArray)
+      // Average energy (0-255) → approximate dB
+      const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length
+      const db = avg > 0 ? 20 * Math.log10(avg / 255) : -100
+
+      if (db > silenceThresholdDb) {
+        speechDetected = true
+        silenceStart = null
+      } else if (speechDetected) {
+        if (!silenceStart) silenceStart = Date.now()
+        if (Date.now() - silenceStart >= silenceDurationMs) {
+          source.disconnect()
+          resolve()
+          return
+        }
+      }
+
+      requestAnimationFrame(check)
+    }
+
+    requestAnimationFrame(check)
+  })
+}
+
 // ============================================================================
-// Pronunciation Cycle: play → record → analyze → feedback → adapt
+// Pronunciation Cycle: play → record → replay → feedback → adapt
 // ============================================================================
 
 const startCycle = async (index) => {
@@ -368,25 +446,11 @@ const startCycle = async (index) => {
     return
   }
 
-  // PHASE 1: Play native audio
+  // PHASE 1: Play native audio + start recording immediately
+  // Recording begins during playback — silence trimming handles the overlap.
+  // This eliminates the dead pause between "listen" and "speak".
   phase.value = 'playing'
   if (myCycleId !== cycleId) return
-
-  let audioBuffer
-  try {
-    audioBuffer = await playAndDecode(audioUrl)
-  } catch (err) {
-    console.error('[PronunciationOverlay] Playback failed:', err)
-    advanceToNext(myCycleId)
-    return
-  }
-
-  if (myCycleId !== cycleId) return
-  await new Promise(resolve => setTimeout(resolve, 400))
-  if (myCycleId !== cycleId) return
-
-  // PHASE 2: Record learner
-  phase.value = 'recording'
 
   let recordingPromise
   try {
@@ -397,10 +461,33 @@ const startCycle = async (index) => {
     return
   }
 
+  let audioBuffer
+  try {
+    audioBuffer = await playAndDecode(audioUrl)
+  } catch (err) {
+    console.error('[PronunciationOverlay] Playback failed:', err)
+    recorder.stop()
+    advanceToNext(myCycleId)
+    return
+  }
+
+  if (myCycleId !== cycleId) { recorder.stop(); return }
+
+  // PHASE 2: Learner's turn — recording is already running
+  phase.value = 'recording'
+
+  // Auto-stop: monitor energy via AnalyserNode, stop after 1s of silence
+  // following detected speech. Falls back to max duration timeout.
   const nativeDuration = audioBuffer.duration * 1000
-  const maxRecordMs = Math.min(10000, Math.max(3000, nativeDuration * 2.5))
-  await new Promise(resolve => setTimeout(resolve, maxRecordMs))
-  if (myCycleId !== cycleId) return
+  const maxRecordMs = Math.min(10000, Math.max(3000, nativeDuration * 2))
+
+  await waitForSilence(mediaStream, audioContext, {
+    silenceDurationMs: 1000,
+    maxWaitMs: maxRecordMs,
+    silenceThresholdDb: -45,
+    myCycleId,
+  })
+  if (myCycleId !== cycleId) { recorder.stop(); return }
 
   // PHASE 3: Analyze
   phase.value = 'analyzing'
@@ -427,6 +514,16 @@ const startCycle = async (index) => {
 
   if (myCycleId !== cycleId) return
 
+  // PHASE 3.5: Replay native audio so learner hears the comparison
+  phase.value = 'replay'
+  try {
+    await playAudio(audioUrl)
+  } catch (err) {
+    // Replay is nice-to-have, don't fail the cycle over it
+    console.warn('[PronunciationOverlay] Replay failed:', err)
+  }
+  if (myCycleId !== cycleId) return
+
   // PHASE 4: Show feedback
   currentResult.value = result
   currentBand.value = band
@@ -439,14 +536,12 @@ const startCycle = async (index) => {
 
   const dist = reinsertDistance(band.key)
   if (dist > 0 && attempts < 2) {
-    // Reinsert this phrase further ahead for another go — but only once
     const insertAt = Math.min(currentIndex.value + dist + 1, queue.value.length)
     queue.value.splice(insertAt, 0, { ...phrase })
   }
-  // dist === -1 or attempts >= 2: don't reinsert, move on
 
-  // Brief pause to show feedback, then always advance
-  await new Promise(resolve => setTimeout(resolve, 2500))
+  // Brief pause to show feedback, then advance
+  await new Promise(resolve => setTimeout(resolve, 2000))
   if (myCycleId !== cycleId) return
 
   advanceToNext(myCycleId)
@@ -619,7 +714,7 @@ onUnmounted(() => {
         <div v-else-if="phase === 'analyzing'" class="analyzing-spinner"></div>
 
         <!-- Playing indicator -->
-        <div v-else-if="phase === 'playing'" class="playing-indicator">
+        <div v-else-if="phase === 'playing' || phase === 'replay'" class="playing-indicator">
           <div class="sound-bar"></div>
           <div class="sound-bar delay-1"></div>
           <div class="sound-bar delay-2"></div>
