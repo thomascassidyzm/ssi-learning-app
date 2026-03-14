@@ -10,7 +10,8 @@ import ProsodyFeedback from './ProsodyFeedback.vue'
 
 // ============================================================================
 // Pronunciation Overlay - Record-compare-feedback loop on completed phrases
-// Same content source as ListeningOverlay (USE phrases up to currentSeed - 1)
+// Pulls BUILD + USE phrases, sorted short→long for confidence building.
+// Adaptive reinsertion: struggled phrases come back sooner.
 // ============================================================================
 
 const emit = defineEmits(['close'])
@@ -24,17 +25,10 @@ const props = defineProps({
     type: String,
     default: '#d4a853'
   },
-  /**
-   * Current playing seed number.
-   * Filters phrases to only completed seeds (strictly less than this seed).
-   */
   upToSeed: {
     type: Number,
     default: null
   },
-  /**
-   * Target language code (ISO 639-3) for per-language prosody weights
-   */
   targetLang: {
     type: String,
     default: 'eng'
@@ -45,20 +39,65 @@ const props = defineProps({
 const supabase = inject('supabase', null)
 
 // ============================================================================
+// PRONUNCIATION BANDS — human-meaningful feedback
+// ============================================================================
+
+const BANDS = [
+  { key: 'crystal',    label: 'Crystal clear',     desc: 'A native speaker would understand instantly',     color: '#4ade80', icon: '✦' },
+  { key: 'clear',      label: 'Clear enough',       desc: 'Understandable without needing context',          color: '#86efac', icon: '●' },
+  { key: 'getting',    label: 'Getting there',      desc: 'Would be understood with a little context',       color: '#fbbf24', icon: '◐' },
+  { key: 'practise',   label: 'Keep practising',    desc: 'A native speaker would need some effort to parse', color: '#fb923c', icon: '○' },
+  { key: 'tryagain',   label: 'Try again',          desc: 'Would be hard to understand, even with context',  color: '#f87171', icon: '◌' },
+]
+
+// Sensitivity presets: each defines the score thresholds for band boundaries
+// [crystal_min, clear_min, getting_min, practise_min] — below practise_min = tryagain
+const SENSITIVITY_PRESETS = [
+  { name: 'Encouraging',  thresholds: [75, 55, 35, 20] },
+  { name: 'Moderate',     thresholds: [80, 62, 45, 28] },
+  { name: 'Balanced',     thresholds: [85, 70, 52, 35] },
+  { name: 'Demanding',    thresholds: [90, 78, 60, 42] },
+  { name: 'Exacting',     thresholds: [95, 85, 70, 50] },
+]
+
+const sensitivityIndex = ref(2) // Default: Balanced
+const sensitivity = computed(() => SENSITIVITY_PRESETS[sensitivityIndex.value])
+
+function scoreToBand(score) {
+  const t = sensitivity.value.thresholds
+  if (score >= t[0]) return BANDS[0] // crystal
+  if (score >= t[1]) return BANDS[1] // clear
+  if (score >= t[2]) return BANDS[2] // getting
+  if (score >= t[3]) return BANDS[3] // practise
+  return BANDS[4] // tryagain
+}
+
+// How far ahead to reinsert based on band
+function reinsertDistance(bandKey) {
+  switch (bandKey) {
+    case 'crystal': return -1  // don't reinsert (done)
+    case 'clear':   return -1  // done
+    case 'getting': return 8   // come back in ~8 phrases
+    case 'practise': return 3  // come back soon
+    case 'tryagain': return 0  // immediate retry (don't advance)
+    default: return 5
+  }
+}
+
+// ============================================================================
 // State
 // ============================================================================
 
 const isLoading = ref(true)
 const error = ref(null)
-const mode = ref('shuffled')
 
-// Phrase data
-const allPhrases = ref([])
+// Phrase data — the adaptive queue
+const masterPhrases = ref([])  // All loaded phrases (source of truth)
+const queue = ref([])           // Adaptive playback queue
 const currentIndex = ref(-1)
 
 // Pagination
-const BATCH_SIZE = 50
-const PRELOAD_THRESHOLD = 10
+const BATCH_SIZE = 100
 const loadedCount = ref(0)
 const totalCount = ref(0)
 const hasMore = ref(true)
@@ -67,6 +106,7 @@ const isLoadingMore = ref(false)
 // Pronunciation cycle states
 const phase = ref('idle') // idle | playing | recording | analyzing | feedback
 const currentResult = ref(null)
+const currentBand = ref(null)
 
 // Audio
 let audioContext = null
@@ -82,13 +122,13 @@ let cycleId = 0
 // ============================================================================
 
 const currentPhrase = computed(() => {
-  if (currentIndex.value < 0 || currentIndex.value >= allPhrases.value.length) return null
-  return allPhrases.value[currentIndex.value]
+  if (currentIndex.value < 0 || currentIndex.value >= queue.value.length) return null
+  return queue.value[currentIndex.value]
 })
 
 const progressPercent = computed(() => {
-  if (allPhrases.value.length === 0) return 0
-  return Math.round(((currentIndex.value + 1) / allPhrases.value.length) * 100)
+  if (queue.value.length === 0) return 0
+  return Math.round(((currentIndex.value + 1) / queue.value.length) * 100)
 })
 
 const phaseLabel = computed(() => {
@@ -104,7 +144,7 @@ const phaseLabel = computed(() => {
 const isActive = computed(() => phase.value !== 'idle')
 
 // ============================================================================
-// Data Loading (same pattern as ListeningOverlay)
+// Data Loading — BUILD + USE phrases, sorted by target text length
 // ============================================================================
 
 const loadPhrases = async (offset = 0) => {
@@ -122,12 +162,13 @@ const loadPhrases = async (offset = 0) => {
       isLoadingMore.value = true
     }
 
+    // Count total available
     if (offset === 0) {
       let countQuery = supabase.value
         .from('course_practice_phrases')
         .select('*', { count: 'exact', head: true })
         .eq('course_code', props.courseCode)
-        .in('phrase_role', ['use', 'eternal_eligible'])
+        .in('phrase_role', ['build', 'use', 'eternal_eligible'])
 
       if (props.upToSeed) {
         countQuery = countQuery.lt('seed_number', props.upToSeed)
@@ -136,14 +177,15 @@ const loadPhrases = async (offset = 0) => {
       const { count, error: countError } = await countQuery
       if (countError) console.warn('[PronunciationOverlay] Count error:', countError.message)
       totalCount.value = count || 0
-      console.log('[PronunciationOverlay] USE phrases available:', totalCount.value)
+      console.log('[PronunciationOverlay] BUILD+USE phrases available:', totalCount.value)
     }
 
+    // Fetch phrases
     let dataQuery = supabase.value
       .from('course_practice_phrases')
-      .select('seed_number, lego_index, known_text, target_text, position, target1_audio_id, target2_audio_id')
+      .select('seed_number, lego_index, known_text, target_text, position, phrase_role, target1_audio_id, target2_audio_id')
       .eq('course_code', props.courseCode)
-      .in('phrase_role', ['use', 'eternal_eligible'])
+      .in('phrase_role', ['build', 'use', 'eternal_eligible'])
 
     if (props.upToSeed) {
       dataQuery = dataQuery.lt('seed_number', props.upToSeed)
@@ -164,21 +206,24 @@ const loadPhrases = async (offset = 0) => {
         legoIndex: p.lego_index,
         knownText: p.known_text,
         targetText: p.target_text,
+        phraseRole: p.phrase_role,
         target1AudioId: p.target1_audio_id,
         target2AudioId: p.target2_audio_id,
+        textLength: (p.target_text || '').length,
       }))
 
       if (offset === 0) {
-        allPhrases.value = newPhrases
+        masterPhrases.value = newPhrases
       } else {
-        allPhrases.value = [...allPhrases.value, ...newPhrases]
+        masterPhrases.value = [...masterPhrases.value, ...newPhrases]
       }
 
-      loadedCount.value = allPhrases.value.length
+      loadedCount.value = masterPhrases.value.length
       hasMore.value = data.length >= BATCH_SIZE && loadedCount.value < totalCount.value
 
-      if (mode.value === 'shuffled' && offset === 0) {
-        shufflePhrases()
+      // Build initial queue: shuffled, but with shorter phrases front-loaded
+      if (offset === 0) {
+        buildQueue()
       }
     } else {
       hasMore.value = false
@@ -194,19 +239,43 @@ const loadPhrases = async (offset = 0) => {
 
 const loadMoreIfNeeded = async () => {
   if (!hasMore.value || isLoadingMore.value) return
-  const remaining = allPhrases.value.length - currentIndex.value - 1
-  if (remaining < PRELOAD_THRESHOLD) {
+  const remaining = queue.value.length - currentIndex.value - 1
+  if (remaining < 10) {
     await loadPhrases(loadedCount.value)
+    // Append new phrases to end of queue
+    const existing = new Set(queue.value.map(p => p.id))
+    const fresh = masterPhrases.value.filter(p => !existing.has(p.id))
+    queue.value = [...queue.value, ...fresh]
   }
 }
 
-const shufflePhrases = () => {
-  const arr = [...allPhrases.value]
+/**
+ * Build the adaptive queue from master phrases.
+ * Sort by text length (short→long) with a light shuffle within length bands.
+ */
+function buildQueue() {
+  const phrases = [...masterPhrases.value]
+
+  // Group into length bands: short (<20), medium (20-50), long (50+)
+  const short = phrases.filter(p => p.textLength < 20)
+  const medium = phrases.filter(p => p.textLength >= 20 && p.textLength < 50)
+  const long = phrases.filter(p => p.textLength >= 50)
+
+  // Shuffle within each band
+  shuffle(short)
+  shuffle(medium)
+  shuffle(long)
+
+  // Concatenate: short first, then medium, then long
+  queue.value = [...short, ...medium, ...long]
+  currentIndex.value = -1
+}
+
+function shuffle(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))
     ;[arr[i], arr[j]] = [arr[j], arr[i]]
   }
-  allPhrases.value = arr
 }
 
 // ============================================================================
@@ -220,26 +289,17 @@ const getAudioUrl = (audioId) => {
 
 const initializeAudio = async () => {
   try {
-    // Create AudioContext for pitch analysis
     const AudioContextClass =
       window.AudioContext || (window).webkitAudioContext
     audioContext = new AudioContextClass()
 
-    // Request microphone access
     mediaStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-      },
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       video: false,
     })
 
     recorder = new AudioRecorder(audioContext)
-
-    // Reusable playback element
     playbackAudio = new Audio()
-
     return true
   } catch (err) {
     console.error('[PronunciationOverlay] Audio init failed:', err)
@@ -248,29 +308,21 @@ const initializeAudio = async () => {
   }
 }
 
-/**
- * Play an audio URL and return the decoded AudioBuffer for pitch analysis.
- * Uses the /api/audio proxy and decodes the response for analysis.
- */
 const playAndDecode = async (audioUrl) => {
-  // Fetch the audio data for decoding
   const fetchPromise = fetch(audioUrl)
     .then(r => r.arrayBuffer())
     .then(buf => audioContext.decodeAudioData(buf))
 
-  // Simultaneously play through Audio element for the learner to hear
   const playPromise = new Promise((resolve, reject) => {
     let settled = false
     const onEnded = () => { if (!settled) { settled = true; resolve() } }
     const onError = (e) => { if (!settled) { settled = true; reject(e) } }
-    const safetyTimer = setTimeout(() => { if (!settled) { settled = true; resolve() } }, 15000)
+    setTimeout(() => { if (!settled) { settled = true; resolve() } }, 15000)
 
     playbackAudio.removeEventListener('ended', playbackAudio._onEnded)
     playbackAudio.removeEventListener('error', playbackAudio._onError)
-
     playbackAudio._onEnded = onEnded
     playbackAudio._onError = onError
-
     playbackAudio.addEventListener('ended', onEnded)
     playbackAudio.addEventListener('error', onError)
 
@@ -279,27 +331,26 @@ const playAndDecode = async (audioUrl) => {
     playbackAudio.play().catch(onError)
   })
 
-  // Wait for both: playback to finish AND audio buffer to be decoded
   const [audioBuffer] = await Promise.all([fetchPromise, playPromise])
   return audioBuffer
 }
 
 // ============================================================================
-// Pronunciation Cycle: play → record → analyze → feedback
+// Pronunciation Cycle: play → record → analyze → feedback → adapt
 // ============================================================================
 
 const startCycle = async (index) => {
-  if (index < 0 || index >= allPhrases.value.length) return
+  if (index < 0 || index >= queue.value.length) return
 
   const myCycleId = ++cycleId
   currentIndex.value = index
   currentResult.value = null
+  currentBand.value = null
   await loadMoreIfNeeded()
 
-  const phrase = allPhrases.value[index]
+  const phrase = queue.value[index]
   if (!phrase) return
 
-  // Pick a voice
   const audioId = Math.random() < 0.5
     ? (phrase.target1AudioId || phrase.target2AudioId)
     : (phrase.target2AudioId || phrase.target1AudioId)
@@ -325,8 +376,6 @@ const startCycle = async (index) => {
   }
 
   if (myCycleId !== cycleId) return
-
-  // Brief pause before recording
   await new Promise(resolve => setTimeout(resolve, 400))
   if (myCycleId !== cycleId) return
 
@@ -342,12 +391,9 @@ const startCycle = async (index) => {
     return
   }
 
-  // Auto-stop after max duration (native duration * 2.5, min 3s, max 10s)
   const nativeDuration = audioBuffer.duration * 1000
   const maxRecordMs = Math.min(10000, Math.max(3000, nativeDuration * 2.5))
-
   await new Promise(resolve => setTimeout(resolve, maxRecordMs))
-
   if (myCycleId !== cycleId) return
 
   // PHASE 3: Analyze
@@ -365,41 +411,60 @@ const startCycle = async (index) => {
 
   if (myCycleId !== cycleId) return
 
-  // Extract pitch contours and compare
   const phraseId = `${props.courseCode}-${audioId}`
   const nativeContour = getNativePitchContour(phraseId, audioBuffer)
   const learnerContour = extractPitchContour(learnerBuffer)
   const result = compareProsody(nativeContour, learnerContour, props.targetLang)
 
-  console.log(`[PronunciationOverlay] Score: ${result.score.overall}% (pitch:${result.score.pitch} rhythm:${result.score.rhythm} timing:${result.score.timing})`)
+  const band = scoreToBand(result.score.overall)
+  console.log(`[PronunciationOverlay] ${band.label} (${result.score.overall}%) — ${phrase.targetText}`)
 
   if (myCycleId !== cycleId) return
 
   // PHASE 4: Show feedback
   currentResult.value = result
+  currentBand.value = band
   phase.value = 'feedback'
 
-  // Auto-advance after 3 seconds (or user taps)
-  await new Promise(resolve => setTimeout(resolve, 3000))
+  // Adaptive reinsertion
+  const dist = reinsertDistance(band.key)
+  if (dist === 0) {
+    // "Try again" — don't advance, will replay same phrase
+  } else if (dist > 0) {
+    // Reinsert this phrase further ahead in the queue
+    const insertAt = Math.min(currentIndex.value + dist + 1, queue.value.length)
+    queue.value.splice(insertAt, 0, { ...phrase })
+  }
+  // dist === -1 means don't reinsert (nailed it)
+
+  // Wait for user action or auto-advance
+  // "Try again" auto-retries after 2s; others after 3s
+  const waitMs = dist === 0 ? 2000 : 3000
+  await new Promise(resolve => setTimeout(resolve, waitMs))
   if (myCycleId !== cycleId) return
 
-  advanceToNext(myCycleId)
+  if (dist === 0) {
+    // Retry same phrase
+    startCycle(currentIndex.value)
+  } else {
+    advanceToNext(myCycleId)
+  }
 }
 
 const advanceToNext = async (myCycleId) => {
   if (myCycleId !== cycleId) return
 
   const nextIndex = currentIndex.value + 1
-  if (nextIndex >= allPhrases.value.length) {
+  if (nextIndex >= queue.value.length) {
     if (hasMore.value) {
       await loadMoreIfNeeded()
-      if (allPhrases.value.length > nextIndex) {
+      if (queue.value.length > nextIndex) {
         startCycle(nextIndex)
         return
       }
     }
-    // Wrap around
-    if (mode.value === 'shuffled') shufflePhrases()
+    // Wrap — rebuild queue for another pass
+    buildQueue()
     startCycle(0)
     return
   }
@@ -414,15 +479,15 @@ const handleRetry = () => {
 }
 
 const handleSkip = () => {
-  cycleId++
-  advanceToNext(cycleId)
+  const myCycleId = ++cycleId
+  advanceToNext(myCycleId)
 }
 
 const togglePlayback = () => {
   if (isActive.value) {
     stopAll()
   } else {
-    if (currentIndex.value < 0) {
+    if (currentIndex.value < 0 || currentIndex.value >= queue.value.length) {
       startCycle(0)
     } else {
       startCycle(currentIndex.value)
@@ -434,6 +499,7 @@ const stopAll = () => {
   cycleId++
   phase.value = 'idle'
   currentResult.value = null
+  currentBand.value = null
   if (playbackAudio) {
     playbackAudio.pause()
     playbackAudio.currentTime = 0
@@ -446,26 +512,6 @@ const stopAll = () => {
 const handleClose = () => {
   stopAll()
   emit('close')
-}
-
-const setMode = (newMode) => {
-  if (newMode === mode.value) return
-  const wasActive = isActive.value
-  stopAll()
-  mode.value = newMode
-
-  if (newMode === 'shuffled') {
-    shufflePhrases()
-  } else {
-    allPhrases.value.sort((a, b) => {
-      if (a.seedNumber !== b.seedNumber) return a.seedNumber - b.seedNumber
-      if (a.legoIndex !== b.legoIndex) return a.legoIndex - b.legoIndex
-      return 0
-    })
-  }
-
-  currentIndex.value = 0
-  if (wasActive) startCycle(0)
 }
 
 // ============================================================================
@@ -503,22 +549,20 @@ onUnmounted(() => {
 
     <!-- Controls bar -->
     <div class="controls-bar" @click.stop>
-      <!-- Mode Toggle -->
-      <div class="mode-toggle">
-        <button class="mode-btn" :class="{ active: mode === 'ordered' }" @click="setMode('ordered')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
-            <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
-          </svg>
-          Ordered
-        </button>
-        <button class="mode-btn" :class="{ active: mode === 'shuffled' }" @click="setMode('shuffled')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/>
-            <polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/>
-          </svg>
-          Shuffled
-        </button>
+      <!-- Sensitivity selector -->
+      <div class="sensitivity-bar">
+        <span class="sensitivity-label">How picky?</span>
+        <div class="sensitivity-selector">
+          <button
+            v-for="(preset, i) in SENSITIVITY_PRESETS"
+            :key="preset.name"
+            class="sensitivity-btn"
+            :class="{ active: sensitivityIndex === i }"
+            @click="sensitivityIndex = i"
+          >
+            {{ preset.name }}
+          </button>
+        </div>
       </div>
 
       <!-- Transport -->
@@ -534,7 +578,7 @@ onUnmounted(() => {
         <div class="progress-bar">
           <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
         </div>
-        <span class="progress-text">{{ progressPercent }}%</span>
+        <span class="progress-text">{{ currentIndex + 1 }} / {{ queue.length }}</span>
       </div>
     </div>
 
@@ -554,6 +598,9 @@ onUnmounted(() => {
     <div v-else class="pronunciation-stage">
       <!-- Current phrase display -->
       <div class="phrase-display">
+        <div v-if="currentPhrase" class="phrase-role-badge" :class="'role--' + (currentPhrase.phraseRole || 'use')">
+          {{ currentPhrase.phraseRole === 'build' ? 'Fragment' : 'Sentence' }}
+        </div>
         <div class="phrase-target-text">{{ currentPhrase?.targetText || '' }}</div>
         <div v-if="currentPhrase?.knownText" class="phrase-known-text">{{ currentPhrase.knownText }}</div>
       </div>
@@ -580,7 +627,20 @@ onUnmounted(() => {
         <span v-if="phaseLabel" class="phase-text">{{ phaseLabel }}</span>
       </div>
 
-      <!-- Prosody Feedback -->
+      <!-- Band Feedback (replaces raw percentage) -->
+      <Transition name="feedback-slide">
+        <div v-if="phase === 'feedback' && currentBand" class="band-feedback">
+          <div class="band-card" :style="{ '--band-color': currentBand.color }">
+            <span class="band-icon">{{ currentBand.icon }}</span>
+            <div class="band-text">
+              <span class="band-label">{{ currentBand.label }}</span>
+              <span class="band-desc">{{ currentBand.desc }}</span>
+            </div>
+          </div>
+        </div>
+      </Transition>
+
+      <!-- Prosody Feedback (pitch contour visualization) -->
       <Transition name="feedback-slide">
         <ProsodyFeedback
           v-if="phase === 'feedback' && currentResult"
@@ -608,9 +668,9 @@ onUnmounted(() => {
       </Transition>
 
       <!-- Idle state hint -->
-      <div v-if="phase === 'idle' && allPhrases.length > 0" class="idle-hint">
+      <div v-if="phase === 'idle' && queue.length > 0" class="idle-hint">
         <p>Tap play to start pronunciation practice</p>
-        <p class="phrase-count">{{ totalCount }} phrases available</p>
+        <p class="phrase-count">{{ totalCount }} phrases available (short → long)</p>
       </div>
     </div>
   </div>
@@ -648,11 +708,7 @@ onUnmounted(() => {
   z-index: 10;
 }
 
-.close-btn:hover {
-  background: var(--pill-bg-hover);
-  color: var(--text-primary);
-}
-
+.close-btn:hover { background: var(--pill-bg-hover); color: var(--text-primary); }
 .close-btn svg { width: 20px; height: 20px; }
 
 /* Controls bar */
@@ -664,31 +720,42 @@ onUnmounted(() => {
   cursor: default;
 }
 
-/* Mode Toggle */
-.mode-toggle {
+/* Sensitivity */
+.sensitivity-bar {
   display: flex;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.mode-btn {
-  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-medium);
-  border-radius: 20px;
-  color: var(--text-muted);
-  font-size: 0.8125rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
+  gap: 0.375rem;
 }
 
-.mode-btn:hover { background: var(--pill-bg-hover); color: var(--text-secondary); }
-.mode-btn.active { border-color: var(--text-secondary); color: var(--text-primary); }
-.mode-btn svg { width: 16px; height: 16px; }
+.sensitivity-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.625rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+
+.sensitivity-selector {
+  display: flex;
+  gap: 2px;
+}
+
+.sensitivity-btn {
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px solid var(--border-medium);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.sensitivity-btn:hover { background: var(--bg-elevated); color: var(--text-secondary); }
+.sensitivity-btn.active { background: var(--bg-elevated); border-color: var(--text-secondary); color: var(--text-primary); }
 
 /* Transport */
 .transport-bar {
@@ -736,7 +803,8 @@ onUnmounted(() => {
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.6875rem;
   color: var(--text-muted);
-  min-width: 36px;
+  min-width: 48px;
+  text-align: right;
 }
 
 /* Loading / Error */
@@ -782,13 +850,33 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   padding: 2rem 1.5rem;
-  gap: 1.5rem;
+  gap: 1.25rem;
 }
 
 /* Phrase display */
 .phrase-display {
   text-align: center;
   max-width: 400px;
+}
+
+.phrase-role-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.5rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.phrase-role-badge.role--build {
+  background: rgba(251, 191, 36, 0.1);
+  border-color: rgba(251, 191, 36, 0.2);
+  color: #fbbf24;
 }
 
 .phrase-target-text {
@@ -851,9 +939,7 @@ onUnmounted(() => {
   animation: pulse-expand 1.5s ease-out infinite;
 }
 
-.pulse-ring.delay-1 {
-  animation-delay: 0.5s;
-}
+.pulse-ring.delay-1 { animation-delay: 0.5s; }
 
 @keyframes pulse-expand {
   0% { transform: scale(0.5); opacity: 1; }
@@ -894,6 +980,51 @@ onUnmounted(() => {
   50% { transform: scaleY(1.6); }
 }
 
+/* ═══════════════════════════════════════════════════
+   BAND FEEDBACK CARD
+   ═══════════════════════════════════════════════════ */
+
+.band-feedback {
+  width: 100%;
+  max-width: 360px;
+}
+
+.band-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1.25rem;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--band-color) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--band-color) 25%, transparent);
+}
+
+.band-icon {
+  font-size: 1.5rem;
+  color: var(--band-color);
+  flex-shrink: 0;
+  width: 32px;
+  text-align: center;
+}
+
+.band-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.band-label {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--band-color);
+}
+
+.band-desc {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  line-height: 1.3;
+}
+
 /* Action buttons */
 .action-buttons {
   display: flex;
@@ -916,11 +1047,7 @@ onUnmounted(() => {
 }
 
 .action-btn svg { width: 16px; height: 16px; }
-
-.action-btn:hover {
-  background: var(--pill-bg-hover);
-  color: var(--text-primary);
-}
+.action-btn:hover { background: var(--pill-bg-hover); color: var(--text-primary); }
 
 .action-btn--next {
   background: linear-gradient(145deg, var(--ssi-red-light, #d44545) 0%, var(--ssi-red, #b83232) 100%);
@@ -929,10 +1056,7 @@ onUnmounted(() => {
   box-shadow: 0 2px 8px rgba(194, 58, 58, 0.3);
 }
 
-.action-btn--next:hover {
-  color: white;
-  box-shadow: 0 4px 12px rgba(194, 58, 58, 0.4);
-}
+.action-btn--next:hover { color: white; box-shadow: 0 4px 12px rgba(194, 58, 58, 0.4); }
 
 /* Idle hint */
 .idle-hint {
@@ -949,21 +1073,24 @@ onUnmounted(() => {
 }
 
 /* Feedback slide transition */
-.feedback-slide-enter-active {
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+.feedback-slide-enter-active { transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+.feedback-slide-leave-active { transition: all 0.2s ease-in; }
+.feedback-slide-enter-from { opacity: 0; transform: translateY(16px); }
+.feedback-slide-leave-to { opacity: 0; transform: translateY(-8px); }
+
+/* ═══════════════════════════════════════════════════
+   MIST (LIGHT) THEME
+   ═══════════════════════════════════════════════════ */
+
+:root[data-theme="mist"] .phrase-role-badge {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: #6B6560;
 }
 
-.feedback-slide-leave-active {
-  transition: all 0.2s ease-in;
-}
-
-.feedback-slide-enter-from {
-  opacity: 0;
-  transform: translateY(16px);
-}
-
-.feedback-slide-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
+:root[data-theme="mist"] .phrase-role-badge.role--build {
+  background: rgba(251, 191, 36, 0.08);
+  border-color: rgba(251, 191, 36, 0.15);
+  color: #b88a00;
 }
 </style>
