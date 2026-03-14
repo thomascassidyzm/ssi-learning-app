@@ -649,20 +649,36 @@ onUnmounted(() => {
 
     <!-- Controls bar -->
     <div class="controls-bar" @click.stop>
-      <!-- Sensitivity selector -->
-      <div class="sensitivity-bar">
-        <span class="sensitivity-label">How picky?</span>
-        <div class="sensitivity-selector">
-          <button
-            v-for="(preset, i) in SENSITIVITY_PRESETS"
-            :key="preset.name"
-            class="sensitivity-btn"
-            :class="{ active: sensitivityIndex === i }"
-            @click="sensitivityIndex = i"
-          >
-            {{ preset.name }}
-          </button>
+      <!-- Easier / Harder -->
+      <div class="difficulty-bar">
+        <button
+          class="difficulty-btn"
+          :disabled="sensitivityIndex <= 0"
+          @click="sensitivityIndex = Math.max(0, sensitivityIndex - 1)"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+          Easier
+        </button>
+        <div class="difficulty-dots">
+          <span
+            v-for="(_, i) in SENSITIVITY_PRESETS"
+            :key="i"
+            class="difficulty-dot"
+            :class="{ active: i === sensitivityIndex }"
+          />
         </div>
+        <button
+          class="difficulty-btn"
+          :disabled="sensitivityIndex >= SENSITIVITY_PRESETS.length - 1"
+          @click="sensitivityIndex = Math.min(SENSITIVITY_PRESETS.length - 1, sensitivityIndex + 1)"
+        >
+          Harder
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </button>
       </div>
 
       <!-- Transport -->
@@ -825,42 +841,53 @@ onUnmounted(() => {
   cursor: default;
 }
 
-/* Sensitivity */
-.sensitivity-bar {
+/* Easier / Harder */
+.difficulty-bar {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 0.375rem;
+  justify-content: center;
+  gap: 0.75rem;
 }
 
-.sensitivity-label {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.625rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--text-muted);
-}
-
-.sensitivity-selector {
+.difficulty-btn {
   display: flex;
-  gap: 2px;
-}
-
-.sensitivity-btn {
-  padding: 4px 8px;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
   background: transparent;
   border: 1px solid var(--border-medium);
-  border-radius: 4px;
+  border-radius: 20px;
   color: var(--text-muted);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
-  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.sensitivity-btn:hover { background: var(--bg-elevated); color: var(--text-secondary); }
-.sensitivity-btn.active { background: var(--bg-elevated); border-color: var(--text-secondary); color: var(--text-primary); }
+.difficulty-btn:hover:not(:disabled) { color: var(--text-primary); border-color: var(--text-secondary); }
+.difficulty-btn:active:not(:disabled) { transform: scale(0.95); }
+.difficulty-btn:disabled { opacity: 0.25; cursor: default; }
+.difficulty-btn svg { flex-shrink: 0; }
+
+.difficulty-dots {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.difficulty-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--border-medium);
+  transition: all 0.2s ease;
+}
+
+.difficulty-dot.active {
+  background: var(--text-primary);
+  transform: scale(1.3);
+}
 
 /* Transport */
 .transport-bar {
