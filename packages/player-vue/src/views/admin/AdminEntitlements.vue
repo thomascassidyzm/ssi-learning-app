@@ -314,33 +314,34 @@ onMounted(() => {
               />
               <!-- Dropdown -->
               <div class="course-dropdown" v-if="coursePickerOpen">
-                <div
-                  v-for="c in filteredCourses"
-                  :key="c.course_code"
-                  class="course-option"
-                  :class="{ selected: selectedCourses.has(c.course_code) }"
-                  @click="toggleCourse(c.course_code)"
-                >
-                  <div class="course-option-check">
-                    <svg v-if="selectedCourses.has(c.course_code)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                      <polyline points="20 6 9 17 4 12"/>
-                    </svg>
+                <div class="course-dropdown-list">
+                  <div
+                    v-for="c in filteredCourses"
+                    :key="c.course_code"
+                    class="course-option"
+                    :class="{ selected: selectedCourses.has(c.course_code) }"
+                    @click="toggleCourse(c.course_code)"
+                  >
+                    <div class="course-option-check">
+                      <svg v-if="selectedCourses.has(c.course_code)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    </div>
+                    <div class="course-option-info">
+                      <span class="course-option-name">{{ courseLabel(c) }}</span>
+                      <span class="course-option-code">{{ c.course_code }}</span>
+                    </div>
                   </div>
-                  <div class="course-option-info">
-                    <span class="course-option-name">{{ courseLabel(c) }}</span>
-                    <span class="course-option-code">{{ c.course_code }}</span>
+                  <div v-if="filteredCourses.length === 0" class="course-option-empty">
+                    No courses match "{{ courseSearch }}"
                   </div>
                 </div>
-                <div v-if="filteredCourses.length === 0" class="course-option-empty">
-                  No courses match "{{ courseSearch }}"
-                </div>
+                <button
+                  class="picker-done-btn"
+                  @click="coursePickerOpen = false; courseSearch = ''"
+                >Done</button>
               </div>
             </div>
-            <button
-              v-if="coursePickerOpen"
-              class="picker-done-btn"
-              @click="coursePickerOpen = false; courseSearch = ''"
-            >Done</button>
           </div>
 
           <div class="form-group">
@@ -652,14 +653,19 @@ onMounted(() => {
   top: 100%;
   left: 0;
   right: 0;
-  max-height: 240px;
-  overflow-y: auto;
   background: var(--bg-elevated);
   border: 1px solid var(--border-medium);
   border-radius: var(--radius-md);
   margin-top: var(--space-1);
   z-index: 50;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+}
+
+.course-dropdown-list {
+  max-height: 240px;
+  overflow-y: auto;
 }
 
 .course-option {
@@ -726,16 +732,18 @@ onMounted(() => {
 }
 
 .picker-done-btn {
-  margin-top: var(--space-2);
   padding: var(--space-2) var(--space-4);
   background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  border: none;
+  border-top: 1px solid var(--border-subtle);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
   color: var(--text-secondary);
   font-size: var(--text-xs);
   font-family: var(--font-body);
   cursor: pointer;
   transition: all var(--transition-fast);
+  width: 100%;
+  flex-shrink: 0;
 }
 
 .picker-done-btn:hover {
