@@ -1,7 +1,9 @@
 <script setup>
-import { computed, inject, ref } from 'vue'
+import { computed, inject, ref, onMounted } from 'vue'
 import AuthPrompt from './AuthPrompt.vue'
+import SessionMirror from './learner/SessionMirror.vue'
 import { useAuthModal } from '@/composables/useAuthModal'
+import { useLearnerJourney } from '@/composables/useLearnerJourney'
 
 // Get auth state from App
 const auth = inject('auth')
@@ -25,9 +27,15 @@ const props = defineProps({
 
   // Belt journey (all 8 belts with progress)
   beltJourney: { type: Array, default: () => [] },
+
+  // Course ID for learner journey data
+  courseId: { type: String, default: '' },
+
+  // Points earned this session (from hidden formula)
+  pointsEarned: { type: Number, default: 0 },
 })
 
-const emit = defineEmits(['resume'])
+const emit = defineEmits(['resume', 'viewJourney'])
 
 // Format time spent
 const formattedTime = computed(() => {
@@ -86,6 +94,23 @@ const handleDismiss = () => {
     auth.markSignupPromptSeen()
   }
 }
+
+// Learner journey contribution data
+const supabaseRef = inject('supabase', ref(null))
+const contributionReady = ref(false)
+const contributionData = ref(null)
+
+const sessionMinutes = computed(() => Math.round(props.timeSpentSeconds / 60))
+
+onMounted(async () => {
+  const client = supabaseRef.value
+  if (client && props.courseId) {
+    const journey = useLearnerJourney(client)
+    await journey.fetchContribution(props.courseId)
+    contributionData.value = journey.contribution.value
+    contributionReady.value = true
+  }
+})
 </script>
 
 <template>
@@ -168,6 +193,31 @@ const handleDismiss = () => {
         <span class="stat-divider">·</span>
         <span class="stat stat--encouragement">{{ encouragement }}</span>
       </div>
+
+      <!-- Session Mirror -->
+      <SessionMirror
+        v-if="itemsPracticed > 0"
+        :points-earned="pointsEarned"
+        :new-phrases="itemsPracticed"
+        :session-duration="sessionMinutes"
+      />
+
+      <!-- Contribution snippet -->
+      <div
+        v-if="contributionReady && contributionData"
+        class="contribution-snippet"
+      >
+        You added {{ sessionMinutes }} minutes of {{ contributionData.language_name }} today
+      </div>
+
+      <!-- View Journey link -->
+      <button
+        v-if="itemsPracticed > 0"
+        class="view-journey-btn"
+        @click="$emit('viewJourney')"
+      >
+        View Your Journey
+      </button>
 
       <!-- Auth prompt for guests (after first session) -->
       <AuthPrompt
@@ -368,6 +418,40 @@ const handleDismiss = () => {
 
 .stat--encouragement {
   color: var(--belt-color);
+}
+
+/* Contribution Snippet */
+.contribution-snippet {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+/* View Journey */
+.view-journey-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1.25rem;
+  background: transparent;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+  border-radius: 20px;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.view-journey-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+  border-color: var(--accent, rgba(255, 255, 255, 0.2));
+}
+
+.view-journey-btn:active {
+  transform: scale(0.97);
 }
 
 /* Resume Button */

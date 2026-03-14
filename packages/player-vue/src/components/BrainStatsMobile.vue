@@ -12,8 +12,13 @@
  * Design: Dark theme with belt color as accent, spacious and celebratory.
  */
 
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted, inject } from 'vue'
 import { BELTS } from '../composables/useBeltProgress'
+import { useLearnerJourney } from '../composables/useLearnerJourney'
+import EvolutionCard from './learner/EvolutionCard.vue'
+import ContributionCounter from './learner/ContributionCounter.vue'
+import TransformationTimeline from './learner/TransformationTimeline.vue'
+import PercentileBadge from './learner/PercentileBadge.vue'
 
 // ============================================================================
 // PROPS & EMITS
@@ -34,6 +39,7 @@ const props = defineProps<{
   currentStreak: number
   weekActivity: number[] // 7 values for each day
   topWords?: TopWord[]
+  courseId?: string
 }>()
 
 const emit = defineEmits<{
@@ -111,6 +117,27 @@ const hoveredWordIndex = ref<number | null>(null)
 const handleWordTap = (word: TopWord) => {
   emit('playWord', word)
 }
+
+// Learner Journey
+const supabaseRef = inject('supabase', ref(null)) as any
+const journeyReady = ref(false)
+
+const journeyComposable = computed(() => {
+  const client = supabaseRef.value
+  if (!client) return null
+  return useLearnerJourney(client)
+})
+
+onMounted(async () => {
+  const composable = journeyComposable.value
+  if (composable && props.courseId) {
+    await Promise.all([
+      composable.fetchJourney(props.courseId),
+      composable.fetchContribution(props.courseId),
+    ])
+    journeyReady.value = true
+  }
+})
 </script>
 
 <template>
@@ -199,20 +226,36 @@ const handleWordTap = (word: TopWord) => {
         </div>
       </section>
 
-      <!-- Streak & Activity Section -->
-      <section class="activity-section">
-        <div class="streak-card">
-          <div class="streak-flame">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 23c-3.866 0-7-3.134-7-7 0-2.5 1.5-4.5 3-6 .5-.5 1-1 1-1.5 0-.5-.5-1-1-1.5-1-1-2-2.5-2-4 0 0 2 1 4 3 1.5 1.5 2 2.5 2 4s-.5 2.5-1 3c-.5.5-1 1-1 1.5 0 .5.5 1 1 1.5.5.5 1 1 1 1.5 0 .5-.5 1-1 1.5s-1 1.5-1 2.5c0 1.657 1.343 3 3 3s3-1.343 3-3c0-1-.5-2-1-2.5s-1-1-1-1.5c0-.5.5-1 1-1.5.5-.5 1-1 1-1.5 0-.5-.5-1-1-1.5-1-1-2-2.5-2-4 0-.5.5-1 1-1.5 1-1 2-2 3-3 0 1.5-1 3-2 4-.5.5-1 1-1 1.5s.5 1 1 1.5c1.5 1.5 3 3.5 3 6 0 3.866-3.134 7-7 7z"/>
-            </svg>
-          </div>
-          <div class="streak-info">
-            <span class="streak-value">{{ currentStreak }}</span>
-            <span class="streak-label">day streak</span>
-          </div>
-        </div>
+      <!-- Evolution & Contribution (replaces streak) -->
+      <section v-if="journeyReady && journeyComposable?.journey.value" class="evolution-section">
+        <EvolutionCard
+          :score="journeyComposable.journey.value.evolution_score"
+          :level="journeyComposable.journey.value.evolution_level"
+          :name="journeyComposable.journey.value.evolution_name"
+          :icon="journeyComposable.journey.value.evolution_icon"
+          :next-threshold="journeyComposable.journey.value.next_level_threshold"
+          :progress="journeyComposable.evolutionProgress.value"
+        />
+        <PercentileBadge
+          v-if="journeyComposable.journey.value.percentile_this_week"
+          :percentile="journeyComposable.journey.value.percentile_this_week"
+          :language-name="journeyComposable.contribution.value?.language_name || ''"
+        />
+      </section>
 
+      <!-- Contribution Counter -->
+      <ContributionCounter
+        v-if="journeyReady && journeyComposable?.contribution.value"
+        :language-name="journeyComposable.contribution.value.language_name"
+        :phrases-count="journeyComposable.contribution.value.phrases_count"
+        :minutes-practiced="journeyComposable.contribution.value.minutes_practiced"
+        :unique-speakers="journeyComposable.contribution.value.unique_speakers"
+        :user-minutes="journeyComposable.contribution.value.user_minutes_today"
+        :user-phrases="journeyComposable.contribution.value.user_phrases_today"
+      />
+
+      <!-- Activity Section (week chart kept, streak removed) -->
+      <section class="activity-section activity-section--full">
         <div class="week-chart">
           <div class="chart-title">This Week</div>
           <div class="chart-bars">
@@ -234,6 +277,12 @@ const handleWordTap = (word: TopWord) => {
           </div>
         </div>
       </section>
+
+      <!-- Transformation Timeline -->
+      <TransformationTimeline
+        v-if="journeyReady && journeyComposable?.journey.value"
+        :milestones="journeyComposable.journey.value.milestones"
+      />
 
       <!-- Top Words Section (optional) -->
       <section v-if="topWords && topWords.length > 0" class="words-section">
@@ -532,6 +581,14 @@ const handleWordTap = (word: TopWord) => {
   letter-spacing: 0.04em;
 }
 
+/* Evolution Section */
+.evolution-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 /* Activity Section */
 .activity-section {
   display: grid;
@@ -539,50 +596,8 @@ const handleWordTap = (word: TopWord) => {
   gap: 0.75rem;
 }
 
-.streak-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 16px;
-  padding: 1.25rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  gap: 0.5rem;
-}
-
-.streak-flame {
-  width: 40px;
-  height: 40px;
-  color: var(--accent);
-  filter: drop-shadow(0 0 12px var(--accent-glow));
-}
-
-.streak-flame svg {
-  width: 100%;
-  height: 100%;
-}
-
-.streak-info {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.streak-value {
-  font-family: 'Space Mono', monospace;
-  font-size: 2rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  line-height: 1;
-}
-
-.streak-label {
-  font-size: 0.6875rem;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+.activity-section--full {
+  grid-template-columns: 1fr;
 }
 
 .week-chart {
@@ -713,7 +728,6 @@ const handleWordTap = (word: TopWord) => {
 
   .belt-section,
   .stat-card,
-  .streak-card,
   .week-chart,
   .words-section {
     padding: 1rem;
@@ -740,16 +754,6 @@ const handleWordTap = (word: TopWord) => {
 
   .activity-section {
     grid-template-columns: 1fr;
-  }
-
-  .streak-card {
-    flex-direction: row;
-    justify-content: flex-start;
-    gap: 1rem;
-  }
-
-  .streak-info {
-    align-items: flex-start;
   }
 }
 
@@ -792,7 +796,6 @@ const handleWordTap = (word: TopWord) => {
   }
 
   .stat-card,
-  .streak-card,
   .week-chart,
   .words-section {
     padding: 1.5rem;
