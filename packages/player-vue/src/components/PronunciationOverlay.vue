@@ -254,18 +254,13 @@ const loadMoreIfNeeded = async () => {
  * Sort by text length (short→long) with a light shuffle within length bands.
  */
 function buildQueue() {
-  // Mostly USE phrases, with max 2 BUILD per seed for variety
   const usePhrases = masterPhrases.value.filter(p => p.phraseRole !== 'build')
 
-  // Limit BUILD: pick at most 2 per seed
-  const buildBySeed = new Map()
-  for (const p of masterPhrases.value) {
-    if (p.phraseRole !== 'build') continue
-    const seeds = buildBySeed.get(p.seedNumber) || []
-    if (seeds.length < 2) seeds.push(p)
-    buildBySeed.set(p.seedNumber, seeds)
-  }
-  const buildPhrases = [...buildBySeed.values()].flat()
+  // Sprinkle in BUILD: 1 per every 5 seeds, picked randomly
+  const buildAll = masterPhrases.value.filter(p => p.phraseRole === 'build')
+  shuffle(buildAll)
+  const buildCount = Math.max(1, Math.floor(usePhrases.length / 10))
+  const buildPhrases = buildAll.slice(0, buildCount)
 
   const phrases = [...usePhrases, ...buildPhrases]
 
