@@ -67,6 +67,9 @@ const isListeningMode = ref(false)
 // Driving mode state (tracked for BottomNav return arrow)
 const isDrivingMode = ref(false)
 
+// Pronunciation mode state
+const isPronunciationMode = ref(false)
+
 // Script mode (romanized vs native script toggle)
 const playerHasRomanized = computed(() => learningPlayerRef.value?.hasRomanizedText ?? false)
 const playerIsNativeScript = computed(() => learningPlayerRef.value?.isNativeScript ?? false)
@@ -184,6 +187,24 @@ const handleToggleListening = () => {
 const handleToggleDriving = () => {
   if (learningPlayerRef.value?.handleDrivingToggle) {
     learningPlayerRef.value.handleDrivingToggle()
+  }
+}
+
+// Handle pronunciation mode state changes from LearningPlayer
+const handlePronunciationModeChanged = (active) => {
+  isPronunciationMode.value = active
+}
+
+// Handle exit pronunciation mode from BottomNav
+const handleExitPronunciationMode = () => {
+  if (learningPlayerRef.value) {
+    learningPlayerRef.value.exitPronunciationMode()
+  }
+}
+
+const handleTogglePronunciation = () => {
+  if (learningPlayerRef.value?.handlePronunciationToggle) {
+    learningPlayerRef.value.handlePronunciationToggle()
   }
 }
 
@@ -421,11 +442,12 @@ onMounted(() => {
       @viewProgress="handleViewProgress"
       @listeningModeChanged="handleListeningModeChanged"
       @drivingModeChanged="handleDrivingModeChanged"
+      @pronunciationModeChanged="handlePronunciationModeChanged"
     />
 
     <!-- Player resting state overlay (shown when paused, hidden during playback) -->
     <PlayerRestingState
-      v-if="currentScreen === 'player' && !isListeningMode && !isDrivingMode && !isPlaying"
+      v-if="currentScreen === 'player' && !isListeningMode && !isDrivingMode && !isPronunciationMode && !isPlaying"
       :course="activeCourse"
       :completed-seeds="completedSeeds"
       :total-seeds="totalSeeds"
@@ -464,6 +486,7 @@ onMounted(() => {
       :isPlaying="isPlaying"
       :isListeningMode="isListeningMode"
       :isDrivingMode="isDrivingMode"
+      :isPronunciationMode="isPronunciationMode"
       :showLibrary="showLibrary"
       :showSettings="showSettings"
       :isAuthOpen="isAuthOpen"
@@ -476,8 +499,10 @@ onMounted(() => {
       @togglePlayback="handleTogglePlayback"
       @exitListeningMode="handleExitListeningMode"
       @exitDrivingMode="handleExitDrivingMode"
+      @exitPronunciationMode="handleExitPronunciationMode"
       @toggleListening="handleToggleListening"
       @toggleDriving="handleToggleDriving"
+      @togglePronunciation="handleTogglePronunciation"
       @toggleScript="handleToggleScript"
       @revisit="handleRevisit"
       @skip="handleSkip"

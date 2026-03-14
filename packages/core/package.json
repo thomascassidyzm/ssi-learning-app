@@ -40,6 +40,11 @@
       "types": "./dist/network/index.d.ts",
       "import": "./dist/network/index.mjs",
       "require": "./dist/network/index.js"
+    },
+    "./audio": {
+      "types": "./dist/audio/index.d.ts",
+      "import": "./dist/audio/index.mjs",
+      "require": "./dist/audio/index.js"
     }
   },
   "scripts": {
@@ -61,7 +66,8 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.86.0",
     "d3": "^7.0.0",
-    "idb": "^8.0.3"
+    "idb": "^8.0.3",
+    "pitchy": "^4.1.0"
   },
   "peerDependencies": {
     "d3": "^7.0.0"

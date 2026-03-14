@@ -38,6 +38,7 @@ import type { LegoBlock } from './LegoAssembly.vue'
 import { ensureTileCoverage, absorbGapsIntoBlocks } from '../utils/ensureTileCoverage'
 import ListeningOverlay from './ListeningOverlay.vue'
 import DrivingModeOverlay from './DrivingModeOverlay.vue'
+import PronunciationOverlay from './PronunciationOverlay.vue'
 import { useDrivingMode } from '../composables/useDrivingMode'
 import { useScriptMode } from '../composables/useScriptMode'
 import { getLanguageFlag } from '../composables/useI18n'
@@ -47,7 +48,7 @@ import { useEntitlement } from '../composables/useEntitlement'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
 
-const emit = defineEmits(['close', 'playStateChanged', 'viewProgress', 'listeningModeChanged', 'drivingModeChanged', 'cycle-started'])
+const emit = defineEmits(['close', 'playStateChanged', 'viewProgress', 'listeningModeChanged', 'drivingModeChanged', 'pronunciationModeChanged', 'cycle-started'])
 
 const props = defineProps({
   classContext: {
@@ -4089,6 +4090,7 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
 const turboActive = ref(false)
 const turboPopupShownThisSession = ref(false)
 const showListeningOverlay = ref(false) // Show listening mode overlay
+const showPronunciationOverlay = ref(false) // Show pronunciation mode overlay
 const isDrivingModeActive = ref(false)
 let drivingModeInitialRound: number | null = null
 
@@ -4337,6 +4339,41 @@ const exitListeningMode = () => {
 }
 
 // ============================================
+// PRONUNCIATION MODE
+// ============================================
+
+const handlePronunciationMode = () => {
+  handlePause()
+  if (isPlayingIntroduction.value) skipIntroduction()
+  if (isPlayingWelcome.value) skipWelcome()
+  showPronunciationOverlay.value = true
+  emit('pronunciationModeChanged', true)
+}
+
+const handleClosePronunciation = () => {
+  showPronunciationOverlay.value = false
+  emit('pronunciationModeChanged', false)
+}
+
+const exitPronunciationMode = () => {
+  if (showPronunciationOverlay.value) {
+    showPronunciationOverlay.value = false
+    emit('pronunciationModeChanged', false)
+  }
+  handlePause()
+}
+
+const handlePronunciationToggle = () => {
+  if (showPronunciationOverlay.value) {
+    handleClosePronunciation()
+  } else {
+    if (showListeningOverlay.value) handleCloseListening()
+    if (isDrivingModeActive.value) handleExitDrivingMode()
+    handlePronunciationMode()
+  }
+}
+
+// ============================================
 // DRIVING MODE
 // ============================================
 
@@ -4428,6 +4465,10 @@ const exitAllModes = () => {
   if (showListeningOverlay.value) {
     showListeningOverlay.value = false
     emit('listeningModeChanged', false)
+  }
+  if (showPronunciationOverlay.value) {
+    showPronunciationOverlay.value = false
+    emit('pronunciationModeChanged', false)
   }
   handlePause()
 }
@@ -5896,6 +5937,8 @@ defineExpose({
   handleDrivingToggle,
   handleEnterDrivingMode,
   handleExitDrivingMode,
+  handlePronunciationToggle,
+  exitPronunciationMode,
   beltCssVars,
   hasRomanizedText,
   isNativeScript,
@@ -6384,6 +6427,18 @@ defineExpose({
         :belt-color="currentBelt.color"
         :up-to-seed="beltProgress?.playingSeedNumber?.value ?? null"
         @close="handleCloseListening"
+      />
+    </Transition>
+
+    <!-- Pronunciation Mode Overlay -->
+    <Transition name="listening-overlay">
+      <PronunciationOverlay
+        v-if="showPronunciationOverlay"
+        :course-code="activeCourseCode"
+        :belt-color="currentBelt.color"
+        :up-to-seed="beltProgress?.playingSeedNumber?.value ?? null"
+        :target-lang="props.course?.target_lang || courseCode?.split('_')[0]"
+        @close="handleClosePronunciation"
       />
     </Transition>
 

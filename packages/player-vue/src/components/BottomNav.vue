@@ -22,6 +22,10 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  isPronunciationMode: {
+    type: Boolean,
+    default: false
+  },
   showLibrary: {
     type: Boolean,
     default: false
@@ -56,7 +60,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'exitListeningMode', 'exitDrivingMode', 'toggleListening', 'toggleDriving', 'toggleScript', 'revisit', 'skip', 'openSettings', 'closeOverlays', 'closeAuth'])
+const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'exitListeningMode', 'exitDrivingMode', 'exitPronunciationMode', 'toggleListening', 'toggleDriving', 'togglePronunciation', 'toggleScript', 'revisit', 'skip', 'openSettings', 'closeOverlays', 'closeAuth'])
 
 // Tap feedback
 const tappedItem = ref(null)
@@ -69,7 +73,7 @@ const isStopMode = computed(() =>
   props.isPlaying && !props.isListeningMode && !props.isDrivingMode
 )
 
-const hasActiveMode = computed(() => props.isListeningMode || props.isDrivingMode)
+const hasActiveMode = computed(() => props.isListeningMode || props.isDrivingMode || props.isPronunciationMode)
 
 const isReturnMode = computed(() =>
   ((!isOnPlayerScreen.value || hasOverlayOpen.value || props.isAuthOpen) && !props.isPlaying) || hasActiveMode.value
@@ -81,6 +85,7 @@ const handleNavTap = (itemId) => {
   if (navigator.vibrate) navigator.vibrate(10)
   if (props.isListeningMode) emit('exitListeningMode')
   if (props.isDrivingMode) emit('exitDrivingMode')
+  if (props.isPronunciationMode) emit('exitPronunciationMode')
   emit('navigate', itemId)
 }
 
@@ -93,13 +98,17 @@ const handlePlayTap = () => {
   playButtonPressed.value = true
   setTimeout(() => { playButtonPressed.value = false }, 200)
   if (navigator.vibrate) navigator.vibrate([10, 50, 10])
-  // Exit active mode (listening or driving) — return to player
+  // Exit active mode (listening, driving, or pronunciation) — return to player
   if (props.isListeningMode) {
     emit('exitListeningMode')
     return
   }
   if (props.isDrivingMode) {
     emit('exitDrivingMode')
+    return
+  }
+  if (props.isPronunciationMode) {
+    emit('exitPronunciationMode')
     return
   }
   // Back arrow when auth is open — close it
@@ -158,6 +167,20 @@ const handleSettings = () => {
       :title="isNativeScript ? 'Show romanized' : 'Show native script'"
     >
       <span class="script-toggle-label">{{ isNativeScript ? 'Aa' : '\u6587' }}</span>
+    </button>
+    <button
+      v-show="!showSessionComplete && !showCourseSelector && isOnPlayerScreen"
+      class="mode-btn mode-btn--left-inner"
+      :class="{ active: isPronunciationMode, disabled: isListeningMode || isDrivingMode }"
+      @click="emit('togglePronunciation')"
+      title="Pronunciation mode"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+        <line x1="12" y1="19" x2="12" y2="23"/>
+        <line x1="8" y1="23" x2="16" y2="23"/>
+      </svg>
     </button>
     <button
       v-show="!showSessionComplete && !showCourseSelector && isOnPlayerScreen"
@@ -448,6 +471,10 @@ const handleSettings = () => {
 
 .mode-btn--left {
   left: 16px;
+}
+
+.mode-btn--left-inner {
+  left: 64px;
 }
 
 .mode-btn--right-inner {
