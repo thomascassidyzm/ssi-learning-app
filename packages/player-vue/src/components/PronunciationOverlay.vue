@@ -143,7 +143,7 @@ const phaseLabel = computed(() => {
     case 'recording': return 'Your turn'
     case 'analyzing': return 'Analyzing...'
     case 'feedback': return ''
-    default: return 'Tap to start'
+    default: return ''
   }
 })
 
@@ -670,7 +670,12 @@ onUnmounted(() => {
 
       <!-- Idle state hint -->
       <div v-if="phase === 'idle' && queue.length > 0" class="idle-hint">
-        <p>Tap play to start pronunciation practice</p>
+        <div class="play-pointer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+            <polyline points="18 15 12 9 6 15"/>
+          </svg>
+        </div>
+        <p>Tap play to start</p>
         <p class="phrase-count">{{ totalCount }} phrases available (short → long)</p>
       </div>
     </div>
@@ -1063,9 +1068,23 @@ onUnmounted(() => {
 .idle-hint {
   text-align: center;
   color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 .idle-hint p { margin: 0; }
+
+.play-pointer {
+  opacity: 0.5;
+  animation: bounce-up 1.5s ease-in-out infinite;
+}
+
+@keyframes bounce-up {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
 
 .phrase-count {
   font-size: 0.75rem;
