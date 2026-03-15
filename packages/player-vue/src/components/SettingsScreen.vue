@@ -1129,7 +1129,7 @@ const confirmReset = async () => {
             </div>
           </template>
 
-          <template v-if="isAdmin">
+          <template v-if="hasAdminRole">
             <div class="divider"></div>
 
             <div class="setting-row clickable" @click="toggleQaMode">
