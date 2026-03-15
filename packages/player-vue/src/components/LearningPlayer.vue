@@ -26,7 +26,7 @@ import { useOfflineCache } from '../composables/useOfflineCache'
 import { useSimplePlayer } from '../composables/useSimplePlayer'
 // New simple script generation - direct database queries
 import { generateLearningScript as generateSimpleScript } from '../providers/generateLearningScript'
-import { toSimpleRounds } from '../providers/toSimpleRounds'
+import { toSimpleRounds, type TargetSpeedConfig } from '../providers/toSimpleRounds'
 // Prebuilt network: positions pre-calculated, pans to hero via CSS
 import { usePrebuiltNetworkIntegration } from '../composables/usePrebuiltNetworkIntegration'
 import { useLegoNetwork } from '../composables/useLegoNetwork'
@@ -2323,9 +2323,17 @@ const _componentsByLegoId = new Map<string, Array<{known: string, target: string
 const _componentsByCycleIdNative = new Map<string, Array<{known: string, target: string}>>()
 const _componentsByLegoIdNative = new Map<string, Array<{known: string, target: string}>>()
 
+// Courses recorded at natural (1.0x) speed — eligible for belt-based speed ramp
+const NATURAL_SPEED_COURSES: Record<string, TargetSpeedConfig> = {
+  pol_for_eng: { beltRamp: true },
+  tur_for_eng: { beltRamp: true },
+  hrv_for_eng: { beltRamp: true },
+}
+
 // Wrapper: call toSimpleRounds AND extract components into the plain Map
 function toSimpleRoundsWithComponents(items: any[]) {
-  const rounds = toSimpleRounds(items)
+  const targetSpeed = NATURAL_SPEED_COURSES[courseCode.value] ?? {}
+  const rounds = toSimpleRounds(items, undefined, targetSpeed)
   let count = 0
   for (const round of rounds) {
     for (const cycle of round.cycles) {
