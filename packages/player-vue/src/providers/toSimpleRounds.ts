@@ -143,7 +143,10 @@ export function toSimpleRounds(
         : i.knownAudioId
 
       // Target speed: explicit (listening mode) → course config (global + belt ramp) → 1.0
-      const speed = i.playbackSpeed ?? targetSpeedForSeed(seedNumberFromId(i.seedId || primarySeedId), targetSpeed)
+      // Spaced rep phrases play at normal speed — learner has heard these before
+      const speed = i.playbackSpeed ?? (i.type === 'spaced_rep'
+        ? (targetSpeed.globalSpeed ?? 1.0)
+        : targetSpeedForSeed(seedNumberFromId(i.seedId || primarySeedId), targetSpeed))
 
       cycles.push({
         id: i.uuid,
