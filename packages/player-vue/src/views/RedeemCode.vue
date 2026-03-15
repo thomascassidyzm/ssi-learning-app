@@ -98,6 +98,12 @@ function goHome() {
   clearPendingCode()
   router.push('/')
 }
+
+function goSignIn() {
+  // Navigate home WITHOUT clearing pending code — sessionStorage
+  // preserves it through the OTP flow, and SignInModal auto-redeems after auth.
+  router.push('/')
+}
 </script>
 
 <template>
@@ -142,7 +148,7 @@ function goHome() {
 
         <div v-else class="redeem-auth-prompt">
           <p>Sign in or create an account to redeem this code.</p>
-          <button class="redeem-btn redeem-btn--primary" @click="goHome">Sign In</button>
+          <button class="redeem-btn redeem-btn--primary" @click="goSignIn">Sign In</button>
         </div>
       </div>
     </div>

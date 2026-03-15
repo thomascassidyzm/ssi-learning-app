@@ -403,6 +403,12 @@ onMounted(async () => {
         console.warn('[App] Failed to process invite code from URL:', err)
       }
 
+      // If there's a pending code from sessionStorage (e.g. from /redeem/:code flow)
+      // and user isn't signed in, open auth modal so they can complete sign-up + redeem
+      if (!auth.learner.value && inviteCode.pendingCode.value) {
+        useAuthModal().open()
+      }
+
       // Fetch enrolled courses
       await fetchEnrolledCourses()
     } catch (err) {
