@@ -595,9 +595,14 @@ watch(() => simplePlayer.currentCycle.value, (simpleCycle) => {
 const legoTargetTextMap = computed<Map<string, string>>(() => {
   const map = new Map<string, string>()
   for (const round of (loadedRounds.value || [])) {
-    if (round.legoId && round.cycles?.[0]?.target?.text) {
-      map.set(round.legoId, round.cycles[0].target.text)
-    }
+    if (!round.legoId || !round.cycles?.length) continue
+    // Find the intro/debut cycle — it has the LEGO's own target text.
+    // cycles[0] may be a component_intro (with only a component's text).
+    const introCycle = round.cycles.find((c: any) =>
+      c.id?.includes('_intro_') || c.id?.includes('_debut_')
+    )
+    const text = (introCycle || round.cycles[0])?.target?.text
+    if (text) map.set(round.legoId, text)
   }
   return map
 })
@@ -606,10 +611,12 @@ const legoTargetTextMap = computed<Map<string, string>>(() => {
 const legoTargetTextNativeMap = computed<Map<string, string>>(() => {
   const map = new Map<string, string>()
   for (const round of (loadedRounds.value || [])) {
-    const native = (round.cycles?.[0] as any)?.target?.textNative
-    if (round.legoId && native) {
-      map.set(round.legoId, native)
-    }
+    if (!round.legoId || !round.cycles?.length) continue
+    const introCycle = round.cycles.find((c: any) =>
+      c.id?.includes('_intro_') || c.id?.includes('_debut_')
+    )
+    const native = ((introCycle || round.cycles[0]) as any)?.target?.textNative
+    if (native) map.set(round.legoId, native)
   }
   return map
 })
@@ -618,9 +625,12 @@ const legoTargetTextNativeMap = computed<Map<string, string>>(() => {
 const legoKnownTextMap = computed<Map<string, string>>(() => {
   const map = new Map<string, string>()
   for (const round of (loadedRounds.value || [])) {
-    if (round.legoId && round.cycles?.[0]?.known?.text) {
-      map.set(round.legoId, round.cycles[0].known.text)
-    }
+    if (!round.legoId || !round.cycles?.length) continue
+    const introCycle = round.cycles.find((c: any) =>
+      c.id?.includes('_intro_') || c.id?.includes('_debut_')
+    )
+    const text = (introCycle || round.cycles[0])?.known?.text
+    if (text) map.set(round.legoId, text)
   }
   return map
 })
@@ -1464,10 +1474,12 @@ let offlinePlayCleanup: (() => void) | null = null
 // Belt promotions, encouragements, break suggestions
 // ============================================
 
-// Track rounds completed in this session (for break suggestions)
+// Track rounds completed in this session
 const roundsThisSession = ref(0)
-const showBreakSuggestion = ref(false)
 const beltJustEarned = ref(null)
+
+// Mode discovery tips (shown between rounds, one at a time)
+const modeTip = ref<{ mode: string; label: string; desc: string } | null>(null)
 
 /**
  * Play commentary audio (welcome, instruction, or encouragement)
@@ -1589,20 +1601,51 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId) => {
     }
   }
 
-  // Suggest break every 10 rounds (roughly 15-20 minutes of learning)
-  if (roundsThisSession.value > 0 && roundsThisSession.value % 10 === 0) {
-    showBreakSuggestion.value = true
-    console.log('[LearningPlayer] ☕ Suggesting break after', roundsThisSession.value, 'rounds')
-    // Auto-dismiss after 5 seconds if they keep playing
-    setTimeout(() => {
-      showBreakSuggestion.value = false
-    }, 5000)
-  }
+  // Mode discovery tips — show between rounds after a minimum threshold
+  // Each mode is suggested once per session at a random interval
+  maybeShowModeTip()
 }
 
-// Dismiss break suggestion (user chose to continue)
-const dismissBreakSuggestion = () => {
-  showBreakSuggestion.value = false
+// Mode tips — shown between rounds, one per mode per session, with randomness
+const MODE_TIPS = [
+  { mode: 'listening', key: 'ssi-mode-listening', label: 'Listening Mode', desc: 'Passive review — let phrases wash over you while you relax' },
+  { mode: 'pronunciation', key: 'ssi-mode-pronunciation', label: 'Pronunciation Practice', desc: 'Record yourself and compare with native speakers' },
+  { mode: 'driving', key: 'ssi-mode-driving', label: 'Driving Mode', desc: 'Hands-free learning — perfect for the car or a walk' },
+]
+const tipsShownThisSession = new Set<string>()
+// Each tip has a minimum round threshold + random jitter so they don't all appear together
+const TIP_SCHEDULE = { listening: 7, pronunciation: 14, driving: 21 }
+
+const maybeShowModeTip = () => {
+  if (modeTip.value) return // already showing one
+  const rounds = roundsThisSession.value
+
+  // Shuffle order so it's not always the same sequence
+  const candidates = MODE_TIPS
+    .filter(t => {
+      if (tipsShownThisSession.has(t.mode)) return false
+      if (localStorage.getItem(t.key) === 'true') return false // already enabled
+      const minRound = TIP_SCHEDULE[t.mode as keyof typeof TIP_SCHEDULE] || 10
+      // Add random jitter of 0-3 rounds
+      return rounds >= minRound + Math.floor(Math.random() * 4)
+    })
+
+  if (candidates.length === 0) return
+
+  // Pick one at random
+  const tip = candidates[Math.floor(Math.random() * candidates.length)]
+  tipsShownThisSession.add(tip.mode)
+  modeTip.value = tip
+
+  // Auto-dismiss after 6 seconds
+  setTimeout(() => { if (modeTip.value?.mode === tip.mode) modeTip.value = null }, 6000)
+}
+
+const dismissModeTip = () => { modeTip.value = null }
+const openSettingsFromTip = () => {
+  modeTip.value = null
+  // Dispatch event that PlayerContainer listens to
+  window.dispatchEvent(new CustomEvent('ssi-open-settings'))
 }
 
 // ============================================
@@ -6603,22 +6646,14 @@ defineExpose({
     <!-- Hidden ring container for position reference (used by network centering) -->
     <div ref="ringContainerRef" class="ring-reference" style="display: none;"></div>
 
-    <!-- Break Suggestion Overlay -->
+    <!-- Mode Discovery Tip (between rounds) -->
     <Transition name="break-fade">
-      <div v-if="showBreakSuggestion" class="break-suggestion-overlay" @click="dismissBreakSuggestion">
-        <div class="break-card" @click.stop>
-          <div class="break-icon">☕</div>
-          <h3 class="break-title">Time for a break?</h3>
-          <p class="break-message">You've completed {{ roundsThisSession }} rounds. Great progress!</p>
-          <div class="break-actions">
-            <button class="break-btn break-btn--continue" @click="dismissBreakSuggestion">
-              Keep Going
-            </button>
-            <button class="break-btn break-btn--pause" @click="handlePause">
-              Take a Break
-            </button>
-          </div>
+      <div v-if="modeTip" class="mode-tip" @click="openSettingsFromTip">
+        <div class="mode-tip__body">
+          <span class="mode-tip__label">{{ modeTip.label }}</span>
+          <span class="mode-tip__desc">{{ modeTip.desc }}</span>
         </div>
+        <button class="mode-tip__dismiss" @click.stop="dismissModeTip">&times;</button>
       </div>
     </Transition>
 
@@ -9875,82 +9910,56 @@ defineExpose({
    Break suggestions & Belt celebrations
    ============================================ */
 
-/* Break Suggestion Overlay */
-.break-suggestion-overlay {
+/* Mode Discovery Tip (toast between rounds) */
+.mode-tip {
   position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.75);
+  bottom: calc(var(--nav-height-safe, 80px) + 1rem);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
   display: flex;
   align-items: center;
-  justify-content: center;
-  z-index: 100;
-  backdrop-filter: blur(4px);
-}
-
-.break-card {
-  background: linear-gradient(145deg, rgba(30, 30, 35, 0.98), rgba(20, 20, 25, 0.98));
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 1.5rem;
-  padding: 2.5rem;
-  text-align: center;
-  max-width: 320px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-}
-
-.break-icon {
-  font-size: 4rem;
-  margin-bottom: 1rem;
-  filter: drop-shadow(0 0 20px rgba(210, 180, 140, 0.3));
-}
-
-.break-title {
-  font-family: var(--font-display, 'Crimson Pro', serif);
-  font-size: 1.75rem;
-  color: var(--text-primary, #f5f5f5);
-  margin: 0 0 0.75rem 0;
-}
-
-.break-message {
-  color: var(--text-secondary, rgba(245, 245, 245, 0.7));
-  font-size: 0.95rem;
-  margin: 0 0 1.5rem 0;
-  line-height: 1.5;
-}
-
-.break-actions {
-  display: flex;
   gap: 0.75rem;
-  justify-content: center;
-}
-
-.break-btn {
-  padding: 0.75rem 1.25rem;
-  border-radius: 0.75rem;
-  font-size: 0.9rem;
-  font-weight: 500;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  background: var(--bg-elevated, rgba(30, 30, 40, 0.95));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
   cursor: pointer;
-  transition: all 0.2s ease;
+  max-width: calc(100vw - 2rem);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mode-tip__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mode-tip__label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+}
+
+.mode-tip__desc {
+  font-size: 0.75rem;
+  color: var(--text-muted, rgba(255, 255, 255, 0.5));
+  line-height: 1.3;
+}
+
+.mode-tip__dismiss {
+  background: none;
   border: none;
-}
-
-.break-btn--continue {
-  background: var(--belt-color, #4ade80);
-  color: #1a1a1a;
-}
-
-.break-btn--continue:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(74, 222, 128, 0.3);
-}
-
-.break-btn--pause {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text-primary, #f5f5f5);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.break-btn--pause:hover {
-  background: rgba(255, 255, 255, 0.15);
+  color: var(--text-muted, rgba(255, 255, 255, 0.5));
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.25rem;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* Break fade transition */

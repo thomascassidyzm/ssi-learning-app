@@ -75,9 +75,6 @@ const showListeningBtn = ref(false)
 const showPronunciationBtn = ref(false)
 const showDrivingBtn = ref(false)
 
-// Mode discovery notification (shown once after ~10 min of learning)
-const modeNotification = ref(false)
-const modeNotificationDismissed = ref(false)
 
 // Script mode (romanized vs native script toggle)
 const playerHasRomanized = computed(() => learningPlayerRef.value?.hasRomanizedText ?? false)
@@ -420,27 +417,10 @@ onMounted(() => {
     if (['library', 'browse', 'belt-browser'].includes(screenParam)) showLibrary.value = true
   }
 
-  // Mode discovery notification: after ~10 min of active learning, nudge if no modes enabled
-  const anyModeEnabled = () =>
-    showListeningBtn.value || showPronunciationBtn.value || showDrivingBtn.value
-
-  watch(
-    () => learningPlayerRef.value?.sessionSeconds,
-    (secs) => {
-      if (
-        secs >= 600 &&
-        !modeNotification.value &&
-        !modeNotificationDismissed.value &&
-        !anyModeEnabled() &&
-        localStorage.getItem('ssi-modes-notified') !== 'true'
-      ) {
-        modeNotification.value = true
-        localStorage.setItem('ssi-modes-notified', 'true')
-        // Auto-dismiss after 8 seconds
-        setTimeout(() => { modeNotification.value = false }, 8000)
-      }
-    }
-  )
+  // Listen for mode tip "open settings" from LearningPlayer
+  window.addEventListener('ssi-open-settings', () => {
+    if (!showSettings.value) toggleSettings()
+  })
 
   // Check if launched from Schools with class context
   const hasClassContext = checkClassContext()
@@ -606,17 +586,6 @@ onMounted(() => {
     <!-- Unified Auth Modal (shared state with all components) -->
     <SignInModal @success="handleAuthSuccess" />
 
-    <!-- Mode discovery notification (shown once after ~10 min) -->
-    <Transition name="toast">
-      <div
-        v-if="modeNotification"
-        class="mode-notification"
-        @click="modeNotification = false; toggleSettings()"
-      >
-        <span class="mode-notification__text">More practice modes available in Settings</span>
-        <button class="mode-notification__dismiss" @click.stop="modeNotification = false">&times;</button>
-      </div>
-    </Transition>
   </div>
 </template>
 
@@ -773,63 +742,6 @@ onMounted(() => {
   }
 }
 
-/* Mode discovery notification toast */
-.mode-notification {
-  position: fixed;
-  bottom: calc(var(--nav-height-safe, 80px) + 1rem);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 3000;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  border-radius: 12px;
-  background: var(--bg-elevated, rgba(30, 30, 40, 0.95));
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-  cursor: pointer;
-  max-width: calc(100vw - 2rem);
-  -webkit-tap-highlight-color: transparent;
-}
-
-.mode-notification__text {
-  font-size: 0.875rem;
-  color: var(--text-primary, #fff);
-  white-space: nowrap;
-}
-
-.mode-notification__dismiss {
-  background: none;
-  border: none;
-  color: var(--text-muted, rgba(255, 255, 255, 0.5));
-  font-size: 1.25rem;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0 0.25rem;
-  -webkit-tap-highlight-color: transparent;
-}
-
-/* Toast transition */
-.toast-enter-active {
-  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.toast-leave-active {
-  transition: all 0.25s ease-in;
-}
-
-.toast-enter-from {
-  opacity: 0;
-  transform: translateX(-50%) translateY(1rem);
-}
-
-.toast-leave-to {
-  opacity: 0;
-  transform: translateX(-50%) translateY(1rem);
-}
 
 </style>
 
