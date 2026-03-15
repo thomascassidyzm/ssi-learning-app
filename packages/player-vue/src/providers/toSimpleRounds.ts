@@ -187,6 +187,12 @@ export function toSimpleRounds(
       roundNumber: roundNum,
       legoId: primaryLegoKey,
       seedId: primarySeedId,
+      // Canonical LEGO text from intro item — avoids fragile cycle-ID scanning
+      ...(introItem ? {
+        legoTargetText: introItem.targetText,
+        legoKnownText: introItem.knownText,
+        ...(introItem.targetTextNative ? { legoTargetTextNative: introItem.targetTextNative } : {})
+      } : {}),
       cycles
     })
   }

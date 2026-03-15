@@ -21,6 +21,12 @@ export interface Round {
   roundNumber: number
   legoId: string
   seedId: string
+  /** Canonical LEGO target text (from intro item — never inferred from cycles) */
+  legoTargetText?: string
+  /** Native script variant of legoTargetText */
+  legoTargetTextNative?: string
+  /** Canonical LEGO known text (from intro item) */
+  legoKnownText?: string
   cycles: Cycle[]
 }
 

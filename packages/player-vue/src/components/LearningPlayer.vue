@@ -596,15 +596,9 @@ const legoTargetTextMap = computed<Map<string, string>>(() => {
   const map = new Map<string, string>()
   for (const round of (loadedRounds.value || [])) {
     if (!round.legoId || !round.cycles?.length) continue
-    // Find the LEGO intro/debut cycle — it has the LEGO's own target text.
-    // Must exclude _cmp_intro_/_cmp_practice_ (component cycles) which also
-    // contain '_intro_' and would incorrectly match first.
-    const introCycle = round.cycles.find((c: any) => {
-      const id = c.id || ''
-      if (id.includes('_cmp_')) return false
-      return id.includes('_intro_') || id.includes('_debut_')
-    })
-    const text = (introCycle || round.cycles[0])?.target?.text
+    // Use canonical text from Round (set by toSimpleRounds from intro item)
+    // — no cycle scanning needed, immune to ID naming issues.
+    const text = (round as any).legoTargetText || round.cycles[0]?.target?.text
     if (text) map.set(round.legoId, text)
   }
   return map
@@ -615,12 +609,7 @@ const legoTargetTextNativeMap = computed<Map<string, string>>(() => {
   const map = new Map<string, string>()
   for (const round of (loadedRounds.value || [])) {
     if (!round.legoId || !round.cycles?.length) continue
-    const introCycle = round.cycles.find((c: any) => {
-      const id = c.id || ''
-      if (id.includes('_cmp_')) return false
-      return id.includes('_intro_') || id.includes('_debut_')
-    })
-    const native = ((introCycle || round.cycles[0]) as any)?.target?.textNative
+    const native = (round as any).legoTargetTextNative
     if (native) map.set(round.legoId, native)
   }
   return map
@@ -631,12 +620,7 @@ const legoKnownTextMap = computed<Map<string, string>>(() => {
   const map = new Map<string, string>()
   for (const round of (loadedRounds.value || [])) {
     if (!round.legoId || !round.cycles?.length) continue
-    const introCycle = round.cycles.find((c: any) => {
-      const id = c.id || ''
-      if (id.includes('_cmp_')) return false
-      return id.includes('_intro_') || id.includes('_debut_')
-    })
-    const text = (introCycle || round.cycles[0])?.known?.text
+    const text = (round as any).legoKnownText || round.cycles[0]?.known?.text
     if (text) map.set(round.legoId, text)
   }
   return map
