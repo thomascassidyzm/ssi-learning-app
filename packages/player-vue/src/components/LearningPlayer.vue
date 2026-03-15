@@ -1471,7 +1471,7 @@ let offlinePlayCleanup: (() => void) | null = null
 
 // ============================================
 // ROUND BOUNDARY INTERRUPTIONS
-// Belt promotions, encouragements, break suggestions
+// Belt promotions, encouragements, mode tips
 // ============================================
 
 // Track rounds completed in this session
@@ -6647,7 +6647,7 @@ defineExpose({
     <div ref="ringContainerRef" class="ring-reference" style="display: none;"></div>
 
     <!-- Mode Discovery Tip (between rounds) -->
-    <Transition name="break-fade">
+    <Transition name="tip-fade">
       <div v-if="modeTip" class="mode-tip" @click="openSettingsFromTip">
         <div class="mode-tip__body">
           <span class="mode-tip__label">{{ modeTip.label }}</span>
@@ -9907,7 +9907,7 @@ defineExpose({
 
 /* ============================================
    ROUND BOUNDARY INTERRUPTIONS
-   Break suggestions & Belt celebrations
+   Mode tips & Belt celebrations
    ============================================ */
 
 /* Mode Discovery Tip (toast between rounds) */
@@ -9962,14 +9962,14 @@ defineExpose({
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Break fade transition */
-.break-fade-enter-active,
-.break-fade-leave-active {
+/* Tip fade transition */
+.tip-fade-enter-active,
+.tip-fade-leave-active {
   transition: opacity 0.3s ease;
 }
 
-.break-fade-enter-from,
-.break-fade-leave-to {
+.tip-fade-enter-from,
+.tip-fade-leave-to {
   opacity: 0;
 }
 
