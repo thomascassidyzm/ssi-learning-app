@@ -63,11 +63,24 @@ function calculatePauseDuration(
 }
 
 /**
- * Belt-based target language playback speed.
- * Early seeds play slower so beginners can absorb new sounds.
- * White belt (0-7): 0.82x, Yellow (8-19): 0.91x, Orange+ (20+): 1.0x
+ * Target language playback speed configuration.
+ * Set per-course (e.g. from courses table or voice config).
+ *
+ * - globalSpeed: base multiplier for all target audio (default 1.0).
+ *   Use this to compensate for voices recorded at non-standard speeds,
+ *   e.g. 0.8 for a naturally slow voice, or 1.1 for a fast one.
+ *
+ * - beltRamp: if true, early seeds play slower to help beginners.
+ *   White (0-7): globalSpeed × 0.82, Yellow (8-19): × 0.91, Orange+: × 1.0.
+ *   Only enable for courses recorded at natural (1.0x) speed.
  */
-function targetSpeedForSeed(seedNumber: number): number {
+export interface TargetSpeedConfig {
+  globalSpeed?: number   // base multiplier (default 1.0)
+  beltRamp?: boolean     // apply belt-based slow-down for early seeds (default false)
+}
+
+/** Belt-based ramp multiplier — applied on top of globalSpeed when beltRamp is true */
+function beltRampMultiplier(seedNumber: number): number {
   if (seedNumber < 8) return 0.82
   if (seedNumber < 20) return 0.91
   return 1.0
@@ -79,9 +92,17 @@ function seedNumberFromId(seedId: string): number {
   return match ? parseInt(match[0], 10) : 0
 }
 
+/** Compute target playback speed for a given seed */
+function targetSpeedForSeed(seedNumber: number, config: TargetSpeedConfig): number {
+  const base = config.globalSpeed ?? 1.0
+  const ramp = config.beltRamp ? beltRampMultiplier(seedNumber) : 1.0
+  return Math.round(base * ramp * 100) / 100 // e.g. 0.82, not 0.8199999
+}
+
 export function toSimpleRounds(
   items: ScriptItem[],
-  pauseConfig: PauseConfig = DEFAULT_PAUSE_CONFIG
+  pauseConfig: PauseConfig = DEFAULT_PAUSE_CONFIG,
+  targetSpeed: TargetSpeedConfig = {}
 ): Round[] {
   // Group by roundNumber - each round is a complete learning unit
   // Items within a round share the same roundNumber, but may have different legoKeys
@@ -121,8 +142,8 @@ export function toSimpleRounds(
         ? (i.presentationAudioId || i.knownAudioId)
         : i.knownAudioId
 
-      // Target speed: explicit (listening mode) → belt-based ramp → 1.0
-      const speed = i.playbackSpeed ?? targetSpeedForSeed(seedNumberFromId(i.seedId || primarySeedId))
+      // Target speed: explicit (listening mode) → course config (global + belt ramp) → 1.0
+      const speed = i.playbackSpeed ?? targetSpeedForSeed(seedNumberFromId(i.seedId || primarySeedId), targetSpeed)
 
       cycles.push({
         id: i.uuid,
