@@ -279,7 +279,7 @@ export class SimplePlayer {
         break
       case 'voice1':
         if (currentCycle?.target?.voice1Url) {
-          this.playAudio(currentCycle.target.voice1Url)
+          this.playAudio(currentCycle.target.voice1Url, true)
         } else {
           console.warn(`[SimplePlayer] No voice1 audio for "${currentCycle?.known?.text}" → "${currentCycle?.target?.text}", skipping`)
           this.onAudioEnded()
@@ -287,7 +287,7 @@ export class SimplePlayer {
         break
       case 'voice2':
         if (currentCycle?.target?.voice2Url) {
-          this.playAudio(currentCycle.target.voice2Url)
+          this.playAudio(currentCycle.target.voice2Url, true)
         } else {
           console.warn(`[SimplePlayer] No voice2 audio for "${currentCycle?.known?.text}" → "${currentCycle?.target?.text}", skipping`)
           this.onAudioEnded()
@@ -296,10 +296,11 @@ export class SimplePlayer {
     }
   }
 
-  private playAudio(url: string): void {
+  private playAudio(url: string, isTarget = false): void {
     this.clearSafetyTimer()
     this.audio.src = url
-    this.audio.playbackRate = this.currentCycle?.playbackSpeed ?? 1.0
+    // Only slow down target language audio — known language always plays at 1.0x
+    this.audio.playbackRate = isTarget ? (this.currentCycle?.playbackSpeed ?? 1.0) : 1.0
     this.audio.play().catch((err) => {
       console.warn('[SimplePlayer] play() rejected:', err.message)
       this.onAudioEnded()

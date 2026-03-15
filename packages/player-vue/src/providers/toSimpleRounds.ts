@@ -62,6 +62,23 @@ function calculatePauseDuration(
   return Math.round(config.bootUpTimeMs + config.scaleFactor * t1)
 }
 
+/**
+ * Belt-based target language playback speed.
+ * Early seeds play slower so beginners can absorb new sounds.
+ * White belt (0-7): 0.82x, Yellow (8-19): 0.91x, Orange+ (20+): 1.0x
+ */
+function targetSpeedForSeed(seedNumber: number): number {
+  if (seedNumber < 8) return 0.82
+  if (seedNumber < 20) return 0.91
+  return 1.0
+}
+
+/** Extract seed number from seedId like "S0001" → 1 */
+function seedNumberFromId(seedId: string): number {
+  const match = seedId.match(/\d+/)
+  return match ? parseInt(match[0], 10) : 0
+}
+
 export function toSimpleRounds(
   items: ScriptItem[],
   pauseConfig: PauseConfig = DEFAULT_PAUSE_CONFIG
@@ -104,6 +121,9 @@ export function toSimpleRounds(
         ? (i.presentationAudioId || i.knownAudioId)
         : i.knownAudioId
 
+      // Target speed: explicit (listening mode) → belt-based ramp → 1.0
+      const speed = i.playbackSpeed ?? targetSpeedForSeed(seedNumberFromId(i.seedId || primarySeedId))
+
       cycles.push({
         id: i.uuid,
         legoId: i.legoKey,
@@ -130,7 +150,7 @@ export function toSimpleRounds(
         ...(i.componentLegoTextsNative ? { componentLegoTextsNative: i.componentLegoTextsNative } : {}),
         ...(i.components ? { components: i.components } : {}),
         ...(i.componentsNative ? { componentsNative: i.componentsNative } : {}),
-        ...(i.playbackSpeed ? { playbackSpeed: i.playbackSpeed } : {})
+        ...(speed !== 1.0 ? { playbackSpeed: speed } : {})
       })
     }
 
