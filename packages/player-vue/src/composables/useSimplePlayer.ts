@@ -88,6 +88,8 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     })
     player.on('round_completed', (data: any) => {
       roundCallbacks.forEach(cb => cb(data.round))
+      // Notify global listeners (e.g. install banner triggers after first round)
+      window.dispatchEvent(new CustomEvent('ssi-round-complete', { detail: { round: data.round } }))
     })
     player.on('session_complete', () => {
       sessionCallbacks.forEach(cb => cb())

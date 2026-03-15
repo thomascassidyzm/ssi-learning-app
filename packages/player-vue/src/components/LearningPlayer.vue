@@ -2984,6 +2984,9 @@ const handleCycleEvent = (event) => {
           // Persist progress (async, fire-and-forget)
           saveRoundProgress(completedLegoId, completedRoundIndex)
 
+          // Notify global listeners (e.g. install banner triggers after first round)
+          window.dispatchEvent(new CustomEvent('ssi-round-complete', { detail: { roundIndex: completedRoundIndex } }))
+
           // Handle round boundary events (belt check, encouragements, breaks)
           handleRoundBoundary(completedRoundIndex, completedLegoId)
 

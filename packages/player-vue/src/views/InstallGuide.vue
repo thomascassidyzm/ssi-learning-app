@@ -70,8 +70,11 @@ function dismiss() {
   router.replace('/')
 }
 
+// iOS step count depends on browser
+const totalSteps = computed(() => isSafari ? 4 : 3)
+
 function nextStep() {
-  if (currentStep.value < 3) currentStep.value++
+  if (currentStep.value < totalSteps.value - 1) currentStep.value++
 }
 function prevStep() {
   if (currentStep.value > 0) currentStep.value--
@@ -86,7 +89,7 @@ const flow = computed(() => {
   return 'desktop'
 })
 
-// iOS share button location hint
+// iOS share button location depends on browser
 const shareLocation = computed(() => {
   if (isChrome) return 'top-right'
   return 'bottom-center' // Safari default
@@ -114,10 +117,11 @@ const shareLocation = computed(() => {
       <div v-else-if="flow === 'android'" class="flow-section">
         <img src="/icons/icon-192.png" alt="SSi" class="app-icon" width="96" height="96" />
         <h1>Install SaySomethingin</h1>
+        <p class="subtitle">Learn from your home screen</p>
         <ul class="value-props">
-          <li>Faster loading</li>
-          <li>Works offline</li>
-          <li>Home screen shortcut</li>
+          <li>Opens instantly — no browser chrome</li>
+          <li>Works offline — learn anywhere</li>
+          <li>Picks up where you left off</li>
         </ul>
         <button v-if="hasNativePrompt" class="install-btn" @click="triggerInstall">
           Install
@@ -132,6 +136,7 @@ const shareLocation = computed(() => {
       <div v-else-if="flow === 'android-manual'" class="flow-section">
         <img src="/icons/icon-192.png" alt="SSi" class="app-icon" width="80" height="80" />
         <h1>Install SaySomethingin</h1>
+        <p class="subtitle">Three quick taps</p>
         <div class="steps">
           <div class="step">
             <div class="step-num">1</div>
@@ -160,13 +165,13 @@ const shareLocation = computed(() => {
 
         <!-- Step indicators -->
         <div class="step-dots">
-          <span v-for="i in 4" :key="i" :class="['dot', { active: currentStep === i - 1 }]"></span>
+          <span v-for="i in totalSteps" :key="i" :class="['dot', { active: currentStep === i - 1 }]"></span>
         </div>
 
         <div class="ios-step-area">
-          <!-- Step 0: Tap Share -->
+          <!-- Safari: Step 0 — Tap Share -->
           <Transition name="fade" mode="out-in">
-            <div v-if="currentStep === 0" key="s0" class="ios-step">
+            <div v-if="isSafari && currentStep === 0" key="safari-share" class="ios-step">
               <div class="step-instruction">
                 Tap the <strong>Share</strong> button
                 <svg class="share-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -175,6 +180,7 @@ const shareLocation = computed(() => {
                   <line x1="12" y1="2" x2="12" y2="15"/>
                 </svg>
               </div>
+              <p class="step-hint">It's at the {{ shareLocation === 'bottom-center' ? 'bottom of Safari' : 'top of Chrome' }}</p>
               <div :class="['share-pointer', shareLocation]">
                 <div class="pulse-ring"></div>
                 <svg class="arrow-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--ssi-red)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -184,23 +190,52 @@ const shareLocation = computed(() => {
               </div>
             </div>
 
-            <!-- Step 1: Add to Home Screen -->
-            <div v-else-if="currentStep === 1" key="s1" class="ios-step">
+            <!-- Chrome iOS: Step 0 — Tap Share (top-right menu) -->
+            <div v-else-if="!isSafari && currentStep === 0" key="chrome-share" class="ios-step">
               <div class="step-instruction">
-                Tap <strong>"Add to Home Screen"</strong>
+                Tap <strong>Share</strong>
+                <svg class="share-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/>
+                  <polyline points="16 6 12 2 8 6"/>
+                  <line x1="12" y1="2" x2="12" y2="15"/>
+                </svg>
+                in the menu
+              </div>
+              <p class="step-hint">Tap the menu icon at the top right, then Share</p>
+              <div class="share-pointer top-right">
+                <div class="pulse-ring"></div>
+                <svg class="arrow-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--ssi-red)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate(180deg)">
+                  <line x1="12" y1="5" x2="12" y2="19"/>
+                  <polyline points="19 12 12 19 5 12"/>
+                </svg>
+              </div>
+            </div>
+
+            <!-- Step: Add to Home Screen -->
+            <div v-else-if="currentStep === (isSafari ? 1 : 1)" key="s-add" class="ios-step">
+              <div class="step-instruction">
+                Scroll down and tap <strong>"Add to Home Screen"</strong>
               </div>
               <div class="mock-share-sheet">
-                <div class="mock-option">
-                  <div class="mock-icon-box">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                <div class="mock-option faded">
+                  <div class="mock-icon-box"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9l6 6M15 9l-6 6"/></svg></div>
+                  <span class="mock-label">Copy</span>
+                </div>
+                <div class="mock-option highlighted-row">
+                  <div class="mock-icon-box highlight-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
                   </div>
                   <span class="mock-label highlight">Add to Home Screen</span>
+                </div>
+                <div class="mock-option faded">
+                  <div class="mock-icon-box"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/></svg></div>
+                  <span class="mock-label">Add to Reading List</span>
                 </div>
               </div>
             </div>
 
-            <!-- Step 2: Tap Add -->
-            <div v-else-if="currentStep === 2" key="s2" class="ios-step">
+            <!-- Step: Tap Add -->
+            <div v-else-if="currentStep === (isSafari ? 2 : 2)" key="s-confirm" class="ios-step">
               <div class="step-instruction">
                 Tap <strong>"Add"</strong> in the top right
               </div>
@@ -217,12 +252,13 @@ const shareLocation = computed(() => {
               </div>
             </div>
 
-            <!-- Step 3: Done -->
-            <div v-else key="s3" class="ios-step">
+            <!-- Step: Done — open from home screen -->
+            <div v-else key="s-done" class="ios-step">
               <div class="step-instruction done-text">
-                Now open <strong>SaySomethingin</strong> from your home screen!
+                That's it! Open <strong>SaySomethingin</strong> from your home screen.
               </div>
               <img src="/icons/icon-192.png" alt="SSi" class="bounce-icon" width="80" height="80" />
+              <p class="step-hint">It works just like a native app — full screen, no browser bar.</p>
             </div>
           </Transition>
         </div>
@@ -231,18 +267,18 @@ const shareLocation = computed(() => {
         <div class="ios-nav">
           <button v-if="currentStep > 0" class="nav-btn" @click="prevStep">Back</button>
           <span v-else></span>
-          <button v-if="currentStep < 3" class="nav-btn primary" @click="nextStep">Next</button>
+          <button v-if="currentStep < totalSteps - 1" class="nav-btn primary" @click="nextStep">Next</button>
           <button v-else class="nav-btn primary" @click="dismiss">Done</button>
         </div>
       </div>
 
-      <!-- D) Desktop fallback -->
+      <!-- D) Desktop -->
       <div v-else class="flow-section">
         <img src="/icons/icon-192.png" alt="SSi" class="app-icon" width="96" height="96" />
         <h1>SaySomethingin</h1>
-        <p class="subtitle">For the best experience, open this link on your phone.</p>
+        <p class="subtitle">For the best experience, open this on your phone.</p>
         <template v-if="hasNativePrompt">
-          <p class="muted">Or install directly in Chrome:</p>
+          <p class="muted">Or install directly in your browser:</p>
           <button class="install-btn" @click="triggerInstall">Install</button>
         </template>
         <button class="skip-link" @click="dismiss">Continue in browser</button>
@@ -458,7 +494,7 @@ h1 {
 
 .ios-step-area {
   width: 100%;
-  min-height: 220px;
+  min-height: 260px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -468,13 +504,18 @@ h1 {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 24px;
+  gap: 20px;
   width: 100%;
 }
 
 .step-instruction {
   font-size: 18px;
   line-height: 1.4;
+}
+.step-hint {
+  font-size: 13px;
+  color: var(--text-secondary, #888);
+  margin: -8px 0 0;
 }
 .done-text {
   font-size: 20px;
@@ -529,17 +570,24 @@ h1 {
 
 /* Mock share sheet */
 .mock-share-sheet {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-lg, 12px);
-  padding: 12px 16px;
+  padding: 4px 0;
   width: 100%;
+  overflow: hidden;
 }
 .mock-option {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 0;
+  padding: 10px 16px;
+}
+.mock-option.faded {
+  opacity: 0.35;
+}
+.mock-option.highlighted-row {
+  background: rgba(255, 255, 255, 0.04);
 }
 .mock-icon-box {
   width: 36px;
@@ -551,6 +599,10 @@ h1 {
   justify-content: center;
   color: var(--text-secondary, #aaa);
 }
+.mock-icon-box.highlight-icon {
+  color: var(--ssi-red, #c23a3a);
+  background: rgba(194, 58, 58, 0.12);
+}
 .mock-label {
   font-size: 16px;
 }
@@ -561,8 +613,8 @@ h1 {
 
 /* Mock confirm dialog */
 .mock-confirm {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-lg, 12px);
   width: 100%;
   overflow: hidden;
@@ -572,7 +624,7 @@ h1 {
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   font-size: 14px;
 }
 .mock-cancel { color: var(--text-secondary, #888); }

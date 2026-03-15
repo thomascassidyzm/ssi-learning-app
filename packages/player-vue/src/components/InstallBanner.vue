@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, inject, onMounted } from 'vue'
+import { ref, inject, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -11,17 +11,47 @@ const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).M
 
 const visible = ref(false)
 
+const DISMISS_KEY = 'ssi-install-dismissed'
+const DISMISS_COUNT_KEY = 'ssi-install-dismiss-count'
+const MAX_DISMISSALS = 3
+const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
+
+function shouldShow(): boolean {
+  // Already installed — never show
+  if (isStandalone) return false
+
+  // Check permanent dismiss (user said no 3+ times)
+  const dismissCount = parseInt(localStorage.getItem(DISMISS_COUNT_KEY) || '0', 10)
+  if (dismissCount >= MAX_DISMISSALS) return false
+
+  // Check cooldown from last dismissal
+  const dismissedAt = localStorage.getItem(DISMISS_KEY)
+  if (dismissedAt) {
+    const elapsed = Date.now() - parseInt(dismissedAt, 10)
+    if (elapsed < COOLDOWN_MS) return false
+  }
+
+  return true
+}
+
+// Show after first round completes (user is invested)
+function onRoundComplete() {
+  if (shouldShow()) {
+    visible.value = true
+    // Only need to show once per session
+    window.removeEventListener('ssi-round-complete', onRoundComplete)
+  }
+}
+
 onMounted(() => {
-  if (isStandalone) return
+  if (!shouldShow()) return
 
-  const dismissed = localStorage.getItem('ssi-install-dismissed')
-  if (!dismissed) return
+  // Listen for first round completion
+  window.addEventListener('ssi-round-complete', onRoundComplete)
+})
 
-  const dismissedAt = parseInt(dismissed, 10)
-  const sevenDays = 7 * 24 * 60 * 60 * 1000
-  if (Date.now() - dismissedAt > sevenDays) return
-
-  visible.value = true
+onUnmounted(() => {
+  window.removeEventListener('ssi-round-complete', onRoundComplete)
 })
 
 function handleInstall() {
@@ -38,7 +68,9 @@ function handleInstall() {
 
 function dismiss() {
   visible.value = false
-  localStorage.setItem('ssi-install-dismissed', Date.now().toString())
+  localStorage.setItem(DISMISS_KEY, Date.now().toString())
+  const count = parseInt(localStorage.getItem(DISMISS_COUNT_KEY) || '0', 10) + 1
+  localStorage.setItem(DISMISS_COUNT_KEY, count.toString())
 }
 </script>
 
@@ -46,7 +78,13 @@ function dismiss() {
   <Transition name="slide-up">
     <div v-if="visible" class="install-banner">
       <div class="install-banner-content">
-        <span class="install-banner-text">Install for a better experience</span>
+        <div class="install-banner-left">
+          <img src="/icons/icon-192.png" alt="" width="36" height="36" class="install-banner-icon" />
+          <div class="install-banner-text">
+            <span class="install-banner-title">Add to Home Screen</span>
+            <span class="install-banner-subtitle">Faster, offline, full-screen</span>
+          </div>
+        </div>
         <div class="install-banner-actions">
           <button class="install-banner-cta" @click="handleInstall">Install</button>
           <button class="install-banner-dismiss" @click="dismiss" aria-label="Dismiss">
@@ -73,21 +111,47 @@ function dismiss() {
   background: var(--color-surface, #1a1a2e);
   border: 1px solid var(--color-border, #2a2a4a);
   border-radius: 12px;
-  padding: 10px 12px 10px 16px;
+  padding: 10px 12px 10px 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
   pointer-events: auto;
-  max-width: 400px;
+  max-width: 420px;
   margin: 0 auto;
 }
 
+.install-banner-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.install-banner-icon {
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
 .install-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.install-banner-title {
   font-size: 14px;
   color: var(--text-primary, #e8e3dd);
-  font-weight: 500;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.install-banner-subtitle {
+  font-size: 12px;
+  color: var(--text-secondary, #888);
+  white-space: nowrap;
 }
 
 .install-banner-actions {
