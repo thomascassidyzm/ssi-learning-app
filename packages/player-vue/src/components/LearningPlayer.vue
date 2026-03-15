@@ -2323,16 +2323,13 @@ const _componentsByLegoId = new Map<string, Array<{known: string, target: string
 const _componentsByCycleIdNative = new Map<string, Array<{known: string, target: string}>>()
 const _componentsByLegoIdNative = new Map<string, Array<{known: string, target: string}>>()
 
-// Courses recorded at natural (1.0x) speed — eligible for belt-based speed ramp
-const NATURAL_SPEED_COURSES: Record<string, TargetSpeedConfig> = {
-  pol_for_eng: { beltRamp: true },
-  tur_for_eng: { beltRamp: true },
-  hrv_for_eng: { beltRamp: true },
-}
-
 // Wrapper: call toSimpleRounds AND extract components into the plain Map
 function toSimpleRoundsWithComponents(items: any[]) {
-  const targetSpeed = NATURAL_SPEED_COURSES[courseCode.value] ?? {}
+  // Read target speed config from course voice_config (set per-course in DB)
+  const dbSpeed = props.course?.voice_config?.target_speed
+  const targetSpeed: TargetSpeedConfig = dbSpeed
+    ? { beltRamp: dbSpeed.belt_ramp ?? false, globalSpeed: dbSpeed.global_speed ?? 1.0 }
+    : {}
   const rounds = toSimpleRounds(items, undefined, targetSpeed)
   let count = 0
   for (const round of rounds) {
