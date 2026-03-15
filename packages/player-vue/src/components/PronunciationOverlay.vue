@@ -445,12 +445,24 @@ const startCycle = async (index) => {
     return
   }
 
-  // PHASE 1: Play native audio + start recording immediately
-  // Recording begins during playback — silence trimming handles the overlap.
-  // This eliminates the dead pause between "listen" and "speak".
+  // PHASE 1: Play native audio (mic stream stays open but not recording)
+  // Recording starts immediately AFTER playback to avoid iOS audio ducking
+  // (iOS reduces playback volume when an active recording is capturing).
   phase.value = 'playing'
   if (myCycleId !== cycleId) return
 
+  let audioBuffer
+  try {
+    audioBuffer = await playAndDecode(audioUrl)
+  } catch (err) {
+    console.error('[PronunciationOverlay] Playback failed:', err)
+    advanceToNext(myCycleId)
+    return
+  }
+
+  if (myCycleId !== cycleId) return
+
+  // PHASE 2: Learner's turn — start recording instantly (stream already open)
   let recordingPromise
   try {
     recordingPromise = recorder.start(mediaStream)
@@ -459,20 +471,6 @@ const startCycle = async (index) => {
     advanceToNext(myCycleId)
     return
   }
-
-  let audioBuffer
-  try {
-    audioBuffer = await playAndDecode(audioUrl)
-  } catch (err) {
-    console.error('[PronunciationOverlay] Playback failed:', err)
-    recorder.stop()
-    advanceToNext(myCycleId)
-    return
-  }
-
-  if (myCycleId !== cycleId) { recorder.stop(); return }
-
-  // PHASE 2: Learner's turn — recording is already running
   phase.value = 'recording'
 
   // Auto-stop: monitor energy via AnalyserNode, stop after 1s of silence
