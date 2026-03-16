@@ -146,7 +146,6 @@ const filteredOtherLanguages = computed(() => {
 const availableCourses = computed(() => {
   return allCourses.value
     .filter(c => c.known_lang === selectedKnownLang.value)
-    .filter(c => !isPremiumCourse(c) || hasFullAccess(c))
     .sort((a, b) => {
       const nameA = getLanguageName(a.target_lang)
       const nameB = getLanguageName(b.target_lang)

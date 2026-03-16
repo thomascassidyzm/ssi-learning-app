@@ -267,10 +267,6 @@ export function useAuth(): AuthState & AuthActions {
     supabase.value = supabaseClient
     isLoading.value = true
 
-    // Restore cached role immediately so access checks work before async DB call completes
-    const { restoreFromCache } = useUserRole()
-    restoreFromCache()
-
     // God mode bypass: skip auth entirely when god mode user is set
     const godModeUser = localStorage.getItem('ssi-god-mode-user')
     if (godModeUser) {
