@@ -193,6 +193,10 @@ const isAdmin = computed(() => {
 const { open: openAuth } = useAuthModal()
 const router = useRouter()
 
+// Install app link — only show when running in browser (not installed PWA)
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
+  (navigator as any).standalone === true
+
 // School role check
 const SCHOOL_ROLES = ['teacher', 'school_admin', 'govt_admin']
 const educationalRole = ref<string | null>(null)
@@ -1397,6 +1401,21 @@ const confirmReset = async () => {
               <span class="setting-desc">Clear all local data, service workers, and reload</span>
             </div>
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </div>
+        </div>
+      </section>
+
+      <!-- Install App (only in browser, not when already installed as PWA) -->
+      <section v-if="!isStandalone" class="section">
+        <div class="card">
+          <div class="setting-row clickable" @click="router.push('/install')">
+            <div class="setting-info">
+              <span class="setting-label">Install App</span>
+              <span class="setting-hint">Add to your home screen for faster, offline access</span>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chevron">
               <path d="M9 18l6-6-6-6"/>
             </svg>
           </div>
