@@ -261,13 +261,13 @@ onMounted(() => {
           <!-- Loading state -->
           <div v-if="isLoading" class="loading-state">
             <div class="loading-spinner"></div>
-            <span>Loading courses...</span>
+            <span>{{ t('courseSelector.loadingCourses') }}</span>
           </div>
 
           <!-- Error state -->
           <div v-else-if="error" class="error-state">
             <span>{{ error }}</span>
-            <button @click="fetchCourses">Retry</button>
+            <button @click="fetchCourses">{{ t('courseSelector.retry') }}</button>
           </div>
 
           <!-- Content -->
@@ -295,7 +295,7 @@ onMounted(() => {
                 v-model="langSearchQuery"
                 type="text"
                 class="lang-search-input"
-                placeholder="Search other languages..."
+                :placeholder="t('courseSelector.searchPlaceholder')"
                 @focus="langSearchFocused = true"
                 @blur="setTimeout(() => langSearchFocused = false, 200)"
               />
@@ -349,7 +349,7 @@ onMounted(() => {
                     {{ getProgress(course.course_code) }}%
                   </template>
                   <template v-else-if="isPremiumCourse(course) && !hasFullAccess(course)">
-                    Free preview
+                    {{ t('courseSelector.freePreview') }}
                   </template>
                   <template v-else>
                     {{ t('courseSelector.ready') }}

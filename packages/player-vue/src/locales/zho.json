@@ -11,7 +11,8 @@
     "new": "新",
     "loadingCourses": "正在加载课程...",
     "retry": "重试",
-    "freePreview": "免费预览"
+    "freePreview": "免费预览",
+    "searchPlaceholder": "搜索其他语言..."
   },
   "player": {
     "listen": "听",

@@ -11,7 +11,8 @@
     "new": "NOUVEAU",
     "loadingCourses": "Chargement des cours...",
     "retry": "Réessayer",
-    "freePreview": "Aperçu gratuit"
+    "freePreview": "Aperçu gratuit",
+    "searchPlaceholder": "Chercher d'autres langues..."
   },
   "player": {
     "listen": "Écouter",

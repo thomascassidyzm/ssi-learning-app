@@ -11,7 +11,8 @@
     "new": "新着",
     "loadingCourses": "コースを読み込み中...",
     "retry": "再試行",
-    "freePreview": "無料プレビュー"
+    "freePreview": "無料プレビュー",
+    "searchPlaceholder": "他の言語を検索..."
   },
   "player": {
     "listen": "聞く",

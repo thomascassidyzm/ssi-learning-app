@@ -13,6 +13,14 @@ import { ref, computed, type Ref } from 'vue'
 import eng from '../locales/eng.json'
 import spa from '../locales/spa.json'
 import cym from '../locales/cym.json'
+import ara from '../locales/ara.json'
+import deu from '../locales/deu.json'
+import fra from '../locales/fra.json'
+import ita from '../locales/ita.json'
+import jpn from '../locales/jpn.json'
+import kor from '../locales/kor.json'
+import por from '../locales/por.json'
+import zho from '../locales/zho.json'
 
 // Map ISO 639-3 codes to locale files
 // Multiple codes can map to same locale (e.g., cym_n and cym_s both use cym)
@@ -23,6 +31,15 @@ const LOCALE_MAP: Record<string, Record<string, any>> = {
   cym: cym,
   cym_n: cym,
   cym_s: cym,
+  ara: ara,
+  deu: deu,
+  fra: fra,
+  ita: ita,
+  jpn: jpn,
+  kor: kor,
+  por: por,
+  zho: zho,
+  cmn: zho,
 }
 
 // localStorage key for persisting locale preference

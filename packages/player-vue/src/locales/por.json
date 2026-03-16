@@ -11,7 +11,8 @@
     "new": "NOVO",
     "loadingCourses": "Carregando cursos...",
     "retry": "Tentar novamente",
-    "freePreview": "Amostra grátis"
+    "freePreview": "Amostra grátis",
+    "searchPlaceholder": "Pesquisar outros idiomas..."
   },
   "player": {
     "listen": "Ouça",

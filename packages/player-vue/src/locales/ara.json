@@ -11,7 +11,8 @@
     "new": "جديد",
     "loadingCourses": "جارٍ تحميل الدورات...",
     "retry": "إعادة المحاولة",
-    "freePreview": "معاينة مجانية"
+    "freePreview": "معاينة مجانية",
+    "searchPlaceholder": "...ابحث عن لغات أخرى"
   },
   "player": {
     "listen": "استمع",

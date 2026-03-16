@@ -9,7 +9,8 @@
     "ready": "Yn barod",
     "comingSoon": "Yn dod yn fuan",
     "new": "NEWYDD",
-    "forSpeakers": "i siaradwyr {lang}"
+    "forSpeakers": "i siaradwyr {lang}",
+    "searchPlaceholder": "Chwilio am ieithoedd eraill..."
   },
   "player": {
     "listen": "Gwrando",
