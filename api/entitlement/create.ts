@@ -142,7 +142,7 @@ export default async function handler(
 
     if (insertError || !created) {
       console.error('[EntitlementCreate] Failed to insert:', insertError)
-      res.status(500).json({ error: 'Internal server error' })
+      res.status(500).json({ error: insertError?.message || 'Insert failed' })
       return
     }
 
@@ -151,8 +151,8 @@ export default async function handler(
       code: created.code,
       id: created.id,
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('[EntitlementCreate] Error:', error)
-    res.status(500).json({ error: 'Internal server error' })
+    res.status(500).json({ error: error?.message || 'Internal server error' })
   }
 }
