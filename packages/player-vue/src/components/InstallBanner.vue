@@ -56,6 +56,7 @@ onUnmounted(() => {
 
 function handleInstall() {
   if (isIOS || !installPrompt?.value) {
+    visible.value = false
     router.push('/install')
     return
   }
