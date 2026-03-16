@@ -18,6 +18,8 @@ interface EntitlementCode {
   is_active: boolean
   created_at: string
   created_by: string
+  grants_platform_role: string | null
+  grants_dashboard_courses: string[] | null
 }
 
 interface CourseOption {
@@ -88,6 +90,30 @@ const formLabel = ref('')
 const formMaxUses = ref<number | ''>('')
 const formExpiresAt = ref('')
 
+// Dashboard access fields
+const formGrantsPlatformRole = ref<'' | 'ssi_admin' | 'popty_user'>('')
+const formGrantsDashboardCourses = ref<Set<string>>(new Set())
+const dashboardCourseSearch = ref('')
+const dashboardCoursePickerOpen = ref(false)
+
+const filteredDashboardCourses = computed(() => {
+  const q = dashboardCourseSearch.value.toLowerCase().trim()
+  if (!q) return allCourses.value
+  return allCourses.value.filter(c =>
+    c.course_code.toLowerCase().includes(q) ||
+    (c.display_name || '').toLowerCase().includes(q) ||
+    c.known_lang.toLowerCase().includes(q) ||
+    c.target_lang.toLowerCase().includes(q)
+  )
+})
+
+function toggleDashboardCourse(code: string) {
+  const s = new Set(formGrantsDashboardCourses.value)
+  if (s.has(code)) s.delete(code)
+  else s.add(code)
+  formGrantsDashboardCourses.value = s
+}
+
 async function fetchCodes(): Promise<void> {
   isLoading.value = true
   error.value = null
@@ -152,6 +178,8 @@ async function createCode(): Promise<void> {
     }
     if (formMaxUses.value !== '') body.max_uses = Number(formMaxUses.value)
     if (formExpiresAt.value) body.expires_at = new Date(formExpiresAt.value).toISOString()
+    if (formGrantsPlatformRole.value) body.grants_platform_role = formGrantsPlatformRole.value
+    if (formGrantsDashboardCourses.value.size > 0) body.grants_dashboard_courses = [...formGrantsDashboardCourses.value]
 
     const response = await fetch('/api/entitlement/create', {
       method: 'POST',
@@ -180,6 +208,10 @@ async function createCode(): Promise<void> {
     formExpiresAt.value = ''
     formAccessType.value = 'full'
     formDurationType.value = 'lifetime'
+    formGrantsPlatformRole.value = ''
+    formGrantsDashboardCourses.value = new Set()
+    dashboardCourseSearch.value = ''
+    dashboardCoursePickerOpen.value = false
 
     // Refresh list
     await fetchCodes()
@@ -219,6 +251,19 @@ function formatAccess(code: EntitlementCode): string {
     }).join(', ')
   }
   return 'Courses'
+}
+
+function formatDashboardAccess(code: EntitlementCode): string {
+  if (!code.grants_platform_role) return '-'
+  const role = code.grants_platform_role === 'ssi_admin' ? 'SSi Admin' : 'Popty User'
+  if (code.grants_dashboard_courses?.length) {
+    const courses = code.grants_dashboard_courses.map(gc => {
+      const c = allCourses.value.find(ac => ac.course_code === gc)
+      return c?.display_name || gc
+    }).join(', ')
+    return `${role} (${courses})`
+  }
+  return `${role} (all courses)`
 }
 
 function formatDuration(code: EntitlementCode): string {
@@ -366,6 +411,73 @@ onMounted(() => {
             <label>Code Expires (optional)</label>
             <input v-model="formExpiresAt" type="date" />
           </div>
+
+          <!-- Dashboard Access Section -->
+          <div class="form-divider">
+            <span>Dashboard Access (Popty)</span>
+          </div>
+
+          <div class="form-group">
+            <label>Dashboard Role</label>
+            <select v-model="formGrantsPlatformRole">
+              <option value="">No dashboard access</option>
+              <option value="popty_user">Popty User (per-course access)</option>
+              <option value="ssi_admin">SSi Admin (full access)</option>
+            </select>
+          </div>
+
+          <div class="form-group course-picker-group" v-if="formGrantsPlatformRole === 'popty_user'">
+            <label>Dashboard Courses</label>
+            <div class="course-picker">
+              <div class="selected-tags" v-if="formGrantsDashboardCourses.size > 0">
+                <span
+                  v-for="code in formGrantsDashboardCourses"
+                  :key="code"
+                  class="course-tag"
+                  @click="toggleDashboardCourse(code)"
+                >
+                  {{ code }}
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </span>
+              </div>
+              <input
+                v-model="dashboardCourseSearch"
+                type="text"
+                placeholder="Search courses for dashboard access..."
+                @focus="dashboardCoursePickerOpen = true"
+              />
+              <div class="course-dropdown" v-if="dashboardCoursePickerOpen">
+                <div class="course-dropdown-list">
+                  <div
+                    v-for="c in filteredDashboardCourses"
+                    :key="c.course_code"
+                    class="course-option"
+                    :class="{ selected: formGrantsDashboardCourses.has(c.course_code) }"
+                    @click="toggleDashboardCourse(c.course_code)"
+                  >
+                    <div class="course-option-check">
+                      <svg v-if="formGrantsDashboardCourses.has(c.course_code)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    </div>
+                    <div class="course-option-info">
+                      <span class="course-option-name">{{ courseLabel(c) }}</span>
+                      <span class="course-option-code">{{ c.course_code }}</span>
+                    </div>
+                  </div>
+                  <div v-if="filteredDashboardCourses.length === 0" class="course-option-empty">
+                    No courses match "{{ dashboardCourseSearch }}"
+                  </div>
+                </div>
+                <button
+                  class="picker-done-btn"
+                  @click="dashboardCoursePickerOpen = false; dashboardCourseSearch = ''"
+                >Done</button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <template #footer>
@@ -402,6 +514,7 @@ onMounted(() => {
                 <th>Code</th>
                 <th>Label</th>
                 <th>Access</th>
+                <th>Dashboard</th>
                 <th>Duration</th>
                 <th>Uses</th>
                 <th>Expires</th>
@@ -418,6 +531,12 @@ onMounted(() => {
                   <span class="access-badge" :class="code.access_type === 'full' ? 'badge-full' : 'badge-courses'">
                     {{ formatAccess(code) }}
                   </span>
+                </td>
+                <td>
+                  <span v-if="code.grants_platform_role" class="access-badge badge-dashboard">
+                    {{ formatDashboardAccess(code) }}
+                  </span>
+                  <span v-else class="text-muted">-</span>
                 </td>
                 <td>{{ formatDuration(code) }}</td>
                 <td>{{ formatUses(code) }}</td>
@@ -818,6 +937,41 @@ tbody tr:hover {
 .badge-courses {
   background: color-mix(in srgb, var(--info) 12%, transparent);
   color: var(--info);
+}
+
+.badge-dashboard {
+  background: color-mix(in srgb, var(--ssi-gold) 12%, transparent);
+  color: var(--ssi-gold);
+}
+
+.text-muted {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+/* Form Divider */
+.form-divider {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-2) 0;
+}
+
+.form-divider span {
+  font-size: var(--text-xs);
+  color: var(--ssi-gold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: var(--font-semibold);
+  white-space: nowrap;
+}
+
+.form-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: color-mix(in srgb, var(--ssi-gold) 25%, transparent);
 }
 
 /* Action Buttons */

@@ -34,14 +34,14 @@ export default async function handler(
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-  // Verify caller is ssi_admin
+  // Verify caller is ssi_admin or god
   const { data: learner } = await supabase
     .from('learners')
-    .select('platform_role')
+    .select('platform_role, educational_role')
     .eq('user_id', userId)
     .single()
 
-  if (!learner || learner.platform_role !== 'ssi_admin') {
+  if (!learner || (learner.platform_role !== 'ssi_admin' && learner.educational_role !== 'god')) {
     res.status(403).json({ error: 'Only SSi admins can create entitlement codes' })
     return
   }
@@ -54,6 +54,8 @@ export default async function handler(
     label,
     max_uses,
     expires_at,
+    grants_platform_role,
+    grants_dashboard_courses,
   } = req.body || {}
 
   // Validate required fields
@@ -125,6 +127,12 @@ export default async function handler(
     if (duration_type === 'time_limited') insertData.duration_days = duration_days
     if (max_uses !== undefined && max_uses !== null) insertData.max_uses = max_uses
     if (expires_at !== undefined) insertData.expires_at = expires_at
+    if (grants_platform_role && ['ssi_admin', 'popty_user'].includes(grants_platform_role)) {
+      insertData.grants_platform_role = grants_platform_role
+    }
+    if (grants_dashboard_courses && Array.isArray(grants_dashboard_courses) && grants_dashboard_courses.length > 0) {
+      insertData.grants_dashboard_courses = grants_dashboard_courses
+    }
 
     const { data: created, error: insertError } = await supabase
       .from('entitlement_codes')

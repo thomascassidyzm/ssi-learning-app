@@ -38,14 +38,14 @@ export default async function handler(
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-  // Verify caller is ssi_admin
+  // Verify caller is ssi_admin or god
   const { data: learner } = await supabase
     .from('learners')
-    .select('platform_role')
+    .select('platform_role, educational_role')
     .eq('user_id', userId)
     .single()
 
-  if (!learner || learner.platform_role !== 'ssi_admin') {
+  if (!learner || (learner.platform_role !== 'ssi_admin' && learner.educational_role !== 'god')) {
     res.status(403).json({ error: 'Only SSi admins can list entitlement codes' })
     return
   }
