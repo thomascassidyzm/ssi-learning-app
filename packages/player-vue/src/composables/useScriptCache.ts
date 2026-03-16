@@ -16,6 +16,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 // This is the ONLY way to invalidate the cache - no TTL expiry
 const SCRIPT_KEY_PREFIX = 'ssi-script-v7-' // v7: fallback to course_audio for presentation audio (Portuguese fix)
 const AUDIO_CACHE_NAME = 'ssi-audio-v1'
+const CONTENT_VERSION_PREFIX = 'ssi-content-version-'
 
 // Types
 export interface ScriptItem {
@@ -59,6 +60,7 @@ export interface CachedScript {
   courseWelcome?: CourseWelcome
   loadedLegos?: number // For CourseExplorer pagination
   scriptOffset?: number // Track the starting offset (completedRounds at generation time)
+  contentVersion?: string // courses.content_version — used to detect audio regeneration
 }
 
 // ============================================================================
@@ -141,6 +143,67 @@ export const resetCacheState = async (): Promise<void> => {
     console.log('[ScriptCache] All caches cleared')
   } catch (err) {
     console.warn('[ScriptCache] Reset failed:', err)
+  }
+}
+
+// ============================================================================
+// CONTENT VERSION CHECK (detects audio regeneration)
+// ============================================================================
+
+/**
+ * Check if course content_version has changed since last load.
+ * If it has, clear the script cache and Service Worker audio cache so
+ * stale audio (e.g. old TTS voice) doesn't persist.
+ *
+ * Call this early — before getCachedScript or audio playback.
+ * Returns true if the cache was invalidated.
+ */
+export const checkContentVersion = async (
+  supabase: SupabaseClient,
+  courseCode: string
+): Promise<boolean> => {
+  try {
+    const versionKey = `${CONTENT_VERSION_PREFIX}${courseCode}`
+    const storedVersion = localStorage.getItem(versionKey)
+
+    const { data: course, error } = await supabase
+      .from('courses')
+      .select('content_version')
+      .eq('course_code', courseCode)
+      .single()
+
+    if (error || !course?.content_version) return false
+
+    const currentVersion = course.content_version
+
+    if (storedVersion && storedVersion !== currentVersion) {
+      console.log(`[ScriptCache] Content version changed: ${storedVersion} → ${currentVersion} — clearing caches`)
+
+      // Clear script cache for this course
+      const scriptKey = `${SCRIPT_KEY_PREFIX}${courseCode}`
+      localStorage.removeItem(scriptKey)
+
+      // Clear Service Worker audio cache (CacheFirst entries with old UUIDs)
+      try {
+        await caches.delete(AUDIO_CACHE_NAME)
+        console.log('[ScriptCache] Audio cache cleared')
+      } catch {
+        // Cache API may not be available
+      }
+
+      localStorage.setItem(versionKey, currentVersion)
+      return true
+    }
+
+    // First visit or version unchanged — store current version
+    if (!storedVersion) {
+      localStorage.setItem(versionKey, currentVersion)
+    }
+
+    return false
+  } catch (err) {
+    // Offline or Supabase unavailable — use cached data, don't invalidate
+    return false
   }
 }
 
@@ -476,6 +539,7 @@ export function useScriptCache() {
     currentCourseCode,
     getCachedScript,
     setCachedScript,
+    checkContentVersion,
     loadIntroAudio,
     lookupAudioLazy,
     getAudioUrl,

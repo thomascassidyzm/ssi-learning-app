@@ -8,6 +8,7 @@
 import { ref, type Ref } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { generateLearningScript, type LearningScriptResult } from '../providers/generateLearningScript'
+import { checkContentVersion } from './useScriptCache'
 
 export interface EagerScriptPreload {
   /** Resolves with the full script result (seeds 1-668) */
@@ -35,7 +36,10 @@ export function useEagerScriptPreload(): EagerScriptPreload {
     const startTime = Date.now()
     console.log(`[eagerScriptPreload] Loading full script for ${code} (seeds 1-668)...`)
 
-    const promise = generateLearningScript(supabase, code, 1, 668, 1)
+    // Check content version before loading — clears stale audio cache if course was regenerated
+    const promise = checkContentVersion(supabase, code)
+      .catch(() => {}) // non-blocking: offline is fine
+      .then(() => generateLearningScript(supabase, code, 1, 668, 1))
       .then(result => {
         console.log(`[eagerScriptPreload] Done: ${result.items.length} items, ${result.roundCount} rounds in ${Date.now() - startTime}ms`)
         scriptResult.value = result
