@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useAuth } from '@/composables/useAuth'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useGodMode } from '@/composables/schools/useGodMode'
+import Card from '@/components/schools/shared/Card.vue'
 
 interface Region {
   code: string
@@ -79,7 +80,7 @@ async function fetchRegionsAndCodes(): Promise<void> {
       .single()
 
     if (learnerData) {
-      isSsiAdmin.value = learnerData.platform_role === 'ssi_admin'
+      isSsiAdmin.value = learnerData.platform_role === 'ssi_admin' || learnerData.educational_role === 'god'
       isGovtAdmin.value = learnerData.educational_role === 'govt_admin'
     } else if (selectedUser.value) {
       isSsiAdmin.value = selectedUser.value.platform_role === 'ssi_admin'
@@ -196,7 +197,6 @@ async function copyCode(code: string): Promise<void> {
       if (copiedCode.value === code) copiedCode.value = null
     }, 2000)
   } catch {
-    // Fallback for older browsers
     const el = document.createElement('textarea')
     el.value = code
     document.body.appendChild(el)
@@ -211,7 +211,7 @@ async function copyCode(code: string): Promise<void> {
 }
 
 function formatDate(dateStr: string | null): string {
-  if (!dateStr) return '—'
+  if (!dateStr) return '-'
   return new Date(dateStr).toLocaleDateString('en-GB', {
     day: 'numeric',
     month: 'short',
@@ -226,279 +226,348 @@ function formatCodeType(type: string): string {
   return type
 }
 
+function formatUses(code: InviteCode): string {
+  if (code.max_uses === null) return `${code.use_count} / unlimited`
+  return `${code.use_count} / ${code.max_uses}`
+}
+
 onMounted(() => {
   fetchRegionsAndCodes()
 })
 </script>
 
 <template>
-  <div class="admin-panel">
-    <h2 class="panel-title">Invite Codes</h2>
+  <div class="admin-invite-codes">
+    <!-- Page Header -->
+    <header class="page-header animate-in">
+      <h1 class="page-title">Invite Codes</h1>
+      <p class="page-subtitle">Create role-based invite codes for organizations and schools</p>
+    </header>
 
-    <!-- Error / Success -->
-    <div v-if="error" class="alert alert-error">{{ error }}</div>
-    <div v-if="successMessage" class="alert alert-success">{{ successMessage }}</div>
+    <!-- Success Message -->
+    <div v-if="successMessage" class="message-banner success-banner animate-in">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+        <polyline points="22 4 12 14.01 9 11.01"/>
+      </svg>
+      <span>{{ successMessage }}</span>
+    </div>
 
-    <!-- Create Code Form -->
-    <section class="card">
-      <h3 class="card-title">Create New Code</h3>
+    <!-- Error Message -->
+    <div v-if="error" class="message-banner error-banner animate-in">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="15" y1="9" x2="9" y2="15"/>
+        <line x1="9" y1="9" x2="15" y2="15"/>
+      </svg>
+      <span>{{ error }}</span>
+    </div>
 
-      <div class="form-grid">
-        <!-- Code Type -->
-        <div class="form-group">
-          <label class="form-label">Code Type</label>
-          <select v-model="codeType" class="form-control">
-            <option v-if="isSsiAdmin" value="ssi_admin">SSi Admin</option>
-            <option v-if="isSsiAdmin" value="govt_admin">Govt Admin</option>
-            <option value="school_admin">School Admin</option>
-          </select>
+    <!-- Create Form -->
+    <section class="create-section animate-in delay-1">
+      <Card title="Create New Code" accent="red">
+        <template #icon>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+        </template>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Code Type</label>
+            <select v-model="codeType">
+              <option v-if="isSsiAdmin" value="ssi_admin">SSi Admin</option>
+              <option v-if="isSsiAdmin" value="govt_admin">Govt Admin</option>
+              <option value="school_admin">School Admin</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Region</label>
+            <select v-model="selectedRegion">
+              <option value="">- No region -</option>
+              <option v-for="r in regions" :key="r.code" :value="r.code">
+                {{ r.name }} ({{ r.code }})
+              </option>
+            </select>
+          </div>
+
+          <div class="form-group form-group--wide">
+            <label>Organization Name <span class="required">*</span></label>
+            <input
+              v-model="organizationName"
+              type="text"
+              placeholder="e.g. Welsh Government, Ysgol Gymraeg Bro Morgannwg"
+            />
+          </div>
+
+          <div class="form-group">
+            <label>Expires (optional)</label>
+            <input v-model="expiresAt" type="date" />
+          </div>
+
+          <div class="form-group">
+            <label>Max Uses (blank = unlimited)</label>
+            <input v-model="maxUses" type="number" min="1" placeholder="Unlimited" />
+          </div>
         </div>
 
-        <!-- Region -->
-        <div class="form-group">
-          <label class="form-label">Region</label>
-          <select v-model="selectedRegion" class="form-control">
-            <option value="">— No region —</option>
-            <option v-for="r in regions" :key="r.code" :value="r.code">
-              {{ r.name }} ({{ r.code }})
-            </option>
-          </select>
-        </div>
-
-        <!-- Organization Name -->
-        <div class="form-group form-group--wide">
-          <label class="form-label">Organization Name <span class="required">*</span></label>
-          <input
-            v-model="organizationName"
-            type="text"
-            class="form-control"
-            placeholder="e.g. Welsh Government, Ysgol Gymraeg Bro Morgannwg"
-          />
-        </div>
-
-        <!-- Expires At -->
-        <div class="form-group">
-          <label class="form-label">Expires At <span class="optional">(optional)</span></label>
-          <input v-model="expiresAt" type="date" class="form-control" />
-        </div>
-
-        <!-- Max Uses -->
-        <div class="form-group">
-          <label class="form-label">Max Uses <span class="optional">(optional)</span></label>
-          <input
-            v-model="maxUses"
-            type="number"
-            class="form-control"
-            min="1"
-            placeholder="Unlimited"
-          />
-        </div>
-      </div>
-
-      <button
-        class="btn btn-primary"
-        :disabled="isCreating || !organizationName.trim()"
-        @click="createCode"
-      >
-        {{ isCreating ? 'Creating...' : 'Create Code' }}
-      </button>
+        <template #footer>
+          <div class="form-actions">
+            <button class="btn-create" :disabled="isCreating || !organizationName.trim()" @click="createCode">
+              <svg v-if="!isCreating" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              <span v-if="isCreating" class="spinner"></span>
+              {{ isCreating ? 'Creating...' : 'Create Code' }}
+            </button>
+          </div>
+        </template>
+      </Card>
     </section>
 
     <!-- Codes Table -->
-    <section class="card">
-      <h3 class="card-title">Your Codes</h3>
+    <section class="codes-section animate-in delay-2">
+      <Card title="Your Codes" accent="gradient" :loading="isLoadingCodes">
+        <template #icon>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+        </template>
 
-      <div v-if="isLoadingCodes" class="loading">Loading codes...</div>
+        <div v-if="codes.length > 0" class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Type</th>
+                <th>Organization</th>
+                <th>Region</th>
+                <th>Uses</th>
+                <th>Expires</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="code in codes" :key="code.id" :class="{ inactive: !code.is_active }">
+                <td class="code-cell">
+                  <code>{{ code.code }}</code>
+                  <button
+                    class="action-btn"
+                    @click="copyCode(code.code)"
+                    :title="copiedCode === code.code ? 'Copied!' : 'Copy code'"
+                  >
+                    <svg v-if="copiedCode !== code.code" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                    </svg>
+                    <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    {{ copiedCode === code.code ? 'Copied' : 'Copy' }}
+                  </button>
+                </td>
+                <td>
+                  <span class="type-badge" :class="`type-${code.code_type}`">
+                    {{ formatCodeType(code.code_type) }}
+                  </span>
+                </td>
+                <td>{{ code.organization_name || '-' }}</td>
+                <td>{{ code.region_code || '-' }}</td>
+                <td>{{ formatUses(code) }}</td>
+                <td>{{ formatDate(code.expires_at) }}</td>
+                <td>
+                  <button
+                    class="status-toggle"
+                    :class="code.is_active ? 'status-active' : 'status-inactive'"
+                    @click="toggleCodeActive(code)"
+                  >
+                    {{ code.is_active ? 'Active' : 'Inactive' }}
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
-      <div v-else-if="codes.length === 0" class="empty-state">
-        No invite codes yet. Create one above.
-      </div>
-
-      <div v-else class="table-wrapper">
-        <table class="codes-table">
-          <thead>
-            <tr>
-              <th>Code</th>
-              <th>Type</th>
-              <th>Organization</th>
-              <th>Region</th>
-              <th>Created</th>
-              <th>Expires</th>
-              <th>Uses</th>
-              <th>Active</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="code in codes" :key="code.id" :class="{ 'row--inactive': !code.is_active }">
-              <td class="code-cell">
-                <span class="code-text">{{ code.code }}</span>
-                <button
-                  class="copy-btn"
-                  :class="{ 'copy-btn--copied': copiedCode === code.code }"
-                  @click="copyCode(code.code)"
-                >
-                  {{ copiedCode === code.code ? 'Copied!' : 'Copy' }}
-                </button>
-              </td>
-              <td>
-                <span class="badge" :class="`badge--${code.code_type}`">
-                  {{ formatCodeType(code.code_type) }}
-                </span>
-              </td>
-              <td>{{ code.organization_name || '—' }}</td>
-              <td>{{ code.region_code || '—' }}</td>
-              <td>{{ formatDate(code.created_at) }}</td>
-              <td>{{ formatDate(code.expires_at) }}</td>
-              <td>
-                {{ code.use_count }}{{ code.max_uses !== null ? ` / ${code.max_uses}` : '' }}
-              </td>
-              <td>
-                <button
-                  class="toggle-btn"
-                  :class="code.is_active ? 'toggle-btn--active' : 'toggle-btn--inactive'"
-                  @click="toggleCodeActive(code)"
-                >
-                  {{ code.is_active ? 'Active' : 'Inactive' }}
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+        <div v-else-if="!isLoadingCodes" class="empty-state">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+          <p>No invite codes yet</p>
+          <span>Create one above to get started</span>
+        </div>
+      </Card>
     </section>
   </div>
 </template>
 
 <style scoped>
-.admin-panel {
+.admin-invite-codes {
+  padding: 0;
+  max-width: 1200px;
+}
+
+/* Page Header */
+.page-header {
+  margin-bottom: var(--space-8);
+}
+
+.page-title {
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  font-weight: var(--font-bold);
+  color: var(--text-primary);
+  margin: 0 0 var(--space-1);
+}
+
+.page-subtitle {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  margin: 0;
+}
+
+/* Message Banners */
+.message-banner {
   display: flex;
-  flex-direction: column;
-  gap: 24px;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-4);
 }
 
-.panel-title {
-  font-size: 1.5rem;
-  font-weight: 700;
-  margin: 0 0 8px;
-  color: var(--text-primary, #e8e8f0);
+.success-banner {
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--success) 25%, transparent);
+  color: var(--success);
 }
 
-/* Cards */
-.card {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  padding: 24px;
+.error-banner {
+  background: color-mix(in srgb, var(--error) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--error) 25%, transparent);
+  color: var(--error);
 }
 
-.card-title {
-  font-size: 1rem;
-  font-weight: 600;
-  margin: 0 0 20px;
-  color: var(--text-primary, #e8e8f0);
+/* Sections */
+.create-section {
+  margin-bottom: var(--space-8);
 }
 
-/* Alerts */
-.alert {
-  padding: 12px 16px;
-  border-radius: 8px;
-  font-size: 0.875rem;
+.codes-section {
+  margin-bottom: var(--space-8);
 }
 
-.alert-error {
-  background: rgba(220, 60, 60, 0.15);
-  border: 1px solid rgba(220, 60, 60, 0.3);
-  color: #ff8080;
-}
-
-.alert-success {
-  background: rgba(60, 180, 120, 0.15);
-  border: 1px solid rgba(60, 180, 120, 0.3);
-  color: #6de8a8;
-}
-
-/* Form */
+/* Form Grid */
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-bottom: 20px;
+  gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .form-group--wide {
+    grid-column: 1;
+  }
 }
 
 .form-group--wide {
   grid-column: 1 / -1;
 }
 
-.form-label {
-  display: block;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--text-secondary, #a0a0b8);
-  margin-bottom: 6px;
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.form-group label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: var(--font-medium);
 }
 
 .required {
-  color: #ff8080;
+  color: var(--ssi-red);
 }
 
-.optional {
-  color: var(--text-tertiary, #606078);
-  font-weight: 400;
+.form-group input,
+.form-group select {
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-family: var(--font-body);
+  transition: border-color var(--transition-fast);
 }
 
-.form-control {
-  width: 100%;
-  padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
-  color: var(--text-primary, #e8e8f0);
-  font-size: 0.875rem;
+.form-group input::placeholder {
+  color: var(--text-muted);
+}
+
+.form-group input:focus,
+.form-group select:focus {
   outline: none;
-  transition: border-color 0.15s;
-  box-sizing: border-box;
+  border-color: var(--ssi-red);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ssi-red) 15%, transparent);
 }
 
-.form-control:focus {
-  border-color: rgba(255, 255, 255, 0.3);
+/* Form Actions */
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
-.form-control::placeholder {
-  color: var(--text-tertiary, #606078);
-}
-
-select.form-control option {
-  background: #1a1a2e;
-  color: #e8e8f0;
-}
-
-/* Buttons */
-.btn {
-  padding: 10px 20px;
-  border-radius: 8px;
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
+.btn-create {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-6);
+  background: var(--ssi-gold);
+  color: #000;
   border: none;
-  transition: opacity 0.15s, transform 0.1s;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all var(--transition-fast);
 }
 
-.btn:active {
-  transform: scale(0.98);
+.btn-create:hover:not(:disabled) {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
 }
 
-.btn:disabled {
+.btn-create:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.btn-primary {
-  background: var(--ssi-gold, #d4a853);
-  color: #0a0a1a;
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(0, 0, 0, 0.2);
+  border-top-color: #000;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
 }
 
-.btn-primary:hover:not(:disabled) {
-  opacity: 0.9;
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 /* Table */
@@ -506,137 +575,161 @@ select.form-control option {
   overflow-x: auto;
 }
 
-.codes-table {
+table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
 }
 
-.codes-table th {
+thead th {
   text-align: left;
-  padding: 10px 12px;
-  color: var(--text-secondary, #a0a0b8);
-  font-weight: 500;
-  font-size: 0.75rem;
+  padding: var(--space-3) var(--space-4);
+  color: var(--text-muted);
+  font-weight: var(--font-medium);
+  font-size: var(--text-xs);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--border-medium);
 }
 
-.codes-table td {
-  padding: 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  color: var(--text-primary, #e8e8f0);
+tbody td {
+  padding: var(--space-3) var(--space-4);
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
-.codes-table tr.row--inactive td {
+tbody tr {
+  transition: background var(--transition-fast);
+}
+
+tbody tr:hover {
+  background: var(--bg-secondary);
+}
+
+.inactive {
   opacity: 0.5;
 }
 
 .code-cell {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
-.code-text {
-  font-family: 'SF Mono', 'Fira Code', monospace;
-  font-size: 0.8125rem;
-  background: rgba(255, 255, 255, 0.06);
-  padding: 3px 8px;
-  border-radius: 4px;
+.code-cell code {
+  font-family: var(--font-mono);
+  background: var(--bg-input);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  color: var(--ssi-gold);
+  border: 1px solid var(--border-subtle);
 }
 
-.copy-btn {
-  padding: 3px 10px;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  cursor: pointer;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: transparent;
-  color: var(--text-secondary, #a0a0b8);
-  transition: all 0.15s;
-  white-space: nowrap;
+/* Type Badges */
+.type-badge {
+  display: inline-block;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
 }
 
-.copy-btn:hover {
-  border-color: rgba(255, 255, 255, 0.3);
-  color: var(--text-primary, #e8e8f0);
+.type-ssi_admin {
+  background: color-mix(in srgb, var(--ssi-gold) 12%, transparent);
+  color: var(--ssi-gold);
 }
 
-.copy-btn--copied {
-  border-color: rgba(60, 180, 120, 0.4);
-  color: #6de8a8;
+.type-govt_admin {
+  background: color-mix(in srgb, var(--info) 12%, transparent);
+  color: var(--info);
 }
 
-.badge {
-  padding: 3px 8px;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 500;
+.type-school_admin {
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  color: var(--success);
 }
 
-.badge--ssi_admin {
-  background: rgba(212, 168, 83, 0.2);
-  color: #d4a853;
-}
-
-.badge--govt_admin {
-  background: rgba(100, 120, 220, 0.2);
-  color: #8898ee;
-}
-
-.badge--school_admin {
-  background: rgba(80, 180, 140, 0.2);
-  color: #5cd4a8;
-}
-
-.toggle-btn {
-  padding: 4px 10px;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 500;
+/* Status Toggle */
+.status-toggle {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  font-family: var(--font-body);
   cursor: pointer;
   border: 1px solid transparent;
-  transition: all 0.15s;
+  transition: all var(--transition-fast);
 }
 
-.toggle-btn--active {
-  background: rgba(60, 180, 120, 0.15);
-  border-color: rgba(60, 180, 120, 0.3);
-  color: #6de8a8;
+.status-active {
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  border-color: color-mix(in srgb, var(--success) 25%, transparent);
+  color: var(--success);
 }
 
-.toggle-btn--active:hover {
-  background: rgba(60, 180, 120, 0.25);
+.status-active:hover {
+  background: color-mix(in srgb, var(--success) 20%, transparent);
 }
 
-.toggle-btn--inactive {
-  background: rgba(150, 150, 170, 0.1);
-  border-color: rgba(150, 150, 170, 0.2);
-  color: var(--text-secondary, #a0a0b8);
+.status-inactive {
+  background: var(--bg-secondary);
+  border-color: var(--border-subtle);
+  color: var(--text-muted);
 }
 
-.toggle-btn--inactive:hover {
-  background: rgba(60, 180, 120, 0.1);
+.status-inactive:hover {
+  border-color: color-mix(in srgb, var(--success) 30%, transparent);
+  color: var(--text-secondary);
 }
 
-.loading,
+/* Action Buttons */
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: var(--text-xs);
+  font-family: var(--font-body);
+  transition: all var(--transition-fast);
+}
+
+.action-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--ssi-red);
+  background: var(--bg-elevated);
+}
+
+/* Empty State */
 .empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-12) var(--space-6);
   text-align: center;
-  padding: 40px 20px;
-  color: var(--text-secondary, #a0a0b8);
-  font-size: 0.875rem;
 }
 
-@media (max-width: 768px) {
-  .form-grid {
-    grid-template-columns: 1fr;
-  }
+.empty-state svg {
+  color: var(--text-muted);
+  opacity: 0.4;
+  margin-bottom: var(--space-2);
+}
 
-  .form-group--wide {
-    grid-column: 1;
-  }
+.empty-state p {
+  color: var(--text-secondary);
+  font-weight: var(--font-medium);
+  font-size: var(--text-base);
+  margin: 0;
+}
+
+.empty-state span {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
 }
 </style>
