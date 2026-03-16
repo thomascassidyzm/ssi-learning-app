@@ -21,18 +21,20 @@ ON learners USING GIN (verified_emails);
 -- RLS: allow a user to claim a learner record if their auth email is in verified_emails.
 -- This enables the email-linking flow: user signs in with a secondary email,
 -- and ensureLearnerExists() updates the learner's user_id to the new auth UUID.
+-- Use auth.jwt()->>'email' instead of querying auth.users (which is not
+-- accessible to the authenticated role and breaks all RLS on this table).
 CREATE POLICY "Users can claim learner by verified email"
   ON learners FOR UPDATE TO authenticated
   USING (
-    verified_emails @> ARRAY[(SELECT email FROM auth.users WHERE id = auth.uid())]::text[]
+    verified_emails @> ARRAY[auth.jwt()->>'email']::text[]
   )
   WITH CHECK (
-    verified_emails @> ARRAY[(SELECT email FROM auth.users WHERE id = auth.uid())]::text[]
+    verified_emails @> ARRAY[auth.jwt()->>'email']::text[]
   );
 
 -- Also allow SELECT so the email lookup query works even without god mode
 CREATE POLICY "Users can find learner by verified email"
   ON learners FOR SELECT TO authenticated
   USING (
-    verified_emails @> ARRAY[(SELECT email FROM auth.users WHERE id = auth.uid())]::text[]
+    verified_emails @> ARRAY[auth.jwt()->>'email']::text[]
   );
