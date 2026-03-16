@@ -35,6 +35,10 @@ const JOURNEY_MAP: Record<string, string> = {
   cym_n: '/design/journey-cym.webp',
   cym_s: '/design/journey-cym.webp',
   eng: '/design/journey-eng.webp',
+  ron: '/design/journey-ron.webp',
+  eus: '/design/journey-eus.webp',
+  hrv: '/design/journey-hrv.webp',
+  pol: '/design/journey-pol.webp',
 }
 
 // Dawn glow per belt: colour warms and intensifies as learner progresses
