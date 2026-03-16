@@ -15,6 +15,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n, setLocale, getLanguageName, getLanguageEndonym, getLanguageFlag } from '../composables/useI18n'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useSharedSubscription } from '../composables/useSubscription'
+import { useUserRole } from '../composables/useUserRole'
 import { checkCourseAccess, inferPricingTier } from '@ssi/core'
 
 const { t } = useI18n()
@@ -22,6 +23,7 @@ const { t } = useI18n()
 // Entitlement + subscription singletons (initialized by App.vue)
 const { entitlements: userEntitlements } = useSharedUserEntitlements()
 const { isSubscribed: hasActiveSubscription } = useSharedSubscription()
+const { platformRole } = useUserRole()
 
 // Check if user has full access to a course (not just preview)
 const hasFullAccess = (course) => {
@@ -42,7 +44,8 @@ const hasFullAccess = (course) => {
   const result = checkCourseAccess(
     { course_code: course.course_code, pricing_tier: pricingTier, is_community: isCommunity },
     subscription,
-    userEntitlements.value
+    userEntitlements.value,
+    platformRole.value
   )
   return result.canAccess
 }
@@ -57,17 +60,10 @@ const isBetaCourse = (course) => {
   return course.new_app_status === 'beta'
 }
 
-// Extract target language name from display_name or fall back to locale lookup
-// e.g., "Welsh (North) for English Speakers" → "Welsh (North)"
-// Detects raw code display_names like "ARA FOR ENG" and falls back to locale
+// Target language name in the known language (via locale)
+// e.g., for eus_for_spa: "Euskera" (Basque in Spanish)
 const getTargetDisplayName = (course) => {
-  // Special display_names (e.g., "Welsh (North)") take priority — but skip raw codes
-  if (course.display_name) {
-    const match = course.display_name.match(/^(.+?)\s+for\s+/i)
-    if (match && !/^[a-z]{2,3}$/i.test(match[1].trim())) return match[1]
-  }
-  // Use endonym — the language's own name for itself (Euskera, not Basque)
-  return getLanguageEndonym(course.target_lang)
+  return getLanguageName(course.target_lang)
 }
 
 const props = defineProps({

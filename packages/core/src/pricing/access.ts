@@ -23,21 +23,35 @@ import {
  * Check what access a user has to a specific course
  *
  * Access rules:
+ * 0. SSi admins and god users: Always full access
  * 1. Community courses: Always full access (free forever)
  * 2. Free tier courses: Always full access (endangered languages)
  * 3. Premium courses with subscription: Full access
- * 4. Premium courses without subscription: Preview through Yellow Belt (seed 19)
+ * 4. Premium courses with entitlement code: Full access
+ * 5. Premium courses without subscription: Preview through Yellow Belt (seed 19)
  *
  * @param course - Course with pricing metadata
  * @param subscription - User's subscription status
  * @param entitlements - Optional user entitlements from entitlement codes
+ * @param platformRole - Optional user platform role (ssi_admin bypasses all checks)
  * @returns CourseAccessResult with access level and reason
  */
 export function checkCourseAccess(
   course: Pick<CourseWithPricing, 'pricing_tier' | 'is_community'> & { course_code?: string },
   subscription: UserSubscriptionStatus | null,
-  entitlements?: UserEntitlement[]
+  entitlements?: UserEntitlement[],
+  platformRole?: string | null
 ): CourseAccessResult {
+  // SSi admins and god users get full access to everything
+  if (platformRole === 'ssi_admin' || platformRole === 'god') {
+    return {
+      canAccess: true,
+      canPreview: true,
+      reason: 'entitled',
+      upgradeRequired: false,
+    };
+  }
+
   // Community courses are always free
   if (course.is_community || course.pricing_tier === 'community') {
     return {
@@ -117,9 +131,10 @@ export function canAccessSeed(
   course: Pick<CourseWithPricing, 'pricing_tier' | 'is_community'> & { course_code?: string },
   subscription: UserSubscriptionStatus | null,
   seedNumber: number,
-  entitlements?: UserEntitlement[]
+  entitlements?: UserEntitlement[],
+  platformRole?: string | null
 ): boolean {
-  const access = checkCourseAccess(course, subscription, entitlements);
+  const access = checkCourseAccess(course, subscription, entitlements, platformRole);
 
   // Full access - can access any seed
   if (access.canAccess) {

@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { getLanguageName } from '@/composables/useI18n'
 
 export interface JourneyData {
   evolution_score: number
@@ -29,12 +30,6 @@ export interface ContributionData {
   user_phrases_today: number
   target_language: string
   language_name: string
-}
-
-const LANGUAGE_NAMES: Record<string, string> = {
-  eng: 'English', spa: 'Spanish', fra: 'French', deu: 'German',
-  ita: 'Italian', por: 'Portuguese', zho: 'Chinese', jpn: 'Japanese',
-  ara: 'Arabic', kor: 'Korean', nld: 'Dutch', gle: 'Irish', cym: 'Welsh',
 }
 
 export function useLearnerJourney(client: SupabaseClient) {
@@ -85,7 +80,7 @@ export function useLearnerJourney(client: SupabaseClient) {
         user_minutes_today: Math.round(userMinutes),
         user_phrases_today: userPhrases,
         target_language: targetLang,
-        language_name: LANGUAGE_NAMES[targetLang] || targetLang,
+        language_name: getLanguageName(targetLang),
       }
     } catch (e: any) {
       console.error('[LearnerJourney] contribution fetch error:', e)

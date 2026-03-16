@@ -581,27 +581,28 @@ const sentenceScale = computed(() => {
 /* Known text underneath (single A-LEGO) */
 .tile-known {
   font-family: var(--font-body, system-ui);
-  font-size: 0.9rem;
+  font-size: 1rem;
   font-weight: 400;
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.75);
   white-space: nowrap;
 }
 
 /* Known text row: per-component aligned with target (M-LEGO) */
 .tile-known-row {
-  display: inline-flex;
+  display: flex;
   align-items: baseline;
+  align-self: stretch;
   /* Match tile-target horizontal padding so component widths align */
   padding: 0 1.2em;
 }
 .tile-known-comp {
   font-family: var(--font-body, system-ui);
-  font-size: 0.9rem;
+  font-size: 1rem;
   font-weight: 400;
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.75);
   white-space: nowrap;
   text-align: center;
-  /* Match target comp padding so widths stay in sync */
+  flex: 1;
   padding: 0 0.35em;
 }
 
@@ -681,17 +682,19 @@ const sentenceScale = computed(() => {
 
 /* Known text row per group, aligned per component */
 .carriage-known-row {
-  display: inline-flex;
+  display: flex;
   align-items: baseline;
+  align-self: stretch;
   padding: 0 0.9em;
 }
 .carriage-known-comp {
   font-family: var(--font-body, system-ui);
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   font-weight: 400;
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.75);
   white-space: nowrap;
   text-align: center;
+  flex: 1;
   padding: 0 0.3em;
 }
 
@@ -744,9 +747,9 @@ const sentenceScale = computed(() => {
 /* Known text under each practice block (A-LEGO) */
 .block-known {
   font-family: var(--font-body, system-ui);
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   font-weight: 400;
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.75);
   white-space: nowrap;
   text-align: center;
   max-width: calc(100vw - 3rem);
@@ -756,19 +759,20 @@ const sentenceScale = computed(() => {
 
 /* Known text row: per-component aligned with target (practice M-LEGO) */
 .block-known-row {
-  display: inline-flex;
+  display: flex;
   align-items: baseline;
+  align-self: stretch;
   /* Match lego-block horizontal padding so comp widths align */
   padding: 0 1.1em;
 }
 .block-known-comp {
   font-family: var(--font-body, system-ui);
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   font-weight: 400;
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.75);
   white-space: nowrap;
   text-align: center;
-  /* Match target comp padding for alignment */
+  flex: 1;
   padding: 0 0.35em;
 }
 

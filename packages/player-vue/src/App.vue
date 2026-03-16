@@ -13,6 +13,7 @@ import { useAuthModal } from './composables/useAuthModal'
 import { useSharedUserEntitlements } from './composables/useUserEntitlements'
 import { useSharedSubscription } from './composables/useSubscription'
 import { checkCourseAccess, inferPricingTier } from '@ssi/core'
+import { useUserRole } from './composables/useUserRole'
 import { installConsoleDedup } from './utils/consoleDedup'
 import PwaUpdatePrompt from './components/PwaUpdatePrompt.vue'
 import InstallBanner from './components/InstallBanner.vue'
@@ -179,6 +180,7 @@ const handleCourseSelect = async (course) => {
 const canAccessCourse = (course) => {
   const { entitlements } = useSharedUserEntitlements()
   const { isSubscribed } = useSharedSubscription()
+  const { platformRole } = useUserRole()
   const pricingTier = course.pricing_tier ?? inferPricingTier(course.target_lang ?? '', course.course_code)
   const isCommunity = course.is_community ?? course.course_code?.startsWith('community_')
   const devPaid = (() => {
@@ -195,7 +197,8 @@ const canAccessCourse = (course) => {
   const result = checkCourseAccess(
     { course_code: course.course_code, pricing_tier: pricingTier, is_community: isCommunity },
     subscription,
-    entitlements.value
+    entitlements.value,
+    platformRole.value
   )
   return result.canAccess
 }

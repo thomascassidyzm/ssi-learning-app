@@ -3,37 +3,7 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import CourseSelector from './CourseSelector.vue'
 import { BELTS } from '@/composables/useBeltProgress'
-
-// Language metadata mapping (3-letter codes to display info)
-const LANGUAGE_META = {
-  eng: { name: 'English', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿' },
-  spa: { name: 'Spanish', flag: '🇪🇸' },
-  ita: { name: 'Italian', flag: '🇮🇹' },
-  fra: { name: 'French', flag: '🇫🇷' },
-  deu: { name: 'German', flag: '🇩🇪' },
-  por: { name: 'Portuguese', flag: '🇵🇹' },
-  cym: { name: 'Welsh', flag: '🏴󠁧󠁢󠁷󠁬󠁳󠁿' },
-  jpn: { name: 'Japanese', flag: '🇯🇵' },
-  zho: { name: 'Chinese', flag: '🇨🇳' },
-  kor: { name: 'Korean', flag: '🇰🇷' },
-  ara: { name: 'Arabic', flag: '🇸🇦' },
-  nld: { name: 'Dutch', flag: '🇳🇱' },
-  rus: { name: 'Russian', flag: '🇷🇺' },
-  pol: { name: 'Polish', flag: '🇵🇱' },
-}
-
-const getLangMeta = (code) => LANGUAGE_META[code] || { name: code?.toUpperCase() || '?', flag: '🌐' }
-
-// Get display name for target language
-// Strips " for X Speakers" suffix if present, otherwise uses display_name as-is
-// Falls back to language code lookup if no display_name
-const getTargetDisplayName = (course) => {
-  if (!course.display_name) {
-    return getLangMeta(course.target_lang).name
-  }
-  // Strip " for ..." suffix if present
-  return course.display_name.replace(/\s+for\s+.+$/i, '')
-}
+import { getLanguageName, getLanguageFlag, t } from '@/composables/useI18n'
 
 const props = defineProps({
   supabase: {
@@ -70,17 +40,14 @@ const activeCourseData = computed(() => {
     return null
   }
 
-  // Get language metadata for display
-  const targetMeta = getLangMeta(course.target_lang)
-  const knownMeta = getLangMeta(course.known_lang)
+  // Build display fields from locale data (in the known language)
+  const knownName = getLanguageName(course.known_lang)
 
   return {
     ...course,
-    // Display fields derived from database fields
-    // Use display_name first (e.g., "Welsh (North)", "Chinese (Concept-First Experiment)")
-    title: getTargetDisplayName(course),
-    subtitle: course.subtitle || `for ${knownMeta.name} Speakers`,
-    target_flag: course.target_flag || targetMeta.flag,
+    title: getLanguageName(course.target_lang),
+    subtitle: course.subtitle || t('courseSelector.forSpeakers', `for ${knownName} Speakers`).replace('{lang}', knownName),
+    target_flag: course.target_flag || getLanguageFlag(course.target_lang),
     // Progress fields (from learner data or defaults)
     completedRounds: course.completedRounds || course.completed_seeds || 0,
     totalSeeds: course.totalSeeds || course.total_seeds || 668,

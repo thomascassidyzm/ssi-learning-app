@@ -21,12 +21,14 @@ import type { SessionMetrics, ResponseMetric, SpikeEvent, LearnerBaseline } from
 
 export interface LearnerRecord {
   id: string;
-  /** Clerk user ID (string, e.g., "user_2abc123") */
+  /** Supabase Auth user ID */
   user_id: string;
   display_name: string;
   created_at: Date;
   updated_at: Date;
   preferences: LearnerPreferences;
+  /** All emails this learner has verified via OTP */
+  verified_emails?: string[];
 }
 
 export interface LearnerPreferences {

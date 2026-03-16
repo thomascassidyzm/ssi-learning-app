@@ -108,15 +108,35 @@ export function useAuth(): AuthState & AuthActions {
   })
 
   /**
-   * Fetch or create learner record in Supabase
+   * Convert a DB learner row to LearnerRecord
+   */
+  function toLearnerRecord(row: any): LearnerRecord {
+    return {
+      id: row.id,
+      user_id: row.user_id,
+      display_name: row.display_name,
+      created_at: new Date(row.created_at),
+      updated_at: new Date(row.updated_at),
+      preferences: row.preferences || defaultPreferences(),
+      verified_emails: row.verified_emails || [],
+    }
+  }
+
+  /**
+   * Fetch or create learner record in Supabase.
+   *
+   * Multi-email identity: if no learner found by auth UUID, checks whether
+   * this email appears in another learner's verified_emails. If so, links
+   * this auth session to that existing learner (same person, different email).
    */
   async function ensureLearnerExists(): Promise<LearnerRecord | null> {
     if (!supabase.value || !supabaseUser.value) return null
 
     const userId = supabaseUser.value.id
+    const email = supabaseUser.value.email?.toLowerCase().trim()
 
     try {
-      // Try to fetch existing learner
+      // 1. Try to fetch learner by auth user ID (fast path — same email as before)
       const { data: existingLearner, error: fetchError } = await supabase.value
         .from('learners')
         .select('*')
@@ -124,23 +144,49 @@ export function useAuth(): AuthState & AuthActions {
         .single()
 
       if (existingLearner) {
-        // Update useUserRole with DB roles (source of truth)
         const { initialize: initRole } = useUserRole()
         initRole(existingLearner.platform_role, existingLearner.educational_role)
 
-        return {
-          id: existingLearner.id,
-          user_id: existingLearner.user_id,
-          display_name: existingLearner.display_name,
-          created_at: new Date(existingLearner.created_at),
-          updated_at: new Date(existingLearner.updated_at),
-          preferences: existingLearner.preferences || defaultPreferences(),
+        // Ensure this email is in verified_emails (backfill for existing accounts)
+        if (email && !(existingLearner.verified_emails || []).includes(email)) {
+          const updated = [...(existingLearner.verified_emails || []), email]
+          await supabase.value
+            .from('learners')
+            .update({ verified_emails: updated })
+            .eq('id', existingLearner.id)
+          existingLearner.verified_emails = updated
+        }
+
+        return toLearnerRecord(existingLearner)
+      }
+
+      // 2. No learner for this auth UUID — check if email is linked to another learner
+      if (fetchError?.code === 'PGRST116' && email) {
+        const { data: linkedLearner } = await supabase.value
+          .from('learners')
+          .select('*')
+          .contains('verified_emails', [email])
+          .single()
+
+        if (linkedLearner) {
+          // Found! This email belongs to an existing learner — link this auth user to them
+          console.log(`[useAuth] Email ${email} found on learner ${linkedLearner.id} — linking auth user ${userId}`)
+          await supabase.value
+            .from('learners')
+            .update({ user_id: userId })
+            .eq('id', linkedLearner.id)
+          linkedLearner.user_id = userId
+
+          const { initialize: initRole } = useUserRole()
+          initRole(linkedLearner.platform_role, linkedLearner.educational_role)
+
+          return toLearnerRecord(linkedLearner)
         }
       }
 
-      // Create new learner if not found (PGRST116 = no rows)
-      if (fetchError && fetchError.code === 'PGRST116') {
-        const displayName = supabaseUser.value.email?.split('@')[0] || 'Learner'
+      // 3. Truly new user — create learner with this email in verified_emails
+      if (fetchError?.code === 'PGRST116') {
+        const displayName = email?.split('@')[0] || 'Learner'
 
         const { data: newLearner, error: createError } = await supabase.value
           .from('learners')
@@ -148,6 +194,7 @@ export function useAuth(): AuthState & AuthActions {
             user_id: userId,
             display_name: displayName,
             preferences: defaultPreferences(),
+            verified_emails: email ? [email] : [],
           })
           .select()
           .single()
@@ -157,14 +204,7 @@ export function useAuth(): AuthState & AuthActions {
           return null
         }
 
-        return {
-          id: newLearner.id,
-          user_id: newLearner.user_id,
-          display_name: newLearner.display_name,
-          created_at: new Date(newLearner.created_at),
-          updated_at: new Date(newLearner.updated_at),
-          preferences: newLearner.preferences || defaultPreferences(),
-        }
+        return toLearnerRecord(newLearner)
       }
 
       if (fetchError) {

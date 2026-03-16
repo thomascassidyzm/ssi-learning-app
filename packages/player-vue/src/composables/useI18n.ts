@@ -86,9 +86,61 @@ export const t = (key: string, fallback?: string): string => {
 }
 
 /**
- * Get language name in current locale
+ * ISO 639-3 (3-char) → ISO 639-1 (2-char) mapping for Intl.DisplayNames.
+ * Only needed where the codes differ. Most 2-char codes are just the first 2 chars.
+ */
+const ISO3_TO_BCP47: Record<string, string> = {
+  eng: 'en', spa: 'es', fra: 'fr', deu: 'de', ita: 'it', por: 'pt',
+  nld: 'nl', pol: 'pl', rus: 'ru', cym: 'cy', gle: 'ga', gla: 'gd',
+  jpn: 'ja', zho: 'zh', cmn: 'zh', kor: 'ko', ara: 'ar', hin: 'hi',
+  tur: 'tr', swa: 'sw', ron: 'ro', cat: 'ca', eus: 'eu', glg: 'gl',
+  swe: 'sv', nor: 'no', nob: 'nb', nno: 'nn', dan: 'da', fin: 'fi',
+  isl: 'is', hrv: 'hr', srp: 'sr', bos: 'bs', slv: 'sl', ces: 'cs',
+  slk: 'sk', ukr: 'uk', bul: 'bg', mkd: 'mk', ell: 'el', hun: 'hu',
+  heb: 'he', sqi: 'sq', lit: 'lt', lav: 'lv', est: 'et', tha: 'th',
+  vie: 'vi', ind: 'id', fil: 'tl', ben: 'bn', urd: 'ur', tam: 'ta',
+  tel: 'te', msa: 'ms', yue: 'yue', fas: 'fa', kur: 'ku', amh: 'am',
+  hau: 'ha', yor: 'yo', zul: 'zu', kat: 'ka', hye: 'hy', bre: 'br',
+  cor: 'kw',
+}
+
+/**
+ * Map ISO 639-3 to BCP 47 for locale parameter (known language → locale)
+ */
+const ISO3_TO_LOCALE: Record<string, string> = {
+  ...ISO3_TO_BCP47,
+  // Variant codes map to base locale
+  cym_n: 'cy', cym_s: 'cy',
+}
+
+/**
+ * Get language name in current locale using Intl.DisplayNames.
+ * Falls back to locale JSON files, then to the raw code.
  */
 export const getLanguageName = (langCode: string): string => {
+  // Try Intl.DisplayNames first (browser-native, always up to date)
+  const bcp47 = ISO3_TO_BCP47[langCode]
+  if (bcp47) {
+    const localeCode = ISO3_TO_LOCALE[currentLocale.value] || 'en'
+    try {
+      const displayNames = new Intl.DisplayNames([localeCode], { type: 'language' })
+      const name = displayNames.of(bcp47)
+      if (name && name !== bcp47) {
+        // Capitalize first letter (some locales return lowercase)
+        const capitalized = name.charAt(0).toUpperCase() + name.slice(1)
+        // Append variant suffix for dialect codes like cym_n
+        if (langCode === 'cym_n') return `${capitalized} (${t('languages.cym_n_suffix', 'North')})`
+        if (langCode === 'cym_s') return `${capitalized} (${t('languages.cym_s_suffix', 'South')})`
+        if (langCode === 'nob') return `${capitalized} (Bokmål)`
+        if (langCode === 'nno') return `${capitalized} (Nynorsk)`
+        return capitalized
+      }
+    } catch {
+      // Intl.DisplayNames not supported or code unknown — fall through
+    }
+  }
+
+  // Fallback: locale JSON files
   return t(`languages.${langCode}`, langCode.toUpperCase())
 }
 

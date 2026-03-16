@@ -3,30 +3,7 @@
  */
 
 import { BELTS } from '@/composables/useBeltProgress'
-
-// ISO 639-3 language codes to display names
-export const LANGUAGE_NAMES: Record<string, string> = {
-  eng: 'English',
-  spa: 'Spanish',
-  fra: 'French',
-  deu: 'German',
-  ita: 'Italian',
-  por: 'Portuguese',
-  zho: 'Chinese',
-  jpn: 'Japanese',
-  ara: 'Arabic',
-  kor: 'Korean',
-  nld: 'Dutch',
-  gle: 'Irish',
-  cym: 'Welsh',
-  eus: 'Basque',
-  cat: 'Catalan',
-  rus: 'Russian',
-  hin: 'Hindi',
-  tur: 'Turkish',
-  pol: 'Polish',
-  swe: 'Swedish',
-}
+import { getLanguageName } from '@/composables/useI18n'
 
 export interface ParsedCourseCode {
   target: string
@@ -43,8 +20,8 @@ export function parseCourseCode(code: string): ParsedCourseCode {
     return { target: code, known: '', label: code }
   }
   const [target, known] = parts
-  const targetName = LANGUAGE_NAMES[target] || target
-  const knownName = LANGUAGE_NAMES[known] || known
+  const targetName = getLanguageName(target)
+  const knownName = getLanguageName(known)
   return {
     target,
     known,

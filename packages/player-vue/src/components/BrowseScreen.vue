@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import { BELTS, getSharedBeltProgress, getSeedFromLegoId } from '@/composables/useBeltProgress'
-import { getLanguageName, getLanguageFlag } from '@/composables/useI18n'
+import { getLanguageName, getLanguageFlag, t } from '@/composables/useI18n'
 import CourseBrowser from '@/components/CourseBrowser.vue'
 import { useAuthModal } from '@/composables/useAuthModal'
 
@@ -166,17 +166,13 @@ const isActiveCourse = (courseCode) => {
   return props.activeCourse?.course_code === courseCode
 }
 
-// Get full course display name e.g. "English for Arabic speakers"
+// Get full course display name in the known language
+// e.g., "Euskera para hablantes de Español" (for spa known lang)
 const getFullDisplayName = (course) => {
-  if (course.display_name) {
-    // Check if display_name looks like a real name (not raw codes like "ARA FOR ENG")
-    const hasRawCodes = /^[A-Z]{2,3}\s+(for|FOR)\s+[A-Z]{2,3}/.test(course.display_name.trim())
-    if (!hasRawCodes) return course.display_name
-  }
-  // Construct from language codes
   const target = getLanguageName(course.target_lang)
   const known = getLanguageName(course.known_lang)
-  return `${target} for ${known} speakers`
+  const forSpeakers = t('courseSelector.forSpeakers', `for ${known} Speakers`).replace('{lang}', known)
+  return `${target} ${forSpeakers}`
 }
 
 // Get enrollment progress

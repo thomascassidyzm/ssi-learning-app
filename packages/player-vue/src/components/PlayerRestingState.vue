@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { BELTS } from '@/composables/useBeltProgress'
-import { getLanguageName, getLanguageEndonym, getLanguageFlag, t } from '@/composables/useI18n'
+import { getLanguageName, getLanguageFlag, t } from '@/composables/useI18n'
 
 const props = defineProps({
   course: { type: Object, default: null },
@@ -15,13 +15,9 @@ const emit = defineEmits(['start', 'change-course'])
 
 const courseName = computed(() => {
   if (!props.course) return 'Loading...'
-  // Special display_names (e.g., "Welsh (North)") take priority — but skip raw codes
-  if (props.course.display_name) {
-    const stripped = props.course.display_name.replace(/\s+for\s+.+$/i, '')
-    if (!/^[a-z]{2,3}$/i.test(stripped.trim())) return stripped
-  }
-  // Use endonym — the language's own name for itself (Euskera, not Basque)
-  return getLanguageEndonym(props.course.target_lang)
+  // Always use the target language name in the known language (via locale)
+  // e.g., for eus_for_spa: "Euskera" (Basque in Spanish), not "Basque" or "Euskara"
+  return getLanguageName(props.course.target_lang)
 })
 
 const courseSubtitle = computed(() => {

@@ -8,6 +8,7 @@ import { useTheme } from '../composables/useTheme'
 import { useInviteCode, type InviteCodeContext } from '../composables/useInviteCode'
 import { useAuthModal } from '../composables/useAuthModal'
 import { useRouter } from 'vue-router'
+import { getLanguageName } from '../composables/useI18n'
 import { useSharedSubscription } from '../composables/useSubscription'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 
@@ -37,7 +38,10 @@ const resetError = ref(null)
 const resetSuccess = ref(false)
 
 // Current course info for reset
-const courseName = computed(() => props.course?.display_name || props.course?.course_code || 'this course')
+const courseName = computed(() => {
+  if (props.course?.target_lang) return getLanguageName(props.course.target_lang)
+  return props.course?.course_code || 'this course'
+})
 
 // Data for reset confirmation — show what will be lost
 const seedsCompleted = computed(() => {
@@ -364,58 +368,114 @@ const handleSavePassword = async () => {
   }
 }
 
-// Backup email management
-const showBackupEmailForm = ref(false)
-const backupEmailInput = ref('')
-const backupEmailError = ref('')
-const backupEmailSuccess = ref(false)
-const isSavingBackupEmail = ref(false)
-const currentBackupEmail = computed(() => auth?.learner?.value?.preferences?.backup_email || '')
+// Verified emails management
+const showAddEmailForm = ref(false)
+const addEmailInput = ref('')
+const addEmailOtp = ref('')
+const addEmailError = ref('')
+const addEmailStep = ref<'email' | 'otp'>('email')
+const isSendingOtp = ref(false)
+const isVerifyingOtp = ref(false)
+const addEmailSuccess = ref(false)
 
-const handleSaveBackupEmail = async () => {
-  backupEmailError.value = ''
-  backupEmailSuccess.value = false
+const verifiedEmails = computed(() => auth?.learner?.value?.verified_emails || [])
+const primaryEmail = computed(() => auth?.user?.value?.email || '')
 
-  if (!backupEmailInput.value || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(backupEmailInput.value)) {
-    backupEmailError.value = 'Please enter a valid email address'
+const handleSendAddEmailOtp = async () => {
+  addEmailError.value = ''
+  const email = addEmailInput.value.trim().toLowerCase()
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    addEmailError.value = 'Please enter a valid email address'
+    return
+  }
+
+  if (verifiedEmails.value.includes(email)) {
+    addEmailError.value = 'This email is already linked to your account'
+    return
+  }
+
+  if (!supabase?.value) {
+    addEmailError.value = 'Not connected'
+    return
+  }
+
+  isSendingOtp.value = true
+  try {
+    // Use Supabase Auth to send an OTP to the new email
+    // This creates an auth user for this email if one doesn't exist
+    const { error: otpError } = await supabase.value.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: true },
+    })
+    if (otpError) {
+      addEmailError.value = otpError.message || 'Failed to send verification code'
+    } else {
+      addEmailStep.value = 'otp'
+    }
+  } catch {
+    addEmailError.value = 'Failed to send verification code'
+  } finally {
+    isSendingOtp.value = false
+  }
+}
+
+const handleVerifyAddEmail = async () => {
+  addEmailError.value = ''
+  const email = addEmailInput.value.trim().toLowerCase()
+  const token = addEmailOtp.value.trim()
+
+  if (!token || token.length < 6) {
+    addEmailError.value = 'Please enter the 6-digit code'
     return
   }
 
   if (!supabase?.value || !auth?.learnerId?.value) {
-    backupEmailError.value = 'Not connected'
+    addEmailError.value = 'Not connected'
     return
   }
 
-  isSavingBackupEmail.value = true
+  isVerifyingOtp.value = true
   try {
-    const { error: updateError } = await supabase.value
-      .from('learners')
-      .update({
-        preferences: {
-          ...auth.learner?.value?.preferences,
-          backup_email: backupEmailInput.value,
-        },
-      })
-      .eq('user_id', auth.learnerId.value)
+    // Verify via server API to avoid disrupting current session
+    const session = await supabase.value.auth.getSession()
+    const authToken = session.data?.session?.access_token
 
-    if (updateError) {
-      backupEmailError.value = updateError.message
-    } else {
-      backupEmailSuccess.value = true
-      // Update local learner preferences
-      if (auth.learner?.value) {
-        auth.learner.value = {
-          ...auth.learner.value,
-          preferences: { ...auth.learner.value.preferences, backup_email: backupEmailInput.value },
-        }
-      }
-      backupEmailInput.value = ''
-      showBackupEmailForm.value = false
+    const res = await fetch('/api/email/verify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}),
+      },
+      body: JSON.stringify({ email, token }),
+    })
+
+    const data = await res.json()
+
+    if (!res.ok || !data.success) {
+      addEmailError.value = data.error || 'Verification failed'
+      return
     }
+
+    // Update local state
+    const currentEmails = verifiedEmails.value
+    const updated = [...new Set([...currentEmails, email])]
+    if (auth.learner?.value) {
+      auth.learner.value = { ...auth.learner.value, verified_emails: updated }
+    }
+
+    addEmailSuccess.value = true
+    addEmailInput.value = ''
+    addEmailOtp.value = ''
+    addEmailStep.value = 'email'
+    setTimeout(() => {
+      addEmailSuccess.value = false
+      showAddEmailForm.value = false
+    }, 2000)
   } catch {
-    backupEmailError.value = 'Failed to save backup email'
+    addEmailError.value = 'Verification failed'
   } finally {
-    isSavingBackupEmail.value = false
+    isVerifyingOtp.value = false
   }
 }
 
@@ -995,38 +1055,73 @@ const confirmReset = async () => {
 
           <div class="divider"></div>
 
-          <!-- Backup Email -->
-          <div class="setting-row clickable" @click="showBackupEmailForm = !showBackupEmailForm; backupEmailError = ''; backupEmailSuccess = false; backupEmailInput = currentBackupEmail">
+          <!-- Linked Emails -->
+          <div class="setting-row clickable" @click="showAddEmailForm = !showAddEmailForm; addEmailError = ''; addEmailSuccess = false; addEmailStep = 'email'; addEmailInput = ''; addEmailOtp = ''">
             <div class="setting-info">
-              <span class="setting-label">Backup Email</span>
-              <span class="setting-desc">{{ currentBackupEmail || 'Add a backup email for account safety' }}</span>
+              <span class="setting-label">Linked Emails</span>
+              <span class="setting-desc">{{ verifiedEmails.length > 1 ? `${verifiedEmails.length} emails linked` : 'Add another email to sign in with' }}</span>
             </div>
-            <svg class="chevron" :class="{ rotated: showBackupEmailForm }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg class="chevron" :class="{ rotated: showAddEmailForm }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6"/>
             </svg>
           </div>
 
-          <!-- Backup Email inline form -->
-          <div v-if="showBackupEmailForm" class="inline-form">
-            <div class="inline-form-field">
-              <label class="inline-label">Backup email address</label>
-              <input
-                v-model="backupEmailInput"
-                type="email"
-                class="inline-input"
-                placeholder="backup@example.com"
-                autocomplete="email"
-              />
+          <!-- Linked emails list + add form -->
+          <div v-if="showAddEmailForm" class="inline-form">
+            <!-- Show existing verified emails -->
+            <div v-if="verifiedEmails.length" class="verified-emails-list">
+              <div v-for="em in verifiedEmails" :key="em" class="verified-email-item">
+                <span class="verified-email-text">{{ em }}</span>
+                <span v-if="em === primaryEmail" class="verified-email-badge">primary</span>
+              </div>
             </div>
-            <div v-if="backupEmailError" class="inline-error">{{ backupEmailError }}</div>
-            <div v-if="backupEmailSuccess" class="inline-success">Backup email saved</div>
-            <button
-              class="inline-save-btn"
-              :disabled="isSavingBackupEmail || !backupEmailInput"
-              @click="handleSaveBackupEmail"
-            >
-              {{ isSavingBackupEmail ? 'Saving...' : 'Save' }}
-            </button>
+
+            <!-- Step 1: Enter email -->
+            <template v-if="addEmailStep === 'email'">
+              <div class="inline-form-field">
+                <label class="inline-label">Add another email</label>
+                <input
+                  v-model="addEmailInput"
+                  type="email"
+                  class="inline-input"
+                  placeholder="another@example.com"
+                  autocomplete="email"
+                />
+              </div>
+              <div v-if="addEmailError" class="inline-error">{{ addEmailError }}</div>
+              <button
+                class="inline-save-btn"
+                :disabled="isSendingOtp || !addEmailInput"
+                @click="handleSendAddEmailOtp"
+              >
+                {{ isSendingOtp ? 'Sending...' : 'Send verification code' }}
+              </button>
+            </template>
+
+            <!-- Step 2: Enter OTP -->
+            <template v-else-if="addEmailStep === 'otp'">
+              <div class="inline-form-field">
+                <label class="inline-label">Enter the code sent to {{ addEmailInput }}</label>
+                <input
+                  v-model="addEmailOtp"
+                  type="text"
+                  inputmode="numeric"
+                  class="inline-input"
+                  placeholder="000000"
+                  maxlength="6"
+                  autocomplete="one-time-code"
+                />
+              </div>
+              <div v-if="addEmailError" class="inline-error">{{ addEmailError }}</div>
+              <div v-if="addEmailSuccess" class="inline-success">Email verified and linked</div>
+              <button
+                class="inline-save-btn"
+                :disabled="isVerifyingOtp || addEmailOtp.length < 6"
+                @click="handleVerifyAddEmail"
+              >
+                {{ isVerifyingOtp ? 'Verifying...' : 'Verify' }}
+              </button>
+            </template>
           </div>
 
           <!-- Schools Dashboard -->
@@ -1717,6 +1812,35 @@ const confirmReset = async () => {
 
 .inline-save-btn:hover:not(:disabled) {
   opacity: 0.9;
+}
+
+.verified-emails-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin-bottom: 0.25rem;
+}
+
+.verified-email-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0;
+}
+
+.verified-email-text {
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}
+
+.verified-email-badge {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .tool-icon {

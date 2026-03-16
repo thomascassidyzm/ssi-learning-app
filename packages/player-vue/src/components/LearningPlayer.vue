@@ -41,7 +41,7 @@ import DrivingModeOverlay from './DrivingModeOverlay.vue'
 import PronunciationOverlay from './PronunciationOverlay.vue'
 import { useDrivingMode } from '../composables/useDrivingMode'
 import { useScriptMode } from '../composables/useScriptMode'
-import { getLanguageFlag, getLanguageEndonym } from '../composables/useI18n'
+import { getLanguageFlag, getLanguageName } from '../composables/useI18n'
 import { simpleRoundToTypedCycles } from '../utils/drivingModeAdapter'
 import BeltProgressModal from './BeltProgressModal.vue'
 import { useEntitlement } from '../composables/useEntitlement'
@@ -241,22 +241,9 @@ watch(courseCode, async (code) => {
   hasRomanizedText.value = (count ?? 0) > 0
 }, { immediate: true })
 
-// Language names for course identity display (flags from shared useI18n.getLanguageFlag)
-const LANGUAGE_NAMES: Record<string, string> = {
-  eng: 'English', cym: 'Welsh', spa: 'Spanish', fra: 'French',
-  deu: 'German', ita: 'Italian', por: 'Portuguese', jpn: 'Japanese',
-  kor: 'Korean', cmn: 'Chinese', zho: 'Chinese', ara: 'Arabic',
-  nld: 'Dutch', rus: 'Russian', pol: 'Polish', gle: 'Irish',
-  tur: 'Turkish', hrv: 'Croatian', srp: 'Serbian', ron: 'Romanian',
-  hun: 'Hungarian', ces: 'Czech', slk: 'Slovak', ukr: 'Ukrainian',
-  hin: 'Hindi', tha: 'Thai', vie: 'Vietnamese', swa: 'Swahili',
-  ell: 'Greek', heb: 'Hebrew', fin: 'Finnish', swe: 'Swedish',
-  nor: 'Norwegian', dan: 'Danish', isl: 'Icelandic', gla: 'Scottish Gaelic',
-  cat: 'Catalan', eus: 'Basque', bos: 'Bosnian', slv: 'Slovenian',
-  bul: 'Bulgarian', mkd: 'Macedonian', ind: 'Indonesian', fil: 'Filipino',
-}
+// Language metadata using shared Intl.DisplayNames-based lookup
 const getLangMeta = (code: string) => ({
-  name: LANGUAGE_NAMES[code] || code?.toUpperCase() || '?',
+  name: getLanguageName(code),
   flag: getLanguageFlag(code),
 })
 
@@ -269,14 +256,9 @@ const courseFlag = computed(() => {
 
 const courseDisplayName = computed(() => {
   if (!props.course) return ''
-  // Special display_names (e.g., "Welsh (North)") take priority — but skip raw codes
-  if (props.course.display_name) {
-    const stripped = props.course.display_name.replace(/\s+for\s+.+$/i, '')
-    if (!/^[a-z]{2,3}$/i.test(stripped.trim())) return stripped
-  }
-  // Use endonym — the language's own name for itself (Euskera, not Basque)
+  // Target language name in the known language (via locale)
   const targetLang = props.course.target_lang || courseCode.value?.split('_')[0]
-  return getLanguageEndonym(targetLang)
+  return getLanguageName(targetLang)
 })
 
 // Check if launched from dashboard in QA mode

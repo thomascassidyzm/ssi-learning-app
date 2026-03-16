@@ -16,6 +16,7 @@
 import { ref, computed, inject, type Ref, type ComputedRef } from 'vue'
 import { useSharedSubscription } from './useSubscription'
 import { useSharedUserEntitlements } from './useUserEntitlements'
+import { useUserRole } from './useUserRole'
 import type { CoursePricingTier } from '@ssi/core'
 import {
   checkCourseAccess,
@@ -96,6 +97,9 @@ export function useEntitlement(): UseEntitlementReturn {
   // Get user entitlements from entitlement codes
   const { entitlements: userEntitlements } = useSharedUserEntitlements()
 
+  // Get user role (ssi_admin/god bypasses all access checks)
+  const { platformRole } = useUserRole()
+
   // Entitlement state
   const entitlement = ref<EntitlementStatus>({
     canDownload: false,
@@ -169,7 +173,7 @@ export function useEntitlement(): UseEntitlementReturn {
     }
 
     const subscription = getSubscriptionStatus()
-    return checkCourseAccess(courseWithPricing, subscription, userEntitlements.value)
+    return checkCourseAccess(courseWithPricing, subscription, userEntitlements.value, platformRole.value)
   }
 
   /**
