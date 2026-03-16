@@ -103,7 +103,6 @@ const glowStyle = computed(() => {
   left: 50%;
   transform: translateX(-50%);
   width: 100%;
-  max-width: 500px;
   height: 100%;
   object-fit: cover;
   object-position: center bottom;
