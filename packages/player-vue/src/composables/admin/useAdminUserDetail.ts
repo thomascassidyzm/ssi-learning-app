@@ -1,5 +1,5 @@
 /**
- * useAdminUserDetail - Full profile, enrollments, sessions, progress for one user
+ * useAdminUserDetail - Full profile, enrollments, sessions, entitlements, progress for one user
  */
 
 import { ref } from 'vue'
@@ -30,6 +30,15 @@ export interface DetailSession {
   items_practiced: number | null
 }
 
+export interface UserEntitlement {
+  id: string
+  access_type: string
+  granted_courses: string[] | null
+  expires_at: string | null
+  redeemed_at: string
+  label: string | null
+}
+
 export interface CourseProgress {
   course_id: string
   seeds_introduced: number
@@ -40,10 +49,12 @@ export interface CourseProgress {
 const profile = ref<UserProfile | null>(null)
 const enrollments = ref<DetailEnrollment[]>([])
 const sessions = ref<DetailSession[]>([])
+const userEntitlements = ref<UserEntitlement[]>([])
 const courseProgress = ref<Map<string, CourseProgress>>(new Map())
 
 const isLoading = ref(false)
 const error = ref<string | null>(null)
+const roleUpdateStatus = ref<string | null>(null)
 
 export function useAdminUserDetail(client: SupabaseClient) {
 
@@ -53,7 +64,7 @@ export function useAdminUserDetail(client: SupabaseClient) {
 
     try {
       // Fetch all data in parallel
-      const [profileResult, enrollResult, sessResult] = await Promise.all([
+      const [profileResult, enrollResult, sessResult, entitlementResult] = await Promise.all([
         client
           .from('learners')
           .select('id, user_id, display_name, created_at, educational_role, platform_role')
@@ -69,15 +80,47 @@ export function useAdminUserDetail(client: SupabaseClient) {
           .eq('learner_id', learnerId)
           .order('started_at', { ascending: false })
           .limit(50),
+        client
+          .from('user_entitlements')
+          .select('id, access_type, granted_courses, expires_at, redeemed_at, entitlement_code_id')
+          .eq('learner_id', learnerId),
       ])
 
       if (profileResult.error) throw profileResult.error
       if (enrollResult.error) throw enrollResult.error
       if (sessResult.error) throw sessResult.error
+      // Entitlement fetch is non-critical
+      if (entitlementResult.error) {
+        console.warn('[AdminUserDetail] entitlement fetch error:', entitlementResult.error)
+      }
 
       profile.value = profileResult.data
       enrollments.value = enrollResult.data || []
       sessions.value = sessResult.data || []
+
+      // Map entitlements — fetch code labels for code-based ones
+      const rawEntitlements = entitlementResult.data || []
+      const codeIds = rawEntitlements
+        .map(e => e.entitlement_code_id)
+        .filter(Boolean)
+
+      let codeLabels = new Map<string, string>()
+      if (codeIds.length > 0) {
+        const { data: codes } = await client
+          .from('entitlement_codes')
+          .select('id, label')
+          .in('id', codeIds)
+        codes?.forEach(c => codeLabels.set(c.id, c.label))
+      }
+
+      userEntitlements.value = rawEntitlements.map(e => ({
+        id: e.id,
+        access_type: e.access_type,
+        granted_courses: e.granted_courses,
+        expires_at: e.expires_at,
+        redeemed_at: e.redeemed_at,
+        label: e.entitlement_code_id ? (codeLabels.get(e.entitlement_code_id) || 'Code') : 'Direct grant',
+      }))
 
       // Fetch progress per course
       const courseIds = enrollments.value.map(e => e.course_id)
@@ -130,6 +173,101 @@ export function useAdminUserDetail(client: SupabaseClient) {
     }
   }
 
+  async function updateUserRole(
+    learnerId: string,
+    field: 'platform_role' | 'educational_role',
+    value: string | null
+  ): Promise<boolean> {
+    roleUpdateStatus.value = null
+    try {
+      const { error: updateError } = await client
+        .from('learners')
+        .update({ [field]: value })
+        .eq('id', learnerId)
+
+      if (updateError) throw updateError
+
+      // Update local state
+      if (profile.value) {
+        profile.value = { ...profile.value, [field]: value }
+      }
+      roleUpdateStatus.value = 'saved'
+      setTimeout(() => { roleUpdateStatus.value = null }, 2000)
+      return true
+    } catch (err) {
+      console.error('[AdminUserDetail] role update error:', err)
+      roleUpdateStatus.value = 'error'
+      setTimeout(() => { roleUpdateStatus.value = null }, 3000)
+      return false
+    }
+  }
+
+  async function grantEntitlement(
+    learnerId: string,
+    payload: { access_type: string; granted_courses?: string[]; duration_type: string; duration_days?: number },
+    getAuthToken: () => Promise<string | null>
+  ): Promise<boolean> {
+    const token = await getAuthToken()
+    if (!token) return false
+
+    try {
+      const resp = await fetch('/api/admin/grant-entitlement', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ learner_id: learnerId, ...payload }),
+      })
+
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}))
+        console.error('[AdminUserDetail] grant error:', data.error)
+        return false
+      }
+
+      // Refresh entitlements
+      await fetchUserDetail(learnerId)
+      return true
+    } catch (err) {
+      console.error('[AdminUserDetail] grant error:', err)
+      return false
+    }
+  }
+
+  async function revokeEntitlement(
+    learnerId: string,
+    entitlementId: string,
+    getAuthToken: () => Promise<string | null>
+  ): Promise<boolean> {
+    const token = await getAuthToken()
+    if (!token) return false
+
+    try {
+      const resp = await fetch('/api/admin/revoke-entitlement', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ entitlement_id: entitlementId }),
+      })
+
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}))
+        console.error('[AdminUserDetail] revoke error:', data.error)
+        return false
+      }
+
+      // Refresh entitlements
+      await fetchUserDetail(learnerId)
+      return true
+    } catch (err) {
+      console.error('[AdminUserDetail] revoke error:', err)
+      return false
+    }
+  }
+
   function getCourseProgress(courseId: string): CourseProgress {
     return courseProgress.value.get(courseId) || {
       course_id: courseId,
@@ -143,10 +281,15 @@ export function useAdminUserDetail(client: SupabaseClient) {
     profile,
     enrollments,
     sessions,
+    userEntitlements,
     courseProgress,
     isLoading,
     error,
+    roleUpdateStatus,
     fetchUserDetail,
+    updateUserRole,
+    grantEntitlement,
+    revokeEntitlement,
     getCourseProgress,
   }
 }

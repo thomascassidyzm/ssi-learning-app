@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useAdminUserDetail } from '@/composables/admin/useAdminUserDetail'
@@ -7,18 +7,31 @@ import { parseCourseCode, getBeltForSeeds, timeAgo, formatDuration } from '@/com
 import Badge from '@/components/schools/shared/Badge.vue'
 import Card from '@/components/schools/shared/Card.vue'
 
-const { getClient } = useAdminClient()
+const { getClient, getAuthToken } = useAdminClient()
 const route = useRoute()
 const router = useRouter()
 const {
   profile,
   enrollments,
   sessions,
+  userEntitlements,
   isLoading,
   error,
+  roleUpdateStatus,
   fetchUserDetail,
+  updateUserRole,
+  grantEntitlement,
+  revokeEntitlement,
   getCourseProgress,
 } = useAdminUserDetail(getClient())
+
+// Grant form state
+const showGrantForm = ref(false)
+const grantAccessType = ref('full')
+const grantDurationType = ref('lifetime')
+const grantDurationDays = ref(365)
+const grantCourses = ref<string[]>([])
+const grantLoading = ref(false)
 
 onMounted(() => {
   const learnerId = route.params.learnerId as string
@@ -47,6 +60,47 @@ function getBeltAccent(beltName: string): 'red' | 'gold' | 'green' | 'blue' | 'g
     case 'black': return 'gradient'
     default: return 'gradient'
   }
+}
+
+function handlePlatformRoleChange(event: Event) {
+  const value = (event.target as HTMLSelectElement).value || null
+  if (profile.value) {
+    updateUserRole(profile.value.id, 'platform_role', value)
+  }
+}
+
+function handleEducationalRoleChange(event: Event) {
+  const value = (event.target as HTMLSelectElement).value || null
+  if (profile.value) {
+    updateUserRole(profile.value.id, 'educational_role', value)
+  }
+}
+
+async function handleGrant() {
+  if (!profile.value) return
+  grantLoading.value = true
+  const success = await grantEntitlement(
+    profile.value.id,
+    {
+      access_type: grantAccessType.value,
+      granted_courses: grantAccessType.value === 'courses' ? grantCourses.value : undefined,
+      duration_type: grantDurationType.value,
+      duration_days: grantDurationType.value === 'time_limited' ? grantDurationDays.value : undefined,
+    },
+    getAuthToken
+  )
+  grantLoading.value = false
+  if (success) {
+    showGrantForm.value = false
+    grantAccessType.value = 'full'
+    grantDurationType.value = 'lifetime'
+    grantCourses.value = []
+  }
+}
+
+async function handleRevoke(entitlementId: string) {
+  if (!profile.value || !confirm('Revoke this entitlement?')) return
+  await revokeEntitlement(profile.value.id, entitlementId, getAuthToken)
 }
 </script>
 
@@ -104,12 +158,132 @@ function getBeltAccent(beltName: string): 'red' | 'gold' | 'green' | 'blue' | 'g
                 </Badge>
               </div>
             </div>
+
+            <!-- Role editing -->
+            <div class="role-editor">
+              <div class="role-field">
+                <label class="role-label">Platform Role</label>
+                <select
+                  class="role-select"
+                  :value="profile.platform_role || ''"
+                  @change="handlePlatformRoleChange"
+                >
+                  <option value="">None</option>
+                  <option value="ssi_admin">ssi_admin</option>
+                </select>
+              </div>
+              <div class="role-field">
+                <label class="role-label">Educational Role</label>
+                <select
+                  class="role-select"
+                  :value="profile.educational_role || ''"
+                  @change="handleEducationalRoleChange"
+                >
+                  <option value="">None</option>
+                  <option value="god">god</option>
+                  <option value="govt_admin">govt_admin</option>
+                  <option value="school_admin">school_admin</option>
+                  <option value="teacher">teacher</option>
+                  <option value="student">student</option>
+                </select>
+              </div>
+              <span v-if="roleUpdateStatus === 'saved'" class="role-status role-saved">Saved</span>
+              <span v-if="roleUpdateStatus === 'error'" class="role-status role-error">Failed</span>
+            </div>
           </div>
         </div>
       </Card>
 
+      <!-- Entitlements -->
+      <section class="section animate-in delay-2">
+        <div class="section-header">
+          <h3 class="section-title">Entitlements ({{ userEntitlements.length }})</h3>
+          <button class="btn-small" @click="showGrantForm = !showGrantForm">
+            {{ showGrantForm ? 'Cancel' : '+ Grant' }}
+          </button>
+        </div>
+
+        <!-- Grant form -->
+        <Card v-if="showGrantForm" accent="gold">
+          <div class="grant-form">
+            <div class="grant-row">
+              <div class="grant-field">
+                <label class="grant-label">Access</label>
+                <select v-model="grantAccessType" class="role-select">
+                  <option value="full">Full (all courses)</option>
+                  <option value="courses">Specific courses</option>
+                </select>
+              </div>
+              <div class="grant-field">
+                <label class="grant-label">Duration</label>
+                <select v-model="grantDurationType" class="role-select">
+                  <option value="lifetime">Lifetime</option>
+                  <option value="time_limited">Time limited</option>
+                </select>
+              </div>
+              <div v-if="grantDurationType === 'time_limited'" class="grant-field">
+                <label class="grant-label">Days</label>
+                <input v-model.number="grantDurationDays" type="number" min="1" class="grant-input" />
+              </div>
+            </div>
+            <div v-if="grantAccessType === 'courses'" class="grant-field">
+              <label class="grant-label">Course codes (comma-separated)</label>
+              <input
+                class="grant-input grant-input-wide"
+                placeholder="e.g. spa_for_eng, fra_for_eng"
+                @input="grantCourses = ($event.target as HTMLInputElement).value.split(',').map(s => s.trim()).filter(Boolean)"
+              />
+            </div>
+            <button class="btn-grant" :disabled="grantLoading" @click="handleGrant">
+              {{ grantLoading ? 'Granting...' : 'Grant Entitlement' }}
+            </button>
+          </div>
+        </Card>
+
+        <!-- Entitlements list -->
+        <Card v-if="userEntitlements.length > 0">
+          <div class="table-container">
+            <table class="sessions-table">
+              <thead>
+                <tr>
+                  <th>Source</th>
+                  <th>Access</th>
+                  <th>Courses</th>
+                  <th>Expires</th>
+                  <th>Granted</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="ent in userEntitlements" :key="ent.id">
+                  <td>{{ ent.label }}</td>
+                  <td>
+                    <Badge :variant="ent.access_type === 'full' ? 'green' : 'info'" size="sm" pill>
+                      {{ ent.access_type }}
+                    </Badge>
+                  </td>
+                  <td class="text-muted">
+                    {{ ent.granted_courses ? ent.granted_courses.join(', ') : 'All' }}
+                  </td>
+                  <td class="text-muted">
+                    {{ ent.expires_at ? new Date(ent.expires_at).toLocaleDateString() : 'Never' }}
+                  </td>
+                  <td class="text-muted">{{ timeAgo(ent.redeemed_at) }}</td>
+                  <td>
+                    <button class="btn-revoke" @click="handleRevoke(ent.id)">Revoke</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </Card>
+        <Card v-else>
+          <div class="empty-state">No active entitlements.</div>
+        </Card>
+      </section>
+
       <!-- Course progress cards -->
-      <section v-if="enrollments.length > 0" class="section animate-in delay-2">
+      <section v-if="enrollments.length > 0" class="section animate-in delay-3">
         <h3 class="section-title">Courses ({{ enrollments.length }})</h3>
         <div class="course-cards">
           <Card
@@ -159,7 +333,7 @@ function getBeltAccent(beltName: string): 'red' | 'gold' | 'green' | 'blue' | 'g
       </section>
 
       <!-- Session history -->
-      <section class="section animate-in delay-3">
+      <section class="section animate-in delay-4">
         <Card title="Recent Sessions" :subtitle="`${sessions.length} sessions`">
           <template #icon>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -315,11 +489,74 @@ function getBeltAccent(beltName: string): 'red' | 'gold' | 'green' | 'blue' | 'g
   flex-shrink: 0;
 }
 
+/* Role editor */
+.role-editor {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.role-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.role-label {
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold, 600);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.role-select {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.role-select:focus {
+  outline: none;
+  border-color: var(--ssi-red);
+}
+
+.role-status {
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold, 600);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+.role-saved {
+  color: #16a34a;
+  background: rgba(22, 163, 74, 0.1);
+}
+
+.role-error {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
 /* Section */
 .section {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .section-title {
@@ -328,6 +565,104 @@ function getBeltAccent(beltName: string): 'red' | 'gold' | 'green' | 'blue' | 'g
   font-weight: var(--font-semibold, 600);
   margin: 0;
   color: var(--text-primary);
+}
+
+/* Buttons */
+.btn-small {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-family: inherit;
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.btn-small:hover {
+  background: var(--bg-elevated);
+  border-color: var(--ssi-red);
+  color: var(--ssi-red);
+}
+
+.btn-grant {
+  padding: var(--space-2) var(--space-4);
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--ssi-red);
+  color: white;
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold, 600);
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity var(--transition-base);
+}
+
+.btn-grant:hover {
+  opacity: 0.9;
+}
+
+.btn-grant:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-revoke {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: #ef4444;
+  font-size: var(--text-xs);
+  font-family: inherit;
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.btn-revoke:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* Grant form */
+.grant-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.grant-row {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.grant-label {
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold, 600);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.grant-input {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-family: inherit;
+  width: 80px;
+}
+
+.grant-input-wide {
+  width: 100%;
+}
+
+.grant-input:focus {
+  outline: none;
+  border-color: var(--ssi-red);
 }
 
 /* Course cards */
@@ -494,8 +829,17 @@ function getBeltAccent(beltName: string): 'red' | 'gold' | 'green' | 'blue' | 'g
     justify-content: center;
   }
 
+  .role-editor {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
   .course-stats {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .grant-row {
+    flex-direction: column;
   }
 }
 </style>
