@@ -54,7 +54,7 @@ const canSubmitEmail = computed(() => {
 })
 
 const stepTitle = computed(() => {
-  if (step.value === 'code') return 'Enter invite code'
+  if (step.value === 'code') return 'Enter code'
   if (step.value === 'context') return 'Confirm your role'
   if (step.value === 'verify') return 'Check your email'
   return 'Sign in or create account'
@@ -278,7 +278,7 @@ const handleClose = () => {
   <AuthModal :is-open="isOpen" :title="stepTitle" @close="handleClose">
     <!-- Code Entry Step (invite code flow) -->
     <div v-if="step === 'code'" class="auth-form">
-      <p class="code-intro">Have an invite code? Enter it below to join your school or class.</p>
+      <p class="code-intro">Enter your invite or access code below.</p>
 
       <Transition name="error">
         <div v-if="validationError" class="error-message">
@@ -422,6 +422,10 @@ const handleClose = () => {
         <button type="button" @click="usePassword = !usePassword; error = ''; password = ''">
           {{ usePassword ? 'Use email code instead' : 'Use password instead' }}
         </button>
+      </p>
+
+      <p v-if="!pendingCode" class="got-code-link">
+        <button type="button" @click="step = 'code'">Got an access code?</button>
       </p>
     </form>
 
@@ -783,6 +787,26 @@ const handleClose = () => {
   height: 18px;
 }
 
+/* Got a code? link */
+.got-code-link {
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  margin: 0;
+  padding-top: 0.25rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.got-code-link button {
+  color: var(--text-muted);
+  font-weight: 400;
+  transition: color 0.2s ease;
+}
+
+.got-code-link button:hover {
+  color: var(--ssi-gold);
+}
+
 /* Code entry step */
 .code-intro {
   color: var(--text-secondary);
@@ -851,5 +875,9 @@ const handleClose = () => {
 :root[data-theme="mist"] .context-card {
   background: rgba(0, 0, 0, 0.03);
   border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+:root[data-theme="mist"] .got-code-link {
+  border-top-color: rgba(0, 0, 0, 0.08);
 }
 </style>
