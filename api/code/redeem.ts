@@ -259,7 +259,7 @@ async function redeemEntitlementCode(
   // Re-validate code
   const { data: entitlementRow, error: entitlementError } = await supabase
     .from('entitlement_codes')
-    .select('id, code, access_type, granted_courses, duration_type, duration_days, label, max_uses, use_count, expires_at, is_active')
+    .select('id, code, access_type, granted_courses, duration_type, duration_days, label, max_uses, use_count, expires_at, is_active, grants_platform_role, grants_dashboard_courses')
     .eq('code', normalizedCode)
     .eq('is_active', true)
     .single()
@@ -341,12 +341,36 @@ async function redeemEntitlementCode(
     // Non-fatal: entitlement was created
   }
 
+  // If code grants dashboard access, update the learner's platform_role and dashboard_courses
+  if (entitlementRow.grants_platform_role) {
+    const learnerUpdate: Record<string, unknown> = {
+      platform_role: entitlementRow.grants_platform_role,
+    }
+    if (entitlementRow.grants_dashboard_courses) {
+      learnerUpdate.dashboard_courses = entitlementRow.grants_dashboard_courses
+    }
+    const { error: roleError } = await supabase
+      .from('learners')
+      .update(learnerUpdate)
+      .eq('id', learner.id)
+
+    if (roleError) {
+      console.error('[CodeRedeem] Failed to update platform_role:', roleError)
+      // Non-fatal: entitlement was created, dashboard access just won't work yet
+    } else {
+      console.log('[CodeRedeem] Granted dashboard access:', entitlementRow.grants_platform_role, 'courses:', entitlementRow.grants_dashboard_courses)
+    }
+  }
+
+  const redirectTo = entitlementRow.grants_platform_role ? '/' : '/'
+
   console.log('[CodeRedeem] Redeemed entitlement code:', normalizedCode, 'for user:', userId, 'label:', entitlementRow.label)
   res.status(200).json({
     success: true,
     codeKind: 'entitlement',
     label: entitlementRow.label,
     accessType: entitlementRow.access_type,
-    redirectTo: '/',
+    grantsDashboardAccess: !!entitlementRow.grants_platform_role,
+    redirectTo,
   })
 }
