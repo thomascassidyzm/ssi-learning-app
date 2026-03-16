@@ -41,7 +41,7 @@ import DrivingModeOverlay from './DrivingModeOverlay.vue'
 import PronunciationOverlay from './PronunciationOverlay.vue'
 import { useDrivingMode } from '../composables/useDrivingMode'
 import { useScriptMode } from '../composables/useScriptMode'
-import { getLanguageFlag } from '../composables/useI18n'
+import { getLanguageFlag, getLanguageEndonym } from '../composables/useI18n'
 import { simpleRoundToTypedCycles } from '../utils/drivingModeAdapter'
 import BeltProgressModal from './BeltProgressModal.vue'
 import { useEntitlement } from '../composables/useEntitlement'
@@ -269,16 +269,14 @@ const courseFlag = computed(() => {
 
 const courseDisplayName = computed(() => {
   if (!props.course) return ''
-  const targetLang = props.course.target_lang || courseCode.value?.split('_')[0]
-  // Prefer LANGUAGE_NAMES map — DB display_name may contain raw codes like "ron for eng"
-  const mapName = LANGUAGE_NAMES[targetLang]
-  if (mapName) return mapName
-  // Fallback: use display_name only if it looks like a proper name (not a raw code)
+  // Special display_names (e.g., "Welsh (North)") take priority — but skip raw codes
   if (props.course.display_name) {
     const stripped = props.course.display_name.replace(/\s+for\s+.+$/i, '')
     if (!/^[a-z]{2,3}$/i.test(stripped.trim())) return stripped
   }
-  return getLangMeta(targetLang).name
+  // Use endonym — the language's own name for itself (Euskera, not Basque)
+  const targetLang = props.course.target_lang || courseCode.value?.split('_')[0]
+  return getLanguageEndonym(targetLang)
 })
 
 // Check if launched from dashboard in QA mode

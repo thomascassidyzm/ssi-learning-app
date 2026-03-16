@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { BELTS } from '@/composables/useBeltProgress'
-import { getLanguageName, getLanguageFlag } from '@/composables/useI18n'
+import { getLanguageName, getLanguageEndonym, getLanguageFlag, t } from '@/composables/useI18n'
 
 const props = defineProps({
   course: { type: Object, default: null },
@@ -15,21 +15,20 @@ const emit = defineEmits(['start', 'change-course'])
 
 const courseName = computed(() => {
   if (!props.course) return 'Loading...'
-  // Prefer locale-based lookup — DB display_name may contain raw codes like "ron for eng"
-  const langName = getLanguageName(props.course.target_lang)
-  // getLanguageName falls back to CODE.toUpperCase() — detect that and try display_name
-  if (langName && langName !== props.course.target_lang?.toUpperCase()) return langName
-  // Fallback: use display_name only if it looks like a proper name (not a raw code)
+  // Special display_names (e.g., "Welsh (North)") take priority — but skip raw codes
   if (props.course.display_name) {
     const stripped = props.course.display_name.replace(/\s+for\s+.+$/i, '')
     if (!/^[a-z]{2,3}$/i.test(stripped.trim())) return stripped
   }
-  return langName || 'Unknown'
+  // Use endonym — the language's own name for itself (Euskera, not Basque)
+  return getLanguageEndonym(props.course.target_lang)
 })
 
 const courseSubtitle = computed(() => {
   if (!props.course?.known_lang) return ''
-  return `for ${getLanguageName(props.course.known_lang)} Speakers`
+  // Fully localized: "for English Speakers" / "para hablantes de Español" / "i siaradwyr Saesneg"
+  const knownName = getLanguageName(props.course.known_lang)
+  return t('courseSelector.forSpeakers', `for ${knownName} Speakers`).replace('{lang}', knownName)
 })
 
 const courseFlag = computed(() => {

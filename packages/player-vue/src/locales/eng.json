@@ -8,7 +8,8 @@
     "iWantToLearn": "I want to learn",
     "ready": "Ready",
     "comingSoon": "Coming soon",
-    "new": "NEW"
+    "new": "NEW",
+    "forSpeakers": "for {lang} Speakers"
   },
   "player": {
     "listen": "Listen",

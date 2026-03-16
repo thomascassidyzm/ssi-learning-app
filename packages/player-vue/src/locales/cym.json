@@ -8,7 +8,8 @@
     "iWantToLearn": "Dwi eisiau dysgu",
     "ready": "Yn barod",
     "comingSoon": "Yn dod yn fuan",
-    "new": "NEWYDD"
+    "new": "NEWYDD",
+    "forSpeakers": "i siaradwyr {lang}"
   },
   "player": {
     "listen": "Gwrando",
