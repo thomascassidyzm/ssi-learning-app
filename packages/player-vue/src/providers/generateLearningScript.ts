@@ -131,7 +131,7 @@ export async function generateLearningScript(
       .limit(5000),
     supabase
       .from('course_practice_phrases')
-      .select('seed_number, lego_index, known_text, target_text, target_text_roman, phrase_role, target_syllable_count, position, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, target1_duration_ms, target2_duration_ms')
+      .select('seed_number, lego_index, known_text, target_text, target_text_roman, phrase_role, target_syllable_count, position, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, target1_duration_ms, target2_duration_ms, introduce')
       .eq('course_code', courseCode)
       .gte('seed_number', startSeed)
       .lte('seed_number', endSeed)
@@ -195,6 +195,7 @@ export async function generateLearningScript(
     presentation_audio_id?: string
     target1_duration_ms?: number
     target2_duration_ms?: number
+    introduce?: boolean
   }
   const phrasesByLego = new Map<string, { build: Phrase[]; use: Phrase[]; practice: Phrase[] }>()
   // Collect M-LEGO component breakdowns: legoKey → [{known, target}, ...]
@@ -207,6 +208,7 @@ export async function generateLearningScript(
     if (!phrasesByLego.has(key)) phrasesByLego.set(key, { build: [], use: [], practice: [] })
     const group = phrasesByLego.get(key)!
     if (phrase.phrase_role === 'component') {
+      // Visual tiles on intro/debut — ALL components (even introduce=false)
       if (!componentsByLego.has(key)) componentsByLego.set(key, [])
       componentsByLego.get(key)!.push({ known: phrase.known_text, target: phrase.target_text_roman || phrase.target_text })
       // Store native script variant when romanized exists
@@ -214,9 +216,11 @@ export async function generateLearningScript(
         if (!componentsByLegoNative.has(key)) componentsByLegoNative.set(key, [])
         componentsByLegoNative.get(key)!.push({ known: phrase.known_text, target: phrase.target_text })
       }
-      // Also store full phrase with audio IDs for component priming
-      if (!componentPhrasesByLego.has(key)) componentPhrasesByLego.set(key, [])
-      componentPhrasesByLego.get(key)!.push(phrase)
+      // Audio cycles (component_intro/component_practice) — only introduced components
+      if (phrase.introduce !== false) {
+        if (!componentPhrasesByLego.has(key)) componentPhrasesByLego.set(key, [])
+        componentPhrasesByLego.get(key)!.push(phrase)
+      }
       continue
     }
     if (phrase.phrase_role === 'build') group.build.push(phrase)
