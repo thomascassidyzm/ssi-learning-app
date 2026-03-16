@@ -1,71 +1,88 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router'
+import { ref, onMounted } from 'vue'
 
 const route = useRoute()
+const mounted = ref(false)
+
+onMounted(() => {
+  requestAnimationFrame(() => { mounted.value = true })
+})
 </script>
 
 <template>
-  <div class="admin-container">
+  <div class="admin-container" :class="{ 'is-mounted': mounted }">
     <header class="admin-header">
-      <div class="header-top">
-        <div class="header-left">
-          <router-link to="/" class="back-link" aria-label="Back to app">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-            <span>Back to App</span>
-          </router-link>
-          <h1 class="admin-title">SSi Admin</h1>
+      <div class="header-chrome">
+        <div class="header-inner">
+          <div class="header-left">
+            <router-link to="/" class="back-link" aria-label="Back to app">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+              <span>Back to App</span>
+            </router-link>
+            <div class="title-group">
+              <h1 class="admin-title">SSi Admin</h1>
+            </div>
+          </div>
+          <nav class="admin-nav">
+            <router-link
+              to="/admin"
+              class="nav-link"
+              :class="{ active: route.path === '/admin' }"
+            >
+              <span class="nav-label">Codes</span>
+            </router-link>
+            <router-link
+              to="/admin/analytics"
+              class="nav-link"
+              :class="{ active: route.path === '/admin/analytics' }"
+            >
+              <span class="nav-label">Analytics</span>
+            </router-link>
+            <router-link
+              to="/admin/users"
+              class="nav-link"
+              :class="{ active: route.path.startsWith('/admin/users') }"
+            >
+              <span class="nav-label">Users</span>
+            </router-link>
+            <router-link
+              to="/admin/activity"
+              class="nav-link"
+              :class="{ active: route.path === '/admin/activity' }"
+            >
+              <span class="nav-label">Activity</span>
+            </router-link>
+            <router-link
+              to="/admin/courses"
+              class="nav-link"
+              :class="{ active: route.path === '/admin/courses' }"
+            >
+              <span class="nav-label">Courses</span>
+            </router-link>
+            <router-link
+              to="/admin/entitlements"
+              class="nav-link"
+              :class="{ active: route.path === '/admin/entitlements' }"
+            >
+              <span class="nav-label">Entitlements</span>
+            </router-link>
+          </nav>
         </div>
-        <nav class="admin-nav">
-          <router-link
-            to="/admin"
-            class="nav-link"
-            :class="{ active: route.path === '/admin' }"
-          >
-            Codes
-          </router-link>
-          <router-link
-            to="/admin/analytics"
-            class="nav-link"
-            :class="{ active: route.path === '/admin/analytics' }"
-          >
-            Analytics
-          </router-link>
-          <router-link
-            to="/admin/users"
-            class="nav-link"
-            :class="{ active: route.path.startsWith('/admin/users') }"
-          >
-            Users
-          </router-link>
-          <router-link
-            to="/admin/activity"
-            class="nav-link"
-            :class="{ active: route.path === '/admin/activity' }"
-          >
-            Activity
-          </router-link>
-          <router-link
-            to="/admin/courses"
-            class="nav-link"
-            :class="{ active: route.path === '/admin/courses' }"
-          >
-            Courses
-          </router-link>
-          <router-link
-            to="/admin/entitlements"
-            class="nav-link"
-            :class="{ active: route.path === '/admin/entitlements' }"
-          >
-            Entitlements
-          </router-link>
-        </nav>
       </div>
-      <div class="header-accent" aria-hidden="true"></div>
+      <div class="header-accent" aria-hidden="true">
+        <div class="accent-shimmer"></div>
+      </div>
     </header>
+
     <main class="admin-main">
-      <router-view />
+      <router-view v-slot="{ Component }">
+        <transition name="page" mode="out-in">
+          <component :is="Component" />
+        </transition>
+      </router-view>
     </main>
 
     <!-- Mobile bottom nav -->
@@ -106,6 +123,11 @@ const route = useRoute()
 </template>
 
 <style scoped>
+/* ================================================================
+ * ADMIN CONTAINER — "Obsidian & Parchment"
+ * Dark polished header, warm content area
+ * ================================================================ */
+
 .admin-container {
   height: 100vh;
   overflow-y: auto;
@@ -113,21 +135,30 @@ const route = useRoute()
   color: var(--text-primary);
 }
 
+/* ================================================================
+ * HEADER — Dark chrome with depth
+ * Forces dark palette regardless of theme
+ * ================================================================ */
+
 .admin-header {
   position: sticky;
   top: 0;
   z-index: var(--z-nav);
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-subtle);
-  backdrop-filter: blur(12px);
   padding-top: env(safe-area-inset-top);
 }
 
-.header-top {
+.header-chrome {
+  background: #0c0c10;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.header-inner {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-4) var(--space-8);
+  padding: 0.875rem 2rem;
   max-width: var(--container-max);
   margin: 0 auto;
 }
@@ -135,104 +166,207 @@ const route = useRoute()
 .header-left {
   display: flex;
   align-items: center;
-  gap: var(--space-5);
+  gap: 1.25rem;
 }
 
+/* Back link — muted, reveals on hover */
 .back-link {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-md);
+  gap: 0.25rem;
+  padding: 0.375rem 0.625rem;
+  border-radius: 6px;
   font-family: var(--font-body);
-  font-size: var(--text-xs);
-  font-weight: var(--font-medium);
-  color: var(--text-muted);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.35);
   text-decoration: none;
-  letter-spacing: var(--tracking-wide);
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  transition: color var(--transition-fast), background var(--transition-fast);
+  transition: all 0.2s ease;
 }
 
 .back-link:hover {
-  color: var(--text-primary);
-  background: var(--bg-card);
+  color: var(--ssi-gold);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.back-link svg {
+  transition: transform 0.2s ease;
+}
+
+.back-link:hover svg {
+  transform: translateX(-2px);
+}
+
+/* Title */
+.title-group {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
 }
 
 .admin-title {
   font-family: var(--font-display);
-  font-size: var(--text-xl);
-  font-weight: var(--font-bold);
+  font-size: 1.125rem;
+  font-weight: 700;
   margin: 0;
-  color: var(--text-primary);
-  letter-spacing: var(--tracking-wide);
+  color: #ffffff;
+  letter-spacing: 0.02em;
 }
+
+/* ================================================================
+ * NAV — Pill group with gold active state
+ * ================================================================ */
 
 .admin-nav {
   display: flex;
-  gap: var(--space-1);
-  background: var(--bg-card);
-  padding: var(--space-1);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border-subtle);
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .nav-link {
   position: relative;
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-md);
+  padding: 0.5rem 1rem;
+  border-radius: 7px;
   font-family: var(--font-body);
-  font-size: var(--text-sm);
-  font-weight: var(--font-medium);
-  color: var(--text-muted);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.45);
   text-decoration: none;
-  transition: color var(--transition-fast), background var(--transition-fast);
+  transition: all 0.25s ease;
+  overflow: hidden;
 }
 
+.nav-link .nav-label {
+  position: relative;
+  z-index: 1;
+}
+
+/* Hover — subtle lift */
 .nav-link:hover {
-  color: var(--text-primary);
-  background: var(--bg-card-hover);
+  color: rgba(255, 255, 255, 0.85);
 }
 
+/* Active — gold accent, lit from within */
 .nav-link.active {
-  background: var(--bg-elevated);
-  color: var(--text-primary);
-  box-shadow: var(--shadow-sm);
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
 }
 
-.nav-link.active::after {
+.nav-link.active::before {
   content: '';
   position: absolute;
   bottom: 0;
   left: 50%;
   transform: translateX(-50%);
-  width: 60%;
+  width: 16px;
   height: 2px;
-  background: var(--ssi-red);
-  border-radius: var(--radius-full);
+  background: var(--ssi-gold);
+  border-radius: 2px;
+  box-shadow: 0 0 8px rgba(212, 168, 83, 0.5);
 }
 
-/* Accent gradient bar under header */
+/* ================================================================
+ * ACCENT BAR — Living shimmer
+ * ================================================================ */
+
 .header-accent {
-  height: 2px;
+  height: 1px;
   background: linear-gradient(
     90deg,
     transparent 0%,
-    var(--ssi-red) 20%,
-    var(--ssi-gold) 50%,
-    var(--ssi-red) 80%,
+    rgba(194, 58, 58, 0.3) 15%,
+    rgba(212, 168, 83, 0.5) 50%,
+    rgba(194, 58, 58, 0.3) 85%,
     transparent 100%
   );
-  opacity: 0.6;
+  position: relative;
+  overflow: hidden;
 }
+
+.accent-shimmer {
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(212, 168, 83, 0.6) 50%,
+    transparent 100%
+  );
+  animation: shimmer 8s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0%, 100% { left: -100%; opacity: 0; }
+  10% { opacity: 1; }
+  50% { left: 100%; opacity: 1; }
+  60% { opacity: 0; }
+}
+
+/* ================================================================
+ * MAIN CONTENT — Warm parchment
+ * ================================================================ */
 
 .admin-main {
-  padding: var(--space-8);
+  padding: 2rem;
   max-width: var(--container-max);
   margin: 0 auto;
+  min-height: calc(100vh - 80px);
 }
 
-/* ============ BOTTOM NAV ============ */
+/* Page transition */
+.page-enter-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.page-leave-active {
+  transition: opacity 0.15s ease;
+}
+
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.page-leave-to {
+  opacity: 0;
+}
+
+/* ================================================================
+ * ENTRANCE ANIMATION
+ * ================================================================ */
+
+.admin-container:not(.is-mounted) .header-inner {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+.admin-container.is-mounted .header-inner {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.admin-container:not(.is-mounted) .admin-main {
+  opacity: 0;
+}
+
+.admin-container.is-mounted .admin-main {
+  opacity: 1;
+  transition: opacity 0.4s ease 0.15s;
+}
+
+/* ================================================================
+ * BOTTOM NAV — Dark chrome, matching header
+ * ================================================================ */
+
 .bottom-nav {
   display: none;
 }
@@ -245,11 +379,12 @@ const route = useRoute()
     left: 0;
     right: 0;
     z-index: var(--z-nav);
-    background: var(--bg-secondary);
-    border-top: 1px solid var(--border-subtle);
-    padding: var(--space-2) var(--space-1);
-    padding-bottom: calc(var(--space-2) + env(safe-area-inset-bottom));
-    backdrop-filter: blur(12px);
+    background: #0c0c10;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 0.5rem 0.25rem;
+    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
   }
 
   .bottom-nav-item {
@@ -258,45 +393,49 @@ const route = useRoute()
     flex-direction: column;
     align-items: center;
     gap: 2px;
-    padding: var(--space-1) 0;
+    padding: 0.375rem 0;
     text-decoration: none;
-    color: var(--text-muted);
+    color: rgba(255, 255, 255, 0.35);
     font-size: 10px;
     font-family: var(--font-body);
-    font-weight: var(--font-medium);
-    transition: color var(--transition-fast);
-    border-radius: var(--radius-md);
+    font-weight: 500;
+    transition: color 0.2s ease;
+    border-radius: 8px;
   }
 
   .bottom-nav-item:hover,
   .bottom-nav-item.active {
-    color: var(--text-primary);
+    color: rgba(255, 255, 255, 0.9);
   }
 
   .bottom-nav-item.active svg {
-    color: var(--ssi-red);
+    color: var(--ssi-gold);
+    filter: drop-shadow(0 0 4px rgba(212, 168, 83, 0.4));
   }
 
   .bottom-nav-item.back-item {
-    color: var(--ssi-gold);
+    color: rgba(255, 255, 255, 0.5);
   }
 
   .bottom-nav-item.back-item:hover {
-    color: var(--ssi-red);
+    color: var(--ssi-gold);
   }
 
   .admin-main {
-    padding-bottom: calc(var(--space-8) + 70px) !important;
+    padding-bottom: calc(2rem + 70px) !important;
   }
 }
 
-/* ============ RESPONSIVE ============ */
+/* ================================================================
+ * RESPONSIVE
+ * ================================================================ */
+
 @media (max-width: 1024px) {
-  .header-top {
+  .header-inner {
     flex-direction: column;
     align-items: flex-start;
-    gap: var(--space-3);
-    padding: var(--space-4) var(--space-5);
+    gap: 0.75rem;
+    padding: 0.875rem 1.25rem;
   }
 
   .admin-nav {
@@ -317,12 +456,12 @@ const route = useRoute()
 }
 
 @media (max-width: 768px) {
-  .header-top {
-    padding: var(--space-3) var(--space-4);
+  .header-inner {
+    padding: 0.75rem 1rem;
   }
 
   .admin-main {
-    padding: var(--space-5);
+    padding: 1.25rem;
   }
 
   .back-link span {
@@ -330,8 +469,8 @@ const route = useRoute()
   }
 
   .nav-link {
-    padding: var(--space-2) var(--space-3);
-    font-size: var(--text-xs);
+    padding: 0.4375rem 0.75rem;
+    font-size: 0.75rem;
   }
 }
 </style>
