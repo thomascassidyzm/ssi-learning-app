@@ -200,6 +200,7 @@ const canAccessCourse = (course) => {
     entitlements.value,
     platformRole.value
   )
+  console.log(`[App] canAccessCourse(${course.course_code}): platformRole=${platformRole.value}, tier=${pricingTier}, result=${result.reason}, canAccess=${result.canAccess}`)
   return result.canAccess
 }
 
