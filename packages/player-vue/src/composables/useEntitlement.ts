@@ -247,8 +247,8 @@ export function useEntitlement(): UseEntitlementReturn {
         courseEntitlement: 'free',
         maxDownloadHours: COMMUNITY_DOWNLOAD_HOURS,
       }
-    } else if (access.reason === 'subscribed') {
-      // Paid user - full access
+    } else if (access.reason === 'subscribed' || access.reason === 'entitled') {
+      // Paid user or entitled (admin/entitlement code) - full access
       entitlement.value = {
         canDownload: true,
         isAuthenticated,
