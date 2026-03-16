@@ -93,6 +93,86 @@ export const getLanguageName = (langCode: string): string => {
 }
 
 /**
+ * Language endonyms — the name each language calls itself.
+ * Used for "I speak" buttons so they're always in the speaker's own language.
+ */
+const LANGUAGE_ENDONYMS: Record<string, string> = {
+  eng: 'English',
+  spa: 'Español',
+  fra: 'Français',
+  deu: 'Deutsch',
+  ita: 'Italiano',
+  por: 'Português',
+  nld: 'Nederlands',
+  pol: 'Polski',
+  rus: 'Русский',
+  cym: 'Cymraeg',
+  cym_n: 'Cymraeg (Gogledd)',
+  cym_s: 'Cymraeg (De)',
+  gle: 'Gaeilge',
+  gla: 'Gàidhlig',
+  jpn: '日本語',
+  zho: '中文',
+  cmn: '普通话',
+  kor: '한국어',
+  ara: 'العربية',
+  hin: 'हिन्दी',
+  tur: 'Türkçe',
+  swa: 'Kiswahili',
+  ron: 'Română',
+  cat: 'Català',
+  eus: 'Euskara',
+  glg: 'Galego',
+  swe: 'Svenska',
+  nor: 'Norsk',
+  nob: 'Norsk (Bokmål)',
+  nno: 'Norsk (Nynorsk)',
+  dan: 'Dansk',
+  fin: 'Suomi',
+  isl: 'Íslenska',
+  hrv: 'Hrvatski',
+  srp: 'Српски',
+  bos: 'Bosanski',
+  slv: 'Slovenščina',
+  ces: 'Čeština',
+  slk: 'Slovenčina',
+  ukr: 'Українська',
+  bul: 'Български',
+  mkd: 'Македонски',
+  ell: 'Ελληνικά',
+  hun: 'Magyar',
+  heb: 'עברית',
+  sqi: 'Shqip',
+  lit: 'Lietuvių',
+  lav: 'Latviešu',
+  est: 'Eesti',
+  tha: 'ไทย',
+  vie: 'Tiếng Việt',
+  ind: 'Bahasa Indonesia',
+  fil: 'Filipino',
+  ben: 'বাংলা',
+  urd: 'اردو',
+  tam: 'தமிழ்',
+  tel: 'తెలుగు',
+  msa: 'Bahasa Melayu',
+  yue: '廣東話',
+  fas: 'فارسی',
+  kur: 'Kurdî',
+  amh: 'አማርኛ',
+  hau: 'Hausa',
+  yor: 'Yorùbá',
+  zul: 'isiZulu',
+  kat: 'ქართული',
+  hye: 'Հայերեն',
+  bre: 'Brezhoneg',
+  cor: 'Kernewek',
+}
+
+export const getLanguageEndonym = (langCode: string): string => {
+  return LANGUAGE_ENDONYMS[langCode] || getLanguageName(langCode)
+}
+
+/**
  * Language flag emoji lookup (ISO 639-3 → flag)
  * Comprehensive: add new languages here once — CourseSelector and LearningPlayer both use this.
  */

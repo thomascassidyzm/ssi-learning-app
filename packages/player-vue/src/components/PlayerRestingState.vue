@@ -15,11 +15,16 @@ const emit = defineEmits(['start', 'change-course'])
 
 const courseName = computed(() => {
   if (!props.course) return 'Loading...'
+  // Prefer locale-based lookup — DB display_name may contain raw codes like "ron for eng"
+  const langName = getLanguageName(props.course.target_lang)
+  // getLanguageName falls back to CODE.toUpperCase() — detect that and try display_name
+  if (langName && langName !== props.course.target_lang?.toUpperCase()) return langName
+  // Fallback: use display_name only if it looks like a proper name (not a raw code)
   if (props.course.display_name) {
-    const name = props.course.display_name.replace(/\s+for\s+.+$/i, '')
-    if (!/^[a-z]{2,3}$/i.test(name.trim())) return name
+    const stripped = props.course.display_name.replace(/\s+for\s+.+$/i, '')
+    if (!/^[a-z]{2,3}$/i.test(stripped.trim())) return stripped
   }
-  return getLanguageName(props.course.target_lang)
+  return langName || 'Unknown'
 })
 
 const courseSubtitle = computed(() => {

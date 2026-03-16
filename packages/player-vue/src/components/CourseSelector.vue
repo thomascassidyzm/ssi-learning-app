@@ -12,7 +12,7 @@
  * - Localized UI based on selected known language
  */
 import { ref, computed, watch, onMounted } from 'vue'
-import { useI18n, setLocale, getLanguageName, getLanguageFlag } from '../composables/useI18n'
+import { useI18n, setLocale, getLanguageName, getLanguageEndonym, getLanguageFlag } from '../composables/useI18n'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useSharedSubscription } from '../composables/useSubscription'
 import { checkCourseAccess, inferPricingTier } from '@ssi/core'
@@ -115,7 +115,7 @@ const knownLanguages = computed(() => {
     if (!langMap.has(course.known_lang)) {
       langMap.set(course.known_lang, {
         code: course.known_lang,
-        name: getLanguageName(course.known_lang)
+        name: getLanguageEndonym(course.known_lang)
       })
     }
   }
@@ -136,7 +136,11 @@ const otherLanguages = computed(() => {
 const filteredOtherLanguages = computed(() => {
   const q = langSearchQuery.value.toLowerCase().trim()
   if (!q) return otherLanguages.value
-  return otherLanguages.value.filter(l => l.name.toLowerCase().includes(q))
+  // Match against endonym OR English/locale name (so "Spanish" still finds "Español")
+  return otherLanguages.value.filter(l =>
+    l.name.toLowerCase().includes(q) ||
+    getLanguageName(l.code).toLowerCase().includes(q)
+  )
 })
 
 // Computed: courses available for selected known language

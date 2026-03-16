@@ -269,10 +269,15 @@ const courseFlag = computed(() => {
 
 const courseDisplayName = computed(() => {
   if (!props.course) return ''
-  if (props.course.display_name) {
-    return props.course.display_name.replace(/\s+for\s+.+$/i, '')
-  }
   const targetLang = props.course.target_lang || courseCode.value?.split('_')[0]
+  // Prefer LANGUAGE_NAMES map — DB display_name may contain raw codes like "ron for eng"
+  const mapName = LANGUAGE_NAMES[targetLang]
+  if (mapName) return mapName
+  // Fallback: use display_name only if it looks like a proper name (not a raw code)
+  if (props.course.display_name) {
+    const stripped = props.course.display_name.replace(/\s+for\s+.+$/i, '')
+    if (!/^[a-z]{2,3}$/i.test(stripped.trim())) return stripped
+  }
   return getLangMeta(targetLang).name
 })
 
