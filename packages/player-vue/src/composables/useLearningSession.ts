@@ -109,18 +109,16 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
         items.value = demoItems
       }
 
-      // Start session tracking if database is available (skip for guests)
-      if (sessionStore && learnerId && courseId && !isGuestLearner(learnerId)) {
+      // Start session tracking if database is available (including guests)
+      if (sessionStore && learnerId && courseId && learnerId !== 'demo-learner') {
         try {
           const session = await sessionStore.startSession(learnerId, courseId)
           sessionId.value = session.id
-          console.log('[useLearningSession] Session started:', session.id)
+          console.log('[useLearningSession] Session started:', session.id, isGuestLearner(learnerId) ? '(guest)' : '')
         } catch (err: any) {
           console.warn('[useLearningSession] Session tracking unavailable:', err.message)
           // Continue without session tracking
         }
-      } else if (isGuestLearner(learnerId)) {
-        console.log('[useLearningSession] Guest mode - session tracking disabled')
       }
 
       // Get or create enrollment if database is available (skip for guests)

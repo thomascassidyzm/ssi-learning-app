@@ -502,6 +502,20 @@ export function useAuth(): AuthState & AuthActions {
         console.warn('[useAuth] Belt progress migration failed (non-critical):', beltErr)
       }
 
+      // Migrate guest sessions to authenticated user
+      try {
+        const { count } = await supabase.value
+          .from('sessions')
+          .update({ learner_id: learner.value!.id })
+          .eq('learner_id', oldGuestId)
+          .select('*', { count: 'exact', head: true })
+        if (count && count > 0) {
+          console.log(`[useAuth] Migrated ${count} guest session(s)`)
+        }
+      } catch (sessionErr) {
+        console.warn('[useAuth] Session migration failed (non-critical):', sessionErr)
+      }
+
       // Clear guest data from IndexedDB
       await cache.deleteProgressByLearner(oldGuestId)
 
