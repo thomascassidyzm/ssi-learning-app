@@ -12,6 +12,8 @@ import { ref, computed, type Ref, type ComputedRef } from 'vue'
 import type { SupabaseClient, User } from '@supabase/supabase-js'
 import type { LearnerRecord, LearnerPreferences } from '@ssi/core'
 import { useUserRole } from '@/composables/useUserRole'
+import { useSharedSubscription } from '@/composables/useSubscription'
+import { useSharedUserEntitlements } from '@/composables/useUserEntitlements'
 
 // Local storage keys
 const GUEST_ID_KEY = 'ssi-guest-id'
@@ -98,11 +100,12 @@ export function useAuth(): AuthState & AuthActions {
   const isAuthenticated = computed(() => !!supabaseUser.value || !!learner.value)
   const isGuest = computed(() => !supabaseUser.value && !learner.value && !!guestId.value)
   const learnerId = computed(() => {
+    // Prefer learner.id (learners table PK) — this is what FKs reference
+    if (learner.value) {
+      return learner.value.id
+    }
     if (supabaseUser.value) {
       return supabaseUser.value.id
-    }
-    if (learner.value) {
-      return learner.value.user_id
     }
     return guestId.value
   })
@@ -347,6 +350,8 @@ export function useAuth(): AuthState & AuthActions {
     supabaseUser.value = null
     learner.value = null
     useUserRole().clear()
+    useSharedSubscription().clearCache()
+    useSharedUserEntitlements().clearCache()
     // Reinitialize guest
     guestId.value = getOrCreateGuestId()
   }
