@@ -313,6 +313,24 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
   const recordCycleComplete = async (item: LearningItem, wasSuccessful: boolean = true, wasSpike: boolean = false) => {
     itemsPracticed.value++
 
+    // Periodically sync items_practiced to DB (every 5 cycles)
+    // so we don't lose data if the tab closes before endSession fires
+    if (sessionId.value && itemsPracticed.value % 5 === 0) {
+      const sessionStore = getSessionStore()
+      if (sessionStore) {
+        sessionStore.endSession(sessionId.value, {
+          session_id: sessionId.value,
+          started_at: sessionStartTime.value!,
+          ended_at: new Date(),
+          items_practiced: itemsPracticed.value,
+          spikes_detected: 0,
+          final_rolling_average: 0,
+          metrics: [],
+          spikes: [],
+        }).catch(() => {}) // fire-and-forget
+      }
+    }
+
     // Record in engine if available
     if (helixEngine.value) {
       helixEngine.value.recordPractice(
