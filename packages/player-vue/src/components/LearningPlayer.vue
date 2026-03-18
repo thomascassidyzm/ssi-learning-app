@@ -1050,11 +1050,11 @@ const roundProgress = computed(() => {
 
 // Initialize learning session composable
 const learningSession = useLearningSession({
-  progressStore: progressStore.value,
-  sessionStore: sessionStore.value,
-  courseDataProvider: courseDataProvider.value,
-  learnerId: learnerId.value,
-  courseId: courseCode.value,
+  progressStore: progressStore,
+  sessionStore: sessionStore,
+  courseDataProvider: courseDataProvider,
+  learnerId: learnerId,
+  courseId: courseCode,
   demoItems,
 })
 

@@ -8,7 +8,7 @@
  * - ROUND-based learning via TripleHelixEngine
  */
 
-import { ref, computed, onMounted, onUnmounted, shallowRef, type Ref } from 'vue'
+import { ref, computed, onMounted, onUnmounted, shallowRef, isRef, type Ref } from 'vue'
 import type { ProgressStore, SessionStore, ClassifiedBasket } from '@ssi/core'
 import {
   createTripleHelixEngine,
@@ -17,12 +17,18 @@ import {
 } from '@ssi/core'
 import type { CourseDataProvider, LearningItem } from '../providers/CourseDataProvider'
 
+// Accept either a value or a Ref — read lazily to avoid setup-time null captures
+type MaybeRef<T> = T | Ref<T>
+function unref<T>(val: MaybeRef<T>): T {
+  return isRef(val) ? val.value : val
+}
+
 export interface UseLearningSessionOptions {
-  progressStore?: ProgressStore
-  sessionStore?: SessionStore
-  courseDataProvider?: CourseDataProvider
-  learnerId?: string
-  courseId?: string
+  progressStore?: MaybeRef<ProgressStore | null | undefined>
+  sessionStore?: MaybeRef<SessionStore | null | undefined>
+  courseDataProvider?: MaybeRef<CourseDataProvider | null | undefined>
+  learnerId?: MaybeRef<string | null | undefined>
+  courseId?: MaybeRef<string | null | undefined>
   demoItems?: LearningItem[]
 }
 
@@ -42,14 +48,14 @@ export interface RoundInfo {
 }
 
 export function useLearningSession(options: UseLearningSessionOptions = {}) {
-  const {
-    progressStore,
-    sessionStore,
-    courseDataProvider,
-    learnerId = 'demo-learner',
-    courseId = 'demo',
-    demoItems = [],
-  } = options
+  const demoItems = options.demoItems ?? []
+
+  // Lazy accessors — these read refs at call time, not setup time
+  const getProgressStore = () => unref(options.progressStore) ?? undefined
+  const getSessionStore = () => unref(options.sessionStore) ?? undefined
+  const getCourseDataProvider = () => unref(options.courseDataProvider) ?? undefined
+  const getLearnerId = () => unref(options.learnerId) || 'demo-learner'
+  const getCourseId = () => unref(options.courseId) || 'demo'
 
   // State
   const sessionId = ref<string | null>(null)
@@ -75,8 +81,8 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
   }
 
   // Computed
-  const isDemoMode = computed(() => !progressStore || !sessionStore)
-  const hasDatabase = computed(() => Boolean(progressStore && sessionStore))
+  const isDemoMode = computed(() => !getProgressStore() || !getSessionStore())
+  const hasDatabase = computed(() => Boolean(getProgressStore() && getSessionStore()))
   const hasHelixEngine = computed(() => Boolean(helixEngine.value))
 
   /**
@@ -88,6 +94,13 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
     sessionStartTime.value = new Date()
 
     try {
+      // Read stores lazily — they may not be ready at setup time
+      const courseDataProvider = getCourseDataProvider()
+      const sessionStore = getSessionStore()
+      const progressStore = getProgressStore()
+      const learnerId = getLearnerId()
+      const courseId = getCourseId()
+
       // Try to load items from database
       if (courseDataProvider) {
         console.log('[useLearningSession] Loading items from database...')
@@ -155,7 +168,7 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
       const engine = createTripleHelixEngine(
         DEFAULT_CONFIG.helix,
         DEFAULT_CONFIG.repetition,
-        courseId
+        getCourseId()
       )
 
       // Convert LearningItem[] to SeedPair[] format for the engine
@@ -185,7 +198,7 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
       engine.loadSeeds(seeds)
 
       // Load baskets for LEGOs (if provider available)
-      if (courseDataProvider) {
+      if (getCourseDataProvider()) {
         await loadBasketsForItems(loadedItems, engine)
       }
 
@@ -204,6 +217,7 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
     loadedItems: LearningItem[],
     engine: TripleHelixEngine
   ) => {
+    const courseDataProvider = getCourseDataProvider()
     if (!courseDataProvider) return
 
     try {
@@ -310,6 +324,9 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
     }
 
     // Only track in database if we have stores and not a guest
+    const progressStore = getProgressStore()
+    const learnerId = getLearnerId()
+    const courseId = getCourseId()
     if (!progressStore || !learnerId || !courseId || isGuestLearner(learnerId)) {
       return
     }
@@ -360,6 +377,7 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
    * End session and save final metrics
    */
   const endSession = async () => {
+    const sessionStore = getSessionStore()
     if (!sessionStore || !sessionId.value || !sessionStartTime.value) {
       return
     }
@@ -388,6 +406,7 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
    * Save session metrics (called periodically or on specific events)
    */
   const saveMetrics = async (metrics: any[]) => {
+    const sessionStore = getSessionStore()
     if (!sessionStore || !sessionId.value) {
       return
     }
