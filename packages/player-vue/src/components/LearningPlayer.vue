@@ -486,6 +486,14 @@ simplePlayer.onCycleCompleted((cycle) => {
   if (turboActive.value) {
     turboCycles.value++
   }
+
+  // Record to session tracking (for analytics)
+  const completedItem = currentPlayableItem.value
+  if (completedItem) {
+    learningSession.recordCycleComplete(completedItem).catch(err => {
+      console.error('[LearningPlayer] Failed to record cycle:', err)
+    })
+  }
 })
 
 // Round completed - save progress and update current LEGO ID
