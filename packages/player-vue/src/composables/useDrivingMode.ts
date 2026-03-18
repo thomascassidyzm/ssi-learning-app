@@ -145,6 +145,9 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
   let lastKnownCurrentTime = -1
   let stallCheckTimer: ReturnType<typeof setInterval> | null = null
 
+  // Wake Lock (prevents screen sleep on Android)
+  let wakeLock: WakeLockSentinel | null = null
+
   // Event listener cleanup
   const cleanupFns: Array<() => void> = []
 
@@ -298,6 +301,35 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
     silentAudio.pause()
     silentAudio.currentTime = 0
     isSilentPlaying = false
+  }
+
+  // ----------------------------------------
+  // Wake Lock (Android screen sleep prevention)
+  // ----------------------------------------
+
+  async function acquireWakeLock(): Promise<void> {
+    if (!('wakeLock' in navigator)) return
+    try {
+      wakeLock = await navigator.wakeLock.request('screen')
+      wakeLock.addEventListener('release', () => { wakeLock = null })
+      // Re-acquire if tab becomes visible again (Android releases on tab switch)
+      const handleVisibility = async () => {
+        if (document.visibilityState === 'visible' && internalState.value === 'playing' && !wakeLock) {
+          try { wakeLock = await navigator.wakeLock.request('screen') } catch { /* ignore */ }
+        }
+      }
+      document.addEventListener('visibilitychange', handleVisibility)
+      cleanupFns.push(() => document.removeEventListener('visibilitychange', handleVisibility))
+    } catch {
+      // Wake Lock not available or denied — continue without it
+    }
+  }
+
+  function releaseWakeLock(): void {
+    if (wakeLock) {
+      wakeLock.release().catch(() => {})
+      wakeLock = null
+    }
   }
 
   // ----------------------------------------
@@ -767,8 +799,9 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
         throw new Error('Failed to prepare first round audio')
       }
 
-      // Setup Media Session
+      // Setup Media Session and Wake Lock
       setupMediaSession()
+      await acquireWakeLock()
 
       // Initialize segment
       segment.value = currentRoundAudio.segments[0] || null
@@ -993,7 +1026,8 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
     }
     cleanupFns.length = 0
 
-    // Clear Media Session
+    // Release Wake Lock and clear Media Session
+    releaseWakeLock()
     clearMediaSession()
 
     // Reset state
