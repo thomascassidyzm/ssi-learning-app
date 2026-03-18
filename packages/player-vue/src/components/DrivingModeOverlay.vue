@@ -117,7 +117,7 @@ const phaseLabel = computed(() => {
 
       <!-- Target text - voice2 only -->
       <Transition name="driving-text-reveal">
-        <p v-if="showTargetText" class="driving-target-text" :style="{ color: beltColor }">
+        <p v-if="showTargetText" class="driving-target-text">
           {{ currentTargetText }}
         </p>
       </Transition>
@@ -330,8 +330,8 @@ const phaseLabel = computed(() => {
 }
 
 .driving-target-text {
-  font-size: 1.6rem;
-  font-weight: 500;
+  font-size: 1.8rem;
+  font-weight: 600;
   text-align: center;
   line-height: 1.4;
   margin: 0;
