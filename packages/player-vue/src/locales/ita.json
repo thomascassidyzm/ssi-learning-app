@@ -195,6 +195,17 @@
     "confusing": "Confuso",
     "other": "Altro"
   },
+  "support": {
+    "title": "Sostieni il Progetto",
+    "subtitle": "Aiuta a mantenere SSi gratuito per tutti",
+    "become": "Diventa Sostenitore",
+    "wall": "Muro dei Sostenitori",
+    "wallTitle": "I Nostri Sostenitori",
+    "wallSubtitle": "Grazie per mantenere SSi gratuito",
+    "cta": "Sostieni SSi",
+    "supporter": "Sostenitore",
+    "monthly": "Sostenitore mensile"
+  },
   "languages": {
     "eng": "Inglese",
     "spa": "Spagnolo",

@@ -195,6 +195,17 @@
     "confusing": "مربك",
     "other": "أخرى"
   },
+  "support": {
+    "title": "ادعم المشروع",
+    "subtitle": "ساعد في إبقاء SSi مجانيًا للجميع",
+    "become": "كن داعمًا",
+    "wall": "جدار الداعمين",
+    "wallTitle": "داعمونا",
+    "wallSubtitle": "شكرًا لإبقاء SSi مجانيًا",
+    "cta": "ادعم SSi",
+    "supporter": "داعم",
+    "monthly": "داعم شهري"
+  },
   "languages": {
     "eng": "الإنجليزية",
     "spa": "الإسبانية",

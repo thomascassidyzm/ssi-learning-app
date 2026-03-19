@@ -196,6 +196,17 @@
     "confusing": "Confuso",
     "other": "Otro"
   },
+  "support": {
+    "title": "Apoya el Proyecto",
+    "subtitle": "Ayuda a mantener SSi gratis para todos",
+    "become": "Hazte Colaborador",
+    "wall": "Muro de Colaboradores",
+    "wallTitle": "Nuestros Colaboradores",
+    "wallSubtitle": "Gracias por mantener SSi gratis",
+    "cta": "Apoya SSi",
+    "supporter": "Colaborador",
+    "monthly": "Colaborador mensual"
+  },
   "languages": {
     "eng": "Inglés",
     "spa": "Español",

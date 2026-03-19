@@ -11,8 +11,9 @@ import { useRouter } from 'vue-router'
 import { getLanguageName } from '../composables/useI18n'
 import { useSharedSubscription } from '../composables/useSubscription'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
+import { KOFI_PAGE_URL, SUPPORT_ENABLED } from '../config/supportConfig'
 
-const emit = defineEmits(['close', 'openExplorer', 'openListening', 'openDriving', 'settingChanged'])
+const emit = defineEmits(['close', 'openExplorer', 'openListening', 'openDriving', 'settingChanged', 'openSupportersWall'])
 
 const props = defineProps({
   course: {
@@ -154,7 +155,14 @@ const handleSaveDisplayName = async () => {
 }
 
 // Subscription management
-const { openPortal, isLoading: isPortalLoading, error: portalError } = useSharedSubscription()
+const { openPortal, isLoading: isPortalLoading, error: portalError, isSubscribed } = useSharedSubscription()
+
+// Support section — hidden for paid subscribers
+const showSupportSection = computed(() => SUPPORT_ENABLED && !isSubscribed.value)
+
+const openKofi = () => {
+  window.open(KOFI_PAGE_URL, '_blank', 'noopener')
+}
 const portalFeedback = ref('')
 
 const handleManageSubscription = async () => {
@@ -1391,6 +1399,34 @@ const confirmReset = async () => {
             <div class="setting-info">
               <span class="setting-label">{{ isPortalLoading ? 'Opening...' : 'Manage Subscription' }}</span>
               <span class="setting-desc">{{ portalFeedback || 'View or cancel your subscription' }}</span>
+            </div>
+            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </div>
+        </div>
+      </section>
+
+      <!-- Support Section -->
+      <section class="section" v-if="showSupportSection">
+        <h3 class="section-title">Support the Project</h3>
+        <div class="card">
+          <div class="setting-row clickable" @click="openKofi">
+            <div class="setting-info">
+              <span class="setting-label">&hearts; Become a Supporter</span>
+              <span class="setting-desc">Help keep SSi free for learners</span>
+            </div>
+            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row clickable" @click="emit('openSupportersWall')">
+            <div class="setting-info">
+              <span class="setting-label">Supporters Wall</span>
+              <span class="setting-desc">See who's supporting SSi</span>
             </div>
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6"/>

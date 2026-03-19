@@ -21,6 +21,17 @@
     "pause": "Oedi",
     "resume": "Parhau"
   },
+  "support": {
+    "title": "Cefnogi'r Prosiect",
+    "subtitle": "Helpwch i gadw SSi am ddim i bawb",
+    "become": "Dod yn Gefnogwr",
+    "wall": "Wal y Cefnogwyr",
+    "wallTitle": "Ein Cefnogwyr",
+    "wallSubtitle": "Diolch am gadw SSi am ddim",
+    "cta": "Cefnogi SSi",
+    "supporter": "Cefnogwr",
+    "monthly": "Cefnogwr misol"
+  },
   "languages": {
     "eng": "Saesneg",
     "spa": "Sbaeneg",

@@ -4,6 +4,9 @@ import AuthPrompt from './AuthPrompt.vue'
 import SessionMirror from './learner/SessionMirror.vue'
 import { useAuthModal } from '@/composables/useAuthModal'
 import { useLearnerJourney } from '@/composables/useLearnerJourney'
+import { useSharedSubscription } from '@/composables/useSubscription'
+import { KOFI_PAGE_URL, SUPPORT_ENABLED } from '@/config/supportConfig'
+import { t } from '@/composables/useI18n'
 
 // Get auth state from App
 const auth = inject('auth')
@@ -94,6 +97,37 @@ const handleDismiss = () => {
     auth.markSignupPromptSeen()
   }
 }
+
+// Support CTA — shown every 3rd session if meaningful and not a subscriber
+const { isSubscribed } = useSharedSubscription()
+
+const showSupportCta = computed(() => {
+  if (!SUPPORT_ENABLED) return false
+  if (isSubscribed.value) return false
+  if (props.itemsPracticed < 5) return false
+
+  // Show every 3rd session
+  try {
+    const count = parseInt(localStorage.getItem('ssi_session_count') || '0', 10)
+    return count % 3 === 0
+  } catch {
+    return false
+  }
+})
+
+const openKofi = () => {
+  window.open(KOFI_PAGE_URL, '_blank', 'noopener')
+}
+
+// Increment session counter on mount
+onMounted(() => {
+  if (props.itemsPracticed > 0) {
+    try {
+      const count = parseInt(localStorage.getItem('ssi_session_count') || '0', 10)
+      localStorage.setItem('ssi_session_count', String(count + 1))
+    } catch { /* ignore */ }
+  }
+})
 
 // Learner journey contribution data
 const supabaseRef = inject('supabase', ref(null))
@@ -217,6 +251,15 @@ onMounted(async () => {
         @click="$emit('viewJourney')"
       >
         View Your Journey
+      </button>
+
+      <!-- Support CTA (subtle, every 3rd session) -->
+      <button
+        v-if="showSupportCta"
+        class="view-journey-btn support-cta-btn"
+        @click="openKofi"
+      >
+        &hearts; {{ t('support.cta', 'Support SSi') }}
       </button>
 
       <!-- Auth prompt for guests (after first session) -->
@@ -452,6 +495,17 @@ onMounted(async () => {
 
 .view-journey-btn:active {
   transform: scale(0.97);
+}
+
+/* Support CTA */
+.support-cta-btn {
+  border-color: rgba(239, 68, 68, 0.2);
+  color: rgba(239, 68, 68, 0.7);
+}
+
+.support-cta-btn:hover {
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #ef4444;
 }
 
 /* Resume Button */

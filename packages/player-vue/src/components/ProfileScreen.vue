@@ -1,7 +1,13 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useSharedSupporters } from '@/composables/useSupporters'
+import { t } from '@/composables/useI18n'
 
 const emit = defineEmits(['close'])
+
+// Supporter status
+const { isSupporter, initialize: initSupporters } = useSharedSupporters()
+onMounted(() => { initSupporters() })
 
 // Mock user data
 const user = ref({
@@ -75,7 +81,10 @@ const getActivityIcon = (type) => {
           <span class="avatar-initial">{{ user.name.charAt(0).toUpperCase() }}</span>
         </div>
         <div class="profile-info">
-          <h2 class="profile-name">{{ user.name }}</h2>
+          <div class="profile-name-row">
+            <h2 class="profile-name">{{ user.name }}</h2>
+            <span v-if="isSupporter" class="supporter-badge">&hearts; {{ t('support.supporter', 'Supporter') }}</span>
+          </div>
           <p class="profile-meta">Member since {{ memberSince }}</p>
         </div>
         <button class="edit-btn">
@@ -261,11 +270,33 @@ const getActivityIcon = (type) => {
   min-width: 0;
 }
 
+.profile-name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
 .profile-name {
   font-size: 1.25rem;
   font-weight: 700;
   color: var(--text-primary);
   margin: 0 0 0.25rem 0;
+}
+
+.supporter-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 100px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #ef4444;
+  white-space: nowrap;
+  margin-bottom: 0.25rem;
 }
 
 .profile-meta {

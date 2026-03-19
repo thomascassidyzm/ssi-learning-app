@@ -20,6 +20,9 @@ import CourseSelector from '@/components/CourseSelector.vue'
 // Custom auth modal (unified)
 import { SignInModal } from '@/components/auth'
 
+// Support
+import SupportersWall from '@/components/SupportersWall.vue'
+
 // Global auth modal state (shared singleton)
 import { useAuthModal } from '@/composables/useAuthModal'
 import { BELTS, getSharedBeltProgress, getSeedFromLegoId } from '@/composables/useBeltProgress'
@@ -56,6 +59,7 @@ const showSettings = ref(false)
 const showLibrary = ref(false)
 const showExplorer = ref(false)
 const showCourseSelector = ref(false)
+const showSupportersWall = ref(false)
 
 // Player state - shared with nav bar for play/stop button
 const isPlaying = ref(false)
@@ -271,6 +275,15 @@ const openExplorerOverlay = () => {
 
 const closeExplorerOverlay = () => {
   showExplorer.value = false
+}
+
+const openSupportersWall = () => {
+  showSettings.value = false
+  showSupportersWall.value = true
+}
+
+const closeSupportersWall = () => {
+  showSupportersWall.value = false
 }
 
 // Real learner progress from shared belt progress (created by LearningPlayer)
@@ -555,6 +568,7 @@ onMounted(() => {
             @openExplorer="openExplorerOverlay"
             @openListening="closeSettings(); handleToggleListening()"
             @openDriving="closeSettings(); handleToggleDriving()"
+            @openSupportersWall="openSupportersWall"
           />
         </div>
       </div>
@@ -568,6 +582,15 @@ onMounted(() => {
             :course="activeCourse"
             @close="closeExplorerOverlay"
           />
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Supporters Wall overlay -->
+    <Transition name="slide-up">
+      <div v-if="showSupportersWall" class="settings-overlay" @click.self="closeSupportersWall">
+        <div class="settings-panel">
+          <SupportersWall @close="closeSupportersWall" />
         </div>
       </div>
     </Transition>

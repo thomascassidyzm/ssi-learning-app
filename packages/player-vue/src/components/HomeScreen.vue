@@ -4,6 +4,8 @@ import { useRouter } from 'vue-router'
 import CourseSelector from './CourseSelector.vue'
 import { BELTS } from '@/composables/useBeltProgress'
 import { getLanguageName, getLanguageFlag, t } from '@/composables/useI18n'
+import { useSharedSubscription } from '@/composables/useSubscription'
+import { KOFI_PAGE_URL, SUPPORT_ENABLED } from '@/config/supportConfig'
 
 const props = defineProps({
   supabase: {
@@ -20,7 +22,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['startLearning', 'viewJourney', 'selectCourse', 'viewBrainMap'])
+const emit = defineEmits(['startLearning', 'viewJourney', 'selectCourse', 'viewBrainMap', 'openSupportersWall'])
 
 const router = useRouter()
 
@@ -28,6 +30,14 @@ const router = useRouter()
 const hasSchoolsAccess = computed(() => {
   try { return !!localStorage.getItem('ssi-dev-role') } catch { return false }
 })
+
+// Support card visibility — not shown to paid subscribers
+const { isSubscribed } = useSharedSubscription()
+const showSupportCard = computed(() => SUPPORT_ENABLED && !isSubscribed.value)
+
+const openKofi = () => {
+  window.open(KOFI_PAGE_URL, '_blank', 'noopener')
+}
 
 // Course selector state
 const showCourseSelector = ref(false)
@@ -335,6 +345,22 @@ const brainPath = computed(() => {
           </div>
         </div>
 
+      </section>
+
+      <!-- Support the Project Card -->
+      <section v-if="showSupportCard" class="support-section">
+        <button class="browse-btn" @click="openKofi">
+          <div class="support-icon">
+            <span class="support-heart">&hearts;</span>
+          </div>
+          <div class="browse-content">
+            <span class="browse-title">{{ t('support.title', 'Support the Project') }}</span>
+            <span class="browse-subtitle">{{ t('support.subtitle', 'Help keep SSi free for everyone') }}</span>
+          </div>
+          <svg class="browse-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 18l6-6-6-6"/>
+          </svg>
+        </button>
       </section>
 
       <!-- Schools Dashboard Link (for teachers/admins) -->
@@ -842,6 +868,27 @@ const brainPath = computed(() => {
   height: 20px;
   color: var(--text-muted);
   flex-shrink: 0;
+}
+
+/* Support Section */
+.support-section {
+  margin-bottom: 1.5rem;
+}
+
+.support-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: rgba(239, 68, 68, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.support-heart {
+  font-size: 1.25rem;
+  color: #ef4444;
 }
 
 /* Schools Section */

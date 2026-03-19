@@ -195,6 +195,17 @@
     "confusing": "令人困惑",
     "other": "其他"
   },
+  "support": {
+    "title": "支持项目",
+    "subtitle": "帮助SSi对所有人保持免费",
+    "become": "成为支持者",
+    "wall": "支持者墙",
+    "wallTitle": "我们的支持者",
+    "wallSubtitle": "感谢您帮助SSi保持免费",
+    "cta": "支持SSi",
+    "supporter": "支持者",
+    "monthly": "月度支持者"
+  },
   "languages": {
     "eng": "英语",
     "spa": "西班牙语",

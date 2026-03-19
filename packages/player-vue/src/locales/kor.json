@@ -195,6 +195,17 @@
     "confusing": "혼란스러움",
     "other": "기타"
   },
+  "support": {
+    "title": "프로젝트 지원",
+    "subtitle": "SSi를 모두에게 무료로 유지하도록 도와주세요",
+    "become": "서포터 되기",
+    "wall": "서포터 벽",
+    "wallTitle": "우리의 서포터",
+    "wallSubtitle": "SSi를 무료로 유지해 주셔서 감사합니다",
+    "cta": "SSi 지원하기",
+    "supporter": "서포터",
+    "monthly": "월간 서포터"
+  },
   "languages": {
     "eng": "영어",
     "spa": "스페인어",

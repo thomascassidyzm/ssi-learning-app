@@ -195,6 +195,17 @@
     "confusing": "分かりにくい",
     "other": "その他"
   },
+  "support": {
+    "title": "プロジェクトを支援",
+    "subtitle": "SSiを無料で維持するためにご協力ください",
+    "become": "サポーターになる",
+    "wall": "サポーターの壁",
+    "wallTitle": "サポーターの皆さま",
+    "wallSubtitle": "SSiを無料で維持してくださりありがとうございます",
+    "cta": "SSiを支援",
+    "supporter": "サポーター",
+    "monthly": "月額サポーター"
+  },
   "languages": {
     "eng": "英語",
     "spa": "スペイン語",
