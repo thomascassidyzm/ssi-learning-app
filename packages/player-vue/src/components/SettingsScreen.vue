@@ -134,7 +134,7 @@ const handleSaveDisplayName = async () => {
     await supabase.value
       .from('learners')
       .update({ display_name: name })
-      .eq('user_id', auth.learnerId.value)
+      .eq('user_id', auth.userId?.value || auth.learnerId?.value)
 
     // Update local auth user metadata
     if (auth.user?.value) {
@@ -209,12 +209,12 @@ const hasSchoolRole = computed(() => educationalRole.value != null && SCHOOL_ROL
 const hasAdminRole = computed(() => platformRole.value === 'ssi_admin')
 
 watch(isSignedIn, async (signedIn) => {
-  if (signedIn && supabase?.value && auth?.learnerId?.value) {
+  if (signedIn && supabase?.value && (auth?.userId?.value || auth?.learnerId?.value)) {
     try {
       const { data } = await supabase.value
         .from('learners')
         .select('educational_role, platform_role')
-        .eq('user_id', auth.learnerId.value)
+        .eq('user_id', auth.userId?.value || auth.learnerId?.value)
         .single()
       educationalRole.value = data?.educational_role || null
       platformRole.value = data?.platform_role || null

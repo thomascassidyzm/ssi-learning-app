@@ -99,8 +99,8 @@ export function useAuth(): AuthState & AuthActions {
   // Computed state (accounts for god mode where learner is set without Supabase Auth)
   const isAuthenticated = computed(() => !!supabaseUser.value || !!learner.value)
   const isGuest = computed(() => !supabaseUser.value && !learner.value && !!guestId.value)
+  // learnerId = learners table PK — use for FK references (sessions, enrollments, progress)
   const learnerId = computed(() => {
-    // Prefer learner.id (learners table PK) — this is what FKs reference
     if (learner.value) {
       return learner.value.id
     }
@@ -108,6 +108,17 @@ export function useAuth(): AuthState & AuthActions {
       return supabaseUser.value.id
     }
     return guestId.value
+  })
+
+  // userId = Supabase Auth UUID — use for querying learners.user_id
+  const userId = computed(() => {
+    if (supabaseUser.value) {
+      return supabaseUser.value.id
+    }
+    if (learner.value) {
+      return learner.value.user_id
+    }
+    return null
   })
 
   /**
@@ -554,6 +565,7 @@ export function useAuth(): AuthState & AuthActions {
     isAuthenticated,
     isGuest,
     learnerId,
+    userId,
     completedSessionsCount,
     hasSeenSignupPrompt,
     isLoading,
