@@ -69,7 +69,7 @@ const formattedBuildTime = computed(() => {
   try {
     const d = new Date(buildTime)
     if (isNaN(d.getTime())) return ''
-    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
   } catch { return '' }
 })
 const versionDisplay = computed(() => {

@@ -3,19 +3,12 @@
 const buildNumber = __BUILD_NUMBER__
 const buildTime = __BUILD_TIME__
 
-// Format as "20 Mar 12:34"
-const d = new Date(buildTime)
-const formattedTime = d.toLocaleDateString('en-GB', {
-  day: '2-digit',
-  month: 'short',
-  hour: '2-digit',
-  minute: '2-digit'
-})
+
 </script>
 
 <template>
   <div class="build-badge">
-    {{ formattedTime }} · {{ buildNumber }}
+    {{ buildNumber }}
   </div>
 </template>
 
