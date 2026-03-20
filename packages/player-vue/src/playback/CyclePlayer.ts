@@ -146,14 +146,24 @@ export function createCyclePlayer(): CyclePlayer {
       // Clean up previous handler
       if (audioEndedHandler) {
         audioEl.removeEventListener('ended', audioEndedHandler)
+        audioEndedHandler = null
       }
 
       let settled = false
+
+      function cleanupListeners(): void {
+        if (audioEndedHandler) {
+          audioEl.removeEventListener('ended', audioEndedHandler)
+          audioEndedHandler = null
+        }
+        audioEl.removeEventListener('error', errorHandler)
+      }
 
       function settleResolve(): void {
         if (settled) return
         settled = true
         clearWatchdogs()
+        cleanupListeners()
         cleanupBlobUrl()
         if (!aborted) resolve()
       }
@@ -162,6 +172,7 @@ export function createCyclePlayer(): CyclePlayer {
         if (settled) return
         settled = true
         clearWatchdogs()
+        cleanupListeners()
         cleanupBlobUrl()
         reject(err)
       }
@@ -171,7 +182,7 @@ export function createCyclePlayer(): CyclePlayer {
       audioEl.addEventListener('ended', audioEndedHandler, { once: true })
 
       // Handle errors
-      const errorHandler = () => {
+      function errorHandler(): void {
         const audioError = audioEl.error
         let errorMessage = 'Audio playback error'
         if (audioError) {
@@ -191,16 +202,21 @@ export function createCyclePlayer(): CyclePlayer {
       }
       audioEl.addEventListener('error', errorHandler, { once: true })
 
-      // Stall detection: if currentTime stops advancing for 3s, skip forward
+      // Stall detection: require TWO consecutive checks with no progress (3s total)
       let lastTime = -1
+      let stallCount = 0
       stallCheck = setInterval(() => {
         if (settled || aborted) { clearWatchdogs(); return }
         const ct = audioEl.currentTime
-        if (ct > 0 && ct === lastTime && !audioEl.paused) {
-          console.warn('[CyclePlayer] Audio stalled, skipping forward')
-          audioEl.removeEventListener('ended', audioEndedHandler!)
-          audioEl.removeEventListener('error', errorHandler)
-          settleResolve()
+        if (ct > 0 && ct === lastTime && !audioEl.paused && !audioEl.ended) {
+          stallCount++
+          if (stallCount >= 2) {
+            console.warn('[CyclePlayer] Audio stalled for 3s, skipping')
+            audioEl.pause()
+            settleResolve()
+          }
+        } else {
+          stallCount = 0
         }
         lastTime = ct
       }, 1500)
@@ -208,9 +224,8 @@ export function createCyclePlayer(): CyclePlayer {
       // Absolute safety: no single audio clip should take more than 15s
       safetyTimer = setTimeout(() => {
         if (!settled && !aborted) {
-          console.warn('[CyclePlayer] Safety timeout, skipping forward')
-          audioEl.removeEventListener('ended', audioEndedHandler!)
-          audioEl.removeEventListener('error', errorHandler)
+          console.warn('[CyclePlayer] Safety timeout (15s), skipping')
+          audioEl.pause()
           settleResolve()
         }
       }, 15000)

@@ -15,12 +15,14 @@ export class AudioController implements IAudioController {
   private preloadCache: Map<string, HTMLAudioElement> = new Map();
   private endedCallbacks: Set<() => void> = new Set();
   private callbackErrorLogged = false;
+  private boundHandleEnded: () => void;
 
   constructor() {
+    this.boundHandleEnded = this.handleEnded.bind(this);
     // Create reusable audio element
     if (typeof window !== 'undefined') {
       this.audio = new Audio();
-      this.audio.addEventListener('ended', this.handleEnded.bind(this));
+      this.audio.addEventListener('ended', this.boundHandleEnded);
     }
   }
 
@@ -205,7 +207,7 @@ export class AudioController implements IAudioController {
     this.endedCallbacks.clear();
 
     if (this.audio) {
-      this.audio.removeEventListener('ended', this.handleEnded.bind(this));
+      this.audio.removeEventListener('ended', this.boundHandleEnded);
       this.audio = null;
     }
   }
