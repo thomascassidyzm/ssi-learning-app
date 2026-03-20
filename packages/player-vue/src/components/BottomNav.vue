@@ -79,7 +79,7 @@ const tappedItem = ref(null)
 const playButtonPressed = ref(false)
 
 const isOnPlayerScreen = computed(() => props.currentScreen === 'player')
-const hasOverlayOpen = computed(() => props.showLibrary || props.showSettings)
+const hasOverlayOpen = computed(() => props.showLibrary || props.showSettings || props.showCourseSelector)
 
 const isStopMode = computed(() =>
   props.isPlaying && !props.isListeningMode && !props.isDrivingMode

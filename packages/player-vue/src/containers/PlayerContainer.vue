@@ -536,7 +536,7 @@ onMounted(() => {
       @revisit="handleRevisit"
       @skip="handleSkip"
       @openSettings="toggleSettings"
-      @closeOverlays="closeLibrary(); closeSettings()"
+      @closeOverlays="closeLibrary(); closeSettings(); showCourseSelector = false"
       @closeAuth="closeAuth"
     />
 
