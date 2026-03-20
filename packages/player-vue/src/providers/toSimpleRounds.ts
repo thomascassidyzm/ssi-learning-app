@@ -13,16 +13,6 @@
  */
 
 import type { ScriptItem } from './generateLearningScript'
-
-/**
- * Fix English display casing: "i" → "I", "i'm" → "I'm", etc.
- * Only touches standalone "i" as a word, not "i" inside other words.
- */
-function fixEnglishCasing(text: string): string {
-  return text.replace(/\bi('m|'d|'ll|'ve|'ve)?\b/g, (match) => {
-    return 'I' + match.slice(1)
-  })
-}
 import type { Round, Cycle } from '../playback/SimplePlayer'
 
 const CJK_REGEX = /[\u3000-\u9fff\uac00-\ud7af\uff00-\uffef]/
@@ -162,7 +152,7 @@ export function toSimpleRounds(
         id: i.uuid,
         legoId: i.legoKey,
         known: {
-          text: fixEnglishCasing(i.knownText),
+          text: i.knownText,
           audioUrl: audioUrl(promptAudioId)
         },
         target: {
@@ -200,7 +190,7 @@ export function toSimpleRounds(
       // Canonical LEGO text from intro item — avoids fragile cycle-ID scanning
       ...(introItem ? {
         legoTargetText: introItem.targetText,
-        legoKnownText: fixEnglishCasing(introItem.knownText),
+        legoKnownText: introItem.knownText,
         ...(introItem.targetTextNative ? { legoTargetTextNative: introItem.targetTextNative } : {})
       } : {}),
       cycles
