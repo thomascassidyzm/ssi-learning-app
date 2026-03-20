@@ -40,6 +40,16 @@ const JOURNEY_MAP: Record<string, string> = {
   hrv: '/design/journey-hrv.webp',
   pol: '/design/journey-pol.webp',
   ell: '/design/journey-ell.webp',
+  ukr: '/design/journey-ukr.webp',
+  tur: '/design/journey-tur.webp',
+  bre: '/design/journey-bre.webp',
+  cat: '/design/journey-cat.webp',
+  fin: '/design/journey-fin.webp',
+  hye: '/design/journey-hye.webp',
+  isl: '/design/journey-isl.webp',
+  swe: '/design/journey-swe.webp',
+  tha: '/design/journey-tha.webp',
+  gla: '/design/journey-gla.webp',
 }
 
 // Dawn glow per belt: colour warms and intensifies as learner progresses
@@ -54,7 +64,7 @@ const DAWN_GLOW: Record<string, { color: string; opacity: number }> = {
   black:  { color: '230, 195, 110', opacity: 0.28 },
 }
 
-const DEFAULT_JOURNEY = '/design/journey-jpn.webp'
+const DEFAULT_JOURNEY = '/design/journey-default.webp'
 
 const imageSrc = computed(() => JOURNEY_MAP[props.lang] || DEFAULT_JOURNEY)
 
