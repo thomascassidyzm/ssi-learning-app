@@ -82,6 +82,25 @@ const showListeningMode = ref(false)
 const showPronunciationMode = ref(false)
 const showDrivingMode = ref(false)
 
+// Speed setting
+const speedOptions = [
+  { value: 0.7, label: 'Slowest' },
+  { value: 0.8, label: 'Slower' },
+  { value: 0.9, label: 'Slow' },
+  { value: 1.0, label: 'Normal' },
+  { value: 1.1, label: 'Faster' },
+  { value: 1.25, label: 'Fast' },
+]
+const learnerSpeed = ref(parseFloat(localStorage.getItem('learner_speed') || '1.0'))
+function setLearnerSpeed(value: number) {
+  learnerSpeed.value = value
+  if (value === 1.0) {
+    localStorage.removeItem('learner_speed')
+  } else {
+    localStorage.setItem('learner_speed', String(value))
+  }
+}
+
 // Display settings
 const showFirePath = ref(true)
 
@@ -1169,6 +1188,27 @@ const confirmReset = async () => {
 
       <!-- Practice Modes Section -->
       <section class="section">
+        <h3 class="section-title">Speed</h3>
+        <div class="card">
+          <div class="setting-row">
+            <div class="setting-info">
+              <span class="setting-label">Learning Speed</span>
+              <span class="setting-desc">Adjust how fast target language audio plays. Does not affect your known language.</span>
+            </div>
+          </div>
+          <div class="speed-options">
+            <button
+              v-for="opt in speedOptions"
+              :key="opt.value"
+              @click="setLearnerSpeed(opt.value)"
+              :class="['speed-btn', { active: learnerSpeed === opt.value }]"
+            >
+              <span class="speed-value">{{ opt.value }}x</span>
+              <span class="speed-label">{{ opt.label }}</span>
+            </button>
+          </div>
+        </div>
+
         <h3 class="section-title">Practice Modes</h3>
         <div class="card">
           <div class="setting-row clickable" @click="toggleListeningMode">
@@ -1728,6 +1768,54 @@ const confirmReset = async () => {
   font-family: 'Space Mono', monospace;
   font-size: 0.8125rem;
   color: var(--text-muted);
+}
+
+.speed-options {
+  display: flex;
+  gap: 6px;
+  padding: 0 16px 16px;
+}
+
+.speed-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 4px;
+  border-radius: 10px;
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.speed-btn .speed-value {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.speed-btn .speed-label {
+  font-size: 0.625rem;
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.speed-btn.active {
+  border-color: var(--ssi-red);
+  background: rgba(194, 58, 58, 0.1);
+}
+
+.speed-btn.active .speed-value {
+  color: var(--ssi-red);
+}
+
+.speed-btn.active .speed-label {
+  color: var(--ssi-red);
+  opacity: 0.8;
 }
 
 .chevron {

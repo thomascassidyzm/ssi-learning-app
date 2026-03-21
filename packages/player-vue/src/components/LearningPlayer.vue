@@ -2355,8 +2355,21 @@ function toSimpleRoundsWithComponents(items: any[]) {
   // Read target speed config from course voice_config (set per-course in DB)
   const dbSpeed = props.course?.voice_config?.target_speed
   const targetSpeed: TargetSpeedConfig = dbSpeed
-    ? { beltRamp: dbSpeed.belt_ramp ?? false, globalSpeed: dbSpeed.global_speed ?? 1.0 }
+    ? {
+        globalSpeed: dbSpeed.global_speed ?? 1.0,
+        introSpeed: dbSpeed.intro_speed,
+        firstReviewSpeed: dbSpeed.first_review_speed,
+        reviewSpeed: dbSpeed.review_speed,
+        rampSeeds: dbSpeed.ramp_seeds,
+        rampStartSpeed: dbSpeed.ramp_start_speed,
+        beltRamp: dbSpeed.belt_ramp ?? false,
+      }
     : {}
+  // Learner speed preference (from settings, stored in localStorage)
+  const learnerSpeed = parseFloat(localStorage.getItem('learner_speed') || '1.0')
+  if (learnerSpeed !== 1.0 && !isNaN(learnerSpeed)) {
+    targetSpeed.globalSpeed = (targetSpeed.globalSpeed ?? 1.0) * learnerSpeed
+  }
   const rounds = toSimpleRounds(items, undefined, targetSpeed)
   let count = 0
   for (const round of rounds) {
