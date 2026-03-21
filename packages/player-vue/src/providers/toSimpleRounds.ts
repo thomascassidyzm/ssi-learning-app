@@ -58,8 +58,7 @@ function calculatePauseDuration(
 ): number {
   const t1 = target1DurationMs || estimateDurationMs(targetText || '')
 
-  // bootUp (2s) + 1.5x target1 duration
-  return Math.round(config.bootUpTimeMs + config.scaleFactor * t1)
+  return Math.min(10000, Math.round(config.bootUpTimeMs + config.scaleFactor * t1))
 }
 
 /**
