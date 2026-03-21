@@ -2356,7 +2356,7 @@ function toSimpleRoundsWithComponents(items: any[]) {
   const vc = props.course?.voice_config
   const voices = vc?.voices || vc
   const t1Speed = voices?.target1?.settings?.speed
-  const isNativeSpeed = (t1Speed === 1.0 || t1Speed === 1) && voices?.target1 !== undefined
+  const isNativeSpeed = (t1Speed === 1.0 || t1Speed === 1) && !!voices?.target1?.voiceId
 
   // Read target speed config from course voice_config (set per-course in DB)
   const dbSpeed = vc?.target_speed
