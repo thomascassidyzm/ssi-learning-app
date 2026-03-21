@@ -42,8 +42,8 @@ export function checkCourseAccess(
   entitlements?: UserEntitlement[],
   platformRole?: string | null
 ): CourseAccessResult {
-  // SSi admins and god users get full access to everything
-  if (platformRole === 'ssi_admin' || platformRole === 'god') {
+  // SSi admins, god users, and testers get full access to everything
+  if (platformRole === 'ssi_admin' || platformRole === 'god' || platformRole === 'tester') {
     return {
       canAccess: true,
       canPreview: true,
