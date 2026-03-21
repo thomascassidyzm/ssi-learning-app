@@ -1188,8 +1188,8 @@ const confirmReset = async () => {
 
       <!-- Practice Modes Section -->
       <section class="section">
-        <h3 class="section-title">Speed</h3>
-        <div class="card">
+        <h3 v-if="isAdmin" class="section-title">Speed</h3>
+        <div v-if="isAdmin" class="card">
           <div class="setting-row">
             <div class="setting-info">
               <span class="setting-label">Learning Speed</span>
