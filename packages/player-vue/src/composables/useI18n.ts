@@ -118,7 +118,7 @@ const ISO3_TO_BCP47: Record<string, string> = {
   vie: 'vi', ind: 'id', fil: 'tl', ben: 'bn', urd: 'ur', tam: 'ta',
   tel: 'te', msa: 'ms', yue: 'yue', fas: 'fa', kur: 'ku', amh: 'am',
   hau: 'ha', yor: 'yo', zul: 'zu', kat: 'ka', hye: 'hy', bre: 'br',
-  cor: 'kw',
+  cor: 'kw', sin: 'si',
 }
 
 /**
@@ -136,25 +136,24 @@ const ISO3_TO_LOCALE: Record<string, string> = {
  */
 export const getLanguageName = (langCode: string): string => {
   // Try Intl.DisplayNames first (browser-native, always up to date)
-  const bcp47 = ISO3_TO_BCP47[langCode]
-  if (bcp47) {
-    const localeCode = ISO3_TO_LOCALE[currentLocale.value] || 'en'
-    try {
-      const displayNames = new Intl.DisplayNames([localeCode], { type: 'language' })
-      const name = displayNames.of(bcp47)
-      if (name && name !== bcp47) {
-        // Capitalize first letter (some locales return lowercase)
-        const capitalized = name.charAt(0).toUpperCase() + name.slice(1)
-        // Append variant suffix for dialect codes like cym_n
-        if (langCode === 'cym_n') return `${capitalized} (${t('languages.cym_n_suffix', 'North')})`
-        if (langCode === 'cym_s') return `${capitalized} (${t('languages.cym_s_suffix', 'South')})`
-        if (langCode === 'nob') return `${capitalized} (Bokmål)`
-        if (langCode === 'nno') return `${capitalized} (Nynorsk)`
-        return capitalized
-      }
-    } catch {
-      // Intl.DisplayNames not supported or code unknown — fall through
+  // Use explicit mapping if available, otherwise try the raw code (works for many ISO 639-3 codes)
+  const bcp47 = ISO3_TO_BCP47[langCode] || langCode
+  const localeCode = ISO3_TO_LOCALE[currentLocale.value] || 'en'
+  try {
+    const displayNames = new Intl.DisplayNames([localeCode], { type: 'language' })
+    const name = displayNames.of(bcp47)
+    if (name && name !== bcp47) {
+      // Capitalize first letter (some locales return lowercase)
+      const capitalized = name.charAt(0).toUpperCase() + name.slice(1)
+      // Append variant suffix for dialect codes like cym_n
+      if (langCode === 'cym_n') return `${capitalized} (${t('languages.cym_n_suffix', 'North')})`
+      if (langCode === 'cym_s') return `${capitalized} (${t('languages.cym_s_suffix', 'South')})`
+      if (langCode === 'nob') return `${capitalized} (Bokmål)`
+      if (langCode === 'nno') return `${capitalized} (Nynorsk)`
+      return capitalized
     }
+  } catch {
+    // Intl.DisplayNames not supported or code unknown — fall through
   }
 
   // Fallback: locale JSON files
@@ -235,10 +234,25 @@ const LANGUAGE_ENDONYMS: Record<string, string> = {
   hye: 'Հայերեն',
   bre: 'Brezhoneg',
   cor: 'Kernewek',
+  sin: 'සිංහල',
 }
 
 export const getLanguageEndonym = (langCode: string): string => {
-  return LANGUAGE_ENDONYMS[langCode] || getLanguageName(langCode)
+  if (LANGUAGE_ENDONYMS[langCode]) return LANGUAGE_ENDONYMS[langCode]
+
+  // Try Intl.DisplayNames with the language's OWN locale (endonym = self-name)
+  const bcp47 = ISO3_TO_BCP47[langCode] || langCode
+  try {
+    const displayNames = new Intl.DisplayNames([bcp47], { type: 'language' })
+    const name = displayNames.of(bcp47)
+    if (name && name !== bcp47) {
+      return name.charAt(0).toUpperCase() + name.slice(1)
+    }
+  } catch {
+    // Unknown code — fall through
+  }
+
+  return getLanguageName(langCode)
 }
 
 /**
@@ -303,6 +317,7 @@ const LANGUAGE_FLAGS: Record<string, string> = {
   msa: '🇲🇾',  // Malay
   ind: '🇮🇩',  // Indonesian
   fil: '🇵🇭',  // Filipino
+  sin: '🇱🇰',  // Sinhala
   // Semitic & Middle Eastern
   ara: '🇸🇦',
   heb: '🇮🇱',
