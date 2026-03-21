@@ -66,25 +66,36 @@ function calculatePauseDuration(
  * Target language playback speed configuration.
  * Set per-course (e.g. from courses table or voice config).
  *
- * - globalSpeed: base multiplier for all target audio (default 1.0).
- *   Use this to compensate for voices recorded at non-standard speeds,
- *   e.g. 0.8 for a naturally slow voice, or 1.1 for a fast one.
+ * Two layers of speed control, multiplied together (floor: 0.7x):
  *
- * - beltRamp: if true, early seeds play slower to help beginners.
- *   White (0-7): globalSpeed × 0.82, Yellow (8-19): × 0.91, Orange+: × 1.0.
- *   Only enable for courses recorded at natural (1.0x) speed.
+ * 1. CONTEXT SPEED — how familiar is the learner with this item?
+ *    - introSpeed:       intro/debut/component_intro/build (first encounter)  default 0.8
+ *    - firstReviewSpeed: spaced_rep N-1 (just learned last round)             default 0.9
+ *    - reviewSpeed:      spaced_rep N-2+ and USE phrases                      default 1.0
+ *
+ * 2. SEED RAMP — early seeds get an additional slowdown that fades out.
+ *    - rampSeeds: how many seeds to ramp over (0 = disabled)                  default 10
+ *    - rampStartSpeed: multiplier at seed 1                                   default 0.88
+ *    Linear interpolation from rampStartSpeed to 1.0 over rampSeeds seeds.
+ *
+ * Final speed = globalSpeed × contextSpeed × seedRamp, clamped to [0.7, globalSpeed].
+ *
+ * globalSpeed is a base multiplier to compensate for voices recorded at
+ * non-standard speeds (e.g. 0.9 for a naturally slow voice, 1.1 for fast).
  */
 export interface TargetSpeedConfig {
-  globalSpeed?: number   // base multiplier (default 1.0)
-  beltRamp?: boolean     // apply belt-based slow-down for early seeds (default false)
+  globalSpeed?: number        // base multiplier (default 1.0)
+  introSpeed?: number         // new items in intro round (default 0.8)
+  firstReviewSpeed?: number   // N-1 spaced rep (default 0.9)
+  reviewSpeed?: number        // N-2+ spaced rep / USE (default 1.0)
+  rampSeeds?: number          // seeds to ramp over, 0=disabled (default 10)
+  rampStartSpeed?: number     // ramp multiplier at seed 1 (default 0.88)
+
+  /** @deprecated Use rampSeeds instead. Kept for backwards compat. */
+  beltRamp?: boolean
 }
 
-/** Belt-based ramp multiplier — applied on top of globalSpeed when beltRamp is true */
-function beltRampMultiplier(seedNumber: number): number {
-  if (seedNumber < 8) return 0.82
-  if (seedNumber < 20) return 0.91
-  return 1.0
-}
+const MIN_SPEED = 0.7
 
 /** Extract seed number from seedId like "S0001" → 1 */
 function seedNumberFromId(seedId: string): number {
@@ -92,11 +103,50 @@ function seedNumberFromId(seedId: string): number {
   return match ? parseInt(match[0], 10) : 0
 }
 
-/** Compute target playback speed for a given seed */
-function targetSpeedForSeed(seedNumber: number, config: TargetSpeedConfig): number {
+/** Seed ramp: linear interpolation from rampStartSpeed to 1.0 over rampSeeds */
+function seedRampMultiplier(seedNumber: number, config: TargetSpeedConfig): number {
+  const rampSeeds = config.rampSeeds ?? (config.beltRamp ? 20 : 10)
+  if (rampSeeds <= 0 || seedNumber > rampSeeds) return 1.0
+  const startSpeed = config.rampStartSpeed ?? 0.88
+  // Linear: seed 1 = startSpeed, seed rampSeeds = 1.0
+  const t = Math.max(0, (seedNumber - 1) / (rampSeeds - 1))
+  return startSpeed + t * (1.0 - startSpeed)
+}
+
+/** Context speed based on item type and review distance */
+function contextSpeed(
+  type: string,
+  roundNumber: number,
+  reviewOf: number | undefined,
+  config: TargetSpeedConfig
+): number {
+  // New items: intro, debut, component_intro, build, component_practice
+  if (type === 'intro' || type === 'debut' || type === 'component_intro' || type === 'build' || type === 'component_practice') {
+    return config.introSpeed ?? 0.8
+  }
+  // Spaced rep: check review distance
+  if (type === 'spaced_rep' && reviewOf !== undefined) {
+    const distance = roundNumber - reviewOf
+    if (distance <= 1) return config.firstReviewSpeed ?? 0.9
+    return config.reviewSpeed ?? 1.0
+  }
+  // USE phrases (in the intro round) and everything else
+  return config.reviewSpeed ?? 1.0
+}
+
+/** Compute final playback speed for an item */
+function computePlaybackSpeed(
+  type: string,
+  seedNumber: number,
+  roundNumber: number,
+  reviewOf: number | undefined,
+  config: TargetSpeedConfig
+): number {
   const base = config.globalSpeed ?? 1.0
-  const ramp = config.beltRamp ? beltRampMultiplier(seedNumber) : 1.0
-  return Math.round(base * ramp * 100) / 100 // e.g. 0.82, not 0.8199999
+  const ctx = contextSpeed(type, roundNumber, reviewOf, config)
+  const ramp = seedRampMultiplier(seedNumber, config)
+  const speed = Math.round(base * ctx * ramp * 100) / 100
+  return Math.max(MIN_SPEED, Math.min(speed, base))
 }
 
 export function toSimpleRounds(
@@ -142,11 +192,14 @@ export function toSimpleRounds(
         ? (i.presentationAudioId || i.knownAudioId)
         : i.knownAudioId
 
-      // Target speed: explicit (listening mode) → course config (global + belt ramp) → 1.0
-      // Spaced rep phrases play at normal speed — learner has heard these before
-      const speed = i.playbackSpeed ?? (i.type === 'spaced_rep'
-        ? (targetSpeed.globalSpeed ?? 1.0)
-        : targetSpeedForSeed(seedNumberFromId(i.seedId || primarySeedId), targetSpeed))
+      // Target speed: explicit (listening mode) → context-aware ramp → 1.0
+      const speed = i.playbackSpeed ?? computePlaybackSpeed(
+        i.type,
+        seedNumberFromId(i.seedId || primarySeedId),
+        i.roundNumber,
+        i.reviewOf,
+        targetSpeed
+      )
 
       cycles.push({
         id: i.uuid,
