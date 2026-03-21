@@ -7,6 +7,7 @@ import { useBeltProgress } from '../composables/useBeltProgress'
 import { useTheme } from '../composables/useTheme'
 import { useInviteCode, type InviteCodeContext } from '../composables/useInviteCode'
 import { useAuthModal } from '../composables/useAuthModal'
+import { useUserRole } from '../composables/useUserRole'
 import { useRouter } from 'vue-router'
 import { getLanguageName } from '../composables/useI18n'
 import { useSharedSubscription } from '../composables/useSubscription'
@@ -197,24 +198,8 @@ const isSignedIn = computed(() => auth?.user?.value != null)
 const userEmail = computed(() => auth?.user?.value?.email || '')
 const userName = computed(() => auth?.user?.value?.user_metadata?.display_name || '')
 
-// Check if user is an SSi team admin (can see Developer section)
-const ADMIN_EMAIL_DOMAINS = ['saysomethingin.com', 'ssi.cymru']
-const ADMIN_EMAILS = ['tom@tomcassidy.co.uk']
-const isAdmin = computed(() => {
-  const email = userEmail.value.toLowerCase()
-  if (!email) return false
-  if (ADMIN_EMAILS.some(e => email === e.toLowerCase())) return true
-  const domain = email.split('@')[1]
-  return ADMIN_EMAIL_DOMAINS.some(d => domain === d.toLowerCase())
-})
-
-// Testers: can see speed settings and other tuning tools, but not admin/dev features
-const TESTER_EMAILS: string[] = [] // Add tester emails here
-const isTester = computed(() => {
-  if (isAdmin.value) return true // admins are always testers
-  const email = userEmail.value.toLowerCase()
-  return TESTER_EMAILS.some(e => email === e.toLowerCase())
-})
+// Roles from DB (learners.platform_role)
+const { isSsiAdmin: isAdmin, isTester } = useUserRole()
 
 const { open: openAuth } = useAuthModal()
 const router = useRouter()

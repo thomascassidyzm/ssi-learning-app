@@ -25,6 +25,8 @@ const isTeacher = computed(() =>
   ['teacher', 'school_admin', 'govt_admin', 'god'].includes(educationalRole.value || '')
 )
 
+const isTester = computed(() => platformRole.value === 'tester' || isSsiAdmin.value)
+
 // Capabilities
 const canAccessAdmin = computed(() => isSsiAdmin.value)
 const canAccessSchools = computed(() => isTeacher.value)
@@ -88,6 +90,7 @@ export function useUserRole() {
     // Role booleans
     isGod,
     isSsiAdmin,
+    isTester,
     isGovtAdmin,
     isSchoolAdmin,
     isTeacher,
