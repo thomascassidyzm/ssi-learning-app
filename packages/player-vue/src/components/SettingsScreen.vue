@@ -198,19 +198,22 @@ const userEmail = computed(() => auth?.user?.value?.email || '')
 const userName = computed(() => auth?.user?.value?.user_metadata?.display_name || '')
 
 // Check if user is an SSi team admin (can see Developer section)
-// Add email domains or specific emails here
 const ADMIN_EMAIL_DOMAINS = ['saysomethingin.com', 'ssi.cymru']
-const ADMIN_EMAILS = ['tom@tomcassidy.co.uk'] // Add specific admin emails here
+const ADMIN_EMAILS = ['tom@tomcassidy.co.uk']
 const isAdmin = computed(() => {
   const email = userEmail.value.toLowerCase()
   if (!email) return false
-
-  // Check specific emails first
   if (ADMIN_EMAILS.some(e => email === e.toLowerCase())) return true
-
-  // Check email domains
   const domain = email.split('@')[1]
   return ADMIN_EMAIL_DOMAINS.some(d => domain === d.toLowerCase())
+})
+
+// Testers: can see speed settings and other tuning tools, but not admin/dev features
+const TESTER_EMAILS: string[] = [] // Add tester emails here
+const isTester = computed(() => {
+  if (isAdmin.value) return true // admins are always testers
+  const email = userEmail.value.toLowerCase()
+  return TESTER_EMAILS.some(e => email === e.toLowerCase())
 })
 
 const { open: openAuth } = useAuthModal()
@@ -1188,8 +1191,8 @@ const confirmReset = async () => {
 
       <!-- Practice Modes Section -->
       <section class="section">
-        <h3 v-if="isAdmin" class="section-title">Speed</h3>
-        <div v-if="isAdmin" class="card">
+        <h3 v-if="isTester" class="section-title">Speed</h3>
+        <div v-if="isTester" class="card">
           <div class="setting-row">
             <div class="setting-info">
               <span class="setting-label">Learning Speed</span>
