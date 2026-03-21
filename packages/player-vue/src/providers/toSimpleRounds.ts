@@ -102,43 +102,41 @@ function seedNumberFromId(seedId: string): number {
   return match ? parseInt(match[0], 10) : 0
 }
 
-/** Seed ramp: linear interpolation from rampStartSpeed to 1.0 over rampSeeds */
-function seedRampMultiplier(seedNumber: number, config: TargetSpeedConfig): number {
-  const rampSeeds = config.rampSeeds ?? 20
-  if (rampSeeds <= 0 || seedNumber > rampSeeds) return 1.0
-  const startSpeed = config.rampStartSpeed ?? 0.88
-  // Linear: seed 1 = startSpeed, seed rampSeeds = 1.0
-  const t = Math.max(0, (seedNumber - 1) / (rampSeeds - 1))
-  return startSpeed + t * (1.0 - startSpeed)
+/**
+ * Belt-based speed: the belt determines the speed.
+ *
+ * New items (intro/build): 0.7 → 0.7 → 0.7 → 0.8 (White/Yellow/Orange/Green+)
+ * Spaced rep:              0.7 → 0.8 → 0.9 → 1.0 (White/Yellow/Orange/Green+)
+ */
+function beltSpeedForNew(seedNumber: number): number {
+  if (seedNumber < 40) return 0.7   // White, Yellow, Orange
+  return 0.8                         // Green+
 }
 
-/** Context speed based on item type — only new items get slowed down */
-function contextSpeed(
-  type: string,
-  _roundNumber: number,
-  _reviewOf: number | undefined,
-  config: TargetSpeedConfig
-): number {
-  // New items: intro, debut, component_intro, build, component_practice
-  if (type === 'intro' || type === 'debut' || type === 'component_intro' || type === 'build' || type === 'component_practice') {
-    return config.introSpeed ?? 0.8
-  }
-  // Everything else (spaced rep, USE) at full speed — learner has heard these before
-  return 1.0
+function beltSpeedForReview(seedNumber: number): number {
+  if (seedNumber < 8) return 0.7    // White
+  if (seedNumber < 20) return 0.8   // Yellow
+  if (seedNumber < 40) return 0.9   // Orange
+  return 1.0                        // Green+
 }
+
+const isNewItem = (type: string) =>
+  type === 'intro' || type === 'debut' || type === 'component_intro' ||
+  type === 'build' || type === 'component_practice'
 
 /** Compute final playback speed for an item */
 function computePlaybackSpeed(
   type: string,
   seedNumber: number,
-  roundNumber: number,
-  reviewOf: number | undefined,
+  _roundNumber: number,
+  _reviewOf: number | undefined,
   config: TargetSpeedConfig
 ): number {
   const base = config.globalSpeed ?? 1.0
-  const ctx = contextSpeed(type, roundNumber, reviewOf, config)
-  const ramp = seedRampMultiplier(seedNumber, config)
-  const speed = Math.round(base * ctx * ramp * 100) / 100
+  const beltSpeed = isNewItem(type)
+    ? beltSpeedForNew(seedNumber)
+    : beltSpeedForReview(seedNumber)
+  const speed = Math.round(base * beltSpeed * 100) / 100
   return Math.max(MIN_SPEED, Math.min(speed, base))
 }
 
