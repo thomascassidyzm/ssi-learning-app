@@ -104,7 +104,7 @@ function seedNumberFromId(seedId: string): number {
 
 /** Seed ramp: linear interpolation from rampStartSpeed to 1.0 over rampSeeds */
 function seedRampMultiplier(seedNumber: number, config: TargetSpeedConfig): number {
-  const rampSeeds = config.rampSeeds ?? (config.beltRamp ? 20 : 10)
+  const rampSeeds = config.rampSeeds ?? 20
   if (rampSeeds <= 0 || seedNumber > rampSeeds) return 1.0
   const startSpeed = config.rampStartSpeed ?? 0.88
   // Linear: seed 1 = startSpeed, seed rampSeeds = 1.0
@@ -112,25 +112,19 @@ function seedRampMultiplier(seedNumber: number, config: TargetSpeedConfig): numb
   return startSpeed + t * (1.0 - startSpeed)
 }
 
-/** Context speed based on item type and review distance */
+/** Context speed based on item type — only new items get slowed down */
 function contextSpeed(
   type: string,
-  roundNumber: number,
-  reviewOf: number | undefined,
+  _roundNumber: number,
+  _reviewOf: number | undefined,
   config: TargetSpeedConfig
 ): number {
   // New items: intro, debut, component_intro, build, component_practice
   if (type === 'intro' || type === 'debut' || type === 'component_intro' || type === 'build' || type === 'component_practice') {
     return config.introSpeed ?? 0.8
   }
-  // Spaced rep: check review distance
-  if (type === 'spaced_rep' && reviewOf !== undefined) {
-    const distance = roundNumber - reviewOf
-    if (distance <= 1) return config.firstReviewSpeed ?? 0.9
-    return config.reviewSpeed ?? 1.0
-  }
-  // USE phrases (in the intro round) and everything else
-  return config.reviewSpeed ?? 1.0
+  // Everything else (spaced rep, USE) at full speed — learner has heard these before
+  return 1.0
 }
 
 /** Compute final playback speed for an item */
