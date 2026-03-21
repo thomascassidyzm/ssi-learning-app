@@ -23,8 +23,8 @@ export interface PauseConfig {
 }
 
 export const DEFAULT_PAUSE_CONFIG: PauseConfig = {
-  bootUpTimeMs: 1500,
-  scaleFactor: 2.5
+  bootUpTimeMs: 2000,
+  scaleFactor: 2.0
 }
 
 const audioUrl = (uuid: string | undefined): string => {
