@@ -22,10 +22,19 @@ export interface PauseConfig {
   scaleFactor: number     // Scale factor for target audio duration (default: 0.75)
 }
 
-export const DEFAULT_PAUSE_CONFIG: PauseConfig = {
+// Native speed courses (recorded at 1.0x): longer pauses, belt-based speed ramp
+export const NATIVE_PAUSE_CONFIG: PauseConfig = {
   bootUpTimeMs: 2000,
   scaleFactor: 2.0
 }
+
+// Legacy courses (recorded at 0.8-0.9x): slightly longer pauses than before, no speed ramp
+export const LEGACY_PAUSE_CONFIG: PauseConfig = {
+  bootUpTimeMs: 1500,
+  scaleFactor: 1.5
+}
+
+export const DEFAULT_PAUSE_CONFIG = NATIVE_PAUSE_CONFIG
 
 const audioUrl = (uuid: string | undefined): string => {
   if (!uuid) return ''
@@ -84,6 +93,7 @@ function calculatePauseDuration(
  */
 export interface TargetSpeedConfig {
   globalSpeed?: number        // base multiplier (default 1.0)
+  nativeSpeed?: boolean       // true = recorded at 1.0x, apply belt ramp. false = legacy, no ramp.
   introSpeed?: number         // new items in intro round (default 0.8)
   firstReviewSpeed?: number   // N-1 spaced rep (default 0.9)
   reviewSpeed?: number        // N-2+ spaced rep / USE (default 1.0)
@@ -133,6 +143,11 @@ function computePlaybackSpeed(
   config: TargetSpeedConfig
 ): number {
   const base = config.globalSpeed ?? 1.0
+
+  // Legacy courses (recorded at slower speeds): no belt ramp, play at base speed
+  if (!config.nativeSpeed) return base
+
+  // Native speed courses: apply belt-based ramp
   const beltSpeed = isNewItem(type)
     ? beltSpeedForNew(seedNumber)
     : beltSpeedForReview(seedNumber)
