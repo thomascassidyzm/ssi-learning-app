@@ -58,6 +58,10 @@ export class SimplePlayer {
   // Named handlers for cleanup in dispose()
   private onEndedHandler: () => void
   private onErrorHandler: (e: Event) => void
+  // Generation counter: increments on every playAudio call.
+  // Stale play() rejections and safety timeouts check this to avoid
+  // advancing the phase machine from a superseded audio request.
+  private playGeneration: number = 0
 
   constructor(rounds: Round[]) {
     this.rounds = rounds
@@ -304,14 +308,19 @@ export class SimplePlayer {
 
   private playAudio(url: string, isTarget = false): void {
     this.clearSafetyTimer()
+    const gen = ++this.playGeneration
     this.audio.src = url
     // Only slow down target language audio — known language always plays at 1.0x
     this.audio.playbackRate = isTarget ? (this.currentCycle?.playbackSpeed ?? 1.0) : 1.0
     this.audio.play().catch((err) => {
+      // Ignore rejections from superseded play() calls (e.g. "interrupted by new load")
+      if (gen !== this.playGeneration) return
       console.warn('[SimplePlayer] play() rejected:', err.message)
       this.onAudioEnded()
     })
     this.safetyTimer = setTimeout(() => {
+      // Ignore if a newer playAudio call has started
+      if (gen !== this.playGeneration) return
       console.warn('[SimplePlayer] Safety timeout — audio ended event never fired, advancing')
       this.onAudioEnded()
     }, 10_000)
