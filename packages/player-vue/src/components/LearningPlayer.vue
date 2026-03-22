@@ -1965,6 +1965,38 @@ watch(isPlaying, (playing) => {
   emit('playStateChanged', playing)
 })
 
+// Wake lock: keep screen on during active learning
+let wakeLock: WakeLockSentinel | null = null
+
+async function acquireWakeLock() {
+  if (!('wakeLock' in navigator)) return
+  try {
+    wakeLock = await navigator.wakeLock.request('screen')
+    wakeLock.addEventListener('release', () => { wakeLock = null })
+  } catch { /* ignore — user denied or not supported */ }
+}
+
+function releaseWakeLock() {
+  if (wakeLock) {
+    wakeLock.release().catch(() => {})
+    wakeLock = null
+  }
+}
+
+watch(isPlaying, (playing) => {
+  if (playing) acquireWakeLock()
+  else releaseWakeLock()
+})
+
+// Re-acquire wake lock when tab becomes visible again (browser releases it on tab switch)
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && isPlaying.value && !wakeLock) {
+      acquireWakeLock()
+    }
+  })
+}
+
 // Layout mode: 'default' | 'subtitle' | 'floating' | 'minimal'
 const layoutMode = ref('subtitle')  // Try subtitle mode by default
 const layoutModes = ['default', 'subtitle', 'floating', 'minimal'] as const
@@ -5775,6 +5807,9 @@ onUnmounted(() => {
   if (isPlayingWelcome.value) {
     skipWelcome()
   }
+
+  // Release wake lock
+  releaseWakeLock()
 
   // Stop cycle playback
   stopCycle()
