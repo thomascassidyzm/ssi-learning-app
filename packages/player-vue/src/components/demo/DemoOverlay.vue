@@ -363,11 +363,6 @@ const isFirstScene = computed(() => currentSceneIndex.value <= 0)
   font-weight: 400;
   color: var(--text-secondary, #4A4440);
   line-height: 1.4;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
 }
 
 /* --- Controls --- */
@@ -453,7 +448,6 @@ const isFirstScene = computed(() => currentSceneIndex.value <= 0)
 
   .demo-scene-narration {
     font-size: 12px;
-    -webkit-line-clamp: 3;
   }
 }
 
