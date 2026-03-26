@@ -113,7 +113,7 @@ const demoClasses: ClassInfo[] = [
   {
     id: CLASS_IDS[0],
     class_name: 'Blwyddyn 5 - Cymraeg',
-    course_code: 'cym_for_eng',
+    course_code: 'cym_s_for_eng',
     school_id: SCHOOL_1_ID,
     teacher_user_id: TEACHER_IDS[0],
     student_join_code: 'BL5CYM',
@@ -158,7 +158,7 @@ const demoClasses: ClassInfo[] = [
   {
     id: CLASS_IDS[3],
     class_name: 'Blwyddyn 6 - Cymraeg',
-    course_code: 'cym_for_eng',
+    course_code: 'cym_s_for_eng',
     school_id: SCHOOL_1_ID,
     teacher_user_id: TEACHER_IDS[2],
     student_join_code: 'BL6CYM',
@@ -255,7 +255,7 @@ function buildStudents(): Student[] {
       display_name: s.name,
       class_id: CLASS_IDS[0],
       class_name: 'Blwyddyn 5 - Cymraeg',
-      course_code: 'cym_for_eng',
+      course_code: 'cym_s_for_eng',
       seeds_completed: s.seeds,
       legos_mastered: Math.round(s.seeds * 2.3),
       total_practice_minutes: s.mins,
@@ -273,7 +273,7 @@ function buildStudents(): Student[] {
       display_name: s.name,
       class_id: CLASS_IDS[3],
       class_name: 'Blwyddyn 6 - Cymraeg',
-      course_code: 'cym_for_eng',
+      course_code: 'cym_s_for_eng',
       seeds_completed: s.seeds,
       legos_mastered: Math.round(s.seeds * 2.3),
       total_practice_minutes: s.mins,
@@ -374,7 +374,7 @@ function buildDailyActivity(): DailyActivity[] {
 
 const demoCourseStats: CourseStats[] = [
   {
-    course_code: 'cym_for_eng',
+    course_code: 'cym_s_for_eng',
     enrolled_count: 20,
     avg_practice_minutes: 62,
     avg_seeds_completed: 68,

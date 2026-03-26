@@ -6,7 +6,7 @@
 -- 60 students, 12 teachers, 3 school admins, 1 govt admin
 -- Realistic progress data spread across belt levels
 --
--- Courses: cym_for_eng (Welsh), fra_for_eng (French), spa_for_eng (Spanish)
+-- Courses: cym_s_for_eng (Welsh), fra_for_eng (French), spa_for_eng (Spanish)
 -- Region: wales (already seeded in schools_system migration)
 --
 -- Date: 2026-03-26
@@ -118,7 +118,7 @@ DECLARE
   ];
 
   -- Course codes and labels
-  v_course_codes TEXT[] := ARRAY['cym_for_eng', 'fra_for_eng', 'spa_for_eng'];
+  v_course_codes TEXT[] := ARRAY['cym_s_for_eng', 'fra_for_eng', 'spa_for_eng'];
   v_course_labels TEXT[] := ARRAY['Cymraeg', 'Ffrangeg', 'Sbaeneg'];
 
   -- Class seed progress per school (varies by school)
