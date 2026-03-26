@@ -211,8 +211,13 @@ export function useDemoController() {
     }
     localStorage.setItem('ssi-active-class', JSON.stringify(activeClass))
 
-    // Step 3: Navigate (course is already set, player mounts with correct course)
-    await router.push({ path: '/', query: { class: cls.id, course: cls.course_code } })
+    // Step 3: Navigate with class param (PlayerContainer reads it to load class context)
+    await router.push({ path: '/', query: { class: cls.id } })
+
+    // Step 4: Clean the ugly UUID from the URL — class context is in localStorage
+    setTimeout(() => {
+      history.replaceState(null, '', '/')
+    }, 100)
   }
 
   // ---- Scene transition ----
