@@ -241,9 +241,9 @@ export function useDemoController() {
       }
     }
 
-    // Step 4: Start auto-advance timer
-    const shouldAutoAdvance = scene.autoAdvance !== false
-    if (shouldAutoAdvance && scene.duration > 0 && !isPaused.value) {
+    // Step 4: Auto-advance only if scene explicitly opts in (autoAdvance: true)
+    // Default is manual click-through — each scene is fully interactive
+    if (scene.autoAdvance === true && scene.duration > 0 && !isPaused.value) {
       startSceneTimer(scene.duration)
     }
   }
@@ -366,10 +366,6 @@ export function useDemoController() {
     }
 
     switch (event.code) {
-      case 'Space':
-        event.preventDefault()
-        togglePause()
-        break
       case 'ArrowRight':
         event.preventDefault()
         nextScene()
