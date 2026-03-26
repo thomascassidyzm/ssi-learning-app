@@ -79,11 +79,12 @@ onMounted(async () => {
   // Pre-cache demo courses: Welsh first, then French
   if (supabase.value) {
     try {
+      // Only preload Welsh (played first in the demo).
+      // The eager script singleton holds one course at a time —
+      // preloading French second would evict Welsh from the cache.
+      // French loads on demand when the demo switches to it.
       preloadStatus.value = 'Loading Welsh course...'
       eagerScript.preload(supabase.value, 'cym_s_for_eng')
-      await eagerScript.scriptPromise.value
-      preloadStatus.value = 'Loading French course...'
-      eagerScript.preload(supabase.value, 'fra_for_eng')
       await eagerScript.scriptPromise.value
       preloadStatus.value = 'Ready'
     } catch {
