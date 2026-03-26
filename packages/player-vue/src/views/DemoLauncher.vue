@@ -6,12 +6,15 @@ import { setSchoolsClient } from '@/composables/schools/client'
 import { useDemoController } from '@/composables/demo/useDemoController'
 import { populateDemoData } from '@/composables/demo/populateDemoData'
 import { setLocale } from '@/composables/useI18n'
+import { useEagerScriptPreload } from '@/composables/useEagerScriptPreload'
 import type { GodModeUser } from '@/composables/schools/useGodMode'
 
 const router = useRouter()
 const supabase = inject<any>('supabase', ref(null))
+const eagerScript = useEagerScriptPreload()
 const isReady = ref(false)
 const isStarting = ref(false)
+const preloadStatus = ref('')
 
 // Pre-built demo users with full context (no DB fetch needed)
 const demoUsers: Record<string, GodModeUser> = {
@@ -65,12 +68,27 @@ const demos = [
   },
 ]
 
-onMounted(() => {
+onMounted(async () => {
   // Ensure Supabase client is available for schools composables
   if (supabase.value) {
     setSchoolsClient(supabase.value)
   }
   isReady.value = true
+
+  // Pre-cache demo courses: Welsh first, then French
+  if (supabase.value) {
+    try {
+      preloadStatus.value = 'Loading Welsh course...'
+      eagerScript.preload(supabase.value, 'cym_for_eng')
+      await eagerScript.scriptPromise.value
+      preloadStatus.value = 'Loading French course...'
+      eagerScript.preload(supabase.value, 'fra_for_eng')
+      await eagerScript.scriptPromise.value
+      preloadStatus.value = 'Ready'
+    } catch {
+      preloadStatus.value = 'Ready'
+    }
+  }
 })
 
 async function startDemo(demo: typeof demos[0]) {
@@ -148,7 +166,10 @@ async function startDemo(demo: typeof demos[0]) {
       <!-- Footer -->
       <p class="demo-footer">
         This is a live interactive demo with sample data from Welsh schools.
-        <br>Use keyboard controls during the tour: Space to pause, arrows to navigate.
+        <br>Use arrow keys during the tour to navigate between steps.
+      </p>
+      <p v-if="preloadStatus && preloadStatus !== 'Ready'" class="demo-preload-status">
+        {{ preloadStatus }}
       </p>
     </div>
   </div>
@@ -301,6 +322,15 @@ async function startDemo(demo: typeof demos[0]) {
   color: var(--text-muted, #8A8078);
   line-height: 1.6;
   margin: 0;
+}
+
+.demo-preload-status {
+  text-align: center;
+  font-family: var(--font-body, 'DM Sans', sans-serif);
+  font-size: 11px;
+  color: var(--ssi-red, #c23a3a);
+  margin: 12px 0 0;
+  opacity: 0.7;
 }
 
 @media (max-width: 480px) {
