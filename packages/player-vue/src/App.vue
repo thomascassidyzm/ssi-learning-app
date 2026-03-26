@@ -151,8 +151,8 @@ const handleCourseSelect = async (course) => {
     })
   }
 
-  // Fire eager script preload for new course
-  if (supabaseClient.value) {
+  // Fire eager script preload for new course (skip if already cached)
+  if (supabaseClient.value && eagerScript.courseCode.value !== courseCode) {
     eagerScript.preload(supabaseClient.value, courseCode)
   }
 
