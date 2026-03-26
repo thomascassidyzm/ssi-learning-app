@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useGodMode } from '@/composables/schools/useGodMode'
 import { setSchoolsClient } from '@/composables/schools/client'
 import { useDemoController } from '@/composables/demo/useDemoController'
+import { setLocale } from '@/composables/useI18n'
 import type { GodModeUser } from '@/composables/schools/useGodMode'
 
 const router = useRouter()
@@ -89,6 +90,9 @@ async function startDemo(demo: typeof demos[0]) {
 
   // Grant full course access in demo mode (bypasses paywall for all courses)
   localStorage.setItem('ssi-dev-tier', 'paid')
+
+  // Set locale to English (demo audience speaks English)
+  setLocale('eng')
 
   // Navigate to schools dashboard first (mounts SchoolsContainer)
   await router.push('/schools')
