@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { useGodMode } from '@/composables/schools/useGodMode'
 import { setSchoolsClient } from '@/composables/schools/client'
 import { useDemoController } from '@/composables/demo/useDemoController'
-import { useSchoolData } from '@/composables/schools/useSchoolData'
+import { populateDemoData } from '@/composables/demo/populateDemoData'
 import { setLocale } from '@/composables/useI18n'
 import type { GodModeUser } from '@/composables/schools/useGodMode'
 
@@ -95,18 +95,14 @@ async function startDemo(demo: typeof demos[0]) {
   // Set locale to English (demo audience speaks English)
   setLocale('eng')
 
-  // Navigate to schools dashboard first (mounts SchoolsContainer)
+  // Populate dashboard data directly into composable refs — no Supabase queries
+  populateDemoData(demo.userKey as 'teacher' | 'govt_admin')
+
+  // Navigate to schools dashboard (data is already in the refs, renders instantly)
   await router.push('/schools')
 
-  // Wait for SchoolsContainer to mount and set up client, then force data fetch
-  await new Promise(resolve => setTimeout(resolve, 800))
-
-  // Force a fresh data fetch now that client + user are both set
-  // The watch in DashboardView may not re-fire since selectedUser was set before mount
-  const { fetchSchools } = useSchoolData()
-  await fetchSchools()
-
-  // Start the demo tour
+  // Small delay for mount, then start the demo tour
+  await new Promise(resolve => setTimeout(resolve, 300))
   demoController.startDemo(demo.id)
 }
 </script>

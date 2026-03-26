@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useDemoController } from '@/composables/demo/useDemoController'
 
 const {
@@ -16,6 +16,86 @@ const {
 
 const narrationVisible = ref(false)
 const isCollapsed = ref(false)
+
+// --- Drag state ---
+const posX = ref<number | null>(null)
+const posY = ref(72) // below nav (64px + 8px gap)
+const isDragging = ref(false)
+const dragStartX = ref(0)
+const dragStartY = ref(0)
+const dragStartPosX = ref(0)
+const dragStartPosY = ref(0)
+const hasMoved = ref(false)
+const DRAG_THRESHOLD = 5
+
+const transportStyle = computed(() => {
+  const style: Record<string, string> = {
+    top: `${posY.value}px`,
+  }
+  if (posX.value !== null) {
+    style.left = `${posX.value}px`
+    style.transform = 'none'
+  }
+  return style
+})
+
+function onPointerDown(e: PointerEvent) {
+  // Ignore if clicking a button
+  if ((e.target as HTMLElement).closest('button')) return
+
+  isDragging.value = false
+  hasMoved.value = false
+  dragStartX.value = e.clientX
+  dragStartY.value = e.clientY
+  dragStartPosX.value = posX.value ?? 0
+  dragStartPosY.value = posY.value
+
+  // If posX is null (centered), compute it from the element
+  if (posX.value === null) {
+    const el = (e.currentTarget as HTMLElement)
+    const rect = el.getBoundingClientRect()
+    dragStartPosX.value = rect.left
+    posX.value = rect.left
+  }
+
+  document.addEventListener('pointermove', onPointerMove)
+  document.addEventListener('pointerup', onPointerUp)
+}
+
+function onPointerMove(e: PointerEvent) {
+  const dx = e.clientX - dragStartX.value
+  const dy = e.clientY - dragStartY.value
+
+  if (!hasMoved.value && Math.sqrt(dx * dx + dy * dy) < DRAG_THRESHOLD) {
+    return
+  }
+  hasMoved.value = true
+  isDragging.value = true
+
+  const newX = dragStartPosX.value + dx
+  const newY = dragStartPosY.value + dy
+
+  // Clamp within viewport
+  const maxX = window.innerWidth - 100
+  const maxY = window.innerHeight - 40
+  posX.value = Math.max(0, Math.min(newX, maxX))
+  posY.value = Math.max(0, Math.min(newY, maxY))
+}
+
+function onPointerUp() {
+  document.removeEventListener('pointermove', onPointerMove)
+  document.removeEventListener('pointerup', onPointerUp)
+
+  // Brief delay so click handlers can check isDragging
+  requestAnimationFrame(() => {
+    isDragging.value = false
+  })
+}
+
+// Prevent text selection during drag
+function onDragStart(e: DragEvent) {
+  e.preventDefault()
+}
 
 // Fade narration text on scene change
 watch(currentSceneIndex, () => {
@@ -34,6 +114,12 @@ onMounted(() => {
   })
 })
 
+// Cleanup listeners
+onUnmounted(() => {
+  document.removeEventListener('pointermove', onPointerMove)
+  document.removeEventListener('pointerup', onPointerUp)
+})
+
 // Scene counter text
 const sceneCounter = computed(
   () => `${currentSceneIndex.value + 1} / ${totalScenes.value}`
@@ -47,11 +133,18 @@ const isFirstScene = computed(() => currentSceneIndex.value <= 0)
   <Teleport to="body">
     <div v-if="isActive" class="demo-overlay">
 
-      <!-- Floating transport bar (top center) -->
-      <div class="demo-transport" :class="{ collapsed: isCollapsed }">
+      <!-- Floating transport bar -->
+      <div
+        class="demo-transport"
+        :class="{ collapsed: isCollapsed, dragging: isDragging }"
+        :style="transportStyle"
+        @pointerdown="onPointerDown"
+        @dragstart="onDragStart"
+      >
 
         <!-- Collapsed state: just a small pill -->
-        <button v-if="isCollapsed" class="demo-expand-btn" @click="isCollapsed = false">
+        <button v-if="isCollapsed" class="demo-expand-btn" @click="!isDragging && (isCollapsed = false)">
+          <span class="drag-grip" aria-hidden="true">⋮⋮</span>
           <span class="expand-label">DEMO</span>
           <span class="expand-counter">{{ sceneCounter }}</span>
         </button>
@@ -67,6 +160,9 @@ const isFirstScene = computed(() => currentSceneIndex.value <= 0)
           </div>
 
           <div class="demo-transport-inner">
+            <!-- Drag grip -->
+            <span class="drag-grip" aria-hidden="true">⋮⋮</span>
+
             <!-- Narration -->
             <div class="demo-narration" :class="{ visible: narrationVisible }">
               <span class="demo-badge">DEMO</span>
@@ -133,10 +229,10 @@ const isFirstScene = computed(() => currentSceneIndex.value <= 0)
   pointer-events: none;
 }
 
-/* --- Floating transport (top center) --- */
+/* --- Floating transport --- */
 .demo-transport {
   position: fixed;
-  top: 8px;
+  top: 72px;
   left: 50%;
   transform: translateX(-50%);
   max-width: 720px;
@@ -149,13 +245,39 @@ const isFirstScene = computed(() => currentSceneIndex.value <= 0)
   pointer-events: auto;
   box-shadow: 0 2px 12px rgba(44, 38, 34, 0.10), 0 8px 32px rgba(44, 38, 34, 0.06);
   overflow: hidden;
-  transition: all 0.25s ease;
+  transition: box-shadow 0.25s ease, border-color 0.25s ease;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.demo-transport.dragging {
+  cursor: grabbing;
+  box-shadow: 0 4px 20px rgba(44, 38, 34, 0.16), 0 12px 48px rgba(44, 38, 34, 0.10);
+  border-color: rgba(0, 0, 0, 0.10);
 }
 
 .demo-transport.collapsed {
   width: auto;
   max-width: none;
   border-radius: 10px;
+}
+
+/* --- Drag grip indicator --- */
+.drag-grip {
+  flex-shrink: 0;
+  font-size: 12px;
+  letter-spacing: -2px;
+  color: var(--text-muted, #8A8078);
+  opacity: 0.5;
+  cursor: grab;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.demo-transport.dragging .drag-grip {
+  opacity: 0.8;
+  cursor: grabbing;
 }
 
 /* --- Collapsed expand button --- */
@@ -166,7 +288,7 @@ const isFirstScene = computed(() => currentSceneIndex.value <= 0)
   padding: 6px 14px;
   border: none;
   background: transparent;
-  cursor: pointer;
+  cursor: grab;
   color: var(--text-secondary, #4A4440);
   font-family: var(--font-body, 'DM Sans', sans-serif);
   transition: color 0.15s ease;
@@ -314,7 +436,6 @@ const isFirstScene = computed(() => currentSceneIndex.value <= 0)
 /* --- Responsive --- */
 @media (max-width: 640px) {
   .demo-transport {
-    top: 4px;
     width: calc(100% - 16px);
     border-radius: 10px;
   }
@@ -340,6 +461,5 @@ const isFirstScene = computed(() => currentSceneIndex.value <= 0)
 @media (prefers-reduced-motion: reduce) {
   .demo-narration { transition: none; }
   .demo-progress-fill { transition: none; }
-  .demo-transport { transition: none; }
 }
 </style>
