@@ -190,6 +190,13 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/RedeemCode.vue'),
     meta: { title: 'Redeem Code' },
   },
+  // Demo launcher (no auth required)
+  {
+    path: '/demo',
+    name: 'demo',
+    component: () => import('@/views/DemoLauncher.vue'),
+    meta: { title: 'Demo - SaySomethingin Schools' },
+  },
   // PWA install guide
   {
     path: '/install',

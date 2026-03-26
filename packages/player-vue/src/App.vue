@@ -17,6 +17,7 @@ import { useUserRole } from './composables/useUserRole'
 import { installConsoleDedup } from './utils/consoleDedup'
 import PwaUpdatePrompt from './components/PwaUpdatePrompt.vue'
 import InstallBanner from './components/InstallBanner.vue'
+import DemoOverlay from './components/demo/DemoOverlay.vue'
 
 // Suppress consecutive identical console errors/warnings after 3 repeats
 installConsoleDedup()
@@ -420,6 +421,7 @@ onMounted(async () => {
   } else {
     // Running in demo mode (database not configured or disabled)
   }
+
 })
 </script>
 
@@ -428,6 +430,7 @@ onMounted(async () => {
     <router-view />
     <PwaUpdatePrompt />
     <InstallBanner />
+    <DemoOverlay />
   </div>
 </template>
 

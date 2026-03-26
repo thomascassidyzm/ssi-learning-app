@@ -1,0 +1,316 @@
+<script setup lang="ts">
+import { ref, onMounted, inject } from 'vue'
+import { useRouter } from 'vue-router'
+import { useGodMode } from '@/composables/schools/useGodMode'
+import { setSchoolsClient } from '@/composables/schools/client'
+import { useDemoController } from '@/composables/demo/useDemoController'
+import type { GodModeUser } from '@/composables/schools/useGodMode'
+
+const router = useRouter()
+const supabase = inject<any>('supabase', ref(null))
+const isReady = ref(false)
+const isStarting = ref(false)
+
+// Pre-built demo users with full context (no DB fetch needed)
+const demoUsers: Record<string, GodModeUser> = {
+  teacher: {
+    user_id: 'test_teacher_rhian',
+    learner_id: 'e0200000-0000-0000-0000-000000000001',
+    display_name: 'Rhian Griffiths',
+    educational_role: 'teacher',
+    platform_role: null,
+    school_id: 'e0000000-0000-0000-0000-000000000001',
+    school_name: 'Ysgol Gymraeg Aberystwyth',
+    region_code: 'wales',
+  },
+  school_admin: {
+    user_id: 'test_admin_elen',
+    learner_id: 'e0100000-0000-0000-0000-000000000001',
+    display_name: 'Elen Rhys',
+    educational_role: 'school_admin',
+    platform_role: null,
+    school_id: 'e0000000-0000-0000-0000-000000000001',
+    school_name: 'Ysgol Gymraeg Aberystwyth',
+    region_code: 'wales',
+  },
+  govt_admin: {
+    user_id: 'test_govt_gwilym',
+    learner_id: 'e0100000-0000-0000-0000-000000000010',
+    display_name: 'Gwilym ap Dafydd',
+    educational_role: 'govt_admin',
+    platform_role: null,
+    region_code: 'wales',
+    organization_name: 'Llywodraeth Cymru - Adran Addysg',
+  },
+}
+
+const demos = [
+  {
+    id: 'teacher-demo',
+    userKey: 'teacher',
+    title: 'Teacher View',
+    subtitle: 'Rhian Griffiths — Ysgol Gymraeg Aberystwyth',
+    description: 'Run a class learning session, manage classes, track student progress.',
+    icon: '👩‍🏫',
+  },
+  {
+    id: 'govt-admin-demo',
+    userKey: 'govt_admin',
+    title: 'Regional Admin View',
+    subtitle: 'Gwilym ap Dafydd — Llywodraeth Cymru',
+    description: 'Monitor all schools in your region. Aggregated data, privacy-first.',
+    icon: '🏛️',
+  },
+]
+
+onMounted(() => {
+  // Ensure Supabase client is available for schools composables
+  if (supabase.value) {
+    setSchoolsClient(supabase.value)
+  }
+  isReady.value = true
+})
+
+async function startDemo(demo: typeof demos[0]) {
+  if (isStarting.value) return
+  isStarting.value = true
+
+  const godMode = useGodMode()
+  const demoController = useDemoController()
+  const user = demoUsers[demo.userKey]
+
+  // Set the God Mode user directly (bypasses checkGodAccess + fetchUsers)
+  godMode.selectUser(user)
+
+  // Also populate allUsers so the controller's waitForGodModeUsers resolves
+  if (godMode.allUsers.value.length === 0) {
+    godMode.allUsers.value = Object.values(demoUsers)
+  }
+
+  // Navigate to schools dashboard first (mounts SchoolsContainer)
+  await router.push('/schools')
+
+  // Small delay to let SchoolsContainer mount and set up
+  await new Promise(resolve => setTimeout(resolve, 500))
+
+  // Start the demo tour
+  demoController.startDemo(demo.id)
+}
+</script>
+
+<template>
+  <div class="demo-launcher">
+    <div class="demo-content">
+      <!-- Header -->
+      <div class="demo-header">
+        <div class="demo-logo">
+          <span class="logo-text">SaySomethingin</span>
+          <span class="logo-accent">Schools</span>
+        </div>
+        <p class="demo-tagline">
+          The simplest way to bring language learning to life in your classroom.
+          Built on 15 years of proven methodology.
+        </p>
+      </div>
+
+      <!-- Demo cards -->
+      <div class="demo-cards">
+        <button
+          v-for="demo in demos"
+          :key="demo.id"
+          class="demo-card"
+          :disabled="!isReady || isStarting"
+          @click="startDemo(demo)"
+        >
+          <span class="card-icon">{{ demo.icon }}</span>
+          <div class="card-text">
+            <h2 class="card-title">{{ demo.title }}</h2>
+            <p class="card-subtitle">{{ demo.subtitle }}</p>
+            <p class="card-description">{{ demo.description }}</p>
+          </div>
+          <span class="card-arrow">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </span>
+        </button>
+      </div>
+
+      <!-- Footer -->
+      <p class="demo-footer">
+        This is a live interactive demo with sample data from Welsh schools.
+        <br>Use keyboard controls during the tour: Space to pause, arrows to navigate.
+      </p>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.demo-launcher {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #0a0a14 0%, #111128 50%, #0d0d1a 100%);
+  padding: 24px;
+}
+
+.demo-content {
+  max-width: 560px;
+  width: 100%;
+}
+
+.demo-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.demo-logo {
+  margin-bottom: 16px;
+}
+
+.logo-text {
+  font-family: var(--font-body, 'DM Sans', sans-serif);
+  font-size: 28px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+  letter-spacing: -0.02em;
+}
+
+.logo-accent {
+  font-family: var(--font-body, 'DM Sans', sans-serif);
+  font-size: 28px;
+  font-weight: 700;
+  color: #dc2626;
+  margin-left: 8px;
+}
+
+.demo-tagline {
+  font-family: var(--font-body, 'DM Sans', sans-serif);
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.demo-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 32px;
+}
+
+.demo-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 24px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+  text-align: left;
+  width: 100%;
+  color: inherit;
+  font: inherit;
+}
+
+.demo-card:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(220, 38, 38, 0.3);
+  transform: translateY(-1px);
+}
+
+.demo-card:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.demo-card:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.card-icon {
+  font-size: 32px;
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 12px;
+}
+
+.card-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.card-title {
+  font-family: var(--font-body, 'DM Sans', sans-serif);
+  font-size: 17px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0 0 2px;
+}
+
+.card-subtitle {
+  font-family: var(--font-body, 'DM Sans', sans-serif);
+  font-size: 13px;
+  color: #dc2626;
+  margin: 0 0 6px;
+  font-weight: 500;
+}
+
+.card-description {
+  font-family: var(--font-body, 'DM Sans', sans-serif);
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.4);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.card-arrow {
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.2);
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.demo-card:hover .card-arrow {
+  color: #dc2626;
+  transform: translateX(2px);
+}
+
+.demo-footer {
+  text-align: center;
+  font-family: var(--font-body, 'DM Sans', sans-serif);
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.25);
+  line-height: 1.6;
+  margin: 0;
+}
+
+@media (max-width: 480px) {
+  .demo-launcher {
+    padding: 16px;
+  }
+
+  .logo-text,
+  .logo-accent {
+    font-size: 22px;
+  }
+
+  .demo-card {
+    padding: 16px;
+  }
+
+  .card-icon {
+    font-size: 24px;
+    width: 40px;
+    height: 40px;
+  }
+}
+</style>
