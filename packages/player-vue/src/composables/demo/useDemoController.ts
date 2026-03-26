@@ -158,11 +158,13 @@ export function useDemoController() {
    */
   async function playClassByIndex(index: number) {
     // Class IDs and metadata for the demo
+    // Welsh uses cym_s (South) as the default demo variant
     const demoClasses = [
       {
         id: 'e0300000-0000-0000-0000-000000000001',
         name: 'Blwyddyn 5 Cymraeg',
-        course_code: 'cym_for_eng',
+        course_code: 'cym_s_for_eng',
+        target_lang: 'cym_s',
         current_seed: 1,
         last_lego_id: null,
       },
@@ -170,6 +172,7 @@ export function useDemoController() {
         id: 'e0300000-0000-0000-0000-000000000004',
         name: 'Blwyddyn 6 Ffrangeg',
         course_code: 'fra_for_eng',
+        target_lang: 'fra',
         current_seed: 1,
         last_lego_id: null,
       },
@@ -181,7 +184,21 @@ export function useDemoController() {
       return
     }
 
-    // Store class context for the player — mirrors handlePlayClass in TeacherDashboard.vue
+    // Step 1: Switch course FIRST (before navigation) so the player mounts with the right course
+    localStorage.setItem('ssi-last-course', cls.course_code)
+    window.dispatchEvent(new CustomEvent('demo:selectCourse', {
+      detail: {
+        course_code: cls.course_code,
+        known_lang: 'eng',
+        target_lang: cls.target_lang,
+        display_name: cls.name,
+      }
+    }))
+
+    // Wait for App.vue to process the course switch
+    await new Promise(resolve => setTimeout(resolve, 100))
+
+    // Step 2: Store class context for the player
     const activeClass = {
       id: cls.id,
       name: cls.name,
@@ -193,21 +210,7 @@ export function useDemoController() {
     }
     localStorage.setItem('ssi-active-class', JSON.stringify(activeClass))
 
-    // Force the course selection by setting localStorage AND dispatching an event
-    // that App.vue's handleCourseSelect can pick up
-    localStorage.setItem('ssi-last-course', cls.course_code)
-
-    // Dispatch event with full course metadata so the player gets proper known_lang/target_lang
-    window.dispatchEvent(new CustomEvent('demo:selectCourse', {
-      detail: {
-        course_code: cls.course_code,
-        known_lang: 'eng',
-        target_lang: cls.course_code.split('_')[0], // cym, fra, etc.
-        display_name: cls.name,
-      }
-    }))
-
-    // Navigate to the player with class context + course hint
+    // Step 3: Navigate (course is already set, player mounts with correct course)
     await router.push({ path: '/', query: { class: cls.id, course: cls.course_code } })
   }
 

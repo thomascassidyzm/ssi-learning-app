@@ -79,7 +79,7 @@ onMounted(async () => {
   if (supabase.value) {
     try {
       preloadStatus.value = 'Loading Welsh course...'
-      eagerScript.preload(supabase.value, 'cym_for_eng')
+      eagerScript.preload(supabase.value, 'cym_s_for_eng')
       await eagerScript.scriptPromise.value
       preloadStatus.value = 'Loading French course...'
       eagerScript.preload(supabase.value, 'fra_for_eng')
