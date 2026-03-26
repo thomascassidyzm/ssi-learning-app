@@ -6,13 +6,13 @@ import { setSchoolsClient } from '@/composables/schools/client'
 import { useDemoController } from '@/composables/demo/useDemoController'
 import { populateDemoData } from '@/composables/demo/populateDemoData'
 import { setLocale } from '@/composables/useI18n'
-import { useEagerScriptPreload } from '@/composables/useEagerScriptPreload'
+import type { EagerScriptPreload } from '@/composables/useEagerScriptPreload'
 import type { GodModeUser } from '@/composables/schools/useGodMode'
 
 const router = useRouter()
 const supabase = inject<any>('supabase', ref(null))
 const handleCourseSelect = inject<any>('handleCourseSelect')
-const eagerScript = useEagerScriptPreload()
+const eagerScript = inject<EagerScriptPreload>('eagerScript')!
 const isReady = ref(false)
 const isStarting = ref(false)
 const preloadStatus = ref('')
