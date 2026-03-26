@@ -422,6 +422,14 @@ onMounted(async () => {
     // Running in demo mode (database not configured or disabled)
   }
 
+  // Listen for demo course selection (bypasses normal enrolled course lookup)
+  window.addEventListener('demo:selectCourse', (e) => {
+    const detail = /** @type {CustomEvent} */ (e).detail
+    if (detail?.course_code) {
+      handleCourseSelect(detail)
+    }
+  })
+
 })
 </script>
 

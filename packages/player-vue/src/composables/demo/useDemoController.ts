@@ -193,9 +193,19 @@ export function useDemoController() {
     }
     localStorage.setItem('ssi-active-class', JSON.stringify(activeClass))
 
-    // Also set last-course so the player loads the right course even if it's
-    // not in the "enrolled" list (e.g. cym_for_eng may not be live/beta yet)
+    // Force the course selection by setting localStorage AND dispatching an event
+    // that App.vue's handleCourseSelect can pick up
     localStorage.setItem('ssi-last-course', cls.course_code)
+
+    // Dispatch event with full course metadata so the player gets proper known_lang/target_lang
+    window.dispatchEvent(new CustomEvent('demo:selectCourse', {
+      detail: {
+        course_code: cls.course_code,
+        known_lang: 'eng',
+        target_lang: cls.course_code.split('_')[0], // cym, fra, etc.
+        display_name: cls.name,
+      }
+    }))
 
     // Navigate to the player with class context + course hint
     await router.push({ path: '/', query: { class: cls.id, course: cls.course_code } })
