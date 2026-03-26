@@ -193,8 +193,12 @@ export function useDemoController() {
     }
     localStorage.setItem('ssi-active-class', JSON.stringify(activeClass))
 
-    // Navigate to the player with class context
-    await router.push({ path: '/', query: { class: cls.id } })
+    // Also set last-course so the player loads the right course even if it's
+    // not in the "enrolled" list (e.g. cym_for_eng may not be live/beta yet)
+    localStorage.setItem('ssi-last-course', cls.course_code)
+
+    // Navigate to the player with class context + course hint
+    await router.push({ path: '/', query: { class: cls.id, course: cls.course_code } })
   }
 
   // ---- Scene transition ----
@@ -278,6 +282,11 @@ export function useDemoController() {
 
     // Clean up any demo state from localStorage
     localStorage.removeItem('ssi-active-class')
+    localStorage.removeItem('ssi-dev-tier')
+    localStorage.removeItem('ssi-last-course')
+
+    // Navigate back to demo launcher
+    router.push('/demo')
   }
 
   function pause() {

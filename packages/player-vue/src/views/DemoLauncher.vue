@@ -87,6 +87,9 @@ async function startDemo(demo: typeof demos[0]) {
     godMode.allUsers.value = Object.values(demoUsers)
   }
 
+  // Grant full course access in demo mode (bypasses paywall for all courses)
+  localStorage.setItem('ssi-dev-tier', 'paid')
+
   // Navigate to schools dashboard first (mounts SchoolsContainer)
   await router.push('/schools')
 
