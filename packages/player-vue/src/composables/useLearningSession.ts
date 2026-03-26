@@ -313,22 +313,9 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
   const recordCycleComplete = async (item: LearningItem, wasSuccessful: boolean = true, wasSpike: boolean = false) => {
     itemsPracticed.value++
 
-    // Periodically sync items_practiced to DB (every 5 cycles)
-    // so we don't lose data if the tab closes before endSession fires
-    if (sessionId.value && itemsPracticed.value % 5 === 0) {
-      const sessionStore = getSessionStore()
-      if (sessionStore) {
-        sessionStore.endSession(sessionId.value, {
-          session_id: sessionId.value,
-          started_at: sessionStartTime.value!,
-          ended_at: new Date(),
-          items_practiced: itemsPracticed.value,
-          spikes_detected: 0,
-          final_rolling_average: 0,
-          metrics: [],
-          spikes: [],
-        }).catch(() => {}) // fire-and-forget
-      }
+    // Checkpoint to DB on every cycle — lightweight UPDATE, ensures no data loss
+    if (sessionId.value) {
+      checkpointSession()
     }
 
     // Record in engine if available
@@ -389,6 +376,49 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
       console.error('[useLearningSession] Failed to record progress:', err)
       // Don't throw - continue learning even if tracking fails
     }
+
+    // Update enrollment with highest seed
+    try {
+      const seedNumber = parseInt(item.seed.seed_id.replace(/\D/g, ''), 10)
+      if (!isNaN(seedNumber) && seedNumber > 0) {
+        await progressStore.updateEnrollmentActivity(
+          learnerId,
+          courseId,
+          seedNumber,
+          0  // Don't accumulate minutes per-cycle, do it on session end
+        )
+      }
+    } catch (err) {
+      console.warn('[useLearningSession] Failed to update enrollment:', err)
+    }
+  }
+
+  /**
+   * Lightweight checkpoint — updates session row with current progress.
+   * Fire-and-forget: must be fast and never block (used in beforeunload, visibilitychange).
+   */
+  const checkpointSession = () => {
+    const sessionStore = getSessionStore()
+    if (!sessionStore || !sessionId.value || !sessionStartTime.value) return
+
+    const durationSeconds = Math.floor((Date.now() - sessionStartTime.value.getTime()) / 1000)
+
+    // Fire-and-forget — this must be fast and never block
+    sessionStore.checkpointSession(
+      sessionId.value,
+      itemsPracticed.value,
+      durationSeconds
+    )
+  }
+
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === 'hidden') {
+      checkpointSession()
+    }
+  }
+
+  const handleBeforeUnload = () => {
+    checkpointSession()
   }
 
   /**
@@ -412,6 +442,23 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
         metrics: [], // TODO: Wire up response metrics
         spikes: [], // TODO: Wire up spike events
       })
+
+      // Update enrollment with accumulated practice minutes
+      const progressStore = getProgressStore()
+      const learnerId = getLearnerId()
+      const courseId = getCourseId()
+      if (progressStore && learnerId && courseId && !isGuestLearner(learnerId)) {
+        const durationMinutes = Math.floor(
+          (endTime.getTime() - sessionStartTime.value.getTime()) / 60000
+        )
+        if (durationMinutes > 0) {
+          try {
+            await progressStore.updateEnrollmentActivity(learnerId, courseId, 0, durationMinutes)
+          } catch (err) {
+            console.warn('[useLearningSession] Failed to update enrollment minutes:', err)
+          }
+        }
+      }
 
       console.log('[useLearningSession] Session ended:', sessionId.value)
     } catch (err) {
@@ -446,9 +493,16 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
   // Lifecycle hooks
   onMounted(() => {
     initializeSession()
+
+    // Checkpoint when tab becomes hidden (user switches tabs, locks phone, etc.)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    // Last-resort checkpoint on tab close
+    window.addEventListener('beforeunload', handleBeforeUnload)
   })
 
   onUnmounted(() => {
+    document.removeEventListener('visibilitychange', handleVisibilityChange)
+    window.removeEventListener('beforeunload', handleBeforeUnload)
     endSession()
   })
 
@@ -467,6 +521,7 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
     // Methods
     getNextItem,
     recordCycleComplete,
+    checkpointSession,
     saveMetrics,
     endSession,
     getBasket,

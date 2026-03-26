@@ -178,6 +178,7 @@ export interface IProgressStore {
   createEnrollment(learnerId: string, courseId: string): Promise<CourseEnrollmentRecord>;
   updateHelixState(learnerId: string, courseId: string, state: HelixState): Promise<void>;
   updateEnrollmentProgress(learnerId: string, courseId: string, legoId: string, roundIndex: number): Promise<void>;
+  updateEnrollmentActivity(learnerId: string, courseId: string, highestSeed: number, practiceMinutes: number): Promise<void>;
 
   // LEGO progress
   getLegoProgress(learnerId: string, courseId: string): Promise<LegoProgressRecord[]>;
@@ -201,6 +202,7 @@ export interface ISessionStore {
   // Session management
   startSession(learnerId: string, courseId: string): Promise<SessionRecord>;
   endSession(sessionId: string, metrics: SessionMetrics): Promise<SessionRecord>;
+  checkpointSession(sessionId: string, itemsPracticed: number, durationSeconds: number): Promise<void>;
   getSession(sessionId: string): Promise<SessionRecord | null>;
   getRecentSessions(learnerId: string, limit?: number): Promise<SessionRecord[]>;
 

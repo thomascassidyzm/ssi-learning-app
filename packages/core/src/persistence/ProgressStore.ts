@@ -180,6 +180,40 @@ export class ProgressStore implements IProgressStore {
     }
   }
 
+  async updateEnrollmentActivity(
+    learnerId: string,
+    courseId: string,
+    highestSeed: number,
+    practiceMinutes: number
+  ): Promise<void> {
+    // First get current values to take the max
+    const { data: enrollment } = await this.client
+      .schema(this.schema)
+      .from('course_enrollments')
+      .select('highest_completed_seed, total_practice_minutes')
+      .eq('learner_id', learnerId)
+      .eq('course_id', courseId)
+      .single();
+
+    const currentHighest = enrollment?.highest_completed_seed || 0;
+    const currentMinutes = enrollment?.total_practice_minutes || 0;
+
+    const { error } = await this.client
+      .schema(this.schema)
+      .from('course_enrollments')
+      .update({
+        highest_completed_seed: Math.max(currentHighest, highestSeed),
+        total_practice_minutes: currentMinutes + practiceMinutes,
+        last_practiced_at: new Date().toISOString(),
+      })
+      .eq('learner_id', learnerId)
+      .eq('course_id', courseId);
+
+    if (error) {
+      console.warn(`Failed to update enrollment activity: ${error.message}`);
+    }
+  }
+
   // ============================================
   // LEGO PROGRESS
   // ============================================

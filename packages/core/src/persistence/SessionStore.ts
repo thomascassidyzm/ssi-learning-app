@@ -95,6 +95,27 @@ export class SessionStore implements ISessionStore {
     return this.mapToSessionRecord(data);
   }
 
+  async checkpointSession(
+    sessionId: string,
+    itemsPracticed: number,
+    durationSeconds: number
+  ): Promise<void> {
+    const { error } = await this.client
+      .schema(this.schema)
+      .from('sessions')
+      .update({
+        items_practiced: itemsPracticed,
+        duration_seconds: durationSeconds,
+        ended_at: new Date().toISOString(),  // Always update ended_at so we have a timestamp even if tab closes
+      })
+      .eq('id', sessionId);
+
+    if (error) {
+      // Don't throw — this is fire-and-forget
+      console.warn(`Session checkpoint failed: ${error.message}`);
+    }
+  }
+
   async getSession(sessionId: string): Promise<SessionRecord | null> {
     const { data, error } = await this.client
       .schema(this.schema)
