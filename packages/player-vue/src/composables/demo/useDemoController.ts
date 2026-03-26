@@ -184,23 +184,10 @@ export function useDemoController() {
       return
     }
 
-    // Step 1: Switch course FIRST (before navigation) so the player mounts with the right course
-    // Call handleCourseSelect directly (stored on window by DemoLauncher)
-    const selectCourse = (window as any).__demoSelectCourse
-    if (selectCourse) {
-      await selectCourse({
-        course_code: cls.course_code,
-        known_lang: 'eng',
-        target_lang: cls.target_lang,
-        display_name: cls.name,
-      })
-    } else {
-      // Fallback: set localStorage and hope PlayerContainer picks it up
-      localStorage.setItem('ssi-last-course', cls.course_code)
-    }
-
-    // Step 2: Store class context for the player
-    const activeClass = {
+    // Simple approach: set localStorage, navigate, let PlayerContainer handle course switch.
+    // PlayerContainer already reads class context and calls handleCourseSelect internally.
+    localStorage.setItem('ssi-last-course', cls.course_code)
+    localStorage.setItem('ssi-active-class', JSON.stringify({
       id: cls.id,
       name: cls.name,
       course_code: cls.course_code,
@@ -208,16 +195,10 @@ export function useDemoController() {
       last_lego_id: cls.last_lego_id,
       teacherUserId: godMode.selectedUser.value?.user_id,
       timestamp: new Date().toISOString(),
-    }
-    localStorage.setItem('ssi-active-class', JSON.stringify(activeClass))
+    }))
 
-    // Step 3: Navigate with class param (PlayerContainer reads it to load class context)
-    await router.push({ path: '/', query: { class: cls.id } })
-
-    // Step 4: Clean the ugly UUID from the URL — class context is in localStorage
-    setTimeout(() => {
-      history.replaceState(null, '', '/')
-    }, 100)
+    // Full page navigation forces PlayerContainer to re-mount and read the class context fresh
+    window.location.href = `/?class=${cls.id}`
   }
 
   // ---- Scene transition ----
