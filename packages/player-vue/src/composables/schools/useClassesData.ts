@@ -8,6 +8,7 @@ import { ref, computed } from 'vue'
 import { getSchoolsClient } from './client'
 import { useGodMode } from './useGodMode'
 import { useSchoolData } from './useSchoolData'
+import { isDemoMode } from '../demo/demoMode'
 
 export interface ClassInfo {
   id: string
@@ -82,6 +83,7 @@ export function useClassesData() {
 
   // Fetch classes for current user
   async function fetchClasses(): Promise<void> {
+    if (isDemoMode.value) return
     if (!selectedUser.value) return
 
     isLoading.value = true

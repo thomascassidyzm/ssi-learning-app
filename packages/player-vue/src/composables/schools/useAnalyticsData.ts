@@ -7,6 +7,7 @@
 import { ref, computed } from 'vue'
 import { getSchoolsClient } from './client'
 import { useGodMode } from './useGodMode'
+import { isDemoMode } from '../demo/demoMode'
 
 export interface DailyActivity {
   date: string
@@ -69,6 +70,7 @@ export function useAnalyticsData() {
 
   // Fetch daily activity for last 30 days
   async function fetchDailyActivity(): Promise<void> {
+    if (isDemoMode.value) return
     if (!selectedUser.value) return
 
     isLoading.value = true
@@ -188,6 +190,7 @@ export function useAnalyticsData() {
 
   // Fetch course enrollment stats
   async function fetchCourseStats(): Promise<void> {
+    if (isDemoMode.value) return
     if (!selectedUser.value) return
 
     try {
@@ -278,6 +281,7 @@ export function useAnalyticsData() {
 
   // Fetch class rankings
   async function fetchClassRankings(): Promise<void> {
+    if (isDemoMode.value) return
     if (!selectedUser.value || !selectedUser.value.school_id) return
 
     try {

@@ -7,6 +7,7 @@
 import { ref, computed } from 'vue'
 import { getSchoolsClient } from './client'
 import { useGodMode } from './useGodMode'
+import { isDemoMode } from '../demo/demoMode'
 
 interface RegionSummary {
   region_code: string
@@ -43,6 +44,7 @@ export function useSchoolData() {
 
   // Fetch school(s) based on user role
   async function fetchSchools(): Promise<void> {
+    if (isDemoMode.value) return  // Data pre-populated by populateDemoData
     if (!selectedUser.value) return
 
     isLoading.value = true

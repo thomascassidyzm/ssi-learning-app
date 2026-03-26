@@ -8,6 +8,7 @@ import { ref, computed } from 'vue'
 import { getSchoolsClient } from './client'
 import { useGodMode } from './useGodMode'
 import { useSchoolData } from './useSchoolData'
+import { isDemoMode } from '../demo/demoMode'
 
 export interface Teacher {
   user_id: string
@@ -35,6 +36,7 @@ export function useTeachersData() {
 
   // Fetch teachers for school
   async function fetchTeachers(schoolId?: string): Promise<void> {
+    if (isDemoMode.value) return
     const targetSchoolId = schoolId || activeSchoolId.value
     if (!targetSchoolId) return
 

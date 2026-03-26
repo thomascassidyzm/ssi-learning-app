@@ -11,6 +11,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGodMode } from '@/composables/schools/useGodMode'
 import type { DemoScene, DemoConfig, DemoState } from './types'
+import { isDemoMode } from './demoMode'
 import { teacherDemo } from './scenes/teacherDemo'
 import { govtAdminDemo } from './scenes/govtAdminDemo'
 
@@ -282,6 +283,7 @@ export function useDemoController() {
     unbindKeyboard()
 
     // Clean up any demo state
+    isDemoMode.value = false
     localStorage.removeItem('ssi-active-class')
     localStorage.removeItem('ssi-dev-tier')
     localStorage.removeItem('ssi-last-course')

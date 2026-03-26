@@ -6,6 +6,7 @@
  * returned by each composable.
  */
 
+import { isDemoMode } from './demoMode'
 import { useSchoolData } from '../schools/useSchoolData'
 import { useClassesData } from '../schools/useClassesData'
 import { useStudentsData } from '../schools/useStudentsData'
@@ -415,6 +416,9 @@ function buildClassRankings(): ClassRanking[] {
 // ---------------------------------------------------------------------------
 
 export function populateDemoData(demoType: 'teacher' | 'govt_admin'): void {
+  // Enable demo mode — suppresses Supabase queries in all schools composables
+  isDemoMode.value = true
+
   // Get singleton refs from each composable.
   // setSchoolsClient() must have been called before this point.
   const schoolData = useSchoolData()
