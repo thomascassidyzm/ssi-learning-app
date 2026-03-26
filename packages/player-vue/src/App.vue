@@ -424,8 +424,9 @@ onMounted(async () => {
 
   // Listen for demo course selection (bypasses normal enrolled course lookup)
   window.addEventListener('demo:selectCourse', (e) => {
-    const detail = /** @type {CustomEvent} */ (e).detail
+    const detail = e.detail
     if (detail?.course_code) {
+      console.log('[App] Demo course switch:', detail.course_code)
       handleCourseSelect(detail)
     }
   })

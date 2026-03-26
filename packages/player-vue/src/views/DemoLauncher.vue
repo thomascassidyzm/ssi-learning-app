@@ -11,6 +11,7 @@ import type { GodModeUser } from '@/composables/schools/useGodMode'
 
 const router = useRouter()
 const supabase = inject<any>('supabase', ref(null))
+const handleCourseSelect = inject<any>('handleCourseSelect')
 const eagerScript = useEagerScriptPreload()
 const isReady = ref(false)
 const isStarting = ref(false)
@@ -112,6 +113,11 @@ async function startDemo(demo: typeof demos[0]) {
 
   // Set locale to English (demo audience speaks English)
   setLocale('eng')
+
+  // Make handleCourseSelect available to the demo controller for direct course switching
+  if (handleCourseSelect) {
+    ;(window as any).__demoSelectCourse = handleCourseSelect
+  }
 
   // Populate dashboard data directly into composable refs — no Supabase queries
   populateDemoData(demo.userKey as 'teacher' | 'govt_admin')

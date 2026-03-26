@@ -185,18 +185,19 @@ export function useDemoController() {
     }
 
     // Step 1: Switch course FIRST (before navigation) so the player mounts with the right course
-    localStorage.setItem('ssi-last-course', cls.course_code)
-    window.dispatchEvent(new CustomEvent('demo:selectCourse', {
-      detail: {
+    // Call handleCourseSelect directly (stored on window by DemoLauncher)
+    const selectCourse = (window as any).__demoSelectCourse
+    if (selectCourse) {
+      await selectCourse({
         course_code: cls.course_code,
         known_lang: 'eng',
         target_lang: cls.target_lang,
         display_name: cls.name,
-      }
-    }))
-
-    // Wait for App.vue to process the course switch
-    await new Promise(resolve => setTimeout(resolve, 100))
+      })
+    } else {
+      // Fallback: set localStorage and hope PlayerContainer picks it up
+      localStorage.setItem('ssi-last-course', cls.course_code)
+    }
 
     // Step 2: Store class context for the player
     const activeClass = {
@@ -293,10 +294,11 @@ export function useDemoController() {
     activeDemo.value = null
     unbindKeyboard()
 
-    // Clean up any demo state from localStorage
+    // Clean up any demo state
     localStorage.removeItem('ssi-active-class')
     localStorage.removeItem('ssi-dev-tier')
     localStorage.removeItem('ssi-last-course')
+    delete (window as any).__demoSelectCourse
 
     // Navigate back to demo launcher
     router.push('/demo')
