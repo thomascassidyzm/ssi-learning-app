@@ -197,8 +197,9 @@ export function useDemoController() {
       timestamp: new Date().toISOString(),
     }))
 
-    // Full page navigation forces PlayerContainer to re-mount and read the class context fresh
-    window.location.href = `/?class=${cls.id}`
+    // Full page navigation forces everything to re-initialize.
+    // ?course= is the HIGHEST priority in fetchEnrolledCourses (overrides DB learner preference)
+    window.location.href = `/?class=${cls.id}&course=${cls.course_code}`
   }
 
   // ---- Scene transition ----
