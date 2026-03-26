@@ -17,6 +17,11 @@ const isReady = ref(false)
 const isStarting = ref(false)
 const preloadStatus = ref('')
 
+// Set SYNCHRONOUSLY during setup (before App.vue's onMounted picks a default course).
+// This ensures fetchEnrolledCourses finds Welsh as the saved course, not Arabic.
+localStorage.setItem('ssi-last-course', 'cym_s_for_eng')
+localStorage.setItem('ssi-dev-tier', 'paid')
+
 // Pre-built demo users with full context (no DB fetch needed)
 const demoUsers: Record<string, GodModeUser> = {
   teacher: {
@@ -76,21 +81,9 @@ onMounted(async () => {
   }
   isReady.value = true
 
-  // Pre-cache demo courses: Welsh first, then French
-  if (supabase.value) {
-    try {
-      // Only preload Welsh (played first in the demo).
-      // The eager script singleton holds one course at a time —
-      // preloading French second would evict Welsh from the cache.
-      // French loads on demand when the demo switches to it.
-      preloadStatus.value = 'Loading Welsh course...'
-      eagerScript.preload(supabase.value, 'cym_s_for_eng')
-      await eagerScript.scriptPromise.value
-      preloadStatus.value = 'Ready'
-    } catch {
-      preloadStatus.value = 'Ready'
-    }
-  }
+  // Welsh preload is handled by App.vue — it reads 'cym_s_for_eng' from
+  // localStorage (set synchronously in setup above) and preloads it via
+  // handleCourseSelect → eagerScript.preload. No need to duplicate here.
 })
 
 async function startDemo(demo: typeof demos[0]) {
@@ -109,8 +102,7 @@ async function startDemo(demo: typeof demos[0]) {
     godMode.allUsers.value = Object.values(demoUsers)
   }
 
-  // Grant full course access in demo mode (bypasses paywall for all courses)
-  localStorage.setItem('ssi-dev-tier', 'paid')
+  // ssi-dev-tier and ssi-last-course already set in setup (synchronous)
 
   // Set locale to English (demo audience speaks English)
   setLocale('eng')
