@@ -159,7 +159,7 @@ async function startDemo(demo: typeof demos[0]) {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #0a0a14 0%, #111128 50%, #0d0d1a 100%);
+  background: var(--bg-primary, #e8e3dd);
   padding: 24px;
 }
 
@@ -181,7 +181,7 @@ async function startDemo(demo: typeof demos[0]) {
   font-family: var(--font-body, 'DM Sans', sans-serif);
   font-size: 28px;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-primary, #2C2622);
   letter-spacing: -0.02em;
 }
 
@@ -189,14 +189,14 @@ async function startDemo(demo: typeof demos[0]) {
   font-family: var(--font-body, 'DM Sans', sans-serif);
   font-size: 28px;
   font-weight: 700;
-  color: #dc2626;
+  color: var(--ssi-red, #c23a3a);
   margin-left: 8px;
 }
 
 .demo-tagline {
   font-family: var(--font-body, 'DM Sans', sans-serif);
   font-size: 15px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted, #8A8078);
   line-height: 1.6;
   margin: 0;
 }
@@ -213,21 +213,22 @@ async function startDemo(demo: typeof demos[0]) {
   align-items: center;
   gap: 16px;
   padding: 20px 24px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.04));
   border-radius: 16px;
   cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+  transition: all 0.2s ease;
   text-align: left;
   width: 100%;
   color: inherit;
   font: inherit;
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(44, 38, 34, 0.10));
 }
 
 .demo-card:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(220, 38, 38, 0.3);
-  transform: translateY(-1px);
+  border-color: var(--ssi-red, #c23a3a);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md, 0 2px 6px rgba(44, 38, 34, 0.12));
 }
 
 .demo-card:active:not(:disabled) {
@@ -247,7 +248,7 @@ async function startDemo(demo: typeof demos[0]) {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--bg-primary, #e8e3dd);
   border-radius: 12px;
 }
 
@@ -260,14 +261,14 @@ async function startDemo(demo: typeof demos[0]) {
   font-family: var(--font-body, 'DM Sans', sans-serif);
   font-size: 17px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-primary, #2C2622);
   margin: 0 0 2px;
 }
 
 .card-subtitle {
   font-family: var(--font-body, 'DM Sans', sans-serif);
   font-size: 13px;
-  color: #dc2626;
+  color: var(--ssi-red, #c23a3a);
   margin: 0 0 6px;
   font-weight: 500;
 }
@@ -275,19 +276,19 @@ async function startDemo(demo: typeof demos[0]) {
 .card-description {
   font-family: var(--font-body, 'DM Sans', sans-serif);
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted, #8A8078);
   margin: 0;
   line-height: 1.4;
 }
 
 .card-arrow {
   flex-shrink: 0;
-  color: rgba(255, 255, 255, 0.2);
+  color: var(--text-muted, #8A8078);
   transition: color 0.2s ease, transform 0.2s ease;
 }
 
 .demo-card:hover .card-arrow {
-  color: #dc2626;
+  color: var(--ssi-red, #c23a3a);
   transform: translateX(2px);
 }
 
@@ -295,7 +296,7 @@ async function startDemo(demo: typeof demos[0]) {
   text-align: center;
   font-family: var(--font-body, 'DM Sans', sans-serif);
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.25);
+  color: var(--text-muted, #8A8078);
   line-height: 1.6;
   margin: 0;
 }

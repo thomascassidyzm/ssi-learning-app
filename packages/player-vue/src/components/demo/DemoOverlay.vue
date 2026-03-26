@@ -141,13 +141,13 @@ const isFirstScene = computed(() => currentSceneIndex.value <= 0)
   transform: translateX(-50%);
   max-width: 720px;
   width: calc(100% - 32px);
-  background: rgba(10, 10, 20, 0.88);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 14px;
   pointer-events: auto;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 12px rgba(44, 38, 34, 0.10), 0 8px 32px rgba(44, 38, 34, 0.06);
   overflow: hidden;
   transition: all 0.25s ease;
 }
@@ -167,36 +167,36 @@ const isFirstScene = computed(() => currentSceneIndex.value <= 0)
   border: none;
   background: transparent;
   cursor: pointer;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text-secondary, #4A4440);
   font-family: var(--font-body, 'DM Sans', sans-serif);
   transition: color 0.15s ease;
 }
 
 .demo-expand-btn:hover {
-  color: white;
+  color: var(--text-primary, #2C2622);
 }
 
 .expand-label {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.1em;
-  color: #dc2626;
+  color: var(--ssi-red, #c23a3a);
 }
 
 .expand-counter {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted, #8A8078);
 }
 
 /* --- Progress bar --- */
 .demo-progress-track {
   height: 2px;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.04);
 }
 
 .demo-progress-fill {
   height: 100%;
-  background: #dc2626;
+  background: var(--ssi-red, #c23a3a);
   transition: width 0.3s linear;
 }
 
@@ -227,8 +227,8 @@ const isFirstScene = computed(() => currentSceneIndex.value <= 0)
   flex-shrink: 0;
   padding: 2px 7px;
   border-radius: 4px;
-  background: rgba(220, 38, 38, 0.7);
-  color: rgba(255, 255, 255, 0.9);
+  background: rgba(194, 58, 58, 0.12);
+  color: var(--ssi-red, #c23a3a);
   font-family: var(--font-body, 'DM Sans', sans-serif);
   font-size: 9px;
   font-weight: 700;
@@ -239,7 +239,7 @@ const isFirstScene = computed(() => currentSceneIndex.value <= 0)
   font-family: var(--font-body, 'DM Sans', sans-serif);
   font-size: 13px;
   font-weight: 400;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text-secondary, #4A4440);
   line-height: 1.4;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -259,7 +259,7 @@ const isFirstScene = computed(() => currentSceneIndex.value <= 0)
 .demo-counter {
   font-family: var(--font-body, 'DM Sans', sans-serif);
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--text-muted, #8A8078);
   margin-right: 4px;
   white-space: nowrap;
 }
@@ -272,15 +272,15 @@ const isFirstScene = computed(() => currentSceneIndex.value <= 0)
   height: 30px;
   border: none;
   border-radius: 7px;
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.6);
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-muted, #8A8078);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
 }
 
 .demo-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.95);
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--text-primary, #2C2622);
 }
 
 .demo-btn:disabled {
@@ -289,18 +289,18 @@ const isFirstScene = computed(() => currentSceneIndex.value <= 0)
 }
 
 .demo-btn-next {
-  background: rgba(220, 38, 38, 0.15);
-  color: #dc2626;
+  background: rgba(194, 58, 58, 0.1);
+  color: var(--ssi-red, #c23a3a);
 }
 
 .demo-btn-next:hover:not(:disabled) {
-  background: rgba(220, 38, 38, 0.25);
-  color: #ef4444;
+  background: rgba(194, 58, 58, 0.18);
+  color: var(--ssi-red-dark, #9a2e2e);
 }
 
 .demo-btn-stop:hover {
-  background: rgba(220, 38, 38, 0.15);
-  color: #dc2626;
+  background: rgba(194, 58, 58, 0.1);
+  color: var(--ssi-red, #c23a3a);
 }
 
 .demo-btn-collapse {
