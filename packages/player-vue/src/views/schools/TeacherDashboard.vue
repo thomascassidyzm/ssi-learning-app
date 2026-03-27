@@ -62,6 +62,8 @@ const filteredClasses = computed(() => {
     'jpn_for_eng': 'japanese', 'eng_for_jpn': 'english', 'cmn_for_eng': 'chinese',
     'ara_for_eng': 'arabic', 'kor_for_eng': 'korean', 'ita_for_eng': 'italian',
     'por_for_eng': 'portuguese', 'bre_for_fre': 'breton', 'eng_for_spa': 'english',
+    'eus_for_spa': 'basque', 'cat_for_spa': 'catalan', 'gla_for_eng': 'scottish gaelic',
+    'cor_for_eng': 'cornish', 'glv_for_eng': 'manx', 'rus_for_eng': 'russian', 'pol_for_eng': 'polish',
   }
   return classes.value.filter(cls =>
     cls.class_name.toLowerCase().includes(query) ||

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480">
+  <rect width="640" height="480" fill="#DE2910"/>
+  <g transform="translate(120,120)" fill="#FFDE00">
+    <polygon points="0,-48 11,-15 46,-15 18,6 28,39 0,18 -28,39 -18,6 -46,-15 -11,-15"/>
+  </g>
+  <g transform="translate(200,48)" fill="#FFDE00">
+    <polygon points="0,-16 4,-5 15,-5 6,2 9,13 0,6 -9,13 -6,2 -15,-5 -4,-5"/>
+  </g>
+  <g transform="translate(224,96)" fill="#FFDE00">
+    <polygon points="0,-16 4,-5 15,-5 6,2 9,13 0,6 -9,13 -6,2 -15,-5 -4,-5"/>
+  </g>
+  <g transform="translate(224,160)" fill="#FFDE00">
+    <polygon points="0,-16 4,-5 15,-5 6,2 9,13 0,6 -9,13 -6,2 -15,-5 -4,-5"/>
+  </g>
+  <g transform="translate(200,208)" fill="#FFDE00">
+    <polygon points="0,-16 4,-5 15,-5 6,2 9,13 0,6 -9,13 -6,2 -15,-5 -4,-5"/>
+  </g>
+</svg>

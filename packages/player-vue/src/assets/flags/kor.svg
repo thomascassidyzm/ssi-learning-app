@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480">
+  <rect width="640" height="480" fill="#fff"/>
+  <circle cx="320" cy="240" r="96" fill="#C60C30"/>
+  <path d="M320,240 A48,48 0 0,1 320,144 A48,48 0 0,0 320,240 Z" fill="#003478"/>
+  <path d="M320,240 A48,48 0 0,1 320,336 A48,48 0 0,0 320,240 Z" fill="#003478"/>
+  <g stroke="#000" stroke-width="6" stroke-linecap="round">
+    <g transform="translate(320,240) rotate(-56)">
+      <line x1="120" y1="-30" x2="180" y2="-30"/>
+      <line x1="120" y1="-14" x2="180" y2="-14"/>
+      <line x1="120" y1="2" x2="180" y2="2"/>
+    </g>
+    <g transform="translate(320,240) rotate(56)">
+      <line x1="120" y1="-30" x2="180" y2="-30"/>
+      <line x1="120" y1="-14" x2="180" y2="-14"/>
+      <line x1="120" y1="2" x2="180" y2="2"/>
+    </g>
+    <g transform="translate(320,240) rotate(-56)">
+      <line x1="-180" y1="-30" x2="-120" y2="-30"/>
+      <line x1="-180" y1="-14" x2="-120" y2="-14"/>
+      <line x1="-180" y1="2" x2="-120" y2="2"/>
+    </g>
+    <g transform="translate(320,240) rotate(56)">
+      <line x1="-180" y1="-30" x2="-120" y2="-30"/>
+      <line x1="-180" y1="-14" x2="-120" y2="-14"/>
+      <line x1="-180" y1="2" x2="-120" y2="2"/>
+    </g>
+  </g>
+</svg>

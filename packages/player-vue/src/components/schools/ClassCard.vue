@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import LanguageFlag from '@/components/schools/shared/LanguageFlag.vue'
 
 const props = defineProps({
   classData: {
@@ -9,32 +10,6 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['play', 'viewRoster', 'settings'])
-
-// Course flag mapping
-const courseFlags = {
-  'cym_for_eng': '\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62\uDB40\uDC77\uDB40\uDC6C\uDB40\uDC73\uDB40\uDC7F',
-  'cym_for_eng_north': '\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62\uDB40\uDC77\uDB40\uDC6C\uDB40\uDC73\uDB40\uDC7F',
-  'cym_for_eng_south': '\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62\uDB40\uDC77\uDB40\uDC6C\uDB40\uDC73\uDB40\uDC7F',
-  'cym_n_for_eng': '\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62\uDB40\uDC77\uDB40\uDC6C\uDB40\uDC73\uDB40\uDC7F',
-  'cym_s_for_eng': '\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62\uDB40\uDC77\uDB40\uDC6C\uDB40\uDC73\uDB40\uDC7F',
-  'spa_for_eng': '\uD83C\uDDEA\uD83C\uDDF8',
-  'spa_for_eng_latam': '\uD83C\uDDEA\uD83C\uDDF8',
-  'eng_for_spa': '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
-  'fra_for_eng': '\uD83C\uDDEB\uD83C\uDDF7',
-  'deu_for_eng': '\uD83C\uDDE9\uD83C\uDDEA',
-  'nld_for_eng': '\uD83C\uDDF3\uD83C\uDDF1',
-  'gle_for_eng': '\uD83C\uDDEE\uD83C\uDDEA',
-  'jpn_for_eng': '\uD83C\uDDEF\uD83C\uDDF5',
-  'eng_for_jpn': '\uD83C\uDDEC\uD83C\uDDE7',
-  'cmn_for_eng': '\uD83C\uDDE8\uD83C\uDDF3',
-  'ara_for_eng': '\uD83C\uDDF8\uD83C\uDDE6',
-  'kor_for_eng': '\uD83C\uDDF0\uD83C\uDDF7',
-  'ita_for_eng': '\uD83C\uDDEE\uD83C\uDDF9',
-  'por_for_eng': '\uD83C\uDDF5\uD83C\uDDF9',
-  'bre_for_fre': '\uD83C\uDFF4',
-  'cor_for_eng': '\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62\uDB40\uDC65\uDB40\uDC6E\uDB40\uDC67\uDB40\uDC7F',
-  'glv_for_eng': '\uD83C\uDDEE\uD83C\uDDF2'
-}
 
 const courseNames = {
   'cym_for_eng': 'Welsh',
@@ -58,12 +33,13 @@ const courseNames = {
   'por_for_eng': 'Portuguese',
   'bre_for_fre': 'Breton',
   'cor_for_eng': 'Cornish',
-  'glv_for_eng': 'Manx'
+  'glv_for_eng': 'Manx',
+  'eus_for_spa': 'Basque',
+  'cat_for_spa': 'Catalan',
+  'gla_for_eng': 'Scottish Gaelic',
+  'rus_for_eng': 'Russian',
+  'pol_for_eng': 'Polish'
 }
-
-const courseFlag = computed(() => {
-  return courseFlags[props.classData.course_code] || '\uD83C\uDF10'
-})
 
 const courseName = computed(() => {
   return courseNames[props.classData.course_code] || props.classData.course_code
@@ -102,7 +78,7 @@ const handleSettings = () => {
           </div>
         </div>
         <div class="course-badge">
-          <span class="course-flag">{{ courseFlag }}</span>
+          <LanguageFlag :code="classData.course_code" :size="20" />
           <span class="course-name">{{ courseName }}</span>
         </div>
       </header>
@@ -243,10 +219,6 @@ const handleSettings = () => {
   background: var(--bg-secondary, #1a1a1a);
   border-radius: 8px;
   flex-shrink: 0;
-}
-
-.course-flag {
-  font-size: 1rem;
 }
 
 .course-name {

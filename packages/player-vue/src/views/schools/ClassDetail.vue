@@ -4,6 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useGodMode } from '@/composables/schools/useGodMode'
 import { useClassesData, type ClassReport } from '@/composables/schools/useClassesData'
 import { getSchoolsClient } from '@/composables/schools/client'
+import LanguageFlag from '@/components/schools/shared/LanguageFlag.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -182,31 +183,6 @@ const filteredStudents = computed(() => {
 })
 
 // Course info
-const courseFlags: Record<string, string> = {
-  'cym_for_eng': '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
-  'cym_for_eng_north': '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
-  'cym_for_eng_south': '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
-  'cym_n_for_eng': '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
-  'cym_s_for_eng': '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
-  'spa_for_eng': '🇪🇸',
-  'spa_for_eng_latam': '🇪🇸',
-  'eng_for_spa': '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
-  'nld_for_eng': '🇳🇱',
-  'fra_for_eng': '🇫🇷',
-  'deu_for_eng': '🇩🇪',
-  'ita_for_eng': '🇮🇹',
-  'por_for_eng': '🇵🇹',
-  'jpn_for_eng': '🇯🇵',
-  'kor_for_eng': '🇰🇷',
-  'zho_for_eng': '🇨🇳',
-  'ara_for_eng': '🇸🇦',
-  'rus_for_eng': '🇷🇺',
-  'pol_for_eng': '🇵🇱',
-  'cor_for_eng': '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
-  'glv_for_eng': '🇮🇲',
-  'gle_for_eng': '🇮🇪'
-}
-
 const courseNames: Record<string, string> = {
   'cym_for_eng': 'Welsh',
   'cym_for_eng_north': 'Welsh (Northern)',
@@ -229,13 +205,11 @@ const courseNames: Record<string, string> = {
   'pol_for_eng': 'Polish',
   'cor_for_eng': 'Cornish',
   'glv_for_eng': 'Manx',
-  'gle_for_eng': 'Irish'
+  'gle_for_eng': 'Irish',
+  'eus_for_spa': 'Basque',
+  'cat_for_spa': 'Catalan',
+  'gla_for_eng': 'Scottish Gaelic'
 }
-
-const courseFlag = computed(() => {
-  const code = classData.value.course_code as string
-  return courseFlags[code] || '\uD83C\uDF10'
-})
 
 const courseName = computed(() => {
   const code = classData.value.course_code as string
@@ -327,7 +301,7 @@ const handleRemoveStudent = async (student: { id: string; name: string }) => {
           <h1 class="class-title">{{ classData.class_name }}</h1>
           <div class="class-meta">
             <span class="course-badge">
-              <span class="course-flag">{{ courseFlag }}</span>
+              <LanguageFlag :code="classData.course_code" :size="18" />
               {{ courseName }}
             </span>
             <span class="meta-divider"></span>
@@ -654,10 +628,6 @@ const handleRemoveStudent = async (student: { id: string; name: string }) => {
   background: var(--bg-card, #242424);
   border-radius: 8px;
   font-weight: 500;
-}
-
-.course-flag {
-  font-size: 1rem;
 }
 
 .meta-divider {
