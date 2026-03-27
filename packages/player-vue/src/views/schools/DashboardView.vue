@@ -5,6 +5,7 @@ import { useGodMode } from '@/composables/schools/useGodMode'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { useAnalyticsData, type RegionReport } from '@/composables/schools/useAnalyticsData'
 import { getSchoolsClient } from '@/composables/schools/client'
+import { isDemoMode } from '@/composables/demo/demoMode'
 
 const { selectedUser, isGovtAdmin } = useGodMode()
 const {
@@ -68,6 +69,7 @@ async function loadRegionData() {
 }
 
 async function loadContributions() {
+  if (isDemoMode.value) return
   if (!isGovtAdmin.value) return
   const client = getSchoolsClient()
   const today = new Date().toISOString().split('T')[0]

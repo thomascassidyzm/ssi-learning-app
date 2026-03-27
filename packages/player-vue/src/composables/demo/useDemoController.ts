@@ -34,8 +34,19 @@ let sceneTimer: ReturnType<typeof setTimeout> | null = null
 // Track whether keyboard listener is bound
 let keyboardBound = false
 
+// Lazy router: captured on first use, not at instantiation time.
+// This avoids issues when useDemoController() is called from a component
+// (like DemoOverlay in App.vue) where useRouter() may not yet be stable.
+let _router: ReturnType<typeof useRouter> | null = null
+function getRouter() {
+  if (!_router) _router = useRouter()
+  return _router
+}
+
 export function useDemoController() {
-  const router = useRouter()
+  // Try to capture router eagerly if we're in a setup context,
+  // but always use getRouter() at call time for safety.
+  try { if (!_router) _router = useRouter() } catch { /* not in setup context */ }
   const godMode = useGodMode()
 
   // ---- Computed ----
@@ -132,13 +143,13 @@ export function useDemoController() {
       case 'stopSession':
         // Clear active class and navigate back to classes
         localStorage.removeItem('ssi-active-class')
-        await router.push({ path: '/schools/classes' })
+        await getRouter().push({ path: '/schools/classes' })
         break
 
       case 'showClassDetail': {
         // Navigate to the first class detail using the Welsh class ID
         const welshClassId = 'e0300000-0000-0000-0000-000000000001'
-        await router.push({ name: 'class-detail', params: { id: welshClassId } })
+        await getRouter().push({ name: 'class-detail', params: { id: welshClassId } })
         break
       }
 
@@ -199,7 +210,7 @@ export function useDemoController() {
     }))
 
     // SPA navigation — PlayerContainer reads ?class to detect class mode
-    await router.push({ path: '/', query: { class: cls.id } })
+    await getRouter().push({ path: '/', query: { class: cls.id } })
 
     // Clean the URL immediately (class context is in localStorage, URL param no longer needed)
     history.replaceState(null, '', '/')
@@ -226,7 +237,7 @@ export function useDemoController() {
 
     // Step 2: Route navigation
     if (scene.route) {
-      await router.push({ path: scene.route, query: scene.routeQuery })
+      await getRouter().push({ path: scene.route, query: scene.routeQuery })
       // Give Vue a tick to render the new route
       await nextTick()
     }
@@ -292,7 +303,7 @@ export function useDemoController() {
     delete (window as any).__demoSelectCourse
 
     // Navigate back to demo launcher
-    router.push('/demo')
+    getRouter().push('/demo')
   }
 
   function pause() {
