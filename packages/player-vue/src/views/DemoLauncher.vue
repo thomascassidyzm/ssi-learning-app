@@ -17,10 +17,9 @@ const isReady = ref(false)
 const isStarting = ref(false)
 const preloadStatus = ref('')
 
-// Set SYNCHRONOUSLY during setup (before App.vue's onMounted picks a default course).
-// This ensures fetchEnrolledCourses finds Welsh as the saved course, not Arabic.
-localStorage.setItem('ssi-last-course', 'cym_s_for_eng')
-localStorage.setItem('ssi-dev-tier', 'paid')
+// NOTE: ssi-last-course and ssi-dev-tier are set inside startDemo(),
+// NOT here in setup. Setting them at setup time leaks paid tier to
+// anyone who visits /demo without starting a demo.
 
 // Pre-built demo users with full context (no DB fetch needed)
 const demoUsers: Record<string, GodModeUser> = {
@@ -102,7 +101,9 @@ async function startDemo(demo: typeof demos[0]) {
     godMode.allUsers.value = Object.values(demoUsers)
   }
 
-  // ssi-dev-tier and ssi-last-course already set in setup (synchronous)
+  // Set course + tier for demo (must happen before navigation)
+  localStorage.setItem('ssi-last-course', 'cym_s_for_eng')
+  localStorage.setItem('ssi-dev-tier', 'paid')
 
   // Set locale to English (demo audience speaks English)
   setLocale('eng')
