@@ -267,17 +267,18 @@ const LANGUAGE_FLAGS: Record<string, string> = {
   cym_s: '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
   gle: '🇮🇪',
   gla: '🏴󠁧󠁢󠁳󠁣󠁴󠁿',
-  bre: '🇫🇷',  // Breton
-  cor: '🏴󠁧󠁢󠁥󠁮󠁧󠁿',  // Cornish
+  bre: '🏴',  // Breton (Gwenn-ha-du — no emoji; use LanguageFlag SVG for proper flag)
+  cor: '🏴',  // Cornish (St Piran's — no emoji; use LanguageFlag SVG for proper flag)
+  glv: '🇮🇲',  // Manx
   // Romance
   spa: '🇪🇸',
   fra: '🇫🇷',
   ita: '🇮🇹',
   por: '🇵🇹',
   ron: '🇷🇴',  // Romanian
-  cat: '🇪🇸',  // Catalan
-  eus: '🇪🇸',  // Basque
-  glg: '🇪🇸',  // Galician
+  cat: '🏴',  // Catalan (Senyera — no emoji; use LanguageFlag SVG for proper flag)
+  eus: '🏴',  // Basque (Ikurriña — no emoji; use LanguageFlag SVG for proper flag)
+  glg: '🏴',  // Galician (no emoji; use LanguageFlag SVG for proper flag)
   // Germanic
   deu: '🇩🇪',
   nld: '🇳🇱',
