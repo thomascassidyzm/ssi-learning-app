@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { getLanguageFlag } from '@/composables/useI18n'
 
+// Circle-flags (MIT licensed, https://github.com/HatScripts/circle-flags)
 import cymFlag from '@/assets/flags/cym.svg'
 import spaFlag from '@/assets/flags/spa.svg'
 import fraFlag from '@/assets/flags/fra.svg'
@@ -23,6 +24,53 @@ import catFlag from '@/assets/flags/cat.svg'
 import rusFlag from '@/assets/flags/rus.svg'
 import polFlag from '@/assets/flags/pol.svg'
 import glaFlag from '@/assets/flags/gla.svg'
+import ronFlag from '@/assets/flags/ron.svg'
+import glgFlag from '@/assets/flags/glg.svg'
+import sweFlag from '@/assets/flags/swe.svg'
+import norFlag from '@/assets/flags/nor.svg'
+import nobFlag from '@/assets/flags/nob.svg'
+import nnoFlag from '@/assets/flags/nno.svg'
+import danFlag from '@/assets/flags/dan.svg'
+import finFlag from '@/assets/flags/fin.svg'
+import islFlag from '@/assets/flags/isl.svg'
+import hrvFlag from '@/assets/flags/hrv.svg'
+import srpFlag from '@/assets/flags/srp.svg'
+import bosFlag from '@/assets/flags/bos.svg'
+import slvFlag from '@/assets/flags/slv.svg'
+import cesFlag from '@/assets/flags/ces.svg'
+import slkFlag from '@/assets/flags/slk.svg'
+import ukrFlag from '@/assets/flags/ukr.svg'
+import bulFlag from '@/assets/flags/bul.svg'
+import mkdFlag from '@/assets/flags/mkd.svg'
+import ellFlag from '@/assets/flags/ell.svg'
+import hunFlag from '@/assets/flags/hun.svg'
+import hebFlag from '@/assets/flags/heb.svg'
+import sqiFlag from '@/assets/flags/sqi.svg'
+import litFlag from '@/assets/flags/lit.svg'
+import lavFlag from '@/assets/flags/lav.svg'
+import estFlag from '@/assets/flags/est.svg'
+import thaFlag from '@/assets/flags/tha.svg'
+import vieFlag from '@/assets/flags/vie.svg'
+import indFlag from '@/assets/flags/ind.svg'
+import filFlag from '@/assets/flags/fil.svg'
+import benFlag from '@/assets/flags/ben.svg'
+import urdFlag from '@/assets/flags/urd.svg'
+import tamFlag from '@/assets/flags/tam.svg'
+import telFlag from '@/assets/flags/tel.svg'
+import msaFlag from '@/assets/flags/msa.svg'
+import yueFlag from '@/assets/flags/yue.svg'
+import fasFlag from '@/assets/flags/fas.svg'
+import kurFlag from '@/assets/flags/kur.svg'
+import swaFlag from '@/assets/flags/swa.svg'
+import amhFlag from '@/assets/flags/amh.svg'
+import hauFlag from '@/assets/flags/hau.svg'
+import yorFlag from '@/assets/flags/yor.svg'
+import zulFlag from '@/assets/flags/zul.svg'
+import katFlag from '@/assets/flags/kat.svg'
+import hyeFlag from '@/assets/flags/hye.svg'
+import turFlag from '@/assets/flags/tur.svg'
+import hinFlag from '@/assets/flags/hin.svg'
+import sinFlag from '@/assets/flags/sin.svg'
 
 const flagMap = {
   cym: cymFlag,
@@ -47,6 +95,53 @@ const flagMap = {
   rus: rusFlag,
   pol: polFlag,
   gla: glaFlag,
+  ron: ronFlag,
+  glg: glgFlag,
+  swe: sweFlag,
+  nor: norFlag,
+  nob: nobFlag,
+  nno: nnoFlag,
+  dan: danFlag,
+  fin: finFlag,
+  isl: islFlag,
+  hrv: hrvFlag,
+  srp: srpFlag,
+  bos: bosFlag,
+  slv: slvFlag,
+  ces: cesFlag,
+  slk: slkFlag,
+  ukr: ukrFlag,
+  bul: bulFlag,
+  mkd: mkdFlag,
+  ell: ellFlag,
+  hun: hunFlag,
+  heb: hebFlag,
+  sqi: sqiFlag,
+  lit: litFlag,
+  lav: lavFlag,
+  est: estFlag,
+  tha: thaFlag,
+  vie: vieFlag,
+  ind: indFlag,
+  fil: filFlag,
+  ben: benFlag,
+  urd: urdFlag,
+  tam: tamFlag,
+  tel: telFlag,
+  msa: msaFlag,
+  yue: yueFlag,
+  fas: fasFlag,
+  kur: kurFlag,
+  swa: swaFlag,
+  amh: amhFlag,
+  hau: hauFlag,
+  yor: yorFlag,
+  zul: zulFlag,
+  kat: katFlag,
+  hye: hyeFlag,
+  tur: turFlag,
+  hin: hinFlag,
+  sin: sinFlag,
 }
 
 const props = defineProps({
@@ -122,7 +217,7 @@ const dimensions = computed(() => ({
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: 50%;
   overflow: hidden;
   flex-shrink: 0;
   vertical-align: middle;
