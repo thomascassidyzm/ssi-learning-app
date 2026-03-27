@@ -12,7 +12,8 @@
  * - Localized UI based on selected known language
  */
 import { ref, computed, watch, onMounted } from 'vue'
-import { useI18n, setLocale, getLanguageName, getLanguageEndonym, getLanguageFlag } from '../composables/useI18n'
+import { useI18n, setLocale, getLanguageName, getLanguageEndonym } from '../composables/useI18n'
+import LanguageFlag from './schools/shared/LanguageFlag.vue'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useSharedSubscription } from '../composables/useSubscription'
 import { useUserRole } from '../composables/useUserRole'
@@ -340,7 +341,7 @@ onMounted(() => {
                 <!-- NEW badge for unenrolled released courses -->
                 <div v-else-if="!isEnrolled(course.course_code)" class="new-badge">{{ t('courseSelector.new') }}</div>
 
-                <span class="target-flag">{{ getLanguageFlag(course.target_lang) }}</span>
+                <LanguageFlag :code="course.target_lang" :size="20" class="target-flag" />
                 <span class="target-name">{{ getTargetDisplayName(course) }}</span>
 
                 <!-- Progress or status -->
@@ -732,7 +733,6 @@ onMounted(() => {
 }
 
 .target-flag {
-  font-size: 1.5rem;
   line-height: 1;
 }
 

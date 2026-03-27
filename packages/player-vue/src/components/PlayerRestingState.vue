@@ -1,7 +1,8 @@
 <script setup>
 import { computed } from 'vue'
 import { BELTS } from '@/composables/useBeltProgress'
-import { getLanguageName, getLanguageFlag, t } from '@/composables/useI18n'
+import { getLanguageName, t } from '@/composables/useI18n'
+import LanguageFlag from '@/components/schools/shared/LanguageFlag.vue'
 
 const props = defineProps({
   course: { type: Object, default: null },
@@ -25,11 +26,6 @@ const courseSubtitle = computed(() => {
   // Fully localized: "for English Speakers" / "para hablantes de Español" / "i siaradwyr Saesneg"
   const knownName = getLanguageName(props.course.known_lang)
   return t('courseSelector.forSpeakers', `for ${knownName} Speakers`).replace('{lang}', knownName)
-})
-
-const courseFlag = computed(() => {
-  if (!props.course) return '🌐'
-  return getLanguageFlag(props.course.target_lang)
 })
 
 const belt = computed(() => {
@@ -61,7 +57,7 @@ const handleChangeCourse = () => {
   <div class="resting-state">
     <div class="resting-content">
       <!-- Course identity -->
-      <div class="course-flag">{{ courseFlag }}</div>
+      <LanguageFlag :code="course?.target_lang || ''" :size="48" class="course-flag" />
       <h2 class="course-name course-name--tappable" @click.stop="handleChangeCourse">
         {{ courseName }}
         <svg class="course-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -123,7 +119,6 @@ const handleChangeCourse = () => {
 }
 
 .course-flag {
-  font-size: 48px;
   line-height: 1;
 }
 

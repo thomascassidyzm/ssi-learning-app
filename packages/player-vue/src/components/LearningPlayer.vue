@@ -41,7 +41,8 @@ import DrivingModeOverlay from './DrivingModeOverlay.vue'
 import PronunciationOverlay from './PronunciationOverlay.vue'
 import { useDrivingMode } from '../composables/useDrivingMode'
 import { useScriptMode } from '../composables/useScriptMode'
-import { getLanguageFlag, getLanguageName } from '../composables/useI18n'
+import { getLanguageName } from '../composables/useI18n'
+import LanguageFlag from './schools/shared/LanguageFlag.vue'
 import { simpleRoundToTypedCycles } from '../utils/drivingModeAdapter'
 import BeltProgressModal from './BeltProgressModal.vue'
 import { useEntitlement } from '../composables/useEntitlement'
@@ -241,24 +242,14 @@ watch(courseCode, async (code) => {
   hasRomanizedText.value = (count ?? 0) > 0
 }, { immediate: true })
 
-// Language metadata using shared Intl.DisplayNames-based lookup
-const getLangMeta = (code: string) => ({
-  name: getLanguageName(code),
-  flag: getLanguageFlag(code),
-})
-
-const courseFlag = computed(() => {
-  if (!props.course) return '🌐'
-  // Target language for X_for_eng, known language for eng_for_X
-  const targetLang = props.course.target_lang || courseCode.value?.split('_')[0]
-  return getLangMeta(targetLang).flag
+const courseTargetLang = computed(() => {
+  if (!props.course) return ''
+  return props.course.target_lang || courseCode.value?.split('_')[0] || ''
 })
 
 const courseDisplayName = computed(() => {
   if (!props.course) return ''
-  // Target language name in the known language (via locale)
-  const targetLang = props.course.target_lang || courseCode.value?.split('_')[0]
-  return getLanguageName(targetLang)
+  return getLanguageName(courseTargetLang.value)
 })
 
 // Check if launched from dashboard in QA mode
@@ -6764,7 +6755,7 @@ defineExpose({
   <!-- Mode buttons moved to BottomNav for Android viewport sync -->
   <Transition name="fade">
     <div v-if="isPlaying && activeCourseCode && !isDrivingModeActive && !showDrivingExplainer" class="course-identity" :style="beltCssVars">
-      <span class="course-identity-flag">{{ courseFlag }}</span>
+      <LanguageFlag :code="courseTargetLang" :size="32" class="course-identity-flag" />
       <span class="course-identity-name">{{ courseDisplayName }}</span>
     </div>
   </Transition>
@@ -7673,7 +7664,7 @@ defineExpose({
   z-index: 25;
   pointer-events: none;
 }
-.course-identity-flag { font-size: 32px; line-height: 1; }
+.course-identity-flag { line-height: 1; }
 .course-identity-name {
   font-family: var(--font-body);
   font-size: 0.75rem;

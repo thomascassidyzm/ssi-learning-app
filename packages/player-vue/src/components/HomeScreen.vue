@@ -3,7 +3,8 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import CourseSelector from './CourseSelector.vue'
 import { BELTS } from '@/composables/useBeltProgress'
-import { getLanguageName, getLanguageFlag, t } from '@/composables/useI18n'
+import { getLanguageName, t } from '@/composables/useI18n'
+import LanguageFlag from '@/components/schools/shared/LanguageFlag.vue'
 
 const props = defineProps({
   supabase: {
@@ -47,7 +48,6 @@ const activeCourseData = computed(() => {
     ...course,
     title: getLanguageName(course.target_lang),
     subtitle: course.subtitle || t('courseSelector.forSpeakers', `for ${knownName} Speakers`).replace('{lang}', knownName),
-    target_flag: course.target_flag || getLanguageFlag(course.target_lang),
     // Progress fields (from learner data or defaults)
     completedRounds: course.completedRounds || course.completed_seeds || 0,
     totalSeeds: course.totalSeeds || course.total_seeds || 668,
@@ -227,7 +227,7 @@ const brainPath = computed(() => {
         <div class="hero-content">
           <!-- Course Header - Tappable to change course -->
           <div class="hero-header" @click="openCourseSelector">
-            <span class="course-flag">{{ activeCourseData.target_flag || activeCourseData.flag }}</span>
+            <LanguageFlag :code="activeCourseData.target_lang || ''" :size="40" class="course-flag" />
             <div class="course-info">
               <div class="course-title-row">
                 <h2 class="course-title">{{ activeCourseData.title }}</h2>
@@ -550,7 +550,6 @@ const brainPath = computed(() => {
 }
 
 .course-flag {
-  font-size: 2.5rem;
   line-height: 1;
 }
 
@@ -717,7 +716,6 @@ const brainPath = computed(() => {
 }
 
 .course-card .course-flag {
-  font-size: 1.75rem;
 }
 
 .course-details {
@@ -1001,10 +999,6 @@ const brainPath = computed(() => {
     padding: 1.5rem;
   }
 
-  .course-flag {
-    font-size: 2.5rem;
-  }
-
   .course-title {
     font-size: 1.5rem;
   }
@@ -1080,10 +1074,6 @@ const brainPath = computed(() => {
 
   .hero-header {
     margin-bottom: 0.5rem;
-  }
-
-  .course-flag {
-    font-size: 1.5rem;
   }
 
   .course-title {

@@ -2,7 +2,8 @@
 import { ref, computed, onMounted, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import { BELTS, getSharedBeltProgress, getSeedFromLegoId } from '@/composables/useBeltProgress'
-import { getLanguageName, getLanguageFlag, t } from '@/composables/useI18n'
+import { getLanguageName, t } from '@/composables/useI18n'
+import LanguageFlag from '@/components/schools/shared/LanguageFlag.vue'
 import CourseBrowser from '@/components/CourseBrowser.vue'
 import { useAuthModal } from '@/composables/useAuthModal'
 
@@ -391,7 +392,7 @@ onMounted(() => {
             <div v-else-if="course.new_app_status === 'beta'" class="course-badge beta-badge">B</div>
             <div v-else-if="!isEnrolled(course.course_code)" class="course-badge new-badge">NEW</div>
 
-            <span class="course-flag">{{ getLanguageFlag(course.target_lang) }}</span>
+            <LanguageFlag :code="course.target_lang" :size="20" />
             <span class="course-name">{{ getFullDisplayName(course) }}</span>
 
             <span class="course-status">
@@ -810,7 +811,6 @@ onMounted(() => {
 }
 
 .course-flag {
-  font-size: 1.5rem;
   line-height: 1;
 }
 
