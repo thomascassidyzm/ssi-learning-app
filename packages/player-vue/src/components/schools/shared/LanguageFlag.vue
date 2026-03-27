@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import { getLanguageFlag } from '@/composables/useI18n'
 
 import cymFlag from '@/assets/flags/cym.svg'
 import spaFlag from '@/assets/flags/spa.svg'
@@ -77,9 +78,17 @@ function extractLanguageCode(code) {
   return langCode
 }
 
+const langCode = computed(() => extractLanguageCode(props.code))
+
 const flagSrc = computed(() => {
-  const lang = extractLanguageCode(props.code)
-  return flagMap[lang] || null
+  return flagMap[langCode.value] || null
+})
+
+// Emoji fallback for languages without SVG flags
+const emojiFlag = computed(() => {
+  if (flagSrc.value) return null
+  const emoji = getLanguageFlag(langCode.value)
+  return emoji !== '🌐' ? emoji : null
 })
 
 const dimensions = computed(() => ({
@@ -96,6 +105,11 @@ const dimensions = computed(() => ({
   >
     <img :src="flagSrc" :alt="code + ' flag'" :width="size" :height="size" />
   </span>
+  <span
+    v-else-if="emojiFlag"
+    class="language-flag language-flag--emoji"
+    :style="{ width: dimensions.width, height: dimensions.height, fontSize: (size * 0.75) + 'px' }"
+  >{{ emojiFlag }}</span>
   <span
     v-else
     class="language-flag language-flag--fallback"
