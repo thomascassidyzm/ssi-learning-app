@@ -185,8 +185,8 @@ export function useDemoController() {
       return
     }
 
-    // Simple approach: set localStorage, navigate, let PlayerContainer handle course switch.
-    // PlayerContainer already reads class context and calls handleCourseSelect internally.
+    // Set class context + course in localStorage, then SPA-navigate with ?class param.
+    // PlayerContainer reads class context on mount and calls handleCourseSelect.
     localStorage.setItem('ssi-last-course', cls.course_code)
     localStorage.setItem('ssi-active-class', JSON.stringify({
       id: cls.id,
@@ -198,9 +198,11 @@ export function useDemoController() {
       timestamp: new Date().toISOString(),
     }))
 
-    // Full page navigation forces everything to re-initialize.
-    // ?course= is the HIGHEST priority in fetchEnrolledCourses (overrides DB learner preference)
-    window.location.href = `/?class=${cls.id}&course=${cls.course_code}`
+    // SPA navigation — PlayerContainer reads ?class to detect class mode
+    await router.push({ path: '/', query: { class: cls.id } })
+
+    // Clean the URL immediately (class context is in localStorage, URL param no longer needed)
+    history.replaceState(null, '', '/')
   }
 
   // ---- Scene transition ----
