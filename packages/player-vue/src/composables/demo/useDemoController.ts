@@ -142,7 +142,7 @@ export function useDemoController() {
 
       case 'stopSession':
         // Clear active class and navigate back to classes
-        localStorage.removeItem('ssi-active-class')
+        sessionStorage.removeItem('ssi-demo-active-class')
         await getRouter().push({ path: '/schools/classes' })
         break
 
@@ -196,10 +196,10 @@ export function useDemoController() {
       return
     }
 
-    // Set class context + course in localStorage, then SPA-navigate with ?class param.
+    // Set class context + course in sessionStorage, then SPA-navigate with ?class param.
     // PlayerContainer reads class context on mount and calls handleCourseSelect.
-    localStorage.setItem('ssi-last-course', cls.course_code)
-    localStorage.setItem('ssi-active-class', JSON.stringify({
+    sessionStorage.setItem('ssi-demo-last-course', cls.course_code)
+    sessionStorage.setItem('ssi-demo-active-class', JSON.stringify({
       id: cls.id,
       name: cls.name,
       course_code: cls.course_code,
@@ -297,9 +297,10 @@ export function useDemoController() {
 
     // Clean up any demo state
     isDemoMode.value = false
-    localStorage.removeItem('ssi-active-class')
-    localStorage.removeItem('ssi-dev-tier')
-    localStorage.removeItem('ssi-last-course')
+    sessionStorage.removeItem('ssi-demo-active')
+    sessionStorage.removeItem('ssi-demo-active-class')
+    sessionStorage.removeItem('ssi-demo-tier')
+    sessionStorage.removeItem('ssi-demo-last-course')
     delete (window as any).__demoSelectCourse
 
     // Navigate back to demo launcher

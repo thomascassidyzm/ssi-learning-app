@@ -495,12 +495,18 @@ simplePlayer.onRoundCompleted((round) => {
       // Class mode: update class progress, NOT personal belt
       updateClassLegoProgress(props.classContext.id, round.legoId)
       // Update localStorage classContext so page refresh works
-      const stored = localStorage.getItem('ssi-active-class')
+      const demoStored = sessionStorage.getItem('ssi-demo-active-class')
+      const stored = demoStored || localStorage.getItem('ssi-active-class')
       if (stored) {
         try {
           const ctx = JSON.parse(stored)
           ctx.last_lego_id = round.legoId
-          localStorage.setItem('ssi-active-class', JSON.stringify(ctx))
+          // Write back to the same storage it came from
+          if (demoStored) {
+            sessionStorage.setItem('ssi-demo-active-class', JSON.stringify(ctx))
+          } else {
+            localStorage.setItem('ssi-active-class', JSON.stringify(ctx))
+          }
         } catch {}
       }
     } else {

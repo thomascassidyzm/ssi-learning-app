@@ -54,6 +54,17 @@ if (window.location.search.includes('reset=1')) {
   })
 }
 
+// DEMO CLEANUP: Remove stale demo state from localStorage
+// This catches cases where someone visited /demo, started a demo,
+// then closed the tab without stopping it properly
+if (localStorage.getItem('ssi-dev-tier') === 'paid' && !sessionStorage.getItem('ssi-demo-active')) {
+  console.log('[App] Cleaning up stale demo state from localStorage')
+  localStorage.removeItem('ssi-dev-tier')
+  localStorage.removeItem('ssi-active-class')
+  // Don't remove ssi-last-course — user might have set that themselves
+  // Don't remove ssi-god-mode-user — that's used outside demo too
+}
+
 // Initialize theme (reads from localStorage, applies to document)
 const { theme, toggleTheme, setTheme } = useTheme()
 
@@ -186,6 +197,7 @@ const canAccessCourse = (course) => {
   const isCommunity = course.is_community ?? course.course_code?.startsWith('community_')
   const devPaid = (() => {
     try {
+      if (sessionStorage.getItem('ssi-demo-tier') === 'paid') return true
       const tier = localStorage.getItem('ssi-dev-tier')
       if (tier === 'paid') return true
       return localStorage.getItem('ssi-dev-paid-user') === 'true'
@@ -243,7 +255,8 @@ const fetchEnrolledCourses = async () => {
       let savedCourseCode = auth.learner.value?.preferences?.last_course_code || null
       if (!savedCourseCode) {
         try {
-          savedCourseCode = localStorage.getItem(LAST_COURSE_KEY)
+          // Check demo session first, then persistent localStorage
+          savedCourseCode = sessionStorage.getItem('ssi-demo-last-course') || localStorage.getItem(LAST_COURSE_KEY)
         } catch (e) {
           console.warn('[App] Failed to read saved course:', e)
         }

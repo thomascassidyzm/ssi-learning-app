@@ -36,6 +36,12 @@ const isGodAccessVerified = ref(false)
 
 function loadStoredUser(): GodModeUser | null {
   if (typeof window === 'undefined') return null
+  // Check sessionStorage first (demo mode — auto-clears on tab close)
+  const sessionStored = sessionStorage.getItem(STORAGE_KEY)
+  if (sessionStored) {
+    try { return JSON.parse(sessionStored) } catch { /* fall through */ }
+  }
+  // Then localStorage (persistent god mode)
   const stored = localStorage.getItem(STORAGE_KEY)
   if (stored) {
     try {
@@ -48,6 +54,15 @@ function loadStoredUser(): GodModeUser | null {
 }
 
 function saveUser(user: GodModeUser | null) {
+  // In demo mode, use sessionStorage so it auto-clears on tab close
+  if (sessionStorage.getItem('ssi-demo-active')) {
+    if (user) {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(user))
+    } else {
+      sessionStorage.removeItem(STORAGE_KEY)
+    }
+    return
+  }
   if (user) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(user))
   } else {

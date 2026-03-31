@@ -102,8 +102,10 @@ async function startDemo(demo: typeof demos[0]) {
   }
 
   // Set course + tier for demo (must happen before navigation)
-  localStorage.setItem('ssi-last-course', 'cym_s_for_eng')
-  localStorage.setItem('ssi-dev-tier', 'paid')
+  // Use sessionStorage so demo state auto-clears on tab close
+  sessionStorage.setItem('ssi-demo-active', 'true')
+  sessionStorage.setItem('ssi-demo-last-course', 'cym_s_for_eng')
+  sessionStorage.setItem('ssi-demo-tier', 'paid')
 
   // Set locale to English (demo audience speaks English)
   setLocale('eng')

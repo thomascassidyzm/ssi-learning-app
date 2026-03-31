@@ -343,7 +343,7 @@ const checkClassContext = () => {
   const classId = params.get('class')
 
   if (classId) {
-    const stored = localStorage.getItem('ssi-active-class')
+    const stored = sessionStorage.getItem('ssi-demo-active-class') || localStorage.getItem('ssi-active-class')
     if (stored) {
       try {
         classContext.value = JSON.parse(stored)
@@ -360,6 +360,7 @@ const checkClassContext = () => {
 // Clear class context
 const clearClassContext = () => {
   classContext.value = null
+  sessionStorage.removeItem('ssi-demo-active-class')
   localStorage.removeItem('ssi-active-class')
   const url = new URL(window.location.href)
   url.searchParams.delete('class')

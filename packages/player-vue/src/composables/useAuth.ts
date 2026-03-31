@@ -282,7 +282,7 @@ export function useAuth(): AuthState & AuthActions {
     isLoading.value = true
 
     // God mode bypass: skip auth entirely when god mode user is set
-    const godModeUser = localStorage.getItem('ssi-god-mode-user')
+    const godModeUser = sessionStorage.getItem('ssi-god-mode-user') || localStorage.getItem('ssi-god-mode-user')
     if (godModeUser) {
       try {
         const parsed = JSON.parse(godModeUser)

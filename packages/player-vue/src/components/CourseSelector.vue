@@ -33,6 +33,7 @@ const hasFullAccess = (course) => {
   // Dev flag override
   const devPaid = (() => {
     try {
+      if (sessionStorage.getItem('ssi-demo-tier') === 'paid') return true
       const tier = localStorage.getItem('ssi-dev-tier')
       if (tier === 'paid') return true
       return localStorage.getItem('ssi-dev-paid-user') === 'true'

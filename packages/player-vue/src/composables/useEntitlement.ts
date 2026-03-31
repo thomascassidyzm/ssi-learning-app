@@ -141,6 +141,9 @@ export function useEntitlement(): UseEntitlementReturn {
    */
   function checkDevPaidStatus(): boolean {
     try {
+      // Check demo session flag first (sessionStorage auto-clears on tab close)
+      if (sessionStorage.getItem('ssi-demo-tier') === 'paid') return true
+      // Legacy localStorage flags for dev testing
       const tier = localStorage.getItem('ssi-dev-tier')
       if (tier === 'paid') return true
       return localStorage.getItem('ssi-dev-paid-user') === 'true'
