@@ -134,6 +134,30 @@ async function redeemInviteCode(
     return
   }
 
+  // Ensure learner record exists (may not if user just signed up via OTP)
+  const { data: existingLearner } = await supabase
+    .from('learners')
+    .select('id')
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  if (!existingLearner) {
+    // Get email from auth.users for display_name
+    const { data: authUser } = await supabase.auth.admin.getUserById(userId)
+    const displayName = authUser?.user?.email?.split('@')[0] || 'User'
+    const { error: insertError } = await supabase
+      .from('learners')
+      .insert({
+        user_id: userId,
+        display_name: displayName,
+      })
+    if (insertError) {
+      console.error('[CodeRedeem] Failed to create learner:', insertError)
+      res.status(500).json({ error: 'Internal server error' })
+      return
+    }
+  }
+
   // Update learner role and invite_code_id
   const learnerUpdate: Record<string, unknown> = { invite_code_id: inviteRow.id }
   if (codeType === 'ssi_admin') {
