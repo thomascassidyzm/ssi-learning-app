@@ -3,6 +3,7 @@ import { ref, computed, onMounted, inject, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useInviteCode } from '../composables/useInviteCode'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
+import { useUserRole } from '../composables/useUserRole'
 
 const route = useRoute()
 const router = useRouter()
@@ -189,6 +190,14 @@ async function doRedeem() {
       redeemLabel.value = result.label || displayTitle.value
       if (result.codeKind === 'entitlement') {
         refreshEntitlements()
+      }
+      // Update role immediately so feedback widget appears without reload
+      if (pendingCode.value?.codeType === 'tester') {
+        useUserRole().initialize('tester', null)
+      } else if (pendingCode.value?.codeType === 'ssi_admin') {
+        useUserRole().initialize('ssi_admin', null)
+      } else if (pendingCode.value?.codeType) {
+        useUserRole().initialize(null, pendingCode.value.codeType)
       }
       step.value = 'success'
       setTimeout(() => {
