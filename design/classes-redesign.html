@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Classes — SSi Schools</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&display=swap');
+
+  /* ─── Theme tokens ─── */
+  :root {
+    --ssi-red: #c23a3a;
+    --ssi-red-soft: #c23a3a18;
+    --ssi-red-hover: #a83232;
+    --bg-primary: #f5f0eb;
+    --bg-card: #ffffff;
+    --bg-card-hover: #fdfcfb;
+    --bg-secondary: #ece7e1;
+    --bg-track: #e8e3dd;
+    --text-primary: #2C2622;
+    --text-secondary: #5a524a;
+    --text-muted: #8A8078;
+    --text-faint: #b5aea6;
+    --border-subtle: rgba(44, 38, 34, 0.06);
+    --border-medium: rgba(44, 38, 34, 0.10);
+    --shadow-card: 0 1px 3px rgba(44, 38, 34, 0.06), 0 6px 16px rgba(44, 38, 34, 0.04);
+    --shadow-card-hover: 0 2px 8px rgba(44, 38, 34, 0.08), 0 12px 28px rgba(44, 38, 34, 0.06);
+    --shadow-button: 0 2px 8px rgba(194, 58, 58, 0.25);
+    --radius-sm: 8px;
+    --radius-md: 14px;
+    --radius-lg: 20px;
+    --radius-pill: 100px;
+    --font-body: 'DM Sans', sans-serif;
+    --font-display: 'Fraunces', serif;
+
+    /* Belt colours */
+    --belt-white: #e8e3dd;
+    --belt-yellow: #f2c94c;
+    --belt-orange: #f2994a;
+    --belt-green: #27ae60;
+    --belt-blue: #2d9cdb;
+    --belt-purple: #9b51e0;
+    --belt-brown: #8b6914;
+    --belt-black: #2C2622;
+  }
+
+  [data-theme="dark"] {
+    --bg-primary: #1a1714;
+    --bg-card: #252220;
+    --bg-card-hover: #2d2a27;
+    --bg-secondary: #1f1c19;
+    --bg-track: #332f2b;
+    --text-primary: #f0ece8;
+    --text-secondary: #b5aea6;
+    --text-muted: #8A8078;
+    --text-faint: #5a524a;
+    --border-subtle: rgba(240, 236, 232, 0.06);
+    --border-medium: rgba(240, 236, 232, 0.10);
+    --shadow-card: 0 1px 3px rgba(0,0,0,0.2), 0 6px 16px rgba(0,0,0,0.15);
+    --shadow-card-hover: 0 2px 8px rgba(0,0,0,0.25), 0 12px 28px rgba(0,0,0,0.2);
+    --belt-white: #a09890;
+  }
+
+  /* ─── Reset & base ─── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+
+  /* ─── Page layout ─── */
+  .page {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 40px 32px 80px;
+  }
+
+  /* ─── Header ─── */
+  .page-header {
+    margin-bottom: 36px;
+  }
+
+  .page-title {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    font-style: italic;
+    opacity: 0;
+    animation: fadeUp 0.5s ease forwards;
+  }
+
+  .page-subtitle {
+    font-size: 0.9375rem;
+    color: var(--text-muted);
+    margin-top: 6px;
+    opacity: 0;
+    animation: fadeUp 0.5s ease 0.08s forwards;
+  }
+
+  /* ─── Search bar ─── */
+  .search-bar {
+    position: relative;
+    margin-bottom: 32px;
+    opacity: 0;
+    animation: fadeUp 0.5s ease 0.14s forwards;
+  }
+
+  .search-bar svg {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-faint);
+    pointer-events: none;
+  }
+
+  .search-bar input {
+    width: 100%;
+    padding: 14px 16px 14px 48px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+    font-family: var(--font-body);
+    font-size: 0.9375rem;
+    color: var(--text-primary);
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  .search-bar input::placeholder { color: var(--text-faint); }
+  .search-bar input:focus {
+    border-color: var(--ssi-red);
+    box-shadow: 0 0 0 3px var(--ssi-red-soft);
+  }
+
+  /* ─── Classes grid ─── */
+  .classes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
+    gap: 20px;
+  }
+
+  /* ─── Class card ─── */
+  .class-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    padding: 28px;
+    box-shadow: var(--shadow-card);
+    transition: box-shadow 0.3s ease, transform 0.3s ease, border-color 0.3s ease;
+    opacity: 0;
+    animation: fadeUp 0.5s ease forwards;
+  }
+
+  .class-card:hover {
+    box-shadow: var(--shadow-card-hover);
+    transform: translateY(-2px);
+    border-color: var(--border-medium);
+  }
+
+  .class-card:nth-child(1) { animation-delay: 0.2s; }
+  .class-card:nth-child(2) { animation-delay: 0.28s; }
+  .class-card:nth-child(3) { animation-delay: 0.36s; }
+  .class-card:nth-child(4) { animation-delay: 0.44s; }
+
+  /* Card header: flag + name + meta */
+  .card-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 22px;
+  }
+
+  .card-flag {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+  }
+
+  .card-flag img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .card-identity {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .card-class-name {
+    font-family: var(--font-display);
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+  }
+
+  .card-course-name {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    margin-top: 3px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .card-students {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+  }
+
+  .card-students svg {
+    opacity: 0.5;
+  }
+
+  .card-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  .card-belt-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+
+  .card-last-session {
+    font-size: 0.6875rem;
+    color: var(--text-faint);
+  }
+
+  /* ─── Journey progress (belt track) ─── */
+  .journey-section {
+    margin-bottom: 22px;
+  }
+
+  .journey-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+  }
+
+  .journey-label-text {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .journey-label-value {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  .journey-track {
+    position: relative;
+    height: 8px;
+    background: var(--bg-track);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .journey-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    border-radius: 4px;
+    transition: width 1s ease;
+  }
+
+  /* ─── Benchmarking section ─── */
+  .benchmark-section {
+    margin-bottom: 24px;
+    padding: 18px;
+    background: var(--bg-primary);
+    border-radius: var(--radius-md);
+  }
+
+  .benchmark-title {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 14px;
+  }
+
+  .benchmark-track-container {
+    position: relative;
+    margin-bottom: 6px;
+  }
+
+  .benchmark-track {
+    position: relative;
+    height: 32px;
+    background: var(--bg-track);
+    border-radius: 6px;
+    overflow: visible;
+  }
+
+  [data-theme="dark"] .benchmark-track {
+    background: rgba(255,255,255,0.04);
+  }
+
+  .benchmark-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: var(--ssi-red);
+    border-radius: 6px;
+    opacity: 0.12;
+  }
+
+  /* Marker lines on the benchmark track */
+  .benchmark-marker {
+    position: absolute;
+    top: -4px;
+    width: 2px;
+    height: 40px;
+    border-radius: 1px;
+    transform: translateX(-1px);
+    z-index: 2;
+  }
+
+  .benchmark-marker.marker-class {
+    width: 4px;
+    height: 44px;
+    top: -6px;
+    background: var(--ssi-red);
+    border-radius: 2px;
+    transform: translateX(-2px);
+    z-index: 3;
+    box-shadow: 0 0 8px rgba(194, 58, 58, 0.3);
+  }
+
+  .benchmark-marker.marker-school {
+    background: var(--text-muted);
+    opacity: 0.5;
+  }
+
+  .benchmark-marker.marker-region {
+    background: var(--belt-blue);
+    opacity: 0.5;
+  }
+
+  .benchmark-marker.marker-global {
+    background: var(--belt-green);
+    opacity: 0.4;
+  }
+
+  /* Marker dot */
+  .benchmark-marker::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: inherit;
+    opacity: 1;
+  }
+
+  .benchmark-marker.marker-class::after {
+    width: 8px;
+    height: 8px;
+    background: var(--ssi-red);
+    box-shadow: 0 0 6px rgba(194, 58, 58, 0.4);
+  }
+
+  /* Legend */
+  .benchmark-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-top: 12px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+  }
+
+  .legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .legend-dot.dot-class { background: var(--ssi-red); }
+  .legend-dot.dot-school { background: var(--text-muted); opacity: 0.5; }
+  .legend-dot.dot-region { background: var(--belt-blue); opacity: 0.5; }
+  .legend-dot.dot-global { background: var(--belt-green); opacity: 0.4; }
+
+  .legend-value {
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  .legend-item.legend-class .legend-value {
+    color: var(--ssi-red);
+    font-weight: 700;
+  }
+
+  /* ─── Stats row ─── */
+  .stats-row {
+    display: flex;
+    gap: 1px;
+    margin-bottom: 24px;
+    background: var(--border-subtle);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+  }
+
+  .stat-cell {
+    flex: 1;
+    padding: 12px 14px;
+    background: var(--bg-card);
+    text-align: center;
+  }
+
+  .stat-cell:first-child { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+  .stat-cell:last-child { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+
+  .stat-value {
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .stat-label {
+    font-size: 0.6875rem;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  /* ─── Play button ─── */
+  .play-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    padding: 16px 24px;
+    background: var(--ssi-red);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-md);
+    font-family: var(--font-body);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, box-shadow 0.2s, transform 0.15s;
+    box-shadow: var(--shadow-button);
+    letter-spacing: 0.01em;
+  }
+
+  .play-button:hover {
+    background: var(--ssi-red-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(194, 58, 58, 0.35);
+  }
+
+  .play-button:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 4px rgba(194, 58, 58, 0.2);
+  }
+
+  .play-icon {
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.2);
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .play-icon svg {
+    margin-left: 2px;
+  }
+
+  /* ─── Ahead/behind indicator ─── */
+  .benchmark-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: var(--radius-pill);
+    margin-top: 2px;
+  }
+
+  .benchmark-status.ahead {
+    color: #1a7a3a;
+    background: rgba(39, 174, 96, 0.10);
+  }
+
+  .benchmark-status.behind {
+    color: var(--ssi-red);
+    background: var(--ssi-red-soft);
+  }
+
+  [data-theme="dark"] .benchmark-status.ahead {
+    color: #4ade80;
+    background: rgba(39, 174, 96, 0.15);
+  }
+
+  /* ─── Theme toggle (demo only) ─── */
+  .theme-toggle {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 1px solid var(--border-medium);
+    background: var(--bg-card);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    z-index: 100;
+    transition: background 0.2s;
+  }
+
+  .theme-toggle:hover { background: var(--bg-secondary); }
+
+  /* ─── Animations ─── */
+  @keyframes fadeUp {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* ─── Responsive ─── */
+  @media (max-width: 560px) {
+    .page { padding: 24px 16px 60px; }
+    .page-title { font-size: 1.6rem; }
+
+    .classes-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .class-card { padding: 22px; }
+
+    .card-flag { width: 44px; height: 44px; }
+    .card-class-name { font-size: 1.1rem; }
+
+    .benchmark-legend { gap: 8px; }
+
+    .stats-row { flex-wrap: wrap; }
+    .stat-cell { flex: 1 1 calc(50% - 1px); }
+
+    .play-button { padding: 14px 20px; font-size: 0.9375rem; }
+  }
+
+  @media (min-width: 561px) and (max-width: 820px) {
+    .classes-grid {
+      grid-template-columns: 1fr;
+      max-width: 560px;
+    }
+  }
+</style>
+</head>
+<body>
+
+<button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">🌙</button>
+
+<div class="page">
+
+  <!-- Header -->
+  <header class="page-header">
+    <h1 class="page-title">My Classes</h1>
+    <p class="page-subtitle">Ysgol Gymraeg Aberystwyth — 4 classes across 3 languages</p>
+  </header>
+
+  <!-- Search -->
+  <div class="search-bar">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <input type="text" placeholder="Search by class name or language…">
+  </div>
+
+  <!-- Classes grid -->
+  <div class="classes-grid">
+
+    <!-- Card 1: Blwyddyn 5 Welsh — ahead of averages -->
+    <div class="class-card">
+      <div class="card-header">
+        <div class="card-flag">
+          <!-- Welsh flag placeholder (circle-flag) -->
+          <img src="https://hatscripts.github.io/circle-flags/flags/gb-wls.svg" alt="Welsh flag">
+        </div>
+        <div class="card-identity">
+          <div class="card-class-name">Blwyddyn 5</div>
+          <div class="card-course-name">
+            <span>Welsh (South)</span>
+            <span>·</span>
+            <span class="card-students">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+              10
+            </span>
+          </div>
+        </div>
+        <div class="card-meta">
+          <span class="card-belt-badge" style="background: rgba(45, 156, 219, 0.12); color: #2d9cdb;">
+            <span style="width:10px;height:10px;background:#2d9cdb;border-radius:50%;display:inline-block;"></span>
+            Blue Belt
+          </span>
+          <span class="card-last-session">Last session 2 days ago</span>
+        </div>
+      </div>
+
+      <!-- Journey progress -->
+      <div class="journey-section">
+        <div class="journey-label">
+          <span class="journey-label-text">Course Journey</span>
+          <span class="journey-label-value">Seed 82 of 300</span>
+        </div>
+        <div class="journey-track">
+          <div class="journey-fill" style="width: 27.3%; background: linear-gradient(90deg, #2d9cdb, #2d9cdb);"></div>
+        </div>
+      </div>
+
+      <!-- Benchmarking -->
+      <div class="benchmark-section">
+        <div class="benchmark-title">Speaking Opportunities</div>
+        <div class="benchmark-track-container">
+          <div class="benchmark-track">
+            <!-- Fill to show range context -->
+            <div class="benchmark-fill" style="width: 78%;"></div>
+            <!-- Markers positioned as percentage of max -->
+            <div class="benchmark-marker marker-global" style="left: 42%;" title="Global avg: 340"></div>
+            <div class="benchmark-marker marker-region" style="left: 55%;" title="Regional avg: 445"></div>
+            <div class="benchmark-marker marker-school" style="left: 48%;" title="School avg: 390"></div>
+            <div class="benchmark-marker marker-class" style="left: 78%;" title="This class: 632"></div>
+          </div>
+        </div>
+        <div class="benchmark-legend">
+          <div class="legend-item legend-class">
+            <span class="legend-dot dot-class"></span>
+            <span>This class</span>
+            <span class="legend-value">632</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot dot-school"></span>
+            <span>School</span>
+            <span class="legend-value">390</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot dot-region"></span>
+            <span>Region</span>
+            <span class="legend-value">445</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot dot-global"></span>
+            <span>Global</span>
+            <span class="legend-value">340</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stats row -->
+      <div class="stats-row">
+        <div class="stat-cell">
+          <div class="stat-value">18</div>
+          <div class="stat-label">Sessions</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-value">7.5h</div>
+          <div class="stat-label">Total Time</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-value">35</div>
+          <div class="stat-label">Avg / Session</div>
+        </div>
+      </div>
+
+      <!-- Play button -->
+      <button class="play-button">
+        <span class="play-icon">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="white"><polygon points="2,0 12,6 2,12"/></svg>
+        </span>
+        Play as Class
+      </button>
+    </div>
+
+    <!-- Card 2: Blwyddyn 6 French — near school average -->
+    <div class="class-card">
+      <div class="card-header">
+        <div class="card-flag">
+          <img src="https://hatscripts.github.io/circle-flags/flags/fr.svg" alt="French flag">
+        </div>
+        <div class="card-identity">
+          <div class="card-class-name">Blwyddyn 6</div>
+          <div class="card-course-name">
+            <span>French</span>
+            <span>·</span>
+            <span class="card-students">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+              10
+            </span>
+          </div>
+        </div>
+        <div class="card-meta">
+          <span class="card-belt-badge" style="background: rgba(242, 201, 76, 0.15); color: #b8941a;">
+            <span style="width:10px;height:10px;background:#f2c94c;border-radius:50%;display:inline-block;"></span>
+            Yellow Belt
+          </span>
+          <span class="card-last-session">Last session 5 days ago</span>
+        </div>
+      </div>
+
+      <div class="journey-section">
+        <div class="journey-label">
+          <span class="journey-label-text">Course Journey</span>
+          <span class="journey-label-value">Seed 14 of 300</span>
+        </div>
+        <div class="journey-track">
+          <div class="journey-fill" style="width: 4.7%; background: linear-gradient(90deg, #f2c94c, #f2c94c);"></div>
+        </div>
+      </div>
+
+      <div class="benchmark-section">
+        <div class="benchmark-title">Speaking Opportunities</div>
+        <div class="benchmark-track-container">
+          <div class="benchmark-track">
+            <div class="benchmark-fill" style="width: 38%;"></div>
+            <div class="benchmark-marker marker-global" style="left: 50%;" title="Global avg: 280"></div>
+            <div class="benchmark-marker marker-region" style="left: 44%;" title="Regional avg: 245"></div>
+            <div class="benchmark-marker marker-school" style="left: 40%;" title="School avg: 220"></div>
+            <div class="benchmark-marker marker-class" style="left: 38%;" title="This class: 210"></div>
+          </div>
+        </div>
+        <div class="benchmark-legend">
+          <div class="legend-item legend-class">
+            <span class="legend-dot dot-class"></span>
+            <span>This class</span>
+            <span class="legend-value">210</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot dot-school"></span>
+            <span>School</span>
+            <span class="legend-value">220</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot dot-region"></span>
+            <span>Region</span>
+            <span class="legend-value">245</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot dot-global"></span>
+            <span>Global</span>
+            <span class="legend-value">280</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat-cell">
+          <div class="stat-value">8</div>
+          <div class="stat-label">Sessions</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-value">3.2h</div>
+          <div class="stat-label">Total Time</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-value">26</div>
+          <div class="stat-label">Avg / Session</div>
+        </div>
+      </div>
+
+      <button class="play-button">
+        <span class="play-icon">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="white"><polygon points="2,0 12,6 2,12"/></svg>
+        </span>
+        Play as Class
+      </button>
+    </div>
+
+    <!-- Card 3: Blwyddyn 5 Spanish — behind averages -->
+    <div class="class-card">
+      <div class="card-header">
+        <div class="card-flag">
+          <img src="https://hatscripts.github.io/circle-flags/flags/es.svg" alt="Spanish flag">
+        </div>
+        <div class="card-identity">
+          <div class="card-class-name">Blwyddyn 5</div>
+          <div class="card-course-name">
+            <span>Spanish</span>
+            <span>·</span>
+            <span class="card-students">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+              10
+            </span>
+          </div>
+        </div>
+        <div class="card-meta">
+          <span class="card-belt-badge" style="background: rgba(242, 153, 74, 0.12); color: #c27830;">
+            <span style="width:10px;height:10px;background:#f2994a;border-radius:50%;display:inline-block;"></span>
+            Orange Belt
+          </span>
+          <span class="card-last-session">Last session 8 days ago</span>
+        </div>
+      </div>
+
+      <div class="journey-section">
+        <div class="journey-label">
+          <span class="journey-label-text">Course Journey</span>
+          <span class="journey-label-value">Seed 28 of 300</span>
+        </div>
+        <div class="journey-track">
+          <div class="journey-fill" style="width: 9.3%; background: linear-gradient(90deg, #f2994a, #f2994a);"></div>
+        </div>
+      </div>
+
+      <div class="benchmark-section">
+        <div class="benchmark-title">Speaking Opportunities</div>
+        <div class="benchmark-track-container">
+          <div class="benchmark-track">
+            <div class="benchmark-fill" style="width: 22%;"></div>
+            <div class="benchmark-marker marker-global" style="left: 45%;" title="Global avg: 310"></div>
+            <div class="benchmark-marker marker-region" style="left: 38%;" title="Regional avg: 260"></div>
+            <div class="benchmark-marker marker-school" style="left: 32%;" title="School avg: 220"></div>
+            <div class="benchmark-marker marker-class" style="left: 22%;" title="This class: 152"></div>
+          </div>
+        </div>
+        <div class="benchmark-legend">
+          <div class="legend-item legend-class">
+            <span class="legend-dot dot-class"></span>
+            <span>This class</span>
+            <span class="legend-value">152</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot dot-school"></span>
+            <span>School</span>
+            <span class="legend-value">220</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot dot-region"></span>
+            <span>Region</span>
+            <span class="legend-value">260</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot dot-global"></span>
+            <span>Global</span>
+            <span class="legend-value">310</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat-cell">
+          <div class="stat-value">6</div>
+          <div class="stat-label">Sessions</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-value">2.4h</div>
+          <div class="stat-label">Total Time</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-value">25</div>
+          <div class="stat-label">Avg / Session</div>
+        </div>
+      </div>
+
+      <button class="play-button">
+        <span class="play-icon">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="white"><polygon points="2,0 12,6 2,12"/></svg>
+        </span>
+        Play as Class
+      </button>
+    </div>
+
+    <!-- Card 4: Blwyddyn 6 Welsh — strong progress -->
+    <div class="class-card">
+      <div class="card-header">
+        <div class="card-flag">
+          <img src="https://hatscripts.github.io/circle-flags/flags/gb-wls.svg" alt="Welsh flag">
+        </div>
+        <div class="card-identity">
+          <div class="card-class-name">Blwyddyn 6</div>
+          <div class="card-course-name">
+            <span>Welsh (South)</span>
+            <span>·</span>
+            <span class="card-students">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+              10
+            </span>
+          </div>
+        </div>
+        <div class="card-meta">
+          <span class="card-belt-badge" style="background: rgba(155, 81, 224, 0.10); color: #8040c0;">
+            <span style="width:10px;height:10px;background:#9b51e0;border-radius:50%;display:inline-block;"></span>
+            Purple Belt
+          </span>
+          <span class="card-last-session">Last session yesterday</span>
+        </div>
+      </div>
+
+      <div class="journey-section">
+        <div class="journey-label">
+          <span class="journey-label-text">Course Journey</span>
+          <span class="journey-label-value">Seed 165 of 300</span>
+        </div>
+        <div class="journey-track">
+          <div class="journey-fill" style="width: 55%; background: linear-gradient(90deg, #9b51e0, #9b51e0);"></div>
+        </div>
+      </div>
+
+      <div class="benchmark-section">
+        <div class="benchmark-title">Speaking Opportunities</div>
+        <div class="benchmark-track-container">
+          <div class="benchmark-track">
+            <div class="benchmark-fill" style="width: 92%;"></div>
+            <div class="benchmark-marker marker-global" style="left: 42%;" title="Global avg: 340"></div>
+            <div class="benchmark-marker marker-region" style="left: 55%;" title="Regional avg: 445"></div>
+            <div class="benchmark-marker marker-school" style="left: 48%;" title="School avg: 390"></div>
+            <div class="benchmark-marker marker-class" style="left: 92%;" title="This class: 748"></div>
+          </div>
+        </div>
+        <div class="benchmark-legend">
+          <div class="legend-item legend-class">
+            <span class="legend-dot dot-class"></span>
+            <span>This class</span>
+            <span class="legend-value">748</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot dot-school"></span>
+            <span>School</span>
+            <span class="legend-value">390</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot dot-region"></span>
+            <span>Region</span>
+            <span class="legend-value">445</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot dot-global"></span>
+            <span>Global</span>
+            <span class="legend-value">340</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat-cell">
+          <div class="stat-value">24</div>
+          <div class="stat-label">Sessions</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-value">10.2h</div>
+          <div class="stat-label">Total Time</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-value">31</div>
+          <div class="stat-label">Avg / Session</div>
+        </div>
+      </div>
+
+      <button class="play-button">
+        <span class="play-icon">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="white"><polygon points="2,0 12,6 2,12"/></svg>
+        </span>
+        Play as Class
+      </button>
+    </div>
+
+  </div><!-- /classes-grid -->
+</div><!-- /page -->
+
+<script>
+  function toggleTheme() {
+    const html = document.documentElement;
+    const btn = document.querySelector('.theme-toggle');
+    if (html.getAttribute('data-theme') === 'dark') {
+      html.removeAttribute('data-theme');
+      btn.textContent = '🌙';
+    } else {
+      html.setAttribute('data-theme', 'dark');
+      btn.textContent = '☀️';
+    }
+  }
+</script>
+
+</body>
+</html>
