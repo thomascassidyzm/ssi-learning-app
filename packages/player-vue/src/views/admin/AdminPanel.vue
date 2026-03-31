@@ -223,6 +223,7 @@ function formatCodeType(type: string): string {
   if (type === 'ssi_admin') return 'SSi Admin'
   if (type === 'govt_admin') return 'Govt Admin'
   if (type === 'school_admin') return 'School Admin'
+  if (type === 'tester') return 'Beta Tester'
   return type
 }
 
@@ -295,6 +296,7 @@ onMounted(() => {
             <select v-model="codeType">
               <option v-if="isSsiAdmin" value="ssi_admin">SSi Admin</option>
               <option v-if="isSsiAdmin" value="govt_admin">Govt Admin</option>
+              <option v-if="isSsiAdmin" value="tester">Tester</option>
               <option value="school_admin">School Admin</option>
             </select>
           </div>

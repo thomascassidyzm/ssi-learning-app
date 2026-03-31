@@ -32,6 +32,7 @@ const displayTitle = computed(() => {
     school_admin: 'School Admin Invite',
     teacher: 'Teacher Invite',
     student: 'Student Invite',
+    tester: 'Beta Tester Invite',
   }
   return map[pendingCode.value.codeType || ''] || 'Invite Code'
 })

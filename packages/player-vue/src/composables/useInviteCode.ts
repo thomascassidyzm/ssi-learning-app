@@ -5,7 +5,7 @@ export interface InviteCodeContext {
   codeKind: 'invite' | 'entitlement'
   // Invite-specific
   inviteCodeId?: string
-  codeType?: 'ssi_admin' | 'god' | 'govt_admin' | 'school_admin' | 'teacher' | 'student'
+  codeType?: 'ssi_admin' | 'god' | 'govt_admin' | 'school_admin' | 'teacher' | 'student' | 'tester'
   regionName?: string
   schoolName?: string
   className?: string

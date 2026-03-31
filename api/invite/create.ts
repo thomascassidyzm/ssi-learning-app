@@ -49,7 +49,7 @@ export default async function handler(
     return
   }
 
-  const validCodeTypes = ['ssi_admin', 'govt_admin', 'school_admin', 'teacher', 'student']
+  const validCodeTypes = ['ssi_admin', 'govt_admin', 'school_admin', 'teacher', 'student', 'tester']
   if (!validCodeTypes.includes(code_type)) {
     res.status(400).json({ error: 'Invalid code_type' })
     return
@@ -77,6 +77,16 @@ export default async function handler(
         .single()
       if (!learner || learner.platform_role !== 'ssi_admin') {
         res.status(403).json({ error: 'Only SSi admins can create govt_admin codes' })
+        return
+      }
+    } else if (code_type === 'tester') {
+      const { data: learner } = await supabase
+        .from('learners')
+        .select('platform_role')
+        .eq('user_id', userId)
+        .single()
+      if (!learner || learner.platform_role !== 'ssi_admin') {
+        res.status(403).json({ error: 'Only SSi admins can create tester codes' })
         return
       }
     } else if (code_type === 'school_admin') {

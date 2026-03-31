@@ -106,6 +106,7 @@ const roleDisplayName = computed(() => {
     school_admin: 'School Admin',
     teacher: 'Teacher',
     student: 'Student',
+    tester: 'Beta Tester',
   }
   return map[pendingCode.value.codeType] || pendingCode.value.codeType
 })

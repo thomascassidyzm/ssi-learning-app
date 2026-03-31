@@ -138,6 +138,8 @@ async function redeemInviteCode(
   const learnerUpdate: Record<string, unknown> = { invite_code_id: inviteRow.id }
   if (codeType === 'ssi_admin') {
     learnerUpdate.platform_role = 'ssi_admin'
+  } else if (codeType === 'tester') {
+    learnerUpdate.platform_role = 'tester'
   } else {
     learnerUpdate.educational_role = codeType
   }

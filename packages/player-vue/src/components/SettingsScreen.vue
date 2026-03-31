@@ -278,7 +278,7 @@ const joinContextRole = computed(() => {
   if (joinContext.value.codeKind === 'entitlement') {
     return joinContext.value.label || 'Access Code'
   }
-  const map: Record<string, string> = { ssi_admin: 'SSi Admin', govt_admin: 'Regional Admin', school_admin: 'School Admin', teacher: 'Teacher', student: 'Student' }
+  const map: Record<string, string> = { ssi_admin: 'SSi Admin', govt_admin: 'Regional Admin', school_admin: 'School Admin', teacher: 'Teacher', student: 'Student', tester: 'Beta Tester' }
   return map[joinContext.value.codeType || ''] || joinContext.value.codeType || ''
 })
 

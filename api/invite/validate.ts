@@ -95,6 +95,9 @@ export default async function handler(
         .eq('id', inviteRow.grants_school_id)
         .single()
       context.schoolName = school?.school_name
+    } else if (codeType === 'tester') {
+      // No additional context needed for tester codes
+      // Auto-entitlement trigger in DB handles course access
     } else if (codeType === 'student' && inviteRow.grants_class_id) {
       const { data: classRow } = await supabase
         .from('classes')
