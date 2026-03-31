@@ -18,6 +18,7 @@ import { installConsoleDedup } from './utils/consoleDedup'
 import PwaUpdatePrompt from './components/PwaUpdatePrompt.vue'
 import InstallBanner from './components/InstallBanner.vue'
 import DemoOverlay from './components/demo/DemoOverlay.vue'
+import TesterFeedback from './components/TesterFeedback.vue'
 
 // Suppress consecutive identical console errors/warnings after 3 repeats
 installConsoleDedup()
@@ -453,6 +454,7 @@ onMounted(async () => {
     <PwaUpdatePrompt />
     <InstallBanner />
     <DemoOverlay />
+    <TesterFeedback />
   </div>
 </template>
 
