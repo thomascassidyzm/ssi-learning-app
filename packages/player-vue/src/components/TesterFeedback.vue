@@ -41,13 +41,14 @@ const screenshotError = ref<string | null>(null)
 const isUploading = ref(false)
 
 const currentRoute = computed(() => router.currentRoute.value.fullPath)
-const screenSize = computed(() => `${window.screen.width}x${window.screen.height}`)
+const screenSize = ref(`${window.innerWidth}x${window.innerHeight}`)
 const deviceInfo = computed(() => ({
   userAgent: navigator.userAgent,
   screen: screenSize.value,
 }))
 
 function openPanel() {
+  screenSize.value = `${window.innerWidth}x${window.innerHeight}`
   isPanelOpen.value = true
 }
 
