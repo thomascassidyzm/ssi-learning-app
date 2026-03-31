@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import ClassCard from '@/components/schools/ClassCard.vue'
 import CreateClassModal from '@/components/schools/CreateClassModal.vue'
@@ -10,7 +10,7 @@ const router = useRouter()
 
 // God Mode and data
 const { selectedUser } = useGodMode()
-const { classes: classesData, fetchClasses, createClass, isLoading } = useClassesData()
+const { classes: classesData, fetchClasses, createClass, getClassReport, isLoading } = useClassesData()
 
 // Modal state
 const isCreateModalOpen = ref(false)
@@ -18,35 +18,67 @@ const isCreateModalOpen = ref(false)
 // Search and filter state
 const searchQuery = ref('')
 
-// Transform classes data for ClassCard component
+// Benchmark reports stored by class ID
+const classReports = reactive(new Map())
+
+// Fetch benchmark reports in background (non-blocking)
+async function fetchReportsForClasses() {
+  for (const cls of classesData.value) {
+    try {
+      const report = await getClassReport(cls.id)
+      if (report) {
+        classReports.set(cls.id, report)
+      }
+    } catch (err) {
+      // Silently skip — benchmark is optional enhancement
+    }
+  }
+}
+
+// Transform classes data for ClassCard component, merging benchmark data
 const classes = computed(() => {
-  return classesData.value.map(c => ({
-    id: c.id,
-    class_name: c.class_name,
-    course_code: c.course_code,
-    student_count: c.student_count,
-    current_seed: c.current_seed,
-    sessions: 0, // Would need session count from analytics
-    total_time: `${c.avg_practice_minutes}m avg`,
-    student_join_code: c.student_join_code,
-    last_played: 'N/A', // Would need last session timestamp
-    last_played_recently: false,
-    last_lego_id: c.last_lego_id,
-    created_at: c.created_at
-  }))
+  return classesData.value.map(c => {
+    const report = classReports.get(c.id)
+    return {
+      id: c.id,
+      class_name: c.class_name,
+      course_code: c.course_code,
+      student_count: c.student_count,
+      current_seed: c.current_seed,
+      student_join_code: c.student_join_code,
+      last_lego_id: c.last_lego_id,
+      created_at: c.created_at,
+      // Benchmark data from report (may be undefined if not yet loaded)
+      total_cycles: report?.class?.total_cycles ?? 0,
+      total_sessions: report?.class?.total_sessions ?? 0,
+      total_practice_seconds: report?.class?.total_practice_seconds ?? 0,
+      avg_cycles_per_session: report?.class?.avg_cycles_per_session ?? 0,
+      school_avg_cycles: report?.schoolAvg?.avg_total_cycles ?? 0,
+      region_avg_cycles: report?.regionAvg?.avg_total_cycles ?? 0,
+      course_avg_cycles: report?.courseAvg?.avg_total_cycles ?? 0,
+    }
+  })
 })
 
 // Fetch data when user changes
-onMounted(() => {
+onMounted(async () => {
   if (selectedUser.value) {
-    fetchClasses()
+    await fetchClasses()
+    fetchReportsForClasses()
   }
 })
 
-watch(selectedUser, (newUser) => {
+watch(selectedUser, async (newUser) => {
   if (newUser) {
-    fetchClasses()
+    classReports.clear()
+    await fetchClasses()
+    fetchReportsForClasses()
   }
+})
+
+// Also re-fetch reports when classesData changes (e.g. after creating a class)
+watch(classesData, () => {
+  fetchReportsForClasses()
 })
 
 // Filtered classes based on search
@@ -55,7 +87,6 @@ const filteredClasses = computed(() => {
     return classes.value
   }
   const query = searchQuery.value.toLowerCase()
-  // Import courseNames inline for search matching
   const names = {
     'cym_for_eng': 'welsh', 'cym_n_for_eng': 'welsh', 'cym_s_for_eng': 'welsh', 'spa_for_eng': 'spanish', 'fra_for_eng': 'french',
     'deu_for_eng': 'german', 'nld_for_eng': 'dutch', 'gle_for_eng': 'irish',
@@ -131,36 +162,11 @@ const handleClassSettings = (classData) => {
 
 <template>
   <div class="teacher-dashboard">
-    <!-- Background pattern -->
-    <div class="bg-pattern" aria-hidden="true">
-      <svg viewBox="0 0 400 400" class="pattern-svg">
-        <defs>
-          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-            <path
-              d="M 40 0 L 0 0 0 40"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="0.5"
-              opacity="0.08"
-            />
-          </pattern>
-        </defs>
-        <rect width="400" height="400" fill="url(#grid)" />
-      </svg>
-    </div>
-
     <!-- Header -->
-    <header class="dashboard-header">
+    <header class="page-header">
       <div class="header-content">
         <div class="header-text">
-          <h1 class="page-title">
-            <span class="title-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-              </svg>
-            </span>
-            My Classes
-          </h1>
+          <h1 class="page-title">My Classes</h1>
           <p class="page-subtitle">
             Manage your classes and start learning sessions
           </p>
@@ -178,29 +184,26 @@ const handleClassSettings = (classData) => {
     </header>
 
     <!-- Search Bar -->
-    <div class="search-section" v-if="hasClasses">
-      <div class="search-box">
-        <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8"/>
-          <path d="m21 21-4.35-4.35"/>
+    <div class="search-bar" v-if="hasClasses">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <circle cx="11" cy="11" r="8"/>
+        <path d="m21 21-4.35-4.35"/>
+      </svg>
+      <input
+        v-model="searchQuery"
+        type="text"
+        placeholder="Search by class name or language..."
+      />
+      <button
+        v-if="searchQuery"
+        class="search-clear"
+        @click="searchQuery = ''"
+        aria-label="Clear search"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
         </svg>
-        <input
-          v-model="searchQuery"
-          type="text"
-          class="search-input"
-          placeholder="Search classes..."
-        />
-        <button
-          v-if="searchQuery"
-          class="search-clear"
-          @click="searchQuery = ''"
-          aria-label="Clear search"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
-      </div>
+      </button>
     </div>
 
     <!-- Classes Grid -->
@@ -280,29 +283,16 @@ const handleClassSettings = (classData) => {
 
 <style scoped>
 .teacher-dashboard {
-  min-height: calc(100vh - 64px - 64px); /* Account for nav and padding */
+  min-height: calc(100vh - 64px - 64px);
   position: relative;
-}
-
-/* Background pattern */
-.bg-pattern {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.pattern-svg {
-  width: 100%;
-  height: 100%;
-  color: var(--text-primary, #ffffff);
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 40px 32px 80px;
 }
 
 /* Header */
-.dashboard-header {
-  margin-bottom: 32px;
-  position: relative;
-  z-index: 1;
+.page-header {
+  margin-bottom: 36px;
 }
 
 .header-content {
@@ -319,35 +309,19 @@ const handleClassSettings = (classData) => {
 }
 
 .page-title {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-family: 'Noto Sans JP', 'DM Sans', sans-serif;
-  font-size: 1.75rem;
-  font-weight: 700;
-  color: var(--text-primary, #ffffff);
-  margin: 0 0 8px 0;
-}
-
-.title-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(135deg, var(--ssi-red, #c23a3a), var(--ssi-red-dark, #9a2e2e));
-  border-radius: 10px;
-}
-
-.title-icon svg {
-  width: 22px;
-  height: 22px;
-  color: white;
+  font-family: var(--font-display, 'Fraunces', serif);
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  font-style: italic;
+  margin: 0 0 6px 0;
 }
 
 .page-subtitle {
   font-size: 0.9375rem;
-  color: var(--text-secondary, #b0b0b0);
+  color: var(--text-muted, #8A8078);
   margin: 0;
 }
 
@@ -364,8 +338,8 @@ const handleClassSettings = (classData) => {
   background: var(--ssi-red, #c23a3a);
   color: white;
   border: none;
-  border-radius: 12px;
-  font-family: inherit;
+  border-radius: var(--radius-md, 14px);
+  font-family: var(--font-body, 'DM Sans', sans-serif);
   font-size: 0.9375rem;
   font-weight: 600;
   cursor: pointer;
@@ -374,52 +348,45 @@ const handleClassSettings = (classData) => {
 }
 
 .btn-create:hover {
-  background: var(--ssi-red-light, #e54545);
-  transform: translateY(-2px);
+  background: var(--ssi-red-hover, #a83232);
+  transform: translateY(-1px);
 }
 
-/* Search Section */
-.search-section {
-  margin-bottom: 24px;
+/* Search Bar */
+.search-bar {
   position: relative;
-  z-index: 1;
+  margin-bottom: 32px;
 }
 
-.search-box {
-  position: relative;
-  max-width: 480px;
-}
-
-.search-icon {
+.search-bar > svg {
   position: absolute;
   left: 16px;
   top: 50%;
   transform: translateY(-50%);
-  color: var(--text-muted, #707070);
+  color: var(--text-faint, #b5aea6);
   pointer-events: none;
 }
 
-.search-input {
+.search-bar input {
   width: 100%;
   padding: 14px 44px 14px 48px;
-  background: var(--bg-card, #242424);
-  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
-  border-radius: 12px;
-  color: var(--text-primary, #ffffff);
-  font-family: inherit;
+  border: 1px solid var(--border-subtle, rgba(44, 38, 34, 0.06));
+  border-radius: var(--radius-md, 14px);
+  background: var(--bg-card, #ffffff);
+  font-family: var(--font-body, 'DM Sans', sans-serif);
   font-size: 0.9375rem;
-  transition: all 0.2s ease;
-  min-height: 48px;
-}
-
-.search-input::placeholder {
-  color: var(--text-muted, #707070);
-}
-
-.search-input:focus {
+  color: var(--text-primary);
   outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.search-bar input::placeholder {
+  color: var(--text-faint, #b5aea6);
+}
+
+.search-bar input:focus {
   border-color: var(--ssi-red, #c23a3a);
-  box-shadow: 0 0 0 3px rgba(194, 58, 58, 0.2);
+  box-shadow: 0 0 0 3px rgba(194, 58, 58, 0.1);
 }
 
 .search-clear {
@@ -432,10 +399,10 @@ const handleClassSettings = (classData) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-secondary, #1a1a1a);
+  background: var(--bg-secondary, #ece7e1);
   border: none;
   border-radius: 6px;
-  color: var(--text-muted, #707070);
+  color: var(--text-muted, #8A8078);
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -453,8 +420,8 @@ const handleClassSettings = (classData) => {
 
 .classes-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
+  gap: 20px;
 }
 
 /* Card list transitions */
@@ -489,9 +456,9 @@ const handleClassSettings = (classData) => {
   justify-content: center;
   text-align: center;
   padding: 80px 40px;
-  background: var(--bg-card, #242424);
-  border: 2px dashed var(--border-medium, rgba(255,255,255,0.15));
-  border-radius: 20px;
+  background: var(--bg-card, #ffffff);
+  border: 2px dashed var(--border-medium, rgba(44, 38, 34, 0.10));
+  border-radius: var(--radius-lg, 20px);
   max-width: 560px;
   margin: 0 auto;
 }
@@ -511,7 +478,7 @@ const handleClassSettings = (classData) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-secondary, #1a1a1a);
+  background: var(--bg-secondary, #ece7e1);
   border-radius: 16px;
   margin-bottom: 24px;
 }
@@ -519,20 +486,20 @@ const handleClassSettings = (classData) => {
 .empty-icon svg {
   width: 32px;
   height: 32px;
-  color: var(--text-muted, #707070);
+  color: var(--text-muted, #8A8078);
 }
 
 .empty-title {
-  font-family: 'Noto Sans JP', 'DM Sans', sans-serif;
+  font-family: var(--font-display, 'Fraunces', serif);
   font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--text-primary, #ffffff);
+  font-weight: 600;
+  color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
 .empty-text {
   font-size: 0.9375rem;
-  color: var(--text-secondary, #b0b0b0);
+  color: var(--text-secondary, #5a524a);
   margin: 0 0 24px 0;
   max-width: 360px;
   line-height: 1.6;
@@ -545,8 +512,8 @@ const handleClassSettings = (classData) => {
   justify-content: center;
   gap: 8px;
   padding: 14px 24px;
-  border-radius: 12px;
-  font-family: inherit;
+  border-radius: var(--radius-md, 14px);
+  font-family: var(--font-body, 'DM Sans', sans-serif);
   font-size: 0.9375rem;
   font-weight: 600;
   cursor: pointer;
@@ -561,25 +528,25 @@ const handleClassSettings = (classData) => {
 }
 
 .btn-primary:hover {
-  background: var(--ssi-red-light, #e54545);
-  transform: translateY(-2px);
+  background: var(--ssi-red-hover, #a83232);
+  transform: translateY(-1px);
 }
 
 .btn-secondary {
-  background: var(--bg-secondary, #1a1a1a);
-  border: 1px solid var(--border-medium, rgba(255,255,255,0.15));
-  color: var(--text-primary, #ffffff);
+  background: var(--bg-secondary, #ece7e1);
+  border: 1px solid var(--border-medium, rgba(44, 38, 34, 0.10));
+  color: var(--text-primary);
 }
 
 .btn-secondary:hover {
-  background: var(--bg-elevated, #333333);
+  background: var(--bg-card, #ffffff);
   border-color: var(--ssi-red, #c23a3a);
 }
 
 /* Responsive */
 @media (max-width: 768px) {
   .teacher-dashboard {
-    padding: 20px;
+    padding: 24px 16px 60px;
   }
 
   .header-content {
@@ -596,12 +563,23 @@ const handleClassSettings = (classData) => {
     justify-content: center;
   }
 
+  .page-title {
+    font-size: 1.6rem;
+  }
+
   .classes-grid {
     grid-template-columns: 1fr;
   }
 
   .empty-state {
     padding: 48px 24px;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 960px) {
+  .classes-grid {
+    grid-template-columns: 1fr;
+    max-width: 560px;
   }
 }
 </style>
