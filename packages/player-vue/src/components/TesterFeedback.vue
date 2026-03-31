@@ -19,6 +19,8 @@ const auth = inject<any>('auth')
 // @ts-ignore - __BUILD_NUMBER__ is defined by Vite
 const BUILD_VERSION = typeof __BUILD_NUMBER__ !== 'undefined' ? __BUILD_NUMBER__ : 'dev'
 
+const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
+
 // Panel state
 const isPanelOpen = ref(false)
 const isSubmitting = ref(false)
@@ -31,6 +33,12 @@ type FeedbackType = typeof feedbackTypes[number]
 const selectedType = ref<FeedbackType>('Bug')
 const title = ref('')
 const description = ref('')
+
+// Screenshot state
+const screenshotFile = ref<File | null>(null)
+const screenshotPreview = ref<string | null>(null)
+const screenshotError = ref<string | null>(null)
+const isUploading = ref(false)
 
 const currentRoute = computed(() => router.currentRoute.value.fullPath)
 const screenSize = computed(() => `${window.screen.width}x${window.screen.height}`)
@@ -52,6 +60,70 @@ function resetForm() {
   selectedType.value = 'Bug'
   title.value = ''
   description.value = ''
+  removeScreenshot()
+}
+
+function onFileSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  // Reset input so the same file can be re-selected after removal
+  input.value = ''
+
+  if (file.size > MAX_FILE_SIZE) {
+    screenshotError.value = 'Image must be under 5MB'
+    return
+  }
+
+  screenshotError.value = null
+  screenshotFile.value = file
+
+  // Create thumbnail preview
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    screenshotPreview.value = e.target?.result as string
+  }
+  reader.readAsDataURL(file)
+}
+
+function removeScreenshot() {
+  screenshotFile.value = null
+  screenshotPreview.value = null
+  screenshotError.value = null
+}
+
+async function uploadScreenshot(): Promise<string | null> {
+  if (!screenshotFile.value || !supabase?.value) return null
+
+  isUploading.value = true
+  try {
+    const ext = screenshotFile.value.name.split('.').pop() || 'png'
+    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+
+    const { data, error } = await supabase.value.storage
+      .from('feedback-screenshots')
+      .upload(fileName, screenshotFile.value, { contentType: screenshotFile.value.type })
+
+    if (error) {
+      console.error('[TesterFeedback] Upload error:', error.message)
+      return null
+    }
+
+    if (data) {
+      const { data: urlData } = supabase.value.storage
+        .from('feedback-screenshots')
+        .getPublicUrl(fileName)
+      return urlData?.publicUrl ?? null
+    }
+
+    return null
+  } catch (err) {
+    console.error('[TesterFeedback] Upload failed:', err)
+    return null
+  } finally {
+    isUploading.value = false
+  }
 }
 
 async function submitFeedback() {
@@ -59,12 +131,16 @@ async function submitFeedback() {
 
   isSubmitting.value = true
   try {
+    // Upload screenshot first (if any) — failure is non-blocking
+    const screenshotUrl = await uploadScreenshot()
+
     const { error } = await supabase.value.from('tester_feedback').insert({
       user_id: auth?.userId?.value ?? null,
       display_name: auth?.learner?.value?.display_name ?? null,
       feedback_type: selectedType.value.toLowerCase(),
       title: title.value.trim(),
       description: description.value.trim() || null,
+      screenshot_url: screenshotUrl,
       route: currentRoute.value,
       device_info: deviceInfo.value,
       build_version: BUILD_VERSION,
@@ -170,6 +246,43 @@ async function submitFeedback() {
               maxlength="2000"
             />
 
+            <!-- Screenshot upload -->
+            <div class="feedback-screenshot-zone">
+              <template v-if="screenshotPreview">
+                <div class="feedback-screenshot-preview">
+                  <img :src="screenshotPreview" alt="Screenshot preview" />
+                  <button
+                    class="feedback-screenshot-remove"
+                    aria-label="Remove screenshot"
+                    @click="removeScreenshot"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+              </template>
+              <template v-else>
+                <label class="feedback-screenshot-label">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    class="feedback-screenshot-input"
+                    @change="onFileSelected"
+                  />
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                    <circle cx="8.5" cy="8.5" r="1.5" />
+                    <polyline points="21 15 16 10 5 21" />
+                  </svg>
+                  <span>Attach screenshot</span>
+                </label>
+              </template>
+              <p v-if="screenshotError" class="feedback-screenshot-error">{{ screenshotError }}</p>
+            </div>
+
             <!-- Auto-captured info -->
             <div class="feedback-meta">
               <span class="feedback-chip">{{ currentRoute }}</span>
@@ -184,7 +297,7 @@ async function submitFeedback() {
               :disabled="!title.trim() || isSubmitting"
               @click="submitFeedback"
             >
-              {{ isSubmitting ? 'Sending...' : 'Submit' }}
+              {{ isSubmitting ? (isUploading ? 'Uploading...' : 'Sending...') : 'Submit' }}
             </button>
           </div>
         </template>
@@ -366,6 +479,84 @@ async function submitFeedback() {
 .feedback-textarea {
   resize: vertical;
   min-height: 60px;
+}
+
+/* Screenshot upload */
+.feedback-screenshot-zone {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.feedback-screenshot-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  border: 1.5px dashed var(--color-border, #2a2a4a);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--color-text-muted, #888);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.feedback-screenshot-label:hover {
+  border-color: #2d9cdb;
+  color: var(--color-text, #e0e0e0);
+  background: rgba(45, 156, 219, 0.05);
+}
+
+.feedback-screenshot-input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.feedback-screenshot-preview {
+  position: relative;
+  display: inline-flex;
+  align-self: flex-start;
+}
+
+.feedback-screenshot-preview img {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--color-border, #2a2a4a);
+}
+
+.feedback-screenshot-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: #e04040;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s ease;
+}
+
+.feedback-screenshot-remove:hover {
+  background: #c03030;
+}
+
+.feedback-screenshot-error {
+  margin: 0;
+  font-size: 12px;
+  color: #e04040;
 }
 
 /* Meta chips */
