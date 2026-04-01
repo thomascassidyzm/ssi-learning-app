@@ -7368,31 +7368,35 @@ defineExpose({
 
 /* ============ CLASS BANNER (Schools context) ============ */
 .class-banner {
-  position: relative;
-  z-index: 11;
+  position: fixed;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 50;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  background: linear-gradient(135deg, rgba(194, 58, 58, 0.15), rgba(212, 168, 83, 0.1));
-  border-bottom: 1px solid rgba(194, 58, 58, 0.2);
+  gap: 0.35rem;
+  padding: 0.3rem 0.65rem;
+  background: rgba(20, 20, 32, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(194, 58, 58, 0.25);
+  border-radius: 100px;
+  pointer-events: none;
 }
 
 .class-icon {
-  font-size: 0.875rem;
+  font-size: 0.7rem;
 }
 
 .class-name {
   font-weight: 600;
-  font-size: 0.875rem;
+  font-size: 0.7rem;
   color: var(--text-primary);
 }
 
 .class-course {
-  font-size: 0.75rem;
+  font-size: 0.625rem;
   color: var(--text-secondary);
-  padding-left: 0.5rem;
+  padding-left: 0.35rem;
   border-left: 1px solid var(--border-subtle);
 }
 
