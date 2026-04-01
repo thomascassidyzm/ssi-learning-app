@@ -281,7 +281,52 @@ export function useAuth(): AuthState & AuthActions {
     supabase.value = supabaseClient
     isLoading.value = true
 
-    // God mode bypass: skip auth entirely when god mode user is set
+    // Legacy dev role bypass — clear old storage key
+    if (localStorage.getItem('ssi-dev-role')) {
+      localStorage.removeItem('ssi-dev-role')
+    }
+
+    // Initialize guest ID BEFORE any async work — app is usable as guest immediately
+    guestId.value = getOrCreateGuestId()
+
+    // Listen for auth state changes (sign in, sign out, token refresh)
+    // Register listener early so we catch any auth events during session check
+    supabaseClient.auth.onAuthStateChange((_event, session) => {
+      handleAuthChange(session?.user ?? null)
+    })
+
+    // Check for existing Supabase Auth session with a timeout.
+    // Real auth sessions ALWAYS take priority over god mode.
+    try {
+      const SESSION_TIMEOUT_MS = 5000
+      const sessionPromise = supabaseClient.auth.getSession()
+      const timeoutPromise = new Promise<null>((resolve) =>
+        setTimeout(() => resolve(null), SESSION_TIMEOUT_MS)
+      )
+      const result = await Promise.race([sessionPromise, timeoutPromise])
+
+      if (result && 'data' in result && result.data.session?.user) {
+        supabaseUser.value = result.data.session.user
+        learner.value = await ensureLearnerExists()
+
+        // Check if there's guest progress to migrate
+        const hadGuestId = localStorage.getItem(GUEST_ID_KEY)
+        if (hadGuestId) {
+          await migrateGuestProgress()
+        }
+
+        // Real session found — clear any stale god mode state
+        localStorage.removeItem('ssi-god-mode-user')
+        isLoading.value = false
+        return
+      } else if (result === null) {
+        console.warn('[useAuth] Session check timed out, continuing as guest')
+      }
+    } catch (err) {
+      console.warn('[useAuth] Session check failed, continuing as guest:', err)
+    }
+
+    // No real Supabase session — check for god mode (demo/admin impersonation)
     const godModeUser = sessionStorage.getItem('ssi-god-mode-user') || localStorage.getItem('ssi-god-mode-user')
     if (godModeUser) {
       try {
@@ -305,46 +350,6 @@ export function useAuth(): AuthState & AuthActions {
         // Invalid stored user, continue with normal auth
         localStorage.removeItem('ssi-god-mode-user')
       }
-    }
-
-    // Legacy dev role bypass — clear old storage key
-    if (localStorage.getItem('ssi-dev-role')) {
-      localStorage.removeItem('ssi-dev-role')
-    }
-
-    // Initialize guest ID BEFORE any async work — app is usable as guest immediately
-    guestId.value = getOrCreateGuestId()
-
-    // Listen for auth state changes (sign in, sign out, token refresh)
-    // Register listener early so we catch any auth events during session check
-    supabaseClient.auth.onAuthStateChange((_event, session) => {
-      handleAuthChange(session?.user ?? null)
-    })
-
-    // Check for existing Supabase Auth session with a timeout.
-    // If the network is slow/down, fall through to guest mode gracefully.
-    try {
-      const SESSION_TIMEOUT_MS = 5000
-      const sessionPromise = supabaseClient.auth.getSession()
-      const timeoutPromise = new Promise<null>((resolve) =>
-        setTimeout(() => resolve(null), SESSION_TIMEOUT_MS)
-      )
-      const result = await Promise.race([sessionPromise, timeoutPromise])
-
-      if (result && 'data' in result && result.data.session?.user) {
-        supabaseUser.value = result.data.session.user
-        learner.value = await ensureLearnerExists()
-
-        // Check if there's guest progress to migrate
-        const hadGuestId = localStorage.getItem(GUEST_ID_KEY)
-        if (hadGuestId) {
-          await migrateGuestProgress()
-        }
-      } else if (result === null) {
-        console.warn('[useAuth] Session check timed out, continuing as guest')
-      }
-    } catch (err) {
-      console.warn('[useAuth] Session check failed, continuing as guest:', err)
     }
 
     isLoading.value = false
