@@ -137,6 +137,19 @@ export function useAuth(): AuthState & AuthActions {
   }
 
   /**
+   * Load verified_emails via RPC (column is revoked from direct SELECT).
+   */
+  async function loadMyVerifiedEmails(): Promise<string[]> {
+    if (!supabase.value) return []
+    const { data, error } = await supabase.value.rpc('get_my_verified_emails')
+    if (error) {
+      console.warn('[useAuth] Failed to load verified emails:', error.message)
+      return []
+    }
+    return data || []
+  }
+
+  /**
    * Fetch or create learner record in Supabase.
    *
    * Multi-email identity: if no learner found by auth UUID, checks whether
@@ -151,9 +164,10 @@ export function useAuth(): AuthState & AuthActions {
 
     try {
       // 1. Try to fetch learner by auth user ID (fast path — same email as before)
+      // Note: verified_emails column is revoked from SELECT — load via RPC separately
       const { data: existingLearner, error: fetchError } = await supabase.value
         .from('learners')
-        .select('*')
+        .select('id, user_id, display_name, created_at, updated_at, preferences, platform_role, educational_role')
         .eq('user_id', userId)
         .single()
 
@@ -161,40 +175,46 @@ export function useAuth(): AuthState & AuthActions {
         const { initialize: initRole } = useUserRole()
         initRole(existingLearner.platform_role, existingLearner.educational_role)
 
+        // Load verified_emails via RPC (column revoked from direct SELECT)
+        let emails = await loadMyVerifiedEmails()
+
         // Ensure this email is in verified_emails (backfill for existing accounts)
-        if (email && !(existingLearner.verified_emails || []).includes(email)) {
-          const updated = [...(existingLearner.verified_emails || []), email]
+        if (email && !emails.includes(email)) {
+          emails = [...emails, email]
           await supabase.value
             .from('learners')
-            .update({ verified_emails: updated })
+            .update({ verified_emails: emails })
             .eq('id', existingLearner.id)
-          existingLearner.verified_emails = updated
         }
 
-        return toLearnerRecord(existingLearner)
+        return toLearnerRecord({ ...existingLearner, verified_emails: emails })
       }
 
       // 2. No learner for this auth UUID — check if email is linked to another learner
+      //    Uses RPC because verified_emails column is revoked from direct SELECT.
       if (fetchError?.code === 'PGRST116' && email) {
-        const { data: linkedLearner } = await supabase.value
-          .from('learners')
-          .select('*')
-          .contains('verified_emails', [email])
-          .single()
+        const { data: linkedRows } = await supabase.value
+          .rpc('find_learner_by_email', { lookup_email: email })
 
+        const linkedLearner = Array.isArray(linkedRows) ? linkedRows[0] : linkedRows
         if (linkedLearner) {
           // Found! This email belongs to an existing learner — link this auth user to them
-          console.log(`[useAuth] Email ${email} found on learner ${linkedLearner.id} — linking auth user ${userId}`)
+          console.log(`[useAuth] Email ${email} found on learner ${(linkedLearner as any).id} — linking auth user ${userId}`)
           await supabase.value
             .from('learners')
             .update({ user_id: userId })
-            .eq('id', linkedLearner.id)
-          linkedLearner.user_id = userId
+            .eq('id', (linkedLearner as any).id)
+
+          const ll = linkedLearner as any
+          ll.user_id = userId
 
           const { initialize: initRole } = useUserRole()
-          initRole(linkedLearner.platform_role, linkedLearner.educational_role)
+          initRole(ll.platform_role, ll.educational_role)
 
-          return toLearnerRecord(linkedLearner)
+          // Load emails now that this user owns the learner
+          const emails = await loadMyVerifiedEmails()
+
+          return toLearnerRecord({ ...ll, verified_emails: emails })
         }
       }
 

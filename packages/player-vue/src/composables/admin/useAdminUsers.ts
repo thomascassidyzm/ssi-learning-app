@@ -104,7 +104,7 @@ export function useAdminUsers(client: SupabaseClient) {
       // Total users
       const { count } = await client
         .from('learners')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact', head: true })
       totalUsers.value = count || 0
 
       // New this week
@@ -112,7 +112,7 @@ export function useAdminUsers(client: SupabaseClient) {
       weekAgo.setDate(weekAgo.getDate() - 7)
       const { count: newCount } = await client
         .from('learners')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact', head: true })
         .gte('created_at', weekAgo.toISOString())
       newThisWeek.value = newCount || 0
     } catch (err) {

@@ -1,0 +1,31 @@
+-- ============================================
+-- Column security STEP 2: REVOKE sensitive columns
+-- ============================================
+-- Run this AFTER the code changes are deployed on Vercel.
+-- Step 1 (functions) must already be in place.
+--
+-- If client code accidentally tries to read a revoked column,
+-- Supabase returns: "permission denied for column <name>"
+-- — loud and debuggable, NOT silent empty results.
+--
+-- Service role (dashboard, API routes) is unaffected.
+--
+-- Date: 2026-04-01
+
+-- learners.verified_emails — email addresses (direct PII)
+-- Client code now uses get_my_verified_emails() and find_learner_by_email() RPCs.
+REVOKE SELECT (verified_emails) ON learners FROM anon, authenticated;
+
+-- subscriptions — payment provider IDs (financial PII)
+-- Client never reads these; webhooks + API use service_role.
+REVOKE SELECT (provider_subscription_id) ON subscriptions FROM anon, authenticated;
+REVOKE SELECT (provider_customer_id) ON subscriptions FROM anon, authenticated;
+
+-- audio_plays.ip_country — location data derived from IP
+-- Written by API (service_role), never read by client.
+REVOKE SELECT (ip_country) ON audio_plays FROM anon, authenticated;
+
+-- ============================================
+-- To add more protected columns later, just add more REVOKE lines.
+-- To undo: GRANT SELECT (column_name) ON table FROM anon, authenticated;
+-- ============================================
