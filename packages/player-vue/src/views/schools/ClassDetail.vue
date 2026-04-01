@@ -100,23 +100,75 @@ function formatJoinDate(dateStr: string | null): string {
   return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+// Class average seeds for status calculation
+const classAvgSeeds = computed(() => {
+  if (!classDetail.value?.students?.length) return 0
+  const total = classDetail.value.students.reduce((sum, s) => sum + s.seeds_completed, 0)
+  return Math.round(total / classDetail.value.students.length)
+})
+
+// Format last active as relative display
+function formatLastActive(dateStr: string | null): string {
+  if (!dateStr) return 'Never'
+  const now = new Date()
+  const date = new Date(dateStr)
+  const diffMs = now.getTime() - date.getTime()
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+  if (diffDays === 0) return 'Today'
+  if (diffDays === 1) return 'Yesterday'
+  return `${diffDays}d ago`
+}
+
+// Determine engagement level from last active date
+function getEngagement(dateStr: string | null): 'active' | 'recent' | 'inactive' {
+  if (!dateStr) return 'inactive'
+  const now = new Date()
+  const date = new Date(dateStr)
+  const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24))
+  if (diffDays <= 1) return 'active'
+  if (diffDays <= 7) return 'recent'
+  return 'inactive'
+}
+
+// Determine status relative to class average
+function getStatus(seeds: number, avg: number): 'ahead' | 'on-track' | 'behind' {
+  if (avg === 0) return 'on-track'
+  const deviation = (seeds - avg) / avg
+  if (deviation > 0.25) return 'ahead'
+  if (deviation < -0.25) return 'behind'
+  return 'on-track'
+}
+
 // Transform students from classDetail
 const students = computed(() => {
   if (!classDetail.value?.students) return []
-  return classDetail.value.students.map(s => {
-    const belt = getBelt(s.seeds_completed)
-    return {
-      id: s.learner_id,
-      name: s.display_name,
-      email: `${s.user_id.replace('user_2bre_', '')}@student.edu`,
-      initials: getInitials(s.display_name),
-      avatarColor: beltGradients[belt],
-      textColor: beltTextColors[belt],
-      joined_at: s.joined_at,
-      joined_display: formatJoinDate(s.joined_at)
-    }
-  })
+  const avg = classAvgSeeds.value
+  return classDetail.value.students
+    .map(s => {
+      const belt = getBelt(s.seeds_completed)
+      return {
+        id: s.learner_id,
+        name: s.display_name,
+        email: `${s.user_id.replace('user_2bre_', '')}@student.edu`,
+        initials: getInitials(s.display_name),
+        avatarColor: beltGradients[belt],
+        textColor: beltTextColors[belt],
+        joined_at: s.joined_at,
+        joined_display: formatJoinDate(s.joined_at),
+        seeds_completed: s.seeds_completed,
+        total_practice_minutes: s.total_practice_minutes,
+        status: getStatus(s.seeds_completed, avg),
+        lastActiveDisplay: formatLastActive(s.last_active_at),
+        engagement: getEngagement(s.last_active_at),
+      }
+    })
+    .sort((a, b) => b.seeds_completed - a.seeds_completed)
 })
+
+// Status counts for summary strip
+const aheadCount = computed(() => students.value.filter(s => s.status === 'ahead').length)
+const onTrackCount = computed(() => students.value.filter(s => s.status === 'on-track').length)
+const behindCount = computed(() => students.value.filter(s => s.status === 'behind').length)
 
 // Load report data
 async function loadReport(classId: string) {
@@ -448,13 +500,23 @@ const handleRemoveStudent = async (student: { id: string; name: string }) => {
         </div>
       </div>
 
+      <!-- Summary strip -->
+      <div v-if="students.length > 0" class="roster-summary">
+        Class average: {{ classAvgSeeds }} seeds &mdash;
+        {{ aheadCount }} ahead &middot;
+        {{ onTrackCount }} on track &middot;
+        {{ behindCount }} need attention
+      </div>
+
       <!-- Students Table -->
       <div class="roster-table-wrapper" v-if="filteredStudents.length > 0">
         <table class="roster-table">
           <thead>
             <tr>
               <th class="col-student">Student</th>
-              <th class="col-joined">Joined</th>
+              <th class="col-seeds">Seeds</th>
+              <th class="col-status">Status</th>
+              <th class="col-active">Last Active</th>
               <th class="col-action"></th>
             </tr>
           </thead>
@@ -478,8 +540,18 @@ const handleRemoveStudent = async (student: { id: string; name: string }) => {
                     </div>
                   </div>
                 </td>
-                <td class="col-joined">
-                  <span class="joined-date">{{ student.joined_display }}</span>
+                <td class="col-seeds">
+                  <span class="seeds-count">{{ student.seeds_completed }}</span>
+                </td>
+                <td class="col-status">
+                  <span class="status-badge" :class="'status-' + student.status">
+                    {{ student.status === 'ahead' ? 'Ahead' : student.status === 'on-track' ? 'On track' : 'Behind' }}
+                  </span>
+                </td>
+                <td class="col-active">
+                  <span class="last-active" :class="'engagement-' + student.engagement">
+                    {{ student.lastActiveDisplay }}
+                  </span>
                 </td>
                 <td class="col-action">
                   <button
@@ -996,11 +1068,19 @@ const handleRemoveStudent = async (student: { id: string; name: string }) => {
 }
 
 .col-student {
-  width: 60%;
+  width: 40%;
 }
 
-.col-joined {
-  width: 25%;
+.col-seeds {
+  width: 12%;
+}
+
+.col-status {
+  width: 15%;
+}
+
+.col-active {
+  width: 18%;
 }
 
 .col-action {
@@ -1069,6 +1149,68 @@ const handleRemoveStudent = async (student: { id: string; name: string }) => {
   background: rgba(239, 68, 68, 0.15);
   border-color: var(--error, #ef4444);
   color: var(--error, #ef4444);
+}
+
+/* Roster Summary */
+.roster-summary {
+  padding: 12px 20px;
+  background: var(--bg-card, #242424);
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+  border-radius: 12px;
+  margin-bottom: 12px;
+  font-size: 0.875rem;
+  color: var(--text-secondary, #b0b0b0);
+  font-weight: 500;
+}
+
+/* Seeds count */
+.seeds-count {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary, #ffffff);
+}
+
+/* Status badges */
+.status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.status-ahead {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+}
+
+.status-on-track {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary, #b0b0b0);
+}
+
+.status-behind {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+}
+
+/* Last active engagement coloring */
+.last-active {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.engagement-active {
+  color: #4ade80;
+}
+
+.engagement-recent {
+  color: var(--text-secondary, #b0b0b0);
+}
+
+.engagement-inactive {
+  color: #f97316;
 }
 
 /* Table row transitions */
@@ -1221,16 +1363,21 @@ const handleRemoveStudent = async (student: { id: string; name: string }) => {
     padding: 12px 16px;
   }
 
-  .col-joined {
+  .col-status,
+  .col-active {
     display: none;
   }
 
   .col-student {
-    width: 80%;
+    width: 50%;
+  }
+
+  .col-seeds {
+    width: 20%;
   }
 
   .col-action {
-    width: 20%;
+    width: 30%;
   }
 }
 </style>

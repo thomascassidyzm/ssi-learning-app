@@ -8,6 +8,7 @@ import { ref, computed } from 'vue'
 import { getSchoolsClient } from './client'
 import { useGodMode } from './useGodMode'
 import { useSchoolData } from './useSchoolData'
+import { useStudentsData } from './useStudentsData'
 import { isDemoMode } from '../demo/demoMode'
 
 export interface ClassInfo {
@@ -177,6 +178,29 @@ export function useClassesData() {
 
   // Fetch single class detail with students
   async function fetchClassDetail(classId: string): Promise<void> {
+    if (isDemoMode.value) {
+      // In demo mode, populate from pre-injected data (no Supabase queries)
+      const cls = classes.value.find(c => c.id === classId)
+      if (cls) {
+        const { students: allStudents } = useStudentsData()
+        const classStudentList = allStudents.value.filter(s => s.class_id === classId)
+
+        classStudents.value = classStudentList.map(s => ({
+          student_user_id: s.user_id,
+          learner_id: s.learner_id,
+          student_name: s.display_name,
+          seeds_completed: s.seeds_completed,
+          legos_mastered: s.legos_mastered,
+          total_practice_minutes: s.total_practice_minutes,
+          last_active_at: s.last_active_at,
+          joined_class_at: s.joined_class_at,
+        }))
+
+        currentClass.value = { ...cls, student_count: classStudentList.length }
+      }
+      return
+    }
+
     isLoading.value = true
     error.value = null
 

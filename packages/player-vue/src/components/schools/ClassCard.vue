@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import LanguageFlag from '@/components/schools/shared/LanguageFlag.vue'
 
 const props = defineProps({
@@ -114,6 +114,27 @@ const lastSessionText = computed(() => {
   // For now, use created_at as a proxy; real last session would come from reports
   return ''
 })
+
+const codeCopied = ref(false)
+
+async function copyJoinCode() {
+  const code = props.classData.student_join_code
+  if (!code) return
+  try {
+    await navigator.clipboard.writeText(code)
+    codeCopied.value = true
+    setTimeout(() => { codeCopied.value = false }, 2000)
+  } catch {
+    const el = document.createElement('textarea')
+    el.value = code
+    document.body.appendChild(el)
+    el.select()
+    document.execCommand('copy')
+    document.body.removeChild(el)
+    codeCopied.value = true
+    setTimeout(() => { codeCopied.value = false }, 2000)
+  }
+}
 
 const handlePlay = () => {
   emit('play', props.classData)
@@ -250,6 +271,26 @@ const handleSettings = () => {
           <div class="stat-value">{{ avgPerSession }}</div>
           <div class="stat-label">Avg / Session</div>
         </div>
+      </div>
+
+      <!-- Join code compact row -->
+      <div class="join-code-compact" v-if="classData.student_join_code">
+        <span class="join-code-label">Join code</span>
+        <span class="join-code-value">{{ classData.student_join_code }}</span>
+        <button
+          class="btn-copy-compact"
+          :class="{ copied: codeCopied }"
+          @click.stop="copyJoinCode"
+          :title="codeCopied ? 'Copied!' : 'Copy code'"
+        >
+          <svg v-if="!codeCopied" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+          <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </button>
       </div>
 
       <!-- Play button -->
@@ -598,6 +639,62 @@ const handleSettings = () => {
   color: var(--text-faint, #b5aea6);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+/* Join code compact */
+.join-code-compact {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--bg-primary, #f5f0eb);
+  border: 1px solid var(--border-subtle, rgba(44, 38, 34, 0.06));
+  border-radius: var(--radius-sm, 8px);
+  margin-bottom: 16px;
+}
+
+.join-code-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-muted, #8A8078);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  flex-shrink: 0;
+}
+
+.join-code-value {
+  flex: 1;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--ssi-gold, #d4a853);
+}
+
+.btn-copy-compact {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-subtle, rgba(44, 38, 34, 0.06));
+  border-radius: 6px;
+  color: var(--text-muted, #8A8078);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.btn-copy-compact:hover {
+  border-color: var(--ssi-red, #c23a3a);
+  color: var(--ssi-red, #c23a3a);
+}
+
+.btn-copy-compact.copied {
+  background: rgba(39, 174, 96, 0.1);
+  border-color: var(--belt-green, #27ae60);
+  color: var(--belt-green, #27ae60);
 }
 
 /* Play button */

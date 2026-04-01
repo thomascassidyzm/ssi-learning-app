@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import ClassCard from '@/components/schools/ClassCard.vue'
 import CreateClassModal from '@/components/schools/CreateClassModal.vue'
+import ClassCreatedModal from '@/components/schools/ClassCreatedModal.vue'
 import { useGodMode } from '@/composables/schools/useGodMode'
 import { useClassesData } from '@/composables/schools/useClassesData'
 
@@ -14,6 +15,8 @@ const { classes: classesData, fetchClasses, createClass, getClassReport, isLoadi
 
 // Modal state
 const isCreateModalOpen = ref(false)
+const createdClass = ref(null)
+const isCreatedModalOpen = ref(false)
 
 // Search and filter state
 const searchQuery = ref('')
@@ -123,12 +126,29 @@ const handleCreateClass = async (params) => {
     closeCreateModal()
     return
   }
-  await createClass({
+  const newClass = await createClass({
     class_name: params.class_name,
     course_code: params.course_code,
     school_id: schoolId,
   })
   closeCreateModal()
+  if (newClass) {
+    createdClass.value = newClass
+    isCreatedModalOpen.value = true
+  }
+}
+
+const handleGoToCreatedClass = () => {
+  if (createdClass.value) {
+    isCreatedModalOpen.value = false
+    sessionStorage.setItem('ssi-class-detail', JSON.stringify(createdClass.value))
+    router.push({ name: 'class-detail', params: { id: createdClass.value.id } })
+  }
+}
+
+const closeCreatedModal = () => {
+  isCreatedModalOpen.value = false
+  createdClass.value = null
 }
 
 const handlePlayClass = (classData) => {
@@ -277,6 +297,14 @@ const handleClassSettings = (classData) => {
       :isOpen="isCreateModalOpen"
       @close="closeCreateModal"
       @create="handleCreateClass"
+    />
+
+    <!-- Class Created Success Modal -->
+    <ClassCreatedModal
+      :isOpen="isCreatedModalOpen"
+      :classData="createdClass"
+      @close="closeCreatedModal"
+      @goToClass="handleGoToCreatedClass"
     />
   </div>
 </template>

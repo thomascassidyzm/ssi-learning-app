@@ -121,8 +121,8 @@ const demoClasses: ClassInfo[] = [
     last_lego_id: null,
     is_active: true,
     student_count: 10,
-    avg_seeds_completed: 48,
-    avg_practice_minutes: 45,
+    avg_seeds_completed: 49,
+    avg_practice_minutes: 50,
     created_at: '2025-09-05T08:00:00.000Z',
   },
   {
@@ -166,8 +166,8 @@ const demoClasses: ClassInfo[] = [
     last_lego_id: null,
     is_active: true,
     student_count: 10,
-    avg_seeds_completed: 88,
-    avg_practice_minutes: 75,
+    avg_seeds_completed: 84,
+    avg_practice_minutes: 81,
     created_at: '2025-09-05T08:00:00.000Z',
   },
   {
@@ -214,29 +214,39 @@ interface StudentSpec {
 }
 
 const blwyddyn5Students: StudentSpec[] = [
-  { name: 'Angharad Jones',     seeds: 62,  mins: 72,  daysAgoActive: 0 },
-  { name: 'Gruffydd Evans',     seeds: 55,  mins: 58,  daysAgoActive: 1 },
-  { name: 'Bethan Davies',      seeds: 48,  mins: 45,  daysAgoActive: 0 },
-  { name: 'Iolo Thomas',        seeds: 70,  mins: 80,  daysAgoActive: 2 },
-  { name: 'Efa Roberts',        seeds: 42,  mins: 38,  daysAgoActive: 0 },
-  { name: 'Macsen Hughes',      seeds: 58,  mins: 65,  daysAgoActive: 3 },
-  { name: 'Gwen Lewis',         seeds: 45,  mins: 42,  daysAgoActive: 1 },
-  { name: 'Osian Morgan',       seeds: 40,  mins: 30,  daysAgoActive: 8 },
+  // Star
+  { name: 'Angharad Jones',     seeds: 95,  mins: 130, daysAgoActive: 0 },
+  // Strong
+  { name: 'Gruffydd Evans',     seeds: 62,  mins: 65,  daysAgoActive: 1 },
   { name: 'Heledd Griffiths',   seeds: 67,  mins: 74,  daysAgoActive: 0 },
-  { name: 'Rhodri Williams',    seeds: 53,  mins: 50,  daysAgoActive: 2 },
+  // On track
+  { name: 'Bethan Davies',      seeds: 50,  mins: 45,  daysAgoActive: 0 },
+  { name: 'Efa Roberts',        seeds: 48,  mins: 42,  daysAgoActive: 1 },
+  { name: 'Rhodri Williams',    seeds: 46,  mins: 44,  daysAgoActive: 2 },
+  { name: 'Gwen Lewis',         seeds: 45,  mins: 42,  daysAgoActive: 1 },
+  // Slipping
+  { name: 'Macsen Hughes',      seeds: 35,  mins: 28,  daysAgoActive: 5 },
+  // Behind
+  { name: 'Iolo Thomas',        seeds: 22,  mins: 15,  daysAgoActive: 12 },
+  { name: 'Osian Morgan',       seeds: 18,  mins: 10,  daysAgoActive: 14 },
 ]
 
 const blwyddyn6Students: StudentSpec[] = [
-  { name: 'Llio Price',         seeds: 105, mins: 115, daysAgoActive: 0 },
-  { name: 'Tomos Rees',         seeds: 92,  mins: 98,  daysAgoActive: 1 },
-  { name: 'Mali Jenkins',       seeds: 88,  mins: 85,  daysAgoActive: 0 },
-  { name: 'Efan Owen',          seeds: 110, mins: 120, daysAgoActive: 0 },
-  { name: 'Non Phillips',       seeds: 78,  mins: 68,  daysAgoActive: 3 },
-  { name: 'Harri Griffiths',    seeds: 95,  mins: 102, daysAgoActive: 1 },
-  { name: 'Seren Davies',       seeds: 82,  mins: 78,  daysAgoActive: 2 },
-  { name: 'Steffan Morgan',     seeds: 75,  mins: 60,  daysAgoActive: 10 },
-  { name: 'Tirion Jones',       seeds: 100, mins: 108, daysAgoActive: 0 },
-  { name: 'Llŷr Evans',         seeds: 98,  mins: 95,  daysAgoActive: 1 },
+  // Star
+  { name: 'Efan Owen',          seeds: 155, mins: 180, daysAgoActive: 0 },
+  // Strong
+  { name: 'Tirion Jones',       seeds: 108, mins: 115, daysAgoActive: 0 },
+  { name: 'Llio Price',         seeds: 105, mins: 110, daysAgoActive: 1 },
+  // On track
+  { name: 'Llŷr Evans',         seeds: 90,  mins: 85,  daysAgoActive: 0 },
+  { name: 'Tomos Rees',         seeds: 88,  mins: 80,  daysAgoActive: 1 },
+  { name: 'Mali Jenkins',       seeds: 85,  mins: 78,  daysAgoActive: 2 },
+  { name: 'Harri Griffiths',    seeds: 82,  mins: 75,  daysAgoActive: 1 },
+  // Slipping
+  { name: 'Seren Davies',       seeds: 60,  mins: 48,  daysAgoActive: 6 },
+  // Behind
+  { name: 'Non Phillips',       seeds: 38,  mins: 25,  daysAgoActive: 11 },
+  { name: 'Steffan Morgan',     seeds: 30,  mins: 18,  daysAgoActive: 15 },
 ]
 
 // Blwyddyn 5 students are in classes 0,1,2 (Cymraeg, Ffrangeg, Sbaeneg)

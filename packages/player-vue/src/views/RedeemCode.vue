@@ -19,6 +19,7 @@ const email = ref('')
 const otpCode = ref('')
 const isLoading = ref(false)
 const redeemLabel = ref('')
+const redirectUrl = ref('/')
 
 const code = computed(() => (route.params.code as string) || '')
 const isSignedIn = computed(() => auth?.isAuthenticated?.value ?? false)
@@ -59,6 +60,49 @@ const displayDetail = computed(() => {
 const isEmailValid = computed(() => {
   if (!email.value) return false
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value)
+})
+
+// --- Role-specific copy ---
+const authInstructionText = computed(() => {
+  const pc = pendingCode.value
+  if (!pc) return 'Enter your email to get started'
+  if (pc.codeKind === 'entitlement') return 'Enter your email to activate your access'
+  switch (pc.codeType) {
+    case 'teacher': return 'Enter your email to set up your teacher account'
+    case 'student': {
+      const cls = pc.className
+      return cls ? `Enter your email to join ${cls}` : 'Enter your email to join this class'
+    }
+    case 'school_admin': return 'Enter your email to set up your school account'
+    case 'govt_admin': return 'Enter your email to set up your regional admin account'
+    default: return 'Enter your email to get started'
+  }
+})
+
+const successHeading = computed(() => {
+  const pc = pendingCode.value
+  if (!pc) return "You're all set!"
+  if (pc.codeKind === 'entitlement') return 'Access activated!'
+  switch (pc.codeType) {
+    case 'teacher': return 'Welcome! Your teacher account is ready'
+    case 'student': return "You've joined the class!"
+    case 'school_admin': return 'Your school account is ready'
+    case 'govt_admin': return 'Your regional admin account is ready'
+    default: return "You're all set!"
+  }
+})
+
+const successSubtext = computed(() => {
+  const pc = pendingCode.value
+  if (!pc) return 'Redirecting...'
+  if (pc.codeKind === 'entitlement') return 'Taking you to the app...'
+  switch (pc.codeType) {
+    case 'teacher': return 'Taking you to your classroom dashboard...'
+    case 'student': return 'Taking you to your first lesson...'
+    case 'school_admin': return 'Taking you to your school overview...'
+    case 'govt_admin': return 'Taking you to your regional overview...'
+    default: return 'Redirecting...'
+  }
 })
 
 // --- Step 1: Validate on mount ---
@@ -200,9 +244,10 @@ async function doRedeem() {
         useUserRole().initialize(null, pendingCode.value.codeType)
       }
       step.value = 'success'
+      redirectUrl.value = result.redirectTo || '/'
       setTimeout(() => {
-        router.push(result.redirectTo || '/')
-      }, 2000)
+        router.push(redirectUrl.value)
+      }, 4000)
     } else {
       error.value = result.error || 'Failed to redeem code'
       step.value = 'auth'
@@ -211,6 +256,10 @@ async function doRedeem() {
     error.value = 'Something went wrong'
     step.value = 'auth'
   }
+}
+
+function goToRedirect() {
+  router.push(redirectUrl.value)
 }
 
 function goHome() {
@@ -258,9 +307,10 @@ function goHome() {
             <polyline points="20 6 9 17 4 12"/>
           </svg>
         </div>
-        <h2 class="success-title">You're all set!</h2>
+        <h2 class="success-title">{{ successHeading }}</h2>
         <p class="detail-text">{{ redeemLabel }}</p>
-        <p class="redirect-text">Redirecting...</p>
+        <p class="redirect-text">{{ successSubtext }}</p>
+        <button class="btn btn--primary btn--continue" @click="goToRedirect">Continue</button>
       </div>
 
       <!-- Auth + OTP flow -->
@@ -276,7 +326,7 @@ function goHome() {
 
         <!-- Email input (step === 'auth') -->
         <form v-else-if="step === 'auth'" class="auth-form" @submit.prevent="handleSendOtp">
-          <p class="instruction-text">Sign in or create an account to redeem this code.</p>
+          <p class="instruction-text">{{ authInstructionText }}</p>
 
           <Transition name="error-fade">
             <div v-if="error" class="error-banner">
@@ -327,8 +377,9 @@ function goHome() {
                 <path d="M22 6l-10 7L2 6"/>
               </svg>
             </div>
-            <p class="instruction-text">We sent a code to</p>
+            <p class="instruction-text">Check your email for a 6-digit code</p>
             <p class="email-highlight">{{ email }}</p>
+            <p class="otp-helper-text">It may take a moment to arrive. Check your spam folder if needed.</p>
           </div>
 
           <Transition name="error-fade">
@@ -467,6 +518,16 @@ function goHome() {
 
 .success-title {
   color: #66bb6a !important;
+}
+
+.otp-helper-text {
+  color: var(--text-muted, #666);
+  font-size: 0.8125rem;
+  margin: 0.25rem 0 0;
+}
+
+.btn--continue {
+  margin-top: 0.75rem;
 }
 
 /* --- Spinner --- */
