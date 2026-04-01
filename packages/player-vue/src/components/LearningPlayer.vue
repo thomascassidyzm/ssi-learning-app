@@ -7390,12 +7390,12 @@ defineExpose({
 .class-name {
   font-weight: 600;
   font-size: 0.7rem;
-  color: var(--text-primary);
+  color: #ffffff;
 }
 
 .class-course {
   font-size: 0.625rem;
-  color: var(--text-secondary);
+  color: rgba(255, 255, 255, 0.7);
   padding-left: 0.35rem;
   border-left: 1px solid var(--border-subtle);
 }
