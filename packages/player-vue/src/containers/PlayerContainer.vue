@@ -304,10 +304,10 @@ const currentBeltColor = computed(() => {
   return bp.currentBelt.value.color
 })
 
-// Total seeds in course
+// Total seeds in course (dynamic per course)
 const totalSeeds = computed(() => {
   const bp = beltProgress.value
-  return bp?.TOTAL_SEEDS ?? 668
+  return bp?.courseSeedCount?.value ?? bp?.TOTAL_SEEDS ?? 668
 })
 
 // Usage stats from session history

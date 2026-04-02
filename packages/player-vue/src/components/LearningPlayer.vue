@@ -1363,6 +1363,15 @@ const initializeBeltProgress = async () => {
       await beltProgress.value.initialize()
     }
 
+    // Set actual course seed count so only reachable belts are shown
+    if (courseDataProvider.value) {
+      const maxSeed = await courseDataProvider.value.getMaxSeedNumber()
+      if (maxSeed) {
+        beltProgress.value.setCourseSeedCount(maxSeed)
+        console.log('[LearningPlayer] Course seed count:', maxSeed, '- available belts:', beltProgress.value.availableBelts.value.length)
+      }
+    }
+
     console.log('[LearningPlayer] Belt progress initialized for', courseCode.value, '- seeds:', beltProgress.value.completedRounds.value)
   }
 }
@@ -6057,6 +6066,7 @@ defineExpose({
     :session-seconds="sessionSeconds"
     :lifetime-learning-minutes="beltProgress?.totalLearningMinutes?.value ?? 0"
     :is-skipping="isSkippingBelt"
+    :available-belts="beltProgress?.availableBelts?.value ?? []"
     @close="showBeltModal = false"
     @viewProgress="showBeltModal = false"
     @skipToBelt="handleSkipToBelt"

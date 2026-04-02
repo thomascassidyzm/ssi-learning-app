@@ -1,18 +1,6 @@
 <script setup>
 import { computed, watch, onMounted, onUnmounted, ref } from 'vue'
-
-// All belt levels in order
-// Belt colors must match useBeltProgress.ts BELTS array (single source of truth)
-const ALL_BELTS = [
-  { name: 'white', color: '#ffffff', seedsRequired: 0, glow: 'rgba(255, 255, 255, 0.3)' },
-  { name: 'yellow', color: '#fcd34d', seedsRequired: 8, glow: 'rgba(252, 211, 77, 0.4)' },
-  { name: 'orange', color: '#fb923c', seedsRequired: 20, glow: 'rgba(251, 146, 60, 0.4)' },
-  { name: 'green', color: '#4ade80', seedsRequired: 40, glow: 'rgba(74, 222, 128, 0.4)' },
-  { name: 'blue', color: '#60a5fa', seedsRequired: 80, glow: 'rgba(96, 165, 250, 0.4)' },
-  { name: 'purple', color: '#a78bfa', seedsRequired: 150, glow: 'rgba(167, 139, 250, 0.4)' },
-  { name: 'brown', color: '#a8856c', seedsRequired: 280, glow: 'rgba(168, 133, 108, 0.4)' },
-  { name: 'black', color: '#1a1a1a', seedsRequired: 400, glow: 'rgba(255, 255, 255, 0.3)' },
-]
+import { BELTS } from '@/composables/useBeltProgress'
 
 const props = defineProps({
   isOpen: {
@@ -44,6 +32,10 @@ const props = defineProps({
   isSkipping: {
     type: Boolean,
     default: false
+  },
+  availableBelts: {
+    type: Array,
+    default: () => BELTS // Falls back to all belts if not provided
   }
 })
 
@@ -195,7 +187,7 @@ onUnmounted(() => {
               <div class="belt-jump-label">Jump to belt:</div>
               <div class="belt-grid">
                 <button
-                  v-for="belt in ALL_BELTS"
+                  v-for="belt in availableBelts"
                   :key="belt.name"
                   class="belt-chip"
                   :class="{

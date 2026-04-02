@@ -45,7 +45,7 @@ export const BELTS: Omit<Belt, 'index'>[] = [
   { name: 'black',  seedsRequired: 400, color: '#1a1a1a', colorDark: '#000000', glow: 'rgba(255, 255, 255, 0.3)' },
 ]
 
-export const TOTAL_SEEDS = 668 // Total seeds in a typical course
+export const TOTAL_SEEDS = 668 // Fallback — overridden per course by setCourseSeedCount()
 
 // ============================================================================
 // STORAGE KEYS
@@ -122,6 +122,18 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   const highestBeltIndex = ref(0)  // 0-7, only ever increases
   const lastLegoId = ref<string | null>(null)  // Resume position
   const highestLegoId = ref<string | null>(null)  // High-water mark, only goes forward
+
+  // Course seed count — determines which belts are reachable
+  const courseSeedCount = ref(TOTAL_SEEDS) // Fallback until set from DB
+
+  const setCourseSeedCount = (count: number) => {
+    courseSeedCount.value = count
+  }
+
+  // Only belts whose seedsRequired is reachable within this course's seed count
+  const availableBelts = computed(() => {
+    return BELTS.filter(b => b.seedsRequired < courseSeedCount.value)
+  })
 
   // Session history for learning rate calculations
   const sessionHistory = ref<SessionRecord[]>([])
@@ -397,7 +409,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   const playingBeltProgress = computed(() => {
     const idx = playingBeltIndex.value
     const currentThreshold = BELTS[idx]?.seedsRequired ?? 0
-    const nextThreshold = idx + 1 < BELTS.length ? BELTS[idx + 1].seedsRequired : TOTAL_SEEDS
+    const nextThreshold = idx + 1 < BELTS.length ? BELTS[idx + 1].seedsRequired : courseSeedCount.value
     const range = nextThreshold - currentThreshold
     if (range <= 0) return 100
     const progress = ((playingSeedNumber.value - currentThreshold) / range) * 100
@@ -420,7 +432,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
 
   const nextBelt = computed((): Belt | null => {
     const nextIndex = highestBeltIndex.value + 1
-    if (nextIndex >= BELTS.length) return null
+    if (nextIndex >= availableBelts.value.length) return null
     return { ...BELTS[nextIndex], index: nextIndex }
   })
 
@@ -443,7 +455,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   // Course progress based on highest belt achieved
   const courseProgress = computed(() => {
     const beltSeed = currentBelt.value.seedsRequired
-    return Math.min((beltSeed / TOTAL_SEEDS) * 100, 100)
+    return Math.min((beltSeed / courseSeedCount.value) * 100, 100)
   })
 
   // ============================================================================
@@ -759,6 +771,11 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
 
     // Helpers
     getBeltStartSeed,
+
+    // Course-aware belt filtering
+    courseSeedCount,
+    setCourseSeedCount,
+    availableBelts,
 
     // Constants
     TOTAL_SEEDS,
