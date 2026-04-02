@@ -749,6 +749,13 @@ const handleClose = () => {
   font-family: var(--font-mono);
 }
 
+@media (max-width: 400px) {
+  .verification-input input {
+    font-size: 1.25rem;
+    letter-spacing: 0.3em;
+  }
+}
+
 /* Resend code */
 .resend-code {
   text-align: center;

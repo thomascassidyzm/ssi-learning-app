@@ -6068,7 +6068,7 @@ defineExpose({
     :is-skipping="isSkippingBelt"
     :available-belts="beltProgress?.availableBelts?.value ?? []"
     @close="showBeltModal = false"
-    @viewProgress="showBeltModal = false"
+    @viewProgress="showBeltModal = false; emit('viewProgress')"
     @skipToBelt="handleSkipToBelt"
   />
 
