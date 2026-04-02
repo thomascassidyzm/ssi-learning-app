@@ -16,16 +16,13 @@
 -- Client code now uses get_my_verified_emails() and find_learner_by_email() RPCs.
 REVOKE SELECT (verified_emails) ON learners FROM anon, authenticated;
 
--- subscriptions — payment provider IDs (financial PII)
--- Client never reads these; webhooks + API use service_role.
-REVOKE SELECT (provider_subscription_id) ON subscriptions FROM anon, authenticated;
-REVOKE SELECT (provider_customer_id) ON subscriptions FROM anon, authenticated;
-
--- audio_plays.ip_country — location data derived from IP
--- Written by API (service_role), never read by client.
-REVOKE SELECT (ip_country) ON audio_plays FROM anon, authenticated;
+-- NOTE: subscriptions and audio_plays tables don't exist yet.
+-- When they are created, add:
+--   REVOKE SELECT (provider_subscription_id) ON subscriptions FROM anon, authenticated;
+--   REVOKE SELECT (provider_customer_id) ON subscriptions FROM anon, authenticated;
+--   REVOKE SELECT (ip_country) ON audio_plays FROM anon, authenticated;
 
 -- ============================================
 -- To add more protected columns later, just add more REVOKE lines.
--- To undo: GRANT SELECT (column_name) ON table FROM anon, authenticated;
+-- To undo: GRANT SELECT (column_name) ON table TO anon, authenticated;
 -- ============================================
