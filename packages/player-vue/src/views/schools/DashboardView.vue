@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import Card from '@/components/schools/shared/Card.vue'
 import { useGodMode } from '@/composables/schools/useGodMode'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
+import { useClassesData } from '@/composables/schools/useClassesData'
 import { useAnalyticsData, type RegionReport } from '@/composables/schools/useAnalyticsData'
 import { getSchoolsClient } from '@/composables/schools/client'
 import { isDemoMode } from '@/composables/demo/demoMode'
 
-const { selectedUser, isGovtAdmin } = useGodMode()
+const router = useRouter()
+const { selectedUser, isGovtAdmin, isTeacher } = useGodMode()
 const {
   schools,
   currentSchool,
@@ -24,6 +27,32 @@ const {
   isLoading,
   error
 } = useSchoolData()
+
+// Teacher quick-launch: fetch classes for simple list
+const { classes: teacherClasses, fetchClasses: fetchTeacherClasses, isLoading: isTeacherLoading } = useClassesData()
+
+const courseDisplayName: Record<string, string> = {
+  'cym_for_eng': 'Welsh', 'cym_n_for_eng': 'Welsh (North)', 'cym_s_for_eng': 'Welsh (South)',
+  'spa_for_eng': 'Spanish', 'fra_for_eng': 'French', 'deu_for_eng': 'German',
+  'nld_for_eng': 'Dutch', 'gle_for_eng': 'Irish', 'jpn_for_eng': 'Japanese',
+  'ara_for_eng': 'Arabic', 'kor_for_eng': 'Korean', 'ita_for_eng': 'Italian',
+  'por_for_eng': 'Portuguese', 'eng_for_spa': 'English', 'zho_for_eng': 'Chinese',
+  'gla_for_eng': 'Scottish Gaelic', 'cor_for_eng': 'Cornish',
+}
+
+const handlePlayClass = (cls: any) => {
+  const activeClass = {
+    id: cls.id,
+    name: cls.class_name,
+    course_code: cls.course_code,
+    current_seed: cls.current_seed,
+    last_lego_id: cls.last_lego_id,
+    teacherUserId: selectedUser.value?.user_id,
+    timestamp: new Date().toISOString()
+  }
+  localStorage.setItem('ssi-active-class', JSON.stringify(activeClass))
+  router.push({ path: '/', query: { class: cls.id } })
+}
 
 // Display values
 const schoolName = computed(() => {
@@ -99,6 +128,7 @@ watch(selectedUser, (user) => {
     fetchSchools()
     loadRegionData()
     loadContributions()
+    if (isTeacher.value) fetchTeacherClasses()
   }
 }, { immediate: true })
 
@@ -107,6 +137,7 @@ onMounted(() => {
     fetchSchools()
     loadRegionData()
     loadContributions()
+    if (isTeacher.value) fetchTeacherClasses()
   }
 })
 </script>
@@ -128,10 +159,13 @@ onMounted(() => {
     <!-- Page Header -->
     <header class="page-header animate-in">
       <div class="page-title">
-        <h1>Dashboard</h1>
+        <h1>{{ isTeacher ? 'My Classes' : 'Dashboard' }}</h1>
         <p class="page-subtitle">
           <template v-if="selectedUser">
-            <template v-if="isViewingSchool">
+            <template v-if="isTeacher">
+              Choose a class to start a session
+            </template>
+            <template v-else-if="isViewingSchool">
               Viewing {{ schoolName }}
             </template>
             <template v-else-if="isGovtAdmin">
@@ -148,13 +182,49 @@ onMounted(() => {
       </div>
     </header>
 
-    <!-- Loading State -->
-    <div v-if="isLoading" class="loading-state animate-in delay-1">
+    <!-- Teacher Quick Launch -->
+    <section v-if="isTeacher" class="teacher-classes animate-in delay-1">
+      <div v-if="isTeacherLoading" class="loading-state">
+        <p>Loading your classes...</p>
+      </div>
+      <div v-else-if="teacherClasses.length === 0" class="teacher-empty">
+        <p>No classes yet.</p>
+        <router-link to="/schools/classes" class="teacher-create-link">Create your first class</router-link>
+      </div>
+      <div v-else class="teacher-class-list">
+        <button
+          v-for="cls in teacherClasses"
+          :key="cls.id"
+          class="teacher-class-row"
+          @click="handlePlayClass(cls)"
+        >
+          <div class="teacher-class-info">
+            <span class="teacher-class-name">{{ cls.class_name }}</span>
+            <span class="teacher-class-course">{{ courseDisplayName[cls.course_code] || cls.course_code }}</span>
+          </div>
+          <div class="teacher-class-meta">
+            <span class="teacher-class-students">{{ cls.student_count }} {{ cls.student_count === 1 ? 'student' : 'students' }}</span>
+          </div>
+          <div class="teacher-play-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="5 3 19 12 5 21 5 3"/>
+            </svg>
+            Play as Class
+          </div>
+        </button>
+      </div>
+      <div class="teacher-manage-link">
+        <router-link to="/schools/classes">Manage classes</router-link>
+      </div>
+    </section>
+
+    <!-- Loading State (admin) -->
+    <div v-if="!isTeacher && isLoading" class="loading-state animate-in delay-1">
       <p>Loading dashboard data...</p>
     </div>
 
-    <!-- Stats Grid -->
-    <div v-else class="stats-grid animate-in delay-1">
+    <!-- Stats Grid (admin) -->
+    <div v-else-if="!isTeacher" class="stats-grid animate-in delay-1">
       <Card variant="stats" accent="blue">
         <div class="stat-card">
           <div class="stat-icon">&#128101;</div>
@@ -237,8 +307,8 @@ onMounted(() => {
       </Card>
     </section>
 
-    <!-- Quick Actions -->
-    <section class="quick-actions animate-in delay-3">
+    <!-- Quick Actions (not shown for teachers — they have quick-launch above) -->
+    <section v-if="!isTeacher" class="quick-actions animate-in delay-3">
       <Card title="Quick Actions">
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -333,6 +403,129 @@ onMounted(() => {
 </template>
 
 <style scoped>
+/* Teacher Quick Launch */
+.teacher-classes {
+  margin-bottom: var(--space-8);
+}
+
+.teacher-class-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.teacher-class-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-5) var(--space-6);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  text-align: left;
+  width: 100%;
+}
+
+.teacher-class-row:hover {
+  border-color: var(--ssi-red);
+  box-shadow: 0 2px 12px rgba(194, 58, 58, 0.1);
+}
+
+.teacher-class-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.teacher-class-name {
+  display: block;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+}
+
+.teacher-class-course {
+  display: block;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.teacher-class-meta {
+  flex-shrink: 0;
+}
+
+.teacher-class-students {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.teacher-play-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background: var(--ssi-red);
+  color: white;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  white-space: nowrap;
+  transition: background var(--transition-base);
+  flex-shrink: 0;
+}
+
+.teacher-class-row:hover .teacher-play-btn {
+  background: var(--ssi-red-dark, #a12d2d);
+}
+
+.teacher-empty {
+  text-align: center;
+  padding: var(--space-8);
+  color: var(--text-muted);
+}
+
+.teacher-create-link {
+  display: inline-block;
+  margin-top: var(--space-2);
+  color: var(--ssi-red);
+  font-weight: var(--font-semibold);
+}
+
+.teacher-manage-link {
+  margin-top: var(--space-4);
+  text-align: center;
+}
+
+.teacher-manage-link a {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.teacher-manage-link a:hover {
+  color: var(--text-secondary);
+}
+
+@media (max-width: 560px) {
+  .teacher-class-row {
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    padding: var(--space-4);
+  }
+  .teacher-class-meta {
+    display: none;
+  }
+  .teacher-play-btn {
+    width: 100%;
+    justify-content: center;
+    padding: var(--space-3);
+  }
+}
+
 .dashboard-view {
   max-width: 1200px;
 }
