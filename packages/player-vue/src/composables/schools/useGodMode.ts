@@ -85,18 +85,27 @@ export function useGodMode(client?: SupabaseClient) {
   // Check if current authenticated user has god access
   async function checkGodAccess(): Promise<boolean> {
     try {
-      const { data, error: fetchError } = await requireClient()
+      const c = requireClient()
+      const { data: { user } } = await c.auth.getUser()
+      if (!user) {
+        isGodAccessVerified.value = false
+        return false
+      }
+
+      const { data, error: fetchError } = await c
         .from('learners')
-        .select('educational_role')
-        .eq('educational_role', 'god')
+        .select('educational_role, platform_role')
+        .eq('user_id', user.id)
         .maybeSingle()
 
       if (fetchError || !data) {
         isGodAccessVerified.value = false
         return false
       }
-      isGodAccessVerified.value = true
-      return true
+
+      const hasAccess = data.educational_role === 'god' || data.platform_role === 'ssi_admin'
+      isGodAccessVerified.value = hasAccess
+      return hasAccess
     } catch {
       isGodAccessVerified.value = false
       return false
