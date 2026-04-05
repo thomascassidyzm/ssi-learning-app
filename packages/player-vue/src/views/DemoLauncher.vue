@@ -186,6 +186,8 @@ async function startDemo(demo: typeof demos[0]) {
   justify-content: center;
   background: var(--bg-primary, #e8e3dd);
   padding: 24px;
+  padding-top: calc(24px + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
 }
 
 .demo-content {

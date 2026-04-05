@@ -52,8 +52,8 @@ const handleAuthSuccess = () => {
 }
 
 .main-content {
-  margin-top: 64px;
-  min-height: calc(100vh - 64px);
+  margin-top: calc(var(--nav-height, 80px) + env(safe-area-inset-top, 0px));
+  min-height: calc(100vh - var(--nav-height, 80px) - env(safe-area-inset-top, 0px));
   position: relative;
   z-index: 10;
   padding: 32px;
