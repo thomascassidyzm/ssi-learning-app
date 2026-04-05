@@ -131,7 +131,16 @@
     "seedsTo": "{count} / {total} seeds to {belt} belt",
     "jumpToBelt": "Jump to belt:",
     "totalLearning": "Total learning time: {time}",
-    "viewFullProgress": "View full progress"
+    "viewFullProgress": "View full progress",
+    "label": "{color} Belt",
+    "white": "White",
+    "yellow": "Yellow",
+    "orange": "Orange",
+    "green": "Green",
+    "blue": "Blue",
+    "purple": "Purple",
+    "brown": "Brown",
+    "black": "Black"
   },
   "resting": {
     "loading": "Loading...",
@@ -142,6 +151,11 @@
     "impressiveProgress": "Impressive progress",
     "nearlyThere": "Nearly there",
     "forSpeakers": "for {lang} speakers"
+  },
+  "phase": {
+    "getReadyToSpeak": "get ready to speak",
+    "speakNow": "you're meant to be speaking now",
+    "listenCarefully": "listen carefully"
   },
   "onboarding": {
     "beltIsProgress": "Your belt = progress",

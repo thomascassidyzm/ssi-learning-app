@@ -130,7 +130,16 @@
     "seedsTo": "{belt}腰带还需 {count} / {total} 个种子",
     "jumpToBelt": "跳转到腰带：",
     "totalLearning": "总学习时间：{time}",
-    "viewFullProgress": "查看完整进度"
+    "viewFullProgress": "查看完整进度",
+    "label": "{color}腰带",
+    "white": "白",
+    "yellow": "黄",
+    "orange": "橙",
+    "green": "绿",
+    "blue": "蓝",
+    "purple": "紫",
+    "brown": "棕",
+    "black": "黑"
   },
   "resting": {
     "loading": "加载中...",
@@ -141,6 +150,11 @@
     "impressiveProgress": "进步显著",
     "nearlyThere": "快到了",
     "forSpeakers": "面向{lang}使用者"
+  },
+  "phase": {
+    "getReadyToSpeak": "准备说话",
+    "speakNow": "现在轮到你说了",
+    "listenCarefully": "仔细听"
   },
   "onboarding": {
     "beltIsProgress": "腰带 = 进度",

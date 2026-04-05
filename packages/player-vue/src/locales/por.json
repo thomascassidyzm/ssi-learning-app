@@ -130,7 +130,16 @@
     "seedsTo": "{count} / {total} sementes para faixa {belt}",
     "jumpToBelt": "Ir para faixa:",
     "totalLearning": "Tempo total: {time}",
-    "viewFullProgress": "Ver progresso completo"
+    "viewFullProgress": "Ver progresso completo",
+    "label": "Faixa {color}",
+    "white": "Branco",
+    "yellow": "Amarelo",
+    "orange": "Laranja",
+    "green": "Verde",
+    "blue": "Azul",
+    "purple": "Roxo",
+    "brown": "Castanho",
+    "black": "Preto"
   },
   "resting": {
     "loading": "Carregando...",
@@ -141,6 +150,11 @@
     "impressiveProgress": "Progresso impressionante",
     "nearlyThere": "Quase lá",
     "forSpeakers": "para falantes de {lang}"
+  },
+  "phase": {
+    "getReadyToSpeak": "prepare-se para falar",
+    "speakNow": "agora é a sua vez de falar",
+    "listenCarefully": "ouça com atenção"
   },
   "onboarding": {
     "beltIsProgress": "Sua faixa = progresso",

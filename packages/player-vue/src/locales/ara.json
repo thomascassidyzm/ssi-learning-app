@@ -130,7 +130,16 @@
     "seedsTo": "{count} / {total} بذرة إلى حزام {belt}",
     "jumpToBelt": "الانتقال إلى حزام:",
     "totalLearning": "إجمالي التعلّم: {time}",
-    "viewFullProgress": "عرض التقدّم الكامل"
+    "viewFullProgress": "عرض التقدّم الكامل",
+    "label": "حزام {color}",
+    "white": "أبيض",
+    "yellow": "أصفر",
+    "orange": "برتقالي",
+    "green": "أخضر",
+    "blue": "أزرق",
+    "purple": "بنفسجي",
+    "brown": "بني",
+    "black": "أسود"
   },
   "resting": {
     "loading": "جارٍ التحميل...",
@@ -141,6 +150,11 @@
     "impressiveProgress": "تقدّم مبهر",
     "nearlyThere": "أوشكت على الوصول",
     "forSpeakers": "لمتحدثي {lang}"
+  },
+  "phase": {
+    "getReadyToSpeak": "استعد للتحدث",
+    "speakNow": "حان دورك للتحدث",
+    "listenCarefully": "استمع بعناية"
   },
   "onboarding": {
     "beltIsProgress": "حزامك = تقدّمك",

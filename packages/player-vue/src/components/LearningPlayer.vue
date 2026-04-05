@@ -41,7 +41,7 @@ import DrivingModeOverlay from './DrivingModeOverlay.vue'
 import PronunciationOverlay from './PronunciationOverlay.vue'
 import { useDrivingMode } from '../composables/useDrivingMode'
 import { useScriptMode } from '../composables/useScriptMode'
-import { getLanguageName } from '../composables/useI18n'
+import { getLanguageName, t } from '../composables/useI18n'
 import LanguageFlag from './schools/shared/LanguageFlag.vue'
 import { simpleRoundToTypedCycles } from '../utils/drivingModeAdapter'
 import BeltProgressModal from './BeltProgressModal.vue'
@@ -2247,7 +2247,7 @@ const currentPhrase = computed(() => {
   // Before first play tap, show a welcome message instead of the first phrase
   if (!hasEverStarted.value) {
     return {
-      known: 'ready when you are',
+      known: t('resting.readyWhenYouAre', 'ready when you are'),
       target: '',
     }
   }
@@ -2493,12 +2493,12 @@ const showLearningHint = computed(() => {
 const phaseInstruction = computed(() => {
   switch (currentPhase.value) {
     case Phase.PROMPT:
-      return 'get ready to speak'
+      return t('phase.getReadyToSpeak', 'get ready to speak')
     case Phase.SPEAK:
-      return "you're meant to be speaking now"
+      return t('phase.speakNow', "you're meant to be speaking now")
     case Phase.VOICE_1:
     case Phase.VOICE_2:
-      return 'listen carefully'
+      return t('phase.listenCarefully', 'listen carefully')
     default:
       return ''
   }

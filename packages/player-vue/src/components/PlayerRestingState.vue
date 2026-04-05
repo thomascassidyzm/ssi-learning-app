@@ -32,19 +32,24 @@ const belt = computed(() => {
   return BELTS.find(b => b.name === props.currentBeltName) || BELTS[0]
 })
 
+const beltDisplay = computed(() => {
+  const colorName = t(`belt.${props.currentBeltName}`, props.currentBeltName)
+  return t('belt.label', `${colorName} Belt`).replace('{color}', colorName)
+})
+
 const progressPercent = computed(() => {
   if (props.totalSeeds === 0) return 0
   return Math.min(100, Math.round((props.completedSeeds / props.totalSeeds) * 100))
 })
 
 const greeting = computed(() => {
-  if (!props.isPlayerReady) return 'Loading course…'
-  if (props.completedSeeds === 0) return 'Ready when you are'
-  if (props.completedSeeds < 10) return 'Great start — keep going'
-  if (props.completedSeeds < 50) return 'Building momentum'
-  if (props.completedSeeds < 150) return 'You\'re on a roll'
-  if (props.completedSeeds < 300) return 'Impressive progress'
-  return 'Nearly there'
+  if (!props.isPlayerReady) return t('resting.loading', 'Loading...')
+  if (props.completedSeeds === 0) return t('resting.readyWhenYouAre', 'Ready when you are')
+  if (props.completedSeeds < 10) return t('resting.greatStart', 'Great start — keep going')
+  if (props.completedSeeds < 50) return t('resting.buildingMomentum', 'Building momentum')
+  if (props.completedSeeds < 150) return t('resting.youreOnARoll', "You're on a roll")
+  if (props.completedSeeds < 300) return t('resting.impressiveProgress', 'Impressive progress')
+  return t('resting.nearlyThere', 'Nearly there')
 })
 
 const handleChangeCourse = () => {
@@ -69,7 +74,7 @@ const handleChangeCourse = () => {
       <!-- Belt badge -->
       <div class="belt-badge" :style="{ '--belt-accent': belt.color }">
         <div class="belt-dot"></div>
-        <span class="belt-name">{{ currentBeltName }} belt</span>
+        <span class="belt-name">{{ beltDisplay }}</span>
       </div>
 
       <!-- Progress -->

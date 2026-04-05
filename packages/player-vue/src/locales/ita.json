@@ -130,7 +130,16 @@
     "seedsTo": "{count} / {total} semi per cintura {belt}",
     "jumpToBelt": "Vai alla cintura:",
     "totalLearning": "Tempo totale: {time}",
-    "viewFullProgress": "Vedi progressi completi"
+    "viewFullProgress": "Vedi progressi completi",
+    "label": "Cintura {color}",
+    "white": "Bianco",
+    "yellow": "Giallo",
+    "orange": "Arancione",
+    "green": "Verde",
+    "blue": "Blu",
+    "purple": "Viola",
+    "brown": "Marrone",
+    "black": "Nero"
   },
   "resting": {
     "loading": "Caricamento...",
@@ -141,6 +150,11 @@
     "impressiveProgress": "Progressi notevoli",
     "nearlyThere": "Ci sei quasi",
     "forSpeakers": "per parlanti {lang}"
+  },
+  "phase": {
+    "getReadyToSpeak": "preparati a parlare",
+    "speakNow": "ora tocca a te parlare",
+    "listenCarefully": "ascolta bene"
   },
   "onboarding": {
     "beltIsProgress": "La tua cintura = progressi",

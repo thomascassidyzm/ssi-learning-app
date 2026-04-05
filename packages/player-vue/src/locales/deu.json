@@ -130,7 +130,16 @@
     "seedsTo": "{count} / {total} Seeds bis {belt}-Gürtel",
     "jumpToBelt": "Zum Gürtel springen:",
     "totalLearning": "Gesamte Lernzeit: {time}",
-    "viewFullProgress": "Ganzen Fortschritt ansehen"
+    "viewFullProgress": "Ganzen Fortschritt ansehen",
+    "label": "{color} Gürtel",
+    "white": "Weiß",
+    "yellow": "Gelb",
+    "orange": "Orange",
+    "green": "Grün",
+    "blue": "Blau",
+    "purple": "Lila",
+    "brown": "Braun",
+    "black": "Schwarz"
   },
   "resting": {
     "loading": "Laden...",
@@ -141,6 +150,11 @@
     "impressiveProgress": "Beeindruckender Fortschritt",
     "nearlyThere": "Fast geschafft",
     "forSpeakers": "für {lang}-Sprecher"
+  },
+  "phase": {
+    "getReadyToSpeak": "bereit zum Sprechen",
+    "speakNow": "jetzt bist du dran",
+    "listenCarefully": "hör genau zu"
   },
   "onboarding": {
     "beltIsProgress": "Dein Gürtel = Fortschritt",

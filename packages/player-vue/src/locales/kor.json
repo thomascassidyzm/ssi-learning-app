@@ -130,7 +130,16 @@
     "seedsTo": "{belt} 벨트까지 {count} / {total} 시드",
     "jumpToBelt": "벨트로 이동:",
     "totalLearning": "총 학습 시간: {time}",
-    "viewFullProgress": "전체 진행률 보기"
+    "viewFullProgress": "전체 진행률 보기",
+    "label": "{color} 벨트",
+    "white": "흰색",
+    "yellow": "노란색",
+    "orange": "주황색",
+    "green": "초록색",
+    "blue": "파란색",
+    "purple": "보라색",
+    "brown": "갈색",
+    "black": "검은색"
   },
   "resting": {
     "loading": "로딩 중...",
@@ -141,6 +150,11 @@
     "impressiveProgress": "인상적인 진전",
     "nearlyThere": "거의 다 왔어요",
     "forSpeakers": "{lang} 사용자용"
+  },
+  "phase": {
+    "getReadyToSpeak": "말할 준비를 하세요",
+    "speakNow": "지금 말할 차례입니다",
+    "listenCarefully": "잘 들으세요"
   },
   "onboarding": {
     "beltIsProgress": "벨트 = 진행률",

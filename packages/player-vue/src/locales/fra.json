@@ -130,7 +130,16 @@
     "seedsTo": "{count} / {total} graines pour ceinture {belt}",
     "jumpToBelt": "Aller à la ceinture :",
     "totalLearning": "Temps total : {time}",
-    "viewFullProgress": "Voir le progrès complet"
+    "viewFullProgress": "Voir le progrès complet",
+    "label": "Ceinture {color}",
+    "white": "Blanc",
+    "yellow": "Jaune",
+    "orange": "Orange",
+    "green": "Vert",
+    "blue": "Bleu",
+    "purple": "Violet",
+    "brown": "Marron",
+    "black": "Noir"
   },
   "resting": {
     "loading": "Chargement...",
@@ -141,6 +150,11 @@
     "impressiveProgress": "Progrès impressionnant",
     "nearlyThere": "Presque là",
     "forSpeakers": "pour les {lang}ophones"
+  },
+  "phase": {
+    "getReadyToSpeak": "préparez-vous à parler",
+    "speakNow": "c'est à vous de parler",
+    "listenCarefully": "écoutez attentivement"
   },
   "onboarding": {
     "beltIsProgress": "Votre ceinture = progrès",

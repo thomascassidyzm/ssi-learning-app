@@ -21,6 +21,22 @@
     "pause": "Oedi",
     "resume": "Parhau"
   },
+  "belt": {
+    "label": "Gwregys {color}",
+    "white": "Gwyn",
+    "yellow": "Melyn",
+    "orange": "Oren",
+    "green": "Gwyrdd",
+    "blue": "Glas",
+    "purple": "Porffor",
+    "brown": "Brown",
+    "black": "Du"
+  },
+  "phase": {
+    "getReadyToSpeak": "barod i siarad",
+    "speakNow": "dy dro di i siarad",
+    "listenCarefully": "gwranda'n ofalus"
+  },
   "languages": {
     "eng": "Saesneg",
     "spa": "Sbaeneg",

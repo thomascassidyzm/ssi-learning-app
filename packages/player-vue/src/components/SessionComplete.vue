@@ -4,6 +4,7 @@ import AuthPrompt from './AuthPrompt.vue'
 import SessionMirror from './learner/SessionMirror.vue'
 import { useAuthModal } from '@/composables/useAuthModal'
 import { useLearnerJourney } from '@/composables/useLearnerJourney'
+import { t } from '@/composables/useI18n'
 
 // Get auth state from App
 const auth = inject('auth')
@@ -58,11 +59,11 @@ const progressPercent = computed(() => {
 
 // Encouragement based on progress
 const encouragement = computed(() => {
-  if (props.itemsPracticed === 0) return 'Ready when you are'
-  if (props.itemsPracticed < 5) return 'Good start'
-  if (props.itemsPracticed < 15) return 'Nice flow'
-  if (props.itemsPracticed < 30) return 'Great session'
-  return 'On fire'
+  if (props.itemsPracticed === 0) return t('session.readyWhenYouAre', 'Ready when you are')
+  if (props.itemsPracticed < 5) return t('session.goodStart', 'Good start')
+  if (props.itemsPracticed < 15) return t('session.niceFlow', 'Nice flow')
+  if (props.itemsPracticed < 30) return t('session.greatSession', 'Great session')
+  return t('session.onFire', 'On fire')
 })
 
 // CSS vars for belt colors
@@ -157,9 +158,9 @@ onMounted(async () => {
 
       <!-- Belt name and progress -->
       <div class="belt-info">
-        <span class="belt-name">{{ currentBelt.name }} Belt</span>
-        <span class="belt-progress-text" v-if="nextBelt">{{ progressPercent }}% to {{ nextBelt.name }}</span>
-        <span class="belt-progress-text belt-progress-text--mastery" v-else>Mastery achieved</span>
+        <span class="belt-name">{{ t('belt.label', `${t(`belt.${currentBelt.name}`, currentBelt.name)} Belt`).replace('{color}', t(`belt.${currentBelt.name}`, currentBelt.name)) }}</span>
+        <span class="belt-progress-text" v-if="nextBelt">{{ progressPercent }}% {{ t('session.toNext', `to ${nextBelt.name}`).replace('{belt}', t(`belt.${nextBelt.name}`, nextBelt.name)) }}</span>
+        <span class="belt-progress-text belt-progress-text--mastery" v-else>{{ t('session.masteryAchieved', 'Mastery achieved') }}</span>
       </div>
 
       <!-- Time estimate - prominent -->
