@@ -67,15 +67,6 @@ function saveLocalization() {
   }, 300)
 }
 
-const isDark = ref(document.documentElement.getAttribute('data-theme') !== 'light')
-
-const toggleTheme = () => {
-  isDark.value = !isDark.value
-  const newTheme = isDark.value ? 'dark' : 'light'
-  document.documentElement.setAttribute('data-theme', newTheme)
-  localStorage.setItem('ssi-theme', newTheme)
-}
-
 // Animation
 const isVisible = ref(false)
 onMounted(() => {
@@ -117,40 +108,8 @@ onMounted(() => {
         </div>
       </Card>
 
-      <!-- Appearance -->
-      <Card title="Appearance" class="animate-item delay-1" :class="{ 'show': isVisible }">
-        <template #icon>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="5"/>
-            <line x1="12" y1="1" x2="12" y2="3"/>
-            <line x1="12" y1="21" x2="12" y2="23"/>
-            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-            <line x1="1" y1="12" x2="3" y2="12"/>
-            <line x1="21" y1="12" x2="23" y2="12"/>
-            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-          </svg>
-        </template>
-        <div class="setting-row">
-          <div class="setting-info">
-            <h4>Dark Mode</h4>
-            <p>Use dark theme for the dashboard</p>
-          </div>
-          <button
-            class="toggle-switch"
-            :class="{ active: isDark }"
-            @click="toggleTheme"
-            role="switch"
-            :aria-checked="isDark"
-          >
-            <span class="toggle-thumb"></span>
-          </button>
-        </div>
-      </Card>
-
       <!-- Localization -->
-      <Card title="Localization" class="animate-item delay-2" :class="{ 'show': isVisible }">
+      <Card title="Localization" class="animate-item delay-1" :class="{ 'show': isVisible }">
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"/>

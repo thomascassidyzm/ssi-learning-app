@@ -23,19 +23,6 @@ const schoolName = ref('Ysgol Cymraeg')
 const schoolInitials = ref('YC')
 const userName = ref('Admin')
 
-// Theme toggle
-const isDark = ref(document.documentElement.getAttribute('data-theme') !== 'mist')
-
-const toggleTheme = () => {
-  isDark.value = !isDark.value
-  if (isDark.value) {
-    document.documentElement.removeAttribute('data-theme')
-    localStorage.setItem('ssi-theme', 'cosmos')
-  } else {
-    document.documentElement.setAttribute('data-theme', 'mist')
-    localStorage.setItem('ssi-theme', 'mist')
-  }
-}
 
 // Check if tab is active
 const isActive = (path: string) => {
@@ -82,31 +69,6 @@ const toggleUserMenu = () => {
         <div class="school-avatar">{{ schoolInitials }}</div>
         <span class="school-name">{{ schoolName }}</span>
       </div>
-
-      <!-- Theme Toggle -->
-      <button
-        class="theme-toggle"
-        @click="toggleTheme"
-        :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
-        aria-label="Toggle theme"
-      >
-        <!-- Sun Icon -->
-        <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="5"/>
-          <line x1="12" y1="1" x2="12" y2="3"/>
-          <line x1="12" y1="21" x2="12" y2="23"/>
-          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-          <line x1="1" y1="12" x2="3" y2="12"/>
-          <line x1="21" y1="12" x2="23" y2="12"/>
-          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-        </svg>
-        <!-- Moon Icon -->
-        <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-        </svg>
-      </button>
 
       <!-- User Menu -->
       <div class="user-menu-container">
@@ -282,57 +244,6 @@ const toggleUserMenu = () => {
 .school-name {
   font-size: var(--text-sm);
   font-weight: var(--font-semibold);
-}
-
-/* Theme Toggle */
-.theme-toggle {
-  width: 40px;
-  height: 40px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-medium);
-  border-radius: var(--radius-full);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all var(--transition-slow);
-  position: relative;
-  overflow: hidden;
-}
-
-.theme-toggle:hover {
-  border-color: var(--ssi-gold);
-  transform: scale(1.05);
-}
-
-.theme-toggle svg {
-  width: 20px;
-  height: 20px;
-  transition: all var(--transition-slow);
-}
-
-.theme-toggle .sun-icon {
-  color: var(--ssi-gold);
-  position: absolute;
-  opacity: 0;
-  transform: rotate(-90deg) scale(0);
-}
-
-.theme-toggle .moon-icon {
-  color: var(--text-secondary);
-  position: absolute;
-  opacity: 1;
-  transform: rotate(0deg) scale(1);
-}
-
-[data-theme="mist"] .theme-toggle .sun-icon {
-  opacity: 1;
-  transform: rotate(0deg) scale(1);
-}
-
-[data-theme="mist"] .theme-toggle .moon-icon {
-  opacity: 0;
-  transform: rotate(90deg) scale(0);
 }
 
 /* User Menu */
