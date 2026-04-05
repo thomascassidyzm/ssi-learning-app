@@ -94,6 +94,15 @@ const handleSignOut = async () => {
   }
 }
 
+// Mobile menu
+const isMobileMenuOpen = ref(false)
+const toggleMobileMenu = () => {
+  isMobileMenuOpen.value = !isMobileMenuOpen.value
+}
+const closeMobileMenu = () => {
+  isMobileMenuOpen.value = false
+}
+
 </script>
 
 <template>
@@ -118,6 +127,19 @@ const handleSignOut = async () => {
         {{ tab.label }}
       </router-link>
     </div>
+
+    <!-- Mobile Menu Button -->
+    <button class="mobile-menu-btn" @click="toggleMobileMenu" aria-label="Menu">
+      <svg v-if="!isMobileMenuOpen" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+      <svg v-else width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="18" y1="6" x2="6" y2="18"/>
+        <line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
 
     <!-- Right Section -->
     <div class="nav-right">
@@ -192,6 +214,31 @@ const handleSignOut = async () => {
       </template>
     </div>
   </nav>
+
+  <!-- Mobile Menu Panel -->
+  <Transition name="mobile-menu">
+    <div v-if="isMobileMenuOpen" class="mobile-menu-panel">
+      <router-link
+        v-for="tab in tabs"
+        :key="tab.name"
+        :to="tab.path"
+        class="mobile-menu-item"
+        :class="{ active: isActive(tab.path) }"
+        @click="closeMobileMenu"
+      >
+        {{ tab.label }}
+      </router-link>
+      <router-link
+        v-if="!isDemoMode"
+        to="/"
+        class="mobile-menu-item mobile-menu-learn"
+        @click="closeMobileMenu"
+      >
+        Learn
+      </router-link>
+    </div>
+  </Transition>
+  <div v-if="isMobileMenuOpen" class="mobile-menu-backdrop" @click="closeMobileMenu"></div>
 </template>
 
 <style scoped>
@@ -522,10 +569,94 @@ const handleSignOut = async () => {
   100% { background-position: -200% 0; }
 }
 
+/* Mobile Menu Button */
+.mobile-menu-btn {
+  display: none;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: background var(--transition-base);
+}
+
+.mobile-menu-btn:hover {
+  background: var(--bg-elevated);
+}
+
+/* Mobile Menu Panel */
+.mobile-menu-panel {
+  position: fixed;
+  top: calc(var(--nav-height) + env(safe-area-inset-top, 0px));
+  left: 0;
+  right: 0;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-lg);
+  z-index: calc(var(--z-nav) - 1);
+  padding: var(--space-2) 0;
+}
+
+.mobile-menu-item {
+  display: block;
+  padding: var(--space-3) var(--space-6);
+  font-size: var(--text-base);
+  font-weight: var(--font-medium);
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: all var(--transition-base);
+}
+
+.mobile-menu-item:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.mobile-menu-item.active {
+  color: var(--ssi-red);
+  font-weight: var(--font-semibold);
+}
+
+.mobile-menu-learn {
+  border-top: 1px solid var(--border-subtle);
+  margin-top: var(--space-2);
+  padding-top: var(--space-4);
+  color: var(--ssi-red);
+  font-weight: var(--font-semibold);
+}
+
+.mobile-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-nav) - 2);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+/* Mobile menu transitions */
+.mobile-menu-enter-active,
+.mobile-menu-leave-active {
+  transition: all 0.2s ease;
+}
+
+.mobile-menu-enter-from,
+.mobile-menu-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .top-nav {
-    padding: 0 var(--space-4);
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+  }
+
+  .mobile-menu-btn {
+    display: flex;
   }
 
   .nav-tabs {
@@ -533,6 +664,10 @@ const handleSignOut = async () => {
   }
 
   .school-badge {
+    display: none;
+  }
+
+  .learn-btn {
     display: none;
   }
 
