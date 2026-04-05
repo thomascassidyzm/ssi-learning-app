@@ -1,0 +1,35 @@
+name: Auto-merge claude/ branches to main
+
+on:
+  push:
+    branches:
+      - 'claude/**'
+
+permissions:
+  contents: write
+
+jobs:
+  merge-to-main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Merge to main and deploy
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin main
+
+          if git merge-base --is-ancestor origin/${{ github.ref_name }} origin/main; then
+            echo "Branch already merged into main — nothing to do"
+            exit 0
+          fi
+
+          git checkout main
+          git merge origin/${{ github.ref_name }} --no-edit
+          git push origin main
