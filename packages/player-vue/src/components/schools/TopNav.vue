@@ -24,13 +24,17 @@ const schoolInitials = ref('YC')
 const userName = ref('Admin')
 
 // Theme toggle
-const isDark = ref(document.documentElement.getAttribute('data-theme') !== 'light')
+const isDark = ref(document.documentElement.getAttribute('data-theme') !== 'mist')
 
 const toggleTheme = () => {
   isDark.value = !isDark.value
-  const newTheme = isDark.value ? 'dark' : 'light'
-  document.documentElement.setAttribute('data-theme', newTheme)
-  localStorage.setItem('ssi-theme', newTheme)
+  if (isDark.value) {
+    document.documentElement.removeAttribute('data-theme')
+    localStorage.setItem('ssi-theme', 'cosmos')
+  } else {
+    document.documentElement.setAttribute('data-theme', 'mist')
+    localStorage.setItem('ssi-theme', 'mist')
+  }
 }
 
 // Check if tab is active
@@ -321,12 +325,12 @@ const toggleUserMenu = () => {
   transform: rotate(0deg) scale(1);
 }
 
-[data-theme="light"] .theme-toggle .sun-icon {
+[data-theme="mist"] .theme-toggle .sun-icon {
   opacity: 1;
   transform: rotate(0deg) scale(1);
 }
 
-[data-theme="light"] .theme-toggle .moon-icon {
+[data-theme="mist"] .theme-toggle .moon-icon {
   opacity: 0;
   transform: rotate(90deg) scale(0);
 }

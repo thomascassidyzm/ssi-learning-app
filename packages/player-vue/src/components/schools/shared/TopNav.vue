@@ -3,6 +3,7 @@ import { ref, computed, inject } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { useGodMode } from '@/composables/schools/useGodMode'
+import { isDemoMode } from '@/composables/demo/demoMode'
 
 interface NavTab {
   name: string
@@ -71,13 +72,17 @@ const schoolInitials = computed(() => {
 })
 
 // Theme toggle
-const isDark = ref(document.documentElement.getAttribute('data-theme') !== 'light')
+const isDark = ref(document.documentElement.getAttribute('data-theme') !== 'mist')
 
 const toggleTheme = () => {
   isDark.value = !isDark.value
-  const newTheme = isDark.value ? 'dark' : 'light'
-  document.documentElement.setAttribute('data-theme', newTheme)
-  localStorage.setItem('ssi-theme', newTheme)
+  if (isDark.value) {
+    document.documentElement.removeAttribute('data-theme')
+    localStorage.setItem('ssi-theme', 'cosmos')
+  } else {
+    document.documentElement.setAttribute('data-theme', 'mist')
+    localStorage.setItem('ssi-theme', 'mist')
+  }
 }
 
 // Check if tab is active
@@ -130,8 +135,8 @@ const handleSignOut = async () => {
 
     <!-- Right Section -->
     <div class="nav-right">
-      <!-- Learn Button (back to player) -->
-      <button class="learn-btn" @click="router.push('/')">
+      <!-- Learn Button (back to player, hidden in demo) -->
+      <button v-if="!isDemoMode" class="learn-btn" @click="router.push('/')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
           <polygon points="6 3 20 12 6 21 6 3"/>
         </svg>
@@ -428,12 +433,12 @@ const handleSignOut = async () => {
   transform: rotate(0deg) scale(1);
 }
 
-[data-theme="light"] .theme-toggle .sun-icon {
+[data-theme="mist"] .theme-toggle .sun-icon {
   opacity: 1;
   transform: rotate(0deg) scale(1);
 }
 
-[data-theme="light"] .theme-toggle .moon-icon {
+[data-theme="mist"] .theme-toggle .moon-icon {
   opacity: 0;
   transform: rotate(90deg) scale(0);
 }
