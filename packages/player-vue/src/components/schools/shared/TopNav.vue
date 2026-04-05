@@ -3,7 +3,6 @@ import { ref, computed, inject } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { useGodMode } from '@/composables/schools/useGodMode'
-import { isDemoMode } from '@/composables/demo/demoMode'
 
 interface NavTab {
   name: string
@@ -104,16 +103,6 @@ const handleSignOut = async () => {
   }
 }
 
-// Exit demo mode
-const exitDemo = () => {
-  isDemoMode.value = false
-  sessionStorage.removeItem('ssi-demo-active')
-  sessionStorage.removeItem('ssi-demo-active-class')
-  sessionStorage.removeItem('ssi-demo-tier')
-  sessionStorage.removeItem('ssi-demo-last-course')
-  delete (window as any).__demoSelectCourse
-  router.push('/demo')
-}
 </script>
 
 <template>
@@ -141,18 +130,8 @@ const exitDemo = () => {
 
     <!-- Right Section -->
     <div class="nav-right">
-      <!-- Exit Demo (when in demo mode) -->
-      <button v-if="isDemoMode" class="exit-demo-btn" @click="exitDemo">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-          <polyline points="16 17 21 12 16 7"/>
-          <line x1="21" y1="12" x2="9" y2="12"/>
-        </svg>
-        Exit Demo
-      </button>
-
-      <!-- Learn Button (back to player, hidden in demo) -->
-      <button v-if="!isDemoMode" class="learn-btn" @click="router.push('/')">
+      <!-- Learn Button (back to player) -->
+      <button class="learn-btn" @click="router.push('/')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
           <polygon points="6 3 20 12 6 21 6 3"/>
         </svg>
@@ -376,31 +355,6 @@ const exitDemo = () => {
 }
 
 .learn-btn svg {
-  flex-shrink: 0;
-}
-
-/* Exit Demo Button */
-.exit-demo-btn {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-4);
-  background: var(--bg-card);
-  border: 1px solid var(--border-medium);
-  border-radius: var(--radius-lg);
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-  font-weight: var(--font-semibold);
-  cursor: pointer;
-  transition: all var(--transition-base);
-}
-
-.exit-demo-btn:hover {
-  border-color: var(--ssi-red);
-  color: var(--ssi-red);
-}
-
-.exit-demo-btn svg {
   flex-shrink: 0;
 }
 
