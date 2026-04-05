@@ -173,6 +173,14 @@ async function startDemo(demo: typeof demos[0]) {
       <p v-if="preloadStatus && preloadStatus !== 'Ready'" class="demo-preload-status">
         {{ preloadStatus }}
       </p>
+
+      <!-- Back to app -->
+      <router-link to="/" class="back-to-app">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+        Back to app
+      </router-link>
     </div>
   </div>
 </template>
@@ -335,6 +343,23 @@ async function startDemo(demo: typeof demos[0]) {
   color: var(--ssi-red, #c23a3a);
   margin: 12px 0 0;
   opacity: 0.7;
+}
+
+.back-to-app {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 24px;
+  font-family: var(--font-body, 'DM Sans', sans-serif);
+  font-size: 14px;
+  color: var(--text-muted, #8A8078);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.back-to-app:hover {
+  color: var(--text-primary, #2C2622);
 }
 
 @media (max-width: 480px) {
