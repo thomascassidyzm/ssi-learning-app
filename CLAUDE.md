@@ -2,6 +2,23 @@
 
 > **Welcome, future agent!** This document contains everything you need to work effectively on the SSi Learning App without creating chaos.
 
+## CRITICAL: Branch Policy
+
+**ALL work MUST go to the `staging` branch. NEVER push to `main`.**
+
+At the start of every session, run:
+```bash
+git checkout staging
+git pull origin staging
+```
+
+- `staging` deploys to `staging.saysomethingin.app` (testing)
+- `main` deploys to `saysomethingin.app` (production — real users)
+- Changes are tested on staging for ~1 week, then merged to main manually by Tom
+- If you find yourself on `main`, switch to `staging` immediately before making any changes
+
+---
+
 ## Project Overview
 
 **SSi Learning App** is the language learning player application that delivers SSi courses to learners. It's built as a monorepo with a framework-agnostic TypeScript core and UI adapters.
