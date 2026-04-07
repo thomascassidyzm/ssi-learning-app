@@ -312,7 +312,7 @@ async function submitFeedback() {
 .feedback-fab {
   position: fixed;
   bottom: calc(24px + env(safe-area-inset-bottom, 0px));
-  right: 24px;
+  left: 24px;
   z-index: 9998;
   width: 48px;
   height: 48px;
