@@ -603,11 +603,13 @@ onMounted(() => {
   text-decoration: none;
   color: inherit;
   border-radius: var(--radius-xl);
-  transition: transform 0.15s ease;
+  transition: all 0.2s ease;
 }
 
 .stat-link:hover {
-  transform: translateY(-2px);
+  transform: translateY(-3px);
+  filter: brightness(1.02);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
 }
 
 .stat-card {
@@ -855,16 +857,20 @@ onMounted(() => {
   gap: var(--space-3);
   padding: var(--space-6);
   background: var(--bg-secondary);
+  border: 1px solid transparent;
   border-radius: var(--radius-lg);
   text-decoration: none;
   color: var(--text-secondary);
-  transition: all var(--transition-base);
+  transition: all 0.2s ease;
+  cursor: pointer;
 }
 
 .action-card:hover {
   background: var(--bg-elevated);
-  color: var(--text-primary);
-  transform: translateY(-2px);
+  color: var(--ssi-red, #c23a3a);
+  border-color: var(--ssi-red, #c23a3a);
+  transform: translateY(-3px);
+  box-shadow: 0 4px 16px rgba(194, 58, 58, 0.15);
 }
 
 .action-icon {
