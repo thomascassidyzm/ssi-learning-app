@@ -111,7 +111,6 @@ const handleSignOut = async () => {
       <span class="logo-text">
         <span class="say">Say</span><span class="something">Something</span><span class="in">in</span>
       </span>
-      <span class="logo-bubble" aria-hidden="true"></span>
     </router-link>
 
     <!-- Navigation Tabs -->

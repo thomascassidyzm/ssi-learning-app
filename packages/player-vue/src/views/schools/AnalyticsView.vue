@@ -986,11 +986,13 @@ watch(selectedUser, (newUser) => {
 .activity-chart {
   height: 280px;
   position: relative;
+  padding-left: 50px;
 }
 
 .chart-grid {
   position: absolute;
   inset: 0;
+  left: 50px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -1004,10 +1006,12 @@ watch(selectedUser, (newUser) => {
 .chart-grid-line::before {
   content: attr(data-value);
   position: absolute;
-  left: -45px;
+  left: -48px;
   top: -8px;
   font-size: 11px;
   color: var(--text-muted);
+  text-align: right;
+  width: 40px;
 }
 
 .chart-bars {

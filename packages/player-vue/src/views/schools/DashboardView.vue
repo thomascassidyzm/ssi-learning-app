@@ -225,45 +225,53 @@ onMounted(() => {
 
     <!-- Stats Grid (admin) -->
     <div v-else-if="!isTeacher" class="stats-grid animate-in delay-1">
-      <Card variant="stats" accent="blue">
-        <div class="stat-card">
-          <div class="stat-icon">&#128101;</div>
-          <div class="stat-content">
-            <div class="stat-value">{{ totalStudents.toLocaleString() }}</div>
-            <div class="stat-label">{{ isGovtAdmin ? 'Total Students' : 'Active Students' }}</div>
+      <router-link to="/schools/students" class="stat-link">
+        <Card variant="stats" accent="blue">
+          <div class="stat-card">
+            <div class="stat-icon">&#128101;</div>
+            <div class="stat-content">
+              <div class="stat-value">{{ totalStudents.toLocaleString() }}</div>
+              <div class="stat-label">{{ isGovtAdmin ? 'Total Students' : 'Active Students' }}</div>
+            </div>
           </div>
-        </div>
-      </Card>
+        </Card>
+      </router-link>
 
-      <Card variant="stats" accent="gold">
-        <div class="stat-card">
-          <div class="stat-icon">&#128337;</div>
-          <div class="stat-content">
-            <div class="stat-value">{{ practiceHoursDisplay.toLocaleString() }}</div>
-            <div class="stat-label">Hours Practiced</div>
+      <router-link to="/schools/analytics" class="stat-link">
+        <Card variant="stats" accent="gold">
+          <div class="stat-card">
+            <div class="stat-icon">&#128337;</div>
+            <div class="stat-content">
+              <div class="stat-value">{{ practiceHoursDisplay.toLocaleString() }}</div>
+              <div class="stat-label">Hours Practiced</div>
+            </div>
           </div>
-        </div>
-      </Card>
+        </Card>
+      </router-link>
 
-      <Card variant="stats" accent="red">
-        <div class="stat-card">
-          <div class="stat-icon">&#128218;</div>
-          <div class="stat-content">
-            <div class="stat-value">{{ totalClasses }}</div>
-            <div class="stat-label">{{ isGovtAdmin ? 'Total Classes' : 'Active Classes' }}</div>
+      <router-link to="/schools/classes" class="stat-link">
+        <Card variant="stats" accent="red">
+          <div class="stat-card">
+            <div class="stat-icon">&#128218;</div>
+            <div class="stat-content">
+              <div class="stat-value">{{ totalClasses }}</div>
+              <div class="stat-label">{{ isGovtAdmin ? 'Total Classes' : 'Active Classes' }}</div>
+            </div>
           </div>
-        </div>
-      </Card>
+        </Card>
+      </router-link>
 
-      <Card variant="stats" accent="green">
-        <div class="stat-card">
-          <div class="stat-icon">&#127979;</div>
-          <div class="stat-content">
-            <div class="stat-value">{{ totalTeachers }}</div>
+      <router-link to="/schools/teachers" class="stat-link">
+        <Card variant="stats" accent="green">
+          <div class="stat-card">
+            <div class="stat-icon">&#127979;</div>
+            <div class="stat-content">
+              <div class="stat-value">{{ totalTeachers }}</div>
             <div class="stat-label">Teachers</div>
           </div>
         </div>
       </Card>
+      </router-link>
     </div>
 
     <!-- Schools in Region (Govt Admin only, at regional level) -->
@@ -589,6 +597,17 @@ onMounted(() => {
   grid-template-columns: repeat(4, 1fr);
   gap: var(--space-6);
   margin-bottom: var(--space-8);
+}
+
+.stat-link {
+  text-decoration: none;
+  color: inherit;
+  border-radius: var(--radius-xl);
+  transition: transform 0.15s ease;
+}
+
+.stat-link:hover {
+  transform: translateY(-2px);
 }
 
 .stat-card {

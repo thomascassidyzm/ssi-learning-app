@@ -256,6 +256,9 @@ watch(selectedUser, (newUser) => {
           v-for="teacher in filteredTeachers"
           :key="teacher.id"
           class="teacher-card"
+          :class="{ 'teacher-card--selected': selectedTeacher?.user_id === teacher.user_id }"
+          @click="viewTeacherDetail(teacher)"
+          style="cursor: pointer;"
         >
           <!-- Card Header -->
           <div class="teacher-card-header">
@@ -1041,6 +1044,7 @@ watch(selectedUser, (newUser) => {
   border: 1px solid var(--ssi-red, #c23a3a);
   border-radius: var(--radius-xl, 16px);
   padding: var(--space-6, 24px);
+  margin-top: var(--space-4, 16px);
   margin-bottom: var(--space-6, 24px);
 }
 
