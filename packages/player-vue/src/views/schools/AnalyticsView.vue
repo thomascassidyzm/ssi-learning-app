@@ -1,1280 +1,499 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useGodMode } from '@/composables/schools/useGodMode'
-import { useAnalyticsData, type SchoolReport } from '@/composables/schools/useAnalyticsData'
-import { useStudentsData } from '@/composables/schools/useStudentsData'
+import { useClassesData } from '@/composables/schools/useClassesData'
+import { getSchoolsClient } from '@/composables/schools/client'
 
-type TimePeriod = '7d' | '30d' | '90d' | 'year'
+type TimePeriod = '7d' | '30d' | 'all'
 
-// God Mode and data
 const { selectedUser } = useGodMode()
-const {
-  dailyActivity,
-  classRankings,
-  totalSessions,
-  totalPracticeMinutes,
-  fetchDailyActivity,
-  fetchClassRankings,
-  getSchoolReport,
-} = useAnalyticsData()
-const { students: studentsData, fetchStudents } = useStudentsData()
+const { classes: classesData, fetchClasses } = useClassesData()
 
-// School report data
-const schoolReport = ref<SchoolReport | null>(null)
-const reportLoading = ref(false)
-
-// State
 const selectedPeriod = ref<TimePeriod>('30d')
+const classSessions = ref<any[]>([])
+const isLoading = ref(false)
+const isVisible = ref(false)
 
-// Get belt based on seeds completed
-function getBelt(seedsCompleted: number): string {
-  if (seedsCompleted >= 400) return 'black'
-  if (seedsCompleted >= 280) return 'brown'
-  if (seedsCompleted >= 150) return 'blue'
-  if (seedsCompleted >= 80) return 'green'
-  if (seedsCompleted >= 40) return 'orange'
-  if (seedsCompleted >= 20) return 'yellow'
-  return 'white'
+// Course code → target language name
+const languageNames: Record<string, string> = {
+  'cym_for_eng': 'Welsh', 'cym_n_for_eng': 'Welsh', 'cym_s_for_eng': 'Welsh',
+  'spa_for_eng': 'Spanish', 'fra_for_eng': 'French', 'deu_for_eng': 'German',
+  'nld_for_eng': 'Dutch', 'gle_for_eng': 'Irish', 'jpn_for_eng': 'Japanese',
+  'ara_for_eng': 'Arabic', 'kor_for_eng': 'Korean', 'ita_for_eng': 'Italian',
+  'por_for_eng': 'Portuguese', 'eng_for_spa': 'English', 'zho_for_eng': 'Chinese',
+  'cmn_for_eng': 'Chinese', 'gla_for_eng': 'Scottish Gaelic', 'cor_for_eng': 'Cornish',
+  'glv_for_eng': 'Manx', 'eus_for_spa': 'Basque', 'cat_for_spa': 'Catalan',
+  'bre_for_fre': 'Breton', 'rus_for_eng': 'Russian', 'pol_for_eng': 'Polish',
 }
 
-// Get initials from name
-function getInitials(name: string): string {
-  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
-}
+// Belt thresholds (same as useBeltProgress)
+const BELTS = [
+  { name: 'White', seedsRequired: 0, color: '#e0e0e0' },
+  { name: 'Yellow', seedsRequired: 8, color: '#fbbf24' },
+  { name: 'Orange', seedsRequired: 20, color: '#f97316' },
+  { name: 'Green', seedsRequired: 40, color: '#22c55e' },
+  { name: 'Blue', seedsRequired: 60, color: '#3b82f6' },
+  { name: 'Purple', seedsRequired: 150, color: '#8b5cf6' },
+  { name: 'Brown', seedsRequired: 280, color: '#92400e' },
+  { name: 'Black', seedsRequired: 400, color: '#1f2937' },
+]
 
-// Computed metrics from real data
-const metrics = computed(() => {
-  const totalPhrases = studentsData.value.reduce((sum, s) => sum + s.legos_mastered * 3, 0)
-  const totalHours = Math.round(totalPracticeMinutes.value / 60)
-  const totalStudents = studentsData.value.length
-  const activeStudents = studentsData.value.filter(s => {
-    if (!s.last_active_at) return false
-    const lastActive = new Date(s.last_active_at)
-    const weekAgo = new Date()
-    weekAgo.setDate(weekAgo.getDate() - 7)
-    return lastActive >= weekAgo
-  }).length
-  const activeRate = totalStudents > 0 ? Math.round((activeStudents / totalStudents) * 100) : 0
-
-  return {
-    phrasesLearned: {
-      value: totalPhrases,
-      trend: 'This month'
-    },
-    hoursLearned: {
-      value: totalHours,
-      trend: 'This month'
-    },
-    activeRate: {
-      value: `${activeRate}%`,
-      trend: 'Last 7 days'
-    },
-    beltPromotions: {
-      value: totalSessions.value,
-      trend: 'Total sessions'
+function getBeltForSeed(seed: number) {
+  let belt = BELTS[0]
+  for (let i = BELTS.length - 1; i >= 0; i--) {
+    if (seed >= BELTS[i].seedsRequired) {
+      belt = BELTS[i]
+      break
     }
   }
+  const beltIndex = BELTS.indexOf(belt)
+  const nextBelt = beltIndex + 1 < BELTS.length ? BELTS[beltIndex + 1] : null
+  const sectionsInBelt = nextBelt
+    ? nextBelt.seedsRequired - belt.seedsRequired
+    : 300 - belt.seedsRequired // fallback for highest belt
+  const sectionsComplete = seed - belt.seedsRequired
+  return {
+    name: belt.name,
+    color: belt.color,
+    sectionsComplete,
+    sectionsInBelt,
+  }
+}
+
+// Date filter boundary
+const periodStart = computed(() => {
+  if (selectedPeriod.value === 'all') return null
+  const d = new Date()
+  if (selectedPeriod.value === '7d') d.setDate(d.getDate() - 7)
+  else if (selectedPeriod.value === '30d') d.setDate(d.getDate() - 30)
+  return d.toISOString()
 })
 
-// Transform daily activity into weekly for chart
-const weeklyActivity = computed(() => {
-  if (dailyActivity.value.length === 0) {
-    return [
-      { label: 'Week 1', phrases: 0, hours: 0 },
-      { label: 'Week 2', phrases: 0, hours: 0 },
-      { label: 'Week 3', phrases: 0, hours: 0 },
-      { label: 'Week 4', phrases: 0, hours: 0 }
-    ]
+// Fetch class sessions from DB
+async function fetchClassSessions() {
+  const classIds = classesData.value.map(c => c.id)
+  if (classIds.length === 0) {
+    classSessions.value = []
+    return
+  }
+  const client = getSchoolsClient()
+  let query = client
+    .from('class_sessions')
+    .select('id, class_id, cycles_completed, duration_seconds, started_at, start_lego_id, end_lego_id')
+    .in('class_id', classIds)
+    .order('started_at', { ascending: false })
+
+  if (periodStart.value) {
+    query = query.gte('started_at', periodStart.value)
   }
 
-  // Group by weeks (7 days each)
-  const weeks = []
-  for (let i = 0; i < 4; i++) {
-    const weekStart = i * 7
-    const weekEnd = Math.min(weekStart + 7, dailyActivity.value.length)
-    const weekData = dailyActivity.value.slice(weekStart, weekEnd)
-
-    const sessions = weekData.reduce((sum, d) => sum + d.sessions, 0)
-    const minutes = weekData.reduce((sum, d) => sum + d.practice_minutes, 0)
-
-    weeks.push({
-      label: `Week ${i + 1}`,
-      phrases: sessions * 10, // Rough estimate: 10 phrases per session
-      hours: Math.round(minutes / 60)
-    })
+  const { data, error } = await query
+  if (error) {
+    console.warn('[Analytics] Failed to fetch class sessions:', error.message)
+    classSessions.value = []
+    return
   }
+  classSessions.value = data || []
+}
 
-  return weeks
-})
+// Aggregate volume stats across all classes
+const totalSpeakingOpportunities = computed(() =>
+  classSessions.value.reduce((sum, s) => sum + (s.cycles_completed || 0), 0)
+)
 
-// Calculate belt distribution from students
-const beltDistribution = computed(() => {
-  const distribution: Record<string, number> = {
-    white: 0, yellow: 0, orange: 0, green: 0, blue: 0, brown: 0, black: 0
-  }
+const totalMinutes = computed(() =>
+  Math.round(classSessions.value.reduce((sum, s) => sum + (s.duration_seconds || 0), 0) / 60)
+)
 
-  studentsData.value.forEach(s => {
-    const belt = getBelt(s.seeds_completed)
-    distribution[belt]++
+// Per-class stats
+const classStats = computed(() => {
+  return classesData.value.map(cls => {
+    const sessions = classSessions.value.filter(s => s.class_id === cls.id)
+    const cycles = sessions.reduce((sum, s) => sum + (s.cycles_completed || 0), 0)
+    const minutes = Math.round(sessions.reduce((sum, s) => sum + (s.duration_seconds || 0), 0) / 60)
+    const sessionCount = sessions.length
+    const language = languageNames[cls.course_code] || cls.course_code
+    const belt = getBeltForSeed(cls.current_seed || 0)
+
+    return {
+      id: cls.id,
+      name: cls.class_name,
+      courseCode: cls.course_code,
+      language,
+      cycles,
+      minutes,
+      sessionCount,
+      currentSeed: cls.current_seed || 0,
+      belt,
+    }
   })
-
-  const total = studentsData.value.length || 1
-
-  return [
-    { name: 'White Belt', color: 'white', count: distribution.white, percentage: Math.round((distribution.white / total) * 100) },
-    { name: 'Yellow Belt', color: 'yellow', count: distribution.yellow, percentage: Math.round((distribution.yellow / total) * 100) },
-    { name: 'Orange Belt', color: 'orange', count: distribution.orange, percentage: Math.round((distribution.orange / total) * 100) },
-    { name: 'Green Belt', color: 'green', count: distribution.green, percentage: Math.round((distribution.green / total) * 100) },
-    { name: 'Blue Belt', color: 'blue', count: distribution.blue, percentage: Math.round((distribution.blue / total) * 100) },
-    { name: 'Brown Belt', color: 'brown', count: distribution.brown, percentage: Math.round((distribution.brown / total) * 100) },
-    { name: 'Black Belt', color: 'black', count: distribution.black, percentage: Math.round((distribution.black / total) * 100) }
-  ]
 })
 
-// Top learners from students data
-const topLearners = computed(() => {
-  return [...studentsData.value]
-    .sort((a, b) => b.seeds_completed - a.seeds_completed)
-    .slice(0, 6)
-    .map((s, idx) => ({
-      id: idx + 1,
-      name: s.display_name,
-      initials: getInitials(s.display_name),
-      class: s.class_name,
-      phrases: s.legos_mastered * 3, // Rough estimate
-      belt: getBelt(s.seeds_completed)
-    }))
+// Primary language (most common across classes)
+const primaryLanguage = computed(() => {
+  const langs = classesData.value.map(c => languageNames[c.course_code] || c.course_code)
+  if (langs.length === 0) return 'the target language'
+  // Most frequent
+  const freq: Record<string, number> = {}
+  langs.forEach(l => { freq[l] = (freq[l] || 0) + 1 })
+  return Object.entries(freq).sort((a, b) => b[1] - a[1])[0][0]
 })
 
-// Course performance - placeholder (would need course enrollment data)
-const coursePerformance = computed(() => {
-  // Group by course if available
-  const courseMap = new Map<string, { students: number; phrases: number }>()
+// New sections covered (sum of current_seed across all classes — rough proxy)
+const totalSectionsCovered = computed(() =>
+  classesData.value.reduce((sum, c) => sum + (c.current_seed || 0), 0)
+)
 
-  studentsData.value.forEach(s => {
-    const courseName = 'Welsh (Northern)' // Default - would come from class/course data
-    const existing = courseMap.get(courseName) || { students: 0, phrases: 0 }
-    existing.students++
-    existing.phrases += s.legos_mastered * 3
-    courseMap.set(courseName, existing)
-  })
-
-  if (courseMap.size === 0) {
-    return [
-      { flag: 'welsh', name: 'Welsh (Northern)', classes: 0, students: 0, phrases: 0, activeRate: 0 }
-    ]
-  }
-
-  return Array.from(courseMap.entries()).map(([name, data]) => ({
-    flag: name.includes('Welsh') ? 'welsh' : 'spanish',
-    name,
-    classes: classRankings.value.length,
-    students: data.students,
-    phrases: data.phrases,
-    activeRate: 90 // Placeholder
-  }))
+// Period label for display
+const periodLabel = computed(() => {
+  if (selectedPeriod.value === '7d') return 'Last 7 days'
+  if (selectedPeriod.value === '30d') return 'Last 30 days'
+  return 'All time'
 })
 
-const beltGradients: Record<string, string> = {
-  white: 'linear-gradient(135deg, #f5f5f5, #e0e0e0)',
-  yellow: 'linear-gradient(135deg, #fbbf24, #d97706)',
-  orange: 'linear-gradient(135deg, #f97316, #ea580c)',
-  green: 'linear-gradient(135deg, #22c55e, #16a34a)',
-  blue: 'linear-gradient(135deg, #3b82f6, #2563eb)',
-  brown: 'linear-gradient(135deg, #92400e, #78350f)',
-  black: 'linear-gradient(135deg, #1f2937, #111827)'
+// Load data
+async function loadData() {
+  isLoading.value = true
+  await fetchClasses()
+  await fetchClassSessions()
+  isLoading.value = false
 }
 
-const beltColors: Record<string, string> = {
-  white: '#333',
-  yellow: '#333',
-  orange: '#fff',
-  green: '#fff',
-  blue: '#fff',
-  brown: '#fff',
-  black: '#fff'
-}
-
-const beltBarColors: Record<string, string> = {
-  white: '#e0e0e0',
-  yellow: '#fbbf24',
-  orange: '#f97316',
-  green: '#22c55e',
-  blue: '#3b82f6',
-  brown: '#92400e',
-  black: '#374151'
-}
-
-function getRankClass(index: number): string {
-  if (index === 0) return 'gold'
-  if (index === 1) return 'silver'
-  if (index === 2) return 'bronze'
-  return 'default'
-}
-
-function handleExport() {
-  console.log('Exporting report...')
-}
-
-// Max cycles for bar chart scaling
-const maxClassCycles = computed(() => {
-  if (!schoolReport.value) return 1
-  return Math.max(...schoolReport.value.classes.map(c => c.total_cycles), 1)
-})
-
-// Load school report
-async function loadSchoolReport() {
-  const schoolId = selectedUser.value?.school_id
-  if (!schoolId) return
-  reportLoading.value = true
-  schoolReport.value = await getSchoolReport(schoolId)
-  reportLoading.value = false
-}
-
-// Animation state
-const isVisible = ref(false)
 onMounted(() => {
-  setTimeout(() => {
-    isVisible.value = true
-  }, 50)
-  if (selectedUser.value) {
-    fetchDailyActivity()
-    fetchClassRankings()
-    fetchStudents()
-    loadSchoolReport()
-  }
+  setTimeout(() => { isVisible.value = true }, 50)
+  if (selectedUser.value) loadData()
 })
 
-watch(selectedUser, (newUser) => {
-  if (newUser) {
-    fetchDailyActivity()
-    fetchClassRankings()
-    fetchStudents()
-    loadSchoolReport()
-  }
-})
+watch(selectedUser, (u) => { if (u) loadData() })
+watch(selectedPeriod, () => fetchClassSessions())
 </script>
 
 <template>
   <div class="analytics-view" :class="{ 'is-visible': isVisible }">
-    <div class="page-content">
-      <!-- Page Header -->
-      <header class="page-header animate-item" :class="{ 'show': isVisible }">
-        <div class="page-title">
-          <h1>School Analytics</h1>
-          <p class="page-subtitle">Track learning progress and engagement across your school</p>
-        </div>
-        <div class="header-actions">
-          <!-- Period Selector -->
-          <div class="period-selector">
-            <button
-              v-for="period in [
-                { key: '7d', label: '7 Days' },
-                { key: '30d', label: '30 Days' },
-                { key: '90d', label: '90 Days' },
-                { key: 'year', label: 'Year' }
-              ]"
-              :key="period.key"
-              class="period-btn"
-              :class="{ active: selectedPeriod === period.key }"
-              @click="selectedPeriod = period.key as TimePeriod"
-            >
-              {{ period.label }}
-            </button>
-          </div>
+    <!-- Header -->
+    <header class="page-header animate-item" :class="{ show: isVisible }">
+      <div class="page-title">
+        <h1>Class Activity</h1>
+        <p class="page-subtitle">How your classes are using SaySomethingin</p>
+      </div>
+      <div class="period-selector">
+        <button
+          v-for="p in ([
+            { key: '7d', label: '7 days' },
+            { key: '30d', label: '30 days' },
+            { key: 'all', label: 'All time' },
+          ] as const)"
+          :key="p.key"
+          class="period-btn"
+          :class="{ active: selectedPeriod === p.key }"
+          @click="selectedPeriod = p.key as TimePeriod"
+        >
+          {{ p.label }}
+        </button>
+      </div>
+    </header>
 
-          <button class="btn btn-secondary" @click="handleExport">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="7 10 12 15 17 10"/>
-              <line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            Export Report
-          </button>
-        </div>
-      </header>
+    <!-- Loading -->
+    <div v-if="isLoading" class="loading-state">
+      <p>Loading class activity...</p>
+    </div>
 
-      <!-- School Speaking Opportunities Report -->
-      <div v-if="schoolReport" class="school-report animate-item delay-1" :class="{ 'show': isVisible }">
-        <!-- School Summary Hero -->
-        <div class="school-hero">
-          <div class="hero-main">
-            <div class="hero-number">{{ schoolReport.schoolTotal.toLocaleString() }}</div>
-            <div class="hero-label">speaking opportunities across {{ schoolReport.classes.length }} classes</div>
-          </div>
-          <div class="hero-comparison">
-            <span class="comp-tag">School avg: <strong>{{ schoolReport.schoolAvgPerClass.toLocaleString() }}</strong>/class</span>
-            <span v-if="schoolReport.regionAvg" class="comp-tag">Regional avg: <strong>{{ schoolReport.regionAvg.avg_total_cycles.toLocaleString() }}</strong>/class</span>
-          </div>
-        </div>
+    <!-- Empty state -->
+    <div v-else-if="classesData.length === 0" class="empty-state animate-item delay-1" :class="{ show: isVisible }">
+      <p>No classes found. Create a class to start tracking activity.</p>
+    </div>
 
-        <!-- Per-class horizontal bar chart -->
-        <div class="class-bars-card">
-          <h3 class="bars-title">Speaking Opportunities by Class</h3>
-          <div class="class-bars">
-            <div
-              v-for="cls in schoolReport.classes"
-              :key="cls.class_id"
-              class="class-bar-row"
-            >
-              <div class="class-bar-label">{{ cls.class_name }}</div>
-              <div class="class-bar-track">
+    <template v-else>
+      <!-- Volume Stats -->
+      <div class="volume-cards animate-item delay-1" :class="{ show: isVisible }">
+        <div class="volume-card">
+          <div class="volume-value">{{ totalSpeakingOpportunities.toLocaleString() }}</div>
+          <div class="volume-label">Speaking opportunities in {{ primaryLanguage }}</div>
+          <div class="volume-period">{{ periodLabel }}</div>
+        </div>
+        <div class="volume-card">
+          <div class="volume-value">{{ totalMinutes.toLocaleString() }}</div>
+          <div class="volume-label">Minutes speaking {{ primaryLanguage }}</div>
+          <div class="volume-period">{{ periodLabel }}</div>
+        </div>
+        <div class="volume-card">
+          <div class="volume-value">{{ totalSectionsCovered.toLocaleString() }}</div>
+          <div class="volume-label">New sections covered</div>
+          <div class="volume-period">Across {{ classesData.length }} {{ classesData.length === 1 ? 'class' : 'classes' }}</div>
+        </div>
+      </div>
+
+      <!-- Per-class breakdown -->
+      <div class="class-table animate-item delay-2" :class="{ show: isVisible }">
+        <h2 class="section-title">By class</h2>
+        <div class="class-rows">
+          <div
+            v-for="cls in classStats"
+            :key="cls.id"
+            class="class-row"
+          >
+            <!-- Class identity -->
+            <div class="class-identity">
+              <div class="class-name">{{ cls.name }}</div>
+              <div class="class-language">{{ cls.language }}</div>
+            </div>
+
+            <!-- Volume stats for this class -->
+            <div class="class-volumes">
+              <div class="class-stat">
+                <span class="class-stat-value">{{ cls.cycles.toLocaleString() }}</span>
+                <span class="class-stat-label">speaking opps</span>
+              </div>
+              <div class="class-stat">
+                <span class="class-stat-value">{{ cls.minutes }}</span>
+                <span class="class-stat-label">minutes</span>
+              </div>
+              <div class="class-stat">
+                <span class="class-stat-value">{{ cls.sessionCount }}</span>
+                <span class="class-stat-label">sessions</span>
+              </div>
+            </div>
+
+            <!-- Belt position -->
+            <div class="class-position">
+              <div class="belt-badge" :style="{ background: cls.belt.color }">
+                {{ cls.belt.name }}
+              </div>
+              <div class="belt-progress-text">
+                {{ cls.belt.sectionsComplete }} / {{ cls.belt.sectionsInBelt }} sections
+              </div>
+              <div class="belt-progress-bar">
                 <div
-                  class="class-bar-fill"
-                  :style="{ width: `${(cls.total_cycles / maxClassCycles) * 100}%` }"
+                  class="belt-progress-fill"
+                  :style="{
+                    width: cls.belt.sectionsInBelt > 0
+                      ? `${Math.min((cls.belt.sectionsComplete / cls.belt.sectionsInBelt) * 100, 100)}%`
+                      : '0%',
+                    background: cls.belt.color
+                  }"
                 ></div>
               </div>
-              <div class="class-bar-value">{{ cls.total_cycles.toLocaleString() }}</div>
             </div>
           </div>
         </div>
       </div>
-
-      <!-- Key Metrics Grid -->
-      <div class="metrics-grid animate-item delay-1" :class="{ 'show': isVisible }">
-        <div class="metric-card red">
-          <div class="accent-bar"></div>
-          <div class="metric-content">
-            <div class="metric-header">
-              <span class="metric-icon">books</span>
-              <span class="metric-trend">
-                {{ metrics.phrasesLearned.trend }}
-              </span>
-            </div>
-            <div class="metric-value">{{ metrics.phrasesLearned.value.toLocaleString() }}</div>
-            <div class="metric-label">Phrases Learned</div>
-            <div class="sparkline">
-              <svg viewBox="0 0 100 30" preserveAspectRatio="none">
-                <path d="M0,25 Q10,20 20,22 T40,15 T60,18 T80,10 T100,5" fill="none" stroke="var(--ssi-red)" stroke-width="2"/>
-                <path d="M0,25 Q10,20 20,22 T40,15 T60,18 T80,10 T100,5 L100,30 L0,30 Z" fill="url(#redGradient)" opacity="0.2"/>
-                <defs>
-                  <linearGradient id="redGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" stop-color="var(--ssi-red)"/>
-                    <stop offset="100%" stop-color="transparent"/>
-                  </linearGradient>
-                </defs>
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        <div class="metric-card gold">
-          <div class="accent-bar"></div>
-          <div class="metric-content">
-            <div class="metric-header">
-              <span class="metric-icon">schedule</span>
-              <span class="metric-trend">
-                {{ metrics.hoursLearned.trend }}
-              </span>
-            </div>
-            <div class="metric-value">{{ metrics.hoursLearned.value }}</div>
-            <div class="metric-label">Hours Learned</div>
-            <div class="sparkline">
-              <svg viewBox="0 0 100 30" preserveAspectRatio="none">
-                <path d="M0,20 Q15,25 30,18 T50,20 T70,12 T100,8" fill="none" stroke="var(--ssi-gold)" stroke-width="2"/>
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        <div class="metric-card green">
-          <div class="accent-bar"></div>
-          <div class="metric-content">
-            <div class="metric-header">
-              <span class="metric-icon">target</span>
-              <span class="metric-trend">
-                {{ metrics.activeRate.trend }}
-              </span>
-            </div>
-            <div class="metric-value">{{ metrics.activeRate.value }}</div>
-            <div class="metric-label">Active Students</div>
-            <div class="sparkline">
-              <svg viewBox="0 0 100 30" preserveAspectRatio="none">
-                <path d="M0,15 Q20,10 40,12 T60,8 T80,10 T100,6" fill="none" stroke="var(--success)" stroke-width="2"/>
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        <div class="metric-card blue">
-          <div class="accent-bar"></div>
-          <div class="metric-content">
-            <div class="metric-header">
-              <span class="metric-icon">trophy</span>
-              <span class="metric-trend">
-                {{ metrics.beltPromotions.trend }}
-              </span>
-            </div>
-            <div class="metric-value">{{ metrics.beltPromotions.value }}</div>
-            <div class="metric-label">Belt Promotions</div>
-            <div class="sparkline">
-              <svg viewBox="0 0 100 30" preserveAspectRatio="none">
-                <path d="M0,22 Q25,20 35,15 T55,18 T75,10 T100,12" fill="none" stroke="var(--info)" stroke-width="2"/>
-              </svg>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Charts Row -->
-      <div class="charts-grid animate-item delay-2" :class="{ 'show': isVisible }">
-        <!-- Activity Chart -->
-        <div class="card activity-card">
-          <div class="card-header">
-            <h2 class="card-title">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="20" x2="18" y2="10"/>
-                <line x1="12" y1="20" x2="12" y2="4"/>
-                <line x1="6" y1="20" x2="6" y2="14"/>
-              </svg>
-              Learning Activity
-            </h2>
-            <div class="chart-legend">
-              <span class="legend-item">
-                <span class="legend-color red"></span>
-                Phrases
-              </span>
-              <span class="legend-item">
-                <span class="legend-color gold"></span>
-                Hours
-              </span>
-            </div>
-          </div>
-          <div class="card-body">
-            <div class="activity-chart">
-              <div class="chart-grid">
-                <div class="chart-grid-line" data-value="4000"></div>
-                <div class="chart-grid-line" data-value="3000"></div>
-                <div class="chart-grid-line" data-value="2000"></div>
-                <div class="chart-grid-line" data-value="1000"></div>
-                <div class="chart-grid-line" data-value="0"></div>
-              </div>
-              <div class="chart-bars">
-                <div
-                  v-for="week in weeklyActivity"
-                  :key="week.label"
-                  class="chart-bar-group"
-                >
-                  <div class="bar-pair">
-                    <div
-                      class="chart-bar primary"
-                      :style="{ height: `${(week.phrases / 4500) * 100}%` }"
-                    ></div>
-                    <div
-                      class="chart-bar secondary"
-                      :style="{ height: `${(week.hours / 300) * 100}%` }"
-                    ></div>
-                  </div>
-                  <span class="chart-bar-label">{{ week.label }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Belt Distribution -->
-        <div class="card belt-card">
-          <div class="card-header">
-            <h2 class="card-title">
-              Belt Distribution
-            </h2>
-          </div>
-          <div class="card-body">
-            <div class="belt-distribution">
-              <div
-                v-for="belt in beltDistribution"
-                :key="belt.name"
-                class="belt-row"
-              >
-                <div
-                  class="belt-icon"
-                  :style="{ background: beltGradients[belt.color], color: beltColors[belt.color] }"
-                >
-                  belt
-                </div>
-                <div class="belt-info">
-                  <div class="belt-name">{{ belt.name }}</div>
-                  <div class="belt-bar-track">
-                    <div
-                      class="belt-bar-fill"
-                      :style="{
-                        width: `${belt.percentage}%`,
-                        background: beltBarColors[belt.color]
-                      }"
-                    ></div>
-                  </div>
-                </div>
-                <div class="belt-count">{{ belt.count }}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Bottom Row -->
-      <div class="bottom-grid animate-item delay-3" :class="{ 'show': isVisible }">
-        <!-- Top Learners -->
-        <div class="card leaderboard-card">
-          <div class="card-header">
-            <h2 class="card-title">
-              Top Learners This Month
-            </h2>
-            <router-link to="/schools/students" class="btn btn-secondary btn-sm">
-              View All
-            </router-link>
-          </div>
-          <div class="card-body">
-            <div class="leaderboard-grid">
-              <div
-                v-for="(learner, index) in topLearners"
-                :key="learner.id"
-                class="leaderboard-item"
-              >
-                <div class="leaderboard-rank" :class="getRankClass(index)">
-                  {{ index + 1 }}
-                </div>
-                <div
-                  class="leaderboard-avatar"
-                  :style="{
-                    background: beltGradients[learner.belt],
-                    color: beltColors[learner.belt]
-                  }"
-                >
-                  {{ learner.initials }}
-                </div>
-                <div class="leaderboard-info">
-                  <div class="leaderboard-name">{{ learner.name }}</div>
-                  <div class="leaderboard-class">{{ learner.class }}</div>
-                </div>
-                <div class="leaderboard-score">
-                  <div class="leaderboard-score-value">{{ learner.phrases.toLocaleString() }}</div>
-                  <div class="leaderboard-score-label">phrases</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Course Performance -->
-        <div class="card course-card">
-          <div class="card-header">
-            <h2 class="card-title">
-              Course Performance
-            </h2>
-          </div>
-          <div class="card-body">
-            <div class="course-performance">
-              <div
-                v-for="course in coursePerformance"
-                :key="course.name"
-                class="course-item"
-              >
-                <div class="course-flag">
-                  <template v-if="course.flag === 'welsh'">welsh</template>
-                  <template v-else>spanish</template>
-                </div>
-                <div class="course-info">
-                  <div class="course-name">{{ course.name }}</div>
-                  <div class="course-meta">
-                    {{ course.classes }} classes &bull; {{ course.students }} students
-                  </div>
-                </div>
-                <div class="course-stats">
-                  <div class="course-stat">
-                    <div class="course-stat-value red">{{ course.phrases.toLocaleString() }}</div>
-                    <div class="course-stat-label">Phrases</div>
-                  </div>
-                  <div class="course-stat">
-                    <div class="course-stat-value gold">{{ course.activeRate }}%</div>
-                    <div class="course-stat-label">Active</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    </template>
   </div>
 </template>
 
 <style scoped>
-/* ========== Layout ========== */
 .analytics-view {
-  min-height: 100vh;
-  background: var(--bg-primary);
+  max-width: 1100px;
 }
 
-.page-content {
-  padding: 32px;
-  max-width: 1440px;
-  margin: 0 auto;
-}
-
-/* ========== Header ========== */
+/* Header */
 .page-header {
   display: flex;
+  align-items: flex-start;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 32px;
+  gap: var(--space-6);
+  margin-bottom: var(--space-8);
+  flex-wrap: wrap;
 }
 
 .page-title h1 {
-  font-family: 'Noto Sans JP', system-ui, sans-serif;
-  font-size: 30px;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: 6px;
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  font-weight: var(--font-bold);
+  margin-bottom: var(--space-1);
 }
 
 .page-subtitle {
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: var(--text-sm);
+  margin: 0;
 }
 
-.header-actions {
-  display: flex;
-  gap: 16px;
-  align-items: center;
-}
-
-/* Period Selector */
 .period-selector {
   display: flex;
-  gap: 6px;
+  gap: var(--space-1);
   background: var(--bg-card);
-  padding: 5px;
-  border-radius: 12px;
+  padding: var(--space-1);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-subtle);
 }
 
 .period-btn {
-  padding: 10px 18px;
-  border-radius: 8px;
-  border: none;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
   background: transparent;
+  border: none;
   color: var(--text-secondary);
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
   cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.period-btn:hover {
-  color: var(--text-primary);
+  transition: all 0.15s ease;
 }
 
 .period-btn.active {
+  background: var(--ssi-red);
+  color: white;
+}
+
+.period-btn:hover:not(.active) {
   background: var(--bg-elevated);
-  color: var(--text-primary);
 }
 
-/* ========== Buttons ========== */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 13px 22px;
-  border-radius: 12px;
-  border: none;
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  text-decoration: none;
+/* Volume Cards */
+.volume-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-5);
+  margin-bottom: var(--space-8);
 }
 
-.btn-secondary {
+.volume-card {
   background: var(--bg-card);
-  color: var(--text-primary);
-  border: 1px solid var(--border-medium);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6);
 }
 
-.btn-secondary:hover {
-  background: var(--bg-elevated);
+.volume-value {
+  font-size: 2.5rem;
+  font-weight: var(--font-bold);
+  line-height: 1;
+  margin-bottom: var(--space-2);
+  color: var(--text-primary);
+}
+
+.volume-label {
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-1);
+}
+
+.volume-period {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* Class Table */
+.section-title {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: var(--font-bold);
+  margin-bottom: var(--space-4);
+}
+
+.class-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.class-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: var(--space-6);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5) var(--space-6);
+  transition: border-color 0.15s ease;
+}
+
+.class-row:hover {
   border-color: var(--ssi-red);
 }
 
-.btn-sm {
-  padding: 8px 14px;
-  font-size: 13px;
-}
-
-/* ========== School Report ========== */
-.school-report {
-  margin-bottom: 32px;
-}
-
-.school-hero {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-left: 4px solid var(--ssi-red);
-  border-radius: 18px;
-  padding: 32px;
-  margin-bottom: 20px;
-}
-
-.school-hero .hero-main {
-  margin-bottom: 16px;
-}
-
-.school-hero .hero-number {
-  font-family: 'Noto Sans JP', sans-serif;
-  font-size: 48px;
-  font-weight: 700;
-  color: var(--text-primary);
-  line-height: 1;
-}
-
-.school-hero .hero-label {
-  font-size: 16px;
-  color: var(--text-secondary);
-  margin-top: 4px;
-}
-
-.hero-comparison {
-  display: flex;
-  gap: 20px;
-  flex-wrap: wrap;
-}
-
-.comp-tag {
-  font-size: 14px;
-  color: var(--text-secondary);
-  padding: 6px 14px;
-  background: var(--bg-secondary);
-  border-radius: 8px;
-}
-
-.comp-tag strong {
-  color: var(--text-primary);
-}
-
-.class-bars-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 18px;
-  padding: 24px;
-}
-
-.bars-title {
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 20px;
-}
-
-.class-bars {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.class-bar-row {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.class-bar-label {
-  width: 160px;
-  flex-shrink: 0;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.class-bar-track {
-  flex: 1;
-  height: 28px;
-  background: var(--bg-secondary);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.class-bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--ssi-red), var(--ssi-red-light, #d45555));
-  border-radius: 8px;
-  transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
-  min-width: 4px;
-}
-
-.class-bar-value {
-  width: 80px;
-  flex-shrink: 0;
-  text-align: right;
-  font-family: 'Noto Sans JP', sans-serif;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--ssi-gold);
-}
-
-/* ========== Metrics Grid ========== */
-.metrics-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 20px;
-  margin-bottom: 32px;
-}
-
-.metric-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 18px;
-  position: relative;
-  overflow: hidden;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.metric-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
-}
-
-.metric-card .accent-bar {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-}
-
-.metric-card.red .accent-bar { background: linear-gradient(90deg, var(--ssi-red), var(--ssi-red-light)); }
-.metric-card.gold .accent-bar { background: linear-gradient(90deg, var(--ssi-gold-dark), var(--ssi-gold)); }
-.metric-card.green .accent-bar { background: linear-gradient(90deg, #16a34a, var(--success)); }
-.metric-card.blue .accent-bar { background: linear-gradient(90deg, #2563eb, var(--info)); }
-
-.metric-content {
-  padding: 24px;
-}
-
-.metric-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 14px;
-}
-
-.metric-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-}
-
-.metric-card.red .metric-icon { background: rgba(194, 58, 58, 0.15); }
-.metric-card.gold .metric-icon { background: rgba(212, 168, 83, 0.15); }
-.metric-card.green .metric-icon { background: rgba(74, 222, 128, 0.15); }
-.metric-card.blue .metric-icon { background: rgba(96, 165, 250, 0.15); }
-
-.metric-trend {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 5px 10px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.metric-trend.up {
-  background: rgba(74, 222, 128, 0.15);
-  color: var(--success);
-}
-
-.metric-trend.down {
-  background: rgba(239, 68, 68, 0.15);
-  color: var(--error);
-}
-
-.metric-value {
-  font-family: 'Noto Sans JP', sans-serif;
-  font-size: 38px;
-  font-weight: 700;
-  margin-bottom: 4px;
-  color: var(--text-primary);
-}
-
-.metric-label {
-  color: var(--text-secondary);
-  font-size: 14px;
-}
-
-.sparkline {
-  margin-top: 16px;
-  height: 40px;
-}
-
-.sparkline svg {
-  width: 100%;
-  height: 100%;
-}
-
-/* ========== Cards ========== */
-.card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 18px;
-  overflow: hidden;
-}
-
-.card-header {
-  padding: 20px 24px;
-  border-bottom: 1px solid var(--border-subtle);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.card-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.card-title svg {
-  color: var(--ssi-red);
-}
-
-.card-body {
-  padding: 24px;
-}
-
-/* ========== Charts Grid ========== */
-.charts-grid {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 24px;
-  margin-bottom: 32px;
-}
-
-/* Chart Legend */
-.chart-legend {
-  display: flex;
-  gap: 20px;
-  font-size: 12px;
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-secondary);
-}
-
-.legend-color {
-  width: 14px;
-  height: 14px;
-  border-radius: 3px;
-}
-
-.legend-color.red { background: var(--ssi-red); }
-.legend-color.gold { background: var(--ssi-gold); opacity: 0.7; }
-
-/* Activity Chart */
-.activity-chart {
-  height: 280px;
-  position: relative;
-}
-
-.chart-grid {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-}
-
-.chart-grid-line {
-  border-bottom: 1px dashed var(--border-subtle);
-  position: relative;
-}
-
-.chart-grid-line::before {
-  content: attr(data-value);
-  position: absolute;
-  left: -45px;
-  top: -8px;
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.chart-bars {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-around;
-  padding: 0 40px;
-}
-
-.chart-bar-group {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-
-.bar-pair {
-  display: flex;
-  gap: 6px;
-  align-items: flex-end;
-  height: 240px;
-}
-
-.chart-bar {
-  width: 28px;
-  border-radius: 6px 6px 0 0;
-  transition: height 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.chart-bar.primary {
-  background: linear-gradient(180deg, var(--ssi-red) 0%, var(--ssi-red-dark) 100%);
-}
-
-.chart-bar.secondary {
-  background: linear-gradient(180deg, var(--ssi-gold) 0%, var(--ssi-gold-dark) 100%);
-  opacity: 0.65;
-}
-
-.chart-bar-label {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-/* ========== Belt Distribution ========== */
-.belt-distribution {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.belt-row {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.belt-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  flex-shrink: 0;
-}
-
-.belt-info {
-  flex: 1;
-}
-
-.belt-name {
-  font-size: 14px;
-  font-weight: 500;
-  margin-bottom: 6px;
-  color: var(--text-primary);
-}
-
-.belt-bar-track {
-  height: 10px;
-  background: var(--bg-secondary);
-  border-radius: 5px;
-  overflow: hidden;
-}
-
-.belt-bar-fill {
-  height: 100%;
-  border-radius: 5px;
-  transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.belt-count {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--ssi-gold);
-  min-width: 40px;
-  text-align: right;
-}
-
-/* ========== Bottom Grid ========== */
-.bottom-grid {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 24px;
-}
-
-/* ========== Leaderboard ========== */
-.leaderboard-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-}
-
-.leaderboard-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px;
-  background: var(--bg-secondary);
-  border-radius: 14px;
-  transition: all 0.2s ease;
-}
-
-.leaderboard-item:hover {
-  background: var(--bg-elevated);
-  transform: translateX(4px);
-}
-
-.leaderboard-rank {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 13px;
-  flex-shrink: 0;
-}
-
-.leaderboard-rank.gold { background: linear-gradient(135deg, #fbbf24, #d97706); color: #1f2937; }
-.leaderboard-rank.silver { background: linear-gradient(135deg, #94a3b8, #64748b); color: white; }
-.leaderboard-rank.bronze { background: linear-gradient(135deg, #d97706, #92400e); color: white; }
-.leaderboard-rank.default { background: var(--bg-card); color: var(--text-secondary); }
-
-.leaderboard-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 14px;
-  flex-shrink: 0;
-}
-
-.leaderboard-info {
-  flex: 1;
+.class-identity {
   min-width: 0;
 }
 
-.leaderboard-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.leaderboard-class {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-.leaderboard-score {
-  text-align: right;
-}
-
-.leaderboard-score-value {
-  font-family: 'Noto Sans JP', sans-serif;
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--ssi-gold);
-}
-
-.leaderboard-score-label {
-  font-size: 10px;
-  color: var(--text-muted);
-  text-transform: uppercase;
-}
-
-/* ========== Course Performance ========== */
-.course-performance {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.course-item {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  padding: 18px;
-  background: var(--bg-secondary);
-  border-radius: 14px;
-  transition: all 0.2s ease;
-}
-
-.course-item:hover {
-  background: var(--bg-elevated);
-}
-
-.course-flag {
-  font-size: 32px;
-  flex-shrink: 0;
-}
-
-.course-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.course-name {
-  font-size: 16px;
-  font-weight: 600;
-  margin-bottom: 4px;
+.class-name {
+  font-weight: var(--font-semibold);
+  font-size: var(--text-base);
   color: var(--text-primary);
 }
 
-.course-meta {
-  font-size: 13px;
+.class-language {
+  font-size: var(--text-sm);
   color: var(--text-muted);
+  margin-top: 2px;
 }
 
-.course-stats {
+.class-volumes {
   display: flex;
-  gap: 28px;
+  gap: var(--space-6);
 }
 
-.course-stat {
+.class-stat {
   text-align: center;
+  min-width: 70px;
 }
 
-.course-stat-value {
-  font-family: 'Noto Sans JP', sans-serif;
-  font-size: 22px;
-  font-weight: 700;
+.class-stat-value {
+  display: block;
+  font-size: var(--text-lg);
+  font-weight: var(--font-bold);
+  color: var(--text-primary);
 }
 
-.course-stat-value.red { color: var(--ssi-red); }
-.course-stat-value.gold { color: var(--ssi-gold); }
-
-.course-stat-label {
-  font-size: 11px;
+.class-stat-label {
+  display: block;
+  font-size: var(--text-xs);
   color: var(--text-muted);
-  text-transform: uppercase;
+  margin-top: 2px;
 }
 
-/* ========== Animations ========== */
+/* Belt Position */
+.class-position {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+  min-width: 140px;
+}
+
+.belt-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 100px;
+  font-size: var(--text-xs);
+  font-weight: var(--font-bold);
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.belt-progress-text {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.belt-progress-bar {
+  width: 100%;
+  height: 4px;
+  background: var(--bg-secondary);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.belt-progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.6s ease;
+}
+
+/* States */
+.loading-state, .empty-state {
+  text-align: center;
+  padding: var(--space-12);
+  color: var(--text-muted);
+}
+
+/* Animations */
 .animate-item {
   opacity: 0;
-  transform: translateY(24px);
-  transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform: translateY(12px);
+  transition: opacity 0.4s ease, transform 0.4s ease;
 }
 
 .animate-item.show {
@@ -1282,54 +501,30 @@ watch(selectedUser, (newUser) => {
   transform: translateY(0);
 }
 
-.animate-item.delay-1 { transition-delay: 0.1s; }
-.animate-item.delay-2 { transition-delay: 0.2s; }
-.animate-item.delay-3 { transition-delay: 0.3s; }
+.delay-1 { transition-delay: 0.1s; }
+.delay-2 { transition-delay: 0.2s; }
 
-/* ========== Responsive ========== */
-@media (max-width: 1200px) {
-  .metrics-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .charts-grid,
-  .bottom-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .leaderboard-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
+/* Responsive */
 @media (max-width: 768px) {
-  .page-content {
-    padding: 20px;
-  }
-
   .page-header {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 20px;
   }
 
-  .header-actions {
-    flex-direction: column;
-    width: 100%;
-    align-items: stretch;
-  }
-
-  .period-selector {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .metrics-grid {
+  .volume-cards {
     grid-template-columns: 1fr;
   }
 
-  .metric-value {
-    font-size: 32px;
+  .class-row {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+
+  .class-volumes {
+    justify-content: space-between;
+  }
+
+  .class-position {
+    align-items: flex-start;
   }
 }
 </style>

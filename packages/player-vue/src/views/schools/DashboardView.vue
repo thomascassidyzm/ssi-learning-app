@@ -225,45 +225,53 @@ onMounted(() => {
 
     <!-- Stats Grid (admin) -->
     <div v-else-if="!isTeacher" class="stats-grid animate-in delay-1">
-      <Card variant="stats" accent="blue">
-        <div class="stat-card">
-          <div class="stat-icon">&#128101;</div>
-          <div class="stat-content">
-            <div class="stat-value">{{ totalStudents.toLocaleString() }}</div>
-            <div class="stat-label">{{ isGovtAdmin ? 'Total Students' : 'Active Students' }}</div>
+      <router-link to="/schools/students" class="stat-link">
+        <Card variant="stats" accent="blue">
+          <div class="stat-card">
+            <div class="stat-icon">&#128101;</div>
+            <div class="stat-content">
+              <div class="stat-value">{{ totalStudents.toLocaleString() }}</div>
+              <div class="stat-label">{{ isGovtAdmin ? 'Total Students' : 'Active Students' }}</div>
+            </div>
           </div>
-        </div>
-      </Card>
+        </Card>
+      </router-link>
 
-      <Card variant="stats" accent="gold">
-        <div class="stat-card">
-          <div class="stat-icon">&#128337;</div>
-          <div class="stat-content">
-            <div class="stat-value">{{ practiceHoursDisplay.toLocaleString() }}</div>
-            <div class="stat-label">Hours Practiced</div>
+      <router-link to="/schools/analytics" class="stat-link">
+        <Card variant="stats" accent="gold">
+          <div class="stat-card">
+            <div class="stat-icon">&#128337;</div>
+            <div class="stat-content">
+              <div class="stat-value">{{ practiceHoursDisplay.toLocaleString() }}</div>
+              <div class="stat-label">Hours Practiced</div>
+            </div>
           </div>
-        </div>
-      </Card>
+        </Card>
+      </router-link>
 
-      <Card variant="stats" accent="red">
-        <div class="stat-card">
-          <div class="stat-icon">&#128218;</div>
-          <div class="stat-content">
-            <div class="stat-value">{{ totalClasses }}</div>
-            <div class="stat-label">{{ isGovtAdmin ? 'Total Classes' : 'Active Classes' }}</div>
+      <router-link to="/schools/classes" class="stat-link">
+        <Card variant="stats" accent="red">
+          <div class="stat-card">
+            <div class="stat-icon">&#128218;</div>
+            <div class="stat-content">
+              <div class="stat-value">{{ totalClasses }}</div>
+              <div class="stat-label">{{ isGovtAdmin ? 'Total Classes' : 'Active Classes' }}</div>
+            </div>
           </div>
-        </div>
-      </Card>
+        </Card>
+      </router-link>
 
-      <Card variant="stats" accent="green">
-        <div class="stat-card">
-          <div class="stat-icon">&#127979;</div>
-          <div class="stat-content">
-            <div class="stat-value">{{ totalTeachers }}</div>
+      <router-link to="/schools/teachers" class="stat-link">
+        <Card variant="stats" accent="green">
+          <div class="stat-card">
+            <div class="stat-icon">&#127979;</div>
+            <div class="stat-content">
+              <div class="stat-value">{{ totalTeachers }}</div>
             <div class="stat-label">Teachers</div>
           </div>
         </div>
       </Card>
+      </router-link>
     </div>
 
     <!-- Schools in Region (Govt Admin only, at regional level) -->
@@ -591,6 +599,19 @@ onMounted(() => {
   margin-bottom: var(--space-8);
 }
 
+.stat-link {
+  text-decoration: none;
+  color: inherit;
+  border-radius: var(--radius-xl);
+  transition: all 0.2s ease;
+}
+
+.stat-link:hover {
+  transform: translateY(-3px);
+  filter: brightness(1.02);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
 .stat-card {
   display: flex;
   align-items: flex-start;
@@ -836,16 +857,20 @@ onMounted(() => {
   gap: var(--space-3);
   padding: var(--space-6);
   background: var(--bg-secondary);
+  border: 1px solid transparent;
   border-radius: var(--radius-lg);
   text-decoration: none;
   color: var(--text-secondary);
-  transition: all var(--transition-base);
+  transition: all 0.2s ease;
+  cursor: pointer;
 }
 
 .action-card:hover {
   background: var(--bg-elevated);
-  color: var(--text-primary);
-  transform: translateY(-2px);
+  color: var(--ssi-red, #c23a3a);
+  border-color: var(--ssi-red, #c23a3a);
+  transform: translateY(-3px);
+  box-shadow: 0 4px 16px rgba(194, 58, 58, 0.15);
 }
 
 .action-icon {

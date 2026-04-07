@@ -6412,12 +6412,14 @@ defineExpose({
       </svg>
     </div>
 
-    <!-- Class Context Banner (when launched from Schools) -->
-    <div v-if="props.classContext" class="class-banner">
-      <span class="class-icon">🏫</span>
-      <span class="class-name">{{ props.classContext.name }}</span>
-      <span class="class-course">{{ props.classContext.course }}</span>
-    </div>
+    <!-- Class Context Bar (when launched from Schools) -->
+    <button v-if="props.classContext" class="class-bar" @click="emit('close')">
+      <svg class="class-bar-back" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="15 18 9 12 15 6"/>
+      </svg>
+      <span class="class-bar-name">{{ props.classContext.name }}</span>
+      <span class="class-bar-label">Back to classes</span>
+    </button>
 
     <!-- Header - Logo with belt underneath, centered -->
     <!-- Header - brand row + belt row -->
@@ -7376,38 +7378,46 @@ defineExpose({
   }
 }
 
-/* ============ CLASS BANNER (Schools context) ============ */
-.class-banner {
+/* ============ CLASS BAR (Schools context — teacher navigation) ============ */
+.class-bar {
   position: fixed;
-  top: 0.5rem;
-  right: 0.5rem;
+  top: 0;
+  left: 0;
+  right: 0;
   z-index: 50;
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.3rem 0.65rem;
-  background: rgba(20, 20, 32, 0.85);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(194, 58, 58, 0.25);
-  border-radius: 100px;
-  pointer-events: none;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: rgba(20, 20, 32, 0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(194, 58, 58, 0.2);
+  cursor: pointer;
+  transition: background 0.2s ease;
+  border: none;
+  width: 100%;
+  text-align: left;
 }
 
-.class-icon {
-  font-size: 0.7rem;
+.class-bar:hover {
+  background: rgba(30, 30, 45, 0.95);
 }
 
-.class-name {
+.class-bar-back {
+  color: var(--ssi-red, #c23a3a);
+  flex-shrink: 0;
+}
+
+.class-bar-name {
   font-weight: 600;
-  font-size: 0.7rem;
+  font-size: 0.875rem;
   color: #ffffff;
 }
 
-.class-course {
-  font-size: 0.625rem;
-  color: rgba(255, 255, 255, 0.7);
-  padding-left: 0.35rem;
-  border-left: 1px solid var(--border-subtle);
+.class-bar-label {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
 }
 
 /* ============ HEADER ============ */
@@ -7423,7 +7433,7 @@ defineExpose({
 }
 
 .header.has-banner {
-  padding-top: 0.5rem;
+  padding-top: 2.25rem;
 }
 
 /* Header stack - logo on top, belt underneath */
