@@ -6,13 +6,20 @@
  * Submits feedback directly to the tester_feedback Supabase table.
  */
 import { ref, computed, inject } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useUserRole } from '@/composables/useUserRole'
 
 const { isTester, isSsiAdmin } = useUserRole()
 const showWidget = computed(() => isTester.value || isSsiAdmin.value)
 
 const router = useRouter()
+const route = useRoute()
+
+// Position the FAB so it never overlaps navigation
+// Schools pages have no bottom nav — bottom-left is fine
+// Player page has a centred bottom nav — tuck into top-left below the header
+const isSchoolsPage = computed(() => route.path.startsWith('/schools'))
+const fabPositionClass = computed(() => isSchoolsPage.value ? 'fab-bottom-left' : 'fab-top-left')
 const supabase = inject<{ value: any }>('supabase')
 const auth = inject<any>('auth')
 
@@ -170,6 +177,7 @@ async function submitFeedback() {
     <button
       v-if="!isPanelOpen"
       class="feedback-fab"
+      :class="fabPositionClass"
       aria-label="Report feedback"
       @click="openPanel"
     >
@@ -311,8 +319,6 @@ async function submitFeedback() {
 /* Floating action button */
 .feedback-fab {
   position: fixed;
-  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
-  left: 24px;
   z-index: 9998;
   width: 48px;
   height: 48px;
@@ -326,6 +332,23 @@ async function submitFeedback() {
   cursor: pointer;
   box-shadow: 0 2px 12px rgba(45, 156, 219, 0.4);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Schools pages: bottom-left (no bottom nav to conflict with) */
+.feedback-fab.fab-bottom-left {
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  left: 24px;
+}
+
+/* Player page: top-left, below header (avoids bottom nav) */
+.feedback-fab.fab-top-left {
+  top: 80px;
+  left: 16px;
+  opacity: 0.7;
+}
+
+.feedback-fab.fab-top-left:hover {
+  opacity: 1;
 }
 
 .feedback-fab:hover {
