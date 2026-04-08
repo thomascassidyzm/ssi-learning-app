@@ -1197,48 +1197,8 @@ const confirmReset = async () => {
           </div>
         </div>
 
-        <h3 class="section-title">Practice Modes</h3>
+        <h3 class="section-title">Tools</h3>
         <div class="card">
-          <div class="setting-row clickable" @click="toggleListeningMode">
-            <div class="setting-info">
-              <span class="setting-label">Listening Mode</span>
-              <span class="setting-desc">Review phrases with passive listening. Adds a headphones button to the player.</span>
-            </div>
-            <div class="toggle-switch" :class="{ 'is-on': showListeningMode }">
-              <div class="toggle-track">
-                <div class="toggle-thumb"></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="setting-row clickable" @click="togglePronunciationMode">
-            <div class="setting-info">
-              <span class="setting-label">Pronunciation Practice</span>
-              <span class="setting-desc">Record yourself and compare with native speakers. Adds a microphone button to the player.</span>
-            </div>
-            <div class="toggle-switch" :class="{ 'is-on': showPronunciationMode }">
-              <div class="toggle-track">
-                <div class="toggle-thumb"></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="setting-row clickable" @click="toggleDrivingMode">
-            <div class="setting-info">
-              <span class="setting-label">Driving Mode</span>
-              <span class="setting-desc">Hands-free learning while driving. Adds a car button to the player.</span>
-            </div>
-            <div class="toggle-switch" :class="{ 'is-on': showDrivingMode }">
-              <div class="toggle-track">
-                <div class="toggle-thumb"></div>
-              </div>
-            </div>
-          </div>
-
           <template v-if="showViewScript">
             <div class="divider"></div>
 

@@ -115,7 +115,6 @@ const handleMode = (mode: string) => {
 
         <!-- Listening mode -->
         <button
-          v-if="showListeningBtn"
           class="tray-item"
           :class="{ active: isListeningMode }"
           @click="handleMode('listening')"
@@ -135,7 +134,6 @@ const handleMode = (mode: string) => {
 
         <!-- Driving mode -->
         <button
-          v-if="showDrivingBtn"
           class="tray-item"
           :class="{ active: isDrivingMode }"
           @click="handleMode('driving')"
@@ -155,7 +153,6 @@ const handleMode = (mode: string) => {
 
         <!-- Pronunciation mode -->
         <button
-          v-if="showPronunciationBtn"
           class="tray-item"
           :class="{ active: isPronunciationMode }"
           @click="handleMode('pronunciation')"
