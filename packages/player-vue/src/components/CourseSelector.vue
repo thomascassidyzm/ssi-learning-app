@@ -250,6 +250,7 @@ const handleCourseSelect = (course) => {
   if (navigator.vibrate) {
     navigator.vibrate(10)
   }
+  searchQuery.value = ''
   emit('selectCourse', course)
 }
 
@@ -259,8 +260,9 @@ watch(() => props.defaultKnownLang, (newVal) => {
 })
 
 watch(() => props.isOpen, (newVal) => {
-  if (newVal && allCourses.value.length === 0) {
-    fetchCourses()
+  if (newVal) {
+    searchQuery.value = ''
+    if (allCourses.value.length === 0) fetchCourses()
   }
 })
 
