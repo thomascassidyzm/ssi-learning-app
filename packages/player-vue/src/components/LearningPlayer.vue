@@ -6045,6 +6045,8 @@ defineExpose({
   hasRomanizedText,
   isNativeScript,
   toggleScriptMode,
+  toggleTurbo,
+  turboActive,
   sessionSeconds,
 })
 </script>

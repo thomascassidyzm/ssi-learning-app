@@ -220,6 +220,12 @@ const handleToggleScript = () => {
   }
 }
 
+const handleToggleTurbo = () => {
+  if (learningPlayerRef.value?.toggleTurbo) {
+    learningPlayerRef.value.toggleTurbo()
+  }
+}
+
 // Handle view progress from LearningPlayer (belt modal)
 const handleViewProgress = () => {
   navigate('progress')
@@ -524,6 +530,7 @@ onMounted(() => {
       :showListeningBtn="showListeningBtn"
       :showPronunciationBtn="showPronunciationBtn"
       :showDrivingBtn="showDrivingBtn"
+      :isTurboMode="learningPlayerRef?.turboActive ?? false"
       @navigate="handleNavigation"
       @startLearning="handleStartLearning"
       @togglePlayback="handleTogglePlayback"
@@ -534,6 +541,7 @@ onMounted(() => {
       @toggleDriving="handleToggleDriving"
       @togglePronunciation="handleTogglePronunciation"
       @toggleScript="handleToggleScript"
+      @toggleTurbo="handleToggleTurbo"
       @revisit="handleRevisit"
       @skip="handleSkip"
       @openSettings="toggleSettings"
