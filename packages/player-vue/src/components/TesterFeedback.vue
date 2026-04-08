@@ -13,10 +13,11 @@ const { isTester, isSsiAdmin } = useUserRole()
 const showWidget = computed(() => isTester.value || isSsiAdmin.value)
 
 const router = useRouter()
+const route = useRoute()
 const supabase = inject<{ value: any }>('supabase')
 
 // --- Draggable FAB ---
-const fabX = ref<number | null>(null)
+const fabX = ref<number | null>(null) // null = use CSS default position
 const fabY = ref<number | null>(null)
 const isDragging = ref(false)
 const dragStartX = ref(0)

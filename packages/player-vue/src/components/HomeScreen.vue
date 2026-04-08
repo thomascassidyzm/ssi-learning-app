@@ -46,7 +46,9 @@ const activeCourseData = computed(() => {
 
   return {
     ...course,
-    title: getLanguageName(course.target_lang),
+    title: course.variant_label
+      ? `${getLanguageName(course.target_lang)} (${course.variant_label})`
+      : getLanguageName(course.target_lang),
     subtitle: course.subtitle || t('courseSelector.forSpeakers', `for ${knownName} Speakers`).replace('{lang}', knownName),
     // Progress fields (from learner data or defaults)
     completedRounds: course.completedRounds || course.completed_seeds || 0,

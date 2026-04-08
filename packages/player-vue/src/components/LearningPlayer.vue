@@ -249,7 +249,11 @@ const courseTargetLang = computed(() => {
 
 const courseDisplayName = computed(() => {
   if (!props.course) return ''
-  return getLanguageName(courseTargetLang.value)
+  const baseName = getLanguageName(courseTargetLang.value)
+  if (props.course.variant_label) {
+    return `${baseName} (${props.course.variant_label})`
+  }
+  return baseName
 })
 
 // Check if launched from dashboard in QA mode

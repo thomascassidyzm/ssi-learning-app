@@ -65,8 +65,14 @@ const isBetaCourse = (course) => {
 // Target language name in the known language (via locale)
 // e.g., for eus_for_spa: "Euskera" (Basque in Spanish)
 const getTargetDisplayName = (course) => {
+  if (course.variant_label) {
+    return `${getLanguageName(course.target_lang)} (${course.variant_label})`
+  }
   return getLanguageName(course.target_lang)
 }
+
+// Track which language group is expanded (for variant sub-selection)
+const expandedLangGroup = ref(null)
 
 const props = defineProps({
   isOpen: {
@@ -155,6 +161,35 @@ const availableCourses = computed(() => {
       return nameA.localeCompare(nameB)
     })
 })
+
+// Group courses by target language for variant handling
+// Languages with multiple courses (e.g. Welsh North/South) get a sub-picker
+const courseGroups = computed(() => {
+  const groups = new Map()
+  for (const course of availableCourses.value) {
+    const key = course.target_lang
+    if (!groups.has(key)) {
+      groups.set(key, {
+        target_lang: key,
+        name: getLanguageName(key),
+        courses: []
+      })
+    }
+    groups.get(key).courses.push(course)
+  }
+  return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name))
+})
+
+// Handle clicking a language group
+const handleGroupClick = (group) => {
+  if (group.courses.length === 1) {
+    // Single course — select directly
+    handleCourseSelect(group.courses[0])
+  } else {
+    // Multiple variants — toggle sub-picker
+    expandedLangGroup.value = expandedLangGroup.value === group.target_lang ? null : group.target_lang
+  }
+}
 
 // Update locale when known language changes
 watch(selectedKnownLang, (newLang) => {
@@ -319,45 +354,107 @@ onMounted(() => {
           <section class="section">
             <h3 class="section-label">{{ t('courseSelector.iWantToLearn') }}</h3>
             <div class="target-grid">
-              <button
-                v-for="course in availableCourses"
-                :key="course.course_code"
-                class="target-card"
-                :class="{
-                  enrolled: isEnrolled(course.course_code),
-                  active: isActive(course.course_code)
-                }"
-                @click="handleCourseSelect(course)"
-              >
-                <!-- Active indicator -->
-                <div v-if="isActive(course.course_code)" class="active-badge">
-                  <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
-                  </svg>
-                </div>
+              <template v-for="group in courseGroups" :key="group.target_lang">
+                <!-- Single course — render directly as before -->
+                <template v-if="group.courses.length === 1">
+                  <button
+                    class="target-card"
+                    :class="{
+                      enrolled: isEnrolled(group.courses[0].course_code),
+                      active: isActive(group.courses[0].course_code)
+                    }"
+                    @click="handleCourseSelect(group.courses[0])"
+                  >
+                    <div v-if="isActive(group.courses[0].course_code)" class="active-badge">
+                      <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+                      </svg>
+                    </div>
+                    <div v-else-if="isBetaCourse(group.courses[0])" class="beta-badge">β</div>
+                    <div v-else-if="!isEnrolled(group.courses[0].course_code)" class="new-badge">{{ t('courseSelector.new') }}</div>
 
-                <!-- Beta badge for beta courses -->
-                <div v-else-if="isBetaCourse(course)" class="beta-badge">β</div>
+                    <LanguageFlag :code="group.courses[0].target_lang" :size="20" class="target-flag" />
+                    <span class="target-name">{{ group.name }}</span>
 
-                <!-- NEW badge for unenrolled released courses -->
-                <div v-else-if="!isEnrolled(course.course_code)" class="new-badge">{{ t('courseSelector.new') }}</div>
+                    <span class="target-status" :class="{ 'preview-status': isPremiumCourse(group.courses[0]) && !hasFullAccess(group.courses[0]) }">
+                      <template v-if="isEnrolled(group.courses[0].course_code)">
+                        {{ getProgress(group.courses[0].course_code) }}%
+                      </template>
+                      <template v-else-if="isPremiumCourse(group.courses[0]) && !hasFullAccess(group.courses[0])">
+                        {{ t('courseSelector.freePreview') }}
+                      </template>
+                      <template v-else>
+                        {{ t('courseSelector.ready') }}
+                      </template>
+                    </span>
+                  </button>
+                </template>
 
-                <LanguageFlag :code="course.target_lang" :size="20" class="target-flag" />
-                <span class="target-name">{{ getTargetDisplayName(course) }}</span>
+                <!-- Multiple variants — language card + expandable variant picker -->
+                <template v-else>
+                  <button
+                    class="target-card has-variants"
+                    :class="{
+                      expanded: expandedLangGroup === group.target_lang,
+                      enrolled: group.courses.some(c => isEnrolled(c.course_code)),
+                      active: group.courses.some(c => isActive(c.course_code))
+                    }"
+                    @click="handleGroupClick(group)"
+                  >
+                    <div v-if="group.courses.some(c => isActive(c.course_code))" class="active-badge">
+                      <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+                      </svg>
+                    </div>
 
-                <!-- Progress or status -->
-                <span class="target-status" :class="{ 'preview-status': isPremiumCourse(course) && !hasFullAccess(course) }">
-                  <template v-if="isEnrolled(course.course_code)">
-                    {{ getProgress(course.course_code) }}%
-                  </template>
-                  <template v-else-if="isPremiumCourse(course) && !hasFullAccess(course)">
-                    {{ t('courseSelector.freePreview') }}
-                  </template>
-                  <template v-else>
-                    {{ t('courseSelector.ready') }}
-                  </template>
-                </span>
-              </button>
+                    <LanguageFlag :code="group.target_lang" :size="20" class="target-flag" />
+                    <span class="target-name">{{ group.name }}</span>
+
+                    <span class="target-status variant-count">
+                      {{ group.courses.length }} variants
+                      <svg class="chevron" :class="{ rotated: expandedLangGroup === group.target_lang }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M6 9l6 6 6-6" />
+                      </svg>
+                    </span>
+                  </button>
+
+                  <!-- Variant sub-cards -->
+                  <Transition name="variants">
+                    <div v-if="expandedLangGroup === group.target_lang" class="variant-list">
+                      <button
+                        v-for="course in group.courses"
+                        :key="course.course_code"
+                        class="variant-card"
+                        :class="{
+                          enrolled: isEnrolled(course.course_code),
+                          active: isActive(course.course_code)
+                        }"
+                        @click="handleCourseSelect(course)"
+                      >
+                        <div v-if="isActive(course.course_code)" class="active-badge small">
+                          <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+                          </svg>
+                        </div>
+
+                        <span class="variant-name">{{ course.variant_label || course.display_name }}</span>
+
+                        <span class="target-status" :class="{ 'preview-status': isPremiumCourse(course) && !hasFullAccess(course) }">
+                          <template v-if="isEnrolled(course.course_code)">
+                            {{ getProgress(course.course_code) }}%
+                          </template>
+                          <template v-else-if="isPremiumCourse(course) && !hasFullAccess(course)">
+                            {{ t('courseSelector.freePreview') }}
+                          </template>
+                          <template v-else>
+                            {{ t('courseSelector.ready') }}
+                          </template>
+                        </span>
+                      </button>
+                    </div>
+                  </Transition>
+                </template>
+              </template>
             </div>
           </section>
         </div>
@@ -765,6 +862,115 @@ onMounted(() => {
   font-family: var(--font-body);
   font-size: 0.625rem;
   font-weight: 600;
+}
+
+/* Variant group styles */
+.target-card.has-variants {
+  border-style: dashed;
+}
+
+.target-card.has-variants.expanded {
+  background: rgba(194, 58, 58, 0.06);
+  border-color: rgba(194, 58, 58, 0.25);
+  border-style: solid;
+}
+
+.variant-count {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.chevron {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.2s ease;
+}
+
+.chevron.rotated {
+  transform: rotate(180deg);
+}
+
+.variant-list {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+}
+
+.variant-card {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.75rem 0.5rem;
+  background: var(--bg-card, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.variant-card:hover {
+  background: var(--bg-elevated, rgba(255, 255, 255, 0.06));
+  border-color: var(--border-medium, rgba(255, 255, 255, 0.12));
+  transform: translateY(-1px);
+}
+
+.variant-card:active {
+  transform: scale(0.98);
+}
+
+.variant-card.active {
+  background: rgba(194, 58, 58, 0.12);
+  border-color: rgba(194, 58, 58, 0.4);
+}
+
+.variant-card.enrolled {
+  background: rgba(74, 222, 128, 0.08);
+  border-color: rgba(74, 222, 128, 0.2);
+}
+
+.variant-name {
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary, #f5f5f5);
+}
+
+.active-badge.small {
+  width: 16px;
+  height: 16px;
+  top: 0.375rem;
+  right: 0.375rem;
+}
+
+.active-badge.small svg {
+  width: 10px;
+  height: 10px;
+}
+
+/* Variant expand/collapse transition */
+.variants-enter-active {
+  transition: all 0.25s ease;
+}
+.variants-leave-active {
+  transition: all 0.2s ease;
+}
+.variants-enter-from,
+.variants-leave-to {
+  opacity: 0;
+  max-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.variants-enter-to,
+.variants-leave-from {
+  opacity: 1;
+  max-height: 200px;
 }
 
 /* Responsive */
