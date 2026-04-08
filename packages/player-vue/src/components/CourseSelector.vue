@@ -489,9 +489,9 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1rem 1.5rem;
+  padding: calc(0.75rem + env(safe-area-inset-top, 0px)) 1.5rem 0.75rem;
   flex-shrink: 0;
-  background: linear-gradient(to bottom, var(--bg-primary) 0%, transparent 100%);
+  background: var(--bg-primary);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   border-bottom: 1px solid var(--border-subtle);
@@ -578,7 +578,12 @@ onMounted(() => {
 
 /* Search */
 .search-section {
-  margin-bottom: 1rem;
+  position: sticky;
+  top: calc(3.25rem + env(safe-area-inset-top, 0px));
+  z-index: 99;
+  background: var(--bg-primary);
+  padding-bottom: 0.75rem;
+  margin-bottom: 0.25rem;
 }
 
 .course-search-input {
