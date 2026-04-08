@@ -277,11 +277,20 @@ onMounted(() => {
     <div v-if="isOpen" class="selector-overlay" @click.self="emit('close')">
       <div class="selector-panel">
         <div class="course-selector">
-          <!-- Header -->
+          <!-- Header with search -->
           <header class="sheet-header">
-            <div class="header-spacer" />
-            <h2 class="sheet-title">{{ t('courseSelector.title') }}</h2>
-            <button class="close-btn" @click="emit('close')" aria-label="Close">&#x2715;</button>
+            <div class="header-top">
+              <div class="header-spacer" />
+              <h2 class="sheet-title">{{ t('courseSelector.title') }}</h2>
+              <button class="close-btn" @click="emit('close')" aria-label="Close">&#x2715;</button>
+            </div>
+            <input
+              v-model="searchQuery"
+              type="text"
+              class="course-search-input"
+              placeholder="Search any language..."
+              autocomplete="off"
+            />
           </header>
 
           <!-- Loading state -->
@@ -298,17 +307,6 @@ onMounted(() => {
 
           <!-- Content -->
           <div v-else class="sheet-content">
-          <!-- Search -->
-          <div class="search-section">
-            <input
-              v-model="searchQuery"
-              type="text"
-              class="course-search-input"
-              placeholder="Search any language..."
-              autocomplete="off"
-            />
-          </div>
-
           <!-- No results -->
           <div v-if="courseGroups.length === 0 && searchQuery.trim()" class="no-results">
             No courses matching "{{ searchQuery }}"
@@ -436,6 +434,7 @@ onMounted(() => {
 .selector-panel {
   width: 100%;
   max-width: 500px;
+  min-height: 70dvh;
   max-height: 100dvh;
   overflow-y: auto;
   background: var(--bg-primary);
@@ -487,14 +486,20 @@ onMounted(() => {
   top: 0;
   z-index: 100;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 0.5rem;
   padding: calc(0.75rem + env(safe-area-inset-top, 0px)) 1.5rem 0.75rem;
   flex-shrink: 0;
   background: var(--bg-primary);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   border-bottom: 1px solid var(--border-subtle);
+}
+
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .header-spacer {
@@ -576,15 +581,7 @@ onMounted(() => {
   -webkit-overflow-scrolling: touch;
 }
 
-/* Search */
-.search-section {
-  position: sticky;
-  top: calc(3.25rem + env(safe-area-inset-top, 0px));
-  z-index: 99;
-  background: var(--bg-primary);
-  padding-bottom: 0.75rem;
-  margin-bottom: 0.25rem;
-}
+/* Search (now in header) */
 
 .course-search-input {
   width: 100%;
