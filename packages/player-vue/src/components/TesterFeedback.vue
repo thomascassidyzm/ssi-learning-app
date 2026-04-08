@@ -13,14 +13,70 @@ const { isTester, isSsiAdmin } = useUserRole()
 const showWidget = computed(() => isTester.value || isSsiAdmin.value)
 
 const router = useRouter()
-const route = useRoute()
-
-// Position the FAB so it never overlaps navigation
-// Schools pages have no bottom nav — bottom-left is fine
-// Player page has a centred bottom nav — tuck into top-left below the header
-const isSchoolsPage = computed(() => route.path.startsWith('/schools'))
-const fabPositionClass = computed(() => isSchoolsPage.value ? 'fab-bottom-left' : 'fab-top-left')
 const supabase = inject<{ value: any }>('supabase')
+
+// --- Draggable FAB ---
+const fabX = ref<number | null>(null)
+const fabY = ref<number | null>(null)
+const isDragging = ref(false)
+const dragStartX = ref(0)
+const dragStartY = ref(0)
+const dragStartPosX = ref(0)
+const dragStartPosY = ref(0)
+const hasMoved = ref(false)
+const DRAG_THRESHOLD = 5
+
+const fabStyle = computed(() => {
+  if (fabX.value === null || fabY.value === null) return {}
+  return {
+    left: `${fabX.value}px`,
+    top: `${fabY.value}px`,
+    bottom: 'auto',
+    right: 'auto',
+  }
+})
+
+function onFabPointerDown(e: PointerEvent) {
+  if ((e.target as HTMLElement).closest('button:not(.feedback-fab)')) return
+  hasMoved.value = false
+  isDragging.value = false
+  dragStartX.value = e.clientX
+  dragStartY.value = e.clientY
+
+  const el = e.currentTarget as HTMLElement
+  const rect = el.getBoundingClientRect()
+  dragStartPosX.value = rect.left
+  dragStartPosY.value = rect.top
+
+  if (fabX.value === null) {
+    fabX.value = rect.left
+    fabY.value = rect.top
+  }
+
+  document.addEventListener('pointermove', onFabPointerMove)
+  document.addEventListener('pointerup', onFabPointerUp)
+}
+
+function onFabPointerMove(e: PointerEvent) {
+  const dx = e.clientX - dragStartX.value
+  const dy = e.clientY - dragStartY.value
+  if (!hasMoved.value && Math.sqrt(dx * dx + dy * dy) < DRAG_THRESHOLD) return
+  hasMoved.value = true
+  isDragging.value = true
+
+  const newX = dragStartPosX.value + dx
+  const newY = dragStartPosY.value + dy
+  const maxX = window.innerWidth - 48
+  const maxY = window.innerHeight - 48
+  fabX.value = Math.max(0, Math.min(newX, maxX))
+  fabY.value = Math.max(0, Math.min(newY, maxY))
+}
+
+function onFabPointerUp() {
+  document.removeEventListener('pointermove', onFabPointerMove)
+  document.removeEventListener('pointerup', onFabPointerUp)
+  requestAnimationFrame(() => { isDragging.value = false })
+}
 const auth = inject<any>('auth')
 
 // @ts-ignore - __BUILD_NUMBER__ is defined by Vite
@@ -177,9 +233,12 @@ async function submitFeedback() {
     <button
       v-if="!isPanelOpen"
       class="feedback-fab"
-      :class="fabPositionClass"
+      :class="{ dragging: isDragging }"
+      :style="fabStyle"
       aria-label="Report feedback"
-      @click="openPanel"
+      @pointerdown="onFabPointerDown"
+      @click="!hasMoved && openPanel()"
+      @dragstart.prevent
     >
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M8 2l1.88 1.88" />
@@ -316,9 +375,11 @@ async function submitFeedback() {
 </template>
 
 <style scoped>
-/* Floating action button */
+/* Floating action button — draggable */
 .feedback-fab {
   position: fixed;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  right: 24px;
   z-index: 9998;
   width: 48px;
   height: 48px;
@@ -329,34 +390,25 @@ async function submitFeedback() {
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
+  cursor: grab;
   box-shadow: 0 2px 12px rgba(45, 156, 219, 0.4);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-/* Schools pages: bottom-left (no bottom nav to conflict with) */
-.feedback-fab.fab-bottom-left {
-  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
-  left: 24px;
-}
-
-/* Player page: top-left, below header (avoids bottom nav) */
-.feedback-fab.fab-top-left {
-  top: 80px;
-  left: 16px;
-  opacity: 0.7;
-}
-
-.feedback-fab.fab-top-left:hover {
-  opacity: 1;
+  transition: box-shadow 0.2s ease;
+  touch-action: none;
+  user-select: none;
+  opacity: 0.75;
 }
 
 .feedback-fab:hover {
-  transform: scale(1.08);
-  box-shadow: 0 4px 18px rgba(45, 156, 219, 0.55);
+  opacity: 1;
 }
 
-.feedback-fab:active {
+.feedback-fab.dragging {
+  cursor: grabbing;
+  box-shadow: 0 6px 24px rgba(45, 156, 219, 0.6);
+  opacity: 1;
+}
+
+.feedback-fab:active:not(.dragging) {
   transform: scale(0.96);
 }
 
