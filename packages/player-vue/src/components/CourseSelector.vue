@@ -104,74 +104,70 @@ const props = defineProps({
 const emit = defineEmits(['close', 'selectCourse'])
 
 // State
-const selectedKnownLang = ref(props.defaultKnownLang)
 const allCourses = ref([])
 const isLoading = ref(false)
 const error = ref(null)
-const langSearchQuery = ref('')
-const langSearchFocused = ref(false)
+const searchQuery = ref('')
 
-// Top 4 most popular known languages (hardcoded for now, could be dynamic later)
-const TOP_KNOWN_LANGS = ['eng', 'zho', 'jpn', 'spa']
+// Build searchable string for each course (all scripts, all names)
+const buildSearchString = (course) => {
+  const parts = [
+    course.display_name || '',
+    course.course_code || '',
+    getLanguageName(course.target_lang),
+    getLanguageName(course.known_lang),
+    getLanguageEndonym(course.target_lang),
+    getLanguageEndonym(course.known_lang),
+  ]
+  return parts.join(' ').toLowerCase()
+}
 
-// Computed: unique known languages from courses
-const knownLanguages = computed(() => {
-  const langMap = new Map()
-  for (const course of allCourses.value) {
-    if (!langMap.has(course.known_lang)) {
-      langMap.set(course.known_lang, {
-        code: course.known_lang,
-        name: getLanguageEndonym(course.known_lang)
-      })
-    }
+// Extract variant label from display_name (e.g. "North Welsh for English Speakers" → "Northern")
+const getVariantLabel = (course) => {
+  const name = course.display_name || ''
+  if (name.startsWith('North ')) return 'Northern'
+  if (name.startsWith('South ')) return 'Southern'
+  if (name.includes('(North)')) return 'Northern'
+  if (name.includes('(South)')) return 'Southern'
+  if (name.includes('Latin Am')) return 'Latin American'
+  return null
+}
+
+// "For X speakers" label
+const getForLabel = (course) => {
+  const knownName = getLanguageEndonym(course.known_lang)
+  return knownName
+}
+
+// All visible courses (filtered by search, accessible)
+const visibleCourses = computed(() => {
+  let courses = allCourses.value.filter(c => !isPremiumCourse(c) || hasFullAccess(c))
+
+  const q = searchQuery.value.trim().toLowerCase()
+  if (q) {
+    courses = courses.filter(c => buildSearchString(c).includes(q))
   }
-  return [...langMap.values()].sort((a, b) => a.name.localeCompare(b.name))
+
+  return courses.sort((a, b) => {
+    const nameA = getLanguageName(a.target_lang)
+    const nameB = getLanguageName(b.target_lang)
+    return nameA.localeCompare(nameB)
+  })
 })
 
-// Split into top languages and others
-const topLanguages = computed(() => {
-  return TOP_KNOWN_LANGS
-    .map(code => knownLanguages.value.find(l => l.code === code))
-    .filter(Boolean)
-})
-
-const otherLanguages = computed(() => {
-  return knownLanguages.value.filter(l => !TOP_KNOWN_LANGS.includes(l.code))
-})
-
-const filteredOtherLanguages = computed(() => {
-  const q = langSearchQuery.value.toLowerCase().trim()
-  if (!q) return otherLanguages.value
-  // Match against endonym OR English/locale name (so "Spanish" still finds "Español")
-  return otherLanguages.value.filter(l =>
-    l.name.toLowerCase().includes(q) ||
-    getLanguageName(l.code).toLowerCase().includes(q)
-  )
-})
-
-// Computed: courses available for selected known language
-// TODO: Re-add entitlement gating once entitlements are fully wired up
-const availableCourses = computed(() => {
-  return allCourses.value
-    .filter(c => c.known_lang === selectedKnownLang.value)
-    .filter(c => !isPremiumCourse(c) || hasFullAccess(c))
-    .sort((a, b) => {
-      const nameA = getLanguageName(a.target_lang)
-      const nameB = getLanguageName(b.target_lang)
-      return nameA.localeCompare(nameB)
-    })
-})
-
-// Group courses by target language for variant handling
-// Languages with multiple courses (e.g. Welsh North/South) get a sub-picker
+// Group by target language for variant handling
 const courseGroups = computed(() => {
   const groups = new Map()
-  for (const course of availableCourses.value) {
-    const key = course.target_lang
+  for (const course of visibleCourses.value) {
+    // Group key: target_lang + known_lang (so "Welsh for English" and "Welsh for Spanish" are separate)
+    // But variants share same target_lang + known_lang (e.g. cym_n_for_eng and cym_s_for_eng)
+    const key = `${course.target_lang}_${course.known_lang}`
     if (!groups.has(key)) {
       groups.set(key, {
-        target_lang: key,
-        name: getLanguageName(key),
+        target_lang: course.target_lang,
+        known_lang: course.known_lang,
+        name: getLanguageName(course.target_lang),
+        forLabel: getForLabel(course),
         courses: []
       })
     }
@@ -183,18 +179,11 @@ const courseGroups = computed(() => {
 // Handle clicking a language group
 const handleGroupClick = (group) => {
   if (group.courses.length === 1) {
-    // Single course — select directly
     handleCourseSelect(group.courses[0])
   } else {
-    // Multiple variants — toggle sub-picker
-    expandedLangGroup.value = expandedLangGroup.value === group.target_lang ? null : group.target_lang
+    expandedLangGroup.value = expandedLangGroup.value === `${group.target_lang}_${group.known_lang}` ? null : `${group.target_lang}_${group.known_lang}`
   }
 }
-
-// Update locale when known language changes
-watch(selectedKnownLang, (newLang) => {
-  setLocale(newLang)
-})
 
 // Check if a course is enrolled
 const isEnrolled = (courseCode) => {
@@ -309,154 +298,121 @@ onMounted(() => {
 
           <!-- Content -->
           <div v-else class="sheet-content">
-          <!-- Known Language Selector -->
-          <section class="section">
-            <h3 class="section-label">{{ t('courseSelector.iSpeak') }}</h3>
+          <!-- Search -->
+          <div class="search-section">
+            <input
+              v-model="searchQuery"
+              type="text"
+              class="course-search-input"
+              placeholder="Search any language..."
+              autocomplete="off"
+            />
+          </div>
 
-            <!-- Top 4 language buttons -->
-            <div class="top-lang-grid">
-              <button
-                v-for="lang in topLanguages"
-                :key="lang.code"
-                class="top-lang-btn"
-                :class="{ active: selectedKnownLang === lang.code }"
-                @click="selectedKnownLang = lang.code; langSearchQuery = ''"
-              >
-                {{ lang.name }}
-              </button>
-            </div>
+          <!-- No results -->
+          <div v-if="courseGroups.length === 0 && searchQuery.trim()" class="no-results">
+            No courses matching "{{ searchQuery }}"
+          </div>
 
-            <!-- Search for other languages -->
-            <div v-if="otherLanguages.length > 0" class="lang-search-section">
-              <input
-                v-model="langSearchQuery"
-                type="text"
-                class="lang-search-input"
-                :placeholder="t('courseSelector.searchPlaceholder')"
-                @focus="langSearchFocused = true"
-                @blur="setTimeout(() => langSearchFocused = false, 200)"
-              />
-              <div v-if="filteredOtherLanguages.length > 0 && (langSearchFocused || langSearchQuery.trim())" class="language-pills">
+          <!-- Course Grid -->
+          <div class="target-grid">
+            <template v-for="group in courseGroups" :key="`${group.target_lang}_${group.known_lang}`">
+              <!-- Single course — compact card -->
+              <template v-if="group.courses.length === 1">
                 <button
-                  v-for="lang in filteredOtherLanguages"
-                  :key="lang.code"
-                  class="language-pill"
-                  :class="{ active: selectedKnownLang === lang.code }"
-                  @click="selectedKnownLang = lang.code; langSearchQuery = ''"
+                  class="target-card"
+                  :class="{
+                    enrolled: isEnrolled(group.courses[0].course_code),
+                    active: isActive(group.courses[0].course_code)
+                  }"
+                  @click="handleCourseSelect(group.courses[0])"
                 >
-                  <span class="pill-name">{{ lang.name }}</span>
+                  <div v-if="isActive(group.courses[0].course_code)" class="active-badge">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+                    </svg>
+                  </div>
+                  <div v-else-if="isBetaCourse(group.courses[0])" class="beta-badge">beta</div>
+
+                  <LanguageFlag :code="group.courses[0].target_lang" :size="18" class="target-flag" />
+                  <span class="target-name">{{ group.name }}</span>
+                  <span class="target-for">for {{ group.forLabel }} speakers</span>
+
+                  <span class="target-status" :class="{ 'preview-status': isPremiumCourse(group.courses[0]) && !hasFullAccess(group.courses[0]) }">
+                    <template v-if="isEnrolled(group.courses[0].course_code)">
+                      {{ getProgress(group.courses[0].course_code) }}%
+                    </template>
+                    <template v-else-if="isPremiumCourse(group.courses[0]) && !hasFullAccess(group.courses[0])">
+                      Free preview
+                    </template>
+                  </span>
                 </button>
-              </div>
-            </div>
-          </section>
-
-          <!-- Target Language Grid -->
-          <section class="section">
-            <h3 class="section-label">{{ t('courseSelector.iWantToLearn') }}</h3>
-            <div class="target-grid">
-              <template v-for="group in courseGroups" :key="group.target_lang">
-                <!-- Single course — render directly as before -->
-                <template v-if="group.courses.length === 1">
-                  <button
-                    class="target-card"
-                    :class="{
-                      enrolled: isEnrolled(group.courses[0].course_code),
-                      active: isActive(group.courses[0].course_code)
-                    }"
-                    @click="handleCourseSelect(group.courses[0])"
-                  >
-                    <div v-if="isActive(group.courses[0].course_code)" class="active-badge">
-                      <svg viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
-                      </svg>
-                    </div>
-                    <div v-else-if="isBetaCourse(group.courses[0])" class="beta-badge">β</div>
-                    <div v-else-if="!isEnrolled(group.courses[0].course_code)" class="new-badge">{{ t('courseSelector.new') }}</div>
-
-                    <LanguageFlag :code="group.courses[0].target_lang" :size="20" class="target-flag" />
-                    <span class="target-name">{{ group.name }}</span>
-
-                    <span class="target-status" :class="{ 'preview-status': isPremiumCourse(group.courses[0]) && !hasFullAccess(group.courses[0]) }">
-                      <template v-if="isEnrolled(group.courses[0].course_code)">
-                        {{ getProgress(group.courses[0].course_code) }}%
-                      </template>
-                      <template v-else-if="isPremiumCourse(group.courses[0]) && !hasFullAccess(group.courses[0])">
-                        {{ t('courseSelector.freePreview') }}
-                      </template>
-                      <template v-else>
-                        {{ t('courseSelector.ready') }}
-                      </template>
-                    </span>
-                  </button>
-                </template>
-
-                <!-- Multiple variants — language card + expandable variant picker -->
-                <template v-else>
-                  <button
-                    class="target-card has-variants"
-                    :class="{
-                      expanded: expandedLangGroup === group.target_lang,
-                      enrolled: group.courses.some(c => isEnrolled(c.course_code)),
-                      active: group.courses.some(c => isActive(c.course_code))
-                    }"
-                    @click="handleGroupClick(group)"
-                  >
-                    <div v-if="group.courses.some(c => isActive(c.course_code))" class="active-badge">
-                      <svg viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
-                      </svg>
-                    </div>
-
-                    <LanguageFlag :code="group.target_lang" :size="20" class="target-flag" />
-                    <span class="target-name">{{ group.name }}</span>
-
-                    <span class="target-status variant-count">
-                      {{ group.courses.length }} variants
-                      <svg class="chevron" :class="{ rotated: expandedLangGroup === group.target_lang }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M6 9l6 6 6-6" />
-                      </svg>
-                    </span>
-                  </button>
-
-                  <!-- Variant sub-cards -->
-                  <Transition name="variants">
-                    <div v-if="expandedLangGroup === group.target_lang" class="variant-list">
-                      <button
-                        v-for="course in group.courses"
-                        :key="course.course_code"
-                        class="variant-card"
-                        :class="{
-                          enrolled: isEnrolled(course.course_code),
-                          active: isActive(course.course_code)
-                        }"
-                        @click="handleCourseSelect(course)"
-                      >
-                        <div v-if="isActive(course.course_code)" class="active-badge small">
-                          <svg viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
-                          </svg>
-                        </div>
-
-                        <span class="variant-name">{{ course.variant_label || course.display_name }}</span>
-
-                        <span class="target-status" :class="{ 'preview-status': isPremiumCourse(course) && !hasFullAccess(course) }">
-                          <template v-if="isEnrolled(course.course_code)">
-                            {{ getProgress(course.course_code) }}%
-                          </template>
-                          <template v-else-if="isPremiumCourse(course) && !hasFullAccess(course)">
-                            {{ t('courseSelector.freePreview') }}
-                          </template>
-                          <template v-else>
-                            {{ t('courseSelector.ready') }}
-                          </template>
-                        </span>
-                      </button>
-                    </div>
-                  </Transition>
-                </template>
               </template>
-            </div>
-          </section>
+
+              <!-- Multiple variants (e.g. Welsh North/South) -->
+              <template v-else>
+                <button
+                  class="target-card has-variants"
+                  :class="{
+                    expanded: expandedLangGroup === `${group.target_lang}_${group.known_lang}`,
+                    enrolled: group.courses.some(c => isEnrolled(c.course_code)),
+                    active: group.courses.some(c => isActive(c.course_code))
+                  }"
+                  @click="handleGroupClick(group)"
+                >
+                  <div v-if="group.courses.some(c => isActive(c.course_code))" class="active-badge">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+                    </svg>
+                  </div>
+
+                  <LanguageFlag :code="group.target_lang" :size="18" class="target-flag" />
+                  <span class="target-name">{{ group.name }}</span>
+                  <span class="target-for">for {{ group.forLabel }} speakers</span>
+
+                  <span class="target-status variant-count">
+                    {{ group.courses.length }} variants
+                    <svg class="chevron" :class="{ rotated: expandedLangGroup === `${group.target_lang}_${group.known_lang}` }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </span>
+                </button>
+
+                <!-- Variant sub-cards -->
+                <Transition name="variants">
+                  <div v-if="expandedLangGroup === `${group.target_lang}_${group.known_lang}`" class="variant-list">
+                    <button
+                      v-for="course in group.courses"
+                      :key="course.course_code"
+                      class="variant-card"
+                      :class="{
+                        enrolled: isEnrolled(course.course_code),
+                        active: isActive(course.course_code)
+                      }"
+                      @click="handleCourseSelect(course)"
+                    >
+                      <div v-if="isActive(course.course_code)" class="active-badge small">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+                        </svg>
+                      </div>
+
+                      <span class="variant-name">{{ getVariantLabel(course) || course.display_name }}</span>
+
+                      <span class="target-status" :class="{ 'preview-status': isPremiumCourse(course) && !hasFullAccess(course) }">
+                        <template v-if="isEnrolled(course.course_code)">
+                          {{ getProgress(course.course_code) }}%
+                        </template>
+                        <template v-else-if="isPremiumCourse(course) && !hasFullAccess(course)">
+                          Free preview
+                        </template>
+                      </span>
+                    </button>
+                  </div>
+                </Transition>
+              </template>
+            </template>
+          </div>
         </div>
       </div>
     </div>
@@ -620,123 +576,38 @@ onMounted(() => {
   -webkit-overflow-scrolling: touch;
 }
 
-.section {
-  margin-bottom: 1.5rem;
+/* Search */
+.search-section {
+  margin-bottom: 1rem;
 }
 
-.section-label {
-  font-family: var(--font-body);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: var(--text-muted, rgba(255, 255, 255, 0.45));
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin: 0 0 0.75rem 0;
-}
-
-/* Top Language Grid (2x2) */
-.top-lang-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-}
-
-.top-lang-btn {
+.course-search-input {
+  width: 100%;
   padding: 0.75rem 1rem;
   background: var(--bg-card, rgba(255, 255, 255, 0.04));
   border: 1.5px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
   border-radius: 12px;
   font-family: var(--font-body);
-  font-size: 0.9375rem;
-  font-weight: 600;
-  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
-  cursor: pointer;
-  transition: all 0.2s ease;
-  text-align: center;
-}
-
-.top-lang-btn:hover {
-  background: var(--bg-elevated, rgba(255, 255, 255, 0.06));
-  border-color: var(--border-medium, rgba(255, 255, 255, 0.12));
-}
-
-.top-lang-btn.active {
-  background: rgba(194, 58, 58, 0.15);
-  border-color: rgba(194, 58, 58, 0.4);
-  color: var(--accent, #c23a3a);
-}
-
-/* Language Search */
-.lang-search-section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.lang-search-input {
-  width: 100%;
-  padding: 0.625rem 1rem;
-  background: var(--bg-card, rgba(255, 255, 255, 0.04));
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
-  border-radius: 10px;
-  font-family: var(--font-body);
-  font-size: 0.875rem;
+  font-size: 1rem;
   color: var(--text-primary, #f5f5f5);
   outline: none;
   transition: border-color 0.2s ease;
   box-sizing: border-box;
 }
 
-.lang-search-input::placeholder {
+.course-search-input::placeholder {
   color: var(--text-muted, rgba(255, 255, 255, 0.35));
 }
 
-.lang-search-input:focus {
-  border-color: var(--border-medium, rgba(255, 255, 255, 0.2));
+.course-search-input:focus {
+  border-color: var(--ssi-red, #c23a3a);
 }
 
-/* Language Pills */
-.language-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.language-pill {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.625rem 1rem;
-  background: var(--bg-card, rgba(255, 255, 255, 0.04));
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
-  border-radius: 100px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.language-pill:hover {
-  background: var(--bg-elevated, rgba(255, 255, 255, 0.06));
-  border-color: var(--border-medium, rgba(255, 255, 255, 0.12));
-}
-
-.language-pill.active {
-  background: rgba(194, 58, 58, 0.15);
-  border-color: rgba(194, 58, 58, 0.4);
-}
-
-.pill-name {
-  font-family: var(--font-body);
+.no-results {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: var(--text-muted, rgba(255, 255, 255, 0.45));
   font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
-}
-
-.language-pill.active .pill-name {
-  color: var(--accent, #c23a3a);
-  font-weight: 600;
 }
 
 /* Target Grid */
@@ -751,11 +622,11 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.375rem;
-  padding: 1rem 0.5rem;
+  gap: 0.25rem;
+  padding: 0.625rem 0.375rem;
   background: var(--bg-card, rgba(255, 255, 255, 0.04));
   border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
-  border-radius: 16px;
+  border-radius: 12px;
   cursor: pointer;
   transition: all 0.2s ease;
   text-align: center;
@@ -836,11 +707,18 @@ onMounted(() => {
 
 .target-name {
   font-family: var(--font-body);
-  font-size: 1rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--text-primary, #f5f5f5);
   text-align: center;
-  line-height: 1.3;
+  line-height: 1.2;
+}
+
+.target-for {
+  font-family: var(--font-body);
+  font-size: 0.5625rem;
+  color: var(--text-muted, rgba(255, 255, 255, 0.4));
+  line-height: 1;
 }
 
 .target-status {
@@ -974,13 +852,13 @@ onMounted(() => {
 }
 
 /* Responsive */
-@media (max-width: 400px) {
+@media (max-width: 360px) {
   .target-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
-@media (min-width: 500px) {
+@media (min-width: 420px) {
   .target-grid {
     grid-template-columns: repeat(4, 1fr);
   }
