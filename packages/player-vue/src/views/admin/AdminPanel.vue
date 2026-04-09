@@ -31,11 +31,22 @@ const { selectedUser } = useGodMode()
 const isSsiAdmin = ref(false)
 const isGovtAdmin = ref(false)
 
+interface School {
+  id: string
+  school_name: string
+  region_code: string | null
+  teacher_join_code: string
+  created_at: string
+}
+
 // State
 const regions = ref<Region[]>([])
 const codes = ref<InviteCode[]>([])
+const schools = ref<School[]>([])
 const isLoadingCodes = ref(false)
+const isLoadingSchools = ref(false)
 const isCreating = ref(false)
+const isCreatingSchool = ref(false)
 const error = ref<string | null>(null)
 const successMessage = ref<string | null>(null)
 const copiedCode = ref<string | null>(null)
@@ -46,6 +57,10 @@ const organizationName = ref('')
 const expiresAt = ref('')
 const maxUses = ref<number | ''>('')
 const codeType = ref<'ssi_admin' | 'govt_admin' | 'school_admin'>('govt_admin')
+
+// School form state
+const newSchoolName = ref('')
+const newSchoolRegion = ref('')
 
 function getCurrentUserId(): string | null {
   if (selectedUser.value) return selectedUser.value.user_id
@@ -106,6 +121,67 @@ async function fetchRegionsAndCodes(): Promise<void> {
     console.error('[AdminPanel] fetch error:', err)
   } finally {
     isLoadingCodes.value = false
+  }
+}
+
+async function fetchSchools(): Promise<void> {
+  const client = getClient()
+  isLoadingSchools.value = true
+
+  try {
+    const { data, error: fetchError } = await client
+      .from('schools')
+      .select('id, school_name, region_code, teacher_join_code, created_at')
+      .order('created_at', { ascending: false })
+
+    if (fetchError) throw fetchError
+    schools.value = data || []
+  } catch (err) {
+    console.error('[AdminPanel] fetch schools error:', err)
+  } finally {
+    isLoadingSchools.value = false
+  }
+}
+
+async function createSchool(): Promise<void> {
+  if (!newSchoolName.value.trim()) {
+    error.value = 'School name is required'
+    return
+  }
+
+  isCreatingSchool.value = true
+  error.value = null
+  successMessage.value = null
+
+  try {
+    const client = getClient()
+    const userId = getCurrentUserId()
+    if (!userId) throw new Error('No user ID')
+
+    const row: Record<string, unknown> = {
+      school_name: newSchoolName.value.trim(),
+      admin_user_id: userId,
+    }
+    if (newSchoolRegion.value) row.region_code = newSchoolRegion.value
+
+    const { data, error: insertError } = await client
+      .from('schools')
+      .insert(row)
+      .select('id, school_name, teacher_join_code')
+      .single()
+
+    if (insertError) throw insertError
+
+    successMessage.value = `School "${data.school_name}" created — join code: ${data.teacher_join_code}`
+    newSchoolName.value = ''
+    newSchoolRegion.value = ''
+
+    await fetchSchools()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to create school'
+    console.error('[AdminPanel] create school error:', err)
+  } finally {
+    isCreatingSchool.value = false
   }
 }
 
@@ -234,6 +310,7 @@ function formatUses(code: InviteCode): string {
 
 onMounted(() => {
   fetchRegionsAndCodes()
+  fetchSchools()
 })
 </script>
 
@@ -255,6 +332,101 @@ onMounted(() => {
         <span>Schools Demo</span>
       </a>
     </nav>
+
+    <!-- Add School Section -->
+    <section class="create-section animate-in delay-1">
+      <Card title="Add School" accent="green">
+        <template #icon>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+        </template>
+        <div class="form-grid">
+          <div class="form-group form-group--wide">
+            <label>School Name <span class="required">*</span></label>
+            <input
+              v-model="newSchoolName"
+              type="text"
+              placeholder="e.g. Ysgol Gymraeg Bro Morgannwg"
+              @keyup.enter="createSchool"
+            />
+          </div>
+
+          <div class="form-group">
+            <label>Region (optional)</label>
+            <select v-model="newSchoolRegion">
+              <option value="">- None -</option>
+              <option v-for="r in regions" :key="r.code" :value="r.code">
+                {{ r.name }}
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <template #footer>
+          <div class="form-actions">
+            <button class="btn-create" :disabled="isCreatingSchool || !newSchoolName.trim()" @click="createSchool">
+              <svg v-if="!isCreatingSchool" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              <span v-if="isCreatingSchool" class="spinner"></span>
+              {{ isCreatingSchool ? 'Creating...' : 'Add School' }}
+            </button>
+          </div>
+        </template>
+      </Card>
+    </section>
+
+    <!-- Schools List -->
+    <section v-if="schools.length > 0" class="codes-section animate-in delay-2">
+      <Card title="Schools" accent="gradient" :loading="isLoadingSchools">
+        <template #icon>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+        </template>
+
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>School</th>
+                <th>Region</th>
+                <th>Teacher Join Code</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="school in schools" :key="school.id">
+                <td>{{ school.school_name }}</td>
+                <td>{{ school.region_code || '-' }}</td>
+                <td class="code-cell">
+                  <code>{{ school.teacher_join_code }}</code>
+                  <button
+                    class="action-btn"
+                    @click="copyCode(school.teacher_join_code)"
+                    :title="copiedCode === school.teacher_join_code ? 'Copied!' : 'Copy code'"
+                  >
+                    <svg v-if="copiedCode !== school.teacher_join_code" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                    </svg>
+                    <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    {{ copiedCode === school.teacher_join_code ? 'Copied' : 'Copy' }}
+                  </button>
+                </td>
+                <td>{{ formatDate(school.created_at) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </section>
 
     <!-- Page Header -->
     <header class="page-header animate-in">
