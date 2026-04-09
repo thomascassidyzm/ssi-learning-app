@@ -60,6 +60,7 @@ const newGroupParent = ref('')
 const grantTargetType = ref<'group' | 'school'>('group')
 const grantTargetId = ref('')
 const grantCourses = ref<string[]>([])
+const courseSearch = ref('')
 
 // Group tree helpers
 const rootGroups = computed(() => groups.value.filter(g => !g.parent_id))
@@ -71,6 +72,46 @@ function getChildGroups(parentId: string): Group[] {
 function getGroupName(id: string): string {
   return groups.value.find(g => g.id === id)?.name || id
 }
+
+// Language name lookup
+const LANG_NAMES: Record<string, string> = {
+  eng: 'English', spa: 'Spanish', fra: 'French', deu: 'German', ita: 'Italian',
+  por: 'Portuguese', zho: 'Chinese', jpn: 'Japanese', ara: 'Arabic', kor: 'Korean',
+  cym: 'Welsh', gle: 'Irish', gla: 'Scottish Gaelic', bre: 'Breton', eus: 'Basque',
+  cat: 'Catalan', cor: 'Cornish', glv: 'Manx', nld: 'Dutch', swe: 'Swedish',
+  nor: 'Norwegian', fin: 'Finnish', pol: 'Polish', tur: 'Turkish', hin: 'Hindi',
+  tha: 'Thai', vie: 'Vietnamese', ukr: 'Ukrainian', ron: 'Romanian', bul: 'Bulgarian',
+  hrv: 'Croatian', ces: 'Czech', ell: 'Greek', heb: 'Hebrew', hun: 'Hungarian',
+  ind: 'Indonesian', lav: 'Latvian', lit: 'Lithuanian', mkd: 'Macedonian', slk: 'Slovak',
+  slv: 'Slovenian', srp: 'Serbian', tam: 'Tamil', sin: 'Sinhala', aze: 'Azerbaijani',
+  isl: 'Icelandic', swa: 'Swahili', nep: 'Nepali',
+}
+
+function langName(code: string): string {
+  return LANG_NAMES[code] || code
+}
+
+// Courses grouped by known language, filtered by search
+const groupedCourses = computed(() => {
+  const q = courseSearch.value.toLowerCase().trim()
+  const filtered = q
+    ? courses.value.filter(c =>
+        (c.display_name || c.course_code).toLowerCase().includes(q) ||
+        c.course_code.toLowerCase().includes(q) ||
+        langName(c.known_lang).toLowerCase().includes(q) ||
+        langName(c.target_lang).toLowerCase().includes(q)
+      )
+    : courses.value
+
+  const groups: Record<string, Course[]> = {}
+  for (const c of filtered) {
+    const key = `For ${langName(c.known_lang)} speakers`
+    if (!groups[key]) groups[key] = []
+    groups[key].push(c)
+  }
+
+  return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b))
+})
 
 function getCurrentUserId(): string | null {
   if (selectedUser.value) return selectedUser.value.user_id
@@ -646,21 +687,33 @@ onMounted(() => {
 
         <!-- Course picker -->
         <div v-if="grantTargetId" class="course-picker">
-          <label class="form-group" style="margin-bottom: 8px;">
-            <span style="font-size: var(--text-xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: var(--font-medium);">
+          <div class="course-picker-header">
+            <span class="course-picker-label">
               Select Courses ({{ grantCourses.length }} selected)
             </span>
-          </label>
-          <div class="course-grid">
-            <button
-              v-for="c in courses"
-              :key="c.course_code"
-              class="course-chip"
-              :class="{ selected: grantCourses.includes(c.course_code) }"
-              @click="toggleCourseGrant(c.course_code)"
-            >
-              {{ formatCourseName(c) }}
-            </button>
+            <input
+              v-model="courseSearch"
+              type="text"
+              class="course-search"
+              placeholder="Search courses..."
+            />
+          </div>
+          <div v-for="[groupLabel, groupCourses] in groupedCourses" :key="groupLabel" class="course-group">
+            <div class="course-group-header">{{ groupLabel }}</div>
+            <div class="course-grid">
+              <button
+                v-for="c in groupCourses"
+                :key="c.course_code"
+                class="course-chip"
+                :class="{ selected: grantCourses.includes(c.course_code) }"
+                @click="toggleCourseGrant(c.course_code)"
+              >
+                {{ formatCourseName(c) }}
+              </button>
+            </div>
+          </div>
+          <div v-if="groupedCourses.length === 0" class="course-no-results">
+            No courses match "{{ courseSearch }}"
           </div>
         </div>
 
@@ -992,6 +1045,64 @@ tbody tr:hover {
 }
 
 /* Course picker */
+.course-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  gap: 12px;
+}
+
+.course-picker-label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: var(--font-medium);
+  white-space: nowrap;
+}
+
+.course-search {
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 6px 12px;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-family: var(--font-body);
+  max-width: 240px;
+  width: 100%;
+}
+
+.course-search:focus {
+  outline: none;
+  border-color: var(--ssi-gold);
+}
+
+.course-search::placeholder {
+  color: var(--text-muted);
+}
+
+.course-group {
+  margin-bottom: 12px;
+}
+
+.course-group-header {
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.course-no-results {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
 .course-grid {
   display: flex;
   flex-wrap: wrap;
