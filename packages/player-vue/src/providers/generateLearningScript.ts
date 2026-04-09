@@ -914,21 +914,32 @@ export async function generateLearningScript(
 
   const removedCount = items.length - dedupedItems.length
 
-  // Validate generated script integrity
-  const validationReport = validateLearningScript(dedupedItems)
+  // Filter out incomplete rounds (LEGOs that exist but have no audio yet — unbuilt seeds)
+  // Group items by round, check if the round's intro/debut has a target1Id
+  const roundHasAudio = new Set<number>()
+  const roundMissingAudio = new Set<number>()
+  for (const item of dedupedItems) {
+    if ((item.type === 'intro' || item.type === 'debut' || item.type === 'component_intro') && item.target1Id) {
+      roundHasAudio.add(item.roundNumber)
+    }
+    if ((item.type === 'intro' || item.type === 'debut' || item.type === 'component_intro') && !item.target1Id) {
+      roundMissingAudio.add(item.roundNumber)
+    }
+  }
+  // Remove items from rounds that have no audio at all (unbuilt seeds)
+  const incompleteRounds = new Set([...roundMissingAudio].filter(r => !roundHasAudio.has(r)))
+  const playableItems = incompleteRounds.size > 0
+    ? dedupedItems.filter(i => !incompleteRounds.has(i.roundNumber))
+    : dedupedItems
+
+  if (incompleteRounds.size > 0) {
+    console.info(`[generateLearningScript] Filtered out ${incompleteRounds.size} incomplete rounds (no audio yet)`)
+  }
+
+  // Validate generated script integrity (only playable items)
+  const validationReport = validateLearningScript(playableItems)
   if (!validationReport.valid) {
-    console.error(`[generateLearningScript] VALIDATION FAILED: ${validationReport.summary}`)
-    // Log first 5 round errors only
-    let errorCount = 0
-    for (const round of validationReport.rounds) {
-      if (!round.valid && errorCount < 5) {
-        console.error(`  [Round ${round.roundNumber}] ${round.errors[0]?.message}`)
-        errorCount++
-      }
-    }
-    if (errorCount < validationReport.rounds.filter(r => !r.valid).length) {
-      console.error(`  ... and ${validationReport.rounds.filter(r => !r.valid).length - errorCount} more rounds with errors`)
-    }
+    console.warn(`[generateLearningScript] Validation: ${validationReport.summary}`)
   }
 
   // Summary: intros missing presentation audio (single log instead of per-item spam)
@@ -936,11 +947,13 @@ export async function generateLearningScript(
     console.warn(`[generateLearningScript] ${introsMissingAudio.length} intros missing presentation audio — will play target audio only`)
   }
 
+  // Recount rounds from playable items
+  const playableRoundCount = new Set(playableItems.map(i => i.roundNumber)).size
   const skippedRounds = emitFromRound > 1 ? emitFromRound - 1 : 0
-  const listeningItemCount = dedupedItems.filter(i => i.type === 'listening').length
+  const listeningItemCount = playableItems.filter(i => i.type === 'listening').length
   const listeningStats = listeningConfig.enabled && graduatedSeeds.size > 0
     ? `, ${graduatedSeeds.size} seeds graduated, ${listeningItemCount} listening items`
     : ''
-  console.debug(`[generateLearningScript] ${dedupedItems.length} items, ${roundNumber} rounds for ${courseCode} S${startSeed}-${endSeed}${removedCount > 0 ? `, ${removedCount} deduped` : ''}${skippedRounds > 0 ? `, from R${emitFromRound}` : ''}${listeningStats}`)
-  return { items: dedupedItems, cycleCount: dedupedItems.length, roundCount: roundNumber, hasRomanizedText: courseHasRomanized }
+  console.debug(`[generateLearningScript] ${playableItems.length} items, ${playableRoundCount} rounds for ${courseCode} S${startSeed}-${endSeed}${removedCount > 0 ? `, ${removedCount} deduped` : ''}${incompleteRounds.size > 0 ? `, ${incompleteRounds.size} incomplete filtered` : ''}${skippedRounds > 0 ? `, from R${emitFromRound}` : ''}${listeningStats}`)
+  return { items: playableItems, cycleCount: playableItems.length, roundCount: playableRoundCount, hasRomanizedText: courseHasRomanized }
 }

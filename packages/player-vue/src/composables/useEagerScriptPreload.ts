@@ -34,12 +34,13 @@ export function useEagerScriptPreload(): EagerScriptPreload {
     courseCode.value = code
 
     const startTime = Date.now()
-    console.log(`[eagerScriptPreload] Loading full script for ${code} (seeds 1-668)...`)
+    console.log(`[eagerScriptPreload] Loading full script for ${code}...`)
 
     // Check content version before loading — clears stale audio cache if course was regenerated
+    // Use a large upper bound — generateLearningScript filters out incomplete rounds
     const promise = checkContentVersion(supabase, code)
       .catch(() => {}) // non-blocking: offline is fine
-      .then(() => generateLearningScript(supabase, code, 1, 668, 1))
+      .then(() => generateLearningScript(supabase, code, 1, 9999, 1))
       .then(result => {
         console.log(`[eagerScriptPreload] Done: ${result.items.length} items, ${result.roundCount} rounds in ${Date.now() - startTime}ms`)
         scriptResult.value = result
