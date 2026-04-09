@@ -175,11 +175,9 @@ const getVariantLabel = (course) => {
   return null
 }
 
-// All courses — filtered by search + access
+// All courses — show everything (same as CourseSelector), filtered by search only
 const displayedCourses = computed(() => {
-  let courses = isAdmin.value
-    ? allCourses.value
-    : allCourses.value.filter(c => c.is_community || c.pricing_tier !== 'premium')
+  let courses = allCourses.value
 
   const q = courseSearchQuery.value.trim().toLowerCase()
   if (q) {
