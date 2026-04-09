@@ -1155,34 +1155,6 @@ const confirmReset = async () => {
             </template>
           </div>
 
-          <!-- Schools Dashboard -->
-          <template v-if="hasSchoolRole">
-            <div class="divider"></div>
-            <div class="setting-row clickable" @click="router.push('/schools')">
-              <div class="setting-info">
-                <span class="setting-label">Schools Dashboard</span>
-                <span class="setting-desc">Manage your classes and students</span>
-              </div>
-              <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 18l6-6-6-6"/>
-              </svg>
-            </div>
-          </template>
-
-          <!-- Admin Dashboard -->
-          <template v-if="hasAdminRole">
-            <div class="divider"></div>
-            <div class="setting-row clickable" @click="router.push('/admin')">
-              <div class="setting-info">
-                <span class="setting-label">Admin Dashboard</span>
-                <span class="setting-desc">Platform users, activity, and course analytics</span>
-              </div>
-              <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 18l6-6-6-6"/>
-              </svg>
-            </div>
-          </template>
-
           <!-- Sign Out -->
           <div class="divider"></div>
           <div class="setting-row clickable sign-out-row" @click="handleSignOut">
@@ -1193,6 +1165,36 @@ const confirmReset = async () => {
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
               <polyline points="16 17 21 12 16 7"/>
               <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+          </div>
+        </div>
+      </section>
+
+      <!-- Dashboards Section (role-gated, prominent placement) -->
+      <section class="section" v-if="isSignedIn && (hasSchoolRole || hasAdminRole)">
+        <h3 class="section-title">Dashboards</h3>
+        <div class="card">
+          <!-- Schools Dashboard -->
+          <div v-if="hasSchoolRole" class="setting-row clickable" @click="router.push('/schools')">
+            <div class="setting-info">
+              <span class="setting-label">Schools Dashboard</span>
+              <span class="setting-desc">Manage your classes and students</span>
+            </div>
+            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </div>
+
+          <div v-if="hasSchoolRole && hasAdminRole" class="divider"></div>
+
+          <!-- Admin Dashboard -->
+          <div v-if="hasAdminRole" class="setting-row clickable" @click="router.push('/admin')">
+            <div class="setting-info">
+              <span class="setting-label">Admin Dashboard</span>
+              <span class="setting-desc">Platform users, activity, and course analytics</span>
+            </div>
+            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 18l6-6-6-6"/>
             </svg>
           </div>
         </div>
