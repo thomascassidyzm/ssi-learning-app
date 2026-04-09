@@ -5,6 +5,7 @@ import Card from '@/components/schools/shared/Card.vue'
 import { useGodMode } from '@/composables/schools/useGodMode'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { useClassesData } from '@/composables/schools/useClassesData'
+import { useCourseAccess } from '@/composables/schools/useCourseAccess'
 import { useAnalyticsData, type RegionReport } from '@/composables/schools/useAnalyticsData'
 import { getSchoolsClient } from '@/composables/schools/client'
 import { isDemoMode } from '@/composables/demo/demoMode'
@@ -31,6 +32,9 @@ const {
 
 // Teacher quick-launch: fetch classes for simple list
 const { classes: teacherClasses, fetchClasses: fetchTeacherClasses, isLoading: isTeacherLoading } = useClassesData()
+
+// Course access: what courses the school is entitled to
+const { courseGrants, isLoading: isCourseAccessLoading, fetchCourseAccess } = useCourseAccess()
 
 // Derive display name from course_code via i18n (no hardcoded map needed)
 function courseDisplayName(code: string): string {
@@ -121,12 +125,21 @@ const debugInfo = computed(() => ({
   error: error.value,
 }))
 
+// Load course access for the current school
+async function loadCourseAccess() {
+  const schoolId = selectedUser.value?.school_id
+  if (schoolId) {
+    await fetchCourseAccess(schoolId)
+  }
+}
+
 // Fetch data when user changes
 watch(selectedUser, (user) => {
   if (user) {
     fetchSchools()
     loadRegionData()
     loadContributions()
+    loadCourseAccess()
     if (isTeacher.value) fetchTeacherClasses()
   }
 }, { immediate: true })
@@ -136,6 +149,7 @@ onMounted(() => {
     fetchSchools()
     loadRegionData()
     loadContributions()
+    loadCourseAccess()
     if (isTeacher.value) fetchTeacherClasses()
   }
 })
@@ -272,6 +286,36 @@ onMounted(() => {
       </Card>
       </router-link>
     </div>
+
+    <!-- Course Access (school admin / teacher — shows what courses the school can use) -->
+    <section v-if="!isGovtAdmin && selectedUser?.school_id" class="course-access animate-in delay-2">
+      <Card title="Available Courses" :loading="isCourseAccessLoading">
+        <template #icon>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+          </svg>
+        </template>
+        <div v-if="courseGrants.length > 0" class="course-list">
+          <div
+            v-for="grant in courseGrants"
+            :key="grant.course_code"
+            class="course-row"
+          >
+            <div class="course-info">
+              <span class="course-name">{{ grant.display_name }}</span>
+              <span v-if="grant.source === 'group' && grant.source_name" class="course-source">
+                via {{ grant.source_name }}
+              </span>
+            </div>
+            <span class="course-code">{{ grant.course_code }}</span>
+          </div>
+        </div>
+        <div v-else-if="!isCourseAccessLoading" class="course-empty">
+          <p>No courses assigned yet — contact your administrator.</p>
+        </div>
+      </Card>
+    </section>
 
     <!-- Schools in Region (Govt Admin only, at regional level) -->
     <section v-if="isGovtAdmin && !isViewingSchool && schools.length > 0" class="region-schools animate-in delay-2">
@@ -642,6 +686,61 @@ onMounted(() => {
 
 .stat-badge {
   flex-shrink: 0;
+}
+
+/* Course Access */
+.course-access {
+  margin-bottom: var(--space-8);
+}
+
+.course-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.course-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+}
+
+.course-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.course-name {
+  font-weight: var(--font-semibold);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.course-source {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.course-code {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-family: monospace;
+  flex-shrink: 0;
+}
+
+.course-empty {
+  text-align: center;
+  padding: var(--space-6);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.course-empty p {
+  margin: 0;
 }
 
 /* Region Schools */
