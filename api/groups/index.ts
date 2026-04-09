@@ -37,7 +37,8 @@ export default async function handler(
     learner?.educational_role === 'god'
 
   if (!isAdmin) {
-    res.status(403).json({ error: 'Only SSi admins can manage groups' })
+    console.error('[Groups] 403 - userId:', authResult.userId, 'learner:', JSON.stringify(learner))
+    res.status(403).json({ error: 'Only SSi admins can manage groups', debug: { userId: authResult.userId, learnerFound: !!learner, platformRole: learner?.platform_role, educationalRole: learner?.educational_role } })
     return
   }
 
