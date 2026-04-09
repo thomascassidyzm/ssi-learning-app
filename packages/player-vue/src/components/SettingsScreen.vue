@@ -9,7 +9,7 @@ import { useInviteCode, type InviteCodeContext } from '../composables/useInviteC
 import { useAuthModal } from '../composables/useAuthModal'
 import { useUserRole } from '../composables/useUserRole'
 import { useRouter } from 'vue-router'
-import { getLanguageName } from '../composables/useI18n'
+import { getLanguageName, getLanguageEndonym, setLocale } from '../composables/useI18n'
 import { useSharedSubscription } from '../composables/useSubscription'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 
@@ -84,6 +84,34 @@ const showPronunciationMode = ref(false)
 const showDrivingMode = ref(false)
 
 // Speed setting
+// Interface language
+const INTERFACE_LANGUAGES = [
+  { code: 'eng', label: 'English' },
+  { code: 'cym', label: 'Cymraeg' },
+  { code: 'spa', label: 'Español' },
+  { code: 'fra', label: 'Français' },
+  { code: 'deu', label: 'Deutsch' },
+  { code: 'ita', label: 'Italiano' },
+  { code: 'por', label: 'Português' },
+  { code: 'jpn', label: '日本語' },
+  { code: 'kor', label: '한국어' },
+  { code: 'zho', label: '中文' },
+  { code: 'ara', label: 'العربية' },
+]
+
+const currentInterfaceLang = ref(localStorage.getItem('ssi-locale') || 'eng')
+const showLangPicker = ref(false)
+
+const setInterfaceLanguage = (code: string) => {
+  currentInterfaceLang.value = code
+  setLocale(code)
+  showLangPicker.value = false
+}
+
+const currentLangLabel = computed(() => {
+  return INTERFACE_LANGUAGES.find(l => l.code === currentInterfaceLang.value)?.label || 'English'
+})
+
 const speedOptions = [
   { value: 0.7, label: 'Slowest' },
   { value: 0.8, label: 'Slower' },
@@ -1174,6 +1202,33 @@ const confirmReset = async () => {
         </div>
       </section>
 
+      <!-- Interface Language -->
+      <section class="section">
+        <h3 class="section-title">Language</h3>
+        <div class="card">
+          <div class="setting-row clickable" @click="showLangPicker = !showLangPicker">
+            <div class="setting-info">
+              <span class="setting-label">Interface Language</span>
+              <span class="setting-desc">{{ currentLangLabel }}</span>
+            </div>
+            <svg class="chevron" :class="{ rotated: showLangPicker }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </div>
+          <div v-if="showLangPicker" class="lang-picker">
+            <button
+              v-for="lang in INTERFACE_LANGUAGES"
+              :key="lang.code"
+              class="lang-option"
+              :class="{ active: currentInterfaceLang === lang.code }"
+              @click="setInterfaceLanguage(lang.code)"
+            >
+              {{ lang.label }}
+            </button>
+          </div>
+        </div>
+      </section>
+
       <!-- Practice Modes Section -->
       <section class="section">
         <h3 v-if="isTester" class="section-title">Speed</h3>
@@ -1776,6 +1831,38 @@ const confirmReset = async () => {
 
 .chevron.rotated {
   transform: rotate(90deg);
+}
+
+/* Language picker */
+.lang-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem 1rem;
+}
+
+.lang-option {
+  padding: 0.5rem 0.875rem;
+  background: var(--bg-secondary);
+  border: 1.5px solid var(--border-subtle);
+  border-radius: 100px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.lang-option:hover {
+  border-color: var(--ssi-red);
+  color: var(--text-primary);
+}
+
+.lang-option.active {
+  background: rgba(194, 58, 58, 0.12);
+  border-color: var(--ssi-red);
+  color: var(--ssi-red);
+  font-weight: 600;
 }
 
 /* Inline forms for account management */
