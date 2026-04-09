@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { useAuth } from '@/composables/useAuth'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useGodMode } from '@/composables/schools/useGodMode'
@@ -46,6 +46,22 @@ const isSavingGrant = ref(false)
 const error = ref<string | null>(null)
 const successMessage = ref<string | null>(null)
 const copiedCode = ref<string | null>(null)
+
+// Entitlement grant data for badge display
+interface EntitlementGrant {
+  group_id: string | null
+  school_id: string | null
+  granted_courses: string[]
+}
+const allGrants = ref<EntitlementGrant[]>([])
+
+// Inline rename state for groups
+const editingGroupId = ref<string | null>(null)
+const editingGroupName = ref('')
+
+// Inherited grants display for school entitlement editing
+const inheritedGroupName = ref<string | null>(null)
+const inheritedCourseCount = ref(0)
 
 // School form state
 const newSchoolName = ref('')
@@ -331,8 +347,11 @@ async function saveGrant(): Promise<void> {
 
     grantTargetId.value = ''
     grantCourses.value = []
+    inheritedGroupName.value = null
+    inheritedCourseCount.value = 0
 
     await fetchGroups()
+    await fetchGrants()
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to save grant'
   } finally {
@@ -341,6 +360,9 @@ async function saveGrant(): Promise<void> {
 }
 
 async function updateSchoolGroup(school: School, groupId: string): Promise<void> {
+  const previousGroupId = school.group_id
+  const previousGroupName = previousGroupId ? getGroupName(previousGroupId) : null
+
   try {
     const client = getClient()
     const { error: updateError } = await client
@@ -350,7 +372,17 @@ async function updateSchoolGroup(school: School, groupId: string): Promise<void>
 
     if (updateError) throw updateError
     school.group_id = groupId || null
-    successMessage.value = `"${school.school_name}" ${groupId ? 'assigned to ' + getGroupName(groupId) : 'removed from group'}`
+
+    if (groupId && previousGroupName) {
+      successMessage.value = `Moved "${school.school_name}" from ${previousGroupName} to ${getGroupName(groupId)} \u2014 entitlements may have changed.`
+    } else if (groupId) {
+      successMessage.value = `Assigned "${school.school_name}" to ${getGroupName(groupId)} \u2014 entitlements may have changed.`
+    } else {
+      successMessage.value = `Removed "${school.school_name}" from ${previousGroupName || 'group'}`
+    }
+
+    // Refresh grants since inherited entitlements may have changed
+    await fetchGrants()
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to update school group'
   }
@@ -360,6 +392,17 @@ function editSchoolEntitlements(school: School): void {
   grantTargetType.value = 'school'
   grantTargetId.value = school.id
   grantCourses.value = []
+
+  // Compute inherited entitlements from group
+  inheritedGroupName.value = null
+  inheritedCourseCount.value = 0
+  if (school.group_id) {
+    const groupGrant = allGrants.value.find(g => g.group_id === school.group_id && !g.school_id)
+    if (groupGrant && groupGrant.granted_courses.length > 0) {
+      inheritedGroupName.value = getGroupName(school.group_id)
+      inheritedCourseCount.value = groupGrant.granted_courses.length
+    }
+  }
 
   // Load existing grant for this school
   const token = getAuthToken()
@@ -397,6 +440,156 @@ function formatCourseName(c: Course): string {
   return c.course_code
 }
 
+// Effective entitlements per school: direct grants + inherited from group
+const schoolEntitlements = computed(() => {
+  const map = new Map<string, { count: number; source: string }>()
+
+  for (const school of schools.value) {
+    // Check for direct school grant
+    const directGrant = allGrants.value.find(g => g.school_id === school.id)
+    // Check for group-level grant (inherited)
+    const groupGrant = school.group_id
+      ? allGrants.value.find(g => g.group_id === school.group_id && !g.school_id)
+      : null
+
+    if (directGrant && directGrant.granted_courses.length > 0) {
+      map.set(school.id, {
+        count: directGrant.granted_courses.length,
+        source: 'direct',
+      })
+    } else if (groupGrant && groupGrant.granted_courses.length > 0) {
+      const gName = getGroupName(school.group_id!)
+      map.set(school.id, {
+        count: groupGrant.granted_courses.length,
+        source: `via ${gName}`,
+      })
+    }
+  }
+
+  return map
+})
+
+async function fetchGrants(): Promise<void> {
+  try {
+    const token = await getAuthToken()
+    const headers: Record<string, string> = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
+
+    const response = await fetch('/api/entitlement/grants', { headers })
+    if (response.ok) {
+      const data = await response.json()
+      allGrants.value = data.grants || []
+    }
+  } catch (err) {
+    console.error('[SetupView] fetch grants error:', err)
+  }
+}
+
+// Filtered courses for Select All (matches current search filter)
+const filteredCoursesList = computed(() => {
+  return groupedCourses.value.flatMap(([, groupCourses]) => groupCourses)
+})
+
+function selectAllCourses(): void {
+  const codes = filteredCoursesList.value.map(c => c.course_code)
+  for (const code of codes) {
+    if (!grantCourses.value.includes(code)) {
+      grantCourses.value.push(code)
+    }
+  }
+}
+
+function clearCourseSelection(): void {
+  grantCourses.value = []
+}
+
+// Group delete
+async function deleteGroup(group: Group): Promise<void> {
+  if (!confirm(`Delete group "${group.name}"? Schools in this group will become ungrouped.`)) return
+
+  try {
+    const token = await getAuthToken()
+    const headers: Record<string, string> = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
+
+    const response = await fetch(`/api/groups/${group.id}`, {
+      method: 'DELETE',
+      headers,
+    })
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      throw new Error(data.error || 'Failed to delete group')
+    }
+
+    successMessage.value = `Group "${group.name}" deleted`
+    await fetchGroups()
+    await fetchSchools()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to delete group'
+  }
+}
+
+// Group rename (inline edit)
+function startGroupRename(group: Group): void {
+  editingGroupId.value = group.id
+  editingGroupName.value = group.name
+  nextTick(() => {
+    const input = document.querySelector('.group-rename-input') as HTMLInputElement
+    input?.focus()
+    input?.select()
+  })
+}
+
+async function saveGroupRename(group: Group): Promise<void> {
+  const newName = editingGroupName.value.trim()
+  editingGroupId.value = null
+
+  if (!newName || newName === group.name) return
+
+  try {
+    const token = await getAuthToken()
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (token) headers['Authorization'] = `Bearer ${token}`
+
+    const response = await fetch(`/api/groups/${group.id}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ name: newName }),
+    })
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      throw new Error(data.error || 'Failed to rename group')
+    }
+
+    successMessage.value = `Group renamed to "${newName}"`
+    await fetchGroups()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to rename group'
+  }
+}
+
+// School delete
+async function deleteSchool(school: School): Promise<void> {
+  if (!confirm(`Delete school "${school.school_name}"? This cannot be undone.`)) return
+
+  try {
+    const client = getClient()
+    const { error: deleteError } = await client
+      .from('schools')
+      .delete()
+      .eq('id', school.id)
+
+    if (deleteError) throw deleteError
+
+    successMessage.value = `School "${school.school_name}" deleted`
+    await fetchSchools()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to delete school'
+  }
+}
+
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return '-'
   return new Date(dateStr).toLocaleDateString('en-GB', {
@@ -431,6 +624,7 @@ onMounted(() => {
   fetchSchools()
   fetchGroups()
   fetchCourses()
+  fetchGrants()
 })
 </script>
 
@@ -517,6 +711,7 @@ onMounted(() => {
               <tr>
                 <th>School</th>
                 <th>Group</th>
+                <th>Entitlements</th>
                 <th>Teacher Join Code</th>
                 <th>Created</th>
                 <th></th>
@@ -537,6 +732,13 @@ onMounted(() => {
                     </option>
                   </select>
                 </td>
+                <td>
+                  <span v-if="schoolEntitlements.get(school.id)" class="entitlement-badge" :title="schoolEntitlements.get(school.id)!.source">
+                    {{ schoolEntitlements.get(school.id)!.count }} courses
+                    <span class="entitlement-source">{{ schoolEntitlements.get(school.id)!.source }}</span>
+                  </span>
+                  <span v-else class="entitlement-none">&mdash;</span>
+                </td>
                 <td class="code-cell">
                   <code>{{ school.teacher_join_code }}</code>
                   <button
@@ -555,12 +757,18 @@ onMounted(() => {
                   </button>
                 </td>
                 <td>{{ formatDate(school.created_at) }}</td>
-                <td>
+                <td class="actions-cell">
                   <button class="action-btn" @click="editSchoolEntitlements(school)" title="Edit course entitlements">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                     </svg>
                     Courses
+                  </button>
+                  <button class="action-btn action-btn--danger" @click="deleteSchool(school)" title="Delete school">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="18" y1="6" x2="6" y2="18"/>
+                      <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
                   </button>
                 </td>
               </tr>
@@ -632,24 +840,69 @@ onMounted(() => {
           <template v-for="group in rootGroups" :key="group.id">
             <div class="group-row group-row--root">
               <span class="group-type-badge">{{ group.type }}</span>
-              <strong>{{ group.name }}</strong>
+              <template v-if="editingGroupId === group.id">
+                <input
+                  class="group-rename-input"
+                  v-model="editingGroupName"
+                  @blur="saveGroupRename(group)"
+                  @keyup.enter="saveGroupRename(group)"
+                  @keyup.escape="editingGroupId = null"
+                />
+              </template>
+              <strong v-else class="group-name-editable" @click="startGroupRename(group)" title="Click to rename">{{ group.name }}</strong>
               <span class="group-meta">{{ group.school_count }} schools</span>
               <span v-if="group.granted_courses.length > 0" class="group-courses">
                 {{ group.granted_courses.length }} courses
               </span>
+              <button class="group-delete-btn" @click="deleteGroup(group)" title="Delete group">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
             </div>
             <div v-for="child in getChildGroups(group.id)" :key="child.id" class="group-row group-row--child">
               <span class="group-type-badge">{{ child.type }}</span>
-              <span>{{ child.name }}</span>
+              <template v-if="editingGroupId === child.id">
+                <input
+                  class="group-rename-input"
+                  v-model="editingGroupName"
+                  @blur="saveGroupRename(child)"
+                  @keyup.enter="saveGroupRename(child)"
+                  @keyup.escape="editingGroupId = null"
+                />
+              </template>
+              <span v-else class="group-name-editable" @click="startGroupRename(child)" title="Click to rename">{{ child.name }}</span>
               <span class="group-meta">{{ child.school_count }} schools</span>
               <span v-if="child.granted_courses.length > 0" class="group-courses">
                 {{ child.granted_courses.length }} courses
               </span>
+              <button class="group-delete-btn" @click="deleteGroup(child)" title="Delete group">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
               <template v-for="grandchild in getChildGroups(child.id)" :key="grandchild.id">
                 <div class="group-row group-row--grandchild">
                   <span class="group-type-badge">{{ grandchild.type }}</span>
-                  <span>{{ grandchild.name }}</span>
+                  <template v-if="editingGroupId === grandchild.id">
+                    <input
+                      class="group-rename-input"
+                      v-model="editingGroupName"
+                      @blur="saveGroupRename(grandchild)"
+                      @keyup.enter="saveGroupRename(grandchild)"
+                      @keyup.escape="editingGroupId = null"
+                    />
+                  </template>
+                  <span v-else class="group-name-editable" @click="startGroupRename(grandchild)" title="Click to rename">{{ grandchild.name }}</span>
                   <span class="group-meta">{{ grandchild.school_count }} schools</span>
+                  <button class="group-delete-btn" @click="deleteGroup(grandchild)" title="Delete group">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="18" y1="6" x2="6" y2="18"/>
+                      <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </button>
                 </div>
               </template>
             </div>
@@ -700,10 +953,24 @@ onMounted(() => {
 
         <!-- Course picker -->
         <div v-if="grantTargetId" class="course-picker">
+          <!-- Inherited grants notice for school targets -->
+          <div v-if="grantTargetType === 'school' && inheritedGroupName" class="inherited-notice">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="16" x2="12" y2="12"/>
+              <line x1="12" y1="8" x2="12.01" y2="8"/>
+            </svg>
+            Inherited from {{ inheritedGroupName }}: {{ inheritedCourseCount }} courses
+          </div>
+
           <div class="course-picker-header">
             <span class="course-picker-label">
               Select Courses ({{ grantCourses.length }} selected)
             </span>
+            <div class="course-picker-actions">
+              <button class="text-btn" @click="selectAllCourses">Select All</button>
+              <button class="text-btn" @click="clearCourseSelection">Clear</button>
+            </div>
             <input
               v-model="courseSearch"
               type="text"
@@ -1146,5 +1413,140 @@ tbody tr:hover {
   border-color: hsl(var(--group-hue, 0) 55% 50%);
   color: var(--text-primary);
   font-weight: var(--font-medium);
+}
+
+/* Entitlement badges in schools table */
+.entitlement-badge {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  color: var(--success);
+}
+
+.entitlement-source {
+  font-size: 10px;
+  font-weight: normal;
+  color: var(--text-muted);
+}
+
+.entitlement-none {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+/* Actions cell with multiple buttons */
+.actions-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Danger action button */
+.action-btn--danger {
+  opacity: 0.4;
+  transition: all var(--transition-fast);
+}
+
+.action-btn--danger:hover {
+  opacity: 1;
+  color: var(--error) !important;
+  border-color: var(--error) !important;
+}
+
+/* Group delete button */
+.group-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.group-row:hover .group-delete-btn {
+  opacity: 0.5;
+}
+
+.group-delete-btn:hover {
+  opacity: 1 !important;
+  color: var(--error);
+  border-color: var(--error);
+  background: color-mix(in srgb, var(--error) 8%, transparent);
+}
+
+/* Group inline rename */
+.group-name-editable {
+  cursor: pointer;
+  padding: 1px 4px;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+
+.group-name-editable:hover {
+  background: var(--bg-input);
+}
+
+.group-rename-input {
+  background: var(--bg-input);
+  border: 1px solid var(--ssi-red);
+  border-radius: var(--radius-sm);
+  padding: 1px 4px;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-family: var(--font-body);
+  font-weight: var(--font-medium);
+  width: 180px;
+}
+
+.group-rename-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ssi-red) 15%, transparent);
+}
+
+/* Inherited grants notice */
+.inherited-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: color-mix(in srgb, var(--info) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--info) 20%, transparent);
+  border-radius: var(--radius-md);
+  color: var(--info);
+  font-size: var(--text-xs);
+  margin-bottom: var(--space-3);
+}
+
+/* Course picker action buttons */
+.course-picker-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.text-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-family: var(--font-body);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.text-btn:hover {
+  color: var(--text-primary);
 }
 </style>
