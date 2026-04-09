@@ -91,6 +91,19 @@ function langName(code: string): string {
   return LANG_NAMES[code] || code
 }
 
+// Distinct hues for language group headers
+const GROUP_COLORS: Record<string, string> = {}
+const HUES = [0, 210, 140, 32, 270, 180, 340, 55, 100, 300, 195, 240, 15, 160, 70, 320, 120, 350, 220, 45]
+let hueIndex = 0
+
+function groupColor(label: string): string {
+  if (!GROUP_COLORS[label]) {
+    GROUP_COLORS[label] = `${HUES[hueIndex % HUES.length]}`
+    hueIndex++
+  }
+  return GROUP_COLORS[label]
+}
+
 // Courses grouped by known language, filtered by search
 const groupedCourses = computed(() => {
   const q = courseSearch.value.toLowerCase().trim()
@@ -698,7 +711,7 @@ onMounted(() => {
               placeholder="Search courses..."
             />
           </div>
-          <div v-for="[groupLabel, groupCourses] in groupedCourses" :key="groupLabel" class="course-group">
+          <div v-for="[groupLabel, groupCourses] in groupedCourses" :key="groupLabel" class="course-group" :style="{ '--group-hue': groupColor(groupLabel) }">
             <div class="course-group-header">{{ groupLabel }}</div>
             <div class="course-grid">
               <button
@@ -1090,10 +1103,12 @@ tbody tr:hover {
 .course-group-header {
   font-size: var(--text-xs);
   font-weight: var(--font-semibold);
-  color: var(--text-secondary);
+  color: hsl(var(--group-hue, 0) 45% 40%);
   margin-bottom: 6px;
-  padding-bottom: 4px;
-  border-bottom: 1px solid var(--border-subtle);
+  padding: 3px 8px;
+  border-left: 3px solid hsl(var(--group-hue, 0) 55% 55%);
+  background: hsl(var(--group-hue, 0) 40% 96%);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 
 .course-no-results {
@@ -1112,9 +1127,9 @@ tbody tr:hover {
 .course-chip {
   padding: 4px 10px;
   border-radius: 16px;
-  border: 1px solid var(--border-subtle);
-  background: var(--bg-input);
-  color: var(--text-secondary);
+  border: 1px solid hsl(var(--group-hue, 0) 30% 85%);
+  background: hsl(var(--group-hue, 0) 30% 97%);
+  color: hsl(var(--group-hue, 0) 30% 35%);
   font-size: var(--text-xs);
   font-family: var(--font-body);
   cursor: pointer;
@@ -1122,13 +1137,13 @@ tbody tr:hover {
 }
 
 .course-chip:hover {
-  border-color: var(--ssi-gold);
-  color: var(--text-primary);
+  border-color: hsl(var(--group-hue, 0) 50% 55%);
+  background: hsl(var(--group-hue, 0) 35% 93%);
 }
 
 .course-chip.selected {
-  background: color-mix(in srgb, var(--ssi-gold) 15%, transparent);
-  border-color: var(--ssi-gold);
+  background: hsl(var(--group-hue, 0) 50% 88%);
+  border-color: hsl(var(--group-hue, 0) 55% 50%);
   color: var(--text-primary);
   font-weight: var(--font-medium);
 }
