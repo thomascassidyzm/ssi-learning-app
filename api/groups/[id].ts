@@ -1,0 +1,95 @@
+/**
+ * Group by ID API - PATCH/DELETE /api/groups/:id
+ *
+ * PATCH: Rename a group
+ * DELETE: Delete a group (schools become ungrouped)
+ *
+ * Requires auth. Only ssi_admin/god users.
+ */
+
+import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { createClient } from '@supabase/supabase-js'
+import { verifyAuthToken } from '../_utils/auth'
+
+const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
+const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
+
+export default async function handler(
+  req: VercelRequest,
+  res: VercelResponse
+): Promise<void> {
+  const authResult = await verifyAuthToken(req)
+  if (!authResult.valid || !authResult.userId) {
+    res.status(401).json({ error: authResult.error || 'Unauthorized' })
+    return
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+  // Verify caller is ssi_admin or god
+  const { data: learner } = await supabase
+    .from('learners')
+    .select('platform_role, educational_role')
+    .eq('user_id', authResult.userId)
+    .single()
+
+  const isAdmin = learner?.platform_role === 'ssi_admin' ||
+    learner?.educational_role === 'god'
+
+  if (!isAdmin) {
+    res.status(403).json({ error: 'Only SSi admins can manage groups' })
+    return
+  }
+
+  const groupId = req.query.id as string
+  if (!groupId) {
+    res.status(400).json({ error: 'Group ID is required' })
+    return
+  }
+
+  if (req.method === 'PATCH') {
+    try {
+      const { name, type, parent_id } = req.body || {}
+      const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
+
+      if (name !== undefined) updates.name = name.trim()
+      if (type !== undefined) updates.type = type.trim()
+      if (parent_id !== undefined) updates.parent_id = parent_id || null
+
+      const { data, error } = await supabase
+        .from('groups')
+        .update(updates)
+        .eq('id', groupId)
+        .select()
+        .single()
+
+      if (error) throw error
+      res.status(200).json({ group: data })
+    } catch (error) {
+      console.error('[Groups] Update error:', error)
+      res.status(500).json({ error: 'Internal server error' })
+    }
+  } else if (req.method === 'DELETE') {
+    try {
+      // Ungroup schools first
+      await supabase
+        .from('schools')
+        .update({ group_id: null })
+        .eq('group_id', groupId)
+
+      // Delete group
+      const { error } = await supabase
+        .from('groups')
+        .delete()
+        .eq('id', groupId)
+
+      if (error) throw error
+      res.status(200).json({ deleted: true })
+    } catch (error) {
+      console.error('[Groups] Delete error:', error)
+      res.status(500).json({ error: 'Internal server error' })
+    }
+  } else {
+    res.status(405).json({ error: 'Method not allowed' })
+  }
+}
