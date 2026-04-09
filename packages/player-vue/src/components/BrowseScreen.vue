@@ -552,13 +552,10 @@ onMounted(() => {
 
 <style scoped>
 .browse-screen {
-  background: var(--bg-primary);
   color: var(--text-primary);
   font-family: var(--font-body);
   overflow-y: auto;
   padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
-  min-height: 100vh;
-  min-height: 100dvh;
 }
 
 /* Backgrounds (matching Settings) */

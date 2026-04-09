@@ -1588,11 +1588,8 @@ const confirmReset = async () => {
 /* Fonts loaded globally in style.css */
 
 .settings-screen {
-  min-height: 100vh;
-  min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  background: var(--bg-primary);
   font-family: var(--font-body);
   position: relative;
   padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
