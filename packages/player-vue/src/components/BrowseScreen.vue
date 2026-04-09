@@ -6,8 +6,42 @@ import { getLanguageName, getLanguageEndonym, t } from '@/composables/useI18n'
 import LanguageFlag from '@/components/schools/shared/LanguageFlag.vue'
 import CourseBrowser from '@/components/CourseBrowser.vue'
 import { useAuthModal } from '@/composables/useAuthModal'
+import { useSharedUserEntitlements } from '@/composables/useUserEntitlements'
+import { useSharedSubscription } from '@/composables/useSubscription'
+import { useUserRole } from '@/composables/useUserRole'
+import { checkCourseAccess, inferPricingTier } from '@ssi/core'
 
 const router = useRouter()
+
+// Entitlement + subscription (same check as CourseSelector)
+const { entitlements: userEntitlements } = useSharedUserEntitlements()
+const { isSubscribed: hasActiveSubscription } = useSharedSubscription()
+const { platformRole } = useUserRole()
+
+const hasFullAccess = (course) => {
+  const pricingTier = course.pricing_tier ?? inferPricingTier(course.target_lang ?? '', course.course_code)
+  const isCommunity = course.is_community ?? course.course_code?.startsWith('community_')
+  const devPaid = (() => {
+    try {
+      if (sessionStorage.getItem('ssi-demo-tier') === 'paid') return true
+      const tier = localStorage.getItem('ssi-dev-tier')
+      if (tier === 'paid') return true
+      return localStorage.getItem('ssi-dev-paid-user') === 'true'
+    } catch { return false }
+  })()
+  const subscription = {
+    isActive: hasActiveSubscription.value || devPaid,
+    tier: (hasActiveSubscription.value || devPaid) ? 'paid' : 'free',
+  }
+  return checkCourseAccess(
+    { course_code: course.course_code, pricing_tier: pricingTier, is_community: isCommunity },
+    subscription,
+    userEntitlements.value,
+    platformRole.value
+  ).canAccess
+}
+
+const isPremiumCourse = (course) => course.pricing_tier === 'premium'
 
 // Auth state for guest banner
 const auth = inject('auth')
@@ -175,9 +209,9 @@ const getVariantLabel = (course) => {
   return null
 }
 
-// All courses — show everything (same as CourseSelector), filtered by search only
+// All courses — same access check as CourseSelector (entitlements + subscription)
 const displayedCourses = computed(() => {
-  let courses = allCourses.value
+  let courses = allCourses.value.filter(c => !isPremiumCourse(c) || hasFullAccess(c))
 
   const q = courseSearchQuery.value.trim().toLowerCase()
   if (q) {
