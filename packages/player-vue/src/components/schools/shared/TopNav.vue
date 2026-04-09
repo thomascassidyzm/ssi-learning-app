@@ -145,6 +145,11 @@ const closeMobileMenu = () => {
 
     <!-- Right Section -->
     <div class="nav-right">
+      <!-- Admin Button (SSi admins only) -->
+      <button v-if="canAccessAdmin && !isDemoMode" class="admin-btn" @click="router.push('/admin')">
+        Admin
+      </button>
+
       <!-- Learn Button (back to player, hidden in demo) -->
       <button v-if="!isDemoMode" class="learn-btn" @click="router.push('/')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -346,6 +351,27 @@ const closeMobileMenu = () => {
   display: flex;
   align-items: center;
   gap: var(--space-4);
+}
+
+/* Admin Button */
+.admin-btn {
+  display: flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-4);
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-family: var(--font-body);
+  font-weight: var(--font-medium);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.admin-btn:hover {
+  border-color: var(--ssi-gold);
+  color: var(--text-primary);
 }
 
 /* Learn Button */
@@ -669,6 +695,7 @@ const closeMobileMenu = () => {
     display: none;
   }
 
+  .admin-btn,
   .learn-btn {
     display: none;
   }
