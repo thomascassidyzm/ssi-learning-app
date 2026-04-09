@@ -47,7 +47,7 @@ onMounted(() => {
               class="nav-link"
               :class="{ active: route.path === '/admin' }"
             >
-              <span class="nav-label">Invite Codes</span>
+              <span class="nav-label">Invites</span>
             </router-link>
             <router-link
               to="/admin/analytics"
@@ -82,7 +82,7 @@ onMounted(() => {
               class="nav-link"
               :class="{ active: route.path === '/admin/entitlements' }"
             >
-              <span class="nav-label">Entitlements</span>
+              <span class="nav-label">Access</span>
             </router-link>
           </nav>
         </div>
