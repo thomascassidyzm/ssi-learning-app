@@ -6,6 +6,7 @@ import CreateClassModal from '@/components/schools/CreateClassModal.vue'
 import ClassCreatedModal from '@/components/schools/ClassCreatedModal.vue'
 import { useGodMode } from '@/composables/schools/useGodMode'
 import { useClassesData } from '@/composables/schools/useClassesData'
+import { getLanguageName } from '@/composables/useI18n'
 
 const router = useRouter()
 
@@ -90,20 +91,13 @@ const filteredClasses = computed(() => {
     return classes.value
   }
   const query = searchQuery.value.toLowerCase()
-  const names = {
-    'cym_for_eng': 'welsh', 'cym_n_for_eng': 'welsh', 'cym_s_for_eng': 'welsh', 'spa_for_eng': 'spanish', 'fra_for_eng': 'french',
-    'deu_for_eng': 'german', 'nld_for_eng': 'dutch', 'gle_for_eng': 'irish',
-    'jpn_for_eng': 'japanese', 'eng_for_jpn': 'english', 'cmn_for_eng': 'chinese',
-    'ara_for_eng': 'arabic', 'kor_for_eng': 'korean', 'ita_for_eng': 'italian',
-    'por_for_eng': 'portuguese', 'bre_for_fre': 'breton', 'eng_for_spa': 'english',
-    'eus_for_spa': 'basque', 'cat_for_spa': 'catalan', 'gla_for_eng': 'scottish gaelic',
-    'cor_for_eng': 'cornish', 'glv_for_eng': 'manx', 'rus_for_eng': 'russian', 'pol_for_eng': 'polish',
-  }
-  return classes.value.filter(cls =>
-    cls.class_name.toLowerCase().includes(query) ||
-    cls.course_code.toLowerCase().includes(query) ||
-    (names[cls.course_code] || '').includes(query)
-  )
+  return classes.value.filter(cls => {
+    const match = cls.course_code?.match(/^([a-z_]+?)_for_/)
+    const langName = match ? getLanguageName(match[1]).toLowerCase() : ''
+    return cls.class_name.toLowerCase().includes(query) ||
+      cls.course_code.toLowerCase().includes(query) ||
+      langName.includes(query)
+  })
 })
 
 // Empty state check

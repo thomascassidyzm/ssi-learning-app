@@ -5,6 +5,7 @@ import { useGodMode } from '@/composables/schools/useGodMode'
 import { useClassesData, type ClassReport } from '@/composables/schools/useClassesData'
 import { getSchoolsClient } from '@/composables/schools/client'
 import LanguageFlag from '@/components/schools/shared/LanguageFlag.vue'
+import { getLanguageName } from '@/composables/useI18n'
 
 const router = useRouter()
 const route = useRoute()
@@ -234,38 +235,12 @@ const filteredStudents = computed(() => {
   )
 })
 
-// Course info
-const courseNames: Record<string, string> = {
-  'cym_for_eng': 'Welsh',
-  'cym_for_eng_north': 'Welsh (Northern)',
-  'cym_for_eng_south': 'Welsh (Southern)',
-  'cym_n_for_eng': 'Welsh (Northern)',
-  'cym_s_for_eng': 'Welsh (Southern)',
-  'spa_for_eng': 'Spanish',
-  'spa_for_eng_latam': 'Spanish (Latin Am.)',
-  'eng_for_spa': 'English',
-  'nld_for_eng': 'Dutch',
-  'fra_for_eng': 'French',
-  'deu_for_eng': 'German',
-  'ita_for_eng': 'Italian',
-  'por_for_eng': 'Portuguese',
-  'jpn_for_eng': 'Japanese',
-  'kor_for_eng': 'Korean',
-  'zho_for_eng': 'Chinese',
-  'ara_for_eng': 'Arabic',
-  'rus_for_eng': 'Russian',
-  'pol_for_eng': 'Polish',
-  'cor_for_eng': 'Cornish',
-  'glv_for_eng': 'Manx',
-  'gle_for_eng': 'Irish',
-  'eus_for_spa': 'Basque',
-  'cat_for_spa': 'Catalan',
-  'gla_for_eng': 'Scottish Gaelic'
-}
-
+// Course info — derive display name from course_code via i18n
 const courseName = computed(() => {
   const code = classData.value.course_code as string
-  return courseNames[code] || classData.value.course_code
+  const match = code?.match(/^([a-z_]+?)_for_/)
+  if (match) return getLanguageName(match[1])
+  return code
 })
 
 // Handlers

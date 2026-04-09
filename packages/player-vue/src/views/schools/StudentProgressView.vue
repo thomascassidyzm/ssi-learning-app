@@ -4,6 +4,7 @@ import Card from '@/components/schools/shared/Card.vue'
 import Badge from '@/components/schools/shared/Badge.vue'
 import { useGodMode } from '@/composables/schools/useGodMode'
 import { getSchoolsClient } from '@/composables/schools/client'
+import { getLanguageName } from '@/composables/useI18n'
 
 interface CourseProgress {
   course_id: string
@@ -161,13 +162,11 @@ const totalStats = computed(() => {
   }
 })
 
-// Course name display
+// Course name display — derive from course_code via i18n
 function formatCourseName(courseId: string): string {
-  const parts = courseId.split('_')
-  if (parts.length >= 3) {
-    const target = parts[0].toUpperCase()
-    const known = parts[2].toUpperCase()
-    return `${target} for ${known} speakers`
+  const match = courseId.match(/^([a-z_]+?)_for_([a-z_]+)/)
+  if (match) {
+    return `${getLanguageName(match[1])} for ${getLanguageName(match[2])} speakers`
   }
   return courseId
 }

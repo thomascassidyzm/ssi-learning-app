@@ -8,6 +8,7 @@ import { useClassesData } from '@/composables/schools/useClassesData'
 import { useAnalyticsData, type RegionReport } from '@/composables/schools/useAnalyticsData'
 import { getSchoolsClient } from '@/composables/schools/client'
 import { isDemoMode } from '@/composables/demo/demoMode'
+import { getLanguageName } from '@/composables/useI18n'
 
 const router = useRouter()
 const { selectedUser, isGovtAdmin, isTeacher } = useGodMode()
@@ -31,13 +32,11 @@ const {
 // Teacher quick-launch: fetch classes for simple list
 const { classes: teacherClasses, fetchClasses: fetchTeacherClasses, isLoading: isTeacherLoading } = useClassesData()
 
-const courseDisplayName: Record<string, string> = {
-  'cym_for_eng': 'Welsh', 'cym_n_for_eng': 'Welsh (North)', 'cym_s_for_eng': 'Welsh (South)',
-  'spa_for_eng': 'Spanish', 'fra_for_eng': 'French', 'deu_for_eng': 'German',
-  'nld_for_eng': 'Dutch', 'gle_for_eng': 'Irish', 'jpn_for_eng': 'Japanese',
-  'ara_for_eng': 'Arabic', 'kor_for_eng': 'Korean', 'ita_for_eng': 'Italian',
-  'por_for_eng': 'Portuguese', 'eng_for_spa': 'English', 'zho_for_eng': 'Chinese',
-  'gla_for_eng': 'Scottish Gaelic', 'cor_for_eng': 'Cornish',
+// Derive display name from course_code via i18n (no hardcoded map needed)
+function courseDisplayName(code: string): string {
+  const match = code?.match(/^([a-z_]+?)_for_/)
+  if (match) return getLanguageName(match[1])
+  return code
 }
 
 const handlePlayClass = (cls: any) => {
@@ -200,7 +199,7 @@ onMounted(() => {
         >
           <div class="teacher-class-info">
             <span class="teacher-class-name">{{ cls.class_name }}</span>
-            <span class="teacher-class-course">{{ courseDisplayName[cls.course_code] || cls.course_code }}</span>
+            <span class="teacher-class-course">{{ courseDisplayName(cls.course_code) }}</span>
           </div>
           <div class="teacher-class-meta">
             <span class="teacher-class-students">{{ cls.student_count }} {{ cls.student_count === 1 ? 'student' : 'students' }}</span>

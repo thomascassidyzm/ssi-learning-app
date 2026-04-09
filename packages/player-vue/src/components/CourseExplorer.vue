@@ -4,6 +4,7 @@ import { useVirtualList } from '@vueuse/core'
 import { CyclePhase } from '@ssi/core'
 import { loadIntroAudio } from '../composables/useScriptCache'
 import { useFullCourseScript } from '../composables/useFullCourseScript'
+import { getLanguageName } from '../composables/useI18n'
 
 // ============================================================================
 // Simple audio controller for script preview playback
@@ -330,7 +331,10 @@ const selectedRound = ref(1)
 const selectedSeed = ref('')
 
 // Computed
-const courseName = computed(() => props.course?.display_name || props.course?.title || 'Course')
+const courseName = computed(() => {
+  if (props.course?.target_lang) return getLanguageName(props.course.target_lang)
+  return props.course?.display_name || 'Course'
+})
 const courseCode = computed(() => props.course?.course_code || '')
 const currentCourseId = ref('')
 

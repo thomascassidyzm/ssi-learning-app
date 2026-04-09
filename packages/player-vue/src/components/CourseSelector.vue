@@ -71,6 +71,9 @@ const getTargetDisplayName = (course) => {
   return getLanguageName(course.target_lang)
 }
 
+// Strip variant suffixes to group dialects together (cym_n → cym, cym_s → cym)
+const getBaseLang = (code) => code?.replace(/_(n|s|north|south|latam)$/i, '') || code
+
 // Track which language group is expanded (for variant sub-selection)
 const expandedLangGroup = ref(null)
 
@@ -122,8 +125,14 @@ const buildSearchString = (course) => {
   return parts.join(' ').toLowerCase()
 }
 
-// Extract variant label from display_name (e.g. "North Welsh for English Speakers" → "Northern")
+// Extract variant label from target_lang suffix or display_name
 const getVariantLabel = (course) => {
+  // Check target_lang suffix first (most reliable)
+  if (course.target_lang?.endsWith('_n')) return 'Northern'
+  if (course.target_lang?.endsWith('_s')) return 'Southern'
+  // Check variant_label field
+  if (course.variant_label) return course.variant_label
+  // Fall back to parsing display_name
   const name = course.display_name || ''
   if (name.startsWith('North ')) return 'Northern'
   if (name.startsWith('South ')) return 'Southern'
@@ -155,18 +164,17 @@ const visibleCourses = computed(() => {
   })
 })
 
-// Group by target language for variant handling
+// Group by base language for variant handling (cym_n + cym_s → "Welsh" with 2 variants)
 const courseGroups = computed(() => {
   const groups = new Map()
   for (const course of visibleCourses.value) {
-    // Group key: target_lang + known_lang (so "Welsh for English" and "Welsh for Spanish" are separate)
-    // But variants share same target_lang + known_lang (e.g. cym_n_for_eng and cym_s_for_eng)
-    const key = `${course.target_lang}_${course.known_lang}`
+    const base = getBaseLang(course.target_lang)
+    const key = `${base}_${course.known_lang}`
     if (!groups.has(key)) {
       groups.set(key, {
-        target_lang: course.target_lang,
+        target_lang: base,
         known_lang: course.known_lang,
-        name: getLanguageName(course.target_lang),
+        name: getLanguageName(base),
         forLabel: getForLabel(course),
         courses: []
       })
@@ -181,7 +189,8 @@ const handleGroupClick = (group) => {
   if (group.courses.length === 1) {
     handleCourseSelect(group.courses[0])
   } else {
-    expandedLangGroup.value = expandedLangGroup.value === `${group.target_lang}_${group.known_lang}` ? null : `${group.target_lang}_${group.known_lang}`
+    const key = `${group.target_lang}_${group.known_lang}`
+    expandedLangGroup.value = expandedLangGroup.value === key ? null : key
   }
 }
 

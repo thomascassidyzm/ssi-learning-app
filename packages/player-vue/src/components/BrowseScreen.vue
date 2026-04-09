@@ -199,7 +199,13 @@ const buildSearchString = (course) => {
   ].join(' ').toLowerCase()
 }
 
+// Strip variant suffixes to group dialects together (cym_n → cym, cym_s → cym)
+const getBaseLang = (code) => code?.replace(/_(n|s|north|south|latam)$/i, '') || code
+
 const getVariantLabel = (course) => {
+  if (course.target_lang?.endsWith('_n')) return 'Northern'
+  if (course.target_lang?.endsWith('_s')) return 'Southern'
+  if (course.variant_label) return course.variant_label
   const name = course.display_name || ''
   if (name.startsWith('North ')) return 'Northern'
   if (name.startsWith('South ')) return 'Southern'
@@ -226,13 +232,14 @@ const expandedGroup = ref(null)
 const courseGroups = computed(() => {
   const groups = new Map()
   for (const course of displayedCourses.value) {
-    const key = `${course.target_lang}_${course.known_lang}`
+    const base = getBaseLang(course.target_lang)
+    const key = `${base}_${course.known_lang}`
     if (!groups.has(key)) {
       groups.set(key, {
         key,
-        target_lang: course.target_lang,
+        target_lang: base,
         known_lang: course.known_lang,
-        name: getLanguageName(course.target_lang),
+        name: getLanguageName(base),
         forLabel: getLanguageEndonym(course.known_lang),
         courses: []
       })

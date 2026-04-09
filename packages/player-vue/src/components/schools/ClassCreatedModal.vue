@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { getLanguageName } from '@/composables/useI18n'
 
 const props = defineProps({
   isOpen: {
@@ -16,38 +17,11 @@ const emit = defineEmits(['close', 'goToClass'])
 
 const codeCopied = ref(false)
 
-const courseNames: Record<string, string> = {
-  'cym_for_eng': 'Welsh',
-  'cym_for_eng_north': 'Welsh (Northern)',
-  'cym_for_eng_south': 'Welsh (Southern)',
-  'cym_n_for_eng': 'Welsh (Northern)',
-  'cym_s_for_eng': 'Welsh (Southern)',
-  'spa_for_eng': 'Spanish',
-  'spa_for_eng_latam': 'Spanish (Latin Am.)',
-  'eng_for_spa': 'English',
-  'fra_for_eng': 'French',
-  'deu_for_eng': 'German',
-  'nld_for_eng': 'Dutch',
-  'gle_for_eng': 'Irish',
-  'jpn_for_eng': 'Japanese',
-  'eng_for_jpn': 'English',
-  'cmn_for_eng': 'Chinese',
-  'ara_for_eng': 'Arabic',
-  'kor_for_eng': 'Korean',
-  'ita_for_eng': 'Italian',
-  'por_for_eng': 'Portuguese',
-  'bre_for_fre': 'Breton',
-  'cor_for_eng': 'Cornish',
-  'glv_for_eng': 'Manx',
-  'eus_for_spa': 'Basque',
-  'cat_for_spa': 'Catalan',
-  'gla_for_eng': 'Scottish Gaelic',
-  'rus_for_eng': 'Russian',
-  'pol_for_eng': 'Polish'
-}
-
 function getCourseName(code: string): string {
-  return courseNames[code] || code
+  // Parse target lang from course_code (e.g. "spa_for_eng" → "spa")
+  const match = code.match(/^([a-z_]+?)_for_/)
+  if (match) return getLanguageName(match[1])
+  return code
 }
 
 async function copyJoinCode() {

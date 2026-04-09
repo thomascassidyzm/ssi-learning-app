@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import LanguageFlag from '@/components/schools/shared/LanguageFlag.vue'
+import { getLanguageName } from '@/composables/useI18n'
 
 const props = defineProps({
   classData: {
@@ -11,38 +12,14 @@ const props = defineProps({
 
 const emit = defineEmits(['play', 'viewRoster', 'settings'])
 
-const courseNames = {
-  'cym_for_eng': 'Welsh',
-  'cym_for_eng_north': 'Welsh (Northern)',
-  'cym_for_eng_south': 'Welsh (Southern)',
-  'cym_n_for_eng': 'Welsh (Northern)',
-  'cym_s_for_eng': 'Welsh (Southern)',
-  'spa_for_eng': 'Spanish',
-  'spa_for_eng_latam': 'Spanish (Latin Am.)',
-  'eng_for_spa': 'English',
-  'fra_for_eng': 'French',
-  'deu_for_eng': 'German',
-  'nld_for_eng': 'Dutch',
-  'gle_for_eng': 'Irish',
-  'jpn_for_eng': 'Japanese',
-  'eng_for_jpn': 'English',
-  'cmn_for_eng': 'Chinese',
-  'ara_for_eng': 'Arabic',
-  'kor_for_eng': 'Korean',
-  'ita_for_eng': 'Italian',
-  'por_for_eng': 'Portuguese',
-  'bre_for_fre': 'Breton',
-  'cor_for_eng': 'Cornish',
-  'glv_for_eng': 'Manx',
-  'eus_for_spa': 'Basque',
-  'cat_for_spa': 'Catalan',
-  'gla_for_eng': 'Scottish Gaelic',
-  'rus_for_eng': 'Russian',
-  'pol_for_eng': 'Polish'
-}
-
+// Derive display name from course's target_lang via i18n, falling back to course_code parsing
 const courseName = computed(() => {
-  return courseNames[props.classData.course_code] || props.classData.course_code
+  const c = props.classData
+  if (c.target_lang) return getLanguageName(c.target_lang)
+  // Parse course_code as last resort (e.g. "spa_for_eng" → target is "spa")
+  const match = c.course_code?.match(/^([a-z_]+?)_for_/)
+  if (match) return getLanguageName(match[1])
+  return c.course_code
 })
 
 // Belt logic: compute from current_seed

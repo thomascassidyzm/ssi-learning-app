@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, inject, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useCompletedContent } from '../composables/useCompletedContent'
+import { getLanguageName } from '../composables/useI18n'
 
 // ============================================================================
 // Listening Mode Player - Spotify Lyrics / Teleprompter Style
@@ -232,7 +233,10 @@ const availablePhrases = computed(() => {
 
 // Computed
 const courseCode = computed(() => props.course?.course_code || '')
-const courseName = computed(() => props.course?.display_name || props.course?.title || 'Course')
+const courseName = computed(() => {
+  if (props.course?.target_lang) return getLanguageName(props.course.target_lang)
+  return props.course?.display_name || 'Course'
+})
 
 const currentPhrase = computed(() => {
   if (currentIndex.value >= 0 && currentIndex.value < availablePhrases.value.length) {
