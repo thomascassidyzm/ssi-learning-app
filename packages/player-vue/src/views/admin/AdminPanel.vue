@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useAuth } from '@/composables/useAuth'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useGodMode } from '@/composables/schools/useGodMode'
@@ -35,6 +35,7 @@ interface School {
   id: string
   school_name: string
   region_code: string | null
+  group_id: string | null
   teacher_join_code: string
   created_at: string
 }
@@ -61,6 +62,51 @@ const codeType = ref<'ssi_admin' | 'govt_admin' | 'school_admin'>('govt_admin')
 // School form state
 const newSchoolName = ref('')
 const newSchoolRegion = ref('')
+const newSchoolGroup = ref('')
+
+// Groups & entitlements
+interface Group {
+  id: string
+  name: string
+  type: string
+  parent_id: string | null
+  school_count: number
+  granted_courses: string[]
+}
+
+interface Course {
+  course_code: string
+  display_name: string | null
+  target_lang: string
+  known_lang: string
+}
+
+const groups = ref<Group[]>([])
+const courses = ref<Course[]>([])
+const isLoadingGroups = ref(false)
+const isCreatingGroup = ref(false)
+const isSavingGrant = ref(false)
+
+// Group form
+const newGroupName = ref('')
+const newGroupType = ref('region')
+const newGroupParent = ref('')
+
+// Grant form
+const grantTargetType = ref<'group' | 'school'>('group')
+const grantTargetId = ref('')
+const grantCourses = ref<string[]>([])
+
+// Group tree helpers
+const rootGroups = computed(() => groups.value.filter(g => !g.parent_id))
+
+function getChildGroups(parentId: string): Group[] {
+  return groups.value.filter(g => g.parent_id === parentId)
+}
+
+function getGroupName(id: string): string {
+  return groups.value.find(g => g.id === id)?.name || id
+}
 
 function getCurrentUserId(): string | null {
   if (selectedUser.value) return selectedUser.value.user_id
@@ -131,7 +177,7 @@ async function fetchSchools(): Promise<void> {
   try {
     const { data, error: fetchError } = await client
       .from('schools')
-      .select('id, school_name, region_code, teacher_join_code, created_at')
+      .select('id, school_name, region_code, group_id, teacher_join_code, created_at')
       .order('created_at', { ascending: false })
 
     if (fetchError) throw fetchError
@@ -166,6 +212,7 @@ async function createSchool(): Promise<void> {
       admin_user_id: userId,
     }
     if (newSchoolRegion.value) row.region_code = newSchoolRegion.value
+    if (newSchoolGroup.value) row.group_id = newSchoolGroup.value
 
     const { data, error: insertError } = await client
       .from('schools')
@@ -175,9 +222,25 @@ async function createSchool(): Promise<void> {
 
     if (insertError) throw insertError
 
+    // Create invite_codes row so teachers can redeem the join code
+    const { error: inviteError } = await client
+      .from('invite_codes')
+      .insert({
+        code: data.teacher_join_code,
+        code_type: 'teacher',
+        grants_school_id: data.id,
+        created_by: userId,
+        is_active: true,
+      })
+
+    if (inviteError) {
+      console.error('[AdminPanel] Failed to create invite code for teacher join code:', inviteError)
+    }
+
     successMessage.value = `School "${data.school_name}" created — join code: ${data.teacher_join_code}`
     newSchoolName.value = ''
     newSchoolRegion.value = ''
+    newSchoolGroup.value = ''
 
     await fetchSchools()
   } catch (err) {
@@ -311,9 +374,153 @@ function formatUses(code: InviteCode): string {
   return `${code.use_count} / ${code.max_uses}`
 }
 
+async function fetchGroups(): Promise<void> {
+  isLoadingGroups.value = true
+  try {
+    const token = await getAuthToken()
+    const headers: Record<string, string> = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
+
+    const response = await fetch('/api/groups', { headers })
+    if (!response.ok) throw new Error('Failed to fetch groups')
+    const data = await response.json()
+    groups.value = data.groups || []
+  } catch (err) {
+    console.error('[AdminPanel] fetch groups error:', err)
+  } finally {
+    isLoadingGroups.value = false
+  }
+}
+
+async function fetchCourses(): Promise<void> {
+  try {
+    const client = getClient()
+    const { data } = await client
+      .from('courses')
+      .select('course_code, display_name, target_lang, known_lang')
+      .order('display_name')
+
+    courses.value = data || []
+  } catch (err) {
+    console.error('[AdminPanel] fetch courses error:', err)
+  }
+}
+
+async function createGroup(): Promise<void> {
+  if (!newGroupName.value.trim()) {
+    error.value = 'Group name is required'
+    return
+  }
+
+  isCreatingGroup.value = true
+  error.value = null
+  successMessage.value = null
+
+  try {
+    const token = await getAuthToken()
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (token) headers['Authorization'] = `Bearer ${token}`
+
+    const body: Record<string, unknown> = {
+      name: newGroupName.value.trim(),
+      type: newGroupType.value,
+    }
+    if (newGroupParent.value) body.parent_id = newGroupParent.value
+
+    const response = await fetch('/api/groups', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    })
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      throw new Error(data.error || 'Failed to create group')
+    }
+
+    const result = await response.json()
+    successMessage.value = `Group "${result.group.name}" created`
+    newGroupName.value = ''
+    newGroupType.value = 'region'
+    newGroupParent.value = ''
+
+    await fetchGroups()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to create group'
+  } finally {
+    isCreatingGroup.value = false
+  }
+}
+
+async function saveGrant(): Promise<void> {
+  if (!grantTargetId.value || grantCourses.value.length === 0) {
+    error.value = 'Select a target and at least one course'
+    return
+  }
+
+  isSavingGrant.value = true
+  error.value = null
+  successMessage.value = null
+
+  try {
+    const token = await getAuthToken()
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (token) headers['Authorization'] = `Bearer ${token}`
+
+    const body: Record<string, unknown> = {
+      granted_courses: grantCourses.value,
+    }
+    if (grantTargetType.value === 'group') body.group_id = grantTargetId.value
+    else body.school_id = grantTargetId.value
+
+    const response = await fetch('/api/entitlement/grant', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    })
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      throw new Error(data.error || 'Failed to save grant')
+    }
+
+    const result = await response.json()
+    const action = result.updated ? 'Updated' : 'Created'
+    const targetName = grantTargetType.value === 'group'
+      ? getGroupName(grantTargetId.value)
+      : schools.value.find(s => s.id === grantTargetId.value)?.school_name || grantTargetId.value
+    successMessage.value = `${action} entitlement for "${targetName}" — ${grantCourses.value.length} courses`
+
+    grantTargetId.value = ''
+    grantCourses.value = []
+
+    await fetchGroups()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to save grant'
+  } finally {
+    isSavingGrant.value = false
+  }
+}
+
+function toggleCourseGrant(courseCode: string): void {
+  const idx = grantCourses.value.indexOf(courseCode)
+  if (idx >= 0) {
+    grantCourses.value.splice(idx, 1)
+  } else {
+    grantCourses.value.push(courseCode)
+  }
+}
+
+function formatCourseName(c: Course): string {
+  if (c.display_name) return c.display_name
+  return c.course_code
+}
+
 onMounted(() => {
   fetchRegionsAndCodes()
   fetchSchools()
+  fetchGroups()
+  fetchCourses()
 })
 </script>
 
@@ -357,11 +564,11 @@ onMounted(() => {
           </div>
 
           <div class="form-group">
-            <label>Region (optional)</label>
-            <select v-model="newSchoolRegion">
+            <label>Group (optional)</label>
+            <select v-model="newSchoolGroup">
               <option value="">- None -</option>
-              <option v-for="r in regions" :key="r.code" :value="r.code">
-                {{ r.name }}
+              <option v-for="g in groups" :key="g.id" :value="g.id">
+                {{ g.name }} ({{ g.type }})
               </option>
             </select>
           </div>
@@ -397,7 +604,7 @@ onMounted(() => {
             <thead>
               <tr>
                 <th>School</th>
-                <th>Region</th>
+                <th>Group</th>
                 <th>Teacher Join Code</th>
                 <th>Created</th>
               </tr>
@@ -405,7 +612,7 @@ onMounted(() => {
             <tbody>
               <tr v-for="school in schools" :key="school.id">
                 <td>{{ school.school_name }}</td>
-                <td>{{ school.region_code || '-' }}</td>
+                <td>{{ school.group_id ? getGroupName(school.group_id) : '-' }}</td>
                 <td class="code-cell">
                   <code>{{ school.teacher_join_code }}</code>
                   <button
@@ -428,6 +635,169 @@ onMounted(() => {
             </tbody>
           </table>
         </div>
+      </Card>
+    </section>
+
+    <!-- Groups Section -->
+    <section class="create-section animate-in delay-1">
+      <Card title="Groups" accent="blue">
+        <template #icon>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="2" y1="12" x2="22" y2="12"/>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+          </svg>
+        </template>
+
+        <!-- Create group form -->
+        <div class="form-grid" style="margin-bottom: 16px;">
+          <div class="form-group">
+            <label>Group Name <span class="required">*</span></label>
+            <input
+              v-model="newGroupName"
+              type="text"
+              placeholder="e.g. United Kingdom, Wales, Pilot 2026"
+              @keyup.enter="createGroup"
+            />
+          </div>
+
+          <div class="form-group">
+            <label>Type</label>
+            <select v-model="newGroupType">
+              <option value="nation">Nation</option>
+              <option value="region">Region</option>
+              <option value="district">District</option>
+              <option value="programme">Programme</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Parent Group (optional)</label>
+            <select v-model="newGroupParent">
+              <option value="">- None (top level) -</option>
+              <option v-for="g in groups" :key="g.id" :value="g.id">
+                {{ g.name }} ({{ g.type }})
+              </option>
+            </select>
+          </div>
+
+          <div class="form-group" style="justify-content: flex-end;">
+            <label>&nbsp;</label>
+            <button class="btn-create" :disabled="isCreatingGroup || !newGroupName.trim()" @click="createGroup">
+              <svg v-if="!isCreatingGroup" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              <span v-if="isCreatingGroup" class="spinner"></span>
+              {{ isCreatingGroup ? 'Creating...' : 'Add Group' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Groups tree -->
+        <div v-if="groups.length > 0" class="groups-tree">
+          <template v-for="group in rootGroups" :key="group.id">
+            <div class="group-row group-row--root">
+              <span class="group-type-badge">{{ group.type }}</span>
+              <strong>{{ group.name }}</strong>
+              <span class="group-meta">{{ group.school_count }} schools</span>
+              <span v-if="group.granted_courses.length > 0" class="group-courses">
+                {{ group.granted_courses.length }} courses
+              </span>
+            </div>
+            <div v-for="child in getChildGroups(group.id)" :key="child.id" class="group-row group-row--child">
+              <span class="group-type-badge">{{ child.type }}</span>
+              <span>{{ child.name }}</span>
+              <span class="group-meta">{{ child.school_count }} schools</span>
+              <span v-if="child.granted_courses.length > 0" class="group-courses">
+                {{ child.granted_courses.length }} courses
+              </span>
+              <template v-for="grandchild in getChildGroups(child.id)" :key="grandchild.id">
+                <div class="group-row group-row--grandchild">
+                  <span class="group-type-badge">{{ grandchild.type }}</span>
+                  <span>{{ grandchild.name }}</span>
+                  <span class="group-meta">{{ grandchild.school_count }} schools</span>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+        <div v-else-if="!isLoadingGroups" class="empty-state" style="padding: 24px;">
+          <p>No groups yet</p>
+          <span>Create one above to organise schools</span>
+        </div>
+      </Card>
+    </section>
+
+    <!-- Course Entitlements Section -->
+    <section class="create-section animate-in delay-2">
+      <Card title="Course Entitlements" accent="gold">
+        <template #icon>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </template>
+
+        <div class="form-grid" style="margin-bottom: 16px;">
+          <div class="form-group">
+            <label>Grant To</label>
+            <select v-model="grantTargetType">
+              <option value="group">Group</option>
+              <option value="school">School</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>{{ grantTargetType === 'group' ? 'Select Group' : 'Select School' }} <span class="required">*</span></label>
+            <select v-model="grantTargetId">
+              <option value="">- Select -</option>
+              <template v-if="grantTargetType === 'group'">
+                <option v-for="g in groups" :key="g.id" :value="g.id">
+                  {{ g.name }} ({{ g.type }})
+                </option>
+              </template>
+              <template v-else>
+                <option v-for="s in schools" :key="s.id" :value="s.id">
+                  {{ s.school_name }}
+                </option>
+              </template>
+            </select>
+          </div>
+        </div>
+
+        <!-- Course picker -->
+        <div v-if="grantTargetId" class="course-picker">
+          <label class="form-group" style="margin-bottom: 8px;">
+            <span style="font-size: var(--text-xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: var(--font-medium);">
+              Select Courses ({{ grantCourses.length }} selected)
+            </span>
+          </label>
+          <div class="course-grid">
+            <button
+              v-for="c in courses"
+              :key="c.course_code"
+              class="course-chip"
+              :class="{ selected: grantCourses.includes(c.course_code) }"
+              @click="toggleCourseGrant(c.course_code)"
+            >
+              {{ formatCourseName(c) }}
+            </button>
+          </div>
+        </div>
+
+        <template #footer>
+          <div class="form-actions">
+            <button
+              class="btn-create"
+              :disabled="isSavingGrant || !grantTargetId || grantCourses.length === 0"
+              @click="saveGrant"
+            >
+              <span v-if="isSavingGrant" class="spinner"></span>
+              {{ isSavingGrant ? 'Saving...' : 'Save Entitlement' }}
+            </button>
+          </div>
+        </template>
       </Card>
     </section>
 
@@ -970,5 +1340,88 @@ tbody tr:hover {
 .empty-state span {
   color: var(--text-muted);
   font-size: var(--text-sm);
+}
+
+/* Groups tree */
+.groups-tree {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: var(--space-3);
+}
+
+.group-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  border-radius: var(--radius-sm);
+}
+
+.group-row:hover {
+  background: var(--bg-secondary);
+}
+
+.group-row--child {
+  padding-left: var(--space-8);
+}
+
+.group-row--grandchild {
+  padding-left: calc(var(--space-8) * 2);
+}
+
+.group-type-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  font-weight: var(--font-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: color-mix(in srgb, var(--info) 12%, transparent);
+  color: var(--info);
+  flex-shrink: 0;
+}
+
+.group-meta {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  margin-left: auto;
+}
+
+.group-courses {
+  font-size: var(--text-xs);
+  color: var(--success);
+  font-weight: var(--font-medium);
+}
+
+/* Course picker */
+.course-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.course-chip {
+  padding: 4px 10px;
+  border-radius: 16px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.course-chip:hover {
+  border-color: var(--ssi-gold);
+  color: var(--text-primary);
+}
+
+.course-chip.selected {
+  background: color-mix(in srgb, var(--ssi-gold) 15%, transparent);
+  border-color: var(--ssi-gold);
+  color: var(--text-primary);
+  font-weight: var(--font-medium);
 }
 </style>

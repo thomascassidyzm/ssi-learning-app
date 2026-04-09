@@ -65,6 +65,26 @@ export default async function handler(
       return new Date(e.expires_at) > now
     })
 
+    // Cascade entitlements from groups → school → class hierarchy
+    try {
+      const { data: cascadeCourses } = await supabase
+        .rpc('get_cascade_courses', { p_user_id: userId })
+
+      if (cascadeCourses && cascadeCourses.length > 0) {
+        active.push({
+          id: 'cascade',
+          access_type: 'courses',
+          granted_courses: cascadeCourses,
+          expires_at: null,
+          redeemed_at: null,
+          entitlement_code_id: null,
+        })
+      }
+    } catch (cascadeErr) {
+      // Non-fatal — cascade is additive, don't block user entitlements
+      console.error('[EntitlementUser] Cascade error (non-fatal):', cascadeErr)
+    }
+
     res.status(200).json({ entitlements: active })
   } catch (error) {
     console.error('[EntitlementUser] Error:', error)
