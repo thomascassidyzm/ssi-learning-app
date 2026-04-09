@@ -155,8 +155,11 @@ async function createSchool(): Promise<void> {
 
   try {
     const client = getClient()
-    const userId = getCurrentUserId()
-    if (!userId) throw new Error('No user ID')
+
+    // Get user ID from Supabase session (must match auth.uid() for RLS)
+    const { data: { session } } = await client.auth.getSession()
+    const userId = session?.user?.id || getCurrentUserId()
+    if (!userId) throw new Error('No user ID — are you logged in?')
 
     const row: Record<string, unknown> = {
       school_name: newSchoolName.value.trim(),
