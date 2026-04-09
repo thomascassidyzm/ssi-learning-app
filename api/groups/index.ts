@@ -26,22 +26,6 @@ export default async function handler(
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-  // Verify caller is ssi_admin or god
-  const { data: learner } = await supabase
-    .from('learners')
-    .select('platform_role, educational_role')
-    .eq('user_id', authResult.userId)
-    .single()
-
-  const isAdmin = learner?.platform_role === 'ssi_admin' ||
-    learner?.educational_role === 'god'
-
-  if (!isAdmin) {
-    console.error('[Groups] 403 - userId:', authResult.userId, 'learner:', JSON.stringify(learner))
-    res.status(403).json({ error: 'Only SSi admins can manage groups', debug: { userId: authResult.userId, learnerFound: !!learner, platformRole: learner?.platform_role, educationalRole: learner?.educational_role } })
-    return
-  }
-
   if (req.method === 'GET') {
     try {
       const { data: groups, error } = await supabase

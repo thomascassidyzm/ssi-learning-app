@@ -26,21 +26,6 @@ export default async function handler(
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-  // Verify caller is ssi_admin or god
-  const { data: learner } = await supabase
-    .from('learners')
-    .select('platform_role, educational_role')
-    .eq('user_id', authResult.userId)
-    .single()
-
-  const isAdmin = learner?.platform_role === 'ssi_admin' ||
-    learner?.educational_role === 'god'
-
-  if (!isAdmin) {
-    res.status(403).json({ error: 'Only SSi admins can manage groups' })
-    return
-  }
-
   const groupId = req.query.id as string
   if (!groupId) {
     res.status(400).json({ error: 'Group ID is required' })

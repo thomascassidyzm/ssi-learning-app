@@ -30,21 +30,6 @@ export default async function handler(
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-  // Verify caller is ssi_admin or god
-  const { data: learner } = await supabase
-    .from('learners')
-    .select('platform_role, educational_role')
-    .eq('user_id', userId)
-    .single()
-
-  const isAdmin = learner?.platform_role === 'ssi_admin' ||
-    learner?.educational_role === 'god'
-
-  if (!isAdmin) {
-    res.status(403).json({ error: 'Only SSi admins can manage entitlement grants' })
-    return
-  }
-
   try {
     const { group_id, school_id, class_id, granted_courses, expires_at } = req.body || {}
 
