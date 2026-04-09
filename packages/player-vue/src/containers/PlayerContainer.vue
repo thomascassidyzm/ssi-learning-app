@@ -121,6 +121,9 @@ const startLearning = (course) => navigate('player', course)
 
 // Handle nav events
 const handleNavigation = (screen) => {
+  // Always close course selector when navigating
+  showCourseSelector.value = false
+
   if (screen === 'library') {
     toggleLibrary()
     return
@@ -260,6 +263,7 @@ const closeLibrary = () => {
 const toggleSettings = () => {
   if (!showSettings.value) {
     showLibrary.value = false // Close library if open
+    showCourseSelector.value = false // Close course selector if open
     if (learningPlayerRef.value?.handlePause) {
       learningPlayerRef.value.handlePause()
     }
