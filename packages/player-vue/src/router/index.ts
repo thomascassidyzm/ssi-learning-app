@@ -230,6 +230,17 @@ router.beforeEach((to, _from, next) => {
   return canAccessAdmin.value ? next() : next('/')
 })
 
+// Guard schools routes — useUserRole is the single authority
+router.beforeEach((to, _from, next) => {
+  if (!to.path.startsWith('/schools')) return next()
+  const { canAccessSchools, canAccessAdmin, restoreFromCache } = useUserRole()
+  restoreFromCache()
+  if (to.meta.requiresAdmin) {
+    return canAccessAdmin.value ? next() : next('/schools')
+  }
+  return canAccessSchools.value ? next() : next('/')
+})
+
 // Update document title on navigation
 router.afterEach((to) => {
   const baseTitle = 'SSi'
