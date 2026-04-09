@@ -239,23 +239,6 @@ onMounted(() => {
 
 <template>
   <div class="admin-invite-codes">
-    <!-- Quick Links -->
-    <nav class="quick-links animate-in">
-      <a href="/schools" class="quick-link">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-          <polyline points="9 22 9 12 15 12 15 22"/>
-        </svg>
-        <span>Schools Dashboard</span>
-      </a>
-      <a href="/demo" class="quick-link">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polygon points="5 3 19 12 5 21 5 3"/>
-        </svg>
-        <span>Schools Demo</span>
-      </a>
-    </nav>
-
     <!-- Page Header -->
     <header class="page-header animate-in">
       <h1 class="page-title">Invite Codes</h1>
@@ -427,51 +410,6 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.quick-links {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 28px;
-}
-
-.quick-link {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 20px;
-  background: var(--bg-card, #ffffff);
-  border: 1px solid var(--border-subtle, rgba(0,0,0,0.06));
-  border-radius: 12px;
-  color: var(--text-primary, #2C2622);
-  text-decoration: none;
-  font-family: inherit;
-  font-size: 0.9375rem;
-  font-weight: 500;
-  transition: all 0.2s ease;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-}
-
-.quick-link:hover {
-  border-color: var(--ssi-red, #c23a3a);
-  color: var(--ssi-red, #c23a3a);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-}
-
-.quick-link svg {
-  opacity: 0.6;
-  flex-shrink: 0;
-}
-
-.quick-link:hover svg {
-  opacity: 1;
-}
-
-@media (max-width: 480px) {
-  .quick-links {
-    flex-direction: column;
-  }
-}
-
 .admin-invite-codes {
   padding: 0;
   max-width: 1200px;

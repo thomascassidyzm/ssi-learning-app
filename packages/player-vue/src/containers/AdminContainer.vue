@@ -26,6 +26,21 @@ onMounted(() => {
               <h1 class="admin-title">SSi Admin</h1>
             </div>
           </div>
+          <div class="header-shortcuts">
+            <router-link to="/schools" class="shortcut-link">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                <polyline points="9 22 9 12 15 12 15 22"/>
+              </svg>
+              Schools
+            </router-link>
+            <router-link to="/demo" class="shortcut-link">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="5 3 19 12 5 21 5 3"/>
+              </svg>
+              Demo
+            </router-link>
+          </div>
           <nav class="admin-nav">
             <router-link
               to="/admin"
@@ -88,11 +103,17 @@ onMounted(() => {
     <!-- Mobile bottom nav -->
     <nav class="bottom-nav">
       <router-link to="/" class="bottom-nav-item back-item">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="5 3 19 12 5 21 5 3"/>
+        </svg>
+        <span>App</span>
+      </router-link>
+      <router-link to="/schools" class="bottom-nav-item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
           <polyline points="9 22 9 12 15 12 15 22"/>
         </svg>
-        <span>App</span>
+        <span>Schools</span>
       </router-link>
       <router-link to="/admin" class="bottom-nav-item" :class="{ active: route.path === '/admin' }">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -157,7 +178,7 @@ onMounted(() => {
 .header-inner {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 1rem;
   padding: 0.875rem 2rem;
   max-width: var(--container-max);
   margin: 0 auto;
@@ -216,6 +237,44 @@ onMounted(() => {
 }
 
 /* ================================================================
+ * SHORTCUTS — Schools / Demo links in header
+ * ================================================================ */
+
+.header-shortcuts {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.shortcut-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 6px;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.5);
+  text-decoration: none;
+  transition: all 0.2s ease;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.shortcut-link:hover {
+  color: var(--ssi-gold);
+  border-color: rgba(212, 168, 83, 0.3);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.shortcut-link svg {
+  opacity: 0.6;
+}
+
+.shortcut-link:hover svg {
+  opacity: 1;
+}
+
+/* ================================================================
  * NAV — Pill group with gold active state
  * ================================================================ */
 
@@ -226,6 +285,7 @@ onMounted(() => {
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.06);
+  margin-left: auto;
 }
 
 .nav-link {
@@ -456,6 +516,10 @@ onMounted(() => {
 }
 
 @media (max-width: 768px) {
+  .header-shortcuts {
+    display: none;
+  }
+
   .header-inner {
     padding: 0.75rem 1rem;
   }
