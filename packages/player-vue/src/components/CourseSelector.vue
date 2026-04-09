@@ -332,7 +332,7 @@ onMounted(() => {
                       <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
                     </svg>
                   </div>
-                  <div v-else-if="isBetaCourse(group.courses[0])" class="beta-badge">beta</div>
+                  <div v-else-if="isBetaCourse(group.courses[0])" class="beta-badge">β</div>
 
                   <LanguageFlag :code="group.courses[0].target_lang" :size="18" class="target-flag" />
                   <span class="target-name">{{ group.name }}</span>

@@ -174,7 +174,9 @@ const handleMode = (mode: string) => {
     </Transition>
 
     <!-- Backdrop to close -->
-    <div v-if="isOpen" class="tray-backdrop" @click="closeTray"></div>
+    <Transition name="backdrop">
+      <div v-if="isOpen" class="tray-backdrop" @click="closeTray"></div>
+    </Transition>
   </div>
 </template>
 
@@ -186,13 +188,13 @@ const handleMode = (mode: string) => {
   z-index: 103;
 }
 
-/* Trigger button — same style as existing mode buttons */
+/* Trigger button */
 .mode-trigger {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.35);
-  background: rgba(10, 10, 18, 0.82);
+  border: 1.5px solid rgba(0, 0, 0, 0.2);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   display: flex;
@@ -201,10 +203,8 @@ const handleMode = (mode: string) => {
   cursor: pointer;
   transition: all 0.2s ease;
   -webkit-tap-highlight-color: transparent;
-  color: var(--text-muted);
-  box-shadow:
-    0 2px 8px rgba(0, 0, 0, 0.5),
-    0 8px 20px rgba(0, 0, 0, 0.25);
+  color: #6B6560;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .mode-trigger svg {
@@ -217,17 +217,17 @@ const handleMode = (mode: string) => {
 }
 
 .mode-trigger.active {
-  background: rgba(10, 18, 14, 0.92);
-  border-color: rgba(74, 222, 128, 0.5);
-  color: #4ade80;
-  box-shadow:
-    0 2px 8px rgba(0, 0, 0, 0.5),
-    0 0 12px rgba(74, 222, 128, 0.15);
+  background: rgba(240, 255, 245, 0.95);
+  border-color: rgba(22, 163, 74, 0.4);
+  color: #16a34a;
 }
 
 .mode-trigger.open {
-  border-color: rgba(255, 255, 255, 0.5);
-  color: var(--text-primary);
+  background: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.35);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.15),
+    0 0 0 3px rgba(0, 0, 0, 0.06);
 }
 
 /* Tray popover */
@@ -236,20 +236,18 @@ const handleMode = (mode: string) => {
   bottom: calc(100% + 8px);
   right: 0;
   width: 260px;
-  background: rgba(10, 10, 18, 0.94);
+  background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  border: 1.5px solid rgba(0, 0, 0, 0.12);
   border-radius: 16px;
   padding: 6px;
-  box-shadow:
-    0 4px 16px rgba(0, 0, 0, 0.6),
-    0 12px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15), 0 12px 32px rgba(0, 0, 0, 0.1);
 }
 
 .tray-divider {
   height: 1px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.08);
   margin: 2px 12px;
 }
 
@@ -266,19 +264,19 @@ const handleMode = (mode: string) => {
   cursor: pointer;
   transition: background 0.15s ease;
   text-align: left;
-  color: var(--text-secondary, #aaa);
+  color: #6B6560;
 }
 
 .tray-item:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.04);
 }
 
 .tray-item:active {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.08);
 }
 
 .tray-item.active {
-  color: #4ade80;
+  color: #16a34a;
 }
 
 .tray-item.unavailable {
@@ -293,12 +291,12 @@ const handleMode = (mode: string) => {
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.04);
   flex-shrink: 0;
 }
 
 .tray-item.active .tray-icon {
-  background: rgba(74, 222, 128, 0.12);
+  background: rgba(22, 163, 74, 0.08);
 }
 
 .tray-icon svg {
@@ -322,7 +320,7 @@ const handleMode = (mode: string) => {
 .tray-desc {
   display: block;
   font-size: 11px;
-  color: var(--text-muted, #666);
+  color: #A09A94;
   line-height: 1.3;
   margin-top: 1px;
 }
@@ -332,14 +330,14 @@ const handleMode = (mode: string) => {
   width: 36px;
   height: 20px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.12);
   position: relative;
   flex-shrink: 0;
   transition: background 0.2s ease;
 }
 
 .tray-toggle.on {
-  background: #4ade80;
+  background: #16a34a;
 }
 
 .tray-toggle-knob {
@@ -363,9 +361,9 @@ const handleMode = (mode: string) => {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #4ade80;
+  background: #16a34a;
   flex-shrink: 0;
-  box-shadow: 0 0 6px rgba(74, 222, 128, 0.4);
+  box-shadow: 0 0 6px rgba(22, 163, 74, 0.4);
 }
 
 /* Backdrop */
@@ -373,6 +371,7 @@ const handleMode = (mode: string) => {
   position: fixed;
   inset: 0;
   z-index: -1;
+  background: rgba(0, 0, 0, 0.15);
 }
 
 /* Transitions */
@@ -387,55 +386,13 @@ const handleMode = (mode: string) => {
   transform: translateY(8px) scale(0.95);
 }
 
-/* Light theme */
-:root[data-theme="mist"] .mode-trigger {
-  background: rgba(255, 255, 255, 0.92);
-  border-color: rgba(0, 0, 0, 0.2);
-  color: #6B6560;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+.backdrop-enter-active,
+.backdrop-leave-active {
+  transition: opacity 0.2s ease;
 }
 
-:root[data-theme="mist"] .mode-trigger.active {
-  background: rgba(240, 255, 245, 0.95);
-  border-color: rgba(22, 163, 74, 0.4);
-  color: #16a34a;
-}
-
-:root[data-theme="mist"] .mode-tray {
-  background: rgba(255, 255, 255, 0.96);
-  border-color: rgba(0, 0, 0, 0.12);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15), 0 12px 32px rgba(0, 0, 0, 0.1);
-}
-
-:root[data-theme="mist"] .tray-item {
-  color: #6B6560;
-}
-
-:root[data-theme="mist"] .tray-item:hover {
-  background: rgba(0, 0, 0, 0.04);
-}
-
-:root[data-theme="mist"] .tray-item.active {
-  color: #16a34a;
-}
-
-:root[data-theme="mist"] .tray-icon {
-  background: rgba(0, 0, 0, 0.04);
-}
-
-:root[data-theme="mist"] .tray-item.active .tray-icon {
-  background: rgba(22, 163, 74, 0.08);
-}
-
-:root[data-theme="mist"] .tray-divider {
-  background: rgba(0, 0, 0, 0.08);
-}
-
-:root[data-theme="mist"] .tray-toggle {
-  background: rgba(0, 0, 0, 0.12);
-}
-
-:root[data-theme="mist"] .tray-desc {
-  color: #A09A94;
+.backdrop-enter-from,
+.backdrop-leave-to {
+  opacity: 0;
 }
 </style>
