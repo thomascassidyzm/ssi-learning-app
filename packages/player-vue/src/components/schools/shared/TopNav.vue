@@ -3,6 +3,7 @@ import { ref, computed, inject } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { useGodMode } from '@/composables/schools/useGodMode'
+import { useUserRole } from '@/composables/useUserRole'
 import { isDemoMode } from '@/composables/demo/demoMode'
 
 interface NavTab {
@@ -21,6 +22,7 @@ const router = useRouter()
 const auth = inject<any>('auth')
 const supabaseRef = inject<{ value: SupabaseClient | null }>('supabase')
 const { selectedUser, isGovtAdmin } = useGodMode()
+const { canAccessAdmin } = useUserRole()
 
 // Derive auth state from injected auth composable
 const isLoaded = computed(() => auth ? !auth.isLoading.value : true)
@@ -36,13 +38,14 @@ const baseTabs: NavTab[] = [
 ]
 
 const tabs = computed(() => {
-  if (isGovtAdmin.value) {
-    return [
-      { name: 'all-schools', path: '/schools/all', label: 'Schools' },
-      ...baseTabs
-    ]
+  const result = isGovtAdmin.value
+    ? [{ name: 'all-schools', path: '/schools/all', label: 'Schools' }, ...baseTabs]
+    : [...baseTabs]
+
+  if (canAccessAdmin.value) {
+    result.push({ name: 'setup', path: '/schools/setup', label: 'Setup' })
   }
-  return baseTabs
+  return result
 })
 
 // Computed user info from Supabase Auth

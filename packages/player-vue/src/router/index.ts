@@ -114,6 +114,16 @@ const routes: RouteRecordRaw[] = [
           description: 'Individual student progress view',
         },
       },
+      {
+        path: 'setup',
+        name: 'schools-setup',
+        component: () => import('@/views/schools/SetupView.vue'),
+        meta: {
+          title: 'Setup',
+          description: 'School, group, and entitlement management',
+          requiresAdmin: true,
+        },
+      },
     ],
   },
   // Listening Pods
