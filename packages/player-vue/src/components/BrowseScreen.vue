@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import { BELTS, getSharedBeltProgress, getSeedFromLegoId } from '@/composables/useBeltProgress'
-import { getLanguageName, t } from '@/composables/useI18n'
+import { getLanguageName, getLanguageEndonym, t } from '@/composables/useI18n'
 import LanguageFlag from '@/components/schools/shared/LanguageFlag.vue'
 import CourseBrowser from '@/components/CourseBrowser.vue'
 import { useAuthModal } from '@/composables/useAuthModal'
@@ -151,11 +151,72 @@ const isAdmin = computed(() => {
   }
 })
 
-// All courses — hide paid (premium) courses from non-admin users
+// Course search
+const courseSearchQuery = ref('')
+
+const buildSearchString = (course) => {
+  return [
+    course.display_name || '',
+    course.course_code || '',
+    getLanguageName(course.target_lang),
+    getLanguageName(course.known_lang),
+    getLanguageEndonym(course.target_lang),
+    getLanguageEndonym(course.known_lang),
+  ].join(' ').toLowerCase()
+}
+
+const getVariantLabel = (course) => {
+  const name = course.display_name || ''
+  if (name.startsWith('North ')) return 'Northern'
+  if (name.startsWith('South ')) return 'Southern'
+  if (name.includes('(North)')) return 'Northern'
+  if (name.includes('(South)')) return 'Southern'
+  if (name.includes('Latin Am')) return 'Latin American'
+  return null
+}
+
+// All courses — filtered by search + access
 const displayedCourses = computed(() => {
-  if (isAdmin.value) return allCourses.value
-  return allCourses.value.filter(c => c.is_community || c.pricing_tier !== 'premium')
+  let courses = isAdmin.value
+    ? allCourses.value
+    : allCourses.value.filter(c => c.is_community || c.pricing_tier !== 'premium')
+
+  const q = courseSearchQuery.value.trim().toLowerCase()
+  if (q) {
+    courses = courses.filter(c => buildSearchString(c).includes(q))
+  }
+  return courses.sort((a, b) => getLanguageName(a.target_lang).localeCompare(getLanguageName(b.target_lang)))
 })
+
+// Group by target_lang + known_lang for variant handling
+const expandedGroup = ref(null)
+
+const courseGroups = computed(() => {
+  const groups = new Map()
+  for (const course of displayedCourses.value) {
+    const key = `${course.target_lang}_${course.known_lang}`
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        target_lang: course.target_lang,
+        known_lang: course.known_lang,
+        name: getLanguageName(course.target_lang),
+        forLabel: getLanguageEndonym(course.known_lang),
+        courses: []
+      })
+    }
+    groups.get(key).courses.push(course)
+  }
+  return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name))
+})
+
+const handleGroupClick = (group) => {
+  if (group.courses.length === 1) {
+    emit('select-course', group.courses[0])
+  } else {
+    expandedGroup.value = expandedGroup.value === group.key ? null : group.key
+  }
+}
 
 // Check if course is enrolled
 const isEnrolled = (courseCode) => {
@@ -369,41 +430,85 @@ onMounted(() => {
       <section class="section">
         <h3 class="section-label">All Courses</h3>
 
+        <!-- Search -->
+        <input
+          v-model="courseSearchQuery"
+          type="text"
+          class="course-search-input"
+          placeholder="Search any language..."
+          autocomplete="off"
+        />
+
         <!-- Loading state -->
         <div v-if="isLoadingCourses" class="courses-loading">
           <div class="loading-spinner"></div>
         </div>
 
+        <!-- No results -->
+        <div v-else-if="courseGroups.length === 0 && courseSearchQuery.trim()" class="no-results">
+          No courses matching "{{ courseSearchQuery }}"
+        </div>
+
         <!-- Course grid -->
         <div v-else class="course-grid">
-          <button
-            v-for="course in displayedCourses"
-            :key="course.course_code"
-            class="course-card"
-            :class="{ active: isActiveCourse(course.course_code) }"
-            @click="emit('select-course', course)"
-          >
-            <!-- Status badge -->
-            <div v-if="isActiveCourse(course.course_code)" class="course-badge active-badge">
-              <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10">
-                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
-              </svg>
-            </div>
-            <div v-else-if="course.new_app_status === 'beta'" class="course-badge beta-badge">B</div>
-            <div v-else-if="!isEnrolled(course.course_code)" class="course-badge new-badge">NEW</div>
+          <template v-for="group in courseGroups" :key="group.key">
+            <!-- Single course -->
+            <template v-if="group.courses.length === 1">
+              <button
+                class="course-card"
+                :class="{ active: isActiveCourse(group.courses[0].course_code) }"
+                @click="emit('select-course', group.courses[0])"
+              >
+                <div v-if="isActiveCourse(group.courses[0].course_code)" class="course-badge active-badge">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10">
+                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+                  </svg>
+                </div>
+                <div v-else-if="group.courses[0].new_app_status === 'beta'" class="course-badge beta-badge">β</div>
 
-            <LanguageFlag :code="course.target_lang" :size="20" />
-            <span class="course-name">{{ getFullDisplayName(course) }}</span>
+                <LanguageFlag :code="group.courses[0].target_lang" :size="18" />
+                <span class="course-name">{{ group.name }}</span>
+                <span class="course-for">for {{ group.forLabel }} speakers</span>
 
-            <span class="course-status">
-              <template v-if="isEnrolled(course.course_code)">
-                {{ getProgress(course.course_code) }}%
-              </template>
-              <template v-else>
-                Start
-              </template>
-            </span>
-          </button>
+                <span class="course-status">
+                  <template v-if="isEnrolled(group.courses[0].course_code)">
+                    {{ getProgress(group.courses[0].course_code) }}%
+                  </template>
+                </span>
+              </button>
+            </template>
+
+            <!-- Multiple variants -->
+            <template v-else>
+              <button
+                class="course-card has-variants"
+                :class="{
+                  expanded: expandedGroup === group.key,
+                  active: group.courses.some(c => isActiveCourse(c.course_code))
+                }"
+                @click="handleGroupClick(group)"
+              >
+                <LanguageFlag :code="group.target_lang" :size="18" />
+                <span class="course-name">{{ group.name }}</span>
+                <span class="course-for">for {{ group.forLabel }} speakers</span>
+                <span class="course-status variant-count">{{ group.courses.length }} variants ▾</span>
+              </button>
+
+              <!-- Variant sub-cards -->
+              <div v-if="expandedGroup === group.key" class="variant-list">
+                <button
+                  v-for="course in group.courses"
+                  :key="course.course_code"
+                  class="variant-card"
+                  :class="{ active: isActiveCourse(course.course_code) }"
+                  @click="emit('select-course', course)"
+                >
+                  <span class="variant-name">{{ getVariantLabel(course) || course.display_name }}</span>
+                  <span v-if="isEnrolled(course.course_code)" class="course-status">{{ getProgress(course.course_code) }}%</span>
+                </button>
+              </div>
+            </template>
+          </template>
         </div>
       </section>
     </div>
@@ -817,12 +922,96 @@ onMounted(() => {
 .course-name {
   font-size: 0.8125rem;
   font-weight: 600;
-  line-height: 1.3;
+  line-height: 1.2;
+}
+
+.course-for {
+  font-size: 0.5625rem;
+  color: var(--text-muted);
+  line-height: 1;
 }
 
 .course-status {
   font-size: 0.75rem;
   color: var(--text-muted);
+}
+
+.variant-count {
+  font-size: 0.625rem;
+}
+
+.course-card.has-variants {
+  border-style: dashed;
+}
+
+.course-card.has-variants.expanded {
+  border-color: var(--ssi-red);
+  border-style: solid;
+}
+
+.variant-list {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+}
+
+.variant-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.625rem 0.5rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s ease;
+}
+
+.variant-card:hover {
+  border-color: var(--ssi-red);
+}
+
+.variant-card.active {
+  border-color: var(--ssi-red);
+  background: rgba(194, 58, 58, 0.08);
+}
+
+.variant-name {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.course-search-input {
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  margin-bottom: 0.75rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s ease;
+}
+
+.course-search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.course-search-input:focus {
+  border-color: var(--ssi-red);
+}
+
+.no-results {
+  text-align: center;
+  padding: 1.5rem;
+  color: var(--text-muted);
+  font-size: 0.875rem;
 }
 
 /* ── Inline Belt Browser ── */
