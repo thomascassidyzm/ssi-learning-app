@@ -502,6 +502,49 @@ async function saveGrant(): Promise<void> {
   }
 }
 
+async function updateSchoolGroup(school: School, groupId: string): Promise<void> {
+  try {
+    const client = getClient()
+    const { error: updateError } = await client
+      .from('schools')
+      .update({ group_id: groupId || null })
+      .eq('id', school.id)
+
+    if (updateError) throw updateError
+    school.group_id = groupId || null
+    successMessage.value = `"${school.school_name}" ${groupId ? 'assigned to ' + getGroupName(groupId) : 'removed from group'}`
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to update school group'
+  }
+}
+
+function editSchoolEntitlements(school: School): void {
+  grantTargetType.value = 'school'
+  grantTargetId.value = school.id
+  grantCourses.value = []
+
+  // Load existing grant for this school
+  const token = getAuthToken()
+  token.then(async (t) => {
+    try {
+      const headers: Record<string, string> = {}
+      if (t) headers['Authorization'] = `Bearer ${t}`
+      const response = await fetch(`/api/entitlement/grants?school_id=${school.id}`, { headers })
+      if (response.ok) {
+        const data = await response.json()
+        if (data.grants?.length > 0) {
+          grantCourses.value = data.grants[0].granted_courses || []
+        }
+      }
+    } catch { /* non-fatal */ }
+  })
+
+  // Scroll to the entitlements section
+  setTimeout(() => {
+    document.querySelector('.course-picker')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, 100)
+}
+
 function toggleCourseGrant(courseCode: string): void {
   const idx = grantCourses.value.indexOf(courseCode)
   if (idx >= 0) {
@@ -607,12 +650,24 @@ onMounted(() => {
                 <th>Group</th>
                 <th>Teacher Join Code</th>
                 <th>Created</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="school in schools" :key="school.id">
                 <td>{{ school.school_name }}</td>
-                <td>{{ school.group_id ? getGroupName(school.group_id) : '-' }}</td>
+                <td>
+                  <select
+                    class="inline-select"
+                    :value="school.group_id || ''"
+                    @change="updateSchoolGroup(school, ($event.target as HTMLSelectElement).value)"
+                  >
+                    <option value="">- None -</option>
+                    <option v-for="g in groups" :key="g.id" :value="g.id">
+                      {{ g.name }}
+                    </option>
+                  </select>
+                </td>
                 <td class="code-cell">
                   <code>{{ school.teacher_join_code }}</code>
                   <button
@@ -631,6 +686,14 @@ onMounted(() => {
                   </button>
                 </td>
                 <td>{{ formatDate(school.created_at) }}</td>
+                <td>
+                  <button class="action-btn" @click="editSchoolEntitlements(school)" title="Edit course entitlements">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    </svg>
+                    Courses
+                  </button>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -1340,6 +1403,24 @@ tbody tr:hover {
 .empty-state span {
   color: var(--text-muted);
   font-size: var(--text-sm);
+}
+
+/* Inline select in tables */
+.inline-select {
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  color: var(--text-primary);
+  font-size: var(--text-xs);
+  font-family: var(--font-body);
+  cursor: pointer;
+  max-width: 160px;
+}
+
+.inline-select:focus {
+  outline: none;
+  border-color: var(--ssi-red);
 }
 
 /* Groups tree */
