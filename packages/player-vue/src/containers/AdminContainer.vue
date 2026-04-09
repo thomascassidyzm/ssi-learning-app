@@ -50,11 +50,11 @@ onMounted(() => {
               <span class="nav-label">Invites</span>
             </router-link>
             <router-link
-              to="/admin/analytics"
+              to="/admin/entitlements"
               class="nav-link"
-              :class="{ active: route.path === '/admin/analytics' }"
+              :class="{ active: route.path === '/admin/entitlements' }"
             >
-              <span class="nav-label">Analytics</span>
+              <span class="nav-label">Access</span>
             </router-link>
             <router-link
               to="/admin/users"
@@ -64,13 +64,6 @@ onMounted(() => {
               <span class="nav-label">Users</span>
             </router-link>
             <router-link
-              to="/admin/activity"
-              class="nav-link"
-              :class="{ active: route.path === '/admin/activity' }"
-            >
-              <span class="nav-label">Activity</span>
-            </router-link>
-            <router-link
               to="/admin/courses"
               class="nav-link"
               :class="{ active: route.path === '/admin/courses' }"
@@ -78,11 +71,18 @@ onMounted(() => {
               <span class="nav-label">Courses</span>
             </router-link>
             <router-link
-              to="/admin/entitlements"
+              to="/admin/analytics"
               class="nav-link"
-              :class="{ active: route.path === '/admin/entitlements' }"
+              :class="{ active: route.path === '/admin/analytics' }"
             >
-              <span class="nav-label">Access</span>
+              <span class="nav-label">Analytics</span>
+            </router-link>
+            <router-link
+              to="/admin/activity"
+              class="nav-link"
+              :class="{ active: route.path === '/admin/activity' }"
+            >
+              <span class="nav-label">Activity</span>
             </router-link>
           </nav>
         </div>
