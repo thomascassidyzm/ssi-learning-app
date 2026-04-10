@@ -342,20 +342,29 @@ async function fetchStaff(): Promise<void> {
   try {
     const client = getClient()
 
-    // Get all teachers and school_admins
-    const { data: learners, error: learnersError } = await client
-      .from('learners')
-      .select('user_id, display_name, educational_role')
-      .in('educational_role', ['teacher', 'school_admin'])
-      .order('display_name')
+    // Use RPC to get staff with emails (bypasses column-level REVOKE)
+    const { data: rpcData, error: rpcError } = await client
+      .rpc('get_staff_with_emails')
 
-    if (learnersError) throw learnersError
-    if (!learners || learners.length === 0) {
+    const learners = rpcError ? [] : (rpcData || [])
+
+    // Fallback: if RPC doesn't exist yet, query directly (without emails)
+    if (rpcError) {
+      console.warn('[SetupView] get_staff_with_emails RPC not available, falling back:', rpcError.message)
+      const { data: fallback } = await client
+        .from('learners')
+        .select('user_id, display_name, educational_role')
+        .in('educational_role', ['teacher', 'school_admin'])
+        .order('display_name')
+      if (fallback) learners.push(...fallback.map((l: any) => ({ ...l, email: null })))
+    }
+
+    if (learners.length === 0) {
       staffMembers.value = []
       return
     }
 
-    const userIds = learners.map(l => l.user_id)
+    const userIds = learners.map((l: any) => l.user_id)
 
     // Get school tags for these users
     const { data: tags } = await client
@@ -365,28 +374,22 @@ async function fetchStaff(): Promise<void> {
       .in('user_id', userIds)
       .is('removed_at', null)
 
-    // Build tag lookup: user_id → { school_id, role_in_context }
     const tagMap = new Map<string, { school_id: string; role_in_context: string }>()
     tags?.forEach(t => {
       const schoolId = t.tag_value.replace('SCHOOL:', '')
       tagMap.set(t.user_id, { school_id: schoolId, role_in_context: t.role_in_context })
     })
 
-    // Build school name lookup
     const schoolNameMap = new Map<string, string>()
     schools.value.forEach(s => schoolNameMap.set(s.id, s.school_name))
 
-    // Get emails via RPC won't work (service role needed), so try verified_emails
-    // Actually verified_emails is revoked from SELECT — we stored it on creation though
-    // For now, just show what we have
-
-    staffMembers.value = learners.map(l => {
+    staffMembers.value = learners.map((l: any) => {
       const tag = tagMap.get(l.user_id)
       return {
         user_id: l.user_id,
         display_name: l.display_name,
         educational_role: l.educational_role,
-        email: null, // emails are revoked from SELECT — will show role/school only
+        email: l.email || null,
         school_id: tag?.school_id || null,
         school_name: tag ? (schoolNameMap.get(tag.school_id) || tag.school_id) : null,
         role_in_context: tag?.role_in_context || null,
@@ -823,7 +826,7 @@ onMounted(() => {
 
     <!-- Add School Section -->
     <section class="create-section animate-in delay-1">
-      <Card title="Add School" accent="green">
+      <Card title="Add School" accent="green" collapsible start-collapsed>
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
@@ -869,7 +872,7 @@ onMounted(() => {
 
     <!-- Schools List -->
     <section v-if="schools.length > 0" class="codes-section animate-in delay-2">
-      <Card title="Schools" accent="gradient" :loading="isLoadingSchools">
+      <Card title="Schools" accent="gradient" :loading="isLoadingSchools" collapsible>
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
@@ -970,7 +973,7 @@ onMounted(() => {
 
     <!-- Add Staff Section -->
     <section v-if="schools.length > 0" class="create-section animate-in delay-2">
-      <Card title="Add Staff" accent="red">
+      <Card title="Add Staff" accent="red" collapsible start-collapsed>
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -1026,7 +1029,7 @@ onMounted(() => {
 
     <!-- Staff List -->
     <section v-if="staffMembers.length > 0" class="codes-section animate-in delay-2">
-      <Card title="Staff" accent="red" :loading="isLoadingStaff">
+      <Card title="Staff" accent="red" :loading="isLoadingStaff" collapsible>
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -1040,6 +1043,7 @@ onMounted(() => {
             <thead>
               <tr>
                 <th>Name</th>
+                <th>Email</th>
                 <th>Role</th>
                 <th>School</th>
               </tr>
@@ -1047,6 +1051,7 @@ onMounted(() => {
             <tbody>
               <tr v-for="staff in staffMembers" :key="staff.user_id">
                 <td>{{ staff.display_name }}</td>
+                <td class="email-cell">{{ staff.email || '—' }}</td>
                 <td>
                   <span class="type-badge" :class="staff.role_in_context === 'admin' ? 'type-school_admin' : 'type-teacher'">
                     {{ staff.role_in_context === 'admin' ? 'Admin' : 'Teacher' }}
@@ -1062,7 +1067,7 @@ onMounted(() => {
 
     <!-- Groups Section -->
     <section class="create-section animate-in delay-1">
-      <Card title="Groups" accent="blue">
+      <Card title="Groups" accent="blue" collapsible start-collapsed>
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"/>
@@ -1199,7 +1204,7 @@ onMounted(() => {
 
     <!-- Course Entitlements Section -->
     <section class="create-section animate-in delay-2">
-      <Card title="Course Entitlements" accent="gold">
+      <Card title="Course Entitlements" accent="gold" collapsible start-collapsed>
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
@@ -1604,6 +1609,11 @@ tbody tr:hover {
   font-size: var(--text-xs);
   color: var(--success);
   font-weight: var(--font-medium);
+}
+
+.email-cell {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
 }
 
 /* Staff role badges */

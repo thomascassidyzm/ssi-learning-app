@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 interface Props {
   /** Card variant: default, stats (for metric cards), elevated */
@@ -16,6 +16,10 @@ interface Props {
   subtitle?: string
   /** Loading state */
   loading?: boolean
+  /** Collapsible: header click toggles body/footer visibility */
+  collapsible?: boolean
+  /** Start collapsed (only used with collapsible) */
+  startCollapsed?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -24,7 +28,15 @@ const props = withDefaults(defineProps<Props>(), {
   hoverable: false,
   noPadding: false,
   loading: false,
+  collapsible: false,
+  startCollapsed: false,
 })
+
+const isExpanded = ref(!props.startCollapsed)
+
+function toggleCollapse() {
+  if (props.collapsible) isExpanded.value = !isExpanded.value
+}
 
 const classes = computed(() => [
   'card',
@@ -44,7 +56,12 @@ const classes = computed(() => [
     <div v-if="accent !== 'none'" class="card-accent-bar" aria-hidden="true"></div>
 
     <!-- Optional header with title/subtitle -->
-    <div v-if="title || $slots.header" class="card-header">
+    <div
+      v-if="title || $slots.header"
+      class="card-header"
+      :class="{ 'card-header-clickable': collapsible }"
+      @click="toggleCollapse"
+    >
       <slot name="header">
         <div v-if="title" class="card-header-content">
           <h3 class="card-title">
@@ -54,13 +71,20 @@ const classes = computed(() => [
           <p v-if="subtitle" class="card-subtitle">{{ subtitle }}</p>
         </div>
       </slot>
-      <div v-if="$slots['header-actions']" class="card-header-actions">
-        <slot name="header-actions" />
+      <div class="card-header-right">
+        <div v-if="$slots['header-actions']" class="card-header-actions">
+          <slot name="header-actions" />
+        </div>
+        <span v-if="collapsible" class="collapse-chevron" :class="{ 'collapse-chevron-open': isExpanded }">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </span>
       </div>
     </div>
 
-    <!-- Card body -->
-    <div class="card-body">
+    <!-- Card body (collapsible) -->
+    <div v-show="!collapsible || isExpanded" class="card-body">
       <!-- Loading skeleton -->
       <div v-if="loading" class="card-loading-skeleton">
         <div class="skeleton-line skeleton-line-lg"></div>
@@ -72,8 +96,8 @@ const classes = computed(() => [
       <slot v-else />
     </div>
 
-    <!-- Optional footer -->
-    <div v-if="$slots.footer" class="card-footer">
+    <!-- Optional footer (collapsible) -->
+    <div v-if="$slots.footer" v-show="!collapsible || isExpanded" class="card-footer">
       <slot name="footer" />
     </div>
   </div>
@@ -193,8 +217,36 @@ const classes = computed(() => [
   margin: var(--space-1) 0 0 0;
 }
 
+.card-header-clickable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.card-header-clickable:hover {
+  background: var(--bg-secondary);
+}
+
+.card-header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+
 .card-header-actions {
   flex-shrink: 0;
+}
+
+.collapse-chevron {
+  display: flex;
+  align-items: center;
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+  transform: rotate(-90deg);
+}
+
+.collapse-chevron-open {
+  transform: rotate(0deg);
 }
 
 /* Body */
