@@ -16,8 +16,8 @@ import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 // Initialize Supabase client
-const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
+const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 
 // Initialize S3 client - use VITE_ versions as fallback (they're cleaner)
 const s3Region = (process.env.AWS_REGION || process.env.VITE_S3_REGION || 'eu-west-1').trim()
@@ -102,10 +102,10 @@ export default async function handler(
   }
 
   try {
-    // Create Supabase client (use service key if available for server-side ops)
+    // Create Supabase client with service role key (matches all other API endpoints)
     const supabase = createClient(
       supabaseUrl!,
-      supabaseServiceKey || process.env.VITE_SUPABASE_ANON_KEY || ''
+      supabaseServiceKey || (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '').trim()
     )
 
     // Query audio_samples table for the audio's S3 key
