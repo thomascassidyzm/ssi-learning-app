@@ -293,6 +293,7 @@ async function createStaff(): Promise<void> {
     if (learnerError) throw learnerError
 
     // Link to school via user_tag
+    const addedBy = getCurrentUserId() || userId
     const { error: tagError } = await client
       .from('user_tags')
       .insert({
@@ -300,6 +301,7 @@ async function createStaff(): Promise<void> {
         tag_type: 'school',
         tag_value: `SCHOOL:${newStaffSchool.value}`,
         role_in_context: roleInContext,
+        added_by: addedBy,
       })
 
     if (tagError) throw tagError
