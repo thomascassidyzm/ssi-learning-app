@@ -72,3 +72,40 @@ export async function getAuthUserId(req: VercelRequest): Promise<string | null> 
   const result = await verifyAuthToken(req)
   return result.valid ? result.userId ?? null : null
 }
+
+/**
+ * Verify the caller is an SSi admin (platform_role = 'ssi_admin' or educational_role = 'god').
+ * Uses the user's own auth token to query learners (works with RLS).
+ * Returns the user ID if admin, null otherwise.
+ */
+export async function verifyAdmin(req: VercelRequest): Promise<{ userId: string } | { error: string; status: number }> {
+  const authResult = await verifyAuthToken(req)
+  if (!authResult.valid || !authResult.userId) {
+    return { error: authResult.error || 'Unauthorized', status: 401 }
+  }
+
+  const token = req.headers.authorization!.slice(7)
+
+  try {
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    })
+
+    const { data: learner } = await supabase
+      .from('learners')
+      .select('platform_role, educational_role')
+      .eq('user_id', authResult.userId)
+      .single()
+
+    const isAdmin = learner?.platform_role === 'ssi_admin' ||
+      learner?.educational_role === 'god'
+
+    if (!isAdmin) {
+      return { error: 'Requires SSi admin access', status: 403 }
+    }
+
+    return { userId: authResult.userId }
+  } catch {
+    return { error: 'Admin verification failed', status: 500 }
+  }
+}
