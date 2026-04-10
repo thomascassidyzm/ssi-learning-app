@@ -94,7 +94,7 @@ async function redeemInviteCode(
   const codeType: string = inviteRow.code_type
 
   // Check user hasn't already redeemed same context
-  if (codeType === 'teacher' && inviteRow.grants_school_id) {
+  if ((codeType === 'teacher' || codeType === 'school_admin_join') && inviteRow.grants_school_id) {
     const { data: existingTag } = await supabase
       .from('user_tags')
       .select('id')
@@ -164,6 +164,8 @@ async function redeemInviteCode(
     learnerUpdate.platform_role = 'ssi_admin'
   } else if (codeType === 'tester') {
     learnerUpdate.platform_role = 'tester'
+  } else if (codeType === 'school_admin_join') {
+    learnerUpdate.educational_role = 'school_admin'
   } else {
     learnerUpdate.educational_role = codeType
   }
@@ -227,6 +229,21 @@ async function redeemInviteCode(
       res.status(500).json({ error: 'Internal server error' })
       return
     }
+  } else if (codeType === 'school_admin_join') {
+    const { error: tagError } = await supabase
+      .from('user_tags')
+      .insert({
+        user_id: userId,
+        tag_type: 'school',
+        tag_value: `SCHOOL:${inviteRow.grants_school_id}`,
+        role_in_context: 'admin',
+        added_by: userId,
+      })
+    if (tagError) {
+      console.error('[CodeRedeem] Failed to create school admin tag:', tagError)
+      res.status(500).json({ error: 'Internal server error' })
+      return
+    }
   } else if (codeType === 'teacher') {
     const { error: tagError } = await supabase
       .from('user_tags')
@@ -260,7 +277,7 @@ async function redeemInviteCode(
   }
 
   const redirectTo = codeType === 'ssi_admin' ? '/admin'
-    : ['god', 'govt_admin', 'school_admin', 'teacher'].includes(codeType) ? '/schools'
+    : ['god', 'govt_admin', 'school_admin', 'school_admin_join', 'teacher'].includes(codeType) ? '/schools'
     : '/'
 
   console.log('[CodeRedeem] Redeemed invite code:', normalizedCode, 'for user:', userId, 'role:', codeType)

@@ -11,6 +11,7 @@ interface School {
   region_code: string | null
   group_id: string | null
   teacher_join_code: string
+  admin_join_code: string
   created_at: string
 }
 
@@ -156,7 +157,7 @@ async function fetchSchools(): Promise<void> {
   try {
     const { data, error: fetchError } = await client
       .from('schools')
-      .select('id, school_name, region_code, group_id, teacher_join_code, created_at')
+      .select('id, school_name, region_code, group_id, teacher_join_code, admin_join_code, created_at')
       .order('created_at', { ascending: false })
 
     if (fetchError) throw fetchError
@@ -195,7 +196,7 @@ async function createSchool(): Promise<void> {
     const { data, error: insertError } = await client
       .from('schools')
       .insert(row)
-      .select('id, school_name, teacher_join_code')
+      .select('id, school_name, teacher_join_code, admin_join_code')
       .single()
 
     if (insertError) throw insertError
@@ -215,7 +216,22 @@ async function createSchool(): Promise<void> {
       console.error('[SetupView] Failed to create invite code for teacher join code:', inviteError)
     }
 
-    successMessage.value = `School "${data.school_name}" created — join code: ${data.teacher_join_code}`
+    // Create invite_codes row so admins can redeem the admin join code
+    const { error: adminInviteError } = await client
+      .from('invite_codes')
+      .insert({
+        code: data.admin_join_code,
+        code_type: 'school_admin_join',
+        grants_school_id: data.id,
+        created_by: userId,
+        is_active: true,
+      })
+
+    if (adminInviteError) {
+      console.error('[SetupView] Failed to create invite code for admin join code:', adminInviteError)
+    }
+
+    successMessage.value = `School "${data.school_name}" created`
     newSchoolName.value = ''
     newSchoolGroup.value = ''
 
@@ -713,6 +729,7 @@ onMounted(() => {
                 <th>Group</th>
                 <th>Entitlements</th>
                 <th>Teacher Join Code</th>
+                <th>Admin Join Code</th>
                 <th>Created</th>
                 <th></th>
               </tr>
@@ -754,6 +771,23 @@ onMounted(() => {
                       <polyline points="20 6 9 17 4 12"/>
                     </svg>
                     {{ copiedCode === school.teacher_join_code ? 'Copied' : 'Copy' }}
+                  </button>
+                </td>
+                <td class="code-cell">
+                  <code>{{ school.admin_join_code }}</code>
+                  <button
+                    class="action-btn"
+                    @click="copyCode(school.admin_join_code)"
+                    :title="copiedCode === school.admin_join_code ? 'Copied!' : 'Copy code'"
+                  >
+                    <svg v-if="copiedCode !== school.admin_join_code" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                    </svg>
+                    <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    {{ copiedCode === school.admin_join_code ? 'Copied' : 'Copy' }}
                   </button>
                 </td>
                 <td>{{ formatDate(school.created_at) }}</td>

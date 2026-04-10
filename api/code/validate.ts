@@ -78,6 +78,13 @@ export default async function handler(
             .single()
           context.groupName = region?.name
         }
+      } else if (codeType === 'school_admin_join' && inviteRow.grants_school_id) {
+        const { data: school } = await supabase
+          .from('schools')
+          .select('school_name')
+          .eq('id', inviteRow.grants_school_id)
+          .single()
+        context.schoolName = school?.school_name
       } else if (codeType === 'teacher' && inviteRow.grants_school_id) {
         const { data: school } = await supabase
           .from('schools')

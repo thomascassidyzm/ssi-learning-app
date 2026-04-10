@@ -104,6 +104,7 @@ const roleDisplayName = computed(() => {
   const map: Record<string, string> = {
     govt_admin: 'Group Admin',
     school_admin: 'School Admin',
+    school_admin_join: 'School Admin',
     teacher: 'Teacher',
     student: 'Student',
     tester: 'Beta Tester',

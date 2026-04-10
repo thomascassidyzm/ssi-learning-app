@@ -35,6 +35,7 @@ const displayTitle = computed(() => {
     ssi_admin: 'SSi Admin Invite',
     govt_admin: 'Group Admin Invite',
     school_admin: 'School Admin Invite',
+    school_admin_join: 'School Admin Invite',
     teacher: 'Teacher Invite',
     student: 'Student Invite',
     tester: 'Beta Tester Invite',
@@ -74,6 +75,7 @@ const authInstructionText = computed(() => {
       return cls ? `Enter your email to join ${cls}` : 'Enter your email to join this class'
     }
     case 'school_admin': return 'Enter your email to set up your school account'
+    case 'school_admin_join': return 'Enter your email to join this school as an admin'
     case 'govt_admin': return 'Enter your email to set up your group admin account'
     default: return 'Enter your email to get started'
   }
@@ -87,6 +89,7 @@ const successHeading = computed(() => {
     case 'teacher': return 'Welcome! Your teacher account is ready'
     case 'student': return "You've joined the class!"
     case 'school_admin': return 'Your school account is ready'
+    case 'school_admin_join': return 'Your school admin account is ready'
     case 'govt_admin': return 'Your group admin account is ready'
     default: return "You're all set!"
   }
@@ -100,6 +103,7 @@ const successSubtext = computed(() => {
     case 'teacher': return 'Taking you to your classroom dashboard...'
     case 'student': return 'Taking you to your first lesson...'
     case 'school_admin': return 'Taking you to your school overview...'
+    case 'school_admin_join': return 'Taking you to your school overview...'
     case 'govt_admin': return 'Taking you to your group overview...'
     default: return 'Redirecting...'
   }
