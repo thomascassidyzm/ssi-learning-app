@@ -89,7 +89,7 @@ Phase 1-3
 
 Phase 8: Audio Gen
   └→ S3: mastered/{uuid}.mp3    ──→  AudioController fetches
-  └→ Supabase: audio_samples
+  └→ Supabase: course_audio
 
 Phase 9: Manifest
   └→ course_manifest.json       ──→  Legacy: loads manifest
@@ -504,7 +504,7 @@ Text update is instantaneous on phase change. No drift possible.
 ```sql
 -- Table naming convention:
 -- course_* prefix = course-specific (course_seeds, course_legos, course_practice_phrases)
--- No prefix = global (audio_samples, voices)
+-- course_audio = audio files (voice config lives on courses table)
 
 -- Get seeds for a session
 SELECT * FROM course_seeds
@@ -521,9 +521,9 @@ SELECT * FROM course_practice_phrases
 WHERE lego_id IN ('S0001L01', 'S0001L02', ...)
 ORDER BY lego_id, sort_order;
 
--- Get audio (global - shared across courses)
-SELECT uuid, duration_ms, s3_key
-FROM audio_samples
+-- Get audio
+SELECT id, duration_ms, s3_key
+FROM course_audio
 WHERE text_normalized = lower(trim('quiero aprender'))
   AND role = 'target1';
 ```
