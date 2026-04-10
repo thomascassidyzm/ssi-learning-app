@@ -80,6 +80,19 @@ const newStaffSchool = ref('')
 const newStaffRole = ref<'teacher' | 'admin'>('teacher')
 const isCreatingStaff = ref(false)
 
+// Staff list
+interface StaffMember {
+  user_id: string
+  display_name: string
+  educational_role: string | null
+  email: string | null
+  school_id: string | null
+  school_name: string | null
+  role_in_context: string | null
+}
+const staffMembers = ref<StaffMember[]>([])
+const isLoadingStaff = ref(false)
+
 // Grant form
 const grantTargetType = ref<'group' | 'school'>('group')
 const grantTargetId = ref('')
@@ -314,11 +327,75 @@ async function createStaff(): Promise<void> {
     newStaffEmail.value = ''
     newStaffSchool.value = ''
     newStaffRole.value = 'teacher'
+
+    await fetchStaff()
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to create staff member'
     console.error('[SetupView] create staff error:', err)
   } finally {
     isCreatingStaff.value = false
+  }
+}
+
+async function fetchStaff(): Promise<void> {
+  isLoadingStaff.value = true
+  try {
+    const client = getClient()
+
+    // Get all teachers and school_admins
+    const { data: learners, error: learnersError } = await client
+      .from('learners')
+      .select('user_id, display_name, educational_role')
+      .in('educational_role', ['teacher', 'school_admin'])
+      .order('display_name')
+
+    if (learnersError) throw learnersError
+    if (!learners || learners.length === 0) {
+      staffMembers.value = []
+      return
+    }
+
+    const userIds = learners.map(l => l.user_id)
+
+    // Get school tags for these users
+    const { data: tags } = await client
+      .from('user_tags')
+      .select('user_id, tag_value, role_in_context')
+      .eq('tag_type', 'school')
+      .in('user_id', userIds)
+      .is('removed_at', null)
+
+    // Build tag lookup: user_id → { school_id, role_in_context }
+    const tagMap = new Map<string, { school_id: string; role_in_context: string }>()
+    tags?.forEach(t => {
+      const schoolId = t.tag_value.replace('SCHOOL:', '')
+      tagMap.set(t.user_id, { school_id: schoolId, role_in_context: t.role_in_context })
+    })
+
+    // Build school name lookup
+    const schoolNameMap = new Map<string, string>()
+    schools.value.forEach(s => schoolNameMap.set(s.id, s.school_name))
+
+    // Get emails via RPC won't work (service role needed), so try verified_emails
+    // Actually verified_emails is revoked from SELECT — we stored it on creation though
+    // For now, just show what we have
+
+    staffMembers.value = learners.map(l => {
+      const tag = tagMap.get(l.user_id)
+      return {
+        user_id: l.user_id,
+        display_name: l.display_name,
+        educational_role: l.educational_role,
+        email: null, // emails are revoked from SELECT — will show role/school only
+        school_id: tag?.school_id || null,
+        school_name: tag ? (schoolNameMap.get(tag.school_id) || tag.school_id) : null,
+        role_in_context: tag?.role_in_context || null,
+      }
+    })
+  } catch (err) {
+    console.error('[SetupView] fetch staff error:', err)
+  } finally {
+    isLoadingStaff.value = false
   }
 }
 
@@ -719,6 +796,7 @@ onMounted(() => {
   fetchGroups()
   fetchCourses()
   fetchGrants()
+  fetchStaff()
 })
 </script>
 
@@ -943,6 +1021,42 @@ onMounted(() => {
             </button>
           </div>
         </template>
+      </Card>
+    </section>
+
+    <!-- Staff List -->
+    <section v-if="staffMembers.length > 0" class="codes-section animate-in delay-2">
+      <Card title="Staff" accent="red" :loading="isLoadingStaff">
+        <template #icon>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+        </template>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Role</th>
+                <th>School</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="staff in staffMembers" :key="staff.user_id">
+                <td>{{ staff.display_name }}</td>
+                <td>
+                  <span class="type-badge" :class="staff.role_in_context === 'admin' ? 'type-school_admin' : 'type-teacher'">
+                    {{ staff.role_in_context === 'admin' ? 'Admin' : 'Teacher' }}
+                  </span>
+                </td>
+                <td>{{ staff.school_name || '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </Card>
     </section>
 
@@ -1490,6 +1604,25 @@ tbody tr:hover {
   font-size: var(--text-xs);
   color: var(--success);
   font-weight: var(--font-medium);
+}
+
+/* Staff role badges */
+.type-badge {
+  display: inline-block;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+}
+
+.type-school_admin {
+  background: color-mix(in srgb, var(--ssi-red) 12%, transparent);
+  color: var(--ssi-red);
+}
+
+.type-teacher {
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  color: var(--success);
 }
 
 /* Course picker */
