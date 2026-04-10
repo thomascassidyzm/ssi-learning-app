@@ -96,6 +96,6 @@ export default async function handler(
     }
   } catch (error) {
     console.error('[EntitlementGrant] Error:', error)
-    res.status(500).json({ error: 'Internal server error' })
+    res.status(500).json({ error: 'Internal server error', detail: String(error) })
   }
 }

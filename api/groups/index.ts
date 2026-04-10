@@ -24,6 +24,12 @@ export default async function handler(
     return
   }
 
+  if (!supabaseServiceKey) {
+    console.error('[Groups] SUPABASE_SERVICE_ROLE_KEY is empty!')
+    res.status(500).json({ error: 'Server misconfigured', detail: 'Missing service role key' })
+    return
+  }
+
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
   if (req.method === 'GET') {
@@ -69,7 +75,7 @@ export default async function handler(
       res.status(200).json({ groups: enriched })
     } catch (error) {
       console.error('[Groups] List error:', error)
-      res.status(500).json({ error: 'Internal server error' })
+      res.status(500).json({ error: 'Internal server error', detail: String(error) })
     }
   } else if (req.method === 'POST') {
     try {
@@ -96,7 +102,7 @@ export default async function handler(
       res.status(201).json({ group: data })
     } catch (error) {
       console.error('[Groups] Create error:', error)
-      res.status(500).json({ error: 'Internal server error' })
+      res.status(500).json({ error: 'Internal server error', detail: String(error) })
     }
   } else {
     res.status(405).json({ error: 'Method not allowed' })
