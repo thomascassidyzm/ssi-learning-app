@@ -189,7 +189,7 @@ onMounted(() => {
             </template>
           </template>
           <template v-else>
-            Select a user from God Mode to view dashboard data
+            Loading your school data...
           </template>
         </p>
       </div>
