@@ -105,6 +105,8 @@ const { open: openAuth, close: closeAuth } = useAuthModal()
 
 const handleAuthSuccess = () => {
   closeAuth()
+  // Reload to pick up new role after code redemption
+  window.location.reload()
 }
 </script>
 
