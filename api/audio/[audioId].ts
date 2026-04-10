@@ -108,23 +108,23 @@ export default async function handler(
       supabaseServiceKey || (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '').trim()
     )
 
-    // Query audio_samples table for the audio's S3 key
+    // Query course_audio table for the audio's S3 key
     const { data: audioRecord, error: queryError } = await supabase
-      .from('audio_samples')
-      .select('uuid, s3_key, duration_ms')
-      .eq('uuid', audioId)
+      .from('course_audio')
+      .select('id, s3_key, duration_ms')
+      .eq('id', audioId)
       .single()
 
     let sample: AudioRecord | null = null
 
     if (queryError || !audioRecord) {
-      console.error('[AudioProxy] Audio not found in audio_samples:', audioId, queryError?.message)
+      console.error('[AudioProxy] Audio not found in course_audio:', audioId, queryError?.message)
       res.status(404).json({ error: 'Audio not found' })
       return
     }
 
     sample = {
-      id: (audioRecord as any).uuid,
+      id: (audioRecord as any).id,
       s3_key: (audioRecord as any).s3_key,
       duration_ms: (audioRecord as any).duration_ms,
     }
