@@ -109,30 +109,30 @@ export default async function handler(
     )
 
     // Query audio_samples table for the audio's S3 key
+    let sample: AudioRecord | null = null
+
     const { data: audioRecord, error: queryError } = await supabase
       .from('audio_samples')
       .select('uuid, s3_key, duration_ms')
       .eq('uuid', audioId)
       .single()
 
-    let sample: AudioRecord | null = null
-
-    if (queryError || !audioRecord) {
-      console.error('[AudioProxy] Audio not found in audio_samples:', audioId, queryError?.message)
-      res.status(404).json({ error: 'Audio not found' })
-      return
+    if (!queryError && audioRecord) {
+      sample = {
+        id: (audioRecord as any).uuid,
+        s3_key: (audioRecord as any).s3_key,
+        duration_ms: (audioRecord as any).duration_ms,
+      }
     }
 
-    sample = {
-      id: (audioRecord as any).uuid,
-      s3_key: (audioRecord as any).s3_key,
-      duration_ms: (audioRecord as any).duration_ms,
-    }
-
+    // Fallback: if DB lookup failed, try the standard S3 key pattern directly
     if (!sample || !sample.s3_key) {
-      console.error('[AudioProxy] No s3_key found for audio:', audioId)
-      res.status(404).json({ error: 'Audio storage key not found' })
-      return
+      console.warn('[AudioProxy] DB lookup failed for', audioId, '- trying S3 fallback. Error:', queryError?.message)
+      sample = {
+        id: audioId,
+        s3_key: `mastered/${audioId}.mp3`,
+        duration_ms: 0,
+      }
     }
 
     // Log analytics (fire and forget)
