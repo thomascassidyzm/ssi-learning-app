@@ -24,6 +24,9 @@ const supabaseRef = inject<{ value: SupabaseClient | null }>('supabase')
 const { selectedUser, isGovtAdmin } = useGodMode()
 const { canAccessAdmin } = useUserRole()
 
+declare const __BUILD_NUMBER__: string
+const buildNumber = typeof __BUILD_NUMBER__ !== 'undefined' ? __BUILD_NUMBER__ : 'dev'
+
 // Derive auth state from injected auth composable
 const isLoaded = computed(() => auth ? !auth.isLoading.value : true)
 const isSignedIn = computed(() => auth?.isAuthenticated.value ?? false)
@@ -115,6 +118,7 @@ const closeMobileMenu = () => {
       <span class="logo-text">
         <span class="say">Say</span><span class="something">Something</span><span class="in">in</span>
       </span>
+      <span class="build-number">{{ buildNumber }}</span>
     </router-link>
 
     <!-- Navigation Tabs -->
@@ -287,9 +291,16 @@ const closeMobileMenu = () => {
 /* Logo */
 .logo {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: var(--space-2);
   text-decoration: none;
+}
+
+.build-number {
+  font-size: 10px;
+  color: var(--text-faint, #b5aea6);
+  font-family: var(--font-mono, monospace);
+  letter-spacing: 0.02em;
 }
 
 .logo-text {
