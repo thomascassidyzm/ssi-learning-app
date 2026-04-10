@@ -73,6 +73,13 @@ const newGroupName = ref('')
 const newGroupType = ref('group')
 const newGroupParent = ref('')
 
+// Add Staff form
+const newStaffName = ref('')
+const newStaffEmail = ref('')
+const newStaffSchool = ref('')
+const newStaffRole = ref<'teacher' | 'admin'>('teacher')
+const isCreatingStaff = ref(false)
+
 // Grant form
 const grantTargetType = ref<'group' | 'school'>('group')
 const grantTargetId = ref('')
@@ -241,6 +248,65 @@ async function createSchool(): Promise<void> {
     console.error('[SetupView] create school error:', err)
   } finally {
     isCreatingSchool.value = false
+  }
+}
+
+async function createStaff(): Promise<void> {
+  if (!newStaffName.value.trim()) {
+    error.value = 'Name is required'
+    return
+  }
+  if (!newStaffSchool.value) {
+    error.value = 'Please select a school'
+    return
+  }
+
+  isCreatingStaff.value = true
+  error.value = null
+  successMessage.value = null
+
+  try {
+    const client = getClient()
+    const userId = `staff_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    const educationalRole = newStaffRole.value === 'admin' ? 'school_admin' : 'teacher'
+    const roleInContext = newStaffRole.value === 'admin' ? 'admin' : 'teacher'
+
+    // Create learner record
+    const { error: learnerError } = await client
+      .from('learners')
+      .insert({
+        user_id: userId,
+        display_name: newStaffName.value.trim(),
+        educational_role: educationalRole,
+      })
+
+    if (learnerError) throw learnerError
+
+    // Link to school via user_tag
+    const { error: tagError } = await client
+      .from('user_tags')
+      .insert({
+        user_id: userId,
+        tag_type: 'school',
+        tag_value: `SCHOOL:${newStaffSchool.value}`,
+        role_in_context: roleInContext,
+      })
+
+    if (tagError) throw tagError
+
+    const schoolName = schools.value.find(s => s.id === newStaffSchool.value)?.school_name || ''
+    const roleLabel = newStaffRole.value === 'admin' ? 'School Admin' : 'Teacher'
+    successMessage.value = `${roleLabel} "${newStaffName.value.trim()}" added to ${schoolName}`
+
+    newStaffName.value = ''
+    newStaffEmail.value = ''
+    newStaffSchool.value = ''
+    newStaffRole.value = 'teacher'
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to create staff member'
+    console.error('[SetupView] create staff error:', err)
+  } finally {
+    isCreatingStaff.value = false
   }
 }
 
@@ -809,6 +875,62 @@ onMounted(() => {
             </tbody>
           </table>
         </div>
+      </Card>
+    </section>
+
+    <!-- Add Staff Section -->
+    <section v-if="schools.length > 0" class="create-section animate-in delay-2">
+      <Card title="Add Staff" accent="red">
+        <template #icon>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="8.5" cy="7" r="4"/>
+            <line x1="20" y1="8" x2="20" y2="14"/>
+            <line x1="23" y1="11" x2="17" y2="11"/>
+          </svg>
+        </template>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Name <span class="required">*</span></label>
+            <input v-model="newStaffName" type="text" placeholder="e.g. Rhian Griffiths" />
+          </div>
+          <div class="form-group">
+            <label>Email (optional)</label>
+            <input v-model="newStaffEmail" type="email" placeholder="e.g. rhian@school.edu" />
+          </div>
+          <div class="form-group">
+            <label>School <span class="required">*</span></label>
+            <select v-model="newStaffSchool">
+              <option value="">- Select school -</option>
+              <option v-for="s in schools" :key="s.id" :value="s.id">
+                {{ s.school_name }}
+              </option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Role</label>
+            <select v-model="newStaffRole">
+              <option value="teacher">Teacher</option>
+              <option value="admin">School Admin</option>
+            </select>
+          </div>
+        </div>
+        <template #footer>
+          <div class="form-actions">
+            <button
+              class="btn-create"
+              :disabled="isCreatingStaff || !newStaffName.trim() || !newStaffSchool"
+              @click="createStaff"
+            >
+              <svg v-if="!isCreatingStaff" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              <span v-if="isCreatingStaff" class="spinner"></span>
+              {{ isCreatingStaff ? 'Adding...' : 'Add Staff' }}
+            </button>
+          </div>
+        </template>
       </Card>
     </section>
 
