@@ -4,7 +4,6 @@ import TopNav from '@/components/schools/shared/TopNav.vue'
 import GodModePanel from '@/components/schools/GodModePanel.vue'
 import { SignInModal } from '@/components/auth'
 import { useAuthModal } from '@/composables/useAuthModal'
-import { useAuth } from '@/composables/useAuth'
 import { useUserRole } from '@/composables/useUserRole'
 import { setSchoolsClient } from '@/composables/schools/client'
 
@@ -16,8 +15,10 @@ if (supabase.value) {
   setSchoolsClient(supabase.value)
 }
 
-// Auth state
-const { isAuthenticated, isLoading: isAuthLoading } = useAuth()
+// Auth state — inject from App.vue (useAuth creates non-singleton refs, must use inject)
+const auth = inject<any>('auth', null)
+const isAuthenticated = computed(() => auth?.isAuthenticated?.value ?? false)
+const isAuthLoading = computed(() => auth?.isLoading?.value ?? false)
 const { canAccessSchools, restoreFromCache } = useUserRole()
 restoreFromCache()
 
