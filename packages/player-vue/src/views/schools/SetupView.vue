@@ -271,14 +271,20 @@ async function createStaff(): Promise<void> {
     const educationalRole = newStaffRole.value === 'admin' ? 'school_admin' : 'teacher'
     const roleInContext = newStaffRole.value === 'admin' ? 'admin' : 'teacher'
 
-    // Create learner record
+    // Create learner record (with email in verified_emails so auth linking works)
+    const emailStr = newStaffEmail.value.trim().toLowerCase()
+    const insertData: Record<string, unknown> = {
+      user_id: userId,
+      display_name: newStaffName.value.trim(),
+      educational_role: educationalRole,
+    }
+    if (emailStr) {
+      insertData.verified_emails = [emailStr]
+    }
+
     const { error: learnerError } = await client
       .from('learners')
-      .insert({
-        user_id: userId,
-        display_name: newStaffName.value.trim(),
-        educational_role: educationalRole,
-      })
+      .insert(insertData)
 
     if (learnerError) throw learnerError
 
