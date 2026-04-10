@@ -7,7 +7,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
-import { verifyAdmin } from '../_utils/auth'
+import { verifyAuthToken } from '../_utils/auth'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -21,9 +21,9 @@ export default async function handler(
     return
   }
 
-  const adminResult = await verifyAdmin(req)
-  if ('error' in adminResult) {
-    res.status(adminResult.status).json({ error: adminResult.error })
+  const authResult = await verifyAuthToken(req)
+  if (!authResult.valid || !authResult.userId) {
+    res.status(401).json({ error: authResult.error || 'Unauthorized' })
     return
   }
 
