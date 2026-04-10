@@ -119,6 +119,7 @@ export default async function handler(
 
     if (queryError || !audioRecord) {
       console.error('[AudioProxy] Audio not found in course_audio:', audioId, queryError?.message)
+      res.setHeader('Cache-Control', 'no-store')
       res.status(404).json({ error: 'Audio not found' })
       return
     }
