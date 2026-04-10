@@ -236,6 +236,22 @@ const closeMobileMenu = () => {
         {{ tab.label }}
       </router-link>
       <router-link
+        v-if="canAccessAdmin && !isDemoMode"
+        to="/admin"
+        class="mobile-menu-item"
+        @click="closeMobileMenu"
+      >
+        Admin
+      </router-link>
+      <router-link
+        v-if="!isDemoMode"
+        to="/demo"
+        class="mobile-menu-item"
+        @click="closeMobileMenu"
+      >
+        Demo
+      </router-link>
+      <router-link
         v-if="!isDemoMode"
         to="/"
         class="mobile-menu-item mobile-menu-learn"
