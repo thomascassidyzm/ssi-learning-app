@@ -256,6 +256,10 @@ async function createStaff(): Promise<void> {
     error.value = 'Name is required'
     return
   }
+  if (!newStaffEmail.value.trim()) {
+    error.value = 'Email is required'
+    return
+  }
   if (!newStaffSchool.value) {
     error.value = 'Please select a school'
     return
@@ -901,7 +905,7 @@ onMounted(() => {
             <input v-model="newStaffName" type="text" placeholder="e.g. Rhian Griffiths" />
           </div>
           <div class="form-group">
-            <label>Email (optional)</label>
+            <label>Email <span class="required">*</span></label>
             <input v-model="newStaffEmail" type="email" placeholder="e.g. rhian@school.edu" />
           </div>
           <div class="form-group">
@@ -925,7 +929,7 @@ onMounted(() => {
           <div class="form-actions">
             <button
               class="btn-create"
-              :disabled="isCreatingStaff || !newStaffName.trim() || !newStaffSchool"
+              :disabled="isCreatingStaff || !newStaffName.trim() || !newStaffEmail.trim() || !newStaffSchool"
               @click="createStaff"
             >
               <svg v-if="!isCreatingStaff" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
