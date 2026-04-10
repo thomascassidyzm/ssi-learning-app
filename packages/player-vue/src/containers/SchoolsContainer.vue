@@ -100,13 +100,73 @@ function handleBackToEmail() {
   loginError.value = ''
 }
 
-// Global auth modal (for invite code flows etc.)
+// Join code state (inline, no modal)
+const joinCode = ref('')
+const joinCodeError = ref('')
+const joinCodeSuccess = ref('')
+const isJoinCodeLoading = ref(false)
+
+async function handleRedeemCode() {
+  if (!joinCode.value.trim()) return
+  isJoinCodeLoading.value = true
+  joinCodeError.value = ''
+  joinCodeSuccess.value = ''
+
+  try {
+    // Validate
+    const validateRes = await fetch('/api/code/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: joinCode.value.trim().toUpperCase() }),
+    })
+    const validateData = await validateRes.json()
+
+    if (!validateData.valid) {
+      joinCodeError.value = validateData.error || 'Invalid code'
+      return
+    }
+
+    // Get auth token
+    const { data: { session } } = await supabase.value.auth.getSession()
+    if (!session?.access_token) {
+      joinCodeError.value = 'Not signed in'
+      return
+    }
+
+    // Redeem
+    const redeemRes = await fetch('/api/code/redeem', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        code: joinCode.value.trim().toUpperCase(),
+        codeKind: validateData.codeKind,
+      }),
+    })
+    const redeemData = await redeemRes.json()
+
+    if (!redeemData.success) {
+      joinCodeError.value = redeemData.error || 'Failed to redeem code'
+      return
+    }
+
+    joinCodeSuccess.value = 'Code redeemed! Loading dashboard...'
+    // Reload to pick up new role
+    setTimeout(() => window.location.reload(), 500)
+  } catch (err: any) {
+    joinCodeError.value = err.message || 'Something went wrong'
+  } finally {
+    isJoinCodeLoading.value = false
+  }
+}
+
+// Global auth modal (still needed for TopNav sign-in)
 const { open: openAuth, close: closeAuth } = useAuthModal()
 
 const handleAuthSuccess = () => {
   closeAuth()
-  // Reload to pick up new role after code redemption
-  window.location.reload()
 }
 </script>
 
@@ -202,11 +262,40 @@ const handleAuthSuccess = () => {
           <span class="login-logo">SaySomethingin</span>
           <span class="login-logo-accent">Schools</span>
         </div>
-        <p class="login-subtitle">Your account doesn't have access to the schools dashboard.</p>
+        <p class="login-subtitle">Your account doesn't have access to the schools dashboard yet.</p>
         <p class="login-hint">If you've been given a join code, enter it below.</p>
-        <button class="login-btn" @click="openAuth({ inviteCode: true })">
-          Enter Join Code
-        </button>
+
+        <div v-if="joinCodeError" class="login-error">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          {{ joinCodeError }}
+        </div>
+
+        <div v-if="joinCodeSuccess" class="login-success">
+          {{ joinCodeSuccess }}
+        </div>
+
+        <form v-if="!joinCodeSuccess" class="login-form" @submit.prevent="handleRedeemCode">
+          <div class="login-field">
+            <label for="schools-join-code">Join Code</label>
+            <input
+              id="schools-join-code"
+              v-model="joinCode"
+              type="text"
+              placeholder="e.g. ABC-123"
+              class="otp-input"
+              autofocus
+            />
+          </div>
+          <button
+            type="submit"
+            class="login-btn"
+            :disabled="!joinCode.trim() || isJoinCodeLoading"
+          >
+            {{ isJoinCodeLoading ? 'Checking...' : 'Join' }}
+          </button>
+        </form>
       </div>
     </div>
 
@@ -331,6 +420,18 @@ const handleAuthSuccess = () => {
   color: #dc2626;
   font-size: 13px;
   text-align: left;
+  margin-bottom: 20px;
+}
+
+.login-success {
+  padding: 10px 14px;
+  background: rgba(34, 197, 94, 0.08);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  border-radius: 10px;
+  color: #16a34a;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
   margin-bottom: 20px;
 }
 
