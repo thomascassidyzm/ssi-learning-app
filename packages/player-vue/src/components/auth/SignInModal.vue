@@ -102,7 +102,7 @@ const handleValidateCode = async () => {
 const roleDisplayName = computed(() => {
   if (!pendingCode.value) return ''
   const map: Record<string, string> = {
-    govt_admin: 'Regional Admin',
+    govt_admin: 'Group Admin',
     school_admin: 'School Admin',
     teacher: 'Teacher',
     student: 'Student',
@@ -114,8 +114,8 @@ const roleDisplayName = computed(() => {
 const contextDescription = computed(() => {
   if (!pendingCode.value) return ''
   const ctx = pendingCode.value
-  if (ctx.codeType === 'govt_admin' && ctx.regionName) return `for ${ctx.regionName}`
-  if (ctx.codeType === 'school_admin' && ctx.regionName) return `in ${ctx.regionName}`
+  if (ctx.codeType === 'govt_admin' && ctx.groupName) return `for ${ctx.groupName}`
+  if (ctx.codeType === 'school_admin' && ctx.groupName) return `in ${ctx.groupName}`
   if (ctx.codeType === 'teacher' && ctx.schoolName) return `at ${ctx.schoolName}`
   if (ctx.codeType === 'student') {
     const parts: string[] = []

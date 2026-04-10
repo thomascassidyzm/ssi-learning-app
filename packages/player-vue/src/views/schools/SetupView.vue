@@ -69,7 +69,7 @@ const newSchoolGroup = ref('')
 
 // Group form
 const newGroupName = ref('')
-const newGroupType = ref('region')
+const newGroupType = ref('group')
 const newGroupParent = ref('')
 
 // Grant form
@@ -295,7 +295,7 @@ async function createGroup(): Promise<void> {
     const result = await response.json()
     successMessage.value = `Group "${result.group.name}" created`
     newGroupName.value = ''
-    newGroupType.value = 'region'
+    newGroupType.value = 'group'
     newGroupParent.value = ''
 
     await fetchGroups()
@@ -805,7 +805,7 @@ onMounted(() => {
             <label>Type</label>
             <select v-model="newGroupType">
               <option value="nation">Nation</option>
-              <option value="region">Region</option>
+              <option value="group">Group</option>
               <option value="district">District</option>
               <option value="programme">Programme</option>
               <option value="other">Other</option>

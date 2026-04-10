@@ -54,17 +54,17 @@ const benchmarkValues = computed(() => {
   if (!hasBenchmark.value) return null
   const classCycles = props.classData.total_cycles || 0
   const schoolCycles = props.classData.school_avg_cycles || 0
-  const regionCycles = props.classData.region_avg_cycles || 0
+  const groupCycles = props.classData.group_avg_cycles || 0
   const courseCycles = props.classData.course_avg_cycles || 0
-  const max = Math.max(classCycles, schoolCycles, regionCycles, courseCycles, 1)
+  const max = Math.max(classCycles, schoolCycles, groupCycles, courseCycles, 1)
   return {
     classCycles,
     schoolCycles,
-    regionCycles,
+    groupCycles,
     courseCycles,
     classPercent: (classCycles / max) * 100,
     schoolPercent: (schoolCycles / max) * 100,
-    regionPercent: (regionCycles / max) * 100,
+    groupPercent: (groupCycles / max) * 100,
     coursePercent: (courseCycles / max) * 100,
   }
 })
@@ -192,10 +192,10 @@ const handleSettings = () => {
               :title="'Global avg: ' + benchmarkValues.courseCycles"
             ></div>
             <div
-              v-if="benchmarkValues.regionCycles > 0"
-              class="benchmark-marker marker-region"
-              :style="{ left: benchmarkValues.regionPercent + '%' }"
-              :title="'Regional avg: ' + benchmarkValues.regionCycles"
+              v-if="benchmarkValues.groupCycles > 0"
+              class="benchmark-marker marker-group"
+              :style="{ left: benchmarkValues.groupPercent + '%' }"
+              :title="'Group avg: ' + benchmarkValues.groupCycles"
             ></div>
             <div
               v-if="benchmarkValues.schoolCycles > 0"
@@ -221,10 +221,10 @@ const handleSettings = () => {
             <span>School</span>
             <span class="legend-value">{{ benchmarkValues.schoolCycles }}</span>
           </div>
-          <div v-if="benchmarkValues.regionCycles > 0" class="legend-item">
-            <span class="legend-dot dot-region"></span>
-            <span>Region</span>
-            <span class="legend-value">{{ benchmarkValues.regionCycles }}</span>
+          <div v-if="benchmarkValues.groupCycles > 0" class="legend-item">
+            <span class="legend-dot dot-group"></span>
+            <span>Group</span>
+            <span class="legend-value">{{ benchmarkValues.groupCycles }}</span>
           </div>
           <div v-if="benchmarkValues.courseCycles > 0" class="legend-item">
             <span class="legend-dot dot-global"></span>
@@ -508,7 +508,7 @@ const handleSettings = () => {
   opacity: 0.5;
 }
 
-.benchmark-marker.marker-region {
+.benchmark-marker.marker-group {
   background: var(--belt-blue, #2d9cdb);
   opacity: 0.5;
 }
@@ -564,7 +564,7 @@ const handleSettings = () => {
 
 .legend-dot.dot-class { background: var(--ssi-red, #c23a3a); }
 .legend-dot.dot-school { background: var(--text-muted, #8A8078); opacity: 0.5; }
-.legend-dot.dot-region { background: var(--belt-blue, #2d9cdb); opacity: 0.5; }
+.legend-dot.dot-group { background: var(--belt-blue, #2d9cdb); opacity: 0.5; }
 .legend-dot.dot-global { background: var(--belt-green, #27ae60); opacity: 0.4; }
 
 .legend-value {

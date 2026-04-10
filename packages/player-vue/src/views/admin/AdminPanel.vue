@@ -5,7 +5,7 @@ import { useAdminClient } from '@/composables/useAdminClient'
 import { useGodMode } from '@/composables/schools/useGodMode'
 import Card from '@/components/schools/shared/Card.vue'
 
-interface Region {
+interface Group {
   code: string
   name: string
 }
@@ -32,7 +32,7 @@ const isSsiAdmin = ref(false)
 const isGovtAdmin = ref(false)
 
 // State
-const regions = ref<Region[]>([])
+const groups = ref<Group[]>([])
 const codes = ref<InviteCode[]>([])
 const isLoadingCodes = ref(false)
 const isCreating = ref(false)
@@ -41,7 +41,7 @@ const successMessage = ref<string | null>(null)
 const copiedCode = ref<string | null>(null)
 
 // Form state
-const selectedRegion = ref('')
+const selectedGroup = ref('')
 const organizationName = ref('')
 const expiresAt = ref('')
 const maxUses = ref<number | ''>('')
@@ -54,7 +54,7 @@ function getCurrentUserId(): string | null {
   return null
 }
 
-async function fetchRegionsAndCodes(): Promise<void> {
+async function fetchGroupsAndCodes(): Promise<void> {
   const client = getClient()
   const userId = getCurrentUserId()
   if (!userId) return
@@ -63,14 +63,14 @@ async function fetchRegionsAndCodes(): Promise<void> {
   error.value = null
 
   try {
-    // Fetch regions
-    const { data: regionData, error: regionError } = await client
+    // Fetch groups
+    const { data: groupData, error: groupError } = await client
       .from('regions')
       .select('code, name')
       .order('name')
 
-    if (regionError) throw regionError
-    regions.value = regionData || []
+    if (groupError) throw groupError
+    groups.value = groupData || []
 
     // Determine admin role
     const { data: learnerData } = await client
@@ -127,7 +127,7 @@ async function createCode(): Promise<void> {
       organization_name: organizationName.value.trim(),
     }
 
-    if (selectedRegion.value) body.region_code = selectedRegion.value
+    if (selectedGroup.value) body.region_code = selectedGroup.value
     if (expiresAt.value) body.expires_at = new Date(expiresAt.value).toISOString()
     if (maxUses.value !== '') body.max_uses = Number(maxUses.value)
 
@@ -157,12 +157,12 @@ async function createCode(): Promise<void> {
 
     // Reset form
     organizationName.value = ''
-    selectedRegion.value = ''
+    selectedGroup.value = ''
     expiresAt.value = ''
     maxUses.value = ''
 
     // Refresh codes list
-    await fetchRegionsAndCodes()
+    await fetchGroupsAndCodes()
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to create code'
     console.error('[AdminPanel] create error:', err)
@@ -233,7 +233,7 @@ function formatUses(code: InviteCode): string {
 }
 
 onMounted(() => {
-  fetchRegionsAndCodes()
+  fetchGroupsAndCodes()
 })
 </script>
 
@@ -285,10 +285,10 @@ onMounted(() => {
           </div>
 
           <div class="form-group">
-            <label>Region</label>
-            <select v-model="selectedRegion">
-              <option value="">- No region -</option>
-              <option v-for="r in regions" :key="r.code" :value="r.code">
+            <label>Group</label>
+            <select v-model="selectedGroup">
+              <option value="">- No group -</option>
+              <option v-for="r in groups" :key="r.code" :value="r.code">
                 {{ r.name }} ({{ r.code }})
               </option>
             </select>
@@ -348,7 +348,7 @@ onMounted(() => {
                 <th>Code</th>
                 <th>Type</th>
                 <th>Organization</th>
-                <th>Region</th>
+                <th>Group</th>
                 <th>Uses</th>
                 <th>Expires</th>
                 <th>Status</th>

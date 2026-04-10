@@ -151,7 +151,7 @@ describe('useAnalyticsData', () => {
 
   // --- getSchoolReport ---
 
-  it('returns school report with regional comparison', async () => {
+  it('returns school report with group comparison', async () => {
     const ad = await setup({
       class_activity_stats: { data: [
         { class_id: 'c1', class_name: 'A', course_code: 'cym', total_cycles: 300, avg_cycles_per_session: 15, active_students: 10, school_id: 's1', region_code: 'WALES' },
@@ -163,7 +163,7 @@ describe('useAnalyticsData', () => {
     expect(report?.classes).toHaveLength(2)
     expect(report?.schoolTotal).toBe(500)
     expect(report?.schoolAvgPerClass).toBe(250)
-    expect(report?.regionAvg?.avg_total_cycles).toBe(250)
+    expect(report?.groupAvg?.avg_total_cycles).toBe(250)
   })
 
   it('getSchoolReport returns null on error', async () => {
@@ -174,9 +174,9 @@ describe('useAnalyticsData', () => {
     expect(report).toBeNull()
   })
 
-  // --- getRegionReport ---
+  // --- getGroupReport ---
 
-  it('returns region report aggregated by school', async () => {
+  it('returns group report aggregated by school', async () => {
     const ad = await setup({
       class_activity_stats: { data: [
         { class_id: 'c1', class_name: 'A', school_id: 's1', total_cycles: 100, active_students: 5 },
@@ -189,17 +189,17 @@ describe('useAnalyticsData', () => {
       ], error: null },
       demographic_cycle_averages: { data: { level: 'course', avg_total_cycles: 180, class_count: 100 }, error: null },
     }, 'govt_admin')
-    const report = await ad.getRegionReport('WALES')
+    const report = await ad.getGroupReport('WALES')
     expect(report?.schools).toHaveLength(2)
-    expect(report?.regionTotal).toBe(450)
-    expect(report?.allRegionsAvg?.avg_total_cycles).toBe(180)
+    expect(report?.groupTotal).toBe(450)
+    expect(report?.allGroupsAvg?.avg_total_cycles).toBe(180)
   })
 
-  it('getRegionReport returns null on error', async () => {
+  it('getGroupReport returns null on error', async () => {
     const ad = await setup({
       class_activity_stats: { data: null, error: { message: 'fail' } },
     }, 'govt_admin')
-    const report = await ad.getRegionReport('WALES')
+    const report = await ad.getGroupReport('WALES')
     expect(report).toBeNull()
   })
 })

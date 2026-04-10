@@ -88,7 +88,7 @@ export default async function handler(
 
       const row: Record<string, unknown> = {
         name: name.trim(),
-        type: type?.trim() || 'region',
+        type: type?.trim() || 'group',
       }
       if (parent_id) row.parent_id = parent_id
 

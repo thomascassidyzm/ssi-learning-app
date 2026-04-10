@@ -6,7 +6,7 @@ export interface InviteCodeContext {
   // Invite-specific
   inviteCodeId?: string
   codeType?: 'ssi_admin' | 'god' | 'govt_admin' | 'school_admin' | 'teacher' | 'student' | 'tester'
-  regionName?: string
+  groupName?: string
   schoolName?: string
   className?: string
   courseName?: string
@@ -71,7 +71,7 @@ export function useInviteCode() {
             codeKind: 'invite',
             inviteCodeId: data.inviteCodeId,
             codeType: data.codeType,
-            regionName: data.context?.regionName,
+            groupName: data.context?.groupName,
             schoolName: data.context?.schoolName,
             className: data.context?.className,
             courseName: data.context?.courseName,

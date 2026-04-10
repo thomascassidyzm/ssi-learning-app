@@ -70,7 +70,7 @@ export function useStudentsData() {
         if (classesError) throw classesError
         classIds = (classesData || []).map(c => c.id)
       } else if (isGovtAdmin.value && selectedUser.value.region_code) {
-        // Govt admin region view - get all class IDs in region's schools
+        // Govt admin group view - get all class IDs in group's schools
         const { data: regionSchools } = await client
           .from('schools')
           .select('id')

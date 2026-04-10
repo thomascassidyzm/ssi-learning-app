@@ -39,7 +39,7 @@ export interface ClassReport {
     active_days_last_7: number
   }
   schoolAvg: { avg_total_cycles: number; avg_cycles_per_session: number; class_count: number } | null
-  regionAvg: { avg_total_cycles: number; avg_cycles_per_session: number; class_count: number } | null
+  groupAvg: { avg_total_cycles: number; avg_cycles_per_session: number; class_count: number } | null
   courseAvg: { avg_total_cycles: number; avg_cycles_per_session: number; class_count: number } | null
 }
 
@@ -103,7 +103,7 @@ export function useClassesData() {
         // Govt admin drilled into a school sees all classes in that school
         query = query.eq('school_id', activeSchoolId.value)
       } else if (isGovtAdmin.value && selectedUser.value.region_code) {
-        // Govt admin sees all classes in their region's schools
+        // Govt admin sees all classes in their group's schools
         const { data: regionSchools } = await client
           .from('schools')
           .select('id')
@@ -335,7 +335,7 @@ export function useClassesData() {
           active_days_last_7: classStats.active_days_last_7,
         },
         schoolAvg: findDemographic('school', classStats.school_id),
-        regionAvg: findDemographic('region', classStats.region_code),
+        groupAvg: findDemographic('region', classStats.region_code),
         courseAvg: findDemographic('course', classStats.course_code),
       }
     } catch (err) {

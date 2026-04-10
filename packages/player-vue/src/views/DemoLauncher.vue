@@ -66,9 +66,9 @@ const demos = [
   {
     id: 'govt-admin-demo',
     userKey: 'govt_admin',
-    title: 'Regional Admin View',
+    title: 'Group Admin View',
     subtitle: 'Gwilym ap Dafydd — Llywodraeth Cymru',
-    description: 'Monitor all schools in your region. Aggregated data, privacy-first.',
+    description: 'Monitor all schools in your group. Aggregated data, privacy-first.',
     icon: '🏛️',
   },
 ]

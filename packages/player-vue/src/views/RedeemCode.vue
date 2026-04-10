@@ -33,7 +33,7 @@ const displayTitle = computed(() => {
   }
   const map: Record<string, string> = {
     ssi_admin: 'SSi Admin Invite',
-    govt_admin: 'Regional Admin Invite',
+    govt_admin: 'Group Admin Invite',
     school_admin: 'School Admin Invite',
     teacher: 'Teacher Invite',
     student: 'Student Invite',
@@ -52,7 +52,7 @@ const displayDetail = computed(() => {
   }
   const ctx = pendingCode.value
   if (ctx.schoolName) return ctx.schoolName
-  if (ctx.regionName) return ctx.regionName
+  if (ctx.groupName) return ctx.groupName
   if (ctx.className) return ctx.className
   return ''
 })
@@ -74,7 +74,7 @@ const authInstructionText = computed(() => {
       return cls ? `Enter your email to join ${cls}` : 'Enter your email to join this class'
     }
     case 'school_admin': return 'Enter your email to set up your school account'
-    case 'govt_admin': return 'Enter your email to set up your regional admin account'
+    case 'govt_admin': return 'Enter your email to set up your group admin account'
     default: return 'Enter your email to get started'
   }
 })
@@ -87,7 +87,7 @@ const successHeading = computed(() => {
     case 'teacher': return 'Welcome! Your teacher account is ready'
     case 'student': return "You've joined the class!"
     case 'school_admin': return 'Your school account is ready'
-    case 'govt_admin': return 'Your regional admin account is ready'
+    case 'govt_admin': return 'Your group admin account is ready'
     default: return "You're all set!"
   }
 })
@@ -100,7 +100,7 @@ const successSubtext = computed(() => {
     case 'teacher': return 'Taking you to your classroom dashboard...'
     case 'student': return 'Taking you to your first lesson...'
     case 'school_admin': return 'Taking you to your school overview...'
-    case 'govt_admin': return 'Taking you to your regional overview...'
+    case 'govt_admin': return 'Taking you to your group overview...'
     default: return 'Redirecting...'
   }
 })

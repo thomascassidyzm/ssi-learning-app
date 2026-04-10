@@ -87,7 +87,7 @@ describe('useSchoolData', () => {
 
     await sd.fetchSchools()
     expect(sd.schools.value).toHaveLength(2)
-    expect(sd.regionSummary.value?.student_count).toBe(80)
+    expect(sd.groupSummary.value?.student_count).toBe(80)
   })
 
   it('fetches single school for school_admin', async () => {
@@ -153,19 +153,19 @@ describe('useSchoolData', () => {
     expect(sd.totalStudents.value).toBe(42)
   })
 
-  it('totalStudents sums schools when no drill-down and no region summary', async () => {
+  it('totalStudents sums schools when no drill-down and no group summary', async () => {
     const sd = await setup({}, 'govt_admin')
     sd.schools.value = [
       { id: 's1', school_name: 'A', region_code: null, admin_user_id: 'u1', teacher_join_code: '', teacher_count: 1, class_count: 1, student_count: 10, total_practice_hours: 5, created_at: '' },
       { id: 's2', school_name: 'B', region_code: null, admin_user_id: 'u2', teacher_join_code: '', teacher_count: 1, class_count: 1, student_count: 20, total_practice_hours: 10, created_at: '' },
     ]
-    sd.regionSummary.value = null
+    sd.groupSummary.value = null
     expect(sd.totalStudents.value).toBe(30)
   })
 
-  it('totalPracticeHours uses regionSummary when available', async () => {
+  it('totalPracticeHours uses groupSummary when available', async () => {
     const sd = await setup({}, 'govt_admin')
-    sd.regionSummary.value = { region_code: 'W', region_name: 'Wales', school_count: 1, teacher_count: 1, student_count: 1, total_practice_hours: 999 }
+    sd.groupSummary.value = { region_code: 'W', region_name: 'Wales', group_name: 'Wales', school_count: 1, teacher_count: 1, student_count: 1, total_practice_hours: 999 }
     expect(sd.totalPracticeHours.value).toBe(999)
   })
 

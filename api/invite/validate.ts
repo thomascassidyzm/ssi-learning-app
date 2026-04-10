@@ -76,9 +76,9 @@ export default async function handler(
         .select('name')
         .eq('code', inviteRow.grants_region)
         .single()
-      context.regionName = region?.name
+      context.groupName = region?.name
     } else if (codeType === 'school_admin') {
-      // Region from metadata
+      // Group from metadata
       const regionCode = inviteRow.metadata?.region_code
       if (regionCode) {
         const { data: region } = await supabase
@@ -86,7 +86,7 @@ export default async function handler(
           .select('name')
           .eq('code', regionCode)
           .single()
-        context.regionName = region?.name
+        context.groupName = region?.name
       }
     } else if (codeType === 'teacher' && inviteRow.grants_school_id) {
       const { data: school } = await supabase

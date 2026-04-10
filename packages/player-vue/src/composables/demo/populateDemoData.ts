@@ -441,14 +441,15 @@ export function populateDemoData(demoType: 'teacher' | 'govt_admin'): void {
   if (demoType === 'teacher') {
     schoolData.currentSchool.value = { ...school1 }
     schoolData.schools.value = [school1]
-    schoolData.regionSummary.value = null
+    schoolData.groupSummary.value = null
   } else {
-    // govt_admin sees all schools + region summary
+    // govt_admin sees all schools + group summary
     schoolData.currentSchool.value = null
     schoolData.schools.value = [school1, school2, school3]
-    schoolData.regionSummary.value = {
+    schoolData.groupSummary.value = {
       region_code: 'wales',
       region_name: 'Wales',
+      group_name: 'Wales',
       school_count: 3,
       teacher_count: 12,
       student_count: 60,

@@ -81,7 +81,7 @@ describe('useGodMode', () => {
     expect(gm.isGovtAdmin.value).toBe(true)
     expect(gm.isSchoolAdmin.value).toBe(false)
     expect(gm.isTeacher.value).toBe(false)
-    expect(gm.canViewRegion.value).toBe(true)
+    expect(gm.canViewGroup.value).toBe(true)
     expect(gm.canAccessDashboard.value).toBe(true)
   })
 
@@ -94,7 +94,7 @@ describe('useGodMode', () => {
     expect(gm.isSchoolAdmin.value).toBe(true)
     expect(gm.canManageTeachers.value).toBe(true)
     expect(gm.canViewSchoolAnalytics.value).toBe(true)
-    expect(gm.canViewRegion.value).toBe(false)
+    expect(gm.canViewGroup.value).toBe(false)
   })
 
   it('sets role computeds for teacher', async () => {
@@ -214,7 +214,7 @@ describe('useGodMode', () => {
 
   // --- fetchUsers enrichment ---
 
-  it('enriches govt_admin with region context', async () => {
+  it('enriches govt_admin with group context', async () => {
     const gm = await setup({
       learners: { data: [{ id: 'l1', user_id: 'u1', display_name: 'Gov', educational_role: 'govt_admin', platform_role: null }], error: null },
       schools: { data: [], error: null },

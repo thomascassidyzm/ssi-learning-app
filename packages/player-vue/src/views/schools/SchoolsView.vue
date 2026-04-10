@@ -7,7 +7,7 @@ import { useSchoolData } from '@/composables/schools/useSchoolData'
 
 const router = useRouter()
 const { selectedUser } = useGodMode()
-const { schools, regionSummary, totalClasses, fetchSchools, selectSchoolToView } = useSchoolData()
+const { schools, groupSummary, totalClasses, fetchSchools, selectSchoolToView } = useSchoolData()
 
 // Search
 const searchQuery = ref('')
@@ -55,20 +55,20 @@ watch(selectedUser, (newUser) => {
     <header class="page-header animate-item" :class="{ 'show': isVisible }">
       <div class="page-title">
         <h1>Schools</h1>
-        <div class="school-count" v-if="regionSummary">
-          <span class="count-value">{{ regionSummary.school_count }}</span> schools in {{ regionSummary.region_code }}
+        <div class="school-count" v-if="groupSummary">
+          <span class="count-value">{{ groupSummary.school_count }}</span> schools in {{ groupSummary.group_name || groupSummary.region_name }}
         </div>
       </div>
     </header>
 
-    <!-- Region Summary -->
-    <div class="region-stats animate-item delay-1" :class="{ 'show': isVisible }" v-if="regionSummary">
+    <!-- Group Summary -->
+    <div class="group-stats animate-item delay-1" :class="{ 'show': isVisible }" v-if="groupSummary">
       <div class="stat-card">
-        <div class="stat-value">{{ regionSummary.school_count }}</div>
+        <div class="stat-value">{{ groupSummary.school_count }}</div>
         <div class="stat-label">Schools</div>
       </div>
       <div class="stat-card">
-        <div class="stat-value">{{ regionSummary.teacher_count }}</div>
+        <div class="stat-value">{{ groupSummary.teacher_count }}</div>
         <div class="stat-label">Teachers</div>
       </div>
       <div class="stat-card">
@@ -76,11 +76,11 @@ watch(selectedUser, (newUser) => {
         <div class="stat-label">Classes</div>
       </div>
       <div class="stat-card">
-        <div class="stat-value">{{ regionSummary.student_count.toLocaleString() }}</div>
+        <div class="stat-value">{{ groupSummary.student_count.toLocaleString() }}</div>
         <div class="stat-label">Students</div>
       </div>
       <div class="stat-card">
-        <div class="stat-value">{{ formatHours(regionSummary.total_practice_hours) }}</div>
+        <div class="stat-value">{{ formatHours(groupSummary.total_practice_hours) }}</div>
         <div class="stat-label">Hours Learned</div>
       </div>
     </div>
@@ -108,7 +108,7 @@ watch(selectedUser, (newUser) => {
           </div>
           <div class="school-info">
             <h3 class="school-name">{{ school.school_name }}</h3>
-            <span class="school-region">{{ school.region_code || 'Region' }}</span>
+            <span class="school-group">{{ school.region_code || 'Group' }}</span>
           </div>
         </div>
         <div class="school-stats">
@@ -141,7 +141,7 @@ watch(selectedUser, (newUser) => {
     <!-- Empty State -->
     <div v-if="filteredSchools.length === 0 && !searchQuery" class="empty-state">
       <h3>No schools found</h3>
-      <p>No schools are registered in this region yet.</p>
+      <p>No schools are registered in this group yet.</p>
     </div>
 
     <div v-if="filteredSchools.length === 0 && searchQuery" class="empty-state">
@@ -188,8 +188,8 @@ watch(selectedUser, (newUser) => {
   font-weight: var(--font-bold);
 }
 
-/* Region Stats */
-.region-stats {
+/* Group Stats */
+.group-stats {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: var(--space-4);
@@ -281,7 +281,7 @@ watch(selectedUser, (newUser) => {
   text-overflow: ellipsis;
 }
 
-.school-region {
+.school-group {
   font-size: var(--text-sm);
   color: var(--text-muted);
   text-transform: capitalize;
@@ -357,13 +357,13 @@ watch(selectedUser, (newUser) => {
 
 /* Responsive */
 @media (max-width: 1024px) {
-  .region-stats {
+  .group-stats {
     grid-template-columns: repeat(3, 1fr);
   }
 }
 
 @media (max-width: 768px) {
-  .region-stats {
+  .group-stats {
     grid-template-columns: repeat(2, 1fr);
   }
 

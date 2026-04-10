@@ -152,7 +152,7 @@ describe('useClassesData', () => {
     const report = await cd.getClassReport('c1')
     expect(report?.class.total_cycles).toBe(500)
     expect(report?.schoolAvg?.avg_total_cycles).toBe(400)
-    expect(report?.regionAvg?.avg_cycles_per_session).toBe(18)
+    expect(report?.groupAvg?.avg_cycles_per_session).toBe(18)
   })
 
   it('getClassReport returns null on error', async () => {

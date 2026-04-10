@@ -102,7 +102,7 @@ const routes: RouteRecordRaw[] = [
         component: SchoolsView,
         meta: {
           title: 'Schools',
-          description: 'All schools in region (govt admin)',
+          description: 'All schools in group (govt admin)',
         },
       },
       {

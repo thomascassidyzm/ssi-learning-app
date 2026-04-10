@@ -9,9 +9,10 @@ import { getSchoolsClient } from './client'
 import { useGodMode } from './useGodMode'
 import { isDemoMode } from '../demo/demoMode'
 
-interface RegionSummary {
+interface GroupSummary {
   region_code: string
   region_name: string
+  group_name: string
   school_count: number
   teacher_count: number
   student_count: number
@@ -33,7 +34,7 @@ export interface School {
 
 const schools = ref<School[]>([])
 const currentSchool = ref<School | null>(null)
-const regionSummary = ref<RegionSummary | null>(null)
+const groupSummary = ref<GroupSummary | null>(null)
 const viewingSchool = ref<School | null>(null) // For govt admin drill-down
 const isLoading = ref(false)
 const error = ref<string | null>(null)
@@ -52,7 +53,7 @@ export function useSchoolData() {
 
     try {
       if (isGovtAdmin.value && selectedUser.value.region_code) {
-        // Govt admin: fetch all schools in region
+        // Govt admin: fetch all schools in group
         const { data, error: fetchError } = await client
           .from('school_summary')
           .select('*')
@@ -74,7 +75,7 @@ export function useSchoolData() {
           created_at: s.created_at,
         }))
 
-        // Also fetch region summary
+        // Also fetch group summary (from region_summary view)
         const { data: regionData, error: regionError } = await client
           .from('region_summary')
           .select('*')
@@ -82,7 +83,7 @@ export function useSchoolData() {
           .single()
 
         if (!regionError && regionData) {
-          regionSummary.value = regionData
+          groupSummary.value = { ...regionData, group_name: regionData.region_name }
         }
       } else if ((isSchoolAdmin.value || isTeacher.value) && selectedUser.value.school_id) {
         // School admin or teacher: fetch their school
@@ -143,13 +144,13 @@ export function useSchoolData() {
   // Computed stats - respect drill-down context
   const totalStudents = computed(() => {
     if (viewingSchool.value) return viewingSchool.value.student_count
-    if (regionSummary.value) return regionSummary.value.student_count
+    if (groupSummary.value) return groupSummary.value.student_count
     return schools.value.reduce((sum, s) => sum + s.student_count, 0)
   })
 
   const totalTeachers = computed(() => {
     if (viewingSchool.value) return viewingSchool.value.teacher_count
-    if (regionSummary.value) return regionSummary.value.teacher_count
+    if (groupSummary.value) return groupSummary.value.teacher_count
     return schools.value.reduce((sum, s) => sum + s.teacher_count, 0)
   })
 
@@ -160,7 +161,7 @@ export function useSchoolData() {
 
   const totalPracticeHours = computed(() => {
     if (viewingSchool.value) return viewingSchool.value.total_practice_hours
-    if (regionSummary.value) return regionSummary.value.total_practice_hours
+    if (groupSummary.value) return groupSummary.value.total_practice_hours
     return schools.value.reduce((sum, s) => sum + s.total_practice_hours, 0)
   })
 
@@ -168,7 +169,7 @@ export function useSchoolData() {
     // State
     schools,
     currentSchool,
-    regionSummary,
+    groupSummary,
     viewingSchool,
     isLoading,
     error,

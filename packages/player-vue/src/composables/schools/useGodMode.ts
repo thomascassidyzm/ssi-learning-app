@@ -315,7 +315,7 @@ export function useGodMode(client?: SupabaseClient) {
   const canViewSchoolAnalytics = computed(() =>
     currentRole.value === 'school_admin' || currentRole.value === 'govt_admin'
   )
-  const canViewRegion = computed(() =>
+  const canViewGroup = computed(() =>
     currentRole.value === 'govt_admin'
   )
 
@@ -359,7 +359,7 @@ export function useGodMode(client?: SupabaseClient) {
     canAccessDashboard,
     canManageTeachers,
     canViewSchoolAnalytics,
-    canViewRegion,
+    canViewGroup,
 
     // Actions
     checkGodAccess,

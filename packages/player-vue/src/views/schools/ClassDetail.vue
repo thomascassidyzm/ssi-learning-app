@@ -394,9 +394,9 @@ const handleRemoveStudent = async (student: { id: string; name: string }) => {
           <div class="comparison-value">{{ classReport.schoolAvg.avg_cycles_per_session }}</div>
           <div class="comparison-unit">/session</div>
         </div>
-        <div v-if="classReport.regionAvg" class="comparison-item">
-          <div class="comparison-label">Regional avg</div>
-          <div class="comparison-value">{{ classReport.regionAvg.avg_cycles_per_session }}</div>
+        <div v-if="classReport.groupAvg" class="comparison-item">
+          <div class="comparison-label">Group avg</div>
+          <div class="comparison-value">{{ classReport.groupAvg.avg_cycles_per_session }}</div>
           <div class="comparison-unit">/session</div>
         </div>
         <div v-if="classReport.courseAvg" class="comparison-item">

@@ -58,7 +58,7 @@ const classes = computed(() => {
       total_practice_seconds: report?.class?.total_practice_seconds ?? 0,
       avg_cycles_per_session: report?.class?.avg_cycles_per_session ?? 0,
       school_avg_cycles: report?.schoolAvg?.avg_total_cycles ?? 0,
-      region_avg_cycles: report?.regionAvg?.avg_total_cycles ?? 0,
+      group_avg_cycles: report?.groupAvg?.avg_total_cycles ?? 0,
       course_avg_cycles: report?.courseAvg?.avg_total_cycles ?? 0,
     }
   })

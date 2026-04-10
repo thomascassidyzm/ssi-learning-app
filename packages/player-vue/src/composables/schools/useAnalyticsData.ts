@@ -34,10 +34,10 @@ export interface SchoolReport {
   }>
   schoolTotal: number
   schoolAvgPerClass: number
-  regionAvg: { avg_total_cycles: number; avg_cycles_per_session: number; class_count: number } | null
+  groupAvg: { avg_total_cycles: number; avg_cycles_per_session: number; class_count: number } | null
 }
 
-export interface RegionReport {
+export interface GroupReport {
   schools: Array<{
     school_id: string
     school_name: string
@@ -45,8 +45,8 @@ export interface RegionReport {
     class_count: number
     active_students: number
   }>
-  regionTotal: number
-  allRegionsAvg: { avg_total_cycles: number; class_count: number } | null
+  groupTotal: number
+  allGroupsAvg: { avg_total_cycles: number; class_count: number } | null
 }
 
 export interface ClassRanking {
@@ -77,7 +77,7 @@ export function useAnalyticsData() {
     error.value = null
 
     try {
-      // Get class IDs for the scope (school or region)
+      // Get class IDs for the scope (school or group)
       let classIds: string[] = []
 
       if (isSchoolAdmin.value && selectedUser.value.school_id) {
@@ -336,7 +336,7 @@ export function useAnalyticsData() {
     return Math.round(activeDays.reduce((sum, d) => sum + d.active_students, 0) / activeDays.length)
   })
 
-  // Fetch school report: all classes + regional comparison
+  // Fetch school report: all classes + group comparison
   async function getSchoolReport(schoolId: string): Promise<SchoolReport | null> {
     try {
       const { data: classesData, error: classesError } = await client
@@ -349,9 +349,9 @@ export function useAnalyticsData() {
       const schoolTotal = classesData.reduce((sum, c) => sum + (c.total_cycles || 0), 0)
       const schoolAvgPerClass = classesData.length > 0 ? Math.round(schoolTotal / classesData.length) : 0
 
-      // Get regional average for comparison
+      // Get group average for comparison
       const regionCode = classesData[0]?.region_code
-      let regionAvg = null
+      let groupAvg = null
       if (regionCode) {
         const { data: demographics } = await client
           .from('demographic_cycle_averages')
@@ -361,7 +361,7 @@ export function useAnalyticsData() {
           .single()
 
         if (demographics) {
-          regionAvg = {
+          groupAvg = {
             avg_total_cycles: demographics.avg_total_cycles,
             avg_cycles_per_session: demographics.avg_cycles_per_session,
             class_count: demographics.class_count,
@@ -380,7 +380,7 @@ export function useAnalyticsData() {
         })),
         schoolTotal,
         schoolAvgPerClass,
-        regionAvg,
+        groupAvg,
       }
     } catch (err) {
       console.error('School report fetch error:', err)
@@ -388,10 +388,10 @@ export function useAnalyticsData() {
     }
   }
 
-  // Fetch region report: all schools aggregated
-  async function getRegionReport(regionCode: string): Promise<RegionReport | null> {
+  // Fetch group report: all schools aggregated
+  async function getGroupReport(regionCode: string): Promise<GroupReport | null> {
     try {
-      // Get all classes in the region, grouped by school
+      // Get all classes in the group, grouped by school
       const { data: classesData, error: classesError } = await client
         .from('class_activity_stats')
         .select('class_id, class_name, school_id, total_cycles, active_students')
@@ -426,9 +426,9 @@ export function useAnalyticsData() {
         active_students: stats.active_students,
       }))
 
-      const regionTotal = schools.reduce((sum, s) => sum + s.total_cycles, 0)
+      const groupTotal = schools.reduce((sum, s) => sum + s.total_cycles, 0)
 
-      // Get course-level average as "all regions" comparison
+      // Get course-level average as "all groups" comparison
       const { data: courseAvg } = await client
         .from('demographic_cycle_averages')
         .select('*')
@@ -438,11 +438,11 @@ export function useAnalyticsData() {
 
       return {
         schools,
-        regionTotal,
-        allRegionsAvg: courseAvg ? { avg_total_cycles: courseAvg.avg_total_cycles, class_count: courseAvg.class_count } : null,
+        groupTotal,
+        allGroupsAvg: courseAvg ? { avg_total_cycles: courseAvg.avg_total_cycles, class_count: courseAvg.class_count } : null,
       }
     } catch (err) {
-      console.error('Region report fetch error:', err)
+      console.error('Group report fetch error:', err)
       return null
     }
   }
@@ -465,6 +465,6 @@ export function useAnalyticsData() {
     fetchCourseStats,
     fetchClassRankings,
     getSchoolReport,
-    getRegionReport,
+    getGroupReport,
   }
 }

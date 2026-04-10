@@ -6,7 +6,7 @@ import { useGodMode } from '@/composables/schools/useGodMode'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { useClassesData } from '@/composables/schools/useClassesData'
 import { useCourseAccess } from '@/composables/schools/useCourseAccess'
-import { useAnalyticsData, type RegionReport } from '@/composables/schools/useAnalyticsData'
+import { useAnalyticsData, type GroupReport } from '@/composables/schools/useAnalyticsData'
 import { getSchoolsClient } from '@/composables/schools/client'
 import { isDemoMode } from '@/composables/demo/demoMode'
 import { getLanguageName } from '@/composables/useI18n'
@@ -16,7 +16,7 @@ const { selectedUser, isGovtAdmin, isTeacher } = useGodMode()
 const {
   schools,
   currentSchool,
-  regionSummary,
+  groupSummary,
   viewingSchool,
   isViewingSchool,
   totalStudents,
@@ -61,8 +61,8 @@ const handlePlayClass = (cls: any) => {
 const schoolName = computed(() => {
   // If govt admin is viewing a specific school (drilled down)
   if (isViewingSchool.value && viewingSchool.value) return viewingSchool.value.school_name
-  // If govt admin at regional level
-  if (isGovtAdmin.value && regionSummary.value) return regionSummary.value.region_name
+  // If govt admin at group level
+  if (isGovtAdmin.value && groupSummary.value) return groupSummary.value.group_name || groupSummary.value.region_name
   return currentSchool.value?.school_name || selectedUser.value?.school_name || 'Your School'
 })
 
@@ -70,16 +70,16 @@ const schoolName = computed(() => {
 const breadcrumb = computed(() => {
   if (!isViewingSchool.value) return null
   return {
-    region: regionSummary.value?.region_name || 'Region',
+    group: groupSummary.value?.group_name || groupSummary.value?.region_name || 'Group',
     school: viewingSchool.value?.school_name || 'School'
   }
 })
 
 const practiceHoursDisplay = computed(() => Math.round(totalPracticeHours.value))
 
-// Region report and contribution counter
-const { getRegionReport } = useAnalyticsData()
-const regionReport = ref<RegionReport | null>(null)
+// Group report and contribution counter
+const { getGroupReport } = useAnalyticsData()
+const groupReport = ref<GroupReport | null>(null)
 
 interface DailyContribution {
   phrases_count: number
@@ -95,9 +95,9 @@ const languageNames: Record<string, string> = {
   spa: 'Spanish', fra: 'French', deu: 'German', nld: 'Dutch',
 }
 
-async function loadRegionData() {
+async function loadGroupData() {
   if (!isGovtAdmin.value || !selectedUser.value?.region_code) return
-  regionReport.value = await getRegionReport(selectedUser.value.region_code)
+  groupReport.value = await getGroupReport(selectedUser.value.region_code)
 }
 
 async function loadContributions() {
@@ -119,9 +119,9 @@ const debugInfo = computed(() => ({
   hasUser: !!selectedUser.value,
   userName: selectedUser.value?.display_name,
   role: selectedUser.value?.educational_role,
-  regionCode: selectedUser.value?.region_code,
+  groupCode: selectedUser.value?.region_code,
   isGovtAdmin: isGovtAdmin.value,
-  hasRegionSummary: !!regionSummary.value,
+  hasGroupSummary: !!groupSummary.value,
   error: error.value,
 }))
 
@@ -137,7 +137,7 @@ async function loadCourseAccess() {
 watch(selectedUser, (user) => {
   if (user) {
     fetchSchools()
-    loadRegionData()
+    loadGroupData()
     loadContributions()
     loadCourseAccess()
     if (isTeacher.value) fetchTeacherClasses()
@@ -147,7 +147,7 @@ watch(selectedUser, (user) => {
 onMounted(() => {
   if (selectedUser.value) {
     fetchSchools()
-    loadRegionData()
+    loadGroupData()
     loadContributions()
     loadCourseAccess()
     if (isTeacher.value) fetchTeacherClasses()
@@ -163,7 +163,7 @@ onMounted(() => {
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="15 18 9 12 15 6"/>
         </svg>
-        {{ breadcrumb.region }}
+        {{ breadcrumb.group }}
       </button>
       <span class="breadcrumb-separator">/</span>
       <span class="breadcrumb-current">{{ breadcrumb.school }}</span>
@@ -182,7 +182,7 @@ onMounted(() => {
               Viewing {{ schoolName }}
             </template>
             <template v-else-if="isGovtAdmin">
-              Regional overview for {{ schoolName }}
+              Group overview for {{ schoolName }}
             </template>
             <template v-else>
               Welcome back! {{ schoolName }}
@@ -317,9 +317,9 @@ onMounted(() => {
       </Card>
     </section>
 
-    <!-- Schools in Region (Govt Admin only, at regional level) -->
-    <section v-if="isGovtAdmin && !isViewingSchool && schools.length > 0" class="region-schools animate-in delay-2">
-      <Card :title="`Schools in ${regionSummary?.region_name || 'Region'}`" :subtitle="`${schools.length} schools`">
+    <!-- Schools in Group (Govt Admin only, at group level) -->
+    <section v-if="isGovtAdmin && !isViewingSchool && schools.length > 0" class="group-schools animate-in delay-2">
+      <Card :title="`Schools in ${groupSummary?.group_name || groupSummary?.region_name || 'Group'}`" :subtitle="`${schools.length} schools`">
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
@@ -415,23 +415,23 @@ onMounted(() => {
       </div>
     </section>
 
-    <!-- Region Cycles Summary (Govt Admin) -->
-    <section v-if="isGovtAdmin && regionReport && !isViewingSchool" class="region-cycles animate-in delay-3">
-      <Card title="Speaking Opportunities by School" :subtitle="`${regionReport.regionTotal.toLocaleString()} total across region`">
+    <!-- Group Cycles Summary (Govt Admin) -->
+    <section v-if="isGovtAdmin && groupReport && !isViewingSchool" class="group-cycles animate-in delay-3">
+      <Card title="Speaking Opportunities by School" :subtitle="`${groupReport.groupTotal.toLocaleString()} total across group`">
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
           </svg>
         </template>
-        <div class="region-school-list">
+        <div class="group-school-list">
           <div
-            v-for="school in regionReport.schools"
+            v-for="school in groupReport.schools"
             :key="school.school_id"
-            class="region-school-row"
+            class="group-school-row"
           >
-            <div class="region-school-name">{{ school.school_name }}</div>
-            <div class="region-school-meta">{{ school.class_count }} classes · {{ school.active_students }} students</div>
-            <div class="region-school-cycles">{{ school.total_cycles.toLocaleString() }}</div>
+            <div class="group-school-name">{{ school.school_name }}</div>
+            <div class="group-school-meta">{{ school.class_count }} classes · {{ school.active_students }} students</div>
+            <div class="group-school-cycles">{{ school.total_cycles.toLocaleString() }}</div>
           </div>
         </div>
       </Card>
@@ -743,8 +743,8 @@ onMounted(() => {
   margin: 0;
 }
 
-/* Region Schools */
-.region-schools {
+/* Group Schools */
+.group-schools {
   margin-bottom: var(--space-8);
 }
 
@@ -896,18 +896,18 @@ onMounted(() => {
   background: var(--border-subtle);
 }
 
-/* Region Cycles */
-.region-cycles {
+/* Group Cycles */
+.group-cycles {
   margin-bottom: var(--space-8);
 }
 
-.region-school-list {
+.group-school-list {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
 
-.region-school-row {
+.group-school-row {
   display: flex;
   align-items: center;
   gap: var(--space-4);
@@ -916,19 +916,19 @@ onMounted(() => {
   border-radius: var(--radius-lg);
 }
 
-.region-school-name {
+.group-school-name {
   flex: 1;
   font-weight: var(--font-semibold);
   font-size: var(--text-sm);
 }
 
-.region-school-meta {
+.group-school-meta {
   font-size: var(--text-xs);
   color: var(--text-muted);
   flex-shrink: 0;
 }
 
-.region-school-cycles {
+.group-school-cycles {
   font-family: var(--font-display);
   font-weight: var(--font-bold);
   font-size: var(--text-lg);

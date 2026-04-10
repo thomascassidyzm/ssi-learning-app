@@ -28,13 +28,13 @@ const formData = ref({
   // Govt Admin fields
   govtName: '',
   govtEmail: '',
-  govtRegion: '',
+  govtGroup: '',
   govtOrganization: '',
 
   // School fields
   schoolName: '',
   schoolAdminEmail: '',
-  schoolRegion: '',
+  schoolGroup: '',
 
   // Teacher fields
   teacherName: '',
@@ -59,11 +59,11 @@ function resetForm() {
   formData.value = {
     govtName: '',
     govtEmail: '',
-    govtRegion: '',
+    govtGroup: '',
     govtOrganization: '',
     schoolName: '',
     schoolAdminEmail: '',
-    schoolRegion: '',
+    schoolGroup: '',
     teacherName: '',
     teacherEmail: '',
     teacherJoinCode: '',
@@ -134,7 +134,7 @@ async function handleSubmit() {
 }
 
 async function createGovtAdmin() {
-  if (!formData.value.govtName || !formData.value.govtEmail || !formData.value.govtRegion) {
+  if (!formData.value.govtName || !formData.value.govtEmail || !formData.value.govtGroup) {
     throw new Error('Please fill in all required fields')
   }
 
@@ -156,7 +156,7 @@ async function createGovtAdmin() {
     .from('govt_admins')
     .insert({
       user_id: userId,
-      region_code: formData.value.govtRegion,
+      region_code: formData.value.govtGroup,
       organization_name: formData.value.govtOrganization || null
     })
 
@@ -166,7 +166,7 @@ async function createGovtAdmin() {
 }
 
 async function createSchool() {
-  if (!formData.value.schoolName || !formData.value.schoolRegion) {
+  if (!formData.value.schoolName || !formData.value.schoolGroup) {
     throw new Error('Please fill in all required fields')
   }
 
@@ -177,7 +177,7 @@ async function createSchool() {
     .from('schools')
     .insert({
       school_name: formData.value.schoolName,
-      region_code: formData.value.schoolRegion,
+      region_code: formData.value.schoolGroup,
       teacher_join_code: teacherJoinCode
     })
     .select()
@@ -432,9 +432,9 @@ function handleClose() {
                 />
               </div>
               <div class="form-group">
-                <label class="form-label">Region Code *</label>
+                <label class="form-label">Group Code *</label>
                 <input
-                  v-model="formData.govtRegion"
+                  v-model="formData.govtGroup"
                   type="text"
                   class="form-input"
                   placeholder="e.g., brittany"
@@ -446,7 +446,7 @@ function handleClose() {
                   v-model="formData.govtOrganization"
                   type="text"
                   class="form-input"
-                  placeholder="e.g., Region Bretagne Education"
+                  placeholder="e.g., Bretagne Education"
                 />
               </div>
             </template>
@@ -463,9 +463,9 @@ function handleClose() {
                 />
               </div>
               <div class="form-group">
-                <label class="form-label">Region Code *</label>
+                <label class="form-label">Group Code *</label>
                 <input
-                  v-model="formData.schoolRegion"
+                  v-model="formData.schoolGroup"
                   type="text"
                   class="form-input"
                   placeholder="e.g., brittany"
