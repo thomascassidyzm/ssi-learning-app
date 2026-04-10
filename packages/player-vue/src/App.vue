@@ -110,6 +110,18 @@ const invalidateStaleCaches = () => {
     // Now remove them
     keysToRemove.forEach(key => localStorage.removeItem(key))
 
+    // Clear ALL Cache API caches (SW runtime caches: audio, fonts)
+    // This ensures stale 404s or wrong audio never persist across deploys
+    if ('caches' in window) {
+      caches.keys().then(names => {
+        const cleared = names.filter(n => n !== 'workbox-precache-v2') // keep precache, workbox manages it
+        cleared.forEach(name => caches.delete(name))
+        if (cleared.length > 0) {
+          console.log(`[App] Cleared ${cleared.length} runtime caches:`, cleared)
+        }
+      }).catch(() => {})
+    }
+
     // Store new version
     localStorage.setItem(CACHE_VERSION_KEY, BUILD_VERSION)
     console.log(`[App] Build ${storedVersion} → ${BUILD_VERSION}, cleared ${keysToRemove.length} cached items`)

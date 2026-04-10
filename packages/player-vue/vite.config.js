@@ -14,18 +14,24 @@ export default defineConfig({
   plugins: [
     vue(),
     VitePWA({
-      registerType: 'prompt',  // User approves updates
+      registerType: 'autoUpdate',  // New SW activates immediately — no user action needed
 
       workbox: {
         // Precache app shell
         globPatterns: ['**/*.{js,css,html,svg,woff2}'],
 
-        // DON'T cache audio via workbox - we use IndexedDB
+        // DON'T cache audio via workbox precache - runtime caching handles it
         globIgnores: ['**/*.{mp3,wav,ogg,m4a}'],
 
-        // NOTE: Do NOT set skipWaiting/clientsClaim here!
-        // With registerType: 'prompt', vite-plugin-pwa handles skipWaiting
-        // based on user approval via updateServiceWorker(true)
+        // Clear ALL runtime caches when a new SW activates.
+        // This ensures stale audio/font caches never persist across deploys.
+        // Cost: users re-download audio after each deploy.
+        // Acceptable: main deploys are weekly at most.
+        cleanupOutdatedCaches: true,
+
+        // Skip waiting + claim clients immediately
+        skipWaiting: true,
+        clientsClaim: true,
 
         // Runtime caching for fonts/CDN/audio
         runtimeCaching: [
@@ -46,34 +52,32 @@ export default defineConfig({
             },
           },
           // Audio proxy - primary path for audio delivery
-          // Benefits: analytics, entitlements, CORS, future CDN flexibility
           {
             urlPattern: /\/api\/audio\/.*/i,
             handler: 'CacheFirst',
             options: {
               cacheName: 'ssi-audio-cache',
               expiration: {
-                maxEntries: 1000,  // ~1000 audio files = ~25MB
+                maxEntries: 1000,
                 maxAgeSeconds: 60 * 60 * 24 * 30,  // 30 days
               },
               cacheableResponse: {
-                statuses: [0, 200],
+                statuses: [200],  // ONLY cache 200 — never cache errors
               },
             },
           },
           // S3 audio direct - fallback for offline scenarios
-          // When proxy is unreachable, SW can still serve cached S3 audio
           {
             urlPattern: /^https:\/\/ssi-audio.*\.s3\..*\.amazonaws\.com\/.*/i,
             handler: 'CacheFirst',
             options: {
-              cacheName: 'ssi-audio-cache',  // Same cache as proxy
+              cacheName: 'ssi-audio-cache',
               expiration: {
-                maxEntries: 1000,  // ~1000 audio files = ~25MB
-                maxAgeSeconds: 60 * 60 * 24 * 30,  // 30 days
+                maxEntries: 1000,
+                maxAgeSeconds: 60 * 60 * 24 * 30,
               },
               cacheableResponse: {
-                statuses: [0, 200],  // Cache opaque responses too
+                statuses: [200],  // ONLY cache 200 — never cache opaque or error responses
               },
             },
           },
