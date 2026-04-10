@@ -13,6 +13,7 @@ const { currentSchool, fetchSchools } = useSchoolData()
 
 // Get join code from school data
 const teacherJoinCode = computed(() => currentSchool.value?.teacher_join_code || 'N/A')
+const adminJoinCode = computed(() => currentSchool.value?.admin_join_code || '')
 
 const searchQuery = ref('')
 const selectedCourse = ref('all')
@@ -204,7 +205,7 @@ watch(selectedUser, (newUser) => {
         </div>
       </header>
 
-      <!-- Join Code Banner -->
+      <!-- Join Code Banners -->
       <div class="join-code-section animate-item delay-1" :class="{ 'show': isVisible }">
         <JoinCodeBanner
           :code="teacherJoinCode"
@@ -214,6 +215,15 @@ watch(selectedUser, (newUser) => {
           :can-regenerate="true"
           @copy="handleCopyCode"
           @regenerate="handleRegenerateCode"
+        />
+        <JoinCodeBanner
+          v-if="adminJoinCode"
+          :code="adminJoinCode"
+          label="Admin Join Code"
+          description="Share this code to invite someone as a school admin"
+          variant="admin"
+          :can-regenerate="false"
+          @copy="handleCopyCode"
         />
       </div>
 
@@ -558,6 +568,9 @@ watch(selectedUser, (newUser) => {
 /* ========== Join Code Section ========== */
 .join-code-section {
   margin-bottom: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 /* ========== Filters ========== */

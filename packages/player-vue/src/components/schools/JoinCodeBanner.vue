@@ -5,7 +5,7 @@ interface Props {
   code: string
   label?: string
   description?: string
-  variant?: 'teacher' | 'student'
+  variant?: 'teacher' | 'student' | 'admin'
   showHelp?: boolean
   canRegenerate?: boolean
 }
@@ -39,6 +39,12 @@ const variantConfig = computed(() => ({
     accentColor: 'var(--ssi-gold)',
     bgGradient: 'linear-gradient(135deg, var(--bg-card) 0%, rgba(212, 168, 83, 0.12) 100%)',
     borderColor: 'rgba(212, 168, 83, 0.35)'
+  },
+  admin: {
+    icon: 'shield',
+    accentColor: 'var(--info, #2563eb)',
+    bgGradient: 'linear-gradient(135deg, var(--bg-card) 0%, rgba(37, 99, 235, 0.12) 100%)',
+    borderColor: 'rgba(37, 99, 235, 0.35)'
   }
 }[props.variant]))
 

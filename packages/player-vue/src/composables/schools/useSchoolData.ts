@@ -25,6 +25,7 @@ export interface School {
   region_code: string | null
   admin_user_id: string
   teacher_join_code: string
+  admin_join_code: string
   teacher_count: number
   class_count: number
   student_count: number
@@ -68,6 +69,7 @@ export function useSchoolData() {
           region_code: s.region_code,
           admin_user_id: s.admin_user_id,
           teacher_join_code: '', // Not needed for govt view
+          admin_join_code: '',
           teacher_count: s.teacher_count,
           class_count: s.class_count,
           student_count: s.student_count,
@@ -99,7 +101,7 @@ export function useSchoolData() {
           // Also fetch the join code from schools table
           const { data: schoolData } = await client
             .from('schools')
-            .select('teacher_join_code')
+            .select('teacher_join_code, admin_join_code')
             .eq('id', selectedUser.value.school_id)
             .single()
 
@@ -109,6 +111,7 @@ export function useSchoolData() {
             region_code: data.region_code,
             admin_user_id: data.admin_user_id,
             teacher_join_code: schoolData?.teacher_join_code || '',
+            admin_join_code: schoolData?.admin_join_code || '',
             teacher_count: data.teacher_count,
             class_count: data.class_count,
             student_count: data.student_count,
