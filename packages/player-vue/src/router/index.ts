@@ -240,15 +240,16 @@ router.beforeEach((to, _from, next) => {
   return canAccessAdmin.value ? next() : next('/')
 })
 
-// Guard schools routes — useUserRole is the single authority
+// Guard schools routes — allow unauthenticated users through (container handles login)
+// Only block admin-only sub-routes (e.g. /schools/setup)
 router.beforeEach((to, _from, next) => {
   if (!to.path.startsWith('/schools')) return next()
-  const { canAccessSchools, canAccessAdmin, restoreFromCache } = useUserRole()
+  const { canAccessAdmin, restoreFromCache } = useUserRole()
   restoreFromCache()
   if (to.meta.requiresAdmin) {
     return canAccessAdmin.value ? next() : next('/schools')
   }
-  return canAccessSchools.value ? next() : next('/')
+  return next()
 })
 
 // Update document title on navigation
