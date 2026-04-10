@@ -118,17 +118,8 @@ export default async function handler(
     let sample: AudioRecord | null = null
 
     if (queryError || !audioRecord) {
-      console.error('[AudioProxy] Audio not found in audio_samples:', audioId, queryError?.message, queryError?.code, queryError?.details)
-      res.status(404).json({
-        error: 'Audio not found',
-        debug: {
-          audioId,
-          queryError: queryError?.message,
-          code: queryError?.code,
-          hasServiceKey: !!supabaseServiceKey,
-          hasAnonKey: !!process.env.VITE_SUPABASE_ANON_KEY,
-        }
-      })
+      console.error('[AudioProxy] Audio not found in audio_samples:', audioId, queryError?.message)
+      res.status(404).json({ error: 'Audio not found' })
       return
     }
 
