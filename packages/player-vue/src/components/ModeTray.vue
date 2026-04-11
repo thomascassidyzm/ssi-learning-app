@@ -33,10 +33,37 @@ const hasActiveMode = computed(() =>
   props.isListeningMode || props.isDrivingMode || props.isPronunciationMode || props.isTurboMode
 )
 
+// Is any experience mode (non-Standard) active?
+const hasExperienceMode = computed(() =>
+  props.isListeningMode || props.isDrivingMode || props.isPronunciationMode
+)
+
 // Can turbo be used? Not in listening or pronunciation (driving is fine)
 const turboAvailable = computed(() =>
   !props.isListeningMode && !props.isPronunciationMode
 )
+
+// Select an experience mode — deactivates others if a different one is active
+const selectExperienceMode = (mode: 'normal' | 'listening' | 'driving' | 'pronunciation') => {
+  if (mode === 'normal') {
+    // Deactivate whichever is currently on
+    if (props.isListeningMode) emit('toggleListening')
+    else if (props.isDrivingMode) emit('toggleDriving')
+    else if (props.isPronunciationMode) emit('togglePronunciation')
+    return
+  }
+  // Clicking an already-active mode deactivates it (returns to Standard)
+  if (mode === 'listening' && props.isListeningMode) return emit('toggleListening')
+  if (mode === 'driving' && props.isDrivingMode) return emit('toggleDriving')
+  if (mode === 'pronunciation' && props.isPronunciationMode) return emit('togglePronunciation')
+  // Otherwise: deactivate any current mode, then activate the new one
+  if (props.isListeningMode) emit('toggleListening')
+  if (props.isDrivingMode) emit('toggleDriving')
+  if (props.isPronunciationMode) emit('togglePronunciation')
+  if (mode === 'listening') emit('toggleListening')
+  if (mode === 'driving') emit('toggleDriving')
+  if (mode === 'pronunciation') emit('togglePronunciation')
+}
 
 // Active mode icon for the trigger button
 const activeModeIcon = computed(() => {
@@ -93,23 +120,29 @@ const handleMode = (mode: string) => {
     <Transition name="tray">
       <div v-if="isOpen" class="mode-tray">
         <!-- Script toggle (character-based languages only) -->
-        <button
-          v-if="hasRomanizedText"
-          class="tray-item"
-          :class="{ active: isNativeScript }"
-          @click="emit('toggleScript')"
-        >
+        <div v-if="hasRomanizedText" class="tray-item tray-item--static">
           <div class="tray-icon">
-            <span class="script-icon">{{ isNativeScript ? 'Aa' : '文' }}</span>
+            <span class="script-icon">{{ isNativeScript ? '文' : 'Aa' }}</span>
           </div>
           <div class="tray-label">
-            <span class="tray-name">{{ isNativeScript ? 'Show Romanized' : 'Show Native Script' }}</span>
-            <span class="tray-desc">Switch between writing systems</span>
+            <span class="tray-name">Script</span>
+            <span class="tray-desc">Writing system</span>
           </div>
-          <div class="tray-toggle" :class="{ on: isNativeScript }">
-            <div class="tray-toggle-knob"></div>
+          <div class="segmented-control" role="group" aria-label="Script selection">
+            <button
+              class="segment"
+              :class="{ active: !isNativeScript }"
+              @click.stop="isNativeScript && emit('toggleScript')"
+              aria-label="Romanized"
+            >Aa</button>
+            <button
+              class="segment"
+              :class="{ active: isNativeScript }"
+              @click.stop="!isNativeScript && emit('toggleScript')"
+              aria-label="Native script"
+            >文</button>
           </div>
-        </button>
+        </div>
 
         <div v-if="hasRomanizedText" class="tray-divider"></div>
 
@@ -136,11 +169,31 @@ const handleMode = (mode: string) => {
 
         <div class="tray-divider"></div>
 
-        <!-- Listening mode -->
+        <!-- Experience Mode (mutually exclusive radio group) -->
+        <div class="tray-section-header">Mode — pick one</div>
+
         <button
-          class="tray-item"
+          class="tray-item tray-item--radio"
+          :class="{ active: !hasExperienceMode }"
+          @click="selectExperienceMode('normal')"
+        >
+          <div class="tray-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M12 6v6l4 2"/>
+            </svg>
+          </div>
+          <div class="tray-label">
+            <span class="tray-name">Standard</span>
+            <span class="tray-desc">Full speaking practice</span>
+          </div>
+          <div class="radio-indicator" :class="{ on: !hasExperienceMode }"></div>
+        </button>
+
+        <button
+          class="tray-item tray-item--radio"
           :class="{ active: isListeningMode }"
-          @click="handleMode('listening')"
+          @click="selectExperienceMode('listening')"
         >
           <div class="tray-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -149,17 +202,16 @@ const handleMode = (mode: string) => {
             </svg>
           </div>
           <div class="tray-label">
-            <span class="tray-name">Listening Mode</span>
+            <span class="tray-name">Listening</span>
             <span class="tray-desc">Audio only, no speaking</span>
           </div>
-          <div v-if="isListeningMode" class="tray-active-dot"></div>
+          <div class="radio-indicator" :class="{ on: isListeningMode }"></div>
         </button>
 
-        <!-- Driving mode -->
         <button
-          class="tray-item"
+          class="tray-item tray-item--radio"
           :class="{ active: isDrivingMode }"
-          @click="handleMode('driving')"
+          @click="selectExperienceMode('driving')"
         >
           <div class="tray-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -168,17 +220,16 @@ const handleMode = (mode: string) => {
             </svg>
           </div>
           <div class="tray-label">
-            <span class="tray-name">Driving Mode</span>
+            <span class="tray-name">Driving</span>
             <span class="tray-desc">Background-friendly playback</span>
           </div>
-          <div v-if="isDrivingMode" class="tray-active-dot"></div>
+          <div class="radio-indicator" :class="{ on: isDrivingMode }"></div>
         </button>
 
-        <!-- Pronunciation mode -->
         <button
-          class="tray-item"
+          class="tray-item tray-item--radio"
           :class="{ active: isPronunciationMode }"
-          @click="handleMode('pronunciation')"
+          @click="selectExperienceMode('pronunciation')"
         >
           <div class="tray-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -191,15 +242,17 @@ const handleMode = (mode: string) => {
             <span class="tray-name">Pronunciation</span>
             <span class="tray-desc">Practice speaking with feedback</span>
           </div>
-          <div v-if="isPronunciationMode" class="tray-active-dot"></div>
+          <div class="radio-indicator" :class="{ on: isPronunciationMode }"></div>
         </button>
       </div>
     </Transition>
 
-    <!-- Backdrop to close -->
-    <Transition name="backdrop">
-      <div v-if="isOpen" class="tray-backdrop" @click="closeTray"></div>
-    </Transition>
+    <!-- Full-screen backdrop to close on outside click -->
+    <Teleport to="body">
+      <Transition name="backdrop">
+        <div v-if="isOpen" class="tray-backdrop" @click="closeTray"></div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -258,7 +311,7 @@ const handleMode = (mode: string) => {
   position: absolute;
   bottom: calc(100% + 8px);
   right: 0;
-  width: 260px;
+  width: 280px;
   background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
@@ -266,6 +319,7 @@ const handleMode = (mode: string) => {
   border-radius: 16px;
   padding: 6px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15), 0 12px 32px rgba(0, 0, 0, 0.1);
+  z-index: 103;
 }
 
 .tray-divider {
@@ -395,11 +449,98 @@ const handleMode = (mode: string) => {
   box-shadow: 0 0 6px rgba(22, 163, 74, 0.4);
 }
 
+/* Radio indicator for mutually exclusive modes */
+.radio-indicator {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 0, 0, 0.2);
+  background: transparent;
+  flex-shrink: 0;
+  position: relative;
+  transition: border-color 0.15s ease;
+}
+
+.radio-indicator.on {
+  border-color: #16a34a;
+}
+
+.radio-indicator.on::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #16a34a;
+  box-shadow: 0 0 6px rgba(22, 163, 74, 0.4);
+}
+
+.tray-item--radio {
+  padding: 8px 12px;
+}
+
+/* Static (non-button) tray item for embedded controls */
+.tray-item--static {
+  cursor: default;
+}
+
+.tray-item--static:hover {
+  background: transparent;
+}
+
+/* Section header */
+.tray-section-header {
+  padding: 8px 14px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #A09A94;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Segmented control (script toggle) */
+.segmented-control {
+  display: flex;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+  padding: 2px;
+  flex-shrink: 0;
+}
+
+.segment {
+  min-width: 32px;
+  height: 24px;
+  padding: 0 8px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #A09A94;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.segment:hover:not(.active) {
+  color: #6B6560;
+}
+
+.segment.active {
+  background: white;
+  color: #16a34a;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
 /* Backdrop */
 .tray-backdrop {
   position: fixed;
   inset: 0;
-  z-index: -1;
+  z-index: 102;
   background: rgba(0, 0, 0, 0.15);
 }
 
