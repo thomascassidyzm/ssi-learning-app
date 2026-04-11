@@ -2265,9 +2265,13 @@ const currentPhrase = computed(() => {
   }
   // Read from currentCycle to ensure text/audio are locked together
   if (currentCycle.value) {
+    const useNative = isNativeScript.value && hasRomanizedText.value
+    const targetText = useNative
+      ? ((currentCycle.value.target as any).textNative || currentCycle.value.target.text || '')
+      : (currentCycle.value.target.text || '')
     return {
       known: currentCycle.value.known.text || '',
-      target: currentCycle.value.target.text || '',
+      target: targetText,
     }
   }
   // Fallback to currentItem for backwards compatibility
@@ -2536,9 +2540,13 @@ const introMessage = computed(() => {
 // Read from currentCycle to ensure text/audio are locked together
 const visibleTexts = computed(() => {
   if (currentCycle.value) {
+    const useNative = isNativeScript.value && hasRomanizedText.value
+    const targetText = useNative
+      ? ((currentCycle.value.target as any).textNative || currentCycle.value.target.text || '')
+      : (currentCycle.value.target.text || '')
     return {
       known: currentCycle.value.known.text || '',
-      target: currentCycle.value.target.text || '',
+      target: targetText,
     }
   }
   // Fallback to currentItem for backwards compatibility during transition
