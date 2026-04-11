@@ -45,6 +45,9 @@ import { getLanguageName, t } from '../composables/useI18n'
 import LanguageFlag from './schools/shared/LanguageFlag.vue'
 import { simpleRoundToTypedCycles } from '../utils/drivingModeAdapter'
 import BeltProgressModal from './BeltProgressModal.vue'
+import ContributionCounter from './learner/ContributionCounter.vue'
+import ContributionExpanded from './learner/ContributionExpanded.vue'
+import { useContribution } from '../composables/useContribution'
 import { useEntitlement } from '../composables/useEntitlement'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
@@ -193,6 +196,10 @@ const supabase = inject('supabase', ref(null))
 const auth = inject('auth', null)
 const themeContext = inject('theme', null)
 const eagerScript = inject<any>('eagerScript', null)
+
+// Contribution counter - "Part of the Solution"
+const contribution = useContribution(supabase as any)
+const showContributionExpanded = ref(false)
 
 // Algorithm config - admin-tweakable parameters (Turbo Boost, pause timing, etc.)
 const {
@@ -465,6 +472,7 @@ simplePlayer.onPhaseChanged((phase) => {
 simplePlayer.onCycleCompleted((cycle) => {
   itemsPracticed.value++
   learningHintPromptsShown.value++
+  contribution.incrementLocal()
 
   // Clear path highlights
   distinctionNetwork.clearPathAnimation()
@@ -5210,6 +5218,12 @@ onMounted(async () => {
   // Initialize sync stuff immediately (no await needed)
   loadAdaptationConsent()
 
+  // Fetch contribution data (non-blocking — fire and forget)
+  if (courseCode.value && supabase?.value) {
+    const learnerId = (auth as any)?.learnerId?.value || null
+    contribution.fetch(courseCode.value, learnerId).catch(() => {})
+  }
+
   // Load developer settings
   showFragileProgressWarning.value = localStorage.getItem('ssi-show-fragile-warning') !== 'false'
   enableQaMode.value = localStorage.getItem('ssi-enable-qa-mode') === 'true'
@@ -6054,6 +6068,24 @@ defineExpose({
 <template>
   <!-- Single root wrapper - required for v-show from parent to work correctly -->
   <div class="learning-player-root">
+
+  <!-- Contribution Counter - "Part of the Solution" -->
+  <ContributionCounter
+    v-if="contribution.data.value && !showSessionComplete"
+    :language-name="contribution.languageName.value"
+    :global-minutes="contribution.todayMinutes.value"
+    :user-phrases="contribution.userTodayPhrases.value"
+    :is-playing="simplePlayer.isPlaying.value"
+    @expand="showContributionExpanded = true"
+  />
+
+  <!-- Contribution Expanded Overlay -->
+  <ContributionExpanded
+    v-if="showContributionExpanded && contribution.data.value"
+    :data="contribution.data.value"
+    :local-phrases="contribution.userTodayPhrases.value - (contribution.data.value?.user.today.phrases || 0)"
+    @close="showContributionExpanded = false"
+  />
 
   <!-- Belt Skip Loading Overlay -->
   <Transition name="fade">
