@@ -84,10 +84,15 @@ export function useContribution(client: Ref<SupabaseClient | null>) {
           .eq('learner_id', learnerId)
           .eq('course_id', courseId)
 
+        // Cap per-session duration at 4 hours (14400s) to exclude runaway
+        // sessions where the app was left open without ending cleanly.
+        const MAX_SESSION_SECONDS = 14400
+
         if (userSessions) {
           for (const s of userSessions) {
             const date = s.started_at?.split('T')[0]
-            const mins = Math.round((s.duration_seconds || 0) / 60)
+            const cappedSecs = Math.min(s.duration_seconds || 0, MAX_SESSION_SECONDS)
+            const mins = Math.round(cappedSecs / 60)
             const phrases = s.items_practiced || 0
 
             userAll.minutes += mins

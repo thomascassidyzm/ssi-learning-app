@@ -6,6 +6,11 @@
 --   2. Backfill historical session data into daily_contributions
 -- ============================================
 
+-- Cap per-session duration at 4 hours (14400s). Sessions longer than this
+-- are almost certainly runaway sessions left open without ending, and
+-- would massively inflate totals. 4h is generous — a real intense learner
+-- might do that in one sitting.
+--
 -- Replace the trigger function with a recompute-based version.
 -- On every session insert/update, recalculate the affected day's totals
 -- by aggregating all sessions for that (language, date). Simpler,
@@ -20,14 +25,13 @@ BEGIN
   v_date := NEW.started_at::date;
 
   -- Recompute the whole row for this (language, date) from sessions.
-  -- Sum duration_seconds FIRST, then divide by 60, so we don't accumulate
-  -- per-row truncation errors.
+  -- Cap each session at 14400s (4h), then sum, then divide by 60.
   INSERT INTO daily_contributions (target_language, contribution_date, phrases_count, minutes_practiced, unique_speakers)
   SELECT
     v_target_lang,
     v_date,
     COALESCE(SUM(items_practiced), 0),
-    COALESCE(SUM(duration_seconds), 0) / 60,
+    COALESCE(SUM(LEAST(duration_seconds, 14400)), 0) / 60,
     COUNT(DISTINCT learner_id)
   FROM sessions
   WHERE SPLIT_PART(course_id, '_for_', 1) = v_target_lang
@@ -44,13 +48,13 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Backfill historical daily_contributions from the sessions table.
--- One-shot population so existing data is reflected in the counter.
+-- Same 4h cap applied to exclude runaway sessions from historical data.
 INSERT INTO daily_contributions (target_language, contribution_date, phrases_count, minutes_practiced, unique_speakers)
 SELECT
   SPLIT_PART(course_id, '_for_', 1) AS target_language,
   started_at::date AS contribution_date,
   COALESCE(SUM(items_practiced), 0) AS phrases_count,
-  COALESCE(SUM(duration_seconds), 0) / 60 AS minutes_practiced,
+  COALESCE(SUM(LEAST(duration_seconds, 14400)), 0) / 60 AS minutes_practiced,
   COUNT(DISTINCT learner_id) AS unique_speakers
 FROM sessions
 WHERE course_id IS NOT NULL
