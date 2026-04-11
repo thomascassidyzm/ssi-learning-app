@@ -116,17 +116,37 @@ function viewStudentDetail(student: typeof students.value[0]) {
   selectedStudent.value = selectedStudent.value?.id === student.id ? null : student
 }
 
+const showAddStudentInfo = ref(false)
+
 function handleExport() {
-  // Export not yet implemented
+  const rows = filteredStudents.value.map(s =>
+    [s.name, s.class, s.belt, s.phrasesLearned, s.sessionsCompleted, s.lastActive].join(',')
+  )
+  const csv = ['Name,Class,Belt,LEGOs Mastered,Sessions,Last Active', ...rows].join('\n')
+  const blob = new Blob([csv], { type: 'text/csv' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `students-export-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 function handleAddStudent() {
-  // Students self-enroll via class invite codes
+  showAddStudentInfo.value = true
+  setTimeout(() => { showAddStudentInfo.value = false }, 5000)
 }
 </script>
 
 <template>
   <div class="students-view" :class="{ 'is-visible': isVisible }">
+    <!-- Info banner for Add Student -->
+    <Transition name="fade">
+      <div v-if="showAddStudentInfo" class="info-banner">
+        Students join classes using invite codes. Share the class join code with students — they'll appear here automatically once enrolled.
+      </div>
+    </Transition>
+
     <!-- Page Header -->
     <header class="page-header animate-item" :class="{ 'show': isVisible }">
       <div class="page-title">
@@ -282,6 +302,26 @@ function handleAddStudent() {
 </template>
 
 <style scoped>
+.info-banner {
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: var(--space-4, 16px);
+  color: var(--text-secondary, #94a3b8);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
 .students-view {
   max-width: 1400px;
 }

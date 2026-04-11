@@ -67,6 +67,65 @@ function saveLocalization() {
   }, 300)
 }
 
+// Data & Privacy
+const isExporting = ref(false)
+
+async function handleExportData() {
+  const school = activeSchool.value || currentSchool.value
+  if (!school) return
+  isExporting.value = true
+  try {
+    const { getSchoolsClient } = await import('@/composables/schools/client')
+    const client = getSchoolsClient()
+    const { data: progress } = await client
+      .from('class_student_progress')
+      .select('*')
+      .eq('school_id', school.id)
+
+    const rows = (progress || []).map(p =>
+      [p.student_name, p.class_name, p.seeds_completed, p.total_practice_seconds, p.last_active_at].join(',')
+    )
+    const csv = ['Student,Class,Seeds Completed,Practice Seconds,Last Active', ...rows].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${school.school_name.replace(/\s+/g, '-').toLowerCase()}-data-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (err) {
+    console.error('Export failed:', err)
+  } finally {
+    isExporting.value = false
+  }
+}
+
+async function handleDeleteData() {
+  const school = activeSchool.value || currentSchool.value
+  if (!school) return
+  if (!confirm(`Are you sure you want to delete ALL student progress data for "${school.school_name}"? This cannot be undone.`)) return
+  if (!confirm(`This is your final warning. All student progress, session history, and analytics will be permanently deleted. Type the school name to confirm.`)) return
+
+  try {
+    const { getSchoolsClient } = await import('@/composables/schools/client')
+    const client = getSchoolsClient()
+    const { error: deleteError } = await client
+      .from('class_student_progress')
+      .delete()
+      .eq('school_id', school.id)
+
+    if (deleteError) {
+      console.error('Delete failed:', deleteError)
+      alert('Failed to delete data. Please try again or contact support.')
+    } else {
+      alert('All student progress data has been deleted.')
+    }
+  } catch (err) {
+    console.error('Delete failed:', err)
+    alert('Failed to delete data. Please try again or contact support.')
+  }
+}
+
 // Animation
 const isVisible = ref(false)
 onMounted(() => {
@@ -154,14 +213,14 @@ onMounted(() => {
             <h4>Export All Data</h4>
             <p>Download all your school's learning data</p>
           </div>
-          <Button variant="secondary" size="sm">Export</Button>
+          <Button variant="secondary" size="sm" @click="handleExportData" :loading="isExporting">Export</Button>
         </div>
         <div class="setting-row">
           <div class="setting-info">
             <h4>Delete All Data</h4>
             <p>Permanently delete all student progress data</p>
           </div>
-          <Button variant="secondary" size="sm" class="btn-danger">Delete</Button>
+          <Button variant="secondary" size="sm" class="btn-danger" @click="handleDeleteData">Delete</Button>
         </div>
       </Card>
     </div>

@@ -113,11 +113,13 @@ const closeCreateModal = () => {
   isCreateModalOpen.value = false
 }
 
+const createClassError = ref<string | null>(null)
+
 const handleCreateClass = async (params) => {
+  createClassError.value = null
   const schoolId = selectedUser.value?.school_id
   if (!schoolId) {
-    console.error('No school_id available for class creation')
-    closeCreateModal()
+    createClassError.value = 'No school found for your account. Please contact an administrator.'
     return
   }
   const newClass = await createClass({
@@ -125,10 +127,12 @@ const handleCreateClass = async (params) => {
     course_code: params.course_code,
     school_id: schoolId,
   })
-  closeCreateModal()
   if (newClass) {
+    closeCreateModal()
     createdClass.value = newClass
     isCreatedModalOpen.value = true
+  } else {
+    createClassError.value = 'Failed to create class. Please try again.'
   }
 }
 
@@ -286,6 +290,15 @@ const handleClassSettings = (classData) => {
       </div>
     </main>
 
+    <!-- Create Class Error -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="createClassError" class="error-toast" @click="createClassError = null">
+          {{ createClassError }}
+        </div>
+      </Transition>
+    </Teleport>
+
     <!-- Create Class Modal -->
     <CreateClassModal
       :isOpen="isCreateModalOpen"
@@ -304,6 +317,30 @@ const handleClassSettings = (classData) => {
 </template>
 
 <style scoped>
+.error-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(220, 38, 38, 0.95);
+  color: white;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  z-index: 10000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
 .teacher-dashboard {
   min-height: calc(100vh - 64px - 64px);
   position: relative;

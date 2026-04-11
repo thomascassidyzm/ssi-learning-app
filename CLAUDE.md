@@ -25,11 +25,11 @@ git pull origin staging
 
 ### Quick Facts
 - **Purpose**: Content delivery and learning experience (NOT content creation)
-- **Architecture**: Monorepo with `@ssi/core` package + UI adapters
-- **Current UI**: Vue 3 player (`player-vue`) - working demo
-- **Future UI**: PWA (`apps/web`) - for community courses
-- **Schools UI**: Chrome PWA (`apps/schools-dashboard`) - for classroom use
-- **Deployment**: Vercel
+- **Architecture**: Monorepo with `@ssi/core` package + Vue 3 SPA
+- **Current UI**: Vue 3 player (`player-vue`) — unified SPA serving learners + schools
+- **Schools**: Fully implemented at `/schools` path within player-vue
+- **Future**: PWA (`apps/web`) for community courses
+- **Deployment**: Vercel (staging.saysomethingin.app / saysomethingin.app)
 - **Related Project**: `ssi-dashboard-v7-clean` (Popty) handles content creation
 
 ---
@@ -112,11 +112,15 @@ ssi-learning-app/
 │   │   │   ├── cache/           # OfflineCache, DownloadManager, AudioSource
 │   │   │   └── persistence/     # ProgressStore, SessionStore, SyncService
 │   │   └── package.json
-│   ├── player-vue/              # Vue 3 learning player (WORKING DEMO)
+│   ├── player-vue/              # Vue 3 unified SPA (learning + schools)
 │   │   ├── src/
 │   │   │   ├── components/
 │   │   │   │   ├── LearningPlayer.vue   # Main player component
-│   │   │   │   └── SessionComplete.vue  # Session summary screen
+│   │   │   │   ├── SessionComplete.vue  # Session summary screen
+│   │   │   │   └── schools/             # 21 schools UI components
+│   │   │   ├── views/schools/           # 12 schools dashboard views
+│   │   │   ├── composables/schools/     # 16 schools composables
+│   │   │   ├── containers/SchoolsContainer.vue  # Schools layout + auth
 │   │   │   └── App.vue
 │   │   └── public/audio/        # Demo audio files (bundled)
 │   ├── ui/                      # Shared UI components
@@ -124,8 +128,7 @@ ssi-learning-app/
 │   ├── vue-adapter/             # Vue 3 adapter (stub)
 │   └── react-adapter/           # React adapter (stub)
 ├── apps/
-│   ├── web/                     # PWA for community courses (TODO)
-│   └── schools-dashboard/       # Schools/classroom version (TODO)
+│   └── web/                     # PWA for community courses (TODO)
 ├── apml/                        # APML specifications
 │   ├── core/                    # Core data types
 │   ├── engine/                  # CycleOrchestrator spec
@@ -452,19 +455,40 @@ Text update is instantaneous on phase change. No drift possible.
 
 ---
 
-## Schools Dashboard (`apps/schools-dashboard`)
+## Schools Dashboard (`/schools`)
 
-### Target: Chrome PWA
-- Classroom use on Chromebooks
-- Teacher dashboard for class progress
-- Real-time Supabase subscriptions for live updates
-- Student progress tracking
+The schools dashboard is **fully implemented** within `player-vue` as a path-based sub-application. It is NOT a separate app — it shares the same Vercel deployment.
 
-### Features (Planned)
+### URL Structure
+```
+saysomethingin.app/schools              → Dashboard home
+saysomethingin.app/schools/teachers     → Teachers view
+saysomethingin.app/schools/students     → Students view
+saysomethingin.app/schools/classes      → Classes (teacher view)
+saysomethingin.app/schools/classes/:id  → Class detail
+saysomethingin.app/schools/analytics    → Analytics & reporting
+saysomethingin.app/schools/settings     → School settings
+saysomethingin.app/schools/setup        → Admin setup (guarded)
+saysomethingin.app/schools/all          → Govt admin view (all schools)
+saysomethingin.app/schools/student-progress → Individual student view
+```
+
+### Architecture
+- **Container**: `SchoolsContainer.vue` handles auth (OTP email login), role checks, and join codes
+- **Roles**: govt_admin, school_admin, teacher, student
+- **Data**: All composables query Supabase directly (schools, classes, students, analytics)
+- **Demo mode**: All composables support demo data for testing without Supabase
+- **Auth**: Email OTP signin inline (no modal), join codes for teacher/admin onboarding
+
+### Features (Implemented)
 - Class roster management
-- Assignment of courses
-- Progress visualization
-- Real-time "who's learning now" view
+- Course assignment to classes
+- Progress visualization (per-student, per-class, per-school)
+- Analytics and daily activity reporting
+- Teacher and student management
+- School settings and admin setup
+- God Mode for support/testing context switching
+- Multi-tenant (each school manages own data)
 
 ---
 
@@ -588,7 +612,6 @@ pnpm --filter @ssi/web dev
 - [ ] Course Explorer QA mode refinements
 
 ### Next Up
-- [ ] `apps/schools-dashboard` for classroom use
 - [ ] Triple Helix thread switching implementation
 - [ ] A/B testing framework integration
 
@@ -661,6 +684,11 @@ pnpm --filter @ssi/web dev
 | `packages/player-vue/src/playback/SessionController.ts` | Round management & playback control |
 | `packages/player-vue/src/playback/CyclePlayer.ts` | 4-phase cycle playback engine |
 | `packages/player-vue/src/types/Cycle.ts` | Atomic Cycle type definition |
+| `packages/player-vue/src/containers/SchoolsContainer.vue` | Schools layout + auth + routing |
+| `packages/player-vue/src/views/schools/DashboardView.vue` | Schools dashboard home |
+| `packages/player-vue/src/views/schools/SetupView.vue` | Admin school setup |
+| `packages/player-vue/src/composables/schools/` | Schools data layer (16 composables) |
+| `packages/player-vue/src/router/index.ts` | All route definitions incl. /schools |
 | `apml/ssi-learning-app-master.apml` | Full APML specification |
 | `apml/playback/lazy-loading.apml` | Lazy loading architecture spec |
 | `apml/cache/audio-architecture.apml` | Audio caching spec |
@@ -921,5 +949,5 @@ First run (2026-01-22): Completed 7 items in ~4 minutes, 10 tests passing, clean
 
 ---
 
-*Last updated: 2026-01-27*
-*Status: v2.3.0 - Lazy loading for instant startup*
+*Last updated: 2026-04-11*
+*Status: v2.3.0 - Lazy loading for instant startup | Schools dashboard fully implemented at /schools*
