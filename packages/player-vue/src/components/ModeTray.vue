@@ -9,11 +9,13 @@ const props = defineProps({
   showListeningBtn: { type: Boolean, default: false },
   showDrivingBtn: { type: Boolean, default: false },
   showPronunciationBtn: { type: Boolean, default: false },
+  hasRomanizedText: { type: Boolean, default: false },
+  isNativeScript: { type: Boolean, default: false },
   isVisible: { type: Boolean, default: true },
 })
 
 const emit = defineEmits([
-  'toggleListening', 'toggleDriving', 'togglePronunciation', 'toggleTurbo'
+  'toggleListening', 'toggleDriving', 'togglePronunciation', 'toggleTurbo', 'toggleScript'
 ])
 
 const isOpen = ref(false)
@@ -90,6 +92,27 @@ const handleMode = (mode: string) => {
     <!-- Tray popover -->
     <Transition name="tray">
       <div v-if="isOpen" class="mode-tray">
+        <!-- Script toggle (character-based languages only) -->
+        <button
+          v-if="hasRomanizedText"
+          class="tray-item"
+          :class="{ active: isNativeScript }"
+          @click="emit('toggleScript')"
+        >
+          <div class="tray-icon">
+            <span class="script-icon">{{ isNativeScript ? 'Aa' : '文' }}</span>
+          </div>
+          <div class="tray-label">
+            <span class="tray-name">{{ isNativeScript ? 'Show Romanized' : 'Show Native Script' }}</span>
+            <span class="tray-desc">Switch between writing systems</span>
+          </div>
+          <div class="tray-toggle" :class="{ on: isNativeScript }">
+            <div class="tray-toggle-knob"></div>
+          </div>
+        </button>
+
+        <div v-if="hasRomanizedText" class="tray-divider"></div>
+
         <!-- Turbo toggle -->
         <button
           class="tray-item"
@@ -302,6 +325,12 @@ const handleMode = (mode: string) => {
 .tray-icon svg {
   width: 18px;
   height: 18px;
+}
+
+.script-icon {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .tray-label {

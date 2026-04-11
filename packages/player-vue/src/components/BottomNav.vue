@@ -163,18 +163,7 @@ const handleSettings = () => {
 
 <template>
   <nav class="bottom-nav">
-    <!-- Script toggle — independent of modes, stays on its own -->
-    <button
-      v-show="!showSessionComplete && !showCourseSelector && isOnPlayerScreen && hasRomanizedText"
-      class="mode-btn mode-btn--left"
-      :class="{ active: isNativeScript }"
-      @click="emit('toggleScript')"
-      :title="isNativeScript ? 'Show romanized' : 'Show native script'"
-    >
-      <span class="script-toggle-label">{{ isNativeScript ? 'Aa' : '\u6587' }}</span>
-    </button>
-
-    <!-- Mode tray — listening, driving, pronunciation, turbo -->
+    <!-- Mode tray — listening, driving, pronunciation, turbo, script -->
     <ModeTray
       :isListeningMode="isListeningMode"
       :isDrivingMode="isDrivingMode"
@@ -183,7 +172,10 @@ const handleSettings = () => {
       :showListeningBtn="showListeningBtn"
       :showDrivingBtn="showDrivingBtn"
       :showPronunciationBtn="showPronunciationBtn"
+      :hasRomanizedText="hasRomanizedText"
+      :isNativeScript="isNativeScript"
       :isVisible="!showSessionComplete && !showCourseSelector && isOnPlayerScreen"
+      @toggleScript="emit('toggleScript')"
       @toggleListening="emit('toggleListening')"
       @toggleDriving="emit('toggleDriving')"
       @togglePronunciation="emit('togglePronunciation')"
