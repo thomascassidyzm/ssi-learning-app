@@ -1,8 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, inject, watch, onMounted, onUnmounted } from 'vue'
-import { getAudioCacheStats, preloadAudioBatch } from '../composables/useScriptCache'
+import { ref, computed, inject, watch, onMounted } from 'vue'
 import { unregisterAllServiceWorkers, clearAllCaches } from '../composables/useServiceWorkerSafety'
-import { BELT_RANGES, getBeltForSeed } from '../composables/useBeltLoader'
 import { useBeltProgress } from '../composables/useBeltProgress'
 import { useTheme } from '../composables/useTheme'
 import { useInviteCode, type InviteCodeContext } from '../composables/useInviteCode'
@@ -584,31 +582,6 @@ const toggleTheme = () => {
   doToggleTheme()
 }
 
-// ============================================
-// OFFLINE DOWNLOAD STATE
-// ============================================
-
-const offlineDownloadOption = ref('current') // 'current', 'next50', 'next100', 'entire'
-const isDownloading = ref(false)
-const downloadProgress = ref(0)
-const downloadError = ref(null)
-const cacheStats = ref({ count: 0, estimatedMB: 0 })
-const isOnline = ref(navigator.onLine)
-
-// Storage estimates (approximate)
-const storageEstimates = {
-  current: { seeds: 20, size: '~3MB' },
-  next50: { seeds: 50, size: '~8MB' },
-  next100: { seeds: 100, size: '~15MB' },
-  entire: { seeds: 668, size: '~100MB' },
-}
-
-const selectedEstimate = computed(() => storageEstimates[offlineDownloadOption.value])
-
-// Network status listeners
-const handleOnline = () => { isOnline.value = true }
-const handleOffline = () => { isOnline.value = false }
-
 onMounted(async () => {
   // Load practice mode visibility
   showListeningMode.value = localStorage.getItem('ssi-mode-listening') === 'true'
@@ -626,89 +599,7 @@ onMounted(async () => {
   showDebugOverlay.value = localStorage.getItem('ssi-show-debug-overlay') === 'true'
   enableVerboseLogging.value = localStorage.getItem('ssi-verbose-logging') === 'true'
 
-  // Load cache stats
-  try {
-    cacheStats.value = await getAudioCacheStats()
-  } catch (err) {
-    console.warn('[Settings] Failed to load cache stats:', err)
-  }
-
-  // Setup network listeners
-  window.addEventListener('online', handleOnline)
-  window.addEventListener('offline', handleOffline)
 })
-
-onUnmounted(() => {
-  window.removeEventListener('online', handleOnline)
-  window.removeEventListener('offline', handleOffline)
-})
-
-// Abort controller for download cancellation
-let downloadAbortController = null
-
-// Start offline download
-const startOfflineDownload = async () => {
-  if (isDownloading.value || !isOnline.value) return
-  if (!courseDataProvider?.value) {
-    downloadError.value = 'Course not loaded. Please select a course first.'
-    return
-  }
-
-  isDownloading.value = true
-  downloadProgress.value = 0
-  downloadError.value = null
-  downloadAbortController = new AbortController()
-
-  try {
-    // Calculate seed range based on option
-    const currentSeed = completedRounds.value + 1 // Start from next seed
-    let startSeed, endSeed
-
-    switch (offlineDownloadOption.value) {
-      case 'current': {
-        const belt = getBeltForSeed(currentSeed)
-        const range = BELT_RANGES[belt]
-        startSeed = currentSeed
-        endSeed = range.end
-        break
-      }
-      case 'next50':
-        startSeed = currentSeed
-        endSeed = Math.min(currentSeed + 49, 668)
-        break
-      case 'next100':
-        startSeed = currentSeed
-        endSeed = Math.min(currentSeed + 99, 668)
-        break
-      case 'entire':
-        startSeed = 1
-        endSeed = 668
-        break
-    }
-
-    const totalSeeds = endSeed - startSeed + 1
-    console.log(`[Settings] Downloading seeds ${startSeed}-${endSeed} (${totalSeeds} seeds)`)
-
-    // TODO: Offline download needs migration to use generateLearningScript + audio proxy
-    downloadError.value = 'Offline download temporarily unavailable. This feature is being migrated to the new architecture.'
-  } catch (err) {
-    console.error('[Settings] Download error:', err)
-    downloadError.value = 'Download failed. Please try again.'
-  } finally {
-    isDownloading.value = false
-    downloadAbortController = null
-  }
-}
-
-// Cancel download
-const cancelDownload = () => {
-  if (downloadAbortController) {
-    downloadAbortController.abort()
-    downloadAbortController = null
-  }
-  isDownloading.value = false
-  downloadProgress.value = 0
-}
 
 const toggleListeningMode = () => {
   showListeningMode.value = !showListeningMode.value
@@ -1302,79 +1193,6 @@ const confirmReset = async () => {
       </section>
 
       <!-- Offline Section -->
-      <section class="section">
-        <h3 class="section-title">Offline Learning</h3>
-        <div class="card">
-          <!-- Cache Status -->
-          <div class="setting-row">
-            <div class="setting-info">
-              <span class="setting-label">Cached Content</span>
-              <span class="setting-desc">{{ cacheStats.count }} audio files ({{ cacheStats.estimatedMB }}MB)</span>
-            </div>
-            <span class="setting-value" :class="{ 'is-offline': !isOnline }">
-              {{ isOnline ? 'Online' : 'Offline' }}
-            </span>
-          </div>
-
-          <div class="divider"></div>
-
-          <!-- Download Options -->
-          <div class="setting-row download-section" v-if="!isDownloading">
-            <div class="setting-info">
-              <span class="setting-label">Download for Offline</span>
-              <span class="setting-desc">Pre-download content to learn without internet</span>
-            </div>
-          </div>
-
-          <!-- Download Option Selection -->
-          <div class="download-options" v-if="!isDownloading">
-            <label class="download-option" v-for="(estimate, key) in storageEstimates" :key="key">
-              <input
-                type="radio"
-                :value="key"
-                v-model="offlineDownloadOption"
-                name="downloadOption"
-              />
-              <span class="option-radio"></span>
-              <span class="option-content">
-                <span class="option-label">
-                  {{ key === 'current' ? 'Current belt' : key === 'next50' ? '~1 hour of content' : key === 'next100' ? '~2 hours of content' : 'Entire course' }}
-                </span>
-                <span class="option-size">{{ estimate.size }}</span>
-              </span>
-            </label>
-          </div>
-
-          <!-- Download Button -->
-          <div class="download-action" v-if="!isDownloading">
-            <button
-              class="download-btn"
-              @click="startOfflineDownload"
-              :disabled="!isOnline"
-            >
-              {{ isOnline ? 'Download' : 'Go online to download' }}
-            </button>
-          </div>
-
-          <!-- Download Progress -->
-          <div class="download-progress" v-if="isDownloading">
-            <div class="progress-info">
-              <span class="progress-label">Downloading {{ selectedEstimate.seeds }} seeds...</span>
-              <span class="progress-percent">{{ downloadProgress }}%</span>
-            </div>
-            <div class="progress-bar">
-              <div class="progress-fill" :style="{ width: downloadProgress + '%' }"></div>
-            </div>
-            <button class="cancel-btn" @click="cancelDownload">Cancel</button>
-          </div>
-
-          <!-- Download Error -->
-          <div class="download-error" v-if="downloadError">
-            {{ downloadError }}
-          </div>
-        </div>
-      </section>
-
       <!-- Enter Code Section (only for signed-in users) -->
       <section class="section" v-if="isSignedIn">
         <h3 class="section-title">Codes</h3>
