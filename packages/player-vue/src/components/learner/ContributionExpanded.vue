@@ -131,7 +131,7 @@ const contextMessage = computed(() => {
 .contribution-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.25);
   backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
@@ -141,14 +141,17 @@ const contextMessage = computed(() => {
 }
 
 .contribution-panel {
-  background: var(--bg-card, #0a0a12);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1.5px solid rgba(0, 0, 0, 0.12);
   border-radius: 20px;
   padding: 1.75rem;
   max-width: 380px;
   width: 100%;
   position: relative;
   text-align: center;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
 }
 
 .close-btn {
@@ -157,16 +160,16 @@ const contextMessage = computed(() => {
   right: 12px;
   background: none;
   border: none;
-  color: var(--text-muted, rgba(255, 255, 255, 0.4));
+  color: #A09A94;
   cursor: pointer;
   padding: 4px;
 }
-.close-btn:hover { color: var(--text-primary, #fff); }
+.close-btn:hover { color: #2C2622; }
 
 .panel-title {
   font-size: 0.6875rem;
   font-weight: 600;
-  color: var(--text-secondary, rgba(255, 255, 255, 0.6));
+  color: #A09A94;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   margin-bottom: 1rem;
@@ -175,7 +178,7 @@ const contextMessage = computed(() => {
 .tab-bar {
   display: flex;
   gap: 2px;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(0, 0, 0, 0.05);
   border-radius: 10px;
   padding: 3px;
   margin-bottom: 1.25rem;
@@ -187,7 +190,7 @@ const contextMessage = computed(() => {
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: var(--text-muted, rgba(255, 255, 255, 0.4));
+  color: #A09A94;
   font-size: 0.75rem;
   font-weight: 500;
   cursor: pointer;
@@ -195,12 +198,13 @@ const contextMessage = computed(() => {
 }
 
 .tab-btn.active {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text-primary, #fff);
+  background: white;
+  color: #2C2622;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .tab-btn:hover:not(.active) {
-  color: var(--text-secondary, rgba(255, 255, 255, 0.6));
+  color: #6B6560;
 }
 
 .global-total {
@@ -212,21 +216,21 @@ const contextMessage = computed(() => {
   font-family: 'Space Mono', monospace;
   font-size: 2.5rem;
   font-weight: 700;
-  color: var(--text-primary, #fff);
+  color: #2C2622;
   line-height: 1.1;
 }
 
 .total-label {
   display: block;
   font-size: 0.75rem;
-  color: var(--text-muted, rgba(255, 255, 255, 0.4));
+  color: #A09A94;
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 
 .context-message {
   font-size: 0.8125rem;
-  color: var(--text-secondary, rgba(255, 255, 255, 0.6));
+  color: #6B6560;
   line-height: 1.5;
   margin-bottom: 1.25rem;
 }
@@ -236,8 +240,8 @@ const contextMessage = computed(() => {
   justify-content: center;
   gap: 2rem;
   padding: 0.75rem;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 12px;
   margin-bottom: 1rem;
 }
@@ -252,19 +256,19 @@ const contextMessage = computed(() => {
   font-family: 'Space Mono', monospace;
   font-size: 1.125rem;
   font-weight: 700;
-  color: var(--text-primary, #fff);
+  color: #2C2622;
 }
 
 .user-label {
   font-size: 0.625rem;
-  color: var(--text-muted, rgba(255, 255, 255, 0.4));
+  color: #A09A94;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
 .philosophy-quote {
   font-size: 0.75rem;
-  color: var(--text-muted, rgba(255, 255, 255, 0.35));
+  color: #A09A94;
   font-style: italic;
 }
 

@@ -69,33 +69,36 @@ function formatNumber(n: number): string {
 <style scoped>
 .contribution-badge {
   position: fixed;
-  top: 12px;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
   left: 12px;
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1.5px solid rgba(0, 0, 0, 0.12);
   border-radius: 20px;
-  color: var(--text-secondary, rgba(255, 255, 255, 0.6));
+  color: #6B6560;
   font-size: 0.6875rem;
   cursor: pointer;
   z-index: 100;
-  transition: opacity 0.5s ease, transform 0.2s ease;
+  transition: opacity 0.5s ease, transform 0.2s ease, box-shadow 0.2s ease;
   -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .contribution-badge:hover {
   opacity: 1 !important;
-  background: rgba(0, 0, 0, 0.75);
-  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.98);
+  border-color: rgba(0, 0, 0, 0.2);
   transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
 }
 
 .contribution-badge.faded {
-  opacity: 0.3;
+  opacity: 0.4;
 }
 
 .badge-icon {
@@ -106,15 +109,17 @@ function formatNumber(n: number): string {
 .badge-text {
   font-family: 'Space Mono', monospace;
   white-space: nowrap;
+  font-weight: 500;
 }
 
 .badge-yours {
-  color: var(--text-muted, rgba(255, 255, 255, 0.4));
+  color: #A09A94;
+  font-weight: 400;
 }
 
 @media (max-width: 480px) {
   .contribution-badge {
-    top: 8px;
+    top: calc(env(safe-area-inset-top, 0px) + 8px);
     left: 8px;
     padding: 5px 10px;
     font-size: 0.625rem;

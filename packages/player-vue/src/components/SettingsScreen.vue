@@ -871,6 +871,7 @@ const confirmReset = async () => {
       <div class="header-spacer" />
       <div class="header-center">
         <h1 class="title">Settings</h1>
+        <span class="version-badge">{{ versionDisplay }}</span>
         <span v-if="formattedLearningTime" class="learning-time">{{ formattedLearningTime }}</span>
       </div>
       <button class="close-btn" @click="emit('close')" aria-label="Close settings">✕</button>
@@ -1376,19 +1377,6 @@ const confirmReset = async () => {
         </div>
       </section>
 
-      <!-- About Section -->
-      <section class="section">
-        <h3 class="section-title">About</h3>
-        <div class="card">
-          <div class="setting-row">
-            <div class="setting-info">
-              <span class="setting-label">Version</span>
-            </div>
-            <span class="setting-value">{{ versionDisplay }}</span>
-          </div>
-        </div>
-      </section>
-
       <!-- Brand Footer -->
       <footer class="brand-footer">
         <div class="brand">
@@ -1468,6 +1456,14 @@ const confirmReset = async () => {
   font-size: 0.75rem;
   color: var(--text-muted);
   font-weight: 400;
+}
+
+.version-badge {
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 0.625rem;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+  margin-top: 2px;
 }
 
 /* Main */

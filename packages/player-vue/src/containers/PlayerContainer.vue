@@ -13,7 +13,6 @@ import BrainView from '@/components/BrainView.vue'
 import CourseBrowser from '@/components/CourseBrowser.vue'
 import BrowseScreen from '@/components/BrowseScreen.vue'
 import BottomNav from '@/components/BottomNav.vue'
-import BuildBadge from '@/components/BuildBadge.vue'
 import PlayerRestingState from '@/components/PlayerRestingState.vue'
 import CourseSelector from '@/components/CourseSelector.vue'
 
@@ -554,9 +553,6 @@ onMounted(() => {
     />
 
     <!-- Gear icon removed — settings now accessible from bottom pill -->
-
-    <!-- Build Badge (dev/staging visibility) -->
-    <BuildBadge v-if="!isLearning" />
 
     <!-- Settings overlay (slide-up modal) -->
     <Transition name="slide-up">
