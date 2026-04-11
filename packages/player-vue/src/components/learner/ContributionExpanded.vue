@@ -4,7 +4,6 @@ import type { ContributionData } from '@/composables/useContribution'
 
 const props = defineProps<{
   data: ContributionData
-  localPhrases: number
 }>()
 
 const emit = defineEmits<{
@@ -27,50 +26,33 @@ function formatNumber(n: number): string {
   return n.toLocaleString()
 }
 
-const globalMinutes = computed(() => {
-  const tf = props.data.global[activeTab.value]
-  const base = tf.minutes
-  return activeTab.value === 'today' ? base + Math.round(props.localPhrases * 0.18) : base
-})
-
-const globalPhrases = computed(() => {
-  const tf = props.data.global[activeTab.value]
-  return activeTab.value === 'today' ? tf.phrases + props.localPhrases : tf.phrases
-})
-
-const speakers = computed(() => {
-  if (activeTab.value === 'today') return props.data.global.today.speakers
-  if (activeTab.value === 'days7') return props.data.global.days7.speakers
-  return 0 // 30d and all-time speaker counts aren't meaningful aggregates
-})
-
-const userMinutes = computed(() => {
-  const tf = props.data.user[activeTab.value]
-  const base = tf.minutes
-  return activeTab.value === 'today' ? base + Math.round(props.localPhrases * 0.18) : base
-})
-
-const userPhrases = computed(() => {
-  const tf = props.data.user[activeTab.value]
-  return activeTab.value === 'today' ? tf.phrases + props.localPhrases : tf.phrases
-})
+const globalMinutes = computed(() => props.data.global[activeTab.value].minutes)
+const globalPhrases = computed(() => props.data.global[activeTab.value].phrases)
+const speakers = computed(() => props.data.global[activeTab.value].speakers || 0)
+const userMinutes = computed(() => props.data.user[activeTab.value].minutes)
+const userPhrases = computed(() => props.data.user[activeTab.value].phrases)
 
 const contextMessage = computed(() => {
   const lang = props.data.languageName
   const mins = formatNumber(globalMinutes.value)
   const sp = speakers.value
+  const userMins = userMinutes.value
 
   switch (activeTab.value) {
     case 'today':
-      if (sp > 1) return `Your ${userMinutes.value} mins joined ${sp} other speakers today keeping ${lang} alive.`
-      if (userMinutes.value > 0) return `You kept ${lang} alive today.`
+      if (userMins > 0 && sp > 1) return `Your ${userMins} mins joined ${sp - 1} other speaker${sp - 1 === 1 ? '' : 's'} today keeping ${lang} alive.`
+      if (userMins > 0) return `You kept ${lang} alive today.`
+      if (sp > 0) return `${sp} speaker${sp === 1 ? '' : 's'} kept ${lang} alive today. Add your voice.`
       return `${lang} needs your voice today.`
     case 'days7':
-      return `You and ${sp > 0 ? sp.toLocaleString() + ' others' : 'other learners'} spoke ${mins} minutes of ${lang} this week.`
+      if (userMins > 0) return `You contributed ${formatNumber(userMins)} of ${mins} minutes of ${lang} this week.`
+      return `SSi learners spoke ${mins} minutes of ${lang} this week.`
     case 'days30':
+      if (userMins > 0) return `You contributed ${formatNumber(userMins)} of ${mins} minutes of ${lang} this month.`
       return `${mins} minutes of ${lang} spoken this month by SSi learners worldwide.`
     case 'allTime':
-      return `${mins} minutes of ${lang}. You contributed ${formatNumber(userMinutes.value)} of them.`
+      if (userMins > 0) return `${mins} minutes of ${lang} on SSi. You contributed ${formatNumber(userMins)} of them.`
+      return `${mins} minutes of ${lang} spoken on SSi so far.`
   }
 })
 </script>

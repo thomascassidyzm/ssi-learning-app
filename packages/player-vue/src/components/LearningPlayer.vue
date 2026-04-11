@@ -6091,7 +6091,6 @@ defineExpose({
   <ContributionExpanded
     v-if="showContributionExpanded && contribution.data.value"
     :data="contribution.data.value"
-    :local-phrases="contribution.userTodayPhrases.value - (contribution.data.value?.user.today.phrases || 0)"
     @close="showContributionExpanded = false"
   />
 
