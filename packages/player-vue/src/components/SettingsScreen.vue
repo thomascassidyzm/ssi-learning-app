@@ -870,8 +870,8 @@ const confirmReset = async () => {
     <header class="header">
       <div class="header-spacer" />
       <div class="header-center">
-        <h1 class="title">Settings</h1>
-        <span class="version-badge">{{ versionDisplay }}</span>
+        <h1 class="title">Settings <span class="build-inline">{{ buildNumber || 'dev' }}</span></h1>
+        <span class="version-date">{{ formattedBuildTime }}</span>
         <span v-if="formattedLearningTime" class="learning-time">{{ formattedLearningTime }}</span>
       </div>
       <button class="close-btn" @click="emit('close')" aria-label="Close settings">✕</button>
@@ -1458,12 +1458,19 @@ const confirmReset = async () => {
   font-weight: 400;
 }
 
-.version-badge {
+.build-inline {
   font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
-  font-size: 0.625rem;
+  font-size: 0.75rem;
   color: var(--text-muted);
+  font-weight: 400;
   letter-spacing: 0.02em;
-  margin-top: 2px;
+}
+
+.version-date {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  font-weight: 400;
+  margin-top: 1px;
 }
 
 /* Main */
