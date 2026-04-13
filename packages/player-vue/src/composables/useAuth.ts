@@ -199,11 +199,18 @@ export function useAuth(): AuthState & AuthActions {
         const linkedLearner = Array.isArray(linkedRows) ? linkedRows[0] : linkedRows
         if (linkedLearner) {
           // Found! This email belongs to an existing learner — link this auth user to them
-          console.log(`[useAuth] Email ${email} found on learner ${(linkedLearner as any).id} — linking auth user ${userId}`)
+          const oldUserId = (linkedLearner as any).user_id
+          console.log(`[useAuth] Email ${email} found on learner ${(linkedLearner as any).id} — linking auth user ${userId} (was ${oldUserId})`)
           await supabase.value
             .from('learners')
             .update({ user_id: userId })
             .eq('id', (linkedLearner as any).id)
+
+          // Cascade user_id to related tables so dashboard queries find the right records
+          if (oldUserId && oldUserId !== userId) {
+            await supabase.value.from('govt_admins').update({ user_id: userId }).eq('user_id', oldUserId)
+            await supabase.value.from('user_tags').update({ user_id: userId }).eq('user_id', oldUserId)
+          }
 
           const ll = linkedLearner as any
           ll.user_id = userId
