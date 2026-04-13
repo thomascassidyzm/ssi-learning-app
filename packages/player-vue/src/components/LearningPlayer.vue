@@ -42,7 +42,7 @@ import PronunciationOverlay from './PronunciationOverlay.vue'
 import { useDrivingMode } from '../composables/useDrivingMode'
 import { useScriptMode } from '../composables/useScriptMode'
 import { getLanguageName, t } from '../composables/useI18n'
-import { updateAvailable as pwaUpdateAvailable } from '../composables/usePwaUpdate'
+import { updateAvailable as pwaUpdateAvailable, applyUpdate as pwaApplyUpdate } from '../composables/usePwaUpdate'
 import LanguageFlag from './schools/shared/LanguageFlag.vue'
 import { simpleRoundToTypedCycles } from '../utils/drivingModeAdapter'
 import BeltProgressModal from './BeltProgressModal.vue'
@@ -6479,7 +6479,7 @@ defineExpose({
     <header class="header" :class="{ 'has-banner': props.classContext }">
       <div class="header-stack">
         <!-- Brand -->
-        <div class="brand"><span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span><span v-if="pwaUpdateAvailable" class="update-dot" title="Update available"></span></div>
+        <div class="brand"><span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span><span v-if="pwaUpdateAvailable" class="update-dot" title="Tap to update" @click.stop="pwaApplyUpdate?.()"></span></div>
 
         <!-- Belt row: skip back + timer + skip forward -->
         <div class="belt-row">
@@ -7520,6 +7520,7 @@ defineExpose({
   background: #007AFF;
   margin-left: 4px;
   vertical-align: super;
+  cursor: pointer;
   animation: pulse-dot 2s ease-in-out infinite;
 }
 
