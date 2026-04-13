@@ -44,8 +44,7 @@ function formatNumber(n: number): string {
     @mouseenter="isFaded = false"
     :title="`${languageName} spoken today — tap for details`"
   >
-    <span class="counter-number">{{ formatNumber(globalMinutes) }}</span>
-    <span class="counter-label">mins of {{ languageName }} today</span>
+    <span class="counter-number">{{ formatNumber(globalMinutes) }} mins</span>
   </button>
 </template>
 
@@ -81,12 +80,6 @@ function formatNumber(n: number): string {
   color: rgba(44, 38, 34, 0.5);
 }
 
-.counter-label {
-  font-size: 0.6875rem;
-  font-weight: 400;
-  color: rgba(44, 38, 34, 0.35);
-  letter-spacing: 0.01em;
-}
 
 @media (max-width: 480px) {
   .contribution-counter {
@@ -94,9 +87,6 @@ function formatNumber(n: number): string {
   }
   .counter-number {
     font-size: 0.75rem;
-  }
-  .counter-label {
-    font-size: 0.625rem;
   }
 }
 </style>
