@@ -21,6 +21,8 @@ export interface GodModeUser {
   school_id?: string
   school_name?: string
   region_code?: string
+  group_id?: string
+  group_path?: string
   organization_name?: string
   class_ids?: string[]
 }
@@ -131,16 +133,29 @@ export function useGodMode(client?: SupabaseClient) {
       // Fetch school admins (to get school context)
       const { data: schools, error: schoolsError } = await requireClient()
         .from('schools')
-        .select('id, admin_user_id, school_name, region_code')
+        .select('id, admin_user_id, school_name, region_code, group_id')
 
       if (schoolsError) throw schoolsError
 
-      // Fetch govt admins
+      // Fetch govt admins (prefer group_id, fall back to region_code)
       const { data: govtAdmins, error: govtError } = await requireClient()
         .from('govt_admins')
-        .select('user_id, region_code, organization_name')
+        .select('user_id, region_code, organization_name, group_id')
 
       if (govtError) throw govtError
+
+      // Fetch group paths for govt admins that have group_id
+      const govtGroupIds = (govtAdmins || []).filter(g => g.group_id).map(g => g.group_id)
+      let groupPathMap = new Map<string, string>()
+      if (govtGroupIds.length > 0) {
+        const { data: groupPaths } = await requireClient()
+          .from('groups')
+          .select('id, path')
+          .in('id', govtGroupIds)
+        for (const gp of groupPaths || []) {
+          groupPathMap.set(gp.id, gp.path)
+        }
+      }
 
       // Fetch teacher school tags
       const { data: teacherTags, error: tagsError } = await requireClient()
@@ -207,6 +222,8 @@ export function useGodMode(client?: SupabaseClient) {
             const govt = govtMap.get(learner.user_id)
             if (govt) {
               user.region_code = govt.region_code
+              user.group_id = govt.group_id
+              user.group_path = govt.group_id ? groupPathMap.get(govt.group_id) : undefined
               user.organization_name = govt.organization_name
             }
             break

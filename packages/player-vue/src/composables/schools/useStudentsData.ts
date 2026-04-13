@@ -69,13 +69,23 @@ export function useStudentsData() {
 
         if (classesError) throw classesError
         classIds = (classesData || []).map(c => c.id)
-      } else if (isGovtAdmin.value && selectedUser.value.region_code) {
-        // Govt admin group view - get all class IDs in group's schools
-        const { data: regionSchools } = await client
-          .from('schools')
-          .select('id')
-          .eq('region_code', selectedUser.value.region_code)
-        const schoolIds = (regionSchools || []).map(s => s.id)
+      } else if (isGovtAdmin.value && (selectedUser.value.group_id || selectedUser.value.region_code)) {
+        // Govt admin group view - get all class IDs in group subtree's schools
+        let schoolIds: string[] = []
+        if (selectedUser.value.group_path) {
+          const { data: subtreeGroups } = await client
+            .from('groups')
+            .select('id')
+            .like('path', selectedUser.value.group_path + '%')
+          const groupIds = (subtreeGroups || []).map(g => g.id)
+          if (groupIds.length > 0) {
+            const { data: groupSchools } = await client.from('schools').select('id').in('group_id', groupIds)
+            schoolIds = (groupSchools || []).map(s => s.id)
+          }
+        } else {
+          const { data: regionSchools } = await client.from('schools').select('id').eq('region_code', selectedUser.value.region_code!)
+          schoolIds = (regionSchools || []).map(s => s.id)
+        }
         if (schoolIds.length > 0) {
           const { data: classesData, error: classesError } = await client
             .from('classes')

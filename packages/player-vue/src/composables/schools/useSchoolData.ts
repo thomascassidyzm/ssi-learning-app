@@ -10,9 +10,10 @@ import { useGodMode } from './useGodMode'
 import { isDemoMode } from '../demo/demoMode'
 
 interface GroupSummary {
-  region_code: string
-  region_name: string
+  group_id?: string
   group_name: string
+  group_path?: string
+  region_code?: string
   school_count: number
   teacher_count: number
   student_count: number
@@ -23,6 +24,7 @@ export interface School {
   id: string
   school_name: string
   region_code: string | null
+  group_id?: string | null
   admin_user_id: string
   teacher_join_code: string
   admin_join_code: string
@@ -53,22 +55,50 @@ export function useSchoolData() {
     error.value = null
 
     try {
-      if (isGovtAdmin.value && selectedUser.value.region_code) {
-        // Govt admin: fetch all schools in group
-        const { data, error: fetchError } = await client
-          .from('school_summary')
-          .select('*')
-          .eq('region_code', selectedUser.value.region_code)
-          .order('school_name')
+      const userGroupId = selectedUser.value.group_id
+      const userGroupPath = selectedUser.value.group_path
+      const userRegionCode = selectedUser.value.region_code
 
-        if (fetchError) throw fetchError
+      if (isGovtAdmin.value && (userGroupId || userRegionCode)) {
+        // Govt admin: fetch all schools in group subtree
+        // Prefer group_id + path-based subtree query, fall back to region_code
+        let schoolData: any[] = []
 
-        schools.value = (data || []).map(s => ({
-          id: s.school_id,
+        if (userGroupId && userGroupPath) {
+          // Get all group IDs in subtree via path prefix
+          const { data: subtreeGroups } = await client
+            .from('groups')
+            .select('id')
+            .like('path', userGroupPath + '%')
+
+          const subtreeIds = (subtreeGroups || []).map(g => g.id)
+          if (subtreeIds.length > 0) {
+            const { data, error: fetchError } = await client
+              .from('school_summary')
+              .select('*')
+              .in('group_id', subtreeIds)
+              .order('school_name')
+            if (fetchError) throw fetchError
+            schoolData = data || []
+          }
+        } else if (userRegionCode) {
+          // Legacy fallback: filter by region_code
+          const { data, error: fetchError } = await client
+            .from('school_summary')
+            .select('*')
+            .eq('region_code', userRegionCode)
+            .order('school_name')
+          if (fetchError) throw fetchError
+          schoolData = data || []
+        }
+
+        schools.value = schoolData.map(s => ({
+          id: s.id || s.school_id,
           school_name: s.school_name,
           region_code: s.region_code,
+          group_id: s.group_id,
           admin_user_id: s.admin_user_id,
-          teacher_join_code: '', // Not needed for govt view
+          teacher_join_code: '',
           admin_join_code: '',
           teacher_count: s.teacher_count,
           class_count: s.class_count,
@@ -77,15 +107,34 @@ export function useSchoolData() {
           created_at: s.created_at,
         }))
 
-        // Also fetch group summary (from region_summary view)
-        const { data: regionData, error: regionError } = await client
-          .from('region_summary')
-          .select('*')
-          .eq('region_code', selectedUser.value.region_code)
-          .single()
+        // Fetch group summary (prefer group_summary view, fall back to region_summary)
+        if (userGroupId) {
+          const { data: groupData, error: groupError } = await client
+            .from('group_summary')
+            .select('*')
+            .eq('group_id', userGroupId)
+            .single()
 
-        if (!regionError && regionData) {
-          groupSummary.value = { ...regionData, group_name: regionData.region_name }
+          if (!groupError && groupData) {
+            groupSummary.value = {
+              group_id: groupData.group_id,
+              group_name: groupData.group_name,
+              group_path: groupData.group_path,
+              school_count: groupData.school_count,
+              teacher_count: groupData.teacher_count,
+              student_count: groupData.student_count,
+              total_practice_hours: groupData.total_practice_hours,
+            }
+          }
+        } else if (userRegionCode) {
+          const { data: regionData, error: regionError } = await client
+            .from('region_summary')
+            .select('*')
+            .eq('region_code', userRegionCode)
+            .single()
+          if (!regionError && regionData) {
+            groupSummary.value = { ...regionData, group_name: regionData.region_name }
+          }
         }
       } else if ((isSchoolAdmin.value || isTeacher.value) && selectedUser.value.school_id) {
         // School admin or teacher: fetch their school
@@ -106,9 +155,10 @@ export function useSchoolData() {
             .single()
 
           currentSchool.value = {
-            id: data.school_id,
+            id: data.school_id || data.id,
             school_name: data.school_name,
             region_code: data.region_code,
+            group_id: data.group_id,
             admin_user_id: data.admin_user_id,
             teacher_join_code: schoolData?.teacher_join_code || '',
             admin_join_code: schoolData?.admin_join_code || '',

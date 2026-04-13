@@ -387,17 +387,30 @@ async function createGovtAdmin(): Promise<void> {
     const { error: learnerError } = await client.from('learners').insert(insertData)
     if (learnerError) throw learnerError
 
-    // 2. Create govt_admins record
+    // 2. Look up the region_code for the selected group (for backward compat)
     const createdBy = getCurrentUserId() || userId
-    const { error: govtError } = await client.from('govt_admins').insert({
+    const selectedGroup = groups.value.find(g => g.id === newGovtGroup.value)
+    let regionCode: string | null = null
+    if (selectedGroup) {
+      // Try to find a matching region by group name
+      const matchingRegion = regions.value.find(r =>
+        r.name.toLowerCase() === selectedGroup.name.toLowerCase()
+      )
+      if (matchingRegion) regionCode = matchingRegion.code
+    }
+
+    // 3. Create govt_admins record (group_id + region_code for backward compat)
+    const govtInsert: Record<string, unknown> = {
       user_id: userId,
-      region_code: newGovtGroup.value,
+      group_id: newGovtGroup.value,
       organization_name: newGovtOrg.value.trim(),
       created_by: createdBy,
-    })
+    }
+    if (regionCode) govtInsert.region_code = regionCode
+    const { error: govtError } = await client.from('govt_admins').insert(govtInsert)
     if (govtError) throw govtError
 
-    // 3. Generate an invite code they can use to sign in
+    // 4. Generate an invite code they can use to sign in
     const code = [
       Math.random().toString(36).substr(2, 3).toUpperCase(),
       Math.random().toString(36).substr(2, 3).toUpperCase(),
@@ -407,7 +420,8 @@ async function createGovtAdmin(): Promise<void> {
       code,
       code_type: 'govt_admin',
       created_by: createdBy,
-      grants_region: newGovtGroup.value,
+      grants_group_id: newGovtGroup.value,
+      grants_region: regionCode,
       max_uses: 1,
       metadata: {
         organization_name: newGovtOrg.value.trim(),
@@ -418,8 +432,8 @@ async function createGovtAdmin(): Promise<void> {
     if (codeError) console.warn('[SetupView] invite code creation failed:', codeError)
     else govtAdminCode.value = code
 
-    const regionName = regions.value.find(r => r.code === newGovtGroup.value)?.name || newGovtGroup.value
-    successMessage.value = `Govt Admin "${newGovtName.value.trim()}" created for ${regionName}`
+    const groupName = groups.value.find(g => g.id === newGovtGroup.value)?.name || 'group'
+    successMessage.value = `Govt Admin "${newGovtName.value.trim()}" created for ${groupName}`
 
     newGovtName.value = ''
     newGovtEmail.value = ''
@@ -1144,11 +1158,11 @@ onMounted(() => {
             <input v-model="newGovtEmail" type="email" placeholder="e.g. gwilym@gov.wales" />
           </div>
           <div class="form-group">
-            <label>Region <span class="required">*</span></label>
+            <label>Group <span class="required">*</span></label>
             <select v-model="newGovtGroup">
-              <option value="">- Select region -</option>
-              <option v-for="r in regions" :key="r.code" :value="r.code">
-                {{ r.name }}
+              <option value="">- Select group -</option>
+              <option v-for="g in groups" :key="g.id" :value="g.id">
+                {{ g.name }}
               </option>
             </select>
           </div>
