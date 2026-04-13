@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { t } from '../composables/useI18n'
 
 const props = defineProps({
   stage: {
@@ -18,23 +19,23 @@ const emit = defineEmits(['ready'])
 // TYPEWRITER STATUS MESSAGES
 // Each stage has a sequence of messages that type out
 // ============================================
-const STAGE_MESSAGES = {
+const STAGE_MESSAGES = computed(() => ({
   awakening: [
-    'initializing neural pathways',
-    'warming up language engines',
+    t('loading.stageAwakening1'),
+    t('loading.stageAwakening2'),
   ],
   finding: [
-    'locating your progress',
-    'retrieving session data',
+    t('loading.stageFinding1'),
+    t('loading.stageFinding2'),
   ],
   preparing: [
-    'preparing audio streams',
-    'calibrating rhythm patterns',
+    t('loading.stagePreparing1'),
+    t('loading.stagePreparing2'),
   ],
   ready: [
-    'ready',
+    t('loading.stageReady'),
   ]
-}
+}))
 
 // Current message state
 const displayedLines = ref([]) // Lines already typed
@@ -102,7 +103,7 @@ watch(() => props.stage, async (newStage, oldStage) => {
   if (typewriterInterval) clearInterval(typewriterInterval)
 
   // Get messages for this stage
-  const messages = STAGE_MESSAGES[newStage] || []
+  const messages = STAGE_MESSAGES.value[newStage] || []
 
   // Type them out
   await typeMessages(messages)

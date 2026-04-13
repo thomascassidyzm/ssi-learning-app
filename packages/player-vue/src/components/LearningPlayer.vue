@@ -1942,25 +1942,26 @@ const isPreparingToPlay = ref(false) // True when play pressed but audio hasn't 
 const preparingMessage = ref('') // Current "preparing" message being displayed
 
 // Messages shown while preparing to play (after pressing play button)
-const PREPARING_MESSAGES = [
-  'firing up the engines...',
-  'your brain called ahead...',
-  'getting the ducks lined up...',
-  'firing up the neurons...',
-  'getting your phrases ready...',
-  'connecting the pathways...',
-  'tuning into your frequency...',
-  'warming up the synapses...',
-  'rounding up the vocabulary...',
-  'polishing your words...',
-  'queuing up the good stuff...',
-]
+const PREPARING_MESSAGES = computed(() => [
+  t('loading.firingEngines'),
+  t('loading.brainCalledAhead2'),
+  t('loading.ducksSorted'),
+  t('loading.firingNeurons'),
+  t('loading.phrasesReady'),
+  t('loading.connectingPathways'),
+  t('loading.tuningFrequency'),
+  t('loading.warmingSynapses'),
+  t('loading.roundingVocab'),
+  t('loading.polishingWords'),
+  t('loading.queuingGoodStuff'),
+])
 
 // Start the "preparing to play" state with typewriter effect
 let preparingTypewriterTimeout: ReturnType<typeof setTimeout> | null = null
 const startPreparingState = () => {
   isPreparingToPlay.value = true
-  const message = PREPARING_MESSAGES[Math.floor(Math.random() * PREPARING_MESSAGES.length)]
+  const messages = PREPARING_MESSAGES.value
+  const message = messages[Math.floor(Math.random() * messages.length)]
   preparingMessage.value = ''
 
   let charIndex = 0
@@ -2070,23 +2071,24 @@ const loadingMessages = ref([]) // Messages that have finished typing
 const currentLoadingMessage = ref('') // Message currently being typed
 
 // Varied awakening messages - randomly selected each session
-const AWAKENING_MESSAGES = [
-  'tuning into your wavelength',
-  'warming up the neurons',
-  'finding where we left off',
-  'preparing your next step',
-  'gathering your words',
-  'dusting off the vocabulary',
-  'reconnecting the pathways',
-  'setting the stage',
-  'your brain called ahead',
-  'ready when you are',
-  'finding your rhythm',
-  'picking up the thread',
-]
+const AWAKENING_MESSAGES = computed(() => [
+  t('loading.tuning'),
+  t('loading.warmingNeurons'),
+  t('loading.findingProgress'),
+  t('loading.preparingStep'),
+  t('loading.gatheringWords'),
+  t('loading.dustingVocab'),
+  t('loading.reconnecting'),
+  t('loading.settingStage'),
+  t('loading.brainCalledAhead'),
+  t('loading.readyWhenYouAre'),
+  t('loading.findingRhythm'),
+  t('loading.pickingThread'),
+])
 
 const getRandomAwakeningMessage = () => {
-  return AWAKENING_MESSAGES[Math.floor(Math.random() * AWAKENING_MESSAGES.length)]
+  const messages = AWAKENING_MESSAGES.value
+  return messages[Math.floor(Math.random() * messages.length)]
 }
 
 // Transition to next loading stage

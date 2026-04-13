@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import type { ContributionData } from '@/composables/useContribution'
+import { t } from '@/composables/useI18n'
 
 const props = defineProps<{
   data: ContributionData
@@ -12,12 +13,12 @@ const emit = defineEmits<{
 
 const activeTab = ref<'today' | 'days7' | 'days30' | 'allTime'>('today')
 
-const tabs = [
-  { key: 'today' as const, label: 'Today' },
-  { key: 'days7' as const, label: '7 days' },
-  { key: 'days30' as const, label: '30 days' },
-  { key: 'allTime' as const, label: 'All time' },
-]
+const tabs = computed(() => [
+  { key: 'today' as const, label: t('contribution.today', 'Today') },
+  { key: 'days7' as const, label: t('contribution.7days', '7 days') },
+  { key: 'days30' as const, label: t('contribution.30days', '30 days') },
+  { key: 'allTime' as const, label: t('contribution.allTime', 'All time') },
+])
 
 function formatNumber(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M'
@@ -40,19 +41,27 @@ const contextMessage = computed(() => {
 
   switch (activeTab.value) {
     case 'today':
-      if (userMins > 0 && sp > 1) return `Your ${userMins} mins joined ${sp - 1} other speaker${sp - 1 === 1 ? '' : 's'} today keeping ${lang} alive.`
-      if (userMins > 0) return `You kept ${lang} alive today.`
-      if (sp > 0) return `${sp} speaker${sp === 1 ? '' : 's'} kept ${lang} alive today. Add your voice.`
-      return `${lang} needs your voice today.`
+      if (userMins > 0 && sp > 1) return t('contribution.joinedToday', 'Your {mins} mins joined {count} other speaker(s) today keeping {language} alive.')
+        .replace('{mins}', String(userMins)).replace('{count}', String(sp - 1)).replace('{language}', lang)
+      if (userMins > 0) return t('contribution.keptAliveToday', 'You kept {language} alive today.').replace('{language}', lang)
+      if (sp > 0) return t('contribution.speakersToday', '{count} speaker(s) kept {language} alive today. Add your voice.')
+        .replace('{count}', String(sp)).replace('{language}', lang)
+      return t('contribution.needsVoice', '{language} needs your voice today.').replace('{language}', lang)
     case 'days7':
-      if (userMins > 0) return `You contributed ${formatNumber(userMins)} of ${mins} minutes of ${lang} this week.`
-      return `SSi learners spoke ${mins} minutes of ${lang} this week.`
+      if (userMins > 0) return t('contribution.contributedWeek', 'You contributed {userMins} of {mins} minutes of {language} this week.')
+        .replace('{userMins}', formatNumber(userMins)).replace('{mins}', mins).replace('{language}', lang)
+      return t('contribution.weekMinutes', 'SSi learners spoke {mins} minutes of {language} this week.')
+        .replace('{mins}', mins).replace('{language}', lang)
     case 'days30':
-      if (userMins > 0) return `You contributed ${formatNumber(userMins)} of ${mins} minutes of ${lang} this month.`
-      return `${mins} minutes of ${lang} spoken this month by SSi learners worldwide.`
+      if (userMins > 0) return t('contribution.contributedMonth', 'You contributed {userMins} of {mins} minutes of {language} this month.')
+        .replace('{userMins}', formatNumber(userMins)).replace('{mins}', mins).replace('{language}', lang)
+      return t('contribution.monthMinutes', '{mins} minutes of {language} spoken this month by SSi learners worldwide.')
+        .replace('{mins}', mins).replace('{language}', lang)
     case 'allTime':
-      if (userMins > 0) return `${mins} minutes of ${lang} on SSi. You contributed ${formatNumber(userMins)} of them.`
-      return `${mins} minutes of ${lang} spoken on SSi so far.`
+      if (userMins > 0) return t('contribution.contributedAllTime', '{mins} minutes of {language} on SSi. You contributed {userMins} of them.')
+        .replace('{mins}', mins).replace('{language}', lang).replace('{userMins}', formatNumber(userMins))
+      return t('contribution.allTimeMinutes', '{mins} minutes of {language} spoken on SSi so far.')
+        .replace('{mins}', mins).replace('{language}', lang)
   }
 })
 </script>
@@ -67,7 +76,10 @@ const contextMessage = computed(() => {
           </svg>
         </button>
 
-        <h2 class="panel-title">{{ data.languageName }} Spoken</h2>
+        <h2 class="panel-title">
+          <span class="panel-title-prefix">Say Something in</span>
+          <span class="panel-title-lang">{{ data.languageName }}</span>
+        </h2>
 
         <!-- Timeframe tabs -->
         <div class="tab-bar">
@@ -85,7 +97,7 @@ const contextMessage = computed(() => {
         <!-- Global total -->
         <div class="global-total">
           <span class="total-number">{{ formatNumber(globalMinutes) }}</span>
-          <span class="total-label">minutes</span>
+          <span class="total-label">{{ t('contribution.minutes', 'Minutes') }}</span>
         </div>
 
         <!-- Context message -->
@@ -95,15 +107,15 @@ const contextMessage = computed(() => {
         <div class="user-contribution" v-if="userMinutes > 0 || userPhrases > 0">
           <div class="user-stat">
             <span class="user-value">+{{ formatNumber(userMinutes) }}</span>
-            <span class="user-label">your mins</span>
+            <span class="user-label">{{ t('contribution.yourMins', 'your mins') }}</span>
           </div>
           <div class="user-stat">
             <span class="user-value">+{{ formatNumber(userPhrases) }}</span>
-            <span class="user-label">your phrases</span>
+            <span class="user-label">{{ t('contribution.yourPhrases', 'your phrases') }}</span>
           </div>
         </div>
 
-        <p class="philosophy-quote">Every phrase keeps {{ data.languageName }} alive</p>
+        <p class="philosophy-quote">{{ t('contribution.everyPhrase', 'Every phrase keeps {language} alive').replace('{language}', data.languageName) }}</p>
       </div>
     </div>
   </Transition>
@@ -116,10 +128,11 @@ const contextMessage = computed(() => {
   background: rgba(0, 0, 0, 0.25);
   backdrop-filter: blur(8px);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   z-index: 1000;
   padding: 1rem;
+  padding-top: max(env(safe-area-inset-top, 0px) + 3rem, 10vh);
 }
 
 .contribution-panel {
@@ -149,12 +162,25 @@ const contextMessage = computed(() => {
 .close-btn:hover { color: #2C2622; }
 
 .panel-title {
+  margin-bottom: 1rem;
+  line-height: 1.3;
+}
+
+.panel-title-prefix {
+  display: block;
   font-size: 0.6875rem;
-  font-weight: 600;
+  font-weight: 400;
   color: #A09A94;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  margin-bottom: 1rem;
+}
+
+.panel-title-lang {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #c0392b;
+  letter-spacing: -0.01em;
 }
 
 .tab-bar {

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { t } from '@/composables/useI18n'
 
 const props = defineProps<{
   languageName: string
@@ -42,7 +43,7 @@ function formatNumber(n: number): string {
     :class="{ faded: isFaded && isPlaying }"
     @click="emit('expand')"
     @mouseenter="isFaded = false"
-    :title="`${languageName} spoken today — tap for details`"
+    :title="t('contribution.counterTooltip', '{language} spoken today — tap for details').replace('{language}', languageName)"
   >
     <span class="counter-number">{{ formatNumber(globalMinutes) }} mins</span>
   </button>
