@@ -362,7 +362,7 @@ async function fetchRegions(): Promise<void> {
 async function createGovtAdmin(): Promise<void> {
   if (!newGovtName.value.trim()) { error.value = 'Name is required'; return }
   if (!newGovtEmail.value.trim()) { error.value = 'Email is required'; return }
-  if (!newGovtGroup.value) { error.value = 'Please select a region'; return }
+  if (!newGovtGroup.value) { error.value = 'Please select a group'; return }
   if (!newGovtOrg.value.trim()) { error.value = 'Organization name is required'; return }
 
   isCreatingGovt.value = true

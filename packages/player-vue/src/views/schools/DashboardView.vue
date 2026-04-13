@@ -62,7 +62,7 @@ const schoolName = computed(() => {
   // If govt admin is viewing a specific school (drilled down)
   if (isViewingSchool.value && viewingSchool.value) return viewingSchool.value.school_name
   // If govt admin at group level
-  if (isGovtAdmin.value && groupSummary.value) return groupSummary.value.group_name || groupSummary.value.region_name
+  if (isGovtAdmin.value && groupSummary.value) return groupSummary.value.group_name
   return currentSchool.value?.school_name || selectedUser.value?.school_name || 'Your School'
 })
 
@@ -70,7 +70,7 @@ const schoolName = computed(() => {
 const breadcrumb = computed(() => {
   if (!isViewingSchool.value) return null
   return {
-    group: groupSummary.value?.group_name || groupSummary.value?.region_name || 'Group',
+    group: groupSummary.value?.group_name || 'Group',
     school: viewingSchool.value?.school_name || 'School'
   }
 })
@@ -96,8 +96,12 @@ const languageNames: Record<string, string> = {
 }
 
 async function loadGroupData() {
-  if (!isGovtAdmin.value || !selectedUser.value?.region_code) return
-  groupReport.value = await getGroupReport(selectedUser.value.region_code)
+  if (!isGovtAdmin.value) return
+  const groupId = selectedUser.value?.group_id
+  const regionCode = selectedUser.value?.region_code
+  if (!groupId && !regionCode) return
+  // getGroupReport accepts region_code for now — will migrate to group_id
+  groupReport.value = await getGroupReport(regionCode || groupId || '')
 }
 
 async function loadContributions() {
@@ -119,7 +123,7 @@ const debugInfo = computed(() => ({
   hasUser: !!selectedUser.value,
   userName: selectedUser.value?.display_name,
   role: selectedUser.value?.educational_role,
-  groupCode: selectedUser.value?.region_code,
+  groupId: selectedUser.value?.group_id,
   isGovtAdmin: isGovtAdmin.value,
   hasGroupSummary: !!groupSummary.value,
   error: error.value,
@@ -319,7 +323,7 @@ onMounted(() => {
 
     <!-- Schools in Group (Govt Admin only, at group level) -->
     <section v-if="isGovtAdmin && !isViewingSchool && schools.length > 0" class="group-schools animate-in delay-2">
-      <Card :title="`Schools in ${groupSummary?.group_name || groupSummary?.region_name || 'Group'}`" :subtitle="`${schools.length} schools`">
+      <Card :title="`Schools in ${groupSummary?.group_name || 'Group'}`" :subtitle="`${schools.length} schools`">
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>

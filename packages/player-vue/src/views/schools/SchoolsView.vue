@@ -56,7 +56,7 @@ watch(selectedUser, (newUser) => {
       <div class="page-title">
         <h1>Schools</h1>
         <div class="school-count" v-if="groupSummary">
-          <span class="count-value">{{ groupSummary.school_count }}</span> schools in {{ groupSummary.group_name || groupSummary.region_name }}
+          <span class="count-value">{{ groupSummary.school_count }}</span> schools in {{ groupSummary.group_name }}
         </div>
       </div>
     </header>
@@ -108,7 +108,7 @@ watch(selectedUser, (newUser) => {
           </div>
           <div class="school-info">
             <h3 class="school-name">{{ school.school_name }}</h3>
-            <span class="school-group">{{ school.region_code || 'Group' }}</span>
+            <span class="school-group">{{ school.school_name }}</span>
           </div>
         </div>
         <div class="school-stats">
