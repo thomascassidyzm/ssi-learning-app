@@ -930,6 +930,201 @@ onMounted(() => {
       <span>{{ error }}</span>
     </div>
 
+    <!-- Groups Section -->
+    <section class="create-section animate-in delay-1">
+      <Card title="Groups" accent="blue" collapsible start-collapsed>
+        <template #icon>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="2" y1="12" x2="22" y2="12"/>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+          </svg>
+        </template>
+
+        <!-- Create group form -->
+        <div class="form-grid" style="margin-bottom: 16px;">
+          <div class="form-group">
+            <label>Group Name <span class="required">*</span></label>
+            <input
+              v-model="newGroupName"
+              type="text"
+              placeholder="e.g. United Kingdom, Wales, Pilot 2026"
+              @keyup.enter="createGroup"
+            />
+          </div>
+
+          <div class="form-group">
+            <label>Type</label>
+            <select v-model="newGroupType">
+              <option value="nation">Nation</option>
+              <option value="group">Group</option>
+              <option value="district">District</option>
+              <option value="programme">Programme</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Parent Group (optional)</label>
+            <select v-model="newGroupParent">
+              <option value="">- None (top level) -</option>
+              <option v-for="g in groups" :key="g.id" :value="g.id">
+                {{ g.name }} ({{ g.type }})
+              </option>
+            </select>
+          </div>
+
+          <div class="form-group" style="justify-content: flex-end;">
+            <label>&nbsp;</label>
+            <button class="btn-create" :disabled="isCreatingGroup || !newGroupName.trim()" @click="createGroup">
+              <svg v-if="!isCreatingGroup" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              <span v-if="isCreatingGroup" class="spinner"></span>
+              {{ isCreatingGroup ? 'Creating...' : 'Add Group' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Groups tree -->
+        <div v-if="groups.length > 0" class="groups-tree">
+          <template v-for="group in rootGroups" :key="group.id">
+            <div class="group-row group-row--root">
+              <span class="group-type-badge">{{ group.type === 'region' ? 'group' : group.type }}</span>
+              <template v-if="editingGroupId === group.id">
+                <input
+                  class="group-rename-input"
+                  v-model="editingGroupName"
+                  @blur="saveGroupRename(group)"
+                  @keyup.enter="saveGroupRename(group)"
+                  @keyup.escape="editingGroupId = null"
+                />
+              </template>
+              <strong v-else class="group-name-editable" @click="startGroupRename(group)" title="Click to rename">{{ group.name }}</strong>
+              <span class="group-meta">{{ group.school_count }} schools</span>
+              <span v-if="group.granted_courses.length > 0" class="group-courses">
+                {{ group.granted_courses.length }} courses
+              </span>
+              <button class="group-delete-btn" @click="deleteGroup(group)" title="Delete group">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            <div v-for="child in getChildGroups(group.id)" :key="child.id" class="group-row group-row--child">
+              <span class="group-type-badge">{{ child.type === 'region' ? 'group' : child.type }}</span>
+              <template v-if="editingGroupId === child.id">
+                <input
+                  class="group-rename-input"
+                  v-model="editingGroupName"
+                  @blur="saveGroupRename(child)"
+                  @keyup.enter="saveGroupRename(child)"
+                  @keyup.escape="editingGroupId = null"
+                />
+              </template>
+              <span v-else class="group-name-editable" @click="startGroupRename(child)" title="Click to rename">{{ child.name }}</span>
+              <span class="group-meta">{{ child.school_count }} schools</span>
+              <span v-if="child.granted_courses.length > 0" class="group-courses">
+                {{ child.granted_courses.length }} courses
+              </span>
+              <button class="group-delete-btn" @click="deleteGroup(child)" title="Delete group">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+              <template v-for="grandchild in getChildGroups(child.id)" :key="grandchild.id">
+                <div class="group-row group-row--grandchild">
+                  <span class="group-type-badge">{{ grandchild.type === 'region' ? 'group' : grandchild.type }}</span>
+                  <template v-if="editingGroupId === grandchild.id">
+                    <input
+                      class="group-rename-input"
+                      v-model="editingGroupName"
+                      @blur="saveGroupRename(grandchild)"
+                      @keyup.enter="saveGroupRename(grandchild)"
+                      @keyup.escape="editingGroupId = null"
+                    />
+                  </template>
+                  <span v-else class="group-name-editable" @click="startGroupRename(grandchild)" title="Click to rename">{{ grandchild.name }}</span>
+                  <span class="group-meta">{{ grandchild.school_count }} schools</span>
+                  <button class="group-delete-btn" @click="deleteGroup(grandchild)" title="Delete group">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="18" y1="6" x2="6" y2="18"/>
+                      <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </button>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+        <div v-else-if="!isLoadingGroups" class="empty-state" style="padding: 24px;">
+          <p>No groups yet</p>
+          <span>Create one above to organise schools</span>
+        </div>
+      </Card>
+    </section>
+
+    <!-- Add Govt Admin Section -->
+    <section class="create-section animate-in delay-2">
+      <Card title="Add Govt Admin" accent="blue" collapsible start-collapsed>
+        <template #icon>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </template>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Name <span class="required">*</span></label>
+            <input v-model="newGovtName" type="text" placeholder="e.g. Gwilym Thomas" />
+          </div>
+          <div class="form-group">
+            <label>Email <span class="required">*</span></label>
+            <input v-model="newGovtEmail" type="email" placeholder="e.g. gwilym@gov.wales" />
+          </div>
+          <div class="form-group">
+            <label>Group <span class="required">*</span></label>
+            <select v-model="newGovtGroup">
+              <option value="">- Select group -</option>
+              <option v-for="g in groups" :key="g.id" :value="g.id">
+                {{ g.name }}
+              </option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Organization <span class="required">*</span></label>
+            <input v-model="newGovtOrg" type="text" placeholder="e.g. Welsh Government Language Office" />
+          </div>
+        </div>
+
+        <!-- Generated invite code display -->
+        <div v-if="govtAdminCode" class="invite-code-result">
+          <span class="code-label">Invite code:</span>
+          <span class="code-value" @click="copyCode(govtAdminCode)">{{ govtAdminCode }}</span>
+          <span class="code-hint">Share this code — they enter it in Settings to gain access</span>
+        </div>
+
+        <template #footer>
+          <div class="form-actions">
+            <button
+              class="btn-create"
+              :disabled="isCreatingGovt || !newGovtName.trim() || !newGovtEmail.trim() || !newGovtGroup || !newGovtOrg.trim()"
+              @click="createGovtAdmin"
+            >
+              <svg v-if="!isCreatingGovt" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              <span v-if="isCreatingGovt" class="spinner"></span>
+              {{ isCreatingGovt ? 'Creating...' : 'Create Govt Admin' }}
+            </button>
+          </div>
+        </template>
+      </Card>
+    </section>
+
     <!-- Add School Section -->
     <section class="create-section animate-in delay-1">
       <Card title="Add School" accent="green" collapsible start-collapsed>
@@ -949,7 +1144,6 @@ onMounted(() => {
               @keyup.enter="createSchool"
             />
           </div>
-
           <div class="form-group">
             <label>Group (optional)</label>
             <select v-model="newSchoolGroup">
@@ -960,7 +1154,6 @@ onMounted(() => {
             </select>
           </div>
         </div>
-
         <template #footer>
           <div class="form-actions">
             <button class="btn-create" :disabled="isCreatingSchool || !newSchoolName.trim()" @click="createSchool">
@@ -1133,64 +1326,6 @@ onMounted(() => {
       </Card>
     </section>
 
-    <!-- Add Govt Admin Section -->
-    <section class="create-section animate-in delay-3">
-      <Card title="Add Govt Admin" accent="blue" collapsible start-collapsed>
-        <template #icon>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-          </svg>
-        </template>
-        <div class="form-grid">
-          <div class="form-group">
-            <label>Name <span class="required">*</span></label>
-            <input v-model="newGovtName" type="text" placeholder="e.g. Gwilym Thomas" />
-          </div>
-          <div class="form-group">
-            <label>Email <span class="required">*</span></label>
-            <input v-model="newGovtEmail" type="email" placeholder="e.g. gwilym@gov.wales" />
-          </div>
-          <div class="form-group">
-            <label>Group <span class="required">*</span></label>
-            <select v-model="newGovtGroup">
-              <option value="">- Select group -</option>
-              <option v-for="g in groups" :key="g.id" :value="g.id">
-                {{ g.name }}
-              </option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Organization <span class="required">*</span></label>
-            <input v-model="newGovtOrg" type="text" placeholder="e.g. Welsh Government Language Office" />
-          </div>
-        </div>
-
-        <!-- Generated invite code display -->
-        <div v-if="govtAdminCode" class="invite-code-result">
-          <span class="code-label">Invite code:</span>
-          <span class="code-value" @click="copyCode(govtAdminCode)">{{ govtAdminCode }}</span>
-          <span class="code-hint">Share this code — they enter it in Settings to gain access</span>
-        </div>
-
-        <template #footer>
-          <div class="form-actions">
-            <button
-              class="btn-create"
-              :disabled="isCreatingGovt || !newGovtName.trim() || !newGovtEmail.trim() || !newGovtGroup || !newGovtOrg.trim()"
-              @click="createGovtAdmin"
-            >
-              <svg v-if="!isCreatingGovt" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="12" y1="5" x2="12" y2="19"/>
-                <line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-              <span v-if="isCreatingGovt" class="spinner"></span>
-              {{ isCreatingGovt ? 'Creating...' : 'Create Govt Admin' }}
-            </button>
-          </div>
-        </template>
-      </Card>
-    </section>
-
     <!-- Staff List -->
     <section v-if="staffMembers.length > 0" class="codes-section animate-in delay-2">
       <Card title="Staff" accent="red" :loading="isLoadingStaff" collapsible>
@@ -1225,143 +1360,6 @@ onMounted(() => {
               </tr>
             </tbody>
           </table>
-        </div>
-      </Card>
-    </section>
-
-    <!-- Groups Section -->
-    <section class="create-section animate-in delay-1">
-      <Card title="Groups" accent="blue" collapsible start-collapsed>
-        <template #icon>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="2" y1="12" x2="22" y2="12"/>
-            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-          </svg>
-        </template>
-
-        <!-- Create group form -->
-        <div class="form-grid" style="margin-bottom: 16px;">
-          <div class="form-group">
-            <label>Group Name <span class="required">*</span></label>
-            <input
-              v-model="newGroupName"
-              type="text"
-              placeholder="e.g. United Kingdom, Wales, Pilot 2026"
-              @keyup.enter="createGroup"
-            />
-          </div>
-
-          <div class="form-group">
-            <label>Type</label>
-            <select v-model="newGroupType">
-              <option value="nation">Nation</option>
-              <option value="group">Group</option>
-              <option value="district">District</option>
-              <option value="programme">Programme</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label>Parent Group (optional)</label>
-            <select v-model="newGroupParent">
-              <option value="">- None (top level) -</option>
-              <option v-for="g in groups" :key="g.id" :value="g.id">
-                {{ g.name }} ({{ g.type }})
-              </option>
-            </select>
-          </div>
-
-          <div class="form-group" style="justify-content: flex-end;">
-            <label>&nbsp;</label>
-            <button class="btn-create" :disabled="isCreatingGroup || !newGroupName.trim()" @click="createGroup">
-              <svg v-if="!isCreatingGroup" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="12" y1="5" x2="12" y2="19"/>
-                <line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-              <span v-if="isCreatingGroup" class="spinner"></span>
-              {{ isCreatingGroup ? 'Creating...' : 'Add Group' }}
-            </button>
-          </div>
-        </div>
-
-        <!-- Groups tree -->
-        <div v-if="groups.length > 0" class="groups-tree">
-          <template v-for="group in rootGroups" :key="group.id">
-            <div class="group-row group-row--root">
-              <span class="group-type-badge">{{ group.type === 'region' ? 'group' : group.type }}</span>
-              <template v-if="editingGroupId === group.id">
-                <input
-                  class="group-rename-input"
-                  v-model="editingGroupName"
-                  @blur="saveGroupRename(group)"
-                  @keyup.enter="saveGroupRename(group)"
-                  @keyup.escape="editingGroupId = null"
-                />
-              </template>
-              <strong v-else class="group-name-editable" @click="startGroupRename(group)" title="Click to rename">{{ group.name }}</strong>
-              <span class="group-meta">{{ group.school_count }} schools</span>
-              <span v-if="group.granted_courses.length > 0" class="group-courses">
-                {{ group.granted_courses.length }} courses
-              </span>
-              <button class="group-delete-btn" @click="deleteGroup(group)" title="Delete group">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="18" y1="6" x2="6" y2="18"/>
-                  <line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
-              </button>
-            </div>
-            <div v-for="child in getChildGroups(group.id)" :key="child.id" class="group-row group-row--child">
-              <span class="group-type-badge">{{ child.type === 'region' ? 'group' : child.type }}</span>
-              <template v-if="editingGroupId === child.id">
-                <input
-                  class="group-rename-input"
-                  v-model="editingGroupName"
-                  @blur="saveGroupRename(child)"
-                  @keyup.enter="saveGroupRename(child)"
-                  @keyup.escape="editingGroupId = null"
-                />
-              </template>
-              <span v-else class="group-name-editable" @click="startGroupRename(child)" title="Click to rename">{{ child.name }}</span>
-              <span class="group-meta">{{ child.school_count }} schools</span>
-              <span v-if="child.granted_courses.length > 0" class="group-courses">
-                {{ child.granted_courses.length }} courses
-              </span>
-              <button class="group-delete-btn" @click="deleteGroup(child)" title="Delete group">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="18" y1="6" x2="6" y2="18"/>
-                  <line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
-              </button>
-              <template v-for="grandchild in getChildGroups(child.id)" :key="grandchild.id">
-                <div class="group-row group-row--grandchild">
-                  <span class="group-type-badge">{{ grandchild.type === 'region' ? 'group' : grandchild.type }}</span>
-                  <template v-if="editingGroupId === grandchild.id">
-                    <input
-                      class="group-rename-input"
-                      v-model="editingGroupName"
-                      @blur="saveGroupRename(grandchild)"
-                      @keyup.enter="saveGroupRename(grandchild)"
-                      @keyup.escape="editingGroupId = null"
-                    />
-                  </template>
-                  <span v-else class="group-name-editable" @click="startGroupRename(grandchild)" title="Click to rename">{{ grandchild.name }}</span>
-                  <span class="group-meta">{{ grandchild.school_count }} schools</span>
-                  <button class="group-delete-btn" @click="deleteGroup(grandchild)" title="Delete group">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <line x1="18" y1="6" x2="6" y2="18"/>
-                      <line x1="6" y1="6" x2="18" y2="18"/>
-                    </svg>
-                  </button>
-                </div>
-              </template>
-            </div>
-          </template>
-        </div>
-        <div v-else-if="!isLoadingGroups" class="empty-state" style="padding: 24px;">
-          <p>No groups yet</p>
-          <span>Create one above to organise schools</span>
         </div>
       </Card>
     </section>
