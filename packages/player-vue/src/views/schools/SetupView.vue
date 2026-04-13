@@ -991,7 +991,6 @@ onMounted(() => {
         <div v-if="groups.length > 0" class="groups-tree">
           <template v-for="group in rootGroups" :key="group.id">
             <div class="group-row group-row--root">
-              <span class="group-type-badge">{{ group.type === 'region' ? 'group' : group.type }}</span>
               <template v-if="editingGroupId === group.id">
                 <input
                   class="group-rename-input"
@@ -1014,7 +1013,6 @@ onMounted(() => {
               </button>
             </div>
             <div v-for="child in getChildGroups(group.id)" :key="child.id" class="group-row group-row--child">
-              <span class="group-type-badge">{{ child.type === 'region' ? 'group' : child.type }}</span>
               <template v-if="editingGroupId === child.id">
                 <input
                   class="group-rename-input"
@@ -1037,7 +1035,6 @@ onMounted(() => {
               </button>
               <template v-for="grandchild in getChildGroups(child.id)" :key="grandchild.id">
                 <div class="group-row group-row--grandchild">
-                  <span class="group-type-badge">{{ grandchild.type === 'region' ? 'group' : grandchild.type }}</span>
                   <template v-if="editingGroupId === grandchild.id">
                     <input
                       class="group-rename-input"
