@@ -14,7 +14,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 // Cache configuration
 // Bump SCRIPT_KEY_PREFIX when script generation logic or database schema changes
 // This is the ONLY way to invalidate the cache - no TTL expiry
-const SCRIPT_KEY_PREFIX = 'ssi-script-v7-' // v7: fallback to course_audio for presentation audio (Portuguese fix)
+const SCRIPT_KEY_PREFIX = 'ssi-script-v8-' // v8: fix quoted component text in M-LEGO tiles (17 courses affected)
 const AUDIO_CACHE_NAME = 'ssi-audio-v1'
 const CONTENT_VERSION_PREFIX = 'ssi-content-version-'
 
