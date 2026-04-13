@@ -83,9 +83,11 @@ WHERE ic.grants_region = r.code
   AND ic.grants_group_id IS NULL;
 
 -- 9. Update school_summary view to include group_id
-CREATE OR REPLACE VIEW school_summary AS
+-- Must DROP first because column names can't change in CREATE OR REPLACE
+DROP VIEW IF EXISTS school_summary CASCADE;
+CREATE VIEW school_summary AS
 SELECT
-  s.id,
+  s.id AS school_id,
   s.school_name,
   s.region_code,
   s.group_id,
@@ -134,10 +136,11 @@ SELECT
   COALESCE(SUM(ss.total_practice_hours), 0) AS total_practice_hours
 FROM groups g
 LEFT JOIN schools s ON s.group_id IN (SELECT get_subtree_group_ids(g.id))
-LEFT JOIN school_summary ss ON ss.id = s.id
+LEFT JOIN school_summary ss ON ss.school_id = s.id
 GROUP BY g.id, g.name, g.path;
 
--- Grant access to the new view
+-- Grant access to views
+GRANT SELECT ON school_summary TO authenticated;
 GRANT SELECT ON group_summary TO authenticated;
 
 -- ============================================
