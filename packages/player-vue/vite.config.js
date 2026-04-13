@@ -14,7 +14,7 @@ export default defineConfig({
   plugins: [
     vue(),
     VitePWA({
-      registerType: 'autoUpdate',  // New SW activates immediately — no user action needed
+      registerType: 'prompt',  // User chooses when to update — no mid-session disruption
 
       workbox: {
         // Precache app shell
@@ -29,8 +29,8 @@ export default defineConfig({
         // Acceptable: main deploys are weekly at most.
         cleanupOutdatedCaches: true,
 
-        // Skip waiting + claim clients immediately
-        skipWaiting: true,
+        // Don't skip waiting — PwaUpdatePrompt handles activation on user action
+        // clientsClaim ensures new SW controls all tabs once activated
         clientsClaim: true,
 
         // Runtime caching for fonts/CDN/audio

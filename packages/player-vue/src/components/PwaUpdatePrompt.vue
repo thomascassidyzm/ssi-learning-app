@@ -6,7 +6,8 @@
  * Simplified: just reload the page when user clicks update.
  */
 import { useRegisterSW } from 'virtual:pwa-register/vue'
-import { onUnmounted } from 'vue'
+import { onUnmounted, watch } from 'vue'
+import { updateAvailable } from '@/composables/usePwaUpdate'
 
 let updateCheckInterval: ReturnType<typeof setInterval> | null = null
 
@@ -30,16 +31,20 @@ const {
   },
 })
 
+// Sync shared state so the blue dot can show anywhere in the app
+watch(needRefresh, (v) => { updateAvailable.value = v }, { immediate: true })
+
 function onUpdate() {
   console.log('[PWA] Updating...')
+  updateAvailable.value = false
   // Tell SW to skip waiting, then reload
   updateServiceWorker(true)
-  // Reload after a brief moment
   setTimeout(() => window.location.reload(), 100)
 }
 
 function onDismiss() {
   needRefresh.value = false
+  // Keep updateAvailable true — blue dot persists until they actually update
 }
 
 onUnmounted(() => {
@@ -80,22 +85,24 @@ onUnmounted(() => {
 }
 
 .pwa-update-content {
-  background: var(--color-surface, #1a1a2e);
-  border: 1px solid var(--color-border, #2a2a4a);
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 12px;
   padding: 12px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   pointer-events: auto;
   max-width: 400px;
   margin: 0 auto;
 }
 
 .pwa-update-text {
-  color: var(--color-text, #e0e0e0);
+  color: #333;
   font-size: 14px;
   font-weight: 500;
 }
@@ -107,8 +114,8 @@ onUnmounted(() => {
 
 .pwa-update-dismiss {
   background: transparent;
-  border: 1px solid var(--color-border, #2a2a4a);
-  color: var(--color-text-muted, #888);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  color: #888;
   padding: 8px 16px;
   border-radius: 8px;
   font-size: 14px;
@@ -117,12 +124,12 @@ onUnmounted(() => {
 }
 
 .pwa-update-dismiss:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--color-text, #e0e0e0);
+  background: rgba(0, 0, 0, 0.04);
+  color: #333;
 }
 
 .pwa-update-button {
-  background: var(--color-accent, #4a90d9);
+  background: #007AFF;
   border: none;
   color: white;
   padding: 8px 16px;
@@ -134,7 +141,7 @@ onUnmounted(() => {
 }
 
 .pwa-update-button:hover {
-  background: var(--color-accent-hover, #5a9fe9);
+  background: #0066DD;
 }
 
 .slide-up-enter-active,
