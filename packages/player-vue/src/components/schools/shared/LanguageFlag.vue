@@ -71,6 +71,7 @@ import hyeFlag from '@/assets/flags/hye.svg'
 import turFlag from '@/assets/flags/tur.svg'
 import hinFlag from '@/assets/flags/hin.svg'
 import sinFlag from '@/assets/flags/sin.svg'
+import nepFlag from '@/assets/flags/nep.svg'
 
 const flagMap = {
   cym: cymFlag,
@@ -142,6 +143,7 @@ const flagMap = {
   tur: turFlag,
   hin: hinFlag,
   sin: sinFlag,
+  nep: nepFlag,
 }
 
 const props = defineProps({

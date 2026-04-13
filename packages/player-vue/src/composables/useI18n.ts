@@ -319,6 +319,7 @@ const LANGUAGE_FLAGS: Record<string, string> = {
   ind: '🇮🇩',  // Indonesian
   fil: '🇵🇭',  // Filipino
   sin: '🇱🇰',  // Sinhala
+  nep: '🇳🇵',  // Nepali
   // Semitic & Middle Eastern
   ara: '🇸🇦',
   heb: '🇮🇱',
