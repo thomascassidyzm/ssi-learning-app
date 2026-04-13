@@ -311,7 +311,11 @@ export class SimplePlayer {
     const gen = ++this.playGeneration
     this.audio.src = url
     // Only slow down target language audio — known language always plays at 1.0x
-    this.audio.playbackRate = isTarget ? (this.currentCycle?.playbackSpeed ?? 1.0) : 1.0
+    const rate = isTarget ? (this.currentCycle?.playbackSpeed ?? 1.0) : 1.0
+    if (rate > 1.05) {
+      console.warn(`[SimplePlayer] ⚠️ SPEED ${rate}x on "${this.currentCycle?.target?.text}" (cycle.playbackSpeed=${this.currentCycle?.playbackSpeed})`)
+    }
+    this.audio.playbackRate = rate
     this.audio.play().catch((err) => {
       // Ignore rejections from superseded play() calls (e.g. "interrupted by new load")
       if (gen !== this.playGeneration) return
