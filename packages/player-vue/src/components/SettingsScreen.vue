@@ -870,8 +870,7 @@ const confirmReset = async () => {
     <header class="header">
       <div class="header-spacer" />
       <div class="header-center">
-        <h1 class="title">Settings <span class="build-inline">{{ buildNumber || 'dev' }}</span></h1>
-        <span class="version-date">{{ formattedBuildTime }}</span>
+        <h1 class="title">Settings</h1>
         <span v-if="formattedLearningTime" class="learning-time">{{ formattedLearningTime }}</span>
       </div>
       <button class="close-btn" @click="emit('close')" aria-label="Close settings">✕</button>
@@ -879,6 +878,12 @@ const confirmReset = async () => {
 
     <!-- Main Content -->
     <main class="main">
+      <!-- Build Info -->
+      <div class="build-card">
+        <span class="build-sha">{{ buildNumber || 'dev' }}</span>
+        <span v-if="formattedBuildTime" class="build-time">{{ formattedBuildTime }}</span>
+      </div>
+
       <!-- Account Section (guest - not signed in) -->
       <section class="section" v-if="!isSignedIn">
         <h3 class="section-title">Account</h3>
@@ -1458,19 +1463,30 @@ const confirmReset = async () => {
   font-weight: 400;
 }
 
-.build-inline {
+.build-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  margin-bottom: 1rem;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.build-sha {
   font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.03em;
+}
+
+.build-time {
   font-size: 0.75rem;
   color: var(--text-muted);
   font-weight: 400;
-  letter-spacing: 0.02em;
-}
-
-.version-date {
-  font-size: 0.6875rem;
-  color: var(--text-muted);
-  font-weight: 400;
-  margin-top: 1px;
 }
 
 /* Main */

@@ -98,11 +98,6 @@ const handleMode = (mode: string) => {
         <path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0ZM15 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z"/>
         <path d="M5 17H3v-6l2-5h10l4 5h2v6h-2"/><path d="M5 11h14"/><path d="M9 17h6"/>
       </svg>
-      <svg v-else-if="activeModeIcon === 'pronunciation'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-        <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
-      </svg>
       <svg v-else-if="activeModeIcon === 'turbo'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
       </svg>
@@ -226,24 +221,6 @@ const handleMode = (mode: string) => {
           <div class="radio-indicator" :class="{ on: isDrivingMode }"></div>
         </button>
 
-        <button
-          class="tray-item tray-item--radio"
-          :class="{ active: isPronunciationMode }"
-          @click="selectExperienceMode('pronunciation')"
-        >
-          <div class="tray-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-              <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
-            </svg>
-          </div>
-          <div class="tray-label">
-            <span class="tray-name">Pronunciation</span>
-            <span class="tray-desc">Practice speaking with feedback</span>
-          </div>
-          <div class="radio-indicator" :class="{ on: isPronunciationMode }"></div>
-        </button>
       </div>
     </Transition>
 
