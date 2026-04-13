@@ -1470,9 +1470,9 @@ const confirmReset = async () => {
   gap: 0.75rem;
   padding: 0.5rem 1rem;
   margin-bottom: 1rem;
-  background: rgba(0, 0, 0, 0.04);
-  border-radius: 8px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
 }
 
 .build-sha {
@@ -1514,8 +1514,8 @@ const confirmReset = async () => {
 
 /* Card */
 .card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.12);
   border-radius: 16px;
   overflow: hidden;
 }
