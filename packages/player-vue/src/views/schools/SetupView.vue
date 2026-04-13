@@ -557,29 +557,22 @@ async function createGroup(): Promise<void> {
   successMessage.value = null
 
   try {
-    const token = await getAuthToken()
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (token) headers['Authorization'] = `Bearer ${token}`
-
-    const body: Record<string, unknown> = {
+    const client = getClient()
+    const insertData: Record<string, unknown> = {
       name: newGroupName.value.trim(),
       type: newGroupType.value,
     }
-    if (newGroupParent.value) body.parent_id = newGroupParent.value
+    if (newGroupParent.value) insertData.parent_id = newGroupParent.value
 
-    const response = await fetch('/api/groups', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-    })
+    const { data, error: insertError } = await client
+      .from('groups')
+      .insert(insertData)
+      .select()
+      .single()
 
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}))
-      throw new Error(data.error || 'Failed to create group')
-    }
+    if (insertError) throw insertError
 
-    const result = await response.json()
-    successMessage.value = `Group "${result.group.name}" created`
+    successMessage.value = `Group "${data.name}" created`
     newGroupName.value = ''
     newGroupType.value = 'group'
     newGroupParent.value = ''
@@ -1297,7 +1290,7 @@ onMounted(() => {
         <div v-if="groups.length > 0" class="groups-tree">
           <template v-for="group in rootGroups" :key="group.id">
             <div class="group-row group-row--root">
-              <span class="group-type-badge">{{ group.type }}</span>
+              <span class="group-type-badge">{{ group.type === 'region' ? 'group' : group.type }}</span>
               <template v-if="editingGroupId === group.id">
                 <input
                   class="group-rename-input"
@@ -1320,7 +1313,7 @@ onMounted(() => {
               </button>
             </div>
             <div v-for="child in getChildGroups(group.id)" :key="child.id" class="group-row group-row--child">
-              <span class="group-type-badge">{{ child.type }}</span>
+              <span class="group-type-badge">{{ child.type === 'region' ? 'group' : child.type }}</span>
               <template v-if="editingGroupId === child.id">
                 <input
                   class="group-rename-input"
@@ -1343,7 +1336,7 @@ onMounted(() => {
               </button>
               <template v-for="grandchild in getChildGroups(child.id)" :key="grandchild.id">
                 <div class="group-row group-row--grandchild">
-                  <span class="group-type-badge">{{ grandchild.type }}</span>
+                  <span class="group-type-badge">{{ grandchild.type === 'region' ? 'group' : grandchild.type }}</span>
                   <template v-if="editingGroupId === grandchild.id">
                     <input
                       class="group-rename-input"
