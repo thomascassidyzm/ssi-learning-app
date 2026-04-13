@@ -80,6 +80,15 @@ const newStaffSchool = ref('')
 const newStaffRole = ref<'teacher' | 'admin'>('teacher')
 const isCreatingStaff = ref(false)
 
+// Add Govt Admin form
+const newGovtName = ref('')
+const newGovtEmail = ref('')
+const newGovtGroup = ref('')
+const newGovtOrg = ref('')
+const isCreatingGovt = ref(false)
+const regions = ref<Array<{ code: string; name: string }>>([])
+const govtAdminCode = ref<string | null>(null)
+
 // Staff list
 interface StaffMember {
   user_id: string
@@ -334,6 +343,95 @@ async function createStaff(): Promise<void> {
     console.error('[SetupView] create staff error:', err)
   } finally {
     isCreatingStaff.value = false
+  }
+}
+
+async function fetchRegions(): Promise<void> {
+  try {
+    const client = getClient()
+    const { data } = await client
+      .from('regions')
+      .select('code, name')
+      .order('name')
+    regions.value = data || []
+  } catch (err) {
+    console.error('[SetupView] fetch regions error:', err)
+  }
+}
+
+async function createGovtAdmin(): Promise<void> {
+  if (!newGovtName.value.trim()) { error.value = 'Name is required'; return }
+  if (!newGovtEmail.value.trim()) { error.value = 'Email is required'; return }
+  if (!newGovtGroup.value) { error.value = 'Please select a region'; return }
+  if (!newGovtOrg.value.trim()) { error.value = 'Organization name is required'; return }
+
+  isCreatingGovt.value = true
+  error.value = null
+  successMessage.value = null
+  govtAdminCode.value = null
+
+  try {
+    const client = getClient()
+    const userId = `govt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    const emailStr = newGovtEmail.value.trim().toLowerCase()
+
+    // 1. Create learner record
+    const insertData: Record<string, unknown> = {
+      user_id: userId,
+      display_name: newGovtName.value.trim(),
+      educational_role: 'govt_admin',
+    }
+    if (emailStr) {
+      insertData.verified_emails = [emailStr]
+    }
+    const { error: learnerError } = await client.from('learners').insert(insertData)
+    if (learnerError) throw learnerError
+
+    // 2. Create govt_admins record
+    const createdBy = getCurrentUserId() || userId
+    const { error: govtError } = await client.from('govt_admins').insert({
+      user_id: userId,
+      region_code: newGovtGroup.value,
+      organization_name: newGovtOrg.value.trim(),
+      created_by: createdBy,
+    })
+    if (govtError) throw govtError
+
+    // 3. Generate an invite code they can use to sign in
+    const code = [
+      Math.random().toString(36).substr(2, 3).toUpperCase(),
+      Math.random().toString(36).substr(2, 3).toUpperCase(),
+    ].join('-')
+
+    const { error: codeError } = await client.from('invite_codes').insert({
+      code,
+      code_type: 'govt_admin',
+      created_by: createdBy,
+      grants_region: newGovtGroup.value,
+      max_uses: 1,
+      metadata: {
+        organization_name: newGovtOrg.value.trim(),
+        recipient_email: emailStr,
+        recipient_name: newGovtName.value.trim(),
+      },
+    })
+    if (codeError) console.warn('[SetupView] invite code creation failed:', codeError)
+    else govtAdminCode.value = code
+
+    const regionName = regions.value.find(r => r.code === newGovtGroup.value)?.name || newGovtGroup.value
+    successMessage.value = `Govt Admin "${newGovtName.value.trim()}" created for ${regionName}`
+
+    newGovtName.value = ''
+    newGovtEmail.value = ''
+    newGovtGroup.value = ''
+    newGovtOrg.value = ''
+
+    await fetchStaff()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to create govt admin'
+    console.error('[SetupView] create govt admin error:', err)
+  } finally {
+    isCreatingGovt.value = false
   }
 }
 
@@ -800,6 +898,7 @@ onMounted(() => {
   fetchCourses()
   fetchGrants()
   fetchStaff()
+  fetchRegions()
 })
 </script>
 
@@ -1021,6 +1120,64 @@ onMounted(() => {
               </svg>
               <span v-if="isCreatingStaff" class="spinner"></span>
               {{ isCreatingStaff ? 'Adding...' : 'Add Staff' }}
+            </button>
+          </div>
+        </template>
+      </Card>
+    </section>
+
+    <!-- Add Govt Admin Section -->
+    <section class="create-section animate-in delay-3">
+      <Card title="Add Govt Admin" accent="blue" collapsible start-collapsed>
+        <template #icon>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </template>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Name <span class="required">*</span></label>
+            <input v-model="newGovtName" type="text" placeholder="e.g. Gwilym Thomas" />
+          </div>
+          <div class="form-group">
+            <label>Email <span class="required">*</span></label>
+            <input v-model="newGovtEmail" type="email" placeholder="e.g. gwilym@gov.wales" />
+          </div>
+          <div class="form-group">
+            <label>Region <span class="required">*</span></label>
+            <select v-model="newGovtGroup">
+              <option value="">- Select region -</option>
+              <option v-for="r in regions" :key="r.code" :value="r.code">
+                {{ r.name }}
+              </option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Organization <span class="required">*</span></label>
+            <input v-model="newGovtOrg" type="text" placeholder="e.g. Welsh Government Language Office" />
+          </div>
+        </div>
+
+        <!-- Generated invite code display -->
+        <div v-if="govtAdminCode" class="invite-code-result">
+          <span class="code-label">Invite code:</span>
+          <span class="code-value" @click="copyCode(govtAdminCode)">{{ govtAdminCode }}</span>
+          <span class="code-hint">Share this code — they enter it in Settings to gain access</span>
+        </div>
+
+        <template #footer>
+          <div class="form-actions">
+            <button
+              class="btn-create"
+              :disabled="isCreatingGovt || !newGovtName.trim() || !newGovtEmail.trim() || !newGovtGroup || !newGovtOrg.trim()"
+              @click="createGovtAdmin"
+            >
+              <svg v-if="!isCreatingGovt" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              <span v-if="isCreatingGovt" class="spinner"></span>
+              {{ isCreatingGovt ? 'Creating...' : 'Create Govt Admin' }}
             </button>
           </div>
         </template>
@@ -1430,6 +1587,45 @@ onMounted(() => {
 .btn-create:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.invite-code-result {
+  margin-top: 12px;
+  padding: 12px 16px;
+  background: rgba(22, 163, 74, 0.06);
+  border: 1px solid rgba(22, 163, 74, 0.2);
+  border-radius: 10px;
+  text-align: center;
+}
+
+.code-label {
+  display: block;
+  font-size: 0.6875rem;
+  color: #6B6560;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+.code-value {
+  display: block;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #16a34a;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.code-value:hover {
+  opacity: 0.8;
+}
+
+.code-hint {
+  display: block;
+  font-size: 0.6875rem;
+  color: #A09A94;
+  margin-top: 6px;
 }
 
 .spinner {
