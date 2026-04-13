@@ -65,6 +65,33 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
   const itemsPracticed = ref(0)
   const sessionStartTime = ref<Date | null>(null)
 
+  // Actual play time tracking — only counts seconds where audio is playing.
+  // Wall-clock duration is useless (idle tabs, backgrounded apps, etc.)
+  let playSegmentStart: number | null = null
+  const accumulatedPlaySeconds = ref(0)
+
+  /** Call when playback starts or resumes */
+  const markPlayStart = () => {
+    if (!playSegmentStart) playSegmentStart = Date.now()
+  }
+
+  /** Call when playback pauses, stops, or app backgrounds */
+  const markPlayStop = () => {
+    if (playSegmentStart) {
+      accumulatedPlaySeconds.value += Math.floor((Date.now() - playSegmentStart) / 1000)
+      playSegmentStart = null
+    }
+  }
+
+  /** Get current accumulated play seconds (including any in-flight segment) */
+  const getPlaySeconds = (): number => {
+    let total = accumulatedPlaySeconds.value
+    if (playSegmentStart) {
+      total += Math.floor((Date.now() - playSegmentStart) / 1000)
+    }
+    return total
+  }
+
   // TripleHelixEngine for ROUND-based learning
   const helixEngine = shallowRef<TripleHelixEngine | null>(null)
   const baskets = shallowRef<Map<string, ClassifiedBasket>>(new Map())
@@ -401,7 +428,8 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
     const sessionStore = getSessionStore()
     if (!sessionStore || !sessionId.value || !sessionStartTime.value) return
 
-    const durationSeconds = Math.floor((Date.now() - sessionStartTime.value.getTime()) / 1000)
+    // Use actual play seconds, not wall-clock time
+    const durationSeconds = getPlaySeconds()
 
     // Fire-and-forget — this must be fast and never block
     sessionStore.checkpointSession(
@@ -413,6 +441,7 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
 
   const handleVisibilityChange = () => {
     if (document.visibilityState === 'hidden') {
+      markPlayStop()
       checkpointSession()
     }
   }
@@ -443,14 +472,13 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
         spikes: [], // TODO: Wire up spike events
       })
 
-      // Update enrollment with accumulated practice minutes
+      // Update enrollment with accumulated practice minutes (actual play time)
+      markPlayStop()
       const progressStore = getProgressStore()
       const learnerId = getLearnerId()
       const courseId = getCourseId()
       if (progressStore && learnerId && courseId && !isGuestLearner(learnerId)) {
-        const durationMinutes = Math.floor(
-          (endTime.getTime() - sessionStartTime.value.getTime()) / 60000
-        )
+        const durationMinutes = Math.floor(getPlaySeconds() / 60)
         if (durationMinutes > 0) {
           try {
             await progressStore.updateEnrollmentActivity(learnerId, courseId, 0, durationMinutes)
@@ -525,5 +553,7 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
     saveMetrics,
     endSession,
     getBasket,
+    markPlayStart,
+    markPlayStop,
   }
 }

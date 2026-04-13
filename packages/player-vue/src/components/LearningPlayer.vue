@@ -421,7 +421,12 @@ const isPlaying = ref(false)
 // Sync state with simplePlayer
 watch(() => simplePlayer.roundIndex.value, (idx) => { currentRoundIndex.value = idx })
 watch(() => simplePlayer.cycleIndex.value, (idx) => { currentItemInRound.value = idx })
-watch(() => simplePlayer.isPlaying.value, (playing) => { isPlaying.value = playing })
+watch(() => simplePlayer.isPlaying.value, (playing) => {
+  isPlaying.value = playing
+  // Track actual play time — only count seconds where audio is active
+  if (playing) learningSession.markPlayStart()
+  else learningSession.markPlayStop()
+})
 
 // Backwards compatibility aliases
 const effectiveRounds = loadedRounds
