@@ -5061,7 +5061,7 @@ onMounted(async () => {
               loadedRounds.value = simpleRounds as any
 
               // Preload audio for the first 2 rounds immediately
-              preloadSimpleRoundAudio(simpleRounds, 2, currentRoundIdx)
+              preloadSimpleRoundAudio(simpleRounds, 2, simplePlayer.roundIndex.value ?? 0)
 
             } else {
               console.warn('[eagerLoad] No script items generated')
