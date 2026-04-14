@@ -32,6 +32,16 @@
     "brown": "Brown",
     "black": "Du"
   },
+  "resting": {
+    "loading": "Yn llwytho...",
+    "readyWhenYouAre": "Yn barod pan wyt ti",
+    "greatStart": "Dechrau gwych — dal ati",
+    "buildingMomentum": "Codi stêm",
+    "youreOnARoll": "Ti ar dân",
+    "impressiveProgress": "Cynnydd trawiadol",
+    "nearlyThere": "Bron yna",
+    "forSpeakers": "i siaradwyr {lang}"
+  },
   "phase": {
     "getReadyToSpeak": "barod i siarad",
     "speakNow": "dy dro di i siarad",
