@@ -258,10 +258,10 @@
   --text-muted: #8A8078;
   --text-inverse: #ffffff;
 
-  /* Borders — barely-visible warm edges */
-  --border-subtle: rgba(0, 0, 0, 0.04);
-  --border-medium: rgba(0, 0, 0, 0.08);
-  --border-strong: rgba(0, 0, 0, 0.14);
+  /* Borders — visible warm edges (iOS-style card definition) */
+  --border-subtle: rgba(0, 0, 0, 0.10);
+  --border-medium: rgba(0, 0, 0, 0.14);
+  --border-strong: rgba(0, 0, 0, 0.20);
   --border-focus: var(--ssi-red);
 
   /* Shadows — warm brown tint, strong enough for white-on-grey pop */

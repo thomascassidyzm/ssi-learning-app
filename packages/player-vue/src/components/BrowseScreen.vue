@@ -638,6 +638,7 @@ onMounted(() => {
   cursor: pointer;
   transition: all 0.2s ease;
   -webkit-tap-highlight-color: transparent;
+  box-shadow: var(--shadow-sm);
 }
 
 .progress-card:hover {
@@ -738,6 +739,7 @@ onMounted(() => {
   cursor: pointer;
   transition: all 0.2s ease;
   -webkit-tap-highlight-color: transparent;
+  box-shadow: var(--shadow-sm);
 }
 
 .brain-card:hover {
@@ -800,6 +802,7 @@ onMounted(() => {
   align-items: center;
   text-align: center;
   gap: 0.375rem;
+  box-shadow: var(--shadow-sm);
 }
 
 .stat-icon {
@@ -866,6 +869,7 @@ onMounted(() => {
   padding: 1rem;
   display: flex;
   flex-direction: column;
+  box-shadow: var(--shadow-sm);
   align-items: center;
   gap: 0.375rem;
   cursor: pointer;
