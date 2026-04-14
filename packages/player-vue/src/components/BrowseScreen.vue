@@ -503,7 +503,7 @@ onMounted(() => {
 
                 <LanguageFlag :code="group.courses[0].target_lang" :size="18" />
                 <span class="course-name">{{ group.name }}</span>
-                <span class="course-for">for {{ group.forLabel }} speakers</span>
+                <span class="course-for">{{ t('courseSelector.forSpeakers', 'for {lang} speakers').replace('{lang}', group.forLabel) }}</span>
 
                 <span class="course-status">
                   <template v-if="isEnrolled(group.courses[0].course_code)">
@@ -525,7 +525,7 @@ onMounted(() => {
               >
                 <LanguageFlag :code="group.target_lang" :size="18" />
                 <span class="course-name">{{ group.name }}</span>
-                <span class="course-for">for {{ group.forLabel }} speakers</span>
+                <span class="course-for">{{ t('courseSelector.forSpeakers', 'for {lang} speakers').replace('{lang}', group.forLabel) }}</span>
                 <span class="course-status variant-count">{{ group.courses.length }} variants ▾</span>
               </button>
 

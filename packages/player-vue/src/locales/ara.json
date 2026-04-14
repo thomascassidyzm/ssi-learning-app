@@ -12,6 +12,7 @@
     "loadingCourses": "جارٍ تحميل الدورات...",
     "retry": "إعادة المحاولة",
     "freePreview": "معاينة مجانية",
+    "forSpeakers": "لمتحدثي {lang}",
     "searchPlaceholder": "...ابحث عن لغات أخرى"
   },
   "player": {

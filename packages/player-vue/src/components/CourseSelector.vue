@@ -345,14 +345,14 @@ onMounted(() => {
 
                   <LanguageFlag :code="group.courses[0].target_lang" :size="18" class="target-flag" />
                   <span class="target-name">{{ group.name }}</span>
-                  <span class="target-for">for {{ group.forLabel }} speakers</span>
+                  <span class="target-for">{{ t('courseSelector.forSpeakers', 'for {lang} speakers').replace('{lang}', group.forLabel) }}</span>
 
                   <span class="target-status" :class="{ 'preview-status': isPremiumCourse(group.courses[0]) && !hasFullAccess(group.courses[0]) }">
                     <template v-if="isEnrolled(group.courses[0].course_code)">
                       {{ getProgress(group.courses[0].course_code) }}%
                     </template>
                     <template v-else-if="isPremiumCourse(group.courses[0]) && !hasFullAccess(group.courses[0])">
-                      Free preview
+                      {{ t('courseSelector.freePreview', 'Free preview') }}
                     </template>
                   </span>
                 </button>
@@ -377,7 +377,7 @@ onMounted(() => {
 
                   <LanguageFlag :code="group.target_lang" :size="18" class="target-flag" />
                   <span class="target-name">{{ group.name }}</span>
-                  <span class="target-for">for {{ group.forLabel }} speakers</span>
+                  <span class="target-for">{{ t('courseSelector.forSpeakers', 'for {lang} speakers').replace('{lang}', group.forLabel) }}</span>
 
                   <span class="target-status variant-count">
                     {{ group.courses.length }} variants
@@ -413,7 +413,7 @@ onMounted(() => {
                           {{ getProgress(course.course_code) }}%
                         </template>
                         <template v-else-if="isPremiumCourse(course) && !hasFullAccess(course)">
-                          Free preview
+                          {{ t('courseSelector.freePreview', 'Free preview') }}
                         </template>
                       </span>
                     </button>

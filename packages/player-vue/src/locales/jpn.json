@@ -12,6 +12,7 @@
     "loadingCourses": "コースを読み込み中...",
     "retry": "再試行",
     "freePreview": "無料プレビュー",
+    "forSpeakers": "{lang}話者向け",
     "searchPlaceholder": "他の言語を検索..."
   },
   "player": {
