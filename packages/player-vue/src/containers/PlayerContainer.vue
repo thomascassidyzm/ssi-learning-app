@@ -391,11 +391,11 @@ const screenParamMap = {
   'home': 'player',
   'project': 'player',
   'browse': 'player', // library is now an overlay
-  'network': 'progress',
+  'network': 'player',
   'belt-browser': 'player', // library is now an overlay
   'settings': 'player', // settings is now an overlay
   'explorer': 'player',
-  'progress': 'progress',
+  'progress': 'player',
   'player': 'player',
   'library': 'player', // library is now an overlay
 }

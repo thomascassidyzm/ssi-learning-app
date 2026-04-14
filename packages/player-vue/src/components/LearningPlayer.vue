@@ -2129,7 +2129,6 @@ const networkViewRef = ref(null)
 const networkViewProps = { nodes: ref([]), edges: ref([]), currentPath: ref([]) }
 const networkCenter = ref({ x: 0, y: 0 })
 const isFullNetworkLoaded = ref(false)
-const networkInitialized_stub = false
 const introducedLegoIds = computed(() => {
   const ids = new Set<string>()
   return ids
@@ -3250,19 +3249,6 @@ const handleResume = async () => {
   hasEverStarted.value = true
   isPlaying.value = true
   localStorage.setItem('ssi-has-played', 'true')
-
-  // Lazily initialize network on first play (deferred from startup)
-  if (!networkInitialized.value) {
-    nextTick(() => {
-      ensureNetworkInitialized()
-      const roundIdx = simplePlayer.roundIndex.value ?? 0
-      if (roundIdx > 0) {
-        populateNetworkUpToRound(roundIdx)
-      } else if (loadedRounds.value.length > 0) {
-        populateNetworkUpToRound(0)
-      }
-    })
-  }
 
   // Play welcome audio FIRST (if needed) — blocks until done
   // Cycle audio must not start until welcome finishes
