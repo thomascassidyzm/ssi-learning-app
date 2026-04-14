@@ -95,7 +95,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['open-belts', 'open-brain', 'select-course', 'close', 'start-seed'])
+const emit = defineEmits(['open-belts', 'select-course', 'close', 'start-seed'])
 
 // Inline belt browser toggle
 const showBeltBrowser = ref(false)
@@ -390,37 +390,6 @@ onMounted(() => {
         </div>
       </Transition>
 
-      <!-- ── Section 2: Brain Map (hidden for now) ── -->
-      <section v-if="false" class="section">
-        <h3 class="section-label">Brain Map</h3>
-        <div class="brain-card" @click="emit('open-brain')">
-          <div class="brain-icon-area">
-            <!-- Brain icon -->
-            <svg class="brain-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" opacity="0.2" fill="currentColor"/>
-              <circle cx="8" cy="9" r="1.5" fill="currentColor" opacity="0.6"/>
-              <circle cx="15" cy="8" r="1" fill="currentColor" opacity="0.6"/>
-              <circle cx="10" cy="14" r="1.2" fill="currentColor" opacity="0.6"/>
-              <circle cx="16" cy="13" r="0.8" fill="currentColor" opacity="0.6"/>
-              <circle cx="12" cy="11" r="0.9" fill="currentColor" opacity="0.6"/>
-              <line x1="8" y1="9" x2="12" y2="11" stroke="currentColor" opacity="0.3" stroke-width="0.5"/>
-              <line x1="15" y1="8" x2="12" y2="11" stroke="currentColor" opacity="0.3" stroke-width="0.5"/>
-              <line x1="10" y1="14" x2="12" y2="11" stroke="currentColor" opacity="0.3" stroke-width="0.5"/>
-              <line x1="16" y1="13" x2="12" y2="11" stroke="currentColor" opacity="0.3" stroke-width="0.5"/>
-            </svg>
-          </div>
-          <div class="brain-meta">
-            <span class="brain-stat">{{ completedSeeds }} words learned</span>
-            <span class="brain-sub">{{ totalPhrasesSpoken }} phrase connections</span>
-          </div>
-          <div class="card-action">
-            <span class="card-action-label">View</span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="9 18 15 12 9 6"/>
-            </svg>
-          </div>
-        </div>
-      </section>
 
       <!-- ── Section 3: Activity ── -->
       <section class="section">

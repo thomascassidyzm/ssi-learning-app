@@ -36,11 +36,6 @@
       "import": "./dist/persistence/index.mjs",
       "require": "./dist/persistence/index.js"
     },
-    "./network": {
-      "types": "./dist/network/index.d.ts",
-      "import": "./dist/network/index.mjs",
-      "require": "./dist/network/index.js"
-    },
     "./audio": {
       "types": "./dist/audio/index.d.ts",
       "import": "./dist/audio/index.mjs",

@@ -9,7 +9,6 @@ export default defineConfig({
     'data/index': 'src/data/index.ts',
     'cache/index': 'src/cache/index.ts',
     'persistence/index': 'src/persistence/index.ts',
-    'network/index': 'src/network/index.ts',
     'audio/index': 'src/audio/index.ts',
   },
   format: ['cjs', 'esm'],

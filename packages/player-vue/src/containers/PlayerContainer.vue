@@ -9,7 +9,6 @@ import SumiEBackground from '@/components/SumiEBackground.vue'
 import LearningPlayer from '@/components/LearningPlayer.vue'
 import SettingsScreen from '@/components/SettingsScreen.vue'
 import CourseExplorer from '@/components/CourseExplorer.vue'
-import BrainView from '@/components/BrainView.vue'
 import CourseBrowser from '@/components/CourseBrowser.vue'
 import BrowseScreen from '@/components/BrowseScreen.vue'
 import BottomNav from '@/components/BottomNav.vue'
@@ -228,9 +227,10 @@ const handleToggleTurbo = () => {
   }
 }
 
-// Handle view progress from LearningPlayer (belt modal)
+// Handle view progress from LearningPlayer (belt modal) - brain view removed, see archive/brain-views branch
 const handleViewProgress = () => {
-  navigate('progress')
+  // Brain view removed — navigate back to player for now
+  navigate('player')
 }
 
 // Handle starting at a specific seed from CourseBrowser
@@ -452,17 +452,6 @@ onMounted(() => {
     <!-- Cultural journey backdrop (mist theme only, language-specific artwork) -->
     <SumiEBackground v-if="themeContext?.theme?.value === 'mist'" :lang="activeCourse?.target_lang" :belt-name="currentBeltName" :belt-color="currentBeltColor" />
 
-    <!-- Progress pane (Brain View) -->
-    <Transition name="slide-right" mode="out-in">
-      <BrainView
-        v-if="currentScreen === 'progress'"
-        :course="activeCourse"
-        :belt-level="currentBeltName"
-        :completed-rounds="completedSeeds"
-        @close="navigate('player')"
-      />
-    </Transition>
-
     <!-- Learning Player - use v-show to keep it mounted when navigating away -->
     <LearningPlayer
       v-if="activeCourse"
@@ -506,7 +495,6 @@ onMounted(() => {
             :total-learning-minutes="totalLearningMinutes"
             :total-phrases-spoken="totalPhrasesSpoken"
             @open-belts="null"
-            @open-brain="closeLibrary(); navigate('progress')"
             @select-course="(c) => { closeLibrary(); handleCourseSelect(c) }"
             @close="closeLibrary"
             @start-seed="handleStartAtSeed"

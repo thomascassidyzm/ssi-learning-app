@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, shallowRef, inject, nextTick } from 'vue'
-import * as d3 from 'd3'
 import {
   AudioController,
   CyclePhase,
@@ -27,12 +26,8 @@ import { useSimplePlayer } from '../composables/useSimplePlayer'
 // New simple script generation - direct database queries
 import { generateLearningScript as generateSimpleScript } from '../providers/generateLearningScript'
 import { toSimpleRounds, type TargetSpeedConfig, NATIVE_PAUSE_CONFIG, LEGACY_PAUSE_CONFIG } from '../providers/toSimpleRounds'
-// Prebuilt network: positions pre-calculated, pans to hero via CSS
-import { usePrebuiltNetworkIntegration } from '../composables/usePrebuiltNetworkIntegration'
-import { useLegoNetwork } from '../composables/useLegoNetwork'
 import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
 import { useAuthModal } from '../composables/useAuthModal'
-import LegoTextNetwork from './LegoTextNetwork.vue'
 import LegoAssembly from './LegoAssembly.vue'
 import type { LegoBlock } from './LegoAssembly.vue'
 import { ensureTileCoverage, absorbGapsIntoBlocks } from '../utils/ensureTileCoverage'
@@ -214,8 +209,7 @@ const {
 // Auth modal for sign-in/sign-up prompts
 const { open: openAuth } = useAuthModal()
 
-// Network data from database (for edge connections - like brain view)
-const { loadNetworkData: loadLegoNetworkData } = useLegoNetwork(supabase)
+// Network visualization removed — see archive/brain-views branch
 const networkConnections = ref<Array<{ source: string; target: string; count: number }>>([])
 const dbNetworkNodes = ref<Array<{
   id: string
@@ -480,8 +474,6 @@ simplePlayer.onCycleCompleted((cycle) => {
   learningHintPromptsShown.value++
   contribution.incrementLocal()
 
-  // Clear path highlights
-  distinctionNetwork.clearPathAnimation()
   resonatingNodes.value = []
 
   // Trigger reward animation
@@ -2131,57 +2123,15 @@ const introductionPhase = ref(false) // True during introduction phase (shows di
 const ringContainerRef = ref(null)
 const networkTheaterRef = ref<HTMLElement | null>(null)
 
-// Initialize prebuilt network composable (positions calculated once, pans to hero)
-const distinctionNetwork = usePrebuiltNetworkIntegration({
-  pathAnimationStepMs: 180,
-  autoCenterOnHeroChange: true, // Pan to hero on change
-  canvasSize: { width: 800, height: 800 },
-})
-
-// Handle tap on network theater (play/pause)
-const handleTheaterTap = (event: MouseEvent) => {
-  // Don't trigger if tapping on a node (let node-tap handle it)
-  const target = event.target as HTMLElement
-  if (target.closest('.node')) return
-
-  // Toggle play/pause
-  if (isPlaying.value) {
-    handlePause()
-  } else {
-    handleResume()
-  }
-}
-
-// Destructure for convenience
-const {
-  viewRef: networkViewRef,
-  viewProps: networkViewProps,
-  network,
-  simulation,
-  center: networkCenter,
-  isAnimatingPath: isPathAnimating,
-  introduceLegoNode,
-  completePhraseWithAnimation,
-  clearPathAnimation,
-  setCenter: setNetworkCenter,
-  setBelt: setNetworkBelt,
-  populateFromRounds: populateNetworkFromRounds,
-  initializeFullNetwork,
-  revealNodesUpToIndex,
-  isFullNetworkLoaded,
-  loadMinimalConstellation,
-  stats: networkStats,
-  reset: resetNetwork,  // Reset network on belt skip
-  prebuiltNetwork: networkState,  // Direct access for clearing revealed nodes
-} = distinctionNetwork
-
-// Backwards compatibility aliases
-const networkNodes = network.nodes
-const networkLinks = network.edges
-const heroNodeId = network.heroNodeId
+// Network visualization removed — see archive/brain-views branch
+// Stub variables for code that still references network state
+const networkViewRef = ref(null)
+const networkViewProps = { nodes: ref([]), edges: ref([]), currentPath: ref([]) }
+const networkCenter = ref({ x: 0, y: 0 })
+const isFullNetworkLoaded = ref(false)
+const networkInitialized_stub = false
 const introducedLegoIds = computed(() => {
   const ids = new Set<string>()
-  network.nodes.value.forEach(n => ids.add(n.id))
   return ids
 })
 
@@ -2231,7 +2181,6 @@ const welcomeText = ref('') // Text to display during welcome audio
 
 // Initial state - before user has ever tapped play
 const hasEverStarted = ref(false) // True after first play tap (even if welcome plays first)
-const networkInitialized = ref(false) // True after initializeNetwork() has been called once
 
 // Smooth ring progress (0-100) - continuous animation
 const ringProgressRaw = ref(0)
@@ -2942,38 +2891,18 @@ const handleCycleEvent = (event) => {
           // Voice 1: Nodes light up in sequence (NO edges, NO labels)
           // Learner is listening - visual follows the audio timing
           {
-            const itemForVoice1 = useRoundBasedPlayback.value
-              ? currentPlayableItem.value
-              : sessionItems.value[currentItemIndex.value]
-            if (itemForVoice1) {
-              const legoIds = extractLegoIdsFromPhrase(itemForVoice1)
-              if (legoIds.length > 0) {
-                // Get audio duration for timing sync - uses actual or estimates from word count
-                const audioDurationMs = getEstimatedDuration(itemForVoice1, 'target1')
-                distinctionNetwork.animateNodesForVoice1(legoIds, audioDurationMs || 2000)
-              }
-            }
+            // Network animation removed — see archive/brain-views branch
           }
           break
         case CyclePhase.VOICE_2:
           if (isAdaptationActive.value) markPhaseTransition('VOICE_2')
-          // Voice 2: Full experience - nodes + edges + labels
-          // Text is now visible, show the full pathway with traveling pulses
+          // Network animation removed — see archive/brain-views branch
           {
             const currentItemForPath = useRoundBasedPlayback.value
               ? currentPlayableItem.value
               : sessionItems.value[currentItemIndex.value]
             if (currentItemForPath) {
               const legoIds = extractLegoIdsFromPhrase(currentItemForPath)
-              if (legoIds.length > 0) {
-                // Get audio duration for network animation timing
-                const audioDurationMs = getEstimatedDuration(currentItemForPath, 'target2')
-                distinctionNetwork.animatePathForVoice2(legoIds, audioDurationMs || 2000)
-                // Text visibility is now purely phase-driven:
-                // - Target text appears when VOICE_2 starts (showTargetText computed)
-                // - Text hides when TRANSITION starts (isTransitioningItem set in TRANSITION case)
-                // No need for early-fade timeouts - phases drive everything
-              }
               // Find M-LEGOs with partial word overlap (resonance effect)
               const resonating = findResonatingNodes(currentItemForPath, legoIds)
               resonatingNodes.value = resonating
@@ -2996,8 +2925,6 @@ const handleCycleEvent = (event) => {
       itemsPracticed.value++
       learningHintPromptsShown.value++ // Track for auto-hiding learning hints
 
-      // Clear path highlights - cycle is complete, ready for next item
-      distinctionNetwork.clearPathAnimation()
       resonatingNodes.value = []
 
       // End timing cycle and capture results
@@ -3274,22 +3201,6 @@ const handleRingTap = () => {
   } else {
     handleResume()
   }
-}
-
-// Zoom controls for network view
-const handleZoomIn = () => {
-  // Use the component's exposed zoomIn method
-  ;(networkViewRef.value as any)?.zoomIn?.()
-}
-
-const handleZoomOut = () => {
-  // Use the component's exposed zoomOut method
-  ;(networkViewRef.value as any)?.zoomOut?.()
-}
-
-const handleZoomReset = () => {
-  // Use the component's exposed resetZoomPan method
-  ;(networkViewRef.value as any)?.resetZoomPan?.()
 }
 
 const handlePause = () => {
@@ -3941,7 +3852,6 @@ const skipIntroduction = () => {
 const haltAllPlayback = () => {
   if (isPlayingIntroduction.value) skipIntroduction()
   if (isPlayingWelcome.value) skipWelcome()
-  clearPathAnimation()
 }
 
 const handleSkip = async () => {
@@ -4059,13 +3969,6 @@ const handleSkipToNextBelt = async () => {
     haltAllPlayback()
     const targetSeed = nextBeltThreshold
     console.log(`[LearningPlayer] Skipping to ${nextBeltNameFromPosition} belt - seed ${targetSeed}`)
-
-    // Reset the brain network for fresh start at new belt
-    // This keeps the network lightweight during belt skipping
-    if (networkState?.revealedNodeIds) {
-      networkState.revealedNodeIds.value = new Set<string>()
-      console.log('[LearningPlayer] Reset brain network for belt skip')
-    }
 
     // Check if target seed is already loaded
     const existingRoundIndex = simplePlayer.findRoundIndexForSeed(targetSeed)
@@ -4668,45 +4571,9 @@ const showPausedSummary = () => {
 }
 
 
-/**
- * Lazily load network data from database (deferred from init to avoid blocking startup)
- */
-const ensureNetworkLoaded = () => {
-  if (isFullNetworkLoaded.value || !supabase?.value) return
+// Network loading removed — see archive/brain-views branch
+const ensureNetworkLoaded = () => {}
 
-  loadLegoNetworkData(courseCode.value).then(networkData => {
-    if (networkData?.connections) {
-      networkConnections.value = networkData.connections
-      console.log(`[LearningPlayer] Loaded ${networkData.connections.length} network connections`)
-    }
-    if (networkData?.nodes) {
-      const nodes = networkData.nodes.map(n => ({
-        id: n.id,
-        targetText: n.targetText,
-        knownText: n.knownText,
-        seedId: n.seedId,
-        legoIndex: n.legoIndex,
-        belt: n.birthBelt,
-        isComponent: n.isComponent,
-        parentLegoIds: n.parentLegoIds,
-      }))
-      dbNetworkNodes.value = nodes
-
-      const sortedNodes = [...nodes].sort((a, b) => (a.legoIndex || 0) - (b.legoIndex || 0))
-      const syntheticRounds = sortedNodes.map(node => ({
-        legoId: node.id,
-        targetText: node.targetText,
-        knownText: node.knownText,
-      }))
-
-      const revealUpTo = getRevealUpTo(syntheticRounds)
-      initializeFullNetwork(syntheticRounds, networkConnections.value, revealUpTo, nodes)
-      console.log(`[LearningPlayer] Full network initialized: ${syntheticRounds.length} nodes, revealed up to ${revealUpTo}`)
-    }
-  }).catch(err => {
-    console.warn('[LearningPlayer] Failed to load network connections:', err)
-  })
-}
 
 const handleResumeLearning = async () => {
   // Hide summary and resume via the standard play path
@@ -4735,200 +4602,10 @@ const handleExit = () => {
   emit('close')
 }
 
-// ============================================
-// DISTINCTION NETWORK FUNCTIONS
-// Wrapper functions that delegate to the composable
-// ============================================
-
-// Initialize the network visualization
-const initializeNetwork = () => {
-  // Calculate center - use viewport center for fullscreen network
-  const viewportWidth = window.innerWidth
-  const viewportHeight = window.innerHeight
-
-  // Get safe area inset for notch/status bar
-  // Read from CSS custom property which stores env(safe-area-inset-top)
-  const playerEl = document.querySelector('.player')
-  const safeAreaTop = playerEl
-    ? parseInt(getComputedStyle(playerEl).getPropertyValue('--safe-area-top') || '0', 10)
-    : 0
-
-  // Center in the available space:
-  // - Header at top: ~60px + safe area
-  // - Transport bar at bottom: ~80px
-  // So available space is roughly (60 + safeArea) to (height - 80px)
-  const headerHeight = 60 + safeAreaTop
-  const bottomControlsHeight = 100 // Transport bar + safe area
-  const availableTop = headerHeight
-  const availableBottom = viewportHeight - bottomControlsHeight
-  const centerX = viewportWidth / 2
-  const centerY = (availableTop + availableBottom) / 2
-
-  setNetworkCenter(centerX, centerY)
-  console.log('[Network] Center set to:', centerX, centerY, `(available: ${availableTop}-${availableBottom})`)
-
-  // Initialize simulation
-  distinctionNetwork.initialize()
-
-  // Set initial belt color
-  setNetworkBelt(currentBelt.value?.name || 'white')
-
-  console.log('[LearningPlayer] Distinction network initialized (organic growth mode)')
-}
-
-// Lazily initialize the network on first play or when Progress screen is opened
-const ensureNetworkInitialized = () => {
-  if (networkInitialized.value) return
-  networkInitialized.value = true
-  initializeNetwork()
-}
-
-// Add a new LEGO node to the network - no longer hero-centered, just adds to network
-const addNetworkNode = (legoId, targetText, knownText, beltColor = 'white') => {
-  // Use the composable to add the node (makeHero=false for organic growth)
-  const added = introduceLegoNode(legoId, targetText, knownText, false)
-
-  if (added) {
-    console.log(`[LearningPlayer] Added network node: ${legoId} (${targetText})`)
-  }
-}
-
-/**
- * Build LEGO map from cached rounds (not from network nodes)
- * Used for phrase decomposition when network might be empty
- */
-const buildLegoMapFromRounds = (): Map<string, { id: string; target: string; known: string }> => {
-  const legoMap = new Map<string, { id: string; target: string; known: string }>()
-
-  cachedRounds.value.forEach(round => {
-    if (round.legoId && round.targetText) {
-      const normalizedTarget = round.targetText.toLowerCase().trim()
-      legoMap.set(normalizedTarget, {
-        id: round.legoId,
-        target: round.targetText,
-        known: round.knownText || round.items?.[0]?.knownText || ''
-      })
-    }
-  })
-
-  return legoMap
-}
-
-/**
- * Extract LEGO IDs from phrase text using cached rounds as source
- * (doesn't rely on network nodes being populated)
- */
-const extractLegoIdsFromText = (text: string, legoMap: Map<string, { id: string; target: string; known: string }>): string[] => {
-  if (!text) return []
-
-  const normalized = text.toLowerCase().trim()
-  const words = normalized.split(/\s+/)
-  const result: string[] = []
-  let i = 0
-
-  while (i < words.length) {
-    let longestMatch: string | null = null
-    let longestLength = 0
-
-    // Try longest phrases first (up to 5 words)
-    for (let len = Math.min(words.length - i, 5); len > 0; len--) {
-      const candidate = words.slice(i, i + len).join(' ')
-      const legoData = legoMap.get(candidate)
-      if (legoData) {
-        longestMatch = legoData.id
-        longestLength = len
-        break
-      }
-    }
-
-    if (longestMatch) {
-      if (!result.includes(longestMatch)) {
-        result.push(longestMatch)
-      }
-      i += longestLength
-    } else {
-      i++ // Skip unmatched word
-    }
-  }
-
-  return result
-}
-
-/**
- * Load minimal constellation for the current round
- * Shows only the hero LEGO and the LEGOs used in its practice phrases
- * Much lighter than the full network - perfect for focused learning
- */
-const loadConstellationForRound = (roundIndex: number) => {
-  if (!cachedRounds.value.length) return
-  if (roundIndex < 0 || roundIndex >= cachedRounds.value.length) return
-
-  const round = cachedRounds.value[roundIndex]
-  if (!round) return
-
-  const heroId = round.legoId
-  if (!heroId) return
-
-  // Get hero data
-  const heroTarget = round.targetText || round.items?.[0]?.targetText || heroId
-  const heroKnown = round.knownText || round.items?.[0]?.knownText || ''
-  const heroBelt = currentBelt.value?.name || 'white'
-
-  // Build LEGO map from cached rounds (not from network which might be empty)
-  const legoMap = buildLegoMapFromRounds()
-  console.log(`[LearningPlayer] Built LEGO map from rounds: ${legoMap.size} LEGOs`)
-
-  // Extract all LEGOs from this round's practice phrases
-  const phraseLegoIds: string[] = []
-  const legoDataMap = new Map<string, { target: string; known: string }>()
-
-  // Add hero to map
-  legoDataMap.set(heroId, { target: heroTarget, known: heroKnown })
-
-  // Process each item in the round to find LEGOs in phrases
-  round.items?.forEach(item => {
-    const phraseText = item?.phrase?.phrase?.target || item?.targetText || ''
-    if (phraseText) {
-      // Extract LEGOs from this phrase using cached rounds
-      const itemLegoIds = extractLegoIdsFromText(phraseText, legoMap)
-      itemLegoIds.forEach(id => {
-        if (!phraseLegoIds.includes(id)) {
-          phraseLegoIds.push(id)
-        }
-        // Store data for this LEGO
-        if (!legoDataMap.has(id)) {
-          const legoData = Array.from(legoMap.values()).find(l => l.id === id)
-          if (legoData) {
-            legoDataMap.set(id, { target: legoData.target, known: legoData.known })
-          } else {
-            legoDataMap.set(id, { target: id, known: '' })
-          }
-        }
-      })
-    }
-  })
-
-  console.log(`[LearningPlayer] Loading minimal constellation for ${heroId}: ${phraseLegoIds.length} phrase LEGOs`, phraseLegoIds)
-
-  // Load the minimal constellation
-  loadMinimalConstellation(
-    heroId,
-    { target: heroTarget, known: heroKnown, belt: heroBelt },
-    phraseLegoIds,
-    legoDataMap
-  )
-}
-
-// Reveal network nodes up to a given round
-// If full network is loaded, just reveal nodes (no recalculation)
-// Otherwise fall back to minimal constellation for the current round
-const populateNetworkUpToRound = (targetRoundIndex: number) => {
-  if (isFullNetworkLoaded.value) {
-    revealNodesUpToIndex(targetRoundIndex)
-    return
-  }
-  loadConstellationForRound(targetRoundIndex)
-}
+// Network functions removed — see archive/brain-views branch
+const ensureNetworkInitialized = () => {}
+const addNetworkNode = (_legoId: any, _targetText: any, _knownText: any, _beltColor = 'white') => {}
+const populateNetworkUpToRound = (_targetRoundIndex: number) => {}
 
 // ============================================
 // PROGRESSIVE SCRIPT EXPANSION
@@ -4942,26 +4619,10 @@ const expandScript = async () => {
   console.log('[LearningPlayer] expandScript called - handled by PriorityRoundLoader')
 }
 
-// Highlight a specific LEGO node (glow effect, not centering)
-const highlightNetworkNode = (legoId) => {
-  if (!legoId) return
-  // Instead of setHero, just highlight the node visually
-  // The node will glow but won't be forced to center
-  network.setHero(legoId, networkCenter.value)
-}
-
-// Create edges between all LEGOs in a phrase path (DIRECTIONAL)
-// This is called when a practice phrase is completed
-// "Fire together, wire together" - edges are directional because language is temporal
-const strengthenPhrasePath = (legoIds) => {
-  if (!legoIds || legoIds.length < 2) return
-  // Use composable - fires directional edges A→B, B→C, etc.
-  network.firePath(legoIds)
-}
-
-
-// Handle tap on a network node - play all practice phrases for this LEGO
-const handleNetworkNodeTap = async (node) => {
+// Network interaction functions removed — see archive/brain-views branch
+const highlightNetworkNode = (_legoId: any) => {}
+const strengthenPhrasePath = (_legoIds: any) => {}
+const handleNetworkNodeTap = async (node: any) => {
   console.debug('[Network] Node tapped:', node.id, node.targetText)
 
   // If already playing phrases for a node, stop it
@@ -5019,15 +4680,6 @@ const playNodePhrasesSequentially = async () => {
     if (!isPlayingNodePhrases.value) break
 
     const item = nodePhraseItems.value[currentPlayingPhraseIndex.value]
-
-    // Extract LEGOs in this phrase and highlight the path
-    const phraseLegoIds = extractLegoIdsFromPhrase(item)
-    if (phraseLegoIds.length > 0) {
-      // Animate the full path (like Voice 2) for tap exploration
-      const audioDurationMs = (item.audioDurations?.target1 || 2) * 1000
-      distinctionNetwork.animatePathForVoice2(phraseLegoIds, audioDurationMs)
-      resonatingNodes.value = phraseLegoIds
-    }
 
     if (!isPlayingNodePhrases.value) break
 
@@ -5421,15 +5073,6 @@ onMounted(async () => {
 
               // Store for legacy code
               loadedRounds.value = simpleRounds as any
-
-              // Populate network with all loaded rounds
-              const currentRoundIdx = simplePlayer.roundIndex.value ?? 0
-              const networkRounds = simpleRounds.map(r => ({
-                legoId: r.legoId,
-                targetText: r.cycles[0]?.target?.text,
-                knownText: r.cycles[0]?.known?.text,
-              }))
-              populateNetworkFromRounds(networkRounds, currentRoundIdx)
 
               // Preload audio for the first 2 rounds immediately
               preloadSimpleRoundAudio(simpleRounds, 2, currentRoundIdx)
@@ -5966,7 +5609,6 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
 
   // 4. Clear network state
   networkConnections.value = []
-  prebuiltNetwork.clear()
 
   // 5. Reset UI state
   setLoadingStage('awakening')
@@ -6190,17 +5832,6 @@ defineExpose({
       :target-lang="props.course?.target_lang || courseCode?.split('_')[0]"
     />
 
-    <!-- Text Network Visualization Layer - kept for Brain View / Progress screen -->
-    <LegoTextNetwork
-      v-if="networkViewProps.nodes.length > 0 && showSessionComplete"
-      :nodes="networkViewProps.nodes"
-      :edges="networkViewProps.edges"
-      :revealed-node-ids="introducedLegoIds"
-      :current-path="networkViewProps.currentPath"
-      :belt-level="currentBelt.name"
-      class="brain-network-container"
-      @node-tap="handleNetworkNodeTap"
-    />
 
     <!-- Hero-Centric Text Labels - Floating above/below the hero node -->
     <div ref="heroTextPaneRef" class="hero-text-pane" :class="[currentPhase, { 'is-intro': isIntroPhase }]">
