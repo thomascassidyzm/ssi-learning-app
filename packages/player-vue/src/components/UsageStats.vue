@@ -32,11 +32,6 @@ const props = defineProps({
     default: () => []
     // Shape: [{ month: string, minutes: number }, ...]
   },
-  // When used as a tab inside BrainView, hides header and adjusts positioning
-  embedded: {
-    type: Boolean,
-    default: false
-  }
 })
 
 const emit = defineEmits(['close'])
@@ -317,14 +312,10 @@ watch(() => props.dailyData, drawCharts, { deep: true })
 
 <template>
   <div class="usage-stats" :class="{ embedded: embedded }">
-    <!-- Background (hidden in embedded mode) -->
-    <template v-if="!embedded">
-      <div class="bg-gradient"></div>
-      <div class="bg-noise"></div>
-    </template>
+    <div class="bg-gradient"></div>
+    <div class="bg-noise"></div>
 
-    <!-- Header (hidden in embedded mode - BrainView has tabs) -->
-    <header v-if="!embedded" class="header">
+    <header class="header">
       <button class="back-btn" @click="emit('close')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M15 18l-6-6 6-6"/>
@@ -739,58 +730,4 @@ watch(() => props.dailyData, drawCharts, { deep: true })
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   EMBEDDED MODE (when used as a tab inside BrainView)
-   ═══════════════════════════════════════════════════════════════ */
-
-.usage-stats.embedded {
-  /* Position absolutely within BrainView, below the tabs */
-  position: absolute;
-  top: calc(120px + env(safe-area-inset-top, 0px));
-  left: 0;
-  right: 0;
-  bottom: 0;
-  min-height: unset;
-  background: transparent;
-  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-.usage-stats.embedded .content {
-  padding: 16px;
-  padding-top: 0;
-}
-
-/* Embedded mode card styling - use BrainView's dark theme */
-.usage-stats.embedded .stat-card,
-.usage-stats.embedded .chart-card {
-  background: rgba(10, 10, 15, 0.8);
-  backdrop-filter: blur(10px);
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
-.usage-stats.embedded .stat-icon {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.usage-stats.embedded .stat-icon svg {
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.usage-stats.embedded .stat-value {
-  color: rgba(255, 255, 255, 0.95);
-}
-
-.usage-stats.embedded .stat-label {
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.usage-stats.embedded .chart-title {
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.usage-stats.embedded .chart-subtitle {
-  color: rgba(255, 255, 255, 0.5);
-}
 </style>

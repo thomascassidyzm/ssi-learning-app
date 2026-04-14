@@ -695,63 +695,6 @@ onMounted(() => {
   color: var(--accent);
 }
 
-/* ── Brain Card ── */
-.brain-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 16px;
-  padding: 1rem 1.25rem;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.brain-card:hover {
-  background: var(--bg-elevated);
-  border-color: var(--border-medium);
-}
-
-.brain-card:active {
-  transform: scale(0.99);
-}
-
-.brain-icon-area {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  background: var(--accent-glow);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.brain-icon {
-  width: 28px;
-  height: 28px;
-  color: var(--accent);
-}
-
-.brain-meta {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-}
-
-.brain-stat {
-  font-size: 0.9375rem;
-  font-weight: 600;
-}
-
-.brain-sub {
-  font-size: 0.8125rem;
-  color: var(--text-muted);
-}
-
 /* ── Stats Grid ── */
 .stats-grid {
   display: grid;
