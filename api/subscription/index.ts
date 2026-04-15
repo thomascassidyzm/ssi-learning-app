@@ -84,8 +84,8 @@ export default async function handler(
       .eq('learner_id', learner.id)
       .single()
 
-    if (subError && subError.code !== 'PGRST116') {
-      // PGRST116 = no rows found, which is fine
+    if (subError && subError.code !== 'PGRST116' && subError.code !== 'PGRST205') {
+      // PGRST116 = no rows found, PGRST205 = table doesn't exist — both mean no subscription
       console.error('[subscription] Query error:', subError)
       res.status(500).json({ error: 'Failed to fetch subscription' })
       return
