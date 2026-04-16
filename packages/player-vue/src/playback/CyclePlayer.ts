@@ -167,13 +167,27 @@ export function createCyclePlayer(): CyclePlayer {
       cleanupBlobUrl()
       clearWatchdogs()
 
-      // Get URL to play
+      // Create the blob URL locally so the try/finally path below can always
+      // revoke it even if setup throws before the Promise settle hooks are
+      // wired up. We also mirror it onto `currentBlobUrl` so stop() and the
+      // normal settle hooks still clean it up on the happy path.
+      let localBlobUrl: string | null = null
       let srcUrl: string
-      if (source.type === 'blob') {
-        srcUrl = URL.createObjectURL(source.blob)
-        currentBlobUrl = srcUrl
-      } else {
-        srcUrl = source.url
+      try {
+        if (source.type === 'blob') {
+          srcUrl = URL.createObjectURL(source.blob)
+          localBlobUrl = srcUrl
+          currentBlobUrl = srcUrl
+        } else {
+          srcUrl = source.url
+        }
+      } catch (err) {
+        // URL.createObjectURL is essentially never going to throw, but if it
+        // does we must not leave a dangling URL.
+        if (localBlobUrl) URL.revokeObjectURL(localBlobUrl)
+        currentBlobUrl = null
+        reject(err instanceof Error ? err : new Error('Failed to create audio URL'))
+        return
       }
 
       // Clean up previous handler
@@ -192,12 +206,23 @@ export function createCyclePlayer(): CyclePlayer {
         audioEl.removeEventListener('error', errorHandler)
       }
 
+      function revokeLocalBlobUrl(): void {
+        // Always revoke the blob URL we created for this playback, even if
+        // the global currentBlobUrl was already cleared by stop() or a later
+        // playAudio call. This is the belt for the try/finally suspenders.
+        if (localBlobUrl) {
+          URL.revokeObjectURL(localBlobUrl)
+          if (currentBlobUrl === localBlobUrl) currentBlobUrl = null
+          localBlobUrl = null
+        }
+      }
+
       function settleResolve(): void {
         if (settled) return
         settled = true
         clearWatchdogs()
         cleanupListeners()
-        cleanupBlobUrl()
+        revokeLocalBlobUrl()
         if (!aborted) resolve()
       }
 
@@ -206,15 +231,11 @@ export function createCyclePlayer(): CyclePlayer {
         settled = true
         clearWatchdogs()
         cleanupListeners()
-        cleanupBlobUrl()
+        revokeLocalBlobUrl()
         reject(err)
       }
 
-      // Set up completion handler
-      audioEndedHandler = () => settleResolve()
-      audioEl.addEventListener('ended', audioEndedHandler, { once: true })
-
-      // Handle errors
+      // Handle errors — declared here so the listener below can reference it.
       function errorHandler(): void {
         const audioError = audioEl.error
         let errorMessage = 'Audio playback error'
@@ -233,40 +254,50 @@ export function createCyclePlayer(): CyclePlayer {
         }
         settleReject(new Error(errorMessage))
       }
-      audioEl.addEventListener('error', errorHandler, { once: true })
 
-      // Stall detection: require TWO consecutive checks with no progress (3s total)
-      let lastTime = -1
-      let stallCount = 0
-      stallCheck = setInterval(() => {
-        if (settled || aborted) { clearWatchdogs(); return }
-        const ct = audioEl.currentTime
-        if (ct > 0 && ct === lastTime && !audioEl.paused && !audioEl.ended) {
-          stallCount++
-          if (stallCount >= 2) {
-            console.warn('[CyclePlayer] Audio stalled for 3s, skipping')
+      // Everything from here on is wrapped so any synchronous throw during
+      // setup routes through settleReject, which revokes the blob URL.
+      try {
+        // Set up completion handler
+        audioEndedHandler = () => settleResolve()
+        audioEl.addEventListener('ended', audioEndedHandler, { once: true })
+        audioEl.addEventListener('error', errorHandler, { once: true })
+
+        // Stall detection: require TWO consecutive checks with no progress (3s total)
+        let lastTime = -1
+        let stallCount = 0
+        stallCheck = setInterval(() => {
+          if (settled || aborted) { clearWatchdogs(); return }
+          const ct = audioEl.currentTime
+          if (ct > 0 && ct === lastTime && !audioEl.paused && !audioEl.ended) {
+            stallCount++
+            if (stallCount >= 2) {
+              console.warn('[CyclePlayer] Audio stalled for 3s, skipping')
+              audioEl.pause()
+              settleResolve()
+            }
+          } else {
+            stallCount = 0
+          }
+          lastTime = ct
+        }, 1500)
+
+        // Absolute safety: no single audio clip should take more than 15s
+        safetyTimer = setTimeout(() => {
+          if (!settled && !aborted) {
+            console.warn('[CyclePlayer] Safety timeout (15s), skipping')
             audioEl.pause()
             settleResolve()
           }
-        } else {
-          stallCount = 0
-        }
-        lastTime = ct
-      }, 1500)
+        }, 15000)
 
-      // Absolute safety: no single audio clip should take more than 15s
-      safetyTimer = setTimeout(() => {
-        if (!settled && !aborted) {
-          console.warn('[CyclePlayer] Safety timeout (15s), skipping')
-          audioEl.pause()
-          settleResolve()
-        }
-      }, 15000)
-
-      // Start playback
-      audioEl.src = srcUrl
-      audioEl.load()
-      audioEl.play().catch(settleReject)
+        // Start playback
+        audioEl.src = srcUrl
+        audioEl.load()
+        audioEl.play().catch(settleReject)
+      } catch (err) {
+        settleReject(err instanceof Error ? err : new Error('Audio setup failed'))
+      }
     })
   }
 
