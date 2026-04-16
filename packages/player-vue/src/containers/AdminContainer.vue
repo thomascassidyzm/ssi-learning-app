@@ -84,6 +84,13 @@ onMounted(() => {
             >
               <span class="nav-label">Activity</span>
             </router-link>
+            <router-link
+              to="/admin/try-links"
+              class="nav-link"
+              :class="{ active: route.path === '/admin/try-links' }"
+            >
+              <span class="nav-label">Try Links</span>
+            </router-link>
           </nav>
         </div>
       </div>

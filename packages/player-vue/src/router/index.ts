@@ -191,6 +191,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/AdminEntitlements.vue'),
         meta: { title: 'Entitlements', description: 'Manage entitlement access codes' },
       },
+      {
+        path: 'try-links',
+        name: 'admin-try-links',
+        component: () => import('@/views/admin/AdminTryLinks.vue'),
+        meta: { title: 'Try Links', description: 'Zero-friction preview links for partners' },
+      },
     ],
   },
   // Shareable redeem link
@@ -199,6 +205,13 @@ const routes: RouteRecordRaw[] = [
     name: 'redeem-code',
     component: () => import('@/views/RedeemCode.vue'),
     meta: { title: 'Redeem Code' },
+  },
+  // Try link gateway (no auth required — zero-friction course preview)
+  {
+    path: '/try/:code',
+    name: 'try-link',
+    component: () => import('@/views/TryLinkGateway.vue'),
+    meta: { title: 'Try SaySomethingin' },
   },
   // Demo launcher (no auth required)
   {
