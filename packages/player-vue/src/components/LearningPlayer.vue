@@ -4275,7 +4275,13 @@ const startTimingCycle = () => {
 
   timingAnalyzer.value.startCycle()
 
-  // Poll status for UI feedback during the cycle (subtle, not intrusive)
+  // Poll status for UI feedback during the cycle (subtle, not intrusive).
+  // Guard against a dangling interval if startTimingCycle was re-entered
+  // without a matching endTimingCycle (phase order bug, fast pause/resume).
+  if (vadStatusInterval) {
+    clearInterval(vadStatusInterval)
+    vadStatusInterval = null
+  }
   vadStatusInterval = setInterval(() => {
     if (vadInstance.value) {
       const status = vadInstance.value.getStatus()
@@ -4968,21 +4974,19 @@ onMounted(async () => {
       if (!courseDataProvider.value) {
         console.log('[LearningPlayer] Waiting for courseDataProvider...')
         await new Promise<void>((resolve) => {
+          let timeoutId: ReturnType<typeof setTimeout> | null = null
+          const finish = () => {
+            if (timeoutId) { clearTimeout(timeoutId); timeoutId = null }
+            unwatch()
+            resolve()
+          }
           const unwatch = watch(
             () => courseDataProvider.value,
-            (provider) => {
-              if (provider) {
-                unwatch()
-                resolve()
-              }
-            },
+            (provider) => { if (provider) finish() },
             { immediate: true }
           )
           // Timeout after 5 seconds to avoid hanging forever
-          setTimeout(() => {
-            unwatch()
-            resolve()
-          }, 5000)
+          timeoutId = setTimeout(finish, 5000)
         })
         console.log('[LearningPlayer] courseDataProvider ready:', !!courseDataProvider.value)
       }
