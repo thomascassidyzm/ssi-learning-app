@@ -43,6 +43,40 @@ export class CircuitOpenError extends Error {
   }
 }
 
+/**
+ * Thrown when the browser rejects audio playback because it needs a fresh
+ * user gesture. This is the iOS Safari / Chrome autoplay-policy scenario —
+ * most commonly triggered when the tab has been backgrounded for a while
+ * and the audio element lost its unlock, or on first playback attempt
+ * before the user has interacted with the page.
+ *
+ * The session layer catches this specifically and pauses immediately so
+ * the UI can prompt "Tap to resume", rather than burning three cycles
+ * through the circuit breaker.
+ */
+export class AudioGestureRequiredError extends Error {
+  readonly originalError: unknown
+  constructor(originalError: unknown) {
+    const msg = originalError instanceof Error ? originalError.message : 'User gesture required'
+    super(`Audio playback requires a fresh user gesture: ${msg}`)
+    this.name = 'AudioGestureRequiredError'
+    this.originalError = originalError
+  }
+}
+
+function isGestureRequiredError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false
+  const maybe = err as { name?: string; message?: string }
+  // NotAllowedError is what Safari/Chrome throw when autoplay policy
+  // blocks a play() call. InvalidStateError can surface on iOS after
+  // long backgrounding. Message sniffing is a last-ditch fallback for
+  // older WebKit that sometimes reports a plain Error.
+  if (maybe.name === 'NotAllowedError') return true
+  if (maybe.name === 'InvalidStateError') return true
+  const msg = (maybe.message || '').toLowerCase()
+  return msg.includes('user didn') || msg.includes('user gesture') || msg.includes('not allowed')
+}
+
 export interface CyclePlayer {
   /** Reactive state for UI binding */
   readonly state: Ref<CyclePlayerState>
@@ -263,11 +297,27 @@ export function createCyclePlayer(): CyclePlayer {
         audioEl.addEventListener('ended', audioEndedHandler, { once: true })
         audioEl.addEventListener('error', errorHandler, { once: true })
 
-        // Stall detection: require TWO consecutive checks with no progress (3s total)
+        // Stall detection: require TWO consecutive checks with no progress (3s total).
+        // iOS Safari throttles setInterval in backgrounded tabs, so after a
+        // long hidden period the callback fires in a burst. Track wall-clock
+        // time between checks — if too much time passed, the browser was
+        // asleep, not the audio, so reset the stall counter rather than
+        // falsely skipping a cycle on tab-return.
         let lastTime = -1
         let stallCount = 0
+        let lastCheckAt = Date.now()
         stallCheck = setInterval(() => {
           if (settled || aborted) { clearWatchdogs(); return }
+          const now = Date.now()
+          const elapsed = now - lastCheckAt
+          lastCheckAt = now
+          // If the interval was throttled (tab hidden / device sleep),
+          // elapsed >> 1500ms. Reset counters and re-seed lastTime.
+          if (elapsed > 3000) {
+            stallCount = 0
+            lastTime = audioEl.currentTime
+            return
+          }
           const ct = audioEl.currentTime
           if (ct > 0 && ct === lastTime && !audioEl.paused && !audioEl.ended) {
             stallCount++
@@ -291,10 +341,19 @@ export function createCyclePlayer(): CyclePlayer {
           }
         }, 15000)
 
-        // Start playback
+        // Start playback. play() rejections from the autoplay policy
+        // (NotAllowedError etc.) are re-thrown as AudioGestureRequiredError
+        // so the session layer can pause on the *first* failure and prompt
+        // for a tap, rather than waiting for the circuit breaker to trip.
         audioEl.src = srcUrl
         audioEl.load()
-        audioEl.play().catch(settleReject)
+        audioEl.play().catch((err) => {
+          if (isGestureRequiredError(err)) {
+            settleReject(new AudioGestureRequiredError(err))
+          } else {
+            settleReject(err instanceof Error ? err : new Error('Audio play failed'))
+          }
+        })
       } catch (err) {
         settleReject(err instanceof Error ? err : new Error('Audio setup failed'))
       }
@@ -395,6 +454,15 @@ export function createCyclePlayer(): CyclePlayer {
         state.value.phase = 'idle'
         state.value.isPlaying = false
         emit('cycle:error', cycle, 'idle', message)
+
+        // Gesture-required errors are not "failures" in the circuit-breaker
+        // sense — they're a clear signal from the browser that we need a
+        // user tap, not that audio is broken. Surface them immediately so
+        // the session layer can prompt for a tap. Don't burn through the
+        // circuit-breaker budget on them.
+        if (err instanceof AudioGestureRequiredError) {
+          throw err
+        }
 
         consecutiveFailures.value++
         if (consecutiveFailures.value >= config.maxConsecutiveFailures) {

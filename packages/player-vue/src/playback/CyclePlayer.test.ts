@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { createCyclePlayer, CircuitOpenError, type CyclePlayer } from './CyclePlayer'
+import { createCyclePlayer, CircuitOpenError, AudioGestureRequiredError, type CyclePlayer } from './CyclePlayer'
 import type { Cycle } from '../types/Cycle'
 import type { CycleEventData, AudioSource } from './types'
 import { createPlaybackConfig } from './PlaybackConfig'
@@ -253,6 +253,27 @@ describe('CyclePlayer - Circuit Breaker', () => {
     expect(player.consecutiveFailures.value).toBe(2)
 
     player.resetCircuit()
+    expect(player.consecutiveFailures.value).toBe(0)
+  })
+
+  it('throws AudioGestureRequiredError immediately on autoplay rejection', async () => {
+    const getAudio = vi.fn().mockResolvedValue({ type: 'blob', blob: new Blob(['audio']) })
+    const config = createPlaybackConfig({ maxConsecutiveFailures: 3 })
+
+    // Simulate the browser autoplay policy rejecting play()
+    const notAllowed = new Error('The play() request was interrupted because the user didn\'t interact with the document first.')
+    notAllowed.name = 'NotAllowedError'
+    mockAudio.play = vi.fn().mockRejectedValue(notAllowed)
+
+    try {
+      await player.playCycle(mockCycle, getAudio, config)
+      expect.fail('Expected AudioGestureRequiredError')
+    } catch (err) {
+      expect(err).toBeInstanceOf(AudioGestureRequiredError)
+    }
+
+    // Must NOT count toward the circuit breaker — a tap-to-resume
+    // is the right response, not a "circuit open" degradation.
     expect(player.consecutiveFailures.value).toBe(0)
   })
 })

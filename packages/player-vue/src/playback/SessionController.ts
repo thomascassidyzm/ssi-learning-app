@@ -24,7 +24,7 @@ import type {
   Round,
 } from './types'
 import { getPlayableItems, applyConfig } from './types'
-import { createCyclePlayer, CircuitOpenError, type CyclePlayer } from './CyclePlayer'
+import { createCyclePlayer, CircuitOpenError, AudioGestureRequiredError, type CyclePlayer } from './CyclePlayer'
 import { createThreadManager, type ThreadManager } from './ThreadManager'
 import { buildRounds } from './RoundBuilder'
 import { createPlaybackConfig, type PlaybackConfig, DEFAULT_PLAYBACK_CONFIG } from './PlaybackConfig'
@@ -497,6 +497,22 @@ export function createSessionController(): SessionController {
         await cyclePlayer.playCycle(item.cycle, getAudioSource, config.value)
         await handleItemComplete(item)
       } catch (err) {
+        if (err instanceof AudioGestureRequiredError) {
+          // Browser autoplay policy rejected playback — almost always
+          // iOS Safari after a tab backgrounded long enough to lose the
+          // audio element's unlock, or the very first play before any
+          // user interaction. Pause immediately and tell the UI to
+          // prompt for a tap. Don't advance, don't burn cycles.
+          console.warn('[SessionController] Audio needs user gesture, pausing session:', err.message)
+          cyclePlayer.stop()
+          state.value = 'paused'
+          isPlaybackActive = false
+          emit('session:audio-failed', {
+            failureCount: 0,
+            errorMessage: 'needs-gesture',
+          })
+          return
+        }
         if (err instanceof CircuitOpenError) {
           // Too many consecutive audio failures — pause the session rather
           // than silently skipping forward forever. Upper layers (offline
