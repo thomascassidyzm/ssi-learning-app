@@ -3,9 +3,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { createCyclePlayer, type CyclePlayer } from './CyclePlayer'
+import { createCyclePlayer, CircuitOpenError, type CyclePlayer } from './CyclePlayer'
 import type { Cycle } from '../types/Cycle'
 import type { CycleEventData, AudioSource } from './types'
+import { createPlaybackConfig } from './PlaybackConfig'
 
 // Mock Audio element
 const mockAudio = {
@@ -186,5 +187,72 @@ describe('CyclePlayer - State Transitions', () => {
     expect(player.state.value.currentCycle).toStrictEqual(mockCycle)
 
     player.stop()
+  })
+})
+
+describe('CyclePlayer - Circuit Breaker', () => {
+  let player: CyclePlayer
+
+  const mockCycle: Cycle = {
+    id: 'cb-cycle',
+    seedId: 'S001',
+    legoId: 'L001',
+    type: 'practice',
+    known: { text: 'Hello', audioId: 'a1', durationMs: 1000 },
+    target: { text: 'Hola', voice1AudioId: 'a2', voice1DurationMs: 1000, voice2AudioId: 'a3', voice2DurationMs: 1000 },
+    pauseDurationMs: 2000,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    player = createCyclePlayer()
+  })
+
+  afterEach(() => {
+    player.dispose()
+  })
+
+  it('should throw CircuitOpenError after configured consecutive failures', async () => {
+    const failingGetAudio = vi.fn().mockResolvedValue(null)
+    const config = createPlaybackConfig({ maxConsecutiveFailures: 3 })
+
+    // First two failures throw generic errors
+    await expect(player.playCycle(mockCycle, failingGetAudio, config)).rejects.toThrow()
+    expect(player.consecutiveFailures.value).toBe(1)
+
+    await expect(player.playCycle(mockCycle, failingGetAudio, config)).rejects.toThrow()
+    expect(player.consecutiveFailures.value).toBe(2)
+
+    // Third failure trips the breaker
+    await expect(player.playCycle(mockCycle, failingGetAudio, config)).rejects.toThrow(CircuitOpenError)
+    expect(player.consecutiveFailures.value).toBe(3)
+  })
+
+  it('should expose failure details on CircuitOpenError', async () => {
+    const failingGetAudio = vi.fn().mockResolvedValue(null)
+    const config = createPlaybackConfig({ maxConsecutiveFailures: 1 })
+
+    try {
+      await player.playCycle(mockCycle, failingGetAudio, config)
+      expect.fail('Expected CircuitOpenError')
+    } catch (err) {
+      expect(err).toBeInstanceOf(CircuitOpenError)
+      if (err instanceof CircuitOpenError) {
+        expect(err.failures).toBe(1)
+        expect(err.lastError).toMatch(/not found/i)
+      }
+    }
+  })
+
+  it('resetCircuit() clears the consecutive failure counter', async () => {
+    const failingGetAudio = vi.fn().mockResolvedValue(null)
+    const config = createPlaybackConfig({ maxConsecutiveFailures: 5 })
+
+    await expect(player.playCycle(mockCycle, failingGetAudio, config)).rejects.toThrow()
+    await expect(player.playCycle(mockCycle, failingGetAudio, config)).rejects.toThrow()
+    expect(player.consecutiveFailures.value).toBe(2)
+
+    player.resetCircuit()
+    expect(player.consecutiveFailures.value).toBe(0)
   })
 })

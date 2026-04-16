@@ -132,6 +132,7 @@ export type SessionEventType =
   | 'session:paused'
   | 'session:resumed'
   | 'session:complete'
+  | 'session:audio-failed'  // Circuit breaker opened — audio is failing repeatedly
   | 'round:started'
   | 'round:completed'
   | 'round:loaded'    // Round added via lazy loading
@@ -148,6 +149,10 @@ export interface SessionEventData {
   progress?: SessionProgress
   /** For round:loaded and round:loading events */
   roundNumber?: number
+  /** For session:audio-failed: number of consecutive failures that triggered the circuit */
+  failureCount?: number
+  /** For session:audio-failed: last error message */
+  errorMessage?: string
 }
 
 export type SessionEventHandler = (event: SessionEventData) => void

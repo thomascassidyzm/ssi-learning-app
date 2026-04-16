@@ -24,7 +24,7 @@ import type {
   Round,
 } from './types'
 import { getPlayableItems, applyConfig } from './types'
-import { createCyclePlayer, type CyclePlayer } from './CyclePlayer'
+import { createCyclePlayer, CircuitOpenError, type CyclePlayer } from './CyclePlayer'
 import { createThreadManager, type ThreadManager } from './ThreadManager'
 import { buildRounds } from './RoundBuilder'
 import { createPlaybackConfig, type PlaybackConfig, DEFAULT_PLAYBACK_CONFIG } from './PlaybackConfig'
@@ -256,6 +256,7 @@ export function createSessionController(): SessionController {
     }
 
     cyclePlayer.stop()
+    cyclePlayer.resetCircuit()
     currentRoundIndex.value = roundIndex
 
     const round = rounds.value[roundIndex]
@@ -496,7 +497,21 @@ export function createSessionController(): SessionController {
         await cyclePlayer.playCycle(item.cycle, getAudioSource, config.value)
         await handleItemComplete(item)
       } catch (err) {
-        // Audio errors are non-critical - continue to next item
+        if (err instanceof CircuitOpenError) {
+          // Too many consecutive audio failures — pause the session rather
+          // than silently skipping forward forever. Upper layers (offline
+          // degradation, user-facing banner) can react to session:audio-failed.
+          console.warn('[SessionController] Audio circuit open, pausing session:', err.message)
+          cyclePlayer.stop()
+          state.value = 'paused'
+          isPlaybackActive = false
+          emit('session:audio-failed', {
+            failureCount: err.failures,
+            errorMessage: err.lastError,
+          })
+          return
+        }
+        // Single-cycle errors are non-critical — continue to next item
         await handleItemComplete(item)
       }
     }
@@ -582,6 +597,10 @@ export function createSessionController(): SessionController {
     if (state.value !== 'paused') return
     if (!getAudioSource) return
 
+    // Resuming after a circuit-open pause should clear the failure counter
+    // so the first cycle gets a fresh budget of retries.
+    cyclePlayer.resetCircuit()
+
     state.value = 'playing'
     isPlaybackActive = true
     emit('session:resumed')
@@ -616,6 +635,7 @@ export function createSessionController(): SessionController {
     if (roundNumber < 0 || roundNumber >= rounds.value.length) return
 
     cyclePlayer.stop()
+    cyclePlayer.resetCircuit()
     currentRoundIndex.value = roundNumber
     currentItemIndex.value = 0
 
