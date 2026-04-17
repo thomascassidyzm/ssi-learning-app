@@ -6339,10 +6339,11 @@ defineExpose({
       <!-- Text display area - fades together during transition -->
       <div class="pane-text" :class="{ 'is-transitioning': isTransitioningItem }">
         <!-- Known Language Text - always visible, stable position.
-             aria-live announces prompt text to VoiceOver / TalkBack as
-             cycles advance. aria-atomic ensures the full sentence is read,
-             not just the delta. -->
-        <div class="pane-text-known" aria-live="polite" aria-atomic="true">
+             NOT marked aria-live: for a learning app we don't want the
+             screen reader vocalizing prompts every cycle, as it would
+             conflict with the pronunciation audio that is the actual
+             lesson. AT users can navigate to this region manually. -->
+        <div class="pane-text-known">
           <p v-if="isAwakening" class="known-text loading-text">
             {{ currentLoadingMessage }}<span class="loading-cursor" aria-hidden="true">▌</span>
           </p>
@@ -7030,12 +7031,20 @@ defineExpose({
   display: inline-block;
   width: 8px;
   height: 8px;
+  padding: 0;
+  border: 0;
   border-radius: 50%;
   background: #007AFF;
   margin-left: 4px;
   vertical-align: super;
   cursor: pointer;
   animation: pulse-dot 2s ease-in-out infinite;
+  font: inherit;
+  color: inherit;
+}
+.update-dot:focus-visible {
+  outline: 2px solid #007AFF;
+  outline-offset: 2px;
 }
 
 @keyframes pulse-dot {
