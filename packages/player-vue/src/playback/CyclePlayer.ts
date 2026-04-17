@@ -67,12 +67,14 @@ export class AudioGestureRequiredError extends Error {
 function isGestureRequiredError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false
   const maybe = err as { name?: string; message?: string }
-  // NotAllowedError is what Safari/Chrome throw when autoplay policy
-  // blocks a play() call. InvalidStateError can surface on iOS after
-  // long backgrounding. Message sniffing is a last-ditch fallback for
-  // older WebKit that sometimes reports a plain Error.
+  // NotAllowedError is what Safari/Chrome throw when the autoplay policy
+  // blocks play(). We deliberately do NOT match InvalidStateError here —
+  // it can surface for reasons unrelated to autoplay (audio element in
+  // a bad state from loading issues, etc.) and false-positives would
+  // cause the session to prompt "tap to resume" when the real issue is
+  // different. Message sniffing is a last-ditch fallback for older
+  // WebKit that sometimes rejects with a plain Error.
   if (maybe.name === 'NotAllowedError') return true
-  if (maybe.name === 'InvalidStateError') return true
   const msg = (maybe.message || '').toLowerCase()
   return msg.includes('user didn') || msg.includes('user gesture') || msg.includes('not allowed')
 }
@@ -299,16 +301,17 @@ export function createCyclePlayer(): CyclePlayer {
 
         // Stall detection: require TWO consecutive checks with no progress (3s total).
         // iOS Safari throttles setInterval in backgrounded tabs, so after a
-        // long hidden period the callback fires in a burst. Track wall-clock
+        // long hidden period the callback fires in a burst. Track elapsed
         // time between checks — if too much time passed, the browser was
         // asleep, not the audio, so reset the stall counter rather than
-        // falsely skipping a cycle on tab-return.
+        // falsely skipping a cycle on tab-return. performance.now() is
+        // monotonic (unlike Date.now) so NTP sync / DST jumps can't fool it.
         let lastTime = -1
         let stallCount = 0
-        let lastCheckAt = Date.now()
+        let lastCheckAt = performance.now()
         stallCheck = setInterval(() => {
           if (settled || aborted) { clearWatchdogs(); return }
-          const now = Date.now()
+          const now = performance.now()
           const elapsed = now - lastCheckAt
           lastCheckAt = now
           // If the interval was throttled (tab hidden / device sleep),
