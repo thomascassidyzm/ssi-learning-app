@@ -10,6 +10,7 @@ import { useGodMode } from './useGodMode'
 import { useSchoolData } from './useSchoolData'
 import { useStudentsData } from './useStudentsData'
 import { isDemoMode } from '../demo/demoMode'
+import { assertScope } from './rlsGuard'
 
 export interface ClassInfo {
   id: string
@@ -96,12 +97,20 @@ export function useClassesData() {
         student_join_code, current_seed, last_lego_id, is_active, created_at
       `)
 
+      // Track the set of school IDs this user is allowed to see. Used
+      // after the fetch to assert no cross-school leakage (RLS regression
+      // tripwire — see rlsGuard.ts).
+      let allowedSchoolIds: string[] = []
+
       if (isTeacher.value) {
-        // Teacher sees only their classes
+        // Teacher sees only their classes — scope is teacher_user_id, not
+        // school_id, so we skip the school-id assertion for this branch.
         query = query.eq('teacher_user_id', selectedUser.value.user_id)
+        allowedSchoolIds = []
       } else if (isGovtAdmin.value && isViewingSchool.value && activeSchoolId.value) {
         // Govt admin drilled into a school sees all classes in that school
         query = query.eq('school_id', activeSchoolId.value)
+        allowedSchoolIds = [activeSchoolId.value]
       } else if (isGovtAdmin.value && (selectedUser.value.group_id || selectedUser.value.region_code)) {
         // Govt admin sees all classes in their group subtree's schools
         let schoolIds: string[] = []
@@ -118,6 +127,7 @@ export function useClassesData() {
         }
         if (schoolIds.length > 0) {
           query = query.in('school_id', schoolIds)
+          allowedSchoolIds = schoolIds
         } else {
           classes.value = []
           isLoading.value = false
@@ -126,6 +136,7 @@ export function useClassesData() {
       } else if (isSchoolAdmin.value && selectedUser.value.school_id) {
         // School admin sees all classes in school
         query = query.eq('school_id', selectedUser.value.school_id)
+        allowedSchoolIds = [selectedUser.value.school_id]
       }
 
       query = query.eq('is_active', true).order('class_name')
@@ -134,8 +145,18 @@ export function useClassesData() {
 
       if (fetchError) throw fetchError
 
+      // Client-side RLS tripwire: if the user has an explicit school
+      // scope, no returned row should fall outside it. In production we
+      // silently filter + log; in dev/test we throw.
+      const safeData = allowedSchoolIds.length > 0
+        ? assertScope(data, 'school_id', allowedSchoolIds, {
+            table: 'classes',
+            caller: 'useClassesData.fetchClasses',
+          })
+        : (data || [])
+
       // Get student counts per class from class_student_progress view
-      const classIds = (data || []).map(c => c.id)
+      const classIds = safeData.map(c => c.id)
 
       if (classIds.length > 0) {
         const { data: progressData } = await client
@@ -154,7 +175,7 @@ export function useClassesData() {
           statsMap.set(p.class_id, existing)
         })
 
-        classes.value = (data || []).map(c => {
+        classes.value = safeData.map(c => {
           const stats = statsMap.get(c.id) || { count: 0, totalSeeds: 0, totalMinutes: 0 }
           return {
             id: c.id,
