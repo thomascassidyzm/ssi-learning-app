@@ -6100,7 +6100,7 @@ defineExpose({
     <header class="header" :class="{ 'has-banner': props.classContext }">
       <div class="header-stack">
         <!-- Brand -->
-        <div class="brand"><span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span><span v-if="pwaUpdateAvailable" class="update-dot" title="Tap to update" @click.stop="pwaApplyUpdate?.()"></span></div>
+        <div class="brand"><span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span><button v-if="pwaUpdateAvailable" class="update-dot" title="Tap to update" aria-label="New version available — tap to update" @click.stop="pwaApplyUpdate?.()"></button></div>
 
         <!-- Belt row: skip back + timer + skip forward -->
         <div class="belt-row">
@@ -6110,9 +6110,10 @@ defineExpose({
             @click="handleGoBackBelt"
             :disabled="playingBelt.index === 0"
             :title="`Back to ${backTargetBelt.name} belt`"
+            :aria-label="`Back to ${backTargetBelt.name} belt`"
             :style="{ '--skip-belt-color': backTargetBelt.color }"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
               <polyline points="11 17 6 12 11 7"/>
               <polyline points="18 17 13 12 18 7"/>
             </svg>
@@ -6121,9 +6122,10 @@ defineExpose({
           <button
             class="belt-timer-unified"
             :title="!nextBelt ? 'Black belt achieved!' : `${Math.round(beltProgressPercent)}% to ${nextBelt.name} belt`"
+            :aria-label="!nextBelt ? 'Black belt achieved' : `${Math.round(beltProgressPercent)} percent to ${nextBelt.name} belt. Session time ${formattedSessionTime}`"
             @click="handleBeltPillTap"
           >
-            <div class="belt-bar-track">
+            <div class="belt-bar-track" aria-hidden="true">
               <div class="belt-bar-fill" :style="{ width: `${beltProgressPercent}%` }"></div>
             </div>
             <span class="belt-timer-label">{{ formattedSessionTime }}</span>
@@ -6135,9 +6137,10 @@ defineExpose({
             @click="handleSkipToNextBelt"
             :disabled="!playingNextBelt"
             :title="playingNextBelt ? `Skip to ${playingNextBelt.name} belt` : 'End of course'"
+            :aria-label="playingNextBelt ? `Skip to ${playingNextBelt.name} belt` : 'End of course'"
             :style="playingNextBelt ? { '--skip-belt-color': playingNextBelt.color, '--skip-belt-glow': playingNextBelt.glow } : {}"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
               <polyline points="13 17 18 12 13 7"/>
               <polyline points="6 17 11 12 6 7"/>
             </svg>
@@ -6306,9 +6309,20 @@ defineExpose({
     </section>
 
     <!-- CONTROL PANE - Minimal text display, tap to play/pause -->
-    <section class="control-pane" :class="[currentPhase, `layout-${layoutMode}`, { 'is-paused': !isPlaying }]">
+    <section
+      class="control-pane"
+      :class="[currentPhase, `layout-${layoutMode}`, { 'is-paused': !isPlaying }]"
+      role="region"
+      aria-label="Learning player"
+    >
+      <!-- Screen-reader announcer for play/pause state. VoiceOver / TalkBack
+           pick up changes to this region without disturbing sighted UI. -->
+      <div class="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {{ isPlaying ? 'Playing' : 'Paused' }}
+      </div>
+
       <!-- Ink Spirit Rewards - Float upward from the text area -->
-      <TransitionGroup name="ink-spirit" tag="div" class="ink-spirit-container">
+      <TransitionGroup name="ink-spirit" tag="div" class="ink-spirit-container" aria-hidden="true">
         <div
           v-for="reward in floatingRewards"
           :key="reward.id"
@@ -6324,17 +6338,20 @@ defineExpose({
 
       <!-- Text display area - fades together during transition -->
       <div class="pane-text" :class="{ 'is-transitioning': isTransitioningItem }">
-        <!-- Known Language Text - always visible, stable position -->
-        <div class="pane-text-known">
+        <!-- Known Language Text - always visible, stable position.
+             aria-live announces prompt text to VoiceOver / TalkBack as
+             cycles advance. aria-atomic ensures the full sentence is read,
+             not just the delta. -->
+        <div class="pane-text-known" aria-live="polite" aria-atomic="true">
           <p v-if="isAwakening" class="known-text loading-text">
-            {{ currentLoadingMessage }}<span class="loading-cursor">▌</span>
+            {{ currentLoadingMessage }}<span class="loading-cursor" aria-hidden="true">▌</span>
           </p>
           <p v-else-if="isPreparingToPlay" class="known-text loading-text preparing-text">
-            {{ preparingMessage }}<span class="loading-cursor">▌</span>
+            {{ preparingMessage }}<span class="loading-cursor" aria-hidden="true">▌</span>
           </p>
           <p v-else-if="isListeningCycle" class="known-text listening-label">
             {{ displayedKnownText }}
-            <span class="listening-speed-badge">{{ listeningPlaybackSpeed === 1.0 ? '1x' : '2x' }}</span>
+            <span class="listening-speed-badge" aria-label="Playback speed">{{ listeningPlaybackSpeed === 1.0 ? '1x' : '2x' }}</span>
           </p>
           <p v-else class="known-text">
             {{ displayedKnownText }}
@@ -6359,9 +6376,16 @@ defineExpose({
         <!-- Component tiles now rendered inside LegoAssembly -->
       </div>
 
-      <!-- Play button when paused -->
-      <div v-if="!isPlaying && !isPlayingWelcome" class="pane-play-hint" :class="{ 'initial-start': !hasEverStarted }">
-        <svg viewBox="0 0 24 24" fill="currentColor">
+      <!-- Play button when paused. The surrounding element handles the tap;
+           this is a visual hint. The "Playing / Paused" sr-only announcer
+           above conveys state to assistive tech. -->
+      <div
+        v-if="!isPlaying && !isPlayingWelcome"
+        class="pane-play-hint"
+        :class="{ 'initial-start': !hasEverStarted }"
+        :aria-label="hasEverStarted ? 'Paused — tap player to resume' : 'Tap player to start'"
+      >
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
           <polygon points="6 3 20 12 6 21 6 3"/>
         </svg>
         <span v-if="!hasEverStarted" class="start-label">Tap to start</span>
