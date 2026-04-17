@@ -4977,19 +4977,27 @@ onMounted(async () => {
       if (!courseDataProvider.value) {
         console.log('[LearningPlayer] Waiting for courseDataProvider...')
         await new Promise<void>((resolve) => {
+          // `let` (not const) so `finish` can safely null-check it during
+          // the synchronous `immediate: true` callback — at that point the
+          // `watch(...)` call hasn't returned yet, so the variable exists
+          // but is still null.
+          let unwatch: (() => void) | null = null
           let timeoutId: ReturnType<typeof setTimeout> | null = null
+          let settled = false
           const finish = () => {
+            if (settled) return
+            settled = true
             if (timeoutId) { clearTimeout(timeoutId); timeoutId = null }
-            unwatch()
+            if (unwatch) { unwatch(); unwatch = null }
             resolve()
           }
-          const unwatch = watch(
+          unwatch = watch(
             () => courseDataProvider.value,
             (provider) => { if (provider) finish() },
             { immediate: true }
           )
-          // Timeout after 5 seconds to avoid hanging forever
-          timeoutId = setTimeout(finish, 5000)
+          // If immediate:true fired and already settled, skip the timeout.
+          if (!settled) timeoutId = setTimeout(finish, 5000)
         })
         console.log('[LearningPlayer] courseDataProvider ready:', !!courseDataProvider.value)
       }
