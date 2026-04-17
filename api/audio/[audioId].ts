@@ -41,6 +41,32 @@ interface AudioRecord {
   duration_ms: number
 }
 
+/**
+ * Runtime validator for the course_audio row shape. Returns the typed row
+ * on success, or a diagnostic message describing what's wrong. This is our
+ * tripwire for silent schema drift: if the dashboard ever renames s3_key
+ * or drops id / duration_ms, the API fails loudly with a specific error
+ * instead of returning undefined fields and a misleading 404.
+ */
+function validateAudioRecord(row: unknown): { ok: true; value: AudioRecord } | { ok: false; reason: string } {
+  if (!row || typeof row !== 'object') {
+    return { ok: false, reason: `expected object, got ${row === null ? 'null' : typeof row}` }
+  }
+  const r = row as Record<string, unknown>
+  if (typeof r.id !== 'string' || !r.id) {
+    return { ok: false, reason: `id missing or not a string (got ${typeof r.id})` }
+  }
+  if (typeof r.s3_key !== 'string' || !r.s3_key) {
+    return { ok: false, reason: `s3_key missing or not a string (got ${typeof r.s3_key}) — schema change?` }
+  }
+  if (typeof r.duration_ms !== 'number') {
+    // duration_ms being absent isn't fatal for playback but indicates drift.
+    // Accept it but don't treat undefined as a number.
+    return { ok: true, value: { id: r.id, s3_key: r.s3_key, duration_ms: 0 } }
+  }
+  return { ok: true, value: { id: r.id, s3_key: r.s3_key, duration_ms: r.duration_ms } }
+}
+
 interface AudioPlayEvent {
   user_id: string | null
   audio_id: string
@@ -115,8 +141,6 @@ export default async function handler(
       .eq('id', audioId)
       .single()
 
-    let sample: AudioRecord | null = null
-
     if (queryError || !audioRecord) {
       console.error('[AudioProxy] Audio not found in course_audio:', audioId, queryError?.message)
       res.setHeader('Cache-Control', 'no-store')
@@ -124,17 +148,24 @@ export default async function handler(
       return
     }
 
-    sample = {
-      id: (audioRecord as any).id,
-      s3_key: (audioRecord as any).s3_key,
-      duration_ms: (audioRecord as any).duration_ms,
-    }
-
-    if (!sample || !sample.s3_key) {
-      console.error('[AudioProxy] No s3_key found for audio:', audioId)
-      res.status(404).json({ error: 'Audio storage key not found' })
+    const validation = validateAudioRecord(audioRecord)
+    if (!validation.ok) {
+      // Schema drift — not a client problem. Log loudly so it surfaces in
+      // Vercel logs immediately, and return 500 (not 404) so clients'
+      // circuit breakers degrade cleanly instead of treating it as a
+      // missing-UUID situation that they'd otherwise cache-skip.
+      console.error(
+        '[AudioProxy] course_audio row failed shape validation — possible schema change:',
+        { audioId, reason: validation.reason, row: audioRecord }
+      )
+      res.setHeader('Cache-Control', 'no-store')
+      res.status(500).json({
+        error: 'Audio record shape invalid (schema mismatch)',
+        detail: validation.reason,
+      })
       return
     }
+    const sample: AudioRecord = validation.value
 
     // Log analytics (fire and forget)
     const analyticsEvent: AudioPlayEvent = {
