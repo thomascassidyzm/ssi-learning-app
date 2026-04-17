@@ -402,6 +402,9 @@ const {
 // SIMPLE PLAYER - Clean playback architecture
 // ============================================
 const simplePlayer = useSimplePlayer()
+// Expose audio_failed banner state at top level so the template can
+// use it directly (refs nested inside a plain object aren't auto-unwrapped).
+const audioFailedBanner = simplePlayer.audioFailed
 
 // Rounds storage (loaded from database, adapted for SimplePlayer)
 // Using any[] to allow mixed format: SimpleRound (cycles) + legacy ScriptItem (items)
@@ -6377,6 +6380,20 @@ defineExpose({
         <!-- Component tiles now rendered inside LegoAssembly -->
       </div>
 
+      <!-- Audio failure banner. Shown when SimplePlayer auto-pauses because
+           of repeated failures or autoplay-policy rejection. Cleared on next
+           user-initiated play/resume/jump via useSimplePlayer. -->
+      <div
+        v-if="audioFailedBanner"
+        class="audio-failed-banner"
+        role="status"
+        aria-live="polite"
+      >
+        {{ audioFailedBanner.reason === 'needs-gesture'
+          ? 'Paused — tap play to continue'
+          : 'Having trouble loading audio. Tap play to retry.' }}
+      </div>
+
       <!-- Play button when paused. The surrounding element handles the tap;
            this is a visual hint. The "Playing / Paused" sr-only announcer
            above conveys state to assistive tech. -->
@@ -7656,6 +7673,19 @@ defineExpose({
 .control-pane.voice_2 {
   border-color: #3b82f6;
   box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
+}
+
+/* Audio-failure banner (circuit breaker / needs-gesture) */
+.audio-failed-banner {
+  padding: 0.5rem 1rem;
+  margin: 0.5rem auto;
+  max-width: 28rem;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  border-radius: 999px;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  text-align: center;
 }
 
 /* Play hint when paused */

@@ -2,13 +2,14 @@
  * useSimplePlayer - Vue composable for reactive SimplePlayer usage
  * Thin reactive wrapper around SimplePlayer with computed refs and cleanup.
  */
-import { ref, computed, onUnmounted, type ComputedRef } from 'vue'
+import { ref, computed, onUnmounted, type ComputedRef, type Ref } from 'vue'
 import {
   SimplePlayer,
   type PlaybackState,
   type Round,
   type Cycle,
   type Phase,
+  type AudioFailedEvent,
 } from '../playback/SimplePlayer'
 
 export interface UseSimplePlayerReturn {
@@ -24,6 +25,10 @@ export interface UseSimplePlayerReturn {
   showTargetText: ComputedRef<boolean>
   progress: ComputedRef<{ round: number; total: number; percent: number }>
   roundCount: ComputedRef<number>
+  /** Reactive ref of the most recent audio_failed event, or null if none yet
+   * (or the session recovered). Useful for conditionally rendering a
+   * "Tap to resume" banner or a connection-problem toast. */
+  audioFailed: Ref<AudioFailedEvent | null>
   initialize: (rounds: Round[]) => void
   play: () => void
   pause: () => void
@@ -40,6 +45,7 @@ export interface UseSimplePlayerReturn {
   onCycleCompleted: (callback: (cycle: Cycle) => void) => void
   onRoundCompleted: (callback: (round: Round) => void) => void
   onSessionComplete: (callback: () => void) => void
+  onAudioFailed: (callback: (event: AudioFailedEvent) => void) => void
 }
 
 export function useSimplePlayer(): UseSimplePlayerReturn {
@@ -53,6 +59,11 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   const cycleCallbacks: Array<(cycle: Cycle) => void> = []
   const roundCallbacks: Array<(round: Round) => void> = []
   const sessionCallbacks: Array<() => void> = []
+  const audioFailedCallbacks: Array<(event: AudioFailedEvent) => void> = []
+
+  // Reactive mirror of the latest audio_failed event. Cleared on successful
+  // resume/play/jump so UI banners bound to this ref disappear automatically.
+  const audioFailed = ref<AudioFailedEvent | null>(null)
 
   // Initialize with rounds - creates new player instance
   function initialize(rounds: Round[]): void {
@@ -94,6 +105,11 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     player.on('session_complete', () => {
       sessionCallbacks.forEach(cb => cb())
     })
+    player.on('audio_failed', (data) => {
+      const event = data as AudioFailedEvent
+      audioFailed.value = event
+      audioFailedCallbacks.forEach(cb => cb(event))
+    })
   }
 
   // Computed refs for reactive state
@@ -130,14 +146,18 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   // Round count (for priority loading progress)
   const roundCount = computed(() => roundsRef.value.length)
 
+  // User-initiated transitions clear the audio-failed banner. The
+  // corresponding SimplePlayer method also resets the circuit budget.
+  const clearAudioFailed = () => { audioFailed.value = null }
+
   // Methods (passthrough to player)
-  const play = () => player?.play()
+  const play = () => { clearAudioFailed(); player?.play() }
   const pause = () => player?.pause()
-  const resume = () => player?.resume()
-  const stop = () => player?.stop()
+  const resume = () => { clearAudioFailed(); player?.resume() }
+  const stop = () => { clearAudioFailed(); player?.stop() }
   // NOTE: No skipCycle - a ROUND is the atomic learning unit
   const skipRound = () => player?.skipRound()
-  const jumpToRound = (index: number) => player?.jumpToRound(index)
+  const jumpToRound = (index: number) => { clearAudioFailed(); player?.jumpToRound(index) }
 
   /**
    * Find the first round index that belongs to a given seed number.
@@ -206,6 +226,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   const onCycleCompleted = (callback: (cycle: Cycle) => void) => { cycleCallbacks.push(callback) }
   const onRoundCompleted = (callback: (round: Round) => void) => { roundCallbacks.push(callback) }
   const onSessionComplete = (callback: () => void) => { sessionCallbacks.push(callback) }
+  const onAudioFailed = (callback: (event: AudioFailedEvent) => void) => { audioFailedCallbacks.push(callback) }
 
   // Cleanup on unmount
   onUnmounted(() => {
@@ -214,6 +235,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     cycleCallbacks.length = 0
     roundCallbacks.length = 0
     sessionCallbacks.length = 0
+    audioFailedCallbacks.length = 0
   })
 
   return {
@@ -229,6 +251,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     showTargetText,
     progress,
     roundCount,
+    audioFailed,
     initialize,
     play,
     pause,
@@ -244,6 +267,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     onCycleCompleted,
     onRoundCompleted,
     onSessionComplete,
+    onAudioFailed,
   }
 }
 
