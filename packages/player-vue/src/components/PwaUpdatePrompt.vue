@@ -36,30 +36,35 @@ const {
 watch(needRefresh, (v) => { updateAvailable.value = v }, { immediate: true })
 
 // Expose the update action so the blue dot can trigger it.
-// updateServiceWorker(true) tells the waiting SW to skipWaiting and
-// resolves once the new SW has claimed clients (Workbox is configured
-// with clientsClaim: true). Awaiting it means the reload serves fresh
-// content from the new SW — no race, no stale-old-SW-for-100ms window.
-// A 1.5s safety fallback guarantees we reload even if the SW update
-// promise hangs (misconfigured CDN, extension interference, etc.).
-setApplyUpdate(async () => {
+//
+// How vite-plugin-pwa's updateServiceWorker actually works (v1.2.0):
+//   1. Posts SKIP_WAITING to the waiting service worker.
+//   2. The library has already registered a 'controlling' event listener
+//      that calls window.location.reload() once the new SW takes control.
+//   3. The returned Promise resolves as soon as the message is posted —
+//      it does NOT wait for the SW to claim clients.
+//
+// So we just call it (no await helps) and let the library handle the
+// reload at the right moment. A 3s safety fallback forces a reload if
+// the 'controlling' event never fires — e.g. a stuck SW or a misbehaving
+// extension blocking the message.
+setApplyUpdate(() => {
   console.log('[PWA] Updating via blue dot...')
   updateAvailable.value = false
-  let reloaded = false
-  const reload = () => {
-    if (reloaded) return
-    reloaded = true
+  // The library reloads the page itself when the new SW takes control.
+  // If that doesn't happen within 3s, force a reload as last resort.
+  const fallback = setTimeout(() => {
+    console.warn('[PWA] SW controlling event did not fire within 3s, forcing reload')
     window.location.reload()
-  }
-  const fallback = setTimeout(reload, 1500)
-  try {
-    await updateServiceWorker(true)
-  } catch (err) {
-    console.warn('[PWA] updateServiceWorker threw, reloading anyway:', err)
-  } finally {
+  }, 3000)
+  // Prevent a double reload: if the library reloads first, clear the
+  // fallback when the page is about to unload.
+  window.addEventListener('beforeunload', () => clearTimeout(fallback), { once: true })
+  updateServiceWorker(true).catch((err) => {
+    console.warn('[PWA] updateServiceWorker threw, forcing reload:', err)
     clearTimeout(fallback)
-    reload()
-  }
+    window.location.reload()
+  })
 })
 
 onUnmounted(() => {
