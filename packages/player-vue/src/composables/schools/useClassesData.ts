@@ -97,16 +97,15 @@ export function useClassesData() {
         student_join_code, current_seed, last_lego_id, is_active, created_at
       `)
 
-      // Track the set of school IDs this user is allowed to see. Used
-      // after the fetch to assert no cross-school leakage (RLS regression
-      // tripwire — see rlsGuard.ts).
+      // Track scope for the RLS tripwire (rlsGuard.ts). Teachers are
+      // scoped by teacher_user_id (a teacher can legitimately teach at
+      // multiple schools), school/govt admins are scoped by school_id.
       let allowedSchoolIds: string[] = []
+      let allowedTeacherUserId: string | null = null
 
       if (isTeacher.value) {
-        // Teacher sees only their classes — scope is teacher_user_id, not
-        // school_id, so we skip the school-id assertion for this branch.
         query = query.eq('teacher_user_id', selectedUser.value.user_id)
-        allowedSchoolIds = []
+        allowedTeacherUserId = selectedUser.value.user_id
       } else if (isGovtAdmin.value && isViewingSchool.value && activeSchoolId.value) {
         // Govt admin drilled into a school sees all classes in that school
         query = query.eq('school_id', activeSchoolId.value)
@@ -145,15 +144,23 @@ export function useClassesData() {
 
       if (fetchError) throw fetchError
 
-      // Client-side RLS tripwire: if the user has an explicit school
-      // scope, no returned row should fall outside it. In production we
-      // silently filter + log; in dev/test we throw.
-      const safeData = allowedSchoolIds.length > 0
-        ? assertScope(data, 'school_id', allowedSchoolIds, {
-            table: 'classes',
-            caller: 'useClassesData.fetchClasses',
-          })
-        : (data || [])
+      // Client-side RLS tripwire: returned rows must match the caller's
+      // declared scope (school_id for admins, teacher_user_id for teachers).
+      // In production we silently filter + log [RLS_VIOLATION]; in dev/test
+      // we throw. Catches accidental query changes and RLS regressions.
+      let safeData: typeof data | [] = data || []
+      if (allowedSchoolIds.length > 0) {
+        safeData = assertScope(safeData, 'school_id', allowedSchoolIds, {
+          table: 'classes',
+          caller: 'useClassesData.fetchClasses',
+        })
+      }
+      if (allowedTeacherUserId) {
+        safeData = assertScope(safeData, 'teacher_user_id', [allowedTeacherUserId], {
+          table: 'classes',
+          caller: 'useClassesData.fetchClasses (teacher)',
+        })
+      }
 
       // Get student counts per class from class_student_progress view
       const classIds = safeData.map(c => c.id)
