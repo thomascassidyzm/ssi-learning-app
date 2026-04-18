@@ -19,6 +19,25 @@ git pull origin staging
 
 ---
 
+## TODO: Tighten RLS before first paying school (2026-Q2)
+
+**Current state (2026-04):** Phase 1 RLS only — own-row learner data locked down, content and schools tables are permissive. Tom has deliberately kept schools tables permissive because proper RLS causes silent failures that are painful to debug during active development.
+
+**Trigger to tighten:** When schools onboarding for the **first paying school** is 2–3 weeks out. Not before. Current schools activity is pilot/exploratory — sharing play links, no actual school set up yet.
+
+**What to do when the trigger hits:**
+
+1. Enable RLS on the schools-touching tables:
+   - `classes`, `user_tags`, `learners`, `sessions`, `course_enrollments`, `seed_progress`, `class_student_progress`
+2. Keep content tables permissive: `course_seeds`, `course_legos`, `course_audio`, `courses`, `canonical_seeds`, `canonical_seed_translations`
+3. Use the existing `rlsGuard.assertScope()` helper (`packages/player-vue/src/composables/schools/rlsGuard.ts`) as the dev-loop safety net — in dev/test it throws on violations, so silent failures surface as clear `[RLS_VIOLATION]` console errors instead of mystery empty arrays. Already wired into `useClassesData`; extend to the other 15 schools composables during the rollout.
+4. Stage on `staging` for a full week minimum. Every schools view + role (govt_admin, school_admin, teacher, student) must be exercised.
+5. Merge to `main` only after zero `[RLS_VIOLATION]` logs for 48h.
+
+**Memory references:** `feedback_no_rls.md`, `feedback_supabase_rls.md` in auto-memory have Tom's specific RLS pain points and constraints (never use `auth.users`, always reload PostgREST after policy changes).
+
+---
+
 ## Project Overview
 
 **SSi Learning App** is the language learning player application that delivers SSi courses to learners. It's built as a monorepo with a framework-agnostic TypeScript core and UI adapters.
