@@ -86,10 +86,20 @@ async function logAudioPlay(
   event: AudioPlayEvent
 ): Promise<void> {
   try {
-    await supabase.from('audio_plays').insert(event)
+    // supabase-js returns errors in `{ error }`; it does NOT throw on
+    // PostgREST errors. Without this explicit check, a missing table or
+    // RLS rejection is completely invisible — the `audio_plays` table
+    // was missing in prod for ~3 months before this surfaced because
+    // the old try/catch wrapper couldn't catch what never threw.
+    const { error } = await supabase.from('audio_plays').insert(event)
+    if (error) {
+      console.warn(
+        `[AudioProxy] Failed to log audio play: ${error.message} (code=${error.code ?? 'n/a'})`
+      )
+    }
   } catch (error) {
-    // Silent failure - analytics should never block playback
-    console.warn('[AudioProxy] Failed to log audio play:', error)
+    // Keep the catch for genuinely thrown errors (network, auth, etc.)
+    console.warn('[AudioProxy] logAudioPlay threw:', error)
   }
 }
 
