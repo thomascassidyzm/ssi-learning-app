@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ssi-lesson-player · demo</title>
+<style>
+  body {
+    margin: 0;
+    padding: 30px 20px;
+    background: #f4f4f3;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+  }
+  h1 { margin: 0 0 2px; font-size: 20px; letter-spacing: -0.02em; }
+  p.sub { margin: 0; color: #666; font-size: 13px; }
+  .picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    max-width: 640px;
+  }
+  .picker button {
+    padding: 8px 14px;
+    font-size: 14px;
+    border: 1px solid #d5d5d2;
+    background: white;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .picker button:hover { border-color: #e53935; color: #e53935; }
+  .picker button.active { background: #e53935; color: white; border-color: #e53935; }
+</style>
+</head>
+<body>
+  <h1>ssi-lesson-player · drop-in marketing demo</h1>
+  <p class="sub">Click a language to load its manifest. Press play on the red button.</p>
+
+  <div class="picker" id="picker"></div>
+  <ssi-lesson-player id="player" course="spa_for_eng"
+    manifest-src="./manifests/"
+    audio-src="https://saysomethingin.app/api/audio/"></ssi-lesson-player>
+
+  <script type="module" src="./ssi-lesson-player.js"></script>
+  <script>
+    const picker = document.getElementById('picker');
+    const player = document.getElementById('player');
+
+    fetch('./manifests/index.json')
+      .then(r => r.json())
+      .then(({ courses }) => {
+        courses.forEach(c => {
+          const btn = document.createElement('button');
+          btn.textContent = `${c.flag} ${c.name}`;
+          btn.onclick = () => {
+            picker.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            player.setAttribute('course', c.code);
+          };
+          picker.appendChild(btn);
+        });
+        picker.firstChild?.classList.add('active');
+      });
+  </script>
+</body>
+</html>

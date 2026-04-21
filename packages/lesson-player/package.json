@@ -1,0 +1,23 @@
+{
+  "name": "@ssi/lesson-player",
+  "version": "0.1.0",
+  "description": "Drop-in marketing-demo custom element <ssi-lesson-player> for the SaySomethingin landing page.",
+  "type": "module",
+  "main": "public/ssi-lesson-player.js",
+  "files": [
+    "public/ssi-lesson-player.js",
+    "public/demo.html",
+    "public/manifests/*.json",
+    "scripts/build-manifests.cjs",
+    "README.md"
+  ],
+  "exports": {
+    ".": "./public/ssi-lesson-player.js",
+    "./demo": "./public/demo.html"
+  },
+  "scripts": {
+    "build:manifests": "node scripts/build-manifests.cjs",
+    "sync": "cp src/ssi-lesson-player.js public/ssi-lesson-player.js",
+    "serve": "python3 -m http.server 8765 --directory public"
+  }
+}

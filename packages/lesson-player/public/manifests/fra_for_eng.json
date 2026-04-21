@@ -1,0 +1,95 @@
+{
+  "course_code": "fra_for_eng",
+  "known_lang": "eng",
+  "target_lang": "fra",
+  "known_name": "English",
+  "target_name": "French",
+  "flag_emoji": "🇫🇷",
+  "display_name": "French for English Speakers",
+  "seed": {
+    "known_text": "I want to speak French with you now",
+    "target_text": "Je veux parler français avec toi maintenant"
+  },
+  "cycles": [
+    {
+      "type": "lego",
+      "lego_index": 1,
+      "known_text": "I want",
+      "target_text": "je veux",
+      "known_audio_id": "475aaeae-6773-48fa-8970-b42ab7dcd2ca",
+      "target1_audio_id": "075cc4b7-1bca-4493-9ba7-5691c2e1c1de",
+      "target2_audio_id": "51356c13-2042-4f65-b519-4eb77a3751fe",
+      "belt_progress": 0
+    },
+    {
+      "type": "lego",
+      "lego_index": 2,
+      "known_text": "to speak",
+      "target_text": "parler",
+      "known_audio_id": "28a8c5bc-5f97-4b6c-80e4-1bcea267dad8",
+      "target1_audio_id": "e4156638-6c72-4e7e-9558-066c8fc4ead7",
+      "target2_audio_id": "2aa9ec7b-49dc-4c0d-b247-1826de3a167a",
+      "belt_progress": 0.14285714285714285
+    },
+    {
+      "type": "lego",
+      "lego_index": 3,
+      "known_text": "French",
+      "target_text": "français",
+      "known_audio_id": "7b91bcf1-b196-4c35-ba2c-1b5ff5451c0d",
+      "target1_audio_id": "0f1ccff5-1fc4-41b5-a77b-c42e3f1f47a8",
+      "target2_audio_id": "5b912d0b-e19c-4e52-b3e9-103dc377a364",
+      "belt_progress": 0.2857142857142857
+    },
+    {
+      "type": "build",
+      "lego_index": 3,
+      "known_text": "to speak French",
+      "target_text": "parler français",
+      "known_audio_id": "409c423b-bc6e-4f69-a872-c44837cecd89",
+      "target1_audio_id": "3cea862b-a007-49c7-bee1-cfeccac247fa",
+      "target2_audio_id": "2e08a0ca-1d7f-43a3-aefa-988d622674a7",
+      "belt_progress": 0.42857142857142855
+    },
+    {
+      "type": "lego",
+      "lego_index": 4,
+      "known_text": "with you",
+      "target_text": "avec toi",
+      "known_audio_id": "18d69592-b6b1-4cd2-82ec-c3f77a9e093d",
+      "target1_audio_id": "758923a0-8e8b-4bd8-9914-e65e52538b3d",
+      "target2_audio_id": "b69394fa-0b03-4f6c-b76e-2d8496c0962e",
+      "belt_progress": 0.5714285714285714
+    },
+    {
+      "type": "build",
+      "lego_index": 4,
+      "known_text": "to speak with you",
+      "target_text": "parler avec toi",
+      "known_audio_id": "fd09e93b-a85f-4ea8-85ba-90798f866a89",
+      "target1_audio_id": "fd00c2f2-4583-4f38-a3f6-6d46f13f1dcc",
+      "target2_audio_id": "591451ae-0ffe-4b1e-a645-11619652cec7",
+      "belt_progress": 0.7142857142857143
+    },
+    {
+      "type": "lego",
+      "lego_index": 5,
+      "known_text": "now",
+      "target_text": "maintenant",
+      "known_audio_id": "34fb8722-0d71-4128-824f-263550fde754",
+      "target1_audio_id": "dd6e0ff0-03d1-4d32-a9de-af81d1598d33",
+      "target2_audio_id": "df077fb7-cdd2-4ebd-9406-3d6758e8c91e",
+      "belt_progress": 0.8571428571428571
+    },
+    {
+      "type": "build",
+      "lego_index": 5,
+      "known_text": "to speak now",
+      "target_text": "parler maintenant",
+      "known_audio_id": "12a2e1c8-d318-4c5a-8c16-8e96931ef058",
+      "target1_audio_id": "3a723f90-6e0e-48ba-8212-07ed0c061260",
+      "target2_audio_id": "654d039b-29b8-4545-96ac-5ca94cf4dac2",
+      "belt_progress": 1
+    }
+  ]
+}

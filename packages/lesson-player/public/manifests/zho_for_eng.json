@@ -1,0 +1,105 @@
+{
+  "course_code": "zho_for_eng",
+  "known_lang": "eng",
+  "target_lang": "zho",
+  "known_name": "English",
+  "target_name": "Chinese",
+  "flag_emoji": "🇨🇳",
+  "display_name": "Chinese for English Speakers",
+  "seed": {
+    "known_text": "I want to speak Chinese with you now",
+    "target_text": "我现在想和你说中文。"
+  },
+  "cycles": [
+    {
+      "type": "lego",
+      "lego_index": 1,
+      "known_text": "I want",
+      "target_text": "我想",
+      "known_audio_id": "8db9e05a-bf5c-4ae9-94b2-18bdba32819b",
+      "target1_audio_id": "b24a2f99-e738-4ae1-bcb2-3e926ca42179",
+      "target2_audio_id": "1267dabc-e6c0-4e85-a90f-a68674b995dc",
+      "belt_progress": 0
+    },
+    {
+      "type": "lego",
+      "lego_index": 2,
+      "known_text": "to speak",
+      "target_text": "说",
+      "known_audio_id": "8eb9a44b-bbc2-433d-961f-b11f5a3df7b7",
+      "target1_audio_id": "2247c441-f317-4505-a2e3-bbb646e9a276",
+      "target2_audio_id": "e5d7eb37-52a7-490f-8a0b-5250167d0c1e",
+      "belt_progress": 0.125
+    },
+    {
+      "type": "build",
+      "lego_index": 2,
+      "known_text": "I want to speak",
+      "target_text": "我想说",
+      "known_audio_id": "2a9168a4-d011-4535-88f6-e9a16e8eb4de",
+      "target1_audio_id": "03f14945-809b-421c-9175-df220aef23e1",
+      "target2_audio_id": "dcd4883b-2a5e-48bf-ae6f-6abadc147667",
+      "belt_progress": 0.25
+    },
+    {
+      "type": "lego",
+      "lego_index": 3,
+      "known_text": "Chinese",
+      "target_text": "中文",
+      "known_audio_id": "d9589f8c-e451-4d37-8971-3918547eea4d",
+      "target1_audio_id": "bf980d0d-91d2-4fce-970f-cbf45fc94092",
+      "target2_audio_id": "9f7dd8fc-fc6c-4597-b8dd-1aab21300239",
+      "belt_progress": 0.375
+    },
+    {
+      "type": "build",
+      "lego_index": 3,
+      "known_text": "speak Chinese",
+      "target_text": "说中文",
+      "known_audio_id": "36f1d86d-8498-48b5-8f23-19e06bf54b53",
+      "target1_audio_id": "b9a4d3d7-48c1-4b73-a166-acea9b108fcf",
+      "target2_audio_id": "718105fe-4c92-489c-bb34-ff1a691d24e5",
+      "belt_progress": 0.5
+    },
+    {
+      "type": "lego",
+      "lego_index": 4,
+      "known_text": "with you",
+      "target_text": "和你",
+      "known_audio_id": "fce9e42a-ddd1-4a4c-83b1-9f5284b8a75e",
+      "target1_audio_id": "d2b30544-906e-43bb-8011-04f0ab46bc70",
+      "target2_audio_id": "a055f012-00bc-42ad-bb16-fa99e2623e6d",
+      "belt_progress": 0.625
+    },
+    {
+      "type": "build",
+      "lego_index": 4,
+      "known_text": "speak with you",
+      "target_text": "和你说",
+      "known_audio_id": "08c4e088-7a93-41ed-89e0-478521aad898",
+      "target1_audio_id": "5f95221b-8d27-4452-b6c3-2915f489dfd4",
+      "target2_audio_id": "91957674-7ee3-4f72-b546-23fcf92c71d0",
+      "belt_progress": 0.75
+    },
+    {
+      "type": "lego",
+      "lego_index": 5,
+      "known_text": "now",
+      "target_text": "现在",
+      "known_audio_id": "495d8ef4-3ade-4da3-b805-84af48495b99",
+      "target1_audio_id": "bb0f6f82-a453-423f-b894-dc20f1a1cee0",
+      "target2_audio_id": "4e7ea3ff-2d7e-4aac-ad12-2fea9b465a30",
+      "belt_progress": 0.875
+    },
+    {
+      "type": "build",
+      "lego_index": 5,
+      "known_text": "speak now",
+      "target_text": "现在说",
+      "known_audio_id": "474dc4b2-2196-482d-9bdd-4c5927d412c8",
+      "target1_audio_id": "abd47120-e0fc-46c2-8b90-2bd418590751",
+      "target2_audio_id": "636e9934-9976-4d9d-8127-e761fdd1c1cc",
+      "belt_progress": 1
+    }
+  ]
+}

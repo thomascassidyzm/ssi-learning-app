@@ -1,0 +1,71 @@
+{
+  "generated_at": "2026-04-21T23:01:08.992Z",
+  "courses": [
+    {
+      "code": "spa_for_eng",
+      "name": "Spanish",
+      "flag": "🇪🇸",
+      "cycle_count": 9
+    },
+    {
+      "code": "fra_for_eng",
+      "name": "French",
+      "flag": "🇫🇷",
+      "cycle_count": 8
+    },
+    {
+      "code": "deu_for_eng",
+      "name": "German",
+      "flag": "🇩🇪",
+      "cycle_count": 9
+    },
+    {
+      "code": "ita_for_eng",
+      "name": "Italian",
+      "flag": "🇮🇹",
+      "cycle_count": 8
+    },
+    {
+      "code": "por_for_eng",
+      "name": "Portuguese",
+      "flag": "🇵🇹",
+      "cycle_count": 9
+    },
+    {
+      "code": "zho_for_eng",
+      "name": "Chinese",
+      "flag": "🇨🇳",
+      "cycle_count": 9
+    },
+    {
+      "code": "jpn_for_eng",
+      "name": "Japanese",
+      "flag": "🇯🇵",
+      "cycle_count": 7
+    },
+    {
+      "code": "ara_for_eng",
+      "name": "Arabic",
+      "flag": "🇸🇦",
+      "cycle_count": 7
+    },
+    {
+      "code": "kor_for_eng",
+      "name": "Korean",
+      "flag": "🇰🇷",
+      "cycle_count": 7
+    },
+    {
+      "code": "cym_n_for_eng",
+      "name": "Welsh (North)",
+      "flag": "🏴󠁧󠁢󠁷󠁬󠁳󠁿",
+      "cycle_count": 5
+    },
+    {
+      "code": "cym_s_for_eng",
+      "name": "Welsh (South)",
+      "flag": "🏴󠁧󠁢󠁷󠁬󠁳󠁿",
+      "cycle_count": 5
+    }
+  ]
+}

@@ -1,0 +1,85 @@
+{
+  "course_code": "ara_for_eng",
+  "known_lang": "eng",
+  "target_lang": "ara",
+  "known_name": "English",
+  "target_name": "Arabic",
+  "flag_emoji": "🇸🇦",
+  "display_name": "Arabic for English Speakers",
+  "seed": {
+    "known_text": "I want to speak Arabic with you now",
+    "target_text": "أُريدُ أَنْ أَتَكَلَّمَ العَرَبِيَّةَ مَعَكَ الآن"
+  },
+  "cycles": [
+    {
+      "type": "lego",
+      "lego_index": 1,
+      "known_text": "I want to speak",
+      "target_text": "أُريدُ أَنْ أَتَكَلَّمَ",
+      "known_audio_id": "27ae0154-12d0-4890-a05b-82f6260314ce",
+      "target1_audio_id": "5a8fd1b4-6bb9-4803-b5f6-c58ef3e05d61",
+      "target2_audio_id": "cc23f4e1-f8f6-48d8-aad8-478d40e06dc8",
+      "belt_progress": 0
+    },
+    {
+      "type": "lego",
+      "lego_index": 2,
+      "known_text": "arabic",
+      "target_text": "العَرَبِيَّةَ",
+      "known_audio_id": "8a00fab4-d08d-4524-8534-0357294d4142",
+      "target1_audio_id": "31bc1f56-b4a2-4b41-be3b-e3918adefe43",
+      "target2_audio_id": "c846b268-d57d-461e-8974-1d4ddb64caec",
+      "belt_progress": 0.16666666666666666
+    },
+    {
+      "type": "build",
+      "lego_index": 2,
+      "known_text": "speak Arabic",
+      "target_text": "أَتَكَلَّمَ العَرَبِيَّةَ",
+      "known_audio_id": "373e315a-73cb-4af9-b98b-f1fb29b7bff9",
+      "target1_audio_id": "0bcc6ebe-0c0d-4443-8b86-88833b601783",
+      "target2_audio_id": "e43806c6-eed9-4733-b128-ff7082849f56",
+      "belt_progress": 0.3333333333333333
+    },
+    {
+      "type": "lego",
+      "lego_index": 3,
+      "known_text": "with you",
+      "target_text": "مَعَكَ",
+      "known_audio_id": "0bad24d8-c60f-45e4-9bf7-98925d99842f",
+      "target1_audio_id": "a9cc8958-1db8-48d5-a2fc-d44b85ea1f4a",
+      "target2_audio_id": "d0bbc226-fb89-496b-af80-3773cb7059d8",
+      "belt_progress": 0.5
+    },
+    {
+      "type": "build",
+      "lego_index": 3,
+      "known_text": "arabic with you",
+      "target_text": "العَرَبِيَّةَ مَعَكَ",
+      "known_audio_id": "a499222a-95f5-44f2-82ac-54f0b359ed53",
+      "target1_audio_id": "91bb5595-f0c5-4aba-a8f3-e187868457b3",
+      "target2_audio_id": "8de1392d-c31f-460e-865d-4693df94fc23",
+      "belt_progress": 0.6666666666666666
+    },
+    {
+      "type": "lego",
+      "lego_index": 4,
+      "known_text": "now",
+      "target_text": "الآن",
+      "known_audio_id": "d1de0112-71e8-4ac6-bdea-dd837d405bd6",
+      "target1_audio_id": "860af9b8-5b29-4596-b6df-5653ffcae00c",
+      "target2_audio_id": "86c38f00-8f37-4f5e-b505-1e2dc1892fbb",
+      "belt_progress": 0.8333333333333334
+    },
+    {
+      "type": "build",
+      "lego_index": 4,
+      "known_text": "with you now",
+      "target_text": "مَعَكَ الآن",
+      "known_audio_id": "8113129d-7947-4eb5-bf2c-547772c1514d",
+      "target1_audio_id": "a0317569-7e09-4d6a-bd86-38ca1f2edc13",
+      "target2_audio_id": "60ce9c85-c326-4f5e-acb3-dcab89b6ca19",
+      "belt_progress": 1
+    }
+  ]
+}

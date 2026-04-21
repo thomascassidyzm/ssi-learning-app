@@ -1,0 +1,85 @@
+{
+  "course_code": "kor_for_eng",
+  "known_lang": "eng",
+  "target_lang": "kor",
+  "known_name": "English",
+  "target_name": "Korean",
+  "flag_emoji": "🇰🇷",
+  "display_name": "Korean for English Speakers",
+  "seed": {
+    "known_text": "I want to speak Korean with you now",
+    "target_text": "지금 같이 한국어로 말하고 싶어요"
+  },
+  "cycles": [
+    {
+      "type": "lego",
+      "lego_index": 1,
+      "known_text": "want to speak",
+      "target_text": "말하고 싶어요",
+      "known_audio_id": "6f686c54-82af-499c-99b9-7118dbbf5cd1",
+      "target1_audio_id": "d6902dd0-fcc7-46e2-b9ff-99199709e190",
+      "target2_audio_id": "9a75ec2e-0b9b-4c02-a727-33e795dff3df",
+      "belt_progress": 0
+    },
+    {
+      "type": "lego",
+      "lego_index": 2,
+      "known_text": "now",
+      "target_text": "지금",
+      "known_audio_id": "857acf6f-ed3c-4323-9ff7-0d99ddd407ed",
+      "target1_audio_id": "fec207e7-8228-47b3-912d-4265c479604f",
+      "target2_audio_id": "871ed86d-ae2e-4cc7-9846-f369bac2d9bc",
+      "belt_progress": 0.16666666666666666
+    },
+    {
+      "type": "build",
+      "lego_index": 2,
+      "known_text": "I want to speak now",
+      "target_text": "지금 말하고 싶어요",
+      "known_audio_id": "c8e5f515-3d7d-4f62-9d8a-d71fe0302b79",
+      "target1_audio_id": "8dbb6bf2-993f-4825-8683-b1b9d6c422a9",
+      "target2_audio_id": "0dfec676-14c5-4c8d-8b9a-38c3cff81089",
+      "belt_progress": 0.3333333333333333
+    },
+    {
+      "type": "lego",
+      "lego_index": 3,
+      "known_text": "together",
+      "target_text": "같이",
+      "known_audio_id": "fea87daa-3dda-4833-b539-0e54790928e7",
+      "target1_audio_id": "2fa89809-7883-4838-8d78-ca1d68cc5418",
+      "target2_audio_id": "40d6af8f-14e2-4612-937f-8ff5dde84762",
+      "belt_progress": 0.5
+    },
+    {
+      "type": "build",
+      "lego_index": 3,
+      "known_text": "I want to speak together",
+      "target_text": "같이 말하고 싶어요",
+      "known_audio_id": "fc713ab0-9de1-4b6b-8aec-cb203fc6f726",
+      "target1_audio_id": "6503155b-3c90-4fcc-80d1-d8437df24453",
+      "target2_audio_id": "ce3153b0-c20b-4ab0-bd63-cb5fe9fd71e4",
+      "belt_progress": 0.6666666666666666
+    },
+    {
+      "type": "lego",
+      "lego_index": 4,
+      "known_text": "Korean",
+      "target_text": "한국어로",
+      "known_audio_id": "a8dba730-28a4-4cfb-ab8f-1cb3c1b62848",
+      "target1_audio_id": "24ba4bae-42ad-47ab-ba26-11314e7ea54a",
+      "target2_audio_id": "97fa2f74-830a-459e-8c0f-024cecaf3be8",
+      "belt_progress": 0.8333333333333334
+    },
+    {
+      "type": "build",
+      "lego_index": 4,
+      "known_text": "I want to speak Korean",
+      "target_text": "한국어로 말하고 싶어요",
+      "known_audio_id": "5fd47256-be71-41ca-9ca3-074f962d78a0",
+      "target1_audio_id": "2a1d73a2-fcf4-41d7-9b57-c973bb3ac965",
+      "target2_audio_id": "fdf9766d-6663-4db3-8963-99afee0f5099",
+      "belt_progress": 1
+    }
+  ]
+}
