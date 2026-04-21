@@ -1,0 +1,65 @@
+{
+  "course_code": "cym_n_for_eng",
+  "known_lang": "eng",
+  "target_lang": "cym",
+  "known_name": "English",
+  "target_name": "Welsh (North)",
+  "flag_emoji": "🏴󠁧󠁢󠁷󠁬󠁳󠁿",
+  "display_name": "North Welsh for English Speakers",
+  "seed": {
+    "known_text": "I want to speak Welsh",
+    "target_text": "dw i isio siarad Cymraeg"
+  },
+  "cycles": [
+    {
+      "type": "lego",
+      "lego_index": 1,
+      "known_text": "I want",
+      "target_text": "dw i isio",
+      "known_audio_id": "eac1ac6d-3507-44c1-8c84-9ab24175cba6",
+      "target1_audio_id": "35a5e251-fdc2-4057-a3d9-6071eb41495a",
+      "target2_audio_id": "b45c8d25-15a8-4905-895a-801d29b9b83d",
+      "belt_progress": 0
+    },
+    {
+      "type": "lego",
+      "lego_index": 2,
+      "known_text": "to speak",
+      "target_text": "siarad",
+      "known_audio_id": "62c9055e-04aa-4d63-833b-ccb87f96a433",
+      "target1_audio_id": "683e5b55-945e-418e-9266-86befcf59232",
+      "target2_audio_id": "59ab0f9d-b04f-4929-bca6-e89140d2114d",
+      "belt_progress": 0.25
+    },
+    {
+      "type": "build",
+      "lego_index": 2,
+      "known_text": "I want to speak",
+      "target_text": "dw i isio siarad",
+      "known_audio_id": "d5f4270d-28cc-43b2-a287-abae56836f0d",
+      "target1_audio_id": "8c8982df-50df-4fdc-83a0-31e01356bfe2",
+      "target2_audio_id": "fbb4566e-7b23-4bae-8040-be987897d4c9",
+      "belt_progress": 0.5
+    },
+    {
+      "type": "lego",
+      "lego_index": 3,
+      "known_text": "Welsh",
+      "target_text": "Cymraeg",
+      "known_audio_id": "c0667987-1af8-475c-a150-d25f444db369",
+      "target1_audio_id": "e06d2536-0259-4900-a59b-420bf5d8ddd6",
+      "target2_audio_id": "ce98f918-0d1b-49cc-969b-10c45e90c373",
+      "belt_progress": 0.75
+    },
+    {
+      "type": "build",
+      "lego_index": 3,
+      "known_text": "to speak Welsh",
+      "target_text": "siarad Cymraeg",
+      "known_audio_id": "ecaec0ec-a609-4923-bcf1-77bd9cd27a6e",
+      "target1_audio_id": "4a4f32d6-035e-49cb-9ac1-e92146d075f8",
+      "target2_audio_id": "592015f1-eee3-4a12-935c-a5440906f6b5",
+      "belt_progress": 1
+    }
+  ]
+}

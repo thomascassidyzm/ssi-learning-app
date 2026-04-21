@@ -1,0 +1,85 @@
+{
+  "course_code": "jpn_for_eng",
+  "known_lang": "eng",
+  "target_lang": "jpn",
+  "known_name": "English",
+  "target_name": "Japanese",
+  "flag_emoji": "🇯🇵",
+  "display_name": "Japanese for English Speakers",
+  "seed": {
+    "known_text": "I want to speak Japanese with you now",
+    "target_text": "今、一緒に日本語を話したい。"
+  },
+  "cycles": [
+    {
+      "type": "lego",
+      "lego_index": 1,
+      "known_text": "want to speak",
+      "target_text": "話したい",
+      "known_audio_id": "e54029c4-2fdb-458f-811c-f1ba53885906",
+      "target1_audio_id": "701a3c5d-737f-4b9d-8ef6-1062b10046c3",
+      "target2_audio_id": "567e170e-d003-414f-a7ba-8aa8aec9450b",
+      "belt_progress": 0
+    },
+    {
+      "type": "lego",
+      "lego_index": 2,
+      "known_text": "Japanese",
+      "target_text": "日本語を",
+      "known_audio_id": "295ebe65-45f0-49ad-bc3d-1cb2a0ca49f2",
+      "target1_audio_id": "069e96a1-28c1-4fc5-b4bf-fa8e267193dc",
+      "target2_audio_id": "1de23e63-8da4-414f-bd5a-11161aa85145",
+      "belt_progress": 0.16666666666666666
+    },
+    {
+      "type": "build",
+      "lego_index": 2,
+      "known_text": "speak Japanese",
+      "target_text": "日本語を話す",
+      "known_audio_id": "eab9ae2d-340c-4540-a250-79d16f9b0e0e",
+      "target1_audio_id": "3dbac4fc-bd4b-4154-8e0c-c4d20021e9d3",
+      "target2_audio_id": "060b53cd-4e8a-4a7d-9c5b-59bca160b41c",
+      "belt_progress": 0.3333333333333333
+    },
+    {
+      "type": "lego",
+      "lego_index": 3,
+      "known_text": "together",
+      "target_text": "一緒に",
+      "known_audio_id": "e07f5ea7-dbec-4640-8eca-1c989886cc89",
+      "target1_audio_id": "ae36399f-d094-45b7-8fea-f7c6b22d879f",
+      "target2_audio_id": "8e3b7d4d-3f63-47ed-9662-a7fd994e13a7",
+      "belt_progress": 0.5
+    },
+    {
+      "type": "build",
+      "lego_index": 3,
+      "known_text": "speak together",
+      "target_text": "一緒に話す",
+      "known_audio_id": "52de63b7-520b-4a20-b966-0bc12b7eadb0",
+      "target1_audio_id": "55a4ef4b-b69c-429f-99ed-946a20b49752",
+      "target2_audio_id": "5d28b452-578d-44c0-b7c2-b9a655a18d8d",
+      "belt_progress": 0.6666666666666666
+    },
+    {
+      "type": "lego",
+      "lego_index": 4,
+      "known_text": "now",
+      "target_text": "今",
+      "known_audio_id": "edae6e7c-23e2-4f32-9877-5f0c7991e1e3",
+      "target1_audio_id": "7f954751-1375-4212-a77f-176f20c21b83",
+      "target2_audio_id": "e32d308b-5ca9-4ec7-bbf7-0a1117b734e1",
+      "belt_progress": 0.8333333333333334
+    },
+    {
+      "type": "build",
+      "lego_index": 4,
+      "known_text": "speak now",
+      "target_text": "今、話す",
+      "known_audio_id": "5986c0a3-5a0c-444d-b0f1-eade3b7719b5",
+      "target1_audio_id": "ad929cb9-a36f-4ade-b49b-423989328a69",
+      "target2_audio_id": "6e00140d-461c-49bb-bf4f-2d92b3ba3ec6",
+      "belt_progress": 1
+    }
+  ]
+}
