@@ -6124,7 +6124,7 @@ defineExpose({
     <header class="header" :class="{ 'has-banner': props.classContext }">
       <div class="header-stack">
         <!-- Brand -->
-        <div class="brand"><div class="brand-row"><span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span><button v-if="pwaUpdateAvailable" class="update-dot" title="Tap to update" aria-label="New version available — tap to update" @click.stop="pwaApplyUpdate?.()"></button></div><span v-if="envLabel" class="env-label" :class="`env-label--${envLabel.toLowerCase()}`">{{ envLabel }}</span></div>
+        <div class="brand"><span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span><span v-if="envLabel" class="env-label" :class="`env-label--${envLabel.toLowerCase()}`">{{ envLabel }}</span><button v-if="pwaUpdateAvailable" class="update-dot" title="Tap to update" aria-label="New version available — tap to update" @click.stop="pwaApplyUpdate?.()"></button></div>
 
         <!-- Belt row: skip back + timer + skip forward -->
         <div class="belt-row">
@@ -7058,14 +7058,8 @@ defineExpose({
   font-weight: 700;
   font-size: 1.5rem;
   letter-spacing: -0.02em;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.brand-row {
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .logo-say, .logo-in { color: var(--accent); }
@@ -7077,12 +7071,13 @@ defineExpose({
    shift on production where it's hidden. */
 .env-label {
   display: inline-block;
-  margin-top: 4px;
+  margin-left: 8px;
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 0.55em;
   font-weight: 700;
   letter-spacing: 0.1em;
+  vertical-align: middle;
   line-height: 1;
 }
 .env-label--staging {
