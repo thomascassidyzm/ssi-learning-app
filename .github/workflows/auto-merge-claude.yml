@@ -1,4 +1,9 @@
-name: Auto-merge claude/ branches to main
+name: Auto-merge claude/ branches to staging
+
+# SSi Learning App branch policy (see CLAUDE.md):
+#   - All work goes to staging first
+#   - staging → main merge is manual after ~1 week of testing
+# So claude/* branches from Claude Code web auto-merge to STAGING, not main.
 
 on:
   push:
@@ -9,7 +14,7 @@ permissions:
   contents: write
 
 jobs:
-  merge-to-main:
+  merge-to-staging:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -18,18 +23,20 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Merge to main and deploy
+      - name: Merge to staging
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git fetch origin main
+          # Refresh in case staging moved since checkout
+          git fetch origin staging
 
-          if git merge-base --is-ancestor origin/${{ github.ref_name }} origin/main; then
-            echo "Branch already merged into main — nothing to do"
+          # Skip if branch is already an ancestor of staging
+          if git merge-base --is-ancestor origin/${{ github.ref_name }} origin/staging; then
+            echo "Branch already merged into staging — nothing to do"
             exit 0
           fi
 
-          git checkout main
+          git checkout staging
           git merge origin/${{ github.ref_name }} --no-edit
-          git push origin main
+          git push origin staging
