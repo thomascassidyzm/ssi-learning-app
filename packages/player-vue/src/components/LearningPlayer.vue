@@ -406,6 +406,19 @@ const simplePlayer = useSimplePlayer()
 // use it directly (refs nested inside a plain object aren't auto-unwrapped).
 const audioFailedBanner = simplePlayer.audioFailed
 
+// Environment label shown inline next to the logo. Hostname-based so it
+// can't drift from reality (no env var plumbing). null on production.
+const envLabel = computed<string | null>(() => {
+  if (typeof window === 'undefined') return null
+  const host = window.location.hostname
+  const isProduction = host === 'saysomethingin.app'
+    || host === 'www.saysomethingin.app'
+    || host === 'app.saysomethingin.com'
+  if (isProduction) return null
+  if (host.startsWith('staging.') || host.includes('-staging')) return 'STAGING'
+  return 'DEV'
+})
+
 // Rounds storage (loaded from database, adapted for SimplePlayer)
 // Using any[] to allow mixed format: SimpleRound (cycles) + legacy ScriptItem (items)
 const loadedRounds = ref<any[]>([])
@@ -6111,7 +6124,7 @@ defineExpose({
     <header class="header" :class="{ 'has-banner': props.classContext }">
       <div class="header-stack">
         <!-- Brand -->
-        <div class="brand"><span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span><button v-if="pwaUpdateAvailable" class="update-dot" title="Tap to update" aria-label="New version available — tap to update" @click.stop="pwaApplyUpdate?.()"></button></div>
+        <div class="brand"><span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span><span v-if="envLabel" class="env-label" :class="`env-label--${envLabel.toLowerCase()}`">{{ envLabel }}</span><button v-if="pwaUpdateAvailable" class="update-dot" title="Tap to update" aria-label="New version available — tap to update" @click.stop="pwaApplyUpdate?.()"></button></div>
 
         <!-- Belt row: skip back + timer + skip forward -->
         <div class="belt-row">
@@ -7051,6 +7064,30 @@ defineExpose({
 
 .logo-say, .logo-in { color: var(--accent); }
 .logo-something { color: var(--text-primary); }
+
+/* Inline environment label shown next to the logo on non-production
+   hostnames so Aran / anyone can tell at a glance which deploy they're
+   looking at. Lives inside .brand so it shares the row — no layout
+   shift on production where it's hidden. */
+.env-label {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.55em;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  vertical-align: middle;
+  line-height: 1;
+}
+.env-label--staging {
+  background: #ffb800;
+  color: #0a0a0a;
+}
+.env-label--dev {
+  background: #ff5a5f;
+  color: #fff;
+}
 
 .update-dot {
   display: inline-block;

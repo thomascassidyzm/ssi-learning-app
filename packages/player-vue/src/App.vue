@@ -19,24 +19,6 @@ import PwaUpdatePrompt from './components/PwaUpdatePrompt.vue'
 import InstallBanner from './components/InstallBanner.vue'
 import DemoOverlay from './components/demo/DemoOverlay.vue'
 import TesterFeedback from './components/TesterFeedback.vue'
-import { computed } from 'vue'
-
-// Environment banner: makes it obvious at a glance which deployment
-// you're looking at. Shows STAGING on staging.saysomethingin.app,
-// DEV on localhost / preview / anything non-production, and nothing
-// on real production hostnames.
-const envBadge = computed(() => {
-  if (typeof window === 'undefined') return null
-  const host = window.location.hostname
-  // Known production hostnames — no banner there
-  const isProduction = host === 'saysomethingin.app'
-    || host === 'www.saysomethingin.app'
-    || host === 'app.saysomethingin.com'
-  if (isProduction) return null
-  if (host.startsWith('staging.') || host.includes('-staging')) return 'STAGING'
-  // Localhost, 127.*, *.local, Vercel preview URLs, ngrok — all "DEV"
-  return 'DEV'
-})
 
 // Suppress consecutive identical console errors/warnings after 3 repeats
 installConsoleDedup()
@@ -479,10 +461,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="app-root" :class="envBadge ? `env-${envBadge.toLowerCase()}` : ''">
-    <div v-if="envBadge" class="env-banner" :class="`env-banner--${envBadge.toLowerCase()}`">
-      <span class="env-banner__label">{{ envBadge }}</span>
-    </div>
+  <div class="app-root">
     <router-view />
     <PwaUpdatePrompt />
     <InstallBanner />
@@ -504,39 +483,5 @@ onMounted(async () => {
   min-height: 100vh;
   min-height: 100dvh;
   background: var(--bg-primary);
-}
-
-/* Environment banner — thin strip at the very top, unmissable.
-   Nudges the app content down so nothing is hidden behind it. */
-.env-banner {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 9999;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font: 700 11px/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  letter-spacing: 0.15em;
-  color: #0a0a0a;
-  pointer-events: none; /* never intercept taps */
-  user-select: none;
-}
-.env-banner--staging {
-  background: #ffb800; /* amber — staging */
-}
-.env-banner--dev {
-  background: #ff5a5f; /* red — local dev */
-  color: #fff;
-}
-.env-banner__label::before { content: '▸ '; opacity: 0.6; }
-.env-banner__label::after  { content: ' ◂'; opacity: 0.6; }
-
-/* Push the app content down so the banner doesn't cover the logo / nav */
-.app-root.env-staging,
-.app-root.env-dev {
-  padding-top: 22px;
 }
 </style>
