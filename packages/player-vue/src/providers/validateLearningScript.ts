@@ -202,11 +202,18 @@ export function validateRoundStructure(
     totalCycles: items.length,
   }
 
+  // Revival rounds (infinite-play mode) legitimately have no intro / debut —
+  // they're review-only for LEGOs the learner has already been introduced to.
+  // Generator tags them via uuid pattern "…_revive_R{n}_{c}". Skip the 4
+  // intro/debut structural checks for these rounds; per-item audio checks
+  // still run above.
+  const isRevivalRound = items.some(i => i.uuid?.includes('_revive_'))
+
   // -- Structural checks --
 
   // 1. Intro or component_intro must exist (M-LEGOs start with component_intro before the M-LEGO intro)
   const hasAnyIntro = intros.length > 0 || items.some(i => i.type === 'component_intro')
-  if (!hasAnyIntro) {
+  if (!isRevivalRound && !hasAnyIntro) {
     errors.push({
       cycleId: items[0]?.uuid || '',
       legoKey: primaryLegoKey,
@@ -218,7 +225,7 @@ export function validateRoundStructure(
   }
 
   // 2. Debut must exist
-  if (!structure.hasDebut) {
+  if (!isRevivalRound && !structure.hasDebut) {
     errors.push({
       cycleId: items[0]?.uuid || '',
       legoKey: primaryLegoKey,
@@ -230,7 +237,7 @@ export function validateRoundStructure(
   }
 
   // 3. Round must start with intro or component_intro
-  if (items.length > 0 && items[0].type !== 'intro' && items[0].type !== 'component_intro') {
+  if (!isRevivalRound && items.length > 0 && items[0].type !== 'intro' && items[0].type !== 'component_intro') {
     errors.push({
       cycleId: items[0].uuid,
       legoKey: items[0].legoKey,
@@ -244,7 +251,7 @@ export function validateRoundStructure(
   // 4. Debut must follow intro (possibly after component priming items)
   const debutIdx = items.findIndex(i => i.type === 'debut')
   const hasComponentPriming = items.some(i => i.type === 'component_intro' || i.type === 'component_practice')
-  if (items.length > 1 && !hasComponentPriming && items[1].type !== 'debut') {
+  if (!isRevivalRound && items.length > 1 && !hasComponentPriming && items[1].type !== 'debut') {
     errors.push({
       cycleId: items[1]?.uuid || '',
       legoKey: items[1]?.legoKey || primaryLegoKey,
