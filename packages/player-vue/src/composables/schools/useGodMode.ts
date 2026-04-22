@@ -8,6 +8,7 @@
 import { ref, computed, watch } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { useUserRole } from '@/composables/useUserRole'
+import { getSchoolsClient } from './client'
 
 export type EducationalRole = 'god' | 'student' | 'teacher' | 'school_admin' | 'govt_admin'
 
@@ -79,9 +80,11 @@ watch(selectedUser, (user) => {
 
 export function useGodMode(client?: SupabaseClient) {
 
+  // Resolve the Supabase client: prefer an explicitly injected one (admin views),
+  // fall back to the schools bridge (SchoolsContainer calls setSchoolsClient on mount).
   function requireClient(): SupabaseClient {
-    if (!client) throw new Error('[useGodMode] Supabase client required for queries')
-    return client
+    if (client) return client
+    return getSchoolsClient()
   }
 
   // Check if current authenticated user has god access
