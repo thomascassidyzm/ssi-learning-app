@@ -43,6 +43,13 @@ onMounted(() => {
           </div>
           <nav class="admin-nav">
             <router-link
+              :to="{ name: 'admin-schools' }"
+              class="nav-link"
+              :class="{ active: route.path.startsWith('/admin/schools') }"
+            >
+              <span class="nav-label">Schools</span>
+            </router-link>
+            <router-link
               to="/admin"
               class="nav-link"
               :class="{ active: route.path === '/admin' }"

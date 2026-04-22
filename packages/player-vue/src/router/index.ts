@@ -28,6 +28,11 @@ const routes: RouteRecordRaw[] = [
       title: 'Learn',
     },
   },
+  // Legacy redirect: /schools/setup → /admin/schools
+  {
+    path: '/schools/setup',
+    redirect: '/admin/schools',
+  },
   // Schools dashboard routes
   {
     path: '/schools',
@@ -37,6 +42,14 @@ const routes: RouteRecordRaw[] = [
         path: '',
         name: 'schools-dashboard',
         component: DashboardView,
+        beforeEnter: (_to, _from, next) => {
+          const { canAccessAdmin, canAccessSchools, restoreFromCache } = useUserRole()
+          restoreFromCache()
+          if (canAccessAdmin.value && !canAccessSchools.value) {
+            return next('/admin/schools')
+          }
+          next()
+        },
         meta: {
           title: 'Dashboard',
           description: 'Overview of school learning activity',
@@ -114,16 +127,6 @@ const routes: RouteRecordRaw[] = [
           description: 'Individual student progress view',
         },
       },
-      {
-        path: 'setup',
-        name: 'schools-setup',
-        component: () => import('@/views/schools/SetupView.vue'),
-        meta: {
-          title: 'Setup',
-          description: 'School, group, and entitlement management',
-          requiresAdmin: true,
-        },
-      },
     ],
   },
   // Listening Pods
@@ -197,6 +200,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/AdminTryLinks.vue'),
         meta: { title: 'Try Links', description: 'Zero-friction preview links for partners' },
       },
+      {
+        path: 'schools',
+        name: 'admin-schools',
+        component: () => import('@/views/admin/SchoolsSetup.vue'),
+        meta: { title: 'Schools Setup' },
+      },
     ],
   },
   // Shareable redeem link
@@ -251,18 +260,6 @@ router.beforeEach((to, _from, next) => {
   const { canAccessAdmin, restoreFromCache } = useUserRole()
   restoreFromCache()
   return canAccessAdmin.value ? next() : next('/')
-})
-
-// Guard schools routes — allow unauthenticated users through (container handles login)
-// Only block admin-only sub-routes (e.g. /schools/setup)
-router.beforeEach((to, _from, next) => {
-  if (!to.path.startsWith('/schools')) return next()
-  const { canAccessAdmin, restoreFromCache } = useUserRole()
-  restoreFromCache()
-  if (to.meta.requiresAdmin) {
-    return canAccessAdmin.value ? next() : next('/schools')
-  }
-  return next()
 })
 
 // Update document title on navigation

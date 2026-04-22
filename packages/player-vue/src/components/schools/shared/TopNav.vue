@@ -22,7 +22,7 @@ const router = useRouter()
 const auth = inject<any>('auth')
 const supabaseRef = inject<{ value: SupabaseClient | null }>('supabase')
 const { selectedUser, isGovtAdmin } = useGodMode()
-const { canAccessAdmin } = useUserRole()
+const { canAccessAdmin, canAccessSchools } = useUserRole()
 
 declare const __BUILD_NUMBER__: string
 const buildNumber = typeof __BUILD_NUMBER__ !== 'undefined' ? __BUILD_NUMBER__ : 'dev'
@@ -41,12 +41,12 @@ const baseTabs: NavTab[] = [
 ]
 
 const tabs = computed(() => {
-  const result = isGovtAdmin.value
-    ? [{ name: 'all-schools', path: '/schools/all', label: 'Schools' }, ...baseTabs]
-    : [...baseTabs]
-
-  if (canAccessAdmin.value) {
-    result.push({ name: 'setup', path: '/schools/setup', label: 'Setup' })
+  const result: NavTab[] = []
+  if (isGovtAdmin.value) {
+    result.push({ name: 'all-schools', path: '/schools/all', label: 'Schools' })
+  }
+  if (canAccessSchools.value) {
+    result.push(...baseTabs)
   }
   return result
 })
