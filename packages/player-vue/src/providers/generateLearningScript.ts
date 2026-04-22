@@ -203,6 +203,13 @@ export async function generateLearningScript(
   const componentsByLegoNative = new Map<string, Array<{ known: string; target: string }>>()
   // Full component phrases with audio IDs for component priming
   const componentPhrasesByLego = new Map<string, Phrase[]>()
+  // Same audio-completeness invariant as LEGOs: a phrase used in a cycle
+  // must have all three audio IDs. Visual-only component tiles
+  // (introduce === false, shown on intro cards without audio playback)
+  // are exempt — they're purely presentational.
+  const phraseHasFullAudio = (p: Phrase): boolean =>
+    !!(p.known_audio_id && p.target1_audio_id && p.target2_audio_id)
+  let phrasesSkippedForAudio = 0
   for (const phrase of (phrasesResult.data || []) as Phrase[]) {
     const key = `${phrase.seed_number}:${phrase.lego_index}`
     if (!phrasesByLego.has(key)) phrasesByLego.set(key, { build: [], use: [], practice: [] })
@@ -216,16 +223,27 @@ export async function generateLearningScript(
         if (!componentsByLegoNative.has(key)) componentsByLegoNative.set(key, [])
         componentsByLegoNative.get(key)!.push({ known: phrase.known_text, target: phrase.target_text })
       }
-      // Audio cycles (component_intro/component_practice) — only introduced components
+      // Audio cycles (component_intro/component_practice) — only introduced components with full audio
       if (phrase.introduce !== false) {
+        if (!phraseHasFullAudio(phrase)) {
+          phrasesSkippedForAudio++
+          continue
+        }
         if (!componentPhrasesByLego.has(key)) componentPhrasesByLego.set(key, [])
         componentPhrasesByLego.get(key)!.push(phrase)
       }
       continue
     }
+    if (!phraseHasFullAudio(phrase)) {
+      phrasesSkippedForAudio++
+      continue
+    }
     if (phrase.phrase_role === 'build') group.build.push(phrase)
     else if (phrase.phrase_role === 'use') group.use.push(phrase)
     else if (phrase.phrase_role === 'practice') group.practice.push(phrase)
+  }
+  if (phrasesSkippedForAudio > 0) {
+    console.warn(`[generateLearningScript] Skipped ${phrasesSkippedForAudio} practice phrases for "${courseCode}" (missing audio IDs)`)
   }
 
   console.log(`[generateLearningScript] ${phrasesResult.data?.length || 0} phrases fetched, ${componentsByLego.size} LEGOs with components`)
@@ -267,7 +285,15 @@ export async function generateLearningScript(
     target1_duration_ms?: number
     target2_duration_ms?: number
   }
-  const allLegos = (legosResult.data || []) as Lego[]
+  const allLegosRaw = (legosResult.data || []) as Lego[]
+  // Invariant: a cycle must never present without all three audio IDs.
+  // Partial-import courses (e.g. Greek 2026-04) had LEGOs with NULL target
+  // audio, which caused silent-play + circuit-breaker halts. Skip those
+  // rows here so the session only schedules playable cycles.
+  const allLegos = allLegosRaw.filter(
+    l => l.known_audio_id && l.target1_audio_id && l.target2_audio_id
+  )
+  const legosSkippedForAudio = allLegosRaw.length - allLegos.length
 
   // Backfill missing presentation_audio_id from course_audio / lego_introductions
   // Some courses have presentation audio generated but not yet linked to course_legos
@@ -320,16 +346,13 @@ export async function generateLearningScript(
     legosBySeed.get(lego.seed_number)!.push(lego)
   }
 
-  // Diagnostic: warn if no LEGOs found or all missing audio
-  if (allLegos.length === 0) {
+  // Diagnostic: report what was loaded and what was skipped for missing audio.
+  if (allLegosRaw.length === 0) {
     console.warn(`[generateLearningScript] No LEGOs found for course "${courseCode}" seeds ${startSeed}-${endSeed}`)
-  } else {
-    const missingAudio = allLegos.filter(l => !l.known_audio_id || !l.target1_audio_id || !l.target2_audio_id)
-    if (missingAudio.length === allLegos.length) {
-      console.warn(`[generateLearningScript] ALL ${allLegos.length} LEGOs for "${courseCode}" are missing audio IDs — course will not play`)
-    } else if (missingAudio.length > 0) {
-      console.warn(`[generateLearningScript] ${missingAudio.length}/${allLegos.length} LEGOs for "${courseCode}" missing audio IDs`)
-    }
+  } else if (allLegos.length === 0) {
+    console.warn(`[generateLearningScript] ALL ${allLegosRaw.length} LEGOs for "${courseCode}" are missing audio IDs — skipped, course will not play`)
+  } else if (legosSkippedForAudio > 0) {
+    console.warn(`[generateLearningScript] Skipped ${legosSkippedForAudio}/${allLegosRaw.length} LEGOs for "${courseCode}" (missing audio IDs)`)
   }
 
   const sortedSeedNums = Array.from(legosBySeed.keys()).sort((a, b) => a - b)

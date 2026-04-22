@@ -1,6 +1,6 @@
 # APML v2.0.0 - Lazy Loading & Instant Startup
 # SSI Learning App
-# Last Updated: 2026-01-27
+# Last Updated: 2026-04-22
 
 spec lazy_loading_architecture:
   version: "1.0.0"
@@ -179,22 +179,38 @@ spec lazy_loading_architecture:
   course_data_provider:
     file: "packages/player-vue/src/providers/CourseDataProvider.ts"
 
+    audio_completeness_invariant: |
+      All LEGO-loading and basket-loading queries filter out rows with any
+      missing audio ID (known_audio_id, target1_audio_id, target2_audio_id
+      all required NOT NULL). A cycle must never be presented to the player
+      without all three audio IDs — partial-import courses (e.g. Greek
+      2026-04) had NULL target audio that caused silent-play and
+      circuit-breaker halts. The filter is applied at the query level in:
+        - loadSessionItems / loadLegoAtPosition / loadLegoRange
+        - getLegoBasket / getLegoBasketsForSeed / getBasketsBatch
+      The diagnostic queries loadAllUniqueLegos / loadAllPracticePhrases
+      (used only by CourseExplorer QA) deliberately do NOT filter, so
+      admins can see broken rows.
+
     lazy_methods:
       loadLegoAtPosition:
         signature: "loadLegoAtPosition(seedNumber: number): Promise<LearningItem | null>"
         purpose: "Load single LEGO at seed position (for fast startup)"
         performance: "~50ms single query"
+        returns_null_when: "no row at position, OR row exists but audio incomplete"
 
       loadLegoRange:
         signature: "loadLegoRange(startSeed: number, endSeed: number): Promise<LearningItem[]>"
         purpose: "Load range of LEGOs (for belt loading)"
         performance: "~100-200ms single query"
         deduplication: "Keeps first LEGO per seed_number"
+        filters: "Only LEGOs with all three audio IDs populated"
 
       getBasketsBatch:
         signature: "getBasketsBatch(legoIds: string[]): Promise<Map<string, ClassifiedBasket>>"
         purpose: "Batch load baskets (one query instead of N)"
         performance: "~100-200ms vs N*50ms"
+        filters: "Only practice phrases with all three audio IDs populated"
 
   ## ==========================================================================
   ## DATA FLOW
