@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { createCyclePlayer, CircuitOpenError, AudioGestureRequiredError, type CyclePlayer } from './CyclePlayer'
+import { createCyclePlayer, AudioGestureRequiredError, type CyclePlayer } from './CyclePlayer'
 import type { Cycle } from '../types/Cycle'
 import type { CycleEventData, AudioSource } from './types'
 import { createPlaybackConfig } from './PlaybackConfig'
@@ -105,12 +105,15 @@ describe('CyclePlayer', () => {
     expect(player.state.value.isPlaying).toBe(false)
   })
 
-  it('should handle audio source errors', async () => {
+  it('should handle audio source errors by emitting cycle:error and resolving', async () => {
+    // Audio source failures must not throw — the caller relies on playCycle
+    // resolving so its loop can advance to the next cycle. We surface the
+    // failure via the cycle:error event and state.error, nothing more.
     const failingGetAudio = vi.fn().mockResolvedValue(null)
     const events: CycleEventData[] = []
     player.on((event) => events.push(event))
 
-    await expect(player.playCycle(mockCycle, failingGetAudio)).rejects.toThrow('Known audio not found')
+    await expect(player.playCycle(mockCycle, failingGetAudio)).resolves.toBeUndefined()
 
     const errorEvent = events.find(e => e.type === 'cycle:error')
     expect(errorEvent).toBeDefined()
@@ -190,7 +193,7 @@ describe('CyclePlayer - State Transitions', () => {
   })
 })
 
-describe('CyclePlayer - Circuit Breaker', () => {
+describe('CyclePlayer - Failure handling', () => {
   let player: CyclePlayer
 
   const mockCycle: Cycle = {
@@ -212,55 +215,25 @@ describe('CyclePlayer - Circuit Breaker', () => {
     player.dispose()
   })
 
-  it('should throw CircuitOpenError after configured consecutive failures', async () => {
+  it('swallows audio resolution failures so the caller can advance to the next cycle', async () => {
+    // Missing audio source used to throw; now we just emit cycle:error and
+    // resolve so the session loop keeps ploughing on. The learner never
+    // sees "player stopped" because of a bad UUID.
     const failingGetAudio = vi.fn().mockResolvedValue(null)
-    const config = createPlaybackConfig({ maxConsecutiveFailures: 3 })
+    const config = createPlaybackConfig()
 
-    // First two failures throw generic errors
-    await expect(player.playCycle(mockCycle, failingGetAudio, config)).rejects.toThrow()
-    expect(player.consecutiveFailures.value).toBe(1)
-
-    await expect(player.playCycle(mockCycle, failingGetAudio, config)).rejects.toThrow()
-    expect(player.consecutiveFailures.value).toBe(2)
-
-    // Third failure trips the breaker
-    await expect(player.playCycle(mockCycle, failingGetAudio, config)).rejects.toThrow(CircuitOpenError)
-    expect(player.consecutiveFailures.value).toBe(3)
-  })
-
-  it('should expose failure details on CircuitOpenError', async () => {
-    const failingGetAudio = vi.fn().mockResolvedValue(null)
-    const config = createPlaybackConfig({ maxConsecutiveFailures: 1 })
-
-    try {
-      await player.playCycle(mockCycle, failingGetAudio, config)
-      expect.fail('Expected CircuitOpenError')
-    } catch (err) {
-      expect(err).toBeInstanceOf(CircuitOpenError)
-      if (err instanceof CircuitOpenError) {
-        expect(err.failures).toBe(1)
-        expect(err.lastError).toMatch(/not found/i)
-      }
-    }
-  })
-
-  it('resetCircuit() clears the consecutive failure counter', async () => {
-    const failingGetAudio = vi.fn().mockResolvedValue(null)
-    const config = createPlaybackConfig({ maxConsecutiveFailures: 5 })
-
-    await expect(player.playCycle(mockCycle, failingGetAudio, config)).rejects.toThrow()
-    await expect(player.playCycle(mockCycle, failingGetAudio, config)).rejects.toThrow()
-    expect(player.consecutiveFailures.value).toBe(2)
-
-    player.resetCircuit()
-    expect(player.consecutiveFailures.value).toBe(0)
+    await expect(player.playCycle(mockCycle, failingGetAudio, config)).resolves.toBeUndefined()
+    await expect(player.playCycle(mockCycle, failingGetAudio, config)).resolves.toBeUndefined()
+    await expect(player.playCycle(mockCycle, failingGetAudio, config)).resolves.toBeUndefined()
   })
 
   it('throws AudioGestureRequiredError immediately on autoplay rejection', async () => {
     const getAudio = vi.fn().mockResolvedValue({ type: 'blob', blob: new Blob(['audio']) })
-    const config = createPlaybackConfig({ maxConsecutiveFailures: 3 })
+    const config = createPlaybackConfig()
 
-    // Simulate the browser autoplay policy rejecting play()
+    // Simulate the browser autoplay policy rejecting play(). This is the
+    // one remaining halt: the browser will not play anything else until
+    // the user taps, so bubbling up is correct.
     const notAllowed = new Error('The play() request was interrupted because the user didn\'t interact with the document first.')
     notAllowed.name = 'NotAllowedError'
     mockAudio.play = vi.fn().mockRejectedValue(notAllowed)
@@ -271,9 +244,5 @@ describe('CyclePlayer - Circuit Breaker', () => {
     } catch (err) {
       expect(err).toBeInstanceOf(AudioGestureRequiredError)
     }
-
-    // Must NOT count toward the circuit breaker — a tap-to-resume
-    // is the right response, not a "circuit open" degradation.
-    expect(player.consecutiveFailures.value).toBe(0)
   })
 })

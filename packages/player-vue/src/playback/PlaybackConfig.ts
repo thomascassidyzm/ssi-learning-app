@@ -22,14 +22,6 @@ export interface PlaybackConfig {
 
   /** Maximum BUILD phase phrases per round */
   maxBuildPhrases: number
-
-  /**
-   * Circuit-breaker threshold: number of consecutive cycle failures before
-   * the player refuses to keep trying and surfaces a fatal error to the
-   * session layer. Prevents one bad UUID / S3 outage from burning the
-   * whole session on repeated 15s stall timeouts.
-   */
-  maxConsecutiveFailures: number
 }
 
 export const DEFAULT_PLAYBACK_CONFIG: PlaybackConfig = {
@@ -39,7 +31,6 @@ export const DEFAULT_PLAYBACK_CONFIG: PlaybackConfig = {
   spacedRepCount: 3,
   consolidationCount: 2,
   maxBuildPhrases: 7,
-  maxConsecutiveFailures: 3,
 }
 
 /**

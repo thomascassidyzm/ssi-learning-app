@@ -27,23 +27,6 @@ export interface CyclePlayerState {
 }
 
 /**
- * Thrown when the circuit breaker opens after too many consecutive cycle
- * failures. The session layer catches this specifically to pause playback
- * and hand off to the offline degradation ladder, rather than silently
- * continuing (which would stall forever if audio is fundamentally broken).
- */
-export class CircuitOpenError extends Error {
-  readonly failures: number
-  readonly lastError: string
-  constructor(failures: number, lastError: string) {
-    super(`Audio playback circuit opened after ${failures} consecutive failures: ${lastError}`)
-    this.name = 'CircuitOpenError'
-    this.failures = failures
-    this.lastError = lastError
-  }
-}
-
-/**
  * Thrown when the browser rejects audio playback because it needs a fresh
  * user gesture. This is the iOS Safari / Chrome autoplay-policy scenario —
  * most commonly triggered when the tab has been backgrounded for a while
@@ -95,16 +78,6 @@ export interface CyclePlayer {
   /** Unsubscribe from cycle events */
   off(handler: CycleEventHandler): void
 
-  /**
-   * Reset the consecutive-failure counter that drives the circuit breaker.
-   * Call after the session layer has handled a circuit-open condition
-   * (e.g. offline fallback succeeded, user manually retried).
-   */
-  resetCircuit(): void
-
-  /** Current consecutive-failure count (for telemetry / UI) */
-  readonly consecutiveFailures: Ref<number>
-
   /** Cleanup resources (call on unmount) */
   dispose(): void
 }
@@ -132,12 +105,6 @@ export function createCyclePlayer(): CyclePlayer {
   let currentBlobUrl: string | null = null
   let safetyTimer: ReturnType<typeof setTimeout> | null = null
   let stallCheck: ReturnType<typeof setInterval> | null = null
-
-  // Circuit breaker state: counts consecutive cycle failures. Reset on any
-  // successful cycle. When it reaches the configured threshold, playCycle
-  // throws CircuitOpenError so the session layer can pause / degrade
-  // instead of silently continuing to hammer a broken audio source.
-  const consecutiveFailures = ref(0)
 
   /**
    * Get or create the single audio element
@@ -444,8 +411,6 @@ export function createCyclePlayer(): CyclePlayer {
 
       if (aborted) return
 
-      // Cycle complete — reset the circuit breaker on any successful cycle
-      consecutiveFailures.value = 0
       state.value.phase = 'idle'
       state.value.isPlaying = false
       emit('cycle:complete', cycle, 'idle')
@@ -458,29 +423,16 @@ export function createCyclePlayer(): CyclePlayer {
         state.value.isPlaying = false
         emit('cycle:error', cycle, 'idle', message)
 
-        // Gesture-required errors are not "failures" in the circuit-breaker
-        // sense — they're a clear signal from the browser that we need a
-        // user tap, not that audio is broken. Surface them immediately so
-        // the session layer can prompt for a tap. Don't burn through the
-        // circuit-breaker budget on them.
+        // Gesture-required errors are the only halt we keep: the browser
+        // will not let us play anything until the user taps, so bubbling
+        // up is the right move. Anything else (bad UUID, 404, decode) —
+        // swallow and resolve so the caller's loop advances to the next
+        // cycle. The learner experience must never stall on data / infra.
         if (err instanceof AudioGestureRequiredError) {
           throw err
         }
-
-        consecutiveFailures.value++
-        if (consecutiveFailures.value >= config.maxConsecutiveFailures) {
-          throw new CircuitOpenError(consecutiveFailures.value, message)
-        }
-        throw err
       }
     }
-  }
-
-  /**
-   * Reset the circuit-breaker failure counter
-   */
-  function resetCircuit(): void {
-    consecutiveFailures.value = 0
   }
 
   /**
@@ -540,12 +492,10 @@ export function createCyclePlayer(): CyclePlayer {
 
   return {
     state: readonly(state) as Ref<CyclePlayerState>,
-    consecutiveFailures: readonly(consecutiveFailures) as Ref<number>,
     playCycle,
     stop,
     on,
     off,
-    resetCircuit,
     dispose,
   }
 }

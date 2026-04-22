@@ -46,23 +46,24 @@ type EventName =
   | 'cycle_completed'
   | 'round_completed'
   | 'session_complete'
-  | 'audio_failed' // Circuit-breaker tripped or gesture-required: session has been paused.
+  | 'audio_failed' // Browser needs a fresh user gesture to play audio (iOS autoplay).
 type EventCallback = (data?: unknown) => void
 
 export interface AudioFailedEvent {
-  /** 'circuit' = repeated errors / timeouts; 'needs-gesture' = browser autoplay policy */
-  reason: 'circuit' | 'needs-gesture'
-  failureCount: number
+  /**
+   * Only 'needs-gesture' remains: iOS Safari revokes the audio unlock when
+   * a tab has been backgrounded long enough, and play() then rejects with
+   * NotAllowedError. The UI prompts "tap to resume" and a user tap
+   * restores playback. All other audio failures (bad UUID, 404, 5xx,
+   * safety timeout) are logged and skipped — the player ploughs on so
+   * the learner experience is never interrupted by data / infra issues.
+   */
+  reason: 'needs-gesture'
   lastError?: string
 }
 
 // Fallback: bootUpTime(2000) + scaleFactor(0.75) × estimatedTarget(6000) = 6500ms
 const DEFAULT_PAUSE_DURATION = 6500
-
-// After this many consecutive audio failures (error, safety timeout, or
-// rejected play() that isn't a gesture-required rejection), we pause the
-// session and emit 'audio_failed' rather than silently advancing forever.
-const MAX_CONSECUTIVE_FAILURES = 3
 
 function isGestureRequiredError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false
@@ -89,57 +90,23 @@ export class SimplePlayer {
   // advancing the phase machine from a superseded audio request.
   private playGeneration: number = 0
 
-  // Circuit-breaker state. Reset on any natural audio end. Incremented
-  // on error / safety-timeout / non-gesture play() rejection. When it
-  // reaches MAX_CONSECUTIVE_FAILURES, emit 'audio_failed' and pause
-  // rather than silently advancing forever through broken audio.
-  private consecutiveFailures: number = 0
-
   constructor(rounds: Round[]) {
     this.rounds = rounds
     this.audio = new Audio()
     this.state = { roundIndex: 0, cycleIndex: 0, phase: 'idle', isPlaying: false }
 
-    this.onEndedHandler = () => {
-      // Natural audio end = successful playback. Reset the breaker.
-      this.consecutiveFailures = 0
-      this.onAudioEnded()
-    }
+    this.onEndedHandler = () => this.onAudioEnded()
     this.onErrorHandler = (e: Event) => {
-      console.error('Audio error:', e)
+      // Audio element fired an error during playback. Log and advance.
+      // The learner experience must never stall on a broken UUID / 404.
+      console.warn('[SimplePlayer] audio error — skipping cycle:', e)
       if (this.state.phase !== 'pause' && this.state.phase !== 'idle') {
-        const msg = this.audio.error ? `code ${this.audio.error.code}` : 'unknown'
-        if (this.recordFailureAndMaybeTrip(msg)) return
         this.onAudioEnded()
       }
     }
 
     this.audio.addEventListener('ended', this.onEndedHandler)
     this.audio.addEventListener('error', this.onErrorHandler)
-  }
-
-  /**
-   * Increment the failure counter and, if the threshold is reached,
-   * pause the session and emit 'audio_failed'. Returns true if the
-   * circuit tripped (caller should NOT advance the cycle).
-   */
-  private recordFailureAndMaybeTrip(lastError: string): boolean {
-    this.consecutiveFailures++
-    if (this.consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-      console.warn(`[SimplePlayer] Circuit breaker opened after ${this.consecutiveFailures} failures — pausing session`)
-      this.audio.pause()
-      this.clearPauseTimer()
-      this.clearSafetyTimer()
-      this.clearLingerTimer()
-      this.updateState({ isPlaying: false })
-      this.emit('audio_failed', {
-        reason: 'circuit',
-        failureCount: this.consecutiveFailures,
-        lastError,
-      } satisfies AudioFailedEvent)
-      return true
-    }
-    return false
   }
 
   /**
@@ -156,16 +123,8 @@ export class SimplePlayer {
     this.updateState({ isPlaying: false })
     this.emit('audio_failed', {
       reason: 'needs-gesture',
-      failureCount: 0,
       lastError,
     } satisfies AudioFailedEvent)
-  }
-
-  /** Reset the circuit-breaker counter. Called on user-initiated
-   * transitions (play/resume/jump) so the next attempt gets a fresh
-   * budget of retries. */
-  private resetCircuit(): void {
-    this.consecutiveFailures = 0
   }
 
   // Event emitter
@@ -279,8 +238,6 @@ export class SimplePlayer {
       return
     }
     console.debug(`[SimplePlayer] Starting Round ${round.roundNumber} (${round.legoId}): ${round.cycles.length} cycles`)
-    // Fresh user-initiated play — give the circuit breaker a clean slate.
-    this.resetCircuit()
     this.updateState({ isPlaying: true })
     this.startPhase('prompt')
   }
@@ -296,10 +253,8 @@ export class SimplePlayer {
 
   resume(): void {
     if (this.state.isPlaying) return
-    // Resume is user-initiated (tap). If we previously paused because the
-    // autoplay policy blocked us or the circuit broke, the user tap IS
-    // the gesture / fresh budget we need — clear the counter.
-    this.resetCircuit()
+    // Resume is user-initiated (tap). The tap provides the audio unlock
+    // iOS needs after a backgrounded pause.
     this.updateState({ isPlaying: true })
 
     if (this.state.phase === 'pause') {
@@ -346,8 +301,6 @@ export class SimplePlayer {
     this.clearLingerTimer()
     this.audio.pause()
     this.audio.src = ''
-    // Jumping is an explicit navigation — fresh circuit budget.
-    this.resetCircuit()
     const wasPlaying = this.state.isPlaying
     // Must set isPlaying: false so play() doesn't early-return
     this.updateState({ roundIndex: index, cycleIndex: 0, phase: 'idle', isPlaying: false })
@@ -417,19 +370,20 @@ export class SimplePlayer {
       if (gen !== this.playGeneration) return
       console.warn('[SimplePlayer] play() rejected:', err.message)
       if (isGestureRequiredError(err)) {
-        // Autoplay policy blocked us — pause on first occurrence so the
-        // UI can prompt "tap to resume" instead of silently advancing.
+        // Autoplay policy blocked us — pause so the UI can prompt
+        // "tap to resume". This is the only halt left: the browser
+        // will not let us play anything else until the user taps.
         this.tripGestureRequired(err.message || 'autoplay blocked')
         return
       }
-      if (this.recordFailureAndMaybeTrip(err.message || 'play-rejected')) return
+      // Any other play() rejection (bad src, network, decode) — skip
+      // the cycle and plough on. Learner experience must not stall.
       this.onAudioEnded()
     })
     this.safetyTimer = setTimeout(() => {
       // Ignore if a newer playAudio call has started
       if (gen !== this.playGeneration) return
       console.warn('[SimplePlayer] Safety timeout — audio ended event never fired, advancing')
-      if (this.recordFailureAndMaybeTrip('safety-timeout')) return
       this.onAudioEnded()
     }, 10_000)
   }

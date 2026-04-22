@@ -132,7 +132,7 @@ export type SessionEventType =
   | 'session:paused'
   | 'session:resumed'
   | 'session:complete'
-  | 'session:audio-failed'  // Circuit breaker opened — audio is failing repeatedly
+  | 'session:audio-failed'  // Browser autoplay policy rejected playback — needs user gesture to resume
   | 'round:started'
   | 'round:completed'
   | 'round:loaded'    // Round added via lazy loading
@@ -149,9 +149,7 @@ export interface SessionEventData {
   progress?: SessionProgress
   /** For round:loaded and round:loading events */
   roundNumber?: number
-  /** For session:audio-failed: number of consecutive failures that triggered the circuit */
-  failureCount?: number
-  /** For session:audio-failed: last error message */
+  /** For session:audio-failed: last error message (typically 'needs-gesture') */
   errorMessage?: string
 }
 

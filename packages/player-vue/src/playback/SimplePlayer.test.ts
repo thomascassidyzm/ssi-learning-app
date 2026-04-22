@@ -57,7 +57,7 @@ function makeRound(legoId: string): Round {
   }
 }
 
-describe('SimplePlayer — circuit breaker', () => {
+describe('SimplePlayer — failure handling', () => {
   let mockAudio: MockAudio
 
   beforeEach(() => {
@@ -71,25 +71,24 @@ describe('SimplePlayer — circuit breaker', () => {
     vi.unstubAllGlobals()
   })
 
-  it('emits audio_failed with reason=circuit after 3 consecutive safety timeouts', () => {
+  it('does NOT emit audio_failed after repeated safety timeouts — ploughs on instead', () => {
+    // Learner experience must never stall on a broken UUID / 404 / stall.
+    // The old circuit breaker halted after 3 failures; now we log and advance.
     const player = new SimplePlayer([makeRound('S0001L01')])
     const failedEvents: AudioFailedEvent[] = []
     player.on('audio_failed', (e) => failedEvents.push(e as AudioFailedEvent))
 
     player.play()
-    // Fire safety timer 3 times
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 5; i++) {
       vi.advanceTimersByTime(10_000)
     }
 
-    expect(failedEvents.length).toBe(1)
-    expect(failedEvents[0].reason).toBe('circuit')
-    expect(failedEvents[0].failureCount).toBe(3)
-    // Session should have been paused
-    expect(mockAudio.pause).toHaveBeenCalled()
+    expect(failedEvents.length).toBe(0)
   })
 
   it('emits audio_failed with reason=needs-gesture on NotAllowedError from play()', async () => {
+    // The one halt we keep: the browser will not play ANY audio until the
+    // user taps, so we must pause and surface the gesture prompt.
     const notAllowed = Object.assign(new Error('User didn\'t interact'), { name: 'NotAllowedError' })
     mockAudio.play = vi.fn().mockRejectedValue(notAllowed)
 
@@ -105,40 +104,5 @@ describe('SimplePlayer — circuit breaker', () => {
 
     expect(failedEvents.length).toBe(1)
     expect(failedEvents[0].reason).toBe('needs-gesture')
-    // Gesture-required does NOT consume the circuit budget
-    expect(failedEvents[0].failureCount).toBe(0)
-  })
-
-  it('resets the failure counter on a natural audio ended', () => {
-    const player = new SimplePlayer([makeRound('S0001L01')])
-    const failedEvents: AudioFailedEvent[] = []
-    player.on('audio_failed', (e) => failedEvents.push(e as AudioFailedEvent))
-
-    player.play()
-    // Two safety-timeout failures...
-    vi.advanceTimersByTime(10_000)
-    vi.advanceTimersByTime(10_000)
-    // ...then a successful audio end
-    mockAudio._endedHandler?.()
-    // ...then two more safety timeouts — still shouldn't trip
-    vi.advanceTimersByTime(10_000)
-    vi.advanceTimersByTime(10_000)
-
-    expect(failedEvents.length).toBe(0)
-  })
-
-  it('resume() resets the circuit budget so a paused session can retry', () => {
-    const player = new SimplePlayer([makeRound('S0001L01')])
-    const failedEvents: AudioFailedEvent[] = []
-    player.on('audio_failed', (e) => failedEvents.push(e as AudioFailedEvent))
-
-    player.play()
-    for (let i = 0; i < 3; i++) vi.advanceTimersByTime(10_000)
-    expect(failedEvents.length).toBe(1)
-
-    // User taps Play → circuit resets → one more failure shouldn't re-trip
-    player.resume()
-    vi.advanceTimersByTime(10_000)
-    expect(failedEvents.length).toBe(1)
   })
 })
