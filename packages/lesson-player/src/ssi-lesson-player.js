@@ -41,8 +41,9 @@ const DEFAULT_AUDIO_BASE = 'https://saysomethingin.app/api/audio/';
 // ---------------------------------------------------------------------------
 
 const PHASE_CAPTIONS = {
-  'intro-teach': 'meet the new piece',
-  'intro-flash': 'that’s what it looks like',
+  'intro-teach':  'meet the new piece',
+  'intro-voice1': 'here’s how it sounds',
+  'intro-voice2': 'now you’ve got it',
   prompt:  'listen',
   pause:   'your turn — speak, don’t freeze',
   voice1:  'here’s how it sounds',
@@ -801,7 +802,6 @@ const STYLES = `
 // Dynamic pause duration = 2× target audio length (approx)
 const PAUSE_MULTIPLIER = 2.0;
 const GAP_BETWEEN_CYCLES_MS = 350;
-const INTRO_TARGET_FLASH_MS = 1400;    // how long target text shows at end of an intro
 const MILESTONE_DURATION_MS = 2600;
 const PHILOSOPHY_AT_CYCLE_RATIO = 0.45;  // show one philosophy line ~45% through
 const DEFAULT_DURATION_MIN = 30;       // default clamp in minutes
@@ -1003,8 +1003,18 @@ class SsiLessonPlayer extends HTMLElement {
     this._maybeShowPhilosophy();
 
     if (INTRO_TYPES.has(cycle.type)) {
-      // INTRO: play the narration, show known text during, flash target at end.
-      // No pause phase — this is a teaching moment, not a practice moment.
+      // INTRO: presentation, not practice. Sequence is:
+      //   1. narration (presentation_audio: "The French for X as in Y is…")
+      //      — the narration ends on "is…" and does NOT include the target word.
+      //      The target word is supplied by target1/target2, completing the breath.
+      //   2. target voice 1 (same target1_audio_id the DEBUT cycle will use)
+      //   3. target voice 2 (same target2_audio_id)
+      // No learner pause — they're being presented to, not prompted to produce.
+      // Text on screen during narration: known_text (e.g. "I want").
+      // As soon as the target audio begins: the target text reveals (e.g. "je veux")
+      // — the narration has just cued up "is…", target audio + text complete the sentence.
+
+      // 1. Narration
       this._phase = 'intro-teach';
       this._setPhaseCaption();
       this._render();
@@ -1013,11 +1023,29 @@ class SsiLessonPlayer extends HTMLElement {
       }
       if (!this._playing) return;
 
-      // Brief flash of target text so the eye sees the correct form
-      this._phase = 'intro-flash';
+      // Natural teaching pause — the gap a human would give between
+      // "…is…" and the target word. Builds a little anticipation.
+      await this._wait(500);
+      if (!this._playing) return;
+
+      // 2. Target voice 1 — target text reveals here (completes the sentence)
+      this._phase = 'intro-voice1';
       this._setPhaseCaption();
       this._render();
-      await this._wait(INTRO_TARGET_FLASH_MS);
+      if (cycle.target1_audio_id) {
+        try { await this._playAudio(this._audioUrl(cycle.target1_audio_id)); } catch { /* continue */ }
+      }
+      if (!this._playing) return;
+
+      await this._wait(200);
+
+      // 3. Target voice 2 — target text stays visible
+      this._phase = 'intro-voice2';
+      this._setPhaseCaption();
+      this._render();
+      if (cycle.target2_audio_id) {
+        try { await this._playAudio(this._audioUrl(cycle.target2_audio_id)); } catch { /* continue */ }
+      }
       if (!this._playing) return;
     } else {
       // STANDARD 4-phase cycle: prompt → pause → voice1 → voice2
@@ -1123,11 +1151,11 @@ class SsiLessonPlayer extends HTMLElement {
   }
 
   _phaseBeadIndex() {
-    // Standard 4-phase cycle: 0..3 for prompt/pause/voice1/voice2
-    // INTRO uses a 2-phase map onto beads 0 and 3 (first + last)
+    // Standard 4-phase practice: prompt=0 pause=1 voice1=2 voice2=3
+    // INTRO presentation: teach=0, (no pause bead lit — no learner pause), voice1=2, voice2=3
     const map = {
       prompt: 0, pause: 1, voice1: 2, voice2: 3,
-      'intro-teach': 0, 'intro-flash': 3,
+      'intro-teach': 0, 'intro-voice1': 2, 'intro-voice2': 3,
     };
     return map[this._phase] ?? -1;
   }
@@ -1147,14 +1175,20 @@ class SsiLessonPlayer extends HTMLElement {
     const m = this._manifest;
     const cycle = m.cycles[Math.min(this._cycleIndex, m.cycles.length - 1)];
     const isIntroCycle = cycle && INTRO_TYPES.has(cycle.type);
-    // Known text shows: during the narration-teach, during prompt/pause/voice1
+    // Known text shows during narration ("The French for I want as in … is…") and
+    // during the standard practice prompt/pause/voice1 (hiding the target until voice2).
     const showKnown = this._phase === 'intro-teach'
                    || this._phase === 'prompt'
                    || this._phase === 'pause'
                    || this._phase === 'voice1';
-    // Target text shows: during the intro flash, and during voice2 of a standard cycle
-    const showTarget = this._phase === 'intro-flash' || this._phase === 'voice2';
-    // Mic activates during pause (your turn). Intros don't prompt speech, so mic stays calm.
+    // Target text reveals:
+    //  - at intro-voice1 (the moment the target audio completes the "is…" breath),
+    //    staying through intro-voice2;
+    //  - at standard voice2 (the reveal moment in practice cycles).
+    const showTarget = this._phase === 'intro-voice1'
+                    || this._phase === 'intro-voice2'
+                    || this._phase === 'voice2';
+    // Mic activates only during the standard practice pause. Intros don't prompt speech.
     const micActive = this._phase === 'pause';
     const belt = cycle?.belt_progress || 0;
     const beltPct = Math.round(belt * 100);
