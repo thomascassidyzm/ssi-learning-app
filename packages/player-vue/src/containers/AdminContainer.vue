@@ -27,13 +27,6 @@ onMounted(() => {
             </div>
           </div>
           <div class="header-shortcuts">
-            <router-link to="/schools" class="shortcut-link">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-                <polyline points="9 22 9 12 15 12 15 22"/>
-              </svg>
-              Schools
-            </router-link>
             <router-link to="/demo" class="shortcut-link">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polygon points="5 3 19 12 5 21 5 3"/>
