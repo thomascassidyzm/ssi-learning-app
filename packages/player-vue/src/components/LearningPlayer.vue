@@ -2903,7 +2903,7 @@ class RealAudioController {
 // ENGINE EVENT HANDLING
 // ============================================
 
-const handleCycleEvent = (event) => {
+const handleCycleEvent = async (event) => {
   switch (event.type) {
     case 'phase_changed':
       // Handle phase-specific logic
@@ -3042,11 +3042,19 @@ const handleCycleEvent = (event) => {
           currentRoundIndex.value++
           currentItemInRound.value = 0
 
-          // Check if we've completed all rounds
+          // The course never ends. If we've somehow run past the tail of
+          // cachedRounds (proactive expansion at line 894 should have kept
+          // us ahead), do an emergency expansion and re-check. Only fall
+          // back to the summary screen if expansion genuinely can't
+          // produce any more content (no LEGOs in the course at all).
           if (currentRoundIndex.value >= cachedRounds.value.length) {
-            console.log('[LearningPlayer] All rounds complete!')
-            showPausedSummary()
-            return
+            console.warn('[LearningPlayer] Ran off the tail of cached rounds — expanding now')
+            await expandScript()
+            if (currentRoundIndex.value >= cachedRounds.value.length) {
+              console.error('[LearningPlayer] Expansion produced nothing — showing summary as last resort')
+              showPausedSummary()
+              return
+            }
           }
 
           console.log('[LearningPlayer] Starting round', currentRoundIndex.value, 'LEGO:', cachedRounds.value[currentRoundIndex.value].legoId)
@@ -4651,14 +4659,33 @@ const populateNetworkUpToRound = (_targetRoundIndex: number) => {}
 
 // ============================================
 // PROGRESSIVE SCRIPT EXPANSION
-// Now handled by PriorityRoundLoader in the background
-// This function is kept as a no-op stub for backwards compatibility
+// The course never ends. As the learner approaches the tail of
+// cachedRounds we regenerate with a bigger endSeed — generateLearningScript
+// produces revival rounds past the last new LEGO, so play is unbounded.
 // ============================================
+const EXPANSION_BATCH = 50  // generate this many more rounds on each expand
 const expandScript = async () => {
-  // PriorityRoundLoader handles script expansion automatically in the background
-  // This function is a no-op stub - the background loader should have already
-  // loaded rounds before they're needed
-  console.log('[LearningPlayer] expandScript called - handled by PriorityRoundLoader')
+  if (isExpandingScript.value) return
+  if (!supabase?.value) return
+  if (!courseCode.value) return
+
+  isExpandingScript.value = true
+  try {
+    const currentLength = cachedRounds.value.length
+    const neededEnd = scriptBaseOffset.value + currentLength + EXPANSION_BATCH
+    const result = await generateSimpleScript(supabase.value, courseCode.value, 1, neededEnd, 1)
+    const expandedRounds = toSimpleRoundsWithComponents(result.items)
+    if (expandedRounds.length > currentLength) {
+      cachedRounds.value = expandedRounds as any
+      console.log(`[LearningPlayer] Expanded script: ${currentLength} → ${expandedRounds.length} rounds`)
+    } else {
+      console.warn('[LearningPlayer] Expansion produced no new rounds — generator may be out of LEGOs to revive')
+    }
+  } catch (err) {
+    console.error('[LearningPlayer] Expansion failed:', err)
+  } finally {
+    isExpandingScript.value = false
+  }
 }
 
 // Network interaction functions removed — see archive/brain-views branch
