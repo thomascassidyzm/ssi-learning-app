@@ -3,11 +3,13 @@
  *
  * Usage:
  *   <script src="https://cdn.saysomethingin.com/lesson-player.js"></script>
- *   <ssi-lesson-player course="spa_for_eng" autoplay="false"></ssi-lesson-player>
+ *   <ssi-lesson-player course="spa_for_eng" duration="30"></ssi-lesson-player>
  *
  * Attributes:
  *   course          Course code — fetches matching manifest. Required.
- *   autoplay        "true"|"false". Default false. If true, starts playing on load.
+ *   duration        Playback length in minutes. Default 30. Player stops
+ *                   when total elapsed exceeds this (or cycles exhausted).
+ *   autoplay        "true"|"false". Default false. Starts playing on load.
  *   manifest-src    Override base URL for manifests. Default relative to script.
  *   audio-src       Override base URL for audio proxy. Default saysomethingin.app.
  *   show-hints      "true"|"false". Default true. Toggle methodology overlay captions.
@@ -17,13 +19,18 @@
  *   - Shadow DOM (host-page CSS never leaks in, our CSS never leaks out)
  *   - Self-contained: no external CSS, no framework dependency
  *   - Size: fluid width, fixed aspect — max-width 440px, height auto (≈900px tall at 440px)
- *   - Demo-mode only: no mic permission, no login, fixed ~3-min script
+ *   - Demo-mode only: no mic permission, no login
  *
- * Cycle (4 phases per item, matches SSi native app):
- *   1. PROMPT  — play known audio + show English
- *   2. PAUSE   — mic-button ring activates ("your turn"), ~2× target duration
- *   3. VOICE_1 — play target audio (voice A)
- *   4. VOICE_2 — play target audio (voice B), show target text
+ * Cycle types (match the real SSi app's round structure):
+ *   INTRO (and component_intro): narration teaches the new LEGO.
+ *     Plays presentation_audio ("The French for 'I want' is 'je veux'"),
+ *     shows known text during, shows target text at end. No pause phase.
+ *
+ *   DEBUT / BUILD / REVIEW / CONSOLIDATE / component_practice: 4-phase cycle.
+ *     1. PROMPT  — play known audio + show known text
+ *     2. PAUSE   — mic-button ring activates ("your turn"), ~2× target duration
+ *     3. VOICE_1 — play target audio (voice A), no text
+ *     4. VOICE_2 — play target audio (voice B), show target text
  */
 
 const DEFAULT_MANIFEST_BASE = new URL('./manifests/', import.meta.url).href;
@@ -34,6 +41,8 @@ const DEFAULT_AUDIO_BASE = 'https://saysomethingin.app/api/audio/';
 // ---------------------------------------------------------------------------
 
 const PHASE_CAPTIONS = {
+  'intro-teach': 'meet the new piece',
+  'intro-flash': 'that’s what it looks like',
   prompt:  'listen',
   pause:   'your turn — speak, don’t freeze',
   voice1:  'here’s how it sounds',
@@ -792,12 +801,16 @@ const STYLES = `
 // Dynamic pause duration = 2× target audio length (approx)
 const PAUSE_MULTIPLIER = 2.0;
 const GAP_BETWEEN_CYCLES_MS = 350;
+const INTRO_TARGET_FLASH_MS = 1400;    // how long target text shows at end of an intro
 const MILESTONE_DURATION_MS = 2600;
 const PHILOSOPHY_AT_CYCLE_RATIO = 0.45;  // show one philosophy line ~45% through
+const DEFAULT_DURATION_MIN = 30;       // default clamp in minutes
+
+const INTRO_TYPES = new Set(['intro', 'component_intro']);
 
 class SsiLessonPlayer extends HTMLElement {
   static get observedAttributes() {
-    return ['course', 'autoplay', 'manifest-src', 'audio-src', 'show-hints', 'hint-intensity'];
+    return ['course', 'duration', 'autoplay', 'manifest-src', 'audio-src', 'show-hints', 'hint-intensity'];
   }
 
   constructor() {
@@ -962,9 +975,22 @@ class SsiLessonPlayer extends HTMLElement {
     }, MILESTONE_DURATION_MS);
   }
 
+  _durationLimitSec() {
+    const raw = this.getAttribute('duration');
+    const mins = raw == null ? DEFAULT_DURATION_MIN : parseFloat(raw);
+    if (!isFinite(mins) || mins <= 0) return DEFAULT_DURATION_MIN * 60;
+    return mins * 60;
+  }
+
+  _shouldEndByDuration() {
+    return this._elapsedSec >= this._durationLimitSec();
+  }
+
   async _runCycle() {
     if (!this._playing || !this._manifest) return;
-    if (this._cycleIndex >= this._manifest.cycles.length) {
+
+    // Stop when either cycles exhausted OR duration clamp reached
+    if (this._cycleIndex >= this._manifest.cycles.length || this._shouldEndByDuration()) {
       this._phase = 'ended';
       this._playing = false;
       this._render();
@@ -976,41 +1002,62 @@ class SsiLessonPlayer extends HTMLElement {
     // Maybe show philosophy quote in caption slot (once, mid-demo)
     this._maybeShowPhilosophy();
 
-    // 1. PROMPT
-    this._phase = 'prompt';
-    this._setPhaseCaption();
-    this._render();
-    if (cycle.known_audio_id) {
-      try { await this._playAudio(this._audioUrl(cycle.known_audio_id)); } catch { /* continue */ }
+    if (INTRO_TYPES.has(cycle.type)) {
+      // INTRO: play the narration, show known text during, flash target at end.
+      // No pause phase — this is a teaching moment, not a practice moment.
+      this._phase = 'intro-teach';
+      this._setPhaseCaption();
+      this._render();
+      if (cycle.presentation_audio_id) {
+        try { await this._playAudio(this._audioUrl(cycle.presentation_audio_id)); } catch { /* continue */ }
+      }
+      if (!this._playing) return;
+
+      // Brief flash of target text so the eye sees the correct form
+      this._phase = 'intro-flash';
+      this._setPhaseCaption();
+      this._render();
+      await this._wait(INTRO_TARGET_FLASH_MS);
+      if (!this._playing) return;
+    } else {
+      // STANDARD 4-phase cycle: prompt → pause → voice1 → voice2
+
+      // 1. PROMPT
+      this._phase = 'prompt';
+      this._setPhaseCaption();
+      this._render();
+      if (cycle.known_audio_id) {
+        try { await this._playAudio(this._audioUrl(cycle.known_audio_id)); } catch { /* continue */ }
+      }
+      if (!this._playing) return;
+
+      // 2. PAUSE
+      this._phase = 'pause';
+      this._setPhaseCaption();
+      this._render();
+      await this._wait(this._estimateDuration() * PAUSE_MULTIPLIER);
+      if (!this._playing) return;
+
+      // 3. VOICE_1
+      this._phase = 'voice1';
+      this._setPhaseCaption();
+      this._render();
+      if (cycle.target1_audio_id) {
+        try { await this._playAudio(this._audioUrl(cycle.target1_audio_id)); } catch { /* continue */ }
+      }
+      if (!this._playing) return;
+
+      await this._wait(200);
+
+      // 4. VOICE_2
+      this._phase = 'voice2';
+      this._setPhaseCaption();
+      this._render();
+      if (cycle.target2_audio_id) {
+        try { await this._playAudio(this._audioUrl(cycle.target2_audio_id)); } catch { /* continue */ }
+      }
+      if (!this._playing) return;
     }
-    if (!this._playing) return;
-
-    // 2. PAUSE
-    this._phase = 'pause';
-    this._setPhaseCaption();
-    this._render();
-    await this._wait(this._estimateDuration() * PAUSE_MULTIPLIER);
-    if (!this._playing) return;
-
-    // 3. VOICE_1
-    this._phase = 'voice1';
-    this._setPhaseCaption();
-    this._render();
-    if (cycle.target1_audio_id) {
-      try { await this._playAudio(this._audioUrl(cycle.target1_audio_id)); } catch { /* continue */ }
-    }
-    if (!this._playing) return;
-
-    await this._wait(200);
-
-    // 4. VOICE_2
-    this._phase = 'voice2';
-    this._setPhaseCaption();
-    this._render();
-    if (cycle.target2_audio_id) {
-      try { await this._playAudio(this._audioUrl(cycle.target2_audio_id)); } catch { /* continue */ }
-    }
-    if (!this._playing) return;
 
     // Gap + milestone check
     this._phase = 'gap';
@@ -1076,8 +1123,12 @@ class SsiLessonPlayer extends HTMLElement {
   }
 
   _phaseBeadIndex() {
-    // 0..3 for prompt/pause/voice1/voice2
-    const map = { prompt: 0, pause: 1, voice1: 2, voice2: 3 };
+    // Standard 4-phase cycle: 0..3 for prompt/pause/voice1/voice2
+    // INTRO uses a 2-phase map onto beads 0 and 3 (first + last)
+    const map = {
+      prompt: 0, pause: 1, voice1: 2, voice2: 3,
+      'intro-teach': 0, 'intro-flash': 3,
+    };
     return map[this._phase] ?? -1;
   }
 
@@ -1095,8 +1146,15 @@ class SsiLessonPlayer extends HTMLElement {
 
     const m = this._manifest;
     const cycle = m.cycles[Math.min(this._cycleIndex, m.cycles.length - 1)];
-    const showKnown = this._phase === 'prompt' || this._phase === 'pause' || this._phase === 'voice1';
-    const showTarget = this._phase === 'voice2';
+    const isIntroCycle = cycle && INTRO_TYPES.has(cycle.type);
+    // Known text shows: during the narration-teach, during prompt/pause/voice1
+    const showKnown = this._phase === 'intro-teach'
+                   || this._phase === 'prompt'
+                   || this._phase === 'pause'
+                   || this._phase === 'voice1';
+    // Target text shows: during the intro flash, and during voice2 of a standard cycle
+    const showTarget = this._phase === 'intro-flash' || this._phase === 'voice2';
+    // Mic activates during pause (your turn). Intros don't prompt speech, so mic stays calm.
     const micActive = this._phase === 'pause';
     const belt = cycle?.belt_progress || 0;
     const beltPct = Math.round(belt * 100);
