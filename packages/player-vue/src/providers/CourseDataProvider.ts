@@ -184,12 +184,17 @@ export class CourseDataProvider {
     try {
       // Query course_legos table directly - audio IDs stored on each row
       // Note: Supabase JS client defaults to 1000 rows - we set explicit limit for large courses
+      // Invariant: a cycle must never present without all three audio IDs,
+      // or the player fails mid-cycle (partial-import courses like Greek).
       const { data, error } = await this.client
         .from('course_legos')
         .select('*')
         .eq('course_code', this.courseId)
         .gte('seed_number', startSeed)
         .lt('seed_number', startSeed + count)
+        .not('known_audio_id', 'is', null)
+        .not('target1_audio_id', 'is', null)
+        .not('target2_audio_id', 'is', null)
         .order('seed_number', { ascending: true })
         .order('lego_index', { ascending: true })
         .limit(10000)  // Override default 1000 row limit
@@ -469,12 +474,17 @@ export class CourseDataProvider {
       }
 
       // v13: Sort by target1_duration_ms for cognitive load (shortest audio = easiest)
+      // Same audio-completeness invariant as course_legos — skip phrases with
+      // any missing audio ID so the basket never contains un-playable cycles.
       const { data, error } = await this.client
         .from('course_practice_phrases')
         .select('*')
         .eq('seed_number', parsed.seedNumber)
         .eq('lego_index', parsed.legoIndex)
         .eq('course_code', this.courseId)
+        .not('known_audio_id', 'is', null)
+        .not('target1_audio_id', 'is', null)
+        .not('target2_audio_id', 'is', null)
         .order('target1_duration_ms', { ascending: true, nullsFirst: false })
 
       if (error) {
@@ -519,11 +529,15 @@ export class CourseDataProvider {
 
       // Query practice_cycles for all LEGOs in this seed
       // v13: Sort by target1_duration_ms for cognitive load (shortest audio = easiest)
+      // Audio-completeness invariant — see getLegoBasket.
       const { data, error } = await this.client
         .from('course_practice_phrases')
         .select('*')
         .eq('seed_number', seedNumber)
         .eq('course_code', this.courseId)
+        .not('known_audio_id', 'is', null)
+        .not('target1_audio_id', 'is', null)
+        .not('target2_audio_id', 'is', null)
         .order('lego_index', { ascending: true })
         .order('target1_duration_ms', { ascending: true, nullsFirst: false })
 
@@ -988,11 +1002,17 @@ export class CourseDataProvider {
     }
 
     try {
+      // Same audio-completeness invariant as loadSessionItems — a seed with
+      // missing audio IDs resolves to null here, and callers treat null as
+      // "skip this seed" (not "course ended"). See PriorityRoundLoader.
       const { data, error } = await this.client
         .from('course_legos')
         .select('*')
         .eq('course_code', this.courseId)
         .eq('seed_number', seedNumber)
+        .not('known_audio_id', 'is', null)
+        .not('target1_audio_id', 'is', null)
+        .not('target2_audio_id', 'is', null)
         .order('lego_index', { ascending: true })
         .limit(1)
         .maybeSingle()
@@ -1036,6 +1056,9 @@ export class CourseDataProvider {
         .eq('course_code', this.courseId)
         .gte('seed_number', startSeed)
         .lte('seed_number', endSeed)
+        .not('known_audio_id', 'is', null)
+        .not('target1_audio_id', 'is', null)
+        .not('target2_audio_id', 'is', null)
         .order('seed_number', { ascending: true })
         .order('lego_index', { ascending: true })
 
@@ -1097,11 +1120,15 @@ export class CourseDataProvider {
       const seedNumbers = [...new Set(parsedIds.map(p => p.seedNumber))]
 
       // v13: Sort by target1_duration_ms for cognitive load
+      // Audio-completeness invariant — see getLegoBasket.
       const { data, error } = await this.client
         .from('course_practice_phrases')
         .select('*')
         .eq('course_code', this.courseId)
         .in('seed_number', seedNumbers)
+        .not('known_audio_id', 'is', null)
+        .not('target1_audio_id', 'is', null)
+        .not('target2_audio_id', 'is', null)
         .order('seed_number', { ascending: true })
         .order('lego_index', { ascending: true })
         .order('target1_duration_ms', { ascending: true, nullsFirst: false })
