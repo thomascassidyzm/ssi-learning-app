@@ -163,14 +163,15 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
    * Find the first round index that belongs to a given seed number.
    * Seed IDs are formatted as "S0001", "S0082", etc.
    * Returns -1 if no round found for that seed.
+   *
+   * Silent on miss: this is also used as a probe by belt-jump loading
+   * computeds (nextBeltLoading / prevBeltLoading) which treat -1 as
+   * "still loading". jumpToSeed logs its own warn for user-initiated
+   * jumps that actually fail.
    */
   const findRoundIndexForSeed = (seedNumber: number): number => {
     const targetSeedId = `S${String(seedNumber).padStart(4, '0')}`
-    const index = roundsRef.value.findIndex(r => r.seedId === targetSeedId)
-    if (index === -1) {
-      console.warn(`[useSimplePlayer] No round found for seed ${seedNumber} (${targetSeedId})`)
-    }
-    return index
+    return roundsRef.value.findIndex(r => r.seedId === targetSeedId)
   }
 
   /**
