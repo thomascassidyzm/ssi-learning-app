@@ -932,7 +932,13 @@ onMounted(() => {
 
     <!-- Groups Section -->
     <section class="create-section animate-in delay-1">
-      <Card title="Groups" accent="blue" collapsible start-collapsed>
+      <Card
+        title="Groups"
+        subtitle="Regions or organisations — a bucket for schools that share entitlements."
+        accent="blue"
+        collapsible
+        start-collapsed
+      >
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"/>
@@ -1066,7 +1072,13 @@ onMounted(() => {
 
     <!-- Add Govt Admin Section -->
     <section class="create-section animate-in delay-2">
-      <Card title="Add Govt Admin" accent="blue" collapsible start-collapsed>
+      <Card
+        title="Add Govt Admin"
+        subtitle="Invite someone to oversee all schools within a group."
+        accent="blue"
+        collapsible
+        start-collapsed
+      >
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
@@ -1124,7 +1136,13 @@ onMounted(() => {
 
     <!-- Add School Section -->
     <section class="create-section animate-in delay-1">
-      <Card title="Add School" accent="green" collapsible start-collapsed>
+      <Card
+        title="Add School"
+        subtitle="Create a new school — optionally assign it to a group."
+        accent="green"
+        collapsible
+        start-collapsed
+      >
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
@@ -1168,7 +1186,14 @@ onMounted(() => {
 
     <!-- Schools List -->
     <section v-if="schools.length > 0" class="codes-section animate-in delay-2">
-      <Card title="Schools" accent="gradient" :loading="isLoadingSchools" collapsible>
+      <Card
+        title="Schools"
+        subtitle="All schools — join codes, group assignments, and course entitlements."
+        accent="gradient"
+        :loading="isLoadingSchools"
+        collapsible
+        start-collapsed
+      >
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
@@ -1269,7 +1294,13 @@ onMounted(() => {
 
     <!-- Add Staff Section -->
     <section v-if="schools.length > 0" class="create-section animate-in delay-2">
-      <Card title="Add Staff" accent="red" collapsible start-collapsed>
+      <Card
+        title="Add Staff"
+        subtitle="Invite a teacher or school admin to a specific school."
+        accent="red"
+        collapsible
+        start-collapsed
+      >
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -1325,7 +1356,14 @@ onMounted(() => {
 
     <!-- Staff List -->
     <section v-if="staffMembers.length > 0" class="codes-section animate-in delay-2">
-      <Card title="Staff" accent="red" :loading="isLoadingStaff" collapsible>
+      <Card
+        title="Staff"
+        subtitle="Teachers and admins across all schools."
+        accent="red"
+        :loading="isLoadingStaff"
+        collapsible
+        start-collapsed
+      >
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -1363,7 +1401,13 @@ onMounted(() => {
 
     <!-- Course Entitlements Section -->
     <section class="create-section animate-in delay-2">
-      <Card title="Course Entitlements" accent="gold" collapsible start-collapsed>
+      <Card
+        title="Course Entitlements"
+        subtitle="Grant courses directly to a school. Groups cascade to their schools automatically."
+        accent="gold"
+        collapsible
+        start-collapsed
+      >
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
