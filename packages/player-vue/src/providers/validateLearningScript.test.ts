@@ -118,8 +118,10 @@ describe('validateScriptItem', () => {
     expect(targetTextErrors[0].message).toContain('targetText')
   })
 
-  // 6. Intro missing presentationAudioId -> error
-  it('returns an error when intro is missing presentationAudioId', () => {
+  // 6. Intro missing presentationAudioId -> warning
+  // Downgraded from error to warning in commit da0dc80 — many courses don't have
+  // presentation audio generated yet, so the cycle still plays (target audio only).
+  it('returns a warning when intro is missing presentationAudioId', () => {
     const item = makeItem({
       type: 'intro',
       presentationAudioId: undefined,
@@ -127,9 +129,11 @@ describe('validateScriptItem', () => {
       target2Id: 'audio-t2-1',
     })
     const results = validateScriptItem(item)
+    const presWarnings = results.filter(r => r.field === 'presentationAudioId' && r.severity === 'warning')
     const presErrors = results.filter(r => r.field === 'presentationAudioId' && r.severity === 'error')
-    expect(presErrors).toHaveLength(1)
-    expect(presErrors[0].message).toContain('presentationAudioId')
+    expect(presWarnings).toHaveLength(1)
+    expect(presWarnings[0].message).toContain('presentationAudioId')
+    expect(presErrors).toHaveLength(0)
   })
 
   // 7. Intro missing target1Id -> error

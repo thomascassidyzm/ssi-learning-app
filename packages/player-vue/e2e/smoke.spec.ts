@@ -1,34 +1,69 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
+
+// Shared per-test observers: accumulate uncaught JS exceptions and console errors.
+// pageerror fires for uncaught exceptions AND unhandled promise rejections (Playwright normalizes both).
+function attachObservers(page: Page) {
+  const pageErrors: Error[] = []
+  const consoleErrors: string[] = []
+
+  page.on('pageerror', (err) => {
+    pageErrors.push(err)
+  })
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') consoleErrors.push(msg.text())
+  })
+  // Log failed subresource requests for visibility — does NOT fail the test.
+  page.on('requestfailed', (req) => {
+    // eslint-disable-next-line no-console
+    console.log(`[requestfailed] ${req.method()} ${req.url()} — ${req.failure()?.errorText}`)
+  })
+
+  return { pageErrors, consoleErrors }
+}
+
+// No allowlist for pageerrors — any uncaught JS exception should fail the test.
+// If real noise emerges during runs, add filters here with a comment explaining why.
+function assertNoPageErrors(pageErrors: Error[]) {
+  expect(
+    pageErrors.map((e) => `${e.name}: ${e.message}`),
+    'uncaught JS exceptions during page load'
+  ).toEqual([])
+}
+
+// Console-error allowlist: filter known noise (Clerk auth, favicon, missing backend in dev).
+function filterConsoleErrors(errors: string[]) {
+  return errors.filter(
+    (e) =>
+      !e.includes('clerk') &&
+      !e.includes('Clerk') &&
+      !e.includes('favicon') &&
+      !e.includes('Failed to load resource') // expected when no backend
+  )
+}
 
 test.describe('App loads', () => {
   test('homepage renders without crash', async ({ page }) => {
+    const { pageErrors } = attachObservers(page)
     await page.goto('/')
     await expect(page.locator('#app')).toBeAttached()
+    assertNoPageErrors(pageErrors)
   })
 
   test('no console errors on load', async ({ page }) => {
-    const errors: string[] = []
-    page.on('console', (msg) => {
-      if (msg.type() === 'error') errors.push(msg.text())
-    })
+    const { pageErrors, consoleErrors } = attachObservers(page)
     await page.goto('/')
     await page.waitForTimeout(2000)
-    // Filter out known noise (Clerk auth, favicon, etc.)
-    const real = errors.filter(
-      (e) =>
-        !e.includes('clerk') &&
-        !e.includes('Clerk') &&
-        !e.includes('favicon') &&
-        !e.includes('Failed to load resource') // expected when no backend
-    )
-    expect(real).toEqual([])
+    expect(filterConsoleErrors(consoleErrors)).toEqual([])
+    assertNoPageErrors(pageErrors)
   })
 })
 
 test.describe('Schools dashboard', () => {
   test('dashboard route loads', async ({ page }) => {
+    const { pageErrors } = attachObservers(page)
     await page.goto('/schools')
     await expect(page.locator('#app')).toBeAttached()
+    assertNoPageErrors(pageErrors)
   })
 })
 

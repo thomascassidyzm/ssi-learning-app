@@ -10,7 +10,7 @@ const buildNumber = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ||
                     `dev-${Date.now().toString(36)}`
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     vue(),
     VitePWA({
@@ -110,4 +110,10 @@ export default defineConfig({
     __BUILD_TIME__: JSON.stringify(buildTime),
     __BUILD_NUMBER__: JSON.stringify(buildNumber),
   },
-})
+  build: {
+    sourcemap: true,
+  },
+  esbuild: mode === 'production'
+    ? { pure: ['console.log', 'console.info', 'console.debug'] }
+    : undefined,
+}))
