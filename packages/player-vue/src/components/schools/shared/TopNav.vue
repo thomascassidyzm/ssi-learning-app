@@ -22,7 +22,7 @@ const router = useRouter()
 const auth = inject<any>('auth')
 const supabaseRef = inject<{ value: SupabaseClient | null }>('supabase')
 const { selectedUser, isGovtAdmin } = useGodMode()
-const { canAccessAdmin, canAccessSchools } = useUserRole()
+const { canAccessAdmin, hasSchoolRole } = useUserRole()
 
 declare const __BUILD_NUMBER__: string
 const buildNumber = typeof __BUILD_NUMBER__ !== 'undefined' ? __BUILD_NUMBER__ : 'dev'
@@ -45,7 +45,9 @@ const tabs = computed(() => {
   if (isGovtAdmin.value) {
     result.push({ name: 'all-schools', path: '/schools/all', label: 'Schools' })
   }
-  if (canAccessSchools.value) {
+  // Show school-owner tabs for actual school roles, or when god is
+  // actively impersonating a user with a school context.
+  if (hasSchoolRole.value || selectedUser.value) {
     result.push(...baseTabs)
   }
   return result

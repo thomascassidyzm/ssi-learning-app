@@ -25,6 +25,12 @@ const isTeacher = computed(() =>
   ['teacher', 'school_admin', 'govt_admin', 'god'].includes(educationalRole.value || '')
 )
 
+// True only for users whose actual role is a school-scoped educational role.
+// Excludes god (god is a superuser — reaches schools via impersonation, not directly).
+const hasSchoolRole = computed(() =>
+  ['teacher', 'school_admin', 'govt_admin'].includes(educationalRole.value || '')
+)
+
 const isTester = computed(() => platformRole.value === 'tester' || isSsiAdmin.value)
 
 // Capabilities
@@ -94,6 +100,7 @@ export function useUserRole() {
     isGovtAdmin,
     isSchoolAdmin,
     isTeacher,
+    hasSchoolRole,
 
     // Capabilities
     canAccessAdmin,

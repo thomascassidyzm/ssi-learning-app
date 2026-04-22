@@ -43,9 +43,9 @@ const routes: RouteRecordRaw[] = [
         name: 'schools-dashboard',
         component: DashboardView,
         beforeEnter: (_to, _from, next) => {
-          const { canAccessAdmin, canAccessSchools, restoreFromCache } = useUserRole()
+          const { canAccessAdmin, hasSchoolRole, restoreFromCache } = useUserRole()
           restoreFromCache()
-          if (canAccessAdmin.value && !canAccessSchools.value) {
+          if (canAccessAdmin.value && !hasSchoolRole.value) {
             return next('/admin/schools')
           }
           next()

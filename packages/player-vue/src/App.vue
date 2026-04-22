@@ -19,6 +19,7 @@ import PwaUpdatePrompt from './components/PwaUpdatePrompt.vue'
 import InstallBanner from './components/InstallBanner.vue'
 import DemoOverlay from './components/demo/DemoOverlay.vue'
 import TesterFeedback from './components/TesterFeedback.vue'
+import GodModePanel from './components/schools/GodModePanel.vue'
 
 // Suppress consecutive identical console errors/warnings after 3 repeats
 installConsoleDedup()
@@ -467,6 +468,7 @@ onMounted(async () => {
     <InstallBanner />
     <DemoOverlay />
     <TesterFeedback />
+    <GodModePanel />
   </div>
 </template>
 

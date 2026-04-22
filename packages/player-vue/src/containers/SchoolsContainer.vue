@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, inject, computed, watch } from 'vue'
 import TopNav from '@/components/schools/shared/TopNav.vue'
-import GodModePanel from '@/components/schools/GodModePanel.vue'
 import { SignInModal } from '@/components/auth'
 import { useAuthModal } from '@/composables/useAuthModal'
 import { useUserRole } from '@/composables/useUserRole'
@@ -397,7 +396,6 @@ const handleAuthSuccess = () => {
     <!-- Authenticated dashboard -->
     <template v-else-if="showDashboard">
       <TopNav @sign-in="openAuth" @sign-up="openAuth" />
-      <GodModePanel />
 
       <main class="main-content">
         <router-view v-slot="{ Component }">

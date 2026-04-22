@@ -10,11 +10,18 @@ import { useRouter, useRoute } from 'vue-router'
 import { useUserRole } from '@/composables/useUserRole'
 
 const { isTester, isSsiAdmin } = useUserRole()
-const showWidget = computed(() => isTester.value || isSsiAdmin.value)
 
 const router = useRouter()
 const route = useRoute()
 const supabase = inject<{ value: any }>('supabase')
+
+// Hide on admin-context routes — feedback is for learner-facing testing.
+const isAdminRoute = computed(() =>
+  route.path.startsWith('/admin') || route.path.startsWith('/schools')
+)
+const showWidget = computed(() =>
+  (isTester.value || isSsiAdmin.value) && !isAdminRoute.value
+)
 
 // --- Draggable FAB ---
 const fabX = ref<number | null>(null) // null = use CSS default position
