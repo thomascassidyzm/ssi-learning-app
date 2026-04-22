@@ -12,6 +12,7 @@
     "loadingCourses": "正在加载课程...",
     "retry": "重试",
     "freePreview": "免费预览",
+    "forSpeakers": "适合{lang}使用者",
     "searchPlaceholder": "搜索其他语言..."
   },
   "player": {

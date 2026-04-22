@@ -1470,9 +1470,10 @@ const confirmReset = async () => {
   gap: 0.75rem;
   padding: 0.5rem 1rem;
   margin-bottom: 1rem;
-  background: #fff;
+  background: var(--bg-card);
   border-radius: 12px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-sm);
 }
 
 .build-sha {
@@ -1512,12 +1513,13 @@ const confirmReset = async () => {
   margin: 0 0 0.75rem 0.25rem;
 }
 
-/* Card */
+/* Card — iOS-style elevated white on warm canvas */
 .card {
-  background: #fff;
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
   border-radius: 16px;
   overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 
 .divider {

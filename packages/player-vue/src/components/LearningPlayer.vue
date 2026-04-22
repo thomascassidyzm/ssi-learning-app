@@ -2097,7 +2097,9 @@ const AWAKENING_MESSAGES = computed(() => [
 
 const getRandomAwakeningMessage = () => {
   const messages = AWAKENING_MESSAGES.value
-  return messages[Math.floor(Math.random() * messages.length)]
+  const pick = messages[Math.floor(Math.random() * messages.length)]
+  console.log(`[Awakening] locale test: t('loading.tuning') = "${t('loading.tuning')}", picked: "${pick}"`)
+  return pick
 }
 
 // Transition to next loading stage

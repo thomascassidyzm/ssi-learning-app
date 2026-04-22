@@ -12,6 +12,7 @@
     "loadingCourses": "Carregando cursos...",
     "retry": "Tentar novamente",
     "freePreview": "Amostra grátis",
+    "forSpeakers": "para falantes de {lang}",
     "searchPlaceholder": "Pesquisar outros idiomas..."
   },
   "player": {

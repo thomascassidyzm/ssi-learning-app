@@ -12,6 +12,7 @@
     "loadingCourses": "Chargement des cours...",
     "retry": "Réessayer",
     "freePreview": "Aperçu gratuit",
+    "forSpeakers": "pour les locuteurs de {lang}",
     "searchPlaceholder": "Chercher d'autres langues..."
   },
   "player": {
