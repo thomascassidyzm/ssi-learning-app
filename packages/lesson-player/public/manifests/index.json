@@ -1,71 +1,84 @@
 {
-  "generated_at": "2026-04-21T23:01:08.992Z",
+  "generated_at": "2026-04-22T10:50:23.630Z",
+  "source_api": "http://localhost:3470",
+  "max_legos_per_course": 25,
   "courses": [
     {
       "code": "spa_for_eng",
       "name": "Spanish",
       "flag": "🇪🇸",
-      "cycle_count": 9
+      "cycle_count": 409,
+      "approximate_minutes": 75
     },
     {
       "code": "fra_for_eng",
       "name": "French",
       "flag": "🇫🇷",
-      "cycle_count": 8
+      "cycle_count": 409,
+      "approximate_minutes": 75
     },
     {
       "code": "deu_for_eng",
       "name": "German",
       "flag": "🇩🇪",
-      "cycle_count": 9
+      "cycle_count": 413,
+      "approximate_minutes": 76
     },
     {
       "code": "ita_for_eng",
       "name": "Italian",
       "flag": "🇮🇹",
-      "cycle_count": 8
+      "cycle_count": 347,
+      "approximate_minutes": 64
     },
     {
       "code": "por_for_eng",
       "name": "Portuguese",
       "flag": "🇵🇹",
-      "cycle_count": 9
+      "cycle_count": 426,
+      "approximate_minutes": 78
     },
     {
       "code": "zho_for_eng",
       "name": "Chinese",
       "flag": "🇨🇳",
-      "cycle_count": 9
+      "cycle_count": 416,
+      "approximate_minutes": 76
     },
     {
       "code": "jpn_for_eng",
       "name": "Japanese",
       "flag": "🇯🇵",
-      "cycle_count": 7
+      "cycle_count": 425,
+      "approximate_minutes": 78
     },
     {
       "code": "ara_for_eng",
       "name": "Arabic",
       "flag": "🇸🇦",
-      "cycle_count": 7
+      "cycle_count": 425,
+      "approximate_minutes": 78
     },
     {
       "code": "kor_for_eng",
       "name": "Korean",
       "flag": "🇰🇷",
-      "cycle_count": 7
+      "cycle_count": 434,
+      "approximate_minutes": 80
     },
     {
       "code": "cym_n_for_eng",
       "name": "Welsh (North)",
       "flag": "🏴󠁧󠁢󠁷󠁬󠁳󠁿",
-      "cycle_count": 5
+      "cycle_count": 257,
+      "approximate_minutes": 47
     },
     {
       "code": "cym_s_for_eng",
       "name": "Welsh (South)",
       "flag": "🏴󠁧󠁢󠁷󠁬󠁳󠁿",
-      "cycle_count": 5
+      "cycle_count": 259,
+      "approximate_minutes": 47
     }
   ]
 }
