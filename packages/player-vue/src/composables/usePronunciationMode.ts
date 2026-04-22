@@ -136,7 +136,7 @@ async function stopRecordingAndCompare(
     currentResult.value = result
     isAnalyzing.value = false
 
-    console.log(`[PronunciationMode] Score: ${result.score.overall}% (pitch: ${result.score.pitch}, rhythm: ${result.score.rhythm}, timing: ${result.score.timing})`)
+    console.log(`[PronunciationMode] Score: ${result.score.overall}% (duration: ${result.score.duration}, peakCount: ${result.score.peakCount}, envelope: ${result.score.envelope})`)
 
     return result
   } catch (error) {

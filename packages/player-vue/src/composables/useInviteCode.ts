@@ -14,7 +14,7 @@ export interface InviteCodeContext {
   entitlementCodeId?: string
   label?: string
   accessType?: 'full' | 'courses'
-  grantedCourses?: string[]
+  grantedCourses?: readonly string[]
   accessDescription?: string
   durationDescription?: string
 }

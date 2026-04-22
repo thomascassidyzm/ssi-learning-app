@@ -258,7 +258,7 @@ async function handleRevoke(entitlementId: string) {
                 <tr v-for="ent in userEntitlements" :key="ent.id">
                   <td>{{ ent.label }}</td>
                   <td>
-                    <Badge :variant="ent.access_type === 'full' ? 'green' : 'info'" size="sm" pill>
+                    <Badge :variant="ent.access_type === 'full' ? 'success' : 'info'" size="sm" pill>
                       {{ ent.access_type }}
                     </Badge>
                   </td>

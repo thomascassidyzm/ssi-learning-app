@@ -451,7 +451,6 @@ export function populateDemoData(demoType: 'teacher' | 'govt_admin'): void {
     schoolData.schools.value = [school1, school2, school3]
     schoolData.groupSummary.value = {
       region_code: 'wales',
-      region_name: 'Wales',
       group_name: 'Wales',
       school_count: 3,
       teacher_count: 12,

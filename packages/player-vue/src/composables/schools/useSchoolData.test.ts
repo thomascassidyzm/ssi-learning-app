@@ -130,7 +130,7 @@ describe('useSchoolData', () => {
     const sd = await setup({}, 'govt_admin')
     const school = {
       id: 's1', school_name: 'Test', region_code: 'WALES', admin_user_id: 'u1',
-      teacher_join_code: '', teacher_count: 1, class_count: 1, student_count: 10,
+      teacher_join_code: '', admin_join_code: 'ADM-001', teacher_count: 1, class_count: 1, student_count: 10,
       total_practice_hours: 20, created_at: '2025-01-01',
     }
     sd.selectSchoolToView(school)
@@ -146,7 +146,7 @@ describe('useSchoolData', () => {
     const sd = await setup({}, 'govt_admin')
     const school = {
       id: 's1', school_name: 'Test', region_code: 'WALES', admin_user_id: 'u1',
-      teacher_join_code: '', teacher_count: 1, class_count: 1, student_count: 42,
+      teacher_join_code: '', admin_join_code: 'ADM-002', teacher_count: 1, class_count: 1, student_count: 42,
       total_practice_hours: 20, created_at: '2025-01-01',
     }
     sd.selectSchoolToView(school)
@@ -156,8 +156,8 @@ describe('useSchoolData', () => {
   it('totalStudents sums schools when no drill-down and no group summary', async () => {
     const sd = await setup({}, 'govt_admin')
     sd.schools.value = [
-      { id: 's1', school_name: 'A', region_code: null, admin_user_id: 'u1', teacher_join_code: '', teacher_count: 1, class_count: 1, student_count: 10, total_practice_hours: 5, created_at: '' },
-      { id: 's2', school_name: 'B', region_code: null, admin_user_id: 'u2', teacher_join_code: '', teacher_count: 1, class_count: 1, student_count: 20, total_practice_hours: 10, created_at: '' },
+      { id: 's1', school_name: 'A', region_code: null, admin_user_id: 'u1', teacher_join_code: '', admin_join_code: 'ADM-003', teacher_count: 1, class_count: 1, student_count: 10, total_practice_hours: 5, created_at: '' },
+      { id: 's2', school_name: 'B', region_code: null, admin_user_id: 'u2', teacher_join_code: '', admin_join_code: 'ADM-004', teacher_count: 1, class_count: 1, student_count: 20, total_practice_hours: 10, created_at: '' },
     ]
     sd.groupSummary.value = null
     expect(sd.totalStudents.value).toBe(30)
@@ -165,7 +165,7 @@ describe('useSchoolData', () => {
 
   it('totalPracticeHours uses groupSummary when available', async () => {
     const sd = await setup({}, 'govt_admin')
-    sd.groupSummary.value = { region_code: 'W', region_name: 'Wales', group_name: 'Wales', school_count: 1, teacher_count: 1, student_count: 1, total_practice_hours: 999 }
+    sd.groupSummary.value = { region_code: 'W', group_name: 'Wales', school_count: 1, teacher_count: 1, student_count: 1, total_practice_hours: 999 }
     expect(sd.totalPracticeHours.value).toBe(999)
   })
 

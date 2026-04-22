@@ -1,12 +1,16 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, shallowRef, inject, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, shallowRef, inject, nextTick, type PropType, type Ref } from 'vue'
 import {
   AudioController,
   CyclePhase,
   DEFAULT_CONFIG,
   createVoiceActivityDetector,
   createSpeechTimingAnalyzer,
+  type ProgressStore,
+  type SessionStore,
 } from '@ssi/core'
+import type { CourseDataProvider } from '../providers/CourseDataProvider'
+import type { CourseInfo } from '../composables/useEntitlement'
 import { useCyclePlayback } from '../composables/useCyclePlayback'
 import { scriptItemToCycle, collectAllAudioRefs } from '../utils/scriptItemToCycle'
 import type { Cycle } from '../types/Cycle'
@@ -50,13 +54,41 @@ import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
 
 const emit = defineEmits(['close', 'playStateChanged', 'viewProgress', 'listeningModeChanged', 'drivingModeChanged', 'pronunciationModeChanged', 'cycle-started'])
 
+interface VoiceSettings {
+  voiceId?: string
+  settings?: { speed?: number }
+}
+
+interface TargetSpeedSettings {
+  global_speed?: number
+  intro_speed?: number
+  first_review_speed?: number
+  review_speed?: number
+  ramp_seeds?: number
+  ramp_start_speed?: number
+  belt_ramp?: boolean
+}
+
+interface VoiceConfig {
+  voices?: { target1?: VoiceSettings; target2?: VoiceSettings; known?: VoiceSettings }
+  target1?: VoiceSettings
+  target2?: VoiceSettings
+  known?: VoiceSettings
+  target_speed?: TargetSpeedSettings
+}
+
+interface PlayerCourse extends CourseInfo {
+  variant_label?: string
+  voice_config?: VoiceConfig
+}
+
 const props = defineProps({
   classContext: {
     type: Object,
     default: null
   },
   course: {
-    type: Object,
+    type: Object as PropType<PlayerCourse | null>,
     default: null
   },
   // Network preview mode: auto-populate network up to this LEGO index
@@ -185,9 +217,9 @@ const demoItems = [
 // Inject stores from parent (App.vue)
 // ============================================
 
-const progressStore = inject('progressStore', { value: null })
-const sessionStore = inject('sessionStore', { value: null })
-const courseDataProvider = inject('courseDataProvider', { value: null })
+const progressStore = inject<Ref<ProgressStore | null>>('progressStore', ref(null))
+const sessionStore = inject<Ref<SessionStore | null>>('sessionStore', ref(null))
+const courseDataProvider = inject<Ref<CourseDataProvider | null>>('courseDataProvider', ref(null))
 const supabase = inject('supabase', ref(null))
 const auth = inject('auth', null)
 const themeContext = inject('theme', null)

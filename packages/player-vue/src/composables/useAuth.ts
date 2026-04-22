@@ -31,6 +31,8 @@ export interface AuthState {
   isGuest: ComputedRef<boolean>
   /** Effective learner ID (Supabase user ID or guestId) */
   learnerId: ComputedRef<string | null>
+  /** Supabase Auth user ID — for querying learners.user_id */
+  userId: ComputedRef<string | null>
   /** Number of completed sessions (for signup prompt) */
   completedSessionsCount: Ref<number>
   /** Whether signup prompt has been seen */
@@ -52,6 +54,8 @@ export interface AuthActions {
   initialize: (supabaseClient: SupabaseClient) => Promise<void>
   /** Set or change the user's password */
   updatePassword: (newPassword: string) => Promise<{ error?: string }>
+  /** Get the current Supabase session access token */
+  getToken: () => Promise<string | null>
 }
 
 /**
@@ -554,9 +558,8 @@ export function useAuth(): AuthState & AuthActions {
       try {
         const { count } = await supabase.value
           .from('sessions')
-          .update({ learner_id: learner.value!.id })
+          .update({ learner_id: learner.value!.id }, { count: 'exact' })
           .eq('learner_id', oldGuestId)
-          .select('*', { count: 'exact', head: true })
         if (count && count > 0) {
           console.log(`[useAuth] Migrated ${count} guest session(s)`)
         }
