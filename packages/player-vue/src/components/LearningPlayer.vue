@@ -6403,18 +6403,16 @@ defineExpose({
         <!-- Component tiles now rendered inside LegoAssembly -->
       </div>
 
-      <!-- Audio failure banner. Shown when SimplePlayer auto-pauses because
-           of repeated failures or autoplay-policy rejection. Cleared on next
-           user-initiated play/resume/jump via useSimplePlayer. -->
+      <!-- Audio failure banner. Only shown for the iOS autoplay case —
+           the browser revoked our audio unlock and will not play until the
+           user taps. All other failures skip-and-plough, not halt. -->
       <div
         v-if="audioFailedBanner"
         class="audio-failed-banner"
         role="status"
         aria-live="polite"
       >
-        {{ audioFailedBanner.reason === 'needs-gesture'
-          ? 'Paused — tap play to continue'
-          : 'Having trouble loading audio. Tap play to retry.' }}
+        Paused — tap play to continue
       </div>
 
       <!-- Play button when paused. The surrounding element handles the tap;
