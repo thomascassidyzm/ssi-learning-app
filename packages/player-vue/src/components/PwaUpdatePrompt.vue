@@ -2,11 +2,14 @@
 /**
  * PwaUpdatePrompt — Banner shown when a new service worker is waiting.
  *
- * Update button activates the new SW and reloads; Dismiss hides the banner
- * until the next SW update notification arrives.
+ * Update → activates the new SW and reloads.
+ * Dismiss → hides the banner; the logo blue dot (in LearningPlayer)
+ * takes over as a subtle indicator until the user clicks it (same action
+ * as Update) or the next SW update arrives.
  */
 import { useRegisterSW } from 'virtual:pwa-register/vue'
-import { onUnmounted } from 'vue'
+import { computed, onUnmounted, watch } from 'vue'
+import { updateAvailable, userDismissed, setApplyUpdate } from '@/composables/usePwaUpdate'
 
 let updateCheckInterval: ReturnType<typeof setInterval> | null = null
 
@@ -26,14 +29,26 @@ const {
   onRegisterError(error) {
     console.error('[PWA] Service worker registration error:', error)
   },
+  onNeedRefresh() {
+    // Fresh notification — clear any stale dismissal so the banner shows.
+    userDismissed.value = false
+  },
 })
+
+// Mirror needRefresh into the shared ref so the blue dot (rendered
+// elsewhere) can react.
+watch(needRefresh, (v) => { updateAvailable.value = v }, { immediate: true })
+
+// Banner is visible only until the user dismisses — then the dot takes over.
+const showBanner = computed(() => needRefresh.value && !userDismissed.value)
 
 // vite-plugin-pwa's updateServiceWorker(true) posts SKIP_WAITING and the
 // library reloads on controllerchange. The 3s fallback covers a stuck SW
 // or a misbehaving extension blocking the message.
 function onUpdate() {
   console.log('[PWA] Updating...')
-  needRefresh.value = false
+  updateAvailable.value = false
+  userDismissed.value = false
   const fallback = setTimeout(() => {
     console.warn('[PWA] SW controlling event did not fire within 3s, forcing reload')
     window.location.reload()
@@ -47,8 +62,11 @@ function onUpdate() {
 }
 
 function onDismiss() {
-  needRefresh.value = false
+  userDismissed.value = true
 }
+
+// Let the blue dot trigger the same action.
+setApplyUpdate(onUpdate)
 
 onUnmounted(() => {
   if (updateCheckInterval) {
@@ -59,7 +77,7 @@ onUnmounted(() => {
 
 <template>
   <Transition name="slide-up">
-    <div v-if="needRefresh" class="pwa-update-banner" role="status" aria-live="polite">
+    <div v-if="showBanner" class="pwa-update-banner" role="status" aria-live="polite">
       <div class="pwa-update-content">
         <span class="pwa-update-text">New version available</span>
         <div class="pwa-update-actions">

@@ -41,6 +41,7 @@ import PronunciationOverlay from './PronunciationOverlay.vue'
 import { useDrivingMode } from '../composables/useDrivingMode'
 import { useScriptMode } from '../composables/useScriptMode'
 import { getLanguageName, t } from '../composables/useI18n'
+import { updateAvailable as pwaUpdateAvailable, userDismissed as pwaUserDismissed, applyUpdate as pwaApplyUpdate } from '../composables/usePwaUpdate'
 import LanguageFlag from './schools/shared/LanguageFlag.vue'
 import { simpleRoundToTypedCycles } from '../utils/drivingModeAdapter'
 import BeltProgressModal from './BeltProgressModal.vue'
@@ -6203,7 +6204,7 @@ defineExpose({
     <header class="header" :class="{ 'has-banner': props.classContext }">
       <div class="header-stack">
         <!-- Brand -->
-        <div class="brand"><span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span><span v-if="envLabel" class="env-label" :class="`env-label--${envLabel.toLowerCase()}`">{{ envLabel }}</span></div>
+        <div class="brand"><span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span><span v-if="envLabel" class="env-label" :class="`env-label--${envLabel.toLowerCase()}`">{{ envLabel }}</span><button v-if="pwaUpdateAvailable && pwaUserDismissed" class="update-dot" title="Tap to update" aria-label="New version available — tap to update" @click.stop="pwaApplyUpdate?.()"></button></div>
 
         <!-- Belt row: skip back + timer + skip forward -->
         <div class="belt-row">
@@ -7166,6 +7167,30 @@ defineExpose({
   color: #fff;
 }
 
+.update-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #007AFF;
+  margin-left: 4px;
+  vertical-align: super;
+  cursor: pointer;
+  animation: pulse-dot 2s ease-in-out infinite;
+  font: inherit;
+  color: inherit;
+}
+.update-dot:focus-visible {
+  outline: 2px solid #007AFF;
+  outline-offset: 2px;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
 
 .session-timer {
   display: flex;
