@@ -1,15 +1,17 @@
 /**
  * useDemoController - Singleton composable for interactive demo mode
  *
- * Manages demo lifecycle: scene transitions, God Mode impersonation,
- * route navigation, named actions, and keyboard controls.
+ * Manages demo lifecycle: scene transitions, route navigation, named
+ * actions, and keyboard controls.
  *
- * Demo state is ephemeral — nothing persists to localStorage.
+ * Demo state is ephemeral — nothing persists to localStorage. The demo
+ * persona is set once by DemoLauncher (into useSchoolContext.currentUser)
+ * and stays for the duration of the tour; scenes don't switch persona.
  */
 
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { useGodMode } from '@/composables/schools/useGodMode'
+import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import type { DemoScene, DemoConfig, DemoState } from './types'
 import { isDemoMode } from './demoMode'
 import { teacherDemo } from './scenes/teacherDemo'
@@ -48,7 +50,7 @@ export function useDemoController() {
   // Try to capture router eagerly if we're in a setup context,
   // but always use getRouter() at call time for safety.
   try { if (!_router) _router = useRouter() } catch { /* not in setup context */ }
-  const godMode = useGodMode()
+  const ctx = useSchoolContext()
 
   // ---- Computed ----
 
@@ -91,31 +93,6 @@ export function useDemoController() {
         nextScene()
       }
     }, duration)
-  }
-
-  // ---- God Mode helpers ----
-
-  /**
-   * Wait for God Mode users to be fetched (by GodModePanel on /schools mount).
-   * Returns true if users loaded within timeout, false otherwise.
-   */
-  function waitForGodModeUsers(timeoutMs = 5000): Promise<boolean> {
-    return new Promise((resolve) => {
-      if (godMode.allUsers.value.length > 0) {
-        resolve(true)
-        return
-      }
-      const interval = setInterval(() => {
-        if (godMode.allUsers.value.length > 0) {
-          clearInterval(interval)
-          resolve(true)
-        }
-      }, 200)
-      setTimeout(() => {
-        clearInterval(interval)
-        resolve(godMode.allUsers.value.length > 0)
-      }, timeoutMs)
-    })
   }
 
   // ---- Named actions ----
@@ -206,7 +183,7 @@ export function useDemoController() {
       course_code: cls.course_code,
       current_seed: cls.current_seed,
       last_lego_id: cls.last_lego_id,
-      teacherUserId: godMode.selectedUser.value?.user_id,
+      teacherUserId: ctx.currentUser.value?.user_id,
       timestamp: new Date().toISOString(),
     }))
 
@@ -222,28 +199,14 @@ export function useDemoController() {
   async function applyScene(scene: DemoScene) {
     clearSceneTimer()
 
-    // Step 1: God Mode impersonation (wait for users if needed)
-    if (scene.godModeUserId) {
-      if (godMode.allUsers.value.length === 0) {
-        await waitForGodModeUsers()
-      }
-      const users = godMode.allUsers.value
-      const targetUser = users.find(u => u.user_id === scene.godModeUserId)
-      if (targetUser) {
-        godMode.selectUser(targetUser)
-      } else {
-        console.warn(`[DemoController] God Mode user not found: ${scene.godModeUserId}. Available: ${users.length} users`)
-      }
-    }
-
-    // Step 2: Route navigation
+    // Route navigation. Demo persona was set once by DemoLauncher;
+    // scenes don't switch persona.
     if (scene.route) {
       await getRouter().push({ path: scene.route, query: scene.routeQuery })
-      // Give Vue a tick to render the new route
       await nextTick()
     }
 
-    // Step 3: Execute named action (after optional delay)
+    // Named action, optionally after a delay.
     if (scene.action) {
       const delay = scene.actionDelay ?? 0
       if (delay > 0) {
@@ -257,8 +220,8 @@ export function useDemoController() {
       }
     }
 
-    // Step 4: Auto-advance only if scene explicitly opts in (autoAdvance: true)
-    // Default is manual click-through — each scene is fully interactive
+    // Auto-advance only if scene explicitly opts in. Default is manual
+    // click-through.
     if (scene.autoAdvance === true && scene.duration > 0 && !isPaused.value) {
       startSceneTimer(scene.duration)
     }

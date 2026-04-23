@@ -1,7 +1,5 @@
 import type { DemoConfig } from '../types'
 
-const GOVT_USER = 'test_govt_gwilym'
-
 export const govtAdminDemo: DemoConfig = {
   id: 'govt-admin-demo',
   title: 'SaySomethingin Schools - Group Overview',
@@ -11,7 +9,6 @@ export const govtAdminDemo: DemoConfig = {
       id: 'group-dashboard',
       title: 'Group Dashboard',
       narration: 'Gwilym is a group administrator. He sees aggregated data across all schools — total students, practice hours, and class activity. No individual student data is exposed.',
-      godModeUserId: GOVT_USER,
       route: '/schools',
       duration: 0,
     },
