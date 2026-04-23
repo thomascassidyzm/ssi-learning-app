@@ -346,14 +346,18 @@ export function useAuth(): AuthState & AuthActions {
           await migrateGuestProgress()
         }
 
-        // Preserve any existing god-mode impersonation. Previously this
-        // branch unconditionally wiped 'ssi-god-mode-user', which meant
-        // ssi_admins who deliberately impersonated someone lost their
-        // selection on every reload (the GOD panel's reload is the very
-        // mechanism that propagates the impersonation through the app).
-        // The god-mode storage is only written by selectUser/DemoLauncher
-        // with intent — let the user clear it explicitly via the panel's
-        // ×, or leave it until the session ends.
+        // Preserve god-mode impersonation only for users authorized to use
+        // it. The GOD panel's reload flow relies on storage surviving, but
+        // a shared browser where the previous user impersonated and didn't
+        // sign out would leak that impersonation to whoever signs in next.
+        // Wipe for unauthorized users; preserve for ssi_admins / god.
+        const canUseGodMode =
+          (learner.value as any)?.platform_role === 'ssi_admin' ||
+          (learner.value as any)?.educational_role === 'god'
+        if (!canUseGodMode) {
+          localStorage.removeItem('ssi-god-mode-user')
+          sessionStorage.removeItem('ssi-god-mode-user')
+        }
         isLoading.value = false
         return
       } else if (result === null) {
@@ -405,6 +409,12 @@ export function useAuth(): AuthState & AuthActions {
     useUserRole().clear()
     useSharedSubscription().clearCache()
     useSharedUserEntitlements().clearCache()
+    // Clear any god-mode impersonation so it can't leak to the next user
+    // on a shared browser. initialize() no longer wipes this on sign-in
+    // (it needs to survive the reload-based GOD panel flow), so signOut
+    // is the right hook.
+    localStorage.removeItem('ssi-god-mode-user')
+    sessionStorage.removeItem('ssi-god-mode-user')
     // Reinitialize guest
     guestId.value = getOrCreateGuestId()
   }
