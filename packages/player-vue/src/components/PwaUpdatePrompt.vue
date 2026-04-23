@@ -82,7 +82,7 @@ onUnmounted(() => {
         <span class="pwa-update-text">New version available</span>
         <div class="pwa-update-actions">
           <button class="pwa-update-dismiss" @click="onDismiss">
-            Dismiss
+            Later
           </button>
           <button class="pwa-update-button" @click="onUpdate">
             Update
