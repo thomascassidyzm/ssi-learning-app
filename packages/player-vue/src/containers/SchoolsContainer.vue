@@ -129,9 +129,17 @@ const isEmailValid = computed(() =>
   loginEmail.value && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(loginEmail.value)
 )
 
+// Treat an impersonated god-mode user as effectively authenticated. The real
+// GOD panel does router.go(0) after selectUser, which re-runs auth.initialize
+// and hydrates learner.value from storage. The demo launcher does an SPA
+// push, so learner stays null and the login card would render over the
+// dashboard. Gating on selectedUser keeps demo + any future SPA god-mode
+// flows working without a full reload.
+const hasImpersonatedUser = computed(() => !!godMode.selectedUser.value)
+
 // Show dashboard if authenticated with school role
 const showDashboard = computed(() =>
-  isAuthenticated.value && canAccessSchools.value
+  (isAuthenticated.value || hasImpersonatedUser.value) && canAccessSchools.value
 )
 
 // Show "no access" if authenticated but no school role
@@ -141,7 +149,7 @@ const showNoAccess = computed(() =>
 
 // Show login if not authenticated
 const showLogin = computed(() =>
-  !isAuthenticated.value && !isAuthLoading.value
+  !isAuthenticated.value && !hasImpersonatedUser.value && !isAuthLoading.value
 )
 
 async function handleSendOtp() {
