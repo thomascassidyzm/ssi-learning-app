@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ref, inject, computed, watch } from 'vue'
 import TopNav from '@/components/schools/shared/TopNav.vue'
+import AtmosphereBackdrop from '@/components/schools/shared/AtmosphereBackdrop.vue'
 import { SignInModal } from '@/components/auth'
+import '@/styles/schools-tokens.css'
 import { useAuthModal } from '@/composables/useAuthModal'
 import { useUserRole } from '@/composables/useUserRole'
 import { useGodMode } from '@/composables/schools/useGodMode'
@@ -265,7 +267,7 @@ const handleAuthSuccess = () => {
 </script>
 
 <template>
-  <div class="schools-container">
+  <div class="schools-container schools-surface">
     <!-- Loading spinner while auth initialises -->
     <div v-if="isAuthLoading" class="schools-loading">
       <div class="loading-spinner"></div>
@@ -395,6 +397,7 @@ const handleAuthSuccess = () => {
 
     <!-- Authenticated dashboard -->
     <template v-else-if="showDashboard">
+      <AtmosphereBackdrop />
       <TopNav @sign-in="openAuth" @sign-up="openAuth" />
 
       <main class="main-content">

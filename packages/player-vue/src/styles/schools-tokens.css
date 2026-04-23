@@ -1,0 +1,73 @@
+/* ============================================================
+ * FROSTWELL COURTYARD — shared schools design tokens
+ *
+ * Scoped to .schools-surface so they only apply inside the
+ * schools dashboard and don't leak into the player's Moonlit
+ * Dojo theme. Imported once by SchoolsContainer.
+ * ============================================================ */
+
+.schools-surface {
+  --glass-bg: rgba(255, 255, 255, 0.62);
+  --glass-bg-strong: rgba(255, 255, 255, 0.78);
+  --glass-bg-hover: rgba(255, 255, 255, 0.82);
+  --glass-border: rgba(255, 255, 255, 0.75);
+  --glass-sheen: rgba(255, 255, 255, 0.95);
+  --glass-shadow:
+    0 1px 2px rgba(44, 38, 34, 0.06),
+    0 6px 20px rgba(44, 38, 34, 0.08),
+    0 22px 48px rgba(44, 38, 34, 0.07);
+  --glass-shadow-hover:
+    0 1px 2px rgba(44, 38, 34, 0.08),
+    0 10px 28px rgba(44, 38, 34, 0.10),
+    0 30px 60px rgba(44, 38, 34, 0.09);
+
+  --tone-blue: 96, 165, 250;
+  --tone-gold: 212, 168, 83;
+  --tone-red: 217, 69, 69;
+  --tone-green: 74, 222, 128;
+
+  --ink-primary: #2C2622;
+  --ink-secondary: #4A4440;
+  --ink-muted: #8A8078;
+  --ink-faint: #B5AEA6;
+}
+
+/* ============================================================
+ * TYPOGRAPHY HELPERS
+ * ============================================================ */
+
+.schools-surface .frost-eyebrow {
+  display: inline-block;
+  padding: 4px 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: var(--font-medium);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-secondary);
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(44, 38, 34, 0.08);
+  border-radius: var(--radius-full);
+}
+
+.schools-surface .frost-section-title {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  color: var(--ink-primary);
+  letter-spacing: 0.01em;
+  margin: 0 0 var(--space-3) 4px;
+  text-transform: none;
+}
+
+.schools-surface .frost-display {
+  font-family: var(--font-display);
+  font-weight: var(--font-bold);
+  letter-spacing: -0.015em;
+  color: var(--ink-primary);
+}
+
+.schools-surface .frost-mono-nums {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}

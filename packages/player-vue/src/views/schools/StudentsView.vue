@@ -4,6 +4,7 @@ import SearchBox from '@/components/schools/shared/SearchBox.vue'
 import FilterDropdown from '@/components/schools/shared/FilterDropdown.vue'
 import Badge from '@/components/schools/shared/Badge.vue'
 import Button from '@/components/schools/shared/Button.vue'
+import FrostCard from '@/components/schools/shared/FrostCard.vue'
 import { useGodMode } from '@/composables/schools/useGodMode'
 import { useStudentsData } from '@/composables/schools/useStudentsData'
 
@@ -198,7 +199,11 @@ function handleAddStudent() {
     </div>
 
     <!-- Students Table -->
-    <div class="students-table-container animate-item delay-2" :class="{ 'show': isVisible }">
+    <FrostCard
+      variant="panel"
+      class="students-table-container animate-item delay-2"
+      :class="{ 'show': isVisible }"
+    >
       <table class="students-table">
         <thead>
           <tr>
@@ -252,11 +257,11 @@ function handleAddStudent() {
           </tr>
         </tbody>
       </table>
-    </div>
+    </FrostCard>
 
     <!-- Student Detail Panel -->
     <Transition name="panel">
-      <div v-if="selectedStudent" class="student-detail-panel">
+      <FrostCard v-if="selectedStudent" variant="panel" class="student-detail-panel">
         <div class="detail-header">
           <h3>{{ selectedStudent.name }}</h3>
           <button class="action-btn" @click="selectedStudent = null" title="Close">
@@ -289,15 +294,15 @@ function handleAddStudent() {
             {{ selectedStudent.belt.charAt(0).toUpperCase() + selectedStudent.belt.slice(1) }} Belt
           </Badge>
         </div>
-      </div>
+      </FrostCard>
     </Transition>
 
     <!-- Empty State -->
-    <div v-if="filteredStudents.length === 0" class="empty-state">
+    <FrostCard v-if="filteredStudents.length === 0" variant="tile" class="empty-state">
       <div class="empty-icon">students</div>
       <h3>No students found</h3>
       <p>Try adjusting your search or filters</p>
-    </div>
+    </FrostCard>
   </div>
 </template>
 
@@ -343,19 +348,23 @@ function handleAddStudent() {
   font-family: var(--font-display);
   font-size: var(--text-3xl);
   font-weight: var(--font-bold);
+  letter-spacing: -0.02em;
+  color: var(--ink-primary);
 }
 
 .student-count {
-  background: var(--bg-card);
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(44, 38, 34, 0.08);
   padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-full);
   font-size: var(--text-sm);
-  color: var(--text-secondary);
+  color: var(--ink-secondary);
 }
 
 .student-count .count-value {
   color: var(--ssi-gold);
   font-weight: var(--font-bold);
+  font-variant-numeric: tabular-nums;
 }
 
 .header-actions {
@@ -374,12 +383,10 @@ function handleAddStudent() {
   flex: 1;
 }
 
-/* Table */
+/* Table — FrostCard provides the glass shell; table just lays out the data */
 .students-table-container {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-xl);
-  overflow: hidden;
+  /* FrostCard handles background/border/radius/shadow */
+  margin-bottom: var(--space-8);
 }
 
 .students-table {
@@ -394,15 +401,16 @@ function handleAddStudent() {
   font-weight: var(--font-semibold);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--text-muted);
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-subtle);
+  color: var(--ink-muted);
+  background: rgba(255, 255, 255, 0.35);
+  border-bottom: 1px solid rgba(44, 38, 34, 0.08);
 }
 
 .students-table td {
   padding: var(--space-4) var(--space-5);
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid rgba(44, 38, 34, 0.06);
   vertical-align: middle;
+  color: var(--ink-primary);
 }
 
 .students-table tr:last-child td {
@@ -410,7 +418,7 @@ function handleAddStudent() {
 }
 
 .students-table tr:hover {
-  background: var(--bg-card-hover);
+  background: rgba(255, 255, 255, 0.45);
 }
 
 /* Student Cell */
@@ -435,11 +443,12 @@ function handleAddStudent() {
 
 .student-name {
   font-weight: var(--font-semibold);
+  color: var(--ink-primary);
 }
 
 .student-email {
   font-size: var(--text-sm);
-  color: var(--text-muted);
+  color: var(--ink-muted);
 }
 
 /* Progress Cell */
@@ -452,7 +461,7 @@ function handleAddStudent() {
 .progress-bar {
   width: 80px;
   height: 6px;
-  background: var(--bg-secondary);
+  background: rgba(44, 38, 34, 0.08);
   border-radius: var(--radius-full);
   overflow: hidden;
 }
@@ -466,8 +475,9 @@ function handleAddStudent() {
 
 .progress-value {
   font-size: var(--text-sm);
-  color: var(--text-secondary);
+  color: var(--ink-secondary);
   min-width: 40px;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Text Colors */
@@ -477,7 +487,7 @@ function handleAddStudent() {
 }
 
 .text-muted {
-  color: var(--text-muted);
+  color: var(--ink-muted);
 }
 
 /* Action Button */
@@ -485,9 +495,9 @@ function handleAddStudent() {
   width: 32px;
   height: 32px;
   border-radius: var(--radius-md);
-  border: 1px solid var(--border-subtle);
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
+  border: 1px solid rgba(44, 38, 34, 0.08);
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--ink-secondary);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -501,25 +511,27 @@ function handleAddStudent() {
   color: white;
 }
 
-/* Empty State */
+/* Empty State — FrostCard provides the tile, view provides layout */
 .empty-state {
   text-align: center;
-  padding: var(--space-20);
+  padding: var(--space-16) var(--space-8);
 }
 
 .empty-icon {
   font-size: 4rem;
   opacity: 0.25;
   margin-bottom: var(--space-5);
+  color: var(--ink-faint);
 }
 
 .empty-state h3 {
   font-size: var(--text-xl);
   margin-bottom: var(--space-2);
+  color: var(--ink-primary);
 }
 
 .empty-state p {
-  color: var(--text-secondary);
+  color: var(--ink-muted);
 }
 
 /* Animations */
@@ -564,11 +576,8 @@ function handleAddStudent() {
   }
 }
 
-/* Student Detail Panel */
+/* Student Detail Panel — FrostCard provides the glass; view provides layout */
 .student-detail-panel {
-  background: var(--bg-card);
-  border: 1px solid var(--ssi-red);
-  border-radius: var(--radius-xl);
   padding: var(--space-6);
   margin-top: var(--space-6);
 }
@@ -583,6 +592,9 @@ function handleAddStudent() {
 .detail-header h3 {
   font-size: var(--text-xl);
   font-weight: var(--font-bold);
+  font-family: var(--font-display);
+  color: var(--ink-primary);
+  letter-spacing: -0.01em;
 }
 
 .detail-stats {
@@ -595,7 +607,8 @@ function handleAddStudent() {
 .detail-stat {
   text-align: center;
   padding: var(--space-4);
-  background: var(--bg-secondary);
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(44, 38, 34, 0.06);
   border-radius: var(--radius-lg);
 }
 
@@ -604,13 +617,15 @@ function handleAddStudent() {
   font-size: var(--text-2xl);
   font-weight: var(--font-bold);
   color: var(--ssi-gold);
+  font-variant-numeric: tabular-nums;
 }
 
 .detail-stat-label {
   display: block;
   font-size: var(--text-xs);
-  color: var(--text-muted);
+  color: var(--ink-muted);
   text-transform: uppercase;
+  letter-spacing: 0.05em;
   margin-top: var(--space-1);
 }
 
@@ -619,7 +634,7 @@ function handleAddStudent() {
   align-items: center;
   gap: var(--space-4);
   font-size: var(--text-sm);
-  color: var(--text-secondary);
+  color: var(--ink-secondary);
 }
 
 /* Panel transition */
