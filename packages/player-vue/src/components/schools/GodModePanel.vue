@@ -40,6 +40,97 @@ const isOpen = ref(false)
 const searchQuery = ref('')
 const roleFilter = ref<EducationalRole | null>(null)
 
+// --- Draggable FAB (mirrors TesterFeedback pattern) -----------------------
+const FAB_STORAGE_KEY = 'ssi-god-fab-pos'
+const fabX = ref<number | null>(null)
+const fabY = ref<number | null>(null)
+const isDragging = ref(false)
+const dragStartX = ref(0)
+const dragStartY = ref(0)
+const dragStartPosX = ref(0)
+const dragStartPosY = ref(0)
+const hasMoved = ref(false)
+const DRAG_THRESHOLD = 5
+
+// Restore any persisted position so the user doesn't have to re-drag on reload.
+try {
+  const stored = localStorage.getItem(FAB_STORAGE_KEY)
+  if (stored) {
+    const { x, y } = JSON.parse(stored)
+    if (typeof x === 'number' && typeof y === 'number') {
+      fabX.value = x
+      fabY.value = y
+    }
+  }
+} catch { /* ignore */ }
+
+const fabStyle = computed(() => {
+  if (fabX.value === null || fabY.value === null) return {}
+  return {
+    left: `${fabX.value}px`,
+    top: `${fabY.value}px`,
+    bottom: 'auto',
+    right: 'auto',
+  }
+})
+
+function persistFabPos() {
+  if (fabX.value === null || fabY.value === null) return
+  try {
+    localStorage.setItem(FAB_STORAGE_KEY, JSON.stringify({ x: fabX.value, y: fabY.value }))
+  } catch { /* ignore */ }
+}
+
+function onFabPointerDown(e: PointerEvent) {
+  hasMoved.value = false
+  isDragging.value = false
+  dragStartX.value = e.clientX
+  dragStartY.value = e.clientY
+
+  const el = e.currentTarget as HTMLElement
+  const rect = el.getBoundingClientRect()
+  dragStartPosX.value = rect.left
+  dragStartPosY.value = rect.top
+
+  // Switch from CSS-anchor to absolute coords at first touch so subsequent
+  // moves are relative to the visual position (not the bottom-left anchor).
+  if (fabX.value === null) {
+    fabX.value = rect.left
+    fabY.value = rect.top
+  }
+
+  document.addEventListener('pointermove', onFabPointerMove)
+  document.addEventListener('pointerup', onFabPointerUp)
+}
+
+function onFabPointerMove(e: PointerEvent) {
+  const dx = e.clientX - dragStartX.value
+  const dy = e.clientY - dragStartY.value
+  if (!hasMoved.value && Math.sqrt(dx * dx + dy * dy) < DRAG_THRESHOLD) return
+  hasMoved.value = true
+  isDragging.value = true
+
+  const newX = dragStartPosX.value + dx
+  const newY = dragStartPosY.value + dy
+  const maxX = window.innerWidth - 48
+  const maxY = window.innerHeight - 48
+  fabX.value = Math.max(0, Math.min(newX, maxX))
+  fabY.value = Math.max(0, Math.min(newY, maxY))
+}
+
+function onFabPointerUp() {
+  document.removeEventListener('pointermove', onFabPointerMove)
+  document.removeEventListener('pointerup', onFabPointerUp)
+  if (hasMoved.value) persistFabPos()
+  // Defer so the synthesized click can read isDragging.
+  requestAnimationFrame(() => { isDragging.value = false })
+}
+
+function onFabClick() {
+  if (hasMoved.value) return // Drag gesture, not a tap.
+  isOpen.value = !isOpen.value
+}
+
 const roles: { value: EducationalRole; label: string; icon: string }[] = [
   { value: 'govt_admin', label: 'Govt Admin', icon: '🏛️' },
   { value: 'school_admin', label: 'School Admin', icon: '🏫' },
@@ -100,12 +191,17 @@ onMounted(async () => {
 
 <template>
   <div v-if="isGodAccessVerified" class="god-mode-panel" :class="{ open: isOpen }">
-    <!-- Floating trigger (matches TesterFeedback FAB; stacked above it) -->
+    <!-- Floating trigger — draggable so it can be moved off anything
+         it's covering on screens with other controls. -->
     <button
       class="god-fab"
+      :class="{ dragging: isDragging }"
+      :style="fabStyle"
       :aria-label="selectedUser ? `GOD mode — impersonating ${selectedUser.display_name}` : 'GOD mode — impersonate a user'"
-      title="GOD mode"
-      @click="isOpen = !isOpen"
+      title="GOD mode (drag to move)"
+      @pointerdown="onFabPointerDown"
+      @click="onFabClick"
+      @dragstart.prevent
     >
       <span class="god-fab-icon" aria-hidden="true">👁️</span>
       <span v-if="selectedUser" class="god-fab-dot" aria-hidden="true" />
@@ -262,11 +358,13 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
+  cursor: grab;
   box-shadow: 0 2px 12px rgba(212, 168, 83, 0.4);
-  transition: box-shadow 0.2s ease, transform 0.15s ease, opacity 0.2s ease;
+  transition: box-shadow 0.2s ease, opacity 0.2s ease;
   opacity: 0.75;
   padding: 0;
+  touch-action: none;
+  user-select: none;
 }
 
 .god-fab:hover {
@@ -274,7 +372,13 @@ onMounted(async () => {
   box-shadow: 0 4px 18px rgba(212, 168, 83, 0.55);
 }
 
-.god-fab:active {
+.god-fab.dragging {
+  cursor: grabbing;
+  box-shadow: 0 6px 24px rgba(212, 168, 83, 0.6);
+  opacity: 1;
+}
+
+.god-fab:active:not(.dragging) {
   transform: scale(0.96);
 }
 

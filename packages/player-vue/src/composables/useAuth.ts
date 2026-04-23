@@ -128,6 +128,21 @@ export function useAuth(): AuthState & AuthActions {
   /**
    * Convert a DB learner row to LearnerRecord
    */
+  // Sync the real user's roles into useUserRole, but only if a legitimate
+  // god-mode impersonation isn't currently active. godMode.selectUser has
+  // already written the impersonated role to the cache; overwriting with
+  // the real roles would bounce ssi_admins out of the impersonated
+  // dashboard (their own {ssi_admin, null} fails canAccessSchools).
+  function syncRealRoleCache(platformRole: string | null, educationalRole: string | null): void {
+    const godModeStored = !!(
+      sessionStorage.getItem('ssi-god-mode-user') ||
+      localStorage.getItem('ssi-god-mode-user')
+    )
+    const canUseGodMode = platformRole === 'ssi_admin' || educationalRole === 'god'
+    if (godModeStored && canUseGodMode) return // leave impersonation in place
+    useUserRole().initialize(platformRole, educationalRole)
+  }
+
   function toLearnerRecord(row: any): LearnerRecord {
     return {
       id: row.id,
@@ -176,8 +191,7 @@ export function useAuth(): AuthState & AuthActions {
         .single()
 
       if (existingLearner) {
-        const { initialize: initRole } = useUserRole()
-        initRole(existingLearner.platform_role, existingLearner.educational_role)
+        syncRealRoleCache(existingLearner.platform_role, existingLearner.educational_role)
 
         // Load verified_emails via RPC (column revoked from direct SELECT)
         let emails = await loadMyVerifiedEmails()
@@ -219,8 +233,7 @@ export function useAuth(): AuthState & AuthActions {
           const ll = linkedLearner as any
           ll.user_id = userId
 
-          const { initialize: initRole } = useUserRole()
-          initRole(ll.platform_role, ll.educational_role)
+          syncRealRoleCache(ll.platform_role, ll.educational_role)
 
           // Load emails now that this user owns the learner
           const emails = await loadMyVerifiedEmails()
@@ -349,31 +362,20 @@ export function useAuth(): AuthState & AuthActions {
         const platformRole = (learner.value as any)?.platform_role ?? null
         const educationalRole = (learner.value as any)?.educational_role ?? null
 
-        // If god-mode impersonation is stored AND the real user is allowed
-        // to use it, preserve everything: useUserRole has already been set
-        // to the impersonated role by godMode.selectUser → initRole, and
-        // overwriting here would bounce the user out of the dashboard
-        // (e.g. an ssi_admin impersonating a teacher would get their own
-        // ssi_admin+null role written back, failing canAccessSchools).
+        // Unauthorized god-mode storage → wipe (shared-browser leak guard).
+        // Authorized impersonation is preserved by syncRealRoleCache below.
         const godModeStored = !!(
           sessionStorage.getItem('ssi-god-mode-user') ||
           localStorage.getItem('ssi-god-mode-user')
         )
         const canUseGodMode = platformRole === 'ssi_admin' || educationalRole === 'god'
-        const impersonationActive = godModeStored && canUseGodMode
-
-        // Unauthorized god-mode storage → wipe (shared-browser leak guard).
         if (godModeStored && !canUseGodMode) {
           localStorage.removeItem('ssi-god-mode-user')
           sessionStorage.removeItem('ssi-god-mode-user')
         }
 
-        // Sync useUserRole cache to the real user's roles only when no
-        // legitimate impersonation is active. This clears any stale cache
-        // from a prior demo session without clobbering live impersonation.
-        if (!impersonationActive) {
-          useUserRole().initialize(platformRole, educationalRole)
-        }
+        // Role cache sync is a no-op when legitimate impersonation is active.
+        syncRealRoleCache(platformRole, educationalRole)
         isLoading.value = false
         return
       } else if (result === null) {
