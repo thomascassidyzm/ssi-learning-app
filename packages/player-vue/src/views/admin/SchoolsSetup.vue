@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { useAdminClient } from '@/composables/useAdminClient'
 import Card from '@/components/schools/shared/Card.vue'
+
+const router = useRouter()
 
 interface School {
   id: string
@@ -1008,6 +1011,12 @@ onMounted(() => {
               <span v-if="group.granted_courses.length > 0" class="group-courses">
                 {{ group.granted_courses.length }} courses
               </span>
+              <button class="group-view-btn" @click="router.push(`/admin/groups/${group.id}`)" title="Open cross-schools dashboard">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
               <button class="group-delete-btn" @click="deleteGroup(group)" title="Delete group">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <line x1="18" y1="6" x2="6" y2="18"/>
@@ -1030,6 +1039,12 @@ onMounted(() => {
               <span v-if="child.granted_courses.length > 0" class="group-courses">
                 {{ child.granted_courses.length }} courses
               </span>
+              <button class="group-view-btn" @click="router.push(`/admin/groups/${child.id}`)" title="Open cross-schools dashboard">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
               <button class="group-delete-btn" @click="deleteGroup(child)" title="Delete group">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <line x1="18" y1="6" x2="6" y2="18"/>
@@ -1049,6 +1064,12 @@ onMounted(() => {
                   </template>
                   <span v-else class="group-name-editable" @click="startGroupRename(grandchild)" title="Click to rename">{{ grandchild.name }}</span>
                   <span class="group-meta">{{ grandchild.school_count }} schools</span>
+                  <button class="group-view-btn" @click="router.push(`/admin/groups/${grandchild.id}`)" title="Open cross-schools dashboard">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button>
                   <button class="group-delete-btn" @click="deleteGroup(grandchild)" title="Delete group">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <line x1="18" y1="6" x2="6" y2="18"/>
@@ -1269,6 +1290,13 @@ onMounted(() => {
                 </td>
                 <td>{{ formatDate(school.created_at) }}</td>
                 <td class="actions-cell">
+                  <button class="action-btn" @click="router.push(`/admin/schools/${school.id}`)" title="Open dashboard for this school">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                    View
+                  </button>
                   <button class="action-btn" @click="editSchoolEntitlements(school)" title="Edit course entitlements">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
@@ -2031,6 +2059,33 @@ tbody tr:hover {
   color: var(--error);
   border-color: var(--error);
   background: color-mix(in srgb, var(--error) 8%, transparent);
+}
+
+.group-view-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.group-row:hover .group-view-btn {
+  opacity: 0.5;
+}
+
+.group-view-btn:hover {
+  opacity: 1 !important;
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 /* Group inline rename */

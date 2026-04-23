@@ -116,6 +116,18 @@ async function handleRevoke(entitlementId: string) {
       </button>
       <span class="breadcrumb-separator">/</span>
       <span class="breadcrumb-current">{{ profile?.display_name || 'Loading...' }}</span>
+      <button
+        v-if="profile"
+        class="breadcrumb-action"
+        @click="$router.push(`/admin/users/${$route.params.learnerId}/progress`)"
+        title="Open the learner's own progress dashboard"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+        Learner dashboard
+      </button>
     </nav>
 
     <!-- Error -->
@@ -416,6 +428,28 @@ async function handleRevoke(entitlementId: string) {
 .breadcrumb-current {
   color: var(--text-secondary);
   font-weight: var(--font-medium, 500);
+}
+
+.breadcrumb-action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+  padding: var(--space-1) var(--space-2);
+  background: none;
+  border: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.08));
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-sm);
+  transition: all var(--transition-base);
+}
+
+.breadcrumb-action:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 /* Profile card */
