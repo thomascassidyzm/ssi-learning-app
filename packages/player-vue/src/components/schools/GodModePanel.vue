@@ -52,19 +52,33 @@ const dragStartPosY = ref(0)
 const hasMoved = ref(false)
 const DRAG_THRESHOLD = 5
 
-// Restore any persisted position so the user doesn't have to re-drag on reload.
+// Restore persisted position if it's on-screen. Off-screen coords (from a
+// prior bug that stored relative-not-fixed values) get discarded so the
+// user doesn't arrive to an invisible, unreachable FAB.
 try {
   const stored = localStorage.getItem(FAB_STORAGE_KEY)
   if (stored) {
     const { x, y } = JSON.parse(stored)
-    if (typeof x === 'number' && typeof y === 'number') {
+    const maxX = window.innerWidth - 48
+    const maxY = window.innerHeight - 48
+    if (
+      typeof x === 'number' && typeof y === 'number' &&
+      x >= 0 && y >= 0 && x <= maxX && y <= maxY
+    ) {
       fabX.value = x
       fabY.value = y
+    } else {
+      localStorage.removeItem(FAB_STORAGE_KEY)
     }
   }
 } catch { /* ignore */ }
 
-const fabStyle = computed(() => {
+// Apply coords to the OUTER fixed container, not the button. The button is
+// position:relative inside the container, so top/left on it offsets from
+// its natural position (i.e. pushes it off-screen). Applying the override
+// to the container keeps the button relatively anchored while the whole
+// fab-and-panel group moves together.
+const containerStyle = computed(() => {
   if (fabX.value === null || fabY.value === null) return {}
   return {
     left: `${fabX.value}px`,
@@ -190,13 +204,12 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div v-if="isGodAccessVerified" class="god-mode-panel" :class="{ open: isOpen }">
+  <div v-if="isGodAccessVerified" class="god-mode-panel" :class="{ open: isOpen }" :style="containerStyle">
     <!-- Floating trigger — draggable so it can be moved off anything
          it's covering on screens with other controls. -->
     <button
       class="god-fab"
       :class="{ dragging: isDragging }"
-      :style="fabStyle"
       :aria-label="selectedUser ? `GOD mode — impersonating ${selectedUser.display_name}` : 'GOD mode — impersonate a user'"
       title="GOD mode (drag to move)"
       @pointerdown="onFabPointerDown"
