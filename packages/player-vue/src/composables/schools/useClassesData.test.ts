@@ -39,15 +39,15 @@ describe('useClassesData', () => {
   async function setup(responses: Record<string, any> = {}, role = 'teacher') {
     const { setSchoolsClient } = await import('./client')
     setSchoolsClient(createMockClient(responses))
-    const { useGodMode } = await import('./useGodMode')
-    const gm = useGodMode()
+    const { useSchoolContext } = await import('./useSchoolContext')
+    const ctx = useSchoolContext()
     if (role === 'teacher') {
-      gm.selectUser({
+      ctx.currentUser.value = ({
         user_id: 'u-teacher', learner_id: 'l-t', display_name: 'Teacher',
         educational_role: 'teacher', platform_role: null, school_id: 's1'
       })
     } else if (role === 'school_admin') {
-      gm.selectUser({
+      ctx.currentUser.value = ({
         user_id: 'u-admin', learner_id: 'l-a', display_name: 'Admin',
         educational_role: 'school_admin', platform_role: null, school_id: 's1'
       })
@@ -86,8 +86,8 @@ describe('useClassesData', () => {
   it('does not fetch without selected user', async () => {
     const { setSchoolsClient } = await import('./client')
     setSchoolsClient(createMockClient({}))
-    const { useGodMode } = await import('./useGodMode')
-    useGodMode()
+    const { useSchoolContext } = await import('./useSchoolContext')
+    useSchoolContext()
     const { useClassesData } = await import('./useClassesData')
     const cd = useClassesData()
     await cd.fetchClasses()

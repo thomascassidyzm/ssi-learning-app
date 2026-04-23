@@ -370,30 +370,12 @@ const router = createRouter({
   },
 })
 
-// Guard admin routes.
-// useUserRole holds the ACTIVE role (which is the impersonated role when
-// god-mode is engaged), so a real ssi_admin mid-impersonation would be
-// denied admin access by cache alone. If god-mode storage survived
-// auth.initialize, useAuth's canUseGodMode gate only preserves it for an
-// ssi_admin/god real user — so "god-mode + real Supabase session" is a
-// sufficient admin signal, independent of the impersonated role in the
-// cache.
+// Guard admin routes — useUserRole is the single authority.
 router.beforeEach((to, _from, next) => {
   if (!to.path.startsWith('/admin')) return next()
   const { canAccessAdmin, restoreFromCache } = useUserRole()
   restoreFromCache()
-  if (canAccessAdmin.value) return next()
-
-  const hasGodMode = !!(
-    sessionStorage.getItem('ssi-god-mode-user') ||
-    localStorage.getItem('ssi-god-mode-user')
-  )
-  const hasSbSession = Object.keys(localStorage).some(
-    (k) => k.startsWith('sb-') && k.includes('-auth-token')
-  )
-  if (hasGodMode && hasSbSession) return next()
-
-  return next('/')
+  return canAccessAdmin.value ? next() : next('/')
 })
 
 // Update document title on navigation

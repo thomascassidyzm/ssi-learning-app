@@ -14,38 +14,44 @@
  *   - Demo: fake persona written directly by DemoLauncher
  *     (populateDemoData primes the data refs too).
  *
- * Queries NEVER impersonate anyone. If RLS is ever turned on, admin
- * routes rely on the real admin's JWT + admin-bypass policies, not on
- * pretending to be another user.
- *
- * During the migration this file re-exports useGodMode's underlying ref
- * so both names resolve to the same state. Phase 5 removes useGodMode
- * entirely and this file becomes the owner.
+ * Queries NEVER impersonate anyone. When RLS is turned on, admin routes
+ * rely on the real admin's JWT + admin-bypass policies, not on pretending
+ * to be another user.
  */
 
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { useGodMode, type GodModeUser, type EducationalRole } from './useGodMode'
 import { getSchoolsClient } from './client'
 
-export type SchoolUser = GodModeUser
-export type { EducationalRole }
+export type EducationalRole = 'god' | 'student' | 'teacher' | 'school_admin' | 'govt_admin'
+
+export interface SchoolUser {
+  user_id: string
+  learner_id: string
+  display_name: string
+  educational_role: EducationalRole | null
+  platform_role: 'ssi_admin' | null
+  school_id?: string
+  school_name?: string
+  region_code?: string
+  group_id?: string
+  group_path?: string
+  organization_name?: string
+  class_ids?: string[]
+}
+
+// Module-level shared state so every caller sees the same context.
+const currentUser = ref<SchoolUser | null>(null)
+
+const currentRole = computed((): EducationalRole | null =>
+  currentUser.value?.educational_role ?? null,
+)
+const isGovtAdmin = computed(() => currentRole.value === 'govt_admin')
+const isSchoolAdmin = computed(() => currentRole.value === 'school_admin')
+const isTeacher = computed(() => currentRole.value === 'teacher')
+const isStudent = computed(() => currentRole.value === 'student')
 
 export function useSchoolContext() {
-  const gm = useGodMode()
-
-  // Rename for `selectedUser`. Same reactive ref — writes from either name
-  // propagate during the migration.
-  const currentUser = gm.selectedUser
-
-  const currentRole = computed((): EducationalRole | null =>
-    currentUser.value?.educational_role ?? null,
-  )
-  const isGovtAdmin = computed(() => currentRole.value === 'govt_admin')
-  const isSchoolAdmin = computed(() => currentRole.value === 'school_admin')
-  const isTeacher = computed(() => currentRole.value === 'teacher')
-  const isStudent = computed(() => currentRole.value === 'student')
-
   /**
    * Populate context from the real authenticated learner. Called by
    * SchoolsContainer on mount. Idempotent: no-op if currentUser is

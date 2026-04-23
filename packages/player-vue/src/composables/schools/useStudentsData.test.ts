@@ -44,15 +44,15 @@ describe('useStudentsData', () => {
   async function setup(responses: Record<string, any> = {}, role = 'school_admin') {
     const { setSchoolsClient } = await import('./client')
     setSchoolsClient(createMockClient(responses))
-    const { useGodMode } = await import('./useGodMode')
-    const gm = useGodMode()
+    const { useSchoolContext } = await import('./useSchoolContext')
+    const ctx = useSchoolContext()
     if (role === 'teacher') {
-      gm.selectUser({
+      ctx.currentUser.value = ({
         user_id: 'u-t', learner_id: 'l-t', display_name: 'Teacher',
         educational_role: 'teacher', platform_role: null, school_id: 's1'
       })
     } else {
-      gm.selectUser({
+      ctx.currentUser.value = ({
         user_id: 'u-a', learner_id: 'l-a', display_name: 'Admin',
         educational_role: 'school_admin', platform_role: null, school_id: 's1'
       })

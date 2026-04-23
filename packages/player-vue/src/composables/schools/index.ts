@@ -1,6 +1,6 @@
 export { setSchoolsClient, getSchoolsClient } from './client'
-export { useGodMode } from './useGodMode'
-export type { EducationalRole, GodModeUser } from './useGodMode'
+export { useSchoolContext } from './useSchoolContext'
+export type { EducationalRole, SchoolUser } from './useSchoolContext'
 export { useSchoolData } from './useSchoolData'
 export { useClassesData } from './useClassesData'
 export type { ClassSession } from './useClassesData'

@@ -100,7 +100,9 @@ export function useAuth(): AuthState & AuthActions {
     localStorage.getItem(SIGNUP_PROMPT_SEEN_KEY) === 'true'
   )
 
-  // Computed state (accounts for god mode where learner is set without Supabase Auth)
+  // Computed state. learner is populated from ensureLearnerExists after
+  // Supabase Auth resolves; demo flow populates useSchoolContext directly
+  // without going through useAuth.
   const isAuthenticated = computed(() => !!supabaseUser.value || !!learner.value)
   const isGuest = computed(() => !supabaseUser.value && !learner.value && !!guestId.value)
   // learnerId = learners table PK — use for FK references (sessions, enrollments, progress)
@@ -128,18 +130,10 @@ export function useAuth(): AuthState & AuthActions {
   /**
    * Convert a DB learner row to LearnerRecord
    */
-  // Sync the real user's roles into useUserRole, but only if a legitimate
-  // god-mode impersonation isn't currently active. godMode.selectUser has
-  // already written the impersonated role to the cache; overwriting with
-  // the real roles would bounce ssi_admins out of the impersonated
-  // dashboard (their own {ssi_admin, null} fails canAccessSchools).
+  // Sync the authenticated user's roles into useUserRole. Demo flow writes
+  // its own impersonated role directly and overrides this until demo ends
+  // (see DemoLauncher / useDemoController).
   function syncRealRoleCache(platformRole: string | null, educationalRole: string | null): void {
-    const godModeStored = !!(
-      sessionStorage.getItem('ssi-god-mode-user') ||
-      localStorage.getItem('ssi-god-mode-user')
-    )
-    const canUseGodMode = platformRole === 'ssi_admin' || educationalRole === 'god'
-    if (godModeStored && canUseGodMode) return // leave impersonation in place
     useUserRole().initialize(platformRole, educationalRole)
   }
 
@@ -316,10 +310,11 @@ export function useAuth(): AuthState & AuthActions {
 
   /**
    * Initialize auth state.
-   * In god mode (ssi-god-mode-user set), skips Supabase Auth entirely and uses mock user IDs.
    *
-   * Guest mode is always available immediately — the Supabase session check
-   * runs with a timeout so the app is never blocked by network issues.
+   * Guest mode is always available immediately — the Supabase session
+   * check runs with a timeout so the app is never blocked by network
+   * issues. On a real session, learner is loaded and useUserRole is
+   * synced; otherwise the app runs as guest until sign-in.
    */
   async function initialize(supabaseClient: SupabaseClient): Promise<void> {
     supabase.value = supabaseClient
@@ -340,7 +335,7 @@ export function useAuth(): AuthState & AuthActions {
     })
 
     // Check for existing Supabase Auth session with a timeout.
-    // Real auth sessions ALWAYS take priority over god mode.
+    // Check for existing Supabase Auth session with a timeout.
     try {
       const SESSION_TIMEOUT_MS = 5000
       const sessionPromise = supabaseClient.auth.getSession()
@@ -361,20 +356,6 @@ export function useAuth(): AuthState & AuthActions {
 
         const platformRole = (learner.value as any)?.platform_role ?? null
         const educationalRole = (learner.value as any)?.educational_role ?? null
-
-        // Unauthorized god-mode storage → wipe (shared-browser leak guard).
-        // Authorized impersonation is preserved by syncRealRoleCache below.
-        const godModeStored = !!(
-          sessionStorage.getItem('ssi-god-mode-user') ||
-          localStorage.getItem('ssi-god-mode-user')
-        )
-        const canUseGodMode = platformRole === 'ssi_admin' || educationalRole === 'god'
-        if (godModeStored && !canUseGodMode) {
-          localStorage.removeItem('ssi-god-mode-user')
-          sessionStorage.removeItem('ssi-god-mode-user')
-        }
-
-        // Role cache sync is a no-op when legitimate impersonation is active.
         syncRealRoleCache(platformRole, educationalRole)
         isLoading.value = false
         return
@@ -383,32 +364,6 @@ export function useAuth(): AuthState & AuthActions {
       }
     } catch (err) {
       console.warn('[useAuth] Session check failed, continuing as guest:', err)
-    }
-
-    // No real Supabase session — check for god mode (demo/admin impersonation)
-    const godModeUser = sessionStorage.getItem('ssi-god-mode-user') || localStorage.getItem('ssi-god-mode-user')
-    if (godModeUser) {
-      try {
-        const parsed = JSON.parse(godModeUser)
-        guestId.value = null
-        learner.value = {
-          id: parsed.learner_id || parsed.user_id,
-          user_id: parsed.user_id,
-          display_name: parsed.display_name,
-          created_at: new Date(),
-          updated_at: new Date(),
-          preferences: defaultPreferences(),
-        } as any
-        // Sync roles to useUserRole so router guard works in god mode
-        const { initialize: initRole } = useUserRole()
-        initRole(parsed.platform_role ?? null, parsed.educational_role ?? null)
-        isLoading.value = false
-        console.log('[useAuth] God mode active, using user:', parsed.display_name)
-        return
-      } catch {
-        // Invalid stored user, continue with normal auth
-        localStorage.removeItem('ssi-god-mode-user')
-      }
     }
 
     isLoading.value = false
@@ -427,12 +382,6 @@ export function useAuth(): AuthState & AuthActions {
     useUserRole().clear()
     useSharedSubscription().clearCache()
     useSharedUserEntitlements().clearCache()
-    // Clear any god-mode impersonation so it can't leak to the next user
-    // on a shared browser. initialize() no longer wipes this on sign-in
-    // (it needs to survive the reload-based GOD panel flow), so signOut
-    // is the right hook.
-    localStorage.removeItem('ssi-god-mode-user')
-    sessionStorage.removeItem('ssi-god-mode-user')
     // Reinitialize guest
     guestId.value = getOrCreateGuestId()
   }

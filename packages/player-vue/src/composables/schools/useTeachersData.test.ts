@@ -39,9 +39,9 @@ describe('useTeachersData', () => {
   async function setup(responses: Record<string, any> = {}) {
     const { setSchoolsClient } = await import('./client')
     setSchoolsClient(createMockClient(responses))
-    const { useGodMode } = await import('./useGodMode')
-    const gm = useGodMode()
-    gm.selectUser({
+    const { useSchoolContext } = await import('./useSchoolContext')
+    const ctx = useSchoolContext()
+    ctx.currentUser.value = ({
       user_id: 'u-admin', learner_id: 'l-admin', display_name: 'Admin',
       educational_role: 'school_admin', platform_role: null, school_id: 's1'
     })
@@ -123,8 +123,8 @@ describe('useTeachersData', () => {
     const { setSchoolsClient } = await import('./client')
     const mockClient = createMockClient({})
     setSchoolsClient(mockClient)
-    const { useGodMode } = await import('./useGodMode')
-    useGodMode() // no user selected
+    const { useSchoolContext } = await import('./useSchoolContext')
+    useSchoolContext() // no user selected
     const { useTeachersData } = await import('./useTeachersData')
     const td = useTeachersData()
     await td.fetchTeachers()

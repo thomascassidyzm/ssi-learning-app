@@ -19,7 +19,6 @@ import PwaUpdatePrompt from './components/PwaUpdatePrompt.vue'
 import InstallBanner from './components/InstallBanner.vue'
 import DemoOverlay from './components/demo/DemoOverlay.vue'
 import TesterFeedback from './components/TesterFeedback.vue'
-import GodModePanel from './components/schools/GodModePanel.vue'
 import { setSchoolsClient } from './composables/schools/client'
 
 // Suppress consecutive identical console errors/warnings after 3 repeats
@@ -64,9 +63,15 @@ if (localStorage.getItem('ssi-dev-tier') === 'paid' && !sessionStorage.getItem('
   console.log('[App] Cleaning up stale demo state from localStorage')
   localStorage.removeItem('ssi-dev-tier')
   localStorage.removeItem('ssi-active-class')
-  // Don't remove ssi-last-course — user might have set that themselves
-  // Don't remove ssi-god-mode-user — that's used outside demo too
+  // Don't remove ssi-last-course — user might have set that themselves.
 }
+
+// Wipe dead god-mode storage keys — impersonation was removed from the
+// app. These only exist on browsers that ran a prior version; safe to
+// drop unconditionally every boot until enough users have rotated.
+localStorage.removeItem('ssi-god-mode-user')
+sessionStorage.removeItem('ssi-god-mode-user')
+localStorage.removeItem('ssi-god-fab-pos')
 
 // Initialize theme (reads from localStorage, applies to document)
 const { theme, toggleTheme, setTheme } = useTheme()
@@ -477,7 +482,6 @@ onMounted(async () => {
     <InstallBanner />
     <DemoOverlay />
     <TesterFeedback />
-    <GodModePanel />
   </div>
 </template>
 
