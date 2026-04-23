@@ -713,9 +713,12 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
     }
     if (isIntroOrDebut && currentRound.value?.legoId) {
       const legoId = currentRound.value.legoId
+      // Read the LEGO text directly from the current cycle — avoids a map
+      // that can be overwritten by later revival/review rounds sharing the
+      // same legoId (which makes intro tiles render as whole phrases).
       const targetText = useNative
-        ? (legoTargetTextNativeMap.value.get(legoId) || legoTargetTextMap.value.get(legoId) || '')
-        : (legoTargetTextMap.value.get(legoId) || '')
+        ? (cycle.target?.textNative || cycle.target?.text || '')
+        : (cycle.target?.text || '')
       if (targetText) {
         return [{ id: legoId, targetText, isSalient: true }]
       }
@@ -3691,6 +3694,7 @@ const playIntroductionAudioDirectly = async (scriptItem) => {
  */
 let welcomeAudioElement = null // Store reference for skip functionality
 let welcomeResolve = null // Store resolve function so skip can complete the promise
+let welcomeEventCleanups = [] // Cleanup fns for welcome audio event listeners — invoked before src is cleared to prevent the browser firing a spurious error event on the skipped element
 let introAudioElement = null // Store reference for intro skip functionality
 let introAbortController = null // AbortController for cancelling pending intro audio
 let introEventCleanups = [] // Array of cleanup functions for intro audio event listeners
@@ -3771,8 +3775,8 @@ const playWelcomeIfNeeded = async () => {
       welcomeAudioElement = audio
 
       const cleanup = async () => {
-        audio.removeEventListener('ended', onEnded)
-        audio.removeEventListener('error', onError)
+        for (const c of welcomeEventCleanups) { try { c() } catch (_e) { /* ignore */ } }
+        welcomeEventCleanups = []
         isPlayingWelcome.value = false
         showWelcomeSkip.value = false
         welcomeAudioElement = null
@@ -3791,6 +3795,8 @@ const playWelcomeIfNeeded = async () => {
       }
 
       const onError = async (e) => {
+        // Fires after skipWelcome has already torn down — silent exit.
+        if (!isPlayingWelcome.value) return
         console.error('[LearningPlayer] Welcome audio error:', e)
         await cleanup()
         resolve(false)
@@ -3798,10 +3804,15 @@ const playWelcomeIfNeeded = async () => {
 
       audio.addEventListener('ended', onEnded)
       audio.addEventListener('error', onError)
+      welcomeEventCleanups = [
+        () => audio.removeEventListener('ended', onEnded),
+        () => audio.removeEventListener('error', onError),
+      ]
       audio.src = welcomeAudio.url
       audio.load()
 
       audio.play().catch((e) => {
+        if (!isPlayingWelcome.value) return
         console.error('[LearningPlayer] Failed to play welcome:', e)
         onError(e)
       })
@@ -3815,19 +3826,24 @@ const playWelcomeIfNeeded = async () => {
 const skipWelcome = async () => {
   console.log('[LearningPlayer] skipWelcome called')
 
-  // 1. Stop and clean up the audio element
+  // 1. Flip the flag FIRST — any late-firing handler reads this and bails.
+  isPlayingWelcome.value = false
+  showWelcomeSkip.value = false
+
+  // 2. Detach event listeners BEFORE clearing src. Clearing src triggers
+  // a browser 'error' event on the audio element; without detaching first,
+  // onError would log a spurious "Welcome audio error" on every skip.
+  for (const c of welcomeEventCleanups) { try { c() } catch (_e) { /* ignore */ } }
+  welcomeEventCleanups = []
+
+  // 3. Stop and clean up the audio element
   if (welcomeAudioElement) {
-    // Remove any event listeners by cloning the approach from skipIntroduction
-    // We can't easily get references to the handlers, so we'll do a full cleanup
     welcomeAudioElement.pause()
     welcomeAudioElement.removeAttribute('src')
     welcomeAudioElement.src = ''
     try { welcomeAudioElement.load() } catch (e) { /* ignore */ }
   }
 
-  // 2. Reset state
-  isPlayingWelcome.value = false
-  showWelcomeSkip.value = false
   welcomeAudioElement = null
 
   // 3. Resolve the promise so startPlayback can continue
@@ -5583,6 +5599,9 @@ onUnmounted(() => {
     introAudioElement = null
   }
   if (welcomeAudioElement) {
+    isPlayingWelcome.value = false
+    for (const c of welcomeEventCleanups) { try { c() } catch (_e) { /* ignore */ } }
+    welcomeEventCleanups = []
     try {
       welcomeAudioElement.pause()
       welcomeAudioElement.src = ''

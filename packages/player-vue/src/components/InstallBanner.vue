@@ -82,7 +82,7 @@ function dismiss() {
         <div class="install-banner-left">
           <img src="/icons/icon-192.png" alt="" width="36" height="36" class="install-banner-icon" />
           <div class="install-banner-text">
-            <span class="install-banner-title">Add to Home Screen</span>
+            <span class="install-banner-title">Install SaySomethingin</span>
             <span class="install-banner-subtitle">Faster, offline, full-screen</span>
           </div>
         </div>
