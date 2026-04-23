@@ -6,7 +6,7 @@
 
 import { ref, computed } from 'vue'
 import { getSchoolsClient } from './client'
-import { useGodMode } from './useGodMode'
+import { useSchoolContext } from './useSchoolContext'
 import { useSchoolData } from './useSchoolData'
 import { useStudentsData } from './useStudentsData'
 import { isDemoMode } from '../demo/demoMode'
@@ -75,7 +75,7 @@ const error = ref<string | null>(null)
 
 export function useClassesData() {
   const client = getSchoolsClient()
-  const { selectedUser, isTeacher, isSchoolAdmin, isGovtAdmin } = useGodMode()
+  const { currentUser: selectedUser, isTeacher, isSchoolAdmin, isGovtAdmin } = useSchoolContext()
   const { viewingSchool, isViewingSchool } = useSchoolData()
 
   // The active school ID (drill-down takes precedence)

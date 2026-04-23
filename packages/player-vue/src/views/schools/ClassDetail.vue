@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { useGodMode } from '@/composables/schools/useGodMode'
+import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useClassesData, type ClassReport } from '@/composables/schools/useClassesData'
 import { getSchoolsClient } from '@/composables/schools/client'
 import LanguageFlag from '@/components/schools/shared/LanguageFlag.vue'
@@ -11,7 +11,7 @@ const router = useRouter()
 const route = useRoute()
 
 // God Mode and data
-const { selectedUser } = useGodMode()
+const { currentUser: selectedUser } = useSchoolContext()
 const { classDetail, fetchClassDetail, getClassReport, getClassSessions } = useClassesData()
 
 // Report data

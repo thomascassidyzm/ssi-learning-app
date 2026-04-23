@@ -2,7 +2,7 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Card from '@/components/schools/shared/Card.vue'
-import { useGodMode } from '@/composables/schools/useGodMode'
+import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { useClassesData } from '@/composables/schools/useClassesData'
 import { useCourseAccess } from '@/composables/schools/useCourseAccess'
@@ -12,7 +12,7 @@ import { isDemoMode } from '@/composables/demo/demoMode'
 import { getLanguageName } from '@/composables/useI18n'
 
 const router = useRouter()
-const { selectedUser, isGovtAdmin, isTeacher } = useGodMode()
+const { currentUser: selectedUser, isGovtAdmin, isTeacher } = useSchoolContext()
 const {
   schools,
   currentSchool,

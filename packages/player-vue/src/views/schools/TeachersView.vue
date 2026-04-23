@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import JoinCodeBanner from '@/components/schools/JoinCodeBanner.vue'
-import { useGodMode } from '@/composables/schools/useGodMode'
+import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useTeachersData } from '@/composables/schools/useTeachersData'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { getSchoolsClient } from '@/composables/schools/client'
 
-// God Mode and data
-const { selectedUser } = useGodMode()
+// School context and data
+const { currentUser: selectedUser } = useSchoolContext()
 const { teachers: teachersData, fetchTeachers } = useTeachersData()
 const { currentSchool, fetchSchools } = useSchoolData()
 

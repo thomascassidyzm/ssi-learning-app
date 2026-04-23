@@ -2,7 +2,7 @@
 import { ref, computed, inject } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { useGodMode } from '@/composables/schools/useGodMode'
+import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useUserRole } from '@/composables/useUserRole'
 import { isDemoMode } from '@/composables/demo/demoMode'
 
@@ -21,7 +21,7 @@ const route = useRoute()
 const router = useRouter()
 const auth = inject<any>('auth')
 const supabaseRef = inject<{ value: SupabaseClient | null }>('supabase')
-const { selectedUser, isGovtAdmin } = useGodMode()
+const { currentUser: selectedUser, isGovtAdmin } = useSchoolContext()
 const { canAccessAdmin, hasSchoolRole } = useUserRole()
 
 declare const __BUILD_NUMBER__: string

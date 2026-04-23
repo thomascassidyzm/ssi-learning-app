@@ -4,14 +4,14 @@ import { useRouter } from 'vue-router'
 import ClassCard from '@/components/schools/ClassCard.vue'
 import CreateClassModal from '@/components/schools/CreateClassModal.vue'
 import ClassCreatedModal from '@/components/schools/ClassCreatedModal.vue'
-import { useGodMode } from '@/composables/schools/useGodMode'
+import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useClassesData } from '@/composables/schools/useClassesData'
 import { getLanguageName } from '@/composables/useI18n'
 
 const router = useRouter()
 
 // God Mode and data
-const { selectedUser } = useGodMode()
+const { currentUser: selectedUser } = useSchoolContext()
 const { classes: classesData, fetchClasses, createClass, getClassReport, isLoading } = useClassesData()
 
 // Modal state

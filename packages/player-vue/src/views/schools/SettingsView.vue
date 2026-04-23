@@ -2,10 +2,10 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import Card from '@/components/schools/shared/Card.vue'
 import Button from '@/components/schools/shared/Button.vue'
-import { useGodMode } from '@/composables/schools/useGodMode'
+import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 
-const { selectedUser } = useGodMode()
+const { currentUser: selectedUser } = useSchoolContext()
 const { activeSchool, currentSchool, fetchSchools } = useSchoolData()
 
 // Settings state - editable refs initialized from real data

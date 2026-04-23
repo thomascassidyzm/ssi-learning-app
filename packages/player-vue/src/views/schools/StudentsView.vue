@@ -5,11 +5,11 @@ import FilterDropdown from '@/components/schools/shared/FilterDropdown.vue'
 import Badge from '@/components/schools/shared/Badge.vue'
 import Button from '@/components/schools/shared/Button.vue'
 import FrostCard from '@/components/schools/shared/FrostCard.vue'
-import { useGodMode } from '@/composables/schools/useGodMode'
+import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useStudentsData } from '@/composables/schools/useStudentsData'
 
-// God Mode and data
-const { selectedUser } = useGodMode()
+// School context and data
+const { currentUser: selectedUser } = useSchoolContext()
 const { students: studentsData, fetchStudents } = useStudentsData()
 
 // Filters
