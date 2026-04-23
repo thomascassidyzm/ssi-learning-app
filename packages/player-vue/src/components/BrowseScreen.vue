@@ -16,7 +16,7 @@ const router = useRouter()
 // Entitlement + subscription (same check as CourseSelector)
 const { entitlements: userEntitlements } = useSharedUserEntitlements()
 const { isSubscribed: hasActiveSubscription } = useSharedSubscription()
-const { platformRole } = useUserRole()
+const { platformRole, hasSchoolRole } = useUserRole()
 
 const hasFullAccess = (course) => {
   const pricingTier = course.pricing_tier ?? inferPricingTier(course.target_lang ?? '', course.course_code)
@@ -48,17 +48,8 @@ const auth = inject('auth')
 const isGuest = computed(() => auth?.isGuest?.value ?? true)
 const { open: openAuth } = useAuthModal()
 
-// Show schools link when god mode user is set (teacher/admin)
-const hasSchoolsAccess = computed(() => {
-  try {
-    const stored = localStorage.getItem('ssi-god-mode-user')
-    if (!stored) return false
-    const user = JSON.parse(stored)
-    return ['teacher', 'school_admin', 'govt_admin'].includes(user.educational_role)
-  } catch {
-    return false
-  }
-})
+// Show schools link for users with a school-scoped educational role.
+const hasSchoolsAccess = computed(() => hasSchoolRole.value)
 
 const goToSchools = () => {
   router.push('/schools')
@@ -173,17 +164,8 @@ const fetchCourses = async () => {
   }
 }
 
-// Admin check: ssi_admin platform_role in god mode user
-const isAdmin = computed(() => {
-  try {
-    const stored = localStorage.getItem('ssi-god-mode-user')
-    if (!stored) return false
-    const user = JSON.parse(stored)
-    return user.platform_role === 'ssi_admin'
-  } catch {
-    return false
-  }
-})
+// Admin check: real user's platform_role from useUserRole.
+const isAdmin = computed(() => platformRole.value === 'ssi_admin')
 
 // Course search
 const courseSearchQuery = ref('')

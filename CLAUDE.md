@@ -506,7 +506,7 @@ saysomethingin.app/schools/student-progress → Individual student view
 - Analytics and daily activity reporting
 - Teacher and student management
 - School settings and admin setup
-- God Mode for support/testing context switching
+- Admin read-views at `/admin/schools/:id`, `/admin/groups/:id`, `/admin/classes/:id`, `/admin/users/:learnerId/progress` let ssi_admins see any school/group/class/user's dashboard under their own Supabase session — no client-side impersonation. RLS-ready: when policies tighten, admin access flows through admin-bypass rules, not a fake identity.
 - Multi-tenant (each school manages own data)
 
 ---

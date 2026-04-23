@@ -21,7 +21,7 @@ if (supabase.value) {
 const auth = inject<any>('auth', null)
 const isAuthenticated = computed(() => auth?.isAuthenticated?.value ?? false)
 const isAuthLoading = computed(() => auth?.isLoading?.value ?? false)
-const { canAccessSchools, educationalRole, restoreFromCache } = useUserRole()
+const { canAccessSchools, restoreFromCache } = useUserRole()
 restoreFromCache()
 
 // Load the school context for the real authenticated user — the schools

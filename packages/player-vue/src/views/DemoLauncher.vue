@@ -93,22 +93,18 @@ async function startDemo(demo: typeof demos[0]) {
   const demoController = useDemoController()
   const user = demoUsers[demo.userKey]
 
-  // Flag demo-active in sessionStorage FIRST. The useGodMode watcher on
-  // selectedUser (same ref as ctx.currentUser during migration) branches
-  // on this flag to choose sessionStorage over localStorage, so the fake
-  // persona auto-clears on tab close. If we set currentUser before the
-  // flag, the persona would leak to localStorage and survive demo exit.
+  // Demo flags (sessionStorage — auto-clears on tab close).
   sessionStorage.setItem('ssi-demo-active', 'true')
   sessionStorage.setItem('ssi-demo-last-course', 'cym_s_for_eng')
   sessionStorage.setItem('ssi-demo-tier', 'paid')
 
   // Set the school context directly to the demo persona. Schools composables
-  // read ctx.currentUser to scope queries; for demo, they also see
+  // read ctx.currentUser to scope queries; for demo they also see
   // isDemoMode=true and short-circuit to the pre-populated data refs.
   ctx.currentUser.value = user
 
-  // Sync the impersonated role into useUserRole so the /schools route guard
-  // and SchoolsContainer's canAccessSchools see a school-scoped role.
+  // Sync the demo persona's role into useUserRole so the /schools route
+  // guard and SchoolsContainer's canAccessSchools see a school-scoped role.
   useUserRole().initialize(user.platform_role, user.educational_role)
 
   // Set locale to English (demo audience speaks English)
