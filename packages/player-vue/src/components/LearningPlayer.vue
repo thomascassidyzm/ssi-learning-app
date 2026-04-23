@@ -713,9 +713,12 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
     }
     if (isIntroOrDebut && currentRound.value?.legoId) {
       const legoId = currentRound.value.legoId
+      // Read the LEGO text directly from the current cycle — avoids a map
+      // that can be overwritten by later revival/review rounds sharing the
+      // same legoId (which makes intro tiles render as whole phrases).
       const targetText = useNative
-        ? (legoTargetTextNativeMap.value.get(legoId) || legoTargetTextMap.value.get(legoId) || '')
-        : (legoTargetTextMap.value.get(legoId) || '')
+        ? (cycle.target?.textNative || cycle.target?.text || '')
+        : (cycle.target?.text || '')
       if (targetText) {
         return [{ id: legoId, targetText, isSalient: true }]
       }
