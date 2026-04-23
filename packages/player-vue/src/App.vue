@@ -142,6 +142,25 @@ const sessionStore = ref(null)
 const courseDataProvider = ref(null)
 const supabaseClient = ref(null)
 
+// Create Supabase client synchronously (before children mount) so globally-
+// mounted components like <GodModePanel> can read the schools-client bridge
+// during their own onMounted. Deferring this to App.vue's onMounted meant
+// the child's onMounted (which fires first in Vue 3) saw a missing client,
+// getSchoolsClient() threw, the error was swallowed, and GOD mode never
+// surfaced on non-/schools routes.
+if (config.features.useDatabase && isSupabaseConfigured(config)) {
+  try {
+    supabaseClient.value = createClient(
+      config.supabase.url,
+      config.supabase.anonKey,
+      { auth: { persistSession: true, autoRefreshToken: true } }
+    )
+    setSchoolsClient(supabaseClient.value)
+  } catch (err) {
+    console.error('[App] Failed to initialize Supabase client synchronously:', err)
+  }
+}
+
 // Eager script preload - fires as soon as course is known
 const eagerScript = useEagerScriptPreload()
 
@@ -360,26 +379,10 @@ onMounted(async () => {
     console.warn('[App] Kill switch check failed (non-fatal):', err)
   })
 
-  // Only initialize Supabase if configured and feature flag is enabled
-  if (config.features.useDatabase && isSupabaseConfigured(config)) {
+  // Supabase client was created synchronously above. Finish the async parts
+  // (stores + auth init) now that mount is complete.
+  if (supabaseClient.value) {
     try {
-      supabaseClient.value = createClient(
-        config.supabase.url,
-        config.supabase.anonKey,
-        {
-          auth: {
-            persistSession: true,
-            autoRefreshToken: true,
-          },
-        }
-      )
-
-      // Prime the schools-client bridge so God Mode (mounted globally in
-      // App.vue) can verify god access on any route, not just /schools/*
-      // where SchoolsContainer would otherwise be the only setter.
-      setSchoolsClient(supabaseClient.value)
-
-      // Create store instances
       progressStore.value = createProgressStore({ client: supabaseClient.value })
       sessionStore.value = createSessionStore({ client: supabaseClient.value })
 
