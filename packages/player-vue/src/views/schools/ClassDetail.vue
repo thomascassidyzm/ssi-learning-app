@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, inject } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useClassesData, type ClassReport } from '@/composables/schools/useClassesData'
@@ -10,7 +10,8 @@ import { getLanguageName } from '@/composables/useI18n'
 const router = useRouter()
 const route = useRoute()
 
-// God Mode and data
+// School context and data
+const isAdminView = inject<boolean>('isAdminView', false)
 const { currentUser: selectedUser } = useSchoolContext()
 const { classDetail, fetchClassDetail, getClassReport, getClassSessions } = useClassesData()
 
@@ -348,7 +349,7 @@ const handleRemoveStudent = async (student: { id: string; name: string }) => {
           </div>
         </div>
 
-        <button class="btn-play-main" @click="handlePlay">
+        <button v-if="!isAdminView" class="btn-play-main" @click="handlePlay">
           <svg viewBox="0 0 24 24" fill="currentColor">
             <polygon points="5 3 19 12 5 21 5 3"/>
           </svg>

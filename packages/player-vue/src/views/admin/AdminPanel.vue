@@ -2,7 +2,6 @@
 import { ref, onMounted } from 'vue'
 import { useAuth } from '@/composables/useAuth'
 import { useAdminClient } from '@/composables/useAdminClient'
-import { useGodMode } from '@/composables/schools/useGodMode'
 import Card from '@/components/schools/shared/Card.vue'
 
 interface Group {
@@ -25,7 +24,6 @@ interface InviteCode {
 
 const { user, learner } = useAuth()
 const { getClient, getAuthToken } = useAdminClient()
-const { selectedUser } = useGodMode()
 
 // Determine current user's platform_role
 const isSsiAdmin = ref(false)
@@ -48,7 +46,6 @@ const maxUses = ref<number | ''>('')
 const codeType = ref<'ssi_admin' | 'govt_admin' | 'school_admin'>('govt_admin')
 
 function getCurrentUserId(): string | null {
-  if (selectedUser.value) return selectedUser.value.user_id
   if (user.value) return user.value.id
   if (learner.value) return learner.value.user_id
   return null
@@ -82,9 +79,6 @@ async function fetchGroupsAndCodes(): Promise<void> {
     if (learnerData) {
       isSsiAdmin.value = learnerData.platform_role === 'ssi_admin' || learnerData.educational_role === 'god'
       isGovtAdmin.value = learnerData.educational_role === 'govt_admin'
-    } else if (selectedUser.value) {
-      isSsiAdmin.value = selectedUser.value.platform_role === 'ssi_admin'
-      isGovtAdmin.value = selectedUser.value.educational_role === 'govt_admin'
     }
 
     // Set default code type based on role
@@ -92,12 +86,13 @@ async function fetchGroupsAndCodes(): Promise<void> {
       codeType.value = 'school_admin'
     }
 
-    // Fetch invite codes created by this user
-    const { data: codesData, error: codesError } = await client
-      .from('invite_codes')
-      .select('*')
-      .eq('created_by', userId)
-      .order('created_at', { ascending: false })
+    // Fetch invite codes. ssi_admins see the full platform list; others
+    // see only what they created.
+    let query = client.from('invite_codes').select('*').order('created_at', { ascending: false })
+    if (!isSsiAdmin.value) {
+      query = query.eq('created_by', userId)
+    }
+    const { data: codesData, error: codesError } = await query
 
     if (codesError) throw codesError
     codes.value = codesData || []
@@ -130,11 +125,6 @@ async function createCode(): Promise<void> {
     if (selectedGroup.value) body.region_code = selectedGroup.value
     if (expiresAt.value) body.expires_at = new Date(expiresAt.value).toISOString()
     if (maxUses.value !== '') body.max_uses = Number(maxUses.value)
-
-    // If god mode, include created_by
-    if (selectedUser.value) {
-      body.created_by = selectedUser.value.user_id
-    }
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',

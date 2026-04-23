@@ -1,41 +1,43 @@
 /**
  * useSchoolContext — "Who is this dashboard FOR?" context.
  *
- * Replaces useGodMode's selectedUser semantics with a name that reflects
- * what the state actually is: the user context the schools composables
- * use to scope their queries (school_id, group_id, role, etc.). Not
- * impersonation — context.
+ * The schools composables and views read currentUser to scope queries
+ * (school_id, group_id, educational_role, etc.). This ref is populated
+ * from one of three sources:
  *
- * Populated from one of three sources:
- *   - Self-view: the real logged-in learner (SchoolsContainer.loadFromAuth)
- *   - Admin-view: a schoolId / groupId / learnerId from route params
- *     (AdminSchoolsContainer.loadFromSchoolId etc.) — queries still run as
- *     the real admin, the context just tells the composables what scope to
- *     look at.
- *   - Demo: a fake persona (populateDemoData).
+ *   - Self-view: real logged-in learner
+ *     (loadFromAuth — called by SchoolsContainer)
+ *   - Admin read-view: a schoolId / groupId / learnerId from route params
+ *     (loadFromSchoolId / loadFromGroupId / loadFromLearnerId — called by
+ *     AdminSchoolsContainer etc.). Queries still run as the real admin;
+ *     the context just tells composables what scope to look at.
+ *   - Demo: fake persona written directly by DemoLauncher
+ *     (populateDemoData primes the data refs too).
  *
- * During the migration this file re-exports useGodMode's shared state so
- * both the old and new names resolve to the same ref. Once all consumers
- * are migrated, useGodMode goes away and this becomes the owner of the
- * state.
+ * Queries NEVER impersonate anyone. If RLS is ever turned on, admin
+ * routes rely on the real admin's JWT + admin-bypass policies, not on
+ * pretending to be another user.
+ *
+ * During the migration this file re-exports useGodMode's underlying ref
+ * so both names resolve to the same state. Phase 5 removes useGodMode
+ * entirely and this file becomes the owner.
  */
 
 import { computed } from 'vue'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { useGodMode, type GodModeUser, type EducationalRole } from './useGodMode'
+import { getSchoolsClient } from './client'
 
-// Re-export the type under the new name, keeping the underlying shape.
 export type SchoolUser = GodModeUser
 export type { EducationalRole }
 
 export function useSchoolContext() {
   const gm = useGodMode()
 
-  // `currentUser` is the rename for `selectedUser`. Same reactive ref —
-  // writes from either name propagate to the other during the migration.
+  // Rename for `selectedUser`. Same reactive ref — writes from either name
+  // propagate during the migration.
   const currentUser = gm.selectedUser
 
-  // Role booleans derived from currentUser. Same computed semantics as
-  // useGodMode; exposed here so consumers have a single import point.
   const currentRole = computed((): EducationalRole | null =>
     currentUser.value?.educational_role ?? null,
   )
@@ -43,6 +45,187 @@ export function useSchoolContext() {
   const isSchoolAdmin = computed(() => currentRole.value === 'school_admin')
   const isTeacher = computed(() => currentRole.value === 'teacher')
   const isStudent = computed(() => currentRole.value === 'student')
+
+  /**
+   * Populate context from the real authenticated learner. Called by
+   * SchoolsContainer on mount. Idempotent: no-op if currentUser is
+   * already set (e.g. demo or admin-view already primed it).
+   */
+  async function loadFromAuth(authUserId: string, client?: SupabaseClient): Promise<void> {
+    if (currentUser.value) return
+    const c = client ?? getSchoolsClient()
+
+    const { data: learner } = await c
+      .from('learners')
+      .select('id, user_id, display_name, educational_role, platform_role')
+      .eq('user_id', authUserId)
+      .single()
+    if (!learner) return
+
+    const user: SchoolUser = {
+      user_id: learner.user_id,
+      learner_id: learner.id,
+      display_name: learner.display_name,
+      educational_role: learner.educational_role,
+      platform_role: learner.platform_role,
+    }
+
+    if (learner.educational_role === 'govt_admin') {
+      const { data: govt } = await c
+        .from('govt_admins')
+        .select('region_code, organization_name')
+        .eq('user_id', authUserId)
+        .single()
+      if (govt) {
+        user.region_code = govt.region_code
+        user.organization_name = govt.organization_name
+      }
+    } else if (['school_admin', 'teacher'].includes(learner.educational_role || '')) {
+      const { data: tag } = await c
+        .from('user_tags')
+        .select('tag_value')
+        .eq('user_id', authUserId)
+        .eq('tag_type', 'school')
+        .is('removed_at', null)
+        .limit(1)
+        .single()
+
+      if (tag) {
+        const schoolId = tag.tag_value.replace('SCHOOL:', '')
+        user.school_id = schoolId
+        const { data: school } = await c
+          .from('schools')
+          .select('school_name, region_code')
+          .eq('id', schoolId)
+          .single()
+        if (school) {
+          user.school_name = school.school_name
+          user.region_code = school.region_code
+        }
+      } else {
+        // Fallback: check if they're the admin_user_id on a school.
+        const { data: school } = await c
+          .from('schools')
+          .select('id, school_name, region_code')
+          .eq('admin_user_id', authUserId)
+          .limit(1)
+          .single()
+        if (school) {
+          user.school_id = school.id
+          user.school_name = school.school_name
+          user.region_code = school.region_code
+        }
+      }
+    }
+
+    currentUser.value = user
+  }
+
+  /**
+   * Populate context for an admin viewing a specific school. Sets the
+   * role to school_admin so the schools composables take the school-scope
+   * query branch, with school_id/school_name/region_code from the DB.
+   * Keeps the real admin's user_id/learner_id/platform_role so any action
+   * that writes attribution lands on the admin, not a fictional user.
+   */
+  async function loadFromSchoolId(
+    schoolId: string,
+    realLearner: {
+      user_id: string
+      learner_id: string
+      display_name: string
+      platform_role: string | null
+    },
+    client?: SupabaseClient,
+  ): Promise<void> {
+    const c = client ?? getSchoolsClient()
+    const { data: school } = await c
+      .from('schools')
+      .select('id, school_name, region_code, group_id')
+      .eq('id', schoolId)
+      .single()
+
+    currentUser.value = {
+      user_id: realLearner.user_id,
+      learner_id: realLearner.learner_id,
+      display_name: realLearner.display_name,
+      educational_role: 'school_admin',
+      platform_role: realLearner.platform_role as 'ssi_admin' | null,
+      school_id: schoolId,
+      school_name: school?.school_name,
+      region_code: school?.region_code ?? undefined,
+      group_id: school?.group_id ?? undefined,
+    }
+  }
+
+  /**
+   * Populate context for an admin viewing a specific group (cross-schools).
+   * Sets the role to govt_admin so the schools composables take the
+   * group-scope query branch.
+   */
+  async function loadFromGroupId(
+    groupId: string,
+    realLearner: {
+      user_id: string
+      learner_id: string
+      display_name: string
+      platform_role: string | null
+    },
+    client?: SupabaseClient,
+  ): Promise<void> {
+    const c = client ?? getSchoolsClient()
+    const { data: group } = await c
+      .from('groups')
+      .select('id, path, name')
+      .eq('id', groupId)
+      .single()
+
+    // `groups` has no region_code column — the schools composables fall
+    // back to group_id/group_path when region_code is absent, which is
+    // the right scope for cross-schools group views anyway.
+    currentUser.value = {
+      user_id: realLearner.user_id,
+      learner_id: realLearner.learner_id,
+      display_name: realLearner.display_name,
+      educational_role: 'govt_admin',
+      platform_role: realLearner.platform_role as 'ssi_admin' | null,
+      group_id: groupId,
+      group_path: group?.path ?? undefined,
+      organization_name: group?.name ?? undefined,
+    }
+  }
+
+  /**
+   * Populate context for an admin viewing a specific learner's progress.
+   * Sets the role to student; StudentProgressView reads learner_id to
+   * query that user's course enrollments.
+   */
+  async function loadFromLearnerId(
+    learnerId: string,
+    realLearner: {
+      user_id: string
+      platform_role: string | null
+    },
+    client?: SupabaseClient,
+  ): Promise<void> {
+    const c = client ?? getSchoolsClient()
+    const { data: learner } = await c
+      .from('learners')
+      .select('id, user_id, display_name, educational_role, platform_role')
+      .eq('id', learnerId)
+      .single()
+    if (!learner) return
+
+    currentUser.value = {
+      // Keep the REAL admin's user_id on the context so any action writes
+      // attribution to the admin, not to the learner being viewed.
+      user_id: realLearner.user_id,
+      learner_id: learner.id,
+      display_name: learner.display_name,
+      educational_role: learner.educational_role,
+      platform_role: realLearner.platform_role as 'ssi_admin' | null,
+    }
+  }
 
   function clear() {
     currentUser.value = null
@@ -55,6 +238,10 @@ export function useSchoolContext() {
     isSchoolAdmin,
     isTeacher,
     isStudent,
+    loadFromAuth,
+    loadFromSchoolId,
+    loadFromGroupId,
+    loadFromLearnerId,
     clear,
   }
 }

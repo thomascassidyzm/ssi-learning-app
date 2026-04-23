@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useAdminClient } from '@/composables/useAdminClient'
-import { useGodMode } from '@/composables/schools/useGodMode'
 import Card from '@/components/schools/shared/Card.vue'
 
 interface EntitlementCode {
@@ -30,7 +29,6 @@ interface CourseOption {
 }
 
 const { getAuthToken, getClient } = useAdminClient()
-const { selectedUser } = useGodMode()
 
 // State
 const codes = ref<EntitlementCode[]>([])

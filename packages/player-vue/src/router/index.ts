@@ -6,6 +6,8 @@ const PlayerContainer = () => import('@/containers/PlayerContainer.vue')
 const SchoolsContainer = () => import('@/containers/SchoolsContainer.vue')
 const TeachContainer = () => import('@/containers/TeachContainer.vue')
 const AdminContainer = () => import('@/containers/AdminContainer.vue')
+const AdminSchoolsContainer = () => import('@/containers/AdminSchoolsContainer.vue')
+const AdminGroupContainer = () => import('@/containers/AdminGroupContainer.vue')
 const SimpleSessionTest = () => import('@/components/SimpleSessionTest.vue')
 const ListeningPodPlayer = () => import('@/components/ListeningPodPlayer.vue')
 // Schools views (lazy-loaded)
@@ -238,6 +240,89 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Schools Setup' },
       },
     ],
+  },
+  // Admin read-views — view a specific school's dashboard as ssi_admin
+  // without impersonating. useSchoolContext is populated from the :id
+  // route param; queries still run as the real admin.
+  {
+    path: '/admin/schools/:id',
+    component: AdminSchoolsContainer,
+    children: [
+      {
+        path: '',
+        name: 'admin-school-dashboard',
+        component: DashboardView,
+        meta: { title: 'School Dashboard', description: 'Admin view of a school' },
+      },
+      {
+        path: 'classes',
+        name: 'admin-school-classes',
+        component: TeacherDashboard,
+        meta: { title: 'School Classes' },
+      },
+      {
+        path: 'classes/:classId',
+        name: 'admin-school-class-detail',
+        component: ClassDetail,
+        meta: { title: 'Class Detail' },
+      },
+      {
+        path: 'students',
+        name: 'admin-school-students',
+        component: StudentsView,
+        meta: { title: 'School Students' },
+      },
+      {
+        path: 'teachers',
+        name: 'admin-school-teachers',
+        component: TeachersView,
+        meta: { title: 'School Teachers' },
+      },
+      {
+        path: 'analytics',
+        name: 'admin-school-analytics',
+        component: AnalyticsView,
+        meta: { title: 'School Analytics' },
+      },
+    ],
+  },
+  // Admin read-view for groups (cross-schools, govt_admin-scope queries)
+  {
+    path: '/admin/groups/:id',
+    component: AdminGroupContainer,
+    children: [
+      {
+        path: '',
+        name: 'admin-group-dashboard',
+        component: DashboardView,
+        meta: { title: 'Group Dashboard' },
+      },
+      {
+        path: 'schools',
+        name: 'admin-group-schools',
+        component: SchoolsView,
+        meta: { title: 'Schools in Group' },
+      },
+      {
+        path: 'analytics',
+        name: 'admin-group-analytics',
+        component: AnalyticsView,
+        meta: { title: 'Group Analytics' },
+      },
+    ],
+  },
+  // Standalone admin read-views
+  {
+    path: '/admin/classes/:id',
+    name: 'admin-class-detail',
+    component: () => import('@/views/admin/AdminClassDetail.vue'),
+    meta: { title: 'Class Detail (Admin)' },
+  },
+  {
+    path: '/admin/users/:learnerId/progress',
+    name: 'admin-user-progress',
+    component: () => import('@/views/admin/AdminUserProgress.vue'),
+    meta: { title: 'User Progress (Admin)' },
   },
   // Shareable redeem link
   {

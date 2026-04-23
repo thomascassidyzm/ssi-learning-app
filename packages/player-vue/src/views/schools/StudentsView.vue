@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, inject } from 'vue'
 import SearchBox from '@/components/schools/shared/SearchBox.vue'
 import FilterDropdown from '@/components/schools/shared/FilterDropdown.vue'
 import Badge from '@/components/schools/shared/Badge.vue'
@@ -9,6 +9,7 @@ import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useStudentsData } from '@/composables/schools/useStudentsData'
 
 // School context and data
+const isAdminView = inject<boolean>('isAdminView', false)
 const { currentUser: selectedUser } = useSchoolContext()
 const { students: studentsData, fetchStudents } = useStudentsData()
 
@@ -167,7 +168,7 @@ function handleAddStudent() {
           </template>
           Export
         </Button>
-        <Button variant="primary" @click="handleAddStudent">
+        <Button v-if="!isAdminView" variant="primary" @click="handleAddStudent">
           <template #icon>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="12" y1="5" x2="12" y2="19"/>

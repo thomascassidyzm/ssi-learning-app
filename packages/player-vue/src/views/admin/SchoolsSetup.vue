@@ -2,7 +2,6 @@
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { useAuth } from '@/composables/useAuth'
 import { useAdminClient } from '@/composables/useAdminClient'
-import { useGodMode } from '@/composables/schools/useGodMode'
 import Card from '@/components/schools/shared/Card.vue'
 
 interface School {
@@ -33,7 +32,6 @@ interface Course {
 
 const { user, learner } = useAuth()
 const { getClient, getAuthToken } = useAdminClient()
-const { selectedUser } = useGodMode()
 
 // State
 const schools = ref<School[]>([])
@@ -173,7 +171,6 @@ const groupedCourses = computed(() => {
 })
 
 function getCurrentUserId(): string | null {
-  if (selectedUser.value) return selectedUser.value.user_id
   if (user.value) return user.value.id
   if (learner.value) return learner.value.user_id
   return null

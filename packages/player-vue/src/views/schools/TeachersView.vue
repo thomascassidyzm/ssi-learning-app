@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, inject } from 'vue'
 import JoinCodeBanner from '@/components/schools/JoinCodeBanner.vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useTeachersData } from '@/composables/schools/useTeachersData'
@@ -7,6 +7,7 @@ import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { getSchoolsClient } from '@/composables/schools/client'
 
 // School context and data
+const isAdminView = inject<boolean>('isAdminView', false)
 const { currentUser: selectedUser } = useSchoolContext()
 const { teachers: teachersData, fetchTeachers } = useTeachersData()
 const { currentSchool, fetchSchools } = useSchoolData()
@@ -303,13 +304,14 @@ watch(selectedUser, (newUser) => {
                   <circle cx="12" cy="12" r="3"/>
                 </svg>
               </button>
-              <button class="action-btn" title="Edit" @click="editTeacher(teacher)">
+              <button v-if="!isAdminView" class="action-btn" title="Edit" @click="editTeacher(teacher)">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                 </svg>
               </button>
               <button
+                v-if="!isAdminView"
                 class="action-btn danger"
                 title="Remove"
                 @click="handleRemoveTeacher(teacher.user_id)"
