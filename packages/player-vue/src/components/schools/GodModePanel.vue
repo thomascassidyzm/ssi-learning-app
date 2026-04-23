@@ -100,10 +100,15 @@ onMounted(async () => {
 
 <template>
   <div v-if="isGodAccessVerified" class="god-mode-panel" :class="{ open: isOpen }">
-    <!-- Toggle Button -->
-    <button class="panel-toggle" @click="isOpen = !isOpen" title="God Mode - Impersonate User">
-      <span class="toggle-icon">👁️</span>
-      <span class="toggle-label">GOD</span>
+    <!-- Floating trigger (matches TesterFeedback FAB; stacked above it) -->
+    <button
+      class="god-fab"
+      :aria-label="selectedUser ? `GOD mode — impersonating ${selectedUser.display_name}` : 'GOD mode — impersonate a user'"
+      title="GOD mode"
+      @click="isOpen = !isOpen"
+    >
+      <span class="god-fab-icon" aria-hidden="true">👁️</span>
+      <span v-if="selectedUser" class="god-fab-dot" aria-hidden="true" />
     </button>
 
     <!-- Panel -->
@@ -235,45 +240,71 @@ onMounted(async () => {
 <style scoped>
 .god-mode-panel {
   position: fixed;
-  bottom: 20px;
-  right: 20px;
+  /* Bottom-LEFT so it never collides with the right-side controls
+     (bug-feedback FAB, ModeTray / Settings trigger above the transport).
+     The previous right-side pill was overlapping the Settings button. */
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  left: 24px;
   z-index: 9999;
   font-family: 'Source Sans 3', sans-serif;
 }
 
-.panel-toggle {
+/* Circular FAB — mirrors .feedback-fab in TesterFeedback.vue so the
+   two floaters read as a consistent set. Distinguished by SSi gold. */
+.god-fab {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: none;
+  background: var(--gold, #d4a853);
+  color: #1a1a2e;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 10px 14px;
-  background: linear-gradient(135deg, #1a1a2e, #16213e);
-  border: 2px solid #d4a853;
-  border-radius: 8px;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 600;
+  justify-content: center;
   cursor: pointer;
-  box-shadow: 0 4px 20px rgba(212, 168, 83, 0.3);
-  transition: all 0.2s ease;
+  box-shadow: 0 2px 12px rgba(212, 168, 83, 0.4);
+  transition: box-shadow 0.2s ease, transform 0.15s ease, opacity 0.2s ease;
+  opacity: 0.75;
+  padding: 0;
 }
 
-.panel-toggle:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 25px rgba(212, 168, 83, 0.4);
+.god-fab:hover {
+  opacity: 1;
+  box-shadow: 0 4px 18px rgba(212, 168, 83, 0.55);
 }
 
-.toggle-icon {
-  font-size: 14px;
+.god-fab:active {
+  transform: scale(0.96);
 }
 
-.toggle-label {
-  letter-spacing: 1px;
+.god-fab:focus-visible {
+  outline: 2px solid var(--gold, #d4a853);
+  outline-offset: 3px;
+  opacity: 1;
+}
+
+.god-fab-icon {
+  font-size: 22px;
+  line-height: 1;
+}
+
+/* Small indicator when an impersonation is active */
+.god-fab-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent, #c23a3a);
+  border: 2px solid var(--gold, #d4a853);
 }
 
 .panel-content {
   position: absolute;
   bottom: 100%;
-  right: 0;
+  left: 0;
   margin-bottom: 12px;
   width: 320px;
   max-height: 500px;
