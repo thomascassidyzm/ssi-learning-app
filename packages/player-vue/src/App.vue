@@ -20,6 +20,7 @@ import InstallBanner from './components/InstallBanner.vue'
 import DemoOverlay from './components/demo/DemoOverlay.vue'
 import TesterFeedback from './components/TesterFeedback.vue'
 import GodModePanel from './components/schools/GodModePanel.vue'
+import { setSchoolsClient } from './composables/schools/client'
 
 // Suppress consecutive identical console errors/warnings after 3 repeats
 installConsoleDedup()
@@ -372,6 +373,11 @@ onMounted(async () => {
           },
         }
       )
+
+      // Prime the schools-client bridge so God Mode (mounted globally in
+      // App.vue) can verify god access on any route, not just /schools/*
+      // where SchoolsContainer would otherwise be the only setter.
+      setSchoolsClient(supabaseClient.value)
 
       // Create store instances
       progressStore.value = createProgressStore({ client: supabaseClient.value })
