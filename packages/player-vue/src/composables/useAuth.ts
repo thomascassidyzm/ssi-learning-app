@@ -346,8 +346,14 @@ export function useAuth(): AuthState & AuthActions {
           await migrateGuestProgress()
         }
 
-        // Real session found — clear any stale god mode state
-        localStorage.removeItem('ssi-god-mode-user')
+        // Preserve any existing god-mode impersonation. Previously this
+        // branch unconditionally wiped 'ssi-god-mode-user', which meant
+        // ssi_admins who deliberately impersonated someone lost their
+        // selection on every reload (the GOD panel's reload is the very
+        // mechanism that propagates the impersonation through the app).
+        // The god-mode storage is only written by selectUser/DemoLauncher
+        // with intent — let the user clear it explicitly via the panel's
+        // ×, or leave it until the session ends.
         isLoading.value = false
         return
       } else if (result === null) {

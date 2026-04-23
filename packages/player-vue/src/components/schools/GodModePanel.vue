@@ -62,13 +62,20 @@ const quickSelectUsers = computed(() => {
 function handleSelectUser(user: GodModeUser) {
   selectUser(user)
   isOpen.value = false
-  // Use router.go(0) to reload while preserving the /schools base path
-  router.go(0)
+  // Full reload at /schools: ssi_admins hitting /schools get redirected to
+  // /admin/schools by the route guard, so staying on the current URL after
+  // impersonation (via router.go(0)) lands them back in admin-setup rather
+  // than in the impersonated teacher/school_admin/govt_admin dashboard.
+  // Jumping explicitly to /schools reloads the app with the impersonated
+  // role active — the guard now sees a school-scoped role and passes.
+  window.location.href = '/schools'
 }
 
 function handleClear() {
   clearSelection()
-  router.go(0)
+  // Back to the real user's landing — /admin/schools for ssi_admins,
+  // /schools for actual school-role users.
+  window.location.href = '/schools'
 }
 
 function setRoleFilter(role: EducationalRole | null) {
