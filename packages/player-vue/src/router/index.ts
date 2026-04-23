@@ -4,6 +4,7 @@ import { useUserRole } from '@/composables/useUserRole'
 // Lazy-loaded views
 const PlayerContainer = () => import('@/containers/PlayerContainer.vue')
 const SchoolsContainer = () => import('@/containers/SchoolsContainer.vue')
+const TeachContainer = () => import('@/containers/TeachContainer.vue')
 const AdminContainer = () => import('@/containers/AdminContainer.vue')
 const SimpleSessionTest = () => import('@/components/SimpleSessionTest.vue')
 const ListeningPodPlayer = () => import('@/components/ListeningPodPlayer.vue')
@@ -17,6 +18,10 @@ const AnalyticsView = () => import('@/views/schools/AnalyticsView.vue')
 const SettingsView = () => import('@/views/schools/SettingsView.vue')
 const SchoolsView = () => import('@/views/schools/SchoolsView.vue')
 const StudentProgressView = () => import('@/views/schools/StudentProgressView.vue')
+// Teach (private tutor) views
+const TeachDashboard = () => import('@/views/teach/TeachDashboard.vue')
+const TeachSetup = () => import('@/views/teach/TeachSetup.vue')
+const WithTeacher = () => import('@/views/teach/WithTeacher.vue')
 
 const routes: RouteRecordRaw[] = [
   // Learning player (default)
@@ -128,6 +133,32 @@ const routes: RouteRecordRaw[] = [
         },
       },
     ],
+  },
+  // Teach (private tutor) routes
+  {
+    path: '/teach',
+    component: TeachContainer,
+    children: [
+      {
+        path: '',
+        name: 'teach-dashboard',
+        component: TeachDashboard,
+        meta: { title: 'Teach' },
+      },
+      {
+        path: 'setup',
+        name: 'teach-setup',
+        component: TeachSetup,
+        meta: { title: 'Set up your teacher profile' },
+      },
+    ],
+  },
+  // Student attribution gateway (no auth required)
+  {
+    path: '/with/:code',
+    name: 'with-teacher',
+    component: WithTeacher,
+    meta: { title: 'Learning with your teacher' },
   },
   // Listening Pods
   {
@@ -254,12 +285,30 @@ const router = createRouter({
   },
 })
 
-// Guard admin routes — useUserRole is the single authority
+// Guard admin routes.
+// useUserRole holds the ACTIVE role (which is the impersonated role when
+// god-mode is engaged), so a real ssi_admin mid-impersonation would be
+// denied admin access by cache alone. If god-mode storage survived
+// auth.initialize, useAuth's canUseGodMode gate only preserves it for an
+// ssi_admin/god real user — so "god-mode + real Supabase session" is a
+// sufficient admin signal, independent of the impersonated role in the
+// cache.
 router.beforeEach((to, _from, next) => {
   if (!to.path.startsWith('/admin')) return next()
   const { canAccessAdmin, restoreFromCache } = useUserRole()
   restoreFromCache()
-  return canAccessAdmin.value ? next() : next('/')
+  if (canAccessAdmin.value) return next()
+
+  const hasGodMode = !!(
+    sessionStorage.getItem('ssi-god-mode-user') ||
+    localStorage.getItem('ssi-god-mode-user')
+  )
+  const hasSbSession = Object.keys(localStorage).some(
+    (k) => k.startsWith('sb-') && k.includes('-auth-token')
+  )
+  if (hasGodMode && hasSbSession) return next()
+
+  return next('/')
 })
 
 // Update document title on navigation
