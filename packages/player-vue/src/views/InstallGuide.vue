@@ -275,13 +275,20 @@ const shareLocation = computed(() => {
       <!-- D) Desktop -->
       <div v-else class="flow-section">
         <img src="/icons/icon-192.png" alt="SSi" class="app-icon" width="96" height="96" />
-        <h1>SaySomethingin</h1>
-        <p class="subtitle">For the best experience, open this on your phone.</p>
-        <template v-if="hasNativePrompt">
-          <p class="muted">Or install directly in your browser:</p>
-          <button class="install-btn" @click="triggerInstall">Install</button>
-        </template>
-        <button class="skip-link" @click="dismiss">Continue in browser</button>
+        <h1>Install SaySomethingin</h1>
+        <p class="subtitle">Its own window — no browser tabs, no distractions</p>
+        <ul class="value-props">
+          <li>Opens instantly in its own window</li>
+          <li>Works offline — learn anywhere</li>
+          <li>Picks up where you left off</li>
+        </ul>
+        <button v-if="hasNativePrompt" class="install-btn" @click="triggerInstall">
+          Install
+        </button>
+        <div v-else class="loading-dots" aria-label="Preparing install">
+          <span></span><span></span><span></span>
+        </div>
+        <button class="skip-link" @click="dismiss">Not now</button>
       </div>
 
     </div>
