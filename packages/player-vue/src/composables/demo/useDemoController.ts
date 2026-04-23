@@ -14,6 +14,7 @@ import type { DemoScene, DemoConfig, DemoState } from './types'
 import { isDemoMode } from './demoMode'
 import { teacherDemo } from './scenes/teacherDemo'
 import { govtAdminDemo } from './scenes/govtAdminDemo'
+import { useUserRole } from '@/composables/useUserRole'
 
 // ---- Demo registry ----
 const demoRegistry: Record<string, DemoConfig> = {
@@ -302,6 +303,9 @@ export function useDemoController() {
     sessionStorage.removeItem('ssi-demo-tier')
     sessionStorage.removeItem('ssi-demo-last-course')
     delete (window as any).__demoSelectCourse
+    // Clear the impersonated role cache written by godMode.selectUser so
+    // it doesn't leak to the next browser session as a phantom teacher role.
+    useUserRole().clear()
 
     // Navigate back to demo launcher
     getRouter().push('/demo')

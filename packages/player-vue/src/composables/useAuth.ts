@@ -346,14 +346,21 @@ export function useAuth(): AuthState & AuthActions {
           await migrateGuestProgress()
         }
 
+        // Sync useUserRole cache to the real user's roles. Without this, a
+        // stale 'ssi-user-role' entry left over from a prior demo session
+        // (demo calls godMode.selectUser → initRole, which persists to
+        // localStorage) would make the /schools router guard let the new
+        // real user through as whatever role the demo impersonated.
+        const platformRole = (learner.value as any)?.platform_role ?? null
+        const educationalRole = (learner.value as any)?.educational_role ?? null
+        useUserRole().initialize(platformRole, educationalRole)
+
         // Preserve god-mode impersonation only for users authorized to use
         // it. The GOD panel's reload flow relies on storage surviving, but
         // a shared browser where the previous user impersonated and didn't
         // sign out would leak that impersonation to whoever signs in next.
         // Wipe for unauthorized users; preserve for ssi_admins / god.
-        const canUseGodMode =
-          (learner.value as any)?.platform_role === 'ssi_admin' ||
-          (learner.value as any)?.educational_role === 'god'
+        const canUseGodMode = platformRole === 'ssi_admin' || educationalRole === 'god'
         if (!canUseGodMode) {
           localStorage.removeItem('ssi-god-mode-user')
           sessionStorage.removeItem('ssi-god-mode-user')
