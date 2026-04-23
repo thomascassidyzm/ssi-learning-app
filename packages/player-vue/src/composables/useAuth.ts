@@ -346,24 +346,33 @@ export function useAuth(): AuthState & AuthActions {
           await migrateGuestProgress()
         }
 
-        // Sync useUserRole cache to the real user's roles. Without this, a
-        // stale 'ssi-user-role' entry left over from a prior demo session
-        // (demo calls godMode.selectUser → initRole, which persists to
-        // localStorage) would make the /schools router guard let the new
-        // real user through as whatever role the demo impersonated.
         const platformRole = (learner.value as any)?.platform_role ?? null
         const educationalRole = (learner.value as any)?.educational_role ?? null
-        useUserRole().initialize(platformRole, educationalRole)
 
-        // Preserve god-mode impersonation only for users authorized to use
-        // it. The GOD panel's reload flow relies on storage surviving, but
-        // a shared browser where the previous user impersonated and didn't
-        // sign out would leak that impersonation to whoever signs in next.
-        // Wipe for unauthorized users; preserve for ssi_admins / god.
+        // If god-mode impersonation is stored AND the real user is allowed
+        // to use it, preserve everything: useUserRole has already been set
+        // to the impersonated role by godMode.selectUser → initRole, and
+        // overwriting here would bounce the user out of the dashboard
+        // (e.g. an ssi_admin impersonating a teacher would get their own
+        // ssi_admin+null role written back, failing canAccessSchools).
+        const godModeStored = !!(
+          sessionStorage.getItem('ssi-god-mode-user') ||
+          localStorage.getItem('ssi-god-mode-user')
+        )
         const canUseGodMode = platformRole === 'ssi_admin' || educationalRole === 'god'
-        if (!canUseGodMode) {
+        const impersonationActive = godModeStored && canUseGodMode
+
+        // Unauthorized god-mode storage → wipe (shared-browser leak guard).
+        if (godModeStored && !canUseGodMode) {
           localStorage.removeItem('ssi-god-mode-user')
           sessionStorage.removeItem('ssi-god-mode-user')
+        }
+
+        // Sync useUserRole cache to the real user's roles only when no
+        // legitimate impersonation is active. This clears any stale cache
+        // from a prior demo session without clobbering live impersonation.
+        if (!impersonationActive) {
+          useUserRole().initialize(platformRole, educationalRole)
         }
         isLoading.value = false
         return
