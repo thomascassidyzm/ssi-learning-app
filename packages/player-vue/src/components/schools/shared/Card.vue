@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 interface Props {
   /** Card variant: default, stats (for metric cards), elevated */
@@ -20,6 +20,10 @@ interface Props {
   collapsible?: boolean
   /** Start collapsed (only used with collapsible) */
   startCollapsed?: boolean
+  /** Externally controlled expansion (v-model:expanded). Overrides internal
+   * state while provided; parent can use this to programmatically open the
+   * card. Undefined falls back to internal state. */
+  expanded?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -30,12 +34,28 @@ const props = withDefaults(defineProps<Props>(), {
   loading: false,
   collapsible: false,
   startCollapsed: false,
+  expanded: undefined,
 })
 
-const isExpanded = ref(!props.startCollapsed)
+const emit = defineEmits<{
+  'update:expanded': [value: boolean]
+}>()
+
+const internalExpanded = ref(!props.startCollapsed)
+const isExpanded = computed(() =>
+  props.expanded !== undefined ? props.expanded : internalExpanded.value,
+)
+
+// Keep the internal mirror in sync so toggling works after an external write.
+watch(() => props.expanded, (v) => {
+  if (v !== undefined) internalExpanded.value = v
+})
 
 function toggleCollapse() {
-  if (props.collapsible) isExpanded.value = !isExpanded.value
+  if (!props.collapsible) return
+  const next = !isExpanded.value
+  internalExpanded.value = next
+  if (props.expanded !== undefined) emit('update:expanded', next)
 }
 
 const classes = computed(() => [

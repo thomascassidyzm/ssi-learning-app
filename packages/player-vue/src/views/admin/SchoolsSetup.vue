@@ -107,6 +107,24 @@ const isLoadingStaff = ref(false)
 const grantTargetType = ref<'group' | 'school'>('group')
 const grantTargetId = ref('')
 const grantCourses = ref<string[]>([])
+
+// Per-section expanded state. The cards are start-collapsed for quick
+// scanning; flipping any of these to true opens that card. Driven by the
+// sub-nav jumpTo() and the "Courses" row-action.
+const groupsCardExpanded = ref(false)
+const staffCardExpanded = ref(false)
+const coursesCardExpanded = ref(false)
+
+function jumpTo(section: 'groups' | 'schools' | 'staff' | 'entitlements') {
+  if (section === 'groups') groupsCardExpanded.value = true
+  if (section === 'staff') staffCardExpanded.value = true
+  if (section === 'entitlements') coursesCardExpanded.value = true
+  // Schools list is not collapsible — just scroll.
+  setTimeout(() => {
+    const id = section === 'entitlements' ? 'course-entitlements-card' : `section-${section}`
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, 50)
+}
 const courseSearch = ref('')
 
 // Group tree helpers
@@ -699,9 +717,12 @@ function editSchoolEntitlements(school: School): void {
     } catch { /* non-fatal */ }
   })
 
-  // Scroll to the entitlements section
+  // Expand the (collapsed-by-default) Course Entitlements card and scroll
+  // to it. Expansion must happen first, otherwise the scroll target lives
+  // inside a v-show'd-off subtree.
+  coursesCardExpanded.value = true
   setTimeout(() => {
-    document.querySelector('.course-picker')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    document.querySelector('#course-entitlements-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, 100)
 }
 
@@ -930,14 +951,23 @@ onMounted(() => {
       <span>{{ error }}</span>
     </div>
 
+    <!-- Sticky sub-nav: jumps to each section + expands the target card -->
+    <nav class="setup-subnav">
+      <a href="#section-groups" @click.prevent="jumpTo('groups')" class="subnav-link">Groups</a>
+      <a href="#section-schools" @click.prevent="jumpTo('schools')" class="subnav-link">Schools</a>
+      <a href="#section-staff" @click.prevent="jumpTo('staff')" class="subnav-link">Staff</a>
+      <a href="#section-entitlements" @click.prevent="jumpTo('entitlements')" class="subnav-link">Entitlements</a>
+    </nav>
+
     <!-- Groups Section -->
-    <section class="create-section animate-in delay-1">
+    <section id="section-groups" class="create-section animate-in delay-1">
       <Card
         title="Groups"
         subtitle="Regions or organisations — a bucket for schools that share entitlements."
         accent="blue"
         collapsible
         start-collapsed
+        v-model:expanded="groupsCardExpanded"
       >
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1203,7 +1233,7 @@ onMounted(() => {
     </section>
 
     <!-- Schools List -->
-    <section v-if="schools.length > 0" class="codes-section animate-in delay-2">
+    <section v-if="schools.length > 0" id="section-schools" class="codes-section animate-in delay-2">
       <Card
         title="Schools"
         subtitle="All schools — join codes, group assignments, and course entitlements."
@@ -1380,7 +1410,7 @@ onMounted(() => {
     </section>
 
     <!-- Staff List -->
-    <section v-if="staffMembers.length > 0" class="codes-section animate-in delay-2">
+    <section v-if="staffMembers.length > 0" id="section-staff" class="codes-section animate-in delay-2">
       <Card
         title="Staff"
         subtitle="Teachers and admins across all schools."
@@ -1388,6 +1418,7 @@ onMounted(() => {
         :loading="isLoadingStaff"
         collapsible
         start-collapsed
+        v-model:expanded="staffCardExpanded"
       >
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1425,13 +1456,15 @@ onMounted(() => {
     </section>
 
     <!-- Course Entitlements Section -->
-    <section class="create-section animate-in delay-2">
+    <section id="course-entitlements-card" class="create-section animate-in delay-2">
+      <span id="section-entitlements" class="section-anchor"></span>
       <Card
         title="Course Entitlements"
         subtitle="Grant courses directly to a school. Groups cascade to their schools automatically."
         accent="gold"
         collapsible
         start-collapsed
+        v-model:expanded="coursesCardExpanded"
       >
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1533,6 +1566,39 @@ onMounted(() => {
 .setup-page {
   padding: 0;
   max-width: 1200px;
+}
+
+/* Sticky sub-nav at the top of the Setup page */
+.setup-subnav {
+  display: flex;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  margin-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.06));
+  position: sticky;
+  top: 64px;
+  background: var(--bg-primary, #e8e3dd);
+  z-index: 10;
+  overflow-x: auto;
+}
+
+.subnav-link {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium, 500);
+  padding: var(--space-1) 0;
+  transition: color var(--transition-fast);
+  white-space: nowrap;
+}
+
+.subnav-link:hover {
+  color: var(--accent);
+}
+
+.section-anchor {
+  position: absolute;
+  top: -80px;
 }
 
 /* Message Banners */
