@@ -936,7 +936,7 @@ onMounted(() => {
     <!-- Tabbed sub-nav: shows one section at a time. -->
     <nav class="setup-subnav">
       <button
-        v-for="tab in (['schools','groups','staff','entitlements'] as SetupTab[])"
+        v-for="tab in (['groups','schools','staff','entitlements'] as SetupTab[])"
         :key="tab"
         class="subnav-tab"
         :class="{ active: activeTab === tab }"
