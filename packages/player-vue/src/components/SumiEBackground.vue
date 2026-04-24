@@ -48,6 +48,7 @@ const JOURNEY_MAP: Record<string, string> = {
   hye: '/design/journey-hye.webp',
   isl: '/design/journey-isl.webp',
   swe: '/design/journey-swe.webp',
+  dan: '/design/journey-dan.webp',
   tha: '/design/journey-tha.webp',
   gla: '/design/journey-gla.webp',
   gsw: '/design/journey-gsw.webp',
