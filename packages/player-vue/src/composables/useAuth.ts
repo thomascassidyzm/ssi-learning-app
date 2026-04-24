@@ -346,6 +346,12 @@ export function useAuth(): AuthState & AuthActions {
 
       if (result && 'data' in result && result.data.session?.user) {
         supabaseUser.value = result.data.session.user
+        // ensureLearnerExists handles the syncRealRoleCache call internally
+        // (it has the raw DB row with platform_role / educational_role).
+        // toLearnerRecord strips those fields from the returned object, so
+        // we must NOT re-sync from learner.value here — it would call
+        // syncRealRoleCache(null, null) and wipe the correct values out
+        // of useUserRole cache.
         learner.value = await ensureLearnerExists()
 
         // Check if there's guest progress to migrate
@@ -354,9 +360,6 @@ export function useAuth(): AuthState & AuthActions {
           await migrateGuestProgress()
         }
 
-        const platformRole = (learner.value as any)?.platform_role ?? null
-        const educationalRole = (learner.value as any)?.educational_role ?? null
-        syncRealRoleCache(platformRole, educationalRole)
         isLoading.value = false
         return
       } else if (result === null) {
