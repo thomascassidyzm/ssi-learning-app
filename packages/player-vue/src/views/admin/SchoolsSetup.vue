@@ -108,23 +108,9 @@ const grantTargetType = ref<'group' | 'school'>('group')
 const grantTargetId = ref('')
 const grantCourses = ref<string[]>([])
 
-// Per-section expanded state. The cards are start-collapsed for quick
-// scanning; flipping any of these to true opens that card. Driven by the
-// sub-nav jumpTo() and the "Courses" row-action.
-const groupsCardExpanded = ref(false)
-const staffCardExpanded = ref(false)
-const coursesCardExpanded = ref(false)
-
-function jumpTo(section: 'groups' | 'schools' | 'staff' | 'entitlements') {
-  if (section === 'groups') groupsCardExpanded.value = true
-  if (section === 'staff') staffCardExpanded.value = true
-  if (section === 'entitlements') coursesCardExpanded.value = true
-  // Schools list is not collapsible — just scroll.
-  setTimeout(() => {
-    const id = section === 'entitlements' ? 'course-entitlements-card' : `section-${section}`
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, 50)
-}
+// Tabbed layout: only one section's content is visible at a time.
+type SetupTab = 'schools' | 'groups' | 'staff' | 'entitlements'
+const activeTab = ref<SetupTab>('schools')
 const courseSearch = ref('')
 
 // Group tree helpers
@@ -717,13 +703,9 @@ function editSchoolEntitlements(school: School): void {
     } catch { /* non-fatal */ }
   })
 
-  // Expand the (collapsed-by-default) Course Entitlements card and scroll
-  // to it. Expansion must happen first, otherwise the scroll target lives
-  // inside a v-show'd-off subtree.
-  coursesCardExpanded.value = true
-  setTimeout(() => {
-    document.querySelector('#course-entitlements-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, 100)
+  // Switch to the Entitlements tab so the primed form is visible — no
+  // scrolling, no expanding, just a tab change.
+  activeTab.value = 'entitlements'
 }
 
 function toggleCourseGrant(courseCode: string): void {
@@ -951,23 +933,25 @@ onMounted(() => {
       <span>{{ error }}</span>
     </div>
 
-    <!-- Sticky sub-nav: jumps to each section + expands the target card -->
+    <!-- Tabbed sub-nav: shows one section at a time. -->
     <nav class="setup-subnav">
-      <a href="#section-groups" @click.prevent="jumpTo('groups')" class="subnav-link">Groups</a>
-      <a href="#section-schools" @click.prevent="jumpTo('schools')" class="subnav-link">Schools</a>
-      <a href="#section-staff" @click.prevent="jumpTo('staff')" class="subnav-link">Staff</a>
-      <a href="#section-entitlements" @click.prevent="jumpTo('entitlements')" class="subnav-link">Entitlements</a>
+      <button
+        v-for="tab in (['schools','groups','staff','entitlements'] as SetupTab[])"
+        :key="tab"
+        class="subnav-tab"
+        :class="{ active: activeTab === tab }"
+        @click="activeTab = tab"
+      >
+        {{ tab === 'entitlements' ? 'Entitlements' : tab.charAt(0).toUpperCase() + tab.slice(1) }}
+      </button>
     </nav>
 
     <!-- Groups Section -->
-    <section id="section-groups" class="create-section animate-in delay-1">
+    <section v-show="activeTab === 'groups'" id="section-groups" class="create-section">
       <Card
         title="Groups"
         subtitle="Regions or organisations — a bucket for schools that share entitlements."
         accent="blue"
-        collapsible
-        start-collapsed
-        v-model:expanded="groupsCardExpanded"
       >
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1119,13 +1103,11 @@ onMounted(() => {
     </section>
 
     <!-- Add Govt Admin Section -->
-    <section class="create-section animate-in delay-2">
+    <section v-show="activeTab === 'groups'" class="create-section">
       <Card
         title="Add Govt Admin"
         subtitle="Invite someone to oversee all schools within a group."
         accent="blue"
-        collapsible
-        start-collapsed
       >
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1183,13 +1165,11 @@ onMounted(() => {
     </section>
 
     <!-- Add School Section -->
-    <section class="create-section animate-in delay-1">
+    <section v-show="activeTab === 'schools'" class="create-section">
       <Card
         title="Add School"
         subtitle="Create a new school — optionally assign it to a group."
         accent="green"
-        collapsible
-        start-collapsed
       >
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1233,14 +1213,12 @@ onMounted(() => {
     </section>
 
     <!-- Schools List -->
-    <section v-if="schools.length > 0" id="section-schools" class="codes-section animate-in delay-2">
+    <section v-show="activeTab === 'schools' && schools.length > 0" id="section-schools" class="codes-section">
       <Card
         title="Schools"
         subtitle="All schools — join codes, group assignments, and course entitlements."
         accent="gradient"
         :loading="isLoadingSchools"
-        collapsible
-        start-collapsed
       >
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1348,13 +1326,11 @@ onMounted(() => {
     </section>
 
     <!-- Add Staff Section -->
-    <section v-if="schools.length > 0" class="create-section animate-in delay-2">
+    <section v-show="activeTab === 'staff' && schools.length > 0" class="create-section">
       <Card
         title="Add Staff"
         subtitle="Invite a teacher or school admin to a specific school."
         accent="red"
-        collapsible
-        start-collapsed
       >
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1410,15 +1386,12 @@ onMounted(() => {
     </section>
 
     <!-- Staff List -->
-    <section v-if="staffMembers.length > 0" id="section-staff" class="codes-section animate-in delay-2">
+    <section v-show="activeTab === 'staff' && staffMembers.length > 0" id="section-staff" class="codes-section">
       <Card
         title="Staff"
         subtitle="Teachers and admins across all schools."
         accent="red"
         :loading="isLoadingStaff"
-        collapsible
-        start-collapsed
-        v-model:expanded="staffCardExpanded"
       >
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1456,15 +1429,11 @@ onMounted(() => {
     </section>
 
     <!-- Course Entitlements Section -->
-    <section id="course-entitlements-card" class="create-section animate-in delay-2">
-      <span id="section-entitlements" class="section-anchor"></span>
+    <section v-show="activeTab === 'entitlements'" class="create-section">
       <Card
         title="Course Entitlements"
         subtitle="Grant courses directly to a school. Groups cascade to their schools automatically."
         accent="gold"
-        collapsible
-        start-collapsed
-        v-model:expanded="coursesCardExpanded"
       >
         <template #icon>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1568,13 +1537,13 @@ onMounted(() => {
   max-width: 1200px;
 }
 
-/* Sticky sub-nav at the top of the Setup page */
+/* Tabbed sub-nav at the top of the Setup page */
 .setup-subnav {
   display: flex;
-  gap: var(--space-4);
-  padding: var(--space-3) 0;
-  margin-bottom: var(--space-4);
-  border-bottom: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.06));
+  gap: var(--space-2);
+  padding: 0;
+  margin-bottom: var(--space-5);
+  border-bottom: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.08));
   position: sticky;
   top: 64px;
   background: var(--bg-primary, #e8e3dd);
@@ -1582,23 +1551,28 @@ onMounted(() => {
   overflow-x: auto;
 }
 
-.subnav-link {
+.subnav-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
   color: var(--text-muted);
-  text-decoration: none;
+  font: inherit;
   font-size: var(--text-sm);
   font-weight: var(--font-medium, 500);
-  padding: var(--space-1) 0;
-  transition: color var(--transition-fast);
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
   white-space: nowrap;
+  margin-bottom: -1px;
 }
 
-.subnav-link:hover {
+.subnav-tab:hover {
+  color: var(--text-primary);
+}
+
+.subnav-tab.active {
   color: var(--accent);
-}
-
-.section-anchor {
-  position: absolute;
-  top: -80px;
+  border-bottom-color: var(--accent);
 }
 
 /* Message Banners */
