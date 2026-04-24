@@ -155,10 +155,16 @@ const routes: RouteRecordRaw[] = [
     component: AdminContainer,
     children: [
       {
+        // Default /admin landing — redirect to the Setup page (schools + groups
+        // + staff + entitlements), not the Invite-Codes subpage.
         path: '',
-        name: 'admin',
+        redirect: '/admin/schools',
+      },
+      {
+        path: 'invites',
+        name: 'admin-invites',
         component: () => import('@/views/admin/AdminPanel.vue'),
-        meta: { title: 'SSi Admin', description: 'Admin panel for managing invite codes' },
+        meta: { title: 'Invite Codes', description: 'Create role-based invite codes' },
       },
       {
         path: 'analytics',

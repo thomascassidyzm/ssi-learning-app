@@ -38,14 +38,14 @@ onMounted(() => {
             <router-link
               :to="{ name: 'admin-schools' }"
               class="nav-link"
-              :class="{ active: route.path.startsWith('/admin/schools') }"
+              :class="{ active: route.path === '/admin' || route.path.startsWith('/admin/schools') }"
             >
-              <span class="nav-label">Schools</span>
+              <span class="nav-label">Setup</span>
             </router-link>
             <router-link
-              to="/admin"
+              to="/admin/invites"
               class="nav-link"
-              :class="{ active: route.path === '/admin' }"
+              :class="{ active: route.path === '/admin/invites' }"
             >
               <span class="nav-label">Invites</span>
             </router-link>
