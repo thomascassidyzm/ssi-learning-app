@@ -7,8 +7,7 @@ import { parseCourseCode, timeAgo, formatDuration } from '@/composables/admin/ad
 import SearchBox from '@/components/schools/shared/SearchBox.vue'
 import FilterDropdown from '@/components/schools/shared/FilterDropdown.vue'
 import Badge from '@/components/schools/shared/Badge.vue'
-import Card from '@/components/schools/shared/Card.vue'
-import StatsCard from '@/components/schools/StatsCard.vue'
+import FrostCard from '@/components/schools/shared/FrostCard.vue'
 
 const { getClient } = useAdminClient()
 const router = useRouter()
@@ -32,8 +31,6 @@ const {
 } = useAdminUsers(getClient())
 
 const searchInput = ref('')
-
-// Collect unique courses from the page for filter options
 const courseOptions = ref<{ value: string; label: string }[]>([])
 
 function handleSearch() {
@@ -52,7 +49,6 @@ function navigateToUser(learnerId: string) {
 onMounted(async () => {
   await fetchAll()
 
-  // Build course filter options from enrollment data
   const courseSet = new Set<string>()
   users.value.forEach(u => {
     getUserEnrollments(u.id).forEach(e => courseSet.add(e.course_id))
@@ -66,132 +62,156 @@ onMounted(async () => {
 
 <template>
   <div class="admin-users">
-    <!-- Page Header -->
-    <header class="page-header animate-in">
-      <h1 class="page-title">Users</h1>
-      <p class="page-subtitle">Manage learners and view progress</p>
+    <!-- Page header — canon §5.1 -->
+    <header class="page-header">
+      <div class="title-block">
+        <h1 class="frost-display">Users</h1>
+        <div class="metrics">
+          <span class="metric">
+            <span class="metric-value frost-mono-nums">{{ totalUsers }}</span>
+            users
+          </span>
+          <span v-if="newThisWeek > 0" class="metric-sep">·</span>
+          <span v-if="newThisWeek > 0" class="metric metric-fresh">
+            <span class="metric-value frost-mono-nums">{{ newThisWeek }}</span>
+            new this week
+          </span>
+        </div>
+      </div>
     </header>
 
-    <!-- Hero stat cards -->
-    <div class="stat-cards animate-in delay-1">
-      <StatsCard
-        label="Total Users"
-        :value="totalUsers"
-        icon="👥"
-        variant="blue"
+    <!-- Filters bar — canon §5.2 (its own row, NOT inside a card header) -->
+    <div class="filters-bar">
+      <SearchBox
+        v-model="searchInput"
+        placeholder="Search users by name…"
+        block
+        size="md"
+        @search="handleSearch"
+        @clear="handleClear"
       />
-      <StatsCard
-        label="New This Week"
-        :value="newThisWeek"
-        icon="✨"
-        variant="green"
+      <FilterDropdown
+        :model-value="courseFilter"
+        :options="courseOptions"
+        placeholder="All courses"
+        size="md"
+        @update:model-value="setCourseFilter"
       />
     </div>
 
-    <!-- Search/filter toolbar + users table in a single Card -->
-    <Card variant="default" accent="gradient" :no-padding="true" class="animate-in delay-2">
-      <template #header>
-        <div class="toolbar">
-          <SearchBox
-            v-model="searchInput"
-            placeholder="Search by name..."
-            block
-            size="md"
-            @search="handleSearch"
-            @clear="handleClear"
-          />
-          <div class="filters">
-            <FilterDropdown
-              :model-value="courseFilter"
-              :options="courseOptions"
-              placeholder="All courses"
-              size="sm"
-              @update:model-value="setCourseFilter"
-            />
-          </div>
-        </div>
-      </template>
+    <!-- Error -->
+    <div v-if="error" class="error-banner">{{ error }}</div>
 
-      <!-- Error state -->
-      <div v-if="error" class="error-banner">{{ error }}</div>
+    <!-- Loading -->
+    <div v-if="isLoading" class="loading">Loading users…</div>
 
-      <!-- Loading state -->
-      <div v-if="isLoading" class="loading">Loading users...</div>
+    <!-- List panel (canon §5.3 table-inside-panel) -->
+    <FrostCard v-else-if="users.length > 0" variant="panel" class="list-panel">
+      <table class="users-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Joined</th>
+            <th>Courses</th>
+            <th>Last active</th>
+            <th>Practice time</th>
+            <th aria-label="Actions"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="user in users"
+            :key="user.id"
+            class="user-row"
+            tabindex="0"
+            @click="navigateToUser(user.id)"
+            @keydown.enter="navigateToUser(user.id)"
+          >
+            <td class="cell-name">
+              <span class="name-text">{{ user.display_name || 'Anonymous' }}</span>
+              <Badge
+                v-if="user.platform_role === 'ssi_admin'"
+                variant="ssi-red"
+                size="sm"
+                pill
+              >admin</Badge>
+              <Badge
+                v-else-if="user.educational_role === 'god'"
+                variant="ssi-gold"
+                size="sm"
+                pill
+              >god</Badge>
+            </td>
+            <td class="cell-muted frost-mono-nums">
+              {{ new Date(user.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' }) }}
+            </td>
+            <td>
+              <div class="course-badges">
+                <Badge
+                  v-for="enrollment in getUserEnrollments(user.id)"
+                  :key="enrollment.course_id"
+                  variant="default"
+                  size="sm"
+                  pill
+                >
+                  {{ parseCourseCode(enrollment.course_id).label }}
+                </Badge>
+                <span v-if="getUserEnrollments(user.id).length === 0" class="cell-faint">—</span>
+              </div>
+            </td>
+            <td class="cell-muted">
+              {{ getLastActive(user.id) ? timeAgo(getLastActive(user.id)!) : '—' }}
+            </td>
+            <td class="cell-muted frost-mono-nums">
+              {{ getTotalPracticeMinutes(user.id) > 0 ? formatDuration(getTotalPracticeMinutes(user.id)) : '—' }}
+            </td>
+            <td class="cell-actions">
+              <button
+                class="row-action"
+                title="View user detail"
+                @click.stop="navigateToUser(user.id)"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
 
-      <!-- Users table -->
-      <div v-else-if="users.length > 0" class="table-container">
-        <table class="users-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Joined</th>
-              <th>Courses</th>
-              <th>Last Active</th>
-              <th>Practice Time</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="user in users"
-              :key="user.id"
-              class="user-row"
-              @click="navigateToUser(user.id)"
-            >
-              <td class="user-name">
-                <span class="name-text">{{ user.display_name || 'Anonymous' }}</span>
-                <Badge v-if="user.platform_role === 'ssi_admin'" variant="ssi-red" size="sm" pill>admin</Badge>
-                <Badge v-else-if="user.educational_role === 'god'" variant="ssi-gold" size="sm" pill>god</Badge>
-              </td>
-              <td class="cell-muted">{{ new Date(user.created_at).toLocaleDateString() }}</td>
-              <td>
-                <div class="course-badges">
-                  <Badge
-                    v-for="enrollment in getUserEnrollments(user.id)"
-                    :key="enrollment.course_id"
-                    variant="default"
-                    size="sm"
-                    pill
-                  >
-                    {{ parseCourseCode(enrollment.course_id).label }}
-                  </Badge>
-                  <span v-if="getUserEnrollments(user.id).length === 0" class="cell-muted">—</span>
-                </div>
-              </td>
-              <td class="cell-muted">
-                {{ getLastActive(user.id) ? timeAgo(getLastActive(user.id)!) : '—' }}
-              </td>
-              <td class="cell-muted">
-                {{ getTotalPracticeMinutes(user.id) > 0 ? formatDuration(getTotalPracticeMinutes(user.id)) : '—' }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      <!-- Pagination footer -->
+      <div v-if="totalPages > 1" class="pagination">
+        <button
+          class="page-btn"
+          :disabled="currentPage <= 1"
+          @click="setPage(currentPage - 1)"
+        >
+          Prev
+        </button>
+        <span class="page-info frost-mono-nums">
+          Page {{ currentPage }} of {{ totalPages }}
+        </span>
+        <button
+          class="page-btn"
+          :disabled="currentPage >= totalPages"
+          @click="setPage(currentPage + 1)"
+        >
+          Next
+        </button>
       </div>
+    </FrostCard>
 
-      <!-- Empty state -->
-      <div v-else class="empty-state">No users found.</div>
-
-      <!-- Pagination -->
-      <template v-if="totalPages > 1" #footer>
-        <div class="pagination">
-          <button
-            class="page-btn"
-            :disabled="currentPage <= 1"
-            @click="setPage(currentPage - 1)"
-          >
-            Prev
-          </button>
-          <span class="page-info">Page {{ currentPage }} of {{ totalPages }}</span>
-          <button
-            class="page-btn"
-            :disabled="currentPage >= totalPages"
-            @click="setPage(currentPage + 1)"
-          >
-            Next
-          </button>
-        </div>
-      </template>
-    </Card>
+    <!-- Empty state — canon §5.5 -->
+    <FrostCard v-else variant="tile" class="empty">
+      <div class="empty-ghost">users</div>
+      <div class="empty-copy">
+        <strong>No users {{ searchInput || courseFilter ? 'match these filters' : 'yet' }}</strong>
+        <p v-if="searchInput || courseFilter">Try clearing the search or filter.</p>
+        <p v-else>Once people sign up, they'll appear here.</p>
+      </div>
+    </FrostCard>
   </div>
 </template>
 
@@ -199,58 +219,81 @@ onMounted(async () => {
 .admin-users {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6, 24px);
+  gap: var(--space-6);
 }
 
-/* Page Header */
+/* Page header — canon §5.1 */
 .page-header {
-  margin-bottom: var(--space-2, 8px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-6);
 }
 
-.page-title {
+.title-block h1 {
   font-family: var(--font-display);
-  font-size: var(--text-3xl, 1.875rem);
-  font-weight: var(--font-bold, 700);
-  margin: 0 0 var(--space-1, 4px) 0;
-  color: var(--text-primary);
+  font-size: var(--text-3xl);
+  font-weight: var(--font-bold);
+  letter-spacing: -0.015em;
+  color: var(--ink-primary);
+  margin: 0 0 var(--space-2);
 }
 
-.page-subtitle {
-  color: var(--text-secondary);
-  font-size: var(--text-sm, 0.875rem);
-  margin: 0;
-}
-
-/* Stat cards */
-.stat-cards {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--space-6, 24px);
-}
-
-/* Toolbar inside Card header */
-.toolbar {
+.metrics {
   display: flex;
-  gap: var(--space-3, 12px);
-  align-items: flex-start;
-  flex-wrap: wrap;
-  flex: 1;
+  align-items: baseline;
+  gap: var(--space-2);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
 }
 
-.toolbar :deep(.search-box) {
-  flex: 1;
-  min-width: 200px;
+.metric-value {
+  color: var(--ink-primary);
+  font-weight: var(--font-semibold);
+  margin-right: 4px;
 }
 
-.filters {
+.metric-sep {
+  color: var(--ink-faint);
+}
+
+.metric-fresh .metric-value {
+  color: rgb(var(--tone-green));
+}
+
+/* Filters bar — canon §5.2 */
+.filters-bar {
   display: flex;
-  gap: var(--space-2, 8px);
-  flex-shrink: 0;
+  gap: var(--space-3);
+  align-items: center;
 }
 
-/* Table */
-.table-container {
-  overflow-x: auto;
+.filters-bar :deep(.search-box) {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Error / loading */
+.error-banner {
+  padding: var(--space-3) var(--space-4);
+  background: rgba(var(--tone-red), 0.08);
+  border: 1px solid rgba(var(--tone-red), 0.25);
+  border-radius: var(--radius-lg);
+  color: rgb(var(--tone-red));
+  font-size: var(--text-sm);
+}
+
+.loading {
+  text-align: center;
+  padding: var(--space-10);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+
+/* List panel — canon §5.3 */
+.list-panel {
+  padding: 0;
+  overflow: hidden;
 }
 
 .users-table {
@@ -258,78 +301,106 @@ onMounted(async () => {
   border-collapse: collapse;
 }
 
-.users-table th {
-  text-align: left;
-  padding: var(--space-3, 12px) var(--space-4, 16px);
-  font-size: var(--text-xs, 0.75rem);
-  font-weight: var(--font-semibold, 600);
+.users-table thead th {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: var(--font-medium);
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-  border-bottom: 1px solid var(--border-subtle);
+  text-align: left;
+  color: var(--ink-muted);
+  padding: 14px 18px 12px;
+  border-bottom: 1px solid rgba(44, 38, 34, 0.08);
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.users-table thead th:last-child {
+  width: 56px;
+}
+
+.users-table tbody tr {
+  cursor: pointer;
+  transition: background var(--transition-base);
+}
+
+.users-table tbody tr:hover,
+.users-table tbody tr:focus-visible {
+  background: rgba(255, 255, 255, 0.48);
+  outline: none;
 }
 
 .users-table td {
-  padding: var(--space-3, 12px) var(--space-4, 16px);
-  font-size: var(--text-sm, 0.875rem);
-  border-bottom: 1px solid var(--border-subtle);
-  color: var(--text-primary);
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(44, 38, 34, 0.05);
+  vertical-align: middle;
+  color: var(--ink-secondary);
+  font-size: var(--text-sm);
 }
 
-.user-row {
-  cursor: pointer;
-  transition: background var(--transition-base, 0.15s ease);
+.users-table tbody tr:last-child td {
+  border-bottom: none;
 }
 
-.user-row:hover {
-  background: var(--bg-card-hover, var(--bg-elevated));
-}
-
-.user-name {
+.cell-name {
+  min-width: 220px;
   display: flex;
   align-items: center;
-  gap: var(--space-2, 8px);
+  gap: var(--space-2);
 }
 
 .name-text {
-  font-weight: var(--font-medium, 500);
+  font-size: var(--text-base);
+  font-weight: var(--font-medium);
+  color: var(--ink-primary);
+  letter-spacing: -0.005em;
+}
+
+.cell-muted {
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
+.cell-faint {
+  color: var(--ink-faint);
 }
 
 .course-badges {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-1, 4px);
+  gap: var(--space-1);
 }
 
-.cell-muted {
-  color: var(--text-secondary);
+/* Hover-reveal row actions — canon §5.6 */
+.cell-actions {
+  text-align: right;
+  padding-right: 12px;
 }
 
-/* Error */
-.error-banner {
-  padding: var(--space-3, 12px) var(--space-4, 16px);
-  margin: var(--space-4, 16px);
-  background: var(--bg-error, rgba(239, 68, 68, 0.1));
-  border: 1px solid var(--border-error, rgba(239, 68, 68, 0.3));
-  border-radius: var(--radius-md, 8px);
-  color: var(--text-error, #ef4444);
-  font-size: var(--text-sm, 0.875rem);
+.row-action {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--ink-muted);
+  cursor: pointer;
+  opacity: 0;
+  transform: translateX(4px);
+  transition: all var(--transition-fast);
 }
 
-/* Loading */
-.loading {
-  text-align: center;
-  padding: var(--space-10, 40px);
-  color: var(--text-secondary);
-  font-size: var(--text-sm, 0.875rem);
+.users-table tbody tr:hover .row-action,
+.users-table tbody tr:focus-within .row-action {
+  opacity: 1;
+  transform: translateX(0);
 }
 
-/* Empty */
-.empty-state {
-  text-align: center;
-  padding: var(--space-10, 40px);
-  color: var(--text-secondary);
-  font-size: var(--text-sm, 0.875rem);
+.row-action:hover {
+  color: var(--ink-primary);
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(44, 38, 34, 0.1);
 }
 
 /* Pagination */
@@ -337,24 +408,28 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-4, 16px);
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-4);
+  border-top: 1px solid rgba(44, 38, 34, 0.08);
 }
 
 .page-btn {
-  padding: var(--space-2, 8px) var(--space-4, 16px);
-  border-radius: var(--radius-md, 8px);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
-  color: var(--text-primary);
-  font-size: var(--text-sm, 0.8125rem);
-  font-family: inherit;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(44, 38, 34, 0.1);
+  color: var(--ink-secondary);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
   cursor: pointer;
-  transition: all var(--transition-base, 0.15s ease);
+  transition: all var(--transition-base);
 }
 
 .page-btn:hover:not(:disabled) {
-  background: var(--bg-elevated);
-  border-color: var(--border-medium);
+  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(44, 38, 34, 0.18);
+  color: var(--ink-primary);
 }
 
 .page-btn:disabled {
@@ -363,21 +438,56 @@ onMounted(async () => {
 }
 
 .page-info {
-  font-size: var(--text-sm, 0.8125rem);
-  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+
+/* Empty state — canon §5.5 */
+.empty {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-6);
+  align-items: center;
+  padding: var(--space-10) var(--space-8);
+  min-height: 200px;
+}
+
+.empty-ghost {
+  font-family: var(--font-display);
+  font-size: 88px;
+  font-weight: var(--font-bold);
+  letter-spacing: -0.03em;
+  color: var(--ink-faint);
+  opacity: 0.35;
+  line-height: 0.9;
+  user-select: none;
+}
+
+.empty-copy strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  color: var(--ink-primary);
+  margin-bottom: 4px;
+}
+
+.empty-copy p {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
 }
 
 @media (max-width: 768px) {
-  .stat-cards {
-    grid-template-columns: 1fr;
-  }
-
-  .toolbar {
+  .filters-bar {
     flex-direction: column;
+    align-items: stretch;
   }
 
-  .filters {
-    flex-wrap: wrap;
+  .users-table thead th:nth-child(2),
+  .users-table tbody td:nth-child(2),
+  .users-table thead th:nth-child(5),
+  .users-table tbody td:nth-child(5) {
+    display: none;
   }
 }
 </style>

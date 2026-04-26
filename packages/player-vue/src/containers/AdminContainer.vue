@@ -99,7 +99,7 @@ onMounted(() => {
       </div>
     </header>
 
-    <main class="admin-main">
+    <main class="admin-main schools-surface">
       <router-view v-slot="{ Component }">
         <transition name="page" mode="out-in">
           <component :is="Component" />
