@@ -132,9 +132,6 @@ onMounted(() => {
         class="course-card"
         :class="`tier-${tierFor(course)}`"
       >
-        <!-- Tier accent strip -->
-        <div class="tier-bar"></div>
-
         <div class="course-content">
           <!-- Title + tier pill -->
           <div class="course-header">
@@ -316,17 +313,6 @@ onMounted(() => {
   flex-direction: column;
 }
 
-/* Tier accent strip — colour set per .tier-* below */
-.tier-bar {
-  height: 3px;
-  width: 100%;
-  opacity: 0.95;
-}
-
-.course-card.tier-premium .tier-bar { background: rgb(var(--tone-gold)); }
-.course-card.tier-free    .tier-bar { background: rgb(var(--tone-blue)); }
-.course-card.tier-community .tier-bar { background: rgb(var(--tone-green)); }
-
 .course-content {
   padding: var(--space-5) var(--space-6);
   display: flex;
@@ -348,34 +334,36 @@ onMounted(() => {
   color: var(--ink-primary);
 }
 
-/* Tier pill — filled, tier-coloured, mono uppercase */
+/* Tier pill — outlined, tier-coloured, mono uppercase */
 .tier-pill {
   display: inline-block;
   padding: 3px 10px;
   border-radius: var(--radius-full);
   font-family: var(--font-mono);
   font-size: 10px;
-  font-weight: var(--font-semibold);
+  font-weight: var(--font-medium);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   flex-shrink: 0;
-  color: #fff;
   border: 1px solid transparent;
 }
 
 .course-card.tier-premium .tier-pill {
-  background: rgb(var(--tone-gold));
-  box-shadow: 0 1px 2px rgba(184, 148, 46, 0.20), 0 3px 10px rgba(184, 148, 46, 0.18);
+  background: rgba(var(--tone-gold), 0.18);
+  border-color: rgba(var(--tone-gold), 0.42);
+  color: rgb(var(--tone-gold));
 }
 
 .course-card.tier-free .tier-pill {
-  background: rgba(var(--tone-blue), 0.92);
-  box-shadow: 0 1px 2px rgba(33, 102, 153, 0.18), 0 3px 10px rgba(33, 102, 153, 0.16);
+  background: rgba(var(--tone-blue), 0.14);
+  border-color: rgba(var(--tone-blue), 0.32);
+  color: rgb(var(--tone-blue));
 }
 
 .course-card.tier-community .tier-pill {
-  background: rgb(var(--tone-green));
-  box-shadow: 0 1px 2px rgba(60, 130, 80, 0.18), 0 3px 10px rgba(60, 130, 80, 0.16);
+  background: rgba(var(--tone-green), 0.14);
+  border-color: rgba(var(--tone-green), 0.36);
+  color: rgb(var(--tone-green));
 }
 
 /* Course metrics */
