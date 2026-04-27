@@ -35,6 +35,26 @@ function tierLabel(tier: Tier): string {
   return 'Free'
 }
 
+function tierStyle(course: { is_community?: boolean; pricing_tier?: string | null }): Record<string, string> {
+  const tier = tierFor(course)
+  // RGB triplets mirror schools-tokens.css (--tone-gold/blue/green)
+  if (tier === 'premium') return {
+    background: 'rgba(212, 168, 83, 0.18)',
+    borderColor: 'rgba(212, 168, 83, 0.45)',
+    color: 'rgb(170, 128, 50)',
+  }
+  if (tier === 'community') return {
+    background: 'rgba(74, 180, 110, 0.14)',
+    borderColor: 'rgba(74, 180, 110, 0.40)',
+    color: 'rgb(60, 140, 86)',
+  }
+  return {
+    background: 'rgba(96, 145, 220, 0.14)',
+    borderColor: 'rgba(96, 145, 220, 0.36)',
+    color: 'rgb(70, 110, 180)',
+  }
+}
+
 onMounted(() => {
   fetchCourses()
 })
@@ -138,7 +158,7 @@ onMounted(() => {
             <div class="course-title frost-display">
               {{ parseCourseCode(course.course_code).label }}
             </div>
-            <span class="tier-pill" :class="`tier-pill-${tierFor(course)}`">{{ tierLabel(tierFor(course)) }}</span>
+            <span class="tier-pill" :style="tierStyle(course)">{{ tierLabel(tierFor(course)) }}</span>
           </div>
 
           <!-- Metrics row -->
@@ -348,23 +368,6 @@ onMounted(() => {
   border: 1px solid transparent;
 }
 
-.tier-pill-premium {
-  background: rgba(var(--tone-gold), 0.18);
-  border-color: rgba(var(--tone-gold), 0.42);
-  color: rgb(var(--tone-gold));
-}
-
-.tier-pill-free {
-  background: rgba(var(--tone-blue), 0.14);
-  border-color: rgba(var(--tone-blue), 0.32);
-  color: rgb(var(--tone-blue));
-}
-
-.tier-pill-community {
-  background: rgba(var(--tone-green), 0.14);
-  border-color: rgba(var(--tone-green), 0.36);
-  color: rgb(var(--tone-green));
-}
 
 /* Course metrics */
 .course-metrics {
