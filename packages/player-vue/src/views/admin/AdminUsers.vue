@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useAdminUsers } from '@/composables/admin/useAdminUsers'
@@ -41,6 +41,11 @@ function handleClear() {
   searchInput.value = ''
   setSearch('')
 }
+
+// Reset list whenever the input is emptied (X button, backspace, select-all+delete)
+watch(searchInput, (next, prev) => {
+  if (prev && !next.trim()) setSearch('')
+})
 
 function navigateToUser(learnerId: string) {
   router.push(`/admin/users/${learnerId}`)
