@@ -1,22 +1,28 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useAuth } from '@/composables/useAuth'
+import { useUserRole } from '@/composables/useUserRole'
 import { useAdminClient } from '@/composables/useAdminClient'
 import FrostCard from '@/components/schools/shared/FrostCard.vue'
 
 type Mode = 'invite' | 'direct'
 
 interface Group {
-  code: string
+  id: string
   name: string
+  type: string
+  parent_id: string | null
 }
 
 interface InviteCode {
   id: string
   code: string
   code_type: string
-  region_code: string | null
-  organization_name: string | null
+  grants_region: string | null
+  grants_group_id: string | null
+  grants_school_id: string | null
+  grants_class_id: string | null
+  metadata: { organization_name?: string } | null
   created_at: string
   expires_at: string | null
   max_uses: number | null
@@ -51,11 +57,8 @@ type Row =
   | { kind: 'direct'; row: EntitlementCode; createdAt: string }
 
 const { user, learner } = useAuth()
+const { isSsiAdmin, isGovtAdmin } = useUserRole()
 const { getClient, getAuthToken } = useAdminClient()
-
-// ─── Auth & permissions ────────────────────────────────────────────────────
-const isSsiAdmin = ref(false)
-const isGovtAdmin = ref(false)
 
 // ─── Data ──────────────────────────────────────────────────────────────────
 const groups = ref<Group[]>([])
@@ -140,27 +143,17 @@ async function fetchAll(): Promise<void> {
   isLoading.value = true
   error.value = null
 
+  // Default invite-mode role for govt admins
+  if (!isSsiAdmin.value && isGovtAdmin.value) {
+    inviteCodeType.value = 'school_admin'
+  }
+
   try {
-    // Determine permissions
-    const { data: learnerData } = await client
-      .from('learners')
-      .select('platform_role, educational_role')
-      .eq('user_id', userId)
-      .single()
-
-    if (learnerData) {
-      isSsiAdmin.value =
-        learnerData.platform_role === 'ssi_admin' || learnerData.educational_role === 'god'
-      isGovtAdmin.value = learnerData.educational_role === 'govt_admin'
-    }
-    if (!isSsiAdmin.value && isGovtAdmin.value) {
-      inviteCodeType.value = 'school_admin'
-    }
-
-    // Parallel fetch: groups, invite_codes, courses, entitlement_codes (via API)
     const token = await getAuthToken()
+    const authHeader = token ? { Authorization: `Bearer ${token}` } : {}
 
-    const groupsP = client.from('regions').select('code, name').order('name')
+    // Groups: server-side endpoint (uses service role, bypasses RLS)
+    const groupsP = fetch('/api/groups', { headers: authHeader })
 
     let invitesQ = client.from('invite_codes').select('*').order('created_at', { ascending: false })
     if (!isSsiAdmin.value) invitesQ = invitesQ.eq('created_by', userId)
@@ -170,22 +163,30 @@ async function fetchAll(): Promise<void> {
       .select('course_code, display_name, known_lang, target_lang')
       .order('display_name')
 
-    const entitlementsP = fetch('/api/entitlement/list', {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    })
+    const entitlementsP = fetch('/api/entitlement/list', { headers: authHeader })
 
     const [groupsR, invitesR, coursesR, entitlementsR] = await Promise.all([
       groupsP, invitesQ, coursesP, entitlementsP,
     ])
 
-    if (groupsR.error) throw groupsR.error
-    groups.value = groupsR.data || []
+    if (!groupsR.ok) {
+      const body = await groupsR.json().catch(() => ({}))
+      console.warn('[AdminAccess] groups load failed:', body)
+      groups.value = []
+    } else {
+      const gJson = await groupsR.json()
+      groups.value = gJson.groups || []
+    }
 
     if (invitesR.error) throw invitesR.error
     inviteCodes.value = invitesR.data || []
 
-    if (coursesR.error) console.warn('[AdminAccess] courses load failed:', coursesR.error)
-    allCourses.value = coursesR.data || []
+    if (coursesR.error) {
+      console.warn('[AdminAccess] courses load failed:', coursesR.error)
+      allCourses.value = []
+    } else {
+      allCourses.value = coursesR.data || []
+    }
 
     if (!entitlementsR.ok) {
       const body = await entitlementsR.json().catch(() => ({}))
@@ -222,9 +223,9 @@ async function createInviteCode(): Promise<void> {
 
     const body: Record<string, unknown> = {
       code_type: inviteCodeType.value,
-      organization_name: inviteOrgName.value.trim(),
+      metadata: { organization_name: inviteOrgName.value.trim() },
     }
-    if (inviteGroup.value) body.region_code = inviteGroup.value
+    if (inviteGroup.value) body.grants_group_id = inviteGroup.value
     if (formExpiresAt.value) body.expires_at = new Date(formExpiresAt.value).toISOString()
     if (formMaxUses.value !== '') body.max_uses = Number(formMaxUses.value)
 
@@ -409,10 +410,14 @@ function formatUses(c: { use_count: number; max_uses: number | null }): string {
   return `${c.use_count} / ${c.max_uses}`
 }
 
-function groupName(code: string | null): string {
-  if (!code) return '—'
-  const g = groups.value.find(r => r.code === code)
-  return g?.name || code
+function groupName(id: string | null): string {
+  if (!id) return '—'
+  const g = groups.value.find(r => r.id === id)
+  return g?.name || '—'
+}
+
+function inviteOrgLabel(c: InviteCode): string {
+  return c.metadata?.organization_name || '—'
 }
 
 onMounted(() => {
@@ -508,7 +513,7 @@ onMounted(() => {
             <label class="frost-eyebrow">Group <span class="optional">(optional)</span></label>
             <select v-model="inviteGroup" class="frost-select">
               <option value="">— No group —</option>
-              <option v-for="r in groups" :key="r.code" :value="r.code">{{ r.name }}</option>
+              <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
             </select>
           </div>
 
@@ -714,10 +719,10 @@ onMounted(() => {
               </template>
             </td>
             <td class="cell-org">
-              {{ r.kind === 'invite' ? (r.row.organization_name || '—') : (r.row.label || '—') }}
+              {{ r.kind === 'invite' ? inviteOrgLabel(r.row) : (r.row.label || '—') }}
             </td>
             <td class="cell-muted">
-              {{ r.kind === 'invite' ? groupName(r.row.region_code) : '—' }}
+              {{ r.kind === 'invite' ? groupName(r.row.grants_group_id) : '—' }}
             </td>
             <td class="cell-muted frost-mono-nums">{{ formatUses(r.row) }}</td>
             <td class="cell-muted frost-mono-nums">{{ formatDate(r.row.expires_at) }}</td>

@@ -37,6 +37,7 @@ export default async function handler(
   const {
     code_type,
     grants_region,
+    grants_group_id,
     grants_school_id,
     grants_class_id,
     metadata,
@@ -161,6 +162,7 @@ export default async function handler(
       is_active: true,
     }
     if (grants_region !== undefined) insertData.grants_region = grants_region
+    if (grants_group_id !== undefined) insertData.grants_group_id = grants_group_id
     if (grants_school_id !== undefined) insertData.grants_school_id = grants_school_id
     if (grants_class_id !== undefined) insertData.grants_class_id = grants_class_id
     if (metadata !== undefined) insertData.metadata = metadata
