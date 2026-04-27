@@ -1,9 +1,13 @@
 /**
- * useAdminUsers - Paginated user list with enrollments + emails.
+ * useAdminUsers - Loads ALL users once on mount, filters client-side.
  *
- * Pulls users (with email) from /api/admin/users (service-role on the server,
- * which is the only way to safely read auth.users.email). Enrollments are
- * still queried directly via the user's Supabase client.
+ * At ~1.3k users this is far snappier than round-tripping to the server
+ * on every keystroke; total payload is ~300KB once. Switch back to
+ * server-side search once user count crosses ~5k.
+ *
+ * Pulls users (with emails) from /api/admin/users (service-role on the
+ * server, only safe way to read auth.users.email + learner_emails).
+ * Enrollments are still queried directly via the user's Supabase client.
  */
 
 import { ref, computed } from 'vue'
@@ -28,11 +32,11 @@ export interface UserEnrollment {
 }
 
 const PAGE_SIZE = 50
+const FETCH_LIMIT = 10000 // grab everything in one shot
 
-const users = ref<AdminUser[]>([])
+const allUsers = ref<AdminUser[]>([])
 const enrollments = ref<Map<string, UserEnrollment[]>>(new Map())
 
-const totalCount = ref(0)
 const currentPage = ref(1)
 const searchQuery = ref('')
 const courseFilter = ref<string | null>(null)
@@ -40,13 +44,7 @@ const courseFilter = ref<string | null>(null)
 const isLoading = ref(false)
 const error = ref<string | null>(null)
 
-// Hero stats
-const totalUsers = ref(0)
-const newThisWeek = ref(0)
-
 export function useAdminUsers(client: SupabaseClient) {
-
-  const totalPages = computed(() => Math.max(1, Math.ceil(totalCount.value / PAGE_SIZE)))
 
   async function getToken(): Promise<string | null> {
     try {
@@ -57,17 +55,16 @@ export function useAdminUsers(client: SupabaseClient) {
     }
   }
 
-  async function fetchUsers(): Promise<void> {
+  async function fetchAll(): Promise<void> {
     isLoading.value = true
     error.value = null
 
     try {
       const token = await getToken()
       const params = new URLSearchParams({
-        page: String(currentPage.value),
-        limit: String(PAGE_SIZE),
+        page: '1',
+        limit: String(FETCH_LIMIT),
       })
-      if (searchQuery.value) params.set('search', searchQuery.value)
 
       const res = await fetch(`/api/admin/users?${params.toString()}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -78,23 +75,19 @@ export function useAdminUsers(client: SupabaseClient) {
       }
       const data = await res.json()
 
-      users.value = data.users || []
-      totalCount.value = data.totalCount || 0
-      totalUsers.value = data.totalUsers || 0
-      newThisWeek.value = data.newThisWeek || 0
+      allUsers.value = data.users || []
 
-      if (users.value.length === 0) {
+      if (allUsers.value.length === 0) {
         enrollments.value = new Map()
         return
       }
 
-      const pageIds = users.value.map(u => u.id)
-
-      // Batch fetch enrollments (still goes via the user's client — content table, permissive)
+      // Batch fetch enrollments for all users
+      const ids = allUsers.value.map(u => u.id)
       const { data: enrollData, error: enrollErr } = await client
         .from('course_enrollments')
         .select('learner_id, course_id, last_practiced_at, total_practice_minutes')
-        .in('learner_id', pageIds)
+        .in('learner_id', ids)
 
       if (enrollErr) throw enrollErr
 
@@ -114,29 +107,18 @@ export function useAdminUsers(client: SupabaseClient) {
     }
   }
 
-  async function fetchAll(): Promise<void> {
-    await fetchUsers()
-  }
-
-  function setPage(page: number) {
-    currentPage.value = page
-    fetchUsers()
-  }
-
-  function setSearch(query: string) {
-    searchQuery.value = query
-    currentPage.value = 1
-    fetchUsers()
-  }
-
-  function setCourseFilter(course: string | null) {
-    courseFilter.value = course
-    currentPage.value = 1
-  }
-
-  // Client-side filtering for course (applied to already-fetched page)
+  // Apply search + course filter, then return the current page slice.
   const filteredUsers = computed(() => {
-    let result = users.value
+    let result = allUsers.value
+
+    const q = searchQuery.value.trim().toLowerCase()
+    if (q) {
+      result = result.filter(u => {
+        if (u.display_name?.toLowerCase().includes(q)) return true
+        if (u.emails.some(e => e.toLowerCase().includes(q))) return true
+        return false
+      })
+    }
 
     if (courseFilter.value) {
       const courseId = courseFilter.value
@@ -148,6 +130,36 @@ export function useAdminUsers(client: SupabaseClient) {
 
     return result
   })
+
+  const totalCount = computed(() => filteredUsers.value.length)
+  const totalPages = computed(() => Math.max(1, Math.ceil(totalCount.value / PAGE_SIZE)))
+
+  // Visible page slice
+  const users = computed(() => {
+    const offset = (currentPage.value - 1) * PAGE_SIZE
+    return filteredUsers.value.slice(offset, offset + PAGE_SIZE)
+  })
+
+  // Hero stats — derived from full set, not the filtered/paged view
+  const totalUsers = computed(() => allUsers.value.length)
+  const newThisWeek = computed(() => {
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+    return allUsers.value.filter(u => new Date(u.created_at).getTime() >= weekAgo).length
+  })
+
+  function setPage(page: number) {
+    currentPage.value = page
+  }
+
+  function setSearch(query: string) {
+    searchQuery.value = query
+    currentPage.value = 1
+  }
+
+  function setCourseFilter(course: string | null) {
+    courseFilter.value = course
+    currentPage.value = 1
+  }
 
   function getUserEnrollments(learnerId: string): UserEnrollment[] {
     return enrollments.value.get(learnerId) || []
@@ -173,7 +185,7 @@ export function useAdminUsers(client: SupabaseClient) {
 
   return {
     // State
-    users: filteredUsers,
+    users,
     totalCount,
     currentPage,
     totalPages,
@@ -188,7 +200,6 @@ export function useAdminUsers(client: SupabaseClient) {
 
     // Actions
     fetchAll,
-    fetchUsers,
     setPage,
     setSearch,
     setCourseFilter,

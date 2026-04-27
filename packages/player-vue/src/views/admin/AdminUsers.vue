@@ -42,9 +42,9 @@ function handleClear() {
   setSearch('')
 }
 
-// Reset list whenever the input is emptied (X button, backspace, select-all+delete)
-watch(searchInput, (next, prev) => {
-  if (prev && !next.trim()) setSearch('')
+// Live-filter on every keystroke — list is fully loaded client-side, so this is instant.
+watch(searchInput, (next) => {
+  setSearch(next)
 })
 
 function navigateToUser(learnerId: string) {

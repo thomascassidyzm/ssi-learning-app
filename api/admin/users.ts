@@ -20,7 +20,7 @@ const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL |
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 
 const DEFAULT_LIMIT = 50
-const MAX_LIMIT = 200
+const MAX_LIMIT = 10000
 
 interface LearnerRow {
   id: string
