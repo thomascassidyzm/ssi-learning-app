@@ -144,7 +144,16 @@ onMounted(async () => {
               >god</Badge>
             </td>
             <td class="cell-email">
-              <span v-if="user.email" class="email-text">{{ user.email }}</span>
+              <template v-if="user.primary_email">
+                <span class="email-text" :title="user.emails.join(', ')">{{ user.primary_email }}</span>
+                <span
+                  v-if="user.emails.length > 1"
+                  class="email-extras"
+                  :title="user.emails.filter(e => e !== user.primary_email).join('\n')"
+                >
+                  +{{ user.emails.length - 1 }}
+                </span>
+              </template>
               <span v-else class="cell-faint">—</span>
             </td>
             <td class="cell-muted frost-mono-nums">
@@ -371,6 +380,9 @@ onMounted(async () => {
 
 .cell-email {
   max-width: 280px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .email-text {
@@ -381,7 +393,21 @@ onMounted(async () => {
   text-overflow: ellipsis;
   white-space: nowrap;
   display: inline-block;
-  max-width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.email-extras {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: var(--font-medium);
+  color: rgb(var(--tone-blue));
+  background: rgba(var(--tone-blue), 0.10);
+  border: 1px solid rgba(var(--tone-blue), 0.25);
+  padding: 2px 6px;
+  border-radius: var(--radius-full);
+  flex: 0 0 auto;
+  cursor: help;
 }
 
 .course-badges {

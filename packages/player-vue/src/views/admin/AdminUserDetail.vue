@@ -157,8 +157,15 @@ async function handleRevoke(entitlementId: string) {
                 <h2 class="profile-name frost-display">
                   {{ profile.display_name || 'Anonymous' }}
                 </h2>
-                <div v-if="profile.email" class="profile-email frost-mono-nums">
-                  {{ profile.email }}
+                <div v-if="profile.emails.length > 0" class="profile-emails">
+                  <div
+                    v-for="email in profile.emails"
+                    :key="email"
+                    class="profile-email-row"
+                  >
+                    <span class="profile-email-text frost-mono-nums">{{ email }}</span>
+                    <span v-if="email === profile.primary_email" class="email-primary-pill">primary</span>
+                  </div>
                 </div>
                 <div class="profile-meta">
                   <span>Joined {{ new Date(profile.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) }}</span>
@@ -569,11 +576,37 @@ async function handleRevoke(entitlementId: string) {
   color: var(--ink-primary);
 }
 
-.profile-email {
+.profile-emails {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 8px;
+}
+
+.profile-email-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.profile-email-text {
   font-size: var(--text-sm);
   color: var(--ink-secondary);
-  margin: 0 0 6px;
   word-break: break-all;
+}
+
+.email-primary-pill {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: var(--font-medium);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(var(--tone-green));
+  background: rgba(var(--tone-green), 0.12);
+  border: 1px solid rgba(var(--tone-green), 0.30);
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
 }
 
 .profile-meta {

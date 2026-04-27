@@ -9,7 +9,8 @@ export interface UserProfile {
   id: string
   user_id: string
   display_name: string
-  email: string | null
+  primary_email: string | null
+  emails: string[]
   created_at: string
   educational_role: string | null
   platform_role: string | null
@@ -95,11 +96,11 @@ export function useAdminUserDetail(client: SupabaseClient) {
         console.warn('[AdminUserDetail] entitlement fetch error:', entitlementResult.error)
       }
 
-      profile.value = { ...profileResult.data, email: null }
+      profile.value = { ...profileResult.data, primary_email: null, emails: [] }
       enrollments.value = enrollResult.data || []
       sessions.value = sessResult.data || []
 
-      // Fetch email via service-role endpoint (auth.users isn't directly readable)
+      // Fetch all emails via service-role endpoint (learner_emails is service-only).
       if (profile.value?.user_id) {
         try {
           const { data } = await client.auth.getSession()
@@ -109,7 +110,10 @@ export function useAdminUserDetail(client: SupabaseClient) {
           if (res.ok) {
             const body = await res.json()
             const match = (body.users || [])[0]
-            if (match && profile.value) profile.value.email = match.email || null
+            if (match && profile.value) {
+              profile.value.primary_email = match.primary_email || null
+              profile.value.emails = match.emails || []
+            }
           }
         } catch (err) {
           console.warn('[AdminUserDetail] email fetch failed:', err)

@@ -13,7 +13,8 @@ export interface AdminUser {
   id: string
   user_id: string
   display_name: string
-  email: string | null
+  primary_email: string | null
+  emails: string[]
   created_at: string
   educational_role: string | null
   platform_role: string | null
