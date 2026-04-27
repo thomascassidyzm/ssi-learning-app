@@ -977,7 +977,7 @@ onMounted(() => {
       <FrostCard variant="panel" class="form-panel">
         <div class="panel-head">
           <span class="frost-eyebrow">Create group</span>
-          <span class="panel-hint">Regions or organisations — a bucket for schools that share entitlements.</span>
+          <span class="panel-hint">A bucket for schools that share entitlements.</span>
         </div>
         <form class="form-grid" @submit.prevent="createGroup">
           <div class="field field-wide">
@@ -1007,7 +1007,7 @@ onMounted(() => {
             <select v-model="newGroupParent" class="frost-select">
               <option value="">— None (top level) —</option>
               <option v-for="g in groups" :key="g.id" :value="g.id">
-                {{ g.name }} ({{ g.type }})
+                {{ g.name }}
               </option>
             </select>
           </div>
@@ -1048,7 +1048,6 @@ onMounted(() => {
                 />
               </template>
               <strong v-else class="group-name-editable" @click="startGroupRename(group)" title="Click to rename">{{ group.name }}</strong>
-              <span class="type-pill tone-blue">{{ group.type }}</span>
               <span class="group-meta">{{ group.school_count }} schools</span>
               <span v-if="group.granted_courses.length > 0" class="group-courses">
                 {{ group.granted_courses.length }} courses
@@ -1079,7 +1078,6 @@ onMounted(() => {
                 />
               </template>
               <span v-else class="group-name-editable" @click="startGroupRename(child)" title="Click to rename">{{ child.name }}</span>
-              <span class="type-pill tone-blue">{{ child.type }}</span>
               <span class="group-meta">{{ child.school_count }} schools</span>
               <span v-if="child.granted_courses.length > 0" class="group-courses">
                 {{ child.granted_courses.length }} courses
@@ -1111,7 +1109,6 @@ onMounted(() => {
                   />
                 </template>
                 <span v-else class="group-name-editable" @click="startGroupRename(grandchild)" title="Click to rename">{{ grandchild.name }}</span>
-                <span class="type-pill tone-blue">{{ grandchild.type }}</span>
                 <span class="group-meta">{{ grandchild.school_count }} schools</span>
                 <div class="row-actions">
                   <button class="row-action" @click="router.push(`/admin/groups/${grandchild.id}`)" title="Open cross-schools dashboard">
@@ -1233,7 +1230,7 @@ onMounted(() => {
             <select v-model="newSchoolGroup" class="frost-select">
               <option value="">— None —</option>
               <option v-for="g in groups" :key="g.id" :value="g.id">
-                {{ g.name }} ({{ g.type }})
+                {{ g.name }}
               </option>
             </select>
           </div>
@@ -1486,7 +1483,7 @@ onMounted(() => {
               <option value="">— Select —</option>
               <template v-if="grantTargetType === 'group'">
                 <option v-for="g in groups" :key="g.id" :value="g.id">
-                  {{ g.name }} ({{ g.type }})
+                  {{ g.name }}
                 </option>
               </template>
               <template v-else>
