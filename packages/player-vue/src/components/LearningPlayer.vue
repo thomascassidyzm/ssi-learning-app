@@ -5789,6 +5789,15 @@ const unlockAudio = () => {
   })
 }
 
+// Whether the current cycle is part of a listening section
+// (LISTEN cluster, pod lap, or their bookends). Drives the subtle
+// skip-button cue in the BottomNav so learners notice that "skip" is
+// their out — without making the listening feel optional by default.
+const isInListeningCycle = computed(() => {
+  const t = simplePlayer.currentCycle.value?.type
+  return t === 'listen_intro' || t === 'listening' || t === 'pod' || t === 'listen_outro'
+})
+
 defineExpose({
   isPlaying,
   isAwakening,
@@ -5797,6 +5806,7 @@ defineExpose({
   handleResume,
   handleRevisit,
   handleSkip,
+  isInListeningCycle,
   exitListeningMode,
   exitAllModes,
   unlockAudio,

@@ -219,6 +219,7 @@ export function toSimpleRounds(
 
       cycles.push({
         id: i.uuid,
+        type: i.type,
         legoId: i.legoKey,
         known: {
           text: i.knownText,

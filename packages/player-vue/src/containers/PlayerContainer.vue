@@ -522,6 +522,7 @@ onMounted(() => {
       :showPronunciationBtn="showPronunciationBtn"
       :showDrivingBtn="showDrivingBtn"
       :isTurboMode="learningPlayerRef?.turboActive ?? false"
+      :isInListeningCycle="learningPlayerRef?.isInListeningCycle ?? false"
       @navigate="handleNavigation"
       @startLearning="handleStartLearning"
       @togglePlayback="handleTogglePlayback"

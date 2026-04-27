@@ -74,6 +74,14 @@ const props = defineProps({
   isTurboMode: {
     type: Boolean,
     default: false
+  },
+  // True when the currently playing cycle is part of a listening section
+  // (LISTEN cluster, pod lap, or their bookends). Cues the skip button
+  // visually so learners realise they can opt out — agency without
+  // making opt-out the default.
+  isInListeningCycle: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -237,7 +245,14 @@ const handleSettings = () => {
       </button>
 
       <!-- Slot 4: Skip (hidden on non-player screens) -->
-      <button v-show="isOnPlayerScreen" class="pill-btn" :class="{ tapped: tappedItem === 'skip' }" @click="handleSkip" title="Skip">
+      <button
+        v-show="isOnPlayerScreen"
+        class="pill-btn"
+        :class="{ tapped: tappedItem === 'skip', 'cue-listening': isInListeningCycle }"
+        @click="handleSkip"
+        :title="isInListeningCycle ? 'Skip listening' : 'Skip'"
+        :aria-label="isInListeningCycle ? 'Skip listening section' : 'Skip cycle'"
+      >
         <span class="pill-btn-bg"></span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <polyline points="9 18 15 12 9 6"/>
@@ -351,6 +366,28 @@ const handleSettings = () => {
 
 .pill-btn.active {
   color: var(--text-primary);
+}
+
+/* Skip button cue during listening cycles — gentle pulse on the circle
+   highlight to draw the eye without changing position or icon. The
+   button does the same thing it always does (skip the round), this
+   just makes "you can opt out of this listening section" findable. */
+.pill-btn.cue-listening {
+  color: rgba(255, 255, 255, 0.85);
+}
+.pill-btn.cue-listening .pill-btn-bg {
+  background: rgba(255, 255, 255, 0.06);
+  animation: skip-cue-pulse 2.4s ease-in-out infinite;
+}
+@keyframes skip-cue-pulse {
+  0%, 100% { background: rgba(255, 255, 255, 0.04); }
+  50%      { background: rgba(255, 255, 255, 0.14); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pill-btn.cue-listening .pill-btn-bg {
+    animation: none;
+    background: rgba(255, 255, 255, 0.10);
+  }
 }
 
 @media (hover: hover) {
@@ -536,6 +573,24 @@ const handleSettings = () => {
 
 :root[data-theme="mist"] .pill-btn.active {
   color: #2C2622;
+}
+
+/* Mist theme: skip-cue uses dark instead of white for the pulse */
+:root[data-theme="mist"] .pill-btn.cue-listening {
+  color: #2C2622;
+}
+:root[data-theme="mist"] .pill-btn.cue-listening .pill-btn-bg {
+  animation-name: skip-cue-pulse-mist;
+}
+@keyframes skip-cue-pulse-mist {
+  0%, 100% { background: rgba(0, 0, 0, 0.03); }
+  50%      { background: rgba(0, 0, 0, 0.10); }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme="mist"] .pill-btn.cue-listening .pill-btn-bg {
+    animation: none;
+    background: rgba(0, 0, 0, 0.07);
+  }
 }
 
 @media (hover: hover) {

@@ -2,6 +2,12 @@
 
 export interface Cycle {
   id: string
+  /**
+   * Source ScriptItem type. Optional — older cycles in cache may not carry it.
+   * Used by the UI to subtly cue the skip button during listening cycles
+   * (listen_intro/listening/pod/listen_outro) without changing button behaviour.
+   */
+  type?: string
   known: { text: string; audioUrl: string }
   target: { text: string; textNative?: string; voice1Url: string; voice2Url: string }
   pauseDuration?: number // ms — set by toSimpleRounds formula
