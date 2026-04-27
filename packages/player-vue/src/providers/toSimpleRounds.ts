@@ -190,6 +190,10 @@ export function toSimpleRounds(
       } else if (i.type === 'listen_intro' || i.type === 'listen_outro') {
         // Bookends play one known-language clip with no target voices.
         if (!i.knownAudioId) { skippedNoAudio++; continue }
+      } else if (i.type === 'pod') {
+        // Pod plays carry exactly one of {knownAudioId (translation play),
+        // target1Id (target play at slow/fast/2× via playbackSpeed)}.
+        if (!i.knownAudioId && !i.target1Id) { skippedNoAudio++; continue }
       } else if (i.type !== 'intro') {
         if (!i.knownAudioId || !i.target1Id || !i.target2Id) { skippedNoAudio++; continue }
       }
@@ -211,6 +215,7 @@ export function toSimpleRounds(
       )
 
       const isBookend = i.type === 'listen_intro' || i.type === 'listen_outro'
+      const isPod = i.type === 'pod'
 
       cycles.push({
         id: i.uuid,
@@ -222,15 +227,16 @@ export function toSimpleRounds(
         target: {
           // Bookends carry no target text/audio — SimplePlayer's voice1/voice2
           // phases gracefully skip when URLs are empty.
+          // Pods: target1 holds the play audio for slow/fast/2× (with
+          // playbackSpeed); voice2 always empty (single-play cycle).
           text: i.targetText,
           ...(i.targetTextNative ? { textNative: i.targetTextNative } : {}),
           voice1Url: isBookend ? '' : audioUrl(i.target1Id),
-          voice2Url: isBookend ? '' : audioUrl(i.target2Id)
+          voice2Url: (isBookend || isPod) ? '' : audioUrl(i.target2Id)
         },
-        // Intro/listening/component_intro/bookends: no pause (learner doesn't
-        // know it yet, passive listening, or it's an instruction prompt).
+        // Intro/listening/component_intro/bookends/pods: no pause.
         // Other cycles: dynamic pause based on target audio lengths.
-        pauseDuration: (i.type === 'intro' || i.type === 'listening' || i.type === 'component_intro' || isBookend)
+        pauseDuration: (i.type === 'intro' || i.type === 'listening' || i.type === 'component_intro' || isBookend || isPod)
           ? 0
           : calculatePauseDuration(i.target1DurationMs, i.target2DurationMs, pauseConfig, i.targetText),
         // Intro/component_intro: linger after voice2 so learner can read

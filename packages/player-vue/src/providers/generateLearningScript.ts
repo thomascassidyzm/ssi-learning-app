@@ -23,7 +23,7 @@ export interface ScriptItem {
   legoKey: string
   seedCode: string
   legoCode: string
-  type: 'intro' | 'debut' | 'build' | 'spaced_rep' | 'use' | 'listening' | 'component_intro' | 'component_practice' | 'listen_intro' | 'listen_outro'
+  type: 'intro' | 'debut' | 'build' | 'spaced_rep' | 'use' | 'listening' | 'component_intro' | 'component_practice' | 'listen_intro' | 'listen_outro' | 'pod'
   knownText: string
   targetText: string
   /** Native script text — only set when targetText is romanized */
@@ -119,7 +119,7 @@ export async function generateLearningScript(
   }
 
   // Query tables directly - audio IDs stored on each row, no joins needed
-  const [legosResult, phrasesResult, seedsResult, bookendsResult] = await Promise.all([
+  const [legosResult, phrasesResult, seedsResult, bookendsResult, podsResult] = await Promise.all([
     supabase
       .from('course_legos')
       .select('seed_number, lego_index, known_text, target_text, target_text_roman, type, is_new, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, target1_duration_ms, target2_duration_ms')
@@ -159,6 +159,17 @@ export async function generateLearningScript(
           .select('role, text, id, duration_ms')
           .eq('course_code', courseCode)
           .in('role', ['bookend_listen_intro', 'bookend_listen_outro'])
+      : Promise.resolve({ data: [], error: null }),
+    // Pre-fetch Pod 0 sentences (Layer 2 listening — round-end lap after
+    // activation). Pod ID convention: "${course_code}:${slug}". Sentences
+    // ordered by global_order; entry into the lap is 1 sentence/round.
+    // Returns empty if course has no pod-0 — Phase 7 silently skips.
+    listeningConfig.enabled
+      ? supabase
+          .from('listening_pod_sentences')
+          .select('global_order, target_text, known_text, target_audio_id, known_audio_id')
+          .eq('pod_id', `${courseCode}:pod-0`)
+          .order('global_order', { ascending: true })
       : Promise.resolve({ data: [], error: null })
   ])
 
@@ -166,6 +177,7 @@ export async function generateLearningScript(
   if (phrasesResult.error) throw new Error('Failed to query phrases: ' + phrasesResult.error.message)
   if (seedsResult.error) throw new Error('Failed to query seeds for listening: ' + seedsResult.error.message)
   if (bookendsResult.error) throw new Error('Failed to query listen bookends: ' + bookendsResult.error.message)
+  if (podsResult.error) throw new Error('Failed to query pod sentences: ' + podsResult.error.message)
 
   // Map bookend role → audio (used in Phase 6 to wrap the listening batch).
   // Both intro and outro must exist for either to be emitted.
@@ -177,6 +189,138 @@ export async function generateLearningScript(
   const listenIntroAudio = bookendByRole.get('bookend_listen_intro')
   const listenOutroAudio = bookendByRole.get('bookend_listen_outro')
   const hasBookends = !!(listenIntroAudio && listenOutroAudio)
+
+  // -------------------------------------------------------------------------
+  // Layer 2 — Pod 0 round-end lap
+  //
+  // Per Aran's listening-layers methodology + the visualiser at
+  // ~/Desktop/listening-playground.html (the canonical mechanical spec).
+  // After POD_ACTIVATION_ROUND, one new sentence enters the lap per round and
+  // ages through 7 stages: stages 1–6 each last 3 rounds, then stage 7 is an
+  // eternal 2× holding bay. At round-end we play the *whole* lap (every
+  // currently-introduced sentence at its current stage).
+  //
+  // Stage playlists (target = sentence's target_audio at speed; trans =
+  // sentence's known_audio at 1×). One ScriptItem emitted per audio play.
+  //
+  // POD_ACTIVATION_ROUND: rough proxy for Aran's "~150 seeds completed"
+  // threshold. Hard-coded for now; lift to course config when a second
+  // course gets pod-0.
+  //
+  // The pod lap gets its own bookend pair (same audio as the LISTEN cluster)
+  // so when both fire in the same round the learner hears two bookended
+  // listening sections back-to-back. Slightly chatty but unambiguous, and
+  // means the existing Phase 6 listening emission is left untouched.
+  // -------------------------------------------------------------------------
+  const POD_ACTIVATION_ROUND = 150
+  type PodPlayRole = 'slow' | 'trans' | 'fast' | 'fast2x'
+  const STAGE_PLAYLIST: Record<number, PodPlayRole[]> = {
+    1: ['slow', 'trans', 'slow', 'fast'],
+    2: ['slow', 'trans', 'fast'],
+    3: ['slow', 'trans', 'fast', 'fast'],
+    4: ['fast', 'trans', 'fast'],
+    5: ['slow', 'fast'],
+    6: ['fast', 'fast'],
+    7: ['fast2x'],
+  }
+  function podStageFor(entryPodRound: number, currentPodRound: number): { stage: number; iter: number | null } | null {
+    const alive = currentPodRound - entryPodRound + 1
+    if (alive < 1) return null
+    if (alive <= 3) return { stage: 1, iter: alive }
+    if (alive <= 6) return { stage: 2, iter: alive - 3 }
+    if (alive <= 9) return { stage: 3, iter: alive - 6 }
+    if (alive <= 12) return { stage: 4, iter: alive - 9 }
+    if (alive <= 15) return { stage: 5, iter: alive - 12 }
+    if (alive <= 18) return { stage: 6, iter: alive - 15 }
+    return { stage: 7, iter: null }
+  }
+  interface PodSentenceRow {
+    global_order: number
+    target_text: string
+    known_text: string
+    target_audio_id: string | null
+    known_audio_id: string | null
+  }
+  const podSentences = (podsResult.data || []) as PodSentenceRow[]
+  const hasPods = podSentences.length > 0
+
+  // Compute lap items for a given main-course round. Returns [] when pods
+  // not activated, course has none, or pod-0 has been fully introduced and
+  // no sentence is in any stage (shouldn't happen since stage 7 is eternal).
+  // Note: relies on the closure capturing emitItem, hasBookends, listen*Audio
+  // and uses a counter object so callers can interleave with their own cycle
+  // numbering (one counter per main-loop round, one per revival round).
+  function emitPodLap(mainRoundNumber: number, cycleCounter: { v: number }): boolean {
+    if (!hasPods) return false
+    const podRound = mainRoundNumber - POD_ACTIVATION_ROUND + 1
+    if (podRound < 1) return false
+    const TOTAL = podSentences.length
+    const activeCount = Math.min(podRound, TOTAL)
+    if (activeCount < 1) return false
+
+    // Pre-flight: collect plays so we can decide whether to emit bookends.
+    const plays: Array<{ i: number; sentence: PodSentenceRow; playRole: PodPlayRole }> = []
+    for (let i = 1; i <= activeCount; i++) {
+      const sentence = podSentences[i - 1]
+      if (!sentence.target_audio_id) continue
+      const stageInfo = podStageFor(i, podRound)
+      if (!stageInfo) continue
+      for (const playRole of STAGE_PLAYLIST[stageInfo.stage]) {
+        if (playRole === 'trans' && !sentence.known_audio_id) continue
+        plays.push({ i, sentence, playRole })
+      }
+    }
+    if (plays.length === 0) return false
+
+    if (hasBookends && listenIntroAudio) {
+      cycleCounter.v++
+      emitItem({
+        uuid: `listen_intro_pod_R${String(mainRoundNumber).padStart(4, '0')}_${cycleCounter.v}`,
+        cycleNum: cycleCounter.v, roundNumber: mainRoundNumber,
+        seedId: '', legoKey: '', seedCode: '', legoCode: '',
+        type: 'listen_intro',
+        knownText: listenIntroAudio.text,
+        targetText: '',
+        knownAudioId: listenIntroAudio.id,
+        isNew: false,
+      })
+    }
+    for (const { i, sentence, playRole } of plays) {
+      cycleCounter.v++
+      const cyc = cycleCounter.v
+      const speed =
+        playRole === 'slow' ? 0.8 :
+        playRole === 'fast' ? 1.6 :
+        playRole === 'fast2x' ? 2.0 : 1.0
+      const isTrans = playRole === 'trans'
+      emitItem({
+        uuid: `pod_R${String(mainRoundNumber).padStart(4, '0')}_S${String(i).padStart(3, '0')}_${playRole}_${cyc}`,
+        cycleNum: cyc, roundNumber: mainRoundNumber,
+        seedId: '', legoKey: '', seedCode: '', legoCode: '',
+        type: 'pod',
+        knownText: isTrans ? sentence.known_text : '',
+        targetText: isTrans ? '' : sentence.target_text,
+        knownAudioId: isTrans ? (sentence.known_audio_id || undefined) : undefined,
+        target1Id: isTrans ? undefined : (sentence.target_audio_id || undefined),
+        isNew: false,
+        playbackSpeed: speed,
+      })
+    }
+    if (hasBookends && listenOutroAudio) {
+      cycleCounter.v++
+      emitItem({
+        uuid: `listen_outro_pod_R${String(mainRoundNumber).padStart(4, '0')}_${cycleCounter.v}`,
+        cycleNum: cycleCounter.v, roundNumber: mainRoundNumber,
+        seedId: '', legoKey: '', seedCode: '', legoCode: '',
+        type: 'listen_outro',
+        knownText: listenOutroAudio.text,
+        targetText: '',
+        knownAudioId: listenOutroAudio.id,
+        isNew: false,
+      })
+    }
+    return true
+  }
 
   // Build seed map for listening phase
   interface SeedData {
@@ -964,6 +1108,13 @@ export async function generateLearningScript(
           }
         }
       }
+
+      // Phase 7: POD 0 round-end lap — independent of listening graduation,
+      // fires every round once activated. Self-bookended (will sit
+      // immediately after the listening section's bookends if both fire).
+      const podCounter = { v: cycleNum }
+      emitPodLap(roundNumber, podCounter)
+      cycleNum = podCounter.v
     }
   }
 
@@ -1110,12 +1261,20 @@ export async function generateLearningScript(
 
     // Mark the revived LEGO as freshly used so it re-enters the fib cycle.
     revivedState.lastRound = roundNumber
+
+    // Phase 7 (revival): POD 0 round-end lap continues forever. Stage 7
+    // (eternal 2× holding bay) is the steady state once injection finishes.
+    if (shouldEmit()) {
+      const podCounter = { v: cycleNum }
+      emitPodLap(roundNumber, podCounter)
+      cycleNum = podCounter.v
+    }
   }
 
   // Decompose phrases into component LEGO IDs
   let decomposedCount = 0
   for (const item of items) {
-    if (item.type === 'intro' || item.type === 'debut' || item.type === 'listening' || item.type === 'component_intro' || item.type === 'component_practice') continue
+    if (item.type === 'intro' || item.type === 'debut' || item.type === 'listening' || item.type === 'component_intro' || item.type === 'component_practice' || item.type === 'pod' || item.type === 'listen_intro' || item.type === 'listen_outro') continue
     const components = decomposePhrase(item.targetText)
     if (components.length > 0) {
       item.componentLegoIds = components
@@ -1133,7 +1292,7 @@ export async function generateLearningScript(
   let lastNonIntroItem: ScriptItem | null = null
 
   for (const item of items) {
-    if (item.type === 'intro' || item.type === 'debut' || item.type === 'listening' || item.type === 'component_intro') {
+    if (item.type === 'intro' || item.type === 'debut' || item.type === 'listening' || item.type === 'component_intro' || item.type === 'pod' || item.type === 'listen_intro' || item.type === 'listen_outro') {
       dedupedItems.push(item)
       continue
     }
