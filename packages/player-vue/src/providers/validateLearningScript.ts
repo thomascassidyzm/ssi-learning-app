@@ -130,6 +130,11 @@ export function validateScriptItem(item: ScriptItem): CycleValidationError[] {
     if (!isNonEmpty(item.target2Id)) {
       results.push(makeError(item, 'target2Id', 'listening cycle missing target2Id (second voice)', 'warning'))
     }
+  } else if (item.type === 'listen_intro' || item.type === 'listen_outro') {
+    // Bookends play one known-language clip — no target audio expected.
+    if (!isNonEmpty(item.knownAudioId)) {
+      results.push(makeError(item, 'knownAudioId', `${item.type} cycle missing knownAudioId`, 'error'))
+    }
   } else {
     // debut, build, spaced_rep, use — all require knownAudioId + target IDs
     if (!isNonEmpty(item.knownAudioId)) {
@@ -151,7 +156,7 @@ export function validateScriptItem(item: ScriptItem): CycleValidationError[] {
 // ---------------------------------------------------------------------------
 
 /** Expected type ordering within a round. */
-const TYPE_ORDER: ScriptItem['type'][] = ['intro', 'component_intro', 'component_practice', 'debut', 'build', 'spaced_rep', 'use', 'listening']
+const TYPE_ORDER: ScriptItem['type'][] = ['intro', 'component_intro', 'component_practice', 'debut', 'build', 'spaced_rep', 'use', 'listen_intro', 'listening', 'listen_outro']
 
 function typeOrderIndex(type: ScriptItem['type']): number {
   const idx = TYPE_ORDER.indexOf(type)

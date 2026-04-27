@@ -187,6 +187,9 @@ export function toSimpleRounds(
     for (const i of roundItems) {
       if (i.type === 'listening' || i.type === 'component_intro') {
         if (!i.target1Id) { skippedNoAudio++; continue }
+      } else if (i.type === 'listen_intro' || i.type === 'listen_outro') {
+        // Bookends play one known-language clip with no target voices.
+        if (!i.knownAudioId) { skippedNoAudio++; continue }
       } else if (i.type !== 'intro') {
         if (!i.knownAudioId || !i.target1Id || !i.target2Id) { skippedNoAudio++; continue }
       }
@@ -207,6 +210,8 @@ export function toSimpleRounds(
         targetSpeed
       )
 
+      const isBookend = i.type === 'listen_intro' || i.type === 'listen_outro'
+
       cycles.push({
         id: i.uuid,
         legoId: i.legoKey,
@@ -215,14 +220,17 @@ export function toSimpleRounds(
           audioUrl: audioUrl(promptAudioId)
         },
         target: {
+          // Bookends carry no target text/audio — SimplePlayer's voice1/voice2
+          // phases gracefully skip when URLs are empty.
           text: i.targetText,
           ...(i.targetTextNative ? { textNative: i.targetTextNative } : {}),
-          voice1Url: audioUrl(i.target1Id),
-          voice2Url: audioUrl(i.target2Id)
+          voice1Url: isBookend ? '' : audioUrl(i.target1Id),
+          voice2Url: isBookend ? '' : audioUrl(i.target2Id)
         },
-        // Intro/listening/component_intro has no pause (learner doesn't know it yet / passive listening)
-        // Other cycles: dynamic pause based on target audio lengths
-        pauseDuration: (i.type === 'intro' || i.type === 'listening' || i.type === 'component_intro')
+        // Intro/listening/component_intro/bookends: no pause (learner doesn't
+        // know it yet, passive listening, or it's an instruction prompt).
+        // Other cycles: dynamic pause based on target audio lengths.
+        pauseDuration: (i.type === 'intro' || i.type === 'listening' || i.type === 'component_intro' || isBookend)
           ? 0
           : calculatePauseDuration(i.target1DurationMs, i.target2DurationMs, pauseConfig, i.targetText),
         // Intro/component_intro: linger after voice2 so learner can read
