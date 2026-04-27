@@ -2,7 +2,7 @@
 import { onMounted } from 'vue'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useAdminCourses } from '@/composables/admin/useAdminCourses'
-import { parseCourseCode, getBeltForSeeds, formatDuration } from '@/composables/admin/adminUtils'
+import { parseCourseCode, formatDuration } from '@/composables/admin/adminUtils'
 import FrostCard from '@/components/schools/shared/FrostCard.vue'
 
 const { getClient } = useAdminClient()
@@ -19,6 +19,21 @@ const {
   getStats,
   setSortBy,
 } = useAdminCourses(getClient())
+
+type Tier = 'community' | 'premium' | 'free'
+
+function tierFor(course: { is_community?: boolean; pricing_tier?: string | null }): Tier {
+  if (course.is_community) return 'community'
+  const tier = (course.pricing_tier || '').toLowerCase()
+  if (tier === 'premium' || tier === 'paid') return 'premium'
+  return 'free'
+}
+
+function tierLabel(tier: Tier): string {
+  if (tier === 'community') return 'Community'
+  if (tier === 'premium') return 'Premium'
+  return 'Free'
+}
 
 onMounted(() => {
   fetchCourses()
@@ -115,12 +130,10 @@ onMounted(() => {
         :key="course.course_code"
         variant="tile"
         class="course-card"
+        :class="`tier-${tierFor(course)}`"
       >
-        <!-- Belt accent strip -->
-        <div
-          class="belt-bar"
-          :style="{ background: getBeltForSeeds(getStats(course.course_code).avg_seeds_introduced).color }"
-        ></div>
+        <!-- Tier accent strip -->
+        <div class="tier-bar"></div>
 
         <div class="course-content">
           <!-- Title + tier pill -->
@@ -128,10 +141,7 @@ onMounted(() => {
             <div class="course-title frost-display">
               {{ parseCourseCode(course.course_code).label }}
             </div>
-            <div class="course-pills">
-              <span v-if="course.is_community" class="pill pill-gold">Community</span>
-              <span v-else-if="course.pricing_tier" class="pill pill-blue">{{ course.pricing_tier }}</span>
-            </div>
+            <span class="tier-pill">{{ tierLabel(tierFor(course)) }}</span>
           </div>
 
           <!-- Metrics row -->
@@ -145,37 +155,8 @@ onMounted(() => {
               <span class="cm-label">Active 30d</span>
             </div>
             <div class="course-metric">
-              <span
-                class="cm-value belt-pill"
-                :style="{
-                  background: `${getBeltForSeeds(getStats(course.course_code).avg_seeds_introduced).color}26`,
-                  color: getBeltForSeeds(getStats(course.course_code).avg_seeds_introduced).color,
-                  borderColor: `${getBeltForSeeds(getStats(course.course_code).avg_seeds_introduced).color}55`,
-                }"
-              >
-                {{ getBeltForSeeds(getStats(course.course_code).avg_seeds_introduced).name }}
-              </span>
-              <span class="cm-label">Avg belt</span>
-            </div>
-            <div class="course-metric">
               <span class="cm-value frost-mono-nums">{{ formatDuration(getStats(course.course_code).total_practice_minutes) }}</span>
               <span class="cm-label">Practice</span>
-            </div>
-          </div>
-
-          <!-- Progress bar -->
-          <div class="progress-block">
-            <div class="progress-track">
-              <div
-                class="progress-fill"
-                :style="{
-                  width: `${Math.min((getStats(course.course_code).avg_seeds_introduced / 300) * 100, 100)}%`,
-                  background: getBeltForSeeds(getStats(course.course_code).avg_seeds_introduced).color,
-                }"
-              ></div>
-            </div>
-            <div class="progress-label frost-mono-nums">
-              avg {{ getStats(course.course_code).avg_seeds_introduced }} / 300 seeds
             </div>
           </div>
         </div>
@@ -335,11 +316,16 @@ onMounted(() => {
   flex-direction: column;
 }
 
-.belt-bar {
+/* Tier accent strip — colour set per .tier-* below */
+.tier-bar {
   height: 3px;
   width: 100%;
-  opacity: 0.9;
+  opacity: 0.95;
 }
+
+.course-card.tier-premium .tier-bar { background: rgb(var(--tone-gold)); }
+.course-card.tier-free    .tier-bar { background: rgb(var(--tone-blue)); }
+.course-card.tier-community .tier-bar { background: rgb(var(--tone-green)); }
 
 .course-content {
   padding: var(--space-5) var(--space-6);
@@ -362,34 +348,34 @@ onMounted(() => {
   color: var(--ink-primary);
 }
 
-.course-pills {
-  display: flex;
-  gap: 4px;
-  flex-shrink: 0;
-}
-
-.pill {
+/* Tier pill — filled, tier-coloured, mono uppercase */
+.tier-pill {
   display: inline-block;
-  padding: 2px 9px;
+  padding: 3px 10px;
   border-radius: var(--radius-full);
   font-family: var(--font-mono);
   font-size: 10px;
-  font-weight: var(--font-medium);
-  letter-spacing: 0.05em;
+  font-weight: var(--font-semibold);
+  letter-spacing: 0.06em;
   text-transform: uppercase;
+  flex-shrink: 0;
+  color: #fff;
   border: 1px solid transparent;
 }
 
-.pill-gold {
-  background: rgba(var(--tone-gold), 0.18);
-  border-color: rgba(var(--tone-gold), 0.42);
-  color: rgb(var(--tone-gold));
+.course-card.tier-premium .tier-pill {
+  background: rgb(var(--tone-gold));
+  box-shadow: 0 1px 2px rgba(184, 148, 46, 0.20), 0 3px 10px rgba(184, 148, 46, 0.18);
 }
 
-.pill-blue {
-  background: rgba(var(--tone-blue), 0.14);
-  border-color: rgba(var(--tone-blue), 0.32);
-  color: rgb(var(--tone-blue));
+.course-card.tier-free .tier-pill {
+  background: rgba(var(--tone-blue), 0.92);
+  box-shadow: 0 1px 2px rgba(33, 102, 153, 0.18), 0 3px 10px rgba(33, 102, 153, 0.16);
+}
+
+.course-card.tier-community .tier-pill {
+  background: rgb(var(--tone-green));
+  box-shadow: 0 1px 2px rgba(60, 130, 80, 0.18), 0 3px 10px rgba(60, 130, 80, 0.16);
 }
 
 /* Course metrics */
@@ -419,45 +405,6 @@ onMounted(() => {
   letter-spacing: 0.10em;
   text-transform: uppercase;
   color: var(--ink-faint);
-}
-
-.belt-pill {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: var(--radius-full);
-  font-size: 11px;
-  font-weight: var(--font-medium);
-  text-transform: capitalize;
-  border: 1px solid;
-  font-family: var(--font-body);
-  letter-spacing: 0;
-}
-
-/* Progress */
-.progress-block {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.progress-track {
-  height: 4px;
-  background: rgba(44, 38, 34, 0.08);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  border-radius: 2px;
-  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.progress-label {
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  color: var(--ink-faint);
-  text-transform: lowercase;
 }
 
 /* Empty state */
@@ -514,6 +461,6 @@ onMounted(() => {
 @media (max-width: 768px) {
   .kpi-strip { grid-template-columns: 1fr; }
   .course-grid { grid-template-columns: 1fr; }
-  .course-metrics { grid-template-columns: repeat(2, 1fr); gap: var(--space-3); }
+  .course-metrics { grid-template-columns: repeat(3, 1fr); gap: var(--space-3); }
 }
 </style>
