@@ -3,9 +3,7 @@ import { onMounted } from 'vue'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useAdminCourses } from '@/composables/admin/useAdminCourses'
 import { parseCourseCode, getBeltForSeeds, formatDuration } from '@/composables/admin/adminUtils'
-import Badge from '@/components/schools/shared/Badge.vue'
-import Card from '@/components/schools/shared/Card.vue'
-import StatsCard from '@/components/schools/StatsCard.vue'
+import FrostCard from '@/components/schools/shared/FrostCard.vue'
 
 const { getClient } = useAdminClient()
 
@@ -22,24 +20,6 @@ const {
   setSortBy,
 } = useAdminCourses(getClient())
 
-/**
- * Map belt color names to Card accent variants.
- * Falls back to 'gradient' for unrecognised belts.
- */
-function beltAccent(beltName: string): 'red' | 'gold' | 'green' | 'blue' | 'gradient' {
-  const map: Record<string, 'red' | 'gold' | 'green' | 'blue' | 'gradient'> = {
-    white: 'gradient',
-    yellow: 'gold',
-    orange: 'gold',
-    green: 'green',
-    blue: 'blue',
-    purple: 'gradient',
-    brown: 'red',
-    black: 'red',
-  }
-  return map[beltName.toLowerCase()] || 'gradient'
-}
-
 onMounted(() => {
   fetchCourses()
 })
@@ -47,174 +27,173 @@ onMounted(() => {
 
 <template>
   <div class="admin-courses">
-    <!-- Page Header -->
-    <header class="page-header animate-in">
-      <h1 class="page-title">Courses</h1>
-      <p class="page-subtitle">Overview of all courses, enrolments and activity</p>
+    <!-- Page header — canon §5.1 -->
+    <header class="page-header">
+      <div class="title-block">
+        <h1 class="frost-display">Courses</h1>
+        <div class="metrics">
+          <span class="metric">
+            <span class="metric-value frost-mono-nums">{{ totalCourses }}</span>
+            courses
+          </span>
+        </div>
+      </div>
     </header>
 
-    <!-- Hero Stats -->
-    <div class="stats-grid animate-in delay-1">
-      <StatsCard
-        icon="📚"
-        label="Total Courses"
-        :value="totalCourses"
-        variant="blue"
-      />
-      <StatsCard
-        icon="👥"
-        label="Total Enrollments"
-        :value="totalEnrollments"
-        variant="gold"
-      />
-      <StatsCard
-        icon="🔥"
-        label="Active Learners (30d)"
-        :value="totalActive30d"
-        variant="green"
-      />
+    <!-- Error -->
+    <Transition name="fade">
+      <div v-if="error" class="banner banner-error">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="15" y1="9" x2="9" y2="15"/>
+          <line x1="9" y1="9" x2="15" y2="15"/>
+        </svg>
+        <span>{{ error }}</span>
+      </div>
+    </Transition>
+
+    <!-- KPI stones -->
+    <div class="kpi-strip">
+      <FrostCard variant="stone" tone="blue">
+        <div class="stone-content">
+          <span class="stone-label">Total courses</span>
+          <span class="stone-value frost-mono-nums">{{ totalCourses }}</span>
+        </div>
+      </FrostCard>
+      <FrostCard variant="stone" tone="gold">
+        <div class="stone-content">
+          <span class="stone-label">Total enrolments</span>
+          <span class="stone-value frost-mono-nums">{{ totalEnrollments }}</span>
+        </div>
+      </FrostCard>
+      <FrostCard variant="stone" tone="green">
+        <div class="stone-content">
+          <span class="stone-label">Active (30d)</span>
+          <span class="stone-value frost-mono-nums">{{ totalActive30d }}</span>
+        </div>
+      </FrostCard>
     </div>
 
-    <!-- Error -->
-    <div v-if="error" class="error-banner animate-in delay-2">{{ error }}</div>
-
-    <!-- Course List Card -->
-    <Card
-      title="All Courses"
-      :subtitle="`${totalCourses} course${totalCourses !== 1 ? 's' : ''}`"
-      class="animate-in delay-2"
-    >
-      <template #icon>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-        </svg>
-      </template>
-
-      <template #header-actions>
-        <div class="sort-controls">
-          <span class="sort-label">Sort by</span>
-          <button
-            class="sort-btn"
-            :class="{ active: sortBy === 'enrolled' }"
-            @click="setSortBy('enrolled')"
-          >
-            Enrollment
-          </button>
-          <button
-            class="sort-btn"
-            :class="{ active: sortBy === 'active' }"
-            @click="setSortBy('active')"
-          >
-            Active Users
-          </button>
-          <button
-            class="sort-btn"
-            :class="{ active: sortBy === 'name' }"
-            @click="setSortBy('name')"
-          >
-            Name
-          </button>
-        </div>
-      </template>
-
-      <!-- Loading -->
-      <div v-if="isLoading" class="loading-state">
-        <div class="loading-spinner"></div>
-        <p>Loading courses&hellip;</p>
+    <!-- Sort controls — own row, segmented pill -->
+    <div class="filters-bar">
+      <span class="frost-eyebrow">Sort by</span>
+      <div class="sort-toggle" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          class="sort-btn"
+          :class="{ 'is-active': sortBy === 'enrolled' }"
+          :aria-selected="sortBy === 'enrolled'"
+          @click="setSortBy('enrolled')"
+        >Enrolment</button>
+        <button
+          type="button"
+          role="tab"
+          class="sort-btn"
+          :class="{ 'is-active': sortBy === 'active' }"
+          :aria-selected="sortBy === 'active'"
+          @click="setSortBy('active')"
+        >Active</button>
+        <button
+          type="button"
+          role="tab"
+          class="sort-btn"
+          :class="{ 'is-active': sortBy === 'name' }"
+          :aria-selected="sortBy === 'name'"
+          @click="setSortBy('name')"
+        >Name</button>
       </div>
+    </div>
 
-      <!-- Course Grid -->
-      <div v-else-if="courses.length > 0" class="course-grid">
-        <Card
-          v-for="(course, idx) in courses"
-          :key="course.course_code"
-          hoverable
-          :accent="beltAccent(getBeltForSeeds(getStats(course.course_code).avg_seeds_introduced).name)"
-          class="course-card animate-in"
-          :class="`delay-${Math.min(idx + 1, 5)}`"
-          variant="default"
-          no-padding
-        >
-          <div class="course-inner">
-            <!-- Colored belt bar -->
-            <div
-              class="belt-bar"
-              :style="{ background: getBeltForSeeds(getStats(course.course_code).avg_seeds_introduced).color }"
-            ></div>
+    <!-- Loading -->
+    <div v-if="isLoading" class="loading">Loading courses…</div>
 
-            <div class="course-content">
-              <!-- Header row -->
-              <div class="course-header">
-                <div class="course-title">{{ parseCourseCode(course.course_code).label }}</div>
-                <div class="course-badges">
-                  <Badge
-                    v-if="course.is_community"
-                    variant="ssi-gold"
-                    size="sm"
-                    pill
-                  >
-                    Community
-                  </Badge>
-                  <Badge
-                    v-else-if="course.pricing_tier"
-                    variant="info"
-                    size="sm"
-                    pill
-                  >
-                    {{ course.pricing_tier }}
-                  </Badge>
-                </div>
-              </div>
+    <!-- Course tiles -->
+    <div v-else-if="courses.length > 0" class="course-grid">
+      <FrostCard
+        v-for="course in courses"
+        :key="course.course_code"
+        variant="tile"
+        class="course-card"
+      >
+        <!-- Belt accent strip -->
+        <div
+          class="belt-bar"
+          :style="{ background: getBeltForSeeds(getStats(course.course_code).avg_seeds_introduced).color }"
+        ></div>
 
-              <!-- Metrics -->
-              <div class="course-metrics">
-                <div class="metric">
-                  <span class="metric-value">{{ getStats(course.course_code).enrolled_count }}</span>
-                  <span class="metric-label">Enrolled</span>
-                </div>
-                <div class="metric">
-                  <span class="metric-value">{{ getStats(course.course_code).active_30d }}</span>
-                  <span class="metric-label">Active (30d)</span>
-                </div>
-                <div class="metric">
-                  <span class="metric-value">
-                    <Badge
-                      :belt="getBeltForSeeds(getStats(course.course_code).avg_seeds_introduced).name as any"
-                      size="sm"
-                      pill
-                    >
-                      {{ getBeltForSeeds(getStats(course.course_code).avg_seeds_introduced).name }}
-                    </Badge>
-                  </span>
-                  <span class="metric-label">Avg Belt</span>
-                </div>
-                <div class="metric">
-                  <span class="metric-value">{{ formatDuration(getStats(course.course_code).total_practice_minutes) }}</span>
-                  <span class="metric-label">Total Practice</span>
-                </div>
-              </div>
-
-              <!-- Progress bar -->
-              <div class="progress-track">
-                <div
-                  class="progress-fill"
-                  :style="{ width: `${Math.min((getStats(course.course_code).avg_seeds_introduced / 300) * 100, 100)}%` }"
-                ></div>
-              </div>
-              <div class="progress-label">
-                Avg {{ getStats(course.course_code).avg_seeds_introduced }} / 300 seeds
-              </div>
+        <div class="course-content">
+          <!-- Title + tier pill -->
+          <div class="course-header">
+            <div class="course-title frost-display">
+              {{ parseCourseCode(course.course_code).label }}
+            </div>
+            <div class="course-pills">
+              <span v-if="course.is_community" class="pill pill-gold">Community</span>
+              <span v-else-if="course.pricing_tier" class="pill pill-blue">{{ course.pricing_tier }}</span>
             </div>
           </div>
-        </Card>
-      </div>
 
-      <!-- Empty -->
-      <div v-else-if="!isLoading" class="empty-state">
-        <p>No courses found.</p>
+          <!-- Metrics row -->
+          <div class="course-metrics">
+            <div class="course-metric">
+              <span class="cm-value frost-mono-nums">{{ getStats(course.course_code).enrolled_count }}</span>
+              <span class="cm-label">Enrolled</span>
+            </div>
+            <div class="course-metric">
+              <span class="cm-value frost-mono-nums">{{ getStats(course.course_code).active_30d }}</span>
+              <span class="cm-label">Active 30d</span>
+            </div>
+            <div class="course-metric">
+              <span
+                class="cm-value belt-pill"
+                :style="{
+                  background: `${getBeltForSeeds(getStats(course.course_code).avg_seeds_introduced).color}26`,
+                  color: getBeltForSeeds(getStats(course.course_code).avg_seeds_introduced).color,
+                  borderColor: `${getBeltForSeeds(getStats(course.course_code).avg_seeds_introduced).color}55`,
+                }"
+              >
+                {{ getBeltForSeeds(getStats(course.course_code).avg_seeds_introduced).name }}
+              </span>
+              <span class="cm-label">Avg belt</span>
+            </div>
+            <div class="course-metric">
+              <span class="cm-value frost-mono-nums">{{ formatDuration(getStats(course.course_code).total_practice_minutes) }}</span>
+              <span class="cm-label">Practice</span>
+            </div>
+          </div>
+
+          <!-- Progress bar -->
+          <div class="progress-block">
+            <div class="progress-track">
+              <div
+                class="progress-fill"
+                :style="{
+                  width: `${Math.min((getStats(course.course_code).avg_seeds_introduced / 300) * 100, 100)}%`,
+                  background: getBeltForSeeds(getStats(course.course_code).avg_seeds_introduced).color,
+                }"
+              ></div>
+            </div>
+            <div class="progress-label frost-mono-nums">
+              avg {{ getStats(course.course_code).avg_seeds_introduced }} / 300 seeds
+            </div>
+          </div>
+        </div>
+      </FrostCard>
+    </div>
+
+    <!-- Empty state — canon §5.5 -->
+    <FrostCard
+      v-else-if="!isLoading"
+      variant="tile"
+      class="empty"
+    >
+      <div class="empty-ghost">courses</div>
+      <div class="empty-copy">
+        <strong>No courses yet</strong>
+        <p>Once Popty publishes a course, it'll appear here.</p>
       </div>
-    </Card>
+    </FrostCard>
   </div>
 </template>
 
@@ -222,240 +201,319 @@ onMounted(() => {
 .admin-courses {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6, 24px);
+  gap: var(--space-6);
 }
 
-/* ── Page Header ─────────────────────────────────── */
+/* Page header */
 .page-header {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-1, 4px);
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-6);
 }
 
-.page-title {
-  font-family: var(--font-display, system-ui);
-  font-size: 1.5rem;
-  font-weight: 700;
-  margin: 0;
-  color: var(--text-primary);
+.title-block h1 {
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  font-weight: var(--font-bold);
+  letter-spacing: -0.015em;
+  color: var(--ink-primary);
+  margin: 0 0 var(--space-2);
 }
 
-.page-subtitle {
-  font-size: var(--text-sm, 0.875rem);
-  color: var(--text-muted);
-  margin: 0;
+.metrics {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
 }
 
-/* ── Stats Grid ──────────────────────────────────── */
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-4, 16px);
+.metric-value {
+  color: var(--ink-primary);
+  font-weight: var(--font-semibold);
+  margin-right: 4px;
 }
 
-/* ── Sort Controls (inside Card header-actions slot) */
-.sort-controls {
+/* Banners */
+.banner {
   display: flex;
   align-items: center;
-  gap: var(--space-2, 8px);
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
 }
 
-.sort-label {
-  font-size: var(--text-xs, 0.75rem);
-  color: var(--text-muted);
-  font-weight: 500;
+.banner-error {
+  background: rgba(var(--tone-red), 0.08);
+  border: 1px solid rgba(var(--tone-red), 0.28);
+  color: rgb(var(--tone-red));
+}
+
+/* KPI stones */
+.kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+}
+
+.stone-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  padding: var(--space-5) var(--space-6);
+  min-height: 120px;
+}
+
+.stone-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.stone-value {
+  font-family: var(--font-display);
+  font-size: var(--text-4xl);
+  font-weight: var(--font-bold);
+  letter-spacing: -0.025em;
+  color: var(--ink-primary);
+  margin-top: var(--space-3);
+}
+
+/* Filters bar (sort) — own row, NOT inside a card */
+.filters-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.sort-toggle {
+  display: inline-flex;
+  background: rgba(44, 38, 34, 0.05);
+  border: 1px solid rgba(44, 38, 34, 0.08);
+  border-radius: var(--radius-full);
+  padding: 3px;
+  gap: 2px;
 }
 
 .sort-btn {
-  padding: var(--space-1, 4px) var(--space-3, 12px);
-  border-radius: var(--radius-md, 6px);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
-  color: var(--text-secondary);
-  font-size: var(--text-xs, 0.75rem);
-  font-weight: 500;
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  padding: 6px 14px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-full);
+  color: var(--ink-muted);
   cursor: pointer;
-  transition: all var(--transition-fast, 0.15s);
-  font-family: var(--font-body, inherit);
+  transition: all var(--transition-fast);
 }
 
-.sort-btn:hover {
-  background: var(--bg-elevated);
-  color: var(--text-primary);
-  border-color: var(--border-medium);
+.sort-btn:hover { color: var(--ink-primary); }
+
+.sort-btn.is-active {
+  background: var(--ssi-red);
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(44, 38, 34, 0.10), 0 4px 12px rgba(194, 58, 58, 0.20);
 }
 
-.sort-btn.active {
-  background: var(--bg-elevated);
-  border-color: var(--border-medium);
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-/* ── Course Grid ─────────────────────────────────── */
+/* Course grid */
 .course-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: var(--space-4, 16px);
+  gap: var(--space-4);
 }
 
 .course-card {
-  /* Override any Card body padding — handled by .course-inner */
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
-.course-inner {
-  position: relative;
-}
-
-/* Belt accent bar at top of each course card */
 .belt-bar {
-  height: 4px;
+  height: 3px;
   width: 100%;
-  opacity: 0.85;
-  transition: opacity var(--transition-fast, 0.15s);
-}
-
-.course-card:hover .belt-bar {
-  opacity: 1;
+  opacity: 0.9;
 }
 
 .course-content {
-  padding: var(--space-5, 20px);
+  padding: var(--space-5) var(--space-6);
   display: flex;
   flex-direction: column;
-  gap: var(--space-4, 16px);
+  gap: var(--space-4);
 }
 
-/* ── Course Header ───────────────────────────────── */
 .course-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: var(--space-2, 8px);
+  gap: var(--space-2);
 }
 
 .course-title {
-  font-family: var(--font-display, system-ui);
-  font-weight: 600;
-  font-size: 1rem;
-  color: var(--text-primary);
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  letter-spacing: -0.01em;
+  color: var(--ink-primary);
 }
 
-.course-badges {
+.course-pills {
   display: flex;
-  gap: var(--space-1, 4px);
+  gap: 4px;
   flex-shrink: 0;
 }
 
-/* ── Metrics Grid ────────────────────────────────── */
+.pill {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: var(--font-medium);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+}
+
+.pill-gold {
+  background: rgba(var(--tone-gold), 0.18);
+  border-color: rgba(var(--tone-gold), 0.42);
+  color: rgb(var(--tone-gold));
+}
+
+.pill-blue {
+  background: rgba(var(--tone-blue), 0.14);
+  border-color: rgba(var(--tone-blue), 0.32);
+  color: rgb(var(--tone-blue));
+}
+
+/* Course metrics */
 .course-metrics {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-2, 8px);
+  gap: var(--space-2);
 }
 
-.metric {
-  text-align: center;
+.course-metric {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
 }
 
-.metric-value {
-  display: block;
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: var(--text-primary);
+.cm-value {
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  color: var(--ink-primary);
 }
 
-.metric-label {
-  display: block;
-  font-size: 0.6875rem;
-  color: var(--text-muted);
+.cm-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.10em;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-top: 2px;
+  color: var(--ink-faint);
 }
 
-/* ── Progress Bar ────────────────────────────────── */
+.belt-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: var(--font-medium);
+  text-transform: capitalize;
+  border: 1px solid;
+  font-family: var(--font-body);
+  letter-spacing: 0;
+}
+
+/* Progress */
+.progress-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .progress-track {
   height: 4px;
-  background: var(--bg-elevated);
-  border-radius: var(--radius-sm, 2px);
+  background: rgba(44, 38, 34, 0.08);
+  border-radius: 2px;
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--ssi-gold-dark, #b8942e), var(--ssi-gold, #d4a853));
-  border-radius: var(--radius-sm, 2px);
+  border-radius: 2px;
   transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .progress-label {
-  font-size: var(--text-xs, 0.75rem);
-  color: var(--text-muted);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+  text-transform: lowercase;
 }
 
-/* ── Error ───────────────────────────────────────── */
-.error-banner {
-  padding: var(--space-3, 12px) var(--space-4, 16px);
-  background: var(--bg-card);
-  border: 1px solid var(--ssi-red, #c23a3a);
-  border-radius: var(--radius-lg, 12px);
-  color: var(--ssi-red, #c23a3a);
-  font-size: var(--text-sm, 0.875rem);
-}
-
-/* ── Loading ─────────────────────────────────────── */
-.loading-state {
-  display: flex;
-  flex-direction: column;
+/* Empty state */
+.empty {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-6);
   align-items: center;
-  gap: var(--space-3, 12px);
-  padding: var(--space-10, 40px);
-  color: var(--text-muted);
+  padding: var(--space-10) var(--space-8);
+  min-height: 180px;
 }
 
-.loading-spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid var(--border-subtle);
-  border-top-color: var(--ssi-red, #c23a3a);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+.empty-ghost {
+  font-family: var(--font-display);
+  font-size: 88px;
+  font-weight: var(--font-bold);
+  letter-spacing: -0.03em;
+  color: var(--ink-faint);
+  opacity: 0.35;
+  line-height: 0.9;
+  user-select: none;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
+.empty-copy strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  color: var(--ink-primary);
+  margin-bottom: 4px;
 }
 
-/* ── Empty ───────────────────────────────────────── */
-.empty-state {
-  text-align: center;
-  padding: var(--space-10, 40px);
-  color: var(--text-muted);
-  font-size: var(--text-sm, 0.875rem);
-}
-
-.empty-state p {
+.empty-copy p {
   margin: 0;
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
 }
 
-/* ── Responsive ──────────────────────────────────── */
+.loading {
+  text-align: center;
+  padding: var(--space-12);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+
+/* Transitions */
+.fade-enter-active, .fade-leave-active {
+  transition: opacity var(--transition-base), transform var(--transition-base);
+}
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
 @media (max-width: 768px) {
-  .stats-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .sort-controls {
-    flex-wrap: wrap;
-  }
-
-  .course-metrics {
-    grid-template-columns: repeat(2, 1fr);
-    gap: var(--space-3, 12px);
-  }
-
-  .course-grid {
-    grid-template-columns: 1fr;
-  }
+  .kpi-strip { grid-template-columns: 1fr; }
+  .course-grid { grid-template-columns: 1fr; }
+  .course-metrics { grid-template-columns: repeat(2, 1fr); gap: var(--space-3); }
 }
 </style>
