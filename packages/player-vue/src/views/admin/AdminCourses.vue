@@ -138,7 +138,7 @@ onMounted(() => {
             <div class="course-title frost-display">
               {{ parseCourseCode(course.course_code).label }}
             </div>
-            <span class="tier-pill">{{ tierLabel(tierFor(course)) }}</span>
+            <span class="tier-pill" :class="`tier-pill-${tierFor(course)}`">{{ tierLabel(tierFor(course)) }}</span>
           </div>
 
           <!-- Metrics row -->
@@ -348,19 +348,19 @@ onMounted(() => {
   border: 1px solid transparent;
 }
 
-.course-card.tier-premium .tier-pill {
+.tier-pill-premium {
   background: rgba(var(--tone-gold), 0.18);
   border-color: rgba(var(--tone-gold), 0.42);
   color: rgb(var(--tone-gold));
 }
 
-.course-card.tier-free .tier-pill {
+.tier-pill-free {
   background: rgba(var(--tone-blue), 0.14);
   border-color: rgba(var(--tone-blue), 0.32);
   color: rgb(var(--tone-blue));
 }
 
-.course-card.tier-community .tier-pill {
+.tier-pill-community {
   background: rgba(var(--tone-green), 0.14);
   border-color: rgba(var(--tone-green), 0.36);
   color: rgb(var(--tone-green));
