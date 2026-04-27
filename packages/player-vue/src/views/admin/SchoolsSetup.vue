@@ -3,7 +3,7 @@ import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { useAdminClient } from '@/composables/useAdminClient'
-import Card from '@/components/schools/shared/Card.vue'
+import FrostCard from '@/components/schools/shared/FrostCard.vue'
 
 const router = useRouter()
 
@@ -109,9 +109,16 @@ const grantTargetId = ref('')
 const grantCourses = ref<string[]>([])
 
 // Tabbed layout: only one section's content is visible at a time.
-type SetupTab = 'schools' | 'groups' | 'staff' | 'entitlements'
+type SetupTab = 'groups' | 'schools' | 'staff' | 'entitlements'
 const activeTab = ref<SetupTab>('schools')
 const courseSearch = ref('')
+
+const tabs: { id: SetupTab; label: string }[] = [
+  { id: 'groups', label: 'Groups' },
+  { id: 'schools', label: 'Schools' },
+  { id: 'staff', label: 'Staff' },
+  { id: 'entitlements', label: 'Entitlements' },
+]
 
 // Group tree helpers
 const rootGroups = computed(() => groups.value.filter(g => !g.parent_id))
@@ -142,19 +149,6 @@ function langName(code: string): string {
   return LANG_NAMES[code] || code
 }
 
-// Distinct hues for language group headers
-const GROUP_COLORS: Record<string, string> = {}
-const HUES = [0, 210, 140, 32, 270, 180, 340, 55, 100, 300, 195, 240, 15, 160, 70, 320, 120, 350, 220, 45]
-let hueIndex = 0
-
-function groupColor(label: string): string {
-  if (!GROUP_COLORS[label]) {
-    GROUP_COLORS[label] = `${HUES[hueIndex % HUES.length]}`
-    hueIndex++
-  }
-  return GROUP_COLORS[label]
-}
-
 // Courses grouped by known language, filtered by search
 const groupedCourses = computed(() => {
   const q = courseSearch.value.toLowerCase().trim()
@@ -167,14 +161,14 @@ const groupedCourses = computed(() => {
       )
     : courses.value
 
-  const groups: Record<string, Course[]> = {}
+  const buckets: Record<string, Course[]> = {}
   for (const c of filtered) {
     const key = `For ${langName(c.known_lang)} speakers`
-    if (!groups[key]) groups[key] = []
-    groups[key].push(c)
+    if (!buckets[key]) buckets[key] = []
+    buckets[key].push(c)
   }
 
-  return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b))
+  return Object.entries(buckets).sort(([a], [b]) => a.localeCompare(b))
 })
 
 function getCurrentUserId(): string | null {
@@ -657,9 +651,9 @@ async function updateSchoolGroup(school: School, groupId: string): Promise<void>
     school.group_id = groupId || null
 
     if (groupId && previousGroupName) {
-      successMessage.value = `Moved "${school.school_name}" from ${previousGroupName} to ${getGroupName(groupId)} \u2014 entitlements may have changed.`
+      successMessage.value = `Moved "${school.school_name}" from ${previousGroupName} to ${getGroupName(groupId)} — entitlements may have changed.`
     } else if (groupId) {
-      successMessage.value = `Assigned "${school.school_name}" to ${getGroupName(groupId)} \u2014 entitlements may have changed.`
+      successMessage.value = `Assigned "${school.school_name}" to ${getGroupName(groupId)} — entitlements may have changed.`
     } else {
       successMessage.value = `Removed "${school.school_name}" from ${previousGroupName || 'group'}`
     }
@@ -873,7 +867,7 @@ async function deleteSchool(school: School): Promise<void> {
 }
 
 function formatDate(dateStr: string | null): string {
-  if (!dateStr) return '-'
+  if (!dateStr) return '—'
   return new Date(dateStr).toLocaleDateString('en-GB', {
     day: 'numeric',
     month: 'short',
@@ -913,69 +907,93 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="setup-page">
-    <!-- Success Message -->
-    <div v-if="successMessage" class="message-banner success-banner animate-in">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-        <polyline points="22 4 12 14.01 9 11.01"/>
-      </svg>
-      <span>{{ successMessage }}</span>
+  <div class="schools-setup">
+    <!-- Page header — canon §5.1 -->
+    <header class="page-header">
+      <div class="title-block">
+        <h1 class="frost-display">Setup</h1>
+        <div class="metrics">
+          <span class="metric">
+            <span class="metric-value frost-mono-nums">{{ schools.length }}</span>
+            schools
+          </span>
+          <span class="metric-sep">·</span>
+          <span class="metric">
+            <span class="metric-value frost-mono-nums">{{ groups.length }}</span>
+            groups
+          </span>
+          <span class="metric-sep">·</span>
+          <span class="metric">
+            <span class="metric-value frost-mono-nums">{{ staffMembers.length }}</span>
+            staff
+          </span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Banners -->
+    <Transition name="fade">
+      <div v-if="successMessage" class="banner banner-success">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+          <polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+        <span>{{ successMessage }}</span>
+      </div>
+    </Transition>
+    <Transition name="fade">
+      <div v-if="error" class="banner banner-error">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="15" y1="9" x2="9" y2="15"/>
+          <line x1="9" y1="9" x2="15" y2="15"/>
+        </svg>
+        <span>{{ error }}</span>
+      </div>
+    </Transition>
+
+    <!-- Tab nav as segmented control — canon §5.2 (own row) -->
+    <div class="filters-bar">
+      <span class="frost-eyebrow">Section</span>
+      <div class="tab-toggle" role="tablist">
+        <button
+          v-for="tab in tabs"
+          :key="tab.id"
+          type="button"
+          role="tab"
+          class="tab-btn"
+          :class="{ 'is-active': activeTab === tab.id }"
+          :aria-selected="activeTab === tab.id"
+          @click="activeTab = tab.id"
+        >
+          {{ tab.label }}
+        </button>
+      </div>
     </div>
 
-    <!-- Error Message -->
-    <div v-if="error" class="message-banner error-banner animate-in">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="10"/>
-        <line x1="15" y1="9" x2="9" y2="15"/>
-        <line x1="9" y1="9" x2="15" y2="15"/>
-      </svg>
-      <span>{{ error }}</span>
-    </div>
-
-    <!-- Tabbed sub-nav: shows one section at a time. -->
-    <nav class="setup-subnav">
-      <button
-        v-for="tab in (['groups','schools','staff','entitlements'] as SetupTab[])"
-        :key="tab"
-        class="subnav-tab"
-        :class="{ active: activeTab === tab }"
-        @click="activeTab = tab"
-      >
-        {{ tab === 'entitlements' ? 'Entitlements' : tab.charAt(0).toUpperCase() + tab.slice(1) }}
-      </button>
-    </nav>
-
-    <!-- Groups Section -->
-    <section v-show="activeTab === 'groups'" id="section-groups" class="create-section">
-      <Card
-        title="Groups"
-        subtitle="Regions or organisations — a bucket for schools that share entitlements."
-        accent="blue"
-      >
-        <template #icon>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="2" y1="12" x2="22" y2="12"/>
-            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-          </svg>
-        </template>
-
-        <!-- Create group form -->
-        <div class="form-grid" style="margin-bottom: 16px;">
-          <div class="form-group">
-            <label>Group Name <span class="required">*</span></label>
+    <!-- ───── GROUPS TAB ───── -->
+    <template v-if="activeTab === 'groups'">
+      <!-- Create group form panel -->
+      <FrostCard variant="panel" class="form-panel">
+        <div class="panel-head">
+          <span class="frost-eyebrow">Create group</span>
+          <span class="panel-hint">Regions or organisations — a bucket for schools that share entitlements.</span>
+        </div>
+        <form class="form-grid" @submit.prevent="createGroup">
+          <div class="field field-wide">
+            <label class="frost-eyebrow">Group name <span class="required">*</span></label>
             <input
               v-model="newGroupName"
               type="text"
+              class="frost-input"
               placeholder="e.g. United Kingdom, Wales, Pilot 2026"
               @keyup.enter="createGroup"
             />
           </div>
 
-          <div class="form-group">
-            <label>Type</label>
-            <select v-model="newGroupType">
+          <div class="field">
+            <label class="frost-eyebrow">Type</label>
+            <select v-model="newGroupType" class="frost-select">
               <option value="nation">Nation</option>
               <option value="group">Group</option>
               <option value="district">District</option>
@@ -984,31 +1002,40 @@ onMounted(() => {
             </select>
           </div>
 
-          <div class="form-group">
-            <label>Parent Group (optional)</label>
-            <select v-model="newGroupParent">
-              <option value="">- None (top level) -</option>
+          <div class="field">
+            <label class="frost-eyebrow">Parent group <span class="optional">(optional)</span></label>
+            <select v-model="newGroupParent" class="frost-select">
+              <option value="">— None (top level) —</option>
               <option v-for="g in groups" :key="g.id" :value="g.id">
                 {{ g.name }} ({{ g.type }})
               </option>
             </select>
           </div>
 
-          <div class="form-group" style="justify-content: flex-end;">
-            <label>&nbsp;</label>
-            <button class="btn-create" :disabled="isCreatingGroup || !newGroupName.trim()" @click="createGroup">
-              <svg v-if="!isCreatingGroup" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <div class="field-actions">
+            <button
+              type="submit"
+              class="btn-primary"
+              :disabled="isCreatingGroup || !newGroupName.trim()"
+            >
+              <svg v-if="!isCreatingGroup" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
                 <line x1="12" y1="5" x2="12" y2="19"/>
                 <line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
-              <span v-if="isCreatingGroup" class="spinner"></span>
-              {{ isCreatingGroup ? 'Creating...' : 'Add Group' }}
+              <span v-else class="spinner"></span>
+              {{ isCreatingGroup ? 'Creating…' : 'Add group' }}
             </button>
           </div>
-        </div>
+        </form>
+      </FrostCard>
 
-        <!-- Groups tree -->
-        <div v-if="groups.length > 0" class="groups-tree">
+      <!-- Groups tree panel -->
+      <FrostCard v-if="groups.length > 0" variant="panel" class="tree-panel">
+        <div class="panel-head">
+          <span class="frost-eyebrow">All groups</span>
+          <span class="panel-hint">Click a name to rename — hover for actions.</span>
+        </div>
+        <div class="groups-tree">
           <template v-for="group in rootGroups" :key="group.id">
             <div class="group-row group-row--root">
               <template v-if="editingGroupId === group.id">
@@ -1021,22 +1048,25 @@ onMounted(() => {
                 />
               </template>
               <strong v-else class="group-name-editable" @click="startGroupRename(group)" title="Click to rename">{{ group.name }}</strong>
+              <span class="type-pill tone-blue">{{ group.type }}</span>
               <span class="group-meta">{{ group.school_count }} schools</span>
               <span v-if="group.granted_courses.length > 0" class="group-courses">
                 {{ group.granted_courses.length }} courses
               </span>
-              <button class="group-view-btn" @click="router.push(`/admin/groups/${group.id}`)" title="Open cross-schools dashboard">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                  <circle cx="12" cy="12" r="3"/>
-                </svg>
-              </button>
-              <button class="group-delete-btn" @click="deleteGroup(group)" title="Delete group">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="18" y1="6" x2="6" y2="18"/>
-                  <line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
-              </button>
+              <div class="row-actions">
+                <button class="row-action" @click="router.push(`/admin/groups/${group.id}`)" title="Open cross-schools dashboard">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                </button>
+                <button class="row-action is-danger" @click="deleteGroup(group)" title="Delete group">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+              </div>
             </div>
             <div v-for="child in getChildGroups(group.id)" :key="child.id" class="group-row group-row--child">
               <template v-if="editingGroupId === child.id">
@@ -1049,411 +1079,411 @@ onMounted(() => {
                 />
               </template>
               <span v-else class="group-name-editable" @click="startGroupRename(child)" title="Click to rename">{{ child.name }}</span>
+              <span class="type-pill tone-blue">{{ child.type }}</span>
               <span class="group-meta">{{ child.school_count }} schools</span>
               <span v-if="child.granted_courses.length > 0" class="group-courses">
                 {{ child.granted_courses.length }} courses
               </span>
-              <button class="group-view-btn" @click="router.push(`/admin/groups/${child.id}`)" title="Open cross-schools dashboard">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                  <circle cx="12" cy="12" r="3"/>
-                </svg>
-              </button>
-              <button class="group-delete-btn" @click="deleteGroup(child)" title="Delete group">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="18" y1="6" x2="6" y2="18"/>
-                  <line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
-              </button>
-              <template v-for="grandchild in getChildGroups(child.id)" :key="grandchild.id">
-                <div class="group-row group-row--grandchild">
-                  <template v-if="editingGroupId === grandchild.id">
-                    <input
-                      class="group-rename-input"
-                      v-model="editingGroupName"
-                      @blur="saveGroupRename(grandchild)"
-                      @keyup.enter="saveGroupRename(grandchild)"
-                      @keyup.escape="editingGroupId = null"
-                    />
-                  </template>
-                  <span v-else class="group-name-editable" @click="startGroupRename(grandchild)" title="Click to rename">{{ grandchild.name }}</span>
-                  <span class="group-meta">{{ grandchild.school_count }} schools</span>
-                  <button class="group-view-btn" @click="router.push(`/admin/groups/${grandchild.id}`)" title="Open cross-schools dashboard">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <div class="row-actions">
+                <button class="row-action" @click="router.push(`/admin/groups/${child.id}`)" title="Open cross-schools dashboard">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                </button>
+                <button class="row-action is-danger" @click="deleteGroup(child)" title="Delete group">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <template v-for="child in getChildGroups(group.id)" :key="`gc-${child.id}`">
+              <div v-for="grandchild in getChildGroups(child.id)" :key="grandchild.id" class="group-row group-row--grandchild">
+                <template v-if="editingGroupId === grandchild.id">
+                  <input
+                    class="group-rename-input"
+                    v-model="editingGroupName"
+                    @blur="saveGroupRename(grandchild)"
+                    @keyup.enter="saveGroupRename(grandchild)"
+                    @keyup.escape="editingGroupId = null"
+                  />
+                </template>
+                <span v-else class="group-name-editable" @click="startGroupRename(grandchild)" title="Click to rename">{{ grandchild.name }}</span>
+                <span class="type-pill tone-blue">{{ grandchild.type }}</span>
+                <span class="group-meta">{{ grandchild.school_count }} schools</span>
+                <div class="row-actions">
+                  <button class="row-action" @click="router.push(`/admin/groups/${grandchild.id}`)" title="Open cross-schools dashboard">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                       <circle cx="12" cy="12" r="3"/>
                     </svg>
                   </button>
-                  <button class="group-delete-btn" @click="deleteGroup(grandchild)" title="Delete group">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <button class="row-action is-danger" @click="deleteGroup(grandchild)" title="Delete group">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                       <line x1="18" y1="6" x2="6" y2="18"/>
                       <line x1="6" y1="6" x2="18" y2="18"/>
                     </svg>
                   </button>
                 </div>
-              </template>
-            </div>
+              </div>
+            </template>
           </template>
         </div>
-        <div v-else-if="!isLoadingGroups" class="empty-state" style="padding: 24px;">
-          <p>No groups yet</p>
-          <span>Create one above to organise schools</span>
-        </div>
-      </Card>
-    </section>
+      </FrostCard>
 
-    <!-- Add Govt Admin Section -->
-    <section v-show="activeTab === 'groups'" class="create-section">
-      <Card
-        title="Add Govt Admin"
-        subtitle="Invite someone to oversee all schools within a group."
-        accent="blue"
-      >
-        <template #icon>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-          </svg>
-        </template>
-        <div class="form-grid">
-          <div class="form-group">
-            <label>Name <span class="required">*</span></label>
-            <input v-model="newGovtName" type="text" placeholder="e.g. Gwilym Thomas" />
+      <!-- Empty state for groups -->
+      <FrostCard v-else-if="!isLoadingGroups" variant="tile" class="empty">
+        <div class="empty-ghost">groups</div>
+        <div class="empty-copy">
+          <strong>No groups yet</strong>
+          <p>Create one above to organise schools that share entitlements.</p>
+        </div>
+      </FrostCard>
+
+      <!-- Add Govt Admin -->
+      <FrostCard variant="panel" class="form-panel">
+        <div class="panel-head">
+          <span class="frost-eyebrow">Add govt admin</span>
+          <span class="panel-hint">Invite someone to oversee all schools within a group.</span>
+        </div>
+        <form class="form-grid" @submit.prevent="createGovtAdmin">
+          <div class="field">
+            <label class="frost-eyebrow">Name <span class="required">*</span></label>
+            <input v-model="newGovtName" type="text" class="frost-input" placeholder="e.g. Gwilym Thomas" />
           </div>
-          <div class="form-group">
-            <label>Email <span class="required">*</span></label>
-            <input v-model="newGovtEmail" type="email" placeholder="e.g. gwilym@gov.wales" />
+          <div class="field">
+            <label class="frost-eyebrow">Email <span class="required">*</span></label>
+            <input v-model="newGovtEmail" type="email" class="frost-input" placeholder="e.g. gwilym@gov.wales" />
           </div>
-          <div class="form-group">
-            <label>Group <span class="required">*</span></label>
-            <select v-model="newGovtGroup">
-              <option value="">- Select group -</option>
+          <div class="field">
+            <label class="frost-eyebrow">Group <span class="required">*</span></label>
+            <select v-model="newGovtGroup" class="frost-select">
+              <option value="">— Select group —</option>
               <option v-for="g in groups" :key="g.id" :value="g.id">
                 {{ g.name }}
               </option>
             </select>
           </div>
-          <div class="form-group">
-            <label>Organization <span class="required">*</span></label>
-            <input v-model="newGovtOrg" type="text" placeholder="e.g. Welsh Government Language Office" />
+          <div class="field">
+            <label class="frost-eyebrow">Organisation <span class="required">*</span></label>
+            <input v-model="newGovtOrg" type="text" class="frost-input" placeholder="e.g. Welsh Government Language Office" />
           </div>
-        </div>
 
-        <!-- Generated invite code display -->
-        <div v-if="govtAdminCode" class="invite-code-result">
-          <span class="code-label">Invite code:</span>
-          <span class="code-value" @click="copyCode(govtAdminCode)">{{ govtAdminCode }}</span>
-          <span class="code-hint">Share this code — they enter it in Settings to gain access</span>
-        </div>
-
-        <template #footer>
-          <div class="form-actions">
+          <div v-if="govtAdminCode" class="field field-wide invite-result">
+            <span class="frost-eyebrow">Invite code</span>
             <button
-              class="btn-create"
-              :disabled="isCreatingGovt || !newGovtName.trim() || !newGovtEmail.trim() || !newGovtGroup || !newGovtOrg.trim()"
-              @click="createGovtAdmin"
+              type="button"
+              class="code-chip is-large"
+              :class="{ 'is-copied': copiedCode === govtAdminCode }"
+              @click="copyCode(govtAdminCode!)"
             >
-              <svg v-if="!isCreatingGovt" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <span class="code-value frost-mono-nums">{{ govtAdminCode }}</span>
+              <svg v-if="copiedCode !== govtAdminCode" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+              <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </button>
+            <span class="invite-hint">Share this code — they enter it in Settings to gain access.</span>
+          </div>
+
+          <div class="field-actions">
+            <button
+              type="submit"
+              class="btn-primary"
+              :disabled="isCreatingGovt || !newGovtName.trim() || !newGovtEmail.trim() || !newGovtGroup || !newGovtOrg.trim()"
+            >
+              <svg v-if="!isCreatingGovt" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
                 <line x1="12" y1="5" x2="12" y2="19"/>
                 <line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
-              <span v-if="isCreatingGovt" class="spinner"></span>
-              {{ isCreatingGovt ? 'Creating...' : 'Create Govt Admin' }}
+              <span v-else class="spinner"></span>
+              {{ isCreatingGovt ? 'Creating…' : 'Create govt admin' }}
             </button>
           </div>
-        </template>
-      </Card>
-    </section>
+        </form>
+      </FrostCard>
+    </template>
 
-    <!-- Add School Section -->
-    <section v-show="activeTab === 'schools'" class="create-section">
-      <Card
-        title="Add School"
-        subtitle="Create a new school — optionally assign it to a group."
-        accent="green"
-      >
-        <template #icon>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-            <polyline points="9 22 9 12 15 12 15 22"/>
-          </svg>
-        </template>
-        <div class="form-grid">
-          <div class="form-group form-group--wide">
-            <label>School Name <span class="required">*</span></label>
+    <!-- ───── SCHOOLS TAB ───── -->
+    <template v-if="activeTab === 'schools'">
+      <!-- Add School form panel -->
+      <FrostCard variant="panel" class="form-panel">
+        <div class="panel-head">
+          <span class="frost-eyebrow">Add school</span>
+          <span class="panel-hint">Create a new school — optionally assign it to a group.</span>
+        </div>
+        <form class="form-grid" @submit.prevent="createSchool">
+          <div class="field field-wide">
+            <label class="frost-eyebrow">School name <span class="required">*</span></label>
             <input
               v-model="newSchoolName"
               type="text"
+              class="frost-input"
               placeholder="e.g. Ysgol Gymraeg Bro Morgannwg"
               @keyup.enter="createSchool"
             />
           </div>
-          <div class="form-group">
-            <label>Group (optional)</label>
-            <select v-model="newSchoolGroup">
-              <option value="">- None -</option>
+          <div class="field field-wide">
+            <label class="frost-eyebrow">Group <span class="optional">(optional)</span></label>
+            <select v-model="newSchoolGroup" class="frost-select">
+              <option value="">— None —</option>
               <option v-for="g in groups" :key="g.id" :value="g.id">
                 {{ g.name }} ({{ g.type }})
               </option>
             </select>
           </div>
-        </div>
-        <template #footer>
-          <div class="form-actions">
-            <button class="btn-create" :disabled="isCreatingSchool || !newSchoolName.trim()" @click="createSchool">
-              <svg v-if="!isCreatingSchool" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+
+          <div class="field-actions">
+            <button
+              type="submit"
+              class="btn-primary"
+              :disabled="isCreatingSchool || !newSchoolName.trim()"
+            >
+              <svg v-if="!isCreatingSchool" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
                 <line x1="12" y1="5" x2="12" y2="19"/>
                 <line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
-              <span v-if="isCreatingSchool" class="spinner"></span>
-              {{ isCreatingSchool ? 'Creating...' : 'Add School' }}
+              <span v-else class="spinner"></span>
+              {{ isCreatingSchool ? 'Creating…' : 'Add school' }}
             </button>
           </div>
-        </template>
-      </Card>
-    </section>
+        </form>
+      </FrostCard>
 
-    <!-- Schools List -->
-    <section v-show="activeTab === 'schools' && schools.length > 0" id="section-schools" class="codes-section">
-      <Card
-        title="Schools"
-        subtitle="All schools — join codes, group assignments, and course entitlements."
-        accent="gradient"
-        :loading="isLoadingSchools"
-      >
-        <template #icon>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-            <polyline points="9 22 9 12 15 12 15 22"/>
-          </svg>
-        </template>
-
-        <div class="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>School</th>
-                <th>Group</th>
-                <th>Entitlements</th>
-                <th>Teacher Join Code</th>
-                <th>Admin Join Code</th>
-                <th>Created</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="school in schools" :key="school.id">
-                <td>{{ school.school_name }}</td>
-                <td>
-                  <select
-                    class="inline-select"
-                    :value="school.group_id || ''"
-                    @change="updateSchoolGroup(school, ($event.target as HTMLSelectElement).value)"
-                  >
-                    <option value="">- None -</option>
-                    <option v-for="g in groups" :key="g.id" :value="g.id">
-                      {{ g.name }}
-                    </option>
-                  </select>
-                </td>
-                <td>
-                  <span v-if="schoolEntitlements.get(school.id)" class="entitlement-badge" :title="schoolEntitlements.get(school.id)!.source">
-                    {{ schoolEntitlements.get(school.id)!.count }} courses
-                    <span class="entitlement-source">{{ schoolEntitlements.get(school.id)!.source }}</span>
-                  </span>
-                  <span v-else class="entitlement-none">&mdash;</span>
-                </td>
-                <td class="code-cell">
-                  <code>{{ school.teacher_join_code }}</code>
-                  <button
-                    class="action-btn"
-                    @click="copyCode(school.teacher_join_code)"
-                    :title="copiedCode === school.teacher_join_code ? 'Copied!' : 'Copy code'"
-                  >
-                    <svg v-if="copiedCode !== school.teacher_join_code" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                    </svg>
-                    <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <polyline points="20 6 9 17 4 12"/>
-                    </svg>
-                    {{ copiedCode === school.teacher_join_code ? 'Copied' : 'Copy' }}
-                  </button>
-                </td>
-                <td class="code-cell">
-                  <code>{{ school.admin_join_code }}</code>
-                  <button
-                    class="action-btn"
-                    @click="copyCode(school.admin_join_code)"
-                    :title="copiedCode === school.admin_join_code ? 'Copied!' : 'Copy code'"
-                  >
-                    <svg v-if="copiedCode !== school.admin_join_code" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                    </svg>
-                    <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <polyline points="20 6 9 17 4 12"/>
-                    </svg>
-                    {{ copiedCode === school.admin_join_code ? 'Copied' : 'Copy' }}
-                  </button>
-                </td>
-                <td>{{ formatDate(school.created_at) }}</td>
-                <td class="actions-cell">
-                  <button class="action-btn" @click="router.push(`/admin/schools/${school.id}`)" title="Open dashboard for this school">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <!-- Schools list panel -->
+      <FrostCard v-if="schools.length > 0" variant="panel" class="list-panel">
+        <table class="list-table">
+          <thead>
+            <tr>
+              <th>School</th>
+              <th>Group</th>
+              <th>Entitlements</th>
+              <th>Teacher code</th>
+              <th>Admin code</th>
+              <th>Created</th>
+              <th aria-label="Actions"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="school in schools" :key="school.id">
+              <td class="cell-name">{{ school.school_name }}</td>
+              <td>
+                <select
+                  class="inline-select"
+                  :value="school.group_id || ''"
+                  @change="updateSchoolGroup(school, ($event.target as HTMLSelectElement).value)"
+                >
+                  <option value="">— None —</option>
+                  <option v-for="g in groups" :key="g.id" :value="g.id">
+                    {{ g.name }}
+                  </option>
+                </select>
+              </td>
+              <td>
+                <span
+                  v-if="schoolEntitlements.get(school.id)"
+                  class="entitlement-badge"
+                  :title="schoolEntitlements.get(school.id)!.source"
+                >
+                  <span class="entitlement-count frost-mono-nums">{{ schoolEntitlements.get(school.id)!.count }}</span>
+                  <span class="entitlement-label">{{ schoolEntitlements.get(school.id)!.source }}</span>
+                </span>
+                <span v-else class="cell-muted">—</span>
+              </td>
+              <td>
+                <button
+                  class="code-chip"
+                  :class="{ 'is-copied': copiedCode === school.teacher_join_code }"
+                  :title="copiedCode === school.teacher_join_code ? 'Copied!' : 'Click to copy'"
+                  @click="copyCode(school.teacher_join_code)"
+                >
+                  <span class="code-value frost-mono-nums">{{ school.teacher_join_code }}</span>
+                  <svg v-if="copiedCode !== school.teacher_join_code" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                  </svg>
+                  <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                </button>
+              </td>
+              <td>
+                <button
+                  class="code-chip"
+                  :class="{ 'is-copied': copiedCode === school.admin_join_code }"
+                  :title="copiedCode === school.admin_join_code ? 'Copied!' : 'Click to copy'"
+                  @click="copyCode(school.admin_join_code)"
+                >
+                  <span class="code-value frost-mono-nums">{{ school.admin_join_code }}</span>
+                  <svg v-if="copiedCode !== school.admin_join_code" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                  </svg>
+                  <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                </button>
+              </td>
+              <td class="cell-muted frost-mono-nums">{{ formatDate(school.created_at) }}</td>
+              <td class="cell-actions">
+                <div class="row-actions">
+                  <button class="row-action" @click="router.push(`/admin/schools/${school.id}`)" title="Open dashboard for this school">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                       <circle cx="12" cy="12" r="3"/>
                     </svg>
-                    View
                   </button>
-                  <button class="action-btn" @click="editSchoolEntitlements(school)" title="Edit course entitlements">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <button class="row-action" @click="editSchoolEntitlements(school)" title="Edit course entitlements">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                     </svg>
-                    Courses
                   </button>
-                  <button class="action-btn action-btn--danger" @click="deleteSchool(school)" title="Delete school">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <button class="row-action is-danger" @click="deleteSchool(school)" title="Delete school">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                       <line x1="18" y1="6" x2="6" y2="18"/>
                       <line x1="6" y1="6" x2="18" y2="18"/>
                     </svg>
                   </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </Card>
-    </section>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </FrostCard>
 
-    <!-- Add Staff Section -->
-    <section v-show="activeTab === 'staff' && schools.length > 0" class="create-section">
-      <Card
-        title="Add Staff"
-        subtitle="Invite a teacher or school admin to a specific school."
-        accent="red"
-      >
-        <template #icon>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-            <circle cx="8.5" cy="7" r="4"/>
-            <line x1="20" y1="8" x2="20" y2="14"/>
-            <line x1="23" y1="11" x2="17" y2="11"/>
-          </svg>
-        </template>
-        <div class="form-grid">
-          <div class="form-group">
-            <label>Name <span class="required">*</span></label>
-            <input v-model="newStaffName" type="text" placeholder="e.g. Rhian Griffiths" />
+      <FrostCard v-else-if="!isLoadingSchools" variant="tile" class="empty">
+        <div class="empty-ghost">schools</div>
+        <div class="empty-copy">
+          <strong>No schools yet</strong>
+          <p>Add one above — they'll appear here with their join codes.</p>
+        </div>
+      </FrostCard>
+    </template>
+
+    <!-- ───── STAFF TAB ───── -->
+    <template v-if="activeTab === 'staff'">
+      <!-- Add Staff -->
+      <FrostCard variant="panel" class="form-panel">
+        <div class="panel-head">
+          <span class="frost-eyebrow">Add staff</span>
+          <span class="panel-hint">Invite a teacher or school admin to a specific school.</span>
+        </div>
+
+        <div v-if="schools.length === 0" class="form-empty">
+          <p>Add a school first — staff are linked to schools.</p>
+          <button type="button" class="btn-ghost" @click="activeTab = 'schools'">Go to schools</button>
+        </div>
+
+        <form v-else class="form-grid" @submit.prevent="createStaff">
+          <div class="field">
+            <label class="frost-eyebrow">Name <span class="required">*</span></label>
+            <input v-model="newStaffName" type="text" class="frost-input" placeholder="e.g. Rhian Griffiths" />
           </div>
-          <div class="form-group">
-            <label>Email <span class="required">*</span></label>
-            <input v-model="newStaffEmail" type="email" placeholder="e.g. rhian@school.edu" />
+          <div class="field">
+            <label class="frost-eyebrow">Email <span class="required">*</span></label>
+            <input v-model="newStaffEmail" type="email" class="frost-input" placeholder="e.g. rhian@school.edu" />
           </div>
-          <div class="form-group">
-            <label>School <span class="required">*</span></label>
-            <select v-model="newStaffSchool">
-              <option value="">- Select school -</option>
+          <div class="field">
+            <label class="frost-eyebrow">School <span class="required">*</span></label>
+            <select v-model="newStaffSchool" class="frost-select">
+              <option value="">— Select school —</option>
               <option v-for="s in schools" :key="s.id" :value="s.id">
                 {{ s.school_name }}
               </option>
             </select>
           </div>
-          <div class="form-group">
-            <label>Role</label>
-            <select v-model="newStaffRole">
+          <div class="field">
+            <label class="frost-eyebrow">Role</label>
+            <select v-model="newStaffRole" class="frost-select">
               <option value="teacher">Teacher</option>
               <option value="admin">School Admin</option>
             </select>
           </div>
-        </div>
-        <template #footer>
-          <div class="form-actions">
+
+          <div class="field-actions">
             <button
-              class="btn-create"
+              type="submit"
+              class="btn-primary"
               :disabled="isCreatingStaff || !newStaffName.trim() || !newStaffEmail.trim() || !newStaffSchool"
-              @click="createStaff"
             >
-              <svg v-if="!isCreatingStaff" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg v-if="!isCreatingStaff" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
                 <line x1="12" y1="5" x2="12" y2="19"/>
                 <line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
-              <span v-if="isCreatingStaff" class="spinner"></span>
-              {{ isCreatingStaff ? 'Adding...' : 'Add Staff' }}
+              <span v-else class="spinner"></span>
+              {{ isCreatingStaff ? 'Adding…' : 'Add staff' }}
             </button>
           </div>
-        </template>
-      </Card>
-    </section>
+        </form>
+      </FrostCard>
 
-    <!-- Staff List -->
-    <section v-show="activeTab === 'staff' && staffMembers.length > 0" id="section-staff" class="codes-section">
-      <Card
-        title="Staff"
-        subtitle="Teachers and admins across all schools."
-        accent="red"
-        :loading="isLoadingStaff"
-      >
-        <template #icon>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-            <circle cx="9" cy="7" r="4"/>
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-          </svg>
-        </template>
-        <div class="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>School</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="staff in staffMembers" :key="staff.user_id">
-                <td>{{ staff.display_name }}</td>
-                <td class="email-cell">{{ staff.email || '—' }}</td>
-                <td>
-                  <span class="type-badge" :class="staff.role_in_context === 'admin' ? 'type-school_admin' : 'type-teacher'">
-                    {{ staff.role_in_context === 'admin' ? 'Admin' : 'Teacher' }}
-                  </span>
-                </td>
-                <td>{{ staff.school_name || '—' }}</td>
-              </tr>
-            </tbody>
-          </table>
+      <!-- Staff list panel -->
+      <FrostCard v-if="staffMembers.length > 0" variant="panel" class="list-panel">
+        <table class="list-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Role</th>
+              <th>School</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="staff in staffMembers" :key="staff.user_id">
+              <td class="cell-name">{{ staff.display_name }}</td>
+              <td class="cell-muted">{{ staff.email || '—' }}</td>
+              <td>
+                <span
+                  class="type-pill"
+                  :class="staff.role_in_context === 'admin' ? 'tone-red' : 'tone-green'"
+                >
+                  {{ staff.role_in_context === 'admin' ? 'Admin' : 'Teacher' }}
+                </span>
+              </td>
+              <td>{{ staff.school_name || '—' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </FrostCard>
+
+      <FrostCard v-else-if="!isLoadingStaff" variant="tile" class="empty">
+        <div class="empty-ghost">staff</div>
+        <div class="empty-copy">
+          <strong>No staff yet</strong>
+          <p>Add teachers and school admins above — they'll show up here once invited.</p>
         </div>
-      </Card>
-    </section>
+      </FrostCard>
+    </template>
 
-    <!-- Course Entitlements Section -->
-    <section v-show="activeTab === 'entitlements'" class="create-section">
-      <Card
-        title="Course Entitlements"
-        subtitle="Grant courses directly to a school. Groups cascade to their schools automatically."
-        accent="gold"
-      >
-        <template #icon>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-          </svg>
-        </template>
+    <!-- ───── ENTITLEMENTS TAB ───── -->
+    <template v-if="activeTab === 'entitlements'">
+      <FrostCard variant="panel" class="form-panel">
+        <div class="panel-head">
+          <span class="frost-eyebrow">Course entitlements</span>
+          <span class="panel-hint">Grant courses directly to a school. Groups cascade to their schools automatically.</span>
+        </div>
 
-        <div class="form-grid" style="margin-bottom: 16px;">
-          <div class="form-group">
-            <label>Grant To</label>
-            <select v-model="grantTargetType">
+        <div class="form-grid">
+          <div class="field">
+            <label class="frost-eyebrow">Grant to</label>
+            <select v-model="grantTargetType" class="frost-select">
               <option value="group">Group</option>
               <option value="school">School</option>
             </select>
           </div>
 
-          <div class="form-group">
-            <label>{{ grantTargetType === 'group' ? 'Select Group' : 'Select School' }} <span class="required">*</span></label>
-            <select v-model="grantTargetId">
-              <option value="">- Select -</option>
+          <div class="field">
+            <label class="frost-eyebrow">
+              {{ grantTargetType === 'group' ? 'Select group' : 'Select school' }}
+              <span class="required">*</span>
+            </label>
+            <select v-model="grantTargetId" class="frost-select">
+              <option value="">— Select —</option>
               <template v-if="grantTargetType === 'group'">
                 <option v-for="g in groups" :key="g.id" :value="g.id">
                   {{ g.name }} ({{ g.type }})
@@ -1480,718 +1510,809 @@ onMounted(() => {
             Inherited from {{ inheritedGroupName }}: {{ inheritedCourseCount }} courses
           </div>
 
-          <div class="course-picker-header">
-            <span class="course-picker-label">
-              Select Courses ({{ grantCourses.length }} selected)
+          <div class="picker-header">
+            <span class="frost-eyebrow">
+              Courses
+              <span class="picker-count">({{ grantCourses.length }} selected)</span>
             </span>
-            <div class="course-picker-actions">
-              <button class="text-btn" @click="selectAllCourses">Select All</button>
-              <button class="text-btn" @click="clearCourseSelection">Clear</button>
+            <div class="picker-actions">
+              <button type="button" class="link-btn" @click="selectAllCourses">Select all</button>
+              <button type="button" class="link-btn" @click="clearCourseSelection">Clear</button>
+              <input
+                v-model="courseSearch"
+                type="text"
+                class="frost-input picker-search"
+                placeholder="Search courses…"
+              />
             </div>
-            <input
-              v-model="courseSearch"
-              type="text"
-              class="course-search"
-              placeholder="Search courses..."
-            />
           </div>
-          <div v-for="[groupLabel, groupCourses] in groupedCourses" :key="groupLabel" class="course-group" :style="{ '--group-hue': groupColor(groupLabel) }">
+
+          <div v-for="[groupLabel, groupCourses] in groupedCourses" :key="groupLabel" class="course-group">
             <div class="course-group-header">{{ groupLabel }}</div>
             <div class="course-grid">
               <button
                 v-for="c in groupCourses"
                 :key="c.course_code"
+                type="button"
                 class="course-chip"
-                :class="{ selected: grantCourses.includes(c.course_code) }"
+                :class="{ 'is-selected': grantCourses.includes(c.course_code) }"
                 @click="toggleCourseGrant(c.course_code)"
               >
                 {{ formatCourseName(c) }}
               </button>
             </div>
           </div>
+
           <div v-if="groupedCourses.length === 0" class="course-no-results">
             No courses match "{{ courseSearch }}"
           </div>
         </div>
 
-        <template #footer>
-          <div class="form-actions">
+        <div class="form-grid">
+          <div class="field-actions">
             <button
-              class="btn-create"
+              type="button"
+              class="btn-primary"
               :disabled="isSavingGrant || !grantTargetId || grantCourses.length === 0"
               @click="saveGrant"
             >
               <span v-if="isSavingGrant" class="spinner"></span>
-              {{ isSavingGrant ? 'Saving...' : 'Save Entitlement' }}
+              {{ isSavingGrant ? 'Saving…' : 'Save entitlement' }}
             </button>
           </div>
-        </template>
-      </Card>
-    </section>
+        </div>
+      </FrostCard>
+    </template>
   </div>
 </template>
 
 <style scoped>
-.setup-page {
-  padding: 0;
-  max-width: 1200px;
-}
-
-/* Tabbed sub-nav at the top of the Setup page */
-.setup-subnav {
+.schools-setup {
   display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+/* Page header — canon §5.1 */
+.page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-6);
+}
+
+.title-block h1 {
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  font-weight: var(--font-bold);
+  letter-spacing: -0.015em;
+  color: var(--ink-primary);
+  margin: 0 0 var(--space-2);
+}
+
+.metrics {
+  display: flex;
+  align-items: baseline;
   gap: var(--space-2);
-  padding: 0;
-  margin-bottom: var(--space-5);
-  border-bottom: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.08));
-  position: sticky;
-  top: 64px;
-  background: var(--bg-primary, #e8e3dd);
-  z-index: 10;
-  overflow-x: auto;
-}
-
-.subnav-tab {
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  color: var(--text-muted);
-  font: inherit;
+  color: var(--ink-muted);
   font-size: var(--text-sm);
-  font-weight: var(--font-medium, 500);
-  padding: var(--space-3) var(--space-4);
-  cursor: pointer;
-  transition: color var(--transition-fast), border-color var(--transition-fast);
-  white-space: nowrap;
-  margin-bottom: -1px;
 }
 
-.subnav-tab:hover {
-  color: var(--text-primary);
+.metric-value {
+  color: var(--ink-primary);
+  font-weight: var(--font-semibold);
+  margin-right: 4px;
 }
 
-.subnav-tab.active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
-}
+.metric-sep { color: var(--ink-faint); }
 
-/* Message Banners */
-.message-banner {
+/* Banners */
+.banner {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-lg);
   font-size: var(--text-sm);
-  margin-bottom: var(--space-4);
 }
 
-.success-banner {
-  background: color-mix(in srgb, var(--success) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--success) 25%, transparent);
-  color: var(--success);
+.banner-success {
+  background: rgba(var(--tone-green), 0.10);
+  border: 1px solid rgba(var(--tone-green), 0.28);
+  color: rgb(var(--tone-green));
 }
 
-.error-banner {
-  background: color-mix(in srgb, var(--error) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--error) 25%, transparent);
-  color: var(--error);
+.banner-error {
+  background: rgba(var(--tone-red), 0.08);
+  border: 1px solid rgba(var(--tone-red), 0.28);
+  color: rgb(var(--tone-red));
 }
 
-/* Sections */
-.create-section {
-  margin-bottom: var(--space-8);
+/* Filters bar / tab toggle — canon §5.2 (own row) */
+.filters-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
 }
 
-.codes-section {
-  margin-bottom: var(--space-8);
+.tab-toggle {
+  display: inline-flex;
+  background: rgba(44, 38, 34, 0.05);
+  border: 1px solid rgba(44, 38, 34, 0.08);
+  border-radius: var(--radius-full);
+  padding: 3px;
+  gap: 2px;
 }
 
-/* Form Grid */
+.tab-btn {
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  padding: 6px 14px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-full);
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.tab-btn:hover { color: var(--ink-primary); }
+
+.tab-btn.is-active {
+  background: var(--ssi-red);
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(44, 38, 34, 0.10), 0 4px 12px rgba(194, 58, 58, 0.20);
+}
+
+/* Form panel + section heads */
+.form-panel,
+.tree-panel,
+.list-panel {
+  padding: 0;
+  overflow: hidden;
+}
+
+.panel-head {
+  padding: var(--space-4) var(--space-6) var(--space-3);
+  border-bottom: 1px solid rgba(44, 38, 34, 0.06);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.panel-hint {
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+
+/* Form grid (frost) */
 .form-grid {
+  padding: var(--space-5) var(--space-6) var(--space-6);
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-4);
 }
 
-@media (max-width: 640px) {
-  .form-grid {
-    grid-template-columns: 1fr;
-  }
-  .form-group--wide {
-    grid-column: 1;
-  }
-}
-
-.form-group--wide {
-  grid-column: 1 / -1;
-}
-
-.form-group {
+.form-empty {
+  padding: var(--space-6);
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  align-items: flex-start;
+  gap: var(--space-3);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
 }
 
-.form-group label {
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: var(--font-medium);
+.form-empty p { margin: 0; }
+
+@media (max-width: 768px) {
+  .form-grid { grid-template-columns: 1fr; }
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.field-wide { grid-column: 1 / -1; }
+
+.field-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-2);
+}
+
+.field label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .required {
-  color: var(--ssi-red);
+  color: rgb(var(--tone-red));
+  font-weight: var(--font-bold);
+  font-family: var(--font-mono);
 }
 
-.form-group input,
-.form-group select {
-  background: var(--bg-input);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: var(--space-3) var(--space-4);
-  color: var(--text-primary);
-  font-size: var(--text-sm);
-  font-family: var(--font-body);
-  transition: border-color var(--transition-fast);
+.optional {
+  color: var(--ink-faint);
+  font-weight: var(--font-normal);
+  text-transform: none;
+  letter-spacing: 0;
 }
 
-.form-group input::placeholder {
-  color: var(--text-muted);
+.frost-input,
+.frost-select {
+  font: inherit;
+  font-size: var(--text-base);
+  padding: 10px 14px;
+  color: var(--ink-primary);
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(44, 38, 34, 0.12);
+  border-radius: var(--radius-lg);
+  transition: border-color var(--transition-base), box-shadow var(--transition-base);
 }
 
-.form-group input:focus,
-.form-group select:focus {
+.frost-input::placeholder { color: var(--ink-faint); }
+
+.frost-input:focus,
+.frost-select:focus {
   outline: none;
-  border-color: var(--ssi-red);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ssi-red) 15%, transparent);
+  border-color: rgba(var(--tone-red), 0.55);
+  box-shadow: 0 0 0 3px rgba(var(--tone-red), 0.14);
 }
 
-/* Form Actions */
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
+.frost-select {
+  appearance: none;
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238A8078' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
 }
 
-.btn-create {
+/* Buttons */
+.btn-primary {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-6);
-  background: var(--ssi-gold);
-  color: #000;
-  border: none;
-  border-radius: var(--radius-md);
+  padding: 10px 18px;
+  font: inherit;
   font-size: var(--text-sm);
   font-weight: var(--font-semibold);
-  font-family: var(--font-body);
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
+  background: var(--ssi-red);
+  color: #fff;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  box-shadow: 0 1px 2px rgba(44, 38, 34, 0.08), 0 4px 14px rgba(194, 58, 58, 0.22);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--ssi-red-light);
+  box-shadow: 0 2px 6px rgba(44, 38, 34, 0.10), 0 8px 22px rgba(194, 58, 58, 0.28);
+}
+
+.btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  padding: 8px 14px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(44, 38, 34, 0.12);
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--ink-primary);
   cursor: pointer;
   transition: all var(--transition-fast);
 }
 
-.btn-create:hover:not(:disabled) {
-  filter: brightness(1.1);
-  transform: translateY(-1px);
-}
-
-.btn-create:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.invite-code-result {
-  margin-top: 12px;
-  padding: 12px 16px;
-  background: rgba(22, 163, 74, 0.06);
-  border: 1px solid rgba(22, 163, 74, 0.2);
-  border-radius: 10px;
-  text-align: center;
-}
-
-.code-label {
-  display: block;
-  font-size: 0.6875rem;
-  color: #6B6560;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 4px;
-}
-
-.code-value {
-  display: block;
-  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #16a34a;
-  letter-spacing: 0.08em;
-  cursor: pointer;
-}
-
-.code-value:hover {
-  opacity: 0.8;
-}
-
-.code-hint {
-  display: block;
-  font-size: 0.6875rem;
-  color: #A09A94;
-  margin-top: 6px;
+.btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(44, 38, 34, 0.20);
 }
 
 .spinner {
   width: 14px;
   height: 14px;
-  border: 2px solid rgba(0, 0, 0, 0.2);
-  border-top-color: #000;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Invite-code result inside a form */
+.invite-result {
+  align-items: flex-start;
 }
 
-/* Table */
-.table-wrapper {
-  overflow-x: auto;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-sm);
-}
-
-thead th {
-  text-align: left;
-  padding: var(--space-3) var(--space-4);
-  color: var(--text-muted);
-  font-weight: var(--font-medium);
+.invite-hint {
   font-size: var(--text-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border-bottom: 1px solid var(--border-medium);
+  color: var(--ink-muted);
+  margin-top: 4px;
 }
 
-tbody td {
-  padding: var(--space-3) var(--space-4);
-  color: var(--text-primary);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-tbody tr {
-  transition: background var(--transition-fast);
-}
-
-tbody tr:hover {
-  background: var(--bg-secondary);
-}
-
-.code-cell {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.code-cell code {
-  font-family: var(--font-mono);
-  background: var(--bg-input);
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-sm);
-  font-size: var(--text-xs);
-  color: var(--ssi-gold);
-  border: 1px solid var(--border-subtle);
-}
-
-/* Action Buttons */
-.action-btn {
+/* Code chip — borrowed from AdminAccess pattern */
+.code-chip {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
-  color: var(--text-secondary);
-  padding: var(--space-1) var(--space-3);
+  gap: 8px;
+  padding: 5px 10px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(44, 38, 34, 0.08);
   border-radius: var(--radius-md);
+  font: inherit;
   cursor: pointer;
-  font-size: var(--text-xs);
-  font-family: var(--font-body);
   transition: all var(--transition-fast);
+  color: var(--ink-secondary);
 }
 
-.action-btn:hover {
-  color: var(--text-primary);
-  border-color: var(--ssi-red);
-  background: var(--bg-elevated);
+.code-chip:hover {
+  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(44, 38, 34, 0.16);
+  color: var(--ink-primary);
 }
 
-/* Empty State */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-12) var(--space-6);
-  text-align: center;
+.code-chip.is-copied {
+  background: rgba(var(--tone-green), 0.16);
+  border-color: rgba(var(--tone-green), 0.45);
+  color: rgb(var(--tone-green));
 }
 
-.empty-state p {
-  color: var(--text-secondary);
-  font-weight: var(--font-medium);
+.code-chip.is-large {
+  padding: 10px 16px;
   font-size: var(--text-base);
-  margin: 0;
 }
 
-.empty-state span {
-  color: var(--text-muted);
+.code-chip.is-large .code-value {
+  font-size: var(--text-lg);
+  letter-spacing: 0.08em;
+}
+
+.code-value {
+  font-size: var(--text-sm);
+  letter-spacing: 0.05em;
+}
+
+/* Lists / tables — canon §5.3 */
+.list-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.list-table thead th {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: var(--font-medium);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--ink-muted);
+  padding: 14px 18px 12px;
+  border-bottom: 1px solid rgba(44, 38, 34, 0.08);
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.list-table thead th:last-child { width: 56px; }
+
+.list-table tbody tr {
+  transition: background var(--transition-base);
+}
+
+.list-table tbody tr:hover { background: rgba(255, 255, 255, 0.48); }
+
+.list-table td {
+  padding: 12px 18px;
+  border-bottom: 1px solid rgba(44, 38, 34, 0.05);
+  vertical-align: middle;
+  color: var(--ink-secondary);
   font-size: var(--text-sm);
 }
 
-/* Inline select in tables */
+.list-table tbody tr:last-child td { border-bottom: none; }
+
+.cell-name {
+  color: var(--ink-primary);
+  font-weight: var(--font-medium);
+}
+
+.cell-muted {
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
+/* Inline select for the schools group column */
 .inline-select {
-  background: var(--bg-input);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  padding: 2px 6px;
-  color: var(--text-primary);
+  font: inherit;
   font-size: var(--text-xs);
-  font-family: var(--font-body);
+  padding: 4px 26px 4px 10px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(44, 38, 34, 0.10);
+  border-radius: var(--radius-md);
+  color: var(--ink-primary);
   cursor: pointer;
-  max-width: 160px;
+  appearance: none;
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%238A8078' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  max-width: 180px;
 }
 
 .inline-select:focus {
   outline: none;
-  border-color: var(--ssi-red);
+  border-color: rgba(var(--tone-red), 0.45);
+  box-shadow: 0 0 0 2px rgba(var(--tone-red), 0.12);
+}
+
+/* Entitlement badge in schools row */
+.entitlement-badge {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: var(--text-xs);
+  color: rgb(var(--tone-green));
+  font-weight: var(--font-medium);
+}
+
+.entitlement-count {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+}
+
+.entitlement-label {
+  color: var(--ink-muted);
+  font-weight: var(--font-normal);
+}
+
+/* Type pills (role badges + group type) */
+.type-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: var(--font-medium);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+}
+
+.type-pill.tone-blue {
+  background: rgba(var(--tone-blue), 0.14);
+  border-color: rgba(var(--tone-blue), 0.32);
+  color: rgb(var(--tone-blue));
+}
+
+.type-pill.tone-gold {
+  background: rgba(var(--tone-gold), 0.18);
+  border-color: rgba(var(--tone-gold), 0.42);
+  color: rgb(var(--tone-gold));
+}
+
+.type-pill.tone-green {
+  background: rgba(var(--tone-green), 0.14);
+  border-color: rgba(var(--tone-green), 0.36);
+  color: rgb(var(--tone-green));
+}
+
+.type-pill.tone-red {
+  background: rgba(var(--tone-red), 0.12);
+  border-color: rgba(var(--tone-red), 0.32);
+  color: rgb(var(--tone-red));
+}
+
+/* Hover-reveal row actions — canon §5.3 */
+.cell-actions {
+  text-align: right;
+  padding-right: 12px;
+}
+
+.row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transform: translateX(4px);
+  transition: all var(--transition-fast);
+}
+
+.list-table tbody tr:hover .row-actions,
+.list-table tbody tr:focus-within .row-actions,
+.group-row:hover .row-actions,
+.group-row:focus-within .row-actions {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.row-action {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.row-action:hover {
+  color: var(--ink-primary);
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(44, 38, 34, 0.10);
+}
+
+.row-action.is-danger:hover {
+  color: rgb(var(--tone-red));
+  background: rgba(var(--tone-red), 0.08);
+  border-color: rgba(var(--tone-red), 0.30);
 }
 
 /* Groups tree */
 .groups-tree {
-  border-top: 1px solid var(--border-subtle);
-  padding-top: var(--space-3);
+  padding: var(--space-3) var(--space-2) var(--space-3);
 }
 
 .group-row {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-4);
   font-size: var(--text-sm);
+  border-radius: var(--radius-md);
+  color: var(--ink-secondary);
+}
+
+.group-row:hover { background: rgba(255, 255, 255, 0.48); }
+
+.group-row--child { padding-left: calc(var(--space-4) + var(--space-6)); }
+.group-row--grandchild { padding-left: calc(var(--space-4) + var(--space-12)); }
+
+.group-name-editable {
+  cursor: pointer;
+  padding: 2px 6px;
   border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+  color: var(--ink-primary);
+  font-weight: var(--font-semibold);
 }
 
-.group-row:hover {
-  background: var(--bg-secondary);
-}
-
-.group-row--child {
-  padding-left: var(--space-8);
-}
-
-.group-row--grandchild {
-  padding-left: calc(var(--space-8) * 2);
-}
-
-.group-type-badge {
-  display: inline-block;
-  padding: 1px 6px;
-  border-radius: var(--radius-sm);
-  font-size: 10px;
+.group-row--child .group-name-editable,
+.group-row--grandchild .group-name-editable {
   font-weight: var(--font-medium);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  background: color-mix(in srgb, var(--info) 12%, transparent);
-  color: var(--info);
-  flex-shrink: 0;
+}
+
+.group-name-editable:hover {
+  background: rgba(44, 38, 34, 0.06);
+}
+
+.group-rename-input {
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(var(--tone-red), 0.55);
+  border-radius: var(--radius-sm);
+  color: var(--ink-primary);
+  width: 220px;
+}
+
+.group-rename-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(var(--tone-red), 0.14);
 }
 
 .group-meta {
-  color: var(--text-muted);
-  font-size: var(--text-xs);
   margin-left: auto;
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
 }
 
 .group-courses {
   font-size: var(--text-xs);
-  color: var(--success);
+  color: rgb(var(--tone-green));
   font-weight: var(--font-medium);
 }
 
-.email-cell {
+/* Course picker (entitlements tab) */
+.course-picker {
+  padding: 0 var(--space-6) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.inherited-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: rgba(var(--tone-blue), 0.08);
+  border: 1px solid rgba(var(--tone-blue), 0.28);
+  border-radius: var(--radius-md);
+  color: rgb(var(--tone-blue));
   font-size: var(--text-xs);
-  color: var(--text-muted);
 }
 
-/* Staff role badges */
-.type-badge {
-  display: inline-block;
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-sm);
-  font-size: var(--text-xs);
-  font-weight: var(--font-medium);
-}
-
-.type-school_admin {
-  background: color-mix(in srgb, var(--ssi-red) 12%, transparent);
-  color: var(--ssi-red);
-}
-
-.type-teacher {
-  background: color-mix(in srgb, var(--success) 12%, transparent);
-  color: var(--success);
-}
-
-/* Course picker */
-.course-picker-header {
+.picker-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
-  gap: 12px;
+  gap: var(--space-3);
+  flex-wrap: wrap;
 }
 
-.course-picker-label {
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  text-transform: uppercase;
+.picker-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
   letter-spacing: 0.05em;
-  font-weight: var(--font-medium);
-  white-space: nowrap;
+  color: var(--ink-faint);
+  text-transform: none;
+  margin-left: 4px;
 }
 
-.course-search {
-  background: var(--bg-input);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 6px 12px;
-  color: var(--text-primary);
-  font-size: var(--text-sm);
-  font-family: var(--font-body);
+.picker-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.picker-search {
   max-width: 240px;
-  width: 100%;
+  padding: 8px 12px;
+  font-size: var(--text-sm);
 }
 
-.course-search:focus {
-  outline: none;
-  border-color: var(--ssi-gold);
+.link-btn {
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  background: none;
+  border: none;
+  color: var(--ink-muted);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast);
 }
 
-.course-search::placeholder {
-  color: var(--text-muted);
-}
+.link-btn:hover { color: var(--ink-primary); }
 
 .course-group {
-  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 .course-group-header {
-  font-size: var(--text-xs);
-  font-weight: var(--font-semibold);
-  color: hsl(var(--group-hue, 0) 45% 40%);
-  margin-bottom: 6px;
-  padding: 3px 8px;
-  border-left: 3px solid hsl(var(--group-hue, 0) 55% 55%);
-  background: hsl(var(--group-hue, 0) 40% 96%);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-}
-
-.course-no-results {
-  padding: 16px;
-  text-align: center;
-  color: var(--text-muted);
-  font-size: var(--text-sm);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: var(--font-medium);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  padding: 4px 0 2px;
+  border-bottom: 1px solid rgba(44, 38, 34, 0.08);
 }
 
 .course-grid {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  padding: 4px 0;
 }
 
 .course-chip {
-  padding: 4px 10px;
-  border-radius: 16px;
-  border: 1px solid hsl(var(--group-hue, 0) 30% 85%);
-  background: hsl(var(--group-hue, 0) 30% 97%);
-  color: hsl(var(--group-hue, 0) 30% 35%);
+  font: inherit;
   font-size: var(--text-xs);
-  font-family: var(--font-body);
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(44, 38, 34, 0.12);
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--ink-secondary);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--transition-fast);
 }
 
 .course-chip:hover {
-  border-color: hsl(var(--group-hue, 0) 50% 55%);
-  background: hsl(var(--group-hue, 0) 35% 93%);
+  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(44, 38, 34, 0.20);
+  color: var(--ink-primary);
 }
 
-.course-chip.selected {
-  background: hsl(var(--group-hue, 0) 50% 88%);
-  border-color: hsl(var(--group-hue, 0) 55% 50%);
-  color: var(--text-primary);
+.course-chip.is-selected {
+  background: rgba(var(--tone-gold), 0.18);
+  border-color: rgba(var(--tone-gold), 0.45);
+  color: rgb(var(--tone-gold));
   font-weight: var(--font-medium);
 }
 
-/* Entitlement badges in schools table */
-.entitlement-badge {
-  display: inline-flex;
-  flex-direction: column;
-  gap: 1px;
-  font-size: var(--text-xs);
-  font-weight: var(--font-medium);
-  color: var(--success);
-}
-
-.entitlement-source {
-  font-size: 10px;
-  font-weight: normal;
-  color: var(--text-muted);
-}
-
-.entitlement-none {
-  color: var(--text-muted);
+.course-no-results {
+  padding: 16px;
+  text-align: center;
+  color: var(--ink-muted);
   font-size: var(--text-sm);
 }
 
-/* Actions cell with multiple buttons */
-.actions-cell {
-  display: flex;
+/* Empty states — canon §5.5 */
+.empty {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-6);
   align-items: center;
-  gap: var(--space-2);
+  padding: var(--space-10) var(--space-8);
+  min-height: 180px;
 }
 
-/* Danger action button */
-.action-btn--danger {
-  opacity: 0.4;
-  transition: all var(--transition-fast);
+.empty-ghost {
+  font-family: var(--font-display);
+  font-size: 88px;
+  font-weight: var(--font-bold);
+  letter-spacing: -0.03em;
+  color: var(--ink-faint);
+  opacity: 0.35;
+  line-height: 0.9;
+  user-select: none;
 }
 
-.action-btn--danger:hover {
-  opacity: 1;
-  color: var(--error) !important;
-  border-color: var(--error) !important;
+.empty-copy strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  color: var(--ink-primary);
+  margin-bottom: 4px;
 }
 
-/* Group delete button */
-.group-delete-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  background: none;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  color: var(--text-muted);
-  cursor: pointer;
-  opacity: 0;
-  transition: all var(--transition-fast);
-  flex-shrink: 0;
-}
-
-.group-row:hover .group-delete-btn {
-  opacity: 0.5;
-}
-
-.group-delete-btn:hover {
-  opacity: 1 !important;
-  color: var(--error);
-  border-color: var(--error);
-  background: color-mix(in srgb, var(--error) 8%, transparent);
-}
-
-.group-view-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  background: none;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  color: var(--text-muted);
-  cursor: pointer;
-  opacity: 0;
-  transition: all var(--transition-fast);
-  flex-shrink: 0;
-}
-
-.group-row:hover .group-view-btn {
-  opacity: 0.5;
-}
-
-.group-view-btn:hover {
-  opacity: 1 !important;
-  color: var(--accent);
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-}
-
-/* Group inline rename */
-.group-name-editable {
-  cursor: pointer;
-  padding: 1px 4px;
-  border-radius: var(--radius-sm);
-  transition: background var(--transition-fast);
-}
-
-.group-name-editable:hover {
-  background: var(--bg-input);
-}
-
-.group-rename-input {
-  background: var(--bg-input);
-  border: 1px solid var(--ssi-red);
-  border-radius: var(--radius-sm);
-  padding: 1px 4px;
-  color: var(--text-primary);
+.empty-copy p {
+  margin: 0;
+  color: var(--ink-muted);
   font-size: var(--text-sm);
-  font-family: var(--font-body);
-  font-weight: var(--font-medium);
-  width: 180px;
 }
 
-.group-rename-input:focus {
-  outline: none;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ssi-red) 15%, transparent);
+/* Transitions */
+.fade-enter-active, .fade-leave-active {
+  transition: opacity var(--transition-base), transform var(--transition-base);
+}
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 
-/* Inherited grants notice */
-.inherited-notice {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  background: color-mix(in srgb, var(--info) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--info) 20%, transparent);
-  border-radius: var(--radius-md);
-  color: var(--info);
-  font-size: var(--text-xs);
-  margin-bottom: var(--space-3);
-}
+/* Mobile niceties */
+@media (max-width: 768px) {
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 
-/* Course picker action buttons */
-.course-picker-actions {
-  display: flex;
-  gap: var(--space-2);
-}
+  .picker-search { max-width: 100%; }
 
-.text-btn {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-  font-family: var(--font-body);
-  cursor: pointer;
-  padding: 2px 6px;
-  border-radius: var(--radius-sm);
-  transition: all var(--transition-fast);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.text-btn:hover {
-  color: var(--text-primary);
+  /* Hide created-at column on mobile to keep schools table readable */
+  .list-table thead th:nth-child(6),
+  .list-table tbody td:nth-child(6) {
+    display: none;
+  }
 }
 </style>
