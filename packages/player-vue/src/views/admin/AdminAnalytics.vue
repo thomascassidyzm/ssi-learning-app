@@ -11,7 +11,7 @@ const tabs = [
   { id: 'growth', label: 'Growth' },
   { id: 'engagement', label: 'Engagement' },
   { id: 'retention', label: 'Retention' },
-  { id: 'friction', label: 'Friction Map' },
+  { id: 'friction', label: 'Friction' },
 ] as const
 
 type TabId = typeof tabs[number]['id']
@@ -20,21 +20,33 @@ const activeTab = ref<TabId>('overview')
 
 <template>
   <div class="admin-analytics">
-    <header class="page-header animate-in">
-      <h1 class="page-title">Platform Analytics</h1>
-      <p class="page-subtitle">User growth, engagement metrics, retention, and friction analysis</p>
+    <!-- Page header — canon §5.1 -->
+    <header class="page-header">
+      <div class="title-block">
+        <h1 class="frost-display">Platform Analytics</h1>
+        <div class="metrics">
+          <span class="metric">User growth, engagement, retention &amp; friction</span>
+        </div>
+      </div>
     </header>
 
-    <div class="tab-nav animate-in delay-1">
-      <button
-        v-for="tab in tabs"
-        :key="tab.id"
-        class="tab-btn"
-        :class="{ active: activeTab === tab.id }"
-        @click="activeTab = tab.id"
-      >
-        {{ tab.label }}
-      </button>
+    <!-- Tab nav — segmented pill (canon: see AdminCourses' Sort toggle) -->
+    <div class="filters-bar">
+      <span class="frost-eyebrow">View</span>
+      <div class="tab-toggle" role="tablist">
+        <button
+          v-for="tab in tabs"
+          :key="tab.id"
+          type="button"
+          role="tab"
+          class="tab-btn"
+          :class="{ 'is-active': activeTab === tab.id }"
+          :aria-selected="activeTab === tab.id"
+          @click="activeTab = tab.id"
+        >
+          {{ tab.label }}
+        </button>
+      </div>
     </div>
 
     <OverviewTab v-if="activeTab === 'overview'" />
@@ -49,62 +61,80 @@ const activeTab = ref<TabId>('overview')
 .admin-analytics {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6, 24px);
-  max-width: 1200px;
+  gap: var(--space-6);
 }
 
+/* Page header — canon §5.1 */
 .page-header {
-  margin-bottom: var(--space-2, 8px);
-}
-
-.page-title {
-  font-family: var(--font-display, 'Noto Sans JP', system-ui, sans-serif);
-  font-size: var(--text-3xl, 1.875rem);
-  font-weight: var(--font-bold, 700);
-  margin: 0 0 var(--space-1, 4px);
-  color: var(--text-primary);
-}
-
-.page-subtitle {
-  font-size: var(--text-sm, 0.875rem);
-  color: var(--text-secondary);
-  margin: 0;
-}
-
-.tab-nav {
   display: flex;
-  gap: var(--space-1, 4px);
-  background: var(--bg-secondary);
-  padding: var(--space-1, 4px);
-  border-radius: var(--radius-lg, 10px);
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.title-block h1 {
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  font-weight: var(--font-bold);
+  letter-spacing: -0.015em;
+  color: var(--ink-primary);
+  margin: 0 0 var(--space-2);
+}
+
+.metrics {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+
+/* Tab toggle — segmented pill, canon filters-bar §5.2 */
+.filters-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.tab-toggle {
+  display: inline-flex;
+  background: rgba(44, 38, 34, 0.05);
+  border: 1px solid rgba(44, 38, 34, 0.08);
+  border-radius: var(--radius-full);
+  padding: 3px;
+  gap: 2px;
+  flex-wrap: wrap;
 }
 
 .tab-btn {
-  flex: 1;
-  padding: var(--space-3, 10px) var(--space-4, 16px);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  padding: 6px 14px;
   border: none;
-  border-radius: var(--radius-md, 8px);
   background: transparent;
-  color: var(--text-secondary);
-  font-family: inherit;
-  font-size: var(--text-sm, 0.8125rem);
-  font-weight: var(--font-medium, 500);
+  border-radius: var(--radius-full);
+  color: var(--ink-muted);
   cursor: pointer;
-  transition: all var(--transition-base, 0.15s);
+  transition: all var(--transition-fast);
 }
 
-.tab-btn:hover {
-  color: var(--text-primary);
-}
+.tab-btn:hover { color: var(--ink-primary); }
 
-.tab-btn.active {
-  background: var(--bg-elevated);
-  color: var(--text-primary);
-  font-weight: var(--font-semibold, 600);
+.tab-btn.is-active {
+  background: var(--ssi-red);
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(44, 38, 34, 0.10), 0 4px 12px rgba(194, 58, 58, 0.20);
 }
 
 @media (max-width: 768px) {
-  .tab-nav {
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .filters-bar {
+    align-items: flex-start;
     flex-direction: column;
   }
 }
