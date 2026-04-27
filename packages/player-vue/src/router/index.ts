@@ -161,10 +161,14 @@ const routes: RouteRecordRaw[] = [
         redirect: '/admin/schools',
       },
       {
+        path: 'access',
+        name: 'admin-access',
+        component: () => import('@/views/admin/AdminAccess.vue'),
+        meta: { title: 'Access Codes', description: 'Create invite and direct-access codes' },
+      },
+      {
         path: 'invites',
-        name: 'admin-invites',
-        component: () => import('@/views/admin/AdminPanel.vue'),
-        meta: { title: 'Invite Codes', description: 'Create role-based invite codes' },
+        redirect: '/admin/access',
       },
       {
         path: 'analytics',
@@ -198,9 +202,7 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: 'entitlements',
-        name: 'admin-entitlements',
-        component: () => import('@/views/admin/AdminEntitlements.vue'),
-        meta: { title: 'Entitlements', description: 'Manage entitlement access codes' },
+        redirect: '/admin/access',
       },
       {
         path: 'try-links',
