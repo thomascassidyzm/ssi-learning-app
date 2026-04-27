@@ -138,7 +138,6 @@ function getCurrentUserId(): string | null {
 async function fetchAll(): Promise<void> {
   const client = getClient()
   const userId = getCurrentUserId()
-  if (!userId) return
 
   isLoading.value = true
   error.value = null
@@ -156,7 +155,7 @@ async function fetchAll(): Promise<void> {
     const groupsP = fetch('/api/groups', { headers: authHeader })
 
     let invitesQ = client.from('invite_codes').select('*').order('created_at', { ascending: false })
-    if (!isSsiAdmin.value) invitesQ = invitesQ.eq('created_by', userId)
+    if (!isSsiAdmin.value && userId) invitesQ = invitesQ.eq('created_by', userId)
 
     const coursesP = client
       .from('courses')
