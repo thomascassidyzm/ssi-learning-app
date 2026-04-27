@@ -191,28 +191,34 @@ export async function generateLearningScript(
   const hasBookends = !!(listenIntroAudio && listenOutroAudio)
 
   // -------------------------------------------------------------------------
-  // Layer 2 — Pod 0 round-end lap
+  // Layer 2 — Pod 0 round-end lap, plus shared listening rotation
   //
   // Per Aran's listening-layers methodology + the visualiser at
-  // ~/Desktop/listening-playground.html (the canonical mechanical spec).
-  // After POD_ACTIVATION_ROUND, one new sentence enters the lap per round and
-  // ages through 7 stages: stages 1–6 each last 3 rounds, then stage 7 is an
-  // eternal 2× holding bay. At round-end we play the *whole* lap (every
-  // currently-introduced sentence at its current stage).
+  // ~/Desktop/listening-playground.html.
   //
-  // Stage playlists (target = sentence's target_audio at speed; trans =
-  // sentence's known_audio at 1×). One ScriptItem emitted per audio play.
+  // Schedule (per Aran 2026-04-27): a listening exercise fires every
+  // LISTENING_ROTATION_INTERVAL main rounds. On listening rounds the type
+  // alternates LISTEN cluster ↔ pod lap, so each layer fires every 6 main
+  // rounds in steady state.
+  //
+  //   round % 3 != 0          → no listening
+  //   pre-activation           → always LISTEN cluster
+  //   post-activation, slot %2 → 0=LISTEN, 1=pod (sentences first)
+  //
+  // Pod stage progression ticks per *pod firing*, not per main round —
+  // otherwise sentences would age through stages while the learner never
+  // hears them. First pod firing at POD_ACTIVATION_ROUND + 3, every 6
+  // main rounds thereafter.
   //
   // POD_ACTIVATION_ROUND: rough proxy for Aran's "~150 seeds completed"
   // threshold. Hard-coded for now; lift to course config when a second
   // course gets pod-0.
   //
-  // The pod lap gets its own bookend pair (same audio as the LISTEN cluster)
-  // so when both fire in the same round the learner hears two bookended
-  // listening sections back-to-back. Slightly chatty but unambiguous, and
-  // means the existing Phase 6 listening emission is left untouched.
+  // The pod lap gets its own bookend pair. With this schedule, LISTEN and
+  // pod lap NEVER fire in the same round so there's no double-bookend.
   // -------------------------------------------------------------------------
   const POD_ACTIVATION_ROUND = 150
+  const LISTENING_ROTATION_INTERVAL = 3
   type PodPlayRole = 'slow' | 'trans' | 'fast' | 'fast2x'
   const STAGE_PLAYLIST: Record<number, PodPlayRole[]> = {
     1: ['slow', 'trans', 'slow', 'fast'],
@@ -244,15 +250,119 @@ export async function generateLearningScript(
   const podSentences = (podsResult.data || []) as PodSentenceRow[]
   const hasPods = podSentences.length > 0
 
+  // What kind of listening (if any) fires at round-end of this main round?
+  // - 'none'   - no listening this round
+  // - 'listen' - LISTEN cluster (Layer 1, retired-seed replay)
+  // - 'pod'    - pod lap (Layer 2)
+  function listeningSlotForRound(round: number): 'listen' | 'pod' | 'none' {
+    if (round < 1) return 'none'
+    if (round % LISTENING_ROTATION_INTERVAL !== 0) return 'none'
+    if (!hasPods || round < POD_ACTIVATION_ROUND) return 'listen'
+    const slotIndex = Math.floor((round - POD_ACTIVATION_ROUND) / LISTENING_ROTATION_INTERVAL)
+    return slotIndex % 2 === 0 ? 'listen' : 'pod'
+  }
+
+  // Pod-round counter — ticks once per pod firing, NOT per main round.
+  // First pod firing at main round POD_ACTIVATION_ROUND + 3 (the slot after
+  // the activation-round's LISTEN cluster), every 6 main rounds thereafter.
+  // Returns 0 if pods haven't fired yet at this main round.
+  function podRoundForMainRound(mainRound: number): number {
+    const firstPodMainRound = POD_ACTIVATION_ROUND + LISTENING_ROTATION_INTERVAL
+    if (mainRound < firstPodMainRound) return 0
+    const podFiringInterval = LISTENING_ROTATION_INTERVAL * 2
+    return Math.floor((mainRound - firstPodMainRound) / podFiringInterval) + 1
+  }
+
+  // Emit Layer 1 LISTEN cluster — retired-seed replay from the current
+  // batch. Caller is responsible for gating on listeningSlotForRound ===
+  // 'listen'. Mutates nextBatchRotation. Returns true if anything was
+  // emitted.
+  function emitListenCluster(mainRoundNumber: number, cycleCounter: { v: number }): boolean {
+    if (batches.length === 0) return false
+    const activeBatches = batches.filter(b => b && b.size > 0)
+    if (activeBatches.length === 0) return false
+    const batchToPlay = activeBatches.length === 1
+      ? 0
+      : nextBatchRotation % activeBatches.length
+    const batch = activeBatches[batchToPlay]
+    if (activeBatches.length > 1) nextBatchRotation++
+    if (!batch) return false
+
+    // Collect plays first so we can decide whether to emit bookends.
+    const plays: Array<{ sNum: number; seedData: SeedData; speed: number; entry: { playCount: number } }> = []
+    for (const [sNum, entry] of batch) {
+      const seedData = seedMap.get(sNum)
+      if (!seedData || !seedData.target1_audio_id) continue
+      const speeds = getSpeedsForPlayCount(entry.playCount, listeningConfig)
+      for (const speed of speeds) {
+        plays.push({ sNum, seedData, speed, entry })
+      }
+    }
+    if (plays.length === 0) return false
+
+    if (hasBookends && listenIntroAudio) {
+      cycleCounter.v++
+      emitItem({
+        uuid: `listen_intro_R${String(mainRoundNumber).padStart(4, '0')}_${cycleCounter.v}`,
+        cycleNum: cycleCounter.v, roundNumber: mainRoundNumber,
+        seedId: '', legoKey: '', seedCode: '', legoCode: '',
+        type: 'listen_intro',
+        knownText: listenIntroAudio.text,
+        targetText: '',
+        knownAudioId: listenIntroAudio.id,
+        isNew: false,
+      })
+    }
+    const incrementedEntries = new Set<{ playCount: number }>()
+    for (const { sNum, seedData, speed, entry } of plays) {
+      cycleCounter.v++
+      emitItem({
+        uuid: `listening_S${String(sNum).padStart(4, '0')}_${speed}x_${cycleCounter.v}`,
+        cycleNum: cycleCounter.v, roundNumber: mainRoundNumber,
+        seedId: `S${String(sNum).padStart(4, '0')}`,
+        legoKey: `S${String(sNum).padStart(4, '0')}L00`,
+        seedCode: `S${String(sNum).padStart(4, '0')}`,
+        legoCode: '00',
+        type: 'listening',
+        knownText: seedData.known_text,
+        targetText: seedData.target_text_roman || seedData.target_text,
+        ...nativeFields(seedData),
+        knownAudioId: seedData.known_audio_id,
+        target1Id: seedData.target1_audio_id,
+        target2Id: seedData.target2_audio_id,
+        isNew: false,
+        playbackSpeed: speed,
+        listeningSeedNumber: sNum,
+      })
+      // Increment playCount once per seed (not once per speed-multiplied play)
+      if (!incrementedEntries.has(entry)) {
+        entry.playCount++
+        incrementedEntries.add(entry)
+      }
+    }
+    if (hasBookends && listenOutroAudio) {
+      cycleCounter.v++
+      emitItem({
+        uuid: `listen_outro_R${String(mainRoundNumber).padStart(4, '0')}_${cycleCounter.v}`,
+        cycleNum: cycleCounter.v, roundNumber: mainRoundNumber,
+        seedId: '', legoKey: '', seedCode: '', legoCode: '',
+        type: 'listen_outro',
+        knownText: listenOutroAudio.text,
+        targetText: '',
+        knownAudioId: listenOutroAudio.id,
+        isNew: false,
+      })
+    }
+    return true
+  }
+
   // Compute lap items for a given main-course round. Returns [] when pods
   // not activated, course has none, or pod-0 has been fully introduced and
   // no sentence is in any stage (shouldn't happen since stage 7 is eternal).
-  // Note: relies on the closure capturing emitItem, hasBookends, listen*Audio
-  // and uses a counter object so callers can interleave with their own cycle
-  // numbering (one counter per main-loop round, one per revival round).
+  // Caller is responsible for gating on listeningSlotForRound === 'pod'.
   function emitPodLap(mainRoundNumber: number, cycleCounter: { v: number }): boolean {
     if (!hasPods) return false
-    const podRound = mainRoundNumber - POD_ACTIVATION_ROUND + 1
+    const podRound = podRoundForMainRound(mainRoundNumber)
     if (podRound < 1) return false
     const TOTAL = podSentences.length
     const activeCount = Math.min(podRound, TOTAL)
@@ -1004,10 +1114,10 @@ export async function generateLearningScript(
         }
       }
 
-      // Phase 6: LISTENING — check for seed graduations and emit listening items
+      // Phase 6: LISTENING — graduation tracking + scheduled emission.
+      // Graduation tracking always runs (so seeds keep accumulating into
+      // batches) but emission is gated on the rotation slot.
       if (listeningConfig.enabled) {
-        let newGraduateThisRound = false
-
         // Check ALL seeds for graduation (not just current seed)
         for (const [sNum, lastRound] of seedLastRound) {
           if (graduatedSeeds.has(sNum)) continue
@@ -1020,101 +1130,25 @@ export async function generateLearningScript(
           if (batchIndex >= listeningConfig.batchCount) continue
           if (!batches[batchIndex]) batches[batchIndex] = new Map()
           batches[batchIndex].set(sNum, { playCount: 0 })
-          newGraduateThisRound = true
         }
 
-        // Trigger listening if any seed graduated this round
-        if (newGraduateThisRound && batches.length > 0) {
-          // During B1-only build-up: always play B1
-          // Once B2+ exists: rotate through active batches
-          const activeBatches = batches.filter(b => b && b.size > 0)
-          const batchToPlay = activeBatches.length === 1
-            ? 0  // Only B1 exists, always play it
-            : nextBatchRotation % activeBatches.length
-
-          const batch = activeBatches[batchToPlay]
-          if (activeBatches.length > 1) nextBatchRotation++
-
-          // Emit listening items for every seed in this batch, wrapped with
-          // known-language bookends so learners get a verbal cue when the
-          // mode switches from prompt/response into passive listening and
-          // back. Bookends only emit if BOTH intro+outro audio rows exist
-          // for this course (run scripts/generate-listen-bookends.cjs in
-          // the dashboard repo to populate them).
-          if (batch) {
-            // Collect listening items first so we can decide whether the
-            // batch produced any playable cycles before emitting bookends.
-            const listeningEmissions: Array<() => void> = []
-            for (const [sNum, entry] of batch) {
-              const seedData = seedMap.get(sNum)
-              if (!seedData || !seedData.target1_audio_id) continue  // Skip seeds without audio
-
-              const speeds = getSpeedsForPlayCount(entry.playCount, listeningConfig)
-              for (const speed of speeds) {
-                listeningEmissions.push(() => {
-                  cycleNum++
-                  emitItem({
-                    uuid: `listening_S${String(sNum).padStart(4, '0')}_${speed}x_${cycleNum}`,
-                    cycleNum, roundNumber,
-                    seedId: `S${String(sNum).padStart(4, '0')}`,
-                    legoKey: `S${String(sNum).padStart(4, '0')}L00`,
-                    seedCode: `S${String(sNum).padStart(4, '0')}`,
-                    legoCode: '00',
-                    type: 'listening',
-                    knownText: seedData.known_text,
-                    targetText: seedData.target_text_roman || seedData.target_text,
-                    ...nativeFields(seedData),
-                    knownAudioId: seedData.known_audio_id,
-                    target1Id: seedData.target1_audio_id,
-                    target2Id: seedData.target2_audio_id,
-                    isNew: false,
-                    playbackSpeed: speed,
-                    listeningSeedNumber: sNum,
-                  })
-                })
-              }
-              entry.playCount++
-            }
-
-            if (listeningEmissions.length > 0) {
-              if (hasBookends && listenIntroAudio) {
-                cycleNum++
-                emitItem({
-                  uuid: `listen_intro_R${String(roundNumber).padStart(4, '0')}_${cycleNum}`,
-                  cycleNum, roundNumber,
-                  seedId: '', legoKey: '', seedCode: '', legoCode: '',
-                  type: 'listen_intro',
-                  knownText: listenIntroAudio.text,
-                  targetText: '',
-                  knownAudioId: listenIntroAudio.id,
-                  isNew: false,
-                })
-              }
-              for (const emit of listeningEmissions) emit()
-              if (hasBookends && listenOutroAudio) {
-                cycleNum++
-                emitItem({
-                  uuid: `listen_outro_R${String(roundNumber).padStart(4, '0')}_${cycleNum}`,
-                  cycleNum, roundNumber,
-                  seedId: '', legoKey: '', seedCode: '', legoCode: '',
-                  type: 'listen_outro',
-                  knownText: listenOutroAudio.text,
-                  targetText: '',
-                  knownAudioId: listenOutroAudio.id,
-                  isNew: false,
-                })
-              }
-            }
-          }
+        // Emit only on LISTEN rotation slots (every 3rd round, alternating
+        // with pod lap post-activation). Helper handles batch rotation,
+        // skip-seeds-without-audio, and bookend wrapping.
+        if (listeningSlotForRound(roundNumber) === 'listen') {
+          const listenCounter = { v: cycleNum }
+          emitListenCluster(roundNumber, listenCounter)
+          cycleNum = listenCounter.v
         }
       }
 
-      // Phase 7: POD 0 round-end lap — independent of listening graduation,
-      // fires every round once activated. Self-bookended (will sit
-      // immediately after the listening section's bookends if both fire).
-      const podCounter = { v: cycleNum }
-      emitPodLap(roundNumber, podCounter)
-      cycleNum = podCounter.v
+      // Phase 7: POD 0 round-end lap — fires only on pod rotation slots,
+      // alternating with the LISTEN cluster every 3 main rounds.
+      if (listeningSlotForRound(roundNumber) === 'pod') {
+        const podCounter = { v: cycleNum }
+        emitPodLap(roundNumber, podCounter)
+        cycleNum = podCounter.v
+      }
     }
   }
 
@@ -1262,12 +1296,21 @@ export async function generateLearningScript(
     // Mark the revived LEGO as freshly used so it re-enters the fib cycle.
     revivedState.lastRound = roundNumber
 
-    // Phase 7 (revival): POD 0 round-end lap continues forever. Stage 7
-    // (eternal 2× holding bay) is the steady state once injection finishes.
+    // Phase 6+7 (revival): listening continues forever on the 3-round
+    // rotation, alternating LISTEN cluster ↔ pod lap. The LISTEN cluster
+    // keeps seed sentences in spaced-rep rotation post-main-loop; the pod
+    // lap holds Stage 7 (eternal 2× holding bay) as steady state.
     if (shouldEmit()) {
-      const podCounter = { v: cycleNum }
-      emitPodLap(roundNumber, podCounter)
-      cycleNum = podCounter.v
+      const slot = listeningSlotForRound(roundNumber)
+      if (slot === 'listen') {
+        const listenCounter = { v: cycleNum }
+        emitListenCluster(roundNumber, listenCounter)
+        cycleNum = listenCounter.v
+      } else if (slot === 'pod') {
+        const podCounter = { v: cycleNum }
+        emitPodLap(roundNumber, podCounter)
+        cycleNum = podCounter.v
+      }
     }
   }
 
