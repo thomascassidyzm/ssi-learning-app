@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useAdminUsers } from '@/composables/admin/useAdminUsers'
@@ -21,6 +21,7 @@ const {
   error,
   totalUsers,
   newThisWeek,
+  allEnrolledCourseIds,
   fetchAll,
   setPage,
   setSearch,
@@ -31,7 +32,15 @@ const {
 } = useAdminUsers(getClient())
 
 const searchInput = ref('')
-const courseOptions = ref<{ value: string; label: string }[]>([])
+
+// Course filter options reflect every course any user is enrolled in,
+// not just courses visible on the current page slice.
+const courseOptions = computed(() =>
+  allEnrolledCourseIds.value.map(c => ({
+    value: c,
+    label: parseCourseCode(c).label,
+  })),
+)
 
 function handleSearch() {
   setSearch(searchInput.value)
@@ -53,15 +62,6 @@ function navigateToUser(learnerId: string) {
 
 onMounted(async () => {
   await fetchAll()
-
-  const courseSet = new Set<string>()
-  users.value.forEach(u => {
-    getUserEnrollments(u.id).forEach(e => courseSet.add(e.course_id))
-  })
-  courseOptions.value = Array.from(courseSet).map(c => ({
-    value: c,
-    label: parseCourseCode(c).label,
-  }))
 })
 </script>
 

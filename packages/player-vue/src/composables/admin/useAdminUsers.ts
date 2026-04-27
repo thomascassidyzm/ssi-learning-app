@@ -34,6 +34,21 @@ export interface UserEnrollment {
 const PAGE_SIZE = 50
 const FETCH_LIMIT = 10000 // grab everything in one shot
 
+// PostgREST URL length cap is ~16KB. A UUID + comma is ~37 chars, ~39 once
+// URL-encoded, so a single .in() with all 1348 learner IDs blows past it.
+// 200 IDs per chunk ≈ 7.8KB, comfortably under the cap with headroom for
+// the rest of the URL.
+const ENROLLMENT_CHUNK_SIZE = 200
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  if (size <= 0) return [arr]
+  const out: T[][] = []
+  for (let i = 0; i < arr.length; i += size) {
+    out.push(arr.slice(i, i + size))
+  }
+  return out
+}
+
 const allUsers = ref<AdminUser[]>([])
 const enrollments = ref<Map<string, UserEnrollment[]>>(new Map())
 
@@ -82,22 +97,31 @@ export function useAdminUsers(client: SupabaseClient) {
         return
       }
 
-      // Batch fetch enrollments for all users
+      // Batch fetch enrollments. We chunk the IN clause so the request URL
+      // stays under PostgREST's ~16KB limit — at ~1.3k learners a single
+      // .in() produces a ~50KB URL and gets rejected with 400 Bad Request.
       const ids = allUsers.value.map(u => u.id)
-      const { data: enrollData, error: enrollErr } = await client
-        .from('course_enrollments')
-        .select('learner_id, course_id, last_practiced_at, total_practice_minutes')
-        .in('learner_id', ids)
+      const idChunks = chunk(ids, ENROLLMENT_CHUNK_SIZE)
 
-      if (enrollErr) throw enrollErr
+      const enrollResults = await Promise.all(
+        idChunks.map(chunkIds =>
+          client
+            .from('course_enrollments')
+            .select('learner_id, course_id, last_practiced_at, total_practice_minutes')
+            .in('learner_id', chunkIds),
+        ),
+      )
 
       const enrollMap = new Map<string, UserEnrollment[]>()
-      enrollData?.forEach(e => {
-        if (!enrollMap.has(e.learner_id)) {
-          enrollMap.set(e.learner_id, [])
-        }
-        enrollMap.get(e.learner_id)!.push(e)
-      })
+      for (const { data: enrollData, error: enrollErr } of enrollResults) {
+        if (enrollErr) throw enrollErr
+        enrollData?.forEach(e => {
+          if (!enrollMap.has(e.learner_id)) {
+            enrollMap.set(e.learner_id, [])
+          }
+          enrollMap.get(e.learner_id)!.push(e)
+        })
+      }
       enrollments.value = enrollMap
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to fetch users'
@@ -161,6 +185,17 @@ export function useAdminUsers(client: SupabaseClient) {
     currentPage.value = 1
   }
 
+  // Distinct course IDs across the entire enrollment map. The course filter
+  // dropdown needs every course any user is enrolled in, not just the
+  // courses visible on the current page slice.
+  const allEnrolledCourseIds = computed(() => {
+    const set = new Set<string>()
+    for (const list of enrollments.value.values()) {
+      for (const e of list) set.add(e.course_id)
+    }
+    return Array.from(set)
+  })
+
   function getUserEnrollments(learnerId: string): UserEnrollment[] {
     return enrollments.value.get(learnerId) || []
   }
@@ -197,6 +232,9 @@ export function useAdminUsers(client: SupabaseClient) {
     // Hero stats
     totalUsers,
     newThisWeek,
+
+    // Aggregates across the full dataset (not just the visible page)
+    allEnrolledCourseIds,
 
     // Actions
     fetchAll,
