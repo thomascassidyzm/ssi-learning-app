@@ -157,6 +157,9 @@ async function handleRevoke(entitlementId: string) {
                 <h2 class="profile-name frost-display">
                   {{ profile.display_name || 'Anonymous' }}
                 </h2>
+                <div v-if="profile.email" class="profile-email frost-mono-nums">
+                  {{ profile.email }}
+                </div>
                 <div class="profile-meta">
                   <span>Joined {{ new Date(profile.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) }}</span>
                   <span class="meta-dot"></span>
@@ -564,6 +567,13 @@ async function handleRevoke(entitlementId: string) {
   margin: 0 0 4px;
   letter-spacing: -0.015em;
   color: var(--ink-primary);
+}
+
+.profile-email {
+  font-size: var(--text-sm);
+  color: var(--ink-secondary);
+  margin: 0 0 6px;
+  word-break: break-all;
 }
 
 .profile-meta {

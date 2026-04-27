@@ -84,7 +84,7 @@ onMounted(async () => {
     <div class="filters-bar">
       <SearchBox
         v-model="searchInput"
-        placeholder="Search users by name…"
+        placeholder="Search by name or email…"
         block
         size="md"
         @search="handleSearch"
@@ -111,6 +111,7 @@ onMounted(async () => {
         <thead>
           <tr>
             <th>Name</th>
+            <th>Email</th>
             <th>Joined</th>
             <th>Courses</th>
             <th>Last active</th>
@@ -141,6 +142,10 @@ onMounted(async () => {
                 size="sm"
                 pill
               >god</Badge>
+            </td>
+            <td class="cell-email">
+              <span v-if="user.email" class="email-text">{{ user.email }}</span>
+              <span v-else class="cell-faint">—</span>
             </td>
             <td class="cell-muted frost-mono-nums">
               {{ new Date(user.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' }) }}
@@ -364,6 +369,21 @@ onMounted(async () => {
   color: var(--ink-faint);
 }
 
+.cell-email {
+  max-width: 280px;
+}
+
+.email-text {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  max-width: 100%;
+}
+
 .course-badges {
   display: flex;
   flex-wrap: wrap;
@@ -483,11 +503,16 @@ onMounted(async () => {
     align-items: stretch;
   }
 
-  .users-table thead th:nth-child(2),
-  .users-table tbody td:nth-child(2),
-  .users-table thead th:nth-child(5),
-  .users-table tbody td:nth-child(5) {
+  /* Hide Joined (3) and Practice time (6) on mobile — Email stays visible. */
+  .users-table thead th:nth-child(3),
+  .users-table tbody td:nth-child(3),
+  .users-table thead th:nth-child(6),
+  .users-table tbody td:nth-child(6) {
     display: none;
+  }
+
+  .cell-email {
+    max-width: 160px;
   }
 }
 </style>

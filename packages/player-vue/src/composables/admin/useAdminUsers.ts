@@ -1,5 +1,9 @@
 /**
- * useAdminUsers - Paginated user list with enrollments
+ * useAdminUsers - Paginated user list with enrollments + emails.
+ *
+ * Pulls users (with email) from /api/admin/users (service-role on the server,
+ * which is the only way to safely read auth.users.email). Enrollments are
+ * still queried directly via the user's Supabase client.
  */
 
 import { ref, computed } from 'vue'
@@ -9,6 +13,7 @@ export interface AdminUser {
   id: string
   user_id: string
   display_name: string
+  email: string | null
   created_at: string
   educational_role: string | null
   platform_role: string | null
@@ -42,30 +47,40 @@ export function useAdminUsers(client: SupabaseClient) {
 
   const totalPages = computed(() => Math.max(1, Math.ceil(totalCount.value / PAGE_SIZE)))
 
+  async function getToken(): Promise<string | null> {
+    try {
+      const { data } = await client.auth.getSession()
+      return data?.session?.access_token ?? null
+    } catch {
+      return null
+    }
+  }
+
   async function fetchUsers(): Promise<void> {
     isLoading.value = true
     error.value = null
 
     try {
-      const offset = (currentPage.value - 1) * PAGE_SIZE
+      const token = await getToken()
+      const params = new URLSearchParams({
+        page: String(currentPage.value),
+        limit: String(PAGE_SIZE),
+      })
+      if (searchQuery.value) params.set('search', searchQuery.value)
 
-      // Build learners query
-      let query = client
-        .from('learners')
-        .select('id, user_id, display_name, created_at, educational_role, platform_role', { count: 'exact' })
-        .order('created_at', { ascending: false })
-        .range(offset, offset + PAGE_SIZE - 1)
-
-      if (searchQuery.value) {
-        query = query.ilike('display_name', `%${searchQuery.value}%`)
+      const res = await fetch(`/api/admin/users?${params.toString()}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Request failed: ${res.status}`)
       }
+      const data = await res.json()
 
-      const { data: learnerData, count, error: learnersErr } = await query
-
-      if (learnersErr) throw learnersErr
-
-      users.value = learnerData || []
-      totalCount.value = count || 0
+      users.value = data.users || []
+      totalCount.value = data.totalCount || 0
+      totalUsers.value = data.totalUsers || 0
+      newThisWeek.value = data.newThisWeek || 0
 
       if (users.value.length === 0) {
         enrollments.value = new Map()
@@ -74,7 +89,7 @@ export function useAdminUsers(client: SupabaseClient) {
 
       const pageIds = users.value.map(u => u.id)
 
-      // Batch fetch enrollments
+      // Batch fetch enrollments (still goes via the user's client — content table, permissive)
       const { data: enrollData, error: enrollErr } = await client
         .from('course_enrollments')
         .select('learner_id, course_id, last_practiced_at, total_practice_minutes')
@@ -82,7 +97,6 @@ export function useAdminUsers(client: SupabaseClient) {
 
       if (enrollErr) throw enrollErr
 
-      // Group enrollments by learner_id
       const enrollMap = new Map<string, UserEnrollment[]>()
       enrollData?.forEach(e => {
         if (!enrollMap.has(e.learner_id)) {
@@ -99,29 +113,8 @@ export function useAdminUsers(client: SupabaseClient) {
     }
   }
 
-  async function fetchHeroStats(): Promise<void> {
-    try {
-      // Total users
-      const { count } = await client
-        .from('learners')
-        .select('id', { count: 'exact', head: true })
-      totalUsers.value = count || 0
-
-      // New this week
-      const weekAgo = new Date()
-      weekAgo.setDate(weekAgo.getDate() - 7)
-      const { count: newCount } = await client
-        .from('learners')
-        .select('id', { count: 'exact', head: true })
-        .gte('created_at', weekAgo.toISOString())
-      newThisWeek.value = newCount || 0
-    } catch (err) {
-      console.error('[AdminUsers] hero stats error:', err)
-    }
-  }
-
   async function fetchAll(): Promise<void> {
-    await Promise.all([fetchUsers(), fetchHeroStats()])
+    await fetchUsers()
   }
 
   function setPage(page: number) {
