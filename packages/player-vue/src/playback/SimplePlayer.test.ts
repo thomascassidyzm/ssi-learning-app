@@ -6,11 +6,14 @@ import { SimplePlayer, type AudioFailedEvent, type Round } from './SimplePlayer'
 interface MockAudio {
   src: string
   playbackRate: number
+  volume: number
+  loop: boolean
   paused: boolean
   ended: boolean
   error: { code: number } | null
   addEventListener: ReturnType<typeof vi.fn>
   removeEventListener: ReturnType<typeof vi.fn>
+  setAttribute: ReturnType<typeof vi.fn>
   play: ReturnType<typeof vi.fn>
   pause: ReturnType<typeof vi.fn>
   // Helpers our tests use to simulate browser behavior
@@ -22,11 +25,14 @@ function makeMockAudio(): MockAudio {
   const a: MockAudio = {
     src: '',
     playbackRate: 1,
+    volume: 1,
+    loop: false,
     paused: true,
     ended: false,
     error: null,
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
+    setAttribute: vi.fn(),
     play: vi.fn().mockResolvedValue(undefined),
     pause: vi.fn(),
   }

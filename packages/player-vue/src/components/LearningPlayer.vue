@@ -2065,6 +2065,63 @@ if (typeof document !== 'undefined') {
   })
 }
 
+// ============================================
+// Media Session API: lock-screen and bluetooth controls
+// Pairs with the silent-bridge inside SimplePlayer to give backgrounded
+// playback parity with Driving Mode (without the concatenator overhead).
+// ============================================
+function setupMediaSession() {
+  if (!('mediaSession' in navigator)) return
+
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: 'SSi Learning',
+    artist: 'Practice Session',
+    album: 'Player'
+  })
+
+  const handlers: Array<[MediaSessionAction, MediaSessionActionHandler]> = [
+    ['play', () => {
+      if (!isPlaying.value) simplePlayer.resume()
+    }],
+    ['pause', () => {
+      if (isPlaying.value) simplePlayer.pause()
+    }],
+    ['nexttrack', () => {
+      simplePlayer.skipRound()
+    }],
+    ['previoustrack', () => {
+      const idx = simplePlayer.roundIndex.value
+      if (idx > 0) simplePlayer.jumpToRound(idx - 1)
+    }]
+  ]
+
+  for (const [action, handler] of handlers) {
+    try {
+      navigator.mediaSession.setActionHandler(action, handler)
+    } catch {
+      // Action not supported on this platform — skip
+    }
+  }
+}
+
+function clearMediaSession() {
+  if (!('mediaSession' in navigator)) return
+  navigator.mediaSession.metadata = null
+  for (const action of ['play', 'pause', 'nexttrack', 'previoustrack'] as MediaSessionAction[]) {
+    try { navigator.mediaSession.setActionHandler(action, null) } catch { /* ignore */ }
+  }
+}
+
+watch(isPlaying, (playing) => {
+  if ('mediaSession' in navigator) {
+    navigator.mediaSession.playbackState = playing ? 'playing' : 'paused'
+  }
+})
+
+if (typeof navigator !== 'undefined') {
+  setupMediaSession()
+}
+
 // Layout mode: 'default' | 'subtitle' | 'floating' | 'minimal'
 const layoutMode = ref('subtitle')  // Try subtitle mode by default
 const layoutModes = ['default', 'subtitle', 'floating', 'minimal'] as const
@@ -5584,6 +5641,9 @@ onUnmounted(() => {
 
   // Release wake lock
   releaseWakeLock()
+
+  // Clear Media Session metadata + action handlers
+  clearMediaSession()
 
   // Stop cycle playback
   stopCycle()

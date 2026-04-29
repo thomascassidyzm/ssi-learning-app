@@ -1,5 +1,7 @@
 // SimplePlayer.ts - Clean playback engine (~180 lines)
 
+import { getSilentAudioUrl } from '../utils/silentAudio'
+
 export interface Cycle {
   id: string
   /**
@@ -82,6 +84,10 @@ function isGestureRequiredError(err: unknown): boolean {
 export class SimplePlayer {
   private rounds: Round[]
   private audio: HTMLAudioElement
+  // Silent looped audio that runs whenever the player is playing — keeps the
+  // iOS audio session alive across the multi-second PAUSE phase and inter-
+  // phase gaps so the tab can be backgrounded without losing the audio unlock.
+  private silentAudio: HTMLAudioElement | null = null
   private state: PlaybackState
   private pauseTimer: ReturnType<typeof setTimeout> | null = null
   private safetyTimer: ReturnType<typeof setTimeout> | null = null
@@ -230,6 +236,32 @@ export class SimplePlayer {
     return this.rounds.findIndex(r => r.roundNumber === roundNumber)
   }
 
+  // Silent-bridge: lazy-init on first play() so the user gesture that unlocks
+  // the main audio also unlocks the silent audio. Once running it loops at
+  // volume 0 indefinitely, holding the iOS audio session through PAUSE phases
+  // and inter-phrase gaps when the tab is backgrounded.
+  private ensureSilentBridge(): void {
+    if (!this.silentAudio) {
+      this.silentAudio = new Audio()
+      this.silentAudio.src = getSilentAudioUrl()
+      this.silentAudio.loop = true
+      this.silentAudio.volume = 0
+      this.silentAudio.setAttribute('playsinline', 'true')
+      this.silentAudio.setAttribute('webkit-playsinline', 'true')
+    }
+    if (this.silentAudio.paused) {
+      this.silentAudio.play().catch((err) => {
+        console.warn('[SimplePlayer] Silent bridge play failed:', err)
+      })
+    }
+  }
+
+  private stopSilentBridge(): void {
+    if (this.silentAudio && !this.silentAudio.paused) {
+      this.silentAudio.pause()
+    }
+  }
+
   // Controls
   play(): void {
     if (this.state.isPlaying) return
@@ -244,6 +276,7 @@ export class SimplePlayer {
       return
     }
     console.debug(`[SimplePlayer] Starting Round ${round.roundNumber} (${round.legoId}): ${round.cycles.length} cycles`)
+    this.ensureSilentBridge()
     this.updateState({ isPlaying: true })
     this.startPhase('prompt')
   }
@@ -251,6 +284,7 @@ export class SimplePlayer {
   pause(): void {
     if (!this.state.isPlaying) return
     this.audio.pause()
+    this.stopSilentBridge()
     this.clearPauseTimer()
     this.clearSafetyTimer()
     this.clearLingerTimer()
@@ -261,6 +295,7 @@ export class SimplePlayer {
     if (this.state.isPlaying) return
     // Resume is user-initiated (tap). The tap provides the audio unlock
     // iOS needs after a backgrounded pause.
+    this.ensureSilentBridge()
     this.updateState({ isPlaying: true })
 
     if (this.state.phase === 'pause') {
@@ -279,6 +314,7 @@ export class SimplePlayer {
     this.audio.pause()
     this.audio.src = ''
     this.audio.playbackRate = 1.0
+    this.stopSilentBridge()
     this.clearPauseTimer()
     this.clearSafetyTimer()
     this.clearLingerTimer()
@@ -502,6 +538,11 @@ export class SimplePlayer {
     this.stop()
     this.audio.removeEventListener('ended', this.onEndedHandler)
     this.audio.removeEventListener('error', this.onErrorHandler)
+    if (this.silentAudio) {
+      this.silentAudio.pause()
+      this.silentAudio.src = ''
+      this.silentAudio = null
+    }
     this.listeners.clear()
   }
 }
