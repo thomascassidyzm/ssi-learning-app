@@ -52,30 +52,30 @@ export interface ScriptItem {
   listeningSeedNumber?: number
 }
 
+// Per Aran's listening-layers spec (canonical visualiser at popty.app/listening-playground.html).
+// Graduation is event-driven (1 LEGO == 1 round; a seed graduates once all its
+// LEGOs have been introduced and the offset has elapsed). Active-10 and reserve
+// fire on co-prime intervals (3 / 13) so they only clash every 39 rounds.
 export interface ListeningConfig {
   enabled: boolean
-  offset: number                    // rounds after last LEGO before seed graduates
-  totalSeeds: number                // total seeds entering listening across all batches
-  batchSize: number                 // seeds per batch
-  batchCount: number                // number of batches
-  speedProgression: Array<{
-    plays: number                   // times at this stage (Infinity for final)
-    speeds: number[]                // e.g. [1.0], [1.0, 2.0], [2.0, 2.0], [2.0]
-  }>
+  offset: number              // rounds after last LEGO before seed graduates
+  // Layer 1 — graduated seed sentences
+  l1ActiveSize: number        // sliding window of N most recent graduated seeds
+  l1ActiveInterval: number    // active fires every N rounds
+  l1ReserveSize: number       // older seeds beyond active, capped (overflow → Choice Pods later)
+  l1ReserveInterval: number   // reserve fires every N rounds (coprime with active)
+  // Layer 2 — Pod 0
+  podActivationRound: number  // first pod lap fires at end of this main round (start of seed 2)
 }
 
 export const DEFAULT_LISTENING_CONFIG: ListeningConfig = {
   enabled: true,
   offset: 56,
-  totalSeeds: 80,
-  batchSize: 20,
-  batchCount: 4,
-  speedProgression: [
-    { plays: 3, speeds: [1.0] },
-    { plays: 3, speeds: [1.0, 2.0] },
-    { plays: 3, speeds: [2.0, 2.0] },
-    { plays: Infinity, speeds: [2.0] },
-  ],
+  l1ActiveSize: 10,
+  l1ActiveInterval: 3,
+  l1ReserveSize: 50,
+  l1ReserveInterval: 13,
+  podActivationRound: 6,
 }
 
 export interface LearningScriptResult {
@@ -139,14 +139,16 @@ export async function generateLearningScript(
       .order('lego_index', { ascending: true })
       .order('position', { ascending: true })
       .limit(10000),
-    // Fetch seed sentences for listening phase (whole-sentence replay after graduation)
+    // Fetch seed sentences for listening phase (whole-sentence replay after graduation).
+    // No upper-N cap any more — graduation is event-driven and any seed in [startSeed, endSeed]
+    // can land in the L1 active/reserve window over the course's lifetime.
     listeningConfig.enabled
       ? supabase
           .from('course_seeds')
           .select('seed_number, known_text, target_text, target_text_roman, known_audio_id, target1_audio_id, target2_audio_id')
           .eq('course_code', courseCode)
           .gte('seed_number', startSeed)
-          .lte('seed_number', Math.min(endSeed, startSeed + listeningConfig.totalSeeds - 1))
+          .lte('seed_number', endSeed)
           .order('seed_number', { ascending: true })
       : Promise.resolve({ data: [], error: null }),
     // Pre-fetch the two LISTEN-block bookend audio rows for this course.
@@ -191,43 +193,38 @@ export async function generateLearningScript(
   const hasBookends = !!(listenIntroAudio && listenOutroAudio)
 
   // -------------------------------------------------------------------------
-  // Layer 2 — Pod 0 round-end lap, plus shared listening rotation
+  // Listening Layers (Aran spec, 2026-04-29 — canonical visualiser at
+  // popty.app/listening-playground.html).
   //
-  // Per Aran's listening-layers methodology + the visualiser at
-  // ~/Desktop/listening-playground.html.
+  //   Layer 2 (Pod 0):     fires every round at and after podActivationRound
+  //                        (default R6 = start of seed 2). Pod-round = main-round
+  //                        - activation + 1 (1:1). Stage progression follows the
+  //                        7-stage table below.
+  //   Layer 1 (graduated): two co-prime rotations on the queue of graduated
+  //                        seeds —
+  //                          active = last `l1ActiveSize` (10) seeds, every
+  //                          `l1ActiveInterval` (3) rounds
+  //                          reserve = next `l1ReserveSize` (50) older seeds,
+  //                          every `l1ReserveInterval` (13) rounds
+  //                        Both can fire in the same round (every 39); when
+  //                        they do, we emit one combined cluster (reserve
+  //                        first, then active) with a single bookend pair.
   //
-  // Schedule (per Aran 2026-04-27): a listening exercise fires every
-  // LISTENING_ROTATION_INTERVAL main rounds. On listening rounds the type
-  // alternates LISTEN cluster ↔ pod lap, so each layer fires every 6 main
-  // rounds in steady state.
-  //
-  //   round % 3 != 0          → no listening
-  //   pre-activation           → always LISTEN cluster
-  //   post-activation, slot %2 → 0=LISTEN, 1=pod (sentences first)
-  //
-  // Pod stage progression ticks per *pod firing*, not per main round —
-  // otherwise sentences would age through stages while the learner never
-  // hears them. First pod firing at POD_ACTIVATION_ROUND + 3, every 6
-  // main rounds thereafter.
-  //
-  // POD_ACTIVATION_ROUND: rough proxy for Aran's "~150 seeds completed"
-  // threshold. Hard-coded for now; lift to course config when a second
-  // course gets pod-0.
-  //
-  // The pod lap gets its own bookend pair. With this schedule, LISTEN and
-  // pod lap NEVER fire in the same round so there's no double-bookend.
+  // L1 + L2 bookends may both fire in the same round — Aran approved.
   // -------------------------------------------------------------------------
-  const POD_ACTIVATION_ROUND = 150
-  const LISTENING_ROTATION_INTERVAL = 3
-  type PodPlayRole = 'slow' | 'trans' | 'fast' | 'fast2x'
+  const POD_ACTIVATION_ROUND = listeningConfig.podActivationRound
+  type PodPlayRole = 'ps' | 'trans' | 'ps2x'
+  // Stage playlists (per Aran's notebook 2026-04-29). PS = pod sentence at 1.0×,
+  // PS×2 at 2.0×, trans = English translation. Stages 1-6 each last 3 pod-rounds;
+  // stage 7 is the eternal holding bay.
   const STAGE_PLAYLIST: Record<number, PodPlayRole[]> = {
-    1: ['slow', 'trans', 'slow', 'fast'],
-    2: ['slow', 'trans', 'fast'],
-    3: ['slow', 'trans', 'fast', 'fast'],
-    4: ['fast', 'trans', 'fast'],
-    5: ['slow', 'fast'],
-    6: ['fast', 'fast'],
-    7: ['fast2x'],
+    1: ['ps', 'trans', 'ps', 'ps2x'],
+    2: ['ps', 'trans', 'ps2x', 'ps2x'],
+    3: ['ps', 'trans', 'ps2x'],
+    4: ['ps2x', 'trans', 'ps2x'],
+    5: ['ps', 'ps2x'],
+    6: ['ps2x', 'ps2x'],
+    7: ['ps2x'],
   }
   function podStageFor(entryPodRound: number, currentPodRound: number): { stage: number; iter: number | null } | null {
     const alive = currentPodRound - entryPodRound + 1
@@ -250,53 +247,27 @@ export async function generateLearningScript(
   const podSentences = (podsResult.data || []) as PodSentenceRow[]
   const hasPods = podSentences.length > 0
 
-  // What kind of listening (if any) fires at round-end of this main round?
-  // - 'none'   - no listening this round
-  // - 'listen' - LISTEN cluster (Layer 1, retired-seed replay)
-  // - 'pod'    - pod lap (Layer 2)
-  function listeningSlotForRound(round: number): 'listen' | 'pod' | 'none' {
-    if (round < 1) return 'none'
-    if (round % LISTENING_ROTATION_INTERVAL !== 0) return 'none'
-    if (!hasPods || round < POD_ACTIVATION_ROUND) return 'listen'
-    const slotIndex = Math.floor((round - POD_ACTIVATION_ROUND) / LISTENING_ROTATION_INTERVAL)
-    return slotIndex % 2 === 0 ? 'listen' : 'pod'
-  }
-
-  // Pod-round counter — ticks once per pod firing, NOT per main round.
-  // First pod firing at main round POD_ACTIVATION_ROUND + 3 (the slot after
-  // the activation-round's LISTEN cluster), every 6 main rounds thereafter.
-  // Returns 0 if pods haven't fired yet at this main round.
+  // Pod-round = main-round - activation + 1, 1:1 from the activation round onwards.
   function podRoundForMainRound(mainRound: number): number {
-    const firstPodMainRound = POD_ACTIVATION_ROUND + LISTENING_ROTATION_INTERVAL
-    if (mainRound < firstPodMainRound) return 0
-    const podFiringInterval = LISTENING_ROTATION_INTERVAL * 2
-    return Math.floor((mainRound - firstPodMainRound) / podFiringInterval) + 1
+    if (mainRound < POD_ACTIVATION_ROUND) return 0
+    return mainRound - POD_ACTIVATION_ROUND + 1
+  }
+  function l2FiresAt(round: number): boolean {
+    return hasPods && round >= POD_ACTIVATION_ROUND
   }
 
-  // Emit Layer 1 LISTEN cluster — retired-seed replay from the current
-  // batch. Caller is responsible for gating on listeningSlotForRound ===
-  // 'listen'. Mutates nextBatchRotation. Returns true if anything was
-  // emitted.
-  function emitListenCluster(mainRoundNumber: number, cycleCounter: { v: number }): boolean {
-    if (batches.length === 0) return false
-    const activeBatches = batches.filter(b => b && b.size > 0)
-    if (activeBatches.length === 0) return false
-    const batchToPlay = activeBatches.length === 1
-      ? 0
-      : nextBatchRotation % activeBatches.length
-    const batch = activeBatches[batchToPlay]
-    if (activeBatches.length > 1) nextBatchRotation++
-    if (!batch) return false
+  // Emit Layer 1 LISTEN cluster — bookend-wrapped block of graduated seeds.
+  // Caller passes the seeds to play (active, reserve, or both reserve+active
+  // when their rotations clash). Each seed plays once at PS×2 per Aran's
+  // simplification (real impl could add a 1×→2× ramp on the first few replays).
+  function emitL1Cluster(seedNums: number[], mainRoundNumber: number, cycleCounter: { v: number }): boolean {
+    if (seedNums.length === 0) return false
 
-    // Collect plays first so we can decide whether to emit bookends.
-    const plays: Array<{ sNum: number; seedData: SeedData; speed: number; entry: { playCount: number } }> = []
-    for (const [sNum, entry] of batch) {
+    const plays: Array<{ sNum: number; seedData: SeedData }> = []
+    for (const sNum of seedNums) {
       const seedData = seedMap.get(sNum)
       if (!seedData || !seedData.target1_audio_id) continue
-      const speeds = getSpeedsForPlayCount(entry.playCount, listeningConfig)
-      for (const speed of speeds) {
-        plays.push({ sNum, seedData, speed, entry })
-      }
+      plays.push({ sNum, seedData })
     }
     if (plays.length === 0) return false
 
@@ -313,11 +284,10 @@ export async function generateLearningScript(
         isNew: false,
       })
     }
-    const incrementedEntries = new Set<{ playCount: number }>()
-    for (const { sNum, seedData, speed, entry } of plays) {
+    for (const { sNum, seedData } of plays) {
       cycleCounter.v++
       emitItem({
-        uuid: `listening_S${String(sNum).padStart(4, '0')}_${speed}x_${cycleCounter.v}`,
+        uuid: `listening_S${String(sNum).padStart(4, '0')}_2x_${cycleCounter.v}`,
         cycleNum: cycleCounter.v, roundNumber: mainRoundNumber,
         seedId: `S${String(sNum).padStart(4, '0')}`,
         legoKey: `S${String(sNum).padStart(4, '0')}L00`,
@@ -331,14 +301,9 @@ export async function generateLearningScript(
         target1Id: seedData.target1_audio_id,
         target2Id: seedData.target2_audio_id,
         isNew: false,
-        playbackSpeed: speed,
+        playbackSpeed: 2.0,
         listeningSeedNumber: sNum,
       })
-      // Increment playCount once per seed (not once per speed-multiplied play)
-      if (!incrementedEntries.has(entry)) {
-        entry.playCount++
-        incrementedEntries.add(entry)
-      }
     }
     if (hasBookends && listenOutroAudio) {
       cycleCounter.v++
@@ -356,10 +321,10 @@ export async function generateLearningScript(
     return true
   }
 
-  // Compute lap items for a given main-course round. Returns [] when pods
+  // Compute lap items for a given main-course round. Returns false when pods
   // not activated, course has none, or pod-0 has been fully introduced and
   // no sentence is in any stage (shouldn't happen since stage 7 is eternal).
-  // Caller is responsible for gating on listeningSlotForRound === 'pod'.
+  // Caller is responsible for gating on l2FiresAt(round).
   function emitPodLap(mainRoundNumber: number, cycleCounter: { v: number }): boolean {
     if (!hasPods) return false
     const podRound = podRoundForMainRound(mainRoundNumber)
@@ -398,10 +363,9 @@ export async function generateLearningScript(
     for (const { i, sentence, playRole } of plays) {
       cycleCounter.v++
       const cyc = cycleCounter.v
-      const speed =
-        playRole === 'slow' ? 0.8 :
-        playRole === 'fast' ? 1.6 :
-        playRole === 'fast2x' ? 2.0 : 1.0
+      // Aran spec: only 1.0× and 2.0× exist for listening. PS and trans both
+      // play at natural speed; PS×2 plays at 2×.
+      const speed = playRole === 'ps2x' ? 2.0 : 1.0
       const isTrans = playRole === 'trans'
       emitItem({
         uuid: `pod_R${String(mainRoundNumber).padStart(4, '0')}_S${String(i).padStart(3, '0')}_${playRole}_${cyc}`,
@@ -647,20 +611,29 @@ export async function generateLearningScript(
   let roundNumber = 0
 
   // Listening phase state
-  const seedLastRound = new Map<number, number>()       // seedNum → last LEGO round
-  const graduatedSeeds = new Set<number>()               // seeds that have left Fibonacci
-  const batches: Map<number, { playCount: number }>[] = [] // batches[0]=B1, etc.
-  let nextBatchRotation = 0                              // round-robin index
+  const seedLastRound = new Map<number, number>()  // seedNum → last LEGO round
+  const graduatedSeeds = new Set<number>()         // idempotency check
+  const graduatedQueue: number[] = []              // graduation order; L1 windows are slices
 
-  // Helper: get speed(s) for a given play count from the speed progression config
-  const getSpeedsForPlayCount = (playCount: number, config: ListeningConfig): number[] => {
-    let cumulative = 0
-    for (const stage of config.speedProgression) {
-      cumulative += stage.plays
-      if (playCount < cumulative) return stage.speeds
-    }
-    // Past all stages — use the last one (which should have plays: Infinity)
-    return config.speedProgression[config.speedProgression.length - 1].speeds
+  // L1 windowing helpers
+  function l1ActiveSeedsList(): number[] {
+    return graduatedQueue.slice(-listeningConfig.l1ActiveSize)
+  }
+  function l1ReserveSeedsList(): number[] {
+    if (graduatedQueue.length <= listeningConfig.l1ActiveSize) return []
+    const reserveEnd = graduatedQueue.length - listeningConfig.l1ActiveSize
+    const reserveStart = Math.max(0, reserveEnd - listeningConfig.l1ReserveSize)
+    return graduatedQueue.slice(reserveStart, reserveEnd)
+  }
+  function l1ActiveFiresAt(round: number): boolean {
+    return round > 0
+      && round % listeningConfig.l1ActiveInterval === 0
+      && graduatedQueue.length > 0
+  }
+  function l1ReserveFiresAt(round: number): boolean {
+    return round > 0
+      && round % listeningConfig.l1ReserveInterval === 0
+      && graduatedQueue.length > listeningConfig.l1ActiveSize
   }
 
   // Build LEGO text map for phrase decomposition (normalised target text → LEGO key)
@@ -1114,37 +1087,33 @@ export async function generateLearningScript(
         }
       }
 
-      // Phase 6: LISTENING — graduation tracking + scheduled emission.
-      // Graduation tracking always runs (so seeds keep accumulating into
-      // batches) but emission is gated on the rotation slot.
+      // Phase 6: Layer 1 (graduated seeds) — graduation tracking + dual-rotation emission.
+      // Graduation is event-driven: a seed graduates once `offset` rounds have
+      // elapsed since its last LEGO. The active-10 plays every 3 rounds; the
+      // reserve plays every 13 rounds. When both fire (every 39 rounds) we
+      // emit one combined cluster, reserve first then active.
       if (listeningConfig.enabled) {
-        // Check ALL seeds for graduation (not just current seed)
         for (const [sNum, lastRound] of seedLastRound) {
           if (graduatedSeeds.has(sNum)) continue
           if (roundNumber - lastRound < listeningConfig.offset) continue
-          if (sNum > startSeed + listeningConfig.totalSeeds - 1) continue  // Cap at totalSeeds
-
           graduatedSeeds.add(sNum)
-          // Assign to correct batch: S1-20 → B0, S21-40 → B1, etc.
-          const batchIndex = Math.floor((sNum - startSeed) / listeningConfig.batchSize)
-          if (batchIndex >= listeningConfig.batchCount) continue
-          if (!batches[batchIndex]) batches[batchIndex] = new Map()
-          batches[batchIndex].set(sNum, { playCount: 0 })
+          graduatedQueue.push(sNum)
         }
 
-        // Emit only on LISTEN rotation slots (every 3rd round, alternating
-        // with pod lap post-activation). Helper handles batch rotation,
-        // skip-seeds-without-audio, and bookend wrapping.
-        if (listeningSlotForRound(roundNumber) === 'listen') {
+        const fireActive = l1ActiveFiresAt(roundNumber)
+        const fireReserve = l1ReserveFiresAt(roundNumber)
+        if (fireActive || fireReserve) {
+          const seeds: number[] = []
+          if (fireReserve) seeds.push(...l1ReserveSeedsList())
+          if (fireActive) seeds.push(...l1ActiveSeedsList())
           const listenCounter = { v: cycleNum }
-          emitListenCluster(roundNumber, listenCounter)
+          emitL1Cluster(seeds, roundNumber, listenCounter)
           cycleNum = listenCounter.v
         }
       }
 
-      // Phase 7: POD 0 round-end lap — fires only on pod rotation slots,
-      // alternating with the LISTEN cluster every 3 main rounds.
-      if (listeningSlotForRound(roundNumber) === 'pod') {
+      // Phase 7: Layer 2 (Pod 0) — fires every round at and after activation.
+      if (l2FiresAt(roundNumber)) {
         const podCounter = { v: cycleNum }
         emitPodLap(roundNumber, podCounter)
         cycleNum = podCounter.v
@@ -1296,17 +1265,22 @@ export async function generateLearningScript(
     // Mark the revived LEGO as freshly used so it re-enters the fib cycle.
     revivedState.lastRound = roundNumber
 
-    // Phase 6+7 (revival): listening continues forever on the 3-round
-    // rotation, alternating LISTEN cluster ↔ pod lap. The LISTEN cluster
-    // keeps seed sentences in spaced-rep rotation post-main-loop; the pod
-    // lap holds Stage 7 (eternal 2× holding bay) as steady state.
+    // Phase 6+7 (revival): listening continues forever. L1 active-10 every 3
+    // rounds + reserve every 13 rounds keeps graduated seeds in rotation. L2
+    // pod lap holds Stage 7 (eternal 2× holding bay) as steady state every
+    // round.
     if (shouldEmit()) {
-      const slot = listeningSlotForRound(roundNumber)
-      if (slot === 'listen') {
+      const fireActive = l1ActiveFiresAt(roundNumber)
+      const fireReserve = l1ReserveFiresAt(roundNumber)
+      if (fireActive || fireReserve) {
+        const seeds: number[] = []
+        if (fireReserve) seeds.push(...l1ReserveSeedsList())
+        if (fireActive) seeds.push(...l1ActiveSeedsList())
         const listenCounter = { v: cycleNum }
-        emitListenCluster(roundNumber, listenCounter)
+        emitL1Cluster(seeds, roundNumber, listenCounter)
         cycleNum = listenCounter.v
-      } else if (slot === 'pod') {
+      }
+      if (l2FiresAt(roundNumber)) {
         const podCounter = { v: cycleNum }
         emitPodLap(roundNumber, podCounter)
         cycleNum = podCounter.v
