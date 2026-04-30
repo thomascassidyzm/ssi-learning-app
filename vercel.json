@@ -21,5 +21,8 @@
     { "source": "/schools/(.*)", "destination": "/schools/index.html" },
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
+  "crons": [
+    { "path": "/api/cron/teacher-payouts", "schedule": "0 6 1 * *" }
   ]
 }

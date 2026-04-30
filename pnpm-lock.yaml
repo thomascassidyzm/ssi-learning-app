@@ -14,6 +14,9 @@ importers:
       '@aws-sdk/s3-request-presigner':
         specifier: ^3.975.0
         version: 3.975.0
+      '@paddle/paddle-node-sdk':
+        specifier: ^3.8.0
+        version: 3.8.0
       '@supabase/supabase-js':
         specifier: ^2.86.0
         version: 2.86.0
@@ -93,8 +96,13 @@ importers:
         specifier: ^5.0.0
         version: 5.4.21(@types/node@25.0.10)
 
+  packages/lesson-player: {}
+
   packages/player-vue:
     dependencies:
+      '@paddle/paddle-js':
+        specifier: ^1.6.4
+        version: 1.6.4
       '@ssi/core':
         specifier: workspace:*
         version: link:../core
@@ -3140,6 +3148,15 @@ packages:
   /@one-ini/wasm@0.1.1:
     resolution: {integrity: sha512-XuySG1E38YScSJoMlqovLru4KTUNSjgVTIjyh7qMX6aNN5HY5Ct5LhRJdxO79JtTzKfzV/bnWpz+zquYrISsvw==}
     dev: true
+
+  /@paddle/paddle-js@1.6.4:
+    resolution: {integrity: sha512-ncfnS6I8mCX6krZ3Sgz2iAYivGmhdI81yt9mT6prtPj4Ipd9J3M12LCJRUFL4FB7BYeeuV04c33RSEnbZUBCaA==}
+    dev: false
+
+  /@paddle/paddle-node-sdk@3.8.0:
+    resolution: {integrity: sha512-4RS6AhZisloYaT2jiFgx9hwm22qwLRUx4EgIVb1gS3bS96lhDBQWq8BC1/Zow2i3CuxMkehXQUc3qKSBS77ozA==}
+    engines: {node: '>=20'}
+    dev: false
 
   /@pkgjs/parseargs@0.11.0:
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
