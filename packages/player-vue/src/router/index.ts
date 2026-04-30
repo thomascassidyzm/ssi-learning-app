@@ -4,6 +4,7 @@ import { useUserRole } from '@/composables/useUserRole'
 // Lazy-loaded views
 const PlayerContainer = () => import('@/containers/PlayerContainer.vue')
 const SchoolsContainer = () => import('@/containers/SchoolsContainer.vue')
+const TeachContainer = () => import('@/containers/TeachContainer.vue')
 const AdminContainer = () => import('@/containers/AdminContainer.vue')
 const AdminSchoolsContainer = () => import('@/containers/AdminSchoolsContainer.vue')
 const AdminGroupContainer = () => import('@/containers/AdminGroupContainer.vue')
@@ -19,6 +20,10 @@ const AnalyticsView = () => import('@/views/schools/AnalyticsView.vue')
 const SettingsView = () => import('@/views/schools/SettingsView.vue')
 const SchoolsView = () => import('@/views/schools/SchoolsView.vue')
 const StudentProgressView = () => import('@/views/schools/StudentProgressView.vue')
+// Teach (private tutor) views
+const TeachDashboard = () => import('@/views/teach/TeachDashboard.vue')
+const TeachSetup = () => import('@/views/teach/TeachSetup.vue')
+const WithTeacher = () => import('@/views/teach/WithTeacher.vue')
 
 const routes: RouteRecordRaw[] = [
   // Learning player (default)
@@ -130,6 +135,32 @@ const routes: RouteRecordRaw[] = [
         },
       },
     ],
+  },
+  // Teach (private tutor) routes
+  {
+    path: '/teach',
+    component: TeachContainer,
+    children: [
+      {
+        path: '',
+        name: 'teach-dashboard',
+        component: TeachDashboard,
+        meta: { title: 'Teach' },
+      },
+      {
+        path: 'setup',
+        name: 'teach-setup',
+        component: TeachSetup,
+        meta: { title: 'Set up your teacher profile' },
+      },
+    ],
+  },
+  // Student attribution gateway (no auth required)
+  {
+    path: '/with/:code',
+    name: 'with-teacher',
+    component: WithTeacher,
+    meta: { title: 'Learning with your teacher' },
   },
   // Listening Pods
   {
