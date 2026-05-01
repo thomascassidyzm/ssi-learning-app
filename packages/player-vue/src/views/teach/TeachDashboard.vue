@@ -258,9 +258,16 @@ async function startTrial() {
   isStartingTrial.value = true
   checkoutError.value = ''
   try {
+    const { data: { session } } = await supabase.value.auth.getSession()
+    const email = session?.user?.email
+    if (!email) {
+      checkoutError.value = 'Sign in again to start checkout'
+      return
+    }
     const paddle = await getPaddle()
     paddle.Checkout.open({
       items: [{ priceId, quantity: 1 }],
+      customer: { email },
       customData: {
         teacher_id: teacher.value.id,
         kind: 'teacher_plan',
