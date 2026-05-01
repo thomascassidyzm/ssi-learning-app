@@ -12,10 +12,18 @@ interface NavTab {
   label: string
 }
 
+const props = withDefaults(defineProps<{
+  mode?: 'schools' | 'teach'
+}>(), {
+  mode: 'schools',
+})
+
 const emit = defineEmits<{
   signIn: []
   signUp: []
 }>()
+
+const logoHref = computed(() => (props.mode === 'teach' ? '/teach' : '/schools'))
 
 const route = useRoute()
 const router = useRouter()
@@ -42,6 +50,7 @@ const baseTabs: NavTab[] = [
 
 const tabs = computed(() => {
   const result: NavTab[] = []
+  if (props.mode === 'teach') return result
   if (isGovtAdmin.value) {
     result.push({ name: 'all-schools', path: '/schools/all', label: 'Schools' })
   }
@@ -114,9 +123,9 @@ const closeMobileMenu = () => {
 </script>
 
 <template>
-  <nav class="top-nav" :aria-label="'Schools navigation'">
+  <nav class="top-nav" :aria-label="props.mode === 'teach' ? 'Teach navigation' : 'Schools navigation'">
     <!-- Logo -->
-    <router-link to="/schools" class="logo" aria-label="SaySomethingin — Schools">
+    <router-link :to="logoHref" class="logo" :aria-label="props.mode === 'teach' ? 'SaySomethingin — Teach' : 'SaySomethingin — Schools'">
       <span class="logo-text">
         <span class="say">Say</span><span class="something">Something</span><span class="in">in</span>
       </span>
@@ -181,8 +190,8 @@ const closeMobileMenu = () => {
 
       <!-- Authenticated User Section -->
       <template v-else-if="isLoaded && isSignedIn">
-        <!-- School Badge -->
-        <div class="school-badge" :title="schoolName">
+        <!-- School Badge (schools context only) -->
+        <div v-if="props.mode !== 'teach'" class="school-badge" :title="schoolName">
           <div class="school-badge-avatar">
             <span>{{ schoolInitials }}</span>
           </div>

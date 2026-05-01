@@ -169,7 +169,7 @@ const handleAuthSuccess = () => closeAuth()
     </div>
 
     <template v-else>
-      <TopNav @sign-in="openAuth" @sign-up="openAuth" />
+      <TopNav mode="teach" @sign-in="openAuth" @sign-up="openAuth" />
       <main class="main-content">
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">
@@ -185,7 +185,7 @@ const handleAuthSuccess = () => closeAuth()
 
 <style scoped>
 .teach-container {
-  min-height: 100vh;
+  height: 100vh;
   position: relative;
   background: var(--bg-primary);
   color: var(--ink-primary);
