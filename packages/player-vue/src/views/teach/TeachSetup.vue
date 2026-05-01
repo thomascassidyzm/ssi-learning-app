@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import FrostCard from '@/components/schools/shared/FrostCard.vue'
 import Button from '@/components/schools/shared/Button.vue'
 import { TEACHER_COURSES } from '@/lib/teacherCourses'
+import { getPaddle, paddleConfig } from '@/lib/paddle'
 
 const router = useRouter()
 const supabase = inject('supabase', ref(null)) as any
@@ -16,6 +17,8 @@ const courseCode = ref(TEACHER_COURSES[0].code)
 const isCheckingExisting = ref(true)
 const isSubmitting = ref(false)
 const errorMessage = ref('')
+const hasActivePremium = ref(false)
+const submitStatus = ref<'idle' | 'opening_checkout' | 'awaiting_payment' | 'creating_profile'>('idle')
 
 // Locked pricing — single Paddle Price ID drives everything.
 const TEACHER_MONTHLY_PRICE = 15
@@ -34,19 +37,29 @@ async function getAuthToken(): Promise<string | null> {
   return session?.access_token ?? null
 }
 
-async function checkAlreadyTeacher() {
+async function checkInitialState() {
   const token = await getAuthToken()
   if (!token) {
     isCheckingExisting.value = false
     return
   }
   try {
-    const res = await fetch('/api/teacher/me', {
+    // Already a teacher? Bounce to dashboard.
+    const teacherRes = await fetch('/api/teacher/me', {
       headers: { Authorization: `Bearer ${token}` },
     })
-    if (res.ok) {
+    if (teacherRes.ok) {
       router.replace('/teach')
       return
+    }
+
+    // Premium status drives whether checkout is needed on submit.
+    const subRes = await fetch('/api/me/subscription', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (subRes.ok) {
+      const data = await subRes.json()
+      hasActivePremium.value = data.subscription?.status === 'active'
     }
   } catch {
     // fall through to form
@@ -54,7 +67,89 @@ async function checkAlreadyTeacher() {
   isCheckingExisting.value = false
 }
 
-onMounted(checkAlreadyTeacher)
+onMounted(checkInitialState)
+
+async function pollUntilPremium(timeoutMs = 60000): Promise<boolean> {
+  const start = Date.now()
+  const token = await getAuthToken()
+  if (!token) return false
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const res = await fetch('/api/me/subscription', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.subscription?.status === 'active') {
+          hasActivePremium.value = true
+          return true
+        }
+      }
+    } catch {
+      // keep polling
+    }
+    await new Promise((r) => setTimeout(r, 2000))
+  }
+  return false
+}
+
+async function createTeacherProfile(): Promise<boolean> {
+  submitStatus.value = 'creating_profile'
+  const token = await getAuthToken()
+  if (!token) {
+    errorMessage.value = 'Not signed in'
+    return false
+  }
+  const res = await fetch('/api/teacher/signup', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      display_name: displayName.value.trim(),
+      bio: bio.value.trim() || null,
+      class_name: className.value.trim(),
+      course_code: courseCode.value,
+      teaching_languages: ['en'],
+    }),
+  })
+  const data = await res.json()
+  if (!res.ok) {
+    errorMessage.value = data.error || 'Could not create teacher profile'
+    return false
+  }
+  return true
+}
+
+async function openPremiumCheckout(): Promise<void> {
+  const priceId = paddleConfig.teacherMonthlyPriceId
+  if (!priceId) {
+    errorMessage.value = 'Premium price not configured'
+    return
+  }
+  const { data: { session } } = await supabase.value.auth.getSession()
+  const email = session?.user?.email
+  const userId = session?.user?.id
+  if (!email || !userId) {
+    errorMessage.value = 'Sign in again to start checkout'
+    return
+  }
+  const paddle = await getPaddle()
+  paddle.Checkout.open({
+    items: [{ priceId, quantity: 1 }],
+    customer: { email },
+    customData: {
+      kind: 'premium',
+      supabase_user_id: userId,
+      // teacher_id intentionally absent — teacher row is created after the
+      // sub goes active, then /api/teacher/signup links it.
+    },
+    settings: {
+      successUrl: `${window.location.origin}/teach/setup?just_subscribed=1`,
+    },
+  })
+}
 
 async function handleSubmit() {
   if (!displayName.value.trim() || !className.value.trim() || !courseCode.value || isSubmitting.value) return
@@ -62,40 +157,52 @@ async function handleSubmit() {
   errorMessage.value = ''
 
   try {
-    const token = await getAuthToken()
-    if (!token) {
-      errorMessage.value = 'Not signed in'
+    // Already premium? Skip Paddle entirely — signup endpoint links the
+    // existing subscription via teachers.own_subscription_id.
+    if (hasActivePremium.value) {
+      const ok = await createTeacherProfile()
+      if (ok) router.replace('/teach')
       return
     }
 
-    const res = await fetch('/api/teacher/signup', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        display_name: displayName.value.trim(),
-        bio: bio.value.trim() || null,
-        class_name: className.value.trim(),
-        course_code: courseCode.value,
-        teaching_languages: ['en'],
-      }),
-    })
+    // Not premium yet: open checkout, wait for the webhook to land the sub,
+    // then create the teacher profile.
+    submitStatus.value = 'opening_checkout'
+    await openPremiumCheckout()
+    if (errorMessage.value) return
 
-    const data = await res.json()
-    if (!res.ok) {
-      errorMessage.value = data.error || 'Could not create teacher profile'
+    submitStatus.value = 'awaiting_payment'
+    const becamePremium = await pollUntilPremium()
+    if (!becamePremium) {
+      errorMessage.value = 'Subscription confirmation timed out. If you completed payment, refresh this page.'
       return
     }
 
-    router.replace('/teach')
+    const ok = await createTeacherProfile()
+    if (ok) router.replace('/teach')
   } catch (err: any) {
     errorMessage.value = err.message || 'Something went wrong'
   } finally {
     isSubmitting.value = false
+    submitStatus.value = 'idle'
   }
 }
+
+const submitButtonLabel = computed(() => {
+  switch (submitStatus.value) {
+    case 'opening_checkout':
+      return 'Opening checkout…'
+    case 'awaiting_payment':
+      return 'Waiting for payment confirmation…'
+    case 'creating_profile':
+      return 'Creating your teacher profile…'
+    default:
+      return hasActivePremium.value
+        ? 'Create my teacher profile'
+        : 'Continue to payment'
+  }
+})
+
 </script>
 
 <template>
@@ -196,8 +303,11 @@ async function handleSubmit() {
           :loading="isSubmitting"
           :disabled="!displayName.trim() || !className.trim() || !courseCode || isSubmitting"
         >
-          Create my teacher profile
+          {{ submitButtonLabel }}
         </Button>
+        <p v-if="!hasActivePremium" class="premium-note">
+          You'll be charged £{{ TEACHER_MONTHLY_PRICE }}/month after a 7-day free trial. This is the same SSi Premium plan that gives access to all paid courses.
+        </p>
       </form>
     </FrostCard>
   </div>
@@ -396,6 +506,14 @@ async function handleSubmit() {
   border-radius: var(--radius-lg);
   color: var(--ssi-red);
   font-size: var(--text-sm);
+}
+
+.premium-note {
+  margin: var(--space-2) 0 0;
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  text-align: center;
 }
 
 @keyframes spin {

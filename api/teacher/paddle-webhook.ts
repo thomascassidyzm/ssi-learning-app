@@ -3,8 +3,11 @@
  *
  * Public (no auth — verified by signature). Handles:
  *
- *   subscription.* with customData.kind = 'teacher_plan'
- *     → upsert subscriptions row, link teachers.own_subscription_id
+ *   subscription.* with customData.kind in {'premium', 'teacher_plan'}
+ *     → upsert subscriptions row. If customData.teacher_id is present,
+ *       also link teachers.own_subscription_id. ('teacher_plan' is the
+ *       legacy kind for subs created before the premium/teach split;
+ *       handled identically.)
  *
  *   subscription.* with customData.kind = 'student_via_teacher'
  *     → upsert subscriptions row, upsert teacher_referrals (class-scoped),
@@ -143,8 +146,8 @@ async function handleSubscriptionEvent(supabase: any, data: any): Promise<void> 
   const customData = (data.customData || {}) as Record<string, unknown>
   const kind = customData.kind as string | undefined
 
-  if (kind === 'teacher_plan') {
-    await handleTeacherPlanSubscription(supabase, data, customData)
+  if (kind === 'premium' || kind === 'teacher_plan') {
+    await handlePremiumSubscription(supabase, data, customData)
   } else if (kind === 'student_via_teacher') {
     await handleStudentSubscription(supabase, data, customData)
   } else {
@@ -152,14 +155,40 @@ async function handleSubscriptionEvent(supabase: any, data: any): Promise<void> 
   }
 }
 
-async function handleTeacherPlanSubscription(
+async function handlePremiumSubscription(
   supabase: any,
   data: any,
   customData: Record<string, unknown>
 ): Promise<void> {
   const teacherId = customData.teacher_id as string | undefined
-  if (!teacherId) {
-    console.error('[paddle-webhook] Missing teacher_id in customData for teacher_plan')
+  const supabaseUserId = customData.supabase_user_id as string | undefined
+
+  // Resolve learner_id: prefer teacher row, else fall back to learners.user_id
+  let learnerId: string | null = null
+  if (teacherId) {
+    const { data: teacher, error: teacherErr } = await supabase
+      .from('teachers')
+      .select('learner_id')
+      .eq('id', teacherId)
+      .single()
+    if (teacherErr || !teacher) {
+      console.error('[paddle-webhook] Teacher not found:', teacherId, teacherErr)
+      return
+    }
+    learnerId = teacher.learner_id
+  } else if (supabaseUserId) {
+    const { data: learner, error: learnerErr } = await supabase
+      .from('learners')
+      .select('id')
+      .eq('user_id', supabaseUserId)
+      .single()
+    if (learnerErr || !learner) {
+      console.error('[paddle-webhook] Learner not found for supabase_user_id:', supabaseUserId, learnerErr)
+      return
+    }
+    learnerId = learner.id
+  } else {
+    console.error('[paddle-webhook] Premium subscription missing teacher_id and supabase_user_id in customData')
     return
   }
 
@@ -169,25 +198,14 @@ async function handleTeacherPlanSubscription(
   const firstItem = Array.isArray(data.items) && data.items.length > 0 ? data.items[0] : null
   const planId: string | null = firstItem?.price?.id || null
 
-  const { data: teacher, error: teacherErr } = await supabase
-    .from('teachers')
-    .select('learner_id')
-    .eq('id', teacherId)
-    .single()
-
-  if (teacherErr || !teacher) {
-    console.error('[paddle-webhook] Teacher not found:', teacherId, teacherErr)
-    return
-  }
-
   const { data: subRow, error: upsertErr } = await supabase
     .from('subscriptions')
     .upsert(
       {
-        learner_id: teacher.learner_id,
+        learner_id: learnerId,
         status,
         plan_id: planId,
-        plan_name: 'SSi Teacher Plan',
+        plan_name: 'SSi Premium',
         current_period_end: periodEnd,
         cancel_at_period_end: !!data.scheduledChange,
         provider: 'paddle',
@@ -201,7 +219,14 @@ async function handleTeacherPlanSubscription(
     .single()
 
   if (upsertErr || !subRow) {
-    console.error('[paddle-webhook] Failed to upsert teacher subscription:', upsertErr)
+    console.error('[paddle-webhook] Failed to upsert premium subscription:', upsertErr)
+    return
+  }
+
+  // Teacher-link mutation only runs when this checkout came via the teacher
+  // signup flow (teacher_id in customData). Pure premium upgrades skip this.
+  if (!teacherId) {
+    console.log('[paddle-webhook] Premium subscription processed (no teacher link):', data.id, 'status:', status)
     return
   }
 

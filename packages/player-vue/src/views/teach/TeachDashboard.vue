@@ -270,7 +270,7 @@ async function startTrial() {
       customer: { email },
       customData: {
         teacher_id: teacher.value.id,
-        kind: 'teacher_plan',
+        kind: 'premium',
       },
       settings: {
         successUrl: window.location.href,

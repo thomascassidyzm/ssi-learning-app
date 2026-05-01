@@ -126,6 +126,18 @@ export default async function handler(
       return
     }
 
+    // If this learner already has an active premium subscription, link it on
+    // creation so an existing premium learner becoming a teacher doesn't need
+    // a Paddle round-trip or wait for the next webhook event to wire up.
+    const { data: existingSub } = await supabase
+      .from('subscriptions')
+      .select('id, status')
+      .eq('learner_id', learner.id)
+      .maybeSingle()
+
+    const linkedSubId =
+      existingSub && existingSub.status === 'active' ? existingSub.id : null
+
     // Create teacher row
     const { data: teacher, error: teacherError } = await supabase
       .from('teachers')
@@ -137,6 +149,7 @@ export default async function handler(
         country,
         teaching_languages,
         student_price_pence,
+        own_subscription_id: linkedSubId,
       })
       .select('*')
       .single()
