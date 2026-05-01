@@ -69,7 +69,7 @@ export default async function handler(
     const { data: teacher } = await supabase
       .from('teachers')
       .select(
-        'id, referral_active, display_name, photo_url, bio, country, teaching_languages, student_price_pence'
+        'id, referral_active, display_name, photo_url, bio, country, teaching_languages'
       )
       .eq('learner_id', learner.id)
       .maybeSingle()

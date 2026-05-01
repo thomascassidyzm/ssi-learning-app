@@ -6,7 +6,7 @@
  *   PATCH — updates editable profile + price fields on teachers
  *
  * PATCH body (all optional):
- *   display_name, photo_url, bio, country, teaching_languages, student_price_pence
+ *   display_name, photo_url, bio, country, teaching_languages
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -22,7 +22,6 @@ const EDITABLE_FIELDS = [
   'bio',
   'country',
   'teaching_languages',
-  'student_price_pence',
 ] as const
 
 export default async function handler(
@@ -87,16 +86,6 @@ export default async function handler(
 
     if (Object.keys(updates).length === 0) {
       res.status(400).json({ error: 'No editable fields provided' })
-      return
-    }
-
-    if (
-      'student_price_pence' in updates &&
-      (typeof updates.student_price_pence !== 'number' ||
-        (updates.student_price_pence as number) < 500 ||
-        (updates.student_price_pence as number) > 1500)
-    ) {
-      res.status(400).json({ error: 'student_price_pence must be between 500 and 1500' })
       return
     }
 

@@ -4,11 +4,9 @@
  * Env (build-time, Vite):
  *   VITE_PADDLE_CLIENT_TOKEN          — client-side token from Paddle
  *   VITE_PADDLE_ENV                   — 'sandbox' (default) or 'production'
- *   VITE_PADDLE_TEACHER_PRICE_MONTHLY — pri_… for the £15 Teacher Starter
- *   VITE_PADDLE_TEACHER_PRICE_ANNUAL  — pri_… (optional, future)
- *   VITE_PADDLE_STUDENT_PRICE_MONTHLY — pri_… default student tier
- *   VITE_PADDLE_STUDENT_PRICES        — semicolon-delimited "tier:priceId;..."
- *                                        e.g. "5:pri_01x;...;15:pri_01z"
+ *   VITE_PADDLE_TEACHER_PRICE_MONTHLY — pri_… for £15/mo SSi Premium
+ *   VITE_PADDLE_TEACHER_PRICE_ANNUAL  — pri_… for £150/yr SSi Premium (unwired)
+ *   VITE_PADDLE_STUDENT_PRICE_MONTHLY — pri_… for £10/mo student-via-teacher
  *   VITE_PADDLE_EXTRA_CLASS_MONTHLY   — pri_… (optional, future)
  *   VITE_PADDLE_EXTRA_CLASS_ANNUAL    — pri_… (optional, future)
  *
@@ -56,23 +54,4 @@ export async function getPaddle(): Promise<Paddle> {
   })()
 
   return loadingPromise
-}
-
-let studentPriceMap: Record<number, string> | null = null
-
-function getStudentPriceMap(): Record<number, string> {
-  if (studentPriceMap) return studentPriceMap
-  const raw = trimEnv(import.meta.env.VITE_PADDLE_STUDENT_PRICES as string | undefined) || ''
-  const map: Record<number, string> = {}
-  for (const pair of raw.split(';')) {
-    const [tierStr, id] = pair.split(':')
-    const tier = parseInt(tierStr, 10)
-    if (!isNaN(tier) && id) map[tier] = id.trim()
-  }
-  studentPriceMap = map
-  return map
-}
-
-export function studentPriceIdFor(tierPounds: number): string | null {
-  return getStudentPriceMap()[tierPounds] || null
 }

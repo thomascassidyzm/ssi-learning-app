@@ -13,7 +13,7 @@
  *   display_name      (required)  - teacher's public display name
  *   class_name        (required)  - first class name, e.g. "Monday Intermediates"
  *   course_code       (required)  - first class course, e.g. "eng_for_spa"
- *   bio, photo_url, country, teaching_languages, student_price_pence (optional)
+ *   bio, photo_url, country, teaching_languages (optional)
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -46,7 +46,6 @@ export default async function handler(
     bio = null,
     country = null,
     teaching_languages = [],
-    student_price_pence = 1500,
   } = req.body || {}
 
   if (!display_name || typeof display_name !== 'string' || !display_name.trim()) {
@@ -59,14 +58,6 @@ export default async function handler(
   }
   if (!course_code || typeof course_code !== 'string' || !course_code.trim()) {
     res.status(400).json({ error: 'course_code is required' })
-    return
-  }
-  if (
-    typeof student_price_pence !== 'number' ||
-    student_price_pence < 500 ||
-    student_price_pence > 1500
-  ) {
-    res.status(400).json({ error: 'student_price_pence must be between 500 and 1500' })
     return
   }
   if (!Array.isArray(teaching_languages)) {
@@ -148,7 +139,6 @@ export default async function handler(
         bio,
         country,
         teaching_languages,
-        student_price_pence,
         own_subscription_id: linkedSubId,
       })
       .select('*')
