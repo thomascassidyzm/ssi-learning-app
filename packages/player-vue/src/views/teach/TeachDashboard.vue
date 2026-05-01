@@ -3,7 +3,7 @@ import { ref, computed, inject, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import FrostCard from '@/components/schools/shared/FrostCard.vue'
 import Button from '@/components/schools/shared/Button.vue'
-import { getPaddle } from '@/lib/paddle'
+import { getPaddle, paddleConfig } from '@/lib/paddle'
 import { TEACHER_COURSES, labelForCourse } from '@/lib/teacherCourses'
 
 const router = useRouter()
@@ -249,7 +249,7 @@ onMounted(loadAll)
 
 async function startTrial() {
   if (!teacher.value || isStartingTrial.value) return
-  const priceId = import.meta.env.VITE_PADDLE_TEACHER_PRICE_MONTHLY as string | undefined
+  const priceId = paddleConfig.teacherMonthlyPriceId
   if (!priceId) {
     checkoutError.value = 'Teacher plan price not configured'
     return

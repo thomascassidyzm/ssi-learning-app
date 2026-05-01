@@ -5,7 +5,7 @@ import AtmosphereBackdrop from '@/components/schools/shared/AtmosphereBackdrop.v
 import FrostCard from '@/components/schools/shared/FrostCard.vue'
 import Button from '@/components/schools/shared/Button.vue'
 import { labelForCourse } from '@/lib/teacherCourses'
-import { getPaddle } from '@/lib/paddle'
+import { getPaddle, paddleConfig } from '@/lib/paddle'
 import '@/styles/schools-tokens.css'
 
 const route = useRoute()
@@ -31,8 +31,7 @@ interface PublicClass {
 const STUDENT_MONTHLY_PRICE = 10
 const STANDARD_SSI_PRICE = 15
 const STUDENT_PADDLE_PRICE_ID =
-  (import.meta.env.VITE_PADDLE_STUDENT_PRICE_MONTHLY as string | undefined) ||
-  'pri_01kpxh6hq7se3yqndd4k6xb457'
+  paddleConfig.studentMonthlyPriceId || 'pri_01kpxh6hq7se3yqndd4k6xb457'
 
 const teacher = ref<PublicTeacher | null>(null)
 const classInfo = ref<PublicClass | null>(null)

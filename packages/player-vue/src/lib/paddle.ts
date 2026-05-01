@@ -1,14 +1,38 @@
 /**
- * Paddle.js loader — lazy, singleton.
+ * Paddle.js loader + env config — lazy, singleton.
  *
  * Env (build-time, Vite):
- *   VITE_PADDLE_CLIENT_TOKEN — client-side token from Paddle
- *   VITE_PADDLE_ENV          — 'sandbox' (default) or 'production'
- *   VITE_PADDLE_STUDENT_PRICES — semicolon-delimited "tier:priceId;..." map
- *                                 e.g. "5:pri_01x;6:pri_01y;...;15:pri_01z"
+ *   VITE_PADDLE_CLIENT_TOKEN          — client-side token from Paddle
+ *   VITE_PADDLE_ENV                   — 'sandbox' (default) or 'production'
+ *   VITE_PADDLE_TEACHER_PRICE_MONTHLY — pri_… for the £15 Teacher Starter
+ *   VITE_PADDLE_TEACHER_PRICE_ANNUAL  — pri_… (optional, future)
+ *   VITE_PADDLE_STUDENT_PRICE_MONTHLY — pri_… default student tier
+ *   VITE_PADDLE_STUDENT_PRICES        — semicolon-delimited "tier:priceId;..."
+ *                                        e.g. "5:pri_01x;...;15:pri_01z"
+ *   VITE_PADDLE_EXTRA_CLASS_MONTHLY   — pri_… (optional, future)
+ *   VITE_PADDLE_EXTRA_CLASS_ANNUAL    — pri_… (optional, future)
+ *
+ * Every value is trimmed at read — Vercel's env-var entry flow can capture
+ * trailing newlines, and an untrimmed "pri_…\n" makes Paddle 400 with
+ * entity_not_found on checkout.
  */
 
 import { initializePaddle, type Paddle } from '@paddle/paddle-js'
+
+function trimEnv(v: string | undefined): string | undefined {
+  const t = v?.trim()
+  return t ? t : undefined
+}
+
+export const paddleConfig = {
+  clientToken: trimEnv(import.meta.env.VITE_PADDLE_CLIENT_TOKEN as string | undefined),
+  env: trimEnv(import.meta.env.VITE_PADDLE_ENV as string | undefined) || 'sandbox',
+  teacherMonthlyPriceId: trimEnv(import.meta.env.VITE_PADDLE_TEACHER_PRICE_MONTHLY as string | undefined),
+  teacherAnnualPriceId: trimEnv(import.meta.env.VITE_PADDLE_TEACHER_PRICE_ANNUAL as string | undefined),
+  studentMonthlyPriceId: trimEnv(import.meta.env.VITE_PADDLE_STUDENT_PRICE_MONTHLY as string | undefined),
+  extraClassMonthlyPriceId: trimEnv(import.meta.env.VITE_PADDLE_EXTRA_CLASS_MONTHLY as string | undefined),
+  extraClassAnnualPriceId: trimEnv(import.meta.env.VITE_PADDLE_EXTRA_CLASS_ANNUAL as string | undefined),
+} as const
 
 let paddleInstance: Paddle | null = null
 let loadingPromise: Promise<Paddle> | null = null
@@ -17,13 +41,12 @@ export async function getPaddle(): Promise<Paddle> {
   if (paddleInstance) return paddleInstance
   if (loadingPromise) return loadingPromise
 
-  const token = import.meta.env.VITE_PADDLE_CLIENT_TOKEN as string | undefined
-  const envRaw = (import.meta.env.VITE_PADDLE_ENV as string | undefined) || 'sandbox'
-  const environment = envRaw === 'production' ? 'production' : 'sandbox'
-
+  const token = paddleConfig.clientToken
   if (!token) {
     throw new Error('VITE_PADDLE_CLIENT_TOKEN is not configured')
   }
+
+  const environment = paddleConfig.env === 'production' ? 'production' : 'sandbox'
 
   loadingPromise = (async () => {
     const instance = await initializePaddle({ token, environment })
@@ -35,15 +58,11 @@ export async function getPaddle(): Promise<Paddle> {
   return loadingPromise
 }
 
-/**
- * Parse the VITE_PADDLE_STUDENT_PRICES env var into a tier→priceId map.
- * Returns the Paddle Price ID for a given price tier in pounds (5..15).
- */
 let studentPriceMap: Record<number, string> | null = null
 
 function getStudentPriceMap(): Record<number, string> {
   if (studentPriceMap) return studentPriceMap
-  const raw = (import.meta.env.VITE_PADDLE_STUDENT_PRICES as string | undefined) || ''
+  const raw = trimEnv(import.meta.env.VITE_PADDLE_STUDENT_PRICES as string | undefined) || ''
   const map: Record<number, string> = {}
   for (const pair of raw.split(';')) {
     const [tierStr, id] = pair.split(':')
