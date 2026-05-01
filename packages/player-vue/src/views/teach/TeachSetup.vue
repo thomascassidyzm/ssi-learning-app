@@ -145,9 +145,8 @@ async function openPremiumCheckout(): Promise<void> {
       // teacher_id intentionally absent — teacher row is created after the
       // sub goes active, then /api/teacher/signup links it.
     },
-    settings: {
-      successUrl: `${window.location.origin}/teach/setup?just_subscribed=1`,
-    },
+    // No successUrl: overlay closes in-place on completion so the form
+    // fields the user just filled are preserved while pollUntilPremium runs.
   })
 }
 
