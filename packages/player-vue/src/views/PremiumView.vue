@@ -72,6 +72,11 @@ function selectContextCourse(c: Course) {
   router.replace({ name: 'premium', query: { course: c.course_code } })
 }
 
+function goBackToFreeCourses() {
+  // Send them to the player home — the course modal opens from there.
+  router.push('/')
+}
+
 async function getAuthToken(): Promise<string | null> {
   if (!supabase.value) return null
   const { data: { session } } = await supabase.value.auth.getSession()
@@ -215,8 +220,11 @@ onMounted(async () => {
 
         <!-- Not signed in -->
         <div v-else-if="!isAuthenticated" class="cta">
-          <p>Sign in to upgrade. We use a one-time code by email — no password.</p>
-          <Button variant="primary" size="lg" @click="() => openAuth()">Sign in</Button>
+          <p>Take it for a test drive — 7 days free, no commitment. We'll email a one-time code to get you started, no password to remember.</p>
+          <Button variant="primary" size="lg" @click="() => openAuth()">Start 7-day free trial</Button>
+          <button type="button" class="back-link" @click="goBackToFreeCourses">
+            Or browse our free courses →
+          </button>
         </div>
 
         <!-- Loading sub -->
@@ -261,6 +269,9 @@ onMounted(async () => {
           >
             Start 7-day free trial
           </Button>
+          <button type="button" class="back-link" @click="goBackToFreeCourses">
+            Or browse our free courses →
+          </button>
         </div>
       </FrostCard>
 
@@ -419,6 +430,22 @@ onMounted(async () => {
   border-radius: var(--radius-lg);
   color: var(--ssi-red);
   font-size: var(--text-sm);
+}
+
+.back-link {
+  align-self: center;
+  background: transparent;
+  border: none;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: color 0.12s ease;
+}
+
+.back-link:hover {
+  color: var(--ink-primary);
 }
 
 .loading-spinner {

@@ -394,7 +394,7 @@ onMounted(() => {
             <div class="section-header section-header--premium">
               <div class="section-header__text">
                 <span class="section-header__title">Premium</span>
-                <span class="section-header__sub">All courses · 7 days free, then £15/mo</span>
+                <span class="section-header__sub">Free for 7 days, then £15/mo</span>
               </div>
               <button class="section-header__cta" @click="router.push('/premium'); emit('close')">
                 Go Premium
@@ -453,11 +453,11 @@ onMounted(() => {
             </ul>
           </template>
 
-          <!-- Free / Community section -->
+          <!-- Free section -->
           <template v-if="freeGroups.length > 0">
             <div class="section-header">
               <div class="section-header__text">
-                <span class="section-header__title">Community</span>
+                <span class="section-header__title">Free</span>
                 <span class="section-header__sub">Free forever</span>
               </div>
             </div>
@@ -1203,7 +1203,7 @@ onMounted(() => {
 }
 
 .course-row.enrolled .row-status {
-  color: #4ade80;
+  color: #15803d;
   font-weight: 600;
 }
 
