@@ -21,6 +21,7 @@ import ReportIssueButton from './ReportIssueButton.vue'
 // AwakeningLoader removed - loading state now shown inline in player
 import { useLearningSession } from '../composables/useLearningSession'
 import { useScriptCache, setCachedScript } from '../composables/useScriptCache'
+import { INITIAL_PRELOAD_SEEDS } from '../composables/useEagerScriptPreload'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
 import { useSharedBeltProgress, getSeedFromLegoId, BELTS, type BeltProgressSyncConfig } from '../composables/useBeltProgress'
 import { useBeltLoader, getBeltForSeed, BELT_RANGES, type BeltLoaderConfig } from '../composables/useBeltLoader'
@@ -5183,12 +5184,23 @@ onMounted(async () => {
               beltProgress.value?.setPlayingPosition(startingSeed)
             }
 
-            // Await eager script (preloaded from App.vue) or fall back to direct call
+            // Await eager script (preloaded from App.vue) or fall back to direct call.
+            // Two-phase preload: phase 1 covers seeds 1-INITIAL_PRELOAD_SEEDS for fast
+            // start; phase 2 fills in the rest in the background. Returning users
+            // beyond the initial window must await phase 2 so jumpToRound finds them.
             let result
-            if (eagerScript?.scriptPromise?.value && eagerScript.courseCode.value === courseCode.value) {
-              console.log('[LearningPlayer] Awaiting eager script preload...')
+            const eagerCourseMatches = eagerScript?.scriptPromise?.value &&
+              eagerScript.courseCode.value === courseCode.value
+            const beyondInitialWindow = isReturningUser && startingSeed > INITIAL_PRELOAD_SEEDS
+
+            if (eagerCourseMatches && beyondInitialWindow && eagerScript.extensionPromise?.value) {
+              console.log(`[LearningPlayer] Returning user at seed ${startingSeed} (beyond initial window) — awaiting full extension...`)
+              result = await eagerScript.extensionPromise.value
+              console.log(`[LearningPlayer] Full script ready: ${result.items.length} items, ${result.roundCount} rounds`)
+            } else if (eagerCourseMatches) {
+              console.log('[LearningPlayer] Awaiting eager script preload (phase 1)...')
               result = await eagerScript.scriptPromise.value
-              console.log(`[LearningPlayer] Eager script ready: ${result.items.length} items, ${result.roundCount} rounds`)
+              console.log(`[LearningPlayer] Phase 1 ready: ${result.items.length} items, ${result.roundCount} rounds`)
             } else {
               console.log('[LearningPlayer] No eager preload available, loading directly...')
               result = await generateSimpleScript(supabase.value, courseCode.value, 1, 668, 1)
@@ -5199,6 +5211,25 @@ onMounted(async () => {
               const simpleRounds = toSimpleRoundsWithComponents(result.items)
 
               simplePlayer.initialize(simpleRounds as any)
+
+              // If we used the phase-1 result, listen for the phase-2 extension
+              // and append the additional rounds to the player when ready.
+              if (eagerCourseMatches && !beyondInitialWindow && eagerScript.extensionPromise?.value) {
+                eagerScript.extensionPromise.value.then((fullResult: any) => {
+                  if (!fullResult || eagerScript.courseCode.value !== courseCode.value) return
+                  if (fullResult.items.length <= result.items.length) return
+                  const fullRounds = toSimpleRoundsWithComponents(fullResult.items)
+                  const existingIds = new Set((simpleRounds as any[]).map((r: any) => r.legoId))
+                  const newRounds = fullRounds.filter((r: any) => !existingIds.has(r.legoId))
+                  if (newRounds.length > 0) {
+                    simplePlayer.addRounds(newRounds as any)
+                    loadedRounds.value = [...(simpleRounds as any[]), ...newRounds] as any
+                    console.log(`[LearningPlayer] Extended with ${newRounds.length} additional rounds`)
+                  }
+                }).catch((err: any) => {
+                  console.warn('[LearningPlayer] Background extension failed:', err)
+                })
+              }
 
               // Restore position for returning users
               if (isReturningUser) {
