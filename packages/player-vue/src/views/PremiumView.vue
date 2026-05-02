@@ -70,6 +70,12 @@ const otherPremiumCourses = computed(() => {
 
 function selectContextCourse(c: Course) {
   router.replace({ name: 'premium', query: { course: c.course_code } })
+  // Scroll the page back up so the user actually sees the headline echo
+  // their pick instead of staring at the list while the change happens
+  // off-screen.
+  if (typeof window !== 'undefined') {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 }
 
 function goBackToFreeCourses() {
@@ -274,10 +280,11 @@ onMounted(async () => {
         <h2 class="premium-list__title">
           {{ contextCourseCode ? 'All Premium courses' : 'Includes:' }}
         </h2>
-        <ul class="premium-list__grid">
-          <li
+        <div class="premium-list__grid">
+          <button
             v-for="c in premiumCourses"
             :key="c.course_code"
+            type="button"
             class="premium-list__item"
             :class="{ active: c.course_code === contextCourseCode }"
             @click="selectContextCourse(c)"
@@ -285,8 +292,8 @@ onMounted(async () => {
             <LanguageFlag :code="c.target_lang" :size="20" />
             <span class="premium-list__name">{{ getLanguageName(c.target_lang) }}</span>
             <span class="premium-list__for">for {{ getLanguageEndonym(c.known_lang) }}</span>
-          </li>
-        </ul>
+          </button>
+        </div>
       </section>
 
       <!-- Page-level escape hatch — well below the upgrade CTA so it doesn't
@@ -486,7 +493,6 @@ onMounted(async () => {
 }
 
 .premium-list__grid {
-  list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
@@ -508,6 +514,11 @@ onMounted(async () => {
   border-left: 3px solid rgba(212, 168, 83, 0.55);
   border-radius: var(--radius-md);
   cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  /* Eliminate the iOS tap-delay so the press feels immediate. */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   transition: background 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
 }
 
