@@ -1338,20 +1338,36 @@ export async function generateLearningScript(
       roundMissingAudio.add(item.roundNumber)
     }
   }
-  // Remove items from rounds that have no audio at all (unbuilt seeds)
-  const incompleteRounds = new Set([...roundMissingAudio].filter(r => !roundHasAudio.has(r)))
-  const playableItems = incompleteRounds.size > 0
-    ? dedupedItems.filter(i => !incompleteRounds.has(i.roundNumber))
-    : dedupedItems
+  // Drop rounds that have no audio at all (unbuilt seeds), and drop individual
+  // cycles missing required text (partially-built phrases). Per-cycle filtering
+  // preserves the good cycles in a partially-incomplete round; whole-round
+  // filtering preserves nothing if even one cycle is good.
+  const incompleteByAudio = new Set([...roundMissingAudio].filter(r => !roundHasAudio.has(r)))
+  let droppedByText = 0
+  const playableItems = dedupedItems.filter(item => {
+    if (incompleteByAudio.has(item.roundNumber)) return false
+    const knownOk = typeof item.knownText === 'string' && item.knownText.trim().length > 0
+    const targetOk = typeof item.targetText === 'string' && item.targetText.trim().length > 0
+    if (!knownOk || !targetOk) {
+      droppedByText++
+      return false
+    }
+    return true
+  })
 
-  if (incompleteRounds.size > 0) {
-    console.info(`[generateLearningScript] Filtered out ${incompleteRounds.size} incomplete rounds (no audio yet)`)
+  if (incompleteByAudio.size > 0 || droppedByText > 0) {
+    console.info(`[generateLearningScript] Filtered ${incompleteByAudio.size} no-audio rounds, ${droppedByText} missing-text cycles`)
   }
 
-  // Validate generated script integrity (only playable items)
-  const validationReport = validateLearningScript(playableItems)
-  if (!validationReport.valid) {
-    console.warn(`[generateLearningScript] Validation: ${validationReport.summary}`)
+  // Validate generated script integrity in dev mode only — production cold
+  // start doesn't benefit from re-checking script integrity at runtime, and
+  // validating a 9999-round script costs hundreds of ms on in-progress
+  // courses where most rounds end up with errors anyway.
+  if (import.meta.env.DEV) {
+    const validationReport = validateLearningScript(playableItems)
+    if (!validationReport.valid) {
+      console.warn(`[generateLearningScript] Validation: ${validationReport.summary}`)
+    }
   }
 
   // Summary: intros missing presentation audio (single log instead of per-item spam)
@@ -1366,6 +1382,6 @@ export async function generateLearningScript(
   const listeningStats = listeningConfig.enabled && graduatedSeeds.size > 0
     ? `, ${graduatedSeeds.size} seeds graduated, ${listeningItemCount} listening items`
     : ''
-  console.debug(`[generateLearningScript] ${playableItems.length} items, ${playableRoundCount} rounds for ${courseCode} S${startSeed}-${endSeed}${removedCount > 0 ? `, ${removedCount} deduped` : ''}${incompleteRounds.size > 0 ? `, ${incompleteRounds.size} incomplete filtered` : ''}${skippedRounds > 0 ? `, from R${emitFromRound}` : ''}${listeningStats}`)
+  console.debug(`[generateLearningScript] ${playableItems.length} items, ${playableRoundCount} rounds for ${courseCode} S${startSeed}-${endSeed}${removedCount > 0 ? `, ${removedCount} deduped` : ''}${incompleteByAudio.size > 0 ? `, ${incompleteByAudio.size} no-audio rounds` : ''}${droppedByText > 0 ? `, ${droppedByText} bad-text cycles` : ''}${skippedRounds > 0 ? `, from R${emitFromRound}` : ''}${listeningStats}`)
   return { items: playableItems, cycleCount: playableItems.length, roundCount: playableRoundCount, hasRomanizedText: courseHasRomanized }
 }
