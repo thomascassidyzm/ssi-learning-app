@@ -12,6 +12,7 @@
  * - Localized UI based on selected known language
  */
 import { ref, computed, watch, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useI18n, setLocale, getLanguageName, getLanguageEndonym } from '../composables/useI18n'
 import LanguageFlag from './schools/shared/LanguageFlag.vue'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
@@ -20,6 +21,7 @@ import { useUserRole } from '../composables/useUserRole'
 import { checkCourseAccess, inferPricingTier } from '@ssi/core'
 
 const { t } = useI18n()
+const router = useRouter()
 
 // Entitlement + subscription singletons (initialized by App.vue)
 const { entitlements: userEntitlements } = useSharedUserEntitlements()
@@ -148,9 +150,10 @@ const getForLabel = (course) => {
   return knownName
 }
 
-// All visible courses (filtered by search, accessible)
+// All visible courses — premium courses ARE shown to non-subscribers (locked,
+// click routes to /premium for upgrade) so the catalogue advertises the offer.
 const visibleCourses = computed(() => {
-  let courses = allCourses.value.filter(c => !isPremiumCourse(c) || hasFullAccess(c))
+  let courses = allCourses.value
 
   const q = searchQuery.value.trim().toLowerCase()
   if (q) {
@@ -254,7 +257,10 @@ const isLocked = (course) => {
 
 // Handle course selection
 const handleCourseSelect = (course) => {
-  if (isLocked(course)) return
+  if (isLocked(course)) {
+    router.push('/premium')
+    return
+  }
   // Haptic feedback
   if (navigator.vibrate) {
     navigator.vibrate(10)

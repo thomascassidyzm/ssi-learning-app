@@ -9,8 +9,11 @@
  * - Shows cache stats when complete
  */
 import { ref, computed, watch, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useOfflineCache } from '../composables/useOfflineCache'
 import { useEntitlement, PAID_DOWNLOAD_HOURS } from '../composables/useEntitlement'
+
+const router = useRouter()
 
 const props = defineProps<{
   courseId: string
@@ -161,14 +164,18 @@ watch(() => props.courseId, async (newCourseId) => {
     </button>
 
     <!-- Not entitled (free users) -->
-    <div v-else-if="!canDownload && !isDownloading" class="download-locked">
+    <button
+      v-else-if="!canDownload && !isDownloading"
+      class="download-locked"
+      @click="router.push('/premium')"
+    >
       <svg class="icon-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
         <path d="M7 11V7a5 5 0 0110 0v4"/>
       </svg>
       <span>Upgrade to download</span>
       <span class="download-hint">Free users get auto-prefetch during learning</span>
-    </div>
+    </button>
 
     <!-- Download progress -->
     <div v-if="showProgress" class="download-progress">

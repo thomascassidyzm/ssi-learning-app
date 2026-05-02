@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, shallowRef, inject, nextTick, type PropType, type Ref } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   AudioController,
   CyclePhase,
@@ -53,6 +54,8 @@ import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
 
 const emit = defineEmits(['close', 'playStateChanged', 'viewProgress', 'listeningModeChanged', 'drivingModeChanged', 'pronunciationModeChanged', 'cycle-started'])
+
+const router = useRouter()
 
 interface VoiceSettings {
   voiceId?: string
@@ -5952,10 +5955,11 @@ defineExpose({
     <div v-if="showPaywall" class="paywall-overlay">
       <div class="paywall-card">
         <h2 class="paywall-title">You've completed the free preview!</h2>
-        <p class="paywall-subtitle">Enter an access code to keep learning beyond seed {{ PREMIUM_PREVIEW_MAX_SEED }}.</p>
+        <p class="paywall-subtitle">Get SSi Premium for £15/month — all paid courses, 7 days free.</p>
         <div class="paywall-actions">
-          <button class="paywall-btn paywall-btn-primary" @click="emit('viewProgress')">Enter Code</button>
-          <button class="paywall-btn paywall-btn-ghost" @click="showPaywall = false; simplePlayer.jumpToRound(0); simplePlayer.resume()">Keep Previewing</button>
+          <button class="paywall-btn paywall-btn-primary" @click="router.push('/premium')">Start 7-day free trial</button>
+          <button class="paywall-btn paywall-btn-ghost" @click="emit('viewProgress')">I have an access code</button>
+          <button class="paywall-btn paywall-btn-ghost" @click="showPaywall = false; simplePlayer.jumpToRound(0); simplePlayer.resume()">Keep previewing</button>
         </div>
       </div>
     </div>
