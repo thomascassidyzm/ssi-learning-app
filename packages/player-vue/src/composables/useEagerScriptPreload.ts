@@ -17,8 +17,14 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { generateLearningScript, type LearningScriptResult } from '../providers/generateLearningScript'
 import { checkContentVersion } from './useScriptCache'
 
-/** Seeds covered by the initial fast load — enough for ~10 min of audio. */
-export const INITIAL_PRELOAD_SEEDS = 30
+/**
+ * Seeds covered by the initial fast load. The script generator's main loop
+ * introduces every LEGO in this range (≈ 3 LEGOs per seed), so cost scales
+ * roughly linearly with this number — keep it small. 10 seeds ≈ 30 LEGOs ≈
+ * well over an hour of practice content, which is plenty of buffer for phase
+ * 2 to finish loading the rest of the course in the background.
+ */
+export const INITIAL_PRELOAD_SEEDS = 10
 
 export interface EagerScriptPreload {
   /** Phase 1: resolves quickly with seeds 1-INITIAL_PRELOAD_SEEDS */
