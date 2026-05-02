@@ -809,6 +809,32 @@ const sharedInstanceRef = shallowRef<ReturnType<typeof useBeltProgress> | null>(
 let sharedCourseCode: string | null = null
 let sharedSyncConfig: BeltProgressSyncConfig | null = null
 
+// Unwrap a Ref-or-raw value the same way useBeltProgress' internal helpers do
+// (lines 153-164). Lets us compare configs by leaf value instead of by
+// reference identity — necessary because LearningPlayer creates a fresh
+// `computed(() => learnerId.value)` on every mount.
+function unwrapMaybeRef<T>(v: Ref<T> | T | null | undefined): T | null {
+  if (v === null || v === undefined) return null
+  if (typeof v === 'object' && v !== null && 'value' in v) {
+    return (v as Ref<T>).value
+  }
+  return v as T
+}
+
+function syncConfigsMatch(
+  a: BeltProgressSyncConfig | null,
+  b: BeltProgressSyncConfig | undefined,
+): boolean {
+  // unwrapMaybeRef pulls primitives or the underlying client out of a Ref;
+  // comparing those by === is safe (and avoids JSON.stringify, which crashes
+  // on Vue's reactive proxy graph: 'deps' → 'sub' → cycle).
+  const aSb = unwrapMaybeRef(a?.supabase)
+  const bSb = unwrapMaybeRef(b?.supabase)
+  const aLi = unwrapMaybeRef(a?.learnerId)
+  const bLi = unwrapMaybeRef(b?.learnerId)
+  return aSb === bSb && aLi === bLi
+}
+
 export function useSharedBeltProgress(
   courseCode: string,
   syncConfig?: BeltProgressSyncConfig
@@ -816,7 +842,7 @@ export function useSharedBeltProgress(
   if (
     sharedInstanceRef.value &&
     sharedCourseCode === courseCode &&
-    JSON.stringify(sharedSyncConfig) === JSON.stringify(syncConfig)
+    syncConfigsMatch(sharedSyncConfig, syncConfig)
   ) {
     return sharedInstanceRef.value
   }
