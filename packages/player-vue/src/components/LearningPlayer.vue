@@ -5988,7 +5988,7 @@ defineExpose({
         <h2 class="paywall-title">You've completed the free preview!</h2>
         <p class="paywall-subtitle">Get SSi Premium for £15/month — all paid courses, 7 days free.</p>
         <div class="paywall-actions">
-          <button class="paywall-btn paywall-btn-primary" @click="router.push('/premium')">Start 7-day free trial</button>
+          <button class="paywall-btn paywall-btn-primary" @click="router.push({ name: 'premium', query: { course: courseCode } })">Start 7-day free trial</button>
           <button class="paywall-btn paywall-btn-ghost" @click="emit('viewProgress')">I have an access code</button>
           <button class="paywall-btn paywall-btn-ghost" @click="showPaywall = false; simplePlayer.jumpToRound(0); simplePlayer.resume()">Keep previewing</button>
         </div>

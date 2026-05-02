@@ -301,7 +301,7 @@ const isLocked = (course) => {
 // Handle course selection
 const handleCourseSelect = (course) => {
   if (isLocked(course)) {
-    router.push('/premium')
+    router.push({ name: 'premium', query: { course: course.course_code } })
     return
   }
   // Haptic feedback

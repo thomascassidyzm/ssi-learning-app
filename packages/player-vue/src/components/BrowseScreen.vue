@@ -214,7 +214,7 @@ const isLocked = (course) => isPremiumCourse(course) && !hasFullAccess(course)
 
 const handleCourseClick = (course) => {
   if (isLocked(course)) {
-    router.push('/premium')
+    router.push({ name: 'premium', query: { course: course.course_code } })
     return
   }
   emit('select-course', course)

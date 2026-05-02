@@ -1,17 +1,21 @@
 <script setup lang="ts">
 import { ref, computed, inject, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import FrostCard from '@/components/schools/shared/FrostCard.vue'
 import Button from '@/components/schools/shared/Button.vue'
 import AtmosphereBackdrop from '@/components/schools/shared/AtmosphereBackdrop.vue'
+import LanguageFlag from '@/components/schools/shared/LanguageFlag.vue'
 import { SignInModal } from '@/components/auth'
 import { useAuthModal } from '@/composables/useAuthModal'
+import { useI18n, getLanguageName, getLanguageEndonym } from '@/composables/useI18n'
 import { getPaddle, paddleConfig } from '@/lib/paddle'
 import '@/styles/schools-tokens.css'
 
 const route = useRoute()
+const router = useRouter()
 const supabase = inject('supabase', ref(null)) as any
 const auth = inject<any>('auth', null)
+useI18n() // ensure locale reactivity for getLanguageName
 
 const isAuthenticated = computed(() => auth?.isAuthenticated?.value ?? false)
 const isAuthLoading = computed(() => auth?.isLoading?.value ?? false)
@@ -28,13 +32,45 @@ interface Subscription {
   provider: string
 }
 
+interface Course {
+  course_code: string
+  target_lang: string
+  known_lang: string
+  display_name: string
+}
+
 const subscription = ref<Subscription | null>(null)
 const isLoadingSub = ref(true)
 const isOpeningCheckout = ref(false)
 const isPolling = ref(false)
 const checkoutError = ref('')
+const premiumCourses = ref<Course[]>([])
 
 const PREMIUM_PRICE = 15
+
+const contextCourseCode = computed(() => (route.query.course as string | undefined) || null)
+
+const contextCourse = computed<Course | null>(() => {
+  if (!contextCourseCode.value) return null
+  return premiumCourses.value.find(c => c.course_code === contextCourseCode.value) || null
+})
+
+const contextHeadline = computed(() => {
+  const c = contextCourse.value
+  if (!c) return null
+  const target = getLanguageName(c.target_lang)
+  const knownEndonym = getLanguageEndonym(c.known_lang)
+  return `${target} for ${knownEndonym} speakers is a Premium course.`
+})
+
+const otherPremiumCourses = computed(() => {
+  if (!contextCourseCode.value) return premiumCourses.value
+  return premiumCourses.value.filter(c => c.course_code !== contextCourseCode.value)
+})
+
+function selectContextCourse(c: Course) {
+  router.replace({ name: 'premium', query: { course: c.course_code } })
+}
 
 async function getAuthToken(): Promise<string | null> {
   if (!supabase.value) return null
@@ -122,7 +158,23 @@ const formattedPeriodEnd = computed(() => {
   })
 })
 
+async function fetchPremiumCourses() {
+  if (!supabase.value) return
+  try {
+    const { data, error } = await supabase.value
+      .from('courses')
+      .select('course_code, target_lang, known_lang, display_name')
+      .eq('pricing_tier', 'premium')
+      .in('new_app_status', ['live', 'beta'])
+      .order('target_lang')
+    if (!error && data) premiumCourses.value = data
+  } catch {
+    // non-fatal — page still renders without the list
+  }
+}
+
 onMounted(async () => {
+  fetchPremiumCourses()
   if (isAuthenticated.value) {
     await fetchSubscription()
     if (route.query.just_subscribed && subscription.value?.status !== 'active') {
@@ -141,10 +193,18 @@ onMounted(async () => {
     <main class="content">
       <header class="page-header">
         <span class="frost-eyebrow">SSi Premium</span>
-        <h1 class="frost-display">All courses. All features. £{{ PREMIUM_PRICE }}/month.</h1>
-        <p class="lede">
-          7 days free, then £{{ PREMIUM_PRICE }}/month. Cancel anytime.
-        </p>
+        <template v-if="contextHeadline">
+          <h1 class="frost-display contextual">{{ contextHeadline }}</h1>
+          <p class="lede">
+            Plus {{ otherPremiumCourses.length }} other Premium course{{ otherPremiumCourses.length === 1 ? '' : 's' }}. 7 days free, then £{{ PREMIUM_PRICE }}/month. Cancel anytime.
+          </p>
+        </template>
+        <template v-else>
+          <h1 class="frost-display">All courses. All features. £{{ PREMIUM_PRICE }}/month.</h1>
+          <p class="lede">
+            7 days free, then £{{ PREMIUM_PRICE }}/month. Cancel anytime.
+          </p>
+        </template>
       </header>
 
       <FrostCard variant="panel" class="state-card">
@@ -203,6 +263,26 @@ onMounted(async () => {
           </Button>
         </div>
       </FrostCard>
+
+      <!-- All Premium courses — social proof + course-swap -->
+      <section v-if="premiumCourses.length > 0 && subscription?.status !== 'active'" class="premium-list">
+        <h2 class="premium-list__title">
+          {{ contextCourseCode ? 'All Premium courses' : 'Includes:' }}
+        </h2>
+        <ul class="premium-list__grid">
+          <li
+            v-for="c in premiumCourses"
+            :key="c.course_code"
+            class="premium-list__item"
+            :class="{ active: c.course_code === contextCourseCode }"
+            @click="selectContextCourse(c)"
+          >
+            <LanguageFlag :code="c.target_lang" :size="20" />
+            <span class="premium-list__name">{{ getLanguageName(c.target_lang) }}</span>
+            <span class="premium-list__for">for {{ getLanguageEndonym(c.known_lang) }}</span>
+          </li>
+        </ul>
+      </section>
     </main>
 
     <SignInModal @success="handleAuthSuccess" />
@@ -240,6 +320,11 @@ onMounted(async () => {
   font-size: var(--text-3xl);
   line-height: 1.15;
   margin: 0;
+}
+
+.page-header .frost-display.contextual {
+  font-size: var(--text-2xl);
+  line-height: 1.2;
 }
 
 .lede {
@@ -349,6 +434,74 @@ onMounted(async () => {
   to { transform: rotate(360deg); }
 }
 
+.premium-list {
+  margin-top: var(--space-2);
+}
+
+.premium-list__title {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  margin: 0 0 var(--space-4);
+  text-align: center;
+}
+
+.premium-list__grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+@media (min-width: 560px) {
+  .premium-list__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+.premium-list__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(44, 38, 34, 0.07);
+  border-left: 3px solid rgba(212, 168, 83, 0.55);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
+}
+
+.premium-list__item:hover {
+  background: rgba(255, 255, 255, 0.85);
+  border-left-color: #d4a853;
+}
+
+.premium-list__item:active {
+  transform: scale(0.98);
+}
+
+.premium-list__item.active {
+  background: rgba(212, 168, 83, 0.12);
+  border-color: rgba(212, 168, 83, 0.55);
+  border-left-color: #b8893c;
+}
+
+.premium-list__name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ink-primary);
+}
+
+.premium-list__for {
+  margin-left: auto;
+  font-size: 0.6875rem;
+  color: var(--ink-muted);
+}
+
 @media (max-width: 768px) {
   .content {
     padding: var(--space-8) var(--space-4);
@@ -356,6 +509,10 @@ onMounted(async () => {
 
   .state-card {
     padding: var(--space-6);
+  }
+
+  .premium-list__for {
+    display: none;
   }
 }
 </style>
