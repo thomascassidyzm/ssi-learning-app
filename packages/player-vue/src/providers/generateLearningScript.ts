@@ -192,6 +192,88 @@ export async function generateLearningScript(
   const listenOutroAudio = bookendByRole.get('bookend_listen_outro')
   const hasBookends = !!(listenIntroAudio && listenOutroAudio)
 
+  // ---------------------------------------------------------------------------
+  // AUDIO ID FALLBACK (tolerance layer — Lever 1)
+  //
+  // The dashboard's text-edit trigger NULLs `*_audio_id` columns on
+  // course_legos / course_practice_phrases when text changes, but no inverse
+  // trigger re-links them when fresh audio later lands in course_audio. So
+  // rows can stay NULL even when the audio exists. This block looks up any
+  // missing IDs in course_audio by (role, normalized text) and patches them
+  // in memory before the downstream audio-completeness filters run.
+  //
+  // Once the dashboard closes the re-link gap at source, this section becomes
+  // redundant and should be deleted.
+  // ---------------------------------------------------------------------------
+  const normalizeForAudioMatch = (text: string | undefined | null): string => {
+    if (!text || typeof text !== 'string') return ''
+    // Mirror dashboard's normalize_text(): lower(trim(t)) then strip trailing
+    // sentence-ending punctuation across English / Spanish / CJK marks.
+    return text.toLowerCase().trim().replace(/[.?!¿¡。？！]+$/, '')
+  }
+  type FallbackRow = {
+    phrase_role?: string
+    known_text: string
+    target_text: string
+    known_audio_id?: string
+    target1_audio_id?: string
+    target2_audio_id?: string
+  }
+  const legosForFallback = (legosResult.data || []) as FallbackRow[]
+  const phrasesForFallback = (phrasesResult.data || []) as FallbackRow[]
+  const phraseNeedsFallback = (p: FallbackRow) =>
+    p.phrase_role !== 'component' &&
+    (!p.known_audio_id || !p.target1_audio_id || !p.target2_audio_id)
+  const legoNeedsFallback = (l: FallbackRow) =>
+    !l.known_audio_id || !l.target1_audio_id || !l.target2_audio_id
+  const fallbackNeeded =
+    legosForFallback.some(legoNeedsFallback) ||
+    phrasesForFallback.some(phraseNeedsFallback)
+
+  if (fallbackNeeded) {
+    const audioRowsResult = await supabase
+      .from('course_audio')
+      .select('id, text_normalized, role')
+      .eq('course_code', courseCode)
+      .in('role', ['known', 'target1', 'target2'])
+      .limit(20000)
+
+    if (audioRowsResult.error) {
+      console.warn(`[generateLearningScript] Audio fallback query failed: ${audioRowsResult.error.message}`)
+    } else if (audioRowsResult.data && audioRowsResult.data.length > 0) {
+      const audioLookup = new Map<string, string>()
+      for (const row of audioRowsResult.data as Array<{ id: string; text_normalized: string; role: string }>) {
+        audioLookup.set(`${row.role}:${normalizeForAudioMatch(row.text_normalized)}`, row.id)
+      }
+
+      let patchedLego = 0
+      let patchedPhrase = 0
+      const tryPatch = (row: FallbackRow, isPhrase: boolean) => {
+        if (!row.known_audio_id) {
+          const id = audioLookup.get(`known:${normalizeForAudioMatch(row.known_text)}`)
+          if (id) { row.known_audio_id = id; if (isPhrase) patchedPhrase++; else patchedLego++ }
+        }
+        if (!row.target1_audio_id) {
+          const id = audioLookup.get(`target1:${normalizeForAudioMatch(row.target_text)}`)
+          if (id) { row.target1_audio_id = id; if (isPhrase) patchedPhrase++; else patchedLego++ }
+        }
+        if (!row.target2_audio_id) {
+          const id = audioLookup.get(`target2:${normalizeForAudioMatch(row.target_text)}`)
+          if (id) { row.target2_audio_id = id; if (isPhrase) patchedPhrase++; else patchedLego++ }
+        }
+      }
+      for (const lego of legosForFallback) {
+        if (legoNeedsFallback(lego)) tryPatch(lego, false)
+      }
+      for (const phrase of phrasesForFallback) {
+        if (phraseNeedsFallback(phrase)) tryPatch(phrase, true)
+      }
+      if (patchedLego > 0 || patchedPhrase > 0) {
+        console.info(`[generateLearningScript] Audio fallback recovered ${patchedLego} LEGO + ${patchedPhrase} phrase audio IDs from course_audio (link drift)`)
+      }
+    }
+  }
+
   // -------------------------------------------------------------------------
   // Listening Layers (Aran spec, 2026-04-29 — canonical visualiser at
   // popty.app/listening-playground.html).
