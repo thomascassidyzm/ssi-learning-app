@@ -175,6 +175,11 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   // ============================================================================
 
   const fetchRemoteProgress = async (): Promise<{ beltIndex: number; lastLegoId: string | null } | null> => {
+    // Skip for guests — `course_enrollments.learner_id` is uuid-typed and the
+    // `guest-{uuid}` prefix breaks the column constraint (400 from Supabase).
+    // canSync() applies the same guard for the write path; mirror it here.
+    if (!canSync()) return null
+
     const supabase = getSupabase()
     const learnerId = getLearnerId()
 
