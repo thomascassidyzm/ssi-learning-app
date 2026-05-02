@@ -184,7 +184,14 @@ const courseGroups = computed(() => {
     }
     groups.get(key).courses.push(course)
   }
-  return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name))
+  // Premium groups float to the top (the offer is the first thing free
+  // users see), then alphabetical within each tier.
+  return [...groups.values()].sort((a, b) => {
+    const aPrem = a.courses.some(c => isPremiumCourse(c)) ? 0 : 1
+    const bPrem = b.courses.some(c => isPremiumCourse(c)) ? 0 : 1
+    if (aPrem !== bPrem) return aPrem - bPrem
+    return a.name.localeCompare(b.name)
+  })
 })
 
 // Handle clicking a language group
@@ -338,7 +345,8 @@ onMounted(() => {
                   class="target-card"
                   :class="{
                     enrolled: isEnrolled(group.courses[0].course_code),
-                    active: isActive(group.courses[0].course_code)
+                    active: isActive(group.courses[0].course_code),
+                    locked: isLocked(group.courses[0])
                   }"
                   @click="handleCourseSelect(group.courses[0])"
                 >
@@ -347,18 +355,19 @@ onMounted(() => {
                       <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
                     </svg>
                   </div>
+                  <div v-else-if="isLocked(group.courses[0])" class="premium-badge">Premium</div>
                   <div v-else-if="isBetaCourse(group.courses[0])" class="beta-badge">β</div>
 
                   <LanguageFlag :code="group.courses[0].target_lang" :size="18" class="target-flag" />
                   <span class="target-name">{{ group.name }}</span>
                   <span class="target-for">{{ t('courseSelector.forSpeakers', 'for {lang} speakers').replace('{lang}', group.forLabel) }}</span>
 
-                  <span class="target-status" :class="{ 'preview-status': isPremiumCourse(group.courses[0]) && !hasFullAccess(group.courses[0]) }">
+                  <span class="target-status" :class="{ 'preview-status': isLocked(group.courses[0]) }">
                     <template v-if="isEnrolled(group.courses[0].course_code)">
                       {{ getProgress(group.courses[0].course_code) }}%
                     </template>
-                    <template v-else-if="isPremiumCourse(group.courses[0]) && !hasFullAccess(group.courses[0])">
-                      {{ t('courseSelector.freePreview', 'Free preview') }}
+                    <template v-else-if="isLocked(group.courses[0])">
+                      Try free →
                     </template>
                   </span>
                 </button>
@@ -402,7 +411,8 @@ onMounted(() => {
                       class="variant-card"
                       :class="{
                         enrolled: isEnrolled(course.course_code),
-                        active: isActive(course.course_code)
+                        active: isActive(course.course_code),
+                        locked: isLocked(course)
                       }"
                       @click="handleCourseSelect(course)"
                     >
@@ -414,12 +424,12 @@ onMounted(() => {
 
                       <span class="variant-name">{{ getVariantLabel(course) || course.display_name }}</span>
 
-                      <span class="target-status" :class="{ 'preview-status': isPremiumCourse(course) && !hasFullAccess(course) }">
+                      <span class="target-status" :class="{ 'preview-status': isLocked(course) }">
                         <template v-if="isEnrolled(course.course_code)">
                           {{ getProgress(course.course_code) }}%
                         </template>
-                        <template v-else-if="isPremiumCourse(course) && !hasFullAccess(course)">
-                          {{ t('courseSelector.freePreview', 'Free preview') }}
+                        <template v-else-if="isLocked(course)">
+                          Try free →
                         </template>
                       </span>
                     </button>
@@ -718,6 +728,32 @@ onMounted(() => {
   font-weight: 400;
   color: rgba(167, 139, 250, 0.8);
   letter-spacing: 0.05em;
+}
+
+.premium-badge {
+  position: absolute;
+  top: 0.375rem;
+  right: 0.375rem;
+  padding: 0.125rem 0.4375rem;
+  background: linear-gradient(135deg, #d4a853, #b8893c);
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  box-shadow: 0 1px 2px rgba(184, 137, 60, 0.3);
+}
+
+.target-card.locked {
+  /* Subtle gold accent on locked cards — distinguishes them from
+     free courses without making them feel un-clickable. */
+  border-color: rgba(212, 168, 83, 0.45);
+}
+
+.target-card.locked:hover {
+  border-color: rgba(212, 168, 83, 0.75);
 }
 
 .target-flag {
