@@ -222,9 +222,6 @@ onMounted(async () => {
         <div v-else-if="!isAuthenticated" class="cta">
           <p>Take it for a test drive — 7 days free, no commitment. £{{ PREMIUM_PRICE }}/month from day 8 unless you cancel. We'll email a one-time code to sign you in — no password to remember.</p>
           <Button variant="primary" size="lg" @click="() => openAuth()">Start 7-day free trial</Button>
-          <button type="button" class="back-link" @click="goBackToFreeCourses">
-            Or browse our free courses →
-          </button>
         </div>
 
         <!-- Loading sub -->
@@ -269,9 +266,6 @@ onMounted(async () => {
           >
             Start 7-day free trial
           </Button>
-          <button type="button" class="back-link" @click="goBackToFreeCourses">
-            Or browse our free courses →
-          </button>
         </div>
       </FrostCard>
 
@@ -294,6 +288,14 @@ onMounted(async () => {
           </li>
         </ul>
       </section>
+
+      <!-- Page-level escape hatch — well below the upgrade CTA so it doesn't
+           compete with it visually. -->
+      <div v-if="!isAuthLoading && !isPolling" class="page-back-link-wrap">
+        <button type="button" class="back-link" @click="goBackToFreeCourses">
+          Or browse our free courses →
+        </button>
+      </div>
     </main>
 
     <SignInModal @success="handleAuthSuccess" />
@@ -432,8 +434,15 @@ onMounted(async () => {
   font-size: var(--text-sm);
 }
 
+.page-back-link-wrap {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid rgba(44, 38, 34, 0.06);
+}
+
 .back-link {
-  align-self: center;
   background: transparent;
   border: none;
   padding: var(--space-2) var(--space-3);
