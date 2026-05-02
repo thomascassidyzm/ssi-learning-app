@@ -20,8 +20,22 @@ import { useSharedSubscription } from '../composables/useSubscription'
 import { useUserRole } from '../composables/useUserRole'
 import { checkCourseAccess, inferPricingTier } from '@ssi/core'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const router = useRouter()
+
+// I-speak filter state. Default = saved choice → UI locale → 'eng'.
+const I_SPEAK_KEY = 'ssi-i-speak'
+const iSpeak = ref((() => {
+  try {
+    const saved = localStorage.getItem(I_SPEAK_KEY)
+    if (saved) return saved
+  } catch { /* SSR / private mode */ }
+  return locale.value || 'eng'
+})())
+
+watch(iSpeak, (v) => {
+  try { localStorage.setItem(I_SPEAK_KEY, v) } catch { /* noop */ }
+})
 
 // Entitlement + subscription singletons (initialized by App.vue)
 const { entitlements: userEntitlements } = useSharedUserEntitlements()
@@ -155,9 +169,14 @@ const getForLabel = (course) => {
 const visibleCourses = computed(() => {
   let courses = allCourses.value
 
+  // I-speak filter — drops the long tail of "X for Y speakers" rows where
+  // Y isn't the user's known language. Search bypasses the filter so users
+  // can still find any course by name.
   const q = searchQuery.value.trim().toLowerCase()
   if (q) {
     courses = courses.filter(c => buildSearchString(c).includes(q))
+  } else if (iSpeak.value) {
+    courses = courses.filter(c => c.known_lang === iSpeak.value)
   }
 
   return courses.sort((a, b) => {
@@ -166,6 +185,23 @@ const visibleCourses = computed(() => {
     return nameA.localeCompare(nameB)
   })
 })
+
+// I-speak pills — known languages in the catalogue, sorted by course count
+// descending so the most-served audience (typically English) leads.
+const availableKnownLangs = computed(() => {
+  const counts = new Map()
+  for (const c of allCourses.value) {
+    if (!c.known_lang) continue
+    counts.set(c.known_lang, (counts.get(c.known_lang) || 0) + 1)
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || getLanguageEndonym(a[0]).localeCompare(getLanguageEndonym(b[0])))
+    .map(([code, count]) => ({ code, count }))
+})
+
+// Tier-split groups for the section-header layout.
+const premiumGroups = computed(() => courseGroups.value.filter(g => g.courses.some(c => isPremiumCourse(c))))
+const freeGroups = computed(() => courseGroups.value.filter(g => !g.courses.some(c => isPremiumCourse(c))))
 
 // Group by base language for variant handling (cym_n + cym_s → "Welsh" with 2 variants)
 const courseGroups = computed(() => {
@@ -278,7 +314,7 @@ const handleCourseSelect = (course) => {
 
 // Watch for prop changes
 watch(() => props.defaultKnownLang, (newVal) => {
-  selectedKnownLang.value = newVal
+  if (newVal) iSpeak.value = newVal
 })
 
 watch(() => props.isOpen, (newVal) => {
@@ -301,7 +337,7 @@ onMounted(() => {
     <div v-if="isOpen" class="selector-overlay" @click.self="emit('close')">
       <div class="selector-panel">
         <div class="course-selector">
-          <!-- Header with search -->
+          <!-- Header with search + I-speak pills -->
           <header class="sheet-header">
             <div class="header-top">
               <div class="header-spacer" />
@@ -315,6 +351,20 @@ onMounted(() => {
               placeholder="Search any language..."
               autocomplete="off"
             />
+            <div v-if="availableKnownLangs.length > 1 && !searchQuery.trim()" class="i-speak-row">
+              <span class="i-speak-label">I speak</span>
+              <div class="i-speak-pills">
+                <button
+                  v-for="lang in availableKnownLangs"
+                  :key="lang.code"
+                  class="i-speak-pill"
+                  :class="{ active: iSpeak === lang.code }"
+                  @click="iSpeak = lang.code"
+                >
+                  {{ getLanguageEndonym(lang.code) }}
+                </button>
+              </div>
+            </div>
           </header>
 
           <!-- Loading state -->
@@ -335,113 +385,136 @@ onMounted(() => {
           <div v-if="courseGroups.length === 0 && searchQuery.trim()" class="no-results">
             No courses matching "{{ searchQuery }}"
           </div>
+          <div v-else-if="courseGroups.length === 0 && iSpeak" class="no-results">
+            No courses available yet for {{ getLanguageEndonym(iSpeak) }} speakers.
+          </div>
 
-          <!-- Course Grid -->
-          <div class="target-grid">
-            <template v-for="group in courseGroups" :key="`${group.target_lang}_${group.known_lang}`">
-              <!-- Single course — compact card -->
-              <template v-if="group.courses.length === 1">
-                <button
-                  class="target-card"
-                  :class="{
-                    enrolled: isEnrolled(group.courses[0].course_code),
-                    active: isActive(group.courses[0].course_code),
-                    locked: isLocked(group.courses[0])
-                  }"
-                  @click="handleCourseSelect(group.courses[0])"
-                >
-                  <div v-if="isActive(group.courses[0].course_code)" class="active-badge">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
-                    </svg>
-                  </div>
-                  <div v-else-if="isLocked(group.courses[0])" class="premium-badge">Premium</div>
-                  <div v-else-if="isBetaCourse(group.courses[0])" class="beta-badge">β</div>
-
-                  <LanguageFlag :code="group.courses[0].target_lang" :size="18" class="target-flag" />
-                  <span class="target-name">{{ group.name }}</span>
-                  <span class="target-for">{{ t('courseSelector.forSpeakers', 'for {lang} speakers').replace('{lang}', group.forLabel) }}</span>
-
-                  <span class="target-status" :class="{ 'preview-status': isLocked(group.courses[0]) }">
-                    <template v-if="isEnrolled(group.courses[0].course_code)">
-                      {{ getProgress(group.courses[0].course_code) }}%
-                    </template>
-                    <template v-else-if="isLocked(group.courses[0])">
-                      Try free →
-                    </template>
-                  </span>
-                </button>
-              </template>
-
-              <!-- Multiple variants (e.g. Welsh North/South) -->
-              <template v-else>
-                <button
-                  class="target-card has-variants"
-                  :class="{
-                    expanded: expandedLangGroup === `${group.target_lang}_${group.known_lang}`,
-                    enrolled: group.courses.some(c => isEnrolled(c.course_code)),
-                    active: group.courses.some(c => isActive(c.course_code))
-                  }"
-                  @click="handleGroupClick(group)"
-                >
-                  <div v-if="group.courses.some(c => isActive(c.course_code))" class="active-badge">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
-                    </svg>
-                  </div>
-
-                  <LanguageFlag :code="group.target_lang" :size="18" class="target-flag" />
-                  <span class="target-name">{{ group.name }}</span>
-                  <span class="target-for">{{ t('courseSelector.forSpeakers', 'for {lang} speakers').replace('{lang}', group.forLabel) }}</span>
-
-                  <span class="target-status variant-count">
-                    {{ group.courses.length }} variants
-                    <svg class="chevron" :class="{ rotated: expandedLangGroup === `${group.target_lang}_${group.known_lang}` }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M6 9l6 6 6-6" />
-                    </svg>
-                  </span>
-                </button>
-
-                <!-- Variant sub-cards -->
-                <Transition name="variants">
-                  <div v-if="expandedLangGroup === `${group.target_lang}_${group.known_lang}`" class="variant-list">
+          <!-- Premium section -->
+          <template v-if="premiumGroups.length > 0">
+            <div class="section-header section-header--premium">
+              <div class="section-header__text">
+                <span class="section-header__title">Premium</span>
+                <span class="section-header__sub">All courses · 7 days free, then £15/mo</span>
+              </div>
+              <button class="section-header__cta" @click="router.push('/premium'); emit('close')">
+                Go Premium
+              </button>
+            </div>
+            <ul class="course-list">
+              <template v-for="group in premiumGroups" :key="`p_${group.target_lang}_${group.known_lang}`">
+                <li>
+                  <button
+                    class="course-row premium"
+                    :class="{
+                      enrolled: group.courses.some(c => isEnrolled(c.course_code)),
+                      active: group.courses.some(c => isActive(c.course_code)),
+                      'has-variants': group.courses.length > 1,
+                      expanded: expandedLangGroup === `${group.target_lang}_${group.known_lang}`,
+                    }"
+                    @click="group.courses.length === 1 ? handleCourseSelect(group.courses[0]) : handleGroupClick(group)"
+                  >
+                    <LanguageFlag :code="group.target_lang" :size="22" class="row-flag" />
+                    <span class="row-name">{{ group.name }}</span>
+                    <span v-if="!iSpeak || iSpeak !== group.known_lang" class="row-for">for {{ group.forLabel }}</span>
+                    <span class="row-status">
+                      <template v-if="group.courses.length > 1">
+                        {{ group.courses.length }} variants
+                        <svg class="chevron" :class="{ rotated: expandedLangGroup === `${group.target_lang}_${group.known_lang}` }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M6 9l6 6 6-6" />
+                        </svg>
+                      </template>
+                      <template v-else-if="group.courses.some(c => isEnrolled(c.course_code))">
+                        {{ getProgress(group.courses[0].course_code) }}%
+                      </template>
+                      <template v-else-if="isLocked(group.courses[0])">
+                        <span class="try-free">Try free →</span>
+                      </template>
+                    </span>
+                  </button>
+                </li>
+                <!-- Variant sub-rows -->
+                <template v-if="group.courses.length > 1 && expandedLangGroup === `${group.target_lang}_${group.known_lang}`">
+                  <li v-for="course in group.courses" :key="course.course_code">
                     <button
-                      v-for="course in group.courses"
-                      :key="course.course_code"
-                      class="variant-card"
-                      :class="{
-                        enrolled: isEnrolled(course.course_code),
-                        active: isActive(course.course_code),
-                        locked: isLocked(course)
-                      }"
+                      class="course-row premium variant"
+                      :class="{ enrolled: isEnrolled(course.course_code), active: isActive(course.course_code) }"
                       @click="handleCourseSelect(course)"
                     >
-                      <div v-if="isActive(course.course_code)" class="active-badge small">
-                        <svg viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
-                        </svg>
-                      </div>
-
-                      <span class="variant-name">{{ getVariantLabel(course) || course.display_name }}</span>
-
-                      <span class="target-status" :class="{ 'preview-status': isLocked(course) }">
-                        <template v-if="isEnrolled(course.course_code)">
-                          {{ getProgress(course.course_code) }}%
-                        </template>
-                        <template v-else-if="isLocked(course)">
-                          Try free →
-                        </template>
+                      <span class="variant-indent" />
+                      <span class="row-name">{{ getVariantLabel(course) || course.display_name }}</span>
+                      <span class="row-status">
+                        <template v-if="isEnrolled(course.course_code)">{{ getProgress(course.course_code) }}%</template>
+                        <template v-else-if="isLocked(course)"><span class="try-free">Try free →</span></template>
                       </span>
                     </button>
-                  </div>
-                </Transition>
+                  </li>
+                </template>
               </template>
-            </template>
+            </ul>
+          </template>
+
+          <!-- Free / Community section -->
+          <template v-if="freeGroups.length > 0">
+            <div class="section-header">
+              <div class="section-header__text">
+                <span class="section-header__title">Community</span>
+                <span class="section-header__sub">Free forever</span>
+              </div>
+            </div>
+            <ul class="course-list">
+              <template v-for="group in freeGroups" :key="`f_${group.target_lang}_${group.known_lang}`">
+                <li>
+                  <button
+                    class="course-row"
+                    :class="{
+                      enrolled: group.courses.some(c => isEnrolled(c.course_code)),
+                      active: group.courses.some(c => isActive(c.course_code)),
+                      'has-variants': group.courses.length > 1,
+                      expanded: expandedLangGroup === `${group.target_lang}_${group.known_lang}`,
+                    }"
+                    @click="group.courses.length === 1 ? handleCourseSelect(group.courses[0]) : handleGroupClick(group)"
+                  >
+                    <LanguageFlag :code="group.target_lang" :size="22" class="row-flag" />
+                    <span class="row-name">{{ group.name }}</span>
+                    <span v-if="!iSpeak || iSpeak !== group.known_lang" class="row-for">for {{ group.forLabel }}</span>
+                    <span class="row-status">
+                      <template v-if="group.courses.length > 1">
+                        {{ group.courses.length }} variants
+                        <svg class="chevron" :class="{ rotated: expandedLangGroup === `${group.target_lang}_${group.known_lang}` }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M6 9l6 6 6-6" />
+                        </svg>
+                      </template>
+                      <template v-else-if="group.courses.some(c => isEnrolled(c.course_code))">
+                        {{ getProgress(group.courses[0].course_code) }}%
+                      </template>
+                      <template v-else-if="isBetaCourse(group.courses[0])">
+                        <span class="row-beta">β</span>
+                      </template>
+                    </span>
+                  </button>
+                </li>
+                <template v-if="group.courses.length > 1 && expandedLangGroup === `${group.target_lang}_${group.known_lang}`">
+                  <li v-for="course in group.courses" :key="course.course_code">
+                    <button
+                      class="course-row variant"
+                      :class="{ enrolled: isEnrolled(course.course_code), active: isActive(course.course_code) }"
+                      @click="handleCourseSelect(course)"
+                    >
+                      <span class="variant-indent" />
+                      <span class="row-name">{{ getVariantLabel(course) || course.display_name }}</span>
+                      <span class="row-status">
+                        <template v-if="isEnrolled(course.course_code)">{{ getProgress(course.course_code) }}%</template>
+                      </span>
+                    </button>
+                  </li>
+                </template>
+              </template>
+            </ul>
+          </template>
           </div>
         </div>
       </div>
     </div>
-  </div>
   </Transition>
 </template>
 
@@ -917,6 +990,272 @@ onMounted(() => {
   .target-grid {
     grid-template-columns: repeat(4, 1fr);
   }
+}
+
+/* ============================================================
+ * I-SPEAK PILLS
+ * ============================================================ */
+.i-speak-row {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding-top: 0.75rem;
+}
+
+.i-speak-label {
+  flex-shrink: 0;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted, rgba(0, 0, 0, 0.5));
+}
+
+.i-speak-pills {
+  display: flex;
+  gap: 0.375rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  flex: 1;
+}
+.i-speak-pills::-webkit-scrollbar { display: none; }
+
+.i-speak-pill {
+  flex-shrink: 0;
+  padding: 0.4375rem 0.875rem;
+  background: var(--surface-base, rgba(255, 255, 255, 0.6));
+  border: 1px solid var(--border-base, rgba(0, 0, 0, 0.08));
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-secondary, rgba(0, 0, 0, 0.65));
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.i-speak-pill:hover {
+  background: var(--surface-elevated, rgba(255, 255, 255, 0.85));
+  border-color: var(--border-strong, rgba(0, 0, 0, 0.18));
+  color: var(--text-primary, #2C2622);
+}
+
+.i-speak-pill.active {
+  background: #2C2622;
+  border-color: #2C2622;
+  color: #fff;
+}
+
+/* ============================================================
+ * SECTION HEADERS
+ * ============================================================ */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1.125rem 0.25rem 0.625rem;
+  margin-top: 0.5rem;
+}
+
+.section-header__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.section-header__title {
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--text-primary, #2C2622);
+  letter-spacing: -0.01em;
+}
+
+.section-header__sub {
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  color: var(--text-muted, rgba(0, 0, 0, 0.5));
+}
+
+.section-header--premium .section-header__title {
+  background: linear-gradient(135deg, #b8893c, #8b6324);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.section-header__cta {
+  flex-shrink: 0;
+  padding: 0.4375rem 0.875rem;
+  background: linear-gradient(135deg, #d4a853, #b8893c);
+  border: none;
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  letter-spacing: 0.02em;
+  box-shadow: 0 1px 2px rgba(184, 137, 60, 0.35);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.section-header__cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(184, 137, 60, 0.45);
+}
+
+/* ============================================================
+ * COURSE ROWS
+ * ============================================================ */
+.course-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.course-row {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  width: 100%;
+  padding: 0.75rem 0.875rem;
+  background: var(--surface-base, rgba(255, 255, 255, 0.55));
+  border: 1px solid var(--border-base, rgba(0, 0, 0, 0.07));
+  border-radius: 0.625rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
+  text-align: left;
+}
+
+.course-row:hover {
+  background: var(--surface-elevated, rgba(255, 255, 255, 0.85));
+  border-color: var(--border-strong, rgba(0, 0, 0, 0.15));
+}
+
+.course-row:active {
+  transform: scale(0.995);
+}
+
+.course-row.premium {
+  border-left: 3px solid #d4a853;
+  background: linear-gradient(90deg, rgba(212, 168, 83, 0.08) 0%, rgba(255, 255, 255, 0.55) 30%);
+}
+
+.course-row.premium:hover {
+  background: linear-gradient(90deg, rgba(212, 168, 83, 0.14) 0%, rgba(255, 255, 255, 0.85) 30%);
+}
+
+.course-row.active {
+  border-color: var(--accent, #c23a3a);
+  background: rgba(194, 58, 58, 0.06);
+}
+
+.course-row.enrolled .row-name {
+  color: var(--text-primary, #2C2622);
+}
+
+.row-flag {
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.row-name {
+  flex-shrink: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary, #2C2622);
+}
+
+.row-for {
+  flex: 1;
+  font-size: 0.75rem;
+  color: var(--text-muted, rgba(0, 0, 0, 0.45));
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* When iSpeak filter is active, .row-for is hidden via v-if so .row-status
+   becomes the flex-grow element. */
+.row-for + .row-status,
+.row-flag + .row-name + .row-status {
+  margin-left: auto;
+}
+
+.row-status {
+  flex-shrink: 0;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--text-muted, rgba(0, 0, 0, 0.45));
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+
+.course-row.enrolled .row-status {
+  color: #4ade80;
+  font-weight: 600;
+}
+
+.course-row.active .row-status {
+  color: var(--accent, #c23a3a);
+}
+
+.row-status .try-free {
+  color: #b8893c;
+  font-weight: 700;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+}
+
+.row-status .row-beta {
+  color: rgba(167, 139, 250, 0.85);
+  font-family: 'Space Mono', monospace;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.row-status .chevron {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.18s ease;
+}
+
+.course-row.expanded .chevron {
+  transform: rotate(180deg);
+}
+
+.course-row.variant {
+  background: transparent;
+  border: none;
+  padding-left: 2.25rem;
+}
+
+.course-row.variant .row-name {
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+.variant-indent {
+  width: 22px;
+  flex-shrink: 0;
+}
+
+.no-results {
+  padding: 2rem 0.5rem;
+  text-align: center;
+  color: var(--text-muted, rgba(0, 0, 0, 0.5));
+  font-size: 0.875rem;
 }
 </style>
 
