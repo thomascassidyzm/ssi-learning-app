@@ -182,6 +182,9 @@ window.addEventListener('beforeinstallprompt', (e) => {
 // Active course and enrolled courses state
 const activeCourse = ref(null)
 const enrolledCourses = ref([])
+// True only when both URL and stored preference were absent — drives the
+// auto-open of the Choose Course modal on first run.
+const noPriorCourseSelection = ref(false)
 
 // Course persistence key
 const LAST_COURSE_KEY = 'ssi-last-course'
@@ -323,9 +326,11 @@ const fetchEnrolledCourses = async () => {
           defaultCourse = saved
         }
       }
-      // Fall back to first accessible course
+      // Fall back to first accessible course (and flag this as a first-run
+      // / no-preference state so HomeScreen can auto-open the picker).
       if (!defaultCourse) {
         defaultCourse = data.find(c => canAccessCourse(c)) || data[0]
+        noPriorCourseSelection.value = true
       }
 
       if (defaultCourse && !activeCourse.value) {
@@ -367,6 +372,7 @@ provide('supabase', supabaseClient)
 provide('config', config)
 provide('activeCourse', activeCourse)
 provide('enrolledCourses', enrolledCourses)
+provide('noPriorCourseSelection', noPriorCourseSelection)
 provide('handleCourseSelect', handleCourseSelect)
 provide('theme', { theme, toggleTheme, setTheme })
 provide('eagerScript', eagerScript)

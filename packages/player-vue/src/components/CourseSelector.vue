@@ -317,18 +317,32 @@ watch(() => props.defaultKnownLang, (newVal) => {
   if (newVal) iSpeak.value = newVal
 })
 
+// Prefer the catalogue the parent has already loaded (App.vue pre-fetches on
+// boot). Falling back to the standalone fetch keeps the component usable in
+// any embedded surface where no catalogue prop is wired in.
+const adoptParentCatalogue = () => {
+  if (props.enrolledCourses && props.enrolledCourses.length > 0) {
+    allCourses.value = props.enrolledCourses
+    return true
+  }
+  return false
+}
+
+watch(() => props.enrolledCourses, () => {
+  if (allCourses.value.length === 0) adoptParentCatalogue()
+}, { immediate: true })
+
 watch(() => props.isOpen, (newVal) => {
   if (newVal) {
     searchQuery.value = ''
-    if (allCourses.value.length === 0) fetchCourses()
+    if (allCourses.value.length === 0 && !adoptParentCatalogue()) fetchCourses()
   }
 })
 
 // Initial load
 onMounted(() => {
-  if (props.isOpen) {
-    fetchCourses()
-  }
+  if (allCourses.value.length === 0) adoptParentCatalogue()
+  if (props.isOpen && allCourses.value.length === 0) fetchCourses()
 })
 </script>
 

@@ -1,10 +1,12 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, inject, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import CourseSelector from './CourseSelector.vue'
 import { BELTS } from '@/composables/useBeltProgress'
 import { getLanguageName, t } from '@/composables/useI18n'
 import LanguageFlag from '@/components/schools/shared/LanguageFlag.vue'
+
+const noPriorCourseSelection = inject('noPriorCourseSelection', ref(false))
 
 const props = defineProps({
   supabase: {
@@ -32,6 +34,17 @@ const hasSchoolsAccess = computed(() => {
 
 // Course selector state
 const showCourseSelector = ref(false)
+
+// First-run: open the picker so the user explicitly chooses instead of
+// landing on whatever course happened to be alphabetically first.
+onMounted(() => {
+  if (noPriorCourseSelection.value) showCourseSelector.value = true
+})
+
+// The flag may flip true after fetchEnrolledCourses resolves post-mount.
+watch(noPriorCourseSelection, (v) => {
+  if (v) showCourseSelector.value = true
+})
 
 // Normalize course data from database to display format
 const activeCourseData = computed(() => {
