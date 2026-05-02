@@ -201,13 +201,13 @@ onMounted(async () => {
         <template v-if="contextHeadline">
           <h1 class="frost-display contextual">{{ contextHeadline }}</h1>
           <p class="lede">
-            Plus {{ otherPremiumCourses.length }} other Premium course{{ otherPremiumCourses.length === 1 ? '' : 's' }}. 7 days free, then £{{ PREMIUM_PRICE }}/month. Cancel anytime.
+            Plus {{ otherPremiumCourses.length }} other Premium course{{ otherPremiumCourses.length === 1 ? '' : 's' }}. Free for 7 days. £{{ PREMIUM_PRICE }}/month from day 8. Cancel anytime.
           </p>
         </template>
         <template v-else>
-          <h1 class="frost-display">All courses. All features. £{{ PREMIUM_PRICE }}/month.</h1>
+          <h1 class="frost-display">All courses. All features.</h1>
           <p class="lede">
-            7 days free, then £{{ PREMIUM_PRICE }}/month. Cancel anytime.
+            Free for 7 days. £{{ PREMIUM_PRICE }}/month from day 8. Cancel anytime.
           </p>
         </template>
       </header>
@@ -220,7 +220,7 @@ onMounted(async () => {
 
         <!-- Not signed in -->
         <div v-else-if="!isAuthenticated" class="cta">
-          <p>Take it for a test drive — 7 days free, no commitment. We'll email a one-time code to get you started, no password to remember.</p>
+          <p>Take it for a test drive — 7 days free, no commitment. £{{ PREMIUM_PRICE }}/month from day 8 unless you cancel. We'll email a one-time code to sign you in — no password to remember.</p>
           <Button variant="primary" size="lg" @click="() => openAuth()">Start 7-day free trial</Button>
           <button type="button" class="back-link" @click="goBackToFreeCourses">
             Or browse our free courses →
