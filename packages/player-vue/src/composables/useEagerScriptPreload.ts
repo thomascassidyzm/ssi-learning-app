@@ -3,13 +3,21 @@
  *
  * Called from App.vue as soon as the course is known.
  *
- * Phase 1 (scriptPromise): seeds 1-INITIAL_WINDOW only — gives the player
- *   enough rounds to start playing immediately (~30 seeds ≈ 10 min audio).
- * Phase 2 (extensionPromise): full course in the background — when it
- *   resolves LearningPlayer appends the new rounds via simplePlayer.addRounds.
+ * Phase 1 (scriptPromise): seeds 1..INITIAL_PRELOAD_SEEDS only — gives the
+ *   player enough rounds to start playing immediately.
+ * Phase 2 (extensionPromise): seeds 1..EXTENSION_PRELOAD_SEEDS — covers the
+ *   typical learner journey without slamming the DB. When it resolves
+ *   LearningPlayer appends the new rounds via simplePlayer.addRounds.
  *
- * For returning users beyond the initial window, LearningPlayer awaits the
- * extension before jumping to their resume position.
+ * For returning users beyond the extension window (rare — past seed
+ * EXTENSION_PRELOAD_SEEDS), LearningPlayer awaits the extension before
+ * jumping to their resume position. They'll be just past the loaded edge;
+ * an on-demand top-up is a separate concern (see PriorityRoundLoader).
+ *
+ * History: Phase 2 used to fetch (1, 9999) — i.e. the whole course. For
+ * busy courses (~6K phrases plus an audio-fallback table scan) this hit
+ * Postgres' statement timeout. Bounding the range fixes that without
+ * paginating; the 95% case is well-covered.
  */
 
 import { ref, type Ref } from 'vue'
@@ -25,6 +33,14 @@ import { checkContentVersion } from './useScriptCache'
  * 2 to finish loading the rest of the course in the background.
  */
 export const INITIAL_PRELOAD_SEEDS = 10
+
+/**
+ * Seeds covered by the background extension load. Bounded (rather than the
+ * old 9999 sentinel) so the query stays under Postgres' statement timeout
+ * for busy courses. 100 seeds covers the majority of learner journeys; users
+ * past this point are an edge case to handle via on-demand top-up.
+ */
+export const EXTENSION_PRELOAD_SEEDS = 100
 
 export interface EagerScriptPreload {
   /** Phase 1: resolves quickly with seeds 1-INITIAL_PRELOAD_SEEDS */
@@ -75,13 +91,13 @@ export function useEagerScriptPreload(): EagerScriptPreload {
 
     scriptPromise.value = initialPromise
 
-    // Phase 2: full course in the background, after initial resolves so we
-    // don't compete with the player's first audio fetches
+    // Phase 2: bounded extension in the background, after initial resolves so
+    // we don't compete with the player's first audio fetches.
     const extPromise = initialPromise
       .then(() => {
         const extensionStart = Date.now()
-        console.log(`[eagerScriptPreload] Starting full background extension for ${code}...`)
-        return generateLearningScript(supabase, code, 1, 9999, 1).then(result => {
+        console.log(`[eagerScriptPreload] Starting extension preload for ${code} (1..${EXTENSION_PRELOAD_SEEDS})...`)
+        return generateLearningScript(supabase, code, 1, EXTENSION_PRELOAD_SEEDS, 1).then(result => {
           console.log(`[eagerScriptPreload] Extension done: ${result.items.length} items, ${result.roundCount} rounds in ${Date.now() - extensionStart}ms`)
           // Discard if user switched courses while we were loading
           if (courseCode.value !== code) return result
