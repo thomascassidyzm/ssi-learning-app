@@ -1382,12 +1382,51 @@ const confirmReset = async () => {
         </div>
       </section>
 
+      <!-- Legal — Terms, Privacy, Refunds (open in new tab; URLs are
+           Vercel-rewritten to www.stage.saysomethingin.com) -->
+      <section class="section">
+        <h3 class="section-title">Legal</h3>
+        <div class="card">
+          <a href="/terms" target="_blank" rel="noopener" class="setting-row clickable legal-link">
+            <div class="setting-info">
+              <span class="setting-label">Terms &amp; Conditions</span>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="external-icon" aria-hidden="true">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+              <polyline points="15 3 21 3 21 9"/>
+              <line x1="10" y1="14" x2="21" y2="3"/>
+            </svg>
+          </a>
+          <a href="/privacy" target="_blank" rel="noopener" class="setting-row clickable legal-link">
+            <div class="setting-info">
+              <span class="setting-label">Privacy Policy</span>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="external-icon" aria-hidden="true">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+              <polyline points="15 3 21 3 21 9"/>
+              <line x1="10" y1="14" x2="21" y2="3"/>
+            </svg>
+          </a>
+          <a href="/refunds" target="_blank" rel="noopener" class="setting-row clickable legal-link">
+            <div class="setting-info">
+              <span class="setting-label">Refund Policy</span>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="external-icon" aria-hidden="true">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+              <polyline points="15 3 21 3 21 9"/>
+              <line x1="10" y1="14" x2="21" y2="3"/>
+            </svg>
+          </a>
+        </div>
+      </section>
+
       <!-- Brand Footer -->
       <footer class="brand-footer">
         <div class="brand">
           <span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span>
         </div>
         <p class="copyright">Made with love for language learners</p>
+        <p class="legal-entity">© 2026 SaySomethingIn Cyf · Glaslyn, Ffordd y Parc, Bangor, Gwynedd LL57 4FE, Wales</p>
       </footer>
     </main>
   </div>
@@ -1907,6 +1946,27 @@ const confirmReset = async () => {
   font-size: 0.75rem;
   color: var(--text-muted);
   margin: 0;
+}
+
+.legal-entity {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  margin: 0.5rem 0 0;
+  line-height: 1.5;
+  opacity: 0.75;
+}
+
+/* Legal links — match setting-row styling on an <a> */
+.legal-link,
+.legal-link:link,
+.legal-link:visited {
+  text-decoration: none;
+  color: inherit;
+}
+
+.external-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
 }
 
 /* Reset Dialog */
