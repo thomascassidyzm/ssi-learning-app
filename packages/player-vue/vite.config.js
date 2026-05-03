@@ -23,6 +23,18 @@ export default defineConfig(({ mode }) => ({
         // DON'T cache audio via workbox precache - runtime caching handles it
         globIgnores: ['**/*.{mp3,wav,ogg,m4a}'],
 
+        // Workbox' default navigation handler returns the cached index.html
+        // for *every* document navigation, which intercepts requests like
+        // /terms before they can hit Vercel's cross-origin rewrite. List the
+        // paths we want to bypass the SW so the rewrite to the marketing
+        // site actually runs. /api/* must also stay on the network.
+        navigateFallbackDenylist: [
+          /^\/terms$/,
+          /^\/privacy$/,
+          /^\/refunds$/,
+          /^\/api\//,
+        ],
+
         // Clear ALL runtime caches when a new SW activates.
         // This ensures stale audio/font caches never persist across deploys.
         // Cost: users re-download audio after each deploy.
