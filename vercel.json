@@ -17,9 +17,9 @@
     }
   ],
   "rewrites": [
-    { "source": "/terms",   "destination": "https://stage.saysomethingin.com/terms" },
-    { "source": "/privacy", "destination": "https://stage.saysomethingin.com/privacy" },
-    { "source": "/refunds", "destination": "https://stage.saysomethingin.com/refunds" },
+    { "source": "/terms",   "destination": "https://www.stage.saysomethingin.com/terms" },
+    { "source": "/privacy", "destination": "https://www.stage.saysomethingin.com/privacy" },
+    { "source": "/refunds", "destination": "https://www.stage.saysomethingin.com/refunds" },
     { "source": "/schools", "destination": "/schools/index.html" },
     { "source": "/schools/(.*)", "destination": "/schools/index.html" },
     { "source": "/api/(.*)", "destination": "/api/$1" },
