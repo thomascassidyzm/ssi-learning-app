@@ -3,21 +3,21 @@
  *
  * Called from App.vue as soon as the course is known.
  *
- * Phase 1 (scriptPromise): seeds 1..INITIAL_PRELOAD_SEEDS only — gives the
+ * Phase 1 (scriptPromise): seeds 1..INITIAL_PRELOAD_SEEDS — gives the
  *   player enough rounds to start playing immediately.
- * Phase 2 (extensionPromise): seeds 1..EXTENSION_PRELOAD_SEEDS — covers the
- *   typical learner journey without slamming the DB. When it resolves
- *   LearningPlayer appends the new rounds via simplePlayer.addRounds.
+ * Phase 2 (extensionPromise): full course — when it resolves LearningPlayer
+ *   appends the new rounds via simplePlayer.addRounds, so a belt-skipper
+ *   landing on any seed has rounds ready.
  *
- * For returning users beyond the extension window (rare — past seed
- * EXTENSION_PRELOAD_SEEDS), LearningPlayer awaits the extension before
- * jumping to their resume position. They'll be just past the loaded edge;
- * an on-demand top-up is a separate concern (see PriorityRoundLoader).
- *
- * History: Phase 2 used to fetch (1, 9999) — i.e. the whole course. For
- * busy courses (~6K phrases plus an audio-fallback table scan) this hit
- * Postgres' statement timeout. Bounding the range fixes that without
- * paginating; the 95% case is well-covered.
+ * History: Phase 2 used to time out for busy courses (Estonian / Basque)
+ * because of an audio-fallback table scan running on top of the main
+ * queries. The fallback was deleted 2026-05-03 (lived in
+ * generateLearningScript.ts as a tolerance layer for missing dashboard
+ * re-link triggers; flagged for removal in its own header comment).
+ * The remaining course_legos / course_practice_phrases queries are
+ * row-capped and well-indexed — they should fit in timeout even for
+ * full-course range. If a busy course tips over again, the fix is to
+ * paginate inside generateLearningScript, not to bound the preload.
  */
 
 import { ref, type Ref } from 'vue'
@@ -35,12 +35,14 @@ import { checkContentVersion } from './useScriptCache'
 export const INITIAL_PRELOAD_SEEDS = 10
 
 /**
- * Seeds covered by the background extension load. Bounded (rather than the
- * old 9999 sentinel) so the query stays under Postgres' statement timeout
- * for busy courses. 100 seeds covers the majority of learner journeys; users
- * past this point are an edge case to handle via on-demand top-up.
+ * Seeds covered by the background extension load. 9999 is a sentinel for
+ * "the whole course"; the queries inside generateLearningScript are
+ * row-limited (5K legos / 10K phrases). The audio-fallback rescan that
+ * used to push us over the statement timeout was deleted on 2026-05-03,
+ * so this can stay open-ended — belt-skip means any user can land on any
+ * seed and they need the rounds for it.
  */
-export const EXTENSION_PRELOAD_SEEDS = 100
+export const EXTENSION_PRELOAD_SEEDS = 9999
 
 export interface EagerScriptPreload {
   /** Phase 1: resolves quickly with seeds 1-INITIAL_PRELOAD_SEEDS */
