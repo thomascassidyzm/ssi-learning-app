@@ -1382,12 +1382,15 @@ const confirmReset = async () => {
         </div>
       </section>
 
-      <!-- Legal — Terms, Privacy, Refunds (open in new tab; URLs are
-           Vercel-rewritten to www.stage.saysomethingin.com) -->
+      <!-- Legal — links to the marketing site (saysomethingin.com is an
+           already-approved Paddle domain; pages live there, not on .app).
+           Open in a new tab so the app session is preserved. When the
+           production marketing site replaces the stage subdomain, swap the
+           three URL prefixes. -->
       <section class="section">
         <h3 class="section-title">Legal</h3>
         <div class="card">
-          <a href="/terms" target="_blank" rel="noopener" class="setting-row clickable legal-link">
+          <a href="https://www.stage.saysomethingin.com/terms" target="_blank" rel="noopener" class="setting-row clickable legal-link">
             <div class="setting-info">
               <span class="setting-label">Terms &amp; Conditions</span>
             </div>
@@ -1397,7 +1400,7 @@ const confirmReset = async () => {
               <line x1="10" y1="14" x2="21" y2="3"/>
             </svg>
           </a>
-          <a href="/privacy" target="_blank" rel="noopener" class="setting-row clickable legal-link">
+          <a href="https://www.stage.saysomethingin.com/privacy" target="_blank" rel="noopener" class="setting-row clickable legal-link">
             <div class="setting-info">
               <span class="setting-label">Privacy Policy</span>
             </div>
@@ -1407,7 +1410,7 @@ const confirmReset = async () => {
               <line x1="10" y1="14" x2="21" y2="3"/>
             </svg>
           </a>
-          <a href="/refunds" target="_blank" rel="noopener" class="setting-row clickable legal-link">
+          <a href="https://www.stage.saysomethingin.com/refunds" target="_blank" rel="noopener" class="setting-row clickable legal-link">
             <div class="setting-info">
               <span class="setting-label">Refund Policy</span>
             </div>
