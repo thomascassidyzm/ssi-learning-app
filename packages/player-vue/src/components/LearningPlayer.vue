@@ -30,7 +30,8 @@ import { useOfflineCache } from '../composables/useOfflineCache'
 // SimplePlayer - clean playback engine
 import { useSimplePlayer } from '../composables/useSimplePlayer'
 // New simple script generation - direct database queries
-import { generateLearningScript as generateSimpleScript } from '../providers/generateLearningScript'
+import { generateLearningScript as generateSimpleScript, DEFAULT_LISTENING_CONFIG } from '../providers/generateLearningScript'
+import { resolvePodActivationRound } from '../composables/usePodActivation'
 import { toSimpleRounds, type TargetSpeedConfig, NATIVE_PAUSE_CONFIG, LEGACY_PAUSE_CONFIG } from '../providers/toSimpleRounds'
 import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
 import { useAuthModal } from '../composables/useAuthModal'
@@ -5188,12 +5189,44 @@ onMounted(async () => {
             // Two-phase preload: phase 1 covers seeds 1-INITIAL_PRELOAD_SEEDS for fast
             // start; phase 2 fills in the rest in the background. Returning users
             // beyond the initial window must await phase 2 so jumpToRound finds them.
+            //
+            // Listening Pods (Layer 2) activation: for returning users with progress,
+            // resolve their per-enrollment pod_activation_round pin (writing it on
+            // first session if NULL) so the pod sequence starts from where they
+            // are now, not from R6 retroactively. When the pin differs from the
+            // default we bypass the eager preload and load fresh with the override
+            // — eager preload always uses the default config.
             let result
             const eagerCourseMatches = eagerScript?.scriptPromise?.value &&
               eagerScript.courseCode.value === courseCode.value
             const beyondInitialWindow = isReturningUser && startingSeed > INITIAL_PRELOAD_SEEDS
 
-            if (eagerCourseMatches && beyondInitialWindow && eagerScript.extensionPromise?.value) {
+            // Resolve pod activation pin for returning users (~3 LEGOs per seed
+            // is a deliberate approximation — the pin is captured once and the
+            // small offset doesn't matter once stable).
+            let podActivationOverride: number | null = null
+            if (isReturningUser && startingSeed > 0) {
+              const approxCurrentRound = Math.max(7, Math.round(startingSeed * 3))
+              const resolved = await resolvePodActivationRound(
+                supabase.value,
+                learnerId.value,
+                courseCode.value,
+                approxCurrentRound
+              )
+              if (resolved !== DEFAULT_LISTENING_CONFIG.podActivationRound) {
+                podActivationOverride = resolved
+                console.log(`[LearningPlayer] Pod activation pinned at round ${resolved} for returning user`)
+              }
+            }
+
+            if (podActivationOverride !== null) {
+              // Returning user with non-default pod pin — load fresh so the
+              // listeningConfig override threads through.
+              const config = { ...DEFAULT_LISTENING_CONFIG, podActivationRound: podActivationOverride }
+              console.log('[LearningPlayer] Generating script with custom pod activation...')
+              result = await generateSimpleScript(supabase.value, courseCode.value, 1, 9999, 1, config)
+              console.log(`[LearningPlayer] Custom-config script ready: ${result.items.length} items, ${result.roundCount} rounds`)
+            } else if (eagerCourseMatches && beyondInitialWindow && eagerScript.extensionPromise?.value) {
               console.log(`[LearningPlayer] Returning user at seed ${startingSeed} (beyond initial window) — awaiting full extension...`)
               result = await eagerScript.extensionPromise.value
               console.log(`[LearningPlayer] Full script ready: ${result.items.length} items, ${result.roundCount} rounds`)
