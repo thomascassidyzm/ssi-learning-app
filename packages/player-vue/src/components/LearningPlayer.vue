@@ -2171,8 +2171,16 @@ const clearPreparingState = () => {
   }
 }
 
-// Emit play state changes to parent (for nav bar play/stop toggle)
-watch(isPlaying, (playing) => {
+// Emit play state changes to parent (for nav bar play/stop toggle).
+// Includes pod-lap and commentary audio so the big play/stop button keeps
+// reading "stop" while THOSE are playing — pressing it during a pod halts
+// everything (handled in togglePlayback below). Without this, the button
+// flips to play whenever simplePlayer pauses for a between-rounds lap,
+// which looks like nothing's happening even though pod audio is mid-air.
+const isAudioPlaying = computed(() =>
+  isPlaying.value || playingPodLapAudio.value || playingCommentaryAudio.value
+)
+watch(isAudioPlaying, (playing) => {
   emit('playStateChanged', playing)
 })
 
@@ -6051,6 +6059,15 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
 
 // Expose methods for parent component (PlayerContainer) to control playback
 const togglePlayback = () => {
+  // If a pod lap or commentary is playing, the big button reads "stop"
+  // (per isAudioPlaying). Pressing it should halt everything — the runtime
+  // audio AND any auto-resume into the next round. Without this we'd
+  // resume() simplePlayer mid-pod, overlapping audio.
+  if (playingPodLapAudio.value || playingCommentaryAudio.value) {
+    audioController.value?.stop()
+    simplePlayer.stop()
+    return
+  }
   if (isPlaying.value) {
     handlePause()
   } else {
@@ -6079,6 +6096,10 @@ const unlockAudio = () => {
 // skip-button cue in the BottomNav so learners notice that "skip" is
 // their out — without making the listening feel optional by default.
 const isInListeningCycle = computed(() => {
+  // Runtime pod lap (new ratchet model) — current cycle is still the
+  // last LEGO cycle (simplePlayer is paused), but pod audio is playing
+  // separately. Surface the listening cue so skip-ahead glows.
+  if (playingPodLapAudio.value) return true
   const t = simplePlayer.currentCycle.value?.type
   return t === 'listen_intro' || t === 'listening' || t === 'pod' || t === 'listen_outro'
 })
