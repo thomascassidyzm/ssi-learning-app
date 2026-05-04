@@ -79,8 +79,11 @@ function selectContextCourse(c: Course) {
 }
 
 function goBackToFreeCourses() {
-  // Send them to the player home — the course modal opens from there.
-  router.push('/')
+  // Send them to the player home AND signal HomeScreen to auto-open the
+  // Choose Your Course modal (where the Free section lives). Without the
+  // query param they'd just land on the player and have to find the
+  // course-picker button themselves.
+  router.push({ path: '/', query: { openCourses: '1' } })
 }
 
 async function getAuthToken(): Promise<string | null> {
@@ -290,8 +293,10 @@ onMounted(async () => {
             @click="selectContextCourse(c)"
           >
             <LanguageFlag :code="c.target_lang" :size="20" />
-            <span class="premium-list__name">{{ getLanguageName(c.target_lang) }}</span>
-            <span class="premium-list__for">for {{ getLanguageEndonym(c.known_lang) }}</span>
+            <span class="premium-list__text">
+              <span class="premium-list__name">{{ getLanguageName(c.target_lang) }}</span>
+              <span class="premium-list__for">for {{ getLanguageEndonym(c.known_lang) }}</span>
+            </span>
           </button>
         </div>
       </section>
@@ -537,16 +542,27 @@ onMounted(async () => {
   border-left-color: #b8893c;
 }
 
+.premium-list__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
 .premium-list__name {
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--ink-primary);
+  line-height: 1.2;
 }
 
 .premium-list__for {
-  margin-left: auto;
   font-size: 0.6875rem;
   color: var(--ink-muted);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 @media (max-width: 768px) {
@@ -557,9 +573,8 @@ onMounted(async () => {
   .state-card {
     padding: var(--space-6);
   }
-
-  .premium-list__for {
-    display: none;
-  }
+  /* Keep .premium-list__for visible on mobile — it's the only thing
+     that distinguishes 5 'English' cards (English for Arabic,
+     for Japanese, for Tamil, etc.). */
 }
 </style>

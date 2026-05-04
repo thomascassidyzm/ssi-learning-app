@@ -405,7 +405,7 @@ onMounted(() => {
                   class="i-speak-pill"
                   :class="{ active: iSpeak === lang.code }"
                   @mousedown.prevent
-                  @click="iSpeak = lang.code; iSpeakQuery = ''"
+                  @click="iSpeak = (iSpeak === lang.code ? '' : lang.code); iSpeakQuery = ''"
                 >
                   {{ getLanguageEndonym(lang.code) }}
                 </button>
