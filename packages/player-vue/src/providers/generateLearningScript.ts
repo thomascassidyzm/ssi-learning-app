@@ -773,6 +773,12 @@ export async function generateLearningScript(
       // The audio is stored under knownAudioId so SimplePlayer's prompt phase
       // picks it up; voice1/voice2 are intentionally absent.
       if (!item.knownAudioId) return
+    } else if (item.type === 'pod') {
+      // Pod plays carry exactly one of {knownAudioId (translation play),
+      // target1Id (sentence play, possibly with playbackSpeed=2.0)}. Never
+      // both, never target2Id. The "all three audio IDs" check below would
+      // wrongly drop every pod item, leaving the round-end lap empty.
+      if (!item.knownAudioId && !item.target1Id) return
     } else {
       // Non-intro items need all three audio IDs to be useful
       if (!item.knownAudioId || !item.target1Id || !item.target2Id) return
@@ -1350,10 +1356,18 @@ export async function generateLearningScript(
   // cycles missing required text (partially-built phrases). Per-cycle filtering
   // preserves the good cycles in a partially-incomplete round; whole-round
   // filtering preserves nothing if even one cycle is good.
+  //
+  // Listening items (pod/bookend) are exempt: pod sentence plays have empty
+  // knownText, pod translation plays have empty targetText, and bookends
+  // have empty targetText. These are by design — the text-completeness check
+  // is for unbuilt LEGO/phrase rows, not for listening cycles whose missing
+  // side reflects their play role.
+  const TEXT_CHECK_EXEMPT = new Set(['pod', 'listen_intro', 'listen_outro', 'listening'])
   const incompleteByAudio = new Set([...roundMissingAudio].filter(r => !roundHasAudio.has(r)))
   let droppedByText = 0
   const playableItems = dedupedItems.filter(item => {
     if (incompleteByAudio.has(item.roundNumber)) return false
+    if (TEXT_CHECK_EXEMPT.has(item.type)) return true
     const knownOk = typeof item.knownText === 'string' && item.knownText.trim().length > 0
     const targetOk = typeof item.targetText === 'string' && item.targetText.trim().length > 0
     if (!knownOk || !targetOk) {
@@ -1371,7 +1385,12 @@ export async function generateLearningScript(
   // start doesn't benefit from re-checking script integrity at runtime, and
   // validating a 9999-round script costs hundreds of ms on in-progress
   // courses where most rounds end up with errors anyway.
-  if (import.meta.env.DEV) {
+  // Defensive: import.meta.env is Vite-specific, so guard for non-Vite hosts
+  // (e.g. running this module under tsx for diagnostic scripts).
+  const isDevBuild = (() => {
+    try { return !!(import.meta as any)?.env?.DEV } catch { return false }
+  })()
+  if (isDevBuild) {
     const validationReport = validateLearningScript(playableItems)
     if (!validationReport.valid) {
       console.warn(`[generateLearningScript] Validation: ${validationReport.summary}`)
