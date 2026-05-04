@@ -56,6 +56,15 @@ export interface CourseEnrollmentRecord {
   last_completed_lego_id: string | null;
   /** Last completed round index - for faster resumption */
   last_completed_round_index: number | null;
+  /** Furthest round the learner has ever reached - max-only, ratcheted by DB
+   *  trigger. Used by the resting-state "skip to round N" jump when the
+   *  cursor is behind the ceiling. */
+  highest_completed_round_index: number | null;
+  /** Companion to highest_completed_round_index - the lego at the ceiling.
+   *  Used as the navigational hook to load the right chunk of content when
+   *  the learner taps "skip to round N". Lego IDs have the form S0042L05, so
+   *  the seed (and therefore the load target) is derivable from this field. */
+  highest_completed_lego_id: string | null;
 }
 
 export interface LegoProgressRecord extends LegoProgress {

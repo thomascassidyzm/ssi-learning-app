@@ -529,6 +529,8 @@ export class ProgressStore implements IProgressStore {
       helix_state: data.helix_state as HelixState,
       last_completed_lego_id: (data.last_completed_lego_id as string) ?? null,
       last_completed_round_index: (data.last_completed_round_index as number) ?? null,
+      highest_completed_round_index: (data.highest_completed_round_index as number) ?? null,
+      highest_completed_lego_id: (data.highest_completed_lego_id as string) ?? null,
     };
   }
 
