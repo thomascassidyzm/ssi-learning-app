@@ -458,7 +458,14 @@ export async function generateLearningScript(
   // are exempt — they're purely presentational.
   const phraseHasFullAudio = (p: Phrase): boolean =>
     !!(p.known_audio_id && p.target1_audio_id && p.target2_audio_id)
+  // Untranslatable component particles (Chinese 了/的/得 etc.) intentionally
+  // have empty known_text and no known_audio_id — they're function words
+  // with no English equivalent. They're skipped from audio cycles by design,
+  // not because of a missing-audio bug. Don't count them in the warning.
+  const isIntentionalParticleSkip = (p: Phrase): boolean =>
+    p.phrase_role === 'component' && (!p.known_text || p.known_text.trim() === '')
   let phrasesSkippedForAudio = 0
+  let particleSkips = 0
   for (const phrase of (phrasesResult.data || []) as Phrase[]) {
     const key = `${phrase.seed_number}:${phrase.lego_index}`
     if (!phrasesByLego.has(key)) phrasesByLego.set(key, { build: [], use: [], practice: [] })
@@ -475,7 +482,8 @@ export async function generateLearningScript(
       // Audio cycles (component_intro/component_practice) — only introduced components with full audio
       if (phrase.introduce !== false) {
         if (!phraseHasFullAudio(phrase)) {
-          phrasesSkippedForAudio++
+          if (isIntentionalParticleSkip(phrase)) particleSkips++
+          else phrasesSkippedForAudio++
           continue
         }
         if (!componentPhrasesByLego.has(key)) componentPhrasesByLego.set(key, [])
@@ -493,6 +501,9 @@ export async function generateLearningScript(
   }
   if (phrasesSkippedForAudio > 0) {
     console.warn(`[generateLearningScript] Skipped ${phrasesSkippedForAudio} practice phrases for "${courseCode}" (missing audio IDs)`)
+  }
+  if (particleSkips > 0) {
+    console.debug(`[generateLearningScript] Skipped ${particleSkips} untranslatable particles for "${courseCode}" (intentional)`)
   }
 
   console.log(`[generateLearningScript] ${phrasesResult.data?.length || 0} phrases fetched, ${componentsByLego.size} LEGOs with components`)
