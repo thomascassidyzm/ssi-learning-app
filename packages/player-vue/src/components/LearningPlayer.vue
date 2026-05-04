@@ -1643,6 +1643,13 @@ const playPodSegment = async (audioId: string, durationMs?: number, playbackSpee
   })
 }
 
+/** Silence between consecutive pod segments — gives the learner breathing
+ *  room to parse what they just heard, especially after 2× sentences. Single
+ *  default for now; per-segment-type tuning is a follow-up if needed. */
+const POD_SEGMENT_GAP_MS = 1000
+
+const podGap = () => new Promise<void>(resolve => setTimeout(resolve, POD_SEGMENT_GAP_MS))
+
 /**
  * Play a full pod lap (intro bookend → all plays → outro bookend).
  * Returns true iff the lap played to completion (so the ratchet should advance).
@@ -1654,10 +1661,15 @@ const playPodLap = async (lap: PodLap): Promise<boolean> => {
     if (lap.intro) {
       const ok = await playPodSegment(lap.intro.id, lap.intro.duration_ms, 1.0)
       if (!ok) return false
+      await podGap()
     }
-    for (const play of lap.plays as PodPlay[]) {
+    for (let i = 0; i < lap.plays.length; i++) {
+      const play = lap.plays[i] as PodPlay
       const ok = await playPodSegment(play.audioId, undefined, play.playbackSpeed)
       if (!ok) return false
+      // Gap after every segment except the very last play before the outro
+      // (the outro bookend itself plays after a gap)
+      await podGap()
     }
     if (lap.outro) {
       const ok = await playPodSegment(lap.outro.id, lap.outro.duration_ms, 1.0)
