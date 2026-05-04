@@ -188,15 +188,26 @@ const visibleCourses = computed(() => {
 
 // I-speak pills — known languages in the catalogue, sorted by course count
 // descending so the most-served audience (typically English) leads.
+// The currently-selected iSpeak is hoisted to position 0 so the user's
+// choice stays visible without horizontal scrolling — otherwise rare
+// known-langs (Chinese, Tamil etc.) end up off-screen after selection.
 const availableKnownLangs = computed(() => {
   const counts = new Map()
   for (const c of allCourses.value) {
     if (!c.known_lang) continue
     counts.set(c.known_lang, (counts.get(c.known_lang) || 0) + 1)
   }
-  return [...counts.entries()]
+  const sorted = [...counts.entries()]
     .sort((a, b) => b[1] - a[1] || getLanguageEndonym(a[0]).localeCompare(getLanguageEndonym(b[0])))
     .map(([code, count]) => ({ code, count }))
+  if (iSpeak.value) {
+    const idx = sorted.findIndex(l => l.code === iSpeak.value)
+    if (idx > 0) {
+      const [active] = sorted.splice(idx, 1)
+      sorted.unshift(active)
+    }
+  }
+  return sorted
 })
 
 // Typeable iSpeak filter — lets users find their language when it's not
@@ -393,6 +404,7 @@ onMounted(() => {
                   :key="lang.code"
                   class="i-speak-pill"
                   :class="{ active: iSpeak === lang.code }"
+                  @mousedown.prevent
                   @click="iSpeak = lang.code; iSpeakQuery = ''"
                 >
                   {{ getLanguageEndonym(lang.code) }}
