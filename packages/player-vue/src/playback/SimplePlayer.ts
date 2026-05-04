@@ -515,6 +515,23 @@ export class SimplePlayer {
   private advanceRound(): void {
     this.emit('round_completed', { round: this.currentRound })
 
+    // The round_completed listener (LearningPlayer.handleRoundBoundary) runs
+    // synchronously up to its first await; it can call pause() in that window
+    // to schedule a between-round pod lap or commentary. If it did, isPlaying
+    // is now false and we must NOT start the next round's prompt — that
+    // would overlap with the pod lap on a separate audio element. We still
+    // advance roundIndex so resume() picks up at the next round, with phase
+    // set to 'idle' so resume() routes through startPhase('prompt').
+    if (!this.state.isPlaying) {
+      if (this.state.roundIndex < this.rounds.length - 1) {
+        this.updateState({ roundIndex: this.state.roundIndex + 1, cycleIndex: 0, phase: 'idle' })
+      } else {
+        this.updateState({ phase: 'idle' })
+        this.emit('session_complete')
+      }
+      return
+    }
+
     if (this.state.roundIndex < this.rounds.length - 1) {
       this.updateState({ roundIndex: this.state.roundIndex + 1, cycleIndex: 0 })
       const round = this.currentRound
