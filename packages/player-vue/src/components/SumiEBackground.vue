@@ -20,8 +20,8 @@ const props = withDefaults(defineProps<{
 
 const JOURNEY_MAP: Record<string, string> = {
   jpn: '/design/journey-jpn.webp',
-  zho: '/design/journey-cmn.webp',
-  cmn: '/design/journey-cmn.webp',
+  zho: '/design/journey-zho.webp',
+  cmn: '/design/journey-zho.webp',
   ita: '/design/journey-ita.webp',
   gle: '/design/journey-gle.webp',
   nld: '/design/journey-nld.webp',
