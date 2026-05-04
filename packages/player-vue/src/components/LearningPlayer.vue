@@ -5404,23 +5404,41 @@ onMounted(async () => {
                 })
               }
 
-              // Restore position for returning users
+              // Restore position for returning users.
+              // Uses last_completed_lego_id (exact LEGO position) instead of
+              // seed number — seed-based resume jumps to the first round of
+              // the NEXT seed, which skips mid-seed LEGOs the learner hadn't
+              // finished. Falls back to seed-based only if lastLegoId is
+              // missing.
               if (isReturningUser) {
-                if (classLastLegoId) {
-                  // Class mode: find the round AFTER the last completed LEGO
-                  const lastIdx = simpleRounds.findIndex(r => r.legoId === classLastLegoId)
+                const personalLastLegoId = beltProgress.value?.lastLegoId?.value ?? null
+                const resumeLegoId = classLastLegoId ?? personalLastLegoId
+
+                if (resumeLegoId) {
+                  const lastIdx = simpleRounds.findIndex(r => r.legoId === resumeLegoId)
+                  const modeTag = classLastLegoId ? 'Class mode' : 'Personal'
                   if (lastIdx >= 0 && lastIdx + 1 < simpleRounds.length) {
-                    console.debug(`[eagerLoad] Class mode: resuming after ${classLastLegoId} (round ${lastIdx + 1})`)
+                    console.debug(`[eagerLoad] ${modeTag}: resuming after ${resumeLegoId} (round ${lastIdx + 1})`)
                     simplePlayer.jumpToRound(lastIdx + 1)
                   } else if (lastIdx >= 0) {
                     // Last LEGO was the final round — stay there
                     simplePlayer.jumpToRound(lastIdx)
+                  } else {
+                    // legoId not in loaded set (e.g. extension hasn't landed)
+                    // — fall back to seed-based as a last resort
+                    const nextSeed = startingSeed + 1
+                    const roundIndex = simplePlayer.findRoundIndexForSeed(nextSeed)
+                    if (roundIndex >= 0) {
+                      console.debug(`[eagerLoad] LegoId ${resumeLegoId} not loaded, falling back to seed ${nextSeed} (round ${roundIndex})`)
+                      simplePlayer.jumpToRound(roundIndex)
+                    }
                   }
                 } else {
+                  // No legoId on record — seed-based fallback
                   const nextSeed = startingSeed + 1
                   const roundIndex = simplePlayer.findRoundIndexForSeed(nextSeed)
                   if (roundIndex >= 0) {
-                    console.debug(`[eagerLoad] Restoring: seed ${startingSeed} → starting at seed ${nextSeed} (round ${roundIndex})`)
+                    console.debug(`[eagerLoad] No legoId, restoring by seed ${startingSeed} → ${nextSeed} (round ${roundIndex})`)
                     simplePlayer.jumpToRound(roundIndex)
                   }
                 }
