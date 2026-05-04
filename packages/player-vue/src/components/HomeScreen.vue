@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, inject, onMounted, watch } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter } from 'vue-router'
 import CourseSelector from './CourseSelector.vue'
 import { BELTS } from '@/composables/useBeltProgress'
 import { getLanguageName, t } from '@/composables/useI18n'
@@ -26,7 +26,6 @@ const props = defineProps({
 const emit = defineEmits(['startLearning', 'viewJourney', 'selectCourse', 'viewBrainMap'])
 
 const router = useRouter()
-const route = useRoute()
 
 // Schools access — god mode for now, later checks user_tags for teacher/admin role
 const hasSchoolsAccess = computed(() => {
@@ -38,16 +37,8 @@ const showCourseSelector = ref(false)
 
 // First-run: open the picker so the user explicitly chooses instead of
 // landing on whatever course happened to be alphabetically first.
-// Also: if redirected here from /premium with ?openCourses=1, open the
-// modal so the user can browse the Free section.
 onMounted(() => {
-  if (noPriorCourseSelection.value || route.query.openCourses === '1') {
-    showCourseSelector.value = true
-  }
-  if (route.query.openCourses === '1') {
-    // Strip the param so a refresh doesn't keep re-opening the modal.
-    router.replace({ path: '/', query: {} })
-  }
+  if (noPriorCourseSelection.value) showCourseSelector.value = true
 })
 
 // The flag may flip true after fetchEnrolledCourses resolves post-mount.

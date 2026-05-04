@@ -427,6 +427,16 @@ onMounted(() => {
     if (['library', 'browse', 'belt-browser'].includes(screenParam)) showLibrary.value = true
   }
 
+  // 'Or browse our free courses' on /premium pushes here with ?openCourses=1
+  // — open the Choose Your Course modal directly. The modal lives in this
+  // container (CourseSelector at the bottom of the template), not in
+  // HomeScreen (which is dead code).
+  if (urlParams.get('openCourses') === '1') {
+    showCourseSelector.value = true
+    // Strip the param so a refresh doesn't keep re-opening the modal.
+    router.replace({ path: '/', query: {} })
+  }
+
   // Listen for mode tip "open settings" from LearningPlayer
   window.addEventListener('ssi-open-settings', () => {
     if (!showSettings.value) toggleSettings()

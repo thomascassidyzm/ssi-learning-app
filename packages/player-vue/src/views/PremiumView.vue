@@ -316,7 +316,15 @@ onMounted(async () => {
 
 <style scoped>
 .premium-page {
-  min-height: 100vh;
+  /* body has overflow:hidden + touch-action:none globally (Android bounce
+     prevention for the player). The page needs its own fixed-height
+     scroll-container or content past the viewport is unreachable.
+     Mirrors the TeachContainer pattern. */
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   position: relative;
   background: var(--bg-primary);
   color: var(--ink-primary);
