@@ -10,9 +10,22 @@ const props = defineProps({
   totalSeeds: { type: Number, default: 668 },
   currentBeltName: { type: String, default: 'white' },
   isPlayerReady: { type: Boolean, default: false },
+  // Round-cursor pair for the "skip to round N" choice. When the cursor
+  // is behind the ceiling (the learner has revisited earlier content),
+  // we offer an explicit jump back to their furthest position. Both null
+  // for guests / fresh enrollments — choice doesn't surface in that case.
+  currentRound: { type: Number, default: null },
+  highestRound: { type: Number, default: null },
 })
 
-const emit = defineEmits(['start', 'change-course'])
+const emit = defineEmits(['start', 'change-course', 'jump-to-furthest', 'stay-here'])
+
+const showJumpChoice = computed(() => {
+  if (!props.isPlayerReady) return false
+  const c = props.currentRound
+  const h = props.highestRound
+  return typeof c === 'number' && typeof h === 'number' && c < h
+})
 
 const courseName = computed(() => {
   if (!props.course) return 'Loading...'
@@ -86,6 +99,27 @@ const handleChangeCourse = () => {
           ></div>
         </div>
         <span class="progress-label">{{ progressPercent }}%</span>
+      </div>
+
+      <!-- Cursor < ceiling: offer a jump back to furthest. Surfaces only
+           when the learner has revisited earlier content. -->
+      <div v-if="showJumpChoice" class="jump-choice">
+        <p class="jump-choice-prompt">{{ t('resting.jumpPrompt', 'ready when you are') }}</p>
+        <div class="jump-choice-buttons">
+          <button
+            class="jump-pill jump-pill--primary"
+            :style="{ '--belt-accent': belt.color }"
+            @click.stop="emit('jump-to-furthest')"
+          >
+            {{ t('resting.skipToRound', 'skip to round {n}').replace('{n}', String(highestRound)) }}
+          </button>
+          <button
+            class="jump-pill jump-pill--ghost"
+            @click.stop="emit('stay-here')"
+          >
+            {{ t('resting.stayAtRound', 'stay at round {n}').replace('{n}', String(currentRound)) }}
+          </button>
+        </div>
       </div>
 
     </div>
@@ -226,6 +260,67 @@ const handleChangeCourse = () => {
   color: var(--text-secondary);
   margin: 8px 0 0;
   font-style: italic;
+}
+
+.jump-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  max-width: 280px;
+}
+
+.jump-choice-prompt {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0;
+  font-style: italic;
+  text-align: center;
+}
+
+.jump-choice-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.jump-pill {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 10px 18px;
+  border-radius: 22px;
+  border: 1.5px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  text-align: center;
+  text-transform: lowercase;
+  letter-spacing: 0.01em;
+}
+
+.jump-pill--primary {
+  background: color-mix(in srgb, var(--belt-accent, #ffffff) 18%, transparent);
+  border-color: color-mix(in srgb, var(--belt-accent, #ffffff) 50%, transparent);
+  color: var(--text-primary);
+}
+
+.jump-pill--primary:hover {
+  background: color-mix(in srgb, var(--belt-accent, #ffffff) 28%, transparent);
+}
+
+.jump-pill--ghost {
+  color: var(--text-muted);
+  border-color: color-mix(in srgb, var(--text-muted) 30%, transparent);
+}
+
+.jump-pill--ghost:hover {
+  color: var(--text-secondary);
+  border-color: color-mix(in srgb, var(--text-muted) 50%, transparent);
 }
 
 .tap-hint {

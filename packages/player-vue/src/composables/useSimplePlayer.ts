@@ -39,6 +39,7 @@ export interface UseSimplePlayerReturn {
   jumpToRound: (index: number) => void
   jumpToSeed: (seedNumber: number) => void
   findRoundIndexForSeed: (seedNumber: number) => number
+  findRoundIndexForLegoId: (legoId: string) => number
   addRounds: (rounds: Round[]) => void
   hasRound: (roundNumber: number) => boolean
   onPhaseChanged: (callback: (phase: Phase) => void) => void
@@ -175,6 +176,15 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   }
 
   /**
+   * Find a round by its exact LEGO id (e.g. "S0042L05"). Used by the
+   * resting-state "skip to round N" flow to navigate to the precise round
+   * at the ceiling, not just the start of the seed it lives in.
+   */
+  const findRoundIndexForLegoId = (legoId: string): number => {
+    return roundsRef.value.findIndex(r => r.legoId === legoId)
+  }
+
+  /**
    * Jump to the first round of a given seed number.
    * This maps seed numbers (used by belt system) to round indices (used by player).
    */
@@ -262,6 +272,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     jumpToRound,
     jumpToSeed,
     findRoundIndexForSeed,
+    findRoundIndexForLegoId,
     addRounds,
     hasRound,
     onPhaseChanged,

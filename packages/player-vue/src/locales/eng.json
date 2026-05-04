@@ -150,7 +150,10 @@
     "youreOnARoll": "You're on a roll",
     "impressiveProgress": "Impressive progress",
     "nearlyThere": "Nearly there",
-    "forSpeakers": "for {lang} speakers"
+    "forSpeakers": "for {lang} speakers",
+    "skipToRound": "skip to round {n}",
+    "stayAtRound": "stay at round {n}",
+    "jumpPrompt": "ready when you are"
   },
   "phase": {
     "getReadyToSpeak": "get ready to speak",

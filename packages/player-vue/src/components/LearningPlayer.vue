@@ -416,7 +416,9 @@ const loadSavedProgress = async () => {
     if (enrollment && enrollment.last_completed_round_index !== null) {
       return {
         lastCompletedLegoId: enrollment.last_completed_lego_id,
-        lastCompletedRoundIndex: enrollment.last_completed_round_index
+        lastCompletedRoundIndex: enrollment.last_completed_round_index,
+        highestCompletedLegoId: enrollment.highest_completed_lego_id,
+        highestCompletedRoundIndex: enrollment.highest_completed_round_index,
       }
     }
   } catch (err) {
@@ -466,6 +468,13 @@ const loadedRounds = ref<any[]>([])
 const currentRoundIndex = ref(0)
 const currentItemInRound = ref(0)
 const isPlaying = ref(false)
+
+// Furthest round the learner has ever reached, with its lego companion.
+// Read once on resume; the trigger keeps the DB ceiling in sync as the
+// cursor moves. Drives the "skip to round N" choice in the resting state
+// when the cursor is currently behind this ceiling.
+const highestCompletedRoundIndex = ref<number | null>(null)
+const highestCompletedLegoId = ref<string | null>(null)
 
 // Sync state with simplePlayer
 watch(() => simplePlayer.roundIndex.value, (idx) => {
@@ -5660,6 +5669,23 @@ onMounted(async () => {
           parallelTasks.push(initializeVad().catch(() => {}))
         }
 
+        // Task: Read the round-cursor ceiling from the DB. Independent of
+        // the resume cascade because the ceiling lives in the enrollment
+        // row even when localStorage already resolved the cursor — we want
+        // the resting-state "skip to round N" choice to surface in both
+        // cache paths. Cheap, single row, non-blocking on failure.
+        parallelTasks.push(
+          (async () => {
+            try {
+              const saved = await loadSavedProgress()
+              if (saved) {
+                highestCompletedRoundIndex.value = saved.highestCompletedRoundIndex ?? null
+                highestCompletedLegoId.value = saved.highestCompletedLegoId ?? null
+              }
+            } catch { /* offline / unauthenticated — choice just won't surface */ }
+          })()
+        )
+
         // Wait for all parallel tasks
         await Promise.all(parallelTasks)
 
@@ -6110,6 +6136,58 @@ const togglePlayback = () => {
   }
 }
 
+// Absolute round positions for the resting-state "skip to round N" UX.
+// 1-based for display. Both cursor and ceiling are derived: the script is
+// always loaded from seed 1 so simplePlayer.roundIndex IS the absolute
+// round index for the cursor. The ceiling comes from the enrollment row.
+const currentAbsoluteRound = computed(() => {
+  const idx = simplePlayer.roundIndex.value
+  return typeof idx === 'number' ? idx + 1 : null
+})
+const highestAbsoluteRound = computed(() => {
+  const idx = highestCompletedRoundIndex.value
+  return typeof idx === 'number' ? idx + 1 : null
+})
+
+// Jump the cursor forward to the ceiling. The ceiling's companion lego
+// tells us which seed to load — that's our navigational hook. After the
+// load, find the exact round at that lego and jump there. The cursor
+// will advance on the next saveRoundProgress; we don't write here so
+// that backing out (closing the app) doesn't strand them at the new spot.
+const jumpToFurthest = async () => {
+  const targetLegoId = highestCompletedLegoId.value
+  const targetRoundIndex = highestCompletedRoundIndex.value
+  if (!targetLegoId || typeof targetRoundIndex !== 'number') {
+    console.warn('[LearningPlayer] jumpToFurthest: no ceiling stored')
+    return
+  }
+
+  // Lego IDs have the form S0042L05 — seed number is digits 1..5.
+  const seedMatch = targetLegoId.match(/^S(\d+)L/)
+  const targetSeed = seedMatch ? parseInt(seedMatch[1], 10) : null
+  if (!targetSeed) {
+    console.warn('[LearningPlayer] jumpToFurthest: cannot parse seed from', targetLegoId)
+    return
+  }
+
+  console.log(`[LearningPlayer] jumpToFurthest: round ${targetRoundIndex + 1} (lego ${targetLegoId}, seed ${targetSeed})`)
+  haltAllPlayback()
+  await loadSeedIfNeeded(targetSeed)
+
+  // Prefer the exact lego; fall back to the start of its seed if the
+  // lego id isn't present (unlikely but defensive).
+  const exactIdx = simplePlayer.findRoundIndexForLegoId(targetLegoId)
+  if (exactIdx >= 0) {
+    simplePlayer.jumpToRound(exactIdx)
+  } else {
+    simplePlayer.jumpToSeed(targetSeed)
+  }
+
+  if (beltProgress.value) {
+    beltProgress.value.setPlayingPosition(targetSeed)
+  }
+}
+
 // Safari requires audio.play() within a user gesture to unlock the audio element.
 // Call this synchronously from the tap handler BEFORE any setTimeout/async delay.
 const unlockAudio = () => {
@@ -6165,6 +6243,9 @@ defineExpose({
   toggleTurbo,
   turboActive,
   sessionSeconds,
+  currentAbsoluteRound,
+  highestAbsoluteRound,
+  jumpToFurthest,
 })
 </script>
 

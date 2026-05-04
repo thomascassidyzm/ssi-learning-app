@@ -79,6 +79,30 @@ const playerHasRomanized = computed(() => learningPlayerRef.value?.hasRomanizedT
 const playerIsNativeScript = computed(() => learningPlayerRef.value?.isNativeScript ?? false)
 const isPlayerReady = computed(() => !(learningPlayerRef.value?.isAwakening ?? true))
 
+// Round-cursor pair for the resting-state "skip to round N" choice.
+// Read through the player ref so we don't have to duplicate the resume
+// pipeline up here. `jumpChoiceDismissed` is session-scoped — once the
+// learner taps "stay" we don't badger them again until app reload.
+const currentRound = computed(() => learningPlayerRef.value?.currentAbsoluteRound ?? null)
+const highestRound = computed(() => learningPlayerRef.value?.highestAbsoluteRound ?? null)
+const jumpChoiceDismissed = ref(false)
+const restingCurrentRound = computed(() => jumpChoiceDismissed.value ? null : currentRound.value)
+const restingHighestRound = computed(() => jumpChoiceDismissed.value ? null : highestRound.value)
+
+const handleJumpToFurthest = async () => {
+  if (learningPlayerRef.value?.jumpToFurthest) {
+    await learningPlayerRef.value.jumpToFurthest()
+    // After jumping, the cursor catches up on the next round complete —
+    // but the choice is no longer relevant either way, so clear it.
+    jumpChoiceDismissed.value = true
+    handleTogglePlayback()
+  }
+}
+
+const handleStayHere = () => {
+  jumpChoiceDismissed.value = true
+}
+
 // Class context (when launched from Schools)
 const classContext = ref(null)
 
@@ -488,8 +512,12 @@ onMounted(() => {
       :total-seeds="totalSeeds"
       :current-belt-name="currentBeltName"
       :is-player-ready="isPlayerReady"
+      :current-round="restingCurrentRound"
+      :highest-round="restingHighestRound"
       @start="handleTogglePlayback"
       @change-course="showCourseSelector = true"
+      @jump-to-furthest="handleJumpToFurthest"
+      @stay-here="handleStayHere"
     />
 
     <!-- Library overlay (slide-up modal, same pattern as Settings) -->
