@@ -2817,6 +2817,7 @@ class RealAudioController {
   suppressAllCallbacks: boolean
   playGeneration: number
   audioSource: any
+  pendingPlaybackRate: number
   _lastEndedHandler: (() => void) | null
   _lastErrorHandler: ((e: any) => void) | null
 
@@ -2833,6 +2834,7 @@ class RealAudioController {
     this.suppressAllCallbacks = false  // Set true during skip to prevent any audio callbacks
     this.playGeneration = 0  // Incremented on stop() to invalidate pending callbacks
     this.audioSource = null  // Optional AudioSource for IndexedDB caching
+    this.pendingPlaybackRate = 1.0  // Re-applied after audio.load() resets it
     this._lastEndedHandler = null
     this._lastErrorHandler = null
   }
@@ -2843,6 +2845,18 @@ class RealAudioController {
    */
   setAudioSource(audioSource) {
     this.audioSource = audioSource
+  }
+
+  /**
+   * Set HTMLAudioElement playbackRate. Used by the pod lap scheduler so
+   * `ps2x` cycles actually play at 2× their native speed. The rate is
+   * stored and re-applied after each `audio.load()` (which resets it back
+   * to 1.0), so calling `setPlaybackRate(2.0); play(ref)` actually plays
+   * at 2×. Reset to 1.0 between segments so the next call defaults right.
+   */
+  setPlaybackRate(rate) {
+    this.pendingPlaybackRate = rate || 1.0
+    if (this.audio) this.audio.playbackRate = this.pendingPlaybackRate
   }
 
   async play(audioRef) {
@@ -2919,6 +2933,12 @@ class RealAudioController {
       // Set source and play
       this.audio.src = url
       this.audio.load()
+      // load() resets playbackRate to 1.0 — re-apply any pending rate
+      // (set by setPlaybackRate before this play() call). Pod ps2x relies
+      // on this to actually play at 2×.
+      if (this.pendingPlaybackRate && this.pendingPlaybackRate !== 1.0) {
+        this.audio.playbackRate = this.pendingPlaybackRate
+      }
 
       const playPromise = this.audio.play()
       if (playPromise) {
