@@ -164,6 +164,16 @@ export class ProgressStore implements IProgressStore {
     legoId: string,
     roundIndex: number
   ): Promise<void> {
+    // Cursor advance is forward-only at the persistence layer. A round-
+    // completion at index N never regresses the cursor — without this
+    // guard, a single bug that zeroed the in-memory round index could
+    // overwrite a learner's furthest position with "round 0" the next
+    // time a cycle completed (which is exactly what happened to the
+    // pod-stop reset before commit e09dc41).
+    //
+    // Intentional cursor regression — say, a future "track revisit
+    // position" feature — would need a separate explicit method. All
+    // current callers want forward-only progress.
     const { error } = await this.client
       .schema(this.schema)
       .from('course_enrollments')
@@ -173,7 +183,8 @@ export class ProgressStore implements IProgressStore {
         last_practiced_at: new Date().toISOString(),
       })
       .eq('learner_id', learnerId)
-      .eq('course_id', courseId);
+      .eq('course_id', courseId)
+      .or(`last_completed_round_index.is.null,last_completed_round_index.lt.${roundIndex}`);
 
     if (error) {
       throw new Error(`Failed to update enrollment progress: ${error.message}`);
