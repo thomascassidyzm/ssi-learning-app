@@ -21,7 +21,7 @@ import ReportIssueButton from './ReportIssueButton.vue'
 // AwakeningLoader removed - loading state now shown inline in player
 import { useLearningSession } from '../composables/useLearningSession'
 import { useScriptCache, setCachedScript } from '../composables/useScriptCache'
-import { INITIAL_PRELOAD_SEEDS } from '../composables/useEagerScriptPreload'
+import { INITIAL_PRELOAD_SEEDS, LOOKAHEAD_CHUNK_SEEDS } from '../composables/useEagerScriptPreload'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
 import { usePodLapScheduler, type PodLap, type PodPlay } from '../composables/usePodLapScheduler'
 import { useSharedBeltProgress, getSeedFromLegoId, BELTS, type BeltProgressSyncConfig } from '../composables/useBeltProgress'
@@ -468,7 +468,21 @@ const currentItemInRound = ref(0)
 const isPlaying = ref(false)
 
 // Sync state with simplePlayer
-watch(() => simplePlayer.roundIndex.value, (idx) => { currentRoundIndex.value = idx })
+watch(() => simplePlayer.roundIndex.value, (idx) => {
+  currentRoundIndex.value = idx
+  // Near-edge trigger: keep the loaded set ~LOOKAHEAD_CHUNK_SEEDS ahead of
+  // the current play position. loadSeedIfNeeded is idempotent (early-returns
+  // if the target seed is already loaded), so calling it on every round
+  // advance is cheap. Single chunk per call — the player only ever needs
+  // a small lookahead, never the whole course.
+  const currentLegoId = simplePlayer.currentRound?.value?.legoId
+  if (currentLegoId) {
+    const currentSeed = getSeedFromLegoId(currentLegoId)
+    if (currentSeed != null && currentSeed > 0) {
+      loadSeedIfNeeded(currentSeed + LOOKAHEAD_CHUNK_SEEDS).catch(() => { /* idempotent — silent */ })
+    }
+  }
+})
 watch(() => simplePlayer.cycleIndex.value, (idx) => { currentItemInRound.value = idx })
 watch(() => simplePlayer.isPlaying.value, (playing) => {
   isPlaying.value = playing
@@ -5337,15 +5351,8 @@ onMounted(async () => {
             // are now, not from R6 retroactively. When the pin differs from the
             // default we bypass the eager preload and load fresh with the override
             // — eager preload always uses the default config.
-            let result
-            const eagerCourseMatches = eagerScript?.scriptPromise?.value &&
-              eagerScript.courseCode.value === courseCode.value
-            const beyondInitialWindow = isReturningUser && startingSeed > INITIAL_PRELOAD_SEEDS
-
-            // Resolve pod activation pin for returning users. The composable
-            // reads `last_completed_round_index` from the enrollment row
-            // (exact, kept current by ProgressStore on every round-end) and
-            // pins to next-round-to-play if not already pinned.
+            // Resolve the pod activation pin once — feeds into listeningConfig
+            // for any path that doesn't use the eager preload's default config.
             let podActivationOverride: number | null = null
             if (isReturningUser && startingSeed > 0) {
               const resolved = await resolvePodActivationRound(
@@ -5359,24 +5366,33 @@ onMounted(async () => {
               }
             }
 
-            if (podActivationOverride !== null) {
-              // Returning user with non-default pod pin — load fresh so the
-              // listeningConfig override threads through.
-              const config = { ...DEFAULT_LISTENING_CONFIG, podActivationRound: podActivationOverride }
-              console.log('[LearningPlayer] Generating script with custom pod activation...')
-              result = await generateSimpleScript(supabase.value, courseCode.value, 1, 9999, 1, config)
-              console.log(`[LearningPlayer] Custom-config script ready: ${result.items.length} items, ${result.roundCount} rounds`)
-            } else if (eagerCourseMatches && beyondInitialWindow && eagerScript.extensionPromise?.value) {
-              console.log(`[LearningPlayer] Returning user at seed ${startingSeed} (beyond initial window) — awaiting full extension...`)
-              result = await eagerScript.extensionPromise.value
-              console.log(`[LearningPlayer] Full script ready: ${result.items.length} items, ${result.roundCount} rounds`)
+            // Pick the load path:
+            //   - Returning user (past seed 0):       own load, seeds 1..(startingSeed + LOOKAHEAD_CHUNK_SEEDS), with pod pin
+            //   - New user, eager preload available:  use the eager preload (seeds 1..INITIAL_PRELOAD_SEEDS)
+            //   - Fallback (no eager):                own load, seeds 1..INITIAL_PRELOAD_SEEDS
+            //
+            // No two-phase preload, no extension await. Near-edge watcher
+            // (set up further down) extends the loaded set chunk-by-chunk
+            // as the player advances.
+            let result
+            const eagerCourseMatches = eagerScript?.scriptPromise?.value &&
+              eagerScript.courseCode.value === courseCode.value
+            const config = podActivationOverride !== null
+              ? { ...DEFAULT_LISTENING_CONFIG, podActivationRound: podActivationOverride }
+              : undefined
+
+            if (isReturningUser && startingSeed > 0) {
+              const endSeed = startingSeed + LOOKAHEAD_CHUNK_SEEDS
+              console.log(`[LearningPlayer] Returning user at seed ${startingSeed} — loading seeds 1..${endSeed}${config ? ' (custom pod pin)' : ''}`)
+              result = await generateSimpleScript(supabase.value, courseCode.value, 1, endSeed, 1, config)
+              console.log(`[LearningPlayer] Returning-user load ready: ${result.items.length} items, ${result.roundCount} rounds`)
             } else if (eagerCourseMatches) {
-              console.log('[LearningPlayer] Awaiting eager script preload (phase 1)...')
+              console.log('[LearningPlayer] Awaiting eager script preload...')
               result = await eagerScript.scriptPromise.value
-              console.log(`[LearningPlayer] Phase 1 ready: ${result.items.length} items, ${result.roundCount} rounds`)
+              console.log(`[LearningPlayer] Eager preload ready: ${result.items.length} items, ${result.roundCount} rounds`)
             } else {
               console.log('[LearningPlayer] No eager preload available, loading directly...')
-              result = await generateSimpleScript(supabase.value, courseCode.value, 1, 668, 1)
+              result = await generateSimpleScript(supabase.value, courseCode.value, 1, INITIAL_PRELOAD_SEEDS, 1, config)
               console.log(`[LearningPlayer] Direct load: ${result.items.length} items, ${result.roundCount} rounds`)
             }
 
@@ -5384,25 +5400,6 @@ onMounted(async () => {
               const simpleRounds = toSimpleRoundsWithComponents(result.items)
 
               simplePlayer.initialize(simpleRounds as any)
-
-              // If we used the phase-1 result, listen for the phase-2 extension
-              // and append the additional rounds to the player when ready.
-              if (eagerCourseMatches && !beyondInitialWindow && eagerScript.extensionPromise?.value) {
-                eagerScript.extensionPromise.value.then((fullResult: any) => {
-                  if (!fullResult || eagerScript.courseCode.value !== courseCode.value) return
-                  if (fullResult.items.length <= result.items.length) return
-                  const fullRounds = toSimpleRoundsWithComponents(fullResult.items)
-                  const existingIds = new Set((simpleRounds as any[]).map((r: any) => r.legoId))
-                  const newRounds = fullRounds.filter((r: any) => !existingIds.has(r.legoId))
-                  if (newRounds.length > 0) {
-                    simplePlayer.addRounds(newRounds as any)
-                    loadedRounds.value = [...(simpleRounds as any[]), ...newRounds] as any
-                    console.log(`[LearningPlayer] Extended with ${newRounds.length} additional rounds`)
-                  }
-                }).catch((err: any) => {
-                  console.warn('[LearningPlayer] Background extension failed:', err)
-                })
-              }
 
               // Restore position for returning users.
               // Uses last_completed_lego_id (exact LEGO position) instead of
