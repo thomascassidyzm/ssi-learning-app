@@ -199,6 +199,20 @@ const availableKnownLangs = computed(() => {
     .map(([code, count]) => ({ code, count }))
 })
 
+// Typeable iSpeak filter — lets users find their language when it's not
+// among the most-served (i.e. not visible at the front of the row).
+// Matches against both the endonym and the localised name.
+const iSpeakQuery = ref('')
+const filteredKnownLangs = computed(() => {
+  const q = iSpeakQuery.value.trim().toLowerCase()
+  if (!q) return availableKnownLangs.value
+  return availableKnownLangs.value.filter(lang => {
+    const endonym = (getLanguageEndonym(lang.code) || '').toLowerCase()
+    const name = (getLanguageName(lang.code) || '').toLowerCase()
+    return endonym.includes(q) || name.includes(q)
+  })
+})
+
 // Tier-split groups for the section-header layout.
 const premiumGroups = computed(() => courseGroups.value.filter(g => g.courses.some(c => isPremiumCourse(c))))
 const freeGroups = computed(() => courseGroups.value.filter(g => !g.courses.some(c => isPremiumCourse(c))))
@@ -362,18 +376,24 @@ onMounted(() => {
               v-model="searchQuery"
               type="text"
               class="course-search-input"
-              placeholder="Search any language..."
+              :placeholder="t('courseSelector.searchPlaceholder')"
               autocomplete="off"
             />
             <div v-if="availableKnownLangs.length > 1 && !searchQuery.trim()" class="i-speak-row">
-              <span class="i-speak-label">I speak</span>
               <div class="i-speak-pills">
+                <input
+                  v-model="iSpeakQuery"
+                  type="text"
+                  class="i-speak-pill i-speak-input"
+                  :placeholder="t('courseSelector.iSpeak') + '…'"
+                  autocomplete="off"
+                />
                 <button
-                  v-for="lang in availableKnownLangs"
+                  v-for="lang in filteredKnownLangs"
                   :key="lang.code"
                   class="i-speak-pill"
                   :class="{ active: iSpeak === lang.code }"
-                  @click="iSpeak = lang.code"
+                  @click="iSpeak = lang.code; iSpeakQuery = ''"
                 >
                   {{ getLanguageEndonym(lang.code) }}
                 </button>
@@ -1060,6 +1080,31 @@ onMounted(() => {
   background: #2C2622;
   border-color: #2C2622;
   color: #fff;
+}
+
+/* Typeable iSpeak pill — same shape as the buttons, dashed border + italic
+   placeholder so it reads as 'enter your language' rather than a fixed
+   choice. Width auto-grows up to a sensible cap. */
+.i-speak-pill.i-speak-input {
+  border-style: dashed;
+  background: transparent;
+  outline: none;
+  width: 7.5rem;
+  font-style: italic;
+  color: var(--text-primary, #2C2622);
+}
+
+.i-speak-pill.i-speak-input::placeholder {
+  color: var(--text-muted, rgba(0, 0, 0, 0.45));
+  font-style: italic;
+}
+
+.i-speak-pill.i-speak-input:focus {
+  border-style: solid;
+  border-color: var(--text-primary, #2C2622);
+  background: var(--surface-elevated, rgba(255, 255, 255, 0.85));
+  font-style: normal;
+  width: 9.5rem;
 }
 
 /* ============================================================
