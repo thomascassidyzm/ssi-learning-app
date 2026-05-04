@@ -23,6 +23,7 @@ import { useLearningSession } from '../composables/useLearningSession'
 import { useScriptCache, setCachedScript } from '../composables/useScriptCache'
 import { INITIAL_PRELOAD_SEEDS } from '../composables/useEagerScriptPreload'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
+import { usePodLapScheduler, type PodLap, type PodPlay } from '../composables/usePodLapScheduler'
 import { useSharedBeltProgress, getSeedFromLegoId, BELTS, type BeltProgressSyncConfig } from '../composables/useBeltProgress'
 import { useBeltLoader, getBeltForSeed, BELT_RANGES, type BeltLoaderConfig } from '../composables/useBeltLoader'
 import { useOfflinePlay } from '../composables/useOfflinePlay'
@@ -1149,6 +1150,29 @@ const metaCommentary = courseDataProvider.value
 const playingCommentaryAudio = ref(false)
 
 // ============================================
+// LISTENING POD LAP SCHEDULER (Layer 2 — runtime, ratchet-driven)
+// Replaces the old script-baked pod emission. Fires between rounds when
+// the user has crossed pod_activation_round, plays the lap composed from
+// completed_pod_rounds + 1, and increments the ratchet on completion.
+// ============================================
+const podScheduler = supabase?.value
+  ? usePodLapScheduler({
+      supabase: supabase as any,
+      courseCode: courseCode,
+      learnerId: learnerId,
+    })
+  : null
+const playingPodLapAudio = ref(false)
+// Initialize once we know the course; re-init when course changes
+watch(
+  () => [courseCode.value, learnerId.value],
+  async () => {
+    if (podScheduler) await podScheduler.initialize()
+  },
+  { immediate: true }
+)
+
+// ============================================
 // INK SPIRIT REWARDS
 // Target language congratulations that drift upward
 // Hidden formula - show results, not mechanics
@@ -1587,6 +1611,65 @@ const playCommentaryAudio = async (commentary) => {
 }
 
 /**
+ * Play a single pod-lap audio segment (one bookend or one pod play).
+ * Uses the same audioController as commentary. Resolves on ended/error.
+ */
+const playPodSegment = async (audioId: string, durationMs?: number, playbackSpeed = 1.0): Promise<boolean> => {
+  if (!audioId || !audioController.value) return false
+  return new Promise((resolve) => {
+    const audio = audioController.value
+    const onEnded = () => {
+      audio.offEnded(onEnded)
+      // Restore playback rate so the next segment isn't accidentally fast
+      try { (audio as any).setPlaybackRate?.(1.0) } catch {}
+      resolve(true)
+    }
+    audio.onEnded(onEnded)
+    try {
+      // Some audioController implementations expose setPlaybackRate; fall back gracefully
+      ;(audio as any).setPlaybackRate?.(playbackSpeed)
+    } catch {}
+    audio.play({ id: audioId, url: `/api/audio/${audioId}?courseId=${encodeURIComponent(courseCode.value)}`, duration_ms: durationMs })
+      .catch((err: any) => {
+        console.warn('[LearningPlayer] Pod segment audio error:', err?.message || err)
+        audio.offEnded(onEnded)
+        resolve(false)
+      })
+    setTimeout(() => {
+      audio.offEnded(onEnded)
+      try { (audio as any).setPlaybackRate?.(1.0) } catch {}
+      resolve(false)
+    }, 30000)
+  })
+}
+
+/**
+ * Play a full pod lap (intro bookend → all plays → outro bookend).
+ * Returns true iff the lap played to completion (so the ratchet should advance).
+ * Caller is responsible for pausing/resuming simplePlayer around this.
+ */
+const playPodLap = async (lap: PodLap): Promise<boolean> => {
+  playingPodLapAudio.value = true
+  try {
+    if (lap.intro) {
+      const ok = await playPodSegment(lap.intro.id, lap.intro.duration_ms, 1.0)
+      if (!ok) return false
+    }
+    for (const play of lap.plays as PodPlay[]) {
+      const ok = await playPodSegment(play.audioId, undefined, play.playbackSpeed)
+      if (!ok) return false
+    }
+    if (lap.outro) {
+      const ok = await playPodSegment(lap.outro.id, lap.outro.duration_ms, 1.0)
+      if (!ok) return false
+    }
+    return true
+  } finally {
+    playingPodLapAudio.value = false
+  }
+}
+
+/**
  * Update belt progress based on current position in course
  * Belts are POSITION-based, not completion-based
  * This allows learners to skip ahead and calibrate quickly
@@ -1644,6 +1727,32 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId) => {
       // Mark commentary as complete and resume learning
       metaCommentary.finishCommentaryPlayback()
       simplePlayer.resume()
+    }
+  }
+
+  // ============================================
+  // LISTENING POD LAP (Layer 2 — runtime, ratchet-driven)
+  // Fires between rounds when learner has crossed activation. Lap is keyed
+  // off completed_pod_rounds + 1, NOT main round arithmetic. Only advances
+  // the ratchet when the lap plays to completion.
+  // ============================================
+  if (podScheduler && podScheduler.isInitialized.value && !beltJustEarned.value) {
+    const completedMainRound = (completedRoundIndex || 0) + 1
+    if (podScheduler.shouldFireLapAt(completedMainRound)) {
+      const lap = podScheduler.nextLap()
+      if (lap) {
+        console.log(`[LearningPlayer] Playing pod lap ${lap.podRound} (${lap.plays.length} plays)`)
+        simplePlayer.pause()
+        const completed = await playPodLap(lap)
+        if (completed) {
+          await podScheduler.markLapCompleted()
+        } else {
+          // User skipped or audio errored — counter stays so the same lap
+          // plays next session ("the listening work has to be done").
+          console.log('[LearningPlayer] Pod lap not completed, ratchet unchanged')
+        }
+        simplePlayer.resume()
+      }
     }
   }
 

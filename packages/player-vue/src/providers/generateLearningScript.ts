@@ -1126,12 +1126,15 @@ export async function generateLearningScript(
         }
       }
 
-      // Phase 7: Layer 2 (Pod 0) — fires every round at and after activation.
-      if (l2FiresAt(roundNumber)) {
-        const podCounter = { v: cycleNum }
-        emitPodLap(roundNumber, podCounter)
-        cycleNum = podCounter.v
-      }
+      // Phase 7 (Layer 2 Pod 0) used to emit pod laps here. Pods are now
+      // runtime-scheduled by usePodLapScheduler so they decouple from main
+      // round arithmetic — see migration 20260504_pod_ratchet.sql for the
+      // model. The pod emission helpers below (emitPodLap / podStageFor /
+      // STAGE_PLAYLIST / hasPods / podSentences / podRoundForMainRound /
+      // l2FiresAt / listenIntroAudio / listenOutroAudio / hasBookends) are
+      // intentionally retained as dead code for one release so a hot-fix
+      // rollback only needs to re-add this if-block. Safe to delete after
+      // the runtime path is proven on staging.
     }
   }
 
@@ -1294,11 +1297,8 @@ export async function generateLearningScript(
         emitL1Cluster(seeds, roundNumber, listenCounter)
         cycleNum = listenCounter.v
       }
-      if (l2FiresAt(roundNumber)) {
-        const podCounter = { v: cycleNum }
-        emitPodLap(roundNumber, podCounter)
-        cycleNum = podCounter.v
-      }
+      // Phase 7 (Layer 2 Pod 0) — runtime-scheduled, no longer baked here.
+      // See note at the matching site above and migration 20260504_pod_ratchet.sql.
     }
   }
 
