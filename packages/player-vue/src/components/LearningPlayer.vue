@@ -21,7 +21,7 @@ import ReportIssueButton from './ReportIssueButton.vue'
 // AwakeningLoader removed - loading state now shown inline in player
 import { useLearningSession } from '../composables/useLearningSession'
 import { useScriptCache, setCachedScript } from '../composables/useScriptCache'
-import { INITIAL_PRELOAD_SEEDS, LOOKAHEAD_CHUNK_SEEDS } from '../composables/useEagerScriptPreload'
+import { INITIAL_PRELOAD_SEEDS, LOOKAHEAD_CHUNK_SEEDS, LOOKAHEAD_TRIGGER_ROUNDS } from '../composables/useEagerScriptPreload'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
 import { usePodLapScheduler, type PodLap, type PodPlay } from '../composables/usePodLapScheduler'
 import { useSharedBeltProgress, getSeedFromLegoId, BELTS, type BeltProgressSyncConfig } from '../composables/useBeltProgress'
@@ -470,16 +470,19 @@ const isPlaying = ref(false)
 // Sync state with simplePlayer
 watch(() => simplePlayer.roundIndex.value, (idx) => {
   currentRoundIndex.value = idx
-  // Near-edge trigger: keep the loaded set ~LOOKAHEAD_CHUNK_SEEDS ahead of
-  // the current play position. loadSeedIfNeeded is idempotent (early-returns
-  // if the target seed is already loaded), so calling it on every round
-  // advance is cheap. Single chunk per call — the player only ever needs
-  // a small lookahead, never the whole course.
-  const currentLegoId = simplePlayer.currentRound?.value?.legoId
-  if (currentLegoId) {
-    const currentSeed = getSeedFromLegoId(currentLegoId)
+  // Near-edge trigger: when within LOOKAHEAD_TRIGGER_ROUNDS of the loaded
+  // edge, fetch the next chunk. The threshold is in rounds (the unit users
+  // experience); seeds are just the script generator's query unit. The
+  // chunk size is small — the player only ever needs a short lookahead,
+  // never the whole course.
+  const totalLoaded = simplePlayer.roundCount?.value ?? 0
+  if (totalLoaded > 0 && idx >= totalLoaded - LOOKAHEAD_TRIGGER_ROUNDS) {
+    const currentLegoId = simplePlayer.currentRound?.value?.legoId
+    const currentSeed = currentLegoId ? getSeedFromLegoId(currentLegoId) : null
     if (currentSeed != null && currentSeed > 0) {
-      loadSeedIfNeeded(currentSeed + LOOKAHEAD_CHUNK_SEEDS).catch(() => { /* idempotent — silent */ })
+      // loadSeedIfNeeded is idempotent — early-returns if the target seed
+      // is already loaded, so this is safe to call from inside the watcher.
+      loadSeedIfNeeded(currentSeed + LOOKAHEAD_CHUNK_SEEDS).catch(() => { /* silent */ })
     }
   }
 })

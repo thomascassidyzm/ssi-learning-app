@@ -24,19 +24,26 @@ import { generateLearningScript, type LearningScriptResult } from '../providers/
 import { checkContentVersion } from './useScriptCache'
 
 /**
- * Seeds covered by the initial fast load. The script generator's main loop
- * introduces every LEGO in this range, so cost scales roughly linearly —
- * keep this small. 10 seeds ≈ ~30 rounds ≈ ~2.5 hours of practice content,
- * giving the near-edge watcher plenty of headroom to load more chunks
- * before the player runs out.
+ * Seeds covered by the initial fast load. Seeds are the script generator's
+ * query unit; the unit users experience is rounds (≈ 3 rounds per seed).
+ * 10 seeds ≈ ~30 rounds — plenty of buffer for the near-edge watcher to
+ * extend the loaded set before the player runs out.
  */
 export const INITIAL_PRELOAD_SEEDS = 10
 
 /**
- * Seeds to fetch per chunk when the near-edge watcher fires. Smaller than
- * INITIAL_PRELOAD_SEEDS because subsequent chunks are pure additions.
+ * When the player gets within this many rounds of the loaded edge, fetch
+ * another chunk. 5 rounds at ~5 min each = 25 min of headroom, which is
+ * more than enough for a Supabase round-trip + addRounds.
  */
-export const LOOKAHEAD_CHUNK_SEEDS = 5
+export const LOOKAHEAD_TRIGGER_ROUNDS = 5
+
+/**
+ * Seeds per chunk when the near-edge watcher fires. ~3 rounds per seed,
+ * so a 3-seed chunk is ~9 rounds — enough to clear the trigger threshold
+ * with margin so the watcher doesn't re-fire immediately.
+ */
+export const LOOKAHEAD_CHUNK_SEEDS = 3
 
 export interface EagerScriptPreload {
   /** Resolves with seeds 1..INITIAL_PRELOAD_SEEDS */
