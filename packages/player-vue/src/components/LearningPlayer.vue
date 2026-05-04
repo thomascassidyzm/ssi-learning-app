@@ -5201,17 +5201,16 @@ onMounted(async () => {
               eagerScript.courseCode.value === courseCode.value
             const beyondInitialWindow = isReturningUser && startingSeed > INITIAL_PRELOAD_SEEDS
 
-            // Resolve pod activation pin for returning users (~3 LEGOs per seed
-            // is a deliberate approximation — the pin is captured once and the
-            // small offset doesn't matter once stable).
+            // Resolve pod activation pin for returning users. The composable
+            // reads `last_completed_round_index` from the enrollment row
+            // (exact, kept current by ProgressStore on every round-end) and
+            // pins to next-round-to-play if not already pinned.
             let podActivationOverride: number | null = null
             if (isReturningUser && startingSeed > 0) {
-              const approxCurrentRound = Math.max(7, Math.round(startingSeed * 3))
               const resolved = await resolvePodActivationRound(
                 supabase.value,
                 learnerId.value,
-                courseCode.value,
-                approxCurrentRound
+                courseCode.value
               )
               if (resolved !== DEFAULT_LISTENING_CONFIG.podActivationRound) {
                 podActivationOverride = resolved

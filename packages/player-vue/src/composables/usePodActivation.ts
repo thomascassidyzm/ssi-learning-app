@@ -31,6 +31,12 @@ const isGuestLearner = (id: string | undefined | null): boolean => {
  * Resolve the pod activation round for this learner+course, writing the pin
  * back to course_enrollments if it was NULL and the learner is past R6.
  *
+ * Reads `last_completed_round_index` directly from the enrollment — that's
+ * the exact round number the player last completed (kept current by
+ * ProgressStore on every round-end). Pin = next round to play =
+ * last_completed_round_index + 1. Sentence #1 enters at stage 1 the moment
+ * they resume.
+ *
  * Returns a number — the activation round to thread into listeningConfig.
  * Falls back to the default (6) on any error path so the player never blocks
  * on this lookup.
@@ -38,17 +44,16 @@ const isGuestLearner = (id: string | undefined | null): boolean => {
 export async function resolvePodActivationRound(
   supabase: SupabaseClient | null,
   learnerId: string | null | undefined,
-  courseCode: string,
-  currentRound: number
+  courseCode: string
 ): Promise<number> {
   if (!supabase) return DEFAULT_POD_ACTIVATION
   if (!learnerId || isGuestLearner(learnerId)) return DEFAULT_POD_ACTIVATION
 
   try {
-    // Read current pin
+    // Read current pin and exact last completed round in one query
     const { data, error } = await supabase
       .from('course_enrollments')
-      .select('pod_activation_round')
+      .select('pod_activation_round, last_completed_round_index')
       .eq('learner_id', learnerId)
       .eq('course_id', courseCode)
       .maybeSingle()
@@ -63,24 +68,32 @@ export async function resolvePodActivationRound(
       return data.pod_activation_round
     }
 
-    // No pin yet. If learner is past R6, capture their current round.
-    if (currentRound > DEFAULT_POD_ACTIVATION) {
-      const { error: writeError } = await supabase
-        .from('course_enrollments')
-        .update({ pod_activation_round: currentRound })
-        .eq('learner_id', learnerId)
-        .eq('course_id', courseCode)
-        .is('pod_activation_round', null)
-
-      if (writeError) {
-        console.warn('[podActivation] Write error:', writeError.message)
-        return DEFAULT_POD_ACTIVATION
-      }
-      return currentRound
+    const lastCompleted = data?.last_completed_round_index ?? null
+    if (lastCompleted == null) {
+      // Brand new enrollment, no rounds completed — default activation
+      return DEFAULT_POD_ACTIVATION
     }
 
-    // Learner at or below R6 — default activation is correct
-    return DEFAULT_POD_ACTIVATION
+    // Pin = the next round they're about to play. If that's at or below the
+    // default activation (R6), the default already gives them everything;
+    // skip writing the pin so the default path applies.
+    const nextRound = lastCompleted + 1
+    if (nextRound <= DEFAULT_POD_ACTIVATION) {
+      return DEFAULT_POD_ACTIVATION
+    }
+
+    const { error: writeError } = await supabase
+      .from('course_enrollments')
+      .update({ pod_activation_round: nextRound })
+      .eq('learner_id', learnerId)
+      .eq('course_id', courseCode)
+      .is('pod_activation_round', null)
+
+    if (writeError) {
+      console.warn('[podActivation] Write error:', writeError.message)
+      return DEFAULT_POD_ACTIVATION
+    }
+    return nextRound
   } catch (err) {
     console.warn('[podActivation] Unexpected:', err)
     return DEFAULT_POD_ACTIVATION
