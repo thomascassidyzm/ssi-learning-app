@@ -1180,6 +1180,10 @@ const podScheduler = supabase?.value
     })
   : null
 const playingPodLapAudio = ref(false)
+// Set true when the learner presses stop *during* a pod lap or commentary.
+// handleRoundBoundary checks this before calling simplePlayer.resume() so a
+// deliberate stop doesn't auto-advance into the next round mid-pod.
+const userStoppedDuringLap = ref(false)
 // Initialize once we know the course; re-init when course changes
 watch(
   () => [courseCode.value, learnerId.value],
@@ -1633,28 +1637,43 @@ const playCommentaryAudio = async (commentary) => {
  */
 const playPodSegment = async (audioId: string, durationMs?: number, playbackSpeed = 1.0): Promise<boolean> => {
   if (!audioId || !audioController.value) return false
+  const audio = audioController.value
+  // audioController.stop() increments playGeneration to invalidate pending
+  // callbacks. We capture the generation here and poll for changes so that
+  // a user-triggered stop (mid-pod) resolves this segment immediately
+  // rather than hanging until the 30s safety timeout.
+  const startGen = (audio as any).playGeneration ?? 0
   return new Promise((resolve) => {
-    const audio = audioController.value
-    const onEnded = () => {
+    let cancelPoll: ReturnType<typeof setInterval> | null = null
+    let safetyTimeout: ReturnType<typeof setTimeout> | null = null
+    const cleanup = () => {
       audio.offEnded(onEnded)
-      // Restore playback rate so the next segment isn't accidentally fast
       try { (audio as any).setPlaybackRate?.(1.0) } catch {}
+      if (cancelPoll) clearInterval(cancelPoll)
+      if (safetyTimeout) clearTimeout(safetyTimeout)
+    }
+    const onEnded = () => {
+      cleanup()
       resolve(true)
     }
     audio.onEnded(onEnded)
     try {
-      // Some audioController implementations expose setPlaybackRate; fall back gracefully
       ;(audio as any).setPlaybackRate?.(playbackSpeed)
     } catch {}
     audio.play({ id: audioId, url: `/api/audio/${audioId}?courseId=${encodeURIComponent(courseCode.value)}`, duration_ms: durationMs })
       .catch((err: any) => {
         console.warn('[LearningPlayer] Pod segment audio error:', err?.message || err)
-        audio.offEnded(onEnded)
+        cleanup()
         resolve(false)
       })
-    setTimeout(() => {
-      audio.offEnded(onEnded)
-      try { (audio as any).setPlaybackRate?.(1.0) } catch {}
+    cancelPoll = setInterval(() => {
+      if (((audio as any).playGeneration ?? 0) !== startGen) {
+        cleanup()
+        resolve(false)
+      }
+    }, 100)
+    safetyTimeout = setTimeout(() => {
+      cleanup()
       resolve(false)
     }, 30000)
   })
@@ -1753,9 +1772,14 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId) => {
       // Play the commentary audio
       await playCommentaryAudio(commentary)
 
-      // Mark commentary as complete and resume learning
+      // Mark commentary as complete and resume learning — unless the learner
+      // pressed stop during commentary, in which case stay paused.
       metaCommentary.finishCommentaryPlayback()
-      simplePlayer.resume()
+      if (userStoppedDuringLap.value) {
+        userStoppedDuringLap.value = false
+      } else {
+        simplePlayer.resume()
+      }
     }
   }
 
@@ -1780,7 +1804,13 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId) => {
           // plays next session ("the listening work has to be done").
           console.log('[LearningPlayer] Pod lap not completed, ratchet unchanged')
         }
-        simplePlayer.resume()
+        // Resume into the next round — unless the learner pressed stop during
+        // the lap, in which case stay paused so they're in control.
+        if (userStoppedDuringLap.value) {
+          userStoppedDuringLap.value = false
+        } else {
+          simplePlayer.resume()
+        }
       }
     }
   }
@@ -6064,8 +6094,13 @@ const togglePlayback = () => {
   // audio AND any auto-resume into the next round. Without this we'd
   // resume() simplePlayer mid-pod, overlapping audio.
   if (playingPodLapAudio.value || playingCommentaryAudio.value) {
+    // Halt the runtime audio and tell handleRoundBoundary not to auto-resume.
+    // Do NOT call simplePlayer.stop() — it resets roundIndex to 0, wiping the
+    // learner's in-session position. simplePlayer is already paused while the
+    // pod/commentary plays; leave its state alone so handleResume can pick up
+    // where it left off.
+    userStoppedDuringLap.value = true
     audioController.value?.stop()
-    simplePlayer.stop()
     return
   }
   if (isPlaying.value) {
