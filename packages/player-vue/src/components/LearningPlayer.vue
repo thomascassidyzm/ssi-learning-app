@@ -509,6 +509,29 @@ const isPlaying = ref(false)
 const highestCompletedRoundIndex = ref<number | null>(null)
 const highestCompletedLegoId = ref<string | null>(null)
 
+// Independent of the resume cascade — fires whenever course or learner
+// changes so the ceiling is loaded for both cached-script and fresh-
+// generate paths, and refreshes on course switch. Single row read, errors
+// silently if offline / unauthenticated (choice just won't surface).
+watch(
+  () => [courseCode.value, learnerId.value],
+  async () => {
+    if (!progressStore?.value || !learnerId.value || !courseCode.value) return
+    if (isGuestLearner.value) return
+    try {
+      const saved = await loadSavedProgress()
+      if (saved) {
+        highestCompletedRoundIndex.value = saved.highestCompletedRoundIndex ?? null
+        highestCompletedLegoId.value = saved.highestCompletedLegoId ?? null
+      } else {
+        highestCompletedRoundIndex.value = null
+        highestCompletedLegoId.value = null
+      }
+    } catch { /* silent */ }
+  },
+  { immediate: true }
+)
+
 // Sync state with simplePlayer
 watch(() => simplePlayer.roundIndex.value, (idx) => {
   currentRoundIndex.value = idx
@@ -5713,22 +5736,9 @@ onMounted(async () => {
           parallelTasks.push(initializeVad().catch(() => {}))
         }
 
-        // Task: Read the round-cursor ceiling from the DB. Independent of
-        // the resume cascade because the ceiling lives in the enrollment
-        // row even when localStorage already resolved the cursor — we want
-        // the resting-state "skip to round N" choice to surface in both
-        // cache paths. Cheap, single row, non-blocking on failure.
-        parallelTasks.push(
-          (async () => {
-            try {
-              const saved = await loadSavedProgress()
-              if (saved) {
-                highestCompletedRoundIndex.value = saved.highestCompletedRoundIndex ?? null
-                highestCompletedLegoId.value = saved.highestCompletedLegoId ?? null
-              }
-            } catch { /* offline / unauthenticated — choice just won't surface */ }
-          })()
-        )
+        // (Ceiling fetch is handled by the unconditional watch on
+        // courseCode + learnerId near where the refs are declared — it
+        // covers both cached-script and fresh-generate paths.)
 
         // Wait for all parallel tasks
         await Promise.all(parallelTasks)
