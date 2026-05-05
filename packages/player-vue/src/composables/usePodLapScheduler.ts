@@ -37,9 +37,14 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 export type PodPlayRole = 'ps' | 'trans' | 'ps2x'
 
-/** Stage playlists per Aran's notebook 2026-04-29. PS = 1.0×, PS×2 = 2.0×. */
+/**
+ * Stage playlists per Aran's road-test 2026-05-05.
+ * PS = pod sentence at 1.0×, PS×2 at 2.0×, trans = known-language translation.
+ * Stage 1 is intentionally all 1.0× — no 2× until stage 2 — so the learner
+ * gets a clean target / known / target / target intro.
+ */
 const STAGE_PLAYLIST: Record<number, PodPlayRole[]> = {
-  1: ['ps', 'trans', 'ps', 'ps2x'],
+  1: ['ps', 'trans', 'ps', 'ps'],
   2: ['ps', 'trans', 'ps2x', 'ps2x'],
   3: ['ps', 'trans', 'ps2x'],
   4: ['ps2x', 'trans', 'ps2x'],
@@ -48,19 +53,26 @@ const STAGE_PLAYLIST: Record<number, PodPlayRole[]> = {
   7: ['ps2x'],
 }
 
-/** Stages 1–6 each last 3 pod-rounds; stage 7 is the eternal holding bay. */
+/**
+ * Pod-rounds spent in each of stages 1–6 before promoting to the next.
+ * Stage 7 is the eternal holding bay. Aran asked for 5 (was 3) — gives the
+ * learner more reps at each pattern before the speed/structure changes.
+ */
+const STAGE_DURATION = 5
+
+/** Stages 1–6 each last STAGE_DURATION pod-rounds; stage 7 is eternal. */
 export function podStageFor(
   entryPodRound: number,
   currentPodRound: number
 ): { stage: number; iter: number | null } | null {
   const alive = currentPodRound - entryPodRound + 1
   if (alive < 1) return null
-  if (alive <= 3) return { stage: 1, iter: alive }
-  if (alive <= 6) return { stage: 2, iter: alive - 3 }
-  if (alive <= 9) return { stage: 3, iter: alive - 6 }
-  if (alive <= 12) return { stage: 4, iter: alive - 9 }
-  if (alive <= 15) return { stage: 5, iter: alive - 12 }
-  if (alive <= 18) return { stage: 6, iter: alive - 15 }
+  for (let stage = 1; stage <= 6; stage++) {
+    const stageEnd = stage * STAGE_DURATION
+    if (alive <= stageEnd) {
+      return { stage, iter: alive - (stage - 1) * STAGE_DURATION }
+    }
+  }
   return { stage: 7, iter: null }
 }
 

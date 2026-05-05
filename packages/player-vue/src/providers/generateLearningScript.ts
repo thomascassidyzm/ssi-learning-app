@@ -222,11 +222,12 @@ export async function generateLearningScript(
   // -------------------------------------------------------------------------
   const POD_ACTIVATION_ROUND = listeningConfig.podActivationRound
   type PodPlayRole = 'ps' | 'trans' | 'ps2x'
-  // Stage playlists (per Aran's notebook 2026-04-29). PS = pod sentence at 1.0×,
-  // PS×2 at 2.0×, trans = English translation. Stages 1-6 each last 3 pod-rounds;
+  // Stage playlists per Aran's road-test 2026-05-05. PS = pod sentence at
+  // 1.0×, PS×2 at 2.0×, trans = English translation. Stage 1 stays all 1.0×;
+  // 2× kicks in from stage 2. Stages 1–6 each last 5 pod-rounds (was 3);
   // stage 7 is the eternal holding bay.
   const STAGE_PLAYLIST: Record<number, PodPlayRole[]> = {
-    1: ['ps', 'trans', 'ps', 'ps2x'],
+    1: ['ps', 'trans', 'ps', 'ps'],
     2: ['ps', 'trans', 'ps2x', 'ps2x'],
     3: ['ps', 'trans', 'ps2x'],
     4: ['ps2x', 'trans', 'ps2x'],
@@ -234,15 +235,16 @@ export async function generateLearningScript(
     6: ['ps2x', 'ps2x'],
     7: ['ps2x'],
   }
+  const STAGE_DURATION = 5
   function podStageFor(entryPodRound: number, currentPodRound: number): { stage: number; iter: number | null } | null {
     const alive = currentPodRound - entryPodRound + 1
     if (alive < 1) return null
-    if (alive <= 3) return { stage: 1, iter: alive }
-    if (alive <= 6) return { stage: 2, iter: alive - 3 }
-    if (alive <= 9) return { stage: 3, iter: alive - 6 }
-    if (alive <= 12) return { stage: 4, iter: alive - 9 }
-    if (alive <= 15) return { stage: 5, iter: alive - 12 }
-    if (alive <= 18) return { stage: 6, iter: alive - 15 }
+    for (let stage = 1; stage <= 6; stage++) {
+      const stageEnd = stage * STAGE_DURATION
+      if (alive <= stageEnd) {
+        return { stage, iter: alive - (stage - 1) * STAGE_DURATION }
+      }
+    }
     return { stage: 7, iter: null }
   }
   interface PodSentenceRow {

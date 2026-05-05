@@ -1783,10 +1783,11 @@ const playPodSegment = async (audioId: string, durationMs?: number, playbackSpee
   })
 }
 
-/** Silence between consecutive pod segments — gives the learner breathing
- *  room to parse what they just heard, especially after 2× sentences. Single
- *  default for now; per-segment-type tuning is a follow-up if needed. */
-const POD_SEGMENT_GAP_MS = 1000
+/** Silence between consecutive pod segments. Aran (2026-05-05): "tight" —
+ *  the target/known/target sequence should feel close-coupled, not like
+ *  three separate utterances. 350ms is enough to mark the boundary
+ *  without breaking the sense of sequence. */
+const POD_SEGMENT_GAP_MS = 350
 
 const podGap = () => new Promise<void>(resolve => setTimeout(resolve, POD_SEGMENT_GAP_MS))
 
@@ -5964,9 +5965,13 @@ onMounted(async () => {
 
   // No orchestrator initialization needed - using useCyclePlayback composable
 
-  // Start session timer
+  // Start session timer. Tick whenever the learner is engaged with audio —
+  // including listening pods and commentary, not just the cycle player. A
+  // 6-minute pod lap is still 6 minutes of practice and should count.
   sessionTimerInterval = setInterval(() => {
-    if (isPlaying.value) sessionSeconds.value++
+    if (isPlaying.value || playingPodLapAudio.value || playingCommentaryAudio.value) {
+      sessionSeconds.value++
+    }
   }, 1000)
 
   // Auto-start if prop is true (default), otherwise wait for user to click play
