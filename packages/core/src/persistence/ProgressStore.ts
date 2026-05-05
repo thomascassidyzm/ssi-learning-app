@@ -191,6 +191,38 @@ export class ProgressStore implements IProgressStore {
     }
   }
 
+  /**
+   * Explicit cursor write for intentional navigation events (belt-back,
+   * jump-to-furthest, jump-to-belt). Bypasses the max-only guard in
+   * updateEnrollmentProgress because the user has chosen this position —
+   * "I am now at round X" — even if X is behind their high-water mark.
+   *
+   * The DB trigger still preserves the ceiling: a backward write here
+   * doesn't lower highest_completed_round_index, and a forward one doesn't
+   * lower the ceiling either (it ratchets only up).
+   */
+  async setEnrollmentCursor(
+    learnerId: string,
+    courseId: string,
+    legoId: string,
+    roundIndex: number
+  ): Promise<void> {
+    const { error } = await this.client
+      .schema(this.schema)
+      .from('course_enrollments')
+      .update({
+        last_completed_lego_id: legoId,
+        last_completed_round_index: roundIndex,
+        last_practiced_at: new Date().toISOString(),
+      })
+      .eq('learner_id', learnerId)
+      .eq('course_id', courseId);
+
+    if (error) {
+      throw new Error(`Failed to set enrollment cursor: ${error.message}`);
+    }
+  }
+
   async updateEnrollmentActivity(
     learnerId: string,
     courseId: string,

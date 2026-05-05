@@ -89,6 +89,15 @@ const jumpChoiceDismissed = ref(false)
 const restingCurrentRound = computed(() => jumpChoiceDismissed.value ? null : currentRound.value)
 const restingHighestRound = computed(() => jumpChoiceDismissed.value ? null : highestRound.value)
 
+// Reset the dismissal whenever the cursor changes — a belt-back or
+// belt-pill jump after dismissing means a fresh "where do you want to
+// be?" question, not a continuation of the previous one.
+watch(currentRound, (next, prev) => {
+  if (next !== prev && jumpChoiceDismissed.value) {
+    jumpChoiceDismissed.value = false
+  }
+})
+
 const handleJumpToFurthest = async () => {
   if (learningPlayerRef.value?.jumpToFurthest) {
     await learningPlayerRef.value.jumpToFurthest()

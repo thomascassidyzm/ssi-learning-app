@@ -382,6 +382,39 @@ const endClassSessionTracking = async () => {
 }
 
 // Save round completion progress to database
+/**
+ * Explicit cursor write for intentional navigation (belt-back, jump-to-belt
+ * pill, jump-to-furthest). Lets the cursor regress to where the learner has
+ * navigated, so the resting-state "skip to round N" choice surfaces during
+ * real revisits. Round-completion writes still go through saveRoundProgress
+ * which is forward-only — the bug-overwrite safety net stays in place.
+ */
+const setRemoteCursor = async (legoId: string, roundIndex: number) => {
+  if (isGuestLearner.value || !progressStore?.value || !legoId) return
+  try {
+    await progressStore.value.setEnrollmentCursor(
+      learnerId.value,
+      courseCode.value,
+      legoId,
+      roundIndex
+    )
+    console.log('[LearningPlayer] Cursor set to round', roundIndex, 'LEGO:', legoId)
+  } catch (err) {
+    console.warn('[LearningPlayer] Failed to set cursor:', err)
+  }
+}
+
+/** Persist the simplePlayer's current position as the cursor. Called after
+ *  intentional navigation (belt-back, belt-pill, jump-to-furthest) so the
+ *  resting-state choice surfaces if the learner is now behind their ceiling. */
+const persistCursorAtCurrentRound = async () => {
+  const round = simplePlayer.currentRound.value
+  const idx = simplePlayer.roundIndex.value
+  if (round?.legoId && typeof idx === 'number') {
+    await setRemoteCursor(round.legoId, idx)
+  }
+}
+
 const saveRoundProgress = async (legoId, roundIndex) => {
   if (isGuestLearner.value || !progressStore?.value) {
     console.log('[LearningPlayer] Skipping progress save (guest mode)')
@@ -4320,6 +4353,10 @@ const handleSkipToNextBelt = async () => {
     if (beltProgress.value) {
       beltProgress.value.setPlayingPosition(targetSeed)
     }
+
+    // Persist the new position so the resting-state "skip to round N"
+    // choice can surface if this jump put the learner behind their ceiling.
+    await persistCursorAtCurrentRound()
   } finally {
     isSkippingBelt.value = false
   }
@@ -4406,6 +4443,10 @@ const handleGoBackBelt = async () => {
       beltProgress.value.setPlayingPosition(targetSeed)
     }
 
+    // Belt-back is the canonical revisit gesture — write the cursor so
+    // the resting-state choice surfaces next time the player pauses.
+    await persistCursorAtCurrentRound()
+
     console.log(`[LearningPlayer] handleGoBackBelt: complete, now at seed ${targetSeed}`)
   } catch (err) {
     console.warn('[LearningPlayer] handleGoBackBelt error:', err)
@@ -4434,6 +4475,9 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
     if (beltProgress.value) {
       beltProgress.value.setPlayingPosition(targetSeed)
     }
+
+    // Belt-pill jump can land anywhere (forward or back) — persist cursor.
+    await persistCursorAtCurrentRound()
   } finally {
     isSkippingBelt.value = false
   }
@@ -6186,6 +6230,10 @@ const jumpToFurthest = async () => {
   if (beltProgress.value) {
     beltProgress.value.setPlayingPosition(targetSeed)
   }
+
+  // Cursor catches up to the ceiling — no longer "behind". Resting-state
+  // choice will not re-appear until they navigate backwards again.
+  await persistCursorAtCurrentRound()
 }
 
 // Safari requires audio.play() within a user gesture to unlock the audio element.
