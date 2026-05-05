@@ -85,6 +85,8 @@ const isPlayerReady = computed(() => !(learningPlayerRef.value?.isAwakening ?? t
 // learner taps "stay" we don't badger them again until app reload.
 const currentRound = computed(() => learningPlayerRef.value?.currentAbsoluteRound ?? null)
 const highestRound = computed(() => learningPlayerRef.value?.highestAbsoluteRound ?? null)
+const cursorBeltColor = computed(() => learningPlayerRef.value?.cursorBeltColor ?? null)
+const highestBeltColor = computed(() => learningPlayerRef.value?.highestBeltColor ?? null)
 const jumpChoiceDismissed = ref(false)
 const restingCurrentRound = computed(() => jumpChoiceDismissed.value ? null : currentRound.value)
 const restingHighestRound = computed(() => jumpChoiceDismissed.value ? null : highestRound.value)
@@ -520,6 +522,8 @@ onMounted(() => {
       :is-player-ready="isPlayerReady"
       :current-round="restingCurrentRound"
       :highest-round="restingHighestRound"
+      :cursor-belt-color="cursorBeltColor"
+      :highest-belt-color="highestBeltColor"
       @start="handleTogglePlayback"
       @change-course="showCourseSelector = true"
       @jump-to-furthest="handleJumpToFurthest"

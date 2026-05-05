@@ -37,6 +37,18 @@ const props = defineProps({
   highestRound: {
     type: Number,
     default: null
+  },
+  // Belt index for each marker. Derived upstream from the actual lego id
+  // so it always agrees with the belt label. Avoids the round÷3 estimate
+  // putting the marker over the wrong chip when the round-to-seed ratio
+  // isn't clean (intros, build phases inflate early-course round counts).
+  currentBeltIndex: {
+    type: Number,
+    default: null
+  },
+  highestBeltIndex: {
+    type: Number,
+    default: null
   }
 })
 
@@ -55,20 +67,11 @@ const formattedLifetimeTime = computed(() => {
   return `${hours}h ${mins}m`
 })
 
-// Map a round number to the belt it lives in. ~3 rounds per seed (rough);
-// good enough for placing the marker over the right belt chip.
-const ROUNDS_PER_SEED = 3
-const beltIndexForRound = (round) => {
-  if (typeof round !== 'number' || round <= 0) return 0
-  const seed = round / ROUNDS_PER_SEED
-  for (let i = BELTS.length - 1; i >= 0; i--) {
-    if (seed >= BELTS[i].seedsRequired) return i
-  }
-  return 0
-}
-
-const currentBeltIndexFromRound = computed(() => beltIndexForRound(props.currentRound))
-const highestBeltIndexFromRound = computed(() => beltIndexForRound(props.highestRound))
+// Belt indices come straight from the parent (computed from real lego
+// ids upstream). Fall back to 0 if not provided so the markers still
+// render somewhere sensible.
+const currentBeltIndexFromRound = computed(() => props.currentBeltIndex ?? 0)
+const highestBeltIndexFromRound = computed(() => props.highestBeltIndex ?? 0)
 
 // Centre of belt chip i along the row, as a percentage. The belt row is
 // drawn as N equal segments; markers sit at chip centres.

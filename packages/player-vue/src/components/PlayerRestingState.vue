@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { BELTS, getBeltIndexForSeed } from '@/composables/useBeltProgress'
+import { BELTS } from '@/composables/useBeltProgress'
 import { getLanguageName, t } from '@/composables/useI18n'
 import LanguageFlag from '@/components/schools/shared/LanguageFlag.vue'
 
@@ -17,6 +17,12 @@ const props = defineProps({
   // fresh enrollments.
   currentRound: { type: Number, default: null },
   highestRound: { type: Number, default: null },
+  // Belt colours for the two journey-bar markers. Derived upstream from
+  // the actual lego IDs (which encode the seed — S0042L05 → seed 42),
+  // so they match the belt label exactly. Pre-computed here rather than
+  // estimated from the round number.
+  cursorBeltColor: { type: String, default: null },
+  highestBeltColor: { type: String, default: null },
 })
 
 const emit = defineEmits(['start', 'change-course', 'jump-to-furthest'])
@@ -39,19 +45,12 @@ const HIGHEST_ANCHOR_PCT = 62
 const cursorPercent = computed(() => CURSOR_ANCHOR_PCT)
 const highestPercent = computed(() => HIGHEST_ANCHOR_PCT)
 
-// Belt color for each marker. The "now" dot reflects the current belt
-// (matches the belt badge). The "furthest" dot reflects the belt at the
-// ceiling — so a learner at orange who has been to blue sees orange/blue
-// dots, not two orange dots. Round → seed estimate (~3 rounds/seed) is
-// good enough for picking the right belt.
-const ROUNDS_PER_SEED = 3
-const beltColorForRound = (round) => {
-  if (typeof round !== 'number' || round <= 0) return BELTS[0].color
-  const seed = round / ROUNDS_PER_SEED
-  return BELTS[getBeltIndexForSeed(seed)].color
-}
-const cursorBeltColor = computed(() => beltColorForRound(props.currentRound))
-const furthestBeltColor = computed(() => beltColorForRound(props.highestRound))
+// Belt colours for the two markers. Both come from the parent (LearningPlayer
+// derives them from the actual lego IDs, which is the same source the belt
+// label uses — guarantees the marker colour matches the badge). Fall back
+// to the current belt's colour if the parent hasn't supplied them.
+const cursorBeltColorFinal = computed(() => props.cursorBeltColor ?? belt.value.color)
+const furthestBeltColorFinal = computed(() => props.highestBeltColor ?? props.cursorBeltColor ?? belt.value.color)
 
 const courseName = computed(() => {
   if (!props.course) return 'Loading...'
@@ -128,19 +127,16 @@ const handleChangeCourse = () => {
           class="journey-bar"
           :style="{
             '--belt-accent': belt.color,
-            '--cursor-color': cursorBeltColor,
-            '--furthest-color': furthestBeltColor,
+            '--cursor-color': cursorBeltColorFinal,
+            '--furthest-color': furthestBeltColorFinal,
           }"
         >
-          <!-- Trail from now to furthest — gradient between the two belt
-               colors so the visual transition signals "you went from this
-               belt to that belt" -->
           <div
             class="journey-track journey-track--solid"
             :style="{
               left: cursorPercent + '%',
               width: (highestPercent - cursorPercent) + '%',
-              background: `linear-gradient(to right, ${cursorBeltColor}, ${furthestBeltColor})`
+              background: `linear-gradient(to right, ${cursorBeltColorFinal}, ${furthestBeltColorFinal})`
             }"
           ></div>
           <div
@@ -149,14 +145,14 @@ const handleChangeCourse = () => {
           ></div>
           <div
             class="journey-marker journey-marker--current"
-            :style="{ left: cursorPercent + '%', background: cursorBeltColor }"
+            :style="{ left: cursorPercent + '%', background: cursorBeltColorFinal }"
             :aria-label="t('resting.youAreHere', 'you are here')"
           >
             <span class="journey-marker-label">{{ t('resting.now', 'now') }}</span>
           </div>
           <div
             class="journey-marker journey-marker--highest"
-            :style="{ left: highestPercent + '%', background: furthestBeltColor }"
+            :style="{ left: highestPercent + '%', background: furthestBeltColorFinal }"
             :aria-label="t('resting.yourFurthest', 'your furthest point')"
           >
             <span class="journey-marker-label">{{ t('resting.furthest', 'furthest') }}</span>

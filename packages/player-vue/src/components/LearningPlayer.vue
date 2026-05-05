@@ -6244,6 +6244,25 @@ const highestAbsoluteRound = computed(() => {
   return typeof idx === 'number' ? idx + 1 : null
 })
 
+// Belt colours for the journey-bar markers, derived from the same source
+// the belt label uses. The "now" colour matches playingBelt (cursor's
+// belt). The "furthest" colour is computed from the ceiling's lego id —
+// lego ids encode the seed (S0042L05 → seed 42), and the seed determines
+// the belt. Using the lego id directly avoids the round÷3 estimate that
+// previously caused the marker to disagree with the belt label.
+const cursorBeltColor = computed(() => playingBelt.value.color)
+const cursorBeltIndex = computed(() => playingBelt.value.index)
+
+const highestBeltIndex = computed(() => {
+  const lego = highestCompletedLegoId.value
+  if (!lego) return playingBelt.value.index
+  const seed = getSeedFromLegoId(lego)
+  if (seed === null) return playingBelt.value.index
+  if (seed >= BELTS[BELTS.length - 1].seedsRequired) return BELTS.length - 1
+  return BELTS.findIndex((_b, i) => seed < (BELTS[i + 1]?.seedsRequired ?? Infinity))
+})
+const highestBeltColor = computed(() => BELTS[Math.max(0, highestBeltIndex.value)].color)
+
 // Jump the cursor forward to the ceiling. The ceiling's companion lego
 // tells us which seed to load — that's our navigational hook. After the
 // load, find the exact round at that lego and jump there. The cursor
@@ -6344,6 +6363,10 @@ defineExpose({
   sessionSeconds,
   currentAbsoluteRound,
   highestAbsoluteRound,
+  cursorBeltColor,
+  highestBeltColor,
+  cursorBeltIndex,
+  highestBeltIndex,
   jumpToFurthest,
 })
 </script>
@@ -6387,6 +6410,8 @@ defineExpose({
     :available-belts="beltProgress?.availableBelts?.value ?? []"
     :current-round="currentAbsoluteRound"
     :highest-round="highestAbsoluteRound"
+    :current-belt-index="cursorBeltIndex"
+    :highest-belt-index="highestBeltIndex"
     @close="showBeltModal = false"
     @viewProgress="showBeltModal = false; emit('viewProgress')"
     @skipToBelt="handleSkipToBelt"
