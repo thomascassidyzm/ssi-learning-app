@@ -636,6 +636,21 @@ simplePlayer.onCycleCompleted((cycle) => {
 // Round completed - save progress and update current LEGO ID
 simplePlayer.onRoundCompleted((round) => {
   const completedRoundIndex = simplePlayer.roundIndex.value
+
+  // Synchronously pause if a pod is about to fire on this boundary.
+  // handleRoundBoundary is async and runs on a later microtask — by the
+  // time its own pause() lands, simplePlayer's orchestrator may have
+  // already started the next round's prompt audio, causing the pod intro
+  // to overlap with main-player audio. Pausing here, in the same tick as
+  // the round-completed event, beats that race.
+  const willFirePod = !!podScheduler
+    && podScheduler.isInitialized.value
+    && !beltJustEarned.value
+    && podScheduler.shouldFireLapAt((completedRoundIndex || 0) + 1)
+  if (willFirePod) {
+    simplePlayer.pause()
+  }
+
   if (round.legoId) {
     if (props.classContext) {
       // Class mode: update class progress, NOT personal belt
@@ -1697,17 +1712,24 @@ const playCommentaryAudio = async (commentary) => {
 }
 
 /**
+ * Explicit cancellation flag for pod laps. Set to true when the learner
+ * presses stop during a pod (togglePlayback), reset at the start of each
+ * lap. playPodSegment polls this and resolves false when set, so a user
+ * stop ends the segment immediately rather than waiting on the 30s
+ * safety timeout. We use this rather than audioController.playGeneration
+ * because every audio.play() internally calls stop() (bumping the gen),
+ * which would otherwise trigger spurious cancellations from the lap's
+ * own play calls.
+ */
+const podLapCancelled = ref(false)
+
+/**
  * Play a single pod-lap audio segment (one bookend or one pod play).
  * Uses the same audioController as commentary. Resolves on ended/error.
  */
 const playPodSegment = async (audioId: string, durationMs?: number, playbackSpeed = 1.0): Promise<boolean> => {
   if (!audioId || !audioController.value) return false
   const audio = audioController.value
-  // audioController.stop() increments playGeneration to invalidate pending
-  // callbacks. We capture the generation here and poll for changes so that
-  // a user-triggered stop (mid-pod) resolves this segment immediately
-  // rather than hanging until the 30s safety timeout.
-  const startGen = (audio as any).playGeneration ?? 0
   return new Promise((resolve) => {
     let cancelPoll: ReturnType<typeof setInterval> | null = null
     let safetyTimeout: ReturnType<typeof setTimeout> | null = null
@@ -1732,7 +1754,10 @@ const playPodSegment = async (audioId: string, durationMs?: number, playbackSpee
         resolve(false)
       })
     cancelPoll = setInterval(() => {
-      if (((audio as any).playGeneration ?? 0) !== startGen) {
+      if (podLapCancelled.value) {
+        // User stop signal — abort and stop the audio so it doesn't keep
+        // playing in the background after we've released the promise.
+        try { audio.stop() } catch {}
         cleanup()
         resolve(false)
       }
@@ -1757,6 +1782,7 @@ const podGap = () => new Promise<void>(resolve => setTimeout(resolve, POD_SEGMEN
  * Caller is responsible for pausing/resuming simplePlayer around this.
  */
 const playPodLap = async (lap: PodLap): Promise<boolean> => {
+  podLapCancelled.value = false
   playingPodLapAudio.value = true
   try {
     if (lap.intro) {
@@ -6180,6 +6206,7 @@ const togglePlayback = () => {
     // pod/commentary plays; leave its state alone so handleResume can pick up
     // where it left off.
     userStoppedDuringLap.value = true
+    podLapCancelled.value = true
     audioController.value?.stop()
     return
   }
