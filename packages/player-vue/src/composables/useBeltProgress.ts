@@ -211,7 +211,11 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
     }
   }
 
-  const syncToRemote = async (beltIndex: number): Promise<void> => {
+  // Background sync of last_practiced_at + last_completed_lego_id (the lego
+  // high-water mark, used for cross-device resume). highest_completed_seed
+  // is no longer written: belt is now derived purely from current playing
+  // position, and the column is being deprecated.
+  const syncToRemote = async (_beltIndex: number): Promise<void> => {
     if (!canSync()) return
 
     const supabase = getSupabase()
@@ -222,16 +226,12 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
     isSyncing.value = true
     lastSyncError.value = null
 
-    // Convert belt index to seed threshold for storage
-    const seedsForBelt = BELTS[beltIndex]?.seedsRequired ?? 0
-
     try {
       const { error } = await supabase
         .from('course_enrollments')
         .upsert({
           learner_id: learnerId,
           course_id: courseCode,
-          highest_completed_seed: seedsForBelt,
           last_completed_lego_id: highestLegoId.value,
           last_practiced_at: new Date().toISOString(),
         }, {
@@ -242,7 +242,6 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
         const { error: updateError } = await supabase
           .from('course_enrollments')
           .update({
-            highest_completed_seed: seedsForBelt,
             last_completed_lego_id: highestLegoId.value,
             last_practiced_at: new Date().toISOString(),
           })
@@ -252,11 +251,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
         if (updateError) {
           console.warn('[BeltProgress] Remote sync failed:', updateError.message)
           lastSyncError.value = updateError.message
-        } else {
-          console.log('[BeltProgress] Synced to remote: belt', beltIndex, `(${BELTS[beltIndex]?.name})`)
         }
-      } else {
-        console.log('[BeltProgress] Synced to remote: belt', beltIndex, `(${BELTS[beltIndex]?.name})`)
       }
     } catch (err) {
       console.warn('[BeltProgress] Remote sync error:', err)
@@ -427,22 +422,24 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   }
 
   // ============================================================================
-  // BELT INFO (computed from highestBeltIndex)
+  // BELT INFO (your belt = belt at your current playing position)
+  //
+  // No "earned" vs "playing" distinction: the belt label is purely a function
+  // of where you are right now. Skip forward → belt label moves up. Skip back
+  // → belt label moves down. There's no promotion gating, and crossing a
+  // threshold via natural play is identical to crossing it via belt-skip.
   // ============================================================================
 
-  const currentBelt = computed((): Belt => {
-    const idx = Math.min(Math.max(highestBeltIndex.value, 0), BELTS.length - 1)
-    return { ...BELTS[idx], index: idx }
-  })
+  const currentBelt = computed((): Belt => playingBelt.value)
 
   const nextBelt = computed((): Belt | null => {
-    const nextIndex = highestBeltIndex.value + 1
+    const nextIndex = playingBeltIndex.value + 1
     if (nextIndex >= availableBelts.value.length) return null
     return { ...BELTS[nextIndex], index: nextIndex }
   })
 
   const previousBelt = computed((): Belt | null => {
-    const prevIndex = highestBeltIndex.value - 1
+    const prevIndex = playingBeltIndex.value - 1
     if (prevIndex < 0) return null
     return { ...BELTS[prevIndex], index: prevIndex }
   })
@@ -451,16 +448,15 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   // PROGRESS CALCULATIONS (for display)
   // ============================================================================
 
-  // Seeds needed to reach next belt (from current belt's threshold)
+  // Seed gap from current belt threshold to next belt threshold
   const seedsToNextBelt = computed(() => {
     if (!nextBelt.value) return 0
     return nextBelt.value.seedsRequired - currentBelt.value.seedsRequired
   })
 
-  // Course progress based on highest belt achieved
+  // Course progress based on current playing position
   const courseProgress = computed(() => {
-    const beltSeed = currentBelt.value.seedsRequired
-    return Math.min((beltSeed / courseSeedCount.value) * 100, 100)
+    return Math.min((playingSeedNumber.value / courseSeedCount.value) * 100, 100)
   })
 
   // ============================================================================

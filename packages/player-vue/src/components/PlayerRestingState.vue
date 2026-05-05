@@ -96,21 +96,12 @@ const handleChangeCourse = () => {
       </h2>
       <p v-if="courseSubtitle" class="course-subtitle">{{ courseSubtitle }}</p>
 
-      <!-- Belt badge -->
+      <!-- Belt badge — purely a label of where they are right now, no
+           "X% to next belt" gating. Belt is derived from current playing
+           position via beltProgress.playingBelt. -->
       <div class="belt-badge" :style="{ '--belt-accent': belt.color }">
         <div class="belt-dot"></div>
         <span class="belt-name">{{ beltDisplay }}</span>
-      </div>
-
-      <!-- Progress -->
-      <div class="progress-section">
-        <div class="progress-bar-track" :style="{ background: belt.color + '26' }">
-          <div
-            class="progress-bar-fill"
-            :style="{ width: progressPercent + '%', background: belt.color }"
-          ></div>
-        </div>
-        <span class="progress-label">{{ progressPercent }}%</span>
       </div>
 
       <!-- Cursor < ceiling: show the journey-bar + a single CTA to jump
