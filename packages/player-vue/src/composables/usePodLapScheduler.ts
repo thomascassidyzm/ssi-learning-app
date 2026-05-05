@@ -88,6 +88,11 @@ export interface PodSentenceRow {
   known_text: string
   target_audio_id: string | null
   known_audio_id: string | null
+  /** True iff this row's natural utterance continues into the next row.
+   *  Drives inter-chunk gap timing in the runtime player — glued chunks
+   *  flow tight; the last chunk of an utterance gets the longer
+   *  between-phrases pause. */
+  glue_to_next: boolean
 }
 
 export interface BookendAudio {
@@ -111,6 +116,12 @@ export interface PodPlay {
   textNative?: string
   /** 1.0 for ps/trans, 2.0 for ps2x. */
   playbackSpeed: number
+  /** True iff this play's source sentence has glue_to_next set AND this is
+   *  the LAST play in the source sentence's playlist. Tells the runtime
+   *  player to use a glued-chunk gap (tight, or zero at stage 7) before
+   *  the next play, rather than the standard between-phrases gap. False
+   *  for plays mid-sentence — those use the within-chunk gap matrix. */
+  glueToNextChunk: boolean
 }
 
 export interface PodLap {
@@ -174,7 +185,7 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       const [podsResult, bookendsResult, enrollmentResult] = await Promise.all([
         supabase
           .from('listening_pod_sentences')
-          .select('global_order, target_text, known_text, target_audio_id, known_audio_id')
+          .select('global_order, target_text, known_text, target_audio_id, known_audio_id, glue_to_next')
           .eq('pod_id', `${courseCode}:pod-0`)
           .order('global_order', { ascending: true }),
         supabase
@@ -257,10 +268,17 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       if (!sentence.target_audio_id) continue
       const stageInfo = podStageFor(i, podRound)
       if (!stageInfo) continue
-      for (const playRole of STAGE_PLAYLIST[stageInfo.stage]) {
+      const playlist = STAGE_PLAYLIST[stageInfo.stage]
+      for (let j = 0; j < playlist.length; j++) {
+        const playRole = playlist[j]
         if (playRole === 'trans' && !sentence.known_audio_id) continue
         const isTrans = playRole === 'trans'
         const audioId = isTrans ? sentence.known_audio_id! : sentence.target_audio_id!
+        // glueToNextChunk is set on the LAST play of a sentence whose
+        // source row has glue_to_next = true. Earlier plays in the
+        // sentence stay false (they use within-chunk gap matrix); only
+        // the final play looks ahead to the next chunk's first play.
+        const isLastPlayInSentence = j === playlist.length - 1
         plays.push({
           sentenceIdx: i,
           stage: stageInfo.stage,
@@ -268,6 +286,7 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
           audioId,
           text: isTrans ? sentence.known_text : sentence.target_text,
           playbackSpeed: playRole === 'ps2x' ? 2.0 : 1.0,
+          glueToNextChunk: isLastPlayInSentence && !!sentence.glue_to_next,
         })
       }
     }

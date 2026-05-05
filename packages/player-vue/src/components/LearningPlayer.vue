@@ -1783,13 +1783,46 @@ const playPodSegment = async (audioId: string, durationMs?: number, playbackSpee
   })
 }
 
-/** Silence between consecutive pod segments. Aran (2026-05-05): "tight" —
- *  the target/known/target sequence should feel close-coupled, not like
- *  three separate utterances. 350ms is enough to mark the boundary
- *  without breaking the sense of sequence. */
-const POD_SEGMENT_GAP_MS = 350
+/**
+ * Inter-play gap matrix per Aran's 2026-05-05 spec.
+ *
+ * Within ONE chunk's playlist (target → known → target → target):
+ *   target → known   = TIGHT       — slight beat for translation transition
+ *   known → target   = SUPER_TIGHT — comparison wants immediacy
+ *   target → target  = SUPER_TIGHT — reinforcement reps flow
+ *
+ * Between chunks (one chunk's last play → next chunk's first play):
+ *   glued at stage 7 = 0ms         — sew them together at single-2× rep
+ *   glued earlier   = GLUED        — small breath, still close-coupled
+ *   not glued       = BETWEEN      — Aran's "between phrases" pause
+ */
+const GAP_SUPER_TIGHT = 100  // known→target, target→target
+const GAP_TIGHT       = 200  // target→known
+const GAP_GLUED       = 300  // chunk → glued chunk (early stages)
+const GAP_BETWEEN    = 1000  // chunk → non-glued chunk
 
-const podGap = () => new Promise<void>(resolve => setTimeout(resolve, POD_SEGMENT_GAP_MS))
+const podGapMs = (curr: PodPlay, next: PodPlay | null): number => {
+  if (!next) return 0
+  // Same chunk → role transition decides
+  if (curr.sentenceIdx === next.sentenceIdx) {
+    const c = curr.playRole // 'ps' or 'ps2x' = target; 'trans' = known
+    const n = next.playRole
+    const cIsTarget = c === 'ps' || c === 'ps2x'
+    const nIsTarget = n === 'ps' || n === 'ps2x'
+    if (cIsTarget && n === 'trans') return GAP_TIGHT       // target → known
+    if (c === 'trans' && nIsTarget) return GAP_SUPER_TIGHT // known → target
+    return GAP_SUPER_TIGHT                                  // target → target
+  }
+  // Different chunk — glue + stage decide
+  if (curr.glueToNextChunk) {
+    return curr.stage === 7 ? 0 : GAP_GLUED
+  }
+  return GAP_BETWEEN
+}
+
+const podDelay = (ms: number) => ms <= 0
+  ? Promise.resolve()
+  : new Promise<void>(resolve => setTimeout(resolve, ms))
 
 /**
  * Play a full pod lap (intro bookend → all plays → outro bookend).
@@ -1803,15 +1836,20 @@ const playPodLap = async (lap: PodLap): Promise<boolean> => {
     if (lap.intro) {
       const ok = await playPodSegment(lap.intro.id, lap.intro.duration_ms, 1.0)
       if (!ok) return false
-      await podGap()
+      // Intro → first play: between-phrases pause, gives the bookend room
+      await podDelay(GAP_BETWEEN)
     }
     for (let i = 0; i < lap.plays.length; i++) {
       const play = lap.plays[i] as PodPlay
+      const next = (i + 1 < lap.plays.length) ? (lap.plays[i + 1] as PodPlay) : null
       const ok = await playPodSegment(play.audioId, undefined, play.playbackSpeed)
       if (!ok) return false
-      // Gap after every segment except the very last play before the outro
-      // (the outro bookend itself plays after a gap)
-      await podGap()
+      if (next) {
+        await podDelay(podGapMs(play, next))
+      } else if (lap.outro) {
+        // Last play → outro: between-phrases pause before the bookend
+        await podDelay(GAP_BETWEEN)
+      }
     }
     if (lap.outro) {
       const ok = await playPodSegment(lap.outro.id, lap.outro.duration_ms, 1.0)
