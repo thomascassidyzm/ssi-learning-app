@@ -47,6 +47,21 @@ export default defineConfig(({ mode }) => ({
 
         // Runtime caching for fonts/CDN/audio
         runtimeCaching: [
+          // Document navigations (the HTML shell): NetworkFirst so a fresh
+          // deploy propagates on next navigation without the user having to
+          // explicitly tap "Update". Without this, the precache serves the
+          // OLD index.html — which references OLD hashed JS bundles that no
+          // longer exist on Vercel after a redeploy → MIME error on those
+          // chunks. 3s timeout means offline users still fall back to cache.
+          {
+            urlPattern: ({ request }) => request.mode === 'navigate',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'navigation-cache',
+              networkTimeoutSeconds: 3,
+              expiration: { maxEntries: 4 },
+            },
+          },
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',
