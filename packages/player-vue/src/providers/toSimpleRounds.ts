@@ -58,6 +58,10 @@ function estimateDurationMs(targetText: string): number {
 /**
  * Calculate pause duration based on target audio length
  * Formula: bootUpTime + scaleFactor * target1Duration
+ *
+ * Cap of 16000ms covers the realistic upper end of phrase lengths (a 7s
+ * target gets the full 2 + 14 = 16s pause). Audit 2026-05-05 showed only
+ * ~0.5% of fleet phrases exceed 7s; the previous 10s cap was clamping 15%.
  */
 function calculatePauseDuration(
   target1DurationMs: number | undefined,
@@ -67,7 +71,7 @@ function calculatePauseDuration(
 ): number {
   const t1 = target1DurationMs || estimateDurationMs(targetText || '')
 
-  return Math.min(10000, Math.round(config.bootUpTimeMs + config.scaleFactor * t1))
+  return Math.min(16000, Math.round(config.bootUpTimeMs + config.scaleFactor * t1))
 }
 
 /**
