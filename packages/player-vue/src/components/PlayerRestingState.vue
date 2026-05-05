@@ -28,22 +28,45 @@ const showJumpChoice = computed(() => {
   return typeof c === 'number' && typeof h === 'number' && c < h
 })
 
-// Estimate course length in rounds. Each seed produces roughly three
-// rounds of practice, so the journey-bar uses totalSeeds * 3 as the scale.
-// It's deliberately rough — we just want a "this is where you are along
-// the course" sense, not pixel-precision.
+// Tube-map style: belts are the stations. Each belt segment gets equal
+// width on the bar regardless of how many real seeds it covers. Two
+// early-belt positions visually separate into distinct segments rather
+// than crowding the left edge.
+const BELT_SEED_THRESHOLDS = [0, 8, 20, 40, 80, 150, 280, 400]
 const ROUNDS_PER_SEED = 3
-const totalRoundsEstimate = computed(() => Math.max(1, props.totalSeeds * ROUNDS_PER_SEED))
+const SEGMENT_COUNT = BELT_SEED_THRESHOLDS.length // 8
 
-const cursorPercent = computed(() => {
-  if (typeof props.currentRound !== 'number') return 0
-  return Math.min(100, Math.max(0, (props.currentRound / totalRoundsEstimate.value) * 100))
-})
+const roundToTubePercent = (round) => {
+  if (round <= 0) return 0
+  const seed = round / ROUNDS_PER_SEED
+  let beltIdx = 0
+  for (let i = BELT_SEED_THRESHOLDS.length - 1; i >= 0; i--) {
+    if (seed >= BELT_SEED_THRESHOLDS[i]) {
+      beltIdx = i
+      break
+    }
+  }
+  const segStart = BELT_SEED_THRESHOLDS[beltIdx]
+  // Last segment (black) extends rightward; estimate its width as 100 seeds
+  // beyond its threshold so positions inside it map sensibly.
+  const segEnd = BELT_SEED_THRESHOLDS[beltIdx + 1] ?? (segStart + 100)
+  const intra = Math.min(1, Math.max(0, (seed - segStart) / Math.max(1, segEnd - segStart)))
+  return ((beltIdx + intra) / SEGMENT_COUNT) * 100
+}
 
-const highestPercent = computed(() => {
-  if (typeof props.highestRound !== 'number') return 0
-  return Math.min(100, Math.max(0, (props.highestRound / totalRoundsEstimate.value) * 100))
-})
+const cursorPercent = computed(() => roundToTubePercent(props.currentRound ?? 0))
+const highestPercent = computed(() => roundToTubePercent(props.highestRound ?? 0))
+
+// Subtle belt-station tick positions: at each segment boundary except
+// the very edges. Drawn under the markers so they don't crowd them.
+const tubeStations = computed(() =>
+  Array.from({ length: SEGMENT_COUNT - 1 }, (_, i) => ((i + 1) / SEGMENT_COUNT) * 100)
+)
+
+// Hide the redundant marker label when the two are visually close enough
+// that the labels would collide. The bar is ~280px wide; "furthest"
+// label is ~50px, so anything tighter than ~18% is a collision risk.
+const labelsCollide = computed(() => Math.abs(highestPercent.value - cursorPercent.value) < 18)
 
 const courseName = computed(() => {
   if (!props.course) return 'Loading...'
@@ -128,6 +151,12 @@ const handleChangeCourse = () => {
         <div class="journey-bar" :style="{ '--belt-accent': belt.color }">
           <div class="journey-track"></div>
           <div
+            v-for="(pos, i) in tubeStations"
+            :key="i"
+            class="journey-station"
+            :style="{ left: pos + '%' }"
+          ></div>
+          <div
             class="journey-trail"
             :style="{ left: cursorPercent + '%', width: Math.max(1, highestPercent - cursorPercent) + '%' }"
           ></div>
@@ -136,14 +165,14 @@ const handleChangeCourse = () => {
             :style="{ left: cursorPercent + '%' }"
             :aria-label="t('resting.youAreHere', 'you are here')"
           >
-            <span class="journey-marker-label">{{ t('resting.you', 'you') }}</span>
+            <span v-if="!labelsCollide" class="journey-marker-label">{{ t('resting.you', 'you') }}</span>
           </div>
           <div
             class="journey-marker journey-marker--highest"
             :style="{ left: highestPercent + '%' }"
             :aria-label="t('resting.yourFurthest', 'your furthest point')"
           >
-            <span class="journey-marker-label journey-marker-label--right">{{ t('resting.furthest', 'furthest') }}</span>
+            <span class="journey-marker-label">{{ t('resting.furthest', 'furthest') }}</span>
           </div>
         </div>
         <button
@@ -330,6 +359,16 @@ const handleChangeCourse = () => {
   border-radius: 2px;
   background: color-mix(in srgb, var(--belt-accent, #ffffff) 18%, transparent);
   transform: translateY(-50%);
+}
+
+.journey-station {
+  position: absolute;
+  top: 50%;
+  width: 2px;
+  height: 8px;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--belt-accent, #ffffff) 30%, transparent);
+  transform: translate(-50%, -50%);
 }
 
 .journey-trail {
