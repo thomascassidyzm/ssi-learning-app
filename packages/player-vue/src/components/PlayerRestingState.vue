@@ -10,21 +10,39 @@ const props = defineProps({
   totalSeeds: { type: Number, default: 668 },
   currentBeltName: { type: String, default: 'white' },
   isPlayerReady: { type: Boolean, default: false },
-  // Round-cursor pair for the "skip to round N" choice. When the cursor
+  // Round-cursor pair for the journey-bar / jump-back UX. When the cursor
   // is behind the ceiling (the learner has revisited earlier content),
-  // we offer an explicit jump back to their furthest position. Both null
-  // for guests / fresh enrollments — choice doesn't surface in that case.
+  // we surface a visual showing both positions along the course and a
+  // single CTA to jump back to their furthest. Both null for guests /
+  // fresh enrollments.
   currentRound: { type: Number, default: null },
   highestRound: { type: Number, default: null },
 })
 
-const emit = defineEmits(['start', 'change-course', 'jump-to-furthest', 'stay-here'])
+const emit = defineEmits(['start', 'change-course', 'jump-to-furthest'])
 
 const showJumpChoice = computed(() => {
   if (!props.isPlayerReady) return false
   const c = props.currentRound
   const h = props.highestRound
   return typeof c === 'number' && typeof h === 'number' && c < h
+})
+
+// Estimate course length in rounds. Each seed produces roughly three
+// rounds of practice, so the journey-bar uses totalSeeds * 3 as the scale.
+// It's deliberately rough — we just want a "this is where you are along
+// the course" sense, not pixel-precision.
+const ROUNDS_PER_SEED = 3
+const totalRoundsEstimate = computed(() => Math.max(1, props.totalSeeds * ROUNDS_PER_SEED))
+
+const cursorPercent = computed(() => {
+  if (typeof props.currentRound !== 'number') return 0
+  return Math.min(100, Math.max(0, (props.currentRound / totalRoundsEstimate.value) * 100))
+})
+
+const highestPercent = computed(() => {
+  if (typeof props.highestRound !== 'number') return 0
+  return Math.min(100, Math.max(0, (props.highestRound / totalRoundsEstimate.value) * 100))
 })
 
 const courseName = computed(() => {
@@ -101,25 +119,40 @@ const handleChangeCourse = () => {
         <span class="progress-label">{{ progressPercent }}%</span>
       </div>
 
-      <!-- Cursor < ceiling: offer a jump back to furthest. Surfaces only
-           when the learner has revisited earlier content. -->
-      <div v-if="showJumpChoice" class="jump-choice">
-        <p class="jump-choice-prompt">{{ t('resting.jumpPrompt', 'ready when you are') }}</p>
-        <div class="jump-choice-buttons">
-          <button
-            class="jump-pill jump-pill--primary"
-            :style="{ '--belt-accent': belt.color }"
-            @click.stop="emit('jump-to-furthest')"
+      <!-- Cursor < ceiling: show the journey-bar + a single CTA to jump
+           back to the furthest. Surfaces only when the learner has
+           revisited earlier content. Doing nothing (just tapping play)
+           is the implicit "stay here" — no second button needed. -->
+      <div v-if="showJumpChoice" class="journey">
+        <p class="journey-prompt">{{ t('resting.youHaveBeenFurther', "you've been further than this") }}</p>
+        <div class="journey-bar" :style="{ '--belt-accent': belt.color }">
+          <div class="journey-track"></div>
+          <div
+            class="journey-trail"
+            :style="{ left: cursorPercent + '%', width: Math.max(1, highestPercent - cursorPercent) + '%' }"
+          ></div>
+          <div
+            class="journey-marker journey-marker--current"
+            :style="{ left: cursorPercent + '%' }"
+            :aria-label="t('resting.youAreHere', 'you are here')"
           >
-            {{ t('resting.skipToRound', 'skip to round {n}').replace('{n}', String(highestRound)) }}
-          </button>
-          <button
-            class="jump-pill jump-pill--ghost"
-            @click.stop="emit('stay-here')"
+            <span class="journey-marker-label">{{ t('resting.you', 'you') }}</span>
+          </div>
+          <div
+            class="journey-marker journey-marker--highest"
+            :style="{ left: highestPercent + '%' }"
+            :aria-label="t('resting.yourFurthest', 'your furthest point')"
           >
-            {{ t('resting.stayAtRound', 'stay at round {n}').replace('{n}', String(currentRound)) }}
-          </button>
+            <span class="journey-marker-label journey-marker-label--right">{{ t('resting.furthest', 'furthest') }}</span>
+          </div>
         </div>
+        <button
+          class="journey-cta"
+          :style="{ '--belt-accent': belt.color }"
+          @click.stop="emit('jump-to-furthest')"
+        >
+          {{ t('resting.jumpForward', 'pick up where you got to') }}
+        </button>
       </div>
 
     </div>
@@ -262,16 +295,18 @@ const handleChangeCourse = () => {
   font-style: italic;
 }
 
-.jump-choice {
+/* ===== Journey bar ===== */
+.journey {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  margin-top: 16px;
-  max-width: 280px;
+  align-items: stretch;
+  gap: 14px;
+  margin-top: 20px;
+  width: 100%;
+  max-width: 320px;
 }
 
-.jump-choice-prompt {
+.journey-prompt {
   font-family: var(--font-body);
   font-size: 14px;
   color: var(--text-secondary);
@@ -280,47 +315,91 @@ const handleChangeCourse = () => {
   text-align: center;
 }
 
-.jump-choice-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: 100%;
+.journey-bar {
+  position: relative;
+  height: 36px;
+  margin: 0 12px;
 }
 
-.jump-pill {
+.journey-track {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--belt-accent, #ffffff) 18%, transparent);
+  transform: translateY(-50%);
+}
+
+.journey-trail {
+  position: absolute;
+  top: 50%;
+  height: 3px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--belt-accent, #ffffff) 55%, transparent);
+  transform: translateY(-50%);
+  transition: left 0.3s ease, width 0.3s ease;
+}
+
+.journey-marker {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--belt-accent, #ffffff);
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--belt-accent, #ffffff) 25%, transparent);
+  transition: left 0.3s ease;
+}
+
+.journey-marker--highest {
+  width: 14px;
+  height: 14px;
+  background: var(--belt-accent, #ffffff);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--belt-accent, #ffffff) 25%, transparent),
+    0 0 8px color-mix(in srgb, var(--belt-accent, #ffffff) 50%, transparent);
+}
+
+.journey-marker-label {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.journey-marker-label--right {
+  /* keep it centred on the marker; CSS clamp prevents it overflowing */
+  left: 50%;
+}
+
+.journey-cta {
   font-family: var(--font-body);
   font-size: 14px;
   font-weight: 500;
-  padding: 10px 18px;
+  padding: 11px 20px;
   border-radius: 22px;
-  border: 1.5px solid transparent;
-  background: transparent;
+  border: 1.5px solid color-mix(in srgb, var(--belt-accent, #ffffff) 50%, transparent);
+  background: color-mix(in srgb, var(--belt-accent, #ffffff) 18%, transparent);
+  color: var(--text-primary);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease;
   text-align: center;
   text-transform: lowercase;
   letter-spacing: 0.01em;
+  margin-top: 4px;
 }
 
-.jump-pill--primary {
-  background: color-mix(in srgb, var(--belt-accent, #ffffff) 18%, transparent);
-  border-color: color-mix(in srgb, var(--belt-accent, #ffffff) 50%, transparent);
-  color: var(--text-primary);
-}
-
-.jump-pill--primary:hover {
+.journey-cta:hover {
   background: color-mix(in srgb, var(--belt-accent, #ffffff) 28%, transparent);
-}
-
-.jump-pill--ghost {
-  color: var(--text-muted);
-  border-color: color-mix(in srgb, var(--text-muted) 30%, transparent);
-}
-
-.jump-pill--ghost:hover {
-  color: var(--text-secondary);
-  border-color: color-mix(in srgb, var(--text-muted) 50%, transparent);
 }
 
 .tap-hint {

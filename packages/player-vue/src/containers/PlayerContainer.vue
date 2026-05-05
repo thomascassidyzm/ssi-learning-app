@@ -101,15 +101,12 @@ watch(currentRound, (next, prev) => {
 const handleJumpToFurthest = async () => {
   if (learningPlayerRef.value?.jumpToFurthest) {
     await learningPlayerRef.value.jumpToFurthest()
-    // After jumping, the cursor catches up on the next round complete —
-    // but the choice is no longer relevant either way, so clear it.
+    // The cursor write inside jumpToFurthest catches it up to the
+    // ceiling, so the choice naturally falls away on next render.
+    // Don't auto-play — leave the learner in resting state so they
+    // can press play themselves when they're actually ready.
     jumpChoiceDismissed.value = true
-    handleTogglePlayback()
   }
-}
-
-const handleStayHere = () => {
-  jumpChoiceDismissed.value = true
 }
 
 // Class context (when launched from Schools)
@@ -526,7 +523,6 @@ onMounted(() => {
       @start="handleTogglePlayback"
       @change-course="showCourseSelector = true"
       @jump-to-furthest="handleJumpToFurthest"
-      @stay-here="handleStayHere"
     />
 
     <!-- Library overlay (slide-up modal, same pattern as Settings) -->
