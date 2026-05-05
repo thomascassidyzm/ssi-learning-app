@@ -76,21 +76,27 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <Transition name="slide-up">
-    <div v-if="showBanner" class="pwa-update-banner" role="status" aria-live="polite">
-      <div class="pwa-update-content">
-        <span class="pwa-update-text">New version available</span>
-        <div class="pwa-update-actions">
-          <button class="pwa-update-dismiss" @click="onDismiss">
-            Later
-          </button>
-          <button class="pwa-update-button" @click="onUpdate">
-            Update
-          </button>
+  <!-- Teleport to body so the banner lives in the root stacking context.
+       Any parent with transform/filter/opacity could otherwise create a
+       new stacking context that traps the banner below floating UI like
+       the mode-tray trigger button. -->
+  <Teleport to="body">
+    <Transition name="slide-up">
+      <div v-if="showBanner" class="pwa-update-banner" role="status" aria-live="polite">
+        <div class="pwa-update-content">
+          <span class="pwa-update-text">New version available</span>
+          <div class="pwa-update-actions">
+            <button class="pwa-update-dismiss" @click.stop="onDismiss">
+              Later
+            </button>
+            <button class="pwa-update-button" @click.stop="onUpdate">
+              Update
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-  </Transition>
+    </Transition>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -99,7 +105,10 @@ onUnmounted(() => {
   bottom: calc(68px + env(safe-area-inset-bottom, 0px) + 16px);
   left: 0;
   right: 0;
-  z-index: 10000;
+  /* Max int32 — guarantees we sit above any other floating UI (mode tray,
+     overlays, modals). The update banner is critical-path: a learner
+     should always be able to take a code update. */
+  z-index: 2147483647;
   padding: 0 16px;
   pointer-events: none;
 }
