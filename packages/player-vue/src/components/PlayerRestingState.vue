@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { BELTS } from '@/composables/useBeltProgress'
+import { BELTS, getBeltIndexForSeed } from '@/composables/useBeltProgress'
 import { getLanguageName, t } from '@/composables/useI18n'
 import LanguageFlag from '@/components/schools/shared/LanguageFlag.vue'
 
@@ -38,6 +38,20 @@ const HIGHEST_ANCHOR_PCT = 62
 
 const cursorPercent = computed(() => CURSOR_ANCHOR_PCT)
 const highestPercent = computed(() => HIGHEST_ANCHOR_PCT)
+
+// Belt color for each marker. The "now" dot reflects the current belt
+// (matches the belt badge). The "furthest" dot reflects the belt at the
+// ceiling — so a learner at orange who has been to blue sees orange/blue
+// dots, not two orange dots. Round → seed estimate (~3 rounds/seed) is
+// good enough for picking the right belt.
+const ROUNDS_PER_SEED = 3
+const beltColorForRound = (round) => {
+  if (typeof round !== 'number' || round <= 0) return BELTS[0].color
+  const seed = round / ROUNDS_PER_SEED
+  return BELTS[getBeltIndexForSeed(seed)].color
+}
+const cursorBeltColor = computed(() => beltColorForRound(props.currentRound))
+const furthestBeltColor = computed(() => beltColorForRound(props.highestRound))
 
 const courseName = computed(() => {
   if (!props.course) return 'Loading...'
@@ -110,27 +124,39 @@ const handleChangeCourse = () => {
            is the implicit "stay here" — no second button needed. -->
       <div v-if="showJumpChoice" class="journey">
         <p class="journey-prompt">{{ t('resting.youHaveBeenFurther', "you've been further than this") }}</p>
-        <div class="journey-bar" :style="{ '--belt-accent': belt.color }">
-          <!-- Solid track from now to furthest — this is the actionable gap -->
+        <div
+          class="journey-bar"
+          :style="{
+            '--belt-accent': belt.color,
+            '--cursor-color': cursorBeltColor,
+            '--furthest-color': furthestBeltColor,
+          }"
+        >
+          <!-- Trail from now to furthest — gradient between the two belt
+               colors so the visual transition signals "you went from this
+               belt to that belt" -->
           <div
             class="journey-track journey-track--solid"
-            :style="{ left: cursorPercent + '%', width: (highestPercent - cursorPercent) + '%' }"
+            :style="{
+              left: cursorPercent + '%',
+              width: (highestPercent - cursorPercent) + '%',
+              background: `linear-gradient(to right, ${cursorBeltColor}, ${furthestBeltColor})`
+            }"
           ></div>
-          <!-- Faded extension past furthest — "rest of course" -->
           <div
             class="journey-track journey-track--rest"
             :style="{ left: highestPercent + '%', width: (100 - highestPercent) + '%' }"
           ></div>
           <div
             class="journey-marker journey-marker--current"
-            :style="{ left: cursorPercent + '%' }"
+            :style="{ left: cursorPercent + '%', background: cursorBeltColor }"
             :aria-label="t('resting.youAreHere', 'you are here')"
           >
             <span class="journey-marker-label">{{ t('resting.now', 'now') }}</span>
           </div>
           <div
             class="journey-marker journey-marker--highest"
-            :style="{ left: highestPercent + '%' }"
+            :style="{ left: highestPercent + '%', background: furthestBeltColor }"
             :aria-label="t('resting.yourFurthest', 'your furthest point')"
           >
             <span class="journey-marker-label">{{ t('resting.furthest', 'furthest') }}</span>
@@ -340,13 +366,13 @@ const handleChangeCourse = () => {
 
 .journey-rest-label {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + 18px); /* below the now/furthest labels so they don't collide */
   right: 0;
   font-family: var(--font-body);
   font-size: 10px;
   color: var(--text-muted);
   white-space: nowrap;
-  opacity: 0.7;
+  opacity: 0.6;
   pointer-events: none;
 }
 
@@ -356,19 +382,21 @@ const handleChangeCourse = () => {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: var(--belt-accent, #ffffff);
+  /* background is set inline per marker via the belt color */
   transform: translate(-50%, -50%);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--belt-accent, #ffffff) 25%, transparent);
   transition: left 0.3s ease;
+}
+
+.journey-marker--current {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cursor-color, #ffffff) 25%, transparent);
 }
 
 .journey-marker--highest {
   width: 14px;
   height: 14px;
-  background: var(--belt-accent, #ffffff);
   box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--belt-accent, #ffffff) 25%, transparent),
-    0 0 8px color-mix(in srgb, var(--belt-accent, #ffffff) 50%, transparent);
+    0 0 0 3px color-mix(in srgb, var(--furthest-color, #ffffff) 25%, transparent),
+    0 0 8px color-mix(in srgb, var(--furthest-color, #ffffff) 50%, transparent);
 }
 
 .journey-marker-label {

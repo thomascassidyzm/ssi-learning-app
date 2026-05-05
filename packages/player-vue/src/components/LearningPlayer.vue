@@ -407,11 +407,24 @@ const setRemoteCursor = async (legoId: string, roundIndex: number) => {
 /** Persist the simplePlayer's current position as the cursor. Called after
  *  intentional navigation (belt-back, belt-pill, jump-to-furthest) so the
  *  resting-state choice surfaces if the learner is now behind their ceiling. */
+/** Mirror the DB ceiling trigger locally. Whenever the cursor advances
+ *  past where we've been, lift the in-memory ceiling refs so the journey
+ *  bar reflects current truth without needing a page reload. The DB
+ *  trigger does this on its side; this keeps the client in sync. */
+const liftLocalCeilingIfHigher = (legoId: string | null, roundIndex: number) => {
+  if (typeof roundIndex !== 'number' || !legoId) return
+  if (highestCompletedRoundIndex.value === null || roundIndex > highestCompletedRoundIndex.value) {
+    highestCompletedRoundIndex.value = roundIndex
+    highestCompletedLegoId.value = legoId
+  }
+}
+
 const persistCursorAtCurrentRound = async () => {
   const round = simplePlayer.currentRound.value
   const idx = simplePlayer.roundIndex.value
   if (round?.legoId && typeof idx === 'number') {
     await setRemoteCursor(round.legoId, idx)
+    liftLocalCeilingIfHigher(round.legoId, idx)
   }
 }
 
@@ -429,6 +442,7 @@ const saveRoundProgress = async (legoId, roundIndex) => {
       roundIndex
     )
     console.log('[LearningPlayer] Saved progress: round', roundIndex, 'LEGO:', legoId)
+    liftLocalCeilingIfHigher(legoId, roundIndex)
   } catch (err) {
     console.warn('[LearningPlayer] Failed to save progress:', err)
     // Don't throw - continue learning even if save fails
