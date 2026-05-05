@@ -28,45 +28,16 @@ const showJumpChoice = computed(() => {
   return typeof c === 'number' && typeof h === 'number' && c < h
 })
 
-// Tube-map style: belts are the stations. Each belt segment gets equal
-// width on the bar regardless of how many real seeds it covers. Two
-// early-belt positions visually separate into distinct segments rather
-// than crowding the left edge.
-const BELT_SEED_THRESHOLDS = [0, 8, 20, 40, 80, 150, 280, 400]
-const ROUNDS_PER_SEED = 3
-const SEGMENT_COUNT = BELT_SEED_THRESHOLDS.length // 8
+// Three-zone schematic: "now" anchored on the left, "furthest" sits at a
+// fixed midpoint, and the area after "furthest" is the "rest of course"
+// — visually deemphasised so the eye is drawn to the actionable gap
+// between now and furthest. Positions are intentionally non-proportional;
+// this is a logical scrubber, not a real-distance indicator.
+const CURSOR_ANCHOR_PCT = 10
+const HIGHEST_ANCHOR_PCT = 62
 
-const roundToTubePercent = (round) => {
-  if (round <= 0) return 0
-  const seed = round / ROUNDS_PER_SEED
-  let beltIdx = 0
-  for (let i = BELT_SEED_THRESHOLDS.length - 1; i >= 0; i--) {
-    if (seed >= BELT_SEED_THRESHOLDS[i]) {
-      beltIdx = i
-      break
-    }
-  }
-  const segStart = BELT_SEED_THRESHOLDS[beltIdx]
-  // Last segment (black) extends rightward; estimate its width as 100 seeds
-  // beyond its threshold so positions inside it map sensibly.
-  const segEnd = BELT_SEED_THRESHOLDS[beltIdx + 1] ?? (segStart + 100)
-  const intra = Math.min(1, Math.max(0, (seed - segStart) / Math.max(1, segEnd - segStart)))
-  return ((beltIdx + intra) / SEGMENT_COUNT) * 100
-}
-
-const cursorPercent = computed(() => roundToTubePercent(props.currentRound ?? 0))
-const highestPercent = computed(() => roundToTubePercent(props.highestRound ?? 0))
-
-// Subtle belt-station tick positions: at each segment boundary except
-// the very edges. Drawn under the markers so they don't crowd them.
-const tubeStations = computed(() =>
-  Array.from({ length: SEGMENT_COUNT - 1 }, (_, i) => ((i + 1) / SEGMENT_COUNT) * 100)
-)
-
-// Hide the redundant marker label when the two are visually close enough
-// that the labels would collide. The bar is ~280px wide; "furthest"
-// label is ~50px, so anything tighter than ~18% is a collision risk.
-const labelsCollide = computed(() => Math.abs(highestPercent.value - cursorPercent.value) < 18)
+const cursorPercent = computed(() => CURSOR_ANCHOR_PCT)
+const highestPercent = computed(() => HIGHEST_ANCHOR_PCT)
 
 const courseName = computed(() => {
   if (!props.course) return 'Loading...'
@@ -149,23 +120,22 @@ const handleChangeCourse = () => {
       <div v-if="showJumpChoice" class="journey">
         <p class="journey-prompt">{{ t('resting.youHaveBeenFurther', "you've been further than this") }}</p>
         <div class="journey-bar" :style="{ '--belt-accent': belt.color }">
-          <div class="journey-track"></div>
+          <!-- Solid track from now to furthest — this is the actionable gap -->
           <div
-            v-for="(pos, i) in tubeStations"
-            :key="i"
-            class="journey-station"
-            :style="{ left: pos + '%' }"
+            class="journey-track journey-track--solid"
+            :style="{ left: cursorPercent + '%', width: (highestPercent - cursorPercent) + '%' }"
           ></div>
+          <!-- Faded extension past furthest — "rest of course" -->
           <div
-            class="journey-trail"
-            :style="{ left: cursorPercent + '%', width: Math.max(1, highestPercent - cursorPercent) + '%' }"
+            class="journey-track journey-track--rest"
+            :style="{ left: highestPercent + '%', width: (100 - highestPercent) + '%' }"
           ></div>
           <div
             class="journey-marker journey-marker--current"
             :style="{ left: cursorPercent + '%' }"
             :aria-label="t('resting.youAreHere', 'you are here')"
           >
-            <span v-if="!labelsCollide" class="journey-marker-label">{{ t('resting.you', 'you') }}</span>
+            <span class="journey-marker-label">{{ t('resting.now', 'now') }}</span>
           </div>
           <div
             class="journey-marker journey-marker--highest"
@@ -174,6 +144,7 @@ const handleChangeCourse = () => {
           >
             <span class="journey-marker-label">{{ t('resting.furthest', 'furthest') }}</span>
           </div>
+          <span class="journey-rest-label">{{ t('resting.restOfCourse', 'rest of course') }}</span>
         </div>
         <button
           class="journey-cta"
@@ -353,32 +324,39 @@ const handleChangeCourse = () => {
 .journey-track {
   position: absolute;
   top: 50%;
-  left: 0;
-  right: 0;
   height: 3px;
   border-radius: 2px;
-  background: color-mix(in srgb, var(--belt-accent, #ffffff) 18%, transparent);
   transform: translateY(-50%);
 }
 
-.journey-station {
-  position: absolute;
-  top: 50%;
-  width: 2px;
-  height: 8px;
-  border-radius: 1px;
-  background: color-mix(in srgb, var(--belt-accent, #ffffff) 30%, transparent);
-  transform: translate(-50%, -50%);
-}
-
-.journey-trail {
-  position: absolute;
-  top: 50%;
-  height: 3px;
-  border-radius: 2px;
+/* Now → furthest: the actionable gap, drawn solid */
+.journey-track--solid {
   background: color-mix(in srgb, var(--belt-accent, #ffffff) 55%, transparent);
-  transform: translateY(-50%);
-  transition: left 0.3s ease, width 0.3s ease;
+}
+
+/* Past furthest: dotted, deemphasised */
+.journey-track--rest {
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--belt-accent, #ffffff) 30%, transparent) 0,
+    color-mix(in srgb, var(--belt-accent, #ffffff) 30%, transparent) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+  background-size: 8px 3px;
+  opacity: 0.7;
+}
+
+.journey-rest-label {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  font-family: var(--font-body);
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  opacity: 0.7;
+  pointer-events: none;
 }
 
 .journey-marker {
