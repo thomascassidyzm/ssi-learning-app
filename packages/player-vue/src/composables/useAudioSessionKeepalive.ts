@@ -32,12 +32,33 @@
 import { watch, onUnmounted, type Ref, type ComputedRef } from 'vue'
 import { getSilentAudioUrl } from '../utils/silentAudio'
 
+/**
+ * Window in which a transient release request is ignored. The race we're
+ * defending against: handleRoundBoundary awaits a Supabase write
+ * (markLapCompleted) between playPodLap returning (clears
+ * playingPodLapAudio) and simplePlayer.resume() (sets isPlaying). For
+ * those few hundred ms `active` reads false, but the session is still
+ * logically alive — pausing the silent loop here is what loses the iOS
+ * unlock. 2s comfortably covers Supabase round-trips while still
+ * releasing promptly when the user actually stops.
+ */
+const RELEASE_DEBOUNCE_MS = 2000
+
 export function useAudioSessionKeepalive(
   active: Ref<boolean> | ComputedRef<boolean>
 ): void {
   let silentAudio: HTMLAudioElement | null = null
+  let releaseTimer: ReturnType<typeof setTimeout> | null = null
+
+  const cancelPendingRelease = (): void => {
+    if (releaseTimer) {
+      clearTimeout(releaseTimer)
+      releaseTimer = null
+    }
+  }
 
   const ensure = (): void => {
+    cancelPendingRelease()
     if (!silentAudio) {
       silentAudio = new Audio()
       silentAudio.src = getSilentAudioUrl()
@@ -59,17 +80,20 @@ export function useAudioSessionKeepalive(
     }
   }
 
-  // Default flush ('pre' = microtask) batches synchronous flips so a
-  // pause-then-resume in the same tick (e.g. simplePlayer.pause() followed
-  // by playingPodLapAudio.value = true) collapses into a single watcher
-  // call with the final value, avoiding a momentary release that would
-  // drop the iOS session.
   watch(active, (isActive) => {
-    if (isActive) ensure()
-    else release()
+    if (isActive) {
+      ensure()
+    } else {
+      cancelPendingRelease()
+      releaseTimer = setTimeout(() => {
+        releaseTimer = null
+        release()
+      }, RELEASE_DEBOUNCE_MS)
+    }
   })
 
   onUnmounted(() => {
+    cancelPendingRelease()
     if (silentAudio) {
       silentAudio.pause()
       silentAudio.src = ''
