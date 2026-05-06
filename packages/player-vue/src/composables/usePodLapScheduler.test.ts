@@ -72,16 +72,16 @@ describe('podStageFor', () => {
   it('returns null for sentences not yet alive', () => {
     expect(podStageFor(5, 4)).toBeNull()
   })
-  it('stage 1 spans alive 1-3', () => {
+  it('stage 1 spans alive 1-5', () => {
     expect(podStageFor(1, 1)?.stage).toBe(1)
-    expect(podStageFor(1, 3)?.stage).toBe(1)
+    expect(podStageFor(1, 5)?.stage).toBe(1)
   })
-  it('stage 2 spans alive 4-6', () => {
-    expect(podStageFor(1, 4)?.stage).toBe(2)
+  it('stage 2 spans alive 6-10', () => {
     expect(podStageFor(1, 6)?.stage).toBe(2)
+    expect(podStageFor(1, 10)?.stage).toBe(2)
   })
-  it('stage 7 is the eternal hold for alive >= 19', () => {
-    expect(podStageFor(1, 19)?.stage).toBe(7)
+  it('stage 7 is the eternal hold for alive >= 31', () => {
+    expect(podStageFor(1, 31)?.stage).toBe(7)
     expect(podStageFor(1, 100)?.stage).toBe(7)
   })
 })
@@ -159,7 +159,7 @@ describe('usePodLapScheduler — nextLap composition', () => {
     }
   })
 
-  it('first lap (ratchet=0 → podRound=1) plays sentence 1 at stage 1: ps,trans,ps,ps2x', async () => {
+  it('first lap (ratchet=0 → podRound=1) plays sentence 1 at stage 1: ps,trans,ps,ps', async () => {
     const s = usePodLapScheduler({
       supabase: makeMockSupabase(state),
       courseCode: 'c',
@@ -169,9 +169,10 @@ describe('usePodLapScheduler — nextLap composition', () => {
     const lap = s.nextLap()
     expect(lap).not.toBeNull()
     expect(lap!.podRound).toBe(1)
-    expect(lap!.plays.map(p => p.playRole)).toEqual(['ps', 'trans', 'ps', 'ps2x'])
+    // Stage 1 stays all 1.0× per Aran's 2026-05-05 spec — 2× kicks in from stage 2.
+    expect(lap!.plays.map(p => p.playRole)).toEqual(['ps', 'trans', 'ps', 'ps'])
     expect(lap!.plays.every(p => p.sentenceIdx === 1)).toBe(true)
-    expect(lap!.plays.find(p => p.playRole === 'ps2x')!.playbackSpeed).toBe(2.0)
+    expect(lap!.plays.every(p => p.playbackSpeed === 1.0)).toBe(true)
     expect(lap!.intro?.id).toBe('intro-1')
     expect(lap!.outro?.id).toBe('outro-1')
   })
