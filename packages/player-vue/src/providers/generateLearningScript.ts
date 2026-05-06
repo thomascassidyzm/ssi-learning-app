@@ -50,7 +50,25 @@ export interface ScriptItem {
   playbackSpeed?: number
   /** Listening phase: which seed this listening item is for */
   listeningSeedNumber?: number
+  /** Skip this cycle when Turbo is active. Set on:
+   *   - 4th–7th BUILD phrases (Turbo keeps the first 3)
+   *   - 2nd CONSOLIDATE/USE phrase (Turbo keeps 1)
+   *   - spaced_rep phrases at alternate fib offsets (skip 5, 13, 34, 89; keep 1, 2, 3, 8, 21, 55)
+   * intro/debut/listening/pod/bookend cycles are never tagged. */
+  turboOmit?: boolean
 }
+
+/**
+ * Fib-offset indices that Turbo *keeps* in spaced rep. SPACED_REP_OFFSETS is
+ * [1, 2, 3, 5, 8, 13, 21, 34, 55, 89]; Turbo keeps the first three plus
+ * every other one from index 4 onwards — i.e. {1, 2, 3, 8, 21, 55}.
+ * fibPosition values not in this set get tagged turboOmit.
+ */
+const TURBO_FIB_KEEP = new Set([0, 1, 2, 4, 6, 8])
+/** First N BUILD phrases per LEGO that Turbo plays through. The rest are tagged. */
+const TURBO_BUILD_KEEP = 3
+/** First N CONSOLIDATE/USE phrases per LEGO that Turbo plays through. */
+const TURBO_USE_KEEP = 1
 
 // Per Aran's listening-layers spec (canonical visualiser at popty.app/listening-playground.html).
 // Graduation is event-driven (1 LEGO == 1 round; a seed graduates once all its
@@ -973,7 +991,8 @@ export async function generateLearningScript(
           target1DurationMs: phrase.target1_duration_ms,
           target2DurationMs: phrase.target2_duration_ms,
           isNew: true,
-          syllableCount: phrase.target_syllable_count || countTargetSyllables(phrase.target_text)
+          syllableCount: phrase.target_syllable_count || countTargetSyllables(phrase.target_text),
+          ...(practiceCount > TURBO_BUILD_KEEP ? { turboOmit: true } : {}),
         })
       }
 
@@ -1006,7 +1025,8 @@ export async function generateLearningScript(
           target1DurationMs: phrase.target1_duration_ms,
           target2DurationMs: phrase.target2_duration_ms,
           isNew: true,
-          syllableCount: phrase.target_syllable_count || countTargetSyllables(phrase.target_text)
+          syllableCount: phrase.target_syllable_count || countTargetSyllables(phrase.target_text),
+          ...(practiceCount > TURBO_BUILD_KEEP ? { turboOmit: true } : {}),
         })
       }
 
@@ -1077,7 +1097,8 @@ export async function generateLearningScript(
             target2DurationMs: phrase.target2_duration_ms,
             isNew: false,
             fibPosition,
-            reviewOf: state.lastRound
+            reviewOf: state.lastRound,
+            ...(TURBO_FIB_KEEP.has(fibPosition) ? {} : { turboOmit: true }),
           })
         }
       }
@@ -1100,7 +1121,8 @@ export async function generateLearningScript(
           target2Id: phrase.target2_audio_id,
           target1DurationMs: phrase.target1_duration_ms,
           target2DurationMs: phrase.target2_duration_ms,
-          isNew: true
+          isNew: true,
+          ...(consolidateCount > TURBO_USE_KEEP ? { turboOmit: true } : {}),
         })
       }
       // First pass: unused USE phrases
@@ -1295,6 +1317,7 @@ export async function generateLearningScript(
             isNew: false,
             fibPosition,
             reviewOf: state.lastRound,
+            ...(TURBO_FIB_KEEP.has(fibPosition) ? {} : { turboOmit: true }),
           })
         }
       }

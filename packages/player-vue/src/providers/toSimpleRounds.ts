@@ -244,6 +244,10 @@ export function toSimpleRounds(
         // scaling the baked value.
         ...(i.target1DurationMs ? { target1DurationMs: i.target1DurationMs } : {}),
         ...(i.target2DurationMs ? { target2DurationMs: i.target2DurationMs } : {}),
+        // Turbo skip flag — set on 4th–7th BUILD, 2nd USE, alternate fib
+        // spaced rep. SimplePlayer's shouldSkipCycle override (gated on
+        // turboActive) decides whether to actually skip at play time.
+        ...(i.turboOmit ? { turboOmit: true } : {}),
         // Intro/listening/component_intro/bookends/pods: no pause.
         // Other cycles: dynamic pause based on target audio lengths.
         pauseDuration: (i.type === 'intro' || i.type === 'listening' || i.type === 'component_intro' || isBookend || isPod)

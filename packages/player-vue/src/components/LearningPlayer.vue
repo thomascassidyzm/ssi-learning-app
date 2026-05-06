@@ -4667,6 +4667,12 @@ simplePlayer.setRuntimeOverrides({
     if (cycle.type && TURBO_BYPASS_TYPES.has(cycle.type)) return 1.0
     return turboConfig.value.playback_speed
   },
+  shouldSkipCycle: (cycle) => {
+    // Cull tagged cycles when Turbo is on: 4th–7th BUILD, 2nd USE,
+    // alternate-fib spaced rep. Tagging happens at script generation;
+    // this just gates on the live Turbo flag.
+    return turboActive.value && cycle.turboOmit === true
+  },
 })
 const showListeningOverlay = ref(false) // Show listening mode overlay
 const showPronunciationOverlay = ref(false) // Show pronunciation mode overlay

@@ -26,6 +26,12 @@ export interface Cycle {
    * instead of just scaling the baked value. */
   target1DurationMs?: number
   target2DurationMs?: number
+  /** Tagged at script-generation time on cycles that Turbo skips: 4th–7th
+   * BUILD phrases, 2nd USE phrase, spaced_rep at alternate fib offsets.
+   * intro/debut/listening/pod/bookend cycles are never tagged. SimplePlayer
+   * consults the runtime override (which checks turboActive) to decide
+   * whether to actually skip. */
+  turboOmit?: boolean
 }
 
 /**
@@ -39,6 +45,10 @@ export interface SimplePlayerRuntimeOverrides {
   getPauseDuration?: (cycle: Cycle) => number | undefined
   /** Return a multiplier applied to the cycle's playback rate (target voices only). 1.0 = no change. */
   getPlaybackSpeedMultiplier?: (cycle: Cycle) => number
+  /** Return true to skip this cycle entirely (advance to the next). Used by Turbo to
+   * cull turboOmit-tagged cycles. Consulted before starting any phase, so toggling
+   * Turbo mid-round shortens the remaining round on the next cycle boundary. */
+  shouldSkipCycle?: (cycle: Cycle) => boolean
 }
 
 export interface Round {
@@ -266,6 +276,19 @@ export class SimplePlayer {
     return this.rounds.findIndex(r => r.roundNumber === roundNumber)
   }
 
+  /**
+   * Find the next cycle index in a round that the runtime override says to play.
+   * Returns -1 if every remaining cycle is being skipped — caller advances the round.
+   */
+  private findNextPlayableCycleIndex(round: Round, fromIndex: number): number {
+    const skip = this.runtimeOverrides.shouldSkipCycle
+    if (!skip) return fromIndex < round.cycles.length ? fromIndex : -1
+    for (let i = fromIndex; i < round.cycles.length; i++) {
+      if (!skip(round.cycles[i])) return i
+    }
+    return -1
+  }
+
   // Controls
   play(): void {
     if (this.state.isPlaying) return
@@ -278,6 +301,18 @@ export class SimplePlayer {
       console.warn(`[SimplePlayer] Round ${round.roundNumber} has no cycles, skipping`)
       this.advanceRound()
       return
+    }
+    // Skip leading turboOmit cycles when Turbo is on. If every cycle is
+    // skipped, the round is empty in this mode — advance to the next.
+    const startIdx = this.findNextPlayableCycleIndex(round, this.state.cycleIndex)
+    if (startIdx === -1) {
+      console.debug(`[SimplePlayer] Round ${round.roundNumber}: all cycles skipped under Turbo, advancing`)
+      this.updateState({ isPlaying: true })
+      this.advanceRound()
+      return
+    }
+    if (startIdx !== this.state.cycleIndex) {
+      this.updateState({ cycleIndex: startIdx })
     }
     console.debug(`[SimplePlayer] Starting Round ${round.roundNumber} (${round.legoId}): ${round.cycles.length} cycles`)
     this.updateState({ isPlaying: true })
@@ -514,8 +549,12 @@ export class SimplePlayer {
       this.advanceRound()
       return
     }
-    if (this.state.cycleIndex < round.cycles.length - 1) {
-      this.updateState({ cycleIndex: this.state.cycleIndex + 1 })
+    // Find the next non-skipped cycle. Lets Turbo cull tagged cycles
+    // mid-round: the current cycle finishes, then the runtime override
+    // jumps over any turboOmit'd cycles before the next prompt.
+    const nextIdx = this.findNextPlayableCycleIndex(round, this.state.cycleIndex + 1)
+    if (nextIdx !== -1) {
+      this.updateState({ cycleIndex: nextIdx })
       this.startPhase('prompt')
     } else {
       this.advanceRound()
