@@ -70,6 +70,16 @@ const TURBO_BUILD_KEEP = 3
 /** First N CONSOLIDATE/USE phrases per LEGO that Turbo plays through. */
 const TURBO_USE_KEEP = 1
 
+/**
+ * Layer 1 per-seed play roles — mirrors usePodLapScheduler's PodPlayRole.
+ *   ps   = target audio at 1.0× (slow listen for clarity)
+ *   ps2x = target audio at 2.0× (fast rep for retention)
+ *   trans= known-language audio at 1.0× (translation cue, off by default
+ *          since graduated seeds have dropped out of spaced rep — learner
+ *          should already know the meaning)
+ */
+export type Layer1PlayRole = 'ps' | 'ps2x' | 'trans'
+
 // Per Aran's listening-layers spec (canonical visualiser at popty.app/listening-playground.html).
 // Graduation is event-driven (1 LEGO == 1 round; a seed graduates once all its
 // LEGOs have been introduced and the offset has elapsed). Active-10 and reserve
@@ -82,6 +92,11 @@ export interface ListeningConfig {
   l1ActiveInterval: number    // active fires every N rounds
   l1ReserveSize: number       // older seeds beyond active, capped (overflow → Choice Pods later)
   l1ReserveInterval: number   // reserve fires every N rounds (coprime with active)
+  /** Per-seed Layer 1 playlist. Default ['ps', 'ps2x', 'ps2x'] = one slow
+   * listen, two fast reps. No 'trans' by default since graduated seeds are
+   * past the spaced-rep meaning-acquisition phase. Parameterisable so this
+   * can be tuned per-course or per-window without code changes. */
+  layer1Playlist: Layer1PlayRole[]
   // Layer 2 — Pod 0
   podActivationRound: number  // first pod lap fires at end of this main round (start of seed 2)
 }
@@ -93,6 +108,7 @@ export const DEFAULT_LISTENING_CONFIG: ListeningConfig = {
   l1ActiveInterval: 3,
   l1ReserveSize: 50,
   l1ReserveInterval: 13,
+  layer1Playlist: ['ps', 'ps2x', 'ps2x'],
   podActivationRound: 6,
 }
 
@@ -285,9 +301,12 @@ export async function generateLearningScript(
   }
 
   // Emit Layer 1 LISTEN cluster — bookend-wrapped block of graduated seeds.
-  // Caller passes the seeds to play (active, reserve, or both reserve+active
-  // when their rotations clash). Each seed plays once at PS×2 per Aran's
-  // simplification (real impl could add a 1×→2× ramp on the first few replays).
+  // Each seed expands to one cycle per entry in listeningConfig.layer1Playlist
+  // (default ['ps', 'ps2x', 'ps2x'] = one 1× listen, two 2× reps). Each cycle
+  // plays exactly one audio: target at the role's speed for 'ps'/'ps2x',
+  // known audio for 'trans'. No prompt → target1 → target2 trio — graduated
+  // seeds are past meaning-acquisition, so the playlist drives repetition
+  // instead of layering known + target.
   //
   // omitOutro: when L2 will fire the same round, drop the L1 outro bookend so
   // the L1 cluster flows straight into the L2 pod lap. Pair with the runtime
@@ -296,13 +315,16 @@ export async function generateLearningScript(
   function emitL1Cluster(seedNums: number[], mainRoundNumber: number, cycleCounter: { v: number }, omitOutro: boolean = false): boolean {
     if (seedNums.length === 0) return false
 
-    const plays: Array<{ sNum: number; seedData: SeedData }> = []
+    const playlist = listeningConfig.layer1Playlist
+    if (!playlist || playlist.length === 0) return false
+
+    const validSeeds: Array<{ sNum: number; seedData: SeedData }> = []
     for (const sNum of seedNums) {
       const seedData = seedMap.get(sNum)
       if (!seedData || !seedData.target1_audio_id) continue
-      plays.push({ sNum, seedData })
+      validSeeds.push({ sNum, seedData })
     }
-    if (plays.length === 0) return false
+    if (validSeeds.length === 0) return false
 
     if (hasBookends && listenIntroAudio) {
       cycleCounter.v++
@@ -317,26 +339,37 @@ export async function generateLearningScript(
         isNew: false,
       })
     }
-    for (const { sNum, seedData } of plays) {
-      cycleCounter.v++
-      emitItem({
-        uuid: `listening_S${String(sNum).padStart(4, '0')}_2x_${cycleCounter.v}`,
-        cycleNum: cycleCounter.v, roundNumber: mainRoundNumber,
-        seedId: `S${String(sNum).padStart(4, '0')}`,
-        legoKey: `S${String(sNum).padStart(4, '0')}L00`,
-        seedCode: `S${String(sNum).padStart(4, '0')}`,
-        legoCode: '00',
-        type: 'listening',
-        knownText: seedData.known_text,
-        targetText: seedData.target_text_roman || seedData.target_text,
-        ...nativeFields(seedData),
-        knownAudioId: seedData.known_audio_id,
-        target1Id: seedData.target1_audio_id,
-        target2Id: seedData.target2_audio_id,
-        isNew: false,
-        playbackSpeed: 2.0,
-        listeningSeedNumber: sNum,
-      })
+    for (const { sNum, seedData } of validSeeds) {
+      const seedIdStr = `S${String(sNum).padStart(4, '0')}`
+      for (const role of playlist) {
+        const isTrans = role === 'trans'
+        // Skip 'trans' for seeds without known audio rather than dropping
+        // the whole seed — a missing translation shouldn't silence retries.
+        if (isTrans && !seedData.known_audio_id) continue
+        cycleCounter.v++
+        const speed = role === 'ps2x' ? 2.0 : 1.0
+        emitItem({
+          uuid: `listening_${seedIdStr}_${role}_${cycleCounter.v}`,
+          cycleNum: cycleCounter.v, roundNumber: mainRoundNumber,
+          seedId: seedIdStr,
+          legoKey: `${seedIdStr}L00`,
+          seedCode: seedIdStr,
+          legoCode: '00',
+          type: 'listening',
+          knownText: seedData.known_text,
+          targetText: seedData.target_text_roman || seedData.target_text,
+          ...nativeFields(seedData),
+          // 'trans' plays the known-language clip; 'ps'/'ps2x' play target.
+          // Unused side stays undefined so the corresponding phase silently
+          // skips in SimplePlayer.
+          ...(isTrans
+            ? { knownAudioId: seedData.known_audio_id }
+            : { target1Id: seedData.target1_audio_id }),
+          isNew: false,
+          playbackSpeed: speed,
+          listeningSeedNumber: sNum,
+        })
+      }
     }
     if (hasBookends && listenOutroAudio && !omitOutro) {
       cycleCounter.v++

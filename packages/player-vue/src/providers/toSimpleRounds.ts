@@ -189,7 +189,12 @@ export function toSimpleRounds(
     const cycles: Cycle[] = []
     let skippedNoAudio = 0
     for (const i of roundItems) {
-      if (i.type === 'listening' || i.type === 'component_intro') {
+      if (i.type === 'listening') {
+        // Listening cycles now carry one audio per cycle (one playlist
+        // entry: ps/ps2x → target1Id, trans → knownAudioId). Either is
+        // acceptable; missing both means a stale row to skip.
+        if (!i.knownAudioId && !i.target1Id) { skippedNoAudio++; continue }
+      } else if (i.type === 'component_intro') {
         if (!i.target1Id) { skippedNoAudio++; continue }
       } else if (i.type === 'listen_intro' || i.type === 'listen_outro') {
         // Bookends play one known-language clip with no target voices.
