@@ -24,10 +24,27 @@ export interface ModeConfig {
   skip_voice2: boolean        // Skip second target voice?
 }
 
+/**
+ * Layer 1 + Layer 2 listening config — mirrored to DB row
+ * `algorithm_config` key='listening'. Admins tweak in Supabase Studio
+ * and the change takes effect on next session (5-min cache TTL).
+ */
+export interface ListeningModeConfig {
+  enabled: boolean
+  offset: number              // rounds after last LEGO before seed graduates
+  l1ActiveSize: number        // sliding window size of recent graduated seeds
+  l1ActiveInterval: number    // active fires every N rounds
+  l1ReserveSize: number       // older graduated seeds beyond active
+  l1ReserveInterval: number   // reserve fires every N rounds (coprime with active)
+  layer1Playlist: ('ps' | 'ps2x' | 'trans')[]
+  podActivationRound: number  // global default; per-learner pin still wins
+}
+
 export interface AlgorithmConfigs {
   normal_mode: ModeConfig
   turbo_boost: ModeConfig
-  [key: string]: ModeConfig   // Allow future configs
+  listening: ListeningModeConfig
+  [key: string]: ModeConfig | ListeningModeConfig   // Allow future configs
 }
 
 // Default fallbacks (used if DB fetch fails)
@@ -53,6 +70,17 @@ const DEFAULT_TURBO: ModeConfig = {
   skip_voice2: false
 }
 
+const DEFAULT_LISTENING: ListeningModeConfig = {
+  enabled: true,
+  offset: 56,
+  l1ActiveSize: 10,
+  l1ActiveInterval: 3,
+  l1ReserveSize: 50,
+  l1ReserveInterval: 13,
+  layer1Playlist: ['ps', 'ps2x', 'ps2x'],
+  podActivationRound: 6,
+}
+
 // Singleton cache - shared across all component instances
 let configCache: AlgorithmConfigs | null = null
 let cacheTimestamp: number = 0
@@ -61,7 +89,8 @@ const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
 export function useAlgorithmConfig(supabase: Ref<any> | null) {
   const configs = ref<AlgorithmConfigs>({
     normal_mode: DEFAULT_NORMAL,
-    turbo_boost: DEFAULT_TURBO
+    turbo_boost: DEFAULT_TURBO,
+    listening: DEFAULT_LISTENING,
   })
   const isLoaded = ref(false)
   const loadError = ref<string | null>(null)
@@ -96,15 +125,18 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
       }
 
       if (data && data.length > 0) {
-        const loaded: Partial<AlgorithmConfigs> = {}
+        const loaded: Record<string, any> = {}
         for (const row of data) {
-          loaded[row.key] = row.config as ModeConfig
+          loaded[row.key] = row.config
         }
 
         // Merge with defaults (in case some keys are missing)
         configs.value = {
           normal_mode: loaded.normal_mode || DEFAULT_NORMAL,
           turbo_boost: loaded.turbo_boost || DEFAULT_TURBO,
+          // Field-level merge for listening so a partial DB row (e.g. only
+          // layer1Playlist set) doesn't drop the rest of the defaults.
+          listening: { ...DEFAULT_LISTENING, ...(loaded.listening || {}) },
           ...loaded
         }
 
@@ -124,11 +156,12 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
   }
 
   // Convenience getters
-  const normalConfig = computed(() => configs.value.normal_mode)
-  const turboConfig = computed(() => configs.value.turbo_boost)
+  const normalConfig = computed(() => configs.value.normal_mode as ModeConfig)
+  const turboConfig = computed(() => configs.value.turbo_boost as ModeConfig)
+  const listeningConfig = computed(() => configs.value.listening as ListeningModeConfig)
 
   // Get any config by key
-  const getConfig = (key: string): ModeConfig | null => {
+  const getConfig = (key: string): ModeConfig | ListeningModeConfig | null => {
     return configs.value[key] || null
   }
 
@@ -151,11 +184,13 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
     loadConfigs,
     normalConfig,
     turboConfig,
+    listeningConfig,
     getConfig,
     calculatePause,
     invalidateCache,
     // Export defaults for reference
     DEFAULT_NORMAL,
-    DEFAULT_TURBO
+    DEFAULT_TURBO,
+    DEFAULT_LISTENING,
   }
 }

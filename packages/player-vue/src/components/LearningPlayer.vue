@@ -240,6 +240,7 @@ const showContributionExpanded = ref(false)
 const {
   loadConfigs: loadAlgorithmConfigs,
   turboConfig,
+  listeningConfig,
   isLoaded: algorithmConfigLoaded
 } = useAlgorithmConfig(supabase)
 
@@ -5612,6 +5613,11 @@ onMounted(async () => {
             // — eager preload always uses the default config.
             // Resolve the pod activation pin once — feeds into listeningConfig
             // for any path that doesn't use the eager preload's default config.
+            // Base config comes from algorithm_config (DB-tweakable) so admins
+            // can change layer1Playlist / graduation offset / window sizes
+            // without redeploying. Falls back to DEFAULT_LISTENING_CONFIG if
+            // the load hasn't completed yet.
+            const baseListeningConfig = listeningConfig.value || DEFAULT_LISTENING_CONFIG
             let podActivationOverride: number | null = null
             if (isReturningUser && startingSeed > 0) {
               const resolved = await resolvePodActivationRound(
@@ -5619,7 +5625,7 @@ onMounted(async () => {
                 learnerId.value,
                 courseCode.value
               )
-              if (resolved !== DEFAULT_LISTENING_CONFIG.podActivationRound) {
+              if (resolved !== baseListeningConfig.podActivationRound) {
                 podActivationOverride = resolved
                 console.log(`[LearningPlayer] Pod activation pinned at round ${resolved} for returning user`)
               }
@@ -5637,12 +5643,12 @@ onMounted(async () => {
             const eagerCourseMatches = eagerScript?.scriptPromise?.value &&
               eagerScript.courseCode.value === courseCode.value
             const config = podActivationOverride !== null
-              ? { ...DEFAULT_LISTENING_CONFIG, podActivationRound: podActivationOverride }
-              : undefined
+              ? { ...baseListeningConfig, podActivationRound: podActivationOverride }
+              : baseListeningConfig
 
             if (isReturningUser && startingSeed > 0) {
               const endSeed = startingSeed + LOOKAHEAD_CHUNK_SEEDS
-              console.log(`[LearningPlayer] Returning user at seed ${startingSeed} — loading seeds 1..${endSeed}${config ? ' (custom pod pin)' : ''}`)
+              console.log(`[LearningPlayer] Returning user at seed ${startingSeed} — loading seeds 1..${endSeed}${podActivationOverride !== null ? ' (custom pod pin)' : ''}`)
               result = await generateSimpleScript(supabase.value, courseCode.value, 1, endSeed, 1, config)
               console.log(`[LearningPlayer] Returning-user load ready: ${result.items.length} items, ${result.roundCount} rounds`)
             } else if (eagerCourseMatches) {
