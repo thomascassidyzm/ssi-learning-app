@@ -30,6 +30,7 @@ import { useOfflinePlay } from '../composables/useOfflinePlay'
 import { useOfflineCache } from '../composables/useOfflineCache'
 // SimplePlayer - clean playback engine
 import { useSimplePlayer } from '../composables/useSimplePlayer'
+import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepalive'
 // New simple script generation - direct database queries
 import { generateLearningScript as generateSimpleScript, DEFAULT_LISTENING_CONFIG } from '../providers/generateLearningScript'
 import { resolvePodActivationRound } from '../composables/usePodActivation'
@@ -1278,6 +1279,20 @@ const playingPodLapAudio = ref(false)
 // handleRoundBoundary checks this before calling simplePlayer.resume() so a
 // deliberate stop doesn't auto-advance into the next round mid-pod.
 const userStoppedDuringLap = ref(false)
+
+// Session-wide iOS audio-session keepalive. Runs a silent looped audio
+// element at volume 0 whenever ANY of cycle / pod-lap / commentary audio
+// is active. Without this, the inter-round handoff (simplePlayer pauses,
+// playPodLap kicks off on a separate audio element) leaves a gap that iOS
+// uses to drop the audio session in a backgrounded tab — killing the lap
+// after the intro bookend.
+useAudioSessionKeepalive(
+  computed(() =>
+    simplePlayer.isPlaying.value ||
+    playingPodLapAudio.value ||
+    playingCommentaryAudio.value
+  )
+)
 // Initialize once we know the course; re-init when course changes
 watch(
   () => [courseCode.value, learnerId.value],
