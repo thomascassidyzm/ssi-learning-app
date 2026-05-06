@@ -1319,19 +1319,10 @@ const userStoppedDuringLap = ref(false)
 // ratchet stays put so the listening work still has to be done.
 const podLapSkippedByUser = ref(false)
 
-// Session-wide iOS audio-session keepalive. Runs a silent looped audio
-// element at volume 0 whenever ANY of cycle / pod-lap / commentary audio
-// is active. Without this, the inter-round handoff (simplePlayer pauses,
-// playPodLap kicks off on a separate audio element) leaves a gap that iOS
-// uses to drop the audio session in a backgrounded tab — killing the lap
-// after the intro bookend.
-useAudioSessionKeepalive(
-  computed(() =>
-    simplePlayer.isPlaying.value ||
-    playingPodLapAudio.value ||
-    playingCommentaryAudio.value
-  )
-)
+// Session-wide iOS audio-session keepalive is wired further down — see
+// the useAudioSessionKeepalive call after isPlayingIntroduction +
+// isPlayingWelcome are declared. Putting it here would cause a TDZ
+// reference error since those refs come later in the setup script.
 // Initialize once we know the course; re-init when course changes
 watch(
   () => [courseCode.value, learnerId.value],
@@ -2681,6 +2672,24 @@ const welcomeChecked = ref(false) // True after we've checked welcome status
 const isPlayingWelcome = ref(false) // True when welcome audio is playing
 const showWelcomeSkip = ref(false) // Show skip button during welcome
 const welcomeText = ref('') // Text to display during welcome audio
+
+// Session-wide iOS audio-session keepalive. Runs a silent looped audio
+// element at volume 0 whenever ANY audible playback path is active —
+// session welcome, LEGO intros, the cycle engine, pod laps, or
+// commentary. Missing any of these leaves a backgrounded tab vulnerable
+// to iOS revoking the session unlock during that path's audio. Notably
+// LEGO intros run on their own audio element BEFORE simplePlayer.play()
+// takes over, so isPlaying is false even though the user is hearing
+// the LEGO presentation.
+useAudioSessionKeepalive(
+  computed(() =>
+    simplePlayer.isPlaying.value ||
+    playingPodLapAudio.value ||
+    playingCommentaryAudio.value ||
+    isPlayingIntroduction.value ||
+    isPlayingWelcome.value
+  )
+)
 
 // Initial state - before user has ever tapped play
 const hasEverStarted = ref(false) // True after first play tap (even if welcome plays first)
