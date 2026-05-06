@@ -10,6 +10,7 @@ import {
   type Cycle,
   type Phase,
   type AudioFailedEvent,
+  type SimplePlayerRuntimeOverrides,
 } from '../playback/SimplePlayer'
 
 export interface UseSimplePlayerReturn {
@@ -30,6 +31,7 @@ export interface UseSimplePlayerReturn {
    * "Tap to resume" banner or a connection-problem toast. */
   audioFailed: Ref<AudioFailedEvent | null>
   initialize: (rounds: Round[]) => void
+  setRuntimeOverrides: (overrides: SimplePlayerRuntimeOverrides) => void
   play: () => void
   pause: () => void
   resume: () => void
@@ -52,6 +54,9 @@ export interface UseSimplePlayerReturn {
 export function useSimplePlayer(): UseSimplePlayerReturn {
   // Internal state
   let player: SimplePlayer | null = null
+  // Runtime overrides survive across initialize() calls so wiring Turbo
+  // before any rounds load still applies once playback starts.
+  let runtimeOverrides: SimplePlayerRuntimeOverrides = {}
   const internalState = ref<PlaybackState>({ roundIndex: 0, cycleIndex: 0, phase: 'idle', isPlaying: false })
   const roundsRef = ref<Round[]>([])
 
@@ -84,7 +89,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     }
 
     roundsRef.value = rounds
-    player = new SimplePlayer(rounds)
+    player = new SimplePlayer(rounds, runtimeOverrides)
 
     // Subscribe to state changes
     player.on('state_changed', (data) => {
@@ -150,6 +155,16 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   // User-initiated transitions clear the audio-failed banner. The
   // corresponding SimplePlayer method also resets the circuit budget.
   const clearAudioFailed = () => { audioFailed.value = null }
+
+  /**
+   * Replace the runtime overrides (Turbo-aware pause / speed callbacks).
+   * Stored locally so a later initialize() call gets them too. Live player
+   * (if any) is updated in place so toggles take effect on the next phase.
+   */
+  const setRuntimeOverrides = (overrides: SimplePlayerRuntimeOverrides) => {
+    runtimeOverrides = overrides
+    player?.setRuntimeOverrides(overrides)
+  }
 
   // Methods (passthrough to player)
   const play = () => { clearAudioFailed(); player?.play() }
@@ -264,6 +279,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     roundCount,
     audioFailed,
     initialize,
+    setRuntimeOverrides,
     play,
     pause,
     resume,

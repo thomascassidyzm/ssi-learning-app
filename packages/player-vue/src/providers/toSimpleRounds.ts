@@ -239,6 +239,11 @@ export function toSimpleRounds(
           voice1Url: isBookend ? '' : audioUrl(i.target1Id),
           voice2Url: (isBookend || isPod) ? '' : audioUrl(i.target2Id)
         },
+        // Expose raw target durations so runtime overrides (Turbo) can
+        // recompute pauseDuration with their own formula instead of just
+        // scaling the baked value.
+        ...(i.target1DurationMs ? { target1DurationMs: i.target1DurationMs } : {}),
+        ...(i.target2DurationMs ? { target2DurationMs: i.target2DurationMs } : {}),
         // Intro/listening/component_intro/bookends/pods: no pause.
         // Other cycles: dynamic pause based on target audio lengths.
         pauseDuration: (i.type === 'intro' || i.type === 'listening' || i.type === 'component_intro' || isBookend || isPod)

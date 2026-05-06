@@ -21,6 +21,24 @@ export interface Cycle {
   componentsNative?: Array<{ known: string; target: string }>
   /** Listening phase: playback speed multiplier (1.0 = normal, 2.0 = double) */
   playbackSpeed?: number
+  /** Raw target audio durations (ms). Kept on the cycle so runtime overrides
+   * (e.g. Turbo) can recompute pauseDuration with a different formula
+   * instead of just scaling the baked value. */
+  target1DurationMs?: number
+  target2DurationMs?: number
+}
+
+/**
+ * Runtime overrides that LearningPlayer can supply to apply mode-dependent
+ * timing (Turbo) without baking it into the script. Pure callbacks — the
+ * engine reads them at the moment of each phase, so flipping Turbo
+ * mid-round takes effect on the very next pause / voice phase.
+ */
+export interface SimplePlayerRuntimeOverrides {
+  /** Return ms to override cycle.pauseDuration for this cycle, or undefined to use the baked value. */
+  getPauseDuration?: (cycle: Cycle) => number | undefined
+  /** Return a multiplier applied to the cycle's playback rate (target voices only). 1.0 = no change. */
+  getPlaybackSpeedMultiplier?: (cycle: Cycle) => number
 }
 
 export interface Round {
@@ -101,8 +119,12 @@ export class SimplePlayer {
   // advancing the phase machine from a superseded audio request.
   private playGeneration: number = 0
 
-  constructor(rounds: Round[]) {
+  /** Runtime overrides — set via setRuntimeOverrides, may be reassigned at any time. */
+  private runtimeOverrides: SimplePlayerRuntimeOverrides = {}
+
+  constructor(rounds: Round[], overrides: SimplePlayerRuntimeOverrides = {}) {
     this.rounds = rounds
+    this.runtimeOverrides = overrides
     this.audio = new Audio()
     this.state = { roundIndex: 0, cycleIndex: 0, phase: 'idle', isPlaying: false }
 
@@ -177,6 +199,15 @@ export class SimplePlayer {
 
   get roundCount(): number {
     return this.rounds.length
+  }
+
+  /**
+   * Replace the runtime overrides. Used when LearningPlayer wants to
+   * supply Turbo-aware callbacks after the player has been constructed,
+   * e.g. once the algorithm config has loaded from Supabase.
+   */
+  setRuntimeOverrides(overrides: SimplePlayerRuntimeOverrides): void {
+    this.runtimeOverrides = overrides
   }
 
   // Dynamic round management (for priority loading)
@@ -368,8 +399,16 @@ export class SimplePlayer {
     this.clearSafetyTimer()
     const gen = ++this.playGeneration
     this.audio.src = url
-    // Only slow down target language audio — known language always plays at 1.0x
-    const rate = isTarget ? (this.currentCycle?.playbackSpeed ?? 1.0) : 1.0
+    // Only modulate target language audio — known language always plays at 1.0x.
+    // Runtime override (Turbo) can multiply the baked rate; the override is
+    // expected to gate itself on cycle type so it doesn't double up on
+    // listening cycles that already have an explicit speed.
+    let rate = 1.0
+    if (isTarget && this.currentCycle) {
+      rate = this.currentCycle.playbackSpeed ?? 1.0
+      const multiplier = this.runtimeOverrides.getPlaybackSpeedMultiplier?.(this.currentCycle) ?? 1.0
+      rate *= multiplier
+    }
     if (rate > 1.05) {
       console.warn(`[SimplePlayer] ⚠️ SPEED ${rate}x on "${this.currentCycle?.target?.text}" (cycle.playbackSpeed=${this.currentCycle?.playbackSpeed})`)
     }
@@ -398,7 +437,11 @@ export class SimplePlayer {
   }
 
   private startPausePhase(): void {
-    const duration = this.currentCycle?.pauseDuration ?? DEFAULT_PAUSE_DURATION
+    const cycle = this.currentCycle
+    // Runtime override (Turbo) can shorten the pause; if it returns
+    // undefined, fall back to the baked cycle.pauseDuration.
+    const override = cycle ? this.runtimeOverrides.getPauseDuration?.(cycle) : undefined
+    const duration = override ?? cycle?.pauseDuration ?? DEFAULT_PAUSE_DURATION
     this.pauseTimer = setTimeout(() => {
       if (this.state.isPlaying) this.onAudioEnded()
     }, duration)

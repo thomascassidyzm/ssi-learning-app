@@ -239,9 +239,7 @@ const showContributionExpanded = ref(false)
 // Algorithm config - admin-tweakable parameters (Turbo Boost, pause timing, etc.)
 const {
   loadConfigs: loadAlgorithmConfigs,
-  normalConfig,
   turboConfig,
-  calculatePause,
   isLoaded: algorithmConfigLoaded
 } = useAlgorithmConfig(supabase)
 
@@ -4639,6 +4637,37 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
 // Mode toggles
 const turboActive = ref(false)
 const turboPopupShownThisSession = ref(false)
+
+// ============================================
+// TURBO RUNTIME OVERRIDES
+// Wire turboActive + turboConfig into SimplePlayer's per-phase callbacks
+// so toggling Turbo takes effect on the very next pause / voice phase
+// (no script regen, no round-boundary wait). Listening/pod cycles keep
+// their explicit speed and zero-pause regardless.
+// ============================================
+const TURBO_BYPASS_TYPES = new Set(['intro', 'listening', 'pod', 'listen_intro', 'listen_outro', 'component_intro'])
+
+simplePlayer.setRuntimeOverrides({
+  getPauseDuration: (cycle) => {
+    if (!turboActive.value) return undefined
+    // Cycles with no pause (intro/listening/bookend/pod) stay at 0.
+    if (!cycle.pauseDuration) return cycle.pauseDuration
+    if (cycle.type && TURBO_BYPASS_TYPES.has(cycle.type)) return cycle.pauseDuration
+    // Recompute pause from raw target durations using turboConfig formula.
+    const t1 = cycle.target1DurationMs ?? 0
+    const t2 = cycle.target2DurationMs ?? 0
+    const cfg = turboConfig.value
+    const calc = cfg.pause_base_ms + (t1 + t2) * cfg.pause_multiplier
+    return Math.max(cfg.min_pause_ms, Math.min(cfg.max_pause_ms, calc))
+  },
+  getPlaybackSpeedMultiplier: (cycle) => {
+    if (!turboActive.value) return 1.0
+    // Don't double up on listening/pod cycles that already have a
+    // purposeful 2.0× speed — turbo on top would give 2.5×.
+    if (cycle.type && TURBO_BYPASS_TYPES.has(cycle.type)) return 1.0
+    return turboConfig.value.playback_speed
+  },
+})
 const showListeningOverlay = ref(false) // Show listening mode overlay
 const showPronunciationOverlay = ref(false) // Show pronunciation mode overlay
 const isDrivingModeActive = ref(false)
@@ -4711,12 +4740,6 @@ const showTurboPopup = ref(false)
 // Belt skip feedback state
 const isSkippingBelt = ref(false)
 const showBeltModal = ref(false)
-
-// Helper: Calculate pause duration using current mode config
-const getPauseDuration = (targetDurationMs: number): number => {
-  const config = turboActive.value ? turboConfig.value : normalConfig.value
-  return calculatePause(config, targetDurationMs)
-}
 
 // ============================================
 // ADAPTATION CONSENT & TIMING
@@ -5048,7 +5071,6 @@ const confirmTurbo = () => {
   showTurboPopup.value = false
   turboPopupShownThisSession.value = true  // Don't show popup again this session
   turboActive.value = true
-  applyTurboConfig()
 }
 
 // Close turbo popup without enabling
@@ -5057,24 +5079,8 @@ const closeTurboPopup = () => {
   turboPopupShownThisSession.value = true  // They've seen it, don't show again
 }
 
-// Apply turbo config to orchestrator
-const applyTurboConfig = () => {
-  {
-    const config = turboActive.value ? turboConfig.value : normalConfig.value
-    const item = currentItem.value
-    const targetDurationMs = item?.audioDurations
-      ? Math.round(item.audioDurations.target1 * 1000)
-      : 2000 // Fallback
-
-    // Calculate pause using the config formula
-    const pauseMs = calculatePause(config, targetDurationMs)
-    console.log(`[Turbo] ${turboActive.value ? 'ON' : 'OFF'} - pause: ${pauseMs}ms`)
-  }
-}
-
 const toggleTurbo = () => {
   turboActive.value = !turboActive.value
-  applyTurboConfig()
 }
 
 // ============================================
