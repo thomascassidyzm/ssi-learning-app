@@ -1279,6 +1279,12 @@ const playingPodLapAudio = ref(false)
 // handleRoundBoundary checks this before calling simplePlayer.resume() so a
 // deliberate stop doesn't auto-advance into the next round mid-pod.
 const userStoppedDuringLap = ref(false)
+// Set true when the learner presses skip *during* a pod lap. Distinct from
+// userStoppedDuringLap: skip means "advance to the next round" (so resume
+// fires), stop means "stay paused". In Turbo mode a skip also bumps the
+// pod ratchet so the same sentences don't resurface; in regular mode the
+// ratchet stays put so the listening work still has to be done.
+const podLapSkippedByUser = ref(false)
 
 // Session-wide iOS audio-session keepalive. Runs a silent looped audio
 // element at volume 0 whenever ANY of cycle / pod-lap / commentary audio
@@ -1846,6 +1852,7 @@ const podDelay = (ms: number) => ms <= 0
  */
 const playPodLap = async (lap: PodLap): Promise<boolean> => {
   podLapCancelled.value = false
+  podLapSkippedByUser.value = false
   playingPodLapAudio.value = true
   try {
     if (lap.intro) {
@@ -1958,11 +1965,18 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId) => {
         const completed = await playPodLap(lap)
         if (completed) {
           await podScheduler.markLapCompleted()
+        } else if (podLapSkippedByUser.value && turboActive.value) {
+          // Turbo skip: bump the ratchet so the same sentences don't keep
+          // resurfacing. Regular skip leaves the counter — listening work
+          // still has to be done next session.
+          await podScheduler.skipAhead(1)
+          console.log('[LearningPlayer] Pod lap skipped in Turbo, ratchet advanced')
         } else {
-          // User skipped or audio errored — counter stays so the same lap
-          // plays next session ("the listening work has to be done").
+          // Regular skip, audio error, or user stop — counter stays so the
+          // same lap plays next session ("the listening work has to be done").
           console.log('[LearningPlayer] Pod lap not completed, ratchet unchanged')
         }
+        podLapSkippedByUser.value = false
         // Resume into the next round — unless the learner pressed stop during
         // the lap, in which case stay paused so they're in control.
         if (userStoppedDuringLap.value) {
@@ -4336,6 +4350,20 @@ const handleSkip = async () => {
   if (isSkipInProgress.value) {
     console.log('[LearningPlayer] Skip already in progress - aborting current intro and returning')
     skipIntroduction() // Nuclear abort any playing intro
+    return
+  }
+
+  // Skip during a pod lap: cancel the lap and let handleRoundBoundary's
+  // resume() advance into the next round. Don't fall through to the
+  // jumpToRound path — simplePlayer is already queued at the next round
+  // (advanceRound bumped roundIndex when it was paused for the lap).
+  // Turbo decides whether the ratchet advances; that logic lives in
+  // handleRoundBoundary so this stays a thin signal.
+  if (playingPodLapAudio.value) {
+    console.log('[LearningPlayer] Skip during pod lap — cancelling lap')
+    podLapSkippedByUser.value = true
+    podLapCancelled.value = true
+    audioController.value?.stop()
     return
   }
 
