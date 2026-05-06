@@ -59,16 +59,43 @@ export interface ScriptItem {
 }
 
 /**
- * Fib-offset indices that Turbo *keeps* in spaced rep. SPACED_REP_OFFSETS is
- * [1, 2, 3, 5, 8, 13, 21, 34, 55, 89]; Turbo keeps the first three plus
- * every other one from index 4 onwards — i.e. {1, 2, 3, 8, 21, 55}.
- * fibPosition values not in this set get tagged turboOmit.
+ * Default Turbo culling rules — mirrored to algorithm_config.turbo_boost.
+ * fibKeep: indices into SPACED_REP_OFFSETS that Turbo keeps; default
+ *   {0,1,2,4,6,8} = N-1, N-2, N-3, N-8, N-21, N-55 (skip the rest).
+ * buildKeep: how many BUILD phrases per LEGO Turbo keeps (rest tagged).
+ * useKeep: how many CONSOLIDATE/USE phrases per LEGO Turbo keeps.
  */
-const TURBO_FIB_KEEP = new Set([0, 1, 2, 4, 6, 8])
-/** First N BUILD phrases per LEGO that Turbo plays through. The rest are tagged. */
-const TURBO_BUILD_KEEP = 3
-/** First N CONSOLIDATE/USE phrases per LEGO that Turbo plays through. */
-const TURBO_USE_KEEP = 1
+export const DEFAULT_TURBO_FIB_KEEP = [0, 1, 2, 4, 6, 8]
+export const DEFAULT_TURBO_BUILD_KEEP = 3
+export const DEFAULT_TURBO_USE_KEEP = 1
+
+/**
+ * Default per-round script shape — mirrored to algorithm_config.script_shape.
+ * Changing these reshapes every round generated after the change.
+ */
+export interface ScriptShape {
+  spacedRepOffsets: number[]
+  maxBuildPhrases: number
+  useConsolidationCount: number
+  maxSpacedRepPhrases: number
+  n1PhraseCount: number
+}
+
+export const DEFAULT_SCRIPT_SHAPE: ScriptShape = {
+  spacedRepOffsets: [1, 2, 3, 5, 8, 13, 21, 34, 55, 89],
+  maxBuildPhrases: 7,
+  useConsolidationCount: 2,
+  maxSpacedRepPhrases: 12,
+  n1PhraseCount: 3,
+}
+
+/** Subset of turbo_boost config fields used at script-generation time
+ *  (cycle tagging). Other fields like playback_speed apply at runtime. */
+export interface TurboCullConfig {
+  fibKeep?: number[]
+  buildKeep?: number
+  useKeep?: number
+}
 
 /**
  * Layer 1 per-seed play roles — mirrors usePodLapScheduler's PodPlayRole.
@@ -125,14 +152,23 @@ export async function generateLearningScript(
   startSeed: number,
   endSeed: number,
   emitFromRound: number = 1,  // Only emit ScriptItems from this round onward
-  listeningConfig: ListeningConfig = DEFAULT_LISTENING_CONFIG
+  listeningConfig: ListeningConfig = DEFAULT_LISTENING_CONFIG,
+  scriptShape: ScriptShape = DEFAULT_SCRIPT_SHAPE,
+  turboCull: TurboCullConfig = {}
 ): Promise<LearningScriptResult> {
-  // Constants
-  const SPACED_REP_OFFSETS = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
-  const MAX_BUILD_PHRASES = 7
-  const USE_CONSOLIDATION_COUNT = 2
-  const MAX_SPACED_REP_PHRASES = 12
-  const N1_PHRASE_COUNT = 3
+  // Per-round shape — DB-tweakable via algorithm_config.script_shape.
+  const SPACED_REP_OFFSETS = scriptShape.spacedRepOffsets
+  const MAX_BUILD_PHRASES = scriptShape.maxBuildPhrases
+  const USE_CONSOLIDATION_COUNT = scriptShape.useConsolidationCount
+  const MAX_SPACED_REP_PHRASES = scriptShape.maxSpacedRepPhrases
+  const N1_PHRASE_COUNT = scriptShape.n1PhraseCount
+
+  // Turbo culling — DB-tweakable via algorithm_config.turbo_boost
+  // (fibKeep, buildKeep, useKeep). Defaults preserved for any consumer
+  // that omits the param.
+  const TURBO_FIB_KEEP = new Set(turboCull.fibKeep ?? DEFAULT_TURBO_FIB_KEEP)
+  const TURBO_BUILD_KEEP = turboCull.buildKeep ?? DEFAULT_TURBO_BUILD_KEEP
+  const TURBO_USE_KEEP = turboCull.useKeep ?? DEFAULT_TURBO_USE_KEEP
 
   const normalizeText = (text: string | null | undefined): string => {
     if (!text) return ''

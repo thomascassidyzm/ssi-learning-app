@@ -22,6 +22,33 @@ export interface ModeConfig {
   spaced_rep_fraction: number // 1.0 = full, 0.33 = skip 2/3
   debut_phrases_fraction: number // 1.0 = all, 0.5 = half
   skip_voice2: boolean        // Skip second target voice?
+  /** Turbo culling — fib-offset indices into spacedRepOffsets that Turbo
+   * keeps. Optional on normal mode (no culling there). */
+  fibKeep?: number[]
+  /** Number of BUILD phrases per LEGO that Turbo keeps; rest are tagged
+   * with turboOmit and skipped at play time. Optional on normal mode. */
+  buildKeep?: number
+  /** Number of CONSOLIDATE/USE phrases per LEGO that Turbo keeps. */
+  useKeep?: number
+}
+
+/** Layer 2 (Listening Pod) scheduler — gap matrix + stage progression. */
+export interface PodsConfig {
+  stagePlaylist: Record<string, ('ps' | 'ps2x' | 'trans')[]>  // keyed by stage number as string ("1".."7")
+  stageDuration: number       // pod-rounds per stage 1-6 (stage 7 eternal)
+  gapSuperTightMs: number     // known→target, target→target
+  gapTightMs: number          // target→known
+  gapGluedMs: number          // chunk → glued chunk (early stages)
+  gapBetweenMs: number        // chunk → non-glued, intro→first, last→outro
+}
+
+/** Per-round script shape — phrase counts + Fibonacci spaced-rep schedule. */
+export interface ScriptShapeConfig {
+  spacedRepOffsets: number[]   // fib offsets at which spaced rep fires
+  maxBuildPhrases: number      // BUILD slots per round
+  useConsolidationCount: number  // USE phrases per LEGO
+  maxSpacedRepPhrases: number    // total spaced-rep cap per round
+  n1PhraseCount: number          // phrases at the N-1 review (vs 1 elsewhere)
 }
 
 /**
@@ -44,7 +71,9 @@ export interface AlgorithmConfigs {
   normal_mode: ModeConfig
   turbo_boost: ModeConfig
   listening: ListeningModeConfig
-  [key: string]: ModeConfig | ListeningModeConfig   // Allow future configs
+  pods: PodsConfig
+  script_shape: ScriptShapeConfig
+  [key: string]: ModeConfig | ListeningModeConfig | PodsConfig | ScriptShapeConfig
 }
 
 // Default fallbacks (used if DB fetch fails)
@@ -67,7 +96,10 @@ const DEFAULT_TURBO: ModeConfig = {
   max_pause_ms: 2000,
   spaced_rep_fraction: 0.33,
   debut_phrases_fraction: 0.5,
-  skip_voice2: false
+  skip_voice2: false,
+  fibKeep: [0, 1, 2, 4, 6, 8],
+  buildKeep: 3,
+  useKeep: 1,
 }
 
 const DEFAULT_LISTENING: ListeningModeConfig = {
@@ -81,6 +113,31 @@ const DEFAULT_LISTENING: ListeningModeConfig = {
   podActivationRound: 6,
 }
 
+const DEFAULT_PODS: PodsConfig = {
+  stagePlaylist: {
+    '1': ['ps', 'trans', 'ps', 'ps'],
+    '2': ['ps', 'trans', 'ps2x', 'ps2x'],
+    '3': ['ps', 'trans', 'ps2x'],
+    '4': ['ps2x', 'trans', 'ps2x'],
+    '5': ['ps', 'ps2x'],
+    '6': ['ps2x', 'ps2x'],
+    '7': ['ps2x'],
+  },
+  stageDuration: 5,
+  gapSuperTightMs: 100,
+  gapTightMs: 200,
+  gapGluedMs: 300,
+  gapBetweenMs: 1000,
+}
+
+const DEFAULT_SCRIPT_SHAPE: ScriptShapeConfig = {
+  spacedRepOffsets: [1, 2, 3, 5, 8, 13, 21, 34, 55, 89],
+  maxBuildPhrases: 7,
+  useConsolidationCount: 2,
+  maxSpacedRepPhrases: 12,
+  n1PhraseCount: 3,
+}
+
 // Singleton cache - shared across all component instances
 let configCache: AlgorithmConfigs | null = null
 let cacheTimestamp: number = 0
@@ -91,6 +148,8 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
     normal_mode: DEFAULT_NORMAL,
     turbo_boost: DEFAULT_TURBO,
     listening: DEFAULT_LISTENING,
+    pods: DEFAULT_PODS,
+    script_shape: DEFAULT_SCRIPT_SHAPE,
   })
   const isLoaded = ref(false)
   const loadError = ref<string | null>(null)
@@ -130,14 +189,15 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
           loaded[row.key] = row.config
         }
 
-        // Merge with defaults (in case some keys are missing)
+        // Merge with defaults (in case some keys are missing). Field-level
+        // merge for keyed configs so a partial DB row doesn't drop fields.
         configs.value = {
-          normal_mode: loaded.normal_mode || DEFAULT_NORMAL,
-          turbo_boost: loaded.turbo_boost || DEFAULT_TURBO,
-          // Field-level merge for listening so a partial DB row (e.g. only
-          // layer1Playlist set) doesn't drop the rest of the defaults.
+          ...loaded,
+          normal_mode: { ...DEFAULT_NORMAL, ...(loaded.normal_mode || {}) },
+          turbo_boost: { ...DEFAULT_TURBO, ...(loaded.turbo_boost || {}) },
           listening: { ...DEFAULT_LISTENING, ...(loaded.listening || {}) },
-          ...loaded
+          pods: { ...DEFAULT_PODS, ...(loaded.pods || {}) },
+          script_shape: { ...DEFAULT_SCRIPT_SHAPE, ...(loaded.script_shape || {}) },
         }
 
         // Update cache
@@ -159,9 +219,11 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
   const normalConfig = computed(() => configs.value.normal_mode as ModeConfig)
   const turboConfig = computed(() => configs.value.turbo_boost as ModeConfig)
   const listeningConfig = computed(() => configs.value.listening as ListeningModeConfig)
+  const podsConfig = computed(() => configs.value.pods as PodsConfig)
+  const scriptShapeConfig = computed(() => configs.value.script_shape as ScriptShapeConfig)
 
   // Get any config by key
-  const getConfig = (key: string): ModeConfig | ListeningModeConfig | null => {
+  const getConfig = (key: string): ModeConfig | ListeningModeConfig | PodsConfig | ScriptShapeConfig | null => {
     return configs.value[key] || null
   }
 
@@ -185,6 +247,8 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
     normalConfig,
     turboConfig,
     listeningConfig,
+    podsConfig,
+    scriptShapeConfig,
     getConfig,
     calculatePause,
     invalidateCache,
@@ -192,5 +256,7 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
     DEFAULT_NORMAL,
     DEFAULT_TURBO,
     DEFAULT_LISTENING,
+    DEFAULT_PODS,
+    DEFAULT_SCRIPT_SHAPE,
   }
 }

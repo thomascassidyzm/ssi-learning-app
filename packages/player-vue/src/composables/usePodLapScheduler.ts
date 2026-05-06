@@ -38,12 +38,12 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 export type PodPlayRole = 'ps' | 'trans' | 'ps2x'
 
 /**
- * Stage playlists per Aran's road-test 2026-05-05.
+ * Default stage playlists — mirrored to the `pods` row in algorithm_config.
  * PS = pod sentence at 1.0×, PS×2 at 2.0×, trans = known-language translation.
  * Stage 1 is intentionally all 1.0× — no 2× until stage 2 — so the learner
  * gets a clean target / known / target / target intro.
  */
-const STAGE_PLAYLIST: Record<number, PodPlayRole[]> = {
+export const DEFAULT_STAGE_PLAYLIST: Record<number, PodPlayRole[]> = {
   1: ['ps', 'trans', 'ps', 'ps'],
   2: ['ps', 'trans', 'ps2x', 'ps2x'],
   3: ['ps', 'trans', 'ps2x'],
@@ -54,23 +54,26 @@ const STAGE_PLAYLIST: Record<number, PodPlayRole[]> = {
 }
 
 /**
- * Pod-rounds spent in each of stages 1–6 before promoting to the next.
- * Stage 7 is the eternal holding bay. Aran asked for 5 (was 3) — gives the
- * learner more reps at each pattern before the speed/structure changes.
+ * Default pod-rounds spent in each of stages 1–6 before promoting. Stage 7
+ * is the eternal holding bay. Aran asked for 5 (was 3) — gives the learner
+ * more reps at each pattern before the speed/structure changes.
  */
-const STAGE_DURATION = 5
+export const DEFAULT_STAGE_DURATION = 5
 
-/** Stages 1–6 each last STAGE_DURATION pod-rounds; stage 7 is eternal. */
+/** Stages 1–6 each last `stageDuration` pod-rounds; stage 7 is eternal.
+ *  stageDuration defaults to DEFAULT_STAGE_DURATION; pass the live value
+ *  from algorithm_config.pods to honour admin tweaks. */
 export function podStageFor(
   entryPodRound: number,
-  currentPodRound: number
+  currentPodRound: number,
+  stageDuration: number = DEFAULT_STAGE_DURATION,
 ): { stage: number; iter: number | null } | null {
   const alive = currentPodRound - entryPodRound + 1
   if (alive < 1) return null
   for (let stage = 1; stage <= 6; stage++) {
-    const stageEnd = stage * STAGE_DURATION
+    const stageEnd = stage * stageDuration
     if (alive <= stageEnd) {
-      return { stage, iter: alive - (stage - 1) * STAGE_DURATION }
+      return { stage, iter: alive - (stage - 1) * stageDuration }
     }
   }
   return { stage: 7, iter: null }
@@ -141,6 +144,12 @@ export interface UsePodLapSchedulerOptions {
   courseCode: Ref<string> | string
   /** Reactive learner ID. Guests (id starts with `guest-`) use in-memory counter. */
   learnerId: Ref<string | null | undefined> | string | null | undefined
+  /** Stage playlist override — keyed by stage number ('1'..'7'). When omitted,
+   *  uses DEFAULT_STAGE_PLAYLIST. Reactive so admin tweaks via algorithm_config
+   *  flow through on next lap. */
+  stagePlaylist?: Ref<Record<string, PodPlayRole[]>> | Record<string, PodPlayRole[]>
+  /** Pod-rounds per stage 1-6. Defaults to DEFAULT_STAGE_DURATION. */
+  stageDuration?: Ref<number> | number
 }
 
 const isGuestLearner = (id: string | null | undefined): boolean => {
@@ -262,13 +271,21 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
     const activeCount = Math.min(podRound, TOTAL)
     if (activeCount < 1) return null
 
+    // Snapshot the live config — stagePlaylist keys are strings in JSON,
+    // numbers in the default; normalise via `String(stage)` lookup.
+    const livePlaylist = unwrap(options.stagePlaylist) as Record<string | number, PodPlayRole[]> | undefined
+    const liveDuration = unwrap(options.stageDuration) as number | undefined
+    const stagePlaylistMap: Record<string | number, PodPlayRole[]> = livePlaylist || DEFAULT_STAGE_PLAYLIST
+    const stageDuration: number = liveDuration ?? DEFAULT_STAGE_DURATION
+
     const plays: PodPlay[] = []
     for (let i = 1; i <= activeCount; i++) {
       const sentence = podSentences.value[i - 1]
       if (!sentence.target_audio_id) continue
-      const stageInfo = podStageFor(i, podRound)
+      const stageInfo = podStageFor(i, podRound, stageDuration)
       if (!stageInfo) continue
-      const playlist = STAGE_PLAYLIST[stageInfo.stage]
+      const playlist = stagePlaylistMap[stageInfo.stage] || stagePlaylistMap[String(stageInfo.stage)]
+      if (!playlist) continue
       for (let j = 0; j < playlist.length; j++) {
         const playRole = playlist[j]
         if (playRole === 'trans' && !sentence.known_audio_id) continue

@@ -31,6 +31,7 @@ import { useOfflineCache } from '../composables/useOfflineCache'
 // SimplePlayer - clean playback engine
 import { useSimplePlayer } from '../composables/useSimplePlayer'
 import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepalive'
+import type { ListeningConfig as ListeningConfigType } from '../providers/generateLearningScript'
 // New simple script generation - direct database queries
 import { generateLearningScript as generateSimpleScript, DEFAULT_LISTENING_CONFIG } from '../providers/generateLearningScript'
 import { resolvePodActivationRound } from '../composables/usePodActivation'
@@ -241,8 +242,38 @@ const {
   loadConfigs: loadAlgorithmConfigs,
   turboConfig,
   listeningConfig,
+  podsConfig,
+  scriptShapeConfig,
   isLoaded: algorithmConfigLoaded
 } = useAlgorithmConfig(supabase)
+
+/**
+ * Wrapper for generateSimpleScript that threads the live algorithm_config
+ * triple (listening, scriptShape, turbo cull) into every script-generation
+ * call. Pass `listeningOverride` only when you need the per-learner pod
+ * activation pin merged on top.
+ */
+const generateScript = (
+  startSeed: number,
+  endSeed: number,
+  emitFromRound: number = 1,
+  listeningOverride?: ListeningConfigType,
+) => {
+  if (!supabase?.value) {
+    return Promise.reject(new Error('No supabase client'))
+  }
+  const tc = turboConfig.value
+  return generateSimpleScript(
+    supabase.value,
+    courseCode.value,
+    startSeed,
+    endSeed,
+    emitFromRound,
+    listeningOverride || listeningConfig.value,
+    scriptShapeConfig.value,
+    { fibKeep: tc.fibKeep, buildKeep: tc.buildKeep, useKeep: tc.useKeep },
+  )
+}
 
 // Auth modal for sign-in/sign-up prompts
 const { open: openAuth } = useAuthModal()
@@ -1271,6 +1302,9 @@ const podScheduler = supabase?.value
       supabase: supabase as any,
       courseCode: courseCode,
       learnerId: learnerId,
+      // Live from algorithm_config.pods — admin tweaks land on next lap.
+      stagePlaylist: computed(() => podsConfig.value.stagePlaylist),
+      stageDuration: computed(() => podsConfig.value.stageDuration),
     })
   : null
 const playingPodLapAudio = ref(false)
@@ -1614,7 +1648,7 @@ const initializeBeltLoader = async () => {
   const generateScriptChunk = async (startSeed: number, count: number) => {
     if (!supabase?.value) return { rounds: [] as any[], nextSeed: startSeed, hasMore: false }
     const endSeed = startSeed + count
-    const result = await generateSimpleScript(supabase.value, courseCode.value, startSeed, endSeed, 1)
+    const result = await generateScript(startSeed, endSeed)
     if (result.hasRomanizedText) hasRomanizedText.value = true
     const rounds = toSimpleRoundsWithComponents(result.items)
     return {
@@ -1816,28 +1850,27 @@ const playPodSegment = async (audioId: string, durationMs?: number, playbackSpee
  *   glued earlier   = GLUED        — small breath, still close-coupled
  *   not glued       = BETWEEN      — Aran's "between phrases" pause
  */
-const GAP_SUPER_TIGHT = 100  // known→target, target→target
-const GAP_TIGHT       = 200  // target→known
-const GAP_GLUED       = 300  // chunk → glued chunk (early stages)
-const GAP_BETWEEN    = 1000  // chunk → non-glued chunk
-
+// Inter-play gap matrix — values come live from algorithm_config.pods so
+// admin tweaks land on the next lap. Aran's 2026-05-05 defaults are kept
+// as fallback in DEFAULT_PODS (useAlgorithmConfig).
 const podGapMs = (curr: PodPlay, next: PodPlay | null): number => {
   if (!next) return 0
+  const gaps = podsConfig.value
   // Same chunk → role transition decides
   if (curr.sentenceIdx === next.sentenceIdx) {
     const c = curr.playRole // 'ps' or 'ps2x' = target; 'trans' = known
     const n = next.playRole
     const cIsTarget = c === 'ps' || c === 'ps2x'
     const nIsTarget = n === 'ps' || n === 'ps2x'
-    if (cIsTarget && n === 'trans') return GAP_TIGHT       // target → known
-    if (c === 'trans' && nIsTarget) return GAP_SUPER_TIGHT // known → target
-    return GAP_SUPER_TIGHT                                  // target → target
+    if (cIsTarget && n === 'trans') return gaps.gapTightMs       // target → known
+    if (c === 'trans' && nIsTarget) return gaps.gapSuperTightMs  // known → target
+    return gaps.gapSuperTightMs                                   // target → target
   }
   // Different chunk — glue + stage decide
   if (curr.glueToNextChunk) {
-    return curr.stage === 7 ? 0 : GAP_GLUED
+    return curr.stage === 7 ? 0 : gaps.gapGluedMs
   }
-  return GAP_BETWEEN
+  return gaps.gapBetweenMs
 }
 
 const podDelay = (ms: number) => ms <= 0
@@ -1858,7 +1891,7 @@ const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<bool
       const ok = await playPodSegment(lap.intro.id, lap.intro.duration_ms, 1.0)
       if (!ok) return false
       // Intro → first play: between-phrases pause, gives the bookend room
-      await podDelay(GAP_BETWEEN)
+      await podDelay(podsConfig.value.gapBetweenMs)
     }
     for (let i = 0; i < lap.plays.length; i++) {
       const play = lap.plays[i] as PodPlay
@@ -1869,7 +1902,7 @@ const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<bool
         await podDelay(podGapMs(play, next))
       } else if (lap.outro) {
         // Last play → outro: between-phrases pause before the bookend
-        await podDelay(GAP_BETWEEN)
+        await podDelay(podsConfig.value.gapBetweenMs)
       }
     }
     if (lap.outro) {
@@ -4489,7 +4522,7 @@ const handleSkipToNextBelt = async () => {
       // Target seed not loaded - load it via generateSimpleScript (blocking)
       // Always emit from round 1 to ensure correct round building (including intros)
       console.debug(`[progressiveLoad] Belt skip: target seed ${targetSeed} not loaded, loading now...`)
-      const skipResult = await generateSimpleScript(supabase.value, courseCode.value, targetSeed, targetSeed + 5, 1)
+      const skipResult = await generateScript(targetSeed, targetSeed + 5)
 
       if (skipResult.items.length > 0) {
         const newRounds = toSimpleRoundsWithComponents(skipResult.items)
@@ -4526,7 +4559,7 @@ const loadSeedIfNeeded = async (targetSeed: number) => {
 
   // Always emit from round 1 to ensure correct round building (including intros)
   console.debug(`[progressiveLoad] Belt skip: target seed ${targetSeed} not loaded, loading now...`)
-  const skipResult = await generateSimpleScript(supabase.value, courseCode.value, targetSeed, targetSeed + 5, 1)
+  const skipResult = await generateScript(targetSeed, targetSeed + 5)
 
   if (skipResult.items.length > 0) {
     const newRounds = toSimpleRoundsWithComponents(skipResult.items)
@@ -5166,7 +5199,7 @@ const expandScript = async () => {
   try {
     const currentLength = cachedRounds.value.length
     const neededEnd = scriptBaseOffset.value + currentLength + EXPANSION_BATCH
-    const result = await generateSimpleScript(supabase.value, courseCode.value, 1, neededEnd, 1)
+    const result = await generateScript(1, neededEnd)
     const expandedRounds = toSimpleRoundsWithComponents(result.items)
     if (expandedRounds.length > currentLength) {
       cachedRounds.value = expandedRounds as any
@@ -5649,7 +5682,7 @@ onMounted(async () => {
             if (isReturningUser && startingSeed > 0) {
               const endSeed = startingSeed + LOOKAHEAD_CHUNK_SEEDS
               console.log(`[LearningPlayer] Returning user at seed ${startingSeed} — loading seeds 1..${endSeed}${podActivationOverride !== null ? ' (custom pod pin)' : ''}`)
-              result = await generateSimpleScript(supabase.value, courseCode.value, 1, endSeed, 1, config)
+              result = await generateScript(1, endSeed, 1, config)
               console.log(`[LearningPlayer] Returning-user load ready: ${result.items.length} items, ${result.roundCount} rounds`)
             } else if (eagerCourseMatches) {
               console.log('[LearningPlayer] Awaiting eager script preload...')
@@ -5657,7 +5690,7 @@ onMounted(async () => {
               console.log(`[LearningPlayer] Eager preload ready: ${result.items.length} items, ${result.roundCount} rounds`)
             } else {
               console.log('[LearningPlayer] No eager preload available, loading directly...')
-              result = await generateSimpleScript(supabase.value, courseCode.value, 1, INITIAL_PRELOAD_SEEDS, 1, config)
+              result = await generateScript(1, INITIAL_PRELOAD_SEEDS, 1, config)
               console.log(`[LearningPlayer] Direct load: ${result.items.length} items, ${result.roundCount} rounds`)
             }
 
@@ -5921,7 +5954,7 @@ onMounted(async () => {
 
           // Use real generateLearningScript + toSimpleRounds for legacy fallback
           const endSeed = startOffset + INITIAL_ROUNDS
-          const result = await generateSimpleScript(supabase.value, courseCode.value, 1, endSeed, 1)
+          const result = await generateScript(1, endSeed)
           const simpleRounds = toSimpleRoundsWithComponents(result.items)
 
           if (simpleRounds.length > 0) {
@@ -6026,7 +6059,7 @@ onMounted(async () => {
       if (targetIndex >= absoluteEnd && supabase?.value) {
         console.log(`[LearningPlayer] Preview ${targetIndex} exceeds cached ${absoluteEnd}, expanding...`)
         const neededEnd = absoluteEnd + (targetIndex - absoluteEnd) + 10
-        const expandResult = await generateSimpleScript(supabase.value, courseCode.value, 1, neededEnd, 1)
+        const expandResult = await generateScript(1, neededEnd)
         const expandedRounds = toSimpleRoundsWithComponents(expandResult.items)
         if (expandedRounds.length > cachedRounds.value.length) {
           cachedRounds.value = expandedRounds as any
@@ -6302,7 +6335,13 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
       freshResult = await eagerScript.scriptPromise.value
     } else {
       console.log('[LearningPlayer] No eager preload, generating full script for', newCourseCode)
-      freshResult = await generateSimpleScript(supabase.value, newCourseCode, 1, 668, 1)
+      const tc = turboConfig.value
+      freshResult = await generateSimpleScript(
+        supabase.value, newCourseCode, 1, 668, 1,
+        listeningConfig.value,
+        scriptShapeConfig.value,
+        { fibKeep: tc.fibKeep, buildKeep: tc.buildKeep, useKeep: tc.useKeep },
+      )
     }
     const freshRounds = toSimpleRoundsWithComponents(freshResult.items)
     cachedRounds.value = freshRounds as any
