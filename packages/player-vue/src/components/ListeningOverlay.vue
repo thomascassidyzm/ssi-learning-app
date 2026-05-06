@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, inject, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { getSilentAudioUrl } from '../utils/silentAudio'
 import { useOfflineCache } from '../composables/useOfflineCache'
+import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepalive'
 
 // ============================================================================
 // Listening Overlay - Teleprompter style overlay for passive listening
@@ -11,7 +11,6 @@ import { useOfflineCache } from '../composables/useOfflineCache'
 class ListeningAudioController {
   constructor() {
     this.audio = null
-    this.silentAudio = null
     this.playbackRate = 1
   }
 
@@ -19,31 +18,6 @@ class ListeningAudioController {
     this.playbackRate = rate
     if (this.audio) {
       this.audio.playbackRate = rate
-    }
-  }
-
-  // Silent looped audio keeps the iOS audio session alive between phrases —
-  // without this the session drops during the 800ms inter-phrase gap when
-  // the tab is backgrounded, killing playback.
-  ensureSilentRunning() {
-    if (!this.silentAudio) {
-      this.silentAudio = new Audio()
-      this.silentAudio.src = getSilentAudioUrl()
-      this.silentAudio.loop = true
-      this.silentAudio.volume = 0
-      this.silentAudio.setAttribute('playsinline', 'true')
-      this.silentAudio.setAttribute('webkit-playsinline', 'true')
-    }
-    if (this.silentAudio.paused) {
-      this.silentAudio.play().catch((err) => {
-        console.warn('[ListeningAudio] Silent bridge play failed:', err)
-      })
-    }
-  }
-
-  stopSilent() {
-    if (this.silentAudio && !this.silentAudio.paused) {
-      this.silentAudio.pause()
     }
   }
 
@@ -175,6 +149,13 @@ const isLoadingMore = ref(false)
 
 // Audio - use /api/audio proxy for CORS bypass
 const audioMap = ref(new Map())
+
+// Session-wide iOS audio-session keepalive (shared with LearningPlayer's
+// pod/commentary path). Runs the silent loop whenever this overlay is
+// playing, so the inter-phrase 800ms gap doesn't drop the session when
+// the tab is backgrounded. Debounced release means brief async gaps
+// (audio-element src swaps, network reads) don't cause a flicker.
+useAudioSessionKeepalive(isPlaying)
 
 let playbackId = 0
 
@@ -354,7 +335,6 @@ const playFromIndex = async (index) => {
   const myPlaybackId = ++playbackId
   currentIndex.value = index
   isPlaying.value = true
-  audioController.value?.ensureSilentRunning()
   updateVisibleWindow()
 
   await nextTick()
@@ -466,7 +446,6 @@ const stopPlayback = () => {
   playbackId++
   isPlaying.value = false
   audioController.value?.stop()
-  audioController.value?.stopSilent()
 }
 
 const scrollCurrentIntoView = () => {

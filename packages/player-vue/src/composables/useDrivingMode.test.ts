@@ -19,7 +19,8 @@ const source = readFileSync(SOURCE_PATH, 'utf-8')
 describe('useDrivingMode hardening', () => {
   describe('constants', () => {
     it('has correct hardening constants defined', () => {
-      expect(source).toContain('SILENT_BRIDGE_THRESHOLD_SECS = 2.0')
+      // Per-transition silent-bridge replaced by useAudioSessionKeepalive
+      // (session-wide). The bridge constant is gone.
       expect(source).toContain('STALL_DETECTION_TIMEOUT_SECS = 5')
       expect(source).toContain('PLAY_RETRY_DELAY_MS = 1000')
       expect(source).toContain('PLAY_MAX_RETRIES = 2')
