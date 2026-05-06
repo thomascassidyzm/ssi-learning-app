@@ -688,7 +688,7 @@ simplePlayer.onRoundCompleted((round) => {
     } else {
       // Individual mode: existing behavior
       saveRoundProgress(round.legoId, completedRoundIndex)
-      handleRoundBoundary(completedRoundIndex, round.legoId)
+      handleRoundBoundary(completedRoundIndex, round.legoId, round)
       if (beltProgress.value?.setCurrentLegoId) {
         beltProgress.value.setCurrentLegoId(round.legoId)
       }
@@ -1850,12 +1850,12 @@ const podDelay = (ms: number) => ms <= 0
  * Returns true iff the lap played to completion (so the ratchet should advance).
  * Caller is responsible for pausing/resuming simplePlayer around this.
  */
-const playPodLap = async (lap: PodLap): Promise<boolean> => {
+const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<boolean> => {
   podLapCancelled.value = false
   podLapSkippedByUser.value = false
   playingPodLapAudio.value = true
   try {
-    if (lap.intro) {
+    if (lap.intro && !omitIntro) {
       const ok = await playPodSegment(lap.intro.id, lap.intro.duration_ms, 1.0)
       if (!ok) return false
       // Intro → first play: between-phrases pause, gives the bookend room
@@ -1900,8 +1900,16 @@ const updateBeltForPosition = (roundIndex) => {
 }
 
 // Handle round boundary - called when a round completes
-const handleRoundBoundary = async (completedRoundIndex, completedLegoId) => {
+const handleRoundBoundary = async (completedRoundIndex, completedLegoId, completedRound = null) => {
   roundsThisSession.value++
+
+  // Did the round we just finished contain a Layer 1 listen cluster? If so,
+  // the L2 pod lap should drop its intro bookend so the two clusters play
+  // as one continuous listening section. Pairs with the omitOutro flag in
+  // emitL1Cluster (script side).
+  const l1FiredThisRound = !!completedRound?.cycles?.some(
+    (c: { type?: string }) => c.type === 'listen_intro' || c.type === 'listening' || c.type === 'listen_outro'
+  )
 
   // Update belt progress to match current position (NO celebration during play - manual only)
   updateBeltForPosition(completedRoundIndex)
@@ -1962,7 +1970,7 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId) => {
       if (lap) {
         console.log(`[LearningPlayer] Playing pod lap ${lap.podRound} (${lap.plays.length} plays)`)
         simplePlayer.pause()
-        const completed = await playPodLap(lap)
+        const completed = await playPodLap(lap, l1FiredThisRound)
         if (completed) {
           await podScheduler.markLapCompleted()
         } else if (podLapSkippedByUser.value && turboActive.value) {

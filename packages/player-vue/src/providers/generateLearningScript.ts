@@ -270,7 +270,12 @@ export async function generateLearningScript(
   // Caller passes the seeds to play (active, reserve, or both reserve+active
   // when their rotations clash). Each seed plays once at PS×2 per Aran's
   // simplification (real impl could add a 1×→2× ramp on the first few replays).
-  function emitL1Cluster(seedNums: number[], mainRoundNumber: number, cycleCounter: { v: number }): boolean {
+  //
+  // omitOutro: when L2 will fire the same round, drop the L1 outro bookend so
+  // the L1 cluster flows straight into the L2 pod lap. Pair with the runtime
+  // L2 intro suppression in LearningPlayer's playPodLap — together they make
+  // a co-firing round play as one continuous listening section, not two.
+  function emitL1Cluster(seedNums: number[], mainRoundNumber: number, cycleCounter: { v: number }, omitOutro: boolean = false): boolean {
     if (seedNums.length === 0) return false
 
     const plays: Array<{ sNum: number; seedData: SeedData }> = []
@@ -315,7 +320,7 @@ export async function generateLearningScript(
         listeningSeedNumber: sNum,
       })
     }
-    if (hasBookends && listenOutroAudio) {
+    if (hasBookends && listenOutroAudio && !omitOutro) {
       cycleCounter.v++
       emitItem({
         uuid: `listen_outro_R${String(mainRoundNumber).padStart(4, '0')}_${cycleCounter.v}`,
@@ -1134,7 +1139,10 @@ export async function generateLearningScript(
           if (fireReserve) seeds.push(...l1ReserveSeedsList())
           if (fireActive) seeds.push(...l1ActiveSeedsList())
           const listenCounter = { v: cycleNum }
-          emitL1Cluster(seeds, roundNumber, listenCounter)
+          // When L2 will fire on the same round, drop the L1 outro — the
+          // runtime pod lap will also drop its intro so the two clusters
+          // play as one continuous listening section.
+          emitL1Cluster(seeds, roundNumber, listenCounter, l2FiresAt(roundNumber))
           cycleNum = listenCounter.v
         }
       }
@@ -1307,7 +1315,8 @@ export async function generateLearningScript(
         if (fireReserve) seeds.push(...l1ReserveSeedsList())
         if (fireActive) seeds.push(...l1ActiveSeedsList())
         const listenCounter = { v: cycleNum }
-        emitL1Cluster(seeds, roundNumber, listenCounter)
+        // Same merge-bookends gating as Phase 6 above.
+        emitL1Cluster(seeds, roundNumber, listenCounter, l2FiresAt(roundNumber))
         cycleNum = listenCounter.v
       }
       // Phase 7 (Layer 2 Pod 0) — runtime-scheduled, no longer baked here.
