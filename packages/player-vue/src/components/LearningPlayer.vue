@@ -749,8 +749,10 @@ simplePlayer.onRoundCompleted((round) => {
   }
 })
 
-// Session complete - show summary
+// Session complete - show summary + release the keepalive (no audio is
+// engaged anymore once we hit the summary screen).
 simplePlayer.onSessionComplete(() => {
+  audioEngaged.value = false
   showPausedSummary()
 })
 
@@ -2673,23 +2675,16 @@ const isPlayingWelcome = ref(false) // True when welcome audio is playing
 const showWelcomeSkip = ref(false) // Show skip button during welcome
 const welcomeText = ref('') // Text to display during welcome audio
 
-// Session-wide iOS audio-session keepalive. Runs a silent looped audio
-// element at volume 0 whenever ANY audible playback path is active —
-// session welcome, LEGO intros, the cycle engine, pod laps, or
-// commentary. Missing any of these leaves a backgrounded tab vulnerable
-// to iOS revoking the session unlock during that path's audio. Notably
-// LEGO intros run on their own audio element BEFORE simplePlayer.play()
-// takes over, so isPlaying is false even though the user is hearing
-// the LEGO presentation.
-useAudioSessionKeepalive(
-  computed(() =>
-    simplePlayer.isPlaying.value ||
-    playingPodLapAudio.value ||
-    playingCommentaryAudio.value ||
-    isPlayingIntroduction.value ||
-    isPlayingWelcome.value
-  )
-)
+// Session-wide iOS audio-session keepalive.
+// Triggered by the play button: goes true on the user's first tap and
+// stays true until they explicitly stop the session (or the component
+// unmounts via the composable's own cleanup). Pause/resume mid-session
+// is internal — keepalive stays on through pauses since the user is
+// still engaged. Single signal beats a computed of "all the audio
+// paths" because new paths (pod laps, intros, future) keep being added
+// and we'd keep rediscovering "that path wasn't on the list".
+const audioEngaged = ref(false)
+useAudioSessionKeepalive(audioEngaged)
 
 // Initial state - before user has ever tapped play
 const hasEverStarted = ref(false) // True after first play tap (even if welcome plays first)
@@ -3767,6 +3762,12 @@ const handlePause = () => {
 }
 
 const handleResume = async () => {
+  // Engage the iOS audio-session keepalive on every play tap. This is
+  // the user-gesture moment — the silent loop's first play() hooks into
+  // it for the iOS unlock, and it stays running through pauses until
+  // explicit stop / session-complete / unmount.
+  audioEngaged.value = true
+
   // RESUME from pause — use resume() to continue from current phase
   // (play() always restarts from prompt, losing position mid-cycle)
   if (hasEverStarted.value) {
@@ -5142,6 +5143,7 @@ const showPausedSummary = () => {
     stopCycle()
   }
   simplePlayer.stop()
+  audioEngaged.value = false
   showSessionComplete.value = true
 
   // End belt progress session (saves session history for time estimates)
@@ -5178,6 +5180,7 @@ const handleExit = () => {
     stopCycle()
   }
   simplePlayer.stop()
+  audioEngaged.value = false
 
   // End belt progress session (saves session history)
   if (beltProgress.value) {
