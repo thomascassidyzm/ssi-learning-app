@@ -34,8 +34,8 @@ export interface ModeConfig {
 
 /** Layer 2 (Listening Pod) scheduler — gap matrix + stage progression. */
 export interface PodsConfig {
-  stagePlaylist: Record<string, ('ps' | 'ps2x' | 'trans')[]>  // keyed by stage number as string ("1".."7")
-  stageDuration: number       // pod-rounds per stage 1-6 (stage 7 eternal)
+  stagePlaylist: Record<string, ('ps' | 'ps2x' | 'trans')[]>  // keyed by stage number as string
+  stageDuration: number       // pod-rounds per transitional stage; highest key = eternal
   gapSuperTightMs: number     // known→target, target→target
   gapTightMs: number          // target→known
   gapGluedMs: number          // chunk → glued chunk (early stages)
@@ -63,7 +63,16 @@ export interface ListeningModeConfig {
   l1ActiveInterval: number    // active fires every N rounds
   l1ReserveSize: number       // older graduated seeds beyond active
   l1ReserveInterval: number   // reserve fires every N rounds (coprime with active)
+  /** Legacy / fallback flat playlist — used when layer1StagePlaylist is empty. */
   layer1Playlist: ('ps' | 'ps2x' | 'trans')[]
+  /** Staged Layer 1 playlist — keys are stage numbers, values are the
+   * playlist for that stage. Per-seed fire counter advances each L1
+   * emission; stage = floor((fireCount-1)/layer1StageDuration)+1, capped
+   * at the highest key (eternal hold). Aran 2026-05-07 spec: seeds
+   * decay to a single 2× rep over time. */
+  layer1StagePlaylist: Record<string, ('ps' | 'ps2x' | 'trans')[]>
+  /** L1 fires spent in each transitional stage before promoting. */
+  layer1StageDuration: number
   podActivationRound: number  // global default; per-learner pin still wins
 }
 
@@ -110,6 +119,13 @@ const DEFAULT_LISTENING: ListeningModeConfig = {
   l1ReserveSize: 50,
   l1ReserveInterval: 13,
   layer1Playlist: ['ps', 'ps2x', 'ps2x'],
+  layer1StagePlaylist: {
+    '1': ['ps', 'ps2x', 'ps2x'],
+    '2': ['ps2x', 'ps2x', 'ps2x'],
+    '3': ['ps2x', 'ps2x'],
+    '4': ['ps2x'],
+  },
+  layer1StageDuration: 3,
   podActivationRound: 6,
 }
 

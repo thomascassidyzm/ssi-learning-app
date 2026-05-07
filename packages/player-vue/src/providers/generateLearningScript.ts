@@ -119,11 +119,20 @@ export interface ListeningConfig {
   l1ActiveInterval: number    // active fires every N rounds
   l1ReserveSize: number       // older seeds beyond active, capped (overflow → Choice Pods later)
   l1ReserveInterval: number   // reserve fires every N rounds (coprime with active)
-  /** Per-seed Layer 1 playlist. Default ['ps', 'ps2x', 'ps2x'] = one slow
-   * listen, two fast reps. No 'trans' by default since graduated seeds are
-   * past the spaced-rep meaning-acquisition phase. Parameterisable so this
-   * can be tuned per-course or per-window without code changes. */
+  /** Legacy / fallback flat playlist. Used when layer1StagePlaylist is
+   * empty — every L1 fire of every seed plays this same sequence, no
+   * decay. Kept for back-compat with the pre-staged-decay model. */
   layer1Playlist: Layer1PlayRole[]
+  /** Staged Layer 1 playlist — keys are stage numbers (1..N), values
+   * are the playlist for that stage. Mirrors Layer 2's pod stagePlaylist
+   * shape. Each time a graduated seed plays in an L1 cluster its
+   * per-seed fire counter advances; stage = floor((fireCount-1) /
+   * layer1StageDuration) + 1, capped at the highest key (eternal hold).
+   * Aran 2026-05-07 spec: seeds eventually decay to a single 2× rep. */
+  layer1StagePlaylist: Record<string, Layer1PlayRole[]>
+  /** L1 fires spent in each transitional stage before promoting. The
+   * highest-numbered stage in layer1StagePlaylist is eternal regardless. */
+  layer1StageDuration: number
   // Layer 2 — Pod 0
   podActivationRound: number  // first pod lap fires at end of this main round (start of seed 2)
 }
@@ -136,6 +145,13 @@ export const DEFAULT_LISTENING_CONFIG: ListeningConfig = {
   l1ReserveSize: 50,
   l1ReserveInterval: 13,
   layer1Playlist: ['ps', 'ps2x', 'ps2x'],
+  layer1StagePlaylist: {
+    '1': ['ps', 'ps2x', 'ps2x'],
+    '2': ['ps2x', 'ps2x', 'ps2x'],
+    '3': ['ps2x', 'ps2x'],
+    '4': ['ps2x'],
+  },
+  layer1StageDuration: 3,
   podActivationRound: 6,
 }
 
@@ -351,9 +367,6 @@ export async function generateLearningScript(
   function emitL1Cluster(seedNums: number[], mainRoundNumber: number, cycleCounter: { v: number }, omitOutro: boolean = false): boolean {
     if (seedNums.length === 0) return false
 
-    const playlist = listeningConfig.layer1Playlist
-    if (!playlist || playlist.length === 0) return false
-
     const validSeeds: Array<{ sNum: number; seedData: SeedData }> = []
     for (const sNum of seedNums) {
       const seedData = seedMap.get(sNum)
@@ -376,6 +389,14 @@ export async function generateLearningScript(
       })
     }
     for (const { sNum, seedData } of validSeeds) {
+      // Bump per-seed fire counter and pick the stage-aware playlist.
+      // Each seed decays through layer1StagePlaylist as it accumulates
+      // fires, eventually settling on the eternal-stage playlist.
+      const fireCount = (seedL1FireCount.get(sNum) ?? 0) + 1
+      seedL1FireCount.set(sNum, fireCount)
+      const playlist = layer1PlaylistForFireCount(fireCount)
+      if (!playlist || playlist.length === 0) continue
+
       const seedIdStr = `S${String(sNum).padStart(4, '0')}`
       for (const role of playlist) {
         const isTrans = role === 'trans'
@@ -727,6 +748,43 @@ export async function generateLearningScript(
   const seedLastRound = new Map<number, number>()  // seedNum → last LEGO round
   const graduatedSeeds = new Set<number>()         // idempotency check
   const graduatedQueue: number[] = []              // graduation order; L1 windows are slices
+  // Per-seed L1 fire counter — bumped on each emit in emitL1Cluster.
+  // Drives stage progression: stage = floor((fireCount-1) / layer1StageDuration) + 1
+  // capped at the highest key in layer1StagePlaylist (eternal hold).
+  const seedL1FireCount = new Map<number, number>()
+
+  // Cached sorted stage keys + eternal stage. layer1StagePlaylist may be
+  // empty (legacy config) — caller falls back to flat layer1Playlist.
+  const layer1StageKeys: number[] = Object.keys(listeningConfig.layer1StagePlaylist || {})
+    .map(Number).filter(n => !Number.isNaN(n)).sort((a, b) => a - b)
+  const layer1EternalStage: number = layer1StageKeys.length > 0
+    ? layer1StageKeys[layer1StageKeys.length - 1]
+    : 1
+  const layer1StageDuration = listeningConfig.layer1StageDuration ?? 3
+
+  /** Map a per-seed fire count to a stage. Mirrors Layer 2's
+   *  podStageFor: transitional stages last `stageDuration` fires; the
+   *  highest-numbered stage is eternal. fireCount must be >= 1 (the
+   *  count for the current emission). */
+  function layer1StageFor(fireCount: number): number {
+    if (layer1StageKeys.length === 0) return 1
+    for (const stage of layer1StageKeys) {
+      if (stage === layer1EternalStage) return stage
+      if (fireCount <= stage * layer1StageDuration) return stage
+    }
+    return layer1EternalStage
+  }
+
+  /** Resolve the playlist for a seed at its current fire count. Falls
+   *  back to the flat layer1Playlist when no staged config is present. */
+  function layer1PlaylistForFireCount(fireCount: number): Layer1PlayRole[] {
+    if (layer1StageKeys.length === 0) return listeningConfig.layer1Playlist || []
+    const stage = layer1StageFor(fireCount)
+    return listeningConfig.layer1StagePlaylist[String(stage)]
+      || listeningConfig.layer1StagePlaylist[stage as any]
+      || listeningConfig.layer1Playlist
+      || []
+  }
 
   // L1 windowing helpers
   function l1ActiveSeedsList(): number[] {
