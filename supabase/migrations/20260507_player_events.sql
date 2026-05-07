@@ -45,13 +45,10 @@ CREATE POLICY "Service role can write player_events"
   WITH CHECK (auth.role() = 'service_role');
 
 -- Admins can read all rows. Tighten later (per-school admin scoping)
--- when real schools onboarding is closer.
+-- when real schools onboarding is closer. Uses the existing
+-- is_ssi_admin() helper which handles the auth.uid() (uuid) ↔
+-- learners.user_id (text) cast — this table inherits the same
+-- post-Clerk-migration type mismatch as everywhere else.
 CREATE POLICY "Admins can read player_events"
   ON player_events FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM learners
-      WHERE learners.user_id = auth.uid()
-        AND learners.platform_role = 'ssi_admin'
-    )
-  );
+  USING (public.is_ssi_admin());
