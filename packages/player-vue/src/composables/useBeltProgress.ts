@@ -422,24 +422,43 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   }
 
   // ============================================================================
-  // BELT INFO (your belt = belt at your current playing position)
+  // BELT INFO (your belt = highest you've engaged with, never regresses)
   //
-  // No "earned" vs "playing" distinction: the belt label is purely a function
-  // of where you are right now. Skip forward → belt label moves up. Skip back
-  // → belt label moves down. There's no promotion gating, and crossing a
-  // threshold via natural play is identical to crossing it via belt-skip.
+  // The pill belt is `max(playingBelt, highestBelt)`:
+  //   • Skip forward / natural advance → playing bumps highest, both rise
+  //   • Skip back / revisit earlier seeds → playing drops, highest stays;
+  //     pill keeps the higher value, so the learner doesn't see a demotion
+  //     when they're consolidating foundations.
+  //
+  // Where you ARE right now is on the journey bar (current cursor); the
+  // pill represents engagement *breadth*. This matches the "you've been
+  // higher than this" resume cue that already exists.
+  //
+  // Belt-skip taps to a higher belt also bump highest immediately
+  // (checkBeltPromotion fires from setLastLegoId on the new position).
+  // That's intentional — the pill marks "I have engaged with this band",
+  // not "I have mastered it"; mastery is what spaced rep tracks.
   // ============================================================================
 
-  const currentBelt = computed((): Belt => playingBelt.value)
+  const currentBelt = computed((): Belt => {
+    const idx = Math.min(
+      Math.max(playingBeltIndex.value, highestBeltIndex.value, 0),
+      BELTS.length - 1,
+    )
+    return { ...BELTS[idx], index: idx }
+  })
 
+  // next/previous are relative to the *pill* belt (not the playing
+  // cursor) so prompts like "next belt: green" stay coherent with what
+  // the user sees on the badge.
   const nextBelt = computed((): Belt | null => {
-    const nextIndex = playingBeltIndex.value + 1
+    const nextIndex = currentBelt.value.index + 1
     if (nextIndex >= availableBelts.value.length) return null
     return { ...BELTS[nextIndex], index: nextIndex }
   })
 
   const previousBelt = computed((): Belt | null => {
-    const prevIndex = playingBeltIndex.value - 1
+    const prevIndex = currentBelt.value.index - 1
     if (prevIndex < 0) return null
     return { ...BELTS[prevIndex], index: prevIndex }
   })
