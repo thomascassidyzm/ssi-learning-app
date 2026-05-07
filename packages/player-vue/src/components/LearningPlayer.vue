@@ -749,11 +749,18 @@ simplePlayer.onRoundCompleted((round) => {
   }
 })
 
-// Session complete - show summary + release the keepalive (no audio is
-// engaged anymore once we hit the summary screen).
+// Session complete — last round finished. If a pod lap or commentary
+// is still in-flight (handleRoundBoundary fires lap → meanwhile
+// advanceRound emits session_complete on the same tick), defer the
+// summary screen. handleRoundBoundary checks sessionEnded after the
+// lap and calls showPausedSummary then. Surfacing the summary now
+// would call simplePlayer.stop() + release audioEngaged mid-lap and
+// iOS would drop the session.
 simplePlayer.onSessionComplete(() => {
-  audioEngaged.value = false
-  showPausedSummary()
+  sessionEnded.value = true
+  if (!playingPodLapAudio.value && !playingCommentaryAudio.value) {
+    showPausedSummary()
+  }
 })
 
 // Sync simplePlayer's current cycle to local currentCycle ref for text display
@@ -1320,6 +1327,11 @@ const userStoppedDuringLap = ref(false)
 // pod ratchet so the same sentences don't resurface; in regular mode the
 // ratchet stays put so the listening work still has to be done.
 const podLapSkippedByUser = ref(false)
+// Set true when SimplePlayer fires session_complete (the LAST round just
+// finished). If this fires while a pod lap is still in-flight, we defer
+// the summary screen until the lap finishes — otherwise showPausedSummary
+// would tear down audioEngaged mid-lap and iOS would drop the session.
+const sessionEnded = ref(false)
 
 // Session-wide iOS audio-session keepalive is wired further down — see
 // the useAudioSessionKeepalive call after isPlayingIntroduction +
@@ -2010,9 +2022,13 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
           console.log('[LearningPlayer] Pod lap not completed, ratchet unchanged')
         }
         podLapSkippedByUser.value = false
-        // Resume into the next round — unless the learner pressed stop during
-        // the lap, in which case stay paused so they're in control.
-        if (userStoppedDuringLap.value) {
+        // Resume into the next round — unless one of these has happened:
+        //   • session_complete fired while the lap was playing (last round)
+        //     → surface the deferred summary now that the lap is done
+        //   • the learner pressed stop during the lap → stay paused
+        if (sessionEnded.value) {
+          showPausedSummary()
+        } else if (userStoppedDuringLap.value) {
           userStoppedDuringLap.value = false
         } else {
           simplePlayer.resume()
@@ -3767,6 +3783,7 @@ const handleResume = async () => {
   // it for the iOS unlock, and it stays running through pauses until
   // explicit stop / session-complete / unmount.
   audioEngaged.value = true
+  sessionEnded.value = false
 
   // RESUME from pause — use resume() to continue from current phase
   // (play() always restarts from prompt, losing position mid-cycle)
@@ -4395,6 +4412,20 @@ const haltAllPlayback = () => {
   if (isPlayingWelcome.value) skipWelcome()
 }
 
+/**
+ * Cancel any in-flight pod lap or commentary so a jump (belt skip / belt
+ * pill) doesn't overlap with it. Sets userStoppedDuringLap so
+ * handleRoundBoundary's resume() is gated — the jump itself takes over
+ * positioning. Ratchet stays put (jump-during-lap doesn't bump it; the
+ * learner is moving past the content, not completing it).
+ */
+const cancelInFlightLap = () => {
+  if (!playingPodLapAudio.value && !playingCommentaryAudio.value) return
+  userStoppedDuringLap.value = true
+  podLapCancelled.value = true
+  audioController.value?.stop()
+}
+
 const handleSkip = async () => {
   // CRITICAL: Guard against concurrent skips - if already skipping, abort any playing intro and return
   if (isSkipInProgress.value) {
@@ -4484,6 +4515,7 @@ const jumpToRound = async (roundIndex) => {
  * Uses SessionController's lazy loading to load the target round on demand
  */
 const handleSkipToNextBelt = async () => {
+  cancelInFlightLap()
   // Get current playing position's seed (not stored progress)
   const currentRound = simplePlayer.currentRound.value
   const currentSeedId = currentRound?.seedId || 'S0001'
@@ -4660,6 +4692,7 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
 
   isSkippingBelt.value = true
   try {
+    cancelInFlightLap()
     haltAllPlayback()
     console.log(`[LearningPlayer] Skipping to ${belt.name} belt - seed ${targetSeed}`)
 
