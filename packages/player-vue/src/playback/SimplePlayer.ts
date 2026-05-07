@@ -365,12 +365,24 @@ export class SimplePlayer {
     this.advanceRound()
   }
 
-  jumpToRound(index: number): void {
-    console.debug(`[SimplePlayer] jumpToRound(${index}) - rounds.length=${this.rounds.length}, isPlaying=${this.state.isPlaying}`)
+  /**
+   * Jump to a specific round, optionally landing on a specific cycle
+   * within that round. cycleIndex defaults to 0 (start of round) — the
+   * legacy behaviour. Mid-round resume after PWA reload passes the
+   * persisted cycle so the learner picks up where they left off.
+   * Out-of-range cycleIndex is clamped to a valid index in the round.
+   */
+  jumpToRound(index: number, cycleIndex: number = 0): void {
+    console.debug(`[SimplePlayer] jumpToRound(${index}, cycle=${cycleIndex}) - rounds.length=${this.rounds.length}, isPlaying=${this.state.isPlaying}`)
     if (index < 0 || index >= this.rounds.length) {
       console.warn(`[SimplePlayer] jumpToRound(${index}) OUT OF BOUNDS - only ${this.rounds.length} rounds loaded`)
       return
     }
+    const round = this.rounds[index]
+    const cycleCount = round?.cycles?.length ?? 0
+    const safeCycle = cycleCount > 0
+      ? Math.min(Math.max(cycleIndex | 0, 0), cycleCount - 1)
+      : 0
     this.clearPauseTimer()
     this.clearSafetyTimer()
     this.clearLingerTimer()
@@ -378,7 +390,7 @@ export class SimplePlayer {
     this.audio.src = ''
     const wasPlaying = this.state.isPlaying
     // Must set isPlaying: false so play() doesn't early-return
-    this.updateState({ roundIndex: index, cycleIndex: 0, phase: 'idle', isPlaying: false })
+    this.updateState({ roundIndex: index, cycleIndex: safeCycle, phase: 'idle', isPlaying: false })
     console.debug(`[SimplePlayer] jumpToRound: wasPlaying=${wasPlaying}, calling play()`)
     if (wasPlaying) this.play()
   }

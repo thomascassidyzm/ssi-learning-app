@@ -38,7 +38,7 @@ export interface UseSimplePlayerReturn {
   stop: () => void
   // NOTE: No skipCycle - a ROUND is the atomic learning unit
   skipRound: () => void
-  jumpToRound: (index: number) => void
+  jumpToRound: (index: number, cycleIndex?: number) => void
   jumpToSeed: (seedNumber: number) => void
   findRoundIndexForSeed: (seedNumber: number) => number
   findRoundIndexForLegoId: (legoId: string) => number
@@ -173,7 +173,10 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   const stop = () => { clearAudioFailed(); player?.stop() }
   // NOTE: No skipCycle - a ROUND is the atomic learning unit
   const skipRound = () => player?.skipRound()
-  const jumpToRound = (index: number) => { clearAudioFailed(); player?.jumpToRound(index) }
+  const jumpToRound = (index: number, cycleIndex?: number) => {
+    clearAudioFailed()
+    player?.jumpToRound(index, cycleIndex)
+  }
 
   /**
    * Find the first round index that belongs to a given seed number.

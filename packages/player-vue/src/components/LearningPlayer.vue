@@ -498,6 +498,7 @@ const loadSavedProgress = async () => {
         lastCompletedRoundIndex: enrollment.last_completed_round_index,
         highestCompletedLegoId: enrollment.highest_completed_lego_id,
         highestCompletedRoundIndex: enrollment.highest_completed_round_index,
+        currentCycleIndex: enrollment.current_cycle_index ?? 0,
       }
     }
   } catch (err) {
@@ -561,6 +562,11 @@ const isPlaying = ref(false)
 // when the cursor is currently behind this ceiling.
 const highestCompletedRoundIndex = ref<number | null>(null)
 const highestCompletedLegoId = ref<string | null>(null)
+// Cycle cursor within the in-progress round, persisted on every cycle
+// completion. Read once on resume so a PWA reload mid-round picks up
+// from the cycle the learner was on rather than restarting cycle 0
+// (a 20-cycle penalty on long rounds). Reset to 0 when the round finishes.
+const savedCurrentCycleIndex = ref<number>(0)
 
 // Independent of the resume cascade — fires whenever course or learner
 // changes so the ceiling is loaded for both cached-script and fresh-
@@ -576,9 +582,11 @@ watch(
       if (saved) {
         highestCompletedRoundIndex.value = saved.highestCompletedRoundIndex ?? null
         highestCompletedLegoId.value = saved.highestCompletedLegoId ?? null
+        savedCurrentCycleIndex.value = saved.currentCycleIndex ?? 0
       } else {
         highestCompletedRoundIndex.value = null
         highestCompletedLegoId.value = null
+        savedCurrentCycleIndex.value = 0
       }
     } catch { /* silent */ }
   },
@@ -679,6 +687,22 @@ simplePlayer.onCycleCompleted((cycle) => {
   if (completedItem) {
     learningSession.recordCycleComplete(completedItem).catch(err => {
       console.error('[LearningPlayer] Failed to record cycle:', err)
+    })
+  }
+
+  // Persist mid-round cursor so a PWA reload / app close+open mid-round
+  // resumes from the cycle the learner was on instead of restarting
+  // the whole 20-cycle round. The cycle that JUST completed is N; the
+  // resume point is N+1 (next cycle to play). Reset to 0 happens on
+  // round_completed via saveRoundProgress.
+  if (!isGuestLearner.value && progressStore?.value && learnerId.value && courseCode.value) {
+    const nextCycleIdx = simplePlayer.cycleIndex.value + 1
+    progressStore.value.updateCurrentCycle(
+      learnerId.value,
+      courseCode.value,
+      nextCycleIdx,
+    ).catch(err => {
+      console.warn('[LearningPlayer] Failed to persist current cycle:', err)
     })
   }
 })
@@ -5886,13 +5910,18 @@ onMounted(async () => {
               if (isReturningUser) {
                 const personalLastLegoId = beltProgress.value?.lastLegoId?.value ?? null
                 const resumeLegoId = classLastLegoId ?? personalLastLegoId
+                // Mid-round cycle cursor — only meaningful for the in-progress
+                // round (lastIdx + 1). Other resume branches (final round, or
+                // jumps that change which round is "current") fall back to
+                // cycle 0 because the saved index doesn't apply there.
+                const resumeCycle = savedCurrentCycleIndex.value
 
                 if (resumeLegoId) {
                   const lastIdx = simpleRounds.findIndex(r => r.legoId === resumeLegoId)
                   const modeTag = classLastLegoId ? 'Class mode' : 'Personal'
                   if (lastIdx >= 0 && lastIdx + 1 < simpleRounds.length) {
-                    console.debug(`[eagerLoad] ${modeTag}: resuming after ${resumeLegoId} (round ${lastIdx + 1})`)
-                    simplePlayer.jumpToRound(lastIdx + 1)
+                    console.debug(`[eagerLoad] ${modeTag}: resuming after ${resumeLegoId} (round ${lastIdx + 1}, cycle ${resumeCycle})`)
+                    simplePlayer.jumpToRound(lastIdx + 1, resumeCycle)
                   } else if (lastIdx >= 0) {
                     // Last LEGO was the final round — stay there
                     simplePlayer.jumpToRound(lastIdx)
@@ -5902,8 +5931,8 @@ onMounted(async () => {
                     const nextSeed = startingSeed + 1
                     const roundIndex = simplePlayer.findRoundIndexForSeed(nextSeed)
                     if (roundIndex >= 0) {
-                      console.debug(`[eagerLoad] LegoId ${resumeLegoId} not loaded, falling back to seed ${nextSeed} (round ${roundIndex})`)
-                      simplePlayer.jumpToRound(roundIndex)
+                      console.debug(`[eagerLoad] LegoId ${resumeLegoId} not loaded, falling back to seed ${nextSeed} (round ${roundIndex}, cycle ${resumeCycle})`)
+                      simplePlayer.jumpToRound(roundIndex, resumeCycle)
                     }
                   }
                 } else {
@@ -5911,8 +5940,8 @@ onMounted(async () => {
                   const nextSeed = startingSeed + 1
                   const roundIndex = simplePlayer.findRoundIndexForSeed(nextSeed)
                   if (roundIndex >= 0) {
-                    console.debug(`[eagerLoad] No legoId, restoring by seed ${startingSeed} → ${nextSeed} (round ${roundIndex})`)
-                    simplePlayer.jumpToRound(roundIndex)
+                    console.debug(`[eagerLoad] No legoId, restoring by seed ${startingSeed} → ${nextSeed} (round ${roundIndex}, cycle ${resumeCycle})`)
+                    simplePlayer.jumpToRound(roundIndex, resumeCycle)
                   }
                 }
               }
