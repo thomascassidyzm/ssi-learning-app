@@ -31,6 +31,7 @@ import { useOfflineCache } from '../composables/useOfflineCache'
 // SimplePlayer - clean playback engine
 import { useSimplePlayer } from '../composables/useSimplePlayer'
 import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepalive'
+import { usePlayerLog } from '../composables/usePlayerLog'
 import type { ListeningConfig as ListeningConfigType } from '../providers/generateLearningScript'
 // New simple script generation - direct database queries
 import { generateLearningScript as generateSimpleScript, DEFAULT_LISTENING_CONFIG } from '../providers/generateLearningScript'
@@ -520,6 +521,13 @@ const {
 // SIMPLE PLAYER - Clean playback architecture
 // ============================================
 const simplePlayer = useSimplePlayer()
+
+// Diagnostic event log — captures play/pause/skip/stop taps + lap and
+// commentary lifecycle. Persisted in player_events; surfaced in the
+// admin user-detail page so user reports like "skip didn't work" can
+// be diagnosed without DevTools.
+const playerLog = usePlayerLog({ courseCode })
+const logEvent = playerLog.event
 // Expose audio_failed banner state at top level so the template can
 // use it directly (refs nested inside a plain object aren't auto-unwrapped).
 const audioFailedBanner = simplePlayer.audioFailed
@@ -681,6 +689,11 @@ simplePlayer.onCycleCompleted((cycle) => {
 // Round completed - save progress and update current LEGO ID
 simplePlayer.onRoundCompleted((round) => {
   const completedRoundIndex = simplePlayer.roundIndex.value
+  logEvent('round_complete', {
+    roundIndex: completedRoundIndex,
+    legoId: round.legoId,
+    seedId: round.seedId,
+  })
 
   // Synchronously pause if a pod is about to fire on this boundary.
   // handleRoundBoundary is async and runs on a later microtask — by the
@@ -758,6 +771,9 @@ simplePlayer.onRoundCompleted((round) => {
 // iOS would drop the session.
 simplePlayer.onSessionComplete(() => {
   sessionEnded.value = true
+  logEvent('session_complete', {
+    deferredForLap: playingPodLapAudio.value || playingCommentaryAudio.value,
+  })
   if (!playingPodLapAudio.value && !playingCommentaryAudio.value) {
     showPausedSummary()
   }
@@ -1747,6 +1763,10 @@ const playCommentaryAudio = async (commentary) => {
 
   playingCommentaryAudio.value = true
   console.log('[LearningPlayer] Playing', commentary.type, ':', commentary.text?.substring(0, 50))
+  logEvent('commentary_start', {
+    type: commentary.type ?? null,
+    textPreview: typeof commentary.text === 'string' ? commentary.text.substring(0, 80) : null,
+  })
 
   // Reset cancellation flag for this commentary play. Mirrors the same
   // pattern as playPodLap so togglePlayback / handleSkip can cancel
@@ -1766,14 +1786,17 @@ const playCommentaryAudio = async (commentary) => {
       if (safetyTimeout) { clearTimeout(safetyTimeout); safetyTimeout = null }
     }
 
-    // Create a one-time ended handler
-    const onEnded = () => {
+    const finish = (reason: 'natural' | 'error' | 'cancelled' | 'safety_timeout', success: boolean) => {
       if (settled) return
       settled = true
       cleanup()
       playingCommentaryAudio.value = false
-      resolve(true)
+      logEvent('commentary_end', { reason, type: commentary.type ?? null })
+      resolve(success)
     }
+
+    // Create a one-time ended handler
+    const onEnded = () => finish('natural', true)
 
     audio.onEnded(onEnded)
 
@@ -1783,12 +1806,8 @@ const playCommentaryAudio = async (commentary) => {
       url: commentary.url,
       duration_ms: commentary.duration_ms,
     }).catch((err) => {
-      if (settled) return
-      settled = true
       console.error('[LearningPlayer] Commentary audio error:', err)
-      cleanup()
-      playingCommentaryAudio.value = false
-      resolve(false)
+      finish('error', false)
     })
 
     // Cancellation poll — handleSkip / togglePlayback set podLapCancelled
@@ -1796,21 +1815,15 @@ const playCommentaryAudio = async (commentary) => {
     // enough that a tap feels responsive.
     cancelPoll = setInterval(() => {
       if (settled || !podLapCancelled.value) return
-      settled = true
       try { audio.stop() } catch {}
-      cleanup()
-      playingCommentaryAudio.value = false
-      resolve(false)
+      finish('cancelled', false)
     }, 100)
 
     // Safety timeout (max 60 seconds for any commentary)
     safetyTimeout = setTimeout(() => {
       if (settled) return
-      settled = true
       try { audio.stop() } catch {}
-      cleanup()
-      playingCommentaryAudio.value = false
-      resolve(false)
+      finish('safety_timeout', false)
     }, 60000)
   })
 }
@@ -1922,6 +1935,11 @@ const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<bool
   podLapCancelled.value = false
   podLapSkippedByUser.value = false
   playingPodLapAudio.value = true
+  logEvent('pod_lap_start', {
+    podRound: lap.podRound,
+    plays: lap.plays.length,
+    omitIntro,
+  })
   try {
     if (lap.intro && !omitIntro) {
       const ok = await playPodSegment(lap.intro.id, lap.intro.duration_ms, 1.0)
@@ -1948,6 +1966,12 @@ const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<bool
     return true
   } finally {
     playingPodLapAudio.value = false
+    logEvent('pod_lap_end', {
+      podRound: lap.podRound,
+      cancelled: podLapCancelled.value,
+      skippedByUser: podLapSkippedByUser.value,
+      stoppedByUser: userStoppedDuringLap.value,
+    })
   }
 }
 
@@ -3786,6 +3810,16 @@ const handleRingTap = () => {
 }
 
 const handlePause = () => {
+  logEvent('tap_pause', {
+    during: isPlayingIntroduction.value ? 'intro'
+      : isPlayingWelcome.value ? 'welcome'
+      : playingPodLapAudio.value ? 'pod_lap'
+      : playingCommentaryAudio.value ? 'commentary'
+      : 'cycle',
+    roundIndex: simplePlayer.roundIndex.value,
+    legoId: simplePlayer.currentRound.value?.legoId ?? null,
+  })
+
   // Stop introduction audio if playing
   if (isPlayingIntroduction.value) {
     skipIntroduction()
@@ -3809,6 +3843,12 @@ const handlePause = () => {
 }
 
 const handleResume = async () => {
+  logEvent('tap_play', {
+    firstPlay: !hasEverStarted.value,
+    roundIndex: simplePlayer.roundIndex.value,
+    legoId: simplePlayer.currentRound.value?.legoId ?? null,
+  })
+
   // Engage the iOS audio-session keepalive on every play tap. This is
   // the user-gesture moment — the silent loop's first play() hooks into
   // it for the iOS unlock, and it stays running through pauses until
@@ -4458,6 +4498,22 @@ const cancelInFlightLap = () => {
 }
 
 const handleSkip = async () => {
+  logEvent('tap_skip', {
+    during: playingPodLapAudio.value ? 'pod_lap'
+      : playingCommentaryAudio.value ? 'commentary'
+      : isPlayingIntroduction.value ? 'intro'
+      : isPlayingWelcome.value ? 'welcome'
+      : (simplePlayer.currentCycle.value?.type === 'listening'
+        || simplePlayer.currentCycle.value?.type === 'listen_intro'
+        || simplePlayer.currentCycle.value?.type === 'listen_outro') ? 'l1_cluster'
+      : 'cycle',
+    roundIndex: simplePlayer.roundIndex.value,
+    cycleIndex: simplePlayer.cycleIndex.value,
+    cycleType: simplePlayer.currentCycle.value?.type ?? null,
+    legoId: simplePlayer.currentRound.value?.legoId ?? null,
+    skipInProgress: isSkipInProgress.value,
+  })
+
   // CRITICAL: Guard against concurrent skips - if already skipping, abort any playing intro and return
   if (isSkipInProgress.value) {
     console.log('[LearningPlayer] Skip already in progress - aborting current intro and returning')

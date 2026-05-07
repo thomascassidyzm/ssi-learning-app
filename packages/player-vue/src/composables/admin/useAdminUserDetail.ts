@@ -48,11 +48,22 @@ export interface CourseProgress {
   legos_retired: number
 }
 
+export interface PlayerEvent {
+  id: number
+  occurred_at: string
+  course_code: string | null
+  session_id: string | null
+  event_type: string
+  payload: Record<string, unknown> | null
+  device_type: string | null
+}
+
 const profile = ref<UserProfile | null>(null)
 const enrollments = ref<DetailEnrollment[]>([])
 const sessions = ref<DetailSession[]>([])
 const userEntitlements = ref<UserEntitlement[]>([])
 const courseProgress = ref<Map<string, CourseProgress>>(new Map())
+const playerEvents = ref<PlayerEvent[]>([])
 
 const isLoading = ref(false)
 const error = ref<string | null>(null)
@@ -99,6 +110,27 @@ export function useAdminUserDetail(client: SupabaseClient) {
       profile.value = { ...profileResult.data, primary_email: null, emails: [] }
       enrollments.value = enrollResult.data || []
       sessions.value = sessResult.data || []
+
+      // Recent player_events for this user — used to diagnose taps and
+      // listening/commentary lifecycle when a user reports an issue
+      // they can't quite describe. Filter by user_id (auth uid), which
+      // we have from the profile we just loaded.
+      if (profile.value?.user_id) {
+        const { data: eventRows, error: eventError } = await client
+          .from('player_events')
+          .select('id, occurred_at, course_code, session_id, event_type, payload, device_type')
+          .eq('user_id', profile.value.user_id)
+          .order('occurred_at', { ascending: false })
+          .limit(100)
+        if (eventError) {
+          console.warn('[AdminUserDetail] player_events fetch error:', eventError.message)
+          playerEvents.value = []
+        } else {
+          playerEvents.value = eventRows || []
+        }
+      } else {
+        playerEvents.value = []
+      }
 
       // Fetch all emails via service-role endpoint (learner_emails is service-only).
       if (profile.value?.user_id) {
@@ -305,6 +337,7 @@ export function useAdminUserDetail(client: SupabaseClient) {
     sessions,
     userEntitlements,
     courseProgress,
+    playerEvents,
     isLoading,
     error,
     roleUpdateStatus,

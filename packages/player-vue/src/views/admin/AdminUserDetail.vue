@@ -15,6 +15,7 @@ const {
   enrollments,
   sessions,
   userEntitlements,
+  playerEvents,
   isLoading,
   error,
   roleUpdateStatus,
@@ -24,6 +25,22 @@ const {
   revokeEntitlement,
   getCourseProgress,
 } = useAdminUserDetail(getClient())
+
+const expandedEventId = ref<number | null>(null)
+function toggleEvent(id: number) {
+  expandedEventId.value = expandedEventId.value === id ? null : id
+}
+function eventTime(t: string): string {
+  try {
+    const d = new Date(t)
+    return d.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  } catch { return t }
+}
+// Ranges of session_ids — group consecutive same-session events visually.
+function eventSessionTag(sessionId: string | null): string {
+  if (!sessionId) return ''
+  return sessionId.slice(0, 6) // short hash for visual grouping
+}
 
 const showGrantForm = ref(false)
 const grantAccessType = ref('full')
@@ -435,6 +452,58 @@ async function handleRevoke(entitlementId: string) {
         </FrostCard>
         <FrostCard v-else variant="tile" class="ent-empty">
           <span>No sessions recorded.</span>
+        </FrostCard>
+      </section>
+
+      <!-- Recent player events — diagnostics for "skip didn't work" etc. -->
+      <section class="section">
+        <h3 class="section-title frost-display">
+          Recent player events
+          <span class="title-count frost-mono-nums">{{ playerEvents.length }}</span>
+        </h3>
+        <FrostCard
+          v-if="playerEvents.length > 0"
+          variant="panel"
+          class="list-panel"
+        >
+          <table class="list-table events-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Event</th>
+                <th>Course</th>
+                <th>Session</th>
+                <th>Payload</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template v-for="ev in playerEvents" :key="ev.id">
+                <tr
+                  class="event-row"
+                  :class="{ expanded: expandedEventId === ev.id, 'has-payload': !!ev.payload }"
+                  @click="ev.payload ? toggleEvent(ev.id) : undefined"
+                >
+                  <td class="cell-muted frost-mono-nums">{{ eventTime(ev.occurred_at) }}</td>
+                  <td><span class="event-type-pill">{{ ev.event_type }}</span></td>
+                  <td class="cell-muted frost-mono-nums">{{ ev.course_code || '—' }}</td>
+                  <td class="cell-muted frost-mono-nums session-tag">{{ eventSessionTag(ev.session_id) }}</td>
+                  <td class="cell-muted payload-cell">
+                    <span v-if="!ev.payload">—</span>
+                    <span v-else-if="expandedEventId === ev.id">click to collapse</span>
+                    <span v-else class="payload-preview">{{ JSON.stringify(ev.payload).slice(0, 80) }}{{ JSON.stringify(ev.payload).length > 80 ? '…' : '' }}</span>
+                  </td>
+                </tr>
+                <tr v-if="expandedEventId === ev.id && ev.payload" :key="`${ev.id}-payload`" class="event-payload-row">
+                  <td colspan="5">
+                    <pre class="event-payload-pre">{{ JSON.stringify(ev.payload, null, 2) }}</pre>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </FrostCard>
+        <FrostCard v-else variant="tile" class="ent-empty">
+          <span>No player events recorded.</span>
         </FrostCard>
       </section>
     </template>
@@ -900,6 +969,46 @@ async function handleRevoke(entitlementId: string) {
 .cell-muted {
   color: var(--ink-muted);
   white-space: nowrap;
+}
+
+/* Player events table */
+.events-table .event-row.has-payload {
+  cursor: pointer;
+}
+.events-table .event-row.expanded {
+  background: rgba(96, 165, 250, 0.06);
+}
+.event-type-pill {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--ink-primary);
+  font-family: var(--font-mono, ui-monospace, Menlo, monospace);
+  font-size: 0.75rem;
+  font-weight: var(--font-medium);
+}
+.session-tag { font-size: 0.75rem; opacity: 0.7; }
+.payload-preview { font-family: var(--font-mono, ui-monospace, Menlo, monospace); font-size: 0.75rem; }
+.payload-cell { max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+.event-payload-row td {
+  background: rgba(0, 0, 0, 0.03);
+  border-top: 0;
+  padding: 0 18px 12px !important;
+}
+.event-payload-pre {
+  margin: 4px 0 0;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 6px;
+  font-family: var(--font-mono, ui-monospace, Menlo, monospace);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--ink-secondary);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 300px;
+  overflow: auto;
 }
 
 .access-pill {
