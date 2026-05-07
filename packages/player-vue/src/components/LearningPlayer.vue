@@ -607,9 +607,6 @@ watch(() => simplePlayer.roundIndex.value, (idx) => {
 watch(() => simplePlayer.cycleIndex.value, (idx) => { currentItemInRound.value = idx })
 watch(() => simplePlayer.isPlaying.value, (playing) => {
   isPlaying.value = playing
-  // Track actual play time — only count seconds where audio is active
-  if (playing) learningSession.markPlayStart()
-  else learningSession.markPlayStop()
 })
 
 // Backwards compatibility aliases
@@ -2762,6 +2759,25 @@ const welcomeText = ref('') // Text to display during welcome audio
 // and we'd keep rediscovering "that path wasn't on the list".
 const audioEngaged = ref(false)
 useAudioSessionKeepalive(audioEngaged)
+
+// Tick the session play-time timer whenever ANY audio path is sounding —
+// not just simplePlayer cycles, but pod laps, commentary, intros, and
+// welcome too. Previously the timer gated on simplePlayer.isPlaying,
+// which froze during pod laps (handleRoundBoundary pauses simplePlayer
+// to play the lap on a separate audio element). Aran reported the
+// session timer stopping during listening; same bug class as the
+// keepalive — anything audible should keep the timer running.
+watch(
+  () => simplePlayer.isPlaying.value
+    || playingPodLapAudio.value
+    || playingCommentaryAudio.value
+    || isPlayingIntroduction.value
+    || isPlayingWelcome.value,
+  (active) => {
+    if (active) learningSession.markPlayStart()
+    else learningSession.markPlayStop()
+  },
+)
 
 // Initial state - before user has ever tapped play
 const hasEverStarted = ref(false) // True after first play tap (even if welcome plays first)
