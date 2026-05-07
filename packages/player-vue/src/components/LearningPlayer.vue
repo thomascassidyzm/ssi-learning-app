@@ -1364,6 +1364,13 @@ const userStoppedDuringLap = ref(false)
 // pod ratchet so the same sentences don't resurface; in regular mode the
 // ratchet stays put so the listening work still has to be done.
 const podLapSkippedByUser = ref(false)
+// When the learner stops *during* a pod lap, we bookmark the lap here so
+// the next play tap re-fires it (with omitIntro=true so the bookend
+// doesn't double up). Without this, SimplePlayer was already parked at
+// end-of-round-N when the lap started, so a plain resume() would advance
+// straight to round N+1 and silently drop the lap until the next round
+// completes — which felt like "stop in listening = skipped to next round".
+const pendingLapResume = ref<PodLap | null>(null)
 // Set true when SimplePlayer fires session_complete (the LAST round just
 // finished). If this fires while a pod lap is still in-flight, we defer
 // the summary screen until the lap finishes — otherwise showPausedSummary
@@ -2121,7 +2128,11 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
         if (sessionEnded.value) {
           showPausedSummary()
         } else if (userStoppedDuringLap.value) {
+          // Bookmark the lap so the next play tap re-fires it instead of
+          // skipping silently into round N+1. Re-fire uses omitIntro=true
+          // so the bookend doesn't double up.
           userStoppedDuringLap.value = false
+          pendingLapResume.value = lap
         } else {
           simplePlayer.resume()
         }
@@ -3929,6 +3940,38 @@ const handleResume = async () => {
   // RESUME from pause — use resume() to continue from current phase
   // (play() always restarts from prompt, losing position mid-cycle)
   if (hasEverStarted.value) {
+    // If a pod lap was bookmarked by an earlier user-stop, replay it
+    // before letting SimplePlayer move on. omitIntro=true so the bookend
+    // doesn't repeat. After the replay we mirror the post-lap branches
+    // from the round-complete handler (ratchet write, session-end, or
+    // simplePlayer.resume into the next round).
+    if (pendingLapResume.value) {
+      const lap = pendingLapResume.value
+      pendingLapResume.value = null
+      isPlaying.value = true
+      const completed = await playPodLap(lap, true)
+      if (completed) {
+        podScheduler?.markLapCompleted().catch((err) => {
+          console.warn('[LearningPlayer] markLapCompleted failed (will retry next session):', err)
+        })
+      } else if (podLapSkippedByUser.value && turboActive.value) {
+        podScheduler?.skipAhead(1).catch((err) => {
+          console.warn('[LearningPlayer] skipAhead failed (will retry next session):', err)
+        })
+      }
+      podLapSkippedByUser.value = false
+      if (sessionEnded.value) {
+        showPausedSummary()
+      } else if (userStoppedDuringLap.value) {
+        // Stopped again during the replayed lap — bookmark and stay paused.
+        userStoppedDuringLap.value = false
+        pendingLapResume.value = lap
+        isPlaying.value = false
+      } else {
+        simplePlayer.resume()
+      }
+      return
+    }
     simplePlayer.resume()
     return
   }
