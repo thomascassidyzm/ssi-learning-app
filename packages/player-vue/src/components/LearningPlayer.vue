@@ -1895,13 +1895,19 @@ const playPodSegment = async (audioId: string, durationMs?: number, playbackSpee
  *   target → target  = SUPER_TIGHT — reinforcement reps flow
  *
  * Between chunks (one chunk's last play → next chunk's first play):
- *   glued at stage 7 = 0ms         — sew them together at single-2× rep
- *   glued earlier   = GLUED        — small breath, still close-coupled
- *   not glued       = BETWEEN      — Aran's "between phrases" pause
+ *   glued at eternal stage = 0ms — sew them together at the single-2× rep
+ *   glued earlier         = GLUED — small breath, still close-coupled
+ *   not glued             = BETWEEN — Aran's "between phrases" pause
  */
 // Inter-play gap matrix — values come live from algorithm_config.pods so
 // admin tweaks land on the next lap. Aran's 2026-05-05 defaults are kept
-// as fallback in DEFAULT_PODS (useAlgorithmConfig).
+// as fallback in DEFAULT_PODS (useAlgorithmConfig). The "eternal stage"
+// is the highest-numbered key in stagePlaylist (was 7, will become 8
+// after the new stage 2 ships, may shift again as Aran tunes).
+const eternalStage = computed(() => {
+  const keys = Object.keys(podsConfig.value.stagePlaylist || {}).map(Number).filter(n => !Number.isNaN(n))
+  return keys.length > 0 ? Math.max(...keys) : 7
+})
 const podGapMs = (curr: PodPlay, next: PodPlay | null): number => {
   if (!next) return 0
   const gaps = podsConfig.value
@@ -1917,7 +1923,7 @@ const podGapMs = (curr: PodPlay, next: PodPlay | null): number => {
   }
   // Different chunk — glue + stage decide
   if (curr.glueToNextChunk) {
-    return curr.stage === 7 ? 0 : gaps.gapGluedMs
+    return curr.stage === eternalStage.value ? 0 : gaps.gapGluedMs
   }
   return gaps.gapBetweenMs
 }

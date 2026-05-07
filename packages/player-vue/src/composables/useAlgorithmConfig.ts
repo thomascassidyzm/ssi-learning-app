@@ -114,14 +114,18 @@ const DEFAULT_LISTENING: ListeningModeConfig = {
 }
 
 const DEFAULT_PODS: PodsConfig = {
+  // Stage count is dynamic — the runtime reads the key count, the
+  // highest-numbered key is the eternal hold. Aran's 2026-05-07 spec
+  // adds a new stage 2 to bridge "no 2×" → "all 2×".
   stagePlaylist: {
     '1': ['ps', 'trans', 'ps', 'ps'],
-    '2': ['ps', 'trans', 'ps2x', 'ps2x'],
-    '3': ['ps', 'trans', 'ps2x'],
-    '4': ['ps2x', 'trans', 'ps2x'],
-    '5': ['ps', 'ps2x'],
-    '6': ['ps2x', 'ps2x'],
-    '7': ['ps2x'],
+    '2': ['ps', 'trans', 'ps', 'ps2x'],
+    '3': ['ps', 'trans', 'ps2x', 'ps2x'],
+    '4': ['ps', 'trans', 'ps2x'],
+    '5': ['ps2x', 'trans', 'ps2x'],
+    '6': ['ps', 'ps2x'],
+    '7': ['ps2x', 'ps2x'],
+    '8': ['ps2x'],
   },
   stageDuration: 5,
   gapSuperTightMs: 100,

@@ -40,43 +40,56 @@ export type PodPlayRole = 'ps' | 'trans' | 'ps2x'
 /**
  * Default stage playlists — mirrored to the `pods` row in algorithm_config.
  * PS = pod sentence at 1.0×, PS×2 at 2.0×, trans = known-language translation.
+ *
+ * The number of stages is *not* hardcoded in the runtime — podStageFor reads
+ * `totalStages` from the actual playlist. Admins can add / remove stages
+ * from the listening admin page without code changes; the highest-numbered
+ * stage is always treated as the eternal hold.
+ *
  * Stage 1 is intentionally all 1.0× — no 2× until stage 2 — so the learner
- * gets a clean target / known / target / target intro.
+ * gets a clean target / known / target / target intro. Aran's 2026-05-07
+ * insertion (new stage 2) bridges the jump from "no 2×" to "all 2×".
  */
 export const DEFAULT_STAGE_PLAYLIST: Record<number, PodPlayRole[]> = {
   1: ['ps', 'trans', 'ps', 'ps'],
-  2: ['ps', 'trans', 'ps2x', 'ps2x'],
-  3: ['ps', 'trans', 'ps2x'],
-  4: ['ps2x', 'trans', 'ps2x'],
-  5: ['ps', 'ps2x'],
-  6: ['ps2x', 'ps2x'],
-  7: ['ps2x'],
+  2: ['ps', 'trans', 'ps', 'ps2x'],
+  3: ['ps', 'trans', 'ps2x', 'ps2x'],
+  4: ['ps', 'trans', 'ps2x'],
+  5: ['ps2x', 'trans', 'ps2x'],
+  6: ['ps', 'ps2x'],
+  7: ['ps2x', 'ps2x'],
+  8: ['ps2x'],
 }
 
 /**
- * Default pod-rounds spent in each of stages 1–6 before promoting. Stage 7
- * is the eternal holding bay. Aran asked for 5 (was 3) — gives the learner
- * more reps at each pattern before the speed/structure changes.
+ * Default pod-rounds spent in each transitional stage before promoting.
+ * The final stage is eternal regardless. Aran asked for 5 (was 3) — gives
+ * the learner more reps at each pattern before the speed/structure changes.
  */
 export const DEFAULT_STAGE_DURATION = 5
 
-/** Stages 1–6 each last `stageDuration` pod-rounds; stage 7 is eternal.
- *  stageDuration defaults to DEFAULT_STAGE_DURATION; pass the live value
- *  from algorithm_config.pods to honour admin tweaks. */
+/**
+ * Map an alive-count to a stage. Transitional stages 1..(totalStages-1)
+ * each last `stageDuration` pod-rounds; the highest-numbered stage is
+ * eternal. `totalStages` defaults to the length of DEFAULT_STAGE_PLAYLIST
+ * so unit tests calling podStageFor() without args still see consistent
+ * behaviour; callers in the runtime pass the live playlist's key count.
+ */
 export function podStageFor(
   entryPodRound: number,
   currentPodRound: number,
   stageDuration: number = DEFAULT_STAGE_DURATION,
+  totalStages: number = Object.keys(DEFAULT_STAGE_PLAYLIST).length,
 ): { stage: number; iter: number | null } | null {
   const alive = currentPodRound - entryPodRound + 1
   if (alive < 1) return null
-  for (let stage = 1; stage <= 6; stage++) {
+  for (let stage = 1; stage < totalStages; stage++) {
     const stageEnd = stage * stageDuration
     if (alive <= stageEnd) {
       return { stage, iter: alive - (stage - 1) * stageDuration }
     }
   }
-  return { stage: 7, iter: null }
+  return { stage: totalStages, iter: null }
 }
 
 const DEFAULT_POD_ACTIVATION = 6
@@ -273,16 +286,19 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
 
     // Snapshot the live config — stagePlaylist keys are strings in JSON,
     // numbers in the default; normalise via `String(stage)` lookup.
+    // totalStages is derived from the actual key count so admins can
+    // add or remove stages from the admin page without code changes.
     const livePlaylist = unwrap(options.stagePlaylist) as Record<string | number, PodPlayRole[]> | undefined
     const liveDuration = unwrap(options.stageDuration) as number | undefined
     const stagePlaylistMap: Record<string | number, PodPlayRole[]> = livePlaylist || DEFAULT_STAGE_PLAYLIST
     const stageDuration: number = liveDuration ?? DEFAULT_STAGE_DURATION
+    const totalStages = Object.keys(stagePlaylistMap).length
 
     const plays: PodPlay[] = []
     for (let i = 1; i <= activeCount; i++) {
       const sentence = podSentences.value[i - 1]
       if (!sentence.target_audio_id) continue
-      const stageInfo = podStageFor(i, podRound, stageDuration)
+      const stageInfo = podStageFor(i, podRound, stageDuration, totalStages)
       if (!stageInfo) continue
       const playlist = stagePlaylistMap[stageInfo.stage] || stagePlaylistMap[String(stageInfo.stage)]
       if (!playlist) continue

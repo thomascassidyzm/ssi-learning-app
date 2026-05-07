@@ -80,9 +80,15 @@ describe('podStageFor', () => {
     expect(podStageFor(1, 6)?.stage).toBe(2)
     expect(podStageFor(1, 10)?.stage).toBe(2)
   })
-  it('stage 7 is the eternal hold for alive >= 31', () => {
-    expect(podStageFor(1, 31)?.stage).toBe(7)
-    expect(podStageFor(1, 100)?.stage).toBe(7)
+  it('stage 8 is the eternal hold for alive >= 36 (with default 8-stage playlist)', () => {
+    // 7 transitional stages × 5 rounds = 35 alive; stage 8 = eternal.
+    expect(podStageFor(1, 36)?.stage).toBe(8)
+    expect(podStageFor(1, 100)?.stage).toBe(8)
+  })
+  it('honours a custom totalStages so admins can add or remove stages', () => {
+    // With totalStages=4, stage 4 is eternal at alive >= 16 (3 × 5).
+    expect(podStageFor(1, 16, 5, 4)?.stage).toBe(4)
+    expect(podStageFor(1, 15, 5, 4)?.stage).toBe(3)
   })
 })
 
